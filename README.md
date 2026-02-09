@@ -55,6 +55,22 @@ Contributors list (growing with each new record): [@bozavlado](https://x.com/boz
 
 ## Running the current record
 
+### Internal debug
+On 8xH100 Voltage Park, run
+```bash
+git clone https://github.com/KellerJordan/modded-nanogpt.git && cd modded-nanogpt
+pip install -r requirements.txt
+pip install torch==2.10.0.dev20251210+cu126 --index-url https://download.pytorch.org/whl/nightly/cu126
+# downloads only the first 900M training tokens to save time
+python3 data/cached_fineweb10B.py 9
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+./run.sh
+```
+Alex set up a 8xH100 instance on Voltage Park and an 1xH100 instance on Lambda Cloud.
+SSH info is in `.ssh/`.
+Update those in your own `~/.ssh` after which you can SSH in your IDE.
+### End internal debug
 To run the current record, run the following commands.
 ```bash
 git clone https://github.com/KellerJordan/modded-nanogpt.git && cd modded-nanogpt
