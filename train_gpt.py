@@ -2058,11 +2058,15 @@ print0(f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 10
        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB", console=True)
 print0(f"final train loss: {last_logged_train_loss}", console=True)
 print0(f"final val loss: {last_logged_val_loss}", console=True)
+
+# --- --- --- EVALUATION DO NOT CHANGE  --- --- ---
+
 if master_process:
     torch.save(raw_model.state_dict(), "final_model.pt")
     model_bytes = os.path.getsize("final_model.pt")
     code_bytes = len(code.encode("utf-8"))
     print0(f"Serialized model: {model_bytes} bytes", console=True)
     print0(f"Code size: {code_bytes} bytes", console=True)
-    print0(f"Total submission size: {model_bytes + code_bytes} bytes", console=True)
+    print0(f"Total submission size: {model_bytes + code_bytes} bytes", console=True);
+
 dist.destroy_process_group()

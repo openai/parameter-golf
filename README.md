@@ -1,42 +1,21 @@
-# N-challenge
+# OpenAI N-challenge
 
-H100-focused GPT training repo.
+Train the best model you can with 50M parameters or less.
 
-Default launchers:
-- `./run.sh` (8x H100)
-- `./run_1xh100.sh` (1x H100)
+## Run
 
-## Running the current setup
-
-### Internal debug
-On 8xH100 Voltage Park, run
 ```bash
 git clone <repo-url> N-challenge && cd N-challenge
 pip install -r requirements.txt
-pip install -r data/requirements.txt
 python3 data/cached_fineweb10B.py 9
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
-./run.sh
+torchrun --standalone --nproc_per_node=8 train_gpt.py --config configs/train_gpt_8xh100.py
 ```
-### End internal debug
 
-For 1x H100:
-```bash
-pip install -r requirements.txt
-pip install -r data/requirements.txt
-python3 data/cached_fineweb10B.py 9
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-./run_1xh100.sh
+Alternatively, to run on 1x H100 use the follwoing training command instead:
 ```
-`run_1xh100.sh` launches with `USE_FLASH_ATTN=0`.
-
-## Configs
-
-`train_gpt.py` reads `--config`:
-```bash
-torchrun --standalone --nproc_per_node=1 train_gpt.py --config configs/train_gpt_1xh100.py
+USE_FLASH_ATTN=0 torchrun --standalone --nproc_per_node=1 train_gpt.py --config configs/train_gpt_1xh100.py
 ```
 
 ## Notes
