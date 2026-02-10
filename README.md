@@ -25,3 +25,7 @@ USE_FLASH_ATTN=0 torchrun --standalone --nproc_per_node=1 train_gpt.py --config 
 - On this runtime, `USE_FLASH_ATTN=1` fails with `non-finite mean train loss` (latest probe at step 174). With `USE_FLASH_ATTN=0`, train and val stay finite through step 500 in current checks (`val_loss=9.6280` at step 250).
 - Detailed architecture notes are in `AGENTS.md`.
 - Lambda runbook is in `LAMBDA_SETUP_COMMANDS.md`.
+
+# Internal
+
+Run bbb cptree az://oaidatasets2/speedrunkits/fineweb10B/ data/fineweb10B/ instead of dataset loading.
