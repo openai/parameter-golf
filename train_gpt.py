@@ -1,11 +1,28 @@
 import os
 import sys
 
+def pop_config_path_from_argv(default_path: str) -> str:
+    if "--config" not in sys.argv:
+        return default_path
+    index = sys.argv.index("--config")
+    assert index + 1 < len(sys.argv), "Expected a value after --config"
+    value = sys.argv[index + 1]
+    del sys.argv[index:index + 2]
+    return value
+
+script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+default_config_path = os.path.join(script_dir, "configs/train_gpt_8xh100.py")
+config_path = os.path.abspath(pop_config_path_from_argv(default_config_path))
+assert os.path.isfile(config_path), f"Missing config file: {config_path}"
+
 # Read the current file and the kernels file code ASAP, for logging
 with open(sys.argv[0], 'r') as f:
     code = f.read()
 with open(os.path.join(os.path.dirname(sys.argv[0]), 'triton_kernels.py'), 'r') as f:
     code += f"\n\n{'-'*40}\n# triton_kernels.py\n{'-'*40}\n\n"
+    code += f.read()
+with open(config_path, 'r') as f:
+    code += f"\n\n{'-'*40}\n# {os.path.basename(config_path)}\n{'-'*40}\n\n"
     code += f.read()
 
 import copy
@@ -14,6 +31,7 @@ import math
 import threading
 import time
 import uuid
+from contextlib import nullcontext
 from dataclasses import dataclass
 from itertools import accumulate, pairwise
 from pathlib import Path
@@ -35,15 +53,76 @@ from kernels import get_kernel
 from torch import Tensor, nn
 
 from triton_kernels import XXT, ba_plus_cAA, FusedLinearReLUSquareFunction, FusedSoftcappedCrossEntropy
+from train_gpt_constants import load_train_constants
 
 dynamo.config.recompile_limit = 64
+
+config = load_train_constants(config_path)
+
+target_total_gpus = config.target_total_gpus
+assert target_total_gpus > 0
+assert config.optimizer_lr_scale > 0.0
+assert config.optimizer_wd_scale >= 0.0
+DROP_ZERO_LENGTH_SEQLENS = config.drop_zero_length_seqlens
+
+DEBUG_NUMERICS = os.environ.get("DEBUG_NUMERICS", "0") == "1"
+DEBUG_NUMERICS_WARMUP = os.environ.get("DEBUG_NUMERICS_WARMUP", "0") == "1"
+DEBUG_ANOMALY = os.environ.get("DEBUG_ANOMALY", "0") == "1"
+USE_FUSED_TRAIN_LOSS = os.environ.get("USE_FUSED_TRAIN_LOSS", "1") == "1"
+USE_FP8_MATMUL = os.environ.get("USE_FP8_MATMUL", "1") == "1"
+USE_FLASH_ATTN = os.environ.get("USE_FLASH_ATTN", "1") == "1"
+TRAIN_LOSS_EVERY = int(os.environ.get("TRAIN_LOSS_EVERY", "0"))
+
+# Shared constants across 8x and 1x profiles.
+MODEL_HEAD_DIM = 128
+
+DATA_PATH_DEFAULT = "."
+TRAIN_FILES_PATTERN = "data/fineweb10B/fineweb_train_*.bin"
+VAL_FILES_PATTERN = "data/fineweb10B/fineweb_val_*.bin"
+VAL_TOKENS = 10485760
+TRAIN_MAX_SEQ_LEN = 128 * 16
+NUM_SCHEDULED_ITERATIONS = 1515
+NUM_EXTENSION_ITERATIONS = 40
+VAL_LOSS_EVERY = 250
+SAVE_CHECKPOINT = False
+BIGRAM_VOCAB_SIZE = 50304 * 5
+
+MUON_WARMUP_STEPS = 300
+MUON_COOLDOWN_STEPS = 50
+MUON_MOMENTUM_MIN = 0.85
+MUON_MOMENTUM_MAX = 0.95
+
+SCHEDULE_COOLDOWN_FRAC = 0.55
+SCHEDULE_SPLIT_EMBED_STAGE = 2
+SCHEDULE_WS_POST_YARN_EXT = 20
+SCHEDULE_STAGE_DURATIONS = (1 / 3, 1 / 3, 1 / 3, None)
+SCHEDULE_STAGE_WINDOWS = ((1, 3), (3, 7), (5, 11), (6, 13))
+SCHEDULE_STAGE_LR_MULS = (1.0, 1.52, 1.73, 1.0)
+SCHEDULE_STAGE_MTP_WEIGHTS_START = (
+    (1.0, 0.5, 0.25),
+    (1.0, 0.5),
+    (1.0,),
+    (1.0,),
+)
+SCHEDULE_STAGE_MTP_WEIGHTS_END = (
+    (1.0, 0.5, 0.0),
+    (1.0, 0.0),
+    (1.0,),
+    (1.0,),
+)
+
+model_num_layers = config.model_num_layers
+model_num_heads = config.model_num_heads
+model_dim = config.model_dim
+assert model_num_layers >= 4
+assert model_dim == model_num_heads * MODEL_HEAD_DIM
 
 # -----------------------------------------------------------------------------
 # Distributed training setup
 rank = int(os.environ["RANK"])
 world_size = int(os.environ["WORLD_SIZE"])
-assert 8 % world_size == 0, "world_size must be a divisor of 8"
-grad_accum_steps = 8 // world_size
+assert target_total_gpus % world_size == 0, f"world_size must divide TARGET_TOTAL_GPUS={target_total_gpus}"
+grad_accum_steps = target_total_gpus // world_size
 grad_scale = 2 / grad_accum_steps # consistent grad magnitudes between different num_devices
 assert torch.cuda.is_available()
 device = torch.device("cuda", int(os.environ["LOCAL_RANK"]))
@@ -817,7 +896,7 @@ class CastedLinearT(nn.Module):
             nn.init.zeros_(self.weight) # @Grad62304977 and others
 
     def forward(self, x: Tensor):
-        if self.use_fp8 and self.training:
+        if self.use_fp8 and USE_FP8_MATMUL and self.training:
             _x = x.flatten(0, -2)
             out = torch.ops.nanogpt.mm_t(_x, self.weight, x_s=self.x_s, w_s=self.w_s, grad_s=self.grad_s)[0]
             return out.reshape(*x.shape[:-1], -1)
@@ -909,6 +988,58 @@ class AttnArgs:
 
 flash_attn_interface = get_kernel('varunneal/flash-attention-3').flash_attn_interface
 
+
+def _attention_varlen(q: Tensor, k: Tensor, v: Tensor, seqlens: Tensor, max_len: int, bm_size: int, scale: float):
+    is_compiling = getattr(dynamo, "is_compiling", lambda: False)()
+    if DEBUG_NUMERICS and not is_compiling:
+        if seqlens.numel() >= 2 and not torch.all(seqlens[1:] > seqlens[:-1]):
+            raise RuntimeError(
+                "non-increasing seqlens passed to attention path: "
+                f"head={seqlens[:16].tolist()} tail={seqlens[-16:].tolist()}"
+            )
+        if seqlens[-1].item() != q.size(1):
+            raise RuntimeError(
+                f"seqlens[-1] must equal token length, got {seqlens[-1].item()} vs {q.size(1)}"
+            )
+
+    if USE_FLASH_ATTN:
+        return flash_attn_interface.flash_attn_varlen_func(
+            q[0],
+            k[0],
+            v[0],
+            cu_seqlens_q=seqlens,
+            cu_seqlens_k=seqlens,
+            max_seqlen_q=max_len,
+            max_seqlen_k=max_len,
+            causal=True,
+            softmax_scale=scale,
+            window_size=(bm_size, 0),
+        )
+
+    # Debug fallback path: explicit segment+causal+window mask with SDPA.
+    T = q.size(1)
+    positions = torch.arange(T, device=q.device, dtype=torch.int64)
+    segment_ids = torch.bucketize(positions, seqlens[1:].to(torch.int64), right=False)
+    same_segment = segment_ids[:, None].eq(segment_ids[None, :])
+    causal = positions[:, None] >= positions[None, :]
+    local_window = (positions[:, None] - positions[None, :]) < bm_size
+    attn_mask = (same_segment & causal & local_window)[None, None]
+
+    qh = q.transpose(1, 2)
+    kh = k.transpose(1, 2)
+    vh = v.transpose(1, 2)
+    y = F.scaled_dot_product_attention(
+        qh,
+        kh,
+        vh,
+        attn_mask=attn_mask,
+        dropout_p=0.0,
+        is_causal=False,
+        scale=scale,
+    )
+    return y.transpose(1, 2)[0]
+
+
 class CausalSelfAttention(nn.Module):
     def __init__(self, dim: int, head_dim: int, num_heads: int, paired: bool = False):
         super().__init__()
@@ -969,10 +1100,7 @@ class CausalSelfAttention(nn.Module):
             seqlens = 2 * seqlens
             max_len = 2 * max_len
 
-        # use flash_attn over flex_attn @varunneal. flash_attn_varlen suggested by @YouJiacheng
-        y = flash_attn_interface.flash_attn_varlen_func(q[0], k[0], v[0], cu_seqlens_q=seqlens, cu_seqlens_k=seqlens,
-                                                        max_seqlen_q=max_len, max_seqlen_k=max_len,
-                                                        causal=True, softmax_scale=yarn.attn_scale, window_size=(bm_size, 0))
+        y = _attention_varlen(q, k, v, seqlens, max_len, bm_size, yarn.attn_scale)
         y = y.view(B, T, self.num_heads, self.head_dim)
         y = y * torch.sigmoid(F.linear(x[..., :12], attn_gate_w)).view(B, T, self.num_heads, 1)
         y = y.contiguous().view(B, T, self.num_heads * self.head_dim) # re-assemble all head outputs side by side
@@ -1020,8 +1148,16 @@ class ForwardScheduleConfig:
 class GPT(nn.Module):
     def __init__(self, vocab_size: int, num_layers: int, num_heads: int, head_dim: int, model_dim: int, max_seq_len: int):
         super().__init__()
+        assert num_layers >= 4, "GPT forward path currently requires at least 4 layers"
+        assert num_heads * head_dim == model_dim
         self.num_layers = num_layers
         self.vocab_size = next_multiple_of_n(vocab_size, n=128)
+
+        # Architecture indices shared across 8x and 1x profiles.
+        self.skip_in_layers = [3] if num_layers > 6 else []
+        self.skip_out_layers = [6] if num_layers > 6 else []
+        self.backout_layer = 7 if num_layers > 7 else None
+        self.long_window_layers = sorted({3, num_layers - 1})
 
         self.smear_gate = nn.Linear(12, 1, bias=False)
         nn.init.zeros_(self.smear_gate.weight)
@@ -1036,20 +1172,20 @@ class GPT(nn.Module):
         self.value_embeds = nn.Parameter(torch.zeros(5 * self.vocab_size, model_dim, dtype=torch.bfloat16))
         self.value_embeds.label = 'value_embed'
 
+        # Identify which layers have attention/MLP
+        # Attention is skipped in layer 6 by @YouJiacheng
+        self.attn_layer_indices = [i for i in range(num_layers) if i != 6]
+        # All layers have MLP (At 11 layers--dropped first layer @EmelyanenkoK)
+        self.mlp_layer_indices = list(range(num_layers))
+
         # parameter banks for attention and value embedding gate weights
-        self.attn_gate_bank = nn.Parameter(torch.zeros(10, num_heads, 12)) # 10 layers
+        self.attn_gate_bank = nn.Parameter(torch.zeros(len(self.attn_layer_indices), num_heads, 12))
         self.attn_gate_bank.label = 'attn_gate_bank'
         self.ve_gate_bank = nn.Parameter(torch.zeros(5, num_heads, 12)) # 5 unique gates
         self.ve_gate_bank.label = 've_gate_bank'
 
         # -----------------------------------
         # Parameter banks for sharded optimization, by @chrisjmccormick
-
-        # Identify which layers have attention/MLP
-        # Attention is skipped in layer 6 by @YouJiacheng
-        self.attn_layer_indices = [i for i in range(num_layers) if i != 6]
-        # All layers have MLP (At 11 layers--dropped first layer @EmelyanenkoK)
-        self.mlp_layer_indices = list(range(num_layers))
 
         hdim = num_heads * head_dim
         mlp_hdim = 4 * model_dim
@@ -1086,7 +1222,7 @@ class GPT(nn.Module):
             self.mlp_bank[:, 1, :, :].zero_()  # c_proj - zero init suggested by @Grad62304977
 
         # Create blocks with has_attn/has_mlp flags
-        self.paired_head_layers = [0, 2, 5, 9]
+        self.paired_head_layers = [i for i in [0, 2, 5, 9] if i < num_layers]
         self.blocks = nn.ModuleList([
             Block(model_dim, head_dim, num_heads,
                   has_attn=(i in self.layer_to_attn_idx),
@@ -1137,15 +1273,18 @@ class GPT(nn.Module):
     def forward(self, input_seq: Tensor, target_seq: Tensor, seqlens: Tensor, bigram_input_seq: Tensor, schedule_cfg: ForwardScheduleConfig):
         assert input_seq.ndim == 1
 
+        if DROP_ZERO_LENGTH_SEQLENS:
+            seqlens = torch.unique_consecutive(seqlens).contiguous()
+
         # unpack schedule_cfg
         mtp_weights, ws_short, ws_long = schedule_cfg.mtp_weights, schedule_cfg.ws_short, schedule_cfg.ws_long
 
         # set configs
         skip_connections = []
-        skip_in = [3] # long attention window on layer 3
-        skip_out = [6] # no attn op on layer 6
+        skip_in = self.skip_in_layers
+        skip_out = self.skip_out_layers
         x_backout = None
-        backout_layer = 7
+        backout_layer = self.backout_layer
 
         # set lambdas
         resid_lambdas = self.scalars[: 1 * self.num_layers]
@@ -1157,8 +1296,11 @@ class GPT(nn.Module):
         skip_lambda = self.scalars[4 * self.num_layers+2]
 
         # set block masks and key shift
-        bm_sizes = [ws_short, ws_short, ws_short, ws_long, ws_short, ws_short, None, ws_short, ws_short, ws_short, ws_long]
-        assert len(bm_sizes) == self.num_layers
+        bm_sizes = [ws_short] * self.num_layers
+        for layer_idx in self.long_window_layers:
+            bm_sizes[layer_idx] = ws_long
+        for layer_idx in skip_out:
+            bm_sizes[layer_idx] = None
         key_offset = [b==ws_long for b in bm_sizes] # apply partial key offset to long windows
 
         # Embedding lookup - embed is synced from lm_head during tied phase by optimizer
@@ -1166,10 +1308,11 @@ class GPT(nn.Module):
         x0_bigram = self.bigram_embed(bigram_input_seq)[None]
 
         # Value embeddings - always computed (not precomputed)
-        ve = self.value_embeds.view(5, self.vocab_size, -1)[:, input_seq]
-        # 01 ... 234 structure on token value embeddings by @photomz
-        ve = [ve[0], ve[1]] + [None] * (self.num_layers - 5) + [ve[2], ve[3], ve[4]]
-        assert len(ve) == self.num_layers
+        ve_values = self.value_embeds.view(5, self.vocab_size, -1)[:, input_seq]
+        ve = [None] * self.num_layers
+        ve_slots = sorted({0, 1, self.num_layers - 3, self.num_layers - 2, self.num_layers - 1})
+        for slot_idx, layer_idx in enumerate(ve_slots):
+            ve[layer_idx] = ve_values[slot_idx]
 
         # smear token embed forward 1 position @classiclarryd
         smear_gate_out = smear_lambda * torch.sigmoid(self.smear_gate(x[1:, :self.smear_gate.weight.size(-1)]))
@@ -1179,8 +1322,14 @@ class GPT(nn.Module):
         # unbind gate banks to avoid select_backwards kernel
         ag = [w.bfloat16() for w in self.attn_gate_bank.unbind(0)]
         veg = [w.bfloat16() for w in self.ve_gate_bank.unbind(0)]
-        attn_gates = ag[:6] + [None] + ag[6:]
-        ve_gates = [veg[0], veg[1]] + [None] * (self.num_layers - 5) + [veg[2], veg[3], veg[4]]
+        if self.num_layers > 6:
+            attn_gates = ag[:6] + [None] + ag[6:]
+        else:
+            attn_gates = ag
+        ve_gates = [None] * self.num_layers
+        ve_gate_slots = sorted({0, 1, self.num_layers - 3, self.num_layers - 2, self.num_layers - 1})
+        for slot_idx, layer_idx in enumerate(ve_gate_slots):
+            ve_gates[layer_idx] = veg[slot_idx]
         assert len(attn_gates) == self.num_layers
         assert len(ve_gates) == self.num_layers
 
@@ -1217,16 +1366,17 @@ class GPT(nn.Module):
             x = self.blocks[i](x, attn_args, qkvo_w, c_fc, c_proj)
             if i in skip_in:
                 skip_connections.append(x)
-            if i == backout_layer:
+            if backout_layer is not None and i == backout_layer:
                 x_backout = x
 
-        # back out contributions from first 7 layers that are only required for downstream context and not direct prediction
-        x -= backout_lambda * x_backout
+        if x_backout is not None:
+            # back out contributions from early layers that are only required for downstream context and not direct prediction
+            x -= backout_lambda * x_backout
         x = norm(x)
         logits = self.lm_head(x)
         # @Grad62304977 added tanh softcapping following Gemma 2 paper, @KoszarskyB reduced it from 30 to 15
         # @YouJiacheng shifted it by +15 (2*sigmoid(2*x)=tanh(x)+1). @classiclarryd updated to 23*sigmoid((logits+5)/7.5)
-        if self.training:
+        if self.training and USE_FUSED_TRAIN_LOSS:
             losses = FusedSoftcappedCrossEntropy.apply(logits.view(-1, logits.size(-1)), target_seq, mtp_weights, 23.0, 5.0, 7.5)
             loss = losses.sum()
         else:
@@ -1419,22 +1569,23 @@ def distributed_data_generator(filename_pattern: str, num_tokens: int, max_seq_l
 @dataclass
 class Hyperparameters:
     # data
-    data_path = os.environ.get("DATA_PATH", ".")
-    train_files: str = os.path.join(data_path, "data/fineweb10B/fineweb_train_*.bin") # input .bin to train on
-    val_files: str = os.path.join(data_path, "data/fineweb10B/fineweb_val_*.bin") # input .bin to eval validation loss on
-    val_tokens: int = 10485760 # how many tokens of validation data? it's important to keep this fixed for consistent comparisons
+    data_path = os.environ.get("DATA_PATH", DATA_PATH_DEFAULT)
+    train_files: str = os.path.join(data_path, TRAIN_FILES_PATTERN) # input .bin to train on
+    val_files: str = os.path.join(data_path, VAL_FILES_PATTERN) # input .bin to eval validation loss on
+    val_tokens: int = VAL_TOKENS # how many tokens of validation data? it's important to keep this fixed for consistent comparisons
     # batch sizes
-    train_max_seq_len: int = 128 * 16
-    val_batch_size: int = 4 * 64 * 1024 * 8
+    train_max_seq_len: int = TRAIN_MAX_SEQ_LEN
+    val_batch_size: int = config.val_batch_size
     # schedule
-    num_scheduled_iterations: int = 1515  # number of steps to complete lr and ws schedule
-    num_extension_iterations: int = 40  # number of steps to continue training at final lr and ws
+    num_scheduled_iterations: int = NUM_SCHEDULED_ITERATIONS  # number of steps to complete lr and ws schedule
+    num_extension_iterations: int = NUM_EXTENSION_ITERATIONS  # number of steps to continue training at final lr and ws
+    empty_cache_every_steps: int = config.empty_cache_every_steps
     # evaluation and logging
     run_id: str = f"{uuid.uuid4()}"
-    val_loss_every: int = 250  # every how many steps to evaluate val loss? 0 for only at the end
-    save_checkpoint: bool = False
+    val_loss_every: int = VAL_LOSS_EVERY  # every how many steps to evaluate val loss? 0 for only at the end
+    save_checkpoint: bool = SAVE_CHECKPOINT
     # bigram hash embedding
-    bigram_vocab_size: int = 50304 * 5
+    bigram_vocab_size: int = BIGRAM_VOCAB_SIZE
 
 args = Hyperparameters()
 
@@ -1502,32 +1653,42 @@ class TrainingSchedule:
         return lr
 
 # window_sizes are in units of `block_size` tokens (defined in TrainingManager)
-TRAINING_STAGES = [
-    TrainingStage(duration=1/3, batch_size=8 * 2048 * 8, window_sizes=(1, 3), lr_mul=1.0,
-                  mtp_weights_start=[1.0, 0.5, 0.25], mtp_weights_end=[1.0, 0.5, 0.0]),
-    TrainingStage(duration=1/3, batch_size=16 * 2048 * 8, window_sizes=(3, 7), lr_mul=1.52,  # (16/8)**0.6
-                  mtp_weights_start=[1.0, 0.5], mtp_weights_end=[1.0, 0.0]),
-    TrainingStage(duration=1/3, batch_size=24 * 2048 * 8, window_sizes=(5, 11), lr_mul=1.73,  # (24/8)**0.5
-                  mtp_weights_start=[1.0], mtp_weights_end=[1.0]),
-    # extension stage
-    TrainingStage(batch_size=24 * 2048 * 8, window_sizes=(6, 13), lr_mul=1.0,  # lr_mul is not used
-                  mtp_weights_start=[1.0], mtp_weights_end=[1.0]),
-]
+assert len(config.stage_batch_sizes) == 4
 
-training_schedule = TrainingSchedule(TRAINING_STAGES, args.num_scheduled_iterations, args.num_extension_iterations, cooldown_frac=0.55)
+TRAINING_STAGES = []
+for i, batch_size in enumerate(config.stage_batch_sizes):
+    TRAINING_STAGES.append(
+        TrainingStage(
+            duration=SCHEDULE_STAGE_DURATIONS[i],
+            batch_size=batch_size,
+            window_sizes=SCHEDULE_STAGE_WINDOWS[i],
+            lr_mul=SCHEDULE_STAGE_LR_MULS[i],
+            mtp_weights_start=list(SCHEDULE_STAGE_MTP_WEIGHTS_START[i]),
+            mtp_weights_end=list(SCHEDULE_STAGE_MTP_WEIGHTS_END[i]),
+        )
+    )
 
-def get_muon_momentum(step: int, muon_warmup_steps=300, muon_cooldown_steps=50, momentum_min=0.85, momentum_max=0.95):
+training_schedule = TrainingSchedule(
+    TRAINING_STAGES,
+    args.num_scheduled_iterations,
+    args.num_extension_iterations,
+    cooldown_frac=SCHEDULE_COOLDOWN_FRAC,
+    split_embed_stage=SCHEDULE_SPLIT_EMBED_STAGE,
+    ws_post_yarn_ext=SCHEDULE_WS_POST_YARN_EXT,
+)
+
+def get_muon_momentum(step: int):
     # warmup phase: linearly increase momentum from min to max
     # cooldown phase: linearly decrease momentum from max to min
-    momentum_cd_start = training_schedule.total_steps - muon_cooldown_steps
-    if step < muon_warmup_steps:
-        frac = step / muon_warmup_steps
-        momentum = momentum_min + frac * (momentum_max - momentum_min)
+    momentum_cd_start = training_schedule.total_steps - MUON_COOLDOWN_STEPS
+    if step < MUON_WARMUP_STEPS:
+        frac = step / MUON_WARMUP_STEPS
+        momentum = MUON_MOMENTUM_MIN + frac * (MUON_MOMENTUM_MAX - MUON_MOMENTUM_MIN)
     elif step > momentum_cd_start:
-        frac = (step - momentum_cd_start) / muon_cooldown_steps
-        momentum = momentum_max - frac * (momentum_max - momentum_min)
+        frac = (step - momentum_cd_start) / MUON_COOLDOWN_STEPS
+        momentum = MUON_MOMENTUM_MAX - frac * (MUON_MOMENTUM_MAX - MUON_MOMENTUM_MIN)
     else:
-        momentum = momentum_max
+        momentum = MUON_MOMENTUM_MAX
     return momentum
 
 class TrainingManager():
@@ -1572,16 +1733,16 @@ class TrainingManager():
         ]
 
         adam_defaults = dict(
-            lr=0.008,
+            lr=0.008 * config.optimizer_lr_scale,
             eps=1e-10,
-            weight_decay=0.005,
+            weight_decay=0.005 * config.optimizer_wd_scale,
         )
 
         normuon_defaults = dict(
-            lr=0.023,
+            lr=0.023 * config.optimizer_lr_scale,
             momentum=0.95,
             beta2=0.95,
-            weight_decay=1.2,
+            weight_decay=1.2 * config.optimizer_wd_scale,
         )
 
         self.optimizer = NorMuonAndAdam(
@@ -1666,6 +1827,25 @@ class TrainingManager():
     def get_state(self):
         return copy.deepcopy(self.optimizer.state_dict())
 
+
+def _first_nonfinite_param(model: nn.Module, check_grad: bool):
+    for name, param in model.named_parameters():
+        if not torch.isfinite(param.data).all():
+            return f"param:{name}"
+        if check_grad and param.grad is not None and not torch.isfinite(param.grad).all():
+            return f"grad:{name}"
+    return None
+
+
+def _all_nonfinite_tensors(model: nn.Module, check_grad: bool):
+    names = []
+    for name, param in model.named_parameters():
+        if not torch.isfinite(param.data).all():
+            names.append(f"param:{name}")
+        if check_grad and param.grad is not None and not torch.isfinite(param.grad).all():
+            names.append(f"grad:{name}")
+    return names
+
 # -----------------------------------------------------------------------------
 # int main
 
@@ -1699,10 +1879,10 @@ print0("="*100)
 
 model: nn.Module = GPT(
     vocab_size=50257,
-    num_layers=11,
-    num_heads=6,
-    head_dim=128,
-    model_dim=768,
+    num_layers=model_num_layers,
+    num_heads=model_num_heads,
+    head_dim=MODEL_HEAD_DIM,
+    model_dim=model_dim,
     max_seq_len=args.val_batch_size // (grad_accum_steps * world_size)
 ).cuda()
 for m in model.modules():
@@ -1715,8 +1895,10 @@ model.mlp_bank.data = model.mlp_bank.data.bfloat16()
 for param in model.parameters():
     dist.broadcast(param.detach(), 0)
 
-model: nn.Module = torch.compile(model, dynamic=False, fullgraph=True)
+if config.compile_model:
+    model = torch.compile(model, dynamic=False, fullgraph=True)
 training_manager = TrainingManager(model)
+raw_model = model._orig_mod if hasattr(model, "_orig_mod") else model
 
 ########################################
 #            Warmup kernels            #
@@ -1737,13 +1919,28 @@ for step in warmup_steps:
     model.eval()
     with torch.no_grad():
         inputs, targets, cum_seqlens, bigram_inputs = next(val_loader)
-        model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args())
+        warmup_val_loss = model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args())
+        if DEBUG_NUMERICS and DEBUG_NUMERICS_WARMUP and not torch.isfinite(warmup_val_loss):
+            raise RuntimeError(f"non-finite warmup val loss at warmup_step={step}: {warmup_val_loss}")
     model.train()
     for idx in range(grad_accum_steps):
         send_args = training_manager.train_loader_send_args
         inputs, targets, cum_seqlens, bigram_inputs = train_loader.send(send_args)
-        (model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args()) * grad_scale).backward()
+        train_loss = model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args())
+        if DEBUG_NUMERICS and DEBUG_NUMERICS_WARMUP and not torch.isfinite(train_loss):
+            raise RuntimeError(f"non-finite warmup train loss at warmup_step={step}, micro_idx={idx}: {train_loss}")
+        backward_ctx = torch.autograd.detect_anomaly(check_nan=True) if DEBUG_ANOMALY else nullcontext()
+        with backward_ctx:
+            (train_loss * grad_scale).backward()
+        if DEBUG_NUMERICS and DEBUG_NUMERICS_WARMUP:
+            nonfinite_name = _first_nonfinite_param(model, check_grad=True)
+            if nonfinite_name is not None:
+                raise RuntimeError(f"non-finite tensor after warmup backward at warmup_step={step}, micro_idx={idx}: {nonfinite_name}")
     training_manager.step_optimizers(step)
+    if DEBUG_NUMERICS and DEBUG_NUMERICS_WARMUP:
+        nonfinite_name = _first_nonfinite_param(model, check_grad=False)
+        if nonfinite_name is not None:
+            raise RuntimeError(f"non-finite tensor after warmup optimizer at warmup_step={step}: {nonfinite_name}")
 print0("Resetting Model", console=True)
 model.zero_grad(set_to_none=True)
 model.load_state_dict(initial_state["model"])
@@ -1759,6 +1956,8 @@ train_loader = distributed_data_generator(args.train_files, TRAINING_STAGES[0].b
 gc.collect()
 
 training_time_ms = 0
+last_logged_train_loss = float("nan")
+last_logged_val_loss = float("nan")
 # start the clock
 torch.cuda.synchronize()
 t0 = time.perf_counter()
@@ -1767,6 +1966,8 @@ train_steps = training_schedule.total_steps
 for step in range(train_steps + 1):
     last_step = (step == train_steps)
     training_manager.advance_schedule(step)
+    if args.empty_cache_every_steps > 0 and step % args.empty_cache_every_steps == 0:
+        torch.cuda.empty_cache()
     # --------------- VALIDATION SECTION -----------------
     if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
         if last_step:
@@ -1780,12 +1981,20 @@ for step in range(train_steps + 1):
         val_loader = distributed_data_generator(args.val_files, args.val_batch_size, -1, grad_accum_steps=grad_accum_steps, align_to_bos=False)
         val_loss = 0
         with torch.no_grad():
-            for _ in range(val_steps):
+            for val_idx in range(val_steps):
                 inputs, targets, cum_seqlens, bigram_inputs = next(val_loader)
-                val_loss += model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args())
+                batch_val_loss = model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args())
+                if DEBUG_NUMERICS and not torch.isfinite(batch_val_loss):
+                    raise RuntimeError(f"non-finite validation batch loss at step={step}, val_idx={val_idx}: {batch_val_loss}")
+                val_loss += batch_val_loss
         val_loss /= val_steps
+        if DEBUG_NUMERICS and not torch.isfinite(val_loss):
+            raise RuntimeError(f"non-finite averaged validation loss at step={step}: {val_loss}")
         del val_loader
         dist.reduce(val_loss, 0, op=dist.ReduceOp.AVG)
+        if DEBUG_NUMERICS and not torch.isfinite(val_loss):
+            raise RuntimeError(f"non-finite reduced validation loss at step={step}: {val_loss}")
+        last_logged_val_loss = float(val_loss.item())
         print0(f"step:{step}/{train_steps} val_loss:{val_loss:.4f} train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms/max(step, 1):.2f}ms", console=True)
         model.train()
         # start the clock again
@@ -1801,15 +2010,59 @@ for step in range(train_steps + 1):
         break
 
     # --------------- TRAINING SECTION -----------------
+    train_loss_sum = 0.0
     for idx in range(grad_accum_steps):
         inputs, targets, cum_seqlens, bigram_inputs = train_loader.send(training_manager.train_loader_send_args)
-        (model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args()) * grad_scale).backward()
+        train_loss = model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args())
+        train_loss_sum += float(train_loss.detach().item())
+        if DEBUG_NUMERICS and not torch.isfinite(train_loss):
+            raise RuntimeError(f"non-finite train loss at step={step}, micro_idx={idx}: {train_loss}")
+        (train_loss * grad_scale).backward()
+        if DEBUG_NUMERICS:
+            nonfinite_name = _first_nonfinite_param(model, check_grad=True)
+            if nonfinite_name is not None:
+                nonfinite_all = _all_nonfinite_tensors(model, check_grad=True)
+                seqlens_cpu = cum_seqlens.detach().cpu()
+                diffs = seqlens_cpu[1:] - seqlens_cpu[:-1]
+                non_increasing = int((diffs <= 0).sum().item())
+                zero_length = int((diffs == 0).sum().item())
+                raise RuntimeError(
+                    f"non-finite tensor after backward at step={step}, micro_idx={idx}: {nonfinite_name}; "
+                    f"nonfinite_count={len(nonfinite_all)}; nonfinite_head={nonfinite_all[:12]}; "
+                    f"seqlens_non_increasing={non_increasing}; seqlens_zero_length={zero_length}; "
+                    f"seqlens_head={seqlens_cpu[:16].tolist()}"
+                )
     training_manager.step_optimizers(step)
+    if DEBUG_NUMERICS:
+        nonfinite_name = _first_nonfinite_param(model, check_grad=False)
+        if nonfinite_name is not None:
+            raise RuntimeError(f"non-finite tensor after optimizer at step={step}: {nonfinite_name}")
 
     # logging
     approx_training_time_ms = training_time_ms + 1000 * (time.perf_counter() - t0)
-    print0(f"step:{step+1}/{train_steps} train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms/(step + 1):.2f}ms", console=True)
+    mean_train_loss = train_loss_sum / grad_accum_steps
+    if not math.isfinite(mean_train_loss):
+        raise RuntimeError(f"non-finite mean train loss at step={step}: {mean_train_loss}")
+    last_logged_train_loss = mean_train_loss
+    log_train_loss = TRAIN_LOSS_EVERY > 0 and ((step + 1) % TRAIN_LOSS_EVERY == 0)
+    if log_train_loss:
+        print0(
+            f"step:{step+1}/{train_steps} train_loss:{mean_train_loss:.6f} "
+            f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms/(step + 1):.2f}ms",
+            console=True,
+        )
+    else:
+        print0(f"step:{step+1}/{train_steps} train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms/(step + 1):.2f}ms", console=True)
 
 print0(f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB", console=True)
+print0(f"final train loss: {last_logged_train_loss}", console=True)
+print0(f"final val loss: {last_logged_val_loss}", console=True)
+if master_process:
+    torch.save(raw_model.state_dict(), "final_model.pt")
+    model_bytes = os.path.getsize("final_model.pt")
+    code_bytes = len(code.encode("utf-8"))
+    print0(f"Serialized model: {model_bytes} bytes", console=True)
+    print0(f"Code size: {code_bytes} bytes", console=True)
+    print0(f"Total submission size: {model_bytes + code_bytes} bytes", console=True)
 dist.destroy_process_group()
