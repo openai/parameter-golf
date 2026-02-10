@@ -1,0 +1,179 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 42px auto 64px;
+  max-width: 1040px;
+  padding: 40px 96px;
+  font-family: "Times New Roman", Times, serif;
+  line-height: 1.55;
+  color: #000;
+  background: #fff;
+  text-align: left;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0 0 14px;
+  font-size: 2.3rem;
+  line-height: 1.15;
+}
+
+h2 {
+  margin: 32px 0 10px;
+  padding-top: 10px;
+  border-top: 1px solid #000;
+  font-size: 1.4rem;
+}
+
+h3 {
+  margin: 24px 0 8px;
+  font-size: 1.15rem;
+}
+
+p {
+  margin: 10px 0;
+  max-width: none;
+}
+
+nav {
+  margin: 0 auto 28px;
+  padding: 10px 14px;
+  border: 1px solid #000;
+  display: inline-block;
+}
+
+nav a {
+  margin: 0 10px;
+}
+
+a,
+a:visited,
+a:hover,
+a:active {
+  color: #000;
+}
+
+ul,
+ol {
+  display: block;
+  margin: 8px 0 12px;
+  padding-left: 26px;
+}
+
+li {
+  margin: 4px 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px auto 18px;
+}
+
+.featured-leaderboard {
+  margin: 26px 0 30px;
+  padding: 14px 14px 8px;
+  border: 2px solid #000;
+}
+
+.featured-leaderboard h2 {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.leaderboard-tabs {
+  margin: 12px 0 0;
+  padding: 0;
+  border-bottom: 1px solid #000;
+}
+
+.leaderboard-tab {
+  margin: 0 4px -1px 0;
+  border: 1px solid #000;
+  border-bottom: 1px solid #000;
+  padding: 7px 12px;
+  font-weight: 400;
+}
+
+.leaderboard-tab.is-active {
+  border-bottom: 1px solid #fff;
+  font-weight: 700;
+}
+
+.leaderboard-panel {
+  display: none;
+  padding-top: 10px;
+}
+
+.leaderboard-panel.is-active {
+  display: block;
+}
+
+.leaderboard-meta {
+  margin: 8px 0;
+}
+
+.leaderboard-meta.is-error {
+  font-weight: 700;
+}
+
+th,
+td {
+  border: 1px solid #000;
+  padding: 8px 10px;
+  vertical-align: top;
+  text-align: left;
+}
+
+button {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 1rem;
+  font-weight: 700;
+  border: 1px solid #000;
+  background: #fff;
+  color: #000;
+  padding: 8px 14px;
+}
+
+code,
+pre {
+  font-family: "Courier New", Courier, monospace;
+}
+
+pre {
+  border: 1px solid #000;
+  padding: 12px;
+  margin: 12px 0 18px;
+  overflow-x: auto;
+  text-align: left;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #000;
+  margin: 30px 0;
+}
+
+@media (max-width: 900px) {
+  body {
+    margin: 16px;
+    padding: 24px 18px;
+  }
+
+  nav {
+    display: block;
+  }
+
+  nav a {
+    display: inline-block;
+    margin: 4px 8px;
+  }
+}
