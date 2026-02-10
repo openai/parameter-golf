@@ -845,7 +845,8 @@ class NorMuonAndAdam:
         grad = grad.float()
         wd_factor = wd_tensor.to(torch.float32)
         lr_factor = lr_tensor.to(torch.float32)
-        p_precise_raw = (p.to(torch.uint32) << 16) | mantissa.to(torch.uint32)
+        # torch.uint32 bitshift is unavailable on some runtime stacks; int32 preserves bit patterns here.
+        p_precise_raw = (p.to(torch.int32) << 16) | mantissa.to(torch.int32)
         p_precise = p_precise_raw.view(torch.float32)
         mask = (grad * p_precise) >= 0
         p_precise.copy_(p_precise - (p_precise * mask * wd_factor * lr_factor) - (grad * lr_factor))
@@ -986,7 +987,11 @@ class AttnArgs:
     attn_gate_w: torch.Tensor
     ve_gate_w: torch.Tensor
 
-flash_attn_interface = get_kernel('varunneal/flash-attention-3').flash_attn_interface
+if USE_FLASH_ATTN:
+    try:
+        from flash_attn import flash_attn_interface
+    except Exception:
+        flash_attn_interface = get_kernel('varunneal/flash-attention-3').flash_attn_interface
 
 
 def _attention_varlen(q: Tensor, k: Tensor, v: Tensor, seqlens: Tensor, max_len: int, bm_size: int, scale: float):
