@@ -1,14 +1,25 @@
 # Local Notes
 
 - `train_gpt.py` loads constants from `--config <path>`, and config files must expose `CONFIG` as a `TrainConstants` object from `train_gpt_constants.py`.
-- `TrainConstants` intentionally only contains 8x/1x diff knobs: `target_total_gpus`, `model_num_layers`, `model_num_heads`, `model_dim`, `stage_batch_sizes`, `val_batch_size`, `optimizer_lr_scale`, `optimizer_wd_scale`, `drop_zero_length_seqlens`, `compile_model`, `empty_cache_every_steps`. Shared values (data paths, muon schedule, window schedule, val tokens, bigram vocab, etc.) stay in `train_gpt.py`.
+- Use the exact command blocks in `README.md` as the canonical repro flow; keep README commands runnable line-for-line before/after changes.
+- When validating setup on a fresh machine, run README commands exactly (no extra helper steps) before adding optional debug commands.
+- Use a single dependency install command: `pip install -r requirements.txt` (no separate `data/requirements.txt`).
+- Prefer `python3 -m torch.distributed.run` in launch commands instead of bare `torchrun`; some fresh hosts install torch scripts into `~/.local/bin` which is not on PATH by default.
+- `TrainConstants` intentionally only contains 8x/1x diff knobs: `target_total_gpus`, `model_num_layers`, `model_num_heads`, `model_dim`, `stage_batch_sizes`, `val_batch_size`, `optimizer_lr_scale`, `optimizer_wd_scale`, `drop_zero_length_seqlens`, `compile_model`, `empty_cache_every_steps`. Shared values (data paths, muon schedule, window schedule, val tokens, tokenizer vocab, etc.) stay in `train_gpt.py`.
+- Current data/tokenizer path uses SentencePiece 4k shards (`data/fineweb10B_sp4k/*`) and `train_gpt.py` aligns docs using `BOS_ID=1`; tokenizer models must preserve `bos_id=1` for BOS-aligned batching to remain valid.
+- `train_gpt.py` now expects fixed local shards at `data/fineweb10B_sp4k/` and fails immediately when train/val shard globs are missing.
+- Use `python3 data/cached_fineweb10B_sp4k.py 9` to download the current default 4k shards + tokenizer files in one step.
+- The 4k SentencePiece trainer now uses BPE + `byte_fallback=True`; keep `vocab_size=4096` and `bos_id=1` when regenerating shards so token IDs remain uint16-safe and BOS-aligned batching remains valid.
+- For this BPE setup, `character_coverage=1.0` is invalid at vocab 4096 (`required_chars` exceeds vocab when `byte_fallback=True`); keep coverage below 1.0 (currently `0.999`) unless vocab is increased.
+- Use `data/build_upload_4096_bpe.py` for one-command local rebuild + upload of tokenizer/shards to HF.
 - Config files under `configs/` are `chz`-based when available; `train_gpt_constants.py` provides a dataclass-compatible fallback for environments where `chz` is unavailable.
-- When syncing to Lambda with `rsync --delete`, exclude `data/fineweb10B/` and `logs/` or shards/logs get deleted; missing shards fail training with `No files found for pattern: ./data/fineweb10B/fineweb_val_*.bin`.
-- On this runtime, 1x runs can develop non-finite train gradients in the flash-attn varlen path; forcing `USE_FLASH_ATTN=0` (SDPA fallback) keeps train/val losses finite in current tests. Keep `run_1xh100.sh` launching with `USE_FLASH_ATTN=0` unless kernel behavior is re-validated.
+- Runpod pods currently tested here start with `torch 2.4.1+cu124`; this repo needs nightly `cu126` torch/triton (`triton.tools.tensor_descriptor`) before `train_gpt.py` will import.
+- When syncing to Lambda with `rsync --delete`, exclude `data/fineweb10B_sp4k/` and `logs/` or shards/logs get deleted; missing shards fail training with `No files found for pattern: ./data/fineweb10B_sp4k/fineweb_val_*.bin`.
+- On this runtime, 1x runs can develop non-finite train gradients in the flash-attn varlen path; forcing `USE_FLASH_ATTN=0` (SDPA fallback) keeps train/val losses finite in current tests.
 - On 1x H100 with current nightly stack, stage batch-shape transitions can cause CUDA OOM in `FusedSoftcappedCrossEntropy`; keep `configs/train_gpt_1xh100.py` train batch fixed at `3072` tokens across stages unless kernel memory behavior changes.
 - On the same 1x path, large validation batch shapes can leave too little post-eval memory headroom; keep `val_batch_size` at `4 * 1024` unless you re-validate memory behavior end-to-end.
 - On this runtime, long 1x runs are more stable with `compile_model=False` in `configs/train_gpt_1xh100.py`; keeping compile enabled caused progressive memory growth and eventual OOM.
-- With the current 1x profile (`model_num_layers=6`, `model_dim=512`, `model_num_heads=4`, `compile_model=False`, `empty_cache_every_steps=1`, `val_batch_size=4 * 1024`) and `USE_FLASH_ATTN=0`, train/val stay finite through at least step 500 in current tests (`val_loss=9.6280` at step 250 on Lambda).
+- With the current 1x profile (`model_num_layers=6`, `model_dim=512`, `model_num_heads=4`, `compile_model=False`, `empty_cache_every_steps=1`, `val_batch_size=4 * 1024`) and `USE_FLASH_ATTN=0`, train/val stay finite through at least step 500 in current tests (`val_loss=6.6203` at step 250 on Lambda).
 - The flash-attn path (`USE_FLASH_ATTN=1`) still fails on this runtime with `non-finite mean train loss` (latest probe at step 174); this points to a kernel-path instability rather than a validation-only issue or LR tuning issue.
 - For the same profile, per-step `torch.cuda.empty_cache()` (`empty_cache_every_steps=1`) is currently required on this host/runtime to avoid late-run OOMs from large reserved-but-unallocated CUDA blocks.
 
@@ -17,8 +28,8 @@
 This repository contains a custom GPT training stack optimized for H100 GPUs.
 
 Core path:
-1. Prepare FineWeb GPT-2 token shards (`data/*.py`).
-2. Launch distributed training (`train_gpt.py` via `run.sh` / `run_1xh100.sh`).
+1. Prepare FineWeb SentencePiece-4k token shards (`data/*.py`).
+2. Launch distributed training (`train_gpt.py` via `torchrun` + config path).
 3. Use Triton kernels (`triton_kernels.py`) for fused loss, fused MLP activation, and optimizer math.
 
 Both 8x and 1x paths run the same `train_gpt.py` hot path and differ by config values.
@@ -26,35 +37,27 @@ Both 8x and 1x paths run the same `train_gpt.py` hot path and differ by config v
 ## Repository Map
 
 ### Top level
-- `train_gpt.py`: main trainer used by default in `run.sh`.
+- `train_gpt.py`: main trainer entrypoint.
 - `train_gpt_medium.py`: alternate larger training config with a different schedule/optimizer orchestration.
 - `train_gpt_constants.py`: `chz` config schema + config loader used by `train_gpt.py`.
 - `configs/train_gpt_8xh100.py`: default 8x profile.
 - `configs/train_gpt_1xh100.py`: 1x profile.
 - `triton_kernels.py`: Triton kernels used directly by training.
-- `run.sh`: 8-GPU launch command.
-- `run_1xh100.sh`: 1-GPU launch command.
 - `Dockerfile`: CUDA + Python + dependency image for reproducible runs.
 - `requirements.txt`: root runtime dependencies.
 - `img/`: static project images.
 
 ### `data/`
-- `fineweb.py`: streams FineWeb from Hugging Face, tokenizes with GPT-2 tokenizer, writes binary shards.
-- `cached_fineweb10B.py`: downloads pre-tokenized FineWeb 10B shards.
-- `cached_fineweb100B.py`: downloads pre-tokenized FineWeb 100B shards.
-- `cached_finewebedu10B.py`: downloads pre-tokenized FineWebEDU 10B shards.
-- `requirements.txt`: data-prep-only deps (`datasets`, `tiktoken`).
+- `fineweb.py`: streams FineWeb from Hugging Face, tokenizes with SentencePiece, writes binary shards.
+- `train_sentencepiece_4k.py`: trains a 4k SentencePiece tokenizer model used by `fineweb.py`.
+- `cached_fineweb10B_sp4k.py`: downloads current default 4k-tokenized shards + tokenizer artifacts from `cocohearts/4096-bpe`.
+- `cached_fineweb10B.py`, `cached_fineweb100B.py`: legacy GPT-2-tokenized shard downloaders.
 
 ## Environment and Dependencies
 
 ### Host install
 ```bash
 pip install -r requirements.txt
-```
-
-### Data-prep install
-```bash
-pip install -r data/requirements.txt
 ```
 
 ### Docker image
@@ -78,19 +81,22 @@ python data/fineweb.py --version 100B
 
 Behavior:
 - Streams dataset split from `HuggingFaceFW/fineweb`.
-- Tokenizes with `tiktoken` GPT-2 encoding.
-- Prefixes each document with `<|endoftext|>`.
-- Writes shards under `data/fineweb10B/` or `data/fineweb100B/`.
+- Tokenizes with a SentencePiece model (default `data/tokenizers/fineweb_4k.model`).
+- Prefixes each document with tokenizer BOS (`bos_id=1`).
+- Writes shards under `data/fineweb10B_sp4k/` or `data/fineweb100B_sp4k/`.
 - First shard is validation (`fineweb_val_000000.bin`), remaining are training shards (`fineweb_train_*.bin`).
 
-### 2) Download cached token shards instead
+### 2) Train the 4k tokenizer model
+```bash
+python data/train_sentencepiece_4k.py --version 10B
+python data/train_sentencepiece_4k.py --version 100B
+```
+
+### 3) Legacy: download cached GPT-2 token shards instead
 ```bash
 python data/cached_fineweb10B.py
 python data/cached_fineweb100B.py
-python data/cached_finewebedu10B.py
 ```
-
-Optional first positional arg limits train chunk count.
 
 ### Binary shard format
 Each `.bin` file is:
@@ -136,7 +142,7 @@ Key components:
 - Token embedding + tied output head (`lm_head` / `embed`, split later by schedule).
 - Attention and MLP parameter banks for sharded optimization.
 - Smear/skip gates and value embeddings.
-- Bigram embedding path and scalar/gate parameter groups.
+- Scalar/gate parameter groups (residual, attention mix, smear/backout/skip controls).
 - YaRN-based RoPE objects for normal and paired-head paths.
 
 Important hard-coded behavior:
@@ -170,7 +176,7 @@ Communication/update is explicitly ordered with reduce-scatter/all-reduce/all-ga
 `distributed_data_generator(...)`:
 - Reads matching shard files.
 - Aligns to BOS when requested.
-- Produces rank-local flattened token buffers + cumulative lengths + bigram hashes.
+- Produces rank-local flattened token buffers + cumulative lengths.
 - Accepts runtime schedule updates through `.send((num_tokens, max_seq_len, grad_accum_steps))`.
 
 Validation uses the same generator with `align_to_bos=False`.
@@ -204,23 +210,37 @@ Use it only when you specifically want that medium-variant behavior.
 
 ### Default 8x H100 path
 ```bash
-./run.sh
-```
-
-Equivalent:
-```bash
 torchrun --standalone --nproc_per_node=8 train_gpt.py --config configs/train_gpt_8xh100.py
 ```
 
 ### 1x H100 path
 ```bash
-./run_1xh100.sh
+USE_FLASH_ATTN=0 torchrun --standalone --nproc_per_node=1 train_gpt.py --config configs/train_gpt_1xh100.py
 ```
 
-Equivalent:
+### Runpod setup + launch (1x H100)
 ```bash
-torchrun --standalone --nproc_per_node=1 train_gpt.py --config configs/train_gpt_1xh100.py
+# connect (Runpod endpoint here requires PTY)
+ssh -tt -i /Users/alexzhao/.ssh/voltage-park-test <runpod-user>@ssh.runpod.io
 ```
+
+```bash
+# on pod, after repo is present at /workspace/N-challenge
+cd /workspace/N-challenge
+python3 -m pip install --upgrade pip filelock
+pip3 install -r requirements.txt
+pip3 install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu126 --upgrade
+python3 - <<'PY'
+import importlib, torch, triton
+print(torch.__version__, torch.version.cuda, triton.__version__)
+importlib.import_module("triton.tools.tensor_descriptor")
+print("tensor_descriptor_ok")
+PY
+python3 data/cached_fineweb10B_sp4k.py 9
+USE_FLASH_ATTN=0 torchrun --standalone --nproc_per_node=1 train_gpt.py --config configs/train_gpt_1xh100.py
+```
+
+If `scp`/`rsync` is unavailable on this Runpod endpoint, transfer code with `runpodctl send` (local) and `runpodctl receive <code>` (pod), then move the unpacked folder to `/workspace/N-challenge`.
 
 Current stable 1x profile characteristics:
 - Train batch fixed at `3072` across stages.
@@ -228,8 +248,8 @@ Current stable 1x profile characteristics:
 - Model set to 6 layers, width 512, heads 4.
 - `compile_model=False`.
 - `empty_cache_every_steps=1`.
-- `USE_FLASH_ATTN=0` in launcher (`run_1xh100.sh`) to avoid non-finite train loss on this host/runtime.
-- Periodic validation remains finite through at least step 250 (`val_loss=9.6280`) in current checks.
+- `USE_FLASH_ATTN=0` in the 1x launch command to avoid non-finite train loss on this host/runtime.
+- Periodic validation remains finite through at least step 250 (`val_loss=6.6203`) in current checks.
 
 ### Runtime outputs
 - Text logs: `logs/<run_id>.txt`
@@ -238,7 +258,7 @@ Current stable 1x profile characteristics:
 
 ### Practical constraints
 - Requires CUDA GPUs and NCCL distributed setup.
-- Assumes data shards exist under `data/fineweb10B/` unless `DATA_PATH` or file patterns are changed.
+- Assumes data shards exist under `data/fineweb10B_sp4k/` unless `DATA_PATH` or file patterns are changed.
 - Uses strict assertions heavily; invalid scaling/configuration should fail immediately.
 
 ### Minimal customization points

@@ -1,4 +1,7 @@
 fineweb10B/
+data/fineweb10B_sp4k/
+data/fineweb100B_sp4k/
+data/tokenizers/
 pylog124M/
 __pycache__/
 logs/
