@@ -55,7 +55,25 @@ from torch import Tensor, nn
 from triton_kernels import XXT, ba_plus_cAA, FusedLinearReLUSquareFunction, FusedSoftcappedCrossEntropy
 from train_gpt_constants import load_train_constants
 
-dynamo.config.recompile_limit = 64
+if hasattr(dynamo.config, "recompile_limit"):
+    dynamo.config.recompile_limit = 64
+
+try:
+    from triton.compiler.compiler import triton_key as _triton_key
+    del _triton_key
+    _has_triton_key = True
+except Exception:
+    _has_triton_key = False
+USE_COMPILED_CUSTOM_OPS = os.environ.get("USE_COMPILED_CUSTOM_OPS", "1") == "1" and _has_triton_key
+
+def maybe_compile(fn=None, **compile_kwargs):
+    def _decorate(f):
+        if not USE_COMPILED_CUSTOM_OPS:
+            return f
+        return torch.compile(f, **compile_kwargs)
+    if fn is None:
+        return _decorate
+    return _decorate(fn)
 
 config = load_train_constants(config_path)
 
@@ -174,7 +192,7 @@ master_process = (rank == 0) # this process will do logging, checkpointing etc.
 @torch.library.custom_op("nanogpt::mm_t", mutates_args=())
 def mm_t_op(x: Tensor, w: Tensor, x_s: float, w_s: float, grad_s: float) -> tuple[Tensor, Tensor, Tensor]:
     """Computes y = x @ w with F8 weights stored as (in_features, out_features)."""
-    @torch.compile
+    @maybe_compile
     def impl(x: Tensor, w: Tensor):
         assert x.is_contiguous() and w.is_contiguous()
         assert x.shape[1] == w.shape[0]  # x: (batch, in), w: (in, out)
@@ -208,7 +226,7 @@ def _(x: Tensor, w: Tensor, *_):
 
 @torch.library.custom_op("nanogpt::mm_t_backward", mutates_args=())
 def mm_t_backward_op(g: Tensor, x_f8: Tensor, w_f8: Tensor, x_s: float, w_s: float, grad_s: float) -> tuple[Tensor, Tensor]:
-    @torch.compile
+    @maybe_compile
     def impl(grad: Tensor, x_f8: Tensor, w_f8: Tensor):
         assert grad.is_contiguous()
 
@@ -277,7 +295,7 @@ polar_express_coeffs = [
     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323)
 ]
 
-@torch.compile(dynamic=False, fullgraph=True) # Must use dynamic=False or else it's much slower
+@maybe_compile(dynamic=False, fullgraph=True) # Must use dynamic=False or else it's much slower
 def polar_express(G: torch.Tensor, split_baddbmm: bool = False):
     """
     Polar Express Sign Method: https://arxiv.org/pdf/2505.16932
@@ -808,7 +826,7 @@ class NorMuonAndAdam:
         return p_slice
 
     @staticmethod
-    @torch.compile(dynamic=False, fullgraph=True)
+    @maybe_compile(dynamic=False, fullgraph=True)
     def _adam_update_step(p_slice, g_slice, exp_avg, exp_avg_sq, beta1, beta2, eps, step_size_t, eff_wd_t):
         """Compiled Adam update step."""
         exp_avg.mul_(beta1).add_(g_slice, alpha=1 - beta1)
@@ -869,7 +887,7 @@ class NorMuonAndAdam:
         return p_slice
 
     @staticmethod
-    @torch.compile(dynamic=False, fullgraph=True)
+    @maybe_compile(dynamic=False, fullgraph=True)
     def _cautious_wd_and_update_inplace(p, mantissa, grad, wd_tensor, lr_tensor):
         """
         Cautious weight decay + parameter update. wd_tensor and lr_tensor are 0-D CPU tensors.
@@ -890,7 +908,7 @@ class NorMuonAndAdam:
         mantissa.copy_(p_precise_raw.to(torch.uint16))
 
     @staticmethod
-    @torch.compile(dynamic=False, fullgraph=True)
+    @maybe_compile(dynamic=False, fullgraph=True)
     def _apply_normuon_variance_reduction(v_chunk, second_momentum_buffer, beta2, red_dim):
         """NorMuon variance reduction. Algebraically fuses the normalization steps to minimize memory ops."""
         v_mean = v_chunk.float().square().mean(dim=red_dim, keepdim=True)
@@ -1104,7 +1122,9 @@ class CausalSelfAttention(nn.Module):
         # only include gates on layers with value embeds used on forward pass
         attn_gate_w, ve_gate_w = attn_args.attn_gate_w, attn_args.ve_gate_w
 
-        q, k, v = F.linear(x, sa_lambdas[0] * qkvo_w[:self.dim * 3].type_as(x)).view(B, T, 3 * self.num_heads, self.head_dim).chunk(3, dim=-2)
+        q, k, v = F.linear(
+            x, sa_lambdas[0] * qkvo_w[:self.dim * 3].type_as(x)
+        ).reshape(B, T, 3 * self.num_heads, self.head_dim).chunk(3, dim=-2)
         max_len = args.train_max_seq_len if self.training else (args.val_batch_size // (grad_accum_steps * world_size))
 
         q, k = norm(q), norm(k) # QK norm @Grad62304977
@@ -1117,7 +1137,7 @@ class CausalSelfAttention(nn.Module):
                 k[:, 1:, :, self.head_dim // 2:] = k[:, :-1, :, self.head_dim // 2:]
 
             if ve is not None:
-                ve_gate_out = 2 * torch.sigmoid(F.linear(x[..., :12], ve_gate_w)).view(B, T, self.num_heads, 1)
+                ve_gate_out = 2 * torch.sigmoid(F.linear(x[..., :12], ve_gate_w)).reshape(B, T, self.num_heads, 1)
                 v = v + ve_gate_out * ve.view_as(v) # @ KoszarskyB & @Grad62304977
 
         else:
@@ -1125,26 +1145,26 @@ class CausalSelfAttention(nn.Module):
             # Two copies of the input stream are interleaved to achieve this, which:
             # - doubles the length of each sequence
             # - halves the effective window size
-            q = q.view(B, T, self.num_heads // 2, self.head_dim * 2)
-            k = k.view(B, T, self.num_heads // 2, self.head_dim * 2)
+            q = q.reshape(B, T, self.num_heads // 2, self.head_dim * 2)
+            k = k.reshape(B, T, self.num_heads // 2, self.head_dim * 2)
             v = v.reshape(B, T * 2, self.num_heads // 2, self.head_dim)
 
             q, k = yarn.rotary(q), yarn.rotary(k)
 
-            q = q.view(B, T * 2, self.num_heads // 2, self.head_dim)
-            k = k.view(B, T * 2, self.num_heads // 2, self.head_dim)
+            q = q.reshape(B, T * 2, self.num_heads // 2, self.head_dim)
+            k = k.reshape(B, T * 2, self.num_heads // 2, self.head_dim)
 
             if ve is not None:
-                ve_gate_out = 2 * torch.sigmoid(F.linear(x[..., :12], ve_gate_w)).view(B, T * 2, self.num_heads // 2, 1)
+                ve_gate_out = 2 * torch.sigmoid(F.linear(x[..., :12], ve_gate_w)).reshape(B, T * 2, self.num_heads // 2, 1)
                 v = v + ve_gate_out * ve.view_as(v)
 
             seqlens = 2 * seqlens
             max_len = 2 * max_len
 
         y = _attention_varlen(q, k, v, seqlens, max_len, bm_size, yarn.attn_scale)
-        y = y.view(B, T, self.num_heads, self.head_dim)
-        y = y * torch.sigmoid(F.linear(x[..., :12], attn_gate_w)).view(B, T, self.num_heads, 1)
-        y = y.contiguous().view(B, T, self.num_heads * self.head_dim) # re-assemble all head outputs side by side
+        y = y.reshape(B, T, self.num_heads, self.head_dim)
+        y = y * torch.sigmoid(F.linear(x[..., :12], attn_gate_w)).reshape(B, T, self.num_heads, 1)
+        y = y.contiguous().reshape(B, T, self.num_heads * self.head_dim) # re-assemble all head outputs side by side
         y = F.linear(y, sa_lambdas[1] * qkvo_w[self.dim * 3:].type_as(y))  # sa_lambdas[1] pre-multiplied to O @shenberg
         return y
 
@@ -1410,12 +1430,12 @@ class GPT(nn.Module):
         # @Grad62304977 added tanh softcapping following Gemma 2 paper, @KoszarskyB reduced it from 30 to 15
         # @YouJiacheng shifted it by +15 (2*sigmoid(2*x)=tanh(x)+1). @classiclarryd updated to 23*sigmoid((logits+5)/7.5)
         if self.training and USE_FUSED_TRAIN_LOSS:
-            losses = FusedSoftcappedCrossEntropy.apply(logits.view(-1, logits.size(-1)), target_seq, mtp_weights, 23.0, 5.0, 7.5)
+            losses = FusedSoftcappedCrossEntropy.apply(logits.reshape(-1, logits.size(-1)), target_seq, mtp_weights, 23.0, 5.0, 7.5)
             loss = losses.sum()
         else:
             logits = 23 * torch.sigmoid((logits + 5) / 7.5)
             logits_for_loss = logits.float()
-            loss = F.cross_entropy(logits_for_loss.view(-1, logits_for_loss.size(-1)), target_seq, reduction="mean")
+            loss = F.cross_entropy(logits_for_loss.reshape(-1, logits_for_loss.size(-1)), target_seq, reduction="mean")
         return loss
 # -----------------------------------------------------------------------------
 # Distributed data loader
@@ -1545,8 +1565,8 @@ def distributed_data_generator(filename_pattern: str, num_tokens: int, max_seq_l
 
             pos_local = pos + rank * num_tokens_local
             buf = tokens[pos_local: pos_local + num_tokens_local + 1]
-            _inputs = buf[:-1].view(num_tokens_local, )
-            _targets = buf[1:].view(num_tokens_local, )
+            _inputs = buf[:-1].reshape(num_tokens_local, )
+            _targets = buf[1:].reshape(num_tokens_local, )
 
             cum_lengths = torch.nonzero(_inputs == BOS_ID)[:, 0]
             pos += num_tokens
