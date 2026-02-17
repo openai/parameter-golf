@@ -6,3 +6,5 @@ pylog124M/
 __pycache__/
 logs/
 .DS_Store
+modded-nanogpt/
+modded-nanogpt
