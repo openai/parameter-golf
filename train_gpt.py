@@ -33,7 +33,7 @@ import time
 import uuid
 from contextlib import nullcontext
 from dataclasses import dataclass
-from itertools import accumulate, pairwise
+from itertools import accumulate, cycle, pairwise
 from pathlib import Path
 import gc
 
@@ -77,16 +77,51 @@ TRAIN_LOSS_EVERY = int(os.environ.get("TRAIN_LOSS_EVERY", "0"))
 MODEL_HEAD_DIM = 128
 
 DATA_PATH_DEFAULT = "."
-TRAIN_FILES_PATTERN = "data/fineweb10B_sp4k/fineweb_train_*.bin"
-VAL_FILES_PATTERN = "data/fineweb10B_sp4k/fineweb_val_*.bin"
+DATASET_PROFILES = {
+    "legacy": {
+        "train_files_pattern": "data/fineweb10B/fineweb_train_*.bin",
+        "val_files_pattern": "data/fineweb10B/fineweb_val_*.bin",
+        # GPT-2 vocab (50257) padded to 50304 for sharding-friendly dimensions.
+        "tokenizer_vocab_size": 50304,
+        # Legacy shards use GPT-2 EOT as the document boundary token.
+        "bos_id": 50256,
+    },
+    "sp4k": {
+        "train_files_pattern": "data/fineweb10B_sp4k/fineweb_train_*.bin",
+        "val_files_pattern": "data/fineweb10B_sp4k/fineweb_val_*.bin",
+        "tokenizer_vocab_size": 4096,
+        "bos_id": 1,
+    },
+}
+
+DATASET_MODE = os.environ.get("FINEWEB_DATASET", "auto").strip().lower()
+assert DATASET_MODE in {"auto", *DATASET_PROFILES.keys()}, \
+    "FINEWEB_DATASET must be one of: auto, legacy, sp4k"
+
+if DATASET_MODE == "auto":
+    detection_data_path = os.environ.get("DATA_PATH", DATA_PATH_DEFAULT)
+    selected_dataset_mode = "legacy"
+    for candidate in ("legacy", "sp4k"):
+        candidate_profile = DATASET_PROFILES[candidate]
+        candidate_train = os.path.join(detection_data_path, candidate_profile["train_files_pattern"])
+        candidate_val = os.path.join(detection_data_path, candidate_profile["val_files_pattern"])
+        if glob.glob(candidate_train) and glob.glob(candidate_val):
+            selected_dataset_mode = candidate
+            break
+else:
+    selected_dataset_mode = DATASET_MODE
+
+dataset_profile = DATASET_PROFILES[selected_dataset_mode]
+TRAIN_FILES_PATTERN = dataset_profile["train_files_pattern"]
+VAL_FILES_PATTERN = dataset_profile["val_files_pattern"]
 VAL_TOKENS = 10485760
 TRAIN_MAX_SEQ_LEN = 128 * 16
 NUM_SCHEDULED_ITERATIONS = 1515
 NUM_EXTENSION_ITERATIONS = 40
 VAL_LOSS_EVERY = 250
 SAVE_CHECKPOINT = False
-TOKENIZER_VOCAB_SIZE = 4096
-BOS_ID = 1
+TOKENIZER_VOCAB_SIZE = dataset_profile["tokenizer_vocab_size"]
+BOS_ID = dataset_profile["bos_id"]
 
 MUON_WARMUP_STEPS = 300
 MUON_COOLDOWN_STEPS = 50
@@ -1475,7 +1510,7 @@ def distributed_data_generator(filename_pattern: str, num_tokens: int, max_seq_l
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {filename_pattern}")
 
-    file_iter = iter(files)  # Use itertools.cycle(files) for multi-epoch training
+    file_iter = cycle(files)
     tokens = _load_data_shard(next(file_iter))
     if align_to_bos:
         shard = Shard(tokens, world_size)
@@ -1495,10 +1530,7 @@ def distributed_data_generator(filename_pattern: str, num_tokens: int, max_seq_l
                 # This shard is exhausted, load the next one in the next loop iteration.
                 shard = next_shard_getter()
                 tokens = shard.tokens
-                try:
-                    next_shard_getter = Shard.load_async(next(file_iter), world_size)
-                except StopIteration:
-                    next_shard_getter = None  # no more shards to preload
+                next_shard_getter = Shard.load_async(next(file_iter), world_size)
                 continue
 
             buf = torch.cat([tokens[i:j] for i, j in zip(start_idxs, end_idxs)])
@@ -1854,8 +1886,16 @@ print0(nvidia_smi())
 print0("="*100)
 train_matches = glob.glob(args.train_files)
 val_matches = glob.glob(args.val_files)
-assert train_matches, f"No files found for pattern: {args.train_files}"
-assert val_matches, f"No files found for pattern: {args.val_files}"
+assert train_matches, (
+    f"No files found for pattern: {args.train_files}. "
+    "Set FINEWEB_DATASET=legacy for data/fineweb10B/* or FINEWEB_DATASET=sp4k for data/fineweb10B_sp4k/*."
+)
+assert val_matches, (
+    f"No files found for pattern: {args.val_files}. "
+    "Set FINEWEB_DATASET=legacy for data/fineweb10B/* or FINEWEB_DATASET=sp4k for data/fineweb10B_sp4k/*."
+)
+print0(f"Dataset mode: {selected_dataset_mode}", console=True)
+print0(f"Tokenizer vocab size: {TOKENIZER_VOCAB_SIZE}, BOS_ID: {BOS_ID}", console=True)
 print0(f"Using train shards: {args.train_files}", console=True)
 print0(f"Using val shards: {args.val_files}", console=True)
 
