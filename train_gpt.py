@@ -55,25 +55,7 @@ from torch import Tensor, nn
 from triton_kernels import XXT, ba_plus_cAA, FusedLinearReLUSquareFunction, FusedSoftcappedCrossEntropy
 from train_gpt_constants import load_train_constants
 
-if hasattr(dynamo.config, "recompile_limit"):
-    dynamo.config.recompile_limit = 64
-
-try:
-    from triton.compiler.compiler import triton_key as _triton_key
-    del _triton_key
-    _has_triton_key = True
-except Exception:
-    _has_triton_key = False
-USE_COMPILED_CUSTOM_OPS = os.environ.get("USE_COMPILED_CUSTOM_OPS", "1") == "1" and _has_triton_key
-
-def maybe_compile(fn=None, **compile_kwargs):
-    def _decorate(f):
-        if not USE_COMPILED_CUSTOM_OPS:
-            return f
-        return torch.compile(f, **compile_kwargs)
-    if fn is None:
-        return _decorate
-    return _decorate(fn)
+dynamo.config.recompile_limit = 64
 
 config = load_train_constants(config_path)
 
@@ -192,7 +174,7 @@ master_process = (rank == 0) # this process will do logging, checkpointing etc.
 @torch.library.custom_op("nanogpt::mm_t", mutates_args=())
 def mm_t_op(x: Tensor, w: Tensor, x_s: float, w_s: float, grad_s: float) -> tuple[Tensor, Tensor, Tensor]:
     """Computes y = x @ w with F8 weights stored as (in_features, out_features)."""
-    @maybe_compile
+    @torch.compile
     def impl(x: Tensor, w: Tensor):
         assert x.is_contiguous() and w.is_contiguous()
         assert x.shape[1] == w.shape[0]  # x: (batch, in), w: (in, out)
@@ -226,7 +208,7 @@ def _(x: Tensor, w: Tensor, *_):
 
 @torch.library.custom_op("nanogpt::mm_t_backward", mutates_args=())
 def mm_t_backward_op(g: Tensor, x_f8: Tensor, w_f8: Tensor, x_s: float, w_s: float, grad_s: float) -> tuple[Tensor, Tensor]:
-    @maybe_compile
+    @torch.compile
     def impl(grad: Tensor, x_f8: Tensor, w_f8: Tensor):
         assert grad.is_contiguous()
 
@@ -295,7 +277,7 @@ polar_express_coeffs = [
     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323)
 ]
 
-@maybe_compile(dynamic=False, fullgraph=True) # Must use dynamic=False or else it's much slower
+@torch.compile(dynamic=False, fullgraph=True) # Must use dynamic=False or else it's much slower
 def polar_express(G: torch.Tensor, split_baddbmm: bool = False):
     """
     Polar Express Sign Method: https://arxiv.org/pdf/2505.16932
@@ -826,7 +808,7 @@ class NorMuonAndAdam:
         return p_slice
 
     @staticmethod
-    @maybe_compile(dynamic=False, fullgraph=True)
+    @torch.compile(dynamic=False, fullgraph=True)
     def _adam_update_step(p_slice, g_slice, exp_avg, exp_avg_sq, beta1, beta2, eps, step_size_t, eff_wd_t):
         """Compiled Adam update step."""
         exp_avg.mul_(beta1).add_(g_slice, alpha=1 - beta1)
@@ -887,7 +869,7 @@ class NorMuonAndAdam:
         return p_slice
 
     @staticmethod
-    @maybe_compile(dynamic=False, fullgraph=True)
+    @torch.compile(dynamic=False, fullgraph=True)
     def _cautious_wd_and_update_inplace(p, mantissa, grad, wd_tensor, lr_tensor):
         """
         Cautious weight decay + parameter update. wd_tensor and lr_tensor are 0-D CPU tensors.
@@ -908,7 +890,7 @@ class NorMuonAndAdam:
         mantissa.copy_(p_precise_raw.to(torch.uint16))
 
     @staticmethod
-    @maybe_compile(dynamic=False, fullgraph=True)
+    @torch.compile(dynamic=False, fullgraph=True)
     def _apply_normuon_variance_reduction(v_chunk, second_momentum_buffer, beta2, red_dim):
         """NorMuon variance reduction. Algebraically fuses the normalization steps to minimize memory ops."""
         v_mean = v_chunk.float().square().mean(dim=red_dim, keepdim=True)
