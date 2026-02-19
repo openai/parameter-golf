@@ -10,6 +10,7 @@ with open(os.path.join(os.path.dirname(sys.argv[0]), 'triton_kernels.py'), 'r') 
 
 import copy
 import glob
+import io
 import math
 import threading
 import time
@@ -17,6 +18,7 @@ import uuid
 from dataclasses import dataclass
 from itertools import accumulate, pairwise
 from pathlib import Path
+import zlib
 import gc
 
 os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")
@@ -298,7 +300,6 @@ def sparse_comms_merge_gradients(grad, recv_idx, recv_vals, rank, world):
 
     # return the slice of the gradient for parameters our rank updates
     return grad[rows_per_rank * rank : rows_per_rank * (rank + 1)].mul_((1 / world))
-
 
 # -----------------------------------------------------------------------------
 # Combined NorMuon + Adam Optimizer
@@ -1221,7 +1222,7 @@ class GPT(nn.Module):
         ])
         self.yarn = Yarn(head_dim, max_seq_len)
         self.yarn_paired_head = Yarn(head_dim, max_seq_len, paired=True)
-        # there are only 50257 unique GPT-2 tokens; we extend to nearest multiple of 128 for efficiency.
+        # Token vocab is padded to nearest multiple of 128 for sharding efficiency.
         # suggested to me by @Grad62304977. this originates from Karpathy's experiments.
         use_fp8 = not os.environ.get("DISABLE_FP8", False)
         # Transposed weight storage for faster gradient accumulation
@@ -1377,8 +1378,6 @@ def _load_data_shard(file: Path):
         assert nbytes == 2 * num_tokens, "number of tokens read does not match header"
     return tokens
 
-BOS_ID = 50256
-
 class Shard:
     def __init__(self, tokens: Tensor, world_size: int = 1):
         self.tokens = tokens
@@ -1387,7 +1386,7 @@ class Shard:
         self.i = 0
 
         # Partial index now, full index async
-        self.bos_idx = (tokens[:6_000_000] == BOS_ID).nonzero(as_tuple=True)[0].to(torch.int64).cpu().numpy()
+        self.bos_idx = (tokens[:6_000_000] == args.bos_id).nonzero(as_tuple=True)[0].to(torch.int64).cpu().numpy()
         self._full_idx = None
         self._loader_thread = None
         self._ready = threading.Event()
@@ -1395,7 +1394,7 @@ class Shard:
         self._loader_thread.start()
 
     def _scan(self):
-        self._full_idx = (self.tokens == BOS_ID).nonzero(as_tuple=True)[0].to(torch.int64).cpu().numpy()
+        self._full_idx = (self.tokens == args.bos_id).nonzero(as_tuple=True)[0].to(torch.int64).cpu().numpy()
         self._ready.set()
 
     def _maybe_switch(self):
@@ -1515,7 +1514,7 @@ def distributed_data_generator(filename_pattern: str, num_tokens: int, max_seq_l
             _inputs = buf[:-1].view(num_tokens_local, )
             _targets = buf[1:].view(num_tokens_local, )
 
-            cum_lengths = torch.nonzero(_inputs == BOS_ID)[:, 0]
+            cum_lengths = torch.nonzero(_inputs == args.bos_id)[:, 0]
             pos += num_tokens
 
 
@@ -1551,8 +1550,8 @@ def distributed_data_generator(filename_pattern: str, num_tokens: int, max_seq_l
 class Hyperparameters:
     # data
     data_path = os.environ.get("DATA_PATH", ".")
-    train_files: str = os.path.join(data_path, "data/fineweb10B/fineweb_train_*.bin") # input .bin to train on
-    val_files: str = os.path.join(data_path, "data/fineweb10B/fineweb_val_*.bin") # input .bin to eval validation loss on
+    train_files: str = os.environ.get("TRAIN_FILES", os.path.join(data_path, "data/fineweb10B/fineweb_train_*.bin")) # input .bin to train on
+    val_files: str = os.environ.get("VAL_FILES", os.path.join(data_path, "data/fineweb10B/fineweb_val_*.bin")) # input .bin to eval validation loss on
     val_tokens: int = 10485760 # how many tokens of validation data? it's important to keep this fixed for consistent comparisons
     # batch sizes
     val_batch_size: int = 4 * 64 * 1024 * 8
@@ -1564,7 +1563,7 @@ class Hyperparameters:
     val_loss_every: int = 250  # every how many steps to evaluate val loss? 0 for only at the end
     save_checkpoint: bool = False
     # bigram hash embedding
-    bigram_vocab_size: int = 50304 * 5
+    bigram_vocab_size: int = _env_int("BIGRAM_VOCAB_SIZE", 50304 * 5)
 
 args = Hyperparameters()
 
@@ -1870,10 +1869,12 @@ def nvidia_smi():
     import subprocess  # avoid top level import
     return subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout
 print0(nvidia_smi())
+print0(f"Data train_files={args.train_files} val_files={args.val_files}", console=True)
+print0(f"Tokenizer vocab_size={args.vocab_size} bos_id={args.bos_id} bigram_vocab_size={args.bigram_vocab_size}", console=True)
 print0("="*100)
 
 model: nn.Module = GPT(
-    vocab_size=50257,
+    vocab_size=args.vocab_size,
     num_layers=11,
     num_heads=6,
     head_dim=128,
@@ -1893,6 +1894,8 @@ for param in model.parameters():
 model: nn.Module = torch.compile(model, dynamic=False, fullgraph=True)
 training_manager = TrainingManager(model)
 
+n_params = sum(p.numel() for p in model.parameters())
+print0(f"{n_params}", console=True)
 
 ########################################
 #            Warmup kernels            #
@@ -1997,14 +2000,82 @@ for step in range(train_steps + 1):
 print0(f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB", console=True)
 
-# --- --- --- EVALUATION DO NOT CHANGE  --- --- ---
+# -----------------------------------------------------------------------------
+# USER-EDITABLE FUNCTIONS.
+# Participants should only modify: evaluate(), decompress_model(), compress_model().
+
+@torch.no_grad()
+def evaluate(model) -> Tensor:
+    """
+    User hook.
+    Return per-rank validation loss (scalar). DO NOT all-reduce here;
+    the harness below performs the distributed reduction.
+    """
+    model.eval()
+    assert args.val_tokens % args.val_batch_size == 0
+    val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
+    val_loader = distributed_data_generator(
+        args.val_files,
+        args.val_batch_size,
+        -1,
+        grad_accum_steps=grad_accum_steps,
+        align_to_bos=False,
+    )
+    val_loss = torch.zeros((), device=device, dtype=torch.float32)
+    for _ in range(val_steps):
+        inputs, targets, cum_seqlens, bigram_inputs, _ = next(val_loader)
+        val_loss += model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args()).float()
+    val_loss /= val_steps
+    del val_loader
+    model.train()
+    return val_loss
+
+def decompress_model(path: str) -> dict[str, Tensor]:
+    """
+    User hook.
+    Load and return a state_dict from `path`.
+    """
+    with open(path, "rb") as f:
+        compressed_payload = f.read()
+    raw_payload = zlib.decompress(compressed_payload)
+    return torch.load(io.BytesIO(raw_payload), map_location="cpu")
+
+def compress_model(model: nn.Module) -> str:
+    """
+    User hook.
+    Save the compressed model artifact and return the saved file path.
+    """
+    path = "final_model.pt.zlib"
+    state_dict = {k: v.detach().cpu() for k, v in model.state_dict().items()}
+    raw_buf = io.BytesIO()
+    torch.save(state_dict, raw_buf)
+    compressed_payload = zlib.compress(raw_buf.getvalue(), level=9)
+    with open(path, "wb") as f:
+        f.write(compressed_payload)
+    return path
+
+# -----------------------------------------------------------------------------
+# DO NOT CHANGE: OFFICIAL SCORE EVALUATION HARNESS.
 
 if master_process:
-    torch.save(model.state_dict(), "final_model.pt")
-    model_bytes = os.path.getsize("final_model.pt")
+    compressed_model_path = compress_model(model)
+    compressed_bytes = os.path.getsize(compressed_model_path)
+    decompressed_model = decompress_model(compressed_model_path)
+
+    print(f"Compressed model path: {compressed_model_path}")
+    print(f"Compressed model bytes: {compressed_bytes}")
+else:
+    compressed_model_path = ""
+    decompressed_model = None
+
+# TODO: Sync model across ranks
+val_loss = evaluate(decompressed_model)
+
+if master_process:
     code_bytes = len(code.encode("utf-8"))
-    print0(f"Serialized model: {model_bytes} bytes", console=True)
-    print0(f"Code size: {code_bytes} bytes", console=True)
-    print0(f"Total submission size: {model_bytes + code_bytes} bytes", console=True);
+    total_bytes = code_bytes + compressed_bytes
+    print(f"Code size: {code_bytes} bytes")
+    print(f"Validation loss (decompressed): {val_loss:.6f}")
+    print(f"Total bytes: {total_bytes:.6f}")
 
 dist.destroy_process_group()

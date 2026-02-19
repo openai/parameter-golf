@@ -8,7 +8,7 @@ Minimal reproducible commands for setup and launch.
 cd ~/N-challenge
 python3 -m pip install --upgrade pip filelock
 pip3 install -r requirements.txt
-python3 data/cached_fineweb10B_sp4k.py 9
+python3 data/cached_fineweb10B.py 9
 ```
 
 ## Launch
@@ -40,3 +40,7 @@ ls data/fineweb10B_sp4k/fineweb_train_000009.bin
 - Default training data is local shards at `data/fineweb10B_sp4k/`; trainer fails fast if missing.
 - 1x launch should set `USE_FLASH_ATTN=0` on current runtime.
 - For data rebuild/upload: `python3 data/build_upload_4096_bpe.py --repo_id cocohearts/4096-bpe --version 10B`.
+
+# Internal
+
+Run bbb cptree az://oaidatasets2/speedrunkits/fineweb10B/ data/fineweb10B/ instead of dataset loading.
