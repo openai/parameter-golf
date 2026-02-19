@@ -1,5 +1,7 @@
 <img width="384" height="256" alt="Parameter Golf Logo" src="https://github.com/user-attachments/assets/5afa2832-f306-45cf-b819-eeb971ee560b" />
 
+[Placeholder Readme]
+
 **OpenAI Parameter Golf** is a challenge to train the best language model that fits in a 30MB file + trains in <10 minutes on 8xH100, evaluated by their FineWeb validation set compression (tokenizer-agnostic, bits per byte).
 
 This challenge takes heavy inspiration from the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where individuals compete to train a model that reaches 3.28 FineWeb validation loss as fast as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people towards unique architectures, compression schemes, and creative submission.
