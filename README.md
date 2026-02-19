@@ -6,7 +6,7 @@
 
 This challenge takes heavy inspiration from the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where individuals compete to train a model that reaches 3.28 FineWeb validation loss as fast as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people towards unique architectures, compression schemes, and creative submission.
 
-The chalenge runs from March 4th to March 31st, after which we'll select the top 10 most creative submissions for a small prize.
+The chalenge runs from March 4th to March 31st, after which we'll select the top 10 most creative submissions for a small prize + bragging rights.
 
 Happy training!
 
