@@ -76,3 +76,5 @@ _I'll fill this in soon. Pretty much people create a PR with their code and a tr
 ### Support
 
 Reach out to parametergolf@openai.com for any other questions.
+
+Join the [Discord server](url).
