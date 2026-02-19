@@ -16,7 +16,7 @@ python3 data/cached_fineweb10B_sp4k.py 9
 8x H100:
 ```bash
 cd ~/N-challenge
-python3 -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt.py --config configs/train_gpt_8xh100.py
+TORCHINDUCTOR_CUDAGRAPHS=0 torchrun --standalone --nproc_per_node=8 train_gpt.py # internal
 ```
 
 1x H100:

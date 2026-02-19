@@ -19,7 +19,7 @@ from itertools import accumulate, pairwise
 from pathlib import Path
 import gc
 
-os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")
 import torch
 import triton
 import numpy as np
@@ -267,7 +267,6 @@ def sparse_comms_share_indexes(send_idxes, send_counts, recv_counts):
     }
     return recv_idxes, sparse_state, idxes_fut
 
-@torch.compile
 @torch.no_grad
 def sparse_comms_share_gradients(grad, idxes, send_counts, recv_counts):
     # gather the rows that we want to send
@@ -1997,4 +1996,15 @@ for step in range(train_steps + 1):
 
 print0(f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB", console=True)
+
+# --- --- --- EVALUATION DO NOT CHANGE  --- --- ---
+
+if master_process:
+    torch.save(model.state_dict(), "final_model.pt")
+    model_bytes = os.path.getsize("final_model.pt")
+    code_bytes = len(code.encode("utf-8"))
+    print0(f"Serialized model: {model_bytes} bytes", console=True)
+    print0(f"Code size: {code_bytes} bytes", console=True)
+    print0(f"Total submission size: {model_bytes + code_bytes} bytes", console=True);
+
 dist.destroy_process_group()
