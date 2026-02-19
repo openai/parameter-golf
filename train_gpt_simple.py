@@ -46,8 +46,8 @@ class Hyperparameters:
     num_scheduled_iterations: int = _env_int("NUM_SCHEDULED_ITERATIONS", 3000)
     num_extension_iterations: int = _env_int("NUM_EXTENSION_ITERATIONS", 0)
     warmdown_iters: int = _env_int("WARMDOWN_ITERS", 900)
+    warmup_steps: int = _env_int("WARMUP_STEPS", _env_int("TIMING_WARMUP_STEPS", 200))
     save_checkpoint: bool = _env_bool("SAVE_CHECKPOINT", False)
-    compile_model: bool = _env_bool("COMPILE_MODEL", False)
     use_amp: bool = _env_bool("USE_AMP", True)
 
     # Model
@@ -56,7 +56,8 @@ class Hyperparameters:
     model_dim: int = _env_int("MODEL_DIM", 768)
     num_heads: int = _env_int("NUM_HEADS", 6)
     mlp_mult: int = _env_int("MLP_MULT", 4)
-    logit_chunk_tokens: int = _env_int("LOGIT_CHUNK_TOKENS", 4096)
+    # 0 disables chunking and is materially faster on current H100 stacks.
+    logit_chunk_tokens: int = _env_int("LOGIT_CHUNK_TOKENS", 0)
     logit_softcap: float = _env_float("LOGIT_SOFTCAP", 30.0)
     rope_base: float = _env_float("ROPE_BASE", 10000.0)
 
@@ -69,7 +70,6 @@ class Hyperparameters:
     beta1: float = _env_float("BETA1", 0.9)
     beta2: float = _env_float("BETA2", 0.95)
     eps: float = _env_float("ADAM_EPS", 1e-8)
-    weight_decay: float = _env_float("WEIGHT_DECAY", 0.0)
     grad_clip_norm: float = _env_float("GRAD_CLIP_NORM", 0.0)
 
 
@@ -112,11 +112,11 @@ class TrainingSchedule:
     def get_lr_mul(self, step: int) -> float:
         stage, _ = self.lookup(step)
         lr_mul = stage.lr_mul
-        if step >= self.scheduled_iterations:
-            return 0.0
-        if self.warmdown_iters > 0 and step >= self.scheduled_iterations - self.warmdown_iters:
-            decay_ratio = (self.scheduled_iterations - step) / self.warmdown_iters
-            lr_mul *= max(decay_ratio, 0.0)
+        if self.warmdown_iters > 0:
+            warmdown_start = max(self.scheduled_iterations - self.warmdown_iters, 0)
+            if warmdown_start <= step < self.scheduled_iterations:
+                decay_ratio = (self.scheduled_iterations - step) / max(self.warmdown_iters, 1)
+                lr_mul *= max(decay_ratio, 0.0)
         return lr_mul
 
 
@@ -191,8 +191,8 @@ class DistributedTokenLoader:
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
         local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
-        x = local[:-1].view(-1, seq_len)
-        y = local[1:].view(-1, seq_len)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
         return (
             x.to(device=self.device, non_blocking=True),
             y.to(device=self.device, non_blocking=True),
@@ -260,9 +260,9 @@ class CausalSelfAttention(nn.Module):
     def forward(self, x: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
         q, k, v = self.qkv(x).chunk(3, dim=-1)
-        q = q.view(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = k.view(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        v = v.view(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         if v1 is None:
             v1 = v
         mix = self.v_mix.to(dtype=v.dtype)
@@ -273,7 +273,7 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
-        y = y.transpose(1, 2).contiguous().view(bsz, seqlen, dim)
+        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y), v1
 
 
@@ -371,8 +371,8 @@ class GPT(nn.Module):
                 x = x + skip_weight * skip
             x, v1 = self.blocks[self.num_encoder_layers + i](x, x0, v1)
 
-        x = self.final_norm(x).view(-1, x.size(-1))
-        targets = target_ids.view(-1)
+        x = self.final_norm(x).reshape(-1, x.size(-1))
+        targets = target_ids.reshape(-1)
         chunk_tokens = self.logit_chunk_tokens
 
         if chunk_tokens <= 0 or x.size(0) <= chunk_tokens:
@@ -514,12 +514,8 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
     ).to(device).bfloat16()
-    for module in raw_model.modules():
-        if isinstance(module, nn.Linear):
-            module.float()
 
-    if args.compile_model:
-        raw_model = torch.compile(raw_model, dynamic=False)
+    raw_model = torch.compile(raw_model, dynamic=False, fullgraph=True)
 
     model: nn.Module
     if distributed:
@@ -559,11 +555,42 @@ def main() -> None:
     print0(f"model_params:{n_params}", console=True)
     print0(
         f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} "
-        f"compile_model:{args.compile_model} use_amp:{args.use_amp}",
+        f"compile_model:True compile_dynamic:False compile_fullgraph:True "
+        f"use_amp:{args.use_amp}",
         console=True,
     )
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    warmup_steps = max(args.warmup_steps, 0)
+    if warmup_steps > 0:
+        print0(f"warmup_steps:{warmup_steps}", console=True)
+        training_manager.advance_schedule(0)
+        model.train()
+        for warmup_step in range(warmup_steps):
+            training_manager.zero_grad()
+            for micro_step in range(grad_accum_steps):
+                if isinstance(model, DDP):
+                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                x, y = train_loader.next_batch(
+                    training_manager.batch_size,
+                    training_manager.train_max_seq_len,
+                    grad_accum_steps,
+                )
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=args.use_amp):
+                    warmup_loss = model(x, y)
+                (warmup_loss * grad_scale).backward()
+            training_manager.zero_grad()
+            if (
+                warmup_steps <= 20
+                or (warmup_step + 1) % 10 == 0
+                or warmup_step + 1 == warmup_steps
+            ):
+                print0(f"warmup_step:{warmup_step + 1}/{warmup_steps}", console=True)
+        training_manager.zero_grad()
+        if isinstance(model, DDP):
+            model.require_backward_grad_sync = True
+        # Start measured training from the beginning of the dataset.
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     training_time_ms = 0.0
     torch.cuda.synchronize()

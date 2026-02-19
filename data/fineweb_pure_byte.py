@@ -56,7 +56,14 @@ def main() -> None:
         action="store_true",
         help="Append eos_id after each document (default: disabled).",
     )
+    parser.add_argument(
+        "--max_files",
+        type=int,
+        default=0,
+        help="Maximum number of shard files to write (includes val shard). 0 means no limit.",
+    )
     args = parser.parse_args()
+    assert args.max_files >= 0, "--max_files must be >= 0"
 
     if args.version == "10B":
         remote_name = "sample-10BT"
@@ -84,11 +91,14 @@ def main() -> None:
     fw = load_dataset("HuggingFaceFW/fineweb", name=remote_name, split="train")
 
     shard_index = 0
+    files_written = 0
     all_tokens_np = np.empty((args.shard_size,), dtype=np.uint16)
     token_count = 0
     progress_bar = None
 
     for doc_idx, doc in enumerate(fw, start=1):
+        if args.max_files > 0 and files_written >= args.max_files:
+            break
         if args.num_docs > 0 and doc_idx > args.num_docs:
             break
 
@@ -114,18 +124,27 @@ def main() -> None:
         progress_bar.update(remainder)
         all_tokens_np[token_count:token_count + remainder] = tokens[:remainder]
         write_datafile(filename, all_tokens_np)
+        files_written += 1
         shard_index += 1
         progress_bar = None
+        if args.max_files > 0 and files_written >= args.max_files:
+            token_count = 0
+            break
 
         all_tokens_np[0:len(tokens) - remainder] = tokens[remainder:]
         token_count = len(tokens) - remainder
 
-    if token_count != 0:
+    if token_count != 0 and (args.max_files == 0 or files_written < args.max_files):
         split = "val" if shard_index == 0 else "train"
         filename = os.path.join(data_cache_dir, f"fineweb_{split}_{shard_index:06d}.bin")
         write_datafile(filename, all_tokens_np[:token_count])
+        files_written += 1
+
+    if progress_bar is not None:
+        progress_bar.close()
+
+    print(f"Done. Wrote {files_written} shard file(s) to {data_cache_dir}")
 
 
 if __name__ == "__main__":
     main()
-

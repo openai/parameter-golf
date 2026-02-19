@@ -10,3 +10,4 @@ modded-nanogpt/
 modded-nanogpt
 third_party/flash_attention_3/_C.abi3.so
 data/fineweb*
+data/matched*

@@ -21,6 +21,11 @@ from pathlib import Path
 import zlib
 import gc
 
+
+def _env_int(name: str, default: int) -> int:
+    return int(os.environ.get(name, default))
+
+
 os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")
 import torch
 import triton
@@ -38,6 +43,19 @@ from kernels import get_kernel
 from torch import Tensor, nn
 
 from triton_kernels import XXT, ba_plus_cAA, FusedLinearReLUSquareFunction, FusedSoftcappedCrossEntropy
+
+# Work around Triton TTIR mutation analysis failures in some runtime builds.
+# Semantics match upstream fallback: assume all Tensor kwargs may be mutated.
+if _env_int("DISABLE_TRITON_MUTATION_ANALYSIS", 0):
+    try:
+        import torch._higher_order_ops.triton_kernel_wrap as _triton_kernel_wrap
+
+        def _identify_mutated_tensors_fast(_kernel, kwargs, _tma_descriptor_metadata):
+            return [k for k, v in kwargs.items() if isinstance(v, torch.Tensor)]
+
+        _triton_kernel_wrap.identify_mutated_tensors = _identify_mutated_tensors_fast
+    except Exception:
+        pass
 
 dynamo.config.recompile_limit = 64
 
@@ -879,6 +897,14 @@ class NorMuonAndAdam:
         grad = grad.float()
         wd_factor = wd_tensor.to(torch.float32)
         lr_factor = lr_tensor.to(torch.float32)
+        if _env_int("SAFE_WD_UPDATE", 0):
+            # Optional debug/stability path: avoid packed-uint32 bit ops.
+            p_fp32 = p.view(torch.bfloat16).float()
+            mask = (grad * p_fp32) >= 0
+            p_fp32 = p_fp32 - (p_fp32 * mask * wd_factor * lr_factor) - (grad * lr_factor)
+            p.copy_(p_fp32.to(torch.bfloat16).view(torch.uint16))
+            mantissa.zero_()
+            return
         p_precise_raw = (p.to(torch.uint32) << 16) | mantissa.to(torch.uint32)
         p_precise = p_precise_raw.view(torch.float32)
         mask = (grad * p_precise) >= 0
@@ -1552,15 +1578,17 @@ class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", ".")
     train_files: str = os.environ.get("TRAIN_FILES", os.path.join(data_path, "data/fineweb10B/fineweb_train_*.bin")) # input .bin to train on
     val_files: str = os.environ.get("VAL_FILES", os.path.join(data_path, "data/fineweb10B/fineweb_val_*.bin")) # input .bin to eval validation loss on
-    val_tokens: int = 10485760 # how many tokens of validation data? it's important to keep this fixed for consistent comparisons
+    vocab_size: int = _env_int("VOCAB_SIZE", 50304)
+    bos_id: int = _env_int("BOS_ID", 50256)
+    val_tokens: int = _env_int("VAL_TOKENS", 10485760) # how many tokens of validation data? it's important to keep this fixed for consistent comparisons
     # batch sizes
-    val_batch_size: int = 4 * 64 * 1024 * 8
+    val_batch_size: int = _env_int("VAL_BATCH_SIZE", 4 * 64 * 1024 * 8)
     # schedule
-    num_scheduled_iterations: int = 1490  # number of steps to complete lr and ws schedule
-    num_extension_iterations: int = 40  # number of steps to continue training at final lr and ws
+    num_scheduled_iterations: int = _env_int("NUM_SCHEDULED_ITERATIONS", 1490)  # number of steps to complete lr and ws schedule
+    num_extension_iterations: int = _env_int("NUM_EXTENSION_ITERATIONS", 40)  # number of steps to continue training at final lr and ws
     # evaluation and logging
     run_id: str = f"{uuid.uuid4()}"
-    val_loss_every: int = 250  # every how many steps to evaluate val loss? 0 for only at the end
+    val_loss_every: int = _env_int("VAL_LOSS_EVERY", 250)  # every how many steps to evaluate val loss? 0 for only at the end
     save_checkpoint: bool = False
     # bigram hash embedding
     bigram_vocab_size: int = _env_int("BIGRAM_VOCAB_SIZE", 50304 * 5)
@@ -1900,39 +1928,42 @@ print0(f"{n_params}", console=True)
 ########################################
 #            Warmup kernels            #
 ########################################
-print0("Compiling model and warming up kernels (~7 minutes on first execution)", console=True)
-# Warmup the training kernels, then re-initialize the state so we aren't cheating
-initial_state = dict(model=copy.deepcopy(model.state_dict()),
-                     optimizer=training_manager.get_state()) # save the initial state
-train_loader = distributed_data_generator(args.train_files, TRAINING_STAGES[0].batch_size, TRAINING_STAGES[0].train_max_seq_len, grad_accum_steps=grad_accum_steps)
-val_loader = distributed_data_generator(args.val_files, args.val_batch_size, -1, grad_accum_steps=grad_accum_steps, align_to_bos=False)
+if _env_int("SKIP_WARMUP", 0):
+    print0("Skipping warmup kernels (SKIP_WARMUP=1)", console=True)
+else:
+    print0("Compiling model and warming up kernels (~7 minutes on first execution)", console=True)
+    # Warmup the training kernels, then re-initialize the state so we aren't cheating
+    initial_state = dict(model=copy.deepcopy(model.state_dict()),
+                         optimizer=training_manager.get_state()) # save the initial state
+    train_loader = distributed_data_generator(args.train_files, TRAINING_STAGES[0].batch_size, TRAINING_STAGES[0].train_max_seq_len, grad_accum_steps=grad_accum_steps)
+    val_loader = distributed_data_generator(args.val_files, args.val_batch_size, -1, grad_accum_steps=grad_accum_steps, align_to_bos=False)
 
-transition_steps = training_manager.get_transition_steps()
-# first and last pair of steps in each transition
-warmup_steps = sorted({0, 1 } | set(s + offset for s in transition_steps for offset in [-2, -1, 0, 1] if s + offset >= 0))
-print0(f"Sampling steps {warmup_steps} for warmup", console=True)
-for step in warmup_steps:
-    training_manager.advance_schedule(step)
-    model.eval()
-    with torch.no_grad():
-        inputs, targets, cum_seqlens, bigram_inputs, _ = next(val_loader)
-        model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args())
+    transition_steps = training_manager.get_transition_steps()
+    # first and last pair of steps in each transition
+    warmup_steps = sorted({0, 1 } | set(s + offset for s in transition_steps for offset in [-2, -1, 0, 1] if s + offset >= 0))
+    print0(f"Sampling steps {warmup_steps} for warmup", console=True)
+    for step in warmup_steps:
+        training_manager.advance_schedule(step)
+        model.eval()
+        with torch.no_grad():
+            inputs, targets, cum_seqlens, bigram_inputs, _ = next(val_loader)
+            model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args())
+        model.train()
+        for idx in range(grad_accum_steps):
+            send_args = training_manager.train_loader_send_args
+            inputs, targets, cum_seqlens, bigram_inputs, bigram_cpu = train_loader.send(send_args)
+            training_manager.sparse_index_update(step, bigram_cpu)
+            loss = model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args()) * grad_scale
+            training_manager.sparse_index_share(step)
+            loss.backward()
+            del loss
+        training_manager.step_optimizers(step)
+    print0("Resetting Model", console=True)
+    model.zero_grad(set_to_none=True)
+    model.load_state_dict(initial_state["model"])
+    training_manager.reset(initial_state["optimizer"])
+    del val_loader, train_loader, initial_state
     model.train()
-    for idx in range(grad_accum_steps):
-        send_args = training_manager.train_loader_send_args
-        inputs, targets, cum_seqlens, bigram_inputs, bigram_cpu = train_loader.send(send_args)
-        training_manager.sparse_index_update(step, bigram_cpu)
-        loss = model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args()) * grad_scale
-        training_manager.sparse_index_share(step)
-        loss.backward()
-        del loss
-    training_manager.step_optimizers(step)
-print0("Resetting Model", console=True)
-model.zero_grad(set_to_none=True)
-model.load_state_dict(initial_state["model"])
-training_manager.reset(initial_state["optimizer"])
-del val_loader, train_loader, initial_state
-model.train()
 
 ########################################
 #        Training and validation       #
