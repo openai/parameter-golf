@@ -33,6 +33,35 @@ ls data/fineweb10B_sp4k/fineweb_val_000000.bin
 ls data/fineweb10B_sp4k/fineweb_train_000009.bin
 ```
 
+## Pure byte tokenizer (260 vocab)
+
+Create tokenizer artifact (fixed mapping, no corpus training needed):
+
+```bash
+python3 data/create_pure_byte_tokenizer.py \
+  --output_json data/tokenizers/fineweb_pure_byte_260.json
+```
+
+Build FineWeb shards with pure byte tokenization:
+
+```bash
+python3 data/fineweb_pure_byte.py \
+  --version 10B \
+  --tokenizer_json data/tokenizers/fineweb_pure_byte_260.json \
+  --output_dir fineweb10B_byte260
+```
+
+Train with this dataset/tokenizer:
+
+```bash
+TRAIN_FILES=data/fineweb10B_byte260/fineweb_train_*.bin \
+VAL_FILES=data/fineweb10B_byte260/fineweb_val_*.bin \
+VOCAB_SIZE=260 \
+BOS_ID=1 \
+BIGRAM_VOCAB_SIZE=1920 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
+```
+
 ## Notes
 
 - Use this README as the source of truth for setup/repro commands.

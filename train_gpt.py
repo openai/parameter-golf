@@ -2005,12 +2005,14 @@ print0(f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 10
 # Participants should only modify: evaluate(), decompress_model(), compress_model().
 
 @torch.no_grad()
-def evaluate(model) -> Tensor:
+def evaluate(decompressed: dict[str, Tensor]) -> float:
     """
     User hook.
-    Return per-rank validation loss (scalar). DO NOT all-reduce here;
+    Evaluate decompressed model content and return per-rank validation loss (scalar).
+    DO NOT all-reduce here;
     the harness below performs the distributed reduction.
     """
+    model.load_state_dict(decompressed, strict=True)
     model.eval()
     assert args.val_tokens % args.val_batch_size == 0
     val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
@@ -2028,9 +2030,9 @@ def evaluate(model) -> Tensor:
     val_loss /= val_steps
     del val_loader
     model.train()
-    return val_loss
+    return float(val_loss.detach().cpu().item())
 
-def decompress_model(path: str) -> dict[str, Tensor]:
+def decompress_model(path: str):
     """
     User hook.
     Load and return a state_dict from `path`.
@@ -2060,22 +2062,28 @@ def compress_model(model: nn.Module) -> str:
 if master_process:
     compressed_model_path = compress_model(model)
     compressed_bytes = os.path.getsize(compressed_model_path)
-    decompressed_model = decompress_model(compressed_model_path)
+    decompressed_state_dict = decompress_model(compressed_model_path)
 
     print(f"Compressed model path: {compressed_model_path}")
     print(f"Compressed model bytes: {compressed_bytes}")
 else:
-    compressed_model_path = ""
-    decompressed_model = None
+    decompressed_state_dict = {}
+    compressed_bytes = 0
 
-# TODO: Sync model across ranks
-val_loss = evaluate(decompressed_model)
+# Sync decompressed object to all ranks, then evaluate on each rank.
+payload_obj = [decompressed_state_dict]
+dist.broadcast_object_list(payload_obj, src=0)
+decompressed_state_dict = payload_obj[0]
+
+# Reduce val losses across ranks
+decompressed_val_loss = torch.tensor(evaluate(decompressed_state_dict), device=device, dtype=torch.float32)
+dist.reduce(decompressed_val_loss, 0, op=dist.ReduceOp.AVG)
 
 if master_process:
     code_bytes = len(code.encode("utf-8"))
     total_bytes = code_bytes + compressed_bytes
     print(f"Code size: {code_bytes} bytes")
-    print(f"Validation loss (decompressed): {val_loss:.6f}")
+    print(f"Validation loss (decompressed): {decompressed_val_loss.item():.6f}")
     print(f"Total bytes: {total_bytes:.6f}")
 
 dist.destroy_process_group()

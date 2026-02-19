@@ -1,5 +1,4 @@
 import glob
-import math
 import os
 import sys
 import time
@@ -42,31 +41,36 @@ class Hyperparameters:
     val_files: str = os.path.join(data_path, "data/fineweb10B/fineweb_val_*.bin")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
     val_tokens: int = _env_int("VAL_TOKENS", 10_485_760)
-    val_batch_size: int = _env_int("VAL_BATCH_SIZE", 4 * 64 * 1024 * 8)
-    val_loss_every: int = _env_int("VAL_LOSS_EVERY", 250)
-    num_scheduled_iterations: int = _env_int("NUM_SCHEDULED_ITERATIONS", 1490)
-    num_extension_iterations: int = _env_int("NUM_EXTENSION_ITERATIONS", 40)
+    val_batch_size: int = _env_int("VAL_BATCH_SIZE", 64 * 1024 * 8)
+    val_loss_every: int = _env_int("VAL_LOSS_EVERY", 125)
+    num_scheduled_iterations: int = _env_int("NUM_SCHEDULED_ITERATIONS", 3000)
+    num_extension_iterations: int = _env_int("NUM_EXTENSION_ITERATIONS", 0)
+    warmdown_iters: int = _env_int("WARMDOWN_ITERS", 900)
     save_checkpoint: bool = _env_bool("SAVE_CHECKPOINT", False)
     compile_model: bool = _env_bool("COMPILE_MODEL", False)
     use_amp: bool = _env_bool("USE_AMP", True)
 
     # Model
-    vocab_size: int = _env_int("VOCAB_SIZE", 50257)
-    num_layers: int = _env_int("NUM_LAYERS", 11)
+    vocab_size: int = _env_int("VOCAB_SIZE", 50304)
+    num_layers: int = _env_int("NUM_LAYERS", 12)
     model_dim: int = _env_int("MODEL_DIM", 768)
     num_heads: int = _env_int("NUM_HEADS", 6)
     mlp_mult: int = _env_int("MLP_MULT", 4)
-    logit_chunk_tokens: int = _env_int("LOGIT_CHUNK_TOKENS", 32768)
+    logit_chunk_tokens: int = _env_int("LOGIT_CHUNK_TOKENS", 4096)
     logit_softcap: float = _env_float("LOGIT_SOFTCAP", 30.0)
     rope_base: float = _env_float("ROPE_BASE", 10000.0)
 
     # Optimizer
-    base_lr: float = _env_float("BASE_LR", 0.008)
+    base_lr: float = _env_float("BASE_LR", 0.04)
+    embed_lr: float = _env_float("EMBED_LR", 0.6)
+    head_lr: float = _env_float("HEAD_LR", 0.008)
+    matrix_lr: float = _env_float("MATRIX_LR", 0.002)
+    scalar_lr: float = _env_float("SCALAR_LR", 0.008)
     beta1: float = _env_float("BETA1", 0.9)
     beta2: float = _env_float("BETA2", 0.95)
     eps: float = _env_float("ADAM_EPS", 1e-8)
-    weight_decay: float = _env_float("WEIGHT_DECAY", 0.01)
-    grad_clip_norm: float = _env_float("GRAD_CLIP_NORM", 1.0)
+    weight_decay: float = _env_float("WEIGHT_DECAY", 0.0)
+    grad_clip_norm: float = _env_float("GRAD_CLIP_NORM", 0.0)
 
 
 @dataclass
@@ -83,18 +87,21 @@ class TrainingSchedule:
         stages: list[TrainingStage],
         scheduled_iterations: int,
         extension_iterations: int,
-        cooldown_frac: float = 0.55,
+        warmdown_iters: int,
     ) -> None:
         self.stages = stages
         self.scheduled_iterations = scheduled_iterations
-        self.cooldown_frac = cooldown_frac
+        self.warmdown_iters = warmdown_iters
         self.total_steps = scheduled_iterations + extension_iterations
 
-        ends = [0] + [
-            round(c * scheduled_iterations) for c in accumulate(s.duration for s in stages[:-1])
-        ] + [self.total_steps]
-        assert ends[-2] == scheduled_iterations, "Stage durations must sum to 1.0"
-        self.boundaries = list(pairwise(ends))
+        if len(stages) == 1:
+            self.boundaries = [(0, self.total_steps)]
+        else:
+            ends = [0] + [
+                round(c * scheduled_iterations) for c in accumulate(s.duration for s in stages[:-1])
+            ] + [self.total_steps]
+            assert ends[-2] == scheduled_iterations, "Stage durations must sum to 1.0"
+            self.boundaries = list(pairwise(ends))
 
     def lookup(self, step: int) -> tuple[TrainingStage, float]:
         for i, (start, end) in enumerate(self.boundaries):
@@ -105,10 +112,11 @@ class TrainingSchedule:
     def get_lr_mul(self, step: int) -> float:
         stage, _ = self.lookup(step)
         lr_mul = stage.lr_mul
-        cd_start = int(self.scheduled_iterations * (1 - self.cooldown_frac))
-        if step >= cd_start:
-            t = min(1.0, (step - cd_start) / max(self.scheduled_iterations - cd_start, 1))
-            lr_mul = lr_mul * (1 - t) + 0.15 * t
+        if step >= self.scheduled_iterations:
+            return 0.0
+        if self.warmdown_iters > 0 and step >= self.scheduled_iterations - self.warmdown_iters:
+            decay_ratio = (self.scheduled_iterations - step) / self.warmdown_iters
+            lr_mul *= max(decay_ratio, 0.0)
         return lr_mul
 
 
@@ -195,10 +203,9 @@ class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5):
         super().__init__()
         self.eps = eps
-        self.weight = nn.Parameter(torch.ones(dim))
 
     def forward(self, x: Tensor) -> Tensor:
-        return F.rms_norm(x, (x.size(-1),), self.weight, eps=self.eps)
+        return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
 class Rotary(nn.Module):
@@ -247,14 +254,19 @@ class CausalSelfAttention(nn.Module):
         self.qkv = nn.Linear(dim, 3 * dim, bias=False)
         self.proj = nn.Linear(dim, dim, bias=False)
         self.proj._zero_init = True
+        self.v_mix = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
         q, k, v = self.qkv(x).chunk(3, dim=-1)
         q = q.view(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.view(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         v = v.view(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        if v1 is None:
+            v1 = v
+        mix = self.v_mix.to(dtype=v.dtype)
+        v = (1 - mix) * v + mix * v1
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -262,7 +274,7 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin)
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         y = y.transpose(1, 2).contiguous().view(bsz, seqlen, dim)
-        return self.proj(y)
+        return self.proj(y), v1
 
 
 class MLP(nn.Module):
@@ -289,12 +301,13 @@ class Block(nn.Module):
         self.mlp = MLP(dim, mlp_mult)
         self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
-        x = x + self.attn(self.attn_norm(x))
+        attn_out, v1 = self.attn(self.attn_norm(x), v1)
+        x = x + attn_out
         x = x + self.mlp(self.mlp_norm(x))
-        return x
+        return x, v1
 
 
 class GPT(nn.Module):
@@ -317,7 +330,7 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.skip_weights = nn.Parameter(torch.ones(self.num_encoder_layers))
+        self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers))
         self.blocks = nn.ModuleList(
             [Block(model_dim, num_heads, mlp_mult, rope_base=rope_base) for _ in range(num_layers)]
         )
@@ -327,14 +340,10 @@ class GPT(nn.Module):
         self._init_weights(num_layers)
 
     def _init_weights(self, num_layers: int) -> None:
-        nn.init.normal_(self.tok_emb.weight, mean=0.0, std=0.02)
-        scale = 0.02 / math.sqrt(2 * num_layers)
         for module in self.modules():
             if isinstance(module, nn.Linear):
                 if getattr(module, "_zero_init", False):
                     nn.init.zeros_(module.weight)
-                else:
-                    nn.init.normal_(module.weight, mean=0.0, std=scale)
 
     def _apply_softcap(self, logits: Tensor) -> Tensor:
         if self.logit_softcap <= 0:
@@ -346,19 +355,21 @@ class GPT(nn.Module):
         if seqlen > self.max_seq_len:
             raise ValueError(f"Input sequence length {seqlen} exceeds max_seq_len {self.max_seq_len}")
         x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
         x0 = x
+        v1 = None
         skip_connections: list[Tensor] = []
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x, v1 = self.blocks[i](x, x0, v1)
             skip_connections.append(x)
 
         for i in range(self.num_decoder_layers):
             if skip_connections:
-                skip_idx = len(skip_connections) - 1
-                skip_weight = self.skip_weights[skip_idx].to(dtype=x.dtype)
-                x = x + skip_weight * skip_connections.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+                skip = skip_connections.pop()
+                skip_weight = self.skip_weights[i].to(dtype=x.dtype)
+                x = x + skip_weight * skip
+            x, v1 = self.blocks[self.num_encoder_layers + i](x, x0, v1)
 
         x = self.final_norm(x).view(-1, x.size(-1))
         targets = target_ids.view(-1)
@@ -377,9 +388,14 @@ class GPT(nn.Module):
 
 
 class TrainingManager:
-    def __init__(self, schedule: TrainingSchedule, optimizer: torch.optim.Optimizer, args: Hyperparameters):
+    def __init__(
+        self,
+        schedule: TrainingSchedule,
+        optimizers: list[torch.optim.Optimizer],
+        args: Hyperparameters,
+    ):
         self.schedule = schedule
-        self.optimizer = optimizer
+        self.optimizers = optimizers
         self.args = args
         stage0 = schedule.stages[0]
         self.batch_size = stage0.batch_size
@@ -390,14 +406,21 @@ class TrainingManager:
         self.batch_size = stage.batch_size
         self.train_max_seq_len = stage.train_max_seq_len
 
+    def zero_grad(self) -> None:
+        for opt in self.optimizers:
+            opt.zero_grad(set_to_none=True)
+
     def step_optimizers(self, step: int, params) -> None:
-        step_lr = self.args.base_lr * self.schedule.get_lr_mul(step)
-        for group in self.optimizer.param_groups:
-            group["lr"] = step_lr
+        lr_mul = self.schedule.get_lr_mul(step)
+        for opt in self.optimizers:
+            for group in opt.param_groups:
+                group["lr"] = group["base_lr"] * lr_mul
+
         if self.args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(params, self.args.grad_clip_norm)
-        self.optimizer.step()
-        self.optimizer.zero_grad(set_to_none=True)
+        for opt in self.optimizers:
+            opt.step()
+        self.zero_grad()
 
 
 def init_distributed() -> tuple[bool, int, int, int, torch.device]:
@@ -436,6 +459,16 @@ def main() -> None:
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
+    from torch.backends.cuda import (
+        enable_cudnn_sdp,
+        enable_flash_sdp,
+        enable_math_sdp,
+        enable_mem_efficient_sdp,
+    )
+    enable_cudnn_sdp(True)
+    enable_flash_sdp(False)
+    enable_mem_efficient_sdp(False)
+    enable_math_sdp(False)
 
     logfile = None
     if master_process:
@@ -460,16 +493,13 @@ def main() -> None:
     print0("=" * 100)
 
     training_stages = [
-        TrainingStage(duration=1 / 3, train_max_seq_len=896, batch_size=8 * 2048 * 8, lr_mul=1.0),
-        TrainingStage(duration=1 / 3, train_max_seq_len=2048, batch_size=16 * 2048 * 8, lr_mul=1.52),
-        TrainingStage(duration=1 / 3, train_max_seq_len=2048, batch_size=24 * 2048 * 8, lr_mul=1.73),
-        TrainingStage(train_max_seq_len=2048, batch_size=24 * 2048 * 8, lr_mul=1.0),
+        TrainingStage(train_max_seq_len=1024, batch_size=8 * 64 * 1024, lr_mul=1.0),
     ]
     schedule = TrainingSchedule(
         training_stages,
         args.num_scheduled_iterations,
         args.num_extension_iterations,
-        cooldown_frac=0.55,
+        warmdown_iters=args.warmdown_iters,
     )
 
     max_seq_len = max(stage.train_max_seq_len for stage in training_stages)
@@ -483,7 +513,10 @@ def main() -> None:
         logit_chunk_tokens=args.logit_chunk_tokens,
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
-    ).to(device)
+    ).to(device).bfloat16()
+    for module in raw_model.modules():
+        if isinstance(module, nn.Linear):
+            module.float()
 
     if args.compile_model:
         raw_model = torch.compile(raw_model, dynamic=False)
@@ -494,14 +527,33 @@ def main() -> None:
     else:
         model = raw_model
 
-    optimizer = torch.optim.AdamW(
-        raw_model.parameters(),
-        lr=args.base_lr,
-        betas=(args.beta1, args.beta2),
-        eps=args.eps,
-        weight_decay=args.weight_decay,
-    )
-    training_manager = TrainingManager(schedule, optimizer, args)
+    block_params = list(raw_model.blocks.parameters())
+    matrix_params = [p for p in block_params if p.ndim == 2]
+    scalar_params = [p for p in block_params if p.ndim < 2] + [raw_model.skip_weights]
+    optimizers: list[torch.optim.Optimizer] = [
+        torch.optim.Adam(
+            [{"params": [raw_model.tok_emb.weight], "lr": args.embed_lr, "base_lr": args.embed_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.eps,
+            fused=True,
+        ),
+        torch.optim.Adam(
+            [{"params": [raw_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.eps,
+            fused=True,
+        ),
+        torch.optim.Adam(
+            [
+                {"params": matrix_params, "lr": args.matrix_lr, "base_lr": args.matrix_lr},
+                {"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr},
+            ],
+            betas=(args.beta1, args.beta2),
+            eps=args.eps,
+            fused=True,
+        ),
+    ]
+    training_manager = TrainingManager(schedule, optimizers, args)
 
     n_params = sum(p.numel() for p in raw_model.parameters())
     print0(f"model_params:{n_params}", console=True)
@@ -560,7 +612,8 @@ def main() -> None:
                 torch.save(ckpt, f"logs/{args.run_id}/state_step{step:06d}.pt")
             break
 
-        optimizer.zero_grad(set_to_none=True)
+        training_manager.zero_grad()
+        train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
             if isinstance(model, DDP):
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
@@ -571,12 +624,14 @@ def main() -> None:
             )
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=args.use_amp):
                 loss = model(x, y)
+            train_loss = loss.detach()
             (loss * grad_scale).backward()
         training_manager.step_optimizers(step, raw_model.parameters())
 
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         print0(
-            f"step:{step + 1}/{train_steps} train_time:{approx_training_time_ms:.0f}ms "
+            f"step:{step + 1}/{train_steps} train_loss:{train_loss.item():.4f} "
+            f"train_time:{approx_training_time_ms:.0f}ms "
             f"step_avg:{approx_training_time_ms / (step + 1):.2f}ms",
             console=True,
         )
