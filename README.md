@@ -67,6 +67,10 @@ This is hard to set a super clear line on. We reserve the right to disqualify ru
 
 (etc)
 
+### Submission Process
+
+_I'll fill this in soon. Pretty much people create a PR with their code and a training log and a description to the /records/ folder and we add it there. And the leaderboard can auto update on that._
+
 ### Support
 
 Reach out to parametergolf@openai.com for any other questions.
