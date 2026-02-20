@@ -37,6 +37,18 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _round_to_multiple(value: int, multiple: int) -> int:
+    value = int(value)
+    multiple = int(multiple)
+    if multiple <= 1:
+        return max(value, 1)
+    down = (value // multiple) * multiple
+    up = down + multiple
+    if down < 1:
+        return max(up, 1)
+    return up if (up - value) < (value - down) else down
+
+
 def zeropower_via_svd(G: Tensor, steps=None) -> Tensor:
     U, _, Vh = torch.linalg.svd(G, full_matrices=False)
     return U @ Vh
@@ -397,6 +409,14 @@ class Hyperparameters:
     model_dim: int = _env_int("MODEL_DIM", 768)
     num_heads: int = _env_int("NUM_HEADS", 6)
     mlp_mult: int = _env_int("MLP_MULT", 4)
+    mlp_kind: str = os.environ.get("MLP_KIND", "swiglu_pm")
+    mlp_hidden_align: int = _env_int("MLP_HIDDEN_ALIGN", 64)
+    per_head_v_mix: bool = _env_bool("PER_HEAD_V_MIX", True)
+    qk_gain: bool = _env_bool("QK_GAIN", True)
+    attn_out_norm: bool = _env_bool("ATTN_OUT_NORM", True)
+    channel_skip_gates: bool = _env_bool("CHANNEL_SKIP_GATES", True)
+    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", False)
+    tied_embed_lr: float = _env_float("TIED_EMBED_LR", 0.2)
     # 0 disables chunking and is materially faster on current H100 stacks.
     logit_chunk_tokens: int = _env_int("LOGIT_CHUNK_TOKENS", 0)
     logit_softcap: float = _env_float("LOGIT_SOFTCAP", 30.0)
@@ -654,6 +674,70 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        rope_base: float,
+        per_head_v_mix: bool = True,
+        qk_gain: bool = True,
+        attn_out_norm: bool = True,
+    ):
+        super().__init__()
+        assert dim % num_heads == 0, "model_dim must be divisible by num_heads"
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        if self.head_dim % 2 != 0:
+            raise ValueError("head_dim must be even for RoPE")
+        self.c_q = CastedLinear(dim, dim, bias=False)
+        self.c_k = CastedLinear(dim, dim, bias=False)
+        self.c_v = CastedLinear(dim, dim, bias=False)
+        self.proj = CastedLinear(dim, dim, bias=False)
+        self.proj._zero_init = True
+        if per_head_v_mix:
+            self.v_mix = nn.Parameter(torch.full((num_heads, 1, 1), 0.5, dtype=torch.float32))
+        else:
+            self.v_mix = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
+        if qk_gain:
+            self.q_gain = nn.Parameter(torch.ones(num_heads, 1, 1, dtype=torch.float32))
+            self.k_gain = nn.Parameter(torch.ones(num_heads, 1, 1, dtype=torch.float32))
+        else:
+            self.register_buffer("q_gain", torch.ones(num_heads, 1, 1, dtype=torch.float32))
+            self.register_buffer("k_gain", torch.ones(num_heads, 1, 1, dtype=torch.float32))
+        self.out_norm = RMSNorm(dim) if attn_out_norm else nn.Identity()
+        self.rotary = Rotary(self.head_dim, base=rope_base)
+
+    def forward(self, x: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
+        bsz, seqlen, dim = x.shape
+        q = self.c_q(x)
+        k = self.c_k(x)
+        v = self.c_v(x)
+        q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        if v1 is None:
+            v1 = v
+        mix = self.v_mix.to(dtype=v.dtype)
+        v = (1 - mix) * v + mix * v1
+        q = F.rms_norm(q, (q.size(-1),))
+        k = F.rms_norm(k, (k.size(-1),))
+        q = q * self.q_gain.to(dtype=q.dtype)
+        k = k * self.k_gain.to(dtype=k.dtype)
+        cos, sin = self.rotary(seqlen, x.device, q.dtype)
+        q = apply_rotary_emb(q, cos, sin)
+        k = apply_rotary_emb(k, cos, sin)
+        y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
+        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        y = self.out_norm(y)
+        return self.proj(y), v1
+
+
+class BaselineCausalSelfAttention(nn.Module):
+    """
+    Keep an exact baseline attention path for compile/perf parity when all experimental
+    attention toggles are disabled.
+    """
+
     def __init__(self, dim: int, num_heads: int, rope_base: float):
         super().__init__()
         assert dim % num_heads == 0, "model_dim must be divisible by num_heads"
@@ -691,28 +775,75 @@ class CausalSelfAttention(nn.Module):
         return self.proj(y), v1
 
 
-class MLP(nn.Module):
+class ReLU2MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
+        self.hidden_dim = hidden
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        # Keep the simple relu^2 nonlinearity.
         x = torch.relu(self.fc(x))
         x = x.square()
         return self.proj(x)
 
 
+class SwiGLUMLP(nn.Module):
+    def __init__(self, dim: int, mlp_mult: int, hidden_align: int = 64):
+        super().__init__()
+        relu_hidden = mlp_mult * dim
+        # Match the ReLU^2 MLP parameter budget: 2*d*h_relu ~= 3*d*h_swiglu.
+        hidden = _round_to_multiple((2 * relu_hidden) // 3, hidden_align)
+        self.hidden_dim = hidden
+        self.fc = CastedLinear(dim, hidden, bias=False)
+        self.gate = CastedLinear(dim, hidden, bias=False)
+        self.proj = CastedLinear(hidden, dim, bias=False)
+        self.proj._zero_init = True
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.fc(x) * F.silu(self.gate(x))
+        return self.proj(x)
+
+
+def make_mlp(dim: int, mlp_mult: int, kind: str = "swiglu_pm", hidden_align: int = 64) -> nn.Module:
+    kind_l = kind.lower()
+    if kind_l in {"relu2", "relu_sq", "relu-squared", "baseline"}:
+        return ReLU2MLP(dim, mlp_mult)
+    if kind_l in {"swiglu", "swiglu_pm", "swiglu_param_match"}:
+        return SwiGLUMLP(dim, mlp_mult, hidden_align=hidden_align)
+    raise ValueError(f"Unsupported MLP_KIND={kind!r}")
+
+
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, mlp_mult: int, rope_base: float):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        mlp_mult: int,
+        rope_base: float,
+        mlp_kind: str = "swiglu_pm",
+        mlp_hidden_align: int = 64,
+        per_head_v_mix: bool = True,
+        qk_gain: bool = True,
+        attn_out_norm: bool = True,
+    ):
         super().__init__()
         self.attn_norm = RMSNorm(dim)
         self.mlp_norm = RMSNorm(dim)
-        self.attn = CausalSelfAttention(dim, num_heads, rope_base=rope_base)
-        self.mlp = MLP(dim, mlp_mult)
+        if (not per_head_v_mix) and (not qk_gain) and (not attn_out_norm):
+            self.attn = BaselineCausalSelfAttention(dim, num_heads, rope_base=rope_base)
+        else:
+            self.attn = CausalSelfAttention(
+                dim,
+                num_heads,
+                rope_base=rope_base,
+                per_head_v_mix=per_head_v_mix,
+                qk_gain=qk_gain,
+                attn_out_norm=attn_out_norm,
+            )
+        self.mlp = make_mlp(dim, mlp_mult, kind=mlp_kind, hidden_align=mlp_hidden_align)
         self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
 
     def forward(self, x: Tensor, x0: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
@@ -732,6 +863,13 @@ class GPT(nn.Module):
         model_dim: int,
         num_heads: int,
         mlp_mult: int,
+        mlp_kind: str,
+        mlp_hidden_align: int,
+        per_head_v_mix: bool,
+        qk_gain: bool,
+        attn_out_norm: bool,
+        channel_skip_gates: bool,
+        tie_embeddings: bool,
         max_seq_len: int,
         logit_chunk_tokens: int,
         logit_softcap: float,
@@ -741,17 +879,36 @@ class GPT(nn.Module):
         self.max_seq_len = max_seq_len
         self.logit_chunk_tokens = logit_chunk_tokens
         self.logit_softcap = logit_softcap
+        self.tie_embeddings = tie_embeddings
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers))
+        if channel_skip_gates:
+            self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers, model_dim))
+        else:
+            self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers))
         self.blocks = nn.ModuleList(
-            [Block(model_dim, num_heads, mlp_mult, rope_base=rope_base) for _ in range(num_layers)]
+            [
+                Block(
+                    model_dim,
+                    num_heads,
+                    mlp_mult,
+                    rope_base=rope_base,
+                    mlp_kind=mlp_kind,
+                    mlp_hidden_align=mlp_hidden_align,
+                    per_head_v_mix=per_head_v_mix,
+                    qk_gain=qk_gain,
+                    attn_out_norm=attn_out_norm,
+                )
+                for _ in range(num_layers)
+            ]
         )
         self.final_norm = RMSNorm(model_dim)
         self.lm_head = CastedLinear(model_dim, vocab_size, bias=False)
         self.lm_head._zero_init = True
         self._init_weights(num_layers)
+        if self.tie_embeddings:
+            self.lm_head.weight = self.tok_emb.weight
 
     def _init_weights(self, num_layers: int) -> None:
         for module in self.modules():
@@ -924,6 +1081,13 @@ def main() -> None:
         model_dim=args.model_dim,
         num_heads=args.num_heads,
         mlp_mult=args.mlp_mult,
+        mlp_kind=args.mlp_kind,
+        mlp_hidden_align=args.mlp_hidden_align,
+        per_head_v_mix=args.per_head_v_mix,
+        qk_gain=args.qk_gain,
+        attn_out_norm=args.attn_out_norm,
+        channel_skip_gates=args.channel_skip_gates,
+        tie_embeddings=args.tie_embeddings,
         max_seq_len=max_seq_len,
         logit_chunk_tokens=args.logit_chunk_tokens,
         logit_softcap=args.logit_softcap,
@@ -944,18 +1108,22 @@ def main() -> None:
     block_params = list(raw_model.blocks.parameters())
     matrix_params = [p for p in block_params if p.ndim == 2]
     scalar_params = [p for p in block_params if p.ndim < 2] + [raw_model.skip_weights]
+    tied_embed_head = raw_model.lm_head.weight is raw_model.tok_emb.weight
+    embed_lr = args.tied_embed_lr if tied_embed_head else args.embed_lr
     optimizer_tok = torch.optim.Adam(
-        [{"params": [raw_model.tok_emb.weight], "lr": args.embed_lr, "base_lr": args.embed_lr}],
+        [{"params": [raw_model.tok_emb.weight], "lr": embed_lr, "base_lr": embed_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.eps,
         fused=True,
     )
-    optimizer_head = torch.optim.Adam(
-        [{"params": [raw_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.eps,
-        fused=True,
-    )
+    optimizer_head = None
+    if not tied_embed_head:
+        optimizer_head = torch.optim.Adam(
+            [{"params": [raw_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.eps,
+            fused=True,
+        )
     optimizer_muon = Muon(
         matrix_params,
         lr=args.matrix_lr,
@@ -974,14 +1142,27 @@ def main() -> None:
     )
     optimizers: list[torch.optim.Optimizer] = [
         optimizer_tok,
-        optimizer_head,
         optimizer_muon,
         optimizer_scalar,
     ]
+    if optimizer_head is not None:
+        optimizers.insert(1, optimizer_head)
     training_manager = TrainingManager(schedule, optimizers, args)
 
     n_params = sum(p.numel() for p in raw_model.parameters())
     print0(f"model_params:{n_params}", console=True)
+    print0(
+        "arch_v2:"
+        f" mlp_kind={args.mlp_kind}"
+        f" mlp_hidden_align={args.mlp_hidden_align}"
+        f" per_head_v_mix={args.per_head_v_mix}"
+        f" qk_gain={args.qk_gain}"
+        f" attn_out_norm={args.attn_out_norm}"
+        f" channel_skip_gates={args.channel_skip_gates}"
+        f" tie_embeddings={tied_embed_head}"
+        f" embed_lr={embed_lr}",
+        console=True,
+    )
     print0(
         f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} "
         f"compile_model:True compile_dynamic:False compile_fullgraph:True "

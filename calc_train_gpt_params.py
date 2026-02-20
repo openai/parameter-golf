@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Estimate train_gpt checkpoint size from config knobs.
 
-This mirrors tensor shapes in `GPT.__init__` in `train_gpt.py` so you can
-quickly scan config grids and find the largest model under a checkpoint budget.
+This mirrors tensor shapes in the current `GPT` class in `train_gpt.py` so you
+can quickly scan config grids and find the largest model under a checkpoint
+budget.
 """
 
 from __future__ import annotations
@@ -10,15 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import itertools
-import math
 from dataclasses import dataclass
-
-
-def next_multiple_of_n(value: int, n: int) -> int:
-    if n <= 0:
-        raise ValueError(f"n must be positive, got {n}")
-    return ((value + n - 1) // n) * n
-
 
 def parse_int_spec(spec: str, *, name: str) -> list[int]:
     """Parse specs like '768', '512,768,1024', or '256:1024:128'."""
@@ -83,115 +76,69 @@ class ModelConfig:
     num_heads: int
     head_dim: int
     vocab_size: int
-    bigram_vocab_size: int
+    mlp_mult: int
     world_size: int
-    vocab_pad_multiple: int
-
-    @property
-    def padded_vocab_size(self) -> int:
-        return next_multiple_of_n(self.vocab_size, self.vocab_pad_multiple)
 
     @property
     def hdim(self) -> int:
         return self.num_heads * self.head_dim
 
     @property
-    def num_attn_layers(self) -> int:
-        # train_gpt skips attention in layer index 6 if that layer exists.
-        return self.num_layers - (1 if self.num_layers > 6 else 0)
-
-    @property
-    def attn_shard_multiple(self) -> int:
-        # train_gpt.py uses world_size // gcd(world_size, 4) to pad attention banks.
-        return self.world_size // math.gcd(self.world_size, 4)
-
-    @property
-    def num_attn_layers_with_padding(self) -> int:
-        return next_multiple_of_n(self.num_attn_layers, self.attn_shard_multiple)
-
-    @property
-    def mlp_shard_multiple(self) -> int:
-        # train_gpt.py uses world_size // gcd(world_size, 2) to pad MLP banks.
-        return self.world_size // math.gcd(self.world_size, 2)
-
-    @property
-    def num_mlp_layers_with_padding(self) -> int:
-        return next_multiple_of_n(self.num_layers, self.mlp_shard_multiple)
-
-    @property
-    def scalars_pad(self) -> int:
-        # Exactly as in train_gpt.py: (-num_layers * 3 - 3) % world_size
-        return (-self.num_layers * 3 - 3) % self.world_size
+    def num_decoder_layers(self) -> int:
+        return self.num_layers - (self.num_layers // 2)
 
     @property
     def runtime_valid_for_current_train_gpt(self) -> bool:
         # Current train_gpt.py assumptions:
         # - model_dim must equal num_heads * head_dim
+        # - head_dim must be even for RoPE
         # - world_size must divide 8 (grad_accum parity assertion)
-        # - paired-head path requires even num_heads
-        # - num_layers must be positive
+        # - num_layers and mlp_mult must be positive
+        if self.model_dim <= 0:
+            return False
+        if self.num_heads <= 0 or self.head_dim <= 0:
+            return False
         if self.model_dim != self.hdim:
+            return False
+        if self.head_dim % 2 != 0:
             return False
         if self.world_size <= 0 or 8 % self.world_size != 0:
             return False
-        if self.num_heads % 2 != 0:
-            return False
         if self.num_layers < 1:
+            return False
+        if self.mlp_mult < 1:
             return False
         return True
 
 
 COMPONENT_ORDER = [
-    "smear_gate",
-    "skip_gate",
-    "value_embeds",
-    "attn_gate_bank",
-    "ve_gate_bank",
-    "attn_bank",
-    "mlp_bank",
+    "tok_emb",
+    "skip_weights",
+    "block_attn_linears",
+    "block_attn_v_mix",
+    "block_mlp_linears",
+    "block_resid_mix",
     "lm_head",
-    "embed",
-    "bigram_embed",
-    "x0_lambdas",
-    "scalars",
 ]
 
-# Approximate saved checkpoint dtype in current train_gpt.py:
-# - Most trainable tensors are bf16 before save.
-# - x0_lambdas and scalars remain fp32.
-COMPONENT_BYTES_PER_PARAM = {
-    "smear_gate": 2,
-    "skip_gate": 2,
-    "value_embeds": 2,
-    "attn_gate_bank": 2,
-    "ve_gate_bank": 2,
-    "attn_bank": 2,
-    "mlp_bank": 2,
-    "lm_head": 2,
-    "embed": 2,
-    "bigram_embed": 2,
-    "x0_lambdas": 4,
-    "scalars": 4,
-}
+# Current train_gpt.py casts the model to bf16 before training/saving.
+COMPONENT_BYTES_PER_PARAM = {name: 2 for name in COMPONENT_ORDER}
 
 
 def component_params(cfg: ModelConfig) -> dict[str, int]:
-    vpad = cfg.padded_vocab_size
-    hdim = cfg.hdim
-
+    d = cfg.model_dim
+    layers = cfg.num_layers
     comps: dict[str, int] = {}
-    comps["smear_gate"] = 12  # nn.Linear(12, 1, bias=False)
-    comps["skip_gate"] = 12   # nn.Linear(12, 1, bias=False)
-    comps["value_embeds"] = 5 * vpad * cfg.model_dim
-    comps["attn_gate_bank"] = cfg.num_attn_layers * cfg.num_heads * 12
-    comps["ve_gate_bank"] = 5 * cfg.num_heads * 12
-    comps["attn_bank"] = cfg.num_attn_layers_with_padding * (4 * cfg.model_dim * hdim)
-    comps["mlp_bank"] = cfg.num_mlp_layers_with_padding * (2 * (4 * cfg.model_dim) * cfg.model_dim)
-    comps["lm_head"] = cfg.model_dim * vpad
-    comps["embed"] = vpad * cfg.model_dim
-    comps["bigram_embed"] = cfg.bigram_vocab_size * cfg.model_dim
-    comps["x0_lambdas"] = cfg.num_layers
-    comps["scalars"] = (4 * cfg.num_layers + 3) + cfg.scalars_pad
+    comps["tok_emb"] = cfg.vocab_size * d
+    comps["skip_weights"] = cfg.num_decoder_layers
+    # Per block: q/k/v/proj, each d x d, bias=False.
+    comps["block_attn_linears"] = layers * (4 * d * d)
+    # Per block: CausalSelfAttention.v_mix (scalar) and Block.resid_mix (2 scalars).
+    comps["block_attn_v_mix"] = layers
+    # Per block MLP has fc(d -> mlp_mult*d) and proj(mlp_mult*d -> d), bias=False.
+    comps["block_mlp_linears"] = layers * (2 * cfg.mlp_mult * d * d)
+    comps["block_resid_mix"] = 2 * layers
+    comps["lm_head"] = d * cfg.vocab_size
     return comps
 
 
@@ -207,16 +154,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-dim", required=True, help="One of: 768 | 512,768 | 256:1024:128")
     parser.add_argument("--num-layers", required=True, help="One of: 11 | 4,6,8 | 4:12")
     parser.add_argument("--num-heads", required=True, help="One of: 6 | 4,6,8 | 2:12:2")
-    parser.add_argument("--head-dim", default="128", help="Default 128. Supports lists/ranges.")
-    parser.add_argument("--vocab-size", required=True, help="Tokenizer vocab before padding-to-multiple.")
     parser.add_argument(
-        "--bigram-vocab-size",
-        default="auto",
-        help="Explicit value/list/range, or 'auto' (default) to use bigram-multiplier * padded_vocab.",
+        "--head-dim",
+        default="128",
+        help="Default 128. Supports lists/ranges; used as a runtime-valid consistency check.",
     )
-    parser.add_argument("--bigram-multiplier", type=int, default=5, help="Used when --bigram-vocab-size=auto.")
-    parser.add_argument("--world-size", default="8", help="Affects scalar padding term.")
-    parser.add_argument("--vocab-pad-multiple", type=int, default=128, help="Default mirrors train_gpt.py.")
+    parser.add_argument("--mlp-mult", default="4", help="Default 4. Supports lists/ranges.")
+    parser.add_argument("--vocab-size", required=True, help="Model vocab size (exact; no implicit padding).")
+    parser.add_argument(
+        "--world-size",
+        default="8",
+        help="Affects runtime-valid filtering only (current train_gpt.py requires world_size dividing 8).",
+    )
     parser.add_argument(
         "--max-bytes",
         type=int,
@@ -250,7 +199,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Only keep configs valid for current train_gpt.py runtime assumptions: "
-            "num_layers>=1, model_dim==num_heads*head_dim, even num_heads, and world_size dividing 8."
+            "num_layers>=1, mlp_mult>=1, model_dim==num_heads*head_dim, "
+            "head_dim even for RoPE, and world_size dividing 8."
         ),
     )
     parser.add_argument(
@@ -277,6 +227,7 @@ def main() -> int:
     num_layers = parse_int_spec(args.num_layers, name="--num-layers")
     num_heads = parse_int_spec(args.num_heads, name="--num-heads")
     head_dims = parse_int_spec(args.head_dim, name="--head-dim")
+    mlp_mults = parse_int_spec(args.mlp_mult, name="--mlp-mult")
     vocab_sizes = parse_int_spec(args.vocab_size, name="--vocab-size")
     world_sizes = parse_int_spec(args.world_size, name="--world-size")
     if any(w <= 0 for w in world_sizes):
@@ -291,60 +242,46 @@ def main() -> int:
             + f". Valid: {', '.join(COMPONENT_ORDER)}"
         )
 
-    explicit_bigram_values: list[int] | None = None
-    if args.bigram_vocab_size.lower() != "auto":
-        explicit_bigram_values = parse_int_spec(args.bigram_vocab_size, name="--bigram-vocab-size")
-
     max_bytes = int(round(args.max_mb * 1_000_000)) if args.max_mb is not None else args.max_bytes
 
     rows: list[dict[str, int | bool]] = []
-    for model_dim, layers, heads, head_dim, vocab_size, world_size in itertools.product(
-        model_dims, num_layers, num_heads, head_dims, vocab_sizes, world_sizes
+    for model_dim, layers, heads, head_dim, mlp_mult, vocab_size, world_size in itertools.product(
+        model_dims, num_layers, num_heads, head_dims, mlp_mults, vocab_sizes, world_sizes
     ):
-        vpad = next_multiple_of_n(vocab_size, args.vocab_pad_multiple)
-        bigram_candidates = (
-            explicit_bigram_values
-            if explicit_bigram_values is not None
-            else [args.bigram_multiplier * vpad]
+        cfg = ModelConfig(
+            model_dim=model_dim,
+            num_layers=layers,
+            num_heads=heads,
+            head_dim=head_dim,
+            vocab_size=vocab_size,
+            mlp_mult=mlp_mult,
+            world_size=world_size,
         )
 
-        for bigram_vocab_size in bigram_candidates:
-            cfg = ModelConfig(
-                model_dim=model_dim,
-                num_layers=layers,
-                num_heads=heads,
-                head_dim=head_dim,
-                vocab_size=vocab_size,
-                bigram_vocab_size=bigram_vocab_size,
-                world_size=world_size,
-                vocab_pad_multiple=args.vocab_pad_multiple,
-            )
-
-            comps = component_params(cfg)
-            comp_bytes = component_bytes(comps)
-            total_params = sum(v for k, v in comps.items() if k not in exclude)
-            total_bytes = sum(v for k, v in comp_bytes.items() if k not in exclude)
-            row: dict[str, int | bool] = {
-                "total_params": total_params,
-                "total_bytes": total_bytes,
-                "slack_to_max_bytes": max_bytes - total_bytes,
-                "slack_to_max_params": (
-                    (args.max_params - total_params) if args.max_params is not None else 0
-                ),
-                "model_dim": model_dim,
-                "num_layers": layers,
-                "num_heads": heads,
-                "head_dim": head_dim,
-                "hdim": cfg.hdim,
-                "vocab_size": vocab_size,
-                "padded_vocab_size": cfg.padded_vocab_size,
-                "bigram_vocab_size": bigram_vocab_size,
-                "world_size": world_size,
-                "runtime_valid": cfg.runtime_valid_for_current_train_gpt,
-            }
-            row.update(comps)
-            row.update({f"bytes_{k}": v for k, v in comp_bytes.items()})
-            rows.append(row)
+        comps = component_params(cfg)
+        comp_bytes = component_bytes(comps)
+        total_params = sum(v for k, v in comps.items() if k not in exclude)
+        total_bytes = sum(v for k, v in comp_bytes.items() if k not in exclude)
+        row: dict[str, int | bool] = {
+            "total_params": total_params,
+            "total_bytes": total_bytes,
+            "slack_to_max_bytes": max_bytes - total_bytes,
+            "slack_to_max_params": (
+                (args.max_params - total_params) if args.max_params is not None else 0
+            ),
+            "model_dim": model_dim,
+            "num_layers": layers,
+            "num_heads": heads,
+            "head_dim": head_dim,
+            "hdim": cfg.hdim,
+            "mlp_mult": mlp_mult,
+            "vocab_size": vocab_size,
+            "world_size": world_size,
+            "runtime_valid": cfg.runtime_valid_for_current_train_gpt,
+        }
+        row.update(comps)
+        row.update({f"bytes_{k}": v for k, v in comp_bytes.items()})
+        rows.append(row)
 
     if args.strict_runtime_constraints:
         rows = [r for r in rows if bool(r["runtime_valid"])]
@@ -374,9 +311,8 @@ def main() -> int:
             "num_heads",
             "head_dim",
             "hdim",
+            "mlp_mult",
             "vocab_size",
-            "padded_vocab_size",
-            "bigram_vocab_size",
             "world_size",
             "runtime_valid",
             *COMPONENT_ORDER,
@@ -400,7 +336,7 @@ def main() -> int:
     print()
     print(
         "rank total_bytes total_mb slack_to_max_bytes total_params model_dim "
-        "num_layers num_heads head_dim vocab_size padded_vocab bigram_vocab runtime_valid"
+        "num_layers num_heads head_dim mlp_mult vocab_size runtime_valid"
     )
     for idx, row in enumerate(shown, start=1):
         print(
@@ -413,9 +349,8 @@ def main() -> int:
             f"{int(row['num_layers']):>10} "
             f"{int(row['num_heads']):>9} "
             f"{int(row['head_dim']):>8} "
+            f"{int(row['mlp_mult']):>8} "
             f"{int(row['vocab_size']):>10} "
-            f"{int(row['padded_vocab_size']):>11} "
-            f"{int(row['bigram_vocab_size']):>11} "
             f"{str(bool(row['runtime_valid'])):>13}"
         )
 
@@ -425,7 +360,7 @@ def main() -> int:
             print(
                 f"[rank {idx}] d={row['model_dim']} L={row['num_layers']} "
                 f"h={row['num_heads']} hd={row['head_dim']} "
-                f"vocab={row['vocab_size']} (padded={row['padded_vocab_size']})"
+                f"mlp={row['mlp_mult']} vocab={row['vocab_size']}"
             )
             for name in COMPONENT_ORDER:
                 marker = " (excluded)" if name in exclude else ""
@@ -445,12 +380,13 @@ def main() -> int:
         print()
         print(
             "Note: runtime_valid=False means current train_gpt.py would reject that config "
-            "(requires num_layers>=1, model_dim==num_heads*head_dim, even num_heads, and world_size dividing 8)."
+            "(requires num_layers>=1, mlp_mult>=1, model_dim==num_heads*head_dim, "
+            "head_dim even for RoPE, and world_size dividing 8)."
         )
     print()
     print(
-        "Byte estimate assumes bf16 (2B) for most weights and fp32 (4B) for "
-        "x0_lambdas/scalars; excludes torch.save metadata overhead."
+        "Byte estimate assumes bf16 (2B) for all model parameters in current "
+        "train_gpt.py; excludes torch.save metadata overhead."
     )
 
     return 0

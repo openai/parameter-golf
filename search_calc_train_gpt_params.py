@@ -35,15 +35,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-layers", required=True, help="One of: 11 | 4,6,8 | 4:12")
     parser.add_argument("--num-heads", required=True, help="One of: 6 | 4,6,8 | 2:12:2")
     parser.add_argument("--head-dim", default="128", help="Default 128. Supports lists/ranges.")
-    parser.add_argument("--vocab-size", required=True, help="Tokenizer vocab before padding-to-multiple.")
-    parser.add_argument(
-        "--bigram-vocab-size",
-        default="auto",
-        help="Explicit value/list/range, or 'auto' (default) to use bigram-multiplier * padded_vocab.",
-    )
-    parser.add_argument("--bigram-multiplier", type=int, default=5, help="Used when --bigram-vocab-size=auto.")
+    parser.add_argument("--mlp-mult", default="4", help="Default 4. Supports lists/ranges.")
+    parser.add_argument("--vocab-size", required=True, help="Model vocab size (exact; no implicit padding).")
     parser.add_argument("--world-size", default="8", help="Supports lists/ranges like 1,2,4,8.")
-    parser.add_argument("--vocab-pad-multiple", type=int, default=128, help="Default mirrors train_gpt.py.")
     parser.add_argument(
         "--target-params",
         type=int,
@@ -116,6 +110,7 @@ def main() -> int:
     num_layers = parse_int_spec(args.num_layers, name="--num-layers")
     num_heads = parse_int_spec(args.num_heads, name="--num-heads")
     head_dims = parse_int_spec(args.head_dim, name="--head-dim")
+    mlp_mults = parse_int_spec(args.mlp_mult, name="--mlp-mult")
     vocab_sizes = parse_int_spec(args.vocab_size, name="--vocab-size")
     world_sizes = parse_int_spec(args.world_size, name="--world-size")
     exclude = parse_component_list(args.exclude)
@@ -135,76 +130,63 @@ def main() -> int:
             + f". Valid: {', '.join(COMPONENT_ORDER)}"
         )
 
-    explicit_bigram_values: list[int] | None = None
-    if args.bigram_vocab_size.lower() != "auto":
-        explicit_bigram_values = parse_int_spec(args.bigram_vocab_size, name="--bigram-vocab-size")
-
     target_bytes = int(round(args.target_mb * 1_000_000)) if args.target_mb is not None else args.target_bytes
     max_bytes = int(round(args.max_mb * 1_000_000)) if args.max_mb is not None else args.max_bytes
 
     rows: list[dict[str, int | float | bool]] = []
-    for model_dim, layers, heads, head_dim, vocab_size, world_size in itertools.product(
-        model_dims, num_layers, num_heads, head_dims, vocab_sizes, world_sizes
+    for model_dim, layers, heads, head_dim, mlp_mult, vocab_size, world_size in itertools.product(
+        model_dims, num_layers, num_heads, head_dims, mlp_mults, vocab_sizes, world_sizes
     ):
-        vpad_bigram = (
-            explicit_bigram_values
-            if explicit_bigram_values is not None
-            else [args.bigram_multiplier * (((vocab_size + args.vocab_pad_multiple - 1) // args.vocab_pad_multiple) * args.vocab_pad_multiple)]
+        cfg = ModelConfig(
+            model_dim=model_dim,
+            num_layers=layers,
+            num_heads=heads,
+            head_dim=head_dim,
+            vocab_size=vocab_size,
+            mlp_mult=mlp_mult,
+            world_size=world_size,
         )
+        runtime_valid = cfg.runtime_valid_for_current_train_gpt
+        if args.strict_runtime_constraints and not runtime_valid:
+            continue
 
-        for bigram_vocab_size in vpad_bigram:
-            cfg = ModelConfig(
-                model_dim=model_dim,
-                num_layers=layers,
-                num_heads=heads,
-                head_dim=head_dim,
-                vocab_size=vocab_size,
-                bigram_vocab_size=bigram_vocab_size,
-                world_size=world_size,
-                vocab_pad_multiple=args.vocab_pad_multiple,
-            )
-            runtime_valid = cfg.runtime_valid_for_current_train_gpt
-            if args.strict_runtime_constraints and not runtime_valid:
-                continue
+        comps = component_params(cfg)
+        bytes_by_comp = component_bytes(comps)
+        total_params = sum(v for k, v in comps.items() if k not in exclude)
+        total_bytes = sum(v for k, v in bytes_by_comp.items() if k not in exclude)
 
-            comps = component_params(cfg)
-            bytes_by_comp = component_bytes(comps)
-            total_params = sum(v for k, v in comps.items() if k not in exclude)
-            total_bytes = sum(v for k, v in bytes_by_comp.items() if k not in exclude)
+        if args.under_target_only and total_params > args.target_params:
+            continue
+        if args.max_params is not None and total_params > args.max_params:
+            continue
+        if max_bytes is not None and total_bytes > max_bytes:
+            continue
 
-            if args.under_target_only and total_params > args.target_params:
-                continue
-            if args.max_params is not None and total_params > args.max_params:
-                continue
-            if max_bytes is not None and total_bytes > max_bytes:
-                continue
+        delta_params = total_params - args.target_params
+        score = args.weight_params * (abs(delta_params) / args.target_params)
 
-            delta_params = total_params - args.target_params
-            score = args.weight_params * (abs(delta_params) / args.target_params)
+        delta_bytes = 0
+        if target_bytes is not None:
+            delta_bytes = total_bytes - target_bytes
+            score += args.weight_bytes * (abs(delta_bytes) / max(1, target_bytes))
 
-            delta_bytes = 0
-            if target_bytes is not None:
-                delta_bytes = total_bytes - target_bytes
-                score += args.weight_bytes * (abs(delta_bytes) / max(1, target_bytes))
-
-            rows.append(
-                {
-                    "score": score,
-                    "total_params": total_params,
-                    "total_bytes": total_bytes,
-                    "delta_params": delta_params,
-                    "delta_bytes": delta_bytes,
-                    "model_dim": model_dim,
-                    "num_layers": layers,
-                    "num_heads": heads,
-                    "head_dim": head_dim,
-                    "vocab_size": vocab_size,
-                    "padded_vocab_size": cfg.padded_vocab_size,
-                    "bigram_vocab_size": bigram_vocab_size,
-                    "world_size": world_size,
-                    "runtime_valid": runtime_valid,
-                }
-            )
+        rows.append(
+            {
+                "score": score,
+                "total_params": total_params,
+                "total_bytes": total_bytes,
+                "delta_params": delta_params,
+                "delta_bytes": delta_bytes,
+                "model_dim": model_dim,
+                "num_layers": layers,
+                "num_heads": heads,
+                "head_dim": head_dim,
+                "mlp_mult": mlp_mult,
+                "vocab_size": vocab_size,
+                "world_size": world_size,
+                "runtime_valid": runtime_valid,
+            }
+        )
 
     if not rows:
         print("No configs matched the current filters.")
@@ -230,9 +212,8 @@ def main() -> int:
             "num_layers",
             "num_heads",
             "head_dim",
+            "mlp_mult",
             "vocab_size",
-            "padded_vocab_size",
-            "bigram_vocab_size",
             "world_size",
             "runtime_valid",
         ]
@@ -247,7 +228,7 @@ def main() -> int:
     print()
     print(
         "rank score total_params delta_params total_bytes total_mb delta_bytes "
-        "model_dim num_layers num_heads head_dim world_size runtime_valid"
+        "model_dim num_layers num_heads head_dim mlp_mult vocab_size world_size runtime_valid"
     )
     for idx, row in enumerate(shown, start=1):
         print(
@@ -262,6 +243,8 @@ def main() -> int:
             f"{int(row['num_layers']):>10} "
             f"{int(row['num_heads']):>9} "
             f"{int(row['head_dim']):>8} "
+            f"{int(row['mlp_mult']):>8} "
+            f"{int(row['vocab_size']):>10} "
             f"{int(row['world_size']):>10} "
             f"{str(bool(row['runtime_valid'])):>13}"
         )
