@@ -105,3 +105,5 @@ Output layout:
 Run bbb cptree az://oaidatasets2/speedrunkits/fineweb10B/ data/fineweb10B/ instead of dataset loading.
 
 bbb cptree az://oaidatasets2/speedrunkits/matched_10B_docs2m_seed1337 data/matched_10B
+
+bbb cp /tmp/muon_default_8gpu_20260220T071150Z_final_model.pt az://oaidatasets2/speedrunkits/parameter-golf/ckpt/muon_default_feb19_12layer_50kvocab.py

@@ -35,9 +35,122 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "y", "on"}
 
 
-# NOTE: Modify this command if you change the Tokenizer! Ensure correctness for submission to be accepted. Submissions with Tokenizer changes will be more carefully examined.
-FIXED_TOKENIZER_PATH = "/tmp/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model"
-_SP_LUT_CACHE: dict[str, tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = {}
+def zeropower_via_svd(G: Tensor, steps=None) -> Tensor:
+    U, _, Vh = torch.linalg.svd(G, full_matrices=False)
+    return U @ Vh
+
+
+@torch.compile
+def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+    """
+    Newton-Schulz iteration to approximate the orthogonal factor of a matrix.
+    """
+    assert G.ndim == 2
+    a, b, c = (3.4445, -4.7750, 2.0315)
+    X = G.bfloat16()
+    X /= X.norm() + eps
+    if G.size(0) > G.size(1):
+        X = X.T
+    for _ in range(steps):
+        A = X @ X.T
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    if G.size(0) > G.size(1):
+        X = X.T
+    return X
+
+
+zeropower_backends = {
+    "svd": zeropower_via_svd,
+    "newtonschulz5": zeropower_via_newtonschulz5,
+}
+
+
+class Muon(torch.optim.Optimizer):
+    """
+    SGD-momentum + orthogonalized updates for 2D parameters.
+    """
+
+    def __init__(
+        self,
+        params,
+        lr: float = 0.02,
+        momentum: float = 0.95,
+        nesterov: bool = True,
+        backend: str = "newtonschulz5",
+        backend_steps: int = 5,
+    ):
+        defaults = dict(
+            lr=lr,
+            momentum=momentum,
+            nesterov=nesterov,
+            backend=backend,
+            backend_steps=backend_steps,
+        )
+        super().__init__(params, defaults)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        distributed = dist.is_available() and dist.is_initialized()
+        world_size = dist.get_world_size() if distributed else 1
+        rank = dist.get_rank() if distributed else 0
+
+        for group in self.param_groups:
+            params = group["params"]
+            if not params:
+                continue
+
+            lr = group["lr"]
+            momentum = group["momentum"]
+            zeropower_backend = zeropower_backends[group["backend"]]
+            total_params = sum(int(p.numel()) for p in params)
+            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
+
+            curr_idx = 0
+            for i, p in enumerate(params):
+                if i % world_size == rank:
+                    g = p.grad
+                    if g is not None:
+                        state = self.state[p]
+                        if "momentum_buffer" not in state:
+                            state["momentum_buffer"] = torch.zeros_like(g)
+                        buf = state["momentum_buffer"]
+                        buf.mul_(momentum).add_(g)
+                        if group["nesterov"]:
+                            g = g.add(buf, alpha=momentum)
+                        g = zeropower_backend(g, steps=group["backend_steps"])
+                        g *= max(1, g.size(0) / g.size(1)) ** 0.5
+                        updates_flat[curr_idx : curr_idx + p.numel()] = g.reshape(-1)
+                curr_idx += p.numel()
+
+            if distributed:
+                dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
+
+            curr_idx = 0
+            for p in params:
+                g = updates_flat[curr_idx : curr_idx + p.numel()].view_as(p).to(dtype=p.dtype)
+                p.add_(g, alpha=-lr)
+                curr_idx += p.numel()
+
+        return loss
+
+
+# NOTE: BPB accounting must match the tokenizer used to create the token shards.
+# `data/fineweb10B` shards are GPT-2 tokenized (see data/cached_fineweb10B.py), while
+# matched SentencePiece experiments should set TOKENIZER_KIND=sentencepiece and
+# TOKENIZER_PATH to the corresponding `.model`.
+TOKENIZER_KIND = os.environ.get("TOKENIZER_KIND", "gpt2").lower()
+# Allow an env override so SentencePiece BPB evals can point at the exact tokenizer.
+FIXED_TOKENIZER_PATH = os.environ.get(
+    "TOKENIZER_PATH",
+    "data/matched_10B/tokenizers/fineweb_1024_bpe.model",
+)
+_BYTES_LUT_CACHE: dict[tuple[str, str], tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = {}
 def bytes_per_token(input_ids: Tensor, target_ids: Tensor) -> Tensor:
     """
     Return per-target UTF-8 byte counts for compression metrics.
@@ -47,43 +160,84 @@ def bytes_per_token(input_ids: Tensor, target_ids: Tensor) -> Tensor:
         raise ValueError(f"shape mismatch: input_ids={tuple(input_ids.shape)} target_ids={tuple(target_ids.shape)}")
 
     device_key = str(target_ids.device)
-    cached = _SP_LUT_CACHE.get(device_key)
+    cache_key = (TOKENIZER_KIND, device_key)
+    cached = _BYTES_LUT_CACHE.get(cache_key)
     if cached is None:
-        tokenizer_path = Path(FIXED_TOKENIZER_PATH)
-        sp = spm.SentencePieceProcessor(model_file=str(tokenizer_path))
-        sp_vocab_size = int(sp.vocab_size())
-        table_size = max(sp_vocab_size, int(os.environ.get("VOCAB_SIZE", sp_vocab_size)))
+        model_vocab_size = _env_int("VOCAB_SIZE", 50304)
+        if TOKENIZER_KIND in {"gpt2", "gpt-2"}:
+            try:
+                import tiktoken
+            except ImportError as exc:  # pragma: no cover - runtime dependency check
+                raise ImportError(
+                    "tiktoken is required for TOKENIZER_KIND=gpt2 bytes-per-token accounting"
+                ) from exc
 
-        base_bytes = [0] * table_size
-        has_leading_space = [False] * table_size
-        # True means this token acts as a text boundary for a following leading-space token.
-        is_boundary_token = [True] * table_size
+            enc = tiktoken.get_encoding("gpt2")
+            table_size = max(int(enc.n_vocab), model_vocab_size)
+            base_bytes = [0] * table_size
+            # GPT-2 token byte lengths are intrinsic to each token; no sentencepiece-style
+            # boundary/leading-space reconstruction is needed.
+            has_leading_space = [False] * table_size
+            is_boundary_token = [True] * table_size
 
-        for token_id in range(sp_vocab_size):
-            is_control = sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id)
-            if is_control:
-                base_bytes[token_id] = 0
-                is_boundary_token[token_id] = True
-                continue
+            eot_id = int(enc.eot_token)
+            for token_id in range(min(int(enc.n_vocab), table_size)):
+                if token_id == eot_id:
+                    # EOT is a synthetic document boundary marker, not literal text bytes.
+                    base_bytes[token_id] = 0
+                    is_boundary_token[token_id] = True
+                    continue
+                piece_bytes = enc.decode_single_token_bytes(token_id)
+                base_bytes[token_id] = len(piece_bytes)
+                is_boundary_token[token_id] = False
+        elif TOKENIZER_KIND in {"sentencepiece", "spm", "sp"}:
+            tokenizer_path = Path(FIXED_TOKENIZER_PATH)
+            if not tokenizer_path.is_file():
+                raise FileNotFoundError(
+                    f"Tokenizer not found at {tokenizer_path}. "
+                    "Set TOKENIZER_PATH to the SentencePiece model used to build the shards."
+                )
+            sp = spm.SentencePieceProcessor(model_file=str(tokenizer_path))
+            sp_vocab_size = int(sp.vocab_size())
+            # Model vocab can be padded larger than the SentencePiece vocab (for example
+            # 50,304 model slots for a 1k BPE tokenizer), so size the LUT by model vocab.
+            table_size = max(sp_vocab_size, model_vocab_size)
 
-            is_boundary_token[token_id] = False
-            if sp.is_byte(token_id):
-                base_bytes[token_id] = 1
-                continue
+            base_bytes = [0] * table_size
+            has_leading_space = [False] * table_size
+            # True means this token acts as a text boundary for a following leading-space token.
+            is_boundary_token = [True] * table_size
 
-            piece = sp.id_to_piece(token_id)
-            leading = piece.startswith("▁")
-            if leading:
-                piece = piece[1:]
-            has_leading_space[token_id] = leading
-            base_bytes[token_id] = len(piece.encode("utf-8"))
+            for token_id in range(sp_vocab_size):
+                is_control = sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id)
+                if is_control:
+                    base_bytes[token_id] = 0
+                    is_boundary_token[token_id] = True
+                    continue
+
+                is_boundary_token[token_id] = False
+                if sp.is_byte(token_id):
+                    base_bytes[token_id] = 1
+                    continue
+
+                piece = sp.id_to_piece(token_id)
+                leading = piece.startswith("▁")
+                if leading:
+                    piece = piece[1:]
+                has_leading_space[token_id] = leading
+                base_bytes[token_id] = len(piece.encode("utf-8"))
+        else:
+            raise ValueError(
+                f"Unsupported TOKENIZER_KIND={TOKENIZER_KIND!r}. "
+                "Expected 'gpt2' or 'sentencepiece'."
+            )
 
         cached = (
             torch.tensor(base_bytes, dtype=torch.int16, device=target_ids.device),
             torch.tensor(has_leading_space, dtype=torch.bool, device=target_ids.device),
             torch.tensor(is_boundary_token, dtype=torch.bool, device=target_ids.device),
         )
-        _SP_LUT_CACHE[device_key] = cached
+        _BYTES_LUT_CACHE[cache_key] = cached
 
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = cached
     flat_prev = input_ids.reshape(-1)
@@ -105,11 +259,11 @@ class Hyperparameters:
     val_tokens: int = _env_int("VAL_TOKENS", 10_485_760)
     val_batch_size: int = _env_int("VAL_BATCH_SIZE", 64 * 1024 * 8)
     val_loss_every: int = _env_int("VAL_LOSS_EVERY", 125)
-    num_scheduled_iterations: int = _env_int("NUM_SCHEDULED_ITERATIONS", 3000)
+    num_scheduled_iterations: int = _env_int("ITERATIONS", 3000)
     num_extension_iterations: int = _env_int("NUM_EXTENSION_ITERATIONS", 0)
     warmdown_iters: int = _env_int("WARMDOWN_ITERS", 900)
     warmup_steps: int = _env_int("WARMUP_STEPS", _env_int("TIMING_WARMUP_STEPS", 50))
-    save_checkpoint: bool = _env_bool("SAVE_CHECKPOINT", False)
+    save_checkpoint: bool = _env_bool("SAVE_CHECKPOINT", True)
     use_amp: bool = _env_bool("USE_AMP", True)
     enable_val_bpb: bool = _env_bool("ENABLE_VAL_BPB", False)
 
@@ -128,8 +282,14 @@ class Hyperparameters:
     base_lr: float = _env_float("BASE_LR", 0.04)
     embed_lr: float = _env_float("EMBED_LR", 0.6)
     head_lr: float = _env_float("HEAD_LR", 0.008)
-    matrix_lr: float = _env_float("MATRIX_LR", 0.002)
-    scalar_lr: float = _env_float("SCALAR_LR", 0.008)
+    matrix_lr: float = _env_float("MATRIX_LR", 0.04)
+    scalar_lr: float = _env_float("SCALAR_LR", 0.04)
+    muon_momentum: float = _env_float("MUON_MOMENTUM", 0.95)
+    muon_nesterov: bool = _env_bool("MUON_NESTEROV", True)
+    muon_backend: str = os.environ.get("MUON_BACKEND", "newtonschulz5")
+    muon_backend_steps: int = _env_int("MUON_BACKEND_STEPS", 5)
+    muon_momentum_warmup_start: float = _env_float("MUON_MOMENTUM_WARMUP_START", 0.85)
+    muon_momentum_warmup_steps: int = _env_int("MUON_MOMENTUM_WARMUP_STEPS", 500)
     beta1: float = _env_float("BETA1", 0.9)
     beta2: float = _env_float("BETA2", 0.95)
     eps: float = _env_float("ADAM_EPS", 1e-8)
@@ -263,7 +423,7 @@ class DistributedTokenLoader:
 
 
 class RMSNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-5):
+    def __init__(self, dim: int, eps: float | None = None):
         super().__init__()
         self.eps = eps
 
@@ -320,7 +480,9 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
-        self.qkv = CastedLinear(dim, 3 * dim, bias=False)
+        self.c_q = CastedLinear(dim, dim, bias=False)
+        self.c_k = CastedLinear(dim, dim, bias=False)
+        self.c_v = CastedLinear(dim, dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.v_mix = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
@@ -328,7 +490,9 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
-        q, k, v = self.qkv(x).chunk(3, dim=-1)
+        q = self.c_q(x)
+        k = self.c_k(x)
+        v = self.c_v(x)
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
@@ -598,28 +762,39 @@ def main() -> None:
     block_params = list(raw_model.blocks.parameters())
     matrix_params = [p for p in block_params if p.ndim == 2]
     scalar_params = [p for p in block_params if p.ndim < 2] + [raw_model.skip_weights]
+    optimizer_tok = torch.optim.Adam(
+        [{"params": [raw_model.tok_emb.weight], "lr": args.embed_lr, "base_lr": args.embed_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.eps,
+        fused=True,
+    )
+    optimizer_head = torch.optim.Adam(
+        [{"params": [raw_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.eps,
+        fused=True,
+    )
+    optimizer_muon = Muon(
+        matrix_params,
+        lr=args.matrix_lr,
+        momentum=args.muon_momentum,
+        nesterov=args.muon_nesterov,
+        backend=args.muon_backend,
+        backend_steps=args.muon_backend_steps,
+    )
+    for group in optimizer_muon.param_groups:
+        group["base_lr"] = args.matrix_lr
+    optimizer_scalar = torch.optim.Adam(
+        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.eps,
+        fused=True,
+    )
     optimizers: list[torch.optim.Optimizer] = [
-        torch.optim.Adam(
-            [{"params": [raw_model.tok_emb.weight], "lr": args.embed_lr, "base_lr": args.embed_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.eps,
-            fused=True,
-        ),
-        torch.optim.Adam(
-            [{"params": [raw_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.eps,
-            fused=True,
-        ),
-        torch.optim.Adam(
-            [
-                {"params": matrix_params, "lr": args.matrix_lr, "base_lr": args.matrix_lr},
-                {"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr},
-            ],
-            betas=(args.beta1, args.beta2),
-            eps=args.eps,
-            fused=True,
-        ),
+        optimizer_tok,
+        optimizer_head,
+        optimizer_muon,
+        optimizer_scalar,
     ]
     training_manager = TrainingManager(schedule, optimizers, args)
 
@@ -633,7 +808,10 @@ def main() -> None:
     )
     val_bpb_enabled = args.enable_val_bpb
     if val_bpb_enabled:
-        print0(f"val_bpb:enabled tokenizer_path={FIXED_TOKENIZER_PATH}", console=True)
+        msg = f"val_bpb:enabled tokenizer_kind={TOKENIZER_KIND}"
+        if TOKENIZER_KIND in {"sentencepiece", "spm", "sp"}:
+            msg += f" tokenizer_path={FIXED_TOKENIZER_PATH}"
+        print0(msg, console=True)
     else:
         print0("val_bpb:disabled by ENABLE_VAL_BPB=0", console=True)
 
@@ -758,6 +936,13 @@ def main() -> None:
                 loss = model(x, y)
             train_loss = loss.detach()
             (loss * grad_scale).backward()
+        if args.muon_momentum_warmup_steps > 0:
+            frac = min(step / args.muon_momentum_warmup_steps, 1.0)
+            momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+        else:
+            momentum = args.muon_momentum
+        for group in optimizer_muon.param_groups:
+            group["momentum"] = momentum
         training_manager.step_optimizers(step, raw_model.parameters())
 
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
