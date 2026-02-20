@@ -396,6 +396,9 @@ class Hyperparameters:
     num_layers: int = _env_int("NUM_LAYERS", 12)
     model_dim: int = _env_int("MODEL_DIM", 768)
     num_heads: int = _env_int("NUM_HEADS", 6)
+    # 0 means "use full MHA" (NUM_KV_HEADS = NUM_HEADS). Set 1 for MQA, or
+    # an exact divisor of NUM_HEADS for GQA.
+    num_kv_heads: int = _env_int("NUM_KV_HEADS", 0)
     mlp_mult: int = _env_int("MLP_MULT", 4)
     # 0 disables chunking and is materially faster on current H100 stacks.
     logit_chunk_tokens: int = _env_int("LOGIT_CHUNK_TOKENS", 0)
@@ -654,16 +657,23 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, rope_base: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float):
         super().__init__()
         assert dim % num_heads == 0, "model_dim must be divisible by num_heads"
+        if num_kv_heads <= 0:
+            num_kv_heads = num_heads
+        if num_heads % num_kv_heads != 0:
+            raise ValueError("NUM_HEADS must be divisible by NUM_KV_HEADS for GQA/MQA")
         self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.q_per_kv = num_heads // num_kv_heads
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
+        kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, dim, bias=False)
-        self.c_v = CastedLinear(dim, dim, bias=False)
+        self.c_k = CastedLinear(dim, kv_dim, bias=False)
+        self.c_v = CastedLinear(dim, kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.v_mix = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
@@ -675,8 +685,8 @@ class CausalSelfAttention(nn.Module):
         k = self.c_k(x)
         v = self.c_v(x)
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = k.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        v = v.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         if v1 is None:
             v1 = v
         mix = self.v_mix.to(dtype=v.dtype)
@@ -686,6 +696,9 @@ class CausalSelfAttention(nn.Module):
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
+        if self.num_kv_heads != self.num_heads:
+            k = k.repeat_interleave(self.q_per_kv, dim=1)
+            v = v.repeat_interleave(self.q_per_kv, dim=1)
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y), v1
@@ -707,11 +720,11 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, mlp_mult: int, rope_base: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float):
         super().__init__()
         self.attn_norm = RMSNorm(dim)
         self.mlp_norm = RMSNorm(dim)
-        self.attn = CausalSelfAttention(dim, num_heads, rope_base=rope_base)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base=rope_base)
         self.mlp = MLP(dim, mlp_mult)
         self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
 
@@ -731,6 +744,7 @@ class GPT(nn.Module):
         num_layers: int,
         model_dim: int,
         num_heads: int,
+        num_kv_heads: int,
         mlp_mult: int,
         max_seq_len: int,
         logit_chunk_tokens: int,
@@ -745,8 +759,10 @@ class GPT(nn.Module):
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers))
+        self.num_heads = num_heads
+        self.num_kv_heads = num_heads if num_kv_heads <= 0 else num_kv_heads
         self.blocks = nn.ModuleList(
-            [Block(model_dim, num_heads, mlp_mult, rope_base=rope_base) for _ in range(num_layers)]
+            [Block(model_dim, num_heads, self.num_kv_heads, mlp_mult, rope_base=rope_base) for _ in range(num_layers)]
         )
         self.final_norm = RMSNorm(model_dim)
         self.lm_head = CastedLinear(model_dim, vocab_size, bias=False)
@@ -923,6 +939,7 @@ def main() -> None:
         num_layers=args.num_layers,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
+        num_kv_heads=args.num_kv_heads,
         mlp_mult=args.mlp_mult,
         max_seq_len=max_seq_len,
         logit_chunk_tokens=args.logit_chunk_tokens,
@@ -981,7 +998,16 @@ def main() -> None:
     training_manager = TrainingManager(schedule, optimizers, args)
 
     n_params = sum(p.numel() for p in raw_model.parameters())
+    attn_mode = (
+        "mha"
+        if raw_model.num_kv_heads == raw_model.num_heads
+        else ("mqa" if raw_model.num_kv_heads == 1 else "gqa")
+    )
     print0(f"model_params:{n_params}", console=True)
+    print0(
+        f"attention_mode:{attn_mode} num_heads:{raw_model.num_heads} num_kv_heads:{raw_model.num_kv_heads}",
+        console=True,
+    )
     print0(
         f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} "
         f"compile_model:True compile_dynamic:False compile_fullgraph:True "
