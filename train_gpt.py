@@ -1,9 +1,11 @@
+import io
 import glob
 import math
 import os
 import sys
 import time
 import uuid
+import zlib
 from dataclasses import dataclass
 from itertools import accumulate, pairwise
 from pathlib import Path
@@ -250,6 +252,105 @@ def bytes_per_token(input_ids: Tensor, target_ids: Tensor) -> Tensor:
     return out.reshape_as(target_ids)
 
 
+def _dtype_name(dtype: torch.dtype) -> str:
+    return str(dtype).replace("torch.", "")
+
+
+def _dtype_from_name(name: str) -> torch.dtype:
+    return getattr(torch, name)
+
+
+def _tensor_nbytes(t: Tensor) -> int:
+    return int(t.numel()) * int(t.element_size())
+
+
+def quantize_state_dict_int8_per_tensor(state_dict: dict[str, Tensor]) -> tuple[dict[str, object], dict[str, int]]:
+    quantized: dict[str, Tensor] = {}
+    scales: dict[str, Tensor] = {}
+    orig_dtypes: dict[str, str] = {}
+    nonfloat: dict[str, Tensor] = {}
+
+    stats = {
+        "param_count": 0,
+        "num_tensors": 0,
+        "num_float_tensors": 0,
+        "num_nonfloat_tensors": 0,
+        "baseline_tensor_bytes": 0,
+        "int8_payload_bytes": 0,
+    }
+
+    for name, tensor in state_dict.items():
+        t = tensor.detach().to(device="cpu").contiguous()
+        stats["param_count"] += int(t.numel())
+        stats["num_tensors"] += 1
+        stats["baseline_tensor_bytes"] += _tensor_nbytes(t)
+        if t.is_floating_point():
+            stats["num_float_tensors"] += 1
+            t32 = t.to(dtype=torch.float32)
+            max_abs = float(t32.abs().max().item()) if t32.numel() > 0 else 0.0
+            scale = max_abs / 127.0 if max_abs > 0.0 else 1.0
+            q = torch.clamp(torch.round(t32 / scale), -127, 127).to(torch.int8).contiguous()
+            s = torch.tensor(scale, dtype=torch.float32)
+            quantized[name] = q
+            scales[name] = s
+            orig_dtypes[name] = _dtype_name(t.dtype)
+            stats["int8_payload_bytes"] += _tensor_nbytes(q) + _tensor_nbytes(s)
+        else:
+            stats["num_nonfloat_tensors"] += 1
+            nonfloat[name] = t
+            stats["int8_payload_bytes"] += _tensor_nbytes(t)
+
+    quant_obj: dict[str, object] = {
+        "__quant_format__": "int8_sym_per_tensor_v1",
+        "quantized": quantized,
+        "scales": scales,
+        "orig_dtypes": orig_dtypes,
+        "nonfloat": nonfloat,
+    }
+    return quant_obj, stats
+
+
+def dequantize_state_dict_int8_per_tensor(quant_obj: dict[str, object]) -> dict[str, Tensor]:
+    if quant_obj.get("__quant_format__") != "int8_sym_per_tensor_v1":
+        raise ValueError(f"unsupported quant format: {quant_obj.get('__quant_format__')!r}")
+    quantized = quant_obj["quantized"]
+    scales = quant_obj["scales"]
+    orig_dtypes = quant_obj["orig_dtypes"]
+    nonfloat = quant_obj["nonfloat"]
+    if not isinstance(quantized, dict) or not isinstance(scales, dict) or not isinstance(orig_dtypes, dict):
+        raise TypeError("invalid int8 quantized checkpoint object")
+
+    out: dict[str, Tensor] = {}
+    for name, q in quantized.items():
+        if not torch.is_tensor(q):
+            raise TypeError(f"quantized tensor missing for {name}")
+        s = scales[name]
+        scale = float(s.item()) if torch.is_tensor(s) else float(s)
+        dtype_name = orig_dtypes[name]
+        t = q.to(dtype=torch.float32) * scale
+        out[name] = t.to(dtype=_dtype_from_name(dtype_name)).contiguous()
+    for name, t in nonfloat.items():
+        if not torch.is_tensor(t):
+            raise TypeError(f"nonfloat tensor missing for {name}")
+        out[name] = t.detach().to(device="cpu").contiguous()
+    return out
+
+
+def serialize_quantized_int8_zlib(quant_obj: dict[str, object]) -> tuple[bytes, int]:
+    buf = io.BytesIO()
+    torch.save(quant_obj, buf)
+    raw_bytes = buf.getvalue()
+    return zlib.compress(raw_bytes, level=9), len(raw_bytes)
+
+
+def deserialize_quantized_int8_zlib(blob: bytes) -> dict[str, Tensor]:
+    raw = zlib.decompress(blob)
+    obj = torch.load(io.BytesIO(raw), map_location="cpu")
+    if not isinstance(obj, dict):
+        raise TypeError(f"unexpected decoded object type: {type(obj)}")
+    return dequantize_state_dict_int8_per_tensor(obj)
+
+
 @dataclass
 class Hyperparameters:
     data_path: str = os.environ.get("DATA_PATH", "./data/fineweb10B/")
@@ -266,6 +367,7 @@ class Hyperparameters:
     save_checkpoint: bool = _env_bool("SAVE_CHECKPOINT", True)
     use_amp: bool = _env_bool("USE_AMP", True)
     enable_val_bpb: bool = _env_bool("ENABLE_VAL_BPB", False)
+    auto_final_int8_zlib: bool = _env_bool("AUTO_FINAL_INT8_ZLIB", True)
 
     # Model
     vocab_size: int = _env_int("VOCAB_SIZE", 50304)
@@ -420,6 +522,63 @@ class DistributedTokenLoader:
             x.to(device=self.device, non_blocking=True),
             y.to(device=self.device, non_blocking=True),
         )
+
+
+def run_validation_pass(
+    model: nn.Module,
+    args: Hyperparameters,
+    grad_accum_steps: int,
+    seq_len: int,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    enable_val_bpb: bool,
+    print_fn=None,
+) -> tuple[float, float | None]:
+    assert args.val_tokens % args.val_batch_size == 0, "VAL_TOKENS must be divisible by VAL_BATCH_SIZE"
+    val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
+    val_loader = DistributedTokenLoader(args.val_files, rank, world_size, device)
+    val_loss = torch.zeros((), device=device)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_bpb_enabled = enable_val_bpb
+
+    model.eval()
+    with torch.no_grad():
+        for _ in range(val_steps):
+            x, y = val_loader.next_batch(args.val_batch_size, seq_len, grad_accum_steps)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=args.use_amp):
+                val_loss += model(x, y).detach()
+            if val_bpb_enabled:
+                try:
+                    bytes_tensor = bytes_per_token(x, y)
+                    if bytes_tensor.shape != y.shape:
+                        raise ValueError(
+                            f"bytes_per_token returned shape {tuple(bytes_tensor.shape)}, "
+                            f"expected {tuple(y.shape)}"
+                        )
+                    val_token_count += float(y.numel())
+                    val_byte_count += bytes_tensor.to(dtype=torch.float64).sum()
+                except Exception as exc:  # pragma: no cover - runtime fallback
+                    val_bpb_enabled = False
+                    if print_fn is not None:
+                        print_fn(f"val_bpb:disabled error={exc}", True)
+
+    val_loss /= val_steps
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_bpb: float | None = None
+    if val_bpb_enabled and val_byte_count.item() > 0:
+        bits_per_token = val_loss.item() / math.log(2.0)
+        tokens_per_byte = val_token_count.item() / val_byte_count.item()
+        val_bpb = bits_per_token * tokens_per_byte
+    elif val_bpb_enabled and val_byte_count.item() <= 0 and print_fn is not None:
+        print_fn("val_bpb:disabled zero_byte_count", True)
+
+    return float(val_loss.item()), val_bpb
 
 
 class RMSNorm(nn.Module):
@@ -814,6 +973,11 @@ def main() -> None:
         print0(msg, console=True)
     else:
         print0("val_bpb:disabled by ENABLE_VAL_BPB=0", console=True)
+    print0(
+        f"auto_final_int8_zlib:{args.auto_final_int8_zlib} "
+        f"(disable with AUTO_FINAL_INT8_ZLIB=0)",
+        console=True,
+    )
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     warmup_steps = max(args.warmup_steps, 0)
@@ -966,6 +1130,71 @@ def main() -> None:
         print0(f"Serialized model: {model_bytes} bytes", console=True)
         print0(f"Code size: {code_bytes} bytes", console=True)
         print0(f"Total submission size: {model_bytes + code_bytes} bytes", console=True)
+
+    if args.auto_final_int8_zlib:
+        state_for_quant = raw_model.state_dict()
+        quant_obj, quant_stats = quantize_state_dict_int8_per_tensor(state_for_quant)
+        quant_blob, quant_serialized_bytes = serialize_quantized_int8_zlib(quant_obj)
+        quantized_path = "final_model.int8.ptz"
+        if master_process:
+            with open(quantized_path, "wb") as f:
+                f.write(quant_blob)
+            quant_file_bytes = os.path.getsize(quantized_path)
+            code_bytes = len(code.encode("utf-8"))
+            ratio = (
+                quant_stats["baseline_tensor_bytes"] / quant_stats["int8_payload_bytes"]
+                if quant_stats["int8_payload_bytes"] > 0
+                else 0.0
+            )
+            print0(
+                f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+                f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_serialized_bytes} "
+                f"payload_ratio:{ratio:.2f}x)",
+                console=True,
+            )
+            print0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes", console=True)
+
+        quant_state = deserialize_quantized_int8_zlib(quant_blob)
+        try:
+            load_res = raw_model.load_state_dict(quant_state, strict=True)
+        except RuntimeError:
+            first_key = next(iter(quant_state))
+            if isinstance(first_key, str) and first_key.startswith("_orig_mod."):
+                stripped = {k.removeprefix("_orig_mod."): v for k, v in quant_state.items()}
+                if hasattr(raw_model, "_orig_mod"):
+                    load_res = raw_model._orig_mod.load_state_dict(stripped, strict=True)
+                else:
+                    raise
+            else:
+                raise
+        if master_process:
+            print0(
+                f"final_int8_zlib_roundtrip load_ok "
+                f"missing={len(load_res.missing_keys)} unexpected={len(load_res.unexpected_keys)}",
+                console=True,
+            )
+
+        torch.cuda.synchronize()
+        t_qeval = time.perf_counter()
+        quant_val_loss, quant_val_bpb = run_validation_pass(
+            model=model,
+            args=args,
+            grad_accum_steps=grad_accum_steps,
+            seq_len=training_manager.train_max_seq_len,
+            rank=rank,
+            world_size=world_size,
+            device=device,
+            enable_val_bpb=args.enable_val_bpb,
+            print_fn=print0,
+        )
+        torch.cuda.synchronize()
+        quant_eval_ms = 1000.0 * (time.perf_counter() - t_qeval)
+        quant_bpb_str = f" val_bpb:{quant_val_bpb:.4f}" if quant_val_bpb is not None else ""
+        print0(
+            f"final_int8_zlib_roundtrip val_loss:{quant_val_loss:.4f}"
+            f"{quant_bpb_str} eval_time:{quant_eval_ms:.0f}ms",
+            console=True,
+        )
 
     if distributed:
         dist.destroy_process_group()

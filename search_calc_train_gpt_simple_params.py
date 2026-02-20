@@ -15,11 +15,19 @@ import itertools
 from calc_train_gpt_simple_params import (
     BYTE_POLICY_CHOICES,
     COMPONENT_ORDER,
+    DEFAULT_INT8_ON_DISK_RATIO,
+    DEFAULT_INT8_ZLIB_ON_DISK_RATIO,
+    DEFAULT_NORMAL_ASPECT_RATIO_MAX,
+    DEFAULT_NORMAL_ASPECT_RATIO_MIN,
     ModelConfig,
     component_bytes,
     component_params,
+    derive_serialized_size_bytes,
+    default_submission_overhead_bytes,
+    model_dim_per_layer_aspect_ratio,
     parse_component_list,
     parse_int_spec,
+    SIZE_BUDGET_CHOICES,
 )
 
 
@@ -39,12 +47,76 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mlp-mult", default="4", help="Default 4. Supports lists/ranges.")
     parser.add_argument("--vocab-size", default="50304", help="Default matches train_gpt_simple.py.")
     parser.add_argument(
+        "--normal-aspect-ratio",
+        action="store_true",
+        help=(
+            "Enable a built-in width/depth filter: "
+            f"{DEFAULT_NORMAL_ASPECT_RATIO_MIN:.2f} <= model_dim/num_layers <= "
+            f"{DEFAULT_NORMAL_ASPECT_RATIO_MAX:.2f}."
+        ),
+    )
+    parser.add_argument(
+        "--aspect-ratio-min",
+        type=float,
+        default=None,
+        help="Minimum width/depth ratio (model_dim / num_layers).",
+    )
+    parser.add_argument(
+        "--aspect-ratio-max",
+        type=float,
+        default=None,
+        help="Maximum width/depth ratio (model_dim / num_layers).",
+    )
+    parser.add_argument(
+        "--size-budget",
+        choices=SIZE_BUDGET_CHOICES,
+        default="raw_model",
+        help=(
+            "Which byte metric to use for --target-* / --max-* byte filters and ranking: "
+            "'raw_model' (default) or 'submission' (post-scale model bytes + submission overhead)."
+        ),
+    )
+    parser.add_argument(
         "--byte-policy",
         choices=BYTE_POLICY_CHOICES,
         default="train_gpt_simple_save",
         help=(
             "How to estimate serialized tensor bytes. Default matches current "
             "train_gpt_simple.py save dtypes (CastedLinear weights fp32, others bf16)."
+        ),
+    )
+    parser.add_argument(
+        "--assume-int8-on-disk",
+        action="store_true",
+        help=(
+            "Apply the built-in int8 on-disk ratio from the provided baseline "
+            f"({DEFAULT_INT8_ON_DISK_RATIO:.6f}x of raw model bytes)."
+        ),
+    )
+    parser.add_argument(
+        "--assume-int8-zlib-on-disk",
+        action="store_true",
+        help=(
+            "Apply the built-in int8+zlib on-disk ratio from the provided baseline "
+            f"({DEFAULT_INT8_ZLIB_ON_DISK_RATIO:.6f}x of raw model bytes)."
+        ),
+    )
+    parser.add_argument(
+        "--on-disk-ratio",
+        type=float,
+        default=1.0,
+        help=(
+            "Scale raw estimated model bytes to approximate exported on-disk model file bytes. "
+            "Use with --size-budget submission. Default 1.0."
+        ),
+    )
+    parser.add_argument(
+        "--submission-overhead-bytes",
+        type=int,
+        default=default_submission_overhead_bytes(),
+        help=(
+            "Extra bytes added on top of model file bytes when --size-budget submission "
+            "(defaults to local train_gpt_simple.py file size)."
         ),
     )
     parser.add_argument(
@@ -143,6 +215,40 @@ def main() -> int:
             "--bytes-per-param is only used with --byte-policy uniform. "
             "Use --byte-policy uniform to override bytes/param."
         )
+    if args.normal_aspect_ratio:
+        if args.aspect_ratio_min is None:
+            args.aspect_ratio_min = DEFAULT_NORMAL_ASPECT_RATIO_MIN
+        if args.aspect_ratio_max is None:
+            args.aspect_ratio_max = DEFAULT_NORMAL_ASPECT_RATIO_MAX
+    if args.aspect_ratio_min is not None and args.aspect_ratio_max is not None:
+        if args.aspect_ratio_min > args.aspect_ratio_max:
+            parser.error("--aspect-ratio-min cannot be greater than --aspect-ratio-max.")
+    num_on_disk_presets = int(bool(args.assume_int8_on_disk)) + int(
+        bool(args.assume_int8_zlib_on_disk)
+    )
+    if num_on_disk_presets > 1:
+        parser.error(
+            "Use at most one built-in on-disk preset: --assume-int8-on-disk or "
+            "--assume-int8-zlib-on-disk."
+        )
+    if num_on_disk_presets and args.on_disk_ratio != 1.0:
+        parser.error(
+            "Use either a built-in on-disk preset (--assume-int8-on-disk or "
+            "--assume-int8-zlib-on-disk) or --on-disk-ratio, not both."
+        )
+    if args.assume_int8_zlib_on_disk:
+        on_disk_ratio = DEFAULT_INT8_ZLIB_ON_DISK_RATIO
+        on_disk_ratio_source = "int8_zlib_preset"
+    elif args.assume_int8_on_disk:
+        on_disk_ratio = DEFAULT_INT8_ON_DISK_RATIO
+        on_disk_ratio_source = "int8_preset"
+    else:
+        on_disk_ratio = args.on_disk_ratio
+        on_disk_ratio_source = "custom" if args.on_disk_ratio != 1.0 else "identity"
+    if on_disk_ratio <= 0:
+        parser.error("--on-disk-ratio must be positive.")
+    if args.submission_overhead_bytes < 0:
+        parser.error("--submission-overhead-bytes must be non-negative.")
 
     unknown_excludes = exclude - set(COMPONENT_ORDER)
     if unknown_excludes:
@@ -168,6 +274,11 @@ def main() -> int:
             mlp_mult=mlp_mult,
             vocab_size=vocab_size,
         )
+        aspect_ratio = model_dim_per_layer_aspect_ratio(cfg)
+        if args.aspect_ratio_min is not None and aspect_ratio < args.aspect_ratio_min:
+            continue
+        if args.aspect_ratio_max is not None and aspect_ratio > args.aspect_ratio_max:
+            continue
         runtime_valid = cfg.runtime_valid_for_current_train_gpt_simple
         if args.strict_runtime_constraints and not runtime_valid:
             continue
@@ -179,7 +290,13 @@ def main() -> int:
             byte_policy=args.byte_policy,
         )
         total_params = sum(v for k, v in comps.items() if k not in exclude)
-        total_bytes = sum(v for k, v in bytes_by_comp.items() if k not in exclude)
+        raw_model_bytes = sum(v for k, v in bytes_by_comp.items() if k not in exclude)
+        model_file_bytes, submission_bytes = derive_serialized_size_bytes(
+            raw_model_bytes,
+            on_disk_ratio=on_disk_ratio,
+            submission_overhead_bytes=args.submission_overhead_bytes,
+        )
+        total_bytes = raw_model_bytes if args.size_budget == "raw_model" else submission_bytes
 
         if args.max_params is not None and total_params > args.max_params:
             continue
@@ -208,12 +325,16 @@ def main() -> int:
                 "score": score,
                 "total_params": total_params,
                 "total_bytes": total_bytes,
+                "raw_model_bytes": raw_model_bytes,
+                "model_file_bytes": model_file_bytes,
+                "submission_bytes": submission_bytes,
                 "delta_params": delta_params,
                 "delta_bytes": delta_bytes,
                 "model_dim": model_dim,
                 "num_layers": layers,
                 "num_heads": heads,
                 "head_dim": cfg.head_dim,
+                "aspect_ratio": aspect_ratio,
                 "mlp_mult": mlp_mult,
                 "vocab_size": vocab_size,
                 "runtime_valid": runtime_valid,
@@ -239,12 +360,16 @@ def main() -> int:
             "score",
             "total_params",
             "total_bytes",
+            "raw_model_bytes",
+            "model_file_bytes",
+            "submission_bytes",
             "delta_params",
             "delta_bytes",
             "model_dim",
             "num_layers",
             "num_heads",
             "head_dim",
+            "aspect_ratio",
             "mlp_mult",
             "vocab_size",
             "runtime_valid",
@@ -257,10 +382,29 @@ def main() -> int:
 
     shown = rows[: max(1, args.top_k)]
     print(f"Showing top {len(shown)} config(s) by target score.")
+    if args.aspect_ratio_min is not None or args.aspect_ratio_max is not None:
+        lo = "-inf" if args.aspect_ratio_min is None else f"{args.aspect_ratio_min:.2f}"
+        hi = "+inf" if args.aspect_ratio_max is None else f"{args.aspect_ratio_max:.2f}"
+        print(f"Aspect-ratio filter: {lo} <= model_dim/num_layers <= {hi}")
     print()
     print(
-        "rank score total_bytes total_mb delta_bytes total_params delta_params "
-        "model_dim num_layers num_heads head_dim mlp_mult vocab_size runtime_valid"
+        f"{'rank':>4} "
+        f"{'score':>8} "
+        f"{'budget_bytes':>12} "
+        f"{'budget_mb':>8} "
+        f"{'raw_model_mb':>12} "
+        f"{'submission_mb':>13} "
+        f"{'delta_bytes':>12} "
+        f"{'total_params':>12} "
+        f"{'delta_params':>12} "
+        f"{'model_dim':>9} "
+        f"{'num_layers':>10} "
+        f"{'num_heads':>9} "
+        f"{'head_dim':>8} "
+        f"{'aspect':>7} "
+        f"{'mlp_mult':>8} "
+        f"{'vocab_size':>10} "
+        f"{'runtime_valid':>13}"
     )
     for idx, row in enumerate(shown, start=1):
         print(
@@ -268,6 +412,8 @@ def main() -> int:
             f"{float(row['score']):>8.6f} "
             f"{format_int(int(row['total_bytes'])):>12} "
             f"{format_mb(int(row['total_bytes'])):>8} "
+            f"{format_mb(int(row['raw_model_bytes'])):>12} "
+            f"{format_mb(int(row['submission_bytes'])):>13} "
             f"{format_int(int(row['delta_bytes'])):>12} "
             f"{format_int(int(row['total_params'])):>12} "
             f"{format_int(int(row['delta_params'])):>12} "
@@ -275,6 +421,7 @@ def main() -> int:
             f"{int(row['num_layers']):>10} "
             f"{int(row['num_heads']):>9} "
             f"{int(row['head_dim']):>8} "
+            f"{float(row['aspect_ratio']):>7.2f} "
             f"{int(row['mlp_mult']):>8} "
             f"{int(row['vocab_size']):>10} "
             f"{str(bool(row['runtime_valid'])):>13}"
@@ -288,13 +435,18 @@ def main() -> int:
         print(
             "Byte estimate matches current train_gpt_simple.py save dtypes "
             "(CastedLinear weights fp32, other params bf16) and excludes "
-            "torch.save metadata/code-size overhead."
+            "torch.save metadata overhead before optional on-disk scaling."
         )
     else:
         print(
             f"Byte estimate assumes uniform {args.bytes_per_param} bytes/param and excludes "
-            "torch.save metadata/code-size overhead."
+            "torch.save metadata overhead before optional on-disk scaling."
         )
+    print(
+        f"Budget byte metric: {args.size_budget} (raw_model -> on_disk_ratio={on_disk_ratio:.6f}"
+        f" [{on_disk_ratio_source}], "
+        f"submission_overhead_bytes={args.submission_overhead_bytes})."
+    )
     return 0
 
 
