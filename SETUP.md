@@ -103,3 +103,5 @@ Output layout:
 # Internal
 
 Run bbb cptree az://oaidatasets2/speedrunkits/fineweb10B/ data/fineweb10B/ instead of dataset loading.
+
+bbb cptree az://oaidatasets2/speedrunkits/matched_10B_docs2m_seed1337 data/matched_10B

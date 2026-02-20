@@ -119,17 +119,9 @@ class Hyperparameters:
     model_dim: int = _env_int("MODEL_DIM", 768)
     num_heads: int = _env_int("NUM_HEADS", 6)
     mlp_mult: int = _env_int("MLP_MULT", 4)
-    # 0 disables chunking and is materially faster on current H100 stacks.
-    logit_chunk_tokens: int = _env_int("LOGIT_CHUNK_TOKENS", 0)
-    logit_softcap: float = _env_float("LOGIT_SOFTCAP", 30.0)
-    rope_base: float = _env_float("ROPE_BASE", 10000.0)
 
     # Optimizer
     base_lr: float = _env_float("BASE_LR", 0.04)
-    embed_lr: float = _env_float("EMBED_LR", 0.6)
-    head_lr: float = _env_float("HEAD_LR", 0.008)
-    matrix_lr: float = _env_float("MATRIX_LR", 0.002)
-    scalar_lr: float = _env_float("SCALAR_LR", 0.008)
     beta1: float = _env_float("BETA1", 0.9)
     beta2: float = _env_float("BETA2", 0.95)
     eps: float = _env_float("ADAM_EPS", 1e-8)
@@ -262,121 +254,49 @@ class DistributedTokenLoader:
         )
 
 
-class RMSNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-5):
-        super().__init__()
-        self.eps = eps
-
-    def forward(self, x: Tensor) -> Tensor:
-        return F.rms_norm(x, (x.size(-1),), eps=self.eps)
-
-
-class CastedLinear(nn.Linear):
-    def forward(self, x: Tensor) -> Tensor:
-        bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
-
-
-class Rotary(nn.Module):
-    def __init__(self, dim: int, base: float = 10000.0):
-        super().__init__()
-        if dim % 2 != 0:
-            raise ValueError("RoPE head dimension must be even")
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
-        self._seq_len_cached = 0
-        self._cos_cached: Tensor | None = None
-        self._sin_cached: Tensor | None = None
-
-    def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
-        if (
-            self._cos_cached is None
-            or self._sin_cached is None
-            or self._seq_len_cached != seq_len
-            or self._cos_cached.device != device
-        ):
-            t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
-            freqs = torch.outer(t, self.inv_freq.to(device))
-            self._cos_cached = freqs.cos()[None, None, :, :]
-            self._sin_cached = freqs.sin()[None, None, :, :]
-            self._seq_len_cached = seq_len
-        return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
-
-
-def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
-    half = x.size(-1) // 2
-    x1 = x[..., :half]
-    x2 = x[..., half:]
-    y1 = x1 * cos + x2 * sin
-    y2 = x1 * (-sin) + x2 * cos
-    return torch.cat((y1, y2), dim=-1)
-
-
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, rope_base: float):
+    def __init__(self, dim: int, num_heads: int):
         super().__init__()
         assert dim % num_heads == 0, "model_dim must be divisible by num_heads"
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
-        if self.head_dim % 2 != 0:
-            raise ValueError("head_dim must be even for RoPE")
-        self.qkv = CastedLinear(dim, 3 * dim, bias=False)
-        self.proj = CastedLinear(dim, dim, bias=False)
-        self.proj._zero_init = True
-        self.v_mix = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.qkv = nn.Linear(dim, 3 * dim)
+        self.proj = nn.Linear(dim, dim)
 
-    def forward(self, x: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
         q, k, v = self.qkv(x).chunk(3, dim=-1)
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        if v1 is None:
-            v1 = v
-        mix = self.v_mix.to(dtype=v.dtype)
-        v = (1 - mix) * v + mix * v1
-        q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
-        cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        return self.proj(y), v1
+        return self.proj(y)
 
 
 class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
-        self.fc = CastedLinear(dim, hidden, bias=False)
-        self.proj = CastedLinear(hidden, dim, bias=False)
-        self.proj._zero_init = True
+        self.fc = nn.Linear(dim, hidden)
+        self.proj = nn.Linear(hidden, dim)
 
     def forward(self, x: Tensor) -> Tensor:
-        # Keep the simple relu^2 nonlinearity.
-        x = torch.relu(self.fc(x))
-        x = x.square()
-        return self.proj(x)
+        return self.proj(F.gelu(self.fc(x), approximate="tanh"))
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, mlp_mult: int, rope_base: float):
+    def __init__(self, dim: int, num_heads: int, mlp_mult: int):
         super().__init__()
-        self.attn_norm = RMSNorm(dim)
-        self.mlp_norm = RMSNorm(dim)
-        self.attn = CausalSelfAttention(dim, num_heads, rope_base=rope_base)
+        self.attn_norm = nn.LayerNorm(dim)
+        self.mlp_norm = nn.LayerNorm(dim)
+        self.attn = CausalSelfAttention(dim, num_heads)
         self.mlp = MLP(dim, mlp_mult)
-        self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
 
-    def forward(self, x: Tensor, x0: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
-        mix = self.resid_mix.to(dtype=x.dtype)
-        x = mix[0] * x + mix[1] * x0
-        attn_out, v1 = self.attn(self.attn_norm(x), v1)
-        x = x + attn_out
+    def forward(self, x: Tensor) -> Tensor:
+        x = x + self.attn(self.attn_norm(x))
         x = x + self.mlp(self.mlp_norm(x))
-        return x, v1
+        return x
 
 
 class GPT(nn.Module):
@@ -388,72 +308,37 @@ class GPT(nn.Module):
         num_heads: int,
         mlp_mult: int,
         max_seq_len: int,
-        logit_chunk_tokens: int,
-        logit_softcap: float,
-        rope_base: float,
     ):
         super().__init__()
         self.max_seq_len = max_seq_len
-        self.logit_chunk_tokens = logit_chunk_tokens
-        self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers))
-        self.blocks = nn.ModuleList(
-            [Block(model_dim, num_heads, mlp_mult, rope_base=rope_base) for _ in range(num_layers)]
-        )
-        self.final_norm = RMSNorm(model_dim)
-        self.lm_head = CastedLinear(model_dim, vocab_size, bias=False)
-        self.lm_head._zero_init = True
-        self._init_weights(num_layers)
+        self.pos_emb = nn.Embedding(max_seq_len, model_dim)
+        self.blocks = nn.ModuleList([Block(model_dim, num_heads, mlp_mult) for _ in range(num_layers)])
+        self.final_norm = nn.LayerNorm(model_dim)
+        self.lm_head = nn.Linear(model_dim, vocab_size, bias=False)
+        self.lm_head.weight = self.tok_emb.weight
+        self._init_weights()
 
-    def _init_weights(self, num_layers: int) -> None:
+    def _init_weights(self) -> None:
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                if getattr(module, "_zero_init", False):
-                    nn.init.zeros_(module.weight)
-
-    def _apply_softcap(self, logits: Tensor) -> Tensor:
-        if self.logit_softcap <= 0:
-            return logits
-        return self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         _, seqlen = input_ids.shape
         if seqlen > self.max_seq_len:
             raise ValueError(f"Input sequence length {seqlen} exceeds max_seq_len {self.max_seq_len}")
-        x = self.tok_emb(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
-        x0 = x
-        v1 = None
-        skip_connections: list[Tensor] = []
-
-        for i in range(self.num_encoder_layers):
-            x, v1 = self.blocks[i](x, x0, v1)
-            skip_connections.append(x)
-
-        for i in range(self.num_decoder_layers):
-            if skip_connections:
-                skip = skip_connections.pop()
-                skip_weight = self.skip_weights[i].to(dtype=x.dtype)
-                x = x + skip_weight * skip
-            x, v1 = self.blocks[self.num_encoder_layers + i](x, x0, v1)
-
-        x = self.final_norm(x).reshape(-1, x.size(-1))
+        positions = torch.arange(seqlen, device=input_ids.device)
+        x = self.tok_emb(input_ids) + self.pos_emb(positions)[None, :, :]
+        for block in self.blocks:
+            x = block(x)
+        logits = self.lm_head(self.final_norm(x)).reshape(-1, self.tok_emb.num_embeddings)
         targets = target_ids.reshape(-1)
-        chunk_tokens = self.logit_chunk_tokens
-
-        if chunk_tokens <= 0 or x.size(0) <= chunk_tokens:
-            logits = self._apply_softcap(self.lm_head(x))
-            return F.cross_entropy(logits.float(), targets, reduction="mean")
-
-        loss_sum = torch.zeros((), device=x.device, dtype=torch.float32)
-        for start in range(0, x.size(0), chunk_tokens):
-            end = min(start + chunk_tokens, x.size(0))
-            logits = self._apply_softcap(self.lm_head(x[start:end]))
-            loss_sum += F.cross_entropy(logits.float(), targets[start:end], reduction="sum")
-        return loss_sum / x.size(0)
+        return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
 class TrainingManager:

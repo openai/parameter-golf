@@ -35,6 +35,111 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "y", "on"}
 
 
+def zeropower_via_svd(G: Tensor, steps=None) -> Tensor:
+    U, _, Vh = torch.linalg.svd(G, full_matrices=False)
+    return U @ Vh
+
+
+@torch.compile
+def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+    """
+    Newton-Schulz iteration to approximate the orthogonal factor of a matrix.
+    """
+    assert G.ndim == 2
+    a, b, c = (3.4445, -4.7750, 2.0315)
+    X = G.bfloat16()
+    X /= X.norm() + eps
+    if G.size(0) > G.size(1):
+        X = X.T
+    for _ in range(steps):
+        A = X @ X.T
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    if G.size(0) > G.size(1):
+        X = X.T
+    return X
+
+
+zeropower_backends = {
+    "svd": zeropower_via_svd,
+    "newtonschulz5": zeropower_via_newtonschulz5,
+}
+
+
+class Muon(torch.optim.Optimizer):
+    """
+    SGD-momentum + orthogonalized updates for 2D parameters.
+    """
+
+    def __init__(
+        self,
+        params,
+        lr: float = 0.02,
+        momentum: float = 0.95,
+        nesterov: bool = True,
+        backend: str = "newtonschulz5",
+        backend_steps: int = 5,
+    ):
+        defaults = dict(
+            lr=lr,
+            momentum=momentum,
+            nesterov=nesterov,
+            backend=backend,
+            backend_steps=backend_steps,
+        )
+        super().__init__(params, defaults)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        distributed = dist.is_available() and dist.is_initialized()
+        world_size = dist.get_world_size() if distributed else 1
+        rank = dist.get_rank() if distributed else 0
+
+        for group in self.param_groups:
+            params = group["params"]
+            if not params:
+                continue
+
+            lr = group["lr"]
+            momentum = group["momentum"]
+            zeropower_backend = zeropower_backends[group["backend"]]
+            total_params = sum(int(p.numel()) for p in params)
+            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
+
+            curr_idx = 0
+            for i, p in enumerate(params):
+                if i % world_size == rank:
+                    g = p.grad
+                    if g is not None:
+                        state = self.state[p]
+                        if "momentum_buffer" not in state:
+                            state["momentum_buffer"] = torch.zeros_like(g)
+                        buf = state["momentum_buffer"]
+                        buf.mul_(momentum).add_(g)
+                        if group["nesterov"]:
+                            g = g.add(buf, alpha=momentum)
+                        g = zeropower_backend(g, steps=group["backend_steps"])
+                        g *= max(1, g.size(0) / g.size(1)) ** 0.5
+                        updates_flat[curr_idx : curr_idx + p.numel()] = g.reshape(-1)
+                curr_idx += p.numel()
+
+            if distributed:
+                dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
+
+            curr_idx = 0
+            for p in params:
+                g = updates_flat[curr_idx : curr_idx + p.numel()].view_as(p).to(dtype=p.dtype)
+                p.add_(g, alpha=-lr)
+                curr_idx += p.numel()
+
+        return loss
+
+
 # NOTE: Modify this command if you change the Tokenizer! Ensure correctness for submission to be accepted. Submissions with Tokenizer changes will be more carefully examined.
 FIXED_TOKENIZER_PATH = "/tmp/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model"
 _SP_LUT_CACHE: dict[str, tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = {}
@@ -128,8 +233,14 @@ class Hyperparameters:
     base_lr: float = _env_float("BASE_LR", 0.04)
     embed_lr: float = _env_float("EMBED_LR", 0.6)
     head_lr: float = _env_float("HEAD_LR", 0.008)
-    matrix_lr: float = _env_float("MATRIX_LR", 0.002)
-    scalar_lr: float = _env_float("SCALAR_LR", 0.008)
+    matrix_lr: float = _env_float("MATRIX_LR", 0.04)
+    scalar_lr: float = _env_float("SCALAR_LR", 0.04)
+    muon_momentum: float = _env_float("MUON_MOMENTUM", 0.95)
+    muon_nesterov: bool = _env_bool("MUON_NESTEROV", True)
+    muon_backend: str = os.environ.get("MUON_BACKEND", "newtonschulz5")
+    muon_backend_steps: int = _env_int("MUON_BACKEND_STEPS", 5)
+    muon_momentum_warmup_start: float = _env_float("MUON_MOMENTUM_WARMUP_START", 0.85)
+    muon_momentum_warmup_steps: int = _env_int("MUON_MOMENTUM_WARMUP_STEPS", 500)
     beta1: float = _env_float("BETA1", 0.9)
     beta2: float = _env_float("BETA2", 0.95)
     eps: float = _env_float("ADAM_EPS", 1e-8)
@@ -263,7 +374,7 @@ class DistributedTokenLoader:
 
 
 class RMSNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-5):
+    def __init__(self, dim: int, eps: float | None = None):
         super().__init__()
         self.eps = eps
 
@@ -320,7 +431,9 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
-        self.qkv = CastedLinear(dim, 3 * dim, bias=False)
+        self.c_q = CastedLinear(dim, dim, bias=False)
+        self.c_k = CastedLinear(dim, dim, bias=False)
+        self.c_v = CastedLinear(dim, dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.v_mix = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
@@ -328,7 +441,9 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
-        q, k, v = self.qkv(x).chunk(3, dim=-1)
+        q = self.c_q(x)
+        k = self.c_k(x)
+        v = self.c_v(x)
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
@@ -598,28 +713,39 @@ def main() -> None:
     block_params = list(raw_model.blocks.parameters())
     matrix_params = [p for p in block_params if p.ndim == 2]
     scalar_params = [p for p in block_params if p.ndim < 2] + [raw_model.skip_weights]
+    optimizer_tok = torch.optim.Adam(
+        [{"params": [raw_model.tok_emb.weight], "lr": args.embed_lr, "base_lr": args.embed_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.eps,
+        fused=True,
+    )
+    optimizer_head = torch.optim.Adam(
+        [{"params": [raw_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.eps,
+        fused=True,
+    )
+    optimizer_muon = Muon(
+        matrix_params,
+        lr=args.matrix_lr,
+        momentum=args.muon_momentum,
+        nesterov=args.muon_nesterov,
+        backend=args.muon_backend,
+        backend_steps=args.muon_backend_steps,
+    )
+    for group in optimizer_muon.param_groups:
+        group["base_lr"] = args.matrix_lr
+    optimizer_scalar = torch.optim.Adam(
+        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.eps,
+        fused=True,
+    )
     optimizers: list[torch.optim.Optimizer] = [
-        torch.optim.Adam(
-            [{"params": [raw_model.tok_emb.weight], "lr": args.embed_lr, "base_lr": args.embed_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.eps,
-            fused=True,
-        ),
-        torch.optim.Adam(
-            [{"params": [raw_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.eps,
-            fused=True,
-        ),
-        torch.optim.Adam(
-            [
-                {"params": matrix_params, "lr": args.matrix_lr, "base_lr": args.matrix_lr},
-                {"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr},
-            ],
-            betas=(args.beta1, args.beta2),
-            eps=args.eps,
-            fused=True,
-        ),
+        optimizer_tok,
+        optimizer_head,
+        optimizer_muon,
+        optimizer_scalar,
     ]
     training_manager = TrainingManager(schedule, optimizers, args)
 
@@ -758,6 +884,13 @@ def main() -> None:
                 loss = model(x, y)
             train_loss = loss.detach()
             (loss * grad_scale).backward()
+        if args.muon_momentum_warmup_steps > 0:
+            frac = min(step / args.muon_momentum_warmup_steps, 1.0)
+            momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+        else:
+            momentum = args.muon_momentum
+        for group in optimizer_muon.param_groups:
+            group["momentum"] = momentum
         training_manager.step_optimizers(step, raw_model.parameters())
 
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
