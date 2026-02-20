@@ -204,6 +204,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--head-dim-multiple-of-8",
+        action="store_true",
+        help="Only keep configs with head_dim divisible by 8.",
+    )
+    parser.add_argument(
         "--breakdown",
         action="store_true",
         help="Print per-component parameter counts for shown rows.",
@@ -248,6 +253,8 @@ def main() -> int:
     for model_dim, layers, heads, head_dim, mlp_mult, vocab_size, world_size in itertools.product(
         model_dims, num_layers, num_heads, head_dims, mlp_mults, vocab_sizes, world_sizes
     ):
+        if args.head_dim_multiple_of_8 and head_dim % 8 != 0:
+            continue
         cfg = ModelConfig(
             model_dim=model_dim,
             num_layers=layers,

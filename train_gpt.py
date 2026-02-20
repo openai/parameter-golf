@@ -146,16 +146,14 @@ class Muon(torch.optim.Optimizer):
 # `data/fineweb10B` shards are GPT-2 tokenized (see data/cached_fineweb10B.py), while
 # matched SentencePiece experiments should set TOKENIZER_KIND=sentencepiece and
 # TOKENIZER_PATH to the corresponding `.model`.
-TOKENIZER_KIND = os.environ.get("TOKENIZER_KIND", "gpt2").lower()
+TOKENIZER_KIND = os.environ.get("TOKENIZER_KIND", "sp").lower()
 
 
 def _default_sentencepiece_tokenizer_path() -> str:
     # Prefer the local matched-export tokenizer paths that exist in this repo state, while
     # keeping the older path as a fallback for other checkouts.
     candidates = (
-        "data/matched_10B/tokenizers/fineweb_1024_bpe.model",
-        "data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model",
-        "data/tokenizers/fineweb_1k_bpe.model",
+        "data/matched_10B/tokenizers/fineweb_2048_bpe.model",
     )
     for candidate in candidates:
         if Path(candidate).is_file():
@@ -176,7 +174,7 @@ def bytes_per_token(input_ids: Tensor, target_ids: Tensor) -> Tensor:
     if input_ids.shape != target_ids.shape:
         raise ValueError(f"shape mismatch: input_ids={tuple(input_ids.shape)} target_ids={tuple(target_ids.shape)}")
 
-    model_vocab_size = _env_int("VOCAB_SIZE", 50304)
+    model_vocab_size = _env_int("VOCAB_SIZE", 2048)
     if TOKENIZER_KIND in {"gpt2", "gpt-2"}:
         tokenizer_cache_key = "gpt2"
     elif TOKENIZER_KIND in {"sentencepiece", "spm", "sp"}:
@@ -375,7 +373,7 @@ def deserialize_quantized_int8_zlib(blob: bytes) -> dict[str, Tensor]:
 
 @dataclass
 class Hyperparameters:
-    data_path: str = os.environ.get("DATA_PATH", "./data/fineweb10B/")
+    data_path: str = os.environ.get("DATA_PATH", "./data/matched_10B/datasets/fineweb10B_sp2048")
     train_files: str = os.path.join(data_path, "fineweb_train_*.bin")
     val_files: str = os.path.join(data_path, "fineweb_val_*.bin")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
@@ -388,15 +386,16 @@ class Hyperparameters:
     warmup_steps: int = _env_int("WARMUP_STEPS", _env_int("TIMING_WARMUP_STEPS", 50))
     save_checkpoint: bool = _env_bool("SAVE_CHECKPOINT", True)
     use_amp: bool = _env_bool("USE_AMP", True)
-    enable_val_bpb: bool = _env_bool("ENABLE_VAL_BPB", False)
+    enable_val_bpb: bool = _env_bool("ENABLE_VAL_BPB", True)
     auto_final_int8_zlib: bool = _env_bool("AUTO_FINAL_INT8_ZLIB", True)
 
     # Model
-    vocab_size: int = _env_int("VOCAB_SIZE", 50304)
-    num_layers: int = _env_int("NUM_LAYERS", 12)
-    model_dim: int = _env_int("MODEL_DIM", 768)
-    num_heads: int = _env_int("NUM_HEADS", 6)
+    vocab_size: int = _env_int("VOCAB_SIZE", 2048)
+    num_layers: int = _env_int("NUM_LAYERS", 11)
+    model_dim: int = _env_int("MODEL_DIM", 512)
+    num_heads: int = _env_int("NUM_HEADS", 8)
     mlp_mult: int = _env_int("MLP_MULT", 4)
+    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", False)
     # 0 disables chunking and is materially faster on current H100 stacks.
     logit_chunk_tokens: int = _env_int("LOGIT_CHUNK_TOKENS", 0)
     logit_softcap: float = _env_float("LOGIT_SOFTCAP", 30.0)
@@ -406,6 +405,8 @@ class Hyperparameters:
     base_lr: float = _env_float("BASE_LR", 0.04)
     embed_lr: float = _env_float("EMBED_LR", 0.6)
     head_lr: float = _env_float("HEAD_LR", 0.008)
+    tied_embed_lr: float = _env_float("TIED_EMBED_LR", 0.2)
+    tied_embed_init_std: float = _env_float("TIED_EMBED_INIT_STD", 0.005)
     matrix_lr: float = _env_float("MATRIX_LR", 0.04)
     scalar_lr: float = _env_float("SCALAR_LR", 0.04)
     muon_momentum: float = _env_float("MUON_MOMENTUM", 0.95)
@@ -932,6 +933,13 @@ def main() -> None:
     for module in raw_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
+    if args.tie_embeddings:
+        # Modded-nanogpt-inspired tied setup: initialize the shared matrix with a small std
+        # so step-0 logits are not huge random values (baseline untied head starts at zeros).
+        if args.tied_embed_init_std > 0:
+            nn.init.normal_(raw_model.tok_emb.weight, mean=0.0, std=args.tied_embed_init_std)
+        # Tie after the CastedLinear float() pass so the shared tensor keeps embedding dtype.
+        raw_model.lm_head.weight = raw_model.tok_emb.weight
 
     raw_model = torch.compile(raw_model, dynamic=False, fullgraph=True)
 
@@ -944,18 +952,22 @@ def main() -> None:
     block_params = list(raw_model.blocks.parameters())
     matrix_params = [p for p in block_params if p.ndim == 2]
     scalar_params = [p for p in block_params if p.ndim < 2] + [raw_model.skip_weights]
+    tied_embed_head = raw_model.lm_head.weight is raw_model.tok_emb.weight
+    embed_lr = args.tied_embed_lr if tied_embed_head else args.embed_lr
     optimizer_tok = torch.optim.Adam(
-        [{"params": [raw_model.tok_emb.weight], "lr": args.embed_lr, "base_lr": args.embed_lr}],
+        [{"params": [raw_model.tok_emb.weight], "lr": embed_lr, "base_lr": embed_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.eps,
         fused=True,
     )
-    optimizer_head = torch.optim.Adam(
-        [{"params": [raw_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.eps,
-        fused=True,
-    )
+    optimizer_head = None
+    if not tied_embed_head:
+        optimizer_head = torch.optim.Adam(
+            [{"params": [raw_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.eps,
+            fused=True,
+        )
     optimizer_muon = Muon(
         matrix_params,
         lr=args.matrix_lr,
@@ -974,14 +986,21 @@ def main() -> None:
     )
     optimizers: list[torch.optim.Optimizer] = [
         optimizer_tok,
-        optimizer_head,
         optimizer_muon,
         optimizer_scalar,
     ]
+    if optimizer_head is not None:
+        optimizers.insert(1, optimizer_head)
     training_manager = TrainingManager(schedule, optimizers, args)
 
     n_params = sum(p.numel() for p in raw_model.parameters())
     print0(f"model_params:{n_params}", console=True)
+    print0(
+        f"tie_embeddings:{tied_embed_head} embed_lr:{embed_lr}"
+        + (f" tied_embed_init_std:{args.tied_embed_init_std}" if tied_embed_head else "")
+        + (f" head_lr:{args.head_lr}" if not tied_embed_head else ""),
+        console=True,
+    )
     print0(
         f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} "
         f"compile_model:True compile_dynamic:False compile_fullgraph:True "
