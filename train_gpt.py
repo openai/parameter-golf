@@ -395,7 +395,7 @@ class Hyperparameters:
     model_dim: int = _env_int("MODEL_DIM", 512)
     num_heads: int = _env_int("NUM_HEADS", 8)
     mlp_mult: int = _env_int("MLP_MULT", 4)
-    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", False)
+    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", True)
     # 0 disables chunking and is materially faster on current H100 stacks.
     logit_chunk_tokens: int = _env_int("LOGIT_CHUNK_TOKENS", 0)
     logit_softcap: float = _env_float("LOGIT_SOFTCAP", 30.0)
@@ -405,7 +405,7 @@ class Hyperparameters:
     base_lr: float = _env_float("BASE_LR", 0.04)
     embed_lr: float = _env_float("EMBED_LR", 0.6)
     head_lr: float = _env_float("HEAD_LR", 0.008)
-    tied_embed_lr: float = _env_float("TIED_EMBED_LR", 0.2)
+    tied_embed_lr: float = _env_float("TIED_EMBED_LR", 0.05)
     tied_embed_init_std: float = _env_float("TIED_EMBED_INIT_STD", 0.005)
     matrix_lr: float = _env_float("MATRIX_LR", 0.04)
     scalar_lr: float = _env_float("SCALAR_LR", 0.04)
@@ -1111,12 +1111,13 @@ def main() -> None:
             elif val_bpb_enabled and val_byte_count.item() <= 0:
                 val_bpb_enabled = False
                 print0("val_bpb:disabled zero_byte_count", console=True)
-            print0(
-                f"step:{step}/{train_steps} val_loss:{val_loss.item():.4f} "
-                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
-                f"{val_bpb_str}",
-                console=True,
-            )
+            if step % 25 == 0:
+                print0(
+                    f"step:{step}/{train_steps} val_loss:{val_loss.item():.4f} "
+                    f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
+                    f"{val_bpb_str}",
+                    console=True,
+                )
             model.train()
             torch.cuda.synchronize()
             t0 = time.perf_counter()
