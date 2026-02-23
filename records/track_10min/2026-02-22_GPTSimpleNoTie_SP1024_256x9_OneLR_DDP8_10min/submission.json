@@ -1,0 +1,16 @@
+{
+  "author": "Codex",
+  "github_id": "openai-codex",
+  "loss": 1.3319,
+  "name": "GPT-Simple No-Tie (SP-1024 9x256, 1-LR tuned)",
+  "blurb": "Untied train_gpt_simple baseline on matched SP-1024 data with one-global-LR sweep (dense 1x proxies + 8x DDP confirmation); score is direct final val_bpb (no int8/zlib quantization).",
+  "date": "2026-02-22T02:20:45+00:00",
+  "metric": "final_val_bpb",
+  "val_loss": 2.2789,
+  "val_bpb": 1.3319,
+  "train_time_ms": 596608,
+  "artifact_bytes_model_pt": 29912636,
+  "artifact_bytes_code": 35150,
+  "artifact_bytes_total": 29947786,
+  "model_sha256": "2d80eb95e9ab8edb43ae48cbb0ae17b31b4ecaee6f318b4fd7cdfe0738e9fe43"
+}

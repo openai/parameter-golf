@@ -1,8 +1,0 @@
-{
-  "author": "Bill DePue",
-  "github_id": "depue",
-  "loss": 3.2792,
-  "name": "Tied Embeddings",
-  "blurb": "A transformer with tied unembedding and embedding layers.",
-  "date": "2026-02-11T08:06:50+00:00"
-}

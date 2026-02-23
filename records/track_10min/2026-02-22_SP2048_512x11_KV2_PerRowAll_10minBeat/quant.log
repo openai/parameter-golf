@@ -1,0 +1,36 @@
+[W222 16:44:47.346612175 Utils.hpp:136] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W222 16:44:48.124628010 Utils.hpp:136] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W222 16:44:48.128910218 Utils.hpp:136] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W222 16:44:48.215357995 Utils.hpp:136] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W222 16:44:48.217958638 Utils.hpp:136] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W222 16:44:48.434172116 Utils.hpp:136] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W222 16:44:48.474538344 Utils.hpp:136] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W222 16:44:48.474736566 Utils.hpp:136] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+logs/d0843177-b288-4071-af60-36e0fd8e82da.txt
+[rank1]:[W222 16:44:55.165930607 Utils.hpp:111] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank4]:[W222 16:44:55.166136751 Utils.hpp:111] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank0]:[W222 16:44:55.166164860 Utils.hpp:111] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank5]:[W222 16:44:55.166234646 Utils.hpp:111] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank3]:[W222 16:44:55.166257123 Utils.hpp:111] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank2]:[W222 16:44:55.166919056 Utils.hpp:111] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank7]:[W222 16:44:55.166926770 Utils.hpp:111] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank6]:[W222 16:44:55.167064901 Utils.hpp:111] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+load_model_path:/root/code/openai-parameter-challenge/logs/sweeps/train_gpt_layouts_remote/speedrunb1_tgpt_kv11m4_no_tee_sched_03_d512_l11_h8_kv2_m4_v2048_144043.final_model.pt
+load_model load_ok missing=0 unexpected=0
+model_params:32374823
+attention_mode:gqa num_heads:8 num_kv_heads:2
+tie_embeddings:False embed_lr:0.6 head_lr:0.008
+world_size:8 grad_accum_steps:1 compile_model:True compile_dynamic:False compile_fullgraph:True use_amp:True
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+val_bpb:enabled tokenizer_kind=sp tokenizer_path=data/matched_10B/tokenizers/fineweb_2048_bpe.model
+auto_final_int8_zlib:True (disable with AUTO_FINAL_INT8_ZLIB=0)
+step:0/0 val_loss:2.3141 train_time:0ms step_avg:0.05ms val_bpb:1.1535
+peak memory allocated: 1740 MiB reserved: 1743 MiB
+Serialized model: 127438721 bytes
+Code size: 71509 bytes
+Total submission size: 127510230 bytes
+Serialized model int8+zlib: 31132399 bytes (payload:33903694 raw_torch:33947296 payload_ratio:3.76x)
+Total submission size int8+zlib: 31203908 bytes
+final_int8_zlib_roundtrip load_ok missing=0 unexpected=0
+final_int8_zlib_roundtrip val_loss:2.3173 val_bpb:1.1551 eval_time:437ms
+final_int8_zlib_roundtrip_exact val_loss:2.31734705 val_bpb:1.15506351

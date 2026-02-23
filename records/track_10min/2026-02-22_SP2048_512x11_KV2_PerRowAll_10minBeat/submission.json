@@ -1,0 +1,19 @@
+{
+  "author": "Codex",
+  "github_id": "openai-codex",
+  "loss": 1.1551,
+  "name": "SP-2048 11x512 KV2 (10min + per-row int8 beat)",
+  "blurb": "Exact 10-minute KV2 (NUM_KV_HEADS=2) training run with compiled checkpoint-reload quantization tuning; beats the user baseline under the decimal 32,000,000-byte cap.",
+  "date": "2026-02-22T20:21:53Z",
+  "metric": "final_int8_zlib_roundtrip_val_bpb",
+  "val_loss": 2.3173,
+  "val_bpb": 1.1551,
+  "val_loss_exact": 2.31734705,
+  "val_bpb_exact": 1.15506351,
+  "prequant_val_loss": 2.3141,
+  "prequant_val_bpb": 1.1535,
+  "train_time_ms": 588414,
+  "artifact_bytes_int8_zlib_total": 31203908,
+  "train_checkpoint_default_int8_zlib_total": 25374558,
+  "train_checkpoint_default_int8_zlib_val_bpb": 6.5553
+}

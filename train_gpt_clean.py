@@ -61,7 +61,7 @@ class Hyperparameters:
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 125))
 
     # Training length. This clean version is single-stage only (fixed seq len / token budget).
-    iterations: int = int(os.environ.get("ITERATIONS", 3000))
+    iterations: int = int(os.environ.get("ITERATIONS", 10000))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 900))
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", int(os.environ.get("TIMING_WARMUP_STEPS", 50))))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 8 * 64 * 1024))
@@ -76,10 +76,7 @@ class Hyperparameters:
     mlp_mult: int = int(os.environ.get("MLP_MULT", 4))
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-
-    # Optimizer hyperparameters. This script always uses Adam for embeddings/scalars + Muon for matrices.
-    tied_embed_lr: float = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    # Optimizer hyperparameters. This clean script is the untied-head path.
     matrix_lr: float = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr: float = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
@@ -241,13 +238,28 @@ def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
 
+# Fixed export scheme used for the winning under-32,000,000-byte KV2 result.
+# Keeping this hardcoded avoids dragging the full train_gpt.py quantization flag surface
+# into the clean script.
+INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
+INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
+INT8_PER_ROW_SCALE_DTYPE = torch.float16
+INT8_CLIP_PERCENTILE = 99.999
+INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+
+
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
-    # Single supported checkpoint format: symmetric per-tensor int8 for floating
-    # tensors, exact passthrough for non-floating tensors, then zlib compression.
+    # Single supported clean-script export format:
+    # - per-row int8 for 2D float tensors
+    # - per-tensor int8 for other float tensors
+    # - exact passthrough for non-floats
+    # - passthrough for small float tensors, stored as fp16 to save bytes
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
     passthrough: dict[str, Tensor] = {}
+    passthrough_orig_dtypes: dict[str, str] = {}
+    qmeta: dict[str, dict[str, object]] = {}
     stats = {
         "param_count": 0,
         "num_tensors": 0,
@@ -264,12 +276,42 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         stats["baseline_tensor_bytes"] += tensor_nbytes(t)
 
         if t.is_floating_point():
+            if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+                kept = t
+                if kept.dtype in {torch.float32, torch.bfloat16}:
+                    kept = kept.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
+                    passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
+                passthrough[name] = kept
+                stats["int8_payload_bytes"] += tensor_nbytes(kept)
+                continue
+
             stats["num_float_tensors"] += 1
             t32 = t.float()
-            max_abs = float(t32.abs().max().item()) if t32.numel() else 0.0
-            scale = max_abs / 127.0 if max_abs > 0 else 1.0
-            q = torch.clamp(torch.round(t32 / scale), -127, 127).to(torch.int8).contiguous()
-            s = torch.tensor(scale, dtype=torch.float32)
+            if t32.ndim == 2:
+                abs_t = t32.abs()
+                if t32.numel():
+                    clip_abs = torch.quantile(abs_t, INT8_CLIP_Q, dim=1)
+                    t32_for_quant = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+                else:
+                    clip_abs = torch.empty((t32.shape[0],), dtype=torch.float32)
+                    t32_for_quant = t32
+                scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+                q = torch.clamp(torch.round(t32_for_quant / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+                s = scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+                qmeta[name] = {"scheme": "per_row", "axis": 0}
+            else:
+                max_abs = 0.0
+                if t32.numel():
+                    abs_t = t32.abs()
+                    clip_abs = float(torch.quantile(abs_t.flatten(), INT8_CLIP_Q).item())
+                    t32_for_quant = torch.clamp(t32, -clip_abs, clip_abs)
+                    max_abs = clip_abs
+                else:
+                    t32_for_quant = t32
+                scale = max_abs / 127.0 if max_abs > 0 else 1.0
+                q = torch.clamp(torch.round(t32_for_quant / scale), -127, 127).to(torch.int8).contiguous()
+                s = torch.tensor(scale, dtype=torch.float32)
+
             quantized[name] = q
             scales[name] = s
             dtypes[name] = str(t.dtype).removeprefix("torch.")
@@ -279,17 +321,39 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             passthrough[name] = t
             stats["int8_payload_bytes"] += tensor_nbytes(t)
 
-    return {"quantized": quantized, "scales": scales, "dtypes": dtypes, "passthrough": passthrough}, stats
+    obj: dict[str, object] = {
+        "__quant_format__": "int8_clean_per_row_v1",
+        "quantized": quantized,
+        "scales": scales,
+        "dtypes": dtypes,
+        "passthrough": passthrough,
+    }
+    if qmeta:
+        obj["qmeta"] = qmeta
+    if passthrough_orig_dtypes:
+        obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
+    return obj, stats
 
 
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
+    qmeta = obj.get("qmeta", {})
+    passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
     for name, q in obj["quantized"].items():
-        scale = float(obj["scales"][name].item())
         dtype = getattr(torch, obj["dtypes"][name])
-        out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
+        meta = qmeta.get(name, {"scheme": "per_tensor"})
+        if meta.get("scheme") == "per_row":
+            s = obj["scales"][name].to(dtype=torch.float32)
+            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+        else:
+            scale = float(obj["scales"][name].item())
+            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
     for name, t in obj["passthrough"].items():
-        out[name] = t.detach().to("cpu").contiguous()
+        out_t = t.detach().to("cpu").contiguous()
+        orig_dtype = passthrough_orig_dtypes.get(name)
+        if isinstance(orig_dtype, str):
+            out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
+        out[name] = out_t
     return out
 
 
@@ -427,13 +491,22 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, rope_base: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float):
         super().__init__()
+        if dim % num_heads != 0:
+            raise ValueError("model_dim must be divisible by num_heads")
+        if num_heads % num_kv_heads != 0:
+            raise ValueError("num_heads must be divisible by num_kv_heads")
         self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.q_per_kv = num_heads // num_kv_heads
         self.head_dim = dim // num_heads
+        if self.head_dim % 2 != 0:
+            raise ValueError("head_dim must be even for RoPE")
+        kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, dim, bias=False)
-        self.c_v = CastedLinear(dim, dim, bias=False)
+        self.c_k = CastedLinear(dim, kv_dim, bias=False)
+        self.c_v = CastedLinear(dim, kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.v_mix = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
@@ -442,8 +515,8 @@ class CausalSelfAttention(nn.Module):
     def forward(self, x: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v1 = v if v1 is None else v1
         mix = self.v_mix.to(dtype=v.dtype)
         v = (1 - mix) * v + mix * v1
@@ -452,7 +525,14 @@ class CausalSelfAttention(nn.Module):
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
-        y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
+        y = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=None,
+            is_causal=True,
+            enable_gqa=(self.num_kv_heads != self.num_heads),
+        )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y), v1
 
@@ -472,11 +552,11 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, mlp_mult: int, rope_base: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float):
         super().__init__()
         self.attn_norm = RMSNorm(dim)
         self.mlp_norm = RMSNorm(dim)
-        self.attn = CausalSelfAttention(dim, num_heads, rope_base)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base)
         self.mlp = MLP(dim, mlp_mult)
         self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
 
@@ -496,6 +576,7 @@ class GPT(nn.Module):
         num_layers: int,
         model_dim: int,
         num_heads: int,
+        num_kv_heads: int,
         mlp_mult: int,
         max_seq_len: int,
         logit_softcap: float,
@@ -505,10 +586,14 @@ class GPT(nn.Module):
         self.max_seq_len = max_seq_len
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers))
-        self.blocks = nn.ModuleList([Block(model_dim, num_heads, mlp_mult, rope_base) for _ in range(num_layers)])
+        self.blocks = nn.ModuleList(
+            [Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base) for _ in range(num_layers)]
+        )
         self.final_norm = RMSNorm(model_dim)
         self.lm_head = CastedLinear(model_dim, vocab_size, bias=False)
         self.lm_head._zero_init = True
@@ -570,10 +655,10 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
 
-enable_cudnn_sdp(True)
-enable_flash_sdp(False)
+enable_cudnn_sdp(False)
+enable_flash_sdp(True)
 enable_mem_efficient_sdp(False)
-enable_math_sdp(True)
+enable_math_sdp(False)
 
 logfile = None
 if master_process:
@@ -612,13 +697,14 @@ base_bytes_lut, has_space_lut, boundary_lut = build_sentencepiece_bpb_lut(
 )
 log0(f"val_bpb:enabled tokenizer=sentencepiece tokenizer_path={args.tokenizer_path}")
 
-# Model creation mirrors train_gpt.py but keeps a strict single path: tied embeddings on,
-# bf16 compute, compiled model for training, and the uncompiled base model for checkpoint I/O.
+# Model creation mirrors the winning path: untied embeddings + GQA KV2 + bf16 + compile.
+WINNER_NUM_KV_HEADS = 2
 base_model = GPT(
     vocab_size=args.vocab_size,
     num_layers=args.num_layers,
     model_dim=args.model_dim,
     num_heads=args.num_heads,
+    num_kv_heads=WINNER_NUM_KV_HEADS,
     mlp_mult=args.mlp_mult,
     max_seq_len=args.train_seq_len,
     logit_softcap=args.logit_softcap,
@@ -627,20 +713,25 @@ base_model = GPT(
 for module in base_model.modules():
     if isinstance(module, CastedLinear):
         module.float()
-nn.init.normal_(base_model.tok_emb.weight, mean=0.0, std=args.tied_embed_init_std)
-base_model.lm_head.weight = base_model.tok_emb.weight
 compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
 model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
 # Optimizer split:
 # - token embedding (Adam) gets its own LR
+# - untied lm_head gets its own Adam optimizer (winning path)
 # - matrix params in transformer blocks use Muon
 # - vectors/scalars use Adam
 block_params = list(base_model.blocks.parameters())
 matrix_params = [p for p in block_params if p.ndim == 2]
 scalar_params = [p for p in block_params if p.ndim < 2] + [base_model.skip_weights]
 optimizer_tok = torch.optim.Adam(
-    [{"params": [base_model.tok_emb.weight], "lr": args.tied_embed_lr, "base_lr": args.tied_embed_lr}],
+    [{"params": [base_model.tok_emb.weight], "lr": 0.6, "base_lr": 0.6}],
+    betas=(args.beta1, args.beta2),
+    eps=args.adam_eps,
+    fused=True,
+)
+optimizer_head = torch.optim.Adam(
+    [{"params": [base_model.lm_head.weight], "lr": 0.008, "base_lr": 0.008}],
     betas=(args.beta1, args.beta2),
     eps=args.adam_eps,
     fused=True,
@@ -654,12 +745,14 @@ optimizer_scalar = torch.optim.Adam(
     eps=args.adam_eps,
     fused=True,
 )
-optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_head, optimizer_muon, optimizer_scalar]
 
 n_params = sum(p.numel() for p in base_model.parameters())
 log0(f"model_params:{n_params}")
-log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} compile_model:{args.compile_model} use_amp:True")
+log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
 log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{WINNER_NUM_KV_HEADS}")
+log0("tie_embeddings:False embed_lr:0.6 head_lr:0.008")
 log0(
     f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
     f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
@@ -837,6 +930,7 @@ log0(
     f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
     f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
 )
+log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
 if distributed:
     dist.destroy_process_group()

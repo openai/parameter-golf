@@ -1,0 +1,11 @@
+TOKENIZER_KIND=sp TOKENIZER_PATH=data/matched_10B/tokenizers/fineweb_2048_bpe.model ENABLE_VAL_BPB=1 DATA_PATH=data/matched_10B/datasets/fineweb10B_sp2048 VOCAB_SIZE=2048 NUM_LAYERS=11 MODEL_DIM=512 NUM_HEADS=8 ITERATIONS=10000 torchrun --standalone --nproc_per_node=8 train_gpt.py
+
+step:10000/10000 val_loss:2.2925 train_time:602514ms step_avg:60.25ms val_bpb:1.1427
+peak memory allocated: 15594 MiB reserved: 15984 MiB
+Serialized model: 144740630 bytes
+Code size: 47835 bytes
+Total submission size: 144788465 bytes
+Serialized model int8+zlib: 29307854 bytes (payload:36700563 raw_torch:36753683 payload_ratio:3.94x)
+Total submission size int8+zlib: 29355689 bytes
+final_int8_zlib_roundtrip load_ok missing=0 unexpected=0
+final_int8_zlib_roundtrip val_loss:2.3184 val_bpb:1.1556 eval_time:420ms

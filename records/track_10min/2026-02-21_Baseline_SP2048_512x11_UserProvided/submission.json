@@ -1,0 +1,13 @@
+{
+  "author": "Will DePue",
+  "github_id": "0hq",
+  "loss": 1.1556,
+  "name": "Baseline (SP-2048 11x512)",
+  "blurb": "User-provided 11x512 MHA baseline run excerpt with post-quant roundtrip score.",
+  "date": "2026-02-21T17:30:00+00:00",
+  "metric": "final_int8_zlib_roundtrip_val_bpb",
+  "val_loss": 2.3184,
+  "val_bpb": 1.1556,
+  "train_time_ms": 602514,
+  "artifact_bytes_int8_zlib_total": 29355689
+}
