@@ -1,3 +1,6 @@
+FOR THE LOVE OF GOD PLEASE PIP INSTALL REQUIREMENTS BEFORE YOU START THIS OR YOULL GET A TRITON ERROR
+
+
 # LEARNINGS 1
 
 Date: 2026-02-19
@@ -22,9 +25,9 @@ What was learned:
   - matched on multiple configs.
 
 CLI/UX learned:
-- Defaults in `search_calc_train_gpt_simple_params.py` are under-30MB oriented:
-  - `--target-mb 30`
-  - `--max-mb 30`
+- Defaults in `search_calc_train_gpt_simple_params.py` are under-32MB oriented:
+  - `--target-mb 32`
+  - `--max-mb 32`
 - The `0` column users may notice is usually `delta_params` (when `--target-params` is unset), not `model_dim`.
 
 ## 2) Interpreting search results correctly

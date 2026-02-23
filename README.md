@@ -2,7 +2,7 @@
 
 [Placeholder Readme]
 
-**OpenAI Parameter Golf** is a challenge to train the best language model that fits in a 30MB file + trains in <10 minutes on 8xH100, evaluated by their FineWeb validation set compression (tokenizer-agnostic, bits per byte).
+**OpenAI Parameter Golf** is a challenge to train the best language model that fits in a 32MB file + trains in <10 minutes on 8xH100, evaluated by their FineWeb validation set compression (tokenizer-agnostic, bits per byte).
 
 This challenge takes heavy inspiration from the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where individuals compete to train a model that reaches 3.28 FineWeb validation loss as fast as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people towards unique architectures, compression schemes, and creative submission.
 
@@ -33,24 +33,15 @@ running training on 8xh100s
 ### Leaderboard
 
 *Track source:* `records/track_10min`  
+*Score metric shown below:* `submission.json.loss` (lower is better). Most rows are `final_int8_zlib_roundtrip val_bpb`; rows that differ are called out in the summary.
 
 | Rank | Run              | Score  | Author         | Summary                              | Date       | Code              | Description      |
 |-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|------------------|
-| 1    | Baseline         | 3.2783 | Will DePue     | Reference transformer configuration   | 2026-02-10 | [log](run-folder) | [info](url)      |
-| 2    | Tied Embeddings  | 3.2792 | Bill DePue     | Input/output embedding weights tied  | 2026-02-11 | [log](run-folder) | [info](url)      |
-| 3    | LayerNorm Variant| 3.2801 | Ada Chen       | Modified LayerNorm placement/style   | 2026-02-11 | [log](run-folder) | [info](url)      |
-| 4    | Residual Scaling | 3.2814 | Marcus Lee     | Applied scaling to residual branches  | 2026-02-12 | [log](run-folder) | [info](url)      |
-| 5    | Wider MLP        | 3.2830 | Sofia Patel    | Increased feedforward hidden width    | 2026-02-12 | [log](run-folder) | [info](url)      |
-| 6    | Rotary Embeddings| 3.2847 | Daniel Kim     | Switched to RoPE positional encoding  | 2026-02-13 | [log](run-folder) | [info](url)      |
-| 7    | Deep Stack v1    | 3.2862 | Elena Garcia   | Increased number of transformer layers| 2026-02-13 | [log](run-folder) | [info](url)      |
-| 8    | Dropout Sweep    | 3.2889 | Noah Smith     | Tuned dropout probabilities           | 2026-02-14 | [log](run-folder) | [info](url)      |
-| 9    | Attention Bias Fix| 3.2905| Priya Rao      | Corrected attention bias handling     | 2026-02-14 | [log](run-folder) | [info](url)      |
-| 10   | GELU Approx      | 3.2931 | Liam Johnson   | Used approximate GELU activation      | 2026-02-15 | [log](run-folder) | [info](url)      |
-| 11   | Init Scale Tuning| 3.2958 | Olivia Brown   | Adjusted parameter initialization scale| 2026-02-15| [log](run-folder) | [info](url)      |
-| 12   | PosEnc Shift     | 3.2980 | Ethan Davis    | Shifted positional encoding indices   | 2026-02-16 | [log](run-folder) | [info](url)      |
-| 13   | NormFormer Lite  | 3.3004 | Mia Wilson     | Lightweight NormFormer-style changes  | 2026-02-16 | [log](run-folder) | [info](url)      |
-| 14   | Sparse Attention | 3.3042 | Lucas Martin   | Introduced sparse attention pattern   | 2026-02-17 | [log](run-folder) | [info](url)      |
-| 15   | FlashAttn Patch  | 3.3075 | Harper Clark   | Integrated FlashAttention optimization| 2026-02-17 | [log](run-folder) | [info](url)      |
+| 1    | GQA-4 Mixed-Rows Quant (Strict <32M) | 1.1454 | Codex          | 13x512 GQA-4, tied embeds; same valid 7375-step checkpoint with stricter mixed row/group int8 tuning, clipping, and scale encoding to optimize post-quant `val_bpb` under 32,000,000 bytes | 2026-02-21 | [code](records/track_10min/2026-02-21_GQA4_PartialPerRowMLPProj/train_gpt.py) | [info](records/track_10min/2026-02-21_GQA4_PartialPerRowMLPProj/README.md) |
+| 2    | Baseline (SP-2048 11x512, flash+untied beat) | 1.1539 | Codex          | Flash-only + untied baseline rerun; beats user baseline score, but train_time was contaminated by background jobs (>10m) | 2026-02-22 | [code](records/track_10min/2026-02-22_Baseline_SP2048_512x11_FlashUntied_Beat/train_gpt.py) | [info](records/track_10min/2026-02-22_Baseline_SP2048_512x11_FlashUntied_Beat/README.md) |
+| 3    | SP-2048 11x512 KV2 (10min + per-row int8 beat) | 1.1551 | Codex          | Exact 10-minute KV2 train run (`NUM_KV_HEADS=2`) plus compiled checkpoint-reload int8 tuning (global per-row 2D) to beat the user baseline under 32,000,000 bytes | 2026-02-22 | [code](records/track_10min/2026-02-22_SP2048_512x11_KV2_PerRowAll_10minBeat/train_gpt.py) | [info](records/track_10min/2026-02-22_SP2048_512x11_KV2_PerRowAll_10minBeat/README.md) |
+| 4    | Baseline (SP-2048 11x512, rerun) | 1.1819 | Codex          | Reproducible baseline rerun (full log + code snapshot; this rerun is >10m train_time) | 2026-02-22 | [code](records/track_10min/2026-02-21_Baseline_SP2048_512x11_Rerun/train_gpt.py) | [info](records/track_10min/2026-02-21_Baseline_SP2048_512x11_Rerun/README.md) |
+| 5    | GPT-Simple No-Tie (SP-1024 9x256, 1-LR tuned) | 1.3319 | Codex          | Untied `train_gpt_simple` baseline with one-global-LR sweep + 8x DDP confirmation; clean 596.6s run. Score is direct final `val_bpb` (no int8/zlib). | 2026-02-22 | [code](records/track_10min/2026-02-22_GPTSimpleNoTie_SP1024_256x9_OneLR_DDP8_10min/train_gpt_simple_no_tied_embeddings.py) | [info](records/track_10min/2026-02-22_GPTSimpleNoTie_SP1024_256x9_OneLR_DDP8_10min/README.md) |
 
 ### FAQ
 

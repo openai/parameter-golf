@@ -1,3 +1,8 @@
+"""
+NEVER DISABLE TRITON. IF YOU HIT AN ERROR RUN PIP INSTALL REQUIREMENTS. THIS IS A SPEEDRUN
+YOU CANT JUST DISABLE TORCH COMPILE. YOU MUST GET IT TO WORK
+"""
+
 import glob
 import io
 import math
@@ -16,6 +21,25 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
+
+
+def _ensure_triton_key_compat() -> None:
+    """Patch Triton 3.6+ builds that dropped `triton_key` export used by torch 2.6."""
+    try:
+        import triton
+        from triton.compiler import compiler as triton_compiler
+    except Exception:
+        return
+    if hasattr(triton_compiler, "triton_key"):
+        return
+
+    def _triton_key() -> str:
+        return getattr(triton_compiler, "__version__", None) or getattr(triton, "__version__", "unknown-triton")
+
+    triton_compiler.triton_key = _triton_key  # type: ignore[attr-defined]
+
+
+_ensure_triton_key_compat()
 
 
 # -----------------------------
@@ -42,6 +66,7 @@ class Hyperparameters:
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", int(os.environ.get("TIMING_WARMUP_STEPS", 50))))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 8 * 64 * 1024))
     train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0.0))
 
     # Model shape.
     vocab_size: int = int(os.environ.get("VOCAB_SIZE", 2048))
@@ -540,7 +565,7 @@ master_process = rank == 0
 grad_accum_steps = 8 // world_size
 grad_scale = 1.0 / grad_accum_steps
 
-# Fast math knobs from the original script. Math SDPA stays enabled as a safe fallback.
+# Fast math knobs from the original script.
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
@@ -633,10 +658,12 @@ optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimi
 
 n_params = sum(p.numel() for p in base_model.parameters())
 log0(f"model_params:{n_params}")
-log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} compile_model:True use_amp:True")
+log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} compile_model:{args.compile_model} use_amp:True")
+log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
 log0(
     f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
-    f"iterations:{args.iterations} warmup_steps:{args.warmup_steps}"
+    f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
+    f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
 )
 
 train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
@@ -706,11 +733,14 @@ if args.warmup_steps > 0:
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
 training_time_ms = 0.0
+max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+stop_after_step: int | None = None
 torch.cuda.synchronize()
 t0 = time.perf_counter()
 
-for step in range(args.iterations + 1):
-    last_step = step == args.iterations
+step = 0
+while True:
+    last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
     if last_step or step % args.val_loss_every == 0:
         torch.cuda.synchronize()
@@ -726,6 +756,11 @@ for step in range(args.iterations + 1):
         t0 = time.perf_counter()
 
     if last_step:
+        if stop_after_step is not None and step < args.iterations:
+            log0(
+                f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
+                f"step:{step}/{args.iterations}"
+            )
         break
 
     zero_grad_all()
@@ -755,11 +790,14 @@ for step in range(args.iterations + 1):
         opt.step()
     zero_grad_all()
 
+    step += 1
     approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
     log0(
-        f"step:{step + 1}/{args.iterations} train_loss:{train_loss.item():.4f} "
-        f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / (step + 1):.2f}ms"
+        f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
+        f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
     )
+    if max_wallclock_ms is not None and stop_after_step is None and approx_training_time_ms >= max_wallclock_ms:
+        stop_after_step = step
 
 log0(
     f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
