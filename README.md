@@ -2,11 +2,18 @@
 
 [Placeholder Readme]
 
-**OpenAI Parameter Golf** is a challenge to train the best language model that fits in a 32MB file + trains in <10 minutes on 8xH100, evaluated by their FineWeb validation set compression (tokenizer-agnostic, bits per byte).
+**OpenAI ModelCraft Challenge: Parameter Golf** is a challenge to train the best language model that fits in a 16MB file + trains in <10 minutes on 8xH100, evaluated by their FineWeb validation set compression (tokenizer-agnostic, bits per byte).
 
 This challenge takes heavy inspiration from the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where individuals compete to train a model that reaches 3.28 FineWeb validation loss as fast as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people towards unique architectures, compression schemes, and creative submission.
 
-The chalenge runs from March 4th to March 31st, after which we'll select the top 10 most creative submissions for a small prize + bragging rights.
+The challenge runs from March 18th to April [PLACEHOLDER]. 
+
+If you enjoy solving very difficult technical problems, please introduce yourself via the [Challenge Participant Form](https://you.ashbyhq.com/meeting/3187917e-c244-4aae-9b92-5399048f0677/)
+, which allows us to attribute challenge submissions and reach out about opportunities with OpenAI. _Completing the form is not required to participate._
+
+Many researchers at OpenAI first distinguished themselves through elite mathematics and programming competitions. The ModelCraft Challenge is designed in that spirit: testing the ability to tackle unfamiliar problems with creativity and rigor, qualities we believe are essential for frontier AI research.
+
+In June, we plan to hire a small cohort of early-career researchers, targeted at current undergraduate students and recent graduates, including Olympiad medalists and engineers who demonstrate unusual technical ability. For exceptional participants, the challenge may also serve as a way to stand out to OpenAI researchers and recruiting.
 
 Happy training!
 
