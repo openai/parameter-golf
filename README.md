@@ -159,10 +159,9 @@ All submissions should be made by a Pull Request that purely adds a new folder t
 
 ### Non-record submissions
 
-Submissions are also open to unique and interesting approaches that don't beat the existing SOTA, given review by OpenAI judges. We strongly encourage participants to submit implementations for weird or out-of-the-box ideas, in-progress or unoptimized solutions (so long as they succesfully run), or even interesting negative results. We're excited to see what you come up with!
+Submissions are also open to unique and interesting approaches that might not beat the existing SOTA. We strongly encourage participants to submit implementations for weird or out-of-the-box ideas, in-progress or unoptimized solutions (so long as they succesfully run), or even interesting negative results. We're excited to see what you come up with! We'll still be maintaining a high bar for non-record submissions, so be sure to justify your ideas and results in detail when submitting. 
 
-Non-record submissions should be made in the same fashion as SOTA records, see above. 
-Note: We'll be maintaining a high bar for non-record submissions, so be sure to justify your ideas and results in detail when submitting. 
+Non-record submissions should be made in the same fashion as SOTA records, as above. 
 
 #### PRs on core code
 
