@@ -56,15 +56,15 @@ Then run a small MLX training job:
 
 ```bash
 RUN_ID=mlx_smoke \
-DATA_PATH=./data/fineweb10B_sp4k \
-TOKENIZER_PATH=./data/tokenizers/fineweb_4k_bpe.model \
-VOCAB_SIZE=4096 \
+DATA_PATH=./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
 NUM_LAYERS=8 \
 MODEL_DIM=384 \
 NUM_HEADS=6 \
 MLP_MULT=3 \
 TRAIN_MAX_SEQ_LEN=512 \
-ITERATIONS=50 \
+ITERATIONS=200 \
 TRAIN_BATCH_TOKENS=8192 \
 GRAD_ACCUM_STEPS=8 \
 VAL_LOSS_EVERY=10 \
