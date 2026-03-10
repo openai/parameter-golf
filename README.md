@@ -1,5 +1,6 @@
 <img width="738" height="324" alt="challenge_banner" src="https://github.com/user-attachments/assets/26fb6353-2d92-46dc-b3ee-38994c758ab4" />
 
+
 **OpenAI ModelCraft Challenge: Parameter Golf** is a challenge to train the best language model that fits in a 16MB (16,000,000-byte, not 16 MiB) artifact + trains in <10 minutes on 8xH100, evaluated by their FineWeb validation set compression (tokenizer-agnostic, bits per byte).
 
 This challenge takes heavy inspiration from the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where individuals compete to train a model that reaches 3.28 FineWeb validation loss as fast as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people towards unique architectures, compression schemes, and creative submission.
