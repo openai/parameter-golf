@@ -1,15 +1,12 @@
 <img width="384" height="256" alt="Parameter Golf Logo" src="https://github.com/user-attachments/assets/5afa2832-f306-45cf-b819-eeb971ee560b" />
 
-[Placeholder Readme]
-
 **OpenAI ModelCraft Challenge: Parameter Golf** is a challenge to train the best language model that fits in a 16MB (16,000,000-byte, not 16 MiB) artifact + trains in <10 minutes on 8xH100, evaluated by their FineWeb validation set compression (tokenizer-agnostic, bits per byte).
 
 This challenge takes heavy inspiration from the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where individuals compete to train a model that reaches 3.28 FineWeb validation loss as fast as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people towards unique architectures, compression schemes, and creative submission.
 
-The challenge runs from March 18th to April [PLACEHOLDER]. 
+The challenge runs from March 18th to April 30th. 
 
-If you enjoy solving very difficult technical problems, please introduce yourself via the [Challenge Participant Form](https://jobs.ashbyhq.com/openai/form/open-ai-challenge-parameter-golf)
-, which allows us to attribute challenge submissions and reach out about opportunities with OpenAI. _Completing the form is not required to participate._
+If you enjoy solving very difficult technical problems, please introduce yourself via the [Challenge Participant Form](https://jobs.ashbyhq.com/openai/form/open-ai-challenge-parameter-golf), which allows us to attribute challenge submissions and reach out about opportunities with OpenAI. _Completing the form is not required to participate._
 
 Many researchers at OpenAI first distinguished themselves through elite mathematics and programming competitions. The ModelCraft Challenge is designed in that spirit: testing the ability to tackle unfamiliar problems with creativity and rigor, qualities we believe are essential for frontier AI research.
 
@@ -21,7 +18,7 @@ Happy training!
 
 If you have a Apple laptop or desktop with Apple Silicon, we've setup a simple MLX training script that makes it simple to start iterating locally. 
 
-If you don't have a Mac with Apple Silicon, you can run an adapted version of this script without MLX support (Just ask [Codex](codex) to refactor! It's pretty simple) but it may be fairly slow. We'd recommend jumping straight to working on cloud GPUs with RunPod (see below).
+If you don't have a Mac with Apple Silicon, you can run an adapted version of this script without MLX support (Just ask [Codex](https://openai.com/codex/) to refactor! It's pretty simple.) but it may be fairly slow. We'd recommend jumping straight to working on cloud GPUs with RunPod.
 
 First, clone the repository, create a fresh Python environment, and install the packages needed for the MLX path plus dataset download:
 
@@ -75,7 +72,7 @@ We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute
 
 #### Launching a 1xH100 pod
 
-1) First, you'll need to [create a RunPod account](https://console.runpod.io/deploy). You'll also want to setup an SSH key in the Settings tab on the left side [list more steps for people] so you can connect to your remote machine.
+1) First, you'll need to [create a RunPod account](https://console.runpod.io/deploy). You'll also want to setup an SSH key in the Settings tab on the left side so you can connect to your remote machine. Ask Codex to help you setup an SSH key if you're new to this. 
 
 2) Once you've setup your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like! Note that all final leaderboard submissions should run in under 10 minutes on 8xH100s, but we'd strongly recommend testing and running experiments on cheaper SKUs given a 8xH100 box can cost ~$20/hour. 
 
@@ -104,7 +101,7 @@ Launch your first training run! Note that we're passing nproc_per_node==1 since 
 RUN_ID=baseline_sp1024 VOCAB_SIZE=1024 torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```
 
-Double check that you see a printed `val_loss` and `val_bpb` around [x value], as well as a compressed model size under 16MB. 
+Double check that you see a printed `val_loss` and `val_bpb` around ~1.2, as well as a compressed model size under 16MB. 
 
 ### Leaderboard
 
