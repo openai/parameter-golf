@@ -23,6 +23,7 @@ from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 
+# Do we still need this?
 def _ensure_triton_key_compat() -> None:
     """Patch Triton 3.6+ builds that dropped `triton_key` export used by torch 2.6."""
     try:
@@ -60,7 +61,7 @@ class Hyperparameters:
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 64 * 1024 * 8))
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 125))
 
-    # Training length. This clean version is single-stage only (fixed seq len / token budget).
+    # Training length.
     iterations: int = int(os.environ.get("ITERATIONS", 10000))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 900))
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", int(os.environ.get("TIMING_WARMUP_STEPS", 50))))
@@ -71,12 +72,14 @@ class Hyperparameters:
     # Model shape.
     vocab_size: int = int(os.environ.get("VOCAB_SIZE", 2048))
     num_layers: int = int(os.environ.get("NUM_LAYERS", 11))
+    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 2))
     model_dim: int = int(os.environ.get("MODEL_DIM", 512))
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult: int = int(os.environ.get("MLP_MULT", 4))
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    # Optimizer hyperparameters. This clean script is the untied-head path.
+
+    # Optimizer hyperparameters.
     matrix_lr: float = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr: float = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
@@ -112,9 +115,6 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 
 
 class Muon(torch.optim.Optimizer):
-    # Muon = momentum SGD, but matrix grads are first orthogonalized.
-    # This implementation keeps the original script's distributed packing trick:
-    # each rank computes a subset of matrices, then all-reduces the flat updates.
     def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
         super().__init__(
             params,
@@ -538,7 +538,7 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    # relu^2 MLP from the original script; simple and cheap.
+    # relu^2 MLP from the original modded-nanogpt setup
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
@@ -646,11 +646,10 @@ if distributed:
     dist.barrier()
 master_process = rank == 0
 
-# Keep the original global-microbatch parity convention (8 micro-steps total across all ranks).
 grad_accum_steps = 8 // world_size
 grad_scale = 1.0 / grad_accum_steps
 
-# Fast math knobs from the original script.
+# Fast math knobs
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
@@ -687,9 +686,7 @@ log0(
 )
 log0("=" * 100, console=False)
 
-# Build the BPB lookup table once per process/device. This script assumes the shard tokenizer
-# and TOKENIZER_PATH match; if they do not, the metric is wrong (and we intentionally do not
-# add compatibility/fallback code paths here).
+# Build the BPB lookup table once per process/device.
 base_bytes_lut, has_space_lut, boundary_lut = build_sentencepiece_bpb_lut(
     args.tokenizer_path,
     args.vocab_size,
@@ -697,14 +694,12 @@ base_bytes_lut, has_space_lut, boundary_lut = build_sentencepiece_bpb_lut(
 )
 log0(f"val_bpb:enabled tokenizer=sentencepiece tokenizer_path={args.tokenizer_path}")
 
-# Model creation mirrors the winning path: untied embeddings + GQA KV2 + bf16 + compile.
-WINNER_NUM_KV_HEADS = 2
 base_model = GPT(
     vocab_size=args.vocab_size,
     num_layers=args.num_layers,
     model_dim=args.model_dim,
     num_heads=args.num_heads,
-    num_kv_heads=WINNER_NUM_KV_HEADS,
+    num_kv_heads=args.num_kv_heads,
     mlp_mult=args.mlp_mult,
     max_seq_len=args.train_seq_len,
     logit_softcap=args.logit_softcap,

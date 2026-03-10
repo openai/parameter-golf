@@ -1,20 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-# Minimal MLX port of the current train_gpt baseline shape.
-#
-# Design goals for this file:
-# - Single-purpose script (not a reusable library).
-# - Closest practical training setup to train_gpt.py on a Mac (single device, MLX runtime).
-# - Readable by newcomers: dense code, but comments explain what each block is doing.
-# - Fewer escape hatches: we support one tokenizer family (SentencePiece), one optimizer setup
-#   (Muon for block matrices + Adam for embeddings/scalars), and one dataset shard format.
-#
-# Differences vs train_gpt.py that remain on purpose:
-# - MLX instead of PyTorch/CUDA/DDP.
-# - Single-device training (grad accumulation instead of multi-GPU parallelism).
-# - We keep only the core training path (no distributed or optional feature branches).
-
 import glob
 import io
 import math
@@ -77,10 +63,8 @@ def fro_norm(x: mx.array) -> mx.array:
 
 
 def zeropower_newtonschulz5(g: mx.array, steps: int, eps: float = 1e-7) -> mx.array:
-    # Muon orthogonalizes a matrix-shaped update before applying it. The goal is to preserve
-    # direction at the subspace level while controlling update geometry (very roughly: "rotation +
-    # scaling" rather than arbitrary stretching). This Newton-Schulz iteration approximates the
-    # nearest orthogonal factor U V^T from the SVD, but much faster than a full SVD in practice.
+    # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
+    # Muon uses this to normalize matrix-shaped gradients before applying them.
     a, b, c = 3.4445, -4.7750, 2.0315
     x = g.astype(mx.float32)
     x = x / (fro_norm(x) + eps)
@@ -97,9 +81,6 @@ def zeropower_newtonschulz5(g: mx.array, steps: int, eps: float = 1e-7) -> mx.ar
 
 
 def load_data_shard(path: Path) -> np.ndarray:
-    # Shards store a fixed int32 header followed by uint16 token ids. We only read the token count
-    # and then memory-load the token payload. This script intentionally assumes the shard format is
-    # correct; if you point at the wrong file, the read will fail naturally.
     header = np.fromfile(path, dtype=np.int32, count=SHARD_HEADER_INTS)
     num_tokens = int(header[2])
     tokens = np.fromfile(path, dtype=np.uint16, count=num_tokens, offset=SHARD_HEADER_INTS * 4)
@@ -112,8 +93,6 @@ def load_data_shard(path: Path) -> np.ndarray:
 
 
 class TokenStream:
-    # Sequential stream over train/val shards. We keep behavior simple and deterministic:
-    # read tokens in order, wrap to next shard, wrap to shard 0 again at the end.
     def __init__(self, pattern: str):
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
         self.file_idx = 0
@@ -139,8 +118,6 @@ class TokenStream:
 
 
 class TokenLoader:
-    # Mirrors train_gpt.py's token-budget API: ask for N tokens, then pack them into [B, T].
-    # This is convenient because optimizer step size is naturally specified in tokens, not examples.
     def __init__(self, pattern: str):
         self.stream = TokenStream(pattern)
 
@@ -153,11 +130,9 @@ class TokenLoader:
 
 
 # ==============================================================================
-# MODEL BLOCKS (BASELINE-SHAPED GPT)
+# MODEL BLOCKS
 # ==============================================================================
-# A key train_gpt.py detail: linear weights are stored in fp32, but CastedLinear
-# casts them to activation dtype for the actual matmul. That gives bf16 compute
-# while keeping fp32 parameter storage for optimizers.
+
 class CastedLinear(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super().__init__()
@@ -174,7 +149,6 @@ class RMSNormNoWeight(nn.Module):
 
 
 class CausalSelfAttention(nn.Module):
-    # This matches the baseline attention shape/layout closely:
     # - separate q/k/v projections
     # - RMSNorm on q and k before attention
     # - RoPE on q and k
@@ -198,8 +172,7 @@ class CausalSelfAttention(nn.Module):
         k = self.c_k(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
 
-        # First layer's value tensor is reused as a reference across layers. This is a baseline quirk
-        # that helps parameter-efficiency and is worth keeping if the goal is behavioral similarity.
+        # First layer's value tensor is reused as a reference across layers.
         if v1 is None:
             v1 = v
         mix = self.v_mix.astype(v.dtype)
@@ -226,9 +199,6 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    # One transformer block with two baseline-specific details:
-    # - residual "mix" between current state x and initial embedding state x0
-    # - v1 threaded through attention to reuse first-layer values
     def __init__(self, dim: int, num_heads: int, mlp_mult: int, rope_base: float):
         super().__init__()
         self.attn_norm = RMSNormNoWeight()
@@ -247,7 +217,6 @@ class Block(nn.Module):
 
 
 class GPT(nn.Module):
-    # Model layout follows train_gpt.py closely:
     # - token embedding + RMSNorm
     # - encoder half accumulates skip tensors
     # - decoder half consumes reversed skips with learned skip_weights
@@ -266,19 +235,15 @@ class GPT(nn.Module):
         self.blocks = [Block(dim, num_heads, mlp_mult, rope_base) for _ in range(num_layers)]
         self.final_norm = RMSNormNoWeight()
 
-        # Baseline initializes attention/MLP output projections to zero so each block starts near an
-        # identity residual path. This makes early optimization much calmer.
         for b in self.blocks:
             b.attn.proj.weight = mx.zeros_like(b.attn.proj.weight)
             b.mlp.proj.weight = mx.zeros_like(b.mlp.proj.weight)
 
-        # Tied embedding setup: same matrix is used for input lookup and output logits.
         self.tok_emb.weight = (
             mx.random.normal(self.tok_emb.weight.shape, dtype=mx.float32) * tied_embed_init_std
         ).astype(COMPUTE_DTYPE)
 
     def softcap(self, logits: mx.array) -> mx.array:
-        # Soft-capping prevents very large logits from dominating early training while preserving order.
         c = self.logit_softcap
         return c * mx.tanh(logits / c)
 
@@ -323,7 +288,7 @@ class GPT(nn.Module):
 # ==============================================================================
 @dataclass
 class Args:
-    # Data / tokenizer. This script is intentionally strict: pass the tokenizer path explicitly.
+    # Data / tokenizer.
     data_path: str = env_str("DATA_PATH", "./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp2048")
     tokenizer_path: str = os.environ["TOKENIZER_PATH"]
     run_id: str = env_str("RUN_ID", str(uuid.uuid4()))
@@ -343,7 +308,7 @@ class Args:
     warmup_steps: int = env_int("WARMUP_STEPS", 0)
     warmdown_iters: int = env_int("WARMDOWN_ITERS", 0)
 
-    # Model (defaults match the current baseline setup we are trying to imitate).
+    # Model (defaults match the current baseline setup).
     vocab_size: int = env_int("VOCAB_SIZE", 2048)
     num_layers: int = env_int("NUM_LAYERS", 11)
     model_dim: int = env_int("MODEL_DIM", 512)
@@ -404,8 +369,7 @@ class Args:
 # ==============================================================================
 class Muon:
     # Muon applies SGD-momentum to matrix gradients, then orthogonalizes the result before the
-    # parameter update. We apply it only to 2D block weights, exactly the parameter family where it
-    # helps most and where the baseline uses it.
+    # parameter update.
     def __init__(self, keys: list[str], params: dict[str, mx.array], args: Args):
         self.keys = keys
         self.args = args
@@ -432,7 +396,6 @@ class Muon:
 
 
 class SplitOptimizers:
-    # Parameter split mirrors the PyTorch baseline idea:
     # - embeddings: Adam with its own LR (tied embedding matrix)
     # - block matrices (2D): Muon
     # - block scalars + skip weights: Adam
@@ -480,7 +443,7 @@ class SplitOptimizers:
 
 
 # ==============================================================================
-# TOKENIZER / BPB LOOKUP TABLES (SENTENCEPIECE ONLY)
+# TOKENIZER / BPB LOOKUP TABLES
 # ==============================================================================
 # Build the SentencePiece byte-accounting lookup once.
 #
@@ -601,9 +564,9 @@ def deserialize_quantized_int8_zlib(blob: bytes) -> dict[str, object]:
 
 
 # ==============================================================================
-# TRAINING SETUP (TOP-LEVEL SCRIPT BODY)
+# TRAINING SETUP
 # ==============================================================================
-# Training setup (top-level script body by design: this file is not meant to be imported).
+
 mx.random.seed(args.seed)
 train_loader = TokenLoader(args.train_files)
 val_loader = TokenLoader(args.val_files)
@@ -669,7 +632,7 @@ print(
 
 
 # ==============================================================================
-# VALIDATION (VAL LOSS + VAL BPB)
+# VALIDATION
 # ==============================================================================
 def eval_val() -> tuple[float, float]:
     # Validation computes two metrics:
@@ -698,11 +661,7 @@ def eval_val() -> tuple[float, float]:
 # ==============================================================================
 # TRAINING LOOP
 # ==============================================================================
-# Training loop: same high-level shape as train_gpt.py.
-# 1) periodic eval
-# 2) gradient accumulation over microbatches
-# 3) optimizer step (Muon + Adam split)
-# 4) log time/loss/throughput
+
 train_time_ms = 0.0
 t0 = time.perf_counter()
 for step in range(args.iterations + 1):
@@ -722,8 +681,6 @@ for step in range(args.iterations + 1):
     lr_mul = args.lr_mul(step)
     step_t0 = time.perf_counter()
 
-    # Accumulate grads in parameter-tree-flat form so we can average them exactly once before the
-    # optimizer step. This matches the semantics of larger batches without needing that memory.
     accum: dict[str, mx.array] | None = None
     train_loss = None
     grad_scale = 1.0 / args.grad_accum_steps
@@ -737,9 +694,6 @@ for step in range(args.iterations + 1):
             for k, g in flat.items():
                 accum[k] = accum[k] + g * grad_scale
         train_loss = loss
-        # With the compiled microstep path, explicit mid-accum evals on the accumulated gradients
-        # can fail because the arrays are produced through compiled graph outputs. We rely on the
-        # compiled microstep plus the post-update eval to keep the run stable.
 
     grads = tree_unflatten(list(accum.items()))
     train_loss_value = float(train_loss.item())
