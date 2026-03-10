@@ -8,7 +8,7 @@ This challenge takes heavy inspiration from the [NanoGPT Speedrunning](https://g
 
 The challenge runs from March 18th to April [PLACEHOLDER]. 
 
-If you enjoy solving very difficult technical problems, please introduce yourself via the [Challenge Participant Form](https://you.ashbyhq.com/meeting/3187917e-c244-4aae-9b92-5399048f0677/)
+If you enjoy solving very difficult technical problems, please introduce yourself via the [Challenge Participant Form](https://jobs.ashbyhq.com/openai/form/open-ai-challenge-parameter-golf)
 , which allows us to attribute challenge submissions and reach out about opportunities with OpenAI. _Completing the form is not required to participate._
 
 Many researchers at OpenAI first distinguished themselves through elite mathematics and programming competitions. The ModelCraft Challenge is designed in that spirit: testing the ability to tackle unfamiliar problems with creativity and rigor, qualities we believe are essential for frontier AI research.
