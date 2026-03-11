@@ -90,11 +90,12 @@ We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute
 
 3. Let's start with a 1xH100 pod. Configure your pod to use the RunPod PyTorch 2.1 template and enable SSH terminal access, leaving the other settings at their defaults. Deploy your pod and SSH into it once it's up.
 
-On your remote machine, clone the repo and start a fresh environment for the PyTorch trainer:
+On your remote machine, clone the repo onto local disk and start a fresh environment for the PyTorch trainer. On some RunPod images, `/workspace` is a slower network mount, so prefer a path such as `/root/code/parameter-golf`:
 
 ```bash
-git clone https://github.com/openai/parameter-golf.git /workspace/parameter-golf
-cd /workspace/parameter-golf
+mkdir -p /root/code
+git clone https://github.com/openai/parameter-golf.git /root/code/parameter-golf
+cd /root/code/parameter-golf
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -117,7 +118,7 @@ VOCAB_SIZE=1024 \
 torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```
 
-Double-check that you see printed `val_loss` and `val_bpb` values around ~1.2, along with a compressed model size under 16MB.
+By default, this command prints `train_loss` step logs during training and prints `val_loss`, `val_bpb`, and compressed model size in the final `final_int8_zlib_roundtrip` lines at the end. If you want periodic validation logs during the run, set `VAL_LOSS_EVERY`, for example `VAL_LOSS_EVERY=200`. For the baseline config, the final `val_bpb` should land around ~1.2 with a compressed model size under 16MB.
 
 
 ## FAQ

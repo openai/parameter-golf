@@ -82,6 +82,8 @@ def get(relative_path: str) -> None:
     destination = local_path_for_remote(relative_path)
     if destination.exists():
         return
+    if destination.is_symlink():
+        destination.unlink()
 
     remote_path = Path(relative_path)
     cached_path = Path(
@@ -92,11 +94,14 @@ def get(relative_path: str) -> None:
             repo_type="dataset",
         )
     )
+    # HF cache entries may be snapshot symlinks. Resolve to the underlying blob so we
+    # always materialize a real file in data/, not a broken relative symlink.
+    cached_source = cached_path.resolve(strict=True)
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
-        os.link(cached_path, destination)
+        os.link(cached_source, destination)
     except OSError:
-        shutil.copy2(cached_path, destination)
+        shutil.copy2(cached_source, destination)
     ensure_local_layout()
 
 

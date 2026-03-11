@@ -223,6 +223,14 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> None
     expected_name = Path((tokenizer_entry or {}).get("model_path") or (tokenizer_entry or {}).get("path") or "").name
     if expected_name and Path(tokenizer_path).name != expected_name:
         raise ValueError(f"{dataset_dir.name} expects tokenizer {expected_name}, got {Path(tokenizer_path).name}")
+    expected_train_files = (dataset_entry.get("stats") or {}).get("files_train")
+    if expected_train_files is not None:
+        actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+        if actual_train_files != int(expected_train_files):
+            raise ValueError(
+                f"{dataset_dir.name} is incomplete: found {actual_train_files} train shards, "
+                f"expected {int(expected_train_files)}"
+            )
 
 
 def eval_val(
