@@ -18,6 +18,42 @@ Happy training!
 
 ## Leaderboard
 
+First, let's get started training something on your laptop. 
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+
+# Download one SP-2048 train shard, the validation shard, tokenizer, and
+# create data/challenge_fineweb -> data/matched_10B_docs2m_seed1337.
+python data/cached_challenge_fineweb.py 1 --variant sp2048
+
+RUN_ID=laptop_smoke \
+ITERATIONS=10 \
+python train_gpt.py
+```
+
+This is pretty slow though, so let's move to GPUs to iterate faster.
+You can rent H100s from a lot of different places, but OpenAI is working with RunPod to make setup as easy as possible. [Click here to launch a pod.](url)
+
+We know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute credits for people to get started training their models. To request a credit grant ($500), request at this form here: [Request a Compute Grant](url).
+
+```bash
+python data/cached_challenge_fineweb.py 1 --variant sp2048
+
+RUN_ID=baseline_sp2048 \
+VOCAB_SIZE=2048 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py \
+2>&1 | tee logs/baseline_sp2048.console.log
+
+```
+
+### Leaderboard
+
+*Track source:* `records/track_10min`  
+*Score metric shown below:* `submission.json.loss` (lower is better). Most rows are `final_int8_zlib_roundtrip val_bpb`; rows that differ are called out in the summary.
 
 | Rank | Run              | Score  | Author         | Summary                              | Date       | Code              | Description      |
 |-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|------------------|
