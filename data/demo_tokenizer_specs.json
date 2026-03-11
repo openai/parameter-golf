@@ -1,0 +1,33 @@
+{
+  "tokenizers": [
+    {
+      "name": "pure_byte_260",
+      "dataset_suffix": "byte260",
+      "builder": "demo_tokenizer_builders:build_pure_byte_tokenizer"
+    },
+    {
+      "name": "sp_bpe_512",
+      "dataset_suffix": "sp512",
+      "vocab_size": 512,
+      "builder": "demo_tokenizer_builders:build_sentencepiece_tokenizer"
+    },
+    {
+      "name": "sp_bpe_1024",
+      "dataset_suffix": "sp1024",
+      "vocab_size": 1024,
+      "builder": "demo_tokenizer_builders:build_sentencepiece_tokenizer"
+    },
+    {
+      "name": "sp_bpe_2048",
+      "dataset_suffix": "sp2048",
+      "vocab_size": 2048,
+      "builder": "demo_tokenizer_builders:build_sentencepiece_tokenizer"
+    },
+    {
+      "name": "sp_bpe_4096",
+      "dataset_suffix": "sp4096",
+      "vocab_size": 4096,
+      "builder": "demo_tokenizer_builders:build_sentencepiece_tokenizer"
+    }
+  ]
+}

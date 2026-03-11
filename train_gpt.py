@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-"""
-NEVER DISABLE TRITON. IF YOU HIT AN ERROR RUN PIP INSTALL REQUIREMENTS. THIS IS A SPEEDRUN
-YOU CANT JUST DISABLE TORCH COMPILE. YOU MUST GET IT TO WORK
-"""
-
 import glob
 import io
+import json
 import math
 import os
 import subprocess
@@ -38,10 +34,25 @@ def resolve_token_shard_files(pattern: str) -> list[Path]:
     return files
 
 
-def build_sentencepiece_bpb_lut_arrays(
+def build_tokenizer_bpb_lut_arrays(
     tokenizer_path: str,
     model_vocab_size: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, str]:
+    if tokenizer_path.endswith(".json"):
+        with open(tokenizer_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        if payload.get("tokenizer_type") != "pure_byte":
+            raise ValueError(f"Unsupported tokenizer json: {tokenizer_path}")
+        cfg = payload.get("config", {})
+        byte_offset = int(cfg.get("byte_offset", 4))
+        byte_count = int(cfg.get("byte_count", 256))
+        table_size = max(int(payload.get("vocab_size", byte_offset + byte_count)), model_vocab_size)
+        base_bytes = np.zeros((table_size,), dtype=np.int16)
+        has_leading_space = np.zeros((table_size,), dtype=np.bool_)
+        is_boundary_token = np.zeros((table_size,), dtype=np.bool_)
+        base_bytes[byte_offset : byte_offset + byte_count] = 1
+        return base_bytes, has_leading_space, is_boundary_token, "pure_byte"
+
     sp = spm.SentencePieceProcessor(model_file=tokenizer_path)
     sp_vocab_size = int(sp.vocab_size())
     table_size = max(sp_vocab_size, model_vocab_size)
@@ -63,7 +74,7 @@ def build_sentencepiece_bpb_lut_arrays(
             piece = piece[1:]
         base_bytes[token_id] = len(piece.encode("utf-8"))
 
-    return base_bytes, has_leading_space, is_boundary_token
+    return base_bytes, has_leading_space, is_boundary_token, "sentencepiece"
 
 
 def bytes_per_token_np(
@@ -97,13 +108,100 @@ def _ensure_triton_key_compat() -> None:
     triton_compiler.triton_key = _triton_key  # type: ignore[attr-defined]
 
 
+def _ensure_triton_attrs_descriptor_compat() -> None:
+    """Patch Triton 3.6+ attr descriptors so Inductor's `equal_to_1` access still works."""
+    try:
+        import torch._inductor.codegen.triton as triton_codegen
+        import torch._inductor.codegen.triton_utils as triton_utils
+        import torch._inductor.runtime.hints as runtime_hints
+    except Exception:
+        return
+
+    class _AttrsDescriptorCompat(dict):
+        def __init__(self, divisible_by_16=(), equal_to_1=()):
+            super().__init__({(x,): [["tt.divisibility", 16]] for x in divisible_by_16})
+            self.divisible_by_16 = tuple(divisible_by_16 or ())
+            self.equal_to_1 = list(equal_to_1 or ())
+
+    def _wrapper(divisible_by_16=None, equal_to_1=None):
+        return _AttrsDescriptorCompat(divisible_by_16, equal_to_1)
+
+    runtime_hints.AttrsDescriptorWrapper = _wrapper  # type: ignore[assignment]
+    triton_utils.AttrsDescriptorWrapper = _wrapper  # type: ignore[assignment]
+    triton_codegen.AttrsDescriptorWrapper = _wrapper  # type: ignore[attr-defined]
+
+
+def _ensure_triton_launch_hook_compat() -> None:
+    """Patch Triton 3.6+ launch hooks back onto `CompiledKernel` for Torch 2.6."""
+    try:
+        import triton.knobs as triton_knobs
+        from triton.compiler import compiler as triton_compiler
+    except Exception:
+        return
+    if not hasattr(triton_compiler, "CompiledKernel"):
+        return
+    enter_hook = getattr(triton_knobs, "launch_enter_hook", None)
+    exit_hook = getattr(triton_knobs, "launch_exit_hook", None)
+    if enter_hook is None:
+
+        def enter_hook(*args, **kwargs):  # type: ignore[no-redef]
+            return None
+
+    if exit_hook is None:
+
+        def exit_hook(*args, **kwargs):  # type: ignore[no-redef]
+            return None
+
+    if not hasattr(triton_compiler.CompiledKernel, "launch_enter_hook"):
+        triton_compiler.CompiledKernel.launch_enter_hook = enter_hook  # type: ignore[attr-defined]
+    if not hasattr(triton_compiler.CompiledKernel, "launch_exit_hook"):
+        triton_compiler.CompiledKernel.launch_exit_hook = exit_hook  # type: ignore[attr-defined]
+
+
+def _ensure_triton_compiled_kernel_compat() -> None:
+    """Patch Triton compiled kernels so Inductor can read launch metadata on newer images."""
+    try:
+        from triton.compiler import compiler as triton_compiler
+    except Exception:
+        return
+    if not hasattr(triton_compiler, "CompiledKernel"):
+        return
+    compiled_kernel = triton_compiler.CompiledKernel
+    if not hasattr(compiled_kernel, "num_ctas"):
+        compiled_kernel.num_ctas = property(  # type: ignore[attr-defined]
+            lambda self: getattr(getattr(self, "metadata", None), "num_ctas", 1)
+        )
+    if not hasattr(compiled_kernel, "cluster_dims"):
+        compiled_kernel.cluster_dims = property(  # type: ignore[attr-defined]
+            lambda self: getattr(
+                getattr(self, "metadata", None),
+                "cluster_dims",
+                getattr(getattr(self, "metadata", None), "clusterDims", (1, 1, 1)),
+            )
+        )
+    if not hasattr(compiled_kernel, "clusterDims"):
+        compiled_kernel.clusterDims = property(  # type: ignore[attr-defined]
+            lambda self: getattr(self, "cluster_dims")
+        )
+
+
 _ensure_triton_key_compat()
+_ensure_triton_attrs_descriptor_compat()
+_ensure_triton_launch_hook_compat()
+_ensure_triton_compiled_kernel_compat()
 
 DEFAULT_CHALLENGE_DATA_ROOT = (
     "./data/challenge_fineweb"
     if os.path.exists("./data/challenge_fineweb")
     else "./data/matched_10B_docs2m_seed1337"
 )
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.lower() in {"1", "true", "yes", "y", "on"}
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -112,16 +210,17 @@ DEFAULT_CHALLENGE_DATA_ROOT = (
 @dataclass
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
-    data_path: str = os.environ.get("DATA_PATH", "./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp2048")
+    data_path: str = os.environ.get("DATA_PATH", f"{DEFAULT_CHALLENGE_DATA_ROOT}/datasets/fineweb10B_sp2048")
     train_files: str = os.path.join(data_path, "fineweb_train_*.bin")
     val_files: str = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_2048_bpe.model")
+    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", f"{DEFAULT_CHALLENGE_DATA_ROOT}/tokenizers/fineweb_2048_bpe.model")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
 
     # Validation cadence and budget.
     val_tokens: int = int(os.environ.get("VAL_TOKENS", 10_485_760))
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 64 * 1024 * 8))
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 125))
+    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 25))
 
     # Training length.
     iterations: int = int(os.environ.get("ITERATIONS", 10000))
@@ -138,10 +237,15 @@ class Hyperparameters:
     model_dim: int = int(os.environ.get("MODEL_DIM", 512))
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult: int = int(os.environ.get("MLP_MULT", 4))
+    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", False)
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Optimizer hyperparameters.
+    embed_lr: float = float(os.environ.get("EMBED_LR", 0.6))
+    head_lr: float = float(os.environ.get("HEAD_LR", 0.008))
+    tied_embed_lr: float = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr: float = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr: float = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
@@ -582,10 +686,14 @@ class GPT(nn.Module):
         num_heads: int,
         num_kv_heads: int,
         mlp_mult: int,
+        tie_embeddings: bool,
+        tied_embed_init_std: float,
         logit_softcap: float,
         rope_base: float,
     ):
         super().__init__()
+        self.tie_embeddings = tie_embeddings
+        self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
@@ -595,11 +703,14 @@ class GPT(nn.Module):
             [Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base) for _ in range(num_layers)]
         )
         self.final_norm = RMSNorm()
-        self.lm_head = CastedLinear(model_dim, vocab_size, bias=False)
-        self.lm_head._zero_init = True
+        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
+        if self.lm_head is not None:
+            self.lm_head._zero_init = True
         self._init_weights()
 
     def _init_weights(self) -> None:
+        if self.tie_embeddings:
+            nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
@@ -622,7 +733,12 @@ class GPT(nn.Module):
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
-        logits = self.logit_softcap * torch.tanh(self.lm_head(x) / self.logit_softcap)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            assert self.lm_head is not None
+            logits_proj = self.lm_head(x)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
@@ -689,14 +805,14 @@ def main() -> None:
     log0("=" * 100, console=False)
 
     # Build the BPB lookup table once per process/device.
-    base_bytes_np, has_space_np, boundary_np = build_sentencepiece_bpb_lut_arrays(
+    base_bytes_np, has_space_np, boundary_np, tokenizer_kind = build_tokenizer_bpb_lut_arrays(
         args.tokenizer_path,
         args.vocab_size,
     )
     base_bytes_lut = torch.tensor(base_bytes_np, dtype=torch.int16, device=device)
     has_space_lut = torch.tensor(has_space_np, dtype=torch.bool, device=device)
     boundary_lut = torch.tensor(boundary_np, dtype=torch.bool, device=device)
-    log0(f"val_bpb:enabled tokenizer=sentencepiece tokenizer_path={args.tokenizer_path}")
+    log0(f"val_bpb:enabled tokenizer={tokenizer_kind} tokenizer_path={args.tokenizer_path}")
 
     base_model = GPT(
         vocab_size=args.vocab_size,
@@ -705,6 +821,8 @@ def main() -> None:
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
         mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings,
+        tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
     ).to(device).bfloat16()
@@ -715,21 +833,16 @@ def main() -> None:
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
-    # - token embedding (Adam) gets its own LR
-    # - untied lm_head gets its own Adam optimizer (winning path)
-    # - matrix params in transformer blocks use Muon
-    # - vectors/scalars use Adam
+    # - token embedding (Adam) uses EMBED_LR
+    # - untied lm_head (Adam) uses HEAD_LR
+    # - matrix params in transformer blocks use MATRIX_LR via Muon
+    # - vectors/scalars use SCALAR_LR via Adam
     block_params = list(base_model.blocks.parameters())
     matrix_params = [p for p in block_params if p.ndim == 2]
     scalar_params = [p for p in block_params if p.ndim < 2] + [base_model.skip_weights]
+    token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
-        [{"params": [base_model.tok_emb.weight], "lr": 0.6, "base_lr": 0.6}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        fused=True,
-    )
-    optimizer_head = torch.optim.Adam(
-        [{"params": [base_model.lm_head.weight], "lr": 0.008, "base_lr": 0.008}],
+        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
         fused=True,
@@ -748,14 +861,26 @@ def main() -> None:
         eps=args.adam_eps,
         fused=True,
     )
-    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_head, optimizer_muon, optimizer_scalar]
+    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+    if base_model.lm_head is not None:
+        optimizer_head = torch.optim.Adam(
+            [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.adam_eps,
+            fused=True,
+        )
+        optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
-    log0("tie_embeddings:False embed_lr:0.6 head_lr:0.008")
+    log0(
+        f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
+        f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
+        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
+    )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
@@ -809,8 +934,11 @@ def main() -> None:
         tokens_per_byte = val_token_count.item() / val_byte_count.item()
         return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
-    # Warmup is a pure forward/backward timing warmup: no optimizer steps, no data progress kept.
+    # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
+    # initial weights/optimizer state so measured training starts from the true init.
     if args.warmup_steps > 0:
+        initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
+        initial_optimizer_states = [opt.state_dict() for opt in optimizers]
         model.train()
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
@@ -821,9 +949,15 @@ def main() -> None:
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
+            for opt in optimizers:
+                opt.step()
             zero_grad_all()
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
+        base_model.load_state_dict(initial_model_state, strict=True)
+        for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
+            opt.load_state_dict(state)
+        zero_grad_all()
         if distributed:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
@@ -838,7 +972,8 @@ def main() -> None:
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
-        if last_step or step % args.val_loss_every == 0:
+        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+        if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             val_loss, val_bpb = validate(args.train_seq_len)
@@ -888,10 +1023,15 @@ def main() -> None:
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-        log0(
-            f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
-            f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+        should_log_train = (
+            args.train_log_every > 0
+            and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
         )
+        if should_log_train:
+            log0(
+                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
+                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+            )
         if max_wallclock_ms is not None and stop_after_step is None and approx_training_time_ms >= max_wallclock_ms:
             stop_after_step = step
 

@@ -52,8 +52,8 @@ Then run a small MLX training job:
 
 ```bash
 RUN_ID=mlx_smoke \
-DATA_PATH=./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model \
+DATA_PATH=./data/challenge_fineweb/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/challenge_fineweb/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
 NUM_LAYERS=8 \
 MODEL_DIM=384 \
@@ -108,8 +108,8 @@ Launch your first training run. Note that we're passing `nproc_per_node=1` becau
 
 ```bash
 RUN_ID=baseline_sp1024 \
-DATA_PATH=./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model \
+DATA_PATH=./data/challenge_fineweb/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/challenge_fineweb/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
 torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```

@@ -158,13 +158,14 @@ This file captures concrete learnings from the tokenizer + dataset + training pi
 - Working command:
 ```bash
 python3 data/export_matched_fineweb_tokenizer_datasets.py \
-  --version 10B \
-  --num_docs 2000000 \
-  --num_val_docs 50000 \
-  --shuffle_seed 1337 \
-  --sp_vocab_sizes 512,1024,2048,4096 \
-  --output_root data/matched_10B_docs2m_seed1337
+  --output_root data/challenge_fineweb
 ```
+- Notes:
+  - Canonical challenge settings are hardcoded in the script: `10B`, FineWeb revision `9bb295ddab0e05d785b879661af7260fed5140fc`, `2,000,000` docs, `50,000` val docs, shuffle seed `1337`, `append_eos=false`, shard size `1e8`.
+  - Canonical docs cache hash is hardcoded: `47812b882b6a11cf0f7cbdfeca77fb590785fbbda991db9599619633bfe9bca9`.
+  - For tokenizer-only exports, reuse the existing `docs_selected.jsonl` so the raw doc split stays fixed.
+  - If `--tokenizer_config` is omitted, the script uses `data/demo_tokenizer_specs.json`.
+  - `data/demo_tokenizer_specs.json` and `data/demo_tokenizer_builders.py` are just demos of the same builder-based setup users should provide for custom tokenizers.
 - Output contains five datasets from the same docs cache:
   - `fineweb10B_byte260`
   - `fineweb10B_sp512`
@@ -172,7 +173,7 @@ python3 data/export_matched_fineweb_tokenizer_datasets.py \
   - `fineweb10B_sp2048`
   - `fineweb10B_sp4096`
 - Manifest path:
-  - `data/matched_10B_docs2m_seed1337/manifest.json`
+  - `data/challenge_fineweb/manifest.json`
 
 ## 4) Comparability rules
 - Comparable runs require matching:
@@ -182,7 +183,7 @@ python3 data/export_matched_fineweb_tokenizer_datasets.py \
   - tokenizer artifact used.
 - Re-export behavior:
   - If existing docs cache is reused, downstream exports are aligned to that cache.
-  - If cache is larger than requested `num_docs`, script deterministically truncates to first `N` docs.
+  - Docs cache must contain exactly the canonical `num_docs`; only tokenized exports should vary.
   - Rebuilding docs cache (`--rebuild_docs_cache`) can change data sequence and confound comparisons.
 
 ## 5) Verification tests
