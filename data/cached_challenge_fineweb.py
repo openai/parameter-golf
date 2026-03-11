@@ -1,12 +1,17 @@
 import argparse
 import os
+import shutil
+from pathlib import Path
 
 from huggingface_hub import hf_hub_download
 
 
 REPO_ID = os.environ.get("MATCHED_FINEWEB_REPO_ID", "willdepueoai/parameter-golf")
 REMOTE_ROOT_PREFIX = os.environ.get("MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "datasets")
-LOCAL_ALIAS = os.environ.get("MATCHED_FINEWEB_LOCAL_ALIAS", "challenge_fineweb")
+# Preserve existing local exports under data/challenge_fineweb while exposing canonical data/* paths.
+LEGACY_LOCAL_ROOT = os.environ.get("MATCHED_FINEWEB_LOCAL_ALIAS", "challenge_fineweb")
+LOCAL_DATASETS_DIR = Path(os.environ.get("MATCHED_FINEWEB_LOCAL_DATASETS_DIR", "datasets"))
+LOCAL_TOKENIZERS_DIR = Path(os.environ.get("MATCHED_FINEWEB_LOCAL_TOKENIZERS_DIR", "tokenizers"))
 
 VARIANTS = {
     "byte260": {
@@ -40,38 +45,68 @@ VARIANTS = {
         "val_shards": 1,
     },
 }
+
+
+def local_dir() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def local_path_for_remote(relative_path: str) -> Path:
+    remote_path = Path(relative_path)
+    if not remote_path.parts or remote_path.parts[0] != REMOTE_ROOT_PREFIX:
+        return local_dir() / remote_path
+    inner = remote_path.relative_to(REMOTE_ROOT_PREFIX)
+    if inner.parts[:1] == ("datasets",):
+        return local_dir() / LOCAL_DATASETS_DIR.joinpath(*inner.parts[1:])
+    if inner.parts[:1] == ("tokenizers",):
+        return local_dir() / LOCAL_TOKENIZERS_DIR.joinpath(*inner.parts[1:])
+    return local_dir() / inner
+
+
+def ensure_alias(path: Path, target: Path, *, bad_target: Path | None = None) -> None:
+    if path.is_symlink():
+        resolved = path.resolve()
+        if resolved == target.resolve():
+            return
+        if bad_target is not None and bad_target.exists() and resolved == bad_target.resolve():
+            path.unlink()
+        else:
+            return
+    if path.exists() or not target.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.symlink_to(os.path.relpath(target, path.parent))
+
+
 def get(relative_path: str) -> None:
-    local_dir = os.path.dirname(__file__)
-    full_local_path = os.path.join(local_dir, relative_path)
-    if not os.path.exists(full_local_path):
+    destination = local_path_for_remote(relative_path)
+    if destination.exists():
+        return
+
+    remote_path = Path(relative_path)
+    cached_path = Path(
         hf_hub_download(
             repo_id=REPO_ID,
-            filename=relative_path,
+            filename=remote_path.name,
+            subfolder=remote_path.parent.as_posix() if remote_path.parent != Path(".") else None,
             repo_type="dataset",
-            local_dir=local_dir,
         )
-        ensure_local_layout()
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(cached_path, destination)
+    except OSError:
+        shutil.copy2(cached_path, destination)
+    ensure_local_layout()
 
 
 def ensure_local_layout() -> None:
-    local_dir = os.path.dirname(__file__)
-    remote_root = os.path.join(local_dir, REMOTE_ROOT_PREFIX)
-    alias_root = os.path.join(local_dir, LOCAL_ALIAS)
-    remote_exists = os.path.lexists(remote_root)
-    alias_exists = os.path.lexists(alias_root)
-    if remote_exists and alias_exists:
-        if os.path.realpath(alias_root) != os.path.realpath(remote_root):
-            raise FileExistsError(
-                f"Local dataset roots disagree: {remote_root} and {alias_root} point to different locations"
-            )
-        return
-    if alias_exists:
-        remote_target = os.path.relpath(alias_root, os.path.dirname(remote_root))
-        os.symlink(remote_target, remote_root)
-        return
-    if remote_exists:
-        alias_target = os.path.relpath(remote_root, os.path.dirname(alias_root))
-        os.symlink(alias_target, alias_root)
+    root = local_dir()
+    legacy_root = root / LEGACY_LOCAL_ROOT
+    ensure_alias(root / LOCAL_DATASETS_DIR, legacy_root / "datasets", bad_target=legacy_root)
+    ensure_alias(root / LOCAL_TOKENIZERS_DIR, legacy_root / "tokenizers")
+    ensure_alias(root / "manifest.json", legacy_root / "manifest.json")
+    ensure_alias(root / "docs_selected.jsonl", legacy_root / "docs_selected.jsonl")
 
 
 def build_parser() -> argparse.ArgumentParser:

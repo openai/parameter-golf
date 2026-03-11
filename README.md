@@ -48,24 +48,27 @@ Download our cached version of FineWeb with the 1024-token vocabulary:
 python3 data/cached_challenge_fineweb.py --variant sp1024 1
 ```
 
+This populates `./data/datasets/fineweb10B_sp1024/` and `./data/tokenizers/`.
+
 Then run a small MLX training job:
 
 ```bash
 RUN_ID=mlx_smoke \
-DATA_PATH=./data/challenge_fineweb/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/challenge_fineweb/tokenizers/fineweb_1024_bpe.model \
+DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
 NUM_LAYERS=8 \
 MODEL_DIM=384 \
 NUM_HEADS=6 \
+NUM_KV_HEADS=2 \
 MLP_MULT=3 \
-TRAIN_MAX_SEQ_LEN=512 \
+TRAIN_SEQ_LEN=512 \
 ITERATIONS=200 \
 TRAIN_BATCH_TOKENS=8192 \
 GRAD_ACCUM_STEPS=8 \
 VAL_LOSS_EVERY=10 \
 VAL_TOKENS=8192 \
-VAL_BATCH_TOKENS=1024 \
+VAL_BATCH_SIZE=8192 \
 python3 train_gpt_mlx.py
 ```
 
@@ -108,8 +111,8 @@ Launch your first training run. Note that we're passing `nproc_per_node=1` becau
 
 ```bash
 RUN_ID=baseline_sp1024 \
-DATA_PATH=./data/challenge_fineweb/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/challenge_fineweb/tokenizers/fineweb_1024_bpe.model \
+DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
 torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```
@@ -133,7 +136,9 @@ We're not automatically verifying every submission, but we will verify the top l
 
 There's no perfectly clear answer here, and it's hard to draw a clean line around what does or does not count as external compute. For now, we're reserving the right to disqualify runs that are not in the spirit of the challenge. Tuning your Adam hyperparameters across a bunch of runs is fine, but if there's evidence that you're sneaking in additional compute unfairly, such as brute-forcing a seed, we won't allow it. Use your best judgment, and there's no penalty for asking questions.
 
-(etc)
+**What are the restrictions on evaluation?**
+
+We won't accept submissions that take more than 10 minutes on 8xH100 to evaluate, but otherwise you're free to evaluate however. As with modded-nanogpt, we allow evaluation at any sequence length. And, obviously, you aren't allowed to access any training data during evaluation, unless you pay for those bits in the >16MB limit.
 
 ## Submission Process
 

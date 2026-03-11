@@ -165,6 +165,76 @@ class Muon(torch.optim.Optimizer):
 # We calculate BPB (bits-per-byte) instead of validation loss, so we need methods to count the number of bits per token in the tokenizer.
 # Note: Submissions that edit the tokenizer will be examined more carefully, since screwing this up might unjustly improve your score.
 
+def build_sentencepiece_luts(
+    sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
+) -> tuple[Tensor, Tensor, Tensor]:
+    sp_vocab_size = int(sp.vocab_size())
+    table_size = max(sp_vocab_size, vocab_size)
+    base_bytes_np = np.zeros((table_size,), dtype=np.int16)
+    has_leading_space_np = np.zeros((table_size,), dtype=np.bool_)
+    is_boundary_token_np = np.ones((table_size,), dtype=np.bool_)
+    for token_id in range(sp_vocab_size):
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+            continue
+        is_boundary_token_np[token_id] = False
+        if sp.is_byte(token_id):
+            base_bytes_np[token_id] = 1
+            continue
+        piece = sp.id_to_piece(token_id)
+        if piece.startswith("▁"):
+            has_leading_space_np[token_id] = True
+            piece = piece[1:]
+        base_bytes_np[token_id] = len(piece.encode("utf-8"))
+    return (
+        torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
+        torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
+        torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
+    )
+
+
+def eval_val(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    # Validation computes two metrics:
+    # - val_loss: token cross-entropy (natural log)
+    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
+    val_loader = DistributedTokenLoader(args.val_files, rank, world_size, device)
+    val_loss = torch.zeros((), device=device)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.no_grad():
+        for _ in range(val_steps):
+            x, y = val_loader.next_batch(args.val_batch_size, args.train_seq_len, grad_accum_steps)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                val_loss += model(x, y).detach()
+            val_token_count += float(y.numel())
+            prev_ids = x.reshape(-1)
+            tgt_ids = y.reshape(-1)
+            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    val_loss /= val_steps
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
 # -----------------------------
 # POST-TRAINING QUANTIZATION
 # -----------------------------
@@ -173,20 +243,14 @@ class Muon(torch.optim.Optimizer):
 # Instead, we get approximately the same model (with a small hit) by quantizing the model to int8 & zlib compressing.
 # We can then decompress the model and run in higher precision for evaluation, after closing in under the size limit.
 
-
-def tensor_nbytes(t: Tensor) -> int:
-    return int(t.numel()) * int(t.element_size())
-
-
-# Fixed export scheme used for the 16,000,000-byte-cap KV2 submission path.
-# Keeping this hardcoded avoids dragging the full train_gpt.py quantization flag surface
-# into the clean script.
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.999
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 
+def tensor_nbytes(t: Tensor) -> int:
+    return int(t.numel()) * int(t.element_size())
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     # Single supported clean-script export format:
@@ -644,29 +708,9 @@ def main() -> None:
         expected = Path((tok or {}).get("model_path") or (tok or {}).get("path") or "").name
         if expected and Path(args.tokenizer_path).name != expected:
             raise ValueError(f"{Path(args.data_path).name} expects tokenizer {expected}, got {Path(args.tokenizer_path).name}")
-    
-    # Build SentencePiece LUT Arrays
-    sp_vocab_size = int(sp.vocab_size())
-    table_size = max(sp_vocab_size, args.vocab_size)
-    base_bytes_np = np.zeros((table_size,), dtype=np.int16)
-    has_space_np = np.zeros((table_size,), dtype=np.bool_)
-    boundary_np = np.ones((table_size,), dtype=np.bool_)
-    for token_id in range(sp_vocab_size):
-        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
-            continue
-        boundary_np[token_id] = False
-        if sp.is_byte(token_id):
-            base_bytes_np[token_id] = 1
-            continue
-        piece = sp.id_to_piece(token_id)
-        if piece.startswith("▁"):
-            has_space_np[token_id] = True
-            piece = piece[1:]
-        base_bytes_np[token_id] = len(piece.encode("utf-8"))
-    
-    base_bytes_lut = torch.tensor(base_bytes_np, dtype=torch.int16, device=device)
-    has_space_lut = torch.tensor(has_space_np, dtype=torch.bool, device=device)
-    boundary_lut = torch.tensor(boundary_np, dtype=torch.bool, device=device)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size, device
+    )
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
 
     base_model = GPT(
@@ -757,38 +801,6 @@ def main() -> None:
             return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0)
         return 1.0
 
-    def validate(seq_len: int) -> tuple[float, float]:
-        # We report token NLL and val_bpb every time. val_bpb converts token loss into a
-        # compression-style metric using UTF-8 byte counts reconstructed from SentencePiece tokens.
-        val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
-        val_loader = DistributedTokenLoader(args.val_files, rank, world_size, device)
-        val_loss = torch.zeros((), device=device)
-        val_token_count = torch.zeros((), device=device, dtype=torch.float64)
-        val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
-
-        model.eval()
-        with torch.no_grad():
-            for _ in range(val_steps):
-                x, y = val_loader.next_batch(args.val_batch_size, seq_len, grad_accum_steps)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    val_loss += model(x, y).detach()
-                val_token_count += float(y.numel())
-                prev_ids = x.reshape(-1)
-                tgt_ids = y.reshape(-1)
-                token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
-                token_bytes += (has_space_lut[tgt_ids] & ~boundary_lut[prev_ids]).to(dtype=torch.int16)
-                val_byte_count += token_bytes.to(torch.float64).sum()
-
-        val_loss /= val_steps
-        if distributed:
-            dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
-            dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
-            dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
-
-        bits_per_token = val_loss.item() / math.log(2.0)
-        tokens_per_byte = val_token_count.item() / val_byte_count.item()
-        return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
-
     # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
     # initial weights/optimizer state so measured training starts from the true init.
     if args.warmup_steps > 0:
@@ -831,7 +843,17 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = validate(args.train_seq_len)
+            val_loss, val_bpb = eval_val(
+                args,
+                model,
+                rank,
+                world_size,
+                device,
+                grad_accum_steps,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+            )
             if step % 25 == 0 or last_step:
                 log0(
                     f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
@@ -927,7 +949,17 @@ def main() -> None:
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = validate(args.train_seq_len)
+    q_val_loss, q_val_bpb = eval_val(
+        args,
+        model,
+        rank,
+        world_size,
+        device,
+        grad_accum_steps,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+    )
     torch.cuda.synchronize()
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
