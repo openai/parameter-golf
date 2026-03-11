@@ -190,34 +190,34 @@ def _env_bool(name: str, default: bool) -> bool:
 @dataclass
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
-    data_path: str = os.environ.get("DATA_PATH", "./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp2048")
+    data_path: str = os.environ.get("DATA_PATH", "./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024")
     train_files: str = os.path.join(data_path, "fineweb_train_*.bin")
     val_files: str = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_2048_bpe.model")
+    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
 
     # Validation cadence and budget.
     val_tokens: int = int(os.environ.get("VAL_TOKENS", 10_485_760))
-    val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 64 * 1024 * 8))
-    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 125))
-    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 25))
+    val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
+    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
-    iterations: int = int(os.environ.get("ITERATIONS", 10000))
+    iterations: int = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 900))
-    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", int(os.environ.get("TIMING_WARMUP_STEPS", 50))))
-    train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 8 * 64 * 1024))
+    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
+    train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
-    max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0.0))
+    max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
 
     # Model shape.
-    vocab_size: int = int(os.environ.get("VOCAB_SIZE", 2048))
-    num_layers: int = int(os.environ.get("NUM_LAYERS", 11))
-    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 2))
+    vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
+    num_layers: int = int(os.environ.get("NUM_LAYERS", 9))
+    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim: int = int(os.environ.get("MODEL_DIM", 512))
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult: int = int(os.environ.get("MLP_MULT", 4))
-    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", False)
+    mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
+    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", True)
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 

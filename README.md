@@ -21,7 +21,7 @@ Happy training!
 
 | Rank | Run              | Score  | Author         | Summary                              | Date       | Code              | Description      |
 |-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|------------------|
-| 1    | GQA-4 Mixed-Rows Quant (Strict <16MB) | 1.1454 | Codex          | 13x512 GQA-4, tied embeds; stricter mixed row/group int8 tuning, clipping, and scale encoding | 2026-02-21 | [code](records/track_10min/2026-02-21_GQA4_PartialPerRowMLPProj/train_gpt.py) | [info](records/track_10min/2026-02-21_GQA4_PartialPerRowMLPProj/README.md) |
+| 1    | SP-1024 9x512 KV4 Tied (8xH100 10min) | 1.2461 | Codex          | Matched SP-1024 `train_gpt.py` run with tied embeddings, 4 KV heads, and the final `int8+zlib` roundtrip metric under the 16MB cap | 2026-03-11 | [code](records/track_10min_16mb/2026-03-11_Baseline/train_gpt.py) | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
 
 ## Getting Started
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import glob
 import io
-import json
 import math
 import os
 import subprocess
@@ -34,25 +33,10 @@ def resolve_token_shard_files(pattern: str) -> list[Path]:
     return files
 
 
-def build_tokenizer_bpb_lut_arrays(
+def build_sentencepiece_bpb_lut_arrays(
     tokenizer_path: str,
     model_vocab_size: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, str]:
-    if tokenizer_path.endswith(".json"):
-        with open(tokenizer_path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-        if payload.get("tokenizer_type") != "pure_byte":
-            raise ValueError(f"Unsupported tokenizer json: {tokenizer_path}")
-        cfg = payload.get("config", {})
-        byte_offset = int(cfg.get("byte_offset", 4))
-        byte_count = int(cfg.get("byte_count", 256))
-        table_size = max(int(payload.get("vocab_size", byte_offset + byte_count)), model_vocab_size)
-        base_bytes = np.zeros((table_size,), dtype=np.int16)
-        has_leading_space = np.zeros((table_size,), dtype=np.bool_)
-        is_boundary_token = np.zeros((table_size,), dtype=np.bool_)
-        base_bytes[byte_offset : byte_offset + byte_count] = 1
-        return base_bytes, has_leading_space, is_boundary_token, "pure_byte"
-
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     sp = spm.SentencePieceProcessor(model_file=tokenizer_path)
     sp_vocab_size = int(sp.vocab_size())
     table_size = max(sp_vocab_size, model_vocab_size)
@@ -74,7 +58,7 @@ def build_tokenizer_bpb_lut_arrays(
             piece = piece[1:]
         base_bytes[token_id] = len(piece.encode("utf-8"))
 
-    return base_bytes, has_leading_space, is_boundary_token, "sentencepiece"
+    return base_bytes, has_leading_space, is_boundary_token
 
 
 def bytes_per_token_np(
@@ -111,8 +95,8 @@ def _ensure_triton_key_compat() -> None:
 def _ensure_triton_attrs_descriptor_compat() -> None:
     """Patch Triton 3.6+ attr descriptors so Inductor's `equal_to_1` access still works."""
     try:
-        import torch._inductor.codegen.triton as triton_codegen
         import torch._inductor.codegen.triton_utils as triton_utils
+        import torch._inductor.codegen.triton as triton_codegen
         import torch._inductor.runtime.hints as runtime_hints
     except Exception:
         return
@@ -143,15 +127,11 @@ def _ensure_triton_launch_hook_compat() -> None:
     enter_hook = getattr(triton_knobs, "launch_enter_hook", None)
     exit_hook = getattr(triton_knobs, "launch_exit_hook", None)
     if enter_hook is None:
-
         def enter_hook(*args, **kwargs):  # type: ignore[no-redef]
             return None
-
     if exit_hook is None:
-
         def exit_hook(*args, **kwargs):  # type: ignore[no-redef]
             return None
-
     if not hasattr(triton_compiler.CompiledKernel, "launch_enter_hook"):
         triton_compiler.CompiledKernel.launch_enter_hook = enter_hook  # type: ignore[attr-defined]
     if not hasattr(triton_compiler.CompiledKernel, "launch_exit_hook"):
@@ -210,34 +190,34 @@ def _env_bool(name: str, default: bool) -> bool:
 @dataclass
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
-    data_path: str = os.environ.get("DATA_PATH", f"{DEFAULT_CHALLENGE_DATA_ROOT}/datasets/fineweb10B_sp2048")
+    data_path: str = os.environ.get("DATA_PATH", "./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024")
     train_files: str = os.path.join(data_path, "fineweb_train_*.bin")
     val_files: str = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", f"{DEFAULT_CHALLENGE_DATA_ROOT}/tokenizers/fineweb_2048_bpe.model")
+    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
 
     # Validation cadence and budget.
     val_tokens: int = int(os.environ.get("VAL_TOKENS", 10_485_760))
-    val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 64 * 1024 * 8))
-    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 125))
-    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 25))
+    val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
+    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
-    iterations: int = int(os.environ.get("ITERATIONS", 10000))
+    iterations: int = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 900))
-    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", int(os.environ.get("TIMING_WARMUP_STEPS", 50))))
-    train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 8 * 64 * 1024))
+    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
+    train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
-    max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0.0))
+    max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
 
     # Model shape.
-    vocab_size: int = int(os.environ.get("VOCAB_SIZE", 2048))
-    num_layers: int = int(os.environ.get("NUM_LAYERS", 11))
-    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 2))
+    vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
+    num_layers: int = int(os.environ.get("NUM_LAYERS", 9))
+    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim: int = int(os.environ.get("MODEL_DIM", 512))
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult: int = int(os.environ.get("MLP_MULT", 4))
-    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", False)
+    mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
+    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", True)
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
@@ -805,14 +785,14 @@ def main() -> None:
     log0("=" * 100, console=False)
 
     # Build the BPB lookup table once per process/device.
-    base_bytes_np, has_space_np, boundary_np, tokenizer_kind = build_tokenizer_bpb_lut_arrays(
+    base_bytes_np, has_space_np, boundary_np = build_sentencepiece_bpb_lut_arrays(
         args.tokenizer_path,
         args.vocab_size,
     )
     base_bytes_lut = torch.tensor(base_bytes_np, dtype=torch.int16, device=device)
     has_space_lut = torch.tensor(has_space_np, dtype=torch.bool, device=device)
     boundary_lut = torch.tensor(boundary_np, dtype=torch.bool, device=device)
-    log0(f"val_bpb:enabled tokenizer={tokenizer_kind} tokenizer_path={args.tokenizer_path}")
+    log0(f"val_bpb:enabled tokenizer=sentencepiece tokenizer_path={args.tokenizer_path}")
 
     base_model = GPT(
         vocab_size=args.vocab_size,
