@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
-class PureByteTokenizerConfig:
+class PureByteTokenizer:
     pad_id: int = 0
     bos_id: int = 1
     eos_id: int = 2
@@ -28,34 +28,9 @@ class PureByteTokenizerConfig:
     def vocab_size(self) -> int:
         return self.byte_offset + self.byte_count
 
-
-class PureByteTokenizer:
-    def __init__(self, cfg: PureByteTokenizerConfig):
-        self.cfg = cfg
-
-    @property
-    def pad_id(self) -> int:
-        return self.cfg.pad_id
-
-    @property
-    def bos_id(self) -> int:
-        return self.cfg.bos_id
-
-    @property
-    def eos_id(self) -> int:
-        return self.cfg.eos_id
-
-    @property
-    def unk_id(self) -> int:
-        return self.cfg.unk_id
-
-    @property
-    def vocab_size(self) -> int:
-        return self.cfg.vocab_size
-
     def encode(self, text: str) -> list[int]:
         data = text.encode("utf-8", errors="replace")
-        return [self.cfg.byte_offset + b for b in data]
+        return [self.byte_offset + b for b in data]
 
     def decode(self, token_ids: list[int], *, skip_special_tokens: bool = True) -> str:
         special = {self.pad_id, self.bos_id, self.eos_id, self.unk_id}
@@ -67,8 +42,8 @@ class PureByteTokenizer:
                 if t == self.unk_id:
                     out.extend(b"?")
                 continue
-            if self.cfg.byte_offset <= t < self.cfg.byte_offset + self.cfg.byte_count:
-                out.append(t - self.cfg.byte_offset)
+            if self.byte_offset <= t < self.byte_offset + self.byte_count:
+                out.append(t - self.byte_offset)
             elif not skip_special_tokens:
                 out.extend(b"?")
         return out.decode("utf-8", errors="replace")
@@ -76,7 +51,7 @@ class PureByteTokenizer:
     def to_json_dict(self) -> dict:
         return {
             "tokenizer_type": "pure_byte",
-            "config": asdict(self.cfg),
+            "config": asdict(self),
             "vocab_size": self.vocab_size,
         }
 
@@ -94,7 +69,7 @@ class PureByteTokenizer:
         if payload.get("tokenizer_type") != "pure_byte":
             raise ValueError(f"Unsupported tokenizer_type: {payload.get('tokenizer_type')!r}")
         cfg_raw = payload.get("config", {})
-        cfg = PureByteTokenizerConfig(
+        return cls(
             pad_id=int(cfg_raw.get("pad_id", 0)),
             bos_id=int(cfg_raw.get("bos_id", 1)),
             eos_id=int(cfg_raw.get("eos_id", 2)),
@@ -102,9 +77,7 @@ class PureByteTokenizer:
             byte_offset=int(cfg_raw.get("byte_offset", 4)),
             byte_count=int(cfg_raw.get("byte_count", 256)),
         )
-        return cls(cfg)
 
 
 def default_pure_byte_tokenizer() -> PureByteTokenizer:
-    return PureByteTokenizer(PureByteTokenizerConfig())
-
+    return PureByteTokenizer()

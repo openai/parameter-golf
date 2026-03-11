@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import glob
-import io
 import math
 import os
 import pickle
@@ -13,21 +11,26 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-import sentencepiece as spm
 
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
 from mlx.utils import tree_flatten, tree_unflatten
 
+from train_gpt import (
+    SHARD_HEADER_INTS,
+    SHARD_MAGIC,
+    SHARD_VERSION,
+    build_sentencepiece_bpb_lut_arrays,
+    bytes_per_token_np,
+    resolve_token_shard_files,
+)
+
 
 # ==============================================================================
 # SHARD FORMAT + COMPUTE DTYPE
 # ==============================================================================
 # We support one shard format and one compute mode in this script.
-SHARD_MAGIC = 20240520
-SHARD_VERSION = 1
-SHARD_HEADER_INTS = 256
 COMPUTE_DTYPE = mx.bfloat16
 
 
@@ -43,11 +46,6 @@ def env_float(name: str, default: float) -> float:
     return float(os.environ.get(name, default))
 
 
-def env_bool(name: str, default: bool) -> bool:
-    v = os.environ.get(name)
-    return default if v is None else v.lower() in {"1", "true", "yes", "y", "on"}
-
-
 def env_str(name: str, default: str) -> str:
     return os.environ.get(name, default)
 
@@ -58,16 +56,12 @@ def rms_norm(x: mx.array, eps: float = 1e-6) -> mx.array:
     return (x * mx.rsqrt(mx.mean(x * x, axis=-1, keepdims=True) + eps)).astype(x.dtype)
 
 
-def fro_norm(x: mx.array) -> mx.array:
-    return mx.sqrt(mx.sum(x * x))
-
-
 def zeropower_newtonschulz5(g: mx.array, steps: int, eps: float = 1e-7) -> mx.array:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
     # Muon uses this to normalize matrix-shaped gradients before applying them.
     a, b, c = 3.4445, -4.7750, 2.0315
     x = g.astype(mx.float32)
-    x = x / (fro_norm(x) + eps)
+    x = x / (mx.sqrt(mx.sum(x * x)) + eps)
     transposed = x.shape[0] > x.shape[1]
     if transposed:
         x = x.T
@@ -82,6 +76,8 @@ def zeropower_newtonschulz5(g: mx.array, steps: int, eps: float = 1e-7) -> mx.ar
 
 def load_data_shard(path: Path) -> np.ndarray:
     header = np.fromfile(path, dtype=np.int32, count=SHARD_HEADER_INTS)
+    if int(header[0]) != SHARD_MAGIC or int(header[1]) != SHARD_VERSION:
+        raise ValueError(f"Unexpected shard header for {path}")
     num_tokens = int(header[2])
     tokens = np.fromfile(path, dtype=np.uint16, count=num_tokens, offset=SHARD_HEADER_INTS * 4)
     return tokens.astype(np.int32, copy=False)
@@ -94,7 +90,7 @@ def load_data_shard(path: Path) -> np.ndarray:
 
 class TokenStream:
     def __init__(self, pattern: str):
-        self.files = [Path(p) for p in sorted(glob.glob(pattern))]
+        self.files = resolve_token_shard_files(pattern)
         self.file_idx = 0
         self.tokens = load_data_shard(self.files[0])
         self.pos = 0
@@ -221,10 +217,9 @@ class GPT(nn.Module):
     # - encoder half accumulates skip tensors
     # - decoder half consumes reversed skips with learned skip_weights
     # - tied embeddings for the LM head (default baseline setup)
-    def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, mlp_mult: int, max_seq_len: int,
+    def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, mlp_mult: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float):
         super().__init__()
-        self.max_seq_len = max_seq_len
         self.logit_chunk_tokens = logit_chunk_tokens
         self.logit_softcap = logit_softcap
 
@@ -329,7 +324,6 @@ class Args:
     matrix_lr: float = env_float("MATRIX_LR", 0.01)
     scalar_lr: float = env_float("SCALAR_LR", 0.01)
     muon_momentum: float = env_float("MUON_MOMENTUM", 0.95)
-    muon_nesterov: bool = env_bool("MUON_NESTEROV", True)
     muon_backend_steps: int = env_int("MUON_BACKEND_STEPS", 5)
     muon_momentum_warmup_start: float = env_float("MUON_MOMENTUM_WARMUP_START", 0.85)
     muon_momentum_warmup_steps: int = env_int("MUON_MOMENTUM_WARMUP_STEPS", 500)
@@ -388,7 +382,7 @@ class Muon:
             g = grads[k]
             buf = momentum * self.buffers[k] + g
             self.buffers[k] = buf
-            g_eff = g + momentum * buf if self.args.muon_nesterov else buf
+            g_eff = g + momentum * buf
             g_ortho = zeropower_newtonschulz5(g_eff, self.args.muon_backend_steps)
             scale = math.sqrt(max(1.0, float(p.shape[0]) / float(p.shape[1])))
             out[k] = p - lr * (g_ortho * scale).astype(p.dtype)
@@ -438,48 +432,11 @@ class SplitOptimizers:
 
         model.update(tree_unflatten(list(updated.items())))
 
-    def state_for_eval(self):
-        return [self.muon.buffers, self.adam_embed.state, self.adam_scalar.state]
-
-
-# ==============================================================================
-# TOKENIZER / BPB LOOKUP TABLES
-# ==============================================================================
-# Build the SentencePiece byte-accounting lookup once.
-#
-# BPB needs per-token byte counts, but SentencePiece pieces don't map 1:1 to bytes because pieces may
-# encode a leading whitespace marker (▁). The baseline metric counts the actual reconstructed UTF-8 bytes,
-# so we store three lookup tables:
-# - base byte count for the token piece text (without the ▁ marker)
-# - whether the token piece starts with ▁ (meaning it may contribute a space)
-# - whether the previous token is a boundary token (if yes, we should not add that space)
 args = Args()
-sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
-base_bytes_lut = np.zeros((args.vocab_size,), dtype=np.int16)
-has_leading_space_lut = np.zeros((args.vocab_size,), dtype=np.bool_)
-is_boundary_token_lut = np.ones((args.vocab_size,), dtype=np.bool_)
-for token_id in range(sp.vocab_size()):
-    if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
-        continue
-    is_boundary_token_lut[token_id] = False
-    if sp.is_byte(token_id):
-        base_bytes_lut[token_id] = 1
-        continue
-    piece = sp.id_to_piece(token_id)
-    if piece.startswith("▁"):
-        has_leading_space_lut[token_id] = True
-        piece = piece[1:]
-    base_bytes_lut[token_id] = len(piece.encode("utf-8"))
-
-
-def bytes_per_token_np(input_ids: np.ndarray, target_ids: np.ndarray) -> np.ndarray:
-    # Count target token bytes with the same rule as train_gpt.py: a leading-space piece contributes
-    # one extra byte iff the previous token is not a boundary/control token.
-    prev = input_ids.reshape(-1)
-    tgt = target_ids.reshape(-1)
-    out = base_bytes_lut[tgt].astype(np.int16, copy=True)
-    out += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).astype(np.int16, copy=False)
-    return out.reshape(target_ids.shape)
+base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_bpb_lut_arrays(
+    args.tokenizer_path,
+    args.vocab_size,
+)
 
 
 # ==============================================================================
@@ -493,12 +450,6 @@ MX_DTYPE_FROM_NAME = {
     "float16": mx.float16,
     "bfloat16": mx.bfloat16,
 }
-
-
-def _dtype_name(x: mx.array) -> str:
-    return str(x.dtype).split(".")[-1]
-
-
 def quantize_state_dict_int8_per_tensor(flat_params: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
     quantized: dict[str, np.ndarray] = {}
     scales: dict[str, np.ndarray] = {}
@@ -526,7 +477,7 @@ def quantize_state_dict_int8_per_tensor(flat_params: dict[str, mx.array]) -> tup
             s = np.array(scale, dtype=np.float32)
             quantized[name] = np.ascontiguousarray(q)
             scales[name] = s
-            orig_dtypes[name] = _dtype_name(arr)
+            orig_dtypes[name] = str(arr.dtype).split(".")[-1]
             stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
         else:
             stats["num_nonfloat_tensors"] += 1
@@ -552,17 +503,6 @@ def dequantize_state_dict_int8_per_tensor(quant_obj: dict[str, object]) -> dict[
     for name, arr in quant_obj["nonfloat"].items():
         out[name] = mx.array(arr)
     return out
-
-
-def serialize_quantized_int8_zlib(quant_obj: dict[str, object]) -> tuple[bytes, int]:
-    raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
-    return zlib.compress(raw, level=9), len(raw)
-
-
-def deserialize_quantized_int8_zlib(blob: bytes) -> dict[str, object]:
-    return pickle.loads(zlib.decompress(blob))
-
-
 # ==============================================================================
 # TRAINING SETUP
 # ==============================================================================
@@ -577,7 +517,6 @@ model = GPT(
     dim=args.model_dim,
     num_heads=args.num_heads,
     mlp_mult=args.mlp_mult,
-    max_seq_len=args.train_max_seq_len,
     logit_chunk_tokens=args.logit_chunk_tokens,
     logit_softcap=args.logit_softcap,
     rope_base=args.rope_base,
@@ -620,7 +559,7 @@ print(
 print(
     f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
     f"embed_lr:{args.tied_embed_lr} matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
-    f"muon_momentum:{args.muon_momentum} muon_nesterov:{args.muon_nesterov} muon_steps:{args.muon_backend_steps}"
+    f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
 )
 print(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
 print(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
@@ -647,7 +586,7 @@ def eval_val() -> tuple[float, float]:
         total_loss = total_loss + compiled_loss(x, y)
         x_np = np.array(x)
         y_np = np.array(y)
-        bytes_np = bytes_per_token_np(x_np, y_np)
+        bytes_np = bytes_per_token_np(x_np, y_np, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
         total_tokens += float(y_np.size)
         total_bytes += float(bytes_np.astype(np.float64).sum())
     total_loss = total_loss / float(val_steps)
@@ -723,7 +662,9 @@ mx.savez(str(out_path), **flat_params)
 print(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
 
 quant_obj, quant_stats = quantize_state_dict_int8_per_tensor(flat_params)
-quant_blob, quant_serialized_bytes = serialize_quantized_int8_zlib(quant_obj)
+quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
+quant_blob = zlib.compress(quant_raw, level=9)
+quant_serialized_bytes = len(quant_raw)
 quant_path = out_dir / f"{args.run_id}_mlx_model.int8.ptz"
 with quant_path.open("wb") as f:
     f.write(quant_blob)
@@ -734,7 +675,7 @@ print(
     f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
 )
 
-quant_flat = dequantize_state_dict_int8_per_tensor(deserialize_quantized_int8_zlib(quant_blob))
+quant_flat = dequantize_state_dict_int8_per_tensor(pickle.loads(zlib.decompress(quant_blob)))
 model.update(tree_unflatten(list(quant_flat.items())))
 q_t0 = time.perf_counter()
 q_val_loss, q_val_bpb = eval_val()
