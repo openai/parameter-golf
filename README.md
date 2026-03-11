@@ -122,6 +122,75 @@ torchrun --standalone --nproc_per_node=1 train_gpt.py
 
 Double check that you see a printed `val_loss` and `val_bpb` around ~1.2, as well as a compressed model size under 16MB. 
 
+## OPENAI ONLY
+
+1. Assume you already have a live `8xH100` box. Pull locally before syncing so the pod gets the repo state you actually want, then push your local checkout to the box and SSH to pod `0`.
+
+```bash
+git pull
+brix git push <pool>
+brix ssh <pool>-0
+```
+
+2. On the pod, use the pyenv Python and make a repo-local environment. Do not use `/usr/bin/python3`.
+
+```bash
+cd /root/code/parameter-golf
+/root/.pyenv/versions/3.12.9/bin/python -m venv .venv-openai
+. .venv-openai/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+3. Set explicit Triton and Inductor cache dirs inside the repo. Reuse these env vars for compile checks and training reruns.
+
+```bash
+export TRITON_CACHE_DIR=/root/code/parameter-golf/.cache/triton
+export TORCHINDUCTOR_CACHE_DIR=/root/code/parameter-golf/.cache/inductor
+export XDG_CACHE_HOME=/root/code/parameter-golf/.cache
+mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
+```
+
+4. Stage the cached SP1024 tokenizer and dataset shards with `bbb`:
+
+```bash
+mkdir -p data/matched_10B_docs2m_seed1337/tokenizers
+mkdir -p data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024
+bbb cp az://oaidatasets2/speedrunkits/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model
+bbb cp az://oaidatasets2/speedrunkits/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024/fineweb_train_000001.bin data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024/fineweb_train_000001.bin
+bbb cp az://oaidatasets2/speedrunkits/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024/fineweb_val_000000.bin data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024/fineweb_val_000000.bin
+```
+
+5. Launch the normal trainer:
+
+```bash
+cd /root/code/parameter-golf
+. .venv-openai/bin/activate
+export TRITON_CACHE_DIR=/root/code/parameter-golf/.cache/triton
+export TORCHINDUCTOR_CACHE_DIR=/root/code/parameter-golf/.cache/inductor
+export XDG_CACHE_HOME=/root/code/parameter-golf/.cache
+RUN_ID=openai_smoke_sp1024 \
+DATA_PATH=/root/code/parameter-golf/data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024 \
+TOKENIZER_PATH=/root/code/parameter-golf/data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
+TRAIN_BATCH_TOKENS=262144 \
+WARMUP_STEPS=2 \
+ITERATIONS=8 \
+VAL_LOSS_EVERY=4 \
+VAL_TOKENS=131072 \
+VAL_BATCH_SIZE=65536 \
+MAX_WALLCLOCK_SECONDS=120 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
+```
+
+This path was smoke-tested on `pgolf-zebra-openai-0` on March 11, 2026: compile stayed enabled, all `8` ranks came up, warmup completed, and the run finished `8` real training steps with `step:8/8 val_bpb:4.1021`. Peak memory was about `6.9 GiB` per GPU. On the immediate rerun with the same cache dirs, the first measured train step dropped from `2911ms` to `721ms`, with later train steps around `30-35ms`.
+
+Reminders:
+
+```bash
+git pull
+brix git push <pool>
+```
 
 ### FAQ
 
