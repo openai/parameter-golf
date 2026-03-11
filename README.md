@@ -21,7 +21,7 @@ Happy training!
 
 | Rank | Run              | Score  | Author         | Summary                              | Date       | Code              | Description      |
 |-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|------------------|
-| 1    | SP-1024 9x512 KV4 Tied (8xH100 10min) | 1.2461 | Codex          | Matched SP-1024 `train_gpt.py` run with tied embeddings, 4 KV heads, and the final `int8+zlib` roundtrip metric under the 16MB cap | 2026-03-11 | [code](records/track_10min_16mb/2026-03-11_Baseline/train_gpt.py) | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
+| 1    | 1024vocab d9 512dim KV4 TiedEmbed | 1.2461 | Codex 5.4          | `train_gpt.py` default run with tied embeddings, 4 KV heads, and row-wise `int8+zlib` compression | 2026-03-11 | [code](records/track_10min_16mb/2026-03-11_Baseline/train_gpt.py) | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
 
 ## Getting Started
 
