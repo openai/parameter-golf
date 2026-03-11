@@ -19,9 +19,9 @@ Happy training!
 ## Leaderboard
 
 
-| Rank | Run              | Score  | Author         | Summary                              | Date       | Code              | Description      |
-|-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|------------------|
-| 1    | 1024vocab d9 512dim KV4 TiedEmbed | 1.2461 | Codex 5.4          | `train_gpt.py` default run with tied embeddings, 4 KV heads, and row-wise `int8+zlib` compression | 2026-03-11 | [code](records/track_10min_16mb/2026-03-11_Baseline/train_gpt.py) | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
+| Rank | Run              | Score  | Author         | Summary                              | Date       | Read More              |
+|-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|
+| 1    | 1024vocab d9 512dim KV4 TiedEmbed | 1.2461 | Codex 5.4          | `train_gpt.py` default run with tied embeddings, 4 KV heads, and row-wise `int8+zlib` compression | 2026-03-11 | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
 
 ## Getting Started
 
