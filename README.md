@@ -91,13 +91,13 @@ We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute
 
 2) Once you've setup your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like! Note that all final leaderboard submissions should run in under 10 minutes on 8xH100s, but we'd strongly recommend testing and running experiments on cheaper SKUs given a 8xH100 box can cost ~$20/hour. 
 
-3) Let's start with a 1xH100 pod. Configure your pod to use (1) the Runpod Pytorch 2.1 template and (2) enable SSH terminal access, otherwise keeping default settings. Deploy your pod and SHH into it once it's up. We're ready to start training!
+3) Let's start with a 1xH100 pod. Configure your pod to use (1) the Runpod Pytorch 2.1 template and (2) enable SSH terminal access, otherwise keeping default settings. Deploy your pod and SSH into it once it's up. We're ready to start training!
 
 On your remote machine, clone the repo and start a fresh environment for the PyTorch trainer:
 
 ```bash
-git clone https://github.com/openai/parameter-golf.git /root/parameter-golf
-cd /root/parameter-golf
+git clone https://github.com/openai/parameter-golf.git /workspace/parameter-golf
+cd /workspace/parameter-golf
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -113,7 +113,11 @@ python3 data/cached_challenge_fineweb.py --variant sp1024 1
 Launch your first training run! Note that we're passing nproc_per_node==1 since we're running on a single H100 GPU.
 
 ```bash
-RUN_ID=baseline_sp1024 VOCAB_SIZE=1024 torchrun --standalone --nproc_per_node=1 train_gpt.py
+RUN_ID=baseline_sp1024 \
+DATA_PATH=./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
+torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```
 
 Double check that you see a printed `val_loss` and `val_bpb` around ~1.2, as well as a compressed model size under 16MB. 
