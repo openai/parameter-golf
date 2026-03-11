@@ -1,8 +1,3 @@
-"""
-NEVER DISABLE TRITON. IF YOU HIT AN ERROR RUN PIP INSTALL REQUIREMENTS. THIS IS A SPEEDRUN
-YOU CANT JUST DISABLE TORCH COMPILE. YOU MUST GET IT TO WORK
-"""
-
 import glob
 import io
 import math
@@ -23,7 +18,7 @@ from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 
-# Do we still need this?
+# Do we still need this? Likely no, internal only.
 def _ensure_triton_key_compat() -> None:
     """Patch Triton 3.6+ builds that dropped `triton_key` export used by torch 2.6."""
     try:
@@ -42,6 +37,11 @@ def _ensure_triton_key_compat() -> None:
 
 _ensure_triton_key_compat()
 
+DEFAULT_CHALLENGE_DATA_ROOT = (
+    "./data/challenge_fineweb"
+    if os.path.exists("./data/challenge_fineweb")
+    else "./data/matched_10B_docs2m_seed1337"
+)
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -50,10 +50,13 @@ _ensure_triton_key_compat()
 @dataclass
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
-    data_path: str = os.environ.get("DATA_PATH", "./data/matched_10B/datasets/fineweb10B_sp2048")
+    data_path: str = os.environ.get("DATA_PATH", f"{DEFAULT_CHALLENGE_DATA_ROOT}/datasets/fineweb10B_sp2048")
     train_files: str = os.path.join(data_path, "fineweb_train_*.bin")
     val_files: str = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/matched_10B/tokenizers/fineweb_2048_bpe.model")
+    tokenizer_path: str = os.environ.get(
+        "TOKENIZER_PATH",
+        f"{DEFAULT_CHALLENGE_DATA_ROOT}/tokenizers/fineweb_2048_bpe.model",
+    )
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
 
     # Validation cadence and budget.
@@ -238,7 +241,7 @@ def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
 
-# Fixed export scheme used for the winning under-32,000,000-byte KV2 result.
+# Fixed export scheme used for the 16,000,000-byte-cap KV2 submission path.
 # Keeping this hardcoded avoids dragging the full train_gpt.py quantization flag surface
 # into the clean script.
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
