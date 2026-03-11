@@ -5,6 +5,7 @@ import io
 import json
 import math
 import os
+import random
 import subprocess
 import sys
 import time
@@ -38,6 +39,7 @@ class Hyperparameters:
     val_files: str = os.path.join(data_path, "fineweb_val_*.bin")
     tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
+    seed: int = int(os.environ.get("SEED", 1337))
 
     # Validation cadence and budget.
     val_tokens: int = int(os.environ.get("VAL_TOKENS", 10_485_760))
@@ -738,6 +740,11 @@ def main() -> None:
     # TOKENIZER + VALIDATION METRIC SETUP
     # -----------------------------
 
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+
     assert args.tokenizer_path.endswith(".model"), f"Script only setup for SentencePiece .model file: {args.tokenizer_path}"
     sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
     if int(sp.vocab_size()) != args.vocab_size:
@@ -826,6 +833,7 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log0(f"seed:{args.seed}")
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
