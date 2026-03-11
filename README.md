@@ -1,16 +1,16 @@
 # Parameter Golf
 
-**OpenAI ModelCraft Challenge: Parameter Golf** is a challenge to train the best language model that fits in a 16MB (16,000,000-byte, not 16 MiB) artifact + trains in <10 minutes on 8xH100, evaluated by their FineWeb validation set compression (tokenizer-agnostic, bits per byte).
+**OpenAI ModelCraft Challenge: Parameter Golf** is a challenge to train the best language model that fits in a 16MB artifact and trains in under 10 minutes on 8xH100s, evaluated by compression on the FineWeb validation set (tokenizer-agnostic, bits per byte).
 
-This challenge takes heavy inspiration from the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where individuals compete to train a model that reaches 3.28 FineWeb validation loss as fast as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people towards unique architectures, compression schemes, and creative submission.
+This challenge is heavily inspired by the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where participants compete to train a model that reaches 3.28 FineWeb validation loss as quickly as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people toward unique architectures, compression schemes, and creative submissions.
 
-### Participant Form
+## Participant Form
 
-If you enjoy solving very difficult technical problems, please introduce yourself via the [Challenge Participant Form](https://jobs.ashbyhq.com/openai/form/open-ai-challenge-parameter-golf), which allows us to attribute challenge submissions and reach out about opportunities with OpenAI. _Completing the form is not required to participate._
+If you enjoy solving very difficult technical problems, please introduce yourself via the [Challenge Participant Form](https://jobs.ashbyhq.com/openai/form/open-ai-challenge-parameter-golf). It helps us attribute challenge submissions and reach out about opportunities with OpenAI. _Completing the form is not required to participate._
 
 Many researchers at OpenAI first distinguished themselves through elite mathematics and programming competitions. The ModelCraft Challenge is designed in that spirit: testing the ability to tackle unfamiliar problems with creativity and rigor, qualities we believe are essential for frontier AI research.
 
-In June, we plan to hire a small cohort of early-career researchers, targeted at current undergraduate students and recent graduates, including Olympiad medalists and engineers who demonstrate unusual technical ability. For exceptional participants, the challenge may also serve as a way to stand out to OpenAI researchers and recruiting.
+In June, we plan to hire a small cohort of early-career researchers, targeting current undergraduate students and recent graduates, including Olympiad medalists and engineers who demonstrate unusual technical ability. For exceptional participants, the challenge may also serve as a way to stand out to OpenAI researchers and recruiters.
 
 The challenge runs from March 18th to April 30th. 
 
@@ -18,71 +18,31 @@ Happy training!
 
 ## Leaderboard
 
-First, let's get started training something on your laptop. 
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-
-# Download one SP-2048 train shard, the validation shard, tokenizer, and
-# create data/challenge_fineweb -> data/matched_10B_docs2m_seed1337.
-python data/cached_challenge_fineweb.py 1 --variant sp2048
-
-RUN_ID=laptop_smoke \
-ITERATIONS=10 \
-python train_gpt.py
-```
-
-This is pretty slow though, so let's move to GPUs to iterate faster.
-You can rent H100s from a lot of different places, but OpenAI is working with RunPod to make setup as easy as possible. [Click here to launch a pod.](url)
-
-We know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute credits for people to get started training their models. To request a credit grant ($500), request at this form here: [Request a Compute Grant](url).
-
-```bash
-python data/cached_challenge_fineweb.py 1 --variant sp2048
-
-RUN_ID=baseline_sp2048 \
-VOCAB_SIZE=2048 \
-torchrun --standalone --nproc_per_node=8 train_gpt.py \
-2>&1 | tee logs/baseline_sp2048.console.log
-
-```
-
-### Leaderboard
-
-*Track source:* `records/track_10min`  
-*Score metric shown below:* `submission.json.loss` (lower is better). Most rows are `final_int8_zlib_roundtrip val_bpb`; rows that differ are called out in the summary.
 
 | Rank | Run              | Score  | Author         | Summary                              | Date       | Code              | Description      |
 |-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|------------------|
 | 1    | GQA-4 Mixed-Rows Quant (Strict <16MB) | 1.1454 | Codex          | 13x512 GQA-4, tied embeds; stricter mixed row/group int8 tuning, clipping, and scale encoding | 2026-02-21 | [code](records/track_10min/2026-02-21_GQA4_PartialPerRowMLPProj/train_gpt.py) | [info](records/track_10min/2026-02-21_GQA4_PartialPerRowMLPProj/README.md) |
-| 2    | Baseline (SP-2048 11x512, flash+untied beat) | 1.1539 | Codex          | Flash-only + untied baseline rerun| 2026-02-22 | [code](records/track_10min/2026-02-22_Baseline_SP2048_512x11_FlashUntied_Beat/train_gpt.py) | [info](records/track_10min/2026-02-22_Baseline_SP2048_512x11_FlashUntied_Beat/README.md) |
-| 3    | SP-2048 11x512 KV2 (10min + per-row int8 beat) | 1.1551 | Codex          | KV2 train run (`NUM_KV_HEADS=2`) plus compiled checkpoint-reload int8 tuning (global per-row 2D) | 2026-02-22 | [code](records/track_10min/2026-02-22_SP2048_512x11_KV2_PerRowAll_10minBeat/train_gpt.py) | [info](records/track_10min/2026-02-22_SP2048_512x11_KV2_PerRowAll_10minBeat/README.md) |
-| 4    | Baseline (SP-2048 11x512, rerun) | 1.1819 | Codex          | Reproducible baseline rerun | 2026-02-22 | [code](records/track_10min/2026-02-21_Baseline_SP2048_512x11_Rerun/train_gpt.py) | [info](records/track_10min/2026-02-21_Baseline_SP2048_512x11_Rerun/README.md) |
-| 5    | GPT-Simple No-Tie (SP-1024 9x256, 1-LR tuned) | 1.3319 | Codex          | Untied `train_gpt_simple` baseline with one-global-LR sweep | 2026-02-22 | [code](records/track_10min/2026-02-22_GPTSimpleNoTie_SP1024_256x9_OneLR_DDP8_10min/train_gpt_simple_no_tied_embeddings.py) | [info](records/track_10min/2026-02-22_GPTSimpleNoTie_SP1024_256x9_OneLR_DDP8_10min/README.md) |
 
-## Getting started
+## Getting Started
 
-### Training your first model (Mac with Apple Silicon)
+### Training Your First Model (Mac with Apple Silicon)
 
-If you have a Apple laptop or desktop with Apple Silicon, we've setup a simple MLX training script that makes it simple to start iterating locally. 
+If you have an Apple laptop or desktop with Apple Silicon, we've set up a simple MLX training script to help you start iterating locally.
 
-If you don't have a Mac with Apple Silicon, you can run an adapted version of this script without MLX support (Just ask [Codex](https://openai.com/codex/) to refactor! It's pretty simple.) but it may be fairly slow. We'd recommend jumping straight to working on cloud GPUs with RunPod.
+If you don't have a Mac with Apple Silicon, you can run an adapted version of this script without MLX support. Just ask [Codex](https://openai.com/codex/) to refactor it; the change is straightforward. It may still be fairly slow, so we recommend jumping straight to cloud GPUs with RunPod.
 
 First, clone the repository, create a fresh Python environment, and install the packages needed for the MLX path plus dataset download:
 
 ```bash
 git clone https://github.com/openai/parameter-golf.git
-cd /parameter-golf
+cd parameter-golf
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install mlx numpy sentencepiece huggingface-hub datasets tqdm
 ```
 
-Download our cached version of Fineweb with the 1024 vocab tokenizer:
+Download our cached version of FineWeb with the 1024-token vocabulary:
 
 ```bash
 python3 data/cached_challenge_fineweb.py --variant sp1024 1
@@ -109,25 +69,23 @@ VAL_BATCH_TOKENS=1024 \
 python3 train_gpt_mlx.py
 ```
 
-You should see a printed `val_loss` and `val_bpb`, as well as a compressed model size. 
+You should see printed `val_loss` and `val_bpb` values, along with a compressed model size.
 
-[explainer]
+### Scaling Up to a Remote Machine
 
-### Scaling up to a remote machine
-
-Once you're happy with your local tests, or want to move on to a setup with a bit more juice, switch to a remote CUDA machine. 
+Once you're happy with your local tests, or you want more compute, switch to a remote CUDA machine.
 
 You can rent GPUs from anywhere, but OpenAI is partnering with RunPod to make setup as easy as possible.
 
-We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute credits for people to get started training their models. To request a credit grant (up to $500), request at this form here: [Request a Compute Grant](url).
+We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute credits to help people get started training their models. To request a compute grant of up to $500, use this form: [Request a Compute Grant](url).
 
-#### Launching a 1xH100 pod
+#### Launching a 1xH100 Pod
 
-1) First, you'll need to [create a RunPod account](https://console.runpod.io/deploy). You'll also want to setup an SSH key in the Settings tab on the left side so you can connect to your remote machine. Ask Codex to help you setup an SSH key if you're new to this. 
+1. First, [create a RunPod account](https://console.runpod.io/deploy). You should also set up an SSH key in the Settings tab on the left so you can connect to your remote machine. If you're new to this, ask Codex to help you set it up.
 
-2) Once you've setup your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like! Note that all final leaderboard submissions should run in under 10 minutes on 8xH100s, but we'd strongly recommend testing and running experiments on cheaper SKUs given a 8xH100 box can cost ~$20/hour. 
+2. Once you've set up your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like. Final leaderboard submissions must run in under 10 minutes on 8xH100s, but we strongly recommend testing and running experiments on cheaper SKUs first, since an 8xH100 box can cost around $20/hour.
 
-3) Let's start with a 1xH100 pod. Configure your pod to use (1) the Runpod Pytorch 2.1 template and (2) enable SSH terminal access, otherwise keeping default settings. Deploy your pod and SSH into it once it's up. We're ready to start training!
+3. Let's start with a 1xH100 pod. Configure your pod to use the RunPod PyTorch 2.1 template and enable SSH terminal access, leaving the other settings at their defaults. Deploy your pod and SSH into it once it's up.
 
 On your remote machine, clone the repo and start a fresh environment for the PyTorch trainer:
 
@@ -140,13 +98,13 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Download our cached version of Fineweb. We'll use the 1024 vocab tokenizer for now.
+Download our cached version of FineWeb. We'll use the 1024-token vocabulary for now.
 
 ```bash
 python3 data/cached_challenge_fineweb.py --variant sp1024 1
 ```
 
-Launch your first training run! Note that we're passing nproc_per_node==1 since we're running on a single H100 GPU.
+Launch your first training run. Note that we're passing `nproc_per_node=1` because we're running on a single H100 GPU in this case.
 
 ```bash
 RUN_ID=baseline_sp1024 \
@@ -156,58 +114,58 @@ VOCAB_SIZE=1024 \
 torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```
 
-Double check that you see a printed `val_loss` and `val_bpb` around ~1.2, as well as a compressed model size under 16MB. 
+Double-check that you see printed `val_loss` and `val_bpb` values around ~1.2, along with a compressed model size under 16MB.
 
 
-### FAQ
+## FAQ
 
 **What exactly counts toward the 16MB artifact size?**
 
-Submission artifact is computed as code bytes + compressed model bytes. All code should live in the train.py script to be counted.
+The submission artifact is computed as code bytes plus compressed model bytes. All counted code should live in the `train_gpt.py` script.
 The cap is decimal 16MB, i.e. 16,000,000 total bytes, not 16 MiB / 16,777,216 bytes.
 No external downloads, dataset access, or network calls are allowed during evaluation. The artifact must be fully self-contained and reproducible.
 
 **Are scores independently verified by OpenAI?**
 
-We're not automatically verifying every submission, but we will verify the top leaderboard entries over time. Any non-reproducible results can be disqualified, and issues with reproducing submissions should be brought up on the PR.
+We're not automatically verifying every submission, but we will verify the top leaderboard entries over time. Any non-reproducible results can be disqualified, and issues reproducing submissions should be raised on the PR.
 
-**What counts as 'external compute'? For ex, is it fair to tune my hyperparameters offline?**
+**What counts as 'external compute'? For example, is it fair to tune my hyperparameters offline?**
 
-There's no clear answer unfortunately, and it's hard to delineate what does or does not count as external compute. For now, we're reserving the right to disqualify runs that we find are 'not in the spirit of the challenge.' Tuning your Adam hyperparameters across a bunch of runs is fine, but if there's evidence you're sneaking in additional compute unfairly (brute forcing some seed, etc.) we won't allow that. Use your best judgement, and there's no penalty for asking questions.
+There's no perfectly clear answer here, and it's hard to draw a clean line around what does or does not count as external compute. For now, we're reserving the right to disqualify runs that are not in the spirit of the challenge. Tuning your Adam hyperparameters across a bunch of runs is fine, but if there's evidence that you're sneaking in additional compute unfairly, such as brute-forcing a seed, we won't allow it. Use your best judgment, and there's no penalty for asking questions.
 
 (etc)
 
-### Submission Process
+## Submission Process
 
 New SOTA records must fulfill the following criteria:
 
-1. They must beat the existing SOTA by at least 0.005 nats. (Same as modded-nanogpt, due to inter-run variance, submissions must provide enough run logs to attain a statistical significance level of p<0.01 that they achieved the sufficient 0.005 nat win. For submissions which improve speed by optimizing the systems performance, without touching the ML, this requirement is waived.) 
+1. They must beat the existing SOTA by at least 0.005 nats. As in modded-nanogpt, because of inter-run variance all submissions must provide enough run logs to show at `p < 0.01` that they achieved the required 0.005-nat improvement. For submissions that improve speed through systems optimization without changing the ML, this requirement is waived.
 
 2. If changes are made to the tokenizer or dataset, prove with certainty that the val_bpb is correctly calculated. Submissions that edit the tokenizer will be examined much more carefully, since bugs may unjustly improve your score.
 
 3. Reproducibly run in under 10 minutes on 8xH100s.
 
-All submissions should be made by a Pull Request that purely adds a new folder to the appropriate /records sub-folder and includes the following files. Submissions without the complete set of requirements will not be accepted.
+All submissions should be made as a pull request that only adds a new folder to the appropriate `/records` subfolder and includes the following files. Submissions without the full set of requirements will not be accepted.
 
 1. A README.md file that explains the submission in reasonable detail.
 
-2. A submission.json (see example runs) that includes your name, Github ID, val_bpb, etc. 
+2. A `submission.json` file (see the example runs) that includes your name, GitHub ID, `val_bpb`, and related metadata.
 
 3. A train log, automatically produced by your script.
 
-4. A train_gpt.py script and any other dependencies. Note: This must sucessfully compile and run within the records folder! Broken scripts will not be accepted.
+4. A `train_gpt.py` script and any other dependencies. Note: this must successfully compile and run within the records folder. Broken scripts will not be accepted.
 
-### Non-record submissions
+### Non-record Submissions
 
-Submissions are also open to unique and interesting approaches that might not beat the existing SOTA. We strongly encourage participants to submit implementations for weird or out-of-the-box ideas, in-progress or unoptimized solutions (so long as they succesfully run), or even interesting negative results. We're excited to see what you come up with! We'll still be maintaining a high bar for non-record submissions, so be sure to justify your ideas and results in detail when submitting. 
+Submissions are also open to unique and interesting approaches that might not beat the existing SOTA. We strongly encourage participants to submit implementations for weird or out-of-the-box ideas, in-progress or unoptimized solutions, so long as they run successfully, or even interesting negative results. We're excited to see what you come up with. We'll still maintain a high bar for non-record submissions, so be sure to justify your ideas and results in detail when submitting.
 
-Non-record submissions should be made in the same fashion as SOTA records, as above. 
+Non-record submissions should be made in the same fashion as SOTA records, as described above.
 
-#### PRs on core code
+#### PRs on Core Code
 
-The train_gpt.py and train_gpt_mlx.py scripts are intended as good launching off points for new participants, not SOTA configs. We'll accept PRs that make tunings, improvements, or simplifications to these scripts without majorly increasing complexity, but the best models should stay in the /records folder.
+The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but the best models should stay in the `/records` folder.
 
-### Support
+## Support
 
 Reach out to parametergolf@openai.com for any other questions.
 
