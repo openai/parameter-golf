@@ -29,6 +29,11 @@ COMPUTE_DTYPE = mx.bfloat16
 # ==============================================================================
 # HYPERPARAMETERS
 # ==============================================================================
+# Default baseline / record-style run:
+# - 9 transformer blocks at width 512
+# - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
+# - vocab size 1024, sequence length 1024, tied embeddings
+# - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
 @dataclass
 class Hyperparameters:
     # Data / tokenizer.
@@ -116,6 +121,7 @@ def rms_norm(x: mx.array, eps: float = 1e-6) -> mx.array:
 def zeropower_newtonschulz5(g: mx.array, steps: int, eps: float = 1e-7) -> mx.array:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
     # Muon uses this to normalize matrix-shaped gradients before applying them.
+    # Background on Muon: https://kellerjordan.github.io/posts/muon/
     a, b, c = 3.4445, -4.7750, 2.0315
     x = g.astype(mx.float32)
     x = x / (mx.sqrt(mx.sum(x * x)) + eps)
@@ -477,6 +483,8 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
         stats["num_tensors"] += 1
         stats["baseline_tensor_bytes"] += int(arr.nbytes)
         if mx.issubdtype(arr.dtype, mx.floating):
+            # Small float tensors are cheap enough to keep directly. We still downcast
+            # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
             if int(arr.size) <= INT8_KEEP_FLOAT_MAX_NUMEL:
                 if arr.dtype in {mx.float32, mx.bfloat16}:
                     kept = np.array(arr.astype(mx.float16), dtype=INT8_KEEP_FLOAT_STORE_DTYPE, copy=False)
@@ -490,6 +498,8 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
             stats["num_float_tensors"] += 1
             f32 = _np_float32(arr)
             if f32.ndim == 2:
+                # Matrices get one scale per row, which usually tracks output-channel
+                # ranges much better than a single tensor-wide scale.
                 abs_t = np.abs(f32)
                 if f32.size:
                     clip_abs = np.quantile(abs_t, INT8_CLIP_Q, axis=1)
@@ -502,6 +512,7 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
                 s = np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False))
                 qmeta[name] = {"scheme": "per_row", "axis": 0}
             else:
+                # Vectors / scalars use a simpler per-tensor scale.
                 if f32.size:
                     clip_abs = float(np.quantile(np.abs(f32).reshape(-1), INT8_CLIP_Q))
                     f32_for_quant = np.clip(f32, -clip_abs, clip_abs)
@@ -546,12 +557,14 @@ def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.arr
         meta = qmeta.get(name, {"scheme": "per_tensor"})
         if meta.get("scheme") == "per_row":
             scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
+            # Broadcast the saved row scale back across trailing dimensions.
             out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
         else:
             scale = float(np.asarray(quant_obj["scales"][name], dtype=np.float32))
             out_arr = q_np.astype(np.float32) * scale
         out[name] = mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[dtype_name])
     for name, arr in quant_obj["passthrough"].items():
+        # Restore small tensors, undoing the temporary fp16 storage cast if needed.
         out_arr = np.array(arr, copy=True)
         orig_dtype = passthrough_orig_dtypes.get(name)
         if isinstance(orig_dtype, str):
@@ -582,6 +595,32 @@ def build_sentencepiece_luts(
             piece = piece[1:]
         base_bytes_lut[token_id] = len(piece.encode("utf-8"))
     return base_bytes_lut, has_leading_space_lut, is_boundary_token_lut
+
+
+def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> None:
+    # The shard directory and tokenizer are coupled: val_bpb is only meaningful if we
+    # decode bytes with the exact tokenizer that produced the shards. The manifest
+    # lets the training script fail fast on accidental dataset/tokenizer mismatches.
+    dataset_dir = Path(data_path).resolve()
+    manifest_path = dataset_dir.parents[1] / "manifest.json"
+    if not manifest_path.is_file():
+        return
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == dataset_dir.name), None)
+    if dataset_entry is None:
+        return
+
+    tokenizer_name = dataset_entry.get("tokenizer_name")
+    tokenizer_entry = (
+        next((x for x in manifest.get("tokenizers", []) if x.get("name") == tokenizer_name), None)
+        if tokenizer_name
+        else None
+    )
+    expected_name = Path((tokenizer_entry or {}).get("model_path") or (tokenizer_entry or {}).get("path") or "").name
+    if expected_name and Path(tokenizer_path).name != expected_name:
+        raise ValueError(f"{dataset_dir.name} expects tokenizer {expected_name}, got {Path(tokenizer_path).name}")
+
 
 def eval_val(
     args: Hyperparameters,
@@ -641,7 +680,11 @@ def clip_grad_tree(grads_tree: dict, max_norm: float) -> dict:
     scale = max_norm / (total_norm + 1e-12)
     return tree_unflatten([(k, g * scale) for k, g in flat.items()])
 
+
 def main() -> None:
+    # ==============================================================================
+    # TOKENIZER + VALIDATION METRIC SETUP
+    # ==============================================================================
     args = Hyperparameters()
     if not args.tie_embeddings:
         raise NotImplementedError("train_gpt_mlx.py only supports tied embeddings")
@@ -652,14 +695,7 @@ def main() -> None:
         raise ValueError(
             f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
         )
-    manifest_path = Path(args.data_path).resolve().parents[1] / "manifest.json"
-    if manifest_path.is_file():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        ds = next((x for x in manifest.get("datasets", []) if x.get("name") == Path(args.data_path).resolve().name), None)
-        tok = next((x for x in manifest.get("tokenizers", []) if x.get("name") == ds.get("tokenizer_name")), None) if ds else None
-        expected = Path((tok or {}).get("model_path") or (tok or {}).get("path") or "").name
-        if expected and Path(args.tokenizer_path).name != expected:
-            raise ValueError(f"{Path(args.data_path).name} expects tokenizer {expected}, got {Path(args.tokenizer_path).name}")
+    validate_dataset_tokenizer_pair(args.data_path, args.tokenizer_path)
 
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size
@@ -671,6 +707,9 @@ def main() -> None:
     mx.random.seed(args.seed)
     train_loader = TokenLoader(args.train_files)
 
+    # ==============================================================================
+    # MODEL + OPTIMIZER SETUP
+    # ==============================================================================
     model = GPT(
         vocab_size=args.vocab_size,
         num_layers=args.num_layers,
@@ -735,6 +774,8 @@ def main() -> None:
     # TRAINING LOOP
     # ==============================================================================
     if args.warmup_steps > 0:
+        # Warmup primes compiled kernels and optimizer state, then we restore the
+        # initial parameters so measured training still starts from the true init.
         initial_model_state =  tree_unflatten([(k, mx.array(v)) for k, v in tree_flatten(model.state)])
         model_warm = model
         opt_warm = opt
@@ -767,6 +808,7 @@ def main() -> None:
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
+            # Validation always runs on a fresh loader so repeated evals see the same token window.
             val_loss, val_bpb = eval_val(
                 args,
                 compiled_loss,

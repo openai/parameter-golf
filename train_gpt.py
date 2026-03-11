@@ -24,6 +24,11 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
+# Default baseline / record-style run:
+# - 9 transformer blocks at width 512
+# - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
+# - vocab size 1024, sequence length 1024, tied embeddings
+# - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
 
 @dataclass
 class Hyperparameters:
@@ -80,6 +85,7 @@ class Hyperparameters:
 # -----------------------------
 # 
 # As borrowed from modded-nanogpt
+# Background on Muon: https://kellerjordan.github.io/posts/muon/
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
@@ -192,6 +198,31 @@ def build_sentencepiece_luts(
     )
 
 
+def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> None:
+    # The shard directory and tokenizer are coupled: val_bpb is only meaningful if we
+    # decode bytes with the exact tokenizer that produced the shards. The manifest
+    # lets the training script fail fast on accidental dataset/tokenizer mismatches.
+    dataset_dir = Path(data_path).resolve()
+    manifest_path = dataset_dir.parents[1] / "manifest.json"
+    if not manifest_path.is_file():
+        return
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == dataset_dir.name), None)
+    if dataset_entry is None:
+        return
+
+    tokenizer_name = dataset_entry.get("tokenizer_name")
+    tokenizer_entry = (
+        next((x for x in manifest.get("tokenizers", []) if x.get("name") == tokenizer_name), None)
+        if tokenizer_name
+        else None
+    )
+    expected_name = Path((tokenizer_entry or {}).get("model_path") or (tokenizer_entry or {}).get("path") or "").name
+    if expected_name and Path(tokenizer_path).name != expected_name:
+        raise ValueError(f"{dataset_dir.name} expects tokenizer {expected_name}, got {Path(tokenizer_path).name}")
+
+
 def eval_val(
     args: Hyperparameters,
     model: nn.Module,
@@ -280,6 +311,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         stats["baseline_tensor_bytes"] += tensor_nbytes(t)
 
         if t.is_floating_point():
+            # Small float tensors are cheap enough to keep directly. We still downcast
+            # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
             if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
                 kept = t
                 if kept.dtype in {torch.float32, torch.bfloat16}:
@@ -292,6 +325,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             stats["num_float_tensors"] += 1
             t32 = t.float()
             if t32.ndim == 2:
+                # Matrices get one scale per row, which usually tracks output-channel
+                # ranges much better than a single tensor-wide scale.
                 abs_t = t32.abs()
                 if t32.numel():
                     clip_abs = torch.quantile(abs_t, INT8_CLIP_Q, dim=1)
@@ -304,6 +339,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
                 s = scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
                 qmeta[name] = {"scheme": "per_row", "axis": 0}
             else:
+                # Vectors / scalars use a simpler per-tensor scale.
                 max_abs = 0.0
                 if t32.numel():
                     abs_t = t32.abs()
@@ -338,7 +374,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
     return obj, stats
 
-
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
@@ -348,11 +383,13 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         meta = qmeta.get(name, {"scheme": "per_tensor"})
         if meta.get("scheme") == "per_row":
             s = obj["scales"][name].to(dtype=torch.float32)
+            # Broadcast the saved row scale back across trailing dimensions.
             out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
             scale = float(obj["scales"][name].item())
             out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
     for name, t in obj["passthrough"].items():
+        # Restore small tensors, undoing the temporary fp16 storage cast if needed.
         out_t = t.detach().to("cpu").contiguous()
         orig_dtype = passthrough_orig_dtypes.get(name)
         if isinstance(orig_dtype, str):
@@ -642,6 +679,10 @@ def main() -> None:
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
+    # -----------------------------
+    # DISTRIBUTED + CUDA SETUP
+    # -----------------------------
+
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -693,25 +734,25 @@ def main() -> None:
     )
     log0("=" * 100, console=False)
 
-    if not args.tokenizer_path.endswith(".model"):
-        raise ValueError(f"TOKENIZER_PATH must point to a SentencePiece .model file: {args.tokenizer_path}")
+    # -----------------------------
+    # TOKENIZER + VALIDATION METRIC SETUP
+    # -----------------------------
+
+    assert args.tokenizer_path.endswith(".model"), f"Script only setup for SentencePiece .model file: {args.tokenizer_path}"
     sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
     if int(sp.vocab_size()) != args.vocab_size:
         raise ValueError(
             f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
         )
-    manifest_path = Path(args.data_path).resolve().parents[1] / "manifest.json"
-    if manifest_path.is_file():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        ds = next((x for x in manifest.get("datasets", []) if x.get("name") == Path(args.data_path).resolve().name), None)
-        tok = next((x for x in manifest.get("tokenizers", []) if x.get("name") == ds.get("tokenizer_name")), None) if ds else None
-        expected = Path((tok or {}).get("model_path") or (tok or {}).get("path") or "").name
-        if expected and Path(args.tokenizer_path).name != expected:
-            raise ValueError(f"{Path(args.data_path).name} expects tokenizer {expected}, got {Path(args.tokenizer_path).name}")
+    validate_dataset_tokenizer_pair(args.data_path, args.tokenizer_path)
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size, device
     )
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+
+    # -----------------------------
+    # MODEL + OPTIMIZER SETUP
+    # -----------------------------
 
     base_model = GPT(
         vocab_size=args.vocab_size,
@@ -786,6 +827,10 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
 
+    # -----------------------------
+    # DATA LOADER & MODEL WARMUP
+    # -----------------------------
+
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     def zero_grad_all() -> None:
@@ -828,6 +873,10 @@ def main() -> None:
         if distributed:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+
+    # -----------------------------
+    # MAIN TRAINING LOOP
+    # -----------------------------
 
     training_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
@@ -917,8 +966,12 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
+    # -----------------------------
+    # SERIALIZATION + ROUNDTRIP VALIDATION
+    # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
+
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
