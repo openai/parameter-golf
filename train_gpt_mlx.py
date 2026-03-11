@@ -845,24 +845,31 @@ def main() -> None:
     # TRAINING LOOP
     # ==============================================================================
     if args.warmup_steps > 0:
-        # Warmup primes compiled kernels and optimizer state, then we restore the
-        # initial parameters so measured training still starts from the true init.
-        initial_model_state =  tree_unflatten([(k, mx.array(v)) for k, v in tree_flatten(model.state)])
-        model_warm = model
-        opt_warm = opt
+        # Warmup should only prime MLX compile/allocation paths. Updating parameters here forces us
+        # to snapshot and restore model/optimizer state, which is expensive on unified-memory Macs.
+        # Instead we run the real train shapes, force the loss/grads to materialize, and then reset
+        # the loader so measured training still starts from the true init and token window.
         for warmup_step in range(args.warmup_steps):
             accum: dict[str, mx.array] | None = None
+            warmup_loss = mx.array(0.0, dtype=mx.float32)
             grad_scale = 1.0 / args.grad_accum_steps
             for _ in range(args.grad_accum_steps):
-                _, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad)
+                warmup_loss, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad)
                 accum = accumulate_flat_grads(accum, grads, grad_scale)
-            warmup_grads = tree_unflatten(list(accum.items()))
-            opt_warm.step(model_warm, warmup_grads, step=0, lr_mul=1.0)
+            mx.eval(warmup_loss, accum)
             mx.synchronize()
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
-        model.update(initial_model_state)
-        opt = SplitOptimizers(model, args)
+
+        # Prime the standalone eval graph once too. It is compiled separately from value_and_grad.
+        val_batch_tokens = args.val_batch_size // args.grad_accum_steps
+        val_chunk_tokens = token_chunks(val_batch_tokens, args.train_seq_len, args.mlx_max_microbatch_tokens)[0]
+        warm_val_loader = TokenLoader(args.val_files)
+        x_val, y_val = warm_val_loader.next_batch(val_chunk_tokens, args.train_seq_len)
+        warm_val_loss = compiled_loss(x_val, y_val)
+        mx.eval(warm_val_loss)
+        mx.synchronize()
+
         train_loader = TokenLoader(args.train_files)
 
     train_time_ms = 0.0

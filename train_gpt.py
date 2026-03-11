@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import glob
 import io
 import json
@@ -205,6 +206,8 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> None
     # decode bytes with the exact tokenizer that produced the shards. The manifest
     # lets the training script fail fast on accidental dataset/tokenizer mismatches.
     dataset_dir = Path(data_path).resolve()
+    if len(dataset_dir.parents) < 2:
+        return
     manifest_path = dataset_dir.parents[1] / "manifest.json"
     if not manifest_path.is_file():
         return
@@ -233,6 +236,28 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> None
             )
 
 
+def validate_batch_layout(name: str, global_tokens: int, seq_len: int, world_size: int, grad_accum_steps: int) -> int:
+    if global_tokens <= 0:
+        raise ValueError(f"{name} must be positive, got {global_tokens}")
+    if seq_len <= 0:
+        raise ValueError(f"seq_len must be positive, got {seq_len}")
+    if world_size <= 0:
+        raise ValueError(f"world_size must be positive, got {world_size}")
+    if grad_accum_steps <= 0:
+        raise ValueError(f"grad_accum_steps must be positive, got {grad_accum_steps}")
+
+    denom = world_size * grad_accum_steps
+    if global_tokens % denom != 0:
+        raise ValueError(f"{name}={global_tokens} must be divisible by world_size*grad_accum_steps={denom}")
+
+    local_tokens = global_tokens // denom
+    if local_tokens % seq_len != 0:
+        raise ValueError(
+            f"{name}={global_tokens} gives local_tokens={local_tokens}, which must be divisible by seq_len={seq_len}"
+        )
+    return local_tokens
+
+
 def eval_val(
     args: Hyperparameters,
     model: nn.Module,
@@ -248,6 +273,8 @@ def eval_val(
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
     val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
+    if val_steps <= 0:
+        raise ValueError("Validation requires at least one step; check VAL_TOKENS and VAL_BATCH_SIZE")
     val_loader = DistributedTokenLoader(args.val_files, rank, world_size, device)
     val_loss = torch.zeros((), device=device)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -472,11 +499,14 @@ class DistributedTokenLoader:
         self.stream = TokenStream(pattern)
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
-        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
-        usable_tokens = (local_tokens // seq_len) * seq_len
-        if usable_tokens == 0:
-            raise ValueError(f"train/val token budget too small for seq_len={seq_len}")
-        per_rank_span = usable_tokens + 1
+        local_tokens = validate_batch_layout(
+            "global_tokens",
+            global_tokens,
+            seq_len,
+            self.world_size,
+            grad_accum_steps,
+        )
+        per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
         local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
@@ -502,6 +532,14 @@ class CastedLinear(nn.Linear):
     def forward(self, x: Tensor) -> Tensor:
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, self.weight.to(x.dtype), bias)
+
+
+def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
+    # Keep scalar/vector control parameters in fp32 even when the model body runs in bf16.
+    with torch.no_grad():
+        for param in module.parameters():
+            if param.ndim < 2 and param.dtype != torch.float32:
+                param.data = param.data.float()
 
 
 class Rotary(nn.Module):
@@ -634,7 +672,8 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers))
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights))
         self.blocks = nn.ModuleList(
             [Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base) for _ in range(num_layers)]
         )
@@ -697,6 +736,18 @@ def main() -> None:
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if world_size <= 0:
+        raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
+    grad_scale = 1.0 / grad_accum_steps
+    validate_batch_layout("TRAIN_BATCH_TOKENS", args.train_batch_tokens, args.train_seq_len, world_size, grad_accum_steps)
+    validate_batch_layout("VAL_BATCH_SIZE", args.val_batch_size, args.train_seq_len, world_size, grad_accum_steps)
+    if args.val_tokens <= 0:
+        raise ValueError(f"VAL_TOKENS must be positive, got {args.val_tokens}")
+    if args.val_tokens % args.val_batch_size != 0:
+        raise ValueError(f"VAL_TOKENS={args.val_tokens} must be divisible by VAL_BATCH_SIZE={args.val_batch_size}")
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
     device = torch.device("cuda", local_rank)
@@ -705,9 +756,6 @@ def main() -> None:
         dist.init_process_group(backend="nccl", device_id=device)
         dist.barrier()
     master_process = rank == 0
-
-    grad_accum_steps = 8 // world_size
-    grad_scale = 1.0 / grad_accum_steps
 
     # Fast math knobs
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -784,6 +832,7 @@ def main() -> None:
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
+    restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -794,7 +843,9 @@ def main() -> None:
     # - vectors/scalars use SCALAR_LR via Adam
     block_params = list(base_model.blocks.parameters())
     matrix_params = [p for p in block_params if p.ndim == 2]
-    scalar_params = [p for p in block_params if p.ndim < 2] + [base_model.skip_weights]
+    scalar_params = [p for p in block_params if p.ndim < 2]
+    if base_model.skip_weights.numel() > 0:
+        scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -866,7 +917,7 @@ def main() -> None:
     # initial weights/optimizer state so measured training starts from the true init.
     if args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
-        initial_optimizer_states = [opt.state_dict() for opt in optimizers]
+        initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
@@ -944,8 +995,9 @@ def main() -> None:
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
-            train_loss = loss.detach()
+            train_loss += loss.detach()
             (loss * grad_scale).backward()
+        train_loss /= grad_accum_steps
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -974,7 +1026,12 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
-        if max_wallclock_ms is not None and stop_after_step is None and approx_training_time_ms >= max_wallclock_ms:
+        reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
+        if distributed and max_wallclock_ms is not None:
+            reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
+            dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
+            reached_cap = bool(reached_cap_tensor.item())
+        if stop_after_step is None and reached_cap:
             stop_after_step = step
 
     log0(
