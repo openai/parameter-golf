@@ -40,8 +40,6 @@ VARIANTS = {
         "val_shards": 1,
     },
 }
-
-
 def get(relative_path: str) -> None:
     local_dir = os.path.dirname(__file__)
     full_local_path = os.path.join(local_dir, relative_path)
@@ -109,7 +107,7 @@ def main() -> None:
     dataset_prefix = f"{REMOTE_ROOT_PREFIX}/datasets/{variant['dataset_dir']}"
     for i in range(variant["val_shards"]):
         get(f"{dataset_prefix}/fineweb_val_{i:06d}.bin")
-    for i in range(1, args.train_shards + 1):
+    for i in range(args.train_shards):
         get(f"{dataset_prefix}/fineweb_train_{i:06d}.bin")
 
     tokenizer_prefix = f"{REMOTE_ROOT_PREFIX}/tokenizers"

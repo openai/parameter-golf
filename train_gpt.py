@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import glob
 import io
+import json
 import math
 import os
 import subprocess
@@ -24,6 +25,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 SHARD_MAGIC = 20240520
 SHARD_VERSION = 1
 SHARD_HEADER_INTS = 256
+SHARD_HEADER_BYTES = SHARD_HEADER_INTS * np.dtype(np.int32).itemsize
+SHARD_TOKEN_BYTES = np.dtype(np.uint16).itemsize
 
 
 def resolve_token_shard_files(pattern: str) -> list[Path]:
@@ -169,13 +172,6 @@ _ensure_triton_key_compat()
 _ensure_triton_attrs_descriptor_compat()
 _ensure_triton_launch_hook_compat()
 _ensure_triton_compiled_kernel_compat()
-
-DEFAULT_CHALLENGE_DATA_ROOT = (
-    "./data/challenge_fineweb"
-    if os.path.exists("./data/challenge_fineweb")
-    else "./data/matched_10B_docs2m_seed1337"
-)
-
 
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.environ.get(name)
@@ -464,16 +460,18 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 # -----------------------------
 
 def load_data_shard(file: Path) -> Tensor:
-    # Shard layout is a tiny int32 header + uint16 token payload. We keep this explicit
-    # so newcomers can see the file format assumptions directly in one place.
-    header = torch.from_file(str(file), shared=False, size=SHARD_HEADER_INTS, dtype=torch.int32)
-    if int(header[0]) != SHARD_MAGIC or int(header[1]) != SHARD_VERSION:
+    header = np.fromfile(file, dtype=np.int32, count=SHARD_HEADER_INTS)
+    if header.size != SHARD_HEADER_INTS or int(header[0]) != SHARD_MAGIC or int(header[1]) != SHARD_VERSION:
         raise ValueError(f"Unexpected shard header for {file}")
     num_tokens = int(header[2])
+    expected_size = SHARD_HEADER_BYTES + num_tokens * SHARD_TOKEN_BYTES
+    if file.stat().st_size != expected_size:
+        raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
     with file.open("rb", buffering=0) as f:
         tokens = torch.empty(num_tokens, dtype=torch.uint16)
-        f.seek(SHARD_HEADER_INTS * 4)
-        f.readinto(tokens.numpy())
+        f.seek(SHARD_HEADER_BYTES)
+        if f.readinto(tokens.numpy()) != num_tokens * SHARD_TOKEN_BYTES:
+            raise ValueError(f"Short read for {file}")
     return tokens
 
 
@@ -784,7 +782,21 @@ def main() -> None:
     )
     log0("=" * 100, console=False)
 
-    # Build the BPB lookup table once per process/device.
+    if not args.tokenizer_path.endswith(".model"):
+        raise ValueError(f"TOKENIZER_PATH must point to a SentencePiece .model file: {args.tokenizer_path}")
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        )
+    manifest_path = Path(args.data_path).resolve().parents[1] / "manifest.json"
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        ds = next((x for x in manifest.get("datasets", []) if x.get("name") == Path(args.data_path).resolve().name), None)
+        tok = next((x for x in manifest.get("tokenizers", []) if x.get("name") == ds.get("tokenizer_name")), None) if ds else None
+        expected = Path((tok or {}).get("model_path") or (tok or {}).get("path") or "").name
+        if expected and Path(args.tokenizer_path).name != expected:
+            raise ValueError(f"{Path(args.data_path).name} expects tokenizer {expected}, got {Path(args.tokenizer_path).name}")
     base_bytes_np, has_space_np, boundary_np = build_sentencepiece_bpb_lut_arrays(
         args.tokenizer_path,
         args.vocab_size,
@@ -792,7 +804,7 @@ def main() -> None:
     base_bytes_lut = torch.tensor(base_bytes_np, dtype=torch.int16, device=device)
     has_space_lut = torch.tensor(has_space_np, dtype=torch.bool, device=device)
     boundary_lut = torch.tensor(boundary_np, dtype=torch.bool, device=device)
-    log0(f"val_bpb:enabled tokenizer=sentencepiece tokenizer_path={args.tokenizer_path}")
+    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
 
     base_model = GPT(
         vocab_size=args.vocab_size,

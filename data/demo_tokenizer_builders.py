@@ -21,7 +21,6 @@ def _iter_sentencepiece_text(docs_jsonl: Path):
             if text:
                 yield text
 
-
 def build_pure_byte_tokenizer(*, spec, docs_jsonl, tokenizers_dir):
     del docs_jsonl
     tok = default_pure_byte_tokenizer()
@@ -45,28 +44,29 @@ def build_sentencepiece_tokenizer(*, spec, docs_jsonl, tokenizers_dir):
     prefix = Path(tokenizers_dir) / spec.get("model_prefix", f"fineweb_{vocab_size}_bpe")
     model_path = prefix.with_suffix(".model")
     vocab_path = prefix.with_suffix(".vocab")
-    if not (model_path.exists() and vocab_path.exists()):
-        print(f"Training SentencePiece tokenizer name={spec.get('name', f'sp_bpe_{vocab_size}')} vocab={vocab_size}")
-        kwargs = {
-            "sentence_iterator": _iter_sentencepiece_text(Path(docs_jsonl)),
-            "model_prefix": str(prefix),
-            "model_type": "bpe",
-            "vocab_size": vocab_size,
-            "character_coverage": 0.999,
-            "byte_fallback": True,
-            "split_digits": True,
-            "normalization_rule_name": "nmt_nfkc",
-            "add_dummy_prefix": False,
-            "pad_id": 0,
-            "bos_id": 1,
-            "eos_id": 2,
-            "unk_id": 3,
-            "hard_vocab_limit": False,
-        }
-        kwargs.update(spec.get("trainer_overrides") or {})
-        spm.SentencePieceTrainer.train(**kwargs)
-    else:
-        print(f"Reusing existing SentencePiece model: {model_path}")
+    prefix.parent.mkdir(parents=True, exist_ok=True)
+    for artifact in (model_path, vocab_path):
+        if artifact.exists():
+            artifact.unlink()
+    print(f"Training SentencePiece tokenizer name={spec.get('name', f'sp_bpe_{vocab_size}')} vocab={vocab_size}")
+    kwargs = {
+        "sentence_iterator": _iter_sentencepiece_text(Path(docs_jsonl)),
+        "model_prefix": str(prefix),
+        "model_type": "bpe",
+        "vocab_size": vocab_size,
+        "character_coverage": 0.999,
+        "byte_fallback": True,
+        "split_digits": True,
+        "normalization_rule_name": "nmt_nfkc",
+        "add_dummy_prefix": False,
+        "pad_id": 0,
+        "bos_id": 1,
+        "eos_id": 2,
+        "unk_id": 3,
+        "hard_vocab_limit": False,
+    }
+    kwargs.update(spec.get("trainer_overrides") or {})
+    spm.SentencePieceTrainer.train(**kwargs)
 
     tok = spm.SentencePieceProcessor(model_file=str(model_path))
     return {

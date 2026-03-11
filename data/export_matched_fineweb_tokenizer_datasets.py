@@ -135,6 +135,9 @@ def build_docs_cache(path: Path) -> dict[str, Any]:
 
 def export_shards(docs_jsonl: Path, tok: dict[str, Any], output_dir: Path) -> dict[str, int]:
     output_dir.mkdir(parents=True, exist_ok=True)
+    for pattern in ("fineweb_train_*.bin", "fineweb_val_*.bin"):
+        for stale in output_dir.glob(pattern):
+            stale.unlink()
     stats = {
         "docs_total": 0,
         "docs_val": 0,

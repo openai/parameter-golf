@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import math
 import os
 import pickle
@@ -11,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import sentencepiece as spm
 
 import mlx.core as mx
 import mlx.nn as nn
@@ -19,8 +21,8 @@ from mlx.utils import tree_flatten, tree_unflatten
 
 from train_gpt import (
     SHARD_HEADER_INTS,
-    SHARD_MAGIC,
-    SHARD_VERSION,
+    SHARD_HEADER_BYTES,
+    SHARD_TOKEN_BYTES,
     build_sentencepiece_bpb_lut_arrays,
     bytes_per_token_np,
     resolve_token_shard_files,
@@ -76,10 +78,14 @@ def zeropower_newtonschulz5(g: mx.array, steps: int, eps: float = 1e-7) -> mx.ar
 
 def load_data_shard(path: Path) -> np.ndarray:
     header = np.fromfile(path, dtype=np.int32, count=SHARD_HEADER_INTS)
-    if int(header[0]) != SHARD_MAGIC or int(header[1]) != SHARD_VERSION:
+    if header.size != SHARD_HEADER_INTS or int(header[0]) != 20240520 or int(header[1]) != 1:
         raise ValueError(f"Unexpected shard header for {path}")
     num_tokens = int(header[2])
-    tokens = np.fromfile(path, dtype=np.uint16, count=num_tokens, offset=SHARD_HEADER_INTS * 4)
+    if path.stat().st_size != SHARD_HEADER_BYTES + num_tokens * SHARD_TOKEN_BYTES:
+        raise ValueError(f"Shard size mismatch for {path}")
+    tokens = np.fromfile(path, dtype=np.uint16, count=num_tokens, offset=SHARD_HEADER_BYTES)
+    if tokens.size != num_tokens:
+        raise ValueError(f"Short read for {path}")
     return tokens.astype(np.int32, copy=False)
 
 
@@ -433,6 +439,19 @@ class SplitOptimizers:
         model.update(tree_unflatten(list(updated.items())))
 
 args = Args()
+if not args.tokenizer_path.endswith(".model"):
+    raise ValueError(f"TOKENIZER_PATH must point to a SentencePiece .model file: {args.tokenizer_path}")
+sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+if int(sp.vocab_size()) != args.vocab_size:
+    raise ValueError(f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}")
+manifest_path = Path(args.data_path).resolve().parents[1] / "manifest.json"
+if manifest_path.is_file():
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    ds = next((x for x in manifest.get("datasets", []) if x.get("name") == Path(args.data_path).resolve().name), None)
+    tok = next((x for x in manifest.get("tokenizers", []) if x.get("name") == ds.get("tokenizer_name")), None) if ds else None
+    expected = Path((tok or {}).get("model_path") or (tok or {}).get("path") or "").name
+    if expected and Path(args.tokenizer_path).name != expected:
+        raise ValueError(f"{Path(args.data_path).name} expects tokenizer {expected}, got {Path(args.tokenizer_path).name}")
 base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_bpb_lut_arrays(
     args.tokenizer_path,
     args.vocab_size,
@@ -509,7 +528,6 @@ def dequantize_state_dict_int8_per_tensor(quant_obj: dict[str, object]) -> dict[
 
 mx.random.seed(args.seed)
 train_loader = TokenLoader(args.train_files)
-val_loader = TokenLoader(args.val_files)
 
 model = GPT(
     vocab_size=args.vocab_size,
@@ -578,6 +596,8 @@ def eval_val() -> tuple[float, float]:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
     val_steps = args.val_tokens // args.val_batch_tokens
+    # Rebuild the validation stream for each eval so repeated checkpoints measure the same token window.
+    val_loader = TokenLoader(args.val_files)
     total_loss = mx.array(0.0, dtype=mx.float32)
     total_tokens = 0.0
     total_bytes = 0.0
