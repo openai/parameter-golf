@@ -58,6 +58,9 @@ class Hyperparameters:
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
     train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", os.environ.get("TRAIN_MAX_SEQ_LEN", 1024)))
+    # Chunk each logical MLX microbatch into smaller sub-batches to reduce peak
+    # memory pressure without changing the effective optimizer batch.
+    mlx_max_microbatch_tokens: int = int(os.environ.get("MLX_MAX_MICROBATCH_TOKENS", 8_192))
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 900))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -109,6 +112,33 @@ class Hyperparameters:
         if warmdown_start <= step < self.iterations:
             return max((self.iterations - step) / max(self.warmdown_iters, 1), 0.0)
         return 1.0
+
+
+def token_chunks(total_tokens: int, seq_len: int, max_chunk_tokens: int) -> list[int]:
+    usable_total = (total_tokens // seq_len) * seq_len
+    if usable_total <= 0:
+        raise ValueError(f"token budget too small for seq_len={seq_len}")
+    usable_chunk = max((max_chunk_tokens // seq_len) * seq_len, seq_len)
+    chunks: list[int] = []
+    remaining = usable_total
+    while remaining > 0:
+        chunk = min(remaining, usable_chunk)
+        chunks.append(chunk)
+        remaining -= chunk
+    return chunks
+
+
+def accumulate_flat_grads(
+    accum: dict[str, mx.array] | None,
+    grads_tree: dict,
+    scale: float,
+) -> dict[str, mx.array]:
+    flat = dict(tree_flatten(grads_tree))
+    if accum is None:
+        return {k: g * scale for k, g in flat.items()}
+    for k, g in flat.items():
+        accum[k] = accum[k] + g * scale
+    return accum
 
 
 # ==============================================================================
@@ -623,6 +653,24 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> None
         raise ValueError(f"{dataset_dir.name} expects tokenizer {expected_name}, got {Path(tokenizer_path).name}")
 
 
+def loss_and_grad_chunked(
+    args: Hyperparameters,
+    train_loader: TokenLoader,
+    compiled_loss_and_grad,
+) -> tuple[mx.array, dict]:
+    chunk_sizes = token_chunks(args.microbatch_tokens, args.train_seq_len, args.mlx_max_microbatch_tokens)
+    total_tokens = float(sum(chunk_sizes))
+    loss_value = mx.array(0.0, dtype=mx.float32)
+    grad_accum: dict[str, mx.array] | None = None
+    for chunk_tokens in chunk_sizes:
+        x, y = train_loader.next_batch(chunk_tokens, args.train_seq_len)
+        loss, grads = compiled_loss_and_grad(x, y)
+        scale = float(y.size) / total_tokens
+        loss_value = loss_value + loss.astype(mx.float32) * scale
+        grad_accum = accumulate_flat_grads(grad_accum, grads, scale)
+    return loss_value, tree_unflatten(list(grad_accum.items()))
+
+
 def eval_val(
     args: Hyperparameters,
     compiled_loss,
@@ -637,25 +685,28 @@ def eval_val(
     val_batch_tokens = args.val_batch_size // args.grad_accum_steps
     if val_steps <= 0:
         raise ValueError("validation budget too small for the configured batch size")
+    val_chunk_sizes = token_chunks(val_batch_tokens, args.train_seq_len, args.mlx_max_microbatch_tokens)
     # Rebuild the validation stream for each eval so repeated checkpoints measure the same token window.
     val_loader = TokenLoader(args.val_files)
     total_loss = mx.array(0.0, dtype=mx.float32)
     total_tokens = 0.0
     total_bytes = 0.0
     for _ in range(val_steps):
-        x, y = val_loader.next_batch(val_batch_tokens, args.train_seq_len)
-        total_loss = total_loss + compiled_loss(x, y)
-        x_np = np.array(x)
-        y_np = np.array(y)
-        prev_ids = x_np.reshape(-1)
-        tgt_ids = y_np.reshape(-1)
-        bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
-        bytes_np += (
-            has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
-        ).astype(np.int16, copy=False)
-        total_tokens += float(y_np.size)
-        total_bytes += float(bytes_np.astype(np.float64).sum())
-    total_loss = total_loss / float(val_steps)
+        for chunk_tokens in val_chunk_sizes:
+            x, y = val_loader.next_batch(chunk_tokens, args.train_seq_len)
+            chunk_token_count = float(y.size)
+            total_loss = total_loss + compiled_loss(x, y).astype(mx.float32) * chunk_token_count
+            x_np = np.array(x)
+            y_np = np.array(y)
+            prev_ids = x_np.reshape(-1)
+            tgt_ids = y_np.reshape(-1)
+            bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
+            bytes_np += (
+                has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
+            ).astype(np.int16, copy=False)
+            total_tokens += chunk_token_count
+            total_bytes += float(bytes_np.astype(np.float64).sum())
+    total_loss = total_loss / total_tokens
     mx.eval(total_loss)
     val_loss = float(total_loss.item())
     bits_per_token = val_loss / math.log(2.0)
@@ -775,6 +826,7 @@ def main() -> None:
         f"val_batch_size:{args.val_batch_size} val_tokens:{args.val_tokens} "
         f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
         f"embed_lr:{args.tied_embed_lr} "
@@ -802,14 +854,8 @@ def main() -> None:
             accum: dict[str, mx.array] | None = None
             grad_scale = 1.0 / args.grad_accum_steps
             for _ in range(args.grad_accum_steps):
-                x, y = train_loader.next_batch(args.microbatch_tokens, args.train_seq_len)
-                _, grads = compiled_loss_and_grad(x, y)
-                flat = dict(tree_flatten(grads))
-                if accum is None:
-                    accum = {k: g * grad_scale for k, g in flat.items()}
-                else:
-                    for k, g in flat.items():
-                        accum[k] = accum[k] + g * grad_scale
+                _, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad)
+                accum = accumulate_flat_grads(accum, grads, grad_scale)
             warmup_grads = tree_unflatten(list(accum.items()))
             opt_warm.step(model_warm, warmup_grads, step=0, lr_mul=1.0)
             mx.synchronize()
@@ -854,14 +900,8 @@ def main() -> None:
         train_loss = None
         grad_scale = 1.0 / args.grad_accum_steps
         for _ in range(args.grad_accum_steps):
-            x, y = train_loader.next_batch(args.microbatch_tokens, args.train_seq_len)
-            loss, grads = compiled_loss_and_grad(x, y)
-            flat = dict(tree_flatten(grads))
-            if accum is None:
-                accum = {k: g * grad_scale for k, g in flat.items()}
-            else:
-                for k, g in flat.items():
-                    accum[k] = accum[k] + g * grad_scale
+            loss, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad)
+            accum = accumulate_flat_grads(accum, grads, grad_scale)
             train_loss = loss
 
         grads = tree_unflatten(list(accum.items()))

@@ -120,8 +120,8 @@ def build_parser() -> argparse.ArgumentParser:
         "train_shards",
         nargs="?",
         type=int,
-        default=1,
-        help="Number of training shards to download for the selected variant.",
+        default=None,
+        help="Number of training shards to download for the selected variant. Defaults to all shards.",
     )
     parser.add_argument(
         "--variant",
@@ -141,12 +141,13 @@ def main() -> None:
     args = build_parser().parse_args()
     variant = VARIANTS[args.variant]
     max_train_shards = variant["train_shards"]
-    if args.train_shards < 0:
+    train_shards = max_train_shards if args.train_shards is None else args.train_shards
+    if train_shards < 0:
         raise ValueError("train_shards must be non-negative")
-    if args.train_shards > max_train_shards:
+    if train_shards > max_train_shards:
         raise ValueError(
             f"{args.variant} only has {max_train_shards} training shards on {REPO_ID}, "
-            f"requested {args.train_shards}"
+            f"requested {train_shards}"
         )
 
     ensure_local_layout()
@@ -157,7 +158,7 @@ def main() -> None:
     dataset_prefix = f"{REMOTE_ROOT_PREFIX}/datasets/{variant['dataset_dir']}"
     for i in range(variant["val_shards"]):
         get(f"{dataset_prefix}/fineweb_val_{i:06d}.bin")
-    for i in range(args.train_shards):
+    for i in range(train_shards):
         get(f"{dataset_prefix}/fineweb_train_{i:06d}.bin")
 
     tokenizer_prefix = f"{REMOTE_ROOT_PREFIX}/tokenizers"

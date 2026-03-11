@@ -45,10 +45,11 @@ pip install mlx numpy sentencepiece huggingface-hub datasets tqdm
 Download our cached version of FineWeb with the 1024-token vocabulary:
 
 ```bash
-python3 data/cached_challenge_fineweb.py --variant sp1024 1
+python3 data/cached_challenge_fineweb.py --variant sp1024
 ```
 
 This populates `./data/datasets/fineweb10B_sp1024/` and `./data/tokenizers/`.
+By default this downloads all training shards for the selected variant. If you only want a quick smoke-test download, pass a smaller shard count instead, for example `python3 data/cached_challenge_fineweb.py --variant sp1024 1`.
 
 Then run a small MLX training job:
 
@@ -105,7 +106,7 @@ pip install -r requirements.txt
 Download our cached version of FineWeb. We'll use the 1024-token vocabulary for now.
 
 ```bash
-python3 data/cached_challenge_fineweb.py --variant sp1024 1
+python3 data/cached_challenge_fineweb.py --variant sp1024
 ```
 
 Launch your first training run. Note that we're passing `nproc_per_node=1` because we're running on a single H100 GPU in this case.
@@ -117,6 +118,8 @@ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
 torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```
+
+By default, `train_gpt.py` keeps its ~10 minute wallclock cap. If you want a longer run, override it explicitly, for example `MAX_WALLCLOCK_SECONDS=0`.
 
 By default, this command prints `train_loss` step logs during training and prints `val_loss`, `val_bpb`, and compressed model size in the final `final_int8_zlib_roundtrip` lines at the end. If you want periodic validation logs during the run, set `VAL_LOSS_EVERY`, for example `VAL_LOSS_EVERY=200`. For the baseline config, the final `val_bpb` should land around ~1.2 with a compressed model size under 16MB.
 

@@ -94,7 +94,7 @@ If you want the public path instead, this also lands in the same local layout:
 ```bash
 cd /root/code/parameter-golf
 . .venv-openai/bin/activate
-python data/cached_challenge_fineweb.py --variant sp1024 1
+python data/cached_challenge_fineweb.py --variant sp1024 25
 ```
 
 ## Smoke run
