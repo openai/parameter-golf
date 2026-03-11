@@ -21,164 +21,6 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-
-SHARD_MAGIC = 20240520
-SHARD_VERSION = 1
-SHARD_HEADER_INTS = 256
-SHARD_HEADER_BYTES = SHARD_HEADER_INTS * np.dtype(np.int32).itemsize
-SHARD_TOKEN_BYTES = np.dtype(np.uint16).itemsize
-
-
-def resolve_token_shard_files(pattern: str) -> list[Path]:
-    files = [Path(p) for p in sorted(glob.glob(pattern))]
-    if not files:
-        raise FileNotFoundError(f"No files found for pattern: {pattern}")
-    return files
-
-
-def build_sentencepiece_bpb_lut_arrays(
-    tokenizer_path: str,
-    model_vocab_size: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    sp = spm.SentencePieceProcessor(model_file=tokenizer_path)
-    sp_vocab_size = int(sp.vocab_size())
-    table_size = max(sp_vocab_size, model_vocab_size)
-
-    base_bytes = np.zeros((table_size,), dtype=np.int16)
-    has_leading_space = np.zeros((table_size,), dtype=np.bool_)
-    is_boundary_token = np.ones((table_size,), dtype=np.bool_)
-
-    for token_id in range(sp_vocab_size):
-        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
-            continue
-        is_boundary_token[token_id] = False
-        if sp.is_byte(token_id):
-            base_bytes[token_id] = 1
-            continue
-        piece = sp.id_to_piece(token_id)
-        if piece.startswith("▁"):
-            has_leading_space[token_id] = True
-            piece = piece[1:]
-        base_bytes[token_id] = len(piece.encode("utf-8"))
-
-    return base_bytes, has_leading_space, is_boundary_token
-
-
-def bytes_per_token_np(
-    input_ids: np.ndarray,
-    target_ids: np.ndarray,
-    base_bytes_lut: np.ndarray,
-    has_space_lut: np.ndarray,
-    boundary_lut: np.ndarray,
-) -> np.ndarray:
-    prev_ids = input_ids.reshape(-1)
-    tgt_ids = target_ids.reshape(-1)
-    out = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
-    out += (has_space_lut[tgt_ids] & ~boundary_lut[prev_ids]).astype(np.int16, copy=False)
-    return out.reshape(target_ids.shape)
-
-
-# Do we still need this?
-def _ensure_triton_key_compat() -> None:
-    """Patch Triton 3.6+ builds that dropped `triton_key` export used by torch 2.6."""
-    try:
-        import triton
-        from triton.compiler import compiler as triton_compiler
-    except Exception:
-        return
-    if hasattr(triton_compiler, "triton_key"):
-        return
-
-    def _triton_key() -> str:
-        return getattr(triton_compiler, "__version__", None) or getattr(triton, "__version__", "unknown-triton")
-
-    triton_compiler.triton_key = _triton_key  # type: ignore[attr-defined]
-
-
-def _ensure_triton_attrs_descriptor_compat() -> None:
-    """Patch Triton 3.6+ attr descriptors so Inductor's `equal_to_1` access still works."""
-    try:
-        import torch._inductor.codegen.triton_utils as triton_utils
-        import torch._inductor.codegen.triton as triton_codegen
-        import torch._inductor.runtime.hints as runtime_hints
-    except Exception:
-        return
-
-    class _AttrsDescriptorCompat(dict):
-        def __init__(self, divisible_by_16=(), equal_to_1=()):
-            super().__init__({(x,): [["tt.divisibility", 16]] for x in divisible_by_16})
-            self.divisible_by_16 = tuple(divisible_by_16 or ())
-            self.equal_to_1 = list(equal_to_1 or ())
-
-    def _wrapper(divisible_by_16=None, equal_to_1=None):
-        return _AttrsDescriptorCompat(divisible_by_16, equal_to_1)
-
-    runtime_hints.AttrsDescriptorWrapper = _wrapper  # type: ignore[assignment]
-    triton_utils.AttrsDescriptorWrapper = _wrapper  # type: ignore[assignment]
-    triton_codegen.AttrsDescriptorWrapper = _wrapper  # type: ignore[attr-defined]
-
-
-def _ensure_triton_launch_hook_compat() -> None:
-    """Patch Triton 3.6+ launch hooks back onto `CompiledKernel` for Torch 2.6."""
-    try:
-        import triton.knobs as triton_knobs
-        from triton.compiler import compiler as triton_compiler
-    except Exception:
-        return
-    if not hasattr(triton_compiler, "CompiledKernel"):
-        return
-    enter_hook = getattr(triton_knobs, "launch_enter_hook", None)
-    exit_hook = getattr(triton_knobs, "launch_exit_hook", None)
-    if enter_hook is None:
-        def enter_hook(*args, **kwargs):  # type: ignore[no-redef]
-            return None
-    if exit_hook is None:
-        def exit_hook(*args, **kwargs):  # type: ignore[no-redef]
-            return None
-    if not hasattr(triton_compiler.CompiledKernel, "launch_enter_hook"):
-        triton_compiler.CompiledKernel.launch_enter_hook = enter_hook  # type: ignore[attr-defined]
-    if not hasattr(triton_compiler.CompiledKernel, "launch_exit_hook"):
-        triton_compiler.CompiledKernel.launch_exit_hook = exit_hook  # type: ignore[attr-defined]
-
-
-def _ensure_triton_compiled_kernel_compat() -> None:
-    """Patch Triton compiled kernels so Inductor can read launch metadata on newer images."""
-    try:
-        from triton.compiler import compiler as triton_compiler
-    except Exception:
-        return
-    if not hasattr(triton_compiler, "CompiledKernel"):
-        return
-    compiled_kernel = triton_compiler.CompiledKernel
-    if not hasattr(compiled_kernel, "num_ctas"):
-        compiled_kernel.num_ctas = property(  # type: ignore[attr-defined]
-            lambda self: getattr(getattr(self, "metadata", None), "num_ctas", 1)
-        )
-    if not hasattr(compiled_kernel, "cluster_dims"):
-        compiled_kernel.cluster_dims = property(  # type: ignore[attr-defined]
-            lambda self: getattr(
-                getattr(self, "metadata", None),
-                "cluster_dims",
-                getattr(getattr(self, "metadata", None), "clusterDims", (1, 1, 1)),
-            )
-        )
-    if not hasattr(compiled_kernel, "clusterDims"):
-        compiled_kernel.clusterDims = property(  # type: ignore[attr-defined]
-            lambda self: getattr(self, "cluster_dims")
-        )
-
-
-_ensure_triton_key_compat()
-_ensure_triton_attrs_descriptor_compat()
-_ensure_triton_launch_hook_compat()
-_ensure_triton_compiled_kernel_compat()
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    return raw.lower() in {"1", "true", "yes", "y", "on"}
-
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -186,10 +28,10 @@ def _env_bool(name: str, default: bool) -> bool:
 @dataclass
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
-    data_path: str = os.environ.get("DATA_PATH", "./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp1024")
+    data_path: str = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files: str = os.path.join(data_path, "fineweb_train_*.bin")
     val_files: str = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model")
+    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
 
     # Validation cadence and budget.
@@ -213,7 +55,7 @@ class Hyperparameters:
     model_dim: int = int(os.environ.get("MODEL_DIM", 512))
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
-    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", True)
+    tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
@@ -460,17 +302,20 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 # -----------------------------
 
 def load_data_shard(file: Path) -> Tensor:
-    header = np.fromfile(file, dtype=np.int32, count=SHARD_HEADER_INTS)
-    if header.size != SHARD_HEADER_INTS or int(header[0]) != SHARD_MAGIC or int(header[1]) != SHARD_VERSION:
+    header_bytes = 256 * np.dtype(np.int32).itemsize
+    token_bytes = np.dtype(np.uint16).itemsize
+    header = np.fromfile(file, dtype=np.int32, count=256)
+    # SHARD HEADER INTS & SHARD_MAGIC
+    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
         raise ValueError(f"Unexpected shard header for {file}")
     num_tokens = int(header[2])
-    expected_size = SHARD_HEADER_BYTES + num_tokens * SHARD_TOKEN_BYTES
+    expected_size = header_bytes + num_tokens * token_bytes
     if file.stat().st_size != expected_size:
         raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
     with file.open("rb", buffering=0) as f:
         tokens = torch.empty(num_tokens, dtype=torch.uint16)
-        f.seek(SHARD_HEADER_BYTES)
-        if f.readinto(tokens.numpy()) != num_tokens * SHARD_TOKEN_BYTES:
+        f.seek(header_bytes)
+        if f.readinto(tokens.numpy()) != num_tokens * token_bytes:
             raise ValueError(f"Short read for {file}")
     return tokens
 
@@ -479,7 +324,9 @@ class TokenStream:
     # Reads shards sequentially and wraps around forever. The training loop therefore
     # has deterministic, simple streaming behavior with no sampling or workers.
     def __init__(self, pattern: str):
-        self.files = resolve_token_shard_files(pattern)
+        self.files = [Path(p) for p in sorted(glob.glob(pattern))]
+        if not self.files:
+            raise FileNotFoundError(f"No files found for pattern: {pattern}")
         self.file_idx = 0
         self.tokens = load_data_shard(self.files[0])
         self.pos = 0
@@ -797,10 +644,26 @@ def main() -> None:
         expected = Path((tok or {}).get("model_path") or (tok or {}).get("path") or "").name
         if expected and Path(args.tokenizer_path).name != expected:
             raise ValueError(f"{Path(args.data_path).name} expects tokenizer {expected}, got {Path(args.tokenizer_path).name}")
-    base_bytes_np, has_space_np, boundary_np = build_sentencepiece_bpb_lut_arrays(
-        args.tokenizer_path,
-        args.vocab_size,
-    )
+    
+    # Build SentencePiece LUT Arrays
+    sp_vocab_size = int(sp.vocab_size())
+    table_size = max(sp_vocab_size, args.vocab_size)
+    base_bytes_np = np.zeros((table_size,), dtype=np.int16)
+    has_space_np = np.zeros((table_size,), dtype=np.bool_)
+    boundary_np = np.ones((table_size,), dtype=np.bool_)
+    for token_id in range(sp_vocab_size):
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+            continue
+        boundary_np[token_id] = False
+        if sp.is_byte(token_id):
+            base_bytes_np[token_id] = 1
+            continue
+        piece = sp.id_to_piece(token_id)
+        if piece.startswith("▁"):
+            has_space_np[token_id] = True
+            piece = piece[1:]
+        base_bytes_np[token_id] = len(piece.encode("utf-8"))
+    
     base_bytes_lut = torch.tensor(base_bytes_np, dtype=torch.int16, device=device)
     has_space_lut = torch.tensor(has_space_np, dtype=torch.bool, device=device)
     boundary_lut = torch.tensor(boundary_np, dtype=torch.bool, device=device)

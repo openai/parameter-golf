@@ -77,6 +77,21 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def relativize_manifest_paths(value: Any, root: Path) -> Any:
+    if isinstance(value, dict):
+        return {k: relativize_manifest_paths(v, root) for k, v in value.items()}
+    if isinstance(value, list):
+        return [relativize_manifest_paths(v, root) for v in value]
+    if isinstance(value, str):
+        path = Path(value)
+        if path.is_absolute():
+            try:
+                return path.relative_to(root).as_posix()
+            except ValueError:
+                return value
+    return value
+
+
 def load_builder(ref: str, base_dir: Path):
     module_ref, fn_name = ref.split(":", 1)
     if module_ref.endswith(".py") or "/" in module_ref:
@@ -205,7 +220,7 @@ def main() -> None:
     parser.add_argument("--rebuild_docs_cache", action="store_true")
     args = parser.parse_args()
 
-    output_root = Path(args.output_root)
+    output_root = Path(args.output_root).resolve()
     tokenizers_dir = output_root / "tokenizers"
     datasets_dir = output_root / "datasets"
     tokenizers_dir.mkdir(parents=True, exist_ok=True)
@@ -213,7 +228,7 @@ def main() -> None:
 
     assert not (args.docs_jsonl and args.rebuild_docs_cache), "--rebuild_docs_cache conflicts with --docs_jsonl"
 
-    docs_jsonl = Path(args.docs_jsonl) if args.docs_jsonl else output_root / "docs_selected.jsonl"
+    docs_jsonl = Path(args.docs_jsonl).resolve() if args.docs_jsonl else output_root / "docs_selected.jsonl"
     build_cache = args.docs_jsonl is None and (args.rebuild_docs_cache or not docs_jsonl.exists())
     if build_cache:
         docs_meta = build_docs_cache(docs_jsonl)
@@ -325,6 +340,8 @@ def main() -> None:
                 "stats": stats,
             }
         )
+
+    manifest = relativize_manifest_paths(manifest, output_root)
 
     manifest_path = output_root / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

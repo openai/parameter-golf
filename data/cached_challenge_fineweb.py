@@ -5,7 +5,7 @@ from huggingface_hub import hf_hub_download
 
 
 REPO_ID = os.environ.get("MATCHED_FINEWEB_REPO_ID", "willdepueoai/parameter-golf")
-REMOTE_ROOT_PREFIX = "matched_10B_docs2m_seed1337"
+REMOTE_ROOT_PREFIX = os.environ.get("MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "datasets")
 LOCAL_ALIAS = os.environ.get("MATCHED_FINEWEB_LOCAL_ALIAS", "challenge_fineweb")
 
 VARIANTS = {
@@ -50,18 +50,28 @@ def get(relative_path: str) -> None:
             repo_type="dataset",
             local_dir=local_dir,
         )
+        ensure_local_layout()
 
 
-def ensure_local_alias() -> None:
+def ensure_local_layout() -> None:
     local_dir = os.path.dirname(__file__)
     remote_root = os.path.join(local_dir, REMOTE_ROOT_PREFIX)
     alias_root = os.path.join(local_dir, LOCAL_ALIAS)
-    if os.path.exists(alias_root):
+    remote_exists = os.path.lexists(remote_root)
+    alias_exists = os.path.lexists(alias_root)
+    if remote_exists and alias_exists:
         if os.path.realpath(alias_root) != os.path.realpath(remote_root):
-            raise FileExistsError(f"Local alias already exists and points elsewhere: {alias_root}")
+            raise FileExistsError(
+                f"Local dataset roots disagree: {remote_root} and {alias_root} point to different locations"
+            )
         return
-    alias_target = os.path.relpath(remote_root, os.path.dirname(alias_root))
-    os.symlink(alias_target, alias_root)
+    if alias_exists:
+        remote_target = os.path.relpath(alias_root, os.path.dirname(remote_root))
+        os.symlink(remote_target, remote_root)
+        return
+    if remote_exists:
+        alias_target = os.path.relpath(remote_root, os.path.dirname(alias_root))
+        os.symlink(alias_target, alias_root)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -99,7 +109,7 @@ def main() -> None:
             f"requested {args.train_shards}"
         )
 
-    ensure_local_alias()
+    ensure_local_layout()
 
     if not args.skip_manifest:
         get(f"{REMOTE_ROOT_PREFIX}/manifest.json")
@@ -113,6 +123,7 @@ def main() -> None:
     tokenizer_prefix = f"{REMOTE_ROOT_PREFIX}/tokenizers"
     for tokenizer_file in variant["tokenizer_files"]:
         get(f"{tokenizer_prefix}/{tokenizer_file}")
+    ensure_local_layout()
 
 
 if __name__ == "__main__":
