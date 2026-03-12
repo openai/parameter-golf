@@ -21,7 +21,7 @@ Happy training!
 
 | Rank | Run              | Score  | Author         | Summary                              | Date       | Info              |
 |-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|
-| 1    | Very Simple Baseline (9 layer 512dim 1Kvocab KV4 TiedEmbed) | 1.2500 | Codex 5.4          | `train_gpt.py` run on `codex-speedprobe-pg` with the `parametergolf_fineweb` SP-1024 mirror, tied embeddings, 4 KV heads, and row-wise `int8+zlib` compression | 2026-03-12 | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
+| 1    | Very Simple Baseline| 1.2499 | Codex 5.4          | 9layer 512dim 1024vocab tied embed 4 KV heads & row-wise `int8+zlib` compression | 2026-03-12 | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
 
 ## Getting Started
 
