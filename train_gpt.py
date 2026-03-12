@@ -275,7 +275,7 @@ def eval_val(
     val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
     if val_steps <= 0:
         raise ValueError("Validation requires at least one step; check VAL_TOKENS and VAL_BATCH_SIZE")
-    val_loader = DistributedTokenLoader(args.val_files, rank, world_size, device, align_to_bos=False)
+    val_loader = DistributedTokenLoader(args.val_files, rank, world_size, device)
     val_loss = torch.zeros((), device=device)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -283,9 +283,9 @@ def eval_val(
     model.eval()
     with torch.no_grad():
         for _ in range(val_steps):
-            x, y, doc_ids = val_loader.next_batch(args.val_batch_size, args.train_seq_len, grad_accum_steps)
+            x, y = val_loader.next_batch(args.val_batch_size, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                val_loss += model(x, y, doc_ids).detach()
+                val_loss += model(x, y).detach()
             val_token_count += float(y.numel())
             prev_ids = x.reshape(-1)
             tgt_ids = y.reshape(-1)
@@ -458,81 +458,47 @@ def load_data_shard(file: Path) -> Tensor:
     return tokens
 
 
-class DistributedTokenLoader:
-    # Each rank instantiates the same loader state locally. Batch construction walks shards
-    # in a deterministic shared order, then each rank selects its own disjoint slice.
-    def __init__(
-        self,
-        pattern: str,
-        rank: int,
-        world_size: int,
-        device: torch.device,
-        *,
-        align_to_bos: bool,
-        bos_token_id: int | None = None,
-    ):
-        self.rank = rank
-        self.world_size = world_size
-        self.device = device
-        self.pattern = pattern
-        self.align_to_bos = align_to_bos
-        self.bos_token_id = bos_token_id
+class TokenStream:
+    # Reads shards sequentially and wraps around forever. The training loop therefore
+    # has deterministic, simple streaming behavior with no sampling or workers.
+    def __init__(self, pattern: str):
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
         if not self.files:
             raise FileNotFoundError(f"No files found for pattern: {pattern}")
-        if self.align_to_bos and (self.bos_token_id is None or self.bos_token_id < 0):
-            raise ValueError(f"align_to_bos requires a valid BOS token id, got {self.bos_token_id}")
         self.file_idx = 0
-        self.tokens: Tensor | None = None
+        self.tokens = load_data_shard(self.files[0])
         self.pos = 0
-        self.shard: BOSAlignedShard | None = None
-        self._load_file(self.file_idx)
 
-    def _load_file(self, file_idx: int) -> None:
-        self.file_idx = file_idx
-        self.tokens = load_data_shard(self.files[file_idx])
+    def _advance_file(self) -> None:
+        self.file_idx = (self.file_idx + 1) % len(self.files)
+        self.tokens = load_data_shard(self.files[self.file_idx])
         self.pos = 0
-        self.shard = BOSAlignedShard(self.tokens, self.bos_token_id) if self.align_to_bos else None
 
-    def _advance_file(self) -> bool:
-        next_idx = self.file_idx + 1
-        if next_idx >= len(self.files):
-            return False
-        self._load_file(next_idx)
-        return True
+    def take(self, n: int) -> Tensor:
+        chunks: list[Tensor] = []
+        remaining = n
+        while remaining > 0:
+            avail = self.tokens.numel() - self.pos
+            if avail <= 0:
+                self._advance_file()
+                continue
+            k = min(remaining, avail)
+            chunks.append(self.tokens[self.pos : self.pos + k])
+            self.pos += k
+            remaining -= k
+        return chunks[0] if len(chunks) == 1 else torch.cat(chunks)
 
-    def _next_aligned_batch(self, local_tokens: int, seq_len: int) -> tuple[Tensor, Tensor, Tensor]:
-        assert self.shard is not None
-        num_sequences = local_tokens // seq_len
-        rank_inputs: list[Tensor] = []
-        rank_targets: list[Tensor] = []
-        rank_doc_ids: list[Tensor] = []
-        for r in range(self.world_size):
-            for _ in range(num_sequences):
-                buf, doc_ids = self.shard.take_sequence(seq_len)
-                if r == self.rank:
-                    rank_inputs.append(buf[:-1].to(dtype=torch.int64))
-                    rank_targets.append(buf[1:].to(dtype=torch.int64))
-                    rank_doc_ids.append(doc_ids)
-        return (
-            torch.stack(rank_inputs),
-            torch.stack(rank_targets),
-            torch.stack(rank_doc_ids),
-        )
 
-    def _next_unaligned_batch(self, local_tokens: int, seq_len: int) -> tuple[Tensor, Tensor, None]:
-        assert self.tokens is not None
-        global_span = local_tokens * self.world_size
-        if self.pos + global_span + 1 >= self.tokens.numel():
-            raise StopIteration(f"Insufficient tokens ahead in {self.files[self.file_idx]}")
-        start = self.pos + self.rank * local_tokens
-        buf = self.tokens[start : start + local_tokens + 1].to(dtype=torch.int64)
-        self.pos += global_span
-        x = buf[:-1].reshape(-1, seq_len)
-        y = buf[1:].reshape(-1, seq_len)
-        return x, y, None
+class DistributedTokenLoader:
+    # Each call consumes a contiguous chunk from the shared token stream, then slices out
+    # one disjoint span per rank. The extra "+1" token lets us build (x, y) by shifting.
+    def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
+        self.rank = rank
+        self.world_size = world_size
+        self.device = device
+        self.stream = TokenStream(pattern)
 
-    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor, Tensor | None]:
+    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
         local_tokens = validate_batch_layout(
             "global_tokens",
             global_tokens,
@@ -540,73 +506,13 @@ class DistributedTokenLoader:
             self.world_size,
             grad_accum_steps,
         )
-        while True:
-            try:
-                x, y, doc_ids = (
-                    self._next_aligned_batch(local_tokens, seq_len)
-                    if self.align_to_bos
-                    else self._next_unaligned_batch(local_tokens, seq_len)
-                )
-                return (
-                    x.to(self.device, non_blocking=True),
-                    y.to(self.device, non_blocking=True),
-                    None if doc_ids is None else doc_ids.to(self.device, non_blocking=True),
-                )
-            except StopIteration as exc:
-                if not self._advance_file():
-                    mode = "BOS-aligned" if self.align_to_bos else "finite"
-                    raise RuntimeError(
-                        f"Exhausted {mode} shards for pattern {self.pattern} before producing the next batch"
-                    ) from exc
-
-
-class BOSAlignedShard:
-    def __init__(self, tokens: Tensor, bos_token_id: int | None):
-        if bos_token_id is None or bos_token_id < 0:
-            raise ValueError(f"Invalid BOS token id for BOS-aligned loading: {bos_token_id}")
-        self.tokens = tokens
-        self.size = int(tokens.numel())
-        self.cursor = 0
-        self.bos_idx = (
-            (tokens == bos_token_id).nonzero(as_tuple=True)[0].to(torch.int64).cpu().tolist()
-        )
-        if not self.bos_idx:
-            raise ValueError(f"Shard does not contain BOS token id {bos_token_id}")
-
-    def take_sequence(self, seq_len: int) -> tuple[Tensor, Tensor]:
-        remaining = seq_len + 1
-        pieces: list[Tensor] = []
-        segment_lengths: list[int] = []
-        while remaining > 0:
-            if self.cursor >= len(self.bos_idx):
-                raise StopIteration("Insufficient BOS ahead; hit tail of shard.")
-            start = self.bos_idx[self.cursor]
-            end = self.bos_idx[self.cursor + 1] if self.cursor + 1 < len(self.bos_idx) else self.size
-            take_end = min(end, start + remaining)
-            piece = self.tokens[start:take_end]
-            take_len = int(piece.numel())
-            self.cursor += 1
-            if take_len <= 0:
-                continue
-            pieces.append(piece)
-            segment_lengths.append(take_len)
-            remaining -= take_len
-
-        buf = pieces[0] if len(pieces) == 1 else torch.cat(pieces)
-        if buf.numel() != seq_len + 1:
-            raise RuntimeError(f"Expected {seq_len + 1} packed tokens, got {buf.numel()}")
-
-        doc_ids = torch.empty(seq_len, dtype=torch.int32)
-        pos = 0
-        for doc_id, seg_len in enumerate(segment_lengths):
-            take = min(seg_len, seq_len - pos)
-            if take <= 0:
-                break
-            doc_ids[pos : pos + take] = doc_id
-            pos += take
-        if pos != seq_len:
-            raise RuntimeError(f"Expected {seq_len} doc ids, filled {pos}")
-        return buf, doc_ids
+        per_rank_span = local_tokens + 1
+        chunk = self.stream.take(per_rank_span * self.world_size)
+        start = self.rank * per_rank_span
+        local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
+        return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
 
 # -----------------------------
 # TRANSFORMER MODULES
@@ -661,20 +567,6 @@ class Rotary(nn.Module):
         return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
 
 
-class CausalMaskCache(nn.Module):
-    # Caches a lower-triangular boolean mask per sequence length/device.
-    def __init__(self):
-        super().__init__()
-        self._seq_len_cached = 0
-        self._mask_cached: Tensor | None = None
-
-    def forward(self, seq_len: int, device: torch.device) -> Tensor:
-        if self._mask_cached is None or self._seq_len_cached != seq_len or self._mask_cached.device != device:
-            self._mask_cached = torch.ones((seq_len, seq_len), dtype=torch.bool, device=device).tril()
-            self._seq_len_cached = seq_len
-        return self._mask_cached
-
-
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     half = x.size(-1) // 2
     x1, x2 = x[..., :half], x[..., half:]
@@ -701,9 +593,8 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.v_mix = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
-        self.causal_mask = CausalMaskCache()
 
-    def forward(self, x: Tensor, v1: Tensor | None, doc_attn_mask: Tensor | None) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
@@ -716,17 +607,12 @@ class CausalSelfAttention(nn.Module):
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
-        attn_mask = None
-        is_causal = True
-        if doc_attn_mask is not None:
-            attn_mask = doc_attn_mask & self.causal_mask(seqlen, x.device)[None, None, :, :]
-            is_causal = False
         y = F.scaled_dot_product_attention(
             q,
             k,
             v,
-            attn_mask=attn_mask,
-            is_causal=is_causal,
+            attn_mask=None,
+            is_causal=True,
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
@@ -756,10 +642,10 @@ class Block(nn.Module):
         self.mlp = MLP(dim, mlp_mult)
         self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
 
-    def forward(self, x: Tensor, x0: Tensor, v1: Tensor | None, doc_attn_mask: Tensor | None) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, x0: Tensor, v1: Tensor | None) -> tuple[Tensor, Tensor]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
-        attn_out, v1 = self.attn(self.attn_norm(x), v1, doc_attn_mask)
+        attn_out, v1 = self.attn(self.attn_norm(x), v1)
         x = x + attn_out
         x = x + self.mlp(self.mlp_norm(x))
         return x, v1
@@ -804,10 +690,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, doc_ids: Tensor | None = None) -> Tensor:
-        doc_attn_mask = None
-        if doc_ids is not None:
-            doc_attn_mask = doc_ids[:, None, :, None].eq(doc_ids[:, None, None, :])
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -816,12 +699,12 @@ class GPT(nn.Module):
 
         # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
-            x, v1 = self.blocks[i](x, x0, v1, doc_attn_mask)
+            x, v1 = self.blocks[i](x, x0, v1)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype) * skips.pop()
-            x, v1 = self.blocks[self.num_encoder_layers + i](x, x0, v1, doc_attn_mask)
+            x, v1 = self.blocks[self.num_encoder_layers + i](x, x0, v1)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -882,7 +765,7 @@ def main() -> None:
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
     enable_mem_efficient_sdp(False)
-    enable_math_sdp(True)
+    enable_math_sdp(False)
 
     logfile = None
     if master_process:
@@ -924,15 +807,11 @@ def main() -> None:
         raise ValueError(
             f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
         )
-    bos_token_id = int(sp.bos_id())
-    if not 0 <= bos_token_id < args.vocab_size:
-        raise ValueError(f"Tokenizer must expose a BOS id inside the vocab range, got {bos_token_id}")
     validate_dataset_tokenizer_pair(args.data_path, args.tokenizer_path)
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size, device
     )
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
-    log0(f"train_alignment:bos bos_token_id:{bos_token_id}")
 
     # -----------------------------
     # MODEL + OPTIMIZER SETUP
@@ -1001,7 +880,7 @@ def main() -> None:
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=True")
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -1019,14 +898,7 @@ def main() -> None:
     # DATA LOADER & MODEL WARMUP
     # -----------------------------
 
-    train_loader = DistributedTokenLoader(
-        args.train_files,
-        rank,
-        world_size,
-        device,
-        align_to_bos=True,
-        bos_token_id=bos_token_id,
-    )
+    train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     def zero_grad_all() -> None:
         for opt in optimizers:
@@ -1052,9 +924,9 @@ def main() -> None:
             for micro_step in range(grad_accum_steps):
                 if distributed:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
-                x, y, doc_ids = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_loss = model(x, y, doc_ids)
+                    warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -1067,14 +939,7 @@ def main() -> None:
         zero_grad_all()
         if distributed:
             model.require_backward_grad_sync = True
-        train_loader = DistributedTokenLoader(
-            args.train_files,
-            rank,
-            world_size,
-            device,
-            align_to_bos=True,
-            bos_token_id=bos_token_id,
-        )
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     # -----------------------------
     # MAIN TRAINING LOOP
@@ -1083,7 +948,6 @@ def main() -> None:
     training_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     stop_after_step: int | None = None
-
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1128,9 +992,9 @@ def main() -> None:
         for micro_step in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
-            x, y, doc_ids = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y, doc_ids)
+                loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
@@ -1162,12 +1026,10 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
-
-        # Ugly hack to fix a deadlock, fix later.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
         if distributed and max_wallclock_ms is not None:
-            reached_cap_tensor = torch.tensor(int(rank == 0 and reached_cap), device=device)
-            dist.broadcast(reached_cap_tensor, src=0)
+            reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
+            dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
             reached_cap = bool(reached_cap_tensor.item())
         if stop_after_step is None and reached_cap:
             stop_after_step = step
