@@ -21,7 +21,7 @@ Happy training!
 
 | Rank | Run              | Score  | Author         | Summary                              | Date       | Info              |
 |-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|
-| 1    | 9 layer 512dim 1Kvocab KV4 TiedEmbed | 1.2461 | Codex 5.4          | `train_gpt.py` default run with tied embeddings, 4 KV heads, and row-wise `int8+zlib` compression | 2026-03-11 | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
+| 1    | Very Simple Baseline (9 layer 512dim 1Kvocab KV4 TiedEmbed) | 1.2461 | Codex 5.4          | `train_gpt.py` default run with tied embeddings, 4 KV heads, and row-wise `int8+zlib` compression | 2026-03-11 | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
 
 ## Getting Started
 
