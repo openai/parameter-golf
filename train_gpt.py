@@ -236,28 +236,6 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> None
             )
 
 
-def validate_batch_layout(name: str, global_tokens: int, seq_len: int, world_size: int, grad_accum_steps: int) -> int:
-    if global_tokens <= 0:
-        raise ValueError(f"{name} must be positive, got {global_tokens}")
-    if seq_len <= 0:
-        raise ValueError(f"seq_len must be positive, got {seq_len}")
-    if world_size <= 0:
-        raise ValueError(f"world_size must be positive, got {world_size}")
-    if grad_accum_steps <= 0:
-        raise ValueError(f"grad_accum_steps must be positive, got {grad_accum_steps}")
-
-    denom = world_size * grad_accum_steps
-    if global_tokens % denom != 0:
-        raise ValueError(f"{name}={global_tokens} must be divisible by world_size*grad_accum_steps={denom}")
-
-    local_tokens = global_tokens // denom
-    if local_tokens % seq_len != 0:
-        raise ValueError(
-            f"{name}={global_tokens} gives local_tokens={local_tokens}, which must be divisible by seq_len={seq_len}"
-        )
-    return local_tokens
-
-
 def eval_val(
     args: Hyperparameters,
     model: nn.Module,
@@ -499,13 +477,7 @@ class DistributedTokenLoader:
         self.stream = TokenStream(pattern)
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
-        local_tokens = validate_batch_layout(
-            "global_tokens",
-            global_tokens,
-            seq_len,
-            self.world_size,
-            grad_accum_steps,
-        )
+        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
         per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
@@ -742,8 +714,6 @@ def main() -> None:
         raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
     grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
-    validate_batch_layout("TRAIN_BATCH_TOKENS", args.train_batch_tokens, args.train_seq_len, world_size, grad_accum_steps)
-    validate_batch_layout("VAL_BATCH_SIZE", args.val_batch_size, args.train_seq_len, world_size, grad_accum_steps)
     if args.val_tokens <= 0:
         raise ValueError(f"VAL_TOKENS must be positive, got {args.val_tokens}")
     if args.val_tokens % args.val_batch_size != 0:
