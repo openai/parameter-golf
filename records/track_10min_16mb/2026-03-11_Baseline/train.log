@@ -1,9 +1,16 @@
+"""
+The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
+"""
+
 from __future__ import annotations
 
+import copy
 import glob
 import io
+import json
 import math
 import os
+import random
 import subprocess
 import sys
 import time
@@ -20,204 +27,47 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-
-SHARD_MAGIC = 20240520
-SHARD_VERSION = 1
-SHARD_HEADER_INTS = 256
-
-
-def resolve_token_shard_files(pattern: str) -> list[Path]:
-    files = [Path(p) for p in sorted(glob.glob(pattern))]
-    if not files:
-        raise FileNotFoundError(f"No files found for pattern: {pattern}")
-    return files
-
-
-def build_sentencepiece_bpb_lut_arrays(
-    tokenizer_path: str,
-    model_vocab_size: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    sp = spm.SentencePieceProcessor(model_file=tokenizer_path)
-    sp_vocab_size = int(sp.vocab_size())
-    table_size = max(sp_vocab_size, model_vocab_size)
-
-    base_bytes = np.zeros((table_size,), dtype=np.int16)
-    has_leading_space = np.zeros((table_size,), dtype=np.bool_)
-    is_boundary_token = np.ones((table_size,), dtype=np.bool_)
-
-    for token_id in range(sp_vocab_size):
-        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
-            continue
-        is_boundary_token[token_id] = False
-        if sp.is_byte(token_id):
-            base_bytes[token_id] = 1
-            continue
-        piece = sp.id_to_piece(token_id)
-        if piece.startswith("▁"):
-            has_leading_space[token_id] = True
-            piece = piece[1:]
-        base_bytes[token_id] = len(piece.encode("utf-8"))
-
-    return base_bytes, has_leading_space, is_boundary_token
-
-
-def bytes_per_token_np(
-    input_ids: np.ndarray,
-    target_ids: np.ndarray,
-    base_bytes_lut: np.ndarray,
-    has_space_lut: np.ndarray,
-    boundary_lut: np.ndarray,
-) -> np.ndarray:
-    prev_ids = input_ids.reshape(-1)
-    tgt_ids = target_ids.reshape(-1)
-    out = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
-    out += (has_space_lut[tgt_ids] & ~boundary_lut[prev_ids]).astype(np.int16, copy=False)
-    return out.reshape(target_ids.shape)
-
-
-# Do we still need this?
-def _ensure_triton_key_compat() -> None:
-    """Patch Triton 3.6+ builds that dropped `triton_key` export used by torch 2.6."""
-    try:
-        import triton
-        from triton.compiler import compiler as triton_compiler
-    except Exception:
-        return
-    if hasattr(triton_compiler, "triton_key"):
-        return
-
-    def _triton_key() -> str:
-        return getattr(triton_compiler, "__version__", None) or getattr(triton, "__version__", "unknown-triton")
-
-    triton_compiler.triton_key = _triton_key  # type: ignore[attr-defined]
-
-
-def _ensure_triton_attrs_descriptor_compat() -> None:
-    """Patch Triton 3.6+ attr descriptors so Inductor's `equal_to_1` access still works."""
-    try:
-        import torch._inductor.codegen.triton_utils as triton_utils
-        import torch._inductor.codegen.triton as triton_codegen
-        import torch._inductor.runtime.hints as runtime_hints
-    except Exception:
-        return
-
-    class _AttrsDescriptorCompat(dict):
-        def __init__(self, divisible_by_16=(), equal_to_1=()):
-            super().__init__({(x,): [["tt.divisibility", 16]] for x in divisible_by_16})
-            self.divisible_by_16 = tuple(divisible_by_16 or ())
-            self.equal_to_1 = list(equal_to_1 or ())
-
-    def _wrapper(divisible_by_16=None, equal_to_1=None):
-        return _AttrsDescriptorCompat(divisible_by_16, equal_to_1)
-
-    runtime_hints.AttrsDescriptorWrapper = _wrapper  # type: ignore[assignment]
-    triton_utils.AttrsDescriptorWrapper = _wrapper  # type: ignore[assignment]
-    triton_codegen.AttrsDescriptorWrapper = _wrapper  # type: ignore[attr-defined]
-
-
-def _ensure_triton_launch_hook_compat() -> None:
-    """Patch Triton 3.6+ launch hooks back onto `CompiledKernel` for Torch 2.6."""
-    try:
-        import triton.knobs as triton_knobs
-        from triton.compiler import compiler as triton_compiler
-    except Exception:
-        return
-    if not hasattr(triton_compiler, "CompiledKernel"):
-        return
-    enter_hook = getattr(triton_knobs, "launch_enter_hook", None)
-    exit_hook = getattr(triton_knobs, "launch_exit_hook", None)
-    if enter_hook is None:
-        def enter_hook(*args, **kwargs):  # type: ignore[no-redef]
-            return None
-    if exit_hook is None:
-        def exit_hook(*args, **kwargs):  # type: ignore[no-redef]
-            return None
-    if not hasattr(triton_compiler.CompiledKernel, "launch_enter_hook"):
-        triton_compiler.CompiledKernel.launch_enter_hook = enter_hook  # type: ignore[attr-defined]
-    if not hasattr(triton_compiler.CompiledKernel, "launch_exit_hook"):
-        triton_compiler.CompiledKernel.launch_exit_hook = exit_hook  # type: ignore[attr-defined]
-
-
-def _ensure_triton_compiled_kernel_compat() -> None:
-    """Patch Triton compiled kernels so Inductor can read launch metadata on newer images."""
-    try:
-        from triton.compiler import compiler as triton_compiler
-    except Exception:
-        return
-    if not hasattr(triton_compiler, "CompiledKernel"):
-        return
-    compiled_kernel = triton_compiler.CompiledKernel
-    if not hasattr(compiled_kernel, "num_ctas"):
-        compiled_kernel.num_ctas = property(  # type: ignore[attr-defined]
-            lambda self: getattr(getattr(self, "metadata", None), "num_ctas", 1)
-        )
-    if not hasattr(compiled_kernel, "cluster_dims"):
-        compiled_kernel.cluster_dims = property(  # type: ignore[attr-defined]
-            lambda self: getattr(
-                getattr(self, "metadata", None),
-                "cluster_dims",
-                getattr(getattr(self, "metadata", None), "clusterDims", (1, 1, 1)),
-            )
-        )
-    if not hasattr(compiled_kernel, "clusterDims"):
-        compiled_kernel.clusterDims = property(  # type: ignore[attr-defined]
-            lambda self: getattr(self, "cluster_dims")
-        )
-
-
-_ensure_triton_key_compat()
-_ensure_triton_attrs_descriptor_compat()
-_ensure_triton_launch_hook_compat()
-_ensure_triton_compiled_kernel_compat()
-
-DEFAULT_CHALLENGE_DATA_ROOT = (
-    "./data/challenge_fineweb"
-    if os.path.exists("./data/challenge_fineweb")
-    else "./data/matched_10B_docs2m_seed1337"
-)
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    return raw.lower() in {"1", "true", "yes", "y", "on"}
-
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
+# Default baseline / record-style run:
+# - 9 transformer blocks at width 512
+# - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
+# - vocab size 1024, sequence length 1024, tied embeddings
+# - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
 
 @dataclass
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
-    data_path: str = os.environ.get("DATA_PATH", "./data/matched_10B_docs2m_seed1337/datasets/fineweb10B_sp2048")
+    data_path: str = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files: str = os.path.join(data_path, "fineweb_train_*.bin")
     val_files: str = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/matched_10B_docs2m_seed1337/tokenizers/fineweb_2048_bpe.model")
+    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
+    seed: int = int(os.environ.get("SEED", 1337))
 
     # Validation cadence and budget.
     val_tokens: int = int(os.environ.get("VAL_TOKENS", 10_485_760))
-    val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 64 * 1024 * 8))
-    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 125))
-    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 25))
+    val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
+    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
-    iterations: int = int(os.environ.get("ITERATIONS", 10000))
+    iterations: int = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 900))
-    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", int(os.environ.get("TIMING_WARMUP_STEPS", 50))))
-    train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 8 * 64 * 1024))
+    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
+    train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
-    max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0.0))
+    max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
 
     # Model shape.
-    vocab_size: int = int(os.environ.get("VOCAB_SIZE", 2048))
-    num_layers: int = int(os.environ.get("NUM_LAYERS", 11))
-    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 2))
+    vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
+    num_layers: int = int(os.environ.get("NUM_LAYERS", 9))
+    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim: int = int(os.environ.get("MODEL_DIM", 512))
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult: int = int(os.environ.get("MLP_MULT", 4))
-    tie_embeddings: bool = _env_bool("TIE_EMBEDDINGS", False)
+    mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
+    tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
@@ -242,6 +92,7 @@ class Hyperparameters:
 # -----------------------------
 # 
 # As borrowed from modded-nanogpt
+# Background on Muon: https://kellerjordan.github.io/posts/muon/
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
@@ -327,6 +178,113 @@ class Muon(torch.optim.Optimizer):
 # We calculate BPB (bits-per-byte) instead of validation loss, so we need methods to count the number of bits per token in the tokenizer.
 # Note: Submissions that edit the tokenizer will be examined more carefully, since screwing this up might unjustly improve your score.
 
+def build_sentencepiece_luts(
+    sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
+) -> tuple[Tensor, Tensor, Tensor]:
+    sp_vocab_size = int(sp.vocab_size())
+    table_size = max(sp_vocab_size, vocab_size)
+    base_bytes_np = np.zeros((table_size,), dtype=np.int16)
+    has_leading_space_np = np.zeros((table_size,), dtype=np.bool_)
+    is_boundary_token_np = np.ones((table_size,), dtype=np.bool_)
+    for token_id in range(sp_vocab_size):
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+            continue
+        is_boundary_token_np[token_id] = False
+        if sp.is_byte(token_id):
+            base_bytes_np[token_id] = 1
+            continue
+        piece = sp.id_to_piece(token_id)
+        if piece.startswith("▁"):
+            has_leading_space_np[token_id] = True
+            piece = piece[1:]
+        base_bytes_np[token_id] = len(piece.encode("utf-8"))
+    return (
+        torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
+        torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
+        torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
+    )
+
+
+def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> None:
+    # The shard directory and tokenizer are coupled: val_bpb is only meaningful if we
+    # decode bytes with the exact tokenizer that produced the shards. The manifest
+    # lets the training script fail fast on accidental dataset/tokenizer mismatches.
+    dataset_dir = Path(data_path).resolve()
+    if len(dataset_dir.parents) < 2:
+        return
+    manifest_path = dataset_dir.parents[1] / "manifest.json"
+    if not manifest_path.is_file():
+        return
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == dataset_dir.name), None)
+    if dataset_entry is None:
+        return
+
+    tokenizer_name = dataset_entry.get("tokenizer_name")
+    tokenizer_entry = (
+        next((x for x in manifest.get("tokenizers", []) if x.get("name") == tokenizer_name), None)
+        if tokenizer_name
+        else None
+    )
+    expected_name = Path((tokenizer_entry or {}).get("model_path") or (tokenizer_entry or {}).get("path") or "").name
+    if expected_name and Path(tokenizer_path).name != expected_name:
+        raise ValueError(f"{dataset_dir.name} expects tokenizer {expected_name}, got {Path(tokenizer_path).name}")
+    expected_train_files = (dataset_entry.get("stats") or {}).get("files_train")
+    if expected_train_files is not None:
+        actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+        if actual_train_files != int(expected_train_files):
+            raise ValueError(
+                f"{dataset_dir.name} is incomplete: found {actual_train_files} train shards, "
+                f"expected {int(expected_train_files)}"
+            )
+
+
+def eval_val(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    # Validation computes two metrics:
+    # - val_loss: token cross-entropy (natural log)
+    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
+    if val_steps <= 0:
+        raise ValueError("Validation requires at least one step; check VAL_TOKENS and VAL_BATCH_SIZE")
+    val_loader = DistributedTokenLoader(args.val_files, rank, world_size, device)
+    val_loss = torch.zeros((), device=device)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.no_grad():
+        for _ in range(val_steps):
+            x, y = val_loader.next_batch(args.val_batch_size, args.train_seq_len, grad_accum_steps)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                val_loss += model(x, y).detach()
+            val_token_count += float(y.numel())
+            prev_ids = x.reshape(-1)
+            tgt_ids = y.reshape(-1)
+            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    val_loss /= val_steps
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
 # -----------------------------
 # POST-TRAINING QUANTIZATION
 # -----------------------------
@@ -335,20 +293,14 @@ class Muon(torch.optim.Optimizer):
 # Instead, we get approximately the same model (with a small hit) by quantizing the model to int8 & zlib compressing.
 # We can then decompress the model and run in higher precision for evaluation, after closing in under the size limit.
 
-
-def tensor_nbytes(t: Tensor) -> int:
-    return int(t.numel()) * int(t.element_size())
-
-
-# Fixed export scheme used for the 16,000,000-byte-cap KV2 submission path.
-# Keeping this hardcoded avoids dragging the full train_gpt.py quantization flag surface
-# into the clean script.
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.999
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 
+def tensor_nbytes(t: Tensor) -> int:
+    return int(t.numel()) * int(t.element_size())
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     # Single supported clean-script export format:
@@ -378,6 +330,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         stats["baseline_tensor_bytes"] += tensor_nbytes(t)
 
         if t.is_floating_point():
+            # Small float tensors are cheap enough to keep directly. We still downcast
+            # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
             if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
                 kept = t
                 if kept.dtype in {torch.float32, torch.bfloat16}:
@@ -390,6 +344,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             stats["num_float_tensors"] += 1
             t32 = t.float()
             if t32.ndim == 2:
+                # Matrices get one scale per row, which usually tracks output-channel
+                # ranges much better than a single tensor-wide scale.
                 abs_t = t32.abs()
                 if t32.numel():
                     clip_abs = torch.quantile(abs_t, INT8_CLIP_Q, dim=1)
@@ -402,6 +358,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
                 s = scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
                 qmeta[name] = {"scheme": "per_row", "axis": 0}
             else:
+                # Vectors / scalars use a simpler per-tensor scale.
                 max_abs = 0.0
                 if t32.numel():
                     abs_t = t32.abs()
@@ -436,7 +393,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
     return obj, stats
 
-
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
@@ -446,11 +402,13 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         meta = qmeta.get(name, {"scheme": "per_tensor"})
         if meta.get("scheme") == "per_row":
             s = obj["scales"][name].to(dtype=torch.float32)
+            # Broadcast the saved row scale back across trailing dimensions.
             out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
             scale = float(obj["scales"][name].item())
             out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
     for name, t in obj["passthrough"].items():
+        # Restore small tensors, undoing the temporary fp16 storage cast if needed.
         out_t = t.detach().to("cpu").contiguous()
         orig_dtype = passthrough_orig_dtypes.get(name)
         if isinstance(orig_dtype, str):
@@ -464,16 +422,21 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 # -----------------------------
 
 def load_data_shard(file: Path) -> Tensor:
-    # Shard layout is a tiny int32 header + uint16 token payload. We keep this explicit
-    # so newcomers can see the file format assumptions directly in one place.
-    header = torch.from_file(str(file), shared=False, size=SHARD_HEADER_INTS, dtype=torch.int32)
-    if int(header[0]) != SHARD_MAGIC or int(header[1]) != SHARD_VERSION:
+    header_bytes = 256 * np.dtype(np.int32).itemsize
+    token_bytes = np.dtype(np.uint16).itemsize
+    header = np.fromfile(file, dtype=np.int32, count=256)
+    # SHARD HEADER INTS & SHARD_MAGIC
+    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
         raise ValueError(f"Unexpected shard header for {file}")
     num_tokens = int(header[2])
+    expected_size = header_bytes + num_tokens * token_bytes
+    if file.stat().st_size != expected_size:
+        raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
     with file.open("rb", buffering=0) as f:
         tokens = torch.empty(num_tokens, dtype=torch.uint16)
-        f.seek(SHARD_HEADER_INTS * 4)
-        f.readinto(tokens.numpy())
+        f.seek(header_bytes)
+        if f.readinto(tokens.numpy()) != num_tokens * token_bytes:
+            raise ValueError(f"Short read for {file}")
     return tokens
 
 
@@ -481,7 +444,9 @@ class TokenStream:
     # Reads shards sequentially and wraps around forever. The training loop therefore
     # has deterministic, simple streaming behavior with no sampling or workers.
     def __init__(self, pattern: str):
-        self.files = resolve_token_shard_files(pattern)
+        self.files = [Path(p) for p in sorted(glob.glob(pattern))]
+        if not self.files:
+            raise FileNotFoundError(f"No files found for pattern: {pattern}")
         self.file_idx = 0
         self.tokens = load_data_shard(self.files[0])
         self.pos = 0
@@ -517,10 +482,7 @@ class DistributedTokenLoader:
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
         local_tokens = global_tokens // (self.world_size * grad_accum_steps)
-        usable_tokens = (local_tokens // seq_len) * seq_len
-        if usable_tokens == 0:
-            raise ValueError(f"train/val token budget too small for seq_len={seq_len}")
-        per_rank_span = usable_tokens + 1
+        per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
         local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
@@ -546,6 +508,14 @@ class CastedLinear(nn.Linear):
     def forward(self, x: Tensor) -> Tensor:
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, self.weight.to(x.dtype), bias)
+
+
+def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
+    # Keep scalar/vector control parameters in fp32 even when the model body runs in bf16.
+    with torch.no_grad():
+        for param in module.parameters():
+            if param.ndim < 2 and param.dtype != torch.float32:
+                param.data = param.data.float()
 
 
 class Rotary(nn.Module):
@@ -678,7 +648,8 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.skip_weights = nn.Parameter(torch.ones(self.num_decoder_layers))
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights))
         self.blocks = nn.ModuleList(
             [Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base) for _ in range(num_layers)]
         )
@@ -733,10 +704,24 @@ def main() -> None:
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
+    # -----------------------------
+    # DISTRIBUTED + CUDA SETUP
+    # -----------------------------
+
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if world_size <= 0:
+        raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
+    grad_scale = 1.0 / grad_accum_steps
+    if args.val_tokens <= 0:
+        raise ValueError(f"VAL_TOKENS must be positive, got {args.val_tokens}")
+    if args.val_tokens % args.val_batch_size != 0:
+        raise ValueError(f"VAL_TOKENS={args.val_tokens} must be divisible by VAL_BATCH_SIZE={args.val_batch_size}")
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
     device = torch.device("cuda", local_rank)
@@ -745,9 +730,6 @@ def main() -> None:
         dist.init_process_group(backend="nccl", device_id=device)
         dist.barrier()
     master_process = rank == 0
-
-    grad_accum_steps = 8 // world_size
-    grad_scale = 1.0 / grad_accum_steps
 
     # Fast math knobs
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -784,15 +766,30 @@ def main() -> None:
     )
     log0("=" * 100, console=False)
 
-    # Build the BPB lookup table once per process/device.
-    base_bytes_np, has_space_np, boundary_np = build_sentencepiece_bpb_lut_arrays(
-        args.tokenizer_path,
-        args.vocab_size,
+    # -----------------------------
+    # TOKENIZER + VALIDATION METRIC SETUP
+    # -----------------------------
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+
+    assert args.tokenizer_path.endswith(".model"), f"Script only setup for SentencePiece .model file: {args.tokenizer_path}"
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        )
+    validate_dataset_tokenizer_pair(args.data_path, args.tokenizer_path)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size, device
     )
-    base_bytes_lut = torch.tensor(base_bytes_np, dtype=torch.int16, device=device)
-    has_space_lut = torch.tensor(has_space_np, dtype=torch.bool, device=device)
-    boundary_lut = torch.tensor(boundary_np, dtype=torch.bool, device=device)
-    log0(f"val_bpb:enabled tokenizer=sentencepiece tokenizer_path={args.tokenizer_path}")
+    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+
+    # -----------------------------
+    # MODEL + OPTIMIZER SETUP
+    # -----------------------------
 
     base_model = GPT(
         vocab_size=args.vocab_size,
@@ -809,6 +806,7 @@ def main() -> None:
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
+    restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -819,7 +817,9 @@ def main() -> None:
     # - vectors/scalars use SCALAR_LR via Adam
     block_params = list(base_model.blocks.parameters())
     matrix_params = [p for p in block_params if p.ndim == 2]
-    scalar_params = [p for p in block_params if p.ndim < 2] + [base_model.skip_weights]
+    scalar_params = [p for p in block_params if p.ndim < 2]
+    if base_model.skip_weights.numel() > 0:
+        scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -866,6 +866,11 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log0(f"seed:{args.seed}")
+
+    # -----------------------------
+    # DATA LOADER & MODEL WARMUP
+    # -----------------------------
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
@@ -882,43 +887,11 @@ def main() -> None:
             return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0)
         return 1.0
 
-    def validate(seq_len: int) -> tuple[float, float]:
-        # We report token NLL and val_bpb every time. val_bpb converts token loss into a
-        # compression-style metric using UTF-8 byte counts reconstructed from SentencePiece tokens.
-        val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
-        val_loader = DistributedTokenLoader(args.val_files, rank, world_size, device)
-        val_loss = torch.zeros((), device=device)
-        val_token_count = torch.zeros((), device=device, dtype=torch.float64)
-        val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
-
-        model.eval()
-        with torch.no_grad():
-            for _ in range(val_steps):
-                x, y = val_loader.next_batch(args.val_batch_size, seq_len, grad_accum_steps)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    val_loss += model(x, y).detach()
-                val_token_count += float(y.numel())
-                prev_ids = x.reshape(-1)
-                tgt_ids = y.reshape(-1)
-                token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
-                token_bytes += (has_space_lut[tgt_ids] & ~boundary_lut[prev_ids]).to(dtype=torch.int16)
-                val_byte_count += token_bytes.to(torch.float64).sum()
-
-        val_loss /= val_steps
-        if distributed:
-            dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
-            dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
-            dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
-
-        bits_per_token = val_loss.item() / math.log(2.0)
-        tokens_per_byte = val_token_count.item() / val_byte_count.item()
-        return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
-
     # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
     # initial weights/optimizer state so measured training starts from the true init.
     if args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
-        initial_optimizer_states = [opt.state_dict() for opt in optimizers]
+        initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
@@ -942,6 +915,10 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
+    # -----------------------------
+    # MAIN TRAINING LOOP
+    # -----------------------------
+
     training_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     stop_after_step: int | None = None
@@ -956,7 +933,17 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = validate(args.train_seq_len)
+            val_loss, val_bpb = eval_val(
+                args,
+                model,
+                rank,
+                world_size,
+                device,
+                grad_accum_steps,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+            )
             if step % 25 == 0 or last_step:
                 log0(
                     f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
@@ -982,8 +969,9 @@ def main() -> None:
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
-            train_loss = loss.detach()
+            train_loss += loss.detach()
             (loss * grad_scale).backward()
+        train_loss /= grad_accum_steps
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -1012,7 +1000,12 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
-        if max_wallclock_ms is not None and stop_after_step is None and approx_training_time_ms >= max_wallclock_ms:
+        reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
+        if distributed and max_wallclock_ms is not None:
+            reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
+            dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
+            reached_cap = bool(reached_cap_tensor.item())
+        if stop_after_step is None and reached_cap:
             stop_after_step = step
 
     log0(
@@ -1020,8 +1013,12 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
+    # -----------------------------
+    # SERIALIZATION + ROUNDTRIP VALIDATION
+    # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
+
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
@@ -1052,7 +1049,17 @@ def main() -> None:
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = validate(args.train_seq_len)
+    q_val_loss, q_val_bpb = eval_val(
+        args,
+        model,
+        rank,
+        world_size,
+        device,
+        grad_accum_steps,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+    )
     torch.cuda.synchronize()
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
@@ -1066,11 +1073,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 ====================================================================================================
 Running Python 3.12.9 (main, Jan 22 2026, 18:37:37) [GCC 13.3.0]
 Running PyTorch 2.10.0+cu128
-Wed Mar 11 17:21:27 2026       
+Thu Mar 12 00:19:07 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 565.57.01              Driver Version: 565.57.01      CUDA Version: 13.0     |
 |-----------------------------------------+------------------------+----------------------+
@@ -1079,35 +1085,35 @@ Wed Mar 11 17:21:27 2026
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA H100 80GB HBM3          On  |   00000001:00:00.0 Off |                    0 |
-| N/A   33C    P0            120W /  700W |    1522MiB /  81559MiB |      0%      Default |
+| N/A   31C    P0            118W /  700W |    1774MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   1  NVIDIA H100 80GB HBM3          On  |   00000002:00:00.0 Off |                    0 |
-| N/A   34C    P0            116W /  700W |    1522MiB /  81559MiB |      0%      Default |
+| N/A   32C    P0            115W /  700W |    1822MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   2  NVIDIA H100 80GB HBM3          On  |   00000003:00:00.0 Off |                    0 |
-| N/A   44C    P0            124W /  700W |    1522MiB /  81559MiB |      0%      Default |
+| N/A   43C    P0            124W /  700W |    1822MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   3  NVIDIA H100 80GB HBM3          On  |   00000008:00:00.0 Off |                    0 |
-| N/A   32C    P0            119W /  700W |    1522MiB /  81559MiB |      0%      Default |
+| N/A   31C    P0            118W /  700W |    1822MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   4  NVIDIA H100 80GB HBM3          On  |   00000009:00:00.0 Off |                    0 |
-| N/A   29C    P0            113W /  700W |    1522MiB /  81559MiB |      0%      Default |
+| N/A   28C    P0            112W /  700W |    1822MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   5  NVIDIA H100 80GB HBM3          On  |   0000000A:00:00.0 Off |                    0 |
-| N/A   33C    P0            117W /  700W |    1522MiB /  81559MiB |      0%      Default |
+| N/A   30C    P0            116W /  700W |    1822MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   6  NVIDIA H100 80GB HBM3          On  |   0000000B:00:00.0 Off |                    0 |
-| N/A   31C    P0            117W /  700W |    1522MiB /  81559MiB |      0%      Default |
+| N/A   30C    P0            116W /  700W |    1822MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   7  NVIDIA H100 80GB HBM3          On  |   0000000C:00:00.0 Off |                    0 |
-| N/A   32C    P0            117W /  700W |    1522MiB /  81559MiB |      0%      Default |
+| N/A   30C    P0            115W /  700W |    1582MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
                                                                                          
@@ -1116,24 +1122,25 @@ Wed Mar 11 17:21:27 2026
 |  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
 |        ID   ID                                                               Usage      |
 |=========================================================================================|
-|    0   N/A  N/A    115021      C   ...t/.pyenv/versions/3.12.9/bin/python       1512MiB |
-|    1   N/A  N/A    115022      C   ...t/.pyenv/versions/3.12.9/bin/python       1512MiB |
-|    2   N/A  N/A    115023      C   ...t/.pyenv/versions/3.12.9/bin/python       1512MiB |
-|    3   N/A  N/A    115024      C   ...t/.pyenv/versions/3.12.9/bin/python       1512MiB |
-|    4   N/A  N/A    115025      C   ...t/.pyenv/versions/3.12.9/bin/python       1512MiB |
-|    5   N/A  N/A    115026      C   ...t/.pyenv/versions/3.12.9/bin/python       1512MiB |
-|    6   N/A  N/A    115027      C   ...t/.pyenv/versions/3.12.9/bin/python       1512MiB |
-|    7   N/A  N/A    115028      C   ...t/.pyenv/versions/3.12.9/bin/python       1512MiB |
+|    0   N/A  N/A    686778      C   ...ameter-golf/.venv-openai/bin/python       1764MiB |
+|    1   N/A  N/A    686779      C   ...ameter-golf/.venv-openai/bin/python       1812MiB |
+|    2   N/A  N/A    686780      C   ...ameter-golf/.venv-openai/bin/python       1812MiB |
+|    3   N/A  N/A    686781      C   ...ameter-golf/.venv-openai/bin/python       1812MiB |
+|    4   N/A  N/A    686782      C   ...ameter-golf/.venv-openai/bin/python       1812MiB |
+|    5   N/A  N/A    686783      C   ...ameter-golf/.venv-openai/bin/python       1812MiB |
+|    6   N/A  N/A    686784      C   ...ameter-golf/.venv-openai/bin/python       1812MiB |
+|    7   N/A  N/A    686785      C   ...ameter-golf/.venv-openai/bin/python       1572MiB |
 +-----------------------------------------------------------------------------------------+
 
 ====================================================================================================
-val_bpb:enabled tokenizer=sentencepiece tokenizer_path=/tmp/matched_10B_docs2m_seed1337/tokenizers/fineweb_1024_bpe.model
-model_params:17039392
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/tmp/parametergolf_fineweb/tokenizers/fineweb_1024_bpe.model
+model_params:17039391
 world_size:8 grad_accum_steps:1
 sdp_backends:cudnn=False flash=True mem_efficient=False math=False
 attention_mode:gqa num_heads:8 num_kv_heads:4
 tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
 train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:598.000
+seed:1337
 warmup_step:1/20
 warmup_step:2/20
 warmup_step:3/20
@@ -1154,95 +1161,93 @@ warmup_step:17/20
 warmup_step:18/20
 warmup_step:19/20
 warmup_step:20/20
-step:1/20000 train_loss:6.9408 train_time:22ms step_avg:21.66ms
-step:2/20000 train_loss:18.2354 train_time:63ms step_avg:31.45ms
-step:3/20000 train_loss:9.9043 train_time:104ms step_avg:34.81ms
-step:4/20000 train_loss:6.4681 train_time:146ms step_avg:36.44ms
-step:5/20000 train_loss:6.3223 train_time:188ms step_avg:37.53ms
-step:6/20000 train_loss:6.2033 train_time:229ms step_avg:38.11ms
-step:7/20000 train_loss:6.0508 train_time:270ms step_avg:38.62ms
-step:8/20000 train_loss:5.8106 train_time:312ms step_avg:38.95ms
-step:9/20000 train_loss:5.9048 train_time:352ms step_avg:39.15ms
-step:10/20000 train_loss:5.9658 train_time:394ms step_avg:39.45ms
-step:200/20000 train_loss:2.7747 train_time:8247ms step_avg:41.24ms
-step:400/20000 train_loss:2.7653 train_time:16513ms step_avg:41.28ms
-step:600/20000 train_loss:2.4705 train_time:24771ms step_avg:41.28ms
-step:800/20000 train_loss:2.4838 train_time:33036ms step_avg:41.29ms
-step:1000/20000 train_loss:2.3151 train_time:41308ms step_avg:41.31ms
-step:1200/20000 train_loss:2.2704 train_time:49581ms step_avg:41.32ms
-step:1400/20000 train_loss:2.2603 train_time:57843ms step_avg:41.32ms
-step:1600/20000 train_loss:2.2376 train_time:66119ms step_avg:41.32ms
-step:1800/20000 train_loss:2.3487 train_time:74391ms step_avg:41.33ms
-step:2000/20000 train_loss:2.2541 train_time:82666ms step_avg:41.33ms
-step:2200/20000 train_loss:2.2463 train_time:90945ms step_avg:41.34ms
-step:2400/20000 train_loss:2.1141 train_time:99227ms step_avg:41.34ms
-step:2600/20000 train_loss:2.2171 train_time:107518ms step_avg:41.35ms
-step:2800/20000 train_loss:2.2238 train_time:115817ms step_avg:41.36ms
-step:3000/20000 train_loss:2.1263 train_time:124102ms step_avg:41.37ms
-step:3200/20000 train_loss:2.1727 train_time:132402ms step_avg:41.38ms
-step:3400/20000 train_loss:2.2695 train_time:140686ms step_avg:41.38ms
-step:3600/20000 train_loss:2.2715 train_time:148973ms step_avg:41.38ms
-step:3800/20000 train_loss:2.1606 train_time:157260ms step_avg:41.38ms
-step:4000/20000 train_loss:2.1659 train_time:165552ms step_avg:41.39ms
-step:4200/20000 train_loss:2.0666 train_time:173934ms step_avg:41.41ms
-step:4400/20000 train_loss:2.1932 train_time:182221ms step_avg:41.41ms
-step:4600/20000 train_loss:2.1929 train_time:190498ms step_avg:41.41ms
-step:4800/20000 train_loss:2.1745 train_time:198785ms step_avg:41.41ms
-step:5000/20000 train_loss:2.1224 train_time:207081ms step_avg:41.42ms
-step:5200/20000 train_loss:2.1175 train_time:215368ms step_avg:41.42ms
-step:5400/20000 train_loss:2.2296 train_time:223659ms step_avg:41.42ms
-step:5600/20000 train_loss:2.1649 train_time:231943ms step_avg:41.42ms
-step:5800/20000 train_loss:2.2303 train_time:240233ms step_avg:41.42ms
-step:6000/20000 train_loss:2.2418 train_time:248513ms step_avg:41.42ms
-step:6200/20000 train_loss:2.1438 train_time:256799ms step_avg:41.42ms
-step:6400/20000 train_loss:2.1540 train_time:265088ms step_avg:41.42ms
-step:6600/20000 train_loss:2.1258 train_time:273371ms step_avg:41.42ms
-step:6800/20000 train_loss:2.2038 train_time:281664ms step_avg:41.42ms
-step:7000/20000 train_loss:2.1750 train_time:289957ms step_avg:41.42ms
-step:7200/20000 train_loss:2.1328 train_time:298245ms step_avg:41.42ms
-step:7400/20000 train_loss:2.1326 train_time:306537ms step_avg:41.42ms
-step:7600/20000 train_loss:2.1934 train_time:314919ms step_avg:41.44ms
-step:7800/20000 train_loss:2.1846 train_time:323205ms step_avg:41.44ms
-step:8000/20000 train_loss:2.2819 train_time:331486ms step_avg:41.44ms
-step:8200/20000 train_loss:2.1336 train_time:339770ms step_avg:41.44ms
-step:8400/20000 train_loss:2.1674 train_time:348050ms step_avg:41.43ms
-step:8600/20000 train_loss:2.0893 train_time:356332ms step_avg:41.43ms
-step:8800/20000 train_loss:2.1228 train_time:364614ms step_avg:41.43ms
-step:9000/20000 train_loss:2.1188 train_time:372898ms step_avg:41.43ms
-step:9200/20000 train_loss:2.1672 train_time:381175ms step_avg:41.43ms
-step:9400/20000 train_loss:2.0917 train_time:389443ms step_avg:41.43ms
-step:9600/20000 train_loss:2.1353 train_time:397720ms step_avg:41.43ms
-step:9800/20000 train_loss:2.1168 train_time:406008ms step_avg:41.43ms
-step:10000/20000 train_loss:2.2115 train_time:414293ms step_avg:41.43ms
-step:10200/20000 train_loss:2.0856 train_time:422570ms step_avg:41.43ms
-step:10400/20000 train_loss:2.0897 train_time:430847ms step_avg:41.43ms
-step:10600/20000 train_loss:2.1194 train_time:439132ms step_avg:41.43ms
-step:10800/20000 train_loss:2.1133 train_time:447411ms step_avg:41.43ms
-step:11000/20000 train_loss:2.0961 train_time:455795ms step_avg:41.44ms
-step:11200/20000 train_loss:2.1609 train_time:464077ms step_avg:41.44ms
-step:11400/20000 train_loss:2.3410 train_time:472359ms step_avg:41.43ms
-step:11600/20000 train_loss:2.1321 train_time:480643ms step_avg:41.43ms
-step:11800/20000 train_loss:2.0933 train_time:488931ms step_avg:41.43ms
-step:12000/20000 train_loss:2.2013 train_time:497228ms step_avg:41.44ms
-step:12200/20000 train_loss:2.0505 train_time:505516ms step_avg:41.44ms
-step:12400/20000 train_loss:2.1952 train_time:513797ms step_avg:41.44ms
-step:12600/20000 train_loss:2.0702 train_time:522083ms step_avg:41.44ms
-step:12800/20000 train_loss:2.0365 train_time:530363ms step_avg:41.43ms
-step:13000/20000 train_loss:1.9914 train_time:538654ms step_avg:41.43ms
-step:13200/20000 train_loss:2.0452 train_time:546939ms step_avg:41.43ms
-step:13400/20000 train_loss:2.0918 train_time:555225ms step_avg:41.43ms
-step:13600/20000 train_loss:2.0782 train_time:563512ms step_avg:41.43ms
-step:13800/20000 train_loss:2.0355 train_time:571808ms step_avg:41.44ms
-step:14000/20000 train_loss:2.0871 train_time:580092ms step_avg:41.44ms
-step:14200/20000 train_loss:2.1189 train_time:588367ms step_avg:41.43ms
-step:14400/20000 train_loss:2.1305 train_time:596736ms step_avg:41.44ms
-step:14431/20000 val_loss:2.0985 val_bpb:1.2394 train_time:598039ms step_avg:41.44ms
-stopping_early: wallclock_cap train_time:598039ms step:14431/20000
-peak memory allocated: 8926 MiB reserved: 9136 MiB
+step:1/20000 train_loss:6.9408 train_time:50ms step_avg:49.97ms
+step:2/20000 train_loss:18.3256 train_time:69ms step_avg:34.48ms
+step:3/20000 train_loss:10.1504 train_time:111ms step_avg:36.84ms
+step:4/20000 train_loss:6.4418 train_time:152ms step_avg:37.99ms
+step:5/20000 train_loss:6.2076 train_time:194ms step_avg:38.83ms
+step:6/20000 train_loss:6.1230 train_time:236ms step_avg:39.33ms
+step:7/20000 train_loss:6.0465 train_time:276ms step_avg:39.49ms
+step:8/20000 train_loss:5.8467 train_time:319ms step_avg:39.82ms
+step:9/20000 train_loss:5.8889 train_time:361ms step_avg:40.06ms
+step:10/20000 train_loss:5.9655 train_time:402ms step_avg:40.20ms
+step:200/20000 train_loss:2.7691 train_time:8443ms step_avg:42.21ms
+step:400/20000 train_loss:2.7548 train_time:16897ms step_avg:42.24ms
+step:600/20000 train_loss:2.4770 train_time:25340ms step_avg:42.23ms
+step:800/20000 train_loss:2.4772 train_time:33779ms step_avg:42.22ms
+step:1000/20000 train_loss:2.3172 train_time:42224ms step_avg:42.22ms
+step:1200/20000 train_loss:2.2740 train_time:50667ms step_avg:42.22ms
+step:1400/20000 train_loss:2.2618 train_time:59110ms step_avg:42.22ms
+step:1600/20000 train_loss:2.2365 train_time:67555ms step_avg:42.22ms
+step:1800/20000 train_loss:2.3541 train_time:75995ms step_avg:42.22ms
+step:2000/20000 train_loss:2.2576 train_time:84442ms step_avg:42.22ms
+step:2200/20000 train_loss:2.2548 train_time:92885ms step_avg:42.22ms
+step:2400/20000 train_loss:2.1177 train_time:101339ms step_avg:42.22ms
+step:2600/20000 train_loss:2.2199 train_time:109791ms step_avg:42.23ms
+step:2800/20000 train_loss:2.2233 train_time:118242ms step_avg:42.23ms
+step:3000/20000 train_loss:2.1311 train_time:126691ms step_avg:42.23ms
+step:3200/20000 train_loss:2.1728 train_time:135149ms step_avg:42.23ms
+step:3400/20000 train_loss:2.2655 train_time:143608ms step_avg:42.24ms
+step:3600/20000 train_loss:2.2730 train_time:152060ms step_avg:42.24ms
+step:3800/20000 train_loss:2.1589 train_time:160516ms step_avg:42.24ms
+step:4000/20000 train_loss:2.1675 train_time:168967ms step_avg:42.24ms
+step:4200/20000 train_loss:2.0638 train_time:177545ms step_avg:42.27ms
+step:4400/20000 train_loss:2.1895 train_time:186006ms step_avg:42.27ms
+step:4600/20000 train_loss:2.1962 train_time:194444ms step_avg:42.27ms
+step:4800/20000 train_loss:2.1761 train_time:202899ms step_avg:42.27ms
+step:5000/20000 train_loss:2.1252 train_time:211355ms step_avg:42.27ms
+step:5200/20000 train_loss:2.1209 train_time:219805ms step_avg:42.27ms
+step:5400/20000 train_loss:2.2286 train_time:228260ms step_avg:42.27ms
+step:5600/20000 train_loss:2.1689 train_time:236717ms step_avg:42.27ms
+step:5800/20000 train_loss:2.2274 train_time:245172ms step_avg:42.27ms
+step:6000/20000 train_loss:2.2408 train_time:253625ms step_avg:42.27ms
+step:6200/20000 train_loss:2.1412 train_time:262078ms step_avg:42.27ms
+step:6400/20000 train_loss:2.1506 train_time:270543ms step_avg:42.27ms
+step:6600/20000 train_loss:2.1313 train_time:278993ms step_avg:42.27ms
+step:6800/20000 train_loss:2.2068 train_time:287447ms step_avg:42.27ms
+step:7000/20000 train_loss:2.1733 train_time:295898ms step_avg:42.27ms
+step:7200/20000 train_loss:2.1370 train_time:304356ms step_avg:42.27ms
+step:7400/20000 train_loss:2.1376 train_time:312809ms step_avg:42.27ms
+step:7600/20000 train_loss:2.2001 train_time:321385ms step_avg:42.29ms
+step:7800/20000 train_loss:2.1840 train_time:329845ms step_avg:42.29ms
+step:8000/20000 train_loss:2.2804 train_time:338301ms step_avg:42.29ms
+step:8200/20000 train_loss:2.1365 train_time:346750ms step_avg:42.29ms
+step:8400/20000 train_loss:2.1670 train_time:355208ms step_avg:42.29ms
+step:8600/20000 train_loss:2.0894 train_time:363662ms step_avg:42.29ms
+step:8800/20000 train_loss:2.1289 train_time:372117ms step_avg:42.29ms
+step:9000/20000 train_loss:2.1278 train_time:380571ms step_avg:42.29ms
+step:9200/20000 train_loss:2.1715 train_time:389029ms step_avg:42.29ms
+step:9400/20000 train_loss:2.0974 train_time:397466ms step_avg:42.28ms
+step:9600/20000 train_loss:2.1370 train_time:405918ms step_avg:42.28ms
+step:9800/20000 train_loss:2.1181 train_time:414365ms step_avg:42.28ms
+step:10000/20000 train_loss:2.2141 train_time:422824ms step_avg:42.28ms
+step:10200/20000 train_loss:2.0842 train_time:431277ms step_avg:42.28ms
+step:10400/20000 train_loss:2.0926 train_time:439729ms step_avg:42.28ms
+step:10600/20000 train_loss:2.1195 train_time:448188ms step_avg:42.28ms
+step:10800/20000 train_loss:2.1127 train_time:456639ms step_avg:42.28ms
+step:11000/20000 train_loss:2.0974 train_time:465211ms step_avg:42.29ms
+step:11200/20000 train_loss:2.1593 train_time:473663ms step_avg:42.29ms
+step:11400/20000 train_loss:2.3443 train_time:482117ms step_avg:42.29ms
+step:11600/20000 train_loss:2.1326 train_time:490566ms step_avg:42.29ms
+step:11800/20000 train_loss:2.0987 train_time:499024ms step_avg:42.29ms
+step:12000/20000 train_loss:2.1908 train_time:507478ms step_avg:42.29ms
+step:12200/20000 train_loss:2.0585 train_time:515936ms step_avg:42.29ms
+step:12400/20000 train_loss:2.2020 train_time:524391ms step_avg:42.29ms
+step:12600/20000 train_loss:2.0749 train_time:532843ms step_avg:42.29ms
+step:12800/20000 train_loss:2.0384 train_time:541301ms step_avg:42.29ms
+step:13000/20000 train_loss:1.9905 train_time:549752ms step_avg:42.29ms
+step:13200/20000 train_loss:2.0457 train_time:558204ms step_avg:42.29ms
+step:13400/20000 train_loss:2.0888 train_time:566665ms step_avg:42.29ms
+step:13600/20000 train_loss:2.0774 train_time:575118ms step_avg:42.29ms
+step:13800/20000 train_loss:2.0333 train_time:583573ms step_avg:42.29ms
+step:14000/20000 train_loss:2.0897 train_time:592027ms step_avg:42.29ms
+step:14141/20000 val_loss:2.1017 val_bpb:1.2413 train_time:598028ms step_avg:42.29ms
+stopping_early: wallclock_cap train_time:598028ms step:14141/20000
+peak memory allocated: 8926 MiB reserved: 8998 MiB
 Serialized model: 67137349 bytes
-Code size: 45097 bytes
-Total submission size: 67182446 bytes
-Serialized model int8+zlib: 15774250 bytes (payload:17096768 raw_torch:17137021 payload_ratio:3.93x)
-Total submission size int8+zlib: 15819347 bytes
-final_int8_zlib_roundtrip val_loss:2.1098 val_bpb:1.2461 eval_time:309ms
-final_int8_zlib_roundtrip_exact val_loss:2.10983610 val_bpb:1.24610217
+Code size: 46138 bytes
+Total submission size: 67183487 bytes
+Serialized model int8+zlib: 15765064 bytes (payload:17096766 raw_torch:17137021 payload_ratio:3.93x)
+Total submission size int8+zlib: 15811202 bytes
+final_int8_zlib_roundtrip val_loss:2.1164 val_bpb:1.2500 eval_time:310ms
+final_int8_zlib_roundtrip_exact val_loss:2.11641312 val_bpb:1.24998665

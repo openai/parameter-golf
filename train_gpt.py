@@ -49,7 +49,7 @@ class Hyperparameters:
     # Validation cadence and budget.
     val_tokens: int = int(os.environ.get("VAL_TOKENS", 10_485_760))
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
+    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
@@ -1000,6 +1000,8 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
+
+        # Dumb hack to solve issue, fix later.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
         if distributed and max_wallclock_ms is not None:
             reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
