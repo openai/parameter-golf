@@ -76,20 +76,10 @@ PY
 For internal boxes, prefer the blobstore mirror over ad hoc manual copies from older paths.
 
 ```bash
-mkdir -p /root/code/parameter-golf/data/datasets/fineweb10B_sp1024
-mkdir -p /root/code/parameter-golf/data/tokenizers
-
-bbb cp az://oaidatasets2/speedrunkits/parametergolf_fineweb/datasets/fineweb10B_sp1024/fineweb_train_000001.bin \
-  /root/code/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_000001.bin
-
-bbb cp az://oaidatasets2/speedrunkits/parametergolf_fineweb/datasets/fineweb10B_sp1024/fineweb_val_000000.bin \
-  /root/code/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_000000.bin
-
-bbb cp az://oaidatasets2/speedrunkits/parametergolf_fineweb/tokenizers/fineweb_1024_bpe.model \
-  /root/code/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+bbb cptree az://oaidatasets2/speedrunkits/parametergolf_fineweb /root/code/parameter-golf/data/
 ```
 
-If you want the public path instead, this also lands in the same local layout:
+If you want the public Huggingface path instead, this also lands in the same local layout:
 
 ```bash
 cd /root/code/parameter-golf
@@ -121,16 +111,3 @@ VAL_BATCH_SIZE=65536 \
 MAX_WALLCLOCK_SECONDS=120 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
-
-Verified on March 11, 2026 on `pgolf-zebra-openai-0`:
-
-- the normal `train_gpt.py` path completed an `8xH100` smoke run with compile enabled
-- `step:8/8 val_bpb:4.1021`
-- peak memory `6879 MiB`
-- int8 artifact size `10,404,835` bytes including code
-
-On the same box, reusing the compile cache dropped the first measured train step from `2911ms` on the cold run to `721ms` on the immediate rerun, with later train steps around `30-35ms`.
-
-## Other notes
-
-- `train_gpt_openai.py` is still available for strict H100-only experiments, but the normal `train_gpt.py` path is the default
