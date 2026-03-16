@@ -1,0 +1,144 @@
+[W312 05:43:55.464074926 Utils.hpp:137] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W312 05:43:55.465155081 Utils.hpp:137] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W312 05:43:55.648880009 Utils.hpp:137] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W312 05:43:56.891225749 Utils.hpp:137] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W312 05:43:56.891318076 Utils.hpp:137] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W312 05:43:56.892266772 Utils.hpp:137] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W312 05:43:56.894769196 Utils.hpp:137] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[W312 05:43:56.895964219 Utils.hpp:137] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+NCCL version 2.27.5+cuda12.9
+
+[2026-03-12 05:43:56] pgze1-0:4623:4679 [0] ibvwrap.c:94 NCCL WARN Call to ibv_open_device failed
+
+[2026-03-12 05:43:56] pgze1-0:4623:4679 [0] p2p_plugin.c:565 NCCL WARN NET/IB : Unable to open device mlx5_an0
+
+[2026-03-12 05:43:56] pgze1-0:4629:4680 [6] ibvwrap.c:94 NCCL WARN Call to ibv_open_device failed
+
+[2026-03-12 05:43:56] pgze1-0:4629:4680 [6] p2p_plugin.c:565 NCCL WARN NET/IB : Unable to open device mlx5_an0
+
+[2026-03-12 05:43:56] pgze1-0:4627:4683 [4] ibvwrap.c:94 NCCL WARN Call to ibv_open_device failed
+
+[2026-03-12 05:43:56] pgze1-0:4627:4683 [4] p2p_plugin.c:565 NCCL WARN NET/IB : Unable to open device mlx5_an0
+
+[2026-03-12 05:43:56] pgze1-0:4625:4684 [2] ibvwrap.c:94 NCCL WARN Call to ibv_open_device failed
+
+[2026-03-12 05:43:56] pgze1-0:4625:4684 [2] p2p_plugin.c:565 NCCL WARN NET/IB : Unable to open device mlx5_an0
+
+[2026-03-12 05:43:56] pgze1-0:4624:4682 [1] ibvwrap.c:94 NCCL WARN Call to ibv_open_device failed
+
+[2026-03-12 05:43:56] pgze1-0:4624:4682 [1] p2p_plugin.c:565 NCCL WARN NET/IB : Unable to open device mlx5_an0
+
+[2026-03-12 05:43:56] pgze1-0:4628:4681 [5] ibvwrap.c:94 NCCL WARN Call to ibv_open_device failed
+
+[2026-03-12 05:43:56] pgze1-0:4628:4681 [5] p2p_plugin.c:565 NCCL WARN NET/IB : Unable to open device mlx5_an0
+
+[2026-03-12 05:43:56] pgze1-0:4626:4686 [3] ibvwrap.c:94 NCCL WARN Call to ibv_open_device failed
+
+[2026-03-12 05:43:56] pgze1-0:4626:4686 [3] p2p_plugin.c:565 NCCL WARN NET/IB : Unable to open device mlx5_an0
+
+[2026-03-12 05:43:56] pgze1-0:4630:4685 [7] ibvwrap.c:94 NCCL WARN Call to ibv_open_device failed
+
+[2026-03-12 05:43:56] pgze1-0:4630:4685 [7] p2p_plugin.c:565 NCCL WARN NET/IB : Unable to open device mlx5_an0
+logs/train_gpt_pgze1_sp2048_11x448_kv4_20260311_2243.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/tmp/parametergolf_fineweb/tokenizers/fineweb_2048_bpe.model
+[rank2]:[W312 05:44:02.577760803 Utils.hpp:112] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank1]:[W312 05:44:02.577771815 Utils.hpp:112] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank4]:[W312 05:44:02.577774798 Utils.hpp:112] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank3]:[W312 05:44:02.577807978 Utils.hpp:112] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank7]:[W312 05:44:02.577900873 Utils.hpp:112] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank0]:[W312 05:44:02.577929521 Utils.hpp:112] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank6]:[W312 05:44:02.577954865 Utils.hpp:112] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+[rank5]:[W312 05:44:02.578117425 Utils.hpp:112] Warning: Environment variable NCCL_ASYNC_ERROR_HANDLING is deprecated; use TORCH_NCCL_ASYNC_ERROR_HANDLING instead (function operator())
+model_params:16371750
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:10 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/10
+warmup_step:2/10
+warmup_step:3/10
+warmup_step:4/10
+warmup_step:5/10
+warmup_step:6/10
+warmup_step:7/10
+warmup_step:8/10
+warmup_step:9/10
+warmup_step:10/10
+step:0/20000 val_loss:7.6248 val_bpb:3.7464 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:7.6294 train_time:36ms step_avg:36.14ms
+step:2/20000 train_loss:16.6919 train_time:91ms step_avg:45.71ms
+step:3/20000 train_loss:9.5638 train_time:144ms step_avg:48.13ms
+step:4/20000 train_loss:7.3061 train_time:198ms step_avg:49.39ms
+step:5/20000 train_loss:8.1944 train_time:251ms step_avg:50.18ms
+step:6/20000 train_loss:8.1380 train_time:304ms step_avg:50.67ms
+step:7/20000 train_loss:7.5778 train_time:357ms step_avg:51.04ms
+step:8/20000 train_loss:7.2158 train_time:410ms step_avg:51.30ms
+step:9/20000 train_loss:6.8242 train_time:464ms step_avg:51.51ms
+step:10/20000 train_loss:6.6386 train_time:517ms step_avg:51.67ms
+step:200/20000 train_loss:3.1378 train_time:10733ms step_avg:53.66ms
+step:400/20000 train_loss:3.0795 train_time:21459ms step_avg:53.65ms
+step:600/20000 train_loss:2.9352 train_time:32175ms step_avg:53.62ms
+step:800/20000 train_loss:2.8070 train_time:42891ms step_avg:53.61ms
+step:1000/20000 train_loss:2.6674 train_time:53610ms step_avg:53.61ms
+step:1200/20000 train_loss:2.6625 train_time:64317ms step_avg:53.60ms
+step:1400/20000 train_loss:2.7165 train_time:75036ms step_avg:53.60ms
+step:1600/20000 train_loss:2.7591 train_time:85740ms step_avg:53.59ms
+step:1800/20000 train_loss:2.5815 train_time:96443ms step_avg:53.58ms
+step:2000/20000 train_loss:2.7143 train_time:107156ms step_avg:53.58ms
+step:2200/20000 train_loss:2.5609 train_time:117866ms step_avg:53.58ms
+step:2400/20000 train_loss:2.6184 train_time:128574ms step_avg:53.57ms
+step:2600/20000 train_loss:2.6074 train_time:139281ms step_avg:53.57ms
+step:2800/20000 train_loss:2.6455 train_time:149995ms step_avg:53.57ms
+step:3000/20000 train_loss:2.6024 train_time:160703ms step_avg:53.57ms
+step:3200/20000 train_loss:2.6761 train_time:171417ms step_avg:53.57ms
+step:3400/20000 train_loss:2.7134 train_time:182125ms step_avg:53.57ms
+step:3600/20000 train_loss:2.5879 train_time:192838ms step_avg:53.57ms
+step:3800/20000 train_loss:2.5568 train_time:203551ms step_avg:53.57ms
+step:4000/20000 train_loss:2.4828 train_time:214374ms step_avg:53.59ms
+step:4200/20000 train_loss:2.5894 train_time:225088ms step_avg:53.59ms
+step:4400/20000 train_loss:2.5881 train_time:235801ms step_avg:53.59ms
+step:4600/20000 train_loss:2.6063 train_time:246517ms step_avg:53.59ms
+step:4800/20000 train_loss:2.4801 train_time:257226ms step_avg:53.59ms
+step:5000/20000 train_loss:2.4944 train_time:267942ms step_avg:53.59ms
+step:5200/20000 train_loss:2.5880 train_time:278659ms step_avg:53.59ms
+step:5400/20000 train_loss:2.3687 train_time:289377ms step_avg:53.59ms
+step:5600/20000 train_loss:2.5203 train_time:300095ms step_avg:53.59ms
+step:5800/20000 train_loss:2.5899 train_time:310813ms step_avg:53.59ms
+step:6000/20000 train_loss:2.5152 train_time:321533ms step_avg:53.59ms
+step:6200/20000 train_loss:2.5358 train_time:332248ms step_avg:53.59ms
+step:6400/20000 train_loss:2.5047 train_time:342967ms step_avg:53.59ms
+step:6600/20000 train_loss:2.4888 train_time:353682ms step_avg:53.59ms
+step:6800/20000 train_loss:2.5762 train_time:364399ms step_avg:53.59ms
+step:7000/20000 train_loss:2.5016 train_time:375117ms step_avg:53.59ms
+step:7200/20000 train_loss:2.5688 train_time:385835ms step_avg:53.59ms
+step:7400/20000 train_loss:2.5042 train_time:396545ms step_avg:53.59ms
+step:7600/20000 train_loss:2.4973 train_time:407261ms step_avg:53.59ms
+step:7800/20000 train_loss:2.7969 train_time:417974ms step_avg:53.59ms
+step:8000/20000 train_loss:2.4569 train_time:428811ms step_avg:53.60ms
+step:8200/20000 train_loss:2.5239 train_time:439521ms step_avg:53.60ms
+step:8400/20000 train_loss:2.4596 train_time:450238ms step_avg:53.60ms
+step:8600/20000 train_loss:2.5495 train_time:460953ms step_avg:53.60ms
+step:8800/20000 train_loss:2.4938 train_time:471668ms step_avg:53.60ms
+step:9000/20000 train_loss:2.4547 train_time:482382ms step_avg:53.60ms
+step:9200/20000 train_loss:2.5410 train_time:493101ms step_avg:53.60ms
+step:9400/20000 train_loss:2.6100 train_time:503822ms step_avg:53.60ms
+step:9600/20000 train_loss:2.5394 train_time:514540ms step_avg:53.60ms
+step:9800/20000 train_loss:2.5011 train_time:525262ms step_avg:53.60ms
+step:10000/20000 train_loss:2.4616 train_time:535980ms step_avg:53.60ms
+step:10200/20000 train_loss:2.4832 train_time:546703ms step_avg:53.60ms
+step:10400/20000 train_loss:2.4821 train_time:557420ms step_avg:53.60ms
+step:10600/20000 train_loss:2.3693 train_time:568142ms step_avg:53.60ms
+step:10800/20000 train_loss:2.5549 train_time:578871ms step_avg:53.60ms
+step:11000/20000 train_loss:2.5140 train_time:589593ms step_avg:53.60ms
+step:11195/20000 val_loss:2.4614 val_bpb:1.2094 train_time:600069ms step_avg:53.60ms
+stopping_early: wallclock_cap train_time:600069ms step:11195/20000
+peak memory allocated: 9491 MiB reserved: 9720 MiB
+Serialized model: 63686293 bytes
+Code size: 46189 bytes
+Total submission size: 63732482 bytes
+Serialized model int8+zlib: 15190311 bytes (payload:16435020 raw_torch:16483973 payload_ratio:3.87x)
+Total submission size int8+zlib: 15236500 bytes
+final_int8_zlib_roundtrip val_loss:2.4761 val_bpb:1.2166 eval_time:92ms
+final_int8_zlib_roundtrip_exact val_loss:2.47607899 val_bpb:1.21660255
