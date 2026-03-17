@@ -37,7 +37,7 @@ Happy training!
 
 If you have an Apple laptop or desktop with Apple Silicon, we've set up a simple MLX training script to help you start iterating locally.
 
-If you don't have a Mac with Apple Silicon, you can run an adapted version of this script without MLX support. Just ask [Codex](https://openai.com/codex/) to refactor it; the change is straightforward. It may still be fairly slow, so we recommend jumping straight to cloud GPUs with RunPod.
+If you don't have a Mac with Apple Silicon, you can run an adapted version of this script without MLX support. Just ask [Codex](https://openai.com/codex/) to refactor it; the change is straightforward. It may still be fairly slow, so we recommend jumping straight to cloud GPUs with Runpod.
 
 First, clone the repository, create a fresh Python environment, and install the packages needed for the MLX path plus dataset download:
 
@@ -87,19 +87,19 @@ You should see printed `val_loss` and `val_bpb` values, along with a compressed 
 
 Once you're happy with your local tests, or you want more compute, switch to a remote CUDA machine.
 
-You can rent GPUs from anywhere, but OpenAI is partnering with RunPod to make setup as easy as possible.
+You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make setup as easy as possible.
 
 We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute credits to help people get started training their models. To request a compute grant of up to $500, use this form: [Request a Compute Grant](url).
 
 #### Launching a 1xH100 Pod
 
-1. First, [create a RunPod account](https://console.runpod.io/deploy). You should also set up an SSH key in the Settings tab on the left so you can connect to your remote machine. If you're new to this, ask Codex to help you set it up.
+1. First, [create a Runpod account](https://console.runpod.io/deploy). You should also set up an SSH key in the Settings tab on the left so you can connect to your remote machine. If you're new to this, ask Codex to help you set it up.
 
 2. Once you've set up your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like. Final leaderboard submissions must run in under 10 minutes on 8xH100s, but we strongly recommend testing and running experiments on cheaper SKUs first, since an 8xH100 box can cost around $20/hour.
 
-3. Let's start with a 1xH100 pod. Configure your pod to use the RunPod PyTorch 2.1 template and enable SSH terminal access, leaving the other settings at their defaults. Deploy your pod and SSH into it once it's up.
+3. Let's start with a 1xH100 pod. Configure your pod to use the Runpod PyTorch 2.1 template and enable SSH terminal access, leaving the other settings at their defaults. Deploy your pod and SSH into it once it's up.
 
-On your remote machine, clone the repo onto local disk and start a fresh environment for the PyTorch trainer. On some RunPod images, `/workspace` is a slower network mount, so prefer a path such as `/root/code/parameter-golf`:
+On your remote machine, clone the repo onto local disk and start a fresh environment for the PyTorch trainer. On some Runpod images, `/workspace` is a slower network mount, so prefer a path such as `/root/code/parameter-golf`:
 
 ```bash
 mkdir -p /root/code
