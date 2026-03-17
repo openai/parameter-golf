@@ -97,18 +97,14 @@ We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute
 
 2. Once you've set up your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like. Final leaderboard submissions must run in under 10 minutes on 8xH100s, but we strongly recommend testing and running experiments on cheaper SKUs first, since an 8xH100 box can cost around $20/hour.
 
-3. Let's start with a 1xH100 pod. Configure your pod to use the Runpod PyTorch 2.1 template and enable SSH terminal access, leaving the other settings at their defaults. Deploy your pod and SSH into it once it's up.
+3. Let's start with a 1xH100 pod. Deploy using the official Parameter Golf template: [Launch Template](https://console.runpod.io/deploy?template=y5cejece4j&ref=nl2r56th). Enable SSH terminal access, leaving the other settings at their defaults. Deploy your pod and SSH into it once it's up.
 
-On your remote machine, clone the repo onto local disk and start a fresh environment for the PyTorch trainer. On some Runpod images, `/workspace` is a slower network mount, so prefer a path such as `/root/code/parameter-golf`:
+On your remote machine, clone the repo onto local disk. All Python dependencies are already pre-installed in the image.
 
 ```bash
 mkdir -p /root/code
 git clone https://github.com/openai/parameter-golf.git /root/code/parameter-golf
 cd /root/code/parameter-golf
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
 ```
 
 Download our cached version of FineWeb. We'll use the 1024-token vocabulary for now.
