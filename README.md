@@ -63,18 +63,9 @@ Then run a small MLX training job:
 
 ```bash
 RUN_ID=mlx_smoke \
-DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-VOCAB_SIZE=1024 \
-NUM_LAYERS=8 \
-MODEL_DIM=384 \
-NUM_HEADS=6 \
-NUM_KV_HEADS=2 \
-MLP_MULT=3 \
 TRAIN_SEQ_LEN=512 \
 ITERATIONS=200 \
 TRAIN_BATCH_TOKENS=8192 \
-GRAD_ACCUM_STEPS=8 \
 VAL_LOSS_EVERY=10 \
 VAL_TOKENS=8192 \
 VAL_BATCH_SIZE=8192 \

@@ -51,13 +51,7 @@ class Hyperparameters:
     iterations: int = int(os.environ.get("ITERATIONS", 20_000))
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
     val_tokens: int = int(os.environ.get("VAL_TOKENS", 10_485_760))
-    val_batch_size: int = (
-        int(os.environ["VAL_BATCH_SIZE"])
-        if "VAL_BATCH_SIZE" in os.environ
-        else int(os.environ["VAL_BATCH_TOKENS"]) * int(os.environ.get("GRAD_ACCUM_STEPS", 8))
-        if "VAL_BATCH_TOKENS" in os.environ
-        else 524_288
-    )
+    val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
