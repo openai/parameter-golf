@@ -93,9 +93,8 @@ We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute
 On your remote machine, clone the repo onto local disk. All Python dependencies are already pre-installed in the image.
 
 ```bash
-mkdir -p /root/code
-git clone https://github.com/openai/parameter-golf.git /root/code/parameter-golf
-cd /root/code/parameter-golf
+cd /workspace && git clone https://github.com/openai/parameter-golf.git
+cd parameter-golf
 ```
 
 Download our cached version of FineWeb. We'll use the 1024-token vocabulary for now.
