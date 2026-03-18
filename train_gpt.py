@@ -32,7 +32,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # HYPERPARAMETERS
 # -----------------------------
 # Default Simple Baseline run:
-# - 3 shared transformer blocks looped 3 times (9 effective layers) at width 512
+# - 3 shared transformer blocks looped 3 times (9 effective layers) at width 768
 # - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
 # - vocab size 1024, sequence length 1024, tied embeddings
 # - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
@@ -64,7 +64,7 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    model_dim = int(os.environ.get("MODEL_DIM", 768))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
@@ -842,6 +842,39 @@ class GPT(nn.Module):
 
 
 # -----------------------------
+# PARAMETER BUDGET ACCOUNTING
+# -----------------------------
+
+def log_param_budget(model: GPT, args: Hyperparameters) -> None:
+    """Log component-level parameter budget for artifact size tracking."""
+    components: list[tuple[str, int]] = []
+    embed_params = sum(p.numel() for p in model.tok_emb.parameters())
+    components.append(("embedding", embed_params))
+    block_params = sum(p.numel() for p in model.shared_blocks.parameters())
+    components.append(("shared_blocks", block_params))
+    lora_params = sum(p.numel() for p in model.lora_deltas.parameters())
+    components.append(("lora_deltas", lora_params))
+    if model.lm_head is not None:
+        head_params = sum(p.numel() for p in model.lm_head.parameters())
+        components.append(("lm_head", head_params))
+    other = sum(p.numel() for p in model.parameters()) - sum(c for _, c in components)
+    if other > 0:
+        components.append(("other", other))
+    total = sum(c for _, c in components)
+    # INT8 quantization: ~1 byte per param + scales overhead (~2%)
+    est_raw = total  # 1 byte per INT8 param
+    est_compressed = int(est_raw * 0.67)  # Conservative zlib estimate
+    code_bytes = 55_000  # Approximate code size
+    est_total = est_compressed + code_bytes
+    log0(f"param_budget: total_params={total}")
+    for name, count in components:
+        pct = 100.0 * count / max(total, 1)
+        log0(f"  {name}: {count:,} params ({pct:.1f}%) ~{count:,} int8 bytes")
+    log0(f"param_budget: est_int8_raw={est_raw:,} est_zlib={est_compressed:,} "
+         f"est_total={est_total:,} headroom={16_000_000 - est_total:,}")
+
+
+# -----------------------------
 # TRAINING
 # -----------------------------
 
@@ -1025,6 +1058,7 @@ def main() -> None:
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
+    log_param_budget(base_model, args)
     log0(f"depth_recurrence: shared_blocks:{args.num_shared_blocks} loops:{args.num_loops} "
          f"effective_depth:{args.num_shared_blocks * args.num_loops} lora_rank:{args.lora_rank}")
     log0(f"shared_matrix_lr:{shared_matrix_lr} lora_lr:{lora_lr}")
