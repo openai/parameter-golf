@@ -39,6 +39,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
+    # Vocabulary expansion: set VOCAB_SIZE=2048, DATA_PATH=./data/datasets/fineweb10B_sp2048,
+    # TOKENIZER_PATH=./data/tokenizers/fineweb_2048_bpe.model for 2048-token vocab.
+    # Requires: python data/cached_challenge_fineweb.py --variant sp2048
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
@@ -92,6 +95,10 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
+    # NuMuon regularization (nuclear norm constraint for compression-friendly weights).
+    numuon_enabled = bool(int(os.environ.get("NUMUON_ENABLED", "0")))
+    numuon_r_min = float(os.environ.get("NUMUON_R_MIN", 0.25))
+
 # -----------------------------
 # MUON OPTIMIZER 
 # -----------------------------
@@ -116,11 +123,26 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int,
+                 nesterov: bool = True, numuon_enabled: bool = False,
+                 numuon_r_min: float = 0.25):
         super().__init__(
             params,
             dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov),
         )
+        self.numuon_enabled = numuon_enabled
+        self.numuon_r_min = numuon_r_min
+        self._step_count = 0
+        self._total_steps = 1  # Set externally before training starts
+
+    def _numuon_update(self, g: Tensor) -> Tensor:
+        """Top-k SVD approximation for nuclear norm constraint (NuMuon)."""
+        r = self.numuon_r_min + (1.0 - self.numuon_r_min) * (
+            1.0 + math.cos(math.pi * self._step_count / max(self._total_steps, 1))
+        ) / 2.0
+        k = max(1, int(r * min(g.size(0), g.size(1))))
+        U, S, Vt = torch.svd_lowrank(g.float(), q=k, niter=2)
+        return (U @ Vt).to(g.dtype)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -156,7 +178,10 @@ class Muon(torch.optim.Optimizer):
                     buf.mul_(momentum).add_(g)
                     if nesterov:
                         g = g.add(buf, alpha=momentum)
-                    g = zeropower_via_newtonschulz5(g, steps=backend_steps)
+                    if self.numuon_enabled:
+                        g = self._numuon_update(g)
+                    else:
+                        g = zeropower_via_newtonschulz5(g, steps=backend_steps)
                     # Scale correction from Muon reference implementations.
                     g *= max(1, g.size(0) / g.size(1)) ** 0.5
                     updates_flat[curr : curr + p.numel()] = g.reshape(-1)
@@ -171,6 +196,7 @@ class Muon(torch.optim.Optimizer):
                 p.add_(g, alpha=-lr)
                 curr += p.numel()
 
+        self._step_count += 1
         return loss
 
 
@@ -1028,6 +1054,8 @@ def main() -> None:
         lr=shared_matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
+        numuon_enabled=args.numuon_enabled,
+        numuon_r_min=args.numuon_r_min,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = shared_matrix_lr
@@ -1061,7 +1089,9 @@ def main() -> None:
     log_param_budget(base_model, args)
     log0(f"depth_recurrence: shared_blocks:{args.num_shared_blocks} loops:{args.num_loops} "
          f"effective_depth:{args.num_shared_blocks * args.num_loops} lora_rank:{args.lora_rank}")
+    log0(f"numuon: enabled={args.numuon_enabled} r_min={args.numuon_r_min}")
     log0(f"shared_matrix_lr:{shared_matrix_lr} lora_lr:{lora_lr}")
+    optimizer_muon._total_steps = args.iterations
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
