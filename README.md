@@ -67,13 +67,12 @@ RUN_ID=mlx_smoke \
 TRAIN_SEQ_LEN=512 \
 ITERATIONS=200 \
 TRAIN_BATCH_TOKENS=8192 \
-VAL_LOSS_EVERY=10 \
-VAL_TOKENS=8192 \
+VAL_LOSS_EVERY=0 \
 VAL_BATCH_SIZE=8192 \
 python3 train_gpt_mlx.py
 ```
 
-You should see printed `val_loss` and `val_bpb` values, along with a compressed model size.
+Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
 
 ### Scaling Up to a Remote Machine
 
