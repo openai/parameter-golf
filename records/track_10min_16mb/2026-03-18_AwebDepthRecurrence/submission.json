@@ -1,0 +1,11 @@
+{
+  "author": "Daniel Wahnich",
+  "github_id": "manfromnowhere143",
+  "name": "Aweb Depth Recurrence",
+  "blurb": "4 unique transformer blocks × 6 repeats = 24 effective layers at 768 dim. Universal Transformer-style weight sharing gives 2.67× the depth of the baseline (24 vs 9 layers) with similar parameter count (~17M). U-Net skip connections cycle through shared blocks. Same Muon + Adam optimizers, same int8+zlib quantization.",
+  "date": "2026-03-18T21:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
