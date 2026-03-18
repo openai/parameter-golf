@@ -285,7 +285,7 @@ def eval_val(
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     model.eval()
-    with torch.no_grad():
+    with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
             raw_start = batch_seq_start * args.train_seq_len
@@ -1092,7 +1092,7 @@ def main() -> None:
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
 
-        # Dumb hack to solve issue, fix later.
+        # Needed to sync whether we've reached the wallclock cap.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
         if distributed and max_wallclock_ms is not None:
             reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
