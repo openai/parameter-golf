@@ -9,7 +9,7 @@ from huggingface_hub import hf_hub_download
 
 REPO_ID = os.environ.get("MATCHED_FINEWEB_REPO_ID", "willdepueoai/parameter-golf")
 REMOTE_ROOT_PREFIX = os.environ.get(
-    "MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "matched_100B_train30Btok_even_seed1337"
+    "MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "datasets"
 )
 
 
@@ -113,6 +113,7 @@ def ensure_local_layout() -> None:
     ensure_alias(root / LOCAL_TOKENIZERS_DIR, legacy_root / "tokenizers")
     ensure_alias(root / "manifest.json", legacy_root / "manifest.json")
     ensure_alias(root / "docs_selected.jsonl", legacy_root / "docs_selected.jsonl")
+    ensure_alias(root / "docs_selected.source_manifest.json", legacy_root / "docs_selected.source_manifest.json")
 
 
 def manifest_path() -> Path:
@@ -167,6 +168,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip downloading manifest.json.",
     )
+    parser.add_argument(
+        "--with-docs",
+        action="store_true",
+        help="Also download docs_selected.jsonl and its sidecar for tokenizer retraining or dataset re-export.",
+    )
     return parser
 
 
@@ -195,6 +201,9 @@ def main() -> None:
 
     if not args.skip_manifest:
         get(f"{REMOTE_ROOT_PREFIX}/manifest.json")
+    if args.with_docs:
+        get(f"{REMOTE_ROOT_PREFIX}/docs_selected.jsonl")
+        get(f"{REMOTE_ROOT_PREFIX}/docs_selected.source_manifest.json")
 
     dataset_prefix = f"{REMOTE_ROOT_PREFIX}/datasets/{variant['dataset_dir']}"
     for i in range(val_shards):

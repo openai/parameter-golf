@@ -117,62 +117,7 @@ By default, `train_gpt.py` keeps its ~10 minute wallclock cap. If you want a lon
 
 By default, this command prints `train_loss` step logs during training and prints `val_loss`, `val_bpb`, and compressed model size in the final `final_int8_zlib_roundtrip` lines at the end. If you want periodic validation logs during the run, set `VAL_LOSS_EVERY`, for example `VAL_LOSS_EVERY=200`. For the baseline config, the final `val_bpb` should land around ~1.2 with a compressed model size under 16MB.
 
-### Rebuilding the Large Export
-
-To rebuild the larger blobstore-backed export locally or on a remote box, use:
-
-```bash
-python3 data/export_blobstore_fineweb100B_tokenizer_datasets.py \
-  --output_root /tmp/matched_100B_train30Btok_even_seed1337 \
-  --selection_mode even \
-  --selection_seed 1337 \
-  --target_train_tokens 30000000000 \
-  --sp_vocab_sizes 512,1024,2048,4096 \
-  --tokenizer_train_docs 5000000 \
-  --skip_byte
-```
-
-This writes a shared `docs_selected.jsonl`, a `docs_selected.source_manifest.json` sidecar with source-shard metadata, tokenizers, dataset shards, and a final `manifest.json`. Copying the whole export root uploads the docs cache too, so others can retrain tokenizers or rebuild matching shards from the same selected document stream. The downloader reads shard counts from that manifest, and by default only fetches the first train shard so short runs do not need the full export.
-
-For the current blobstore-canonical `10B` export with a fixed `50k`-doc validation prefix and byte plus `512/1024/2048` SentencePiece variants, use:
-
-```bash
-python3 data/export_blobstore_fineweb100B_tokenizer_datasets.py \
-  --output_root /tmp/fineweb_blobstore100B_train10B_val50k \
-  --selection_mode even \
-  --selection_seed 1337 \
-  --target_train_tokens 10000000000 \
-  --num_val_docs 50000 \
-  --sp_vocab_sizes 512,1024,2048 \
-  --tokenizer_train_docs 5000000
-```
-
-This keeps the blobstore as the canonical source, takes the first `50k` documents from the blobstore val stream, then exports shuffled selected train runs until the raw GPT-2 token budget is met.
-
-### Exporting From FineWeb Samples
-
-To export a smaller family directly from Hugging Face FineWeb samples, for example `10B` raw GPT-2 tokens from `sample-350BT` with a fixed `50k`-doc validation prefix and byte plus `512/1024/2048` SentencePiece variants:
-
-```bash
-python3 data/export_hf_fineweb_sample_tokenizer_datasets.py \
-  --dataset_name sample-350BT \
-  --output_root /tmp/fineweb_sample350BT_train10B \
-  --target_train_tokens 10000000000 \
-  --num_val_docs 50000 \
-  --sp_vocab_sizes 512,1024,2048 \
-  --tokenizer_train_docs 5000000
-```
-
-This keeps the val split simple: the first `50k` streamed docs become validation, and training continues on the same sample stream until the raw GPT-2 token budget is reached.
-
-For CPU-heavy local exports, two useful knobs are:
-
-```bash
-MATCHED_FINEWEB_GPT2_COUNT_BATCH_SIZE=512
-MATCHED_FINEWEB_SP_BATCH_SIZE=2048
-```
-
-The first controls exact batched GPT-2 token counting while building the docs cache, and the second controls batched tokenizer encoding during shard export.
+For dataset export, tokenizer export, and docs-cache rebuild instructions, see [data/README.md](data/README.md).
 
 
 ## FAQ

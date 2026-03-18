@@ -237,7 +237,6 @@ def export_shards(
     for texts in batched_docs_jsonl(docs_jsonl, batch_size):
         encoded_docs = batch_encode(texts) if callable(batch_encode) else [tok["encode"](text) for text in texts]
         for text, encoded in zip(texts, encoded_docs, strict=True):
-            del text
             next_split = "val" if doc_index < num_val_docs else "train"
             if next_split != split:
                 flush()

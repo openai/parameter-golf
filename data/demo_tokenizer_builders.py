@@ -7,12 +7,16 @@ different file/module entirely.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 
 import sentencepiece as spm
 
 from pure_byte_tokenizer import default_pure_byte_tokenizer
+
+
+TOKENIZER_THREADS = max(1, int(os.environ.get("MATCHED_FINEWEB_TOKENIZER_THREADS", str(os.cpu_count() or 8))))
 
 
 def _iter_sentencepiece_text(docs_jsonl: Path, *, max_docs: int | None = None):
@@ -104,6 +108,6 @@ def build_sentencepiece_tokenizer(*, spec, docs_jsonl, tokenizers_dir):
         "bos_id": int(tok.bos_id()),
         "eos_id": int(tok.eos_id()),
         "encode": lambda text, tok=tok: tok.encode(text, out_type=int),
-        "encode_batch": lambda texts, tok=tok: tok.encode(texts, out_type=int),
+        "encode_batch": lambda texts, tok=tok: tok.encode(texts, out_type=int, num_threads=TOKENIZER_THREADS),
         "manifest": {"model_path": str(model_path), "vocab_path": str(vocab_path)},
     }
