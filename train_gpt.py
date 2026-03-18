@@ -73,6 +73,8 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
+    lawa_enabled = bool(int(os.environ.get("LAWA_ENABLED", "1")))
+    lawa_interval = int(os.environ.get("LAWA_INTERVAL", 100))  # snapshot every N steps during warmdown
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Depth recurrence.
@@ -1179,6 +1181,8 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    lawa_snapshots: list[dict[str, Tensor]] = []
+    lawa_last_snap_step = -args.lawa_interval  # force first snapshot at warmdown start
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1247,6 +1251,13 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
+
+        # LAWA: snapshot weights during warmdown at regular intervals
+        if args.lawa_enabled and scale < 1.0 and step - lawa_last_snap_step >= args.lawa_interval:
+            lawa_snapshots.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
+            lawa_last_snap_step = step
+            log0(f"lawa_snapshot step:{step} count:{len(lawa_snapshots)}")
+
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
             args.train_log_every > 0
@@ -1273,6 +1284,24 @@ def main() -> None:
     )
 
     float_val_bpb = val_bpb  # Preserve float-model BPB for post-quant comparison
+
+    # LAWA: average accumulated snapshots and load as final model
+    if args.lawa_enabled and len(lawa_snapshots) >= 2:
+        log0(f"lawa_averaging snapshots:{len(lawa_snapshots)}")
+        avg_state = {}
+        for key in lawa_snapshots[0]:
+            stacked = torch.stack([s[key].float() for s in lawa_snapshots])
+            avg_state[key] = stacked.mean(dim=0).to(lawa_snapshots[0][key].dtype)
+        base_model.load_state_dict(avg_state, strict=True)
+        del lawa_snapshots, avg_state  # Free memory
+        lawa_val_loss, lawa_val_bpb = eval_val(
+            args, model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+        log0(f"lawa_averaged val_loss:{lawa_val_loss:.4f} val_bpb:{lawa_val_bpb:.4f}")
+        float_val_bpb = lawa_val_bpb  # Update reference BPB
+    elif args.lawa_enabled:
+        log0(f"lawa_skipped: insufficient snapshots ({len(lawa_snapshots)}), need >=2")
 
     # Apply NTK-aware RoPE scaling for longer eval context
     if args.eval_seq_len > args.train_seq_len:
