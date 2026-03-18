@@ -88,6 +88,7 @@ class Hyperparameters:
     # LAWA (Latest Average Weight Averaging).
     lawa_enabled: bool = bool(int(os.environ.get("LAWA_ENABLED", "1")))
     lawa_interval: int = int(os.environ.get("LAWA_INTERVAL", 100))
+    max_val_tokens: int = int(os.environ.get("MAX_VAL_TOKENS", 0))  # 0 = use all
 
     # Optimizer. We keep the same per-group defaults as train_gpt.py.
     beta1: float = float(os.environ.get("BETA1", 0.9))
@@ -885,11 +886,13 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> tupl
     return dataset_dir.name, actual_train_files, expected_train_files
 
 
-def load_validation_tokens(pattern: str, seq_len: int) -> np.ndarray:
+def load_validation_tokens(pattern: str, seq_len: int, max_tokens: int = 0) -> np.ndarray:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
     tokens = np.ascontiguousarray(np.concatenate([load_data_shard(file) for file in files], axis=0))
+    if max_tokens > 0 and tokens.size > max_tokens:
+        tokens = tokens[:max_tokens]
     usable = ((tokens.size - 1) // seq_len) * seq_len
     if usable <= 0:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
@@ -1052,7 +1055,7 @@ def main() -> None:
         args.data_path,
         args.tokenizer_path,
     )
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len, args.max_val_tokens)
 
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size
@@ -1275,7 +1278,7 @@ def main() -> None:
 
     # Re-evaluate with longer context if eval_seq_len differs from train_seq_len
     if args.eval_seq_len != args.train_seq_len:
-        ext_val_tokens = load_validation_tokens(args.val_files, args.eval_seq_len)
+        ext_val_tokens = load_validation_tokens(args.val_files, args.eval_seq_len, args.max_val_tokens)
         ext_val_loss, ext_val_bpb = eval_val(
             args, compiled_loss, ext_val_tokens,
             base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
