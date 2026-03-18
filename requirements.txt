@@ -1,5 +1,4 @@
 numpy
-einops
 tqdm
 torch==2.10
 huggingface-hub
