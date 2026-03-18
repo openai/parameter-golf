@@ -960,6 +960,7 @@ def main() -> None:
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    assert isinstance(base_model.num_loops, int), f"num_loops must be int for torch.compile, got {type(base_model.num_loops)}"
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
