@@ -1,0 +1,13 @@
+{
+  "name": "Jack Young",
+  "github_id": "JackYoung27",
+  "val_bpb": 1.2663,
+  "val_loss": 2.1295,
+  "model_params": 21451068,
+  "compressed_size_bytes": 13900000,
+  "architecture": "depth_recurrent_5x3_d768_gqa12x6",
+  "tokenizer": "sp1024",
+  "hardware": "4xH100_SXM",
+  "training_steps": 2651,
+  "training_time_seconds": 600
+}
