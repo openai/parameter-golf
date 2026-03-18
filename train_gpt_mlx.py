@@ -441,13 +441,14 @@ class GPT(nn.Module):
             x = self.blocks[self.num_encoder_layers + i](x, x0, training=training)
         return self.final_norm(x)
 
-    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
+    def loss(self, input_ids: mx.array, target_ids: mx.array, training: bool = False) -> mx.array:
         # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
         # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
-        x = self(input_ids, training=True).reshape(-1, self.tok_emb.weight.shape[1])
+        x = self(input_ids, training=training).reshape(-1, self.tok_emb.weight.shape[1])
         y = target_ids.reshape(-1)
+        lm_weight = fake_quantize_per_row(self.tok_emb.weight) if training else self.tok_emb.weight
         if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
-            logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
+            logits_proj = x @ lm_weight.astype(x.dtype).T
             logits = self.softcap(logits_proj)
             return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
 
@@ -455,7 +456,7 @@ class GPT(nn.Module):
         n = int(x.shape[0])
         for s in range(0, n, self.logit_chunk_tokens):
             e = min(s + self.logit_chunk_tokens, n)
-            logits_proj = x[s:e] @ self.tok_emb.weight.astype(x.dtype).T
+            logits_proj = x[s:e] @ lm_weight.astype(x.dtype).T
             logits = self.softcap(logits_proj)
             loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction="sum")
         return loss_sum / float(n)
@@ -908,9 +909,9 @@ def main() -> None:
     # inside RoPE modules), so compiling only against trainable parameters throws "uncaptured inputs".
     # Compiling the model-bound functions and capturing the full model state fixes that while still
     # returning gradients only for trainable parameters via nn.value_and_grad(...).
-    compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
+    compiled_loss = mx.compile(lambda x, y: model.loss(x, y, training=False), inputs=model.state, outputs=model.state)
     compiled_loss_and_grad = mx.compile(
-        nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
+        nn.value_and_grad(model, lambda x, y: model.loss(x, y, training=True)),
         inputs=model.state,
         outputs=model.state,
     )
