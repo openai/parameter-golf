@@ -965,18 +965,18 @@ def main() -> None:
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
     # - untied lm_head (Adam) uses HEAD_LR
-    # - matrix params in transformer blocks use MATRIX_LR via Muon
-    # - vectors/scalars use SCALAR_LR via Adam
+    # - shared block matrix params use MATRIX_LR / sqrt(num_loops) via Muon
+    # - shared block vectors/scalars use SCALAR_LR via Adam
+    # - LoRA delta params use MATRIX_LR via Adam
     block_named_params = list(base_model.shared_blocks.named_parameters())
-    lora_named_params = list(base_model.lora_deltas.named_parameters())
     matrix_params = [
         p
-        for name, p in block_named_params + lora_named_params
+        for name, p in block_named_params
         if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
     scalar_params = [
         p
-        for name, p in block_named_params + lora_named_params
+        for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
@@ -986,21 +986,33 @@ def main() -> None:
         eps=args.adam_eps,
         fused=True,
     )
+    # Muon LR scaled by 1/sqrt(num_loops) for shared parameters:
+    # shared params accumulate num_loops times more gradient from weight tying.
+    shared_matrix_lr = args.matrix_lr / (args.num_loops ** 0.5)
     optimizer_muon = Muon(
         matrix_params,
-        lr=args.matrix_lr,
+        lr=shared_matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
     )
     for group in optimizer_muon.param_groups:
-        group["base_lr"] = args.matrix_lr
+        group["base_lr"] = shared_matrix_lr
     optimizer_scalar = torch.optim.Adam(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
         fused=True,
     )
-    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+    # LoRA params -> Adam (not Muon). Each LoRA delta is used once, no gradient scaling needed.
+    lora_params = [p for p in base_model.lora_deltas.parameters() if p.ndim == 2]
+    lora_lr = args.matrix_lr  # No scaling -- each LoRA is used once per forward pass
+    optimizer_lora = torch.optim.Adam(
+        [{"params": lora_params, "lr": lora_lr, "base_lr": lora_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.adam_eps,
+        fused=True,
+    )
+    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar, optimizer_lora]
     if base_model.lm_head is not None:
         optimizer_head = torch.optim.Adam(
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
@@ -1012,6 +1024,9 @@ def main() -> None:
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
+    log0(f"depth_recurrence: shared_blocks:{args.num_shared_blocks} loops:{args.num_loops} "
+         f"effective_depth:{args.num_shared_blocks * args.num_loops} lora_rank:{args.lora_rank}")
+    log0(f"shared_matrix_lr:{shared_matrix_lr} lora_lr:{lora_lr}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
