@@ -7,7 +7,7 @@
 
 This challenge is heavily inspired by the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where participants compete to train a model that reaches 3.28 FineWeb validation loss as quickly as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people toward unique architectures (test-time compute, aggressive parameter tying, depth recurrence, low-rank training, ...), compression schemes (low precision, QAT, bitnets, novel tokenizers, ...), and other creative submissions (test-time training, long context, megakernels ...). 
 
-If you're familiar with [neural scaling laws](https://arxiv.org/abs/2001.08361), you can consider this challenge a form of L(N) optimization, where the objective is to optimize the lowest loss given a fixed number of parameters (N) unconstrained by data, compute, steps, or architecture. Challenges like the [NanoGPT Speedrun](https://github.com/KellerJordan/modded-nanogpt), which optimizes for a form of L(T) (~lowest loss given constrained time) or the [NanoGPT Slowrun](qlabs-eng/slowrun), which optimizes for L(D) (lowest lost given constrained dataset size), can be thought of as equivalent challenges in this family.
+If you're familiar with [neural scaling laws](https://arxiv.org/abs/2001.08361), you can consider this challenge a form of L(N) optimization, where the objective is to optimize the lowest loss given a fixed number of parameters (N) unconstrained by data, compute, steps, or architecture. Challenges like the [NanoGPT Speedrun](https://github.com/KellerJordan/modded-nanogpt), which optimizes for a form of L(T) (~lowest loss given constrained time) or the [NanoGPT Slowrun](https://github.com/qlabs-eng/slowrun), which optimizes for L(D) (lowest lost given constrained dataset size), can be thought of as equivalent challenges in this family.
 
 Ideally, we'd allow for submissions to use arbitrary computational resources. But in order to make the challenge not inaccessibly expensive, we're limiting *leaderboard submissions* to 10 minutes on 8xH100s. However, we'd still love to see submissions that don't meet the compute limitation requirements in our 'Non-record Submissions' section: We're excited to see people push the infinite frontier of parameter limited performance as well.
 
@@ -56,7 +56,7 @@ python3 data/cached_challenge_fineweb.py --variant sp1024
 ```
 
 This populates `./data/datasets/fineweb10B_sp1024/` and `./data/tokenizers/`.
-By default this downloads all training shards for the selected variant. If you only want a quick smoke-test download, pass a smaller shard count instead, for example `python3 data/cached_challenge_fineweb.py --variant sp1024 1`.
+By default this downloads only the first training shard for the selected variant so short local runs do not need the full dataset. To fetch more shards, pass `--train-shards`, for example `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 4`.
 
 Then run a small MLX training job:
 
@@ -101,6 +101,8 @@ Download our cached version of FineWeb. We'll use the 1024-token vocabulary for 
 python3 data/cached_challenge_fineweb.py --variant sp1024
 ```
 
+This defaults to the first training shard only. For a larger local subset, pass `--train-shards N`.
+
 Launch your first training run. Note that we're passing `nproc_per_node=1` because we're running on a single H100 GPU in this case.
 
 ```bash
@@ -114,6 +116,63 @@ torchrun --standalone --nproc_per_node=1 train_gpt.py
 By default, `train_gpt.py` keeps its ~10 minute wallclock cap. If you want a longer run, override it explicitly, for example `MAX_WALLCLOCK_SECONDS=0`.
 
 By default, this command prints `train_loss` step logs during training and prints `val_loss`, `val_bpb`, and compressed model size in the final `final_int8_zlib_roundtrip` lines at the end. If you want periodic validation logs during the run, set `VAL_LOSS_EVERY`, for example `VAL_LOSS_EVERY=200`. For the baseline config, the final `val_bpb` should land around ~1.2 with a compressed model size under 16MB.
+
+### Rebuilding the Large Export
+
+To rebuild the larger blobstore-backed export locally or on a remote box, use:
+
+```bash
+python3 data/export_blobstore_fineweb100B_tokenizer_datasets.py \
+  --output_root /tmp/matched_100B_train30Btok_even_seed1337 \
+  --selection_mode even \
+  --selection_seed 1337 \
+  --target_train_tokens 30000000000 \
+  --sp_vocab_sizes 512,1024,2048,4096 \
+  --tokenizer_train_docs 5000000 \
+  --skip_byte
+```
+
+This writes a shared `docs_selected.jsonl`, a `docs_selected.source_manifest.json` sidecar with source-shard metadata, tokenizers, dataset shards, and a final `manifest.json`. Copying the whole export root uploads the docs cache too, so others can retrain tokenizers or rebuild matching shards from the same selected document stream. The downloader reads shard counts from that manifest, and by default only fetches the first train shard so short runs do not need the full export.
+
+For the current blobstore-canonical `10B` export with a fixed `50k`-doc validation prefix and byte plus `512/1024/2048` SentencePiece variants, use:
+
+```bash
+python3 data/export_blobstore_fineweb100B_tokenizer_datasets.py \
+  --output_root /tmp/fineweb_blobstore100B_train10B_val50k \
+  --selection_mode even \
+  --selection_seed 1337 \
+  --target_train_tokens 10000000000 \
+  --num_val_docs 50000 \
+  --sp_vocab_sizes 512,1024,2048 \
+  --tokenizer_train_docs 5000000
+```
+
+This keeps the blobstore as the canonical source, takes the first `50k` documents from the blobstore val stream, then exports shuffled selected train runs until the raw GPT-2 token budget is met.
+
+### Exporting From FineWeb Samples
+
+To export a smaller family directly from Hugging Face FineWeb samples, for example `10B` raw GPT-2 tokens from `sample-350BT` with a fixed `50k`-doc validation prefix and byte plus `512/1024/2048` SentencePiece variants:
+
+```bash
+python3 data/export_hf_fineweb_sample_tokenizer_datasets.py \
+  --dataset_name sample-350BT \
+  --output_root /tmp/fineweb_sample350BT_train10B \
+  --target_train_tokens 10000000000 \
+  --num_val_docs 50000 \
+  --sp_vocab_sizes 512,1024,2048 \
+  --tokenizer_train_docs 5000000
+```
+
+This keeps the val split simple: the first `50k` streamed docs become validation, and training continues on the same sample stream until the raw GPT-2 token budget is reached.
+
+For CPU-heavy local exports, two useful knobs are:
+
+```bash
+MATCHED_FINEWEB_GPT2_COUNT_BATCH_SIZE=512
+MATCHED_FINEWEB_SP_BATCH_SIZE=2048
+```
+
+The first controls exact batched GPT-2 token counting while building the docs cache, and the second controls batched SentencePiece encoding during shard export.
 
 
 ## FAQ
@@ -173,3 +232,5 @@ The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching
 Reach out to parametergolf@openai.com for any other questions.
 
 Join the [Discord server](url).
+
+This repository adapts code from `modded-nanogpt`, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution.
