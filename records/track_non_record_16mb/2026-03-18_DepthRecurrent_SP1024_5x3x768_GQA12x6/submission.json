@@ -1,0 +1,14 @@
+{
+  "name": "Jack Young",
+  "github_id": "JackYoung27",
+  "val_bpb": 1.2663,
+  "val_loss": 2.1295,
+  "model_params": 21451068,
+  "compressed_size_bytes": 13900000,
+  "architecture": "depth_recurrent_5x3_d768_gqa12x6",
+  "tokenizer": "sp1024",
+  "hardware": "4xH100_SXM",
+  "training_steps": 2651,
+  "training_time_seconds": 600,
+  "notes": "Non-record submission. Depth-recurrent transformer (5 shared blocks x 3 loops = 15 effective layers, dim=768). Run on 4xH100 SXM due to 8xH100 unavailability on launch day. Model still improving at wallclock cutoff."
+}
