@@ -2,10 +2,10 @@
   "author": "Monroe Stephenson",
   "github_id": "monroestephenson",
   "name": "Improved Baseline",
-  "blurb": "SP-1024 6x2=12eff 640dim KV4 SwiGLU depth-recurrence QAT-noise; targets sub-1.22 BPB under 16MB cap.",
+  "blurb": "SP-1024 5x2=10eff 704dim KV4 depth-recurrence with learned per-recurrence scales; targets sub-1.22 BPB under 16MB cap.",
   "date": "2026-03-18T00:00:00Z",
   "val_loss": null,
   "val_bpb": null,
   "bytes_total": null,
-  "bytes_code": 45833
+  "bytes_code": 44327
 }

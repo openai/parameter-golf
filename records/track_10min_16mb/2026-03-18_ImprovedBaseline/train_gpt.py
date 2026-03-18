@@ -1,11 +1,9 @@
 """
 Improved baseline for Parameter Golf challenge.
 Key changes from naive baseline:
-- SP-4096 vocabulary for better bytes-per-token compression
-- Depth recurrence: 5 unique layers looped 2x = 10 effective layers
-- SwiGLU MLP replacing ReLU^2
-- Quantization-aware training noise injection
-- Tuned learning rates and schedule
+- Depth recurrence: 5 unique layers looped 2x = 10 effective layers (vs 9)
+- Wider model: dim=576 (vs 512) using param savings from weight sharing
+- Per-recurrence RMSNorms so shared blocks can distinguish which pass they're on
 """
 
 from __future__ import annotations
@@ -57,10 +55,10 @@ class Hyperparameters:
 
     # Model shape — depth recurrence: num_unique_layers looped num_recurrence times
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_unique_layers = int(os.environ.get("NUM_UNIQUE_LAYERS", 8))
+    num_unique_layers = int(os.environ.get("NUM_UNIQUE_LAYERS", 5))
     num_recurrence = int(os.environ.get("NUM_RECURRENCE", 2))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 640))
+    model_dim = int(os.environ.get("MODEL_DIM", 704))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
@@ -82,10 +80,6 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-
-    # QAT noise injection
-    qat_noise = bool(int(os.environ.get("QAT_NOISE", "1")))
-    qat_noise_start_frac = float(os.environ.get("QAT_NOISE_START_FRAC", 0.5))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -563,18 +557,17 @@ class CausalSelfAttention(nn.Module):
         return self.proj(y)
 
 
-class SwiGLU_MLP(nn.Module):
-    """SwiGLU MLP — more parameter-efficient than ReLU^2 for same quality."""
+class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
-        self.gate = CastedLinear(dim, hidden, bias=False)
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.proj(F.silu(self.gate(x)) * self.fc(x))
+        x = torch.relu(self.fc(x))
+        return self.proj(x.square())
 
 
 class Block(nn.Module):
@@ -591,7 +584,7 @@ class Block(nn.Module):
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = SwiGLU_MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -649,9 +642,9 @@ class GPT(nn.Module):
                 for _ in range(num_unique_layers)
             ]
         )
-        # Per-recurrence layer norms to give each pass its own normalization
-        self.recurrence_norms = nn.ModuleList(
-            [RMSNorm() for _ in range(effective_layers)]
+        # Per-recurrence learned scale so shared blocks can distinguish passes
+        self.recurrence_scales = nn.Parameter(
+            torch.ones(effective_layers, model_dim, dtype=torch.float32)
         )
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
@@ -679,6 +672,8 @@ class GPT(nn.Module):
         for eff_i in range(effective_layers):
             # Map effective layer index to physical block
             block_idx = eff_i % self.num_unique_layers
+            # Per-recurrence scale lets shared blocks distinguish which pass
+            x = x * self.recurrence_scales[eff_i].to(dtype=x.dtype)[None, None, :]
 
             if eff_i < encoder_count:
                 x = self.blocks[block_idx](x, x0)
@@ -701,23 +696,6 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
-
-
-# -----------------------------
-# QAT NOISE INJECTION
-# -----------------------------
-
-def add_qat_noise(model: nn.Module, noise_scale: float = 0.5) -> None:
-    """Add simulated quantization noise to weights to prepare for int8 quantization."""
-    with torch.no_grad():
-        for name, param in model.named_parameters():
-            if param.ndim == 2 and param.numel() > INT8_KEEP_FLOAT_MAX_NUMEL:
-                # Simulate per-row int8 quantization noise
-                t32 = param.float()
-                row_max = t32.abs().amax(dim=1, keepdim=True).clamp_min(1e-8)
-                step = row_max / 127.0
-                noise = (torch.rand_like(t32) - 0.5) * step * noise_scale
-                param.add_(noise.to(param.dtype))
 
 
 # -----------------------------
@@ -843,10 +821,8 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
-    # Include recurrence_norms params in scalar group
-    for p in base_model.recurrence_norms.parameters():
-        if p.ndim < 2:
-            scalar_params.append(p)
+    # Include recurrence_scales in scalar group
+    scalar_params.append(base_model.recurrence_scales)
 
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
@@ -894,7 +870,7 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
-    log0(f"seed:{args.seed} qat_noise:{args.qat_noise}")
+    log0(f"seed:{args.seed}")
 
     # DATA LOADER & MODEL WARMUP
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
@@ -1002,15 +978,6 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
-
-        # QAT noise injection in second half of training
-        if args.qat_noise and max_wallclock_ms is not None:
-            if elapsed_ms > max_wallclock_ms * args.qat_noise_start_frac:
-                # Decay noise intensity as we approach end of training
-                remaining_frac = max(0, (max_wallclock_ms - elapsed_ms) / (max_wallclock_ms * (1 - args.qat_noise_start_frac)))
-                noise_scale = 0.3 * remaining_frac
-                if noise_scale > 0.01:
-                    add_qat_noise(base_model, noise_scale)
 
         zero_grad_all()
 
