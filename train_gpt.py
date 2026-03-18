@@ -12,6 +12,7 @@ import io
 import math
 import os
 import random
+import struct
 import subprocess
 import sys
 import time
@@ -422,8 +423,101 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     return out
 
 
+def byte_group_quantized(quant_obj: dict) -> bytes:
+    """Reorganize quantized state dict for better zlib compression.
+    Groups int8 weights and fp16 scales into contiguous blobs so zlib
+    can exploit the statistical regularity within each byte type.
+    """
+    int8_blobs = []
+    scale_blobs = []
+    sorted_names = sorted(quant_obj["quantized"].keys())
+    for name in sorted_names:
+        int8_blobs.append(quant_obj["quantized"][name].numpy().tobytes())
+        scale_blobs.append(quant_obj["scales"][name].numpy().tobytes())
+    int8_data = b"".join(int8_blobs)
+    scale_data = b"".join(scale_blobs)
+
+    meta_obj = {
+        "__quant_format__": quant_obj["__quant_format__"],
+        "dtypes": quant_obj["dtypes"],
+        "passthrough": quant_obj["passthrough"],
+        "tensor_shapes": {name: list(quant_obj["quantized"][name].shape)
+                          for name in sorted_names},
+        "scale_shapes": {name: list(quant_obj["scales"][name].shape)
+                         for name in sorted_names},
+    }
+    if "qmeta" in quant_obj:
+        meta_obj["qmeta"] = quant_obj["qmeta"]
+    if "passthrough_orig_dtypes" in quant_obj:
+        meta_obj["passthrough_orig_dtypes"] = quant_obj["passthrough_orig_dtypes"]
+
+    meta_buf = io.BytesIO()
+    torch.save(meta_obj, meta_buf)
+    meta_data = meta_buf.getvalue()
+
+    packed = struct.pack("<I", len(meta_data)) + meta_data
+    packed += struct.pack("<I", len(int8_data)) + int8_data
+    packed += scale_data
+    return packed
+
+
+def byte_ungroup_quantized(data: bytes) -> dict:
+    """Reverse byte_group_quantized: reconstruct quantized state dict from packed bytes."""
+    offset = 0
+    meta_len = struct.unpack_from("<I", data, offset)[0]
+    offset += 4
+    meta_obj = torch.load(io.BytesIO(data[offset:offset + meta_len]), map_location="cpu")
+    offset += meta_len
+
+    int8_len = struct.unpack_from("<I", data, offset)[0]
+    offset += 4
+    int8_data = data[offset:offset + int8_len]
+    offset += int8_len
+    scale_data = data[offset:]
+
+    sorted_names = sorted(meta_obj["tensor_shapes"].keys())
+    quantized = {}
+    scales = {}
+    int8_offset = 0
+    scale_offset = 0
+    for name in sorted_names:
+        shape = meta_obj["tensor_shapes"][name]
+        numel = 1
+        for s in shape:
+            numel *= s
+        quantized[name] = torch.frombuffer(
+            bytearray(int8_data[int8_offset:int8_offset + numel]),
+            dtype=torch.int8,
+        ).reshape(shape).contiguous()
+        int8_offset += numel
+
+        scale_shape = meta_obj["scale_shapes"][name]
+        scale_numel = 1
+        for s in scale_shape:
+            scale_numel *= s
+        scale_nbytes = scale_numel * 2  # fp16 = 2 bytes per element
+        scales[name] = torch.frombuffer(
+            bytearray(scale_data[scale_offset:scale_offset + scale_nbytes]),
+            dtype=torch.float16,
+        ).reshape(scale_shape).contiguous()
+        scale_offset += scale_nbytes
+
+    result = {
+        "__quant_format__": meta_obj["__quant_format__"],
+        "quantized": quantized,
+        "scales": scales,
+        "dtypes": meta_obj["dtypes"],
+        "passthrough": meta_obj["passthrough"],
+    }
+    if "qmeta" in meta_obj:
+        result["qmeta"] = meta_obj["qmeta"]
+    if "passthrough_orig_dtypes" in meta_obj:
+        result["passthrough_orig_dtypes"] = meta_obj["passthrough_orig_dtypes"]
+    return result
+
+
 # -----------------------------
-# DATA LOADING 
+# DATA LOADING
 # -----------------------------
 
 def load_data_shard(file: Path) -> Tensor:
@@ -1090,9 +1184,7 @@ def main() -> None:
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
-    quant_buf = io.BytesIO()
-    torch.save(quant_obj, quant_buf)
-    quant_raw = quant_buf.getvalue()
+    quant_raw = byte_group_quantized(quant_obj)
     quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
     if master_process:
@@ -1111,7 +1203,7 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = byte_ungroup_quantized(zlib.decompress(quant_blob_disk))
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
