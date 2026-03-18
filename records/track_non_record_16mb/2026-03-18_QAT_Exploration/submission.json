@@ -1,0 +1,9 @@
+{
+  "author": "Matt Leonard",
+  "github_id": "mattleonard16",
+  "name": "QAT + Architecture Exploration",
+  "blurb": "Quantization-aware training with STE to close the int8 quantization gap. Non-record exploration submission pending H100 validation.",
+  "date": "2026-03-18T00:00:00Z",
+  "track": "non-record-exploration",
+  "status": "in-progress"
+}
