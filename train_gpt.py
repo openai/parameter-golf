@@ -497,6 +497,51 @@ class DistributedTokenLoader:
 # TRANSFORMER MODULES
 # -----------------------------
 
+class BioDNA(nn.Module):
+    def __init__(self, max_layers=30, max_types=10, dna_dim=32, hidden_dim=64, rank=16, max_matrix_dim=2048):
+        super().__init__()
+        self.rank = rank
+        self.layer_genes = nn.Embedding(max_layers, dna_dim)
+        self.type_genes = nn.Embedding(max_types, dna_dim)
+        self.morphogenesis_row = nn.Sequential(
+            nn.Linear(dna_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Linear(hidden_dim, max_matrix_dim * rank)
+        )
+        self.morphogenesis_col = nn.Sequential(
+            nn.Linear(dna_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Linear(hidden_dim, max_matrix_dim * rank)
+        )
+
+    def grow_weight(self, layer_id: int, type_id: int, out_features: int, in_features: int) -> Tensor:
+        device = self.layer_genes.weight.device
+        gene_expression = self.layer_genes(torch.tensor(layer_id, device=device)) + \
+                          self.type_genes(torch.tensor(type_id, device=device))
+        
+        row_phenotype = self.morphogenesis_row(gene_expression).view(-1, self.rank)
+        col_phenotype = self.morphogenesis_col(gene_expression).view(-1, self.rank)
+        
+        r = row_phenotype[:out_features, :]
+        c = col_phenotype[:in_features, :]
+        weight = r @ c.T
+        return weight * (1.0 / math.sqrt(in_features * self.rank))
+
+
+class FractalLinear(nn.Module):
+    def __init__(self, dna: BioDNA, layer_id: int, type_id: int, in_features: int, out_features: int):
+        super().__init__()
+        self.dna = dna
+        self.layer_id = layer_id
+        self.type_id = type_id
+        self.in_features = in_features
+        self.out_features = out_features
+
+    def forward(self, x: Tensor) -> Tensor:
+        weight = self.dna.grow_weight(self.layer_id, self.type_id, self.out_features, self.in_features)
+        return F.linear(x, weight.to(x.dtype))
+
+
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
         super().__init__()
@@ -506,23 +551,7 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
-class CastedLinear(nn.Linear):
-    # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
-    def forward(self, x: Tensor) -> Tensor:
-        bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
-
-
-def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
-    # Keep small/control parameters in fp32 even when the model body runs in bf16.
-    with torch.no_grad():
-        for name, param in module.named_parameters():
-            if (param.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)) and param.dtype != torch.float32:
-                param.data = param.data.float()
-
-
 class Rotary(nn.Module):
-    # Caches cos/sin tables per sequence length on the current device.
     def __init__(self, dim: int, base: float = 10000.0):
         super().__init__()
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
@@ -555,6 +584,8 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 class CausalSelfAttention(nn.Module):
     def __init__(
         self,
+        dna: BioDNA,
+        layer_id: int,
         dim: int,
         num_heads: int,
         num_kv_heads: int,
@@ -566,17 +597,20 @@ class CausalSelfAttention(nn.Module):
             raise ValueError("model_dim must be divisible by num_heads")
         if num_heads % num_kv_heads != 0:
             raise ValueError("num_heads must be divisible by num_kv_heads")
+        
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
+            
         kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = CastedLinear(dim, kv_dim, bias=False)
-        self.proj = CastedLinear(dim, dim, bias=False)
-        self.proj._zero_init = True
+        
+        self.c_q = FractalLinear(dna, layer_id, 0, dim, dim)
+        self.c_k = FractalLinear(dna, layer_id, 1, dim, kv_dim)
+        self.c_v = FractalLinear(dna, layer_id, 2, dim, kv_dim)
+        self.proj = FractalLinear(dna, layer_id, 3, dim, dim)
+        
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
 
@@ -585,12 +619,14 @@ class CausalSelfAttention(nn.Module):
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+        
         y = F.scaled_dot_product_attention(
             q,
             k,
@@ -604,13 +640,11 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    # relu^2 MLP from the original modded-nanogpt setup
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dna: BioDNA, layer_id: int, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
-        self.fc = CastedLinear(dim, hidden, bias=False)
-        self.proj = CastedLinear(hidden, dim, bias=False)
-        self.proj._zero_init = True
+        self.fc = FractalLinear(dna, layer_id, 4, dim, hidden)
+        self.proj = FractalLinear(dna, layer_id, 5, hidden, dim)
 
     def forward(self, x: Tensor) -> Tensor:
         x = torch.relu(self.fc(x))
@@ -620,6 +654,8 @@ class MLP(nn.Module):
 class Block(nn.Module):
     def __init__(
         self,
+        dna: BioDNA,
+        layer_id: int,
         dim: int,
         num_heads: int,
         num_kv_heads: int,
@@ -630,8 +666,8 @@ class Block(nn.Module):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.attn = CausalSelfAttention(dna, layer_id, dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.mlp = MLP(dna, layer_id, dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -663,17 +699,25 @@ class GPT(nn.Module):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+            
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        
+        max_dim = max(vocab_size, model_dim * mlp_mult)
+        self.dna = BioDNA(max_layers=num_layers+1, max_types=10, dna_dim=32, hidden_dim=64, rank=16, max_matrix_dim=max_dim)
+        
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        
         self.blocks = nn.ModuleList(
             [
                 Block(
+                    self.dna,
+                    i,
                     model_dim,
                     num_heads,
                     num_kv_heads,
@@ -685,17 +729,12 @@ class GPT(nn.Module):
             ]
         )
         self.final_norm = RMSNorm()
-        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
-        if self.lm_head is not None:
-            self.lm_head._zero_init = True
+        self.lm_head = None if tie_embeddings else FractalLinear(self.dna, num_layers, 6, model_dim, vocab_size)
         self._init_weights()
 
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        for module in self.modules():
-            if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
-                nn.init.zeros_(module.weight)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
@@ -703,10 +742,10 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
             skips.append(x)
+            
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
@@ -714,15 +753,14 @@ class GPT(nn.Module):
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
+        
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(x, self.tok_emb.weight.to(x.dtype))
         else:
-            if self.lm_head is None:
-                raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
+            
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
-
 
 # -----------------------------
 # TRAINING
