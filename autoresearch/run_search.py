@@ -1,0 +1,774 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import random
+import re
+import subprocess
+import sys
+import time
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+ARTIFACT_LIMIT_BYTES = 16_000_000
+ROOT = Path(__file__).resolve().parents[1]
+LOG_DIR = ROOT / "logs" / "autoresearch"
+TRIALS_DIR = LOG_DIR / "trials"
+WORKBENCH_DIR = LOG_DIR / "workbench"
+RESULTS_TSV = LOG_DIR / "results.tsv"
+BEST_JSON = LOG_DIR / "best_config.json"
+TRAIN_CUDA = ROOT / "train_gpt.py"
+TRAIN_MLX = ROOT / "train_gpt_mlx.py"
+
+VAL_RE = re.compile(r"final_int8_zlib_roundtrip_exact val_loss:(?P<val_loss>[-+0-9.eE]+) val_bpb:(?P<val_bpb>[-+0-9.eE]+)")
+CUDA_MODEL_SIZE_RE = re.compile(r"Serialized model int8\+zlib: (?P<bytes>\d+) bytes")
+CUDA_TOTAL_SIZE_RE = re.compile(r"Total submission size int8\+zlib: (?P<bytes>\d+) bytes")
+MLX_MODEL_SIZE_RE = re.compile(r"serialized_model_int8_zlib:(?P<bytes>\d+) bytes")
+PARAM_RE = re.compile(r"model_params:(?P<params>\d+)")
+
+CONFIG_KEYS = [
+    "VOCAB_SIZE",
+    "NUM_LAYERS",
+    "MODEL_DIM",
+    "NUM_HEADS",
+    "NUM_KV_HEADS",
+    "MLP_MULT",
+    "TRAIN_SEQ_LEN",
+    "TRAIN_BATCH_TOKENS",
+    "VAL_BATCH_SIZE",
+    "ITERATIONS",
+    "MAX_WALLCLOCK_SECONDS",
+    "TIED_EMBED_LR",
+    "MATRIX_LR",
+    "SCALAR_LR",
+    "MUON_MOMENTUM",
+    "MUON_BACKEND_STEPS",
+    "QK_GAIN_INIT",
+    "LOGIT_SOFTCAP",
+    "WARMDOWN_ITERS",
+    "TIED_EMBED_INIT_STD",
+    "GRAD_ACCUM_STEPS",
+    "MLX_MAX_MICROBATCH_TOKENS",
+]
+
+SEARCH_CHOICES: dict[str, list[str]] = {
+    "NUM_LAYERS": ["8", "9", "10", "12"],
+    "MODEL_DIM": ["384", "448", "512", "576", "640"],
+    "NUM_HEADS": ["6", "7", "8", "9", "10"],
+    "NUM_KV_HEADS": ["1", "2", "4", "5"],
+    "MLP_MULT": ["2", "3"],
+    "TRAIN_SEQ_LEN": ["512", "768", "1024"],
+    "TRAIN_BATCH_TOKENS": ["131072", "262144", "393216", "524288", "786432"],
+    "TIED_EMBED_LR": ["0.03", "0.04", "0.05", "0.06", "0.07"],
+    "MATRIX_LR": ["0.02", "0.025", "0.03", "0.04", "0.05"],
+    "SCALAR_LR": ["0.02", "0.025", "0.03", "0.04", "0.05"],
+    "MUON_MOMENTUM": ["0.92", "0.95", "0.97"],
+    "MUON_BACKEND_STEPS": ["4", "5", "6"],
+    "QK_GAIN_INIT": ["1.0", "1.25", "1.5", "1.75", "2.0"],
+    "LOGIT_SOFTCAP": ["20.0", "30.0", "40.0"],
+    "WARMDOWN_ITERS": ["600", "800", "1200", "1600"],
+    "TIED_EMBED_INIT_STD": ["0.003", "0.005", "0.007", "0.01"],
+}
+
+PRESETS: dict[str, dict[str, dict[str, str]]] = {
+    "cuda": {
+        "baseline": {
+            "VOCAB_SIZE": "1024",
+            "NUM_LAYERS": "9",
+            "MODEL_DIM": "512",
+            "NUM_HEADS": "8",
+            "NUM_KV_HEADS": "4",
+            "MLP_MULT": "2",
+            "TRAIN_SEQ_LEN": "1024",
+            "TRAIN_BATCH_TOKENS": "524288",
+            "VAL_BATCH_SIZE": "524288",
+            "ITERATIONS": "20000",
+            "MAX_WALLCLOCK_SECONDS": "600",
+            "TIED_EMBED_LR": "0.05",
+            "MATRIX_LR": "0.04",
+            "SCALAR_LR": "0.04",
+            "MUON_MOMENTUM": "0.95",
+            "MUON_BACKEND_STEPS": "5",
+            "QK_GAIN_INIT": "1.5",
+            "LOGIT_SOFTCAP": "30.0",
+            "WARMDOWN_ITERS": "1200",
+            "TIED_EMBED_INIT_STD": "0.005",
+        },
+        "depth_first": {
+            "VOCAB_SIZE": "1024",
+            "NUM_LAYERS": "12",
+            "MODEL_DIM": "448",
+            "NUM_HEADS": "7",
+            "NUM_KV_HEADS": "1",
+            "MLP_MULT": "2",
+            "TRAIN_SEQ_LEN": "1024",
+            "TRAIN_BATCH_TOKENS": "393216",
+            "VAL_BATCH_SIZE": "393216",
+            "ITERATIONS": "22000",
+            "MAX_WALLCLOCK_SECONDS": "600",
+            "TIED_EMBED_LR": "0.04",
+            "MATRIX_LR": "0.03",
+            "SCALAR_LR": "0.03",
+            "MUON_MOMENTUM": "0.97",
+            "MUON_BACKEND_STEPS": "5",
+            "QK_GAIN_INIT": "1.25",
+            "LOGIT_SOFTCAP": "30.0",
+            "WARMDOWN_ITERS": "1600",
+            "TIED_EMBED_INIT_STD": "0.005",
+        },
+        "width_first": {
+            "VOCAB_SIZE": "1024",
+            "NUM_LAYERS": "8",
+            "MODEL_DIM": "640",
+            "NUM_HEADS": "10",
+            "NUM_KV_HEADS": "2",
+            "MLP_MULT": "2",
+            "TRAIN_SEQ_LEN": "768",
+            "TRAIN_BATCH_TOKENS": "524288",
+            "VAL_BATCH_SIZE": "524288",
+            "ITERATIONS": "18000",
+            "MAX_WALLCLOCK_SECONDS": "600",
+            "TIED_EMBED_LR": "0.04",
+            "MATRIX_LR": "0.025",
+            "SCALAR_LR": "0.03",
+            "MUON_MOMENTUM": "0.95",
+            "MUON_BACKEND_STEPS": "4",
+            "QK_GAIN_INIT": "1.75",
+            "LOGIT_SOFTCAP": "20.0",
+            "WARMDOWN_ITERS": "1200",
+            "TIED_EMBED_INIT_STD": "0.003",
+        },
+        "compact_context": {
+            "VOCAB_SIZE": "1024",
+            "NUM_LAYERS": "10",
+            "MODEL_DIM": "512",
+            "NUM_HEADS": "8",
+            "NUM_KV_HEADS": "2",
+            "MLP_MULT": "2",
+            "TRAIN_SEQ_LEN": "512",
+            "TRAIN_BATCH_TOKENS": "786432",
+            "VAL_BATCH_SIZE": "786432",
+            "ITERATIONS": "24000",
+            "MAX_WALLCLOCK_SECONDS": "600",
+            "TIED_EMBED_LR": "0.06",
+            "MATRIX_LR": "0.04",
+            "SCALAR_LR": "0.04",
+            "MUON_MOMENTUM": "0.92",
+            "MUON_BACKEND_STEPS": "5",
+            "QK_GAIN_INIT": "1.5",
+            "LOGIT_SOFTCAP": "40.0",
+            "WARMDOWN_ITERS": "800",
+            "TIED_EMBED_INIT_STD": "0.007",
+        },
+    },
+    "mlx": {
+        "baseline": {
+            "VOCAB_SIZE": "1024",
+            "NUM_LAYERS": "9",
+            "MODEL_DIM": "512",
+            "NUM_HEADS": "8",
+            "NUM_KV_HEADS": "4",
+            "MLP_MULT": "2",
+            "TRAIN_SEQ_LEN": "1024",
+            "TRAIN_BATCH_TOKENS": "131072",
+            "VAL_BATCH_SIZE": "131072",
+            "ITERATIONS": "1200",
+            "MAX_WALLCLOCK_SECONDS": "180",
+            "TIED_EMBED_LR": "0.05",
+            "MATRIX_LR": "0.04",
+            "SCALAR_LR": "0.04",
+            "MUON_MOMENTUM": "0.95",
+            "MUON_BACKEND_STEPS": "5",
+            "QK_GAIN_INIT": "1.5",
+            "LOGIT_SOFTCAP": "30.0",
+            "WARMDOWN_ITERS": "1200",
+            "TIED_EMBED_INIT_STD": "0.005",
+            "GRAD_ACCUM_STEPS": "8",
+            "MLX_MAX_MICROBATCH_TOKENS": "8192",
+        },
+        "small_fast": {
+            "VOCAB_SIZE": "1024",
+            "NUM_LAYERS": "8",
+            "MODEL_DIM": "384",
+            "NUM_HEADS": "6",
+            "NUM_KV_HEADS": "1",
+            "MLP_MULT": "2",
+            "TRAIN_SEQ_LEN": "512",
+            "TRAIN_BATCH_TOKENS": "65536",
+            "VAL_BATCH_SIZE": "65536",
+            "ITERATIONS": "1600",
+            "MAX_WALLCLOCK_SECONDS": "120",
+            "TIED_EMBED_LR": "0.06",
+            "MATRIX_LR": "0.04",
+            "SCALAR_LR": "0.04",
+            "MUON_MOMENTUM": "0.92",
+            "MUON_BACKEND_STEPS": "4",
+            "QK_GAIN_INIT": "1.25",
+            "LOGIT_SOFTCAP": "30.0",
+            "WARMDOWN_ITERS": "800",
+            "TIED_EMBED_INIT_STD": "0.007",
+            "GRAD_ACCUM_STEPS": "8",
+            "MLX_MAX_MICROBATCH_TOKENS": "4096",
+        },
+        "balanced": {
+            "VOCAB_SIZE": "1024",
+            "NUM_LAYERS": "10",
+            "MODEL_DIM": "448",
+            "NUM_HEADS": "7",
+            "NUM_KV_HEADS": "1",
+            "MLP_MULT": "2",
+            "TRAIN_SEQ_LEN": "768",
+            "TRAIN_BATCH_TOKENS": "131072",
+            "VAL_BATCH_SIZE": "131072",
+            "ITERATIONS": "1200",
+            "MAX_WALLCLOCK_SECONDS": "180",
+            "TIED_EMBED_LR": "0.04",
+            "MATRIX_LR": "0.03",
+            "SCALAR_LR": "0.03",
+            "MUON_MOMENTUM": "0.95",
+            "MUON_BACKEND_STEPS": "5",
+            "QK_GAIN_INIT": "1.5",
+            "LOGIT_SOFTCAP": "20.0",
+            "WARMDOWN_ITERS": "1200",
+            "TIED_EMBED_INIT_STD": "0.005",
+            "GRAD_ACCUM_STEPS": "8",
+            "MLX_MAX_MICROBATCH_TOKENS": "8192",
+        },
+    },
+}
+
+CODE_MUTATIONS: dict[str, dict[str, list[tuple[str, str]]]] = {
+    "cuda": {
+        "gelu_mlp": [
+            (
+                "        x = torch.relu(self.fc(x))\n        return self.proj(x.square())",
+                "        x = F.gelu(self.fc(x))\n        return self.proj(x)",
+            ),
+        ],
+        "silu_mlp": [
+            (
+                "        x = torch.relu(self.fc(x))\n        return self.proj(x.square())",
+                "        x = F.silu(self.fc(x))\n        return self.proj(x)",
+            ),
+        ],
+        "plain_logits": [
+            (
+                "        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)",
+                "        logits = logits_proj",
+            ),
+        ],
+        "identity_resid_mix": [
+            (
+                "        mix = self.resid_mix.to(dtype=x.dtype)\n        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0",
+                "        x = x",
+            ),
+        ],
+    },
+    "mlx": {
+        "gelu_mlp": [
+            (
+                "        x = nn.relu(self.fc(x))\n        return self.proj(x * x)",
+                "        x = nn.gelu(self.fc(x))\n        return self.proj(x)",
+            ),
+        ],
+        "silu_mlp": [
+            (
+                "        x = nn.relu(self.fc(x))\n        return self.proj(x * x)",
+                "        x = nn.silu(self.fc(x))\n        return self.proj(x)",
+            ),
+        ],
+        "plain_logits": [
+            (
+                "            logits = self.softcap(logits_proj)\n            return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction=\"mean\")",
+                "            logits = logits_proj\n            return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction=\"mean\")",
+            ),
+            (
+                "            logits = self.softcap(logits_proj)\n            loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction=\"sum\")",
+                "            logits = logits_proj\n            loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction=\"sum\")",
+            ),
+        ],
+        "identity_resid_mix": [
+            (
+                "        mix = self.resid_mix.astype(x.dtype)\n        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0",
+                "        x = x",
+            ),
+        ],
+    },
+}
+
+
+@dataclass
+class TrialResult:
+    run_id: str
+    backend: str
+    mode: str
+    status: str
+    val_bpb: float
+    val_loss: float
+    total_bytes: int
+    train_script_path: str
+    train_script_bytes: int
+    quantized_model_bytes: int
+    model_params: int
+    elapsed_seconds: float
+    log_path: str
+    preset: str
+    code_mutation: str
+    parents: list[str]
+    config: dict[str, Any]
+    description: str = ""
+
+
+def ensure_dirs() -> None:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    TRIALS_DIR.mkdir(parents=True, exist_ok=True)
+    WORKBENCH_DIR.mkdir(parents=True, exist_ok=True)
+    if not RESULTS_TSV.exists():
+        RESULTS_TSV.write_text(
+            "run_id\tbackend\tmode\tval_bpb\tval_loss\ttotal_bytes\tstatus\tpreset\tcode_mutation\tparents\ttrain_script_path\tdescription\n",
+            encoding="utf-8",
+        )
+
+
+def read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def script_for_backend(backend: str) -> Path:
+    return TRAIN_CUDA if backend == "cuda" else TRAIN_MLX
+
+
+def script_bytes(path: Path) -> int:
+    return len(path.read_bytes())
+
+
+def normalize_config(backend: str, cfg: dict[str, Any]) -> dict[str, str]:
+    base = dict(PRESETS[backend]["baseline"])
+    for key, value in cfg.items():
+        if key in CONFIG_KEYS:
+            base[key] = str(value)
+    if backend == "cuda":
+        base.pop("GRAD_ACCUM_STEPS", None)
+        base.pop("MLX_MAX_MICROBATCH_TOKENS", None)
+    return base
+
+
+def estimate_params(cfg: dict[str, Any]) -> int:
+    dim = int(cfg["MODEL_DIM"])
+    layers = int(cfg["NUM_LAYERS"])
+    vocab = int(cfg["VOCAB_SIZE"])
+    heads = int(cfg["NUM_HEADS"])
+    kv_heads = int(cfg["NUM_KV_HEADS"])
+    mlp_mult = int(cfg["MLP_MULT"])
+    head_dim = dim // heads
+    kv_dim = kv_heads * head_dim
+    hidden = dim * mlp_mult
+    embed = vocab * dim
+    block = (dim * dim) + (dim * kv_dim) + (dim * kv_dim) + (dim * dim) + (dim * hidden) + (hidden * dim)
+    controls = layers * (7 * dim) + (layers // 2) * dim
+    return embed + layers * block + controls
+
+
+def estimated_total_bytes(cfg: dict[str, Any], script_path: Path) -> int:
+    quantized = int(estimate_params(cfg) * 1.10)
+    return quantized + script_bytes(script_path)
+
+
+def valid_shape(cfg: dict[str, str]) -> bool:
+    dim = int(cfg["MODEL_DIM"])
+    heads = int(cfg["NUM_HEADS"])
+    kv_heads = int(cfg["NUM_KV_HEADS"])
+    seq_len = int(cfg["TRAIN_SEQ_LEN"])
+    batch_tokens = int(cfg["TRAIN_BATCH_TOKENS"])
+    return (
+        dim % heads == 0
+        and heads % kv_heads == 0
+        and (dim // heads) % 2 == 0
+        and batch_tokens >= seq_len
+        and batch_tokens % seq_len == 0
+    )
+
+
+def mutate_config(base: dict[str, str], backend: str, rng: random.Random, intensity: int = 4) -> dict[str, str]:
+    cfg = dict(base)
+    keys = list(SEARCH_CHOICES.keys())
+    for key in rng.sample(keys, k=min(intensity, len(keys))):
+        cfg[key] = rng.choice(SEARCH_CHOICES[key])
+    if backend == "mlx":
+        cfg["TRAIN_BATCH_TOKENS"] = rng.choice(["32768", "65536", "131072", "262144"])
+        cfg["VAL_BATCH_SIZE"] = cfg["TRAIN_BATCH_TOKENS"]
+        cfg["ITERATIONS"] = str(rng.choice([400, 800, 1200, 1600]))
+        cfg["MAX_WALLCLOCK_SECONDS"] = str(rng.choice([120, 180, 240]))
+        cfg["GRAD_ACCUM_STEPS"] = "8"
+        cfg["MLX_MAX_MICROBATCH_TOKENS"] = rng.choice(["4096", "8192", "16384"])
+    else:
+        cfg["VAL_BATCH_SIZE"] = cfg["TRAIN_BATCH_TOKENS"]
+        cfg["ITERATIONS"] = str(rng.choice([12000, 16000, 20000, 24000]))
+        cfg["MAX_WALLCLOCK_SECONDS"] = "600"
+    while not valid_shape(cfg):
+        cfg["MODEL_DIM"] = rng.choice(SEARCH_CHOICES["MODEL_DIM"])
+        cfg["NUM_HEADS"] = rng.choice([item for item in SEARCH_CHOICES["NUM_HEADS"] if int(cfg["MODEL_DIM"]) % int(item) == 0])
+        cfg["NUM_KV_HEADS"] = rng.choice([item for item in SEARCH_CHOICES["NUM_KV_HEADS"] if int(cfg["NUM_HEADS"]) % int(item) == 0])
+        cfg["TRAIN_BATCH_TOKENS"] = rng.choice([item for item in SEARCH_CHOICES["TRAIN_BATCH_TOKENS"] if int(item) % int(cfg["TRAIN_SEQ_LEN"]) == 0])
+        cfg["VAL_BATCH_SIZE"] = cfg["TRAIN_BATCH_TOKENS"]
+    return cfg
+
+
+def crossover_config(a: dict[str, str], b: dict[str, str], backend: str, rng: random.Random) -> dict[str, str]:
+    merged = dict(a)
+    for key in CONFIG_KEYS:
+        if key in b and rng.random() < 0.5:
+            merged[key] = str(b[key])
+    merged = normalize_config(backend, merged)
+    while not valid_shape(merged):
+        merged = mutate_config(merged, backend, rng, intensity=3)
+    return merged
+
+
+def build_command(backend: str, script_path: Path, nproc: int) -> list[str]:
+    if backend == "cuda":
+        return ["uv", "run", "torchrun", "--standalone", f"--nproc_per_node={nproc}", str(script_path)]
+    return ["uv", "run", "python3", str(script_path)]
+
+
+def parse_metrics(log_text: str, backend: str, script_path: Path) -> tuple[float, float, int, int, int]:
+    val_match = list(VAL_RE.finditer(log_text))
+    if not val_match:
+        raise ValueError("missing final validation metrics")
+    val_loss = float(val_match[-1].group("val_loss"))
+    val_bpb = float(val_match[-1].group("val_bpb"))
+    if backend == "cuda":
+        total_match = list(CUDA_TOTAL_SIZE_RE.finditer(log_text))
+        model_match = list(CUDA_MODEL_SIZE_RE.finditer(log_text))
+        total_bytes = int(total_match[-1].group("bytes")) if total_match else 0
+        quantized_model_bytes = int(model_match[-1].group("bytes")) if model_match else max(total_bytes - script_bytes(script_path), 0)
+    else:
+        model_match = list(MLX_MODEL_SIZE_RE.finditer(log_text))
+        quantized_model_bytes = int(model_match[-1].group("bytes")) if model_match else 0
+        total_bytes = quantized_model_bytes + script_bytes(script_path)
+    param_match = list(PARAM_RE.finditer(log_text))
+    model_params = int(param_match[-1].group("params")) if param_match else 0
+    return val_loss, val_bpb, total_bytes, quantized_model_bytes, model_params
+
+
+def append_result(result: TrialResult) -> None:
+    with RESULTS_TSV.open("a", encoding="utf-8") as handle:
+        handle.write(
+            f"{result.run_id}\t{result.backend}\t{result.mode}\t{result.val_bpb:.8f}\t{result.val_loss:.8f}\t{result.total_bytes}\t{result.status}\t{result.preset}\t{result.code_mutation}\t{','.join(result.parents)}\t{result.train_script_path}\t{result.description}\n"
+        )
+    (TRIALS_DIR / f"{result.run_id}.json").write_text(json.dumps(asdict(result), indent=2, sort_keys=True), encoding="utf-8")
+
+
+def load_best() -> TrialResult | None:
+    if not BEST_JSON.exists():
+        return None
+    return TrialResult(**json.loads(BEST_JSON.read_text(encoding="utf-8")))
+
+
+def save_best(best: TrialResult) -> None:
+    BEST_JSON.write_text(json.dumps(asdict(best), indent=2, sort_keys=True), encoding="utf-8")
+
+
+def load_population(backend: str) -> list[TrialResult]:
+    population: list[TrialResult] = []
+    for path in sorted(TRIALS_DIR.glob("*.json")):
+        result = TrialResult(**json.loads(path.read_text(encoding="utf-8")))
+        if result.backend == backend and result.status == "ok":
+            population.append(result)
+    population.sort(key=lambda item: item.val_bpb)
+    return population
+
+
+def better(candidate: TrialResult, incumbent: TrialResult | None) -> bool:
+    return candidate.status == "ok" and (incumbent is None or candidate.val_bpb < incumbent.val_bpb)
+
+
+def describe_delta(base: dict[str, str], candidate: dict[str, str]) -> str:
+    changed = [f"{key}={candidate[key]}" for key in sorted(candidate) if base.get(key) != candidate[key]]
+    return ", ".join(changed) if changed else "baseline"
+
+
+def apply_config_defaults(script_text: str, cfg: dict[str, str]) -> str:
+    updated = script_text
+    for key, value in cfg.items():
+        pattern = re.compile(rf'os\.environ\.get\("{re.escape(key)}",\s*[^)]*\)')
+        replacement = f'os.environ.get("{key}", {json.dumps(str(value))})'
+        updated = pattern.sub(replacement, updated)
+    return updated
+
+
+def apply_code_mutation(script_text: str, backend: str, mutation: str) -> str:
+    updated = script_text
+    for old, new in CODE_MUTATIONS[backend][mutation]:
+        if old not in updated:
+            raise ValueError(f"missing mutation target for {mutation}")
+        updated = updated.replace(old, new)
+    return updated
+
+
+def create_candidate_script(run_id: str, backend: str, cfg: dict[str, str], code_mutation: str) -> Path:
+    source = script_for_backend(backend)
+    target = WORKBENCH_DIR / f"{run_id}_{source.name}"
+    text = source.read_text(encoding="utf-8")
+    text = apply_config_defaults(text, cfg)
+    if code_mutation:
+        text = apply_code_mutation(text, backend, code_mutation)
+    target.write_text(text, encoding="utf-8")
+    return target
+
+
+def make_result(
+    run_id: str,
+    backend: str,
+    mode: str,
+    status: str,
+    val_bpb: float,
+    val_loss: float,
+    total_bytes: int,
+    script_path: Path,
+    quantized_model_bytes: int,
+    model_params: int,
+    elapsed_seconds: float,
+    log_path: Path,
+    preset: str,
+    code_mutation: str,
+    parents: list[str],
+    config: dict[str, str],
+    description: str,
+) -> TrialResult:
+    return TrialResult(
+        run_id=run_id,
+        backend=backend,
+        mode=mode,
+        status=status,
+        val_bpb=val_bpb,
+        val_loss=val_loss,
+        total_bytes=total_bytes,
+        train_script_path=str(script_path.relative_to(ROOT)),
+        train_script_bytes=script_bytes(script_path),
+        quantized_model_bytes=quantized_model_bytes,
+        model_params=model_params,
+        elapsed_seconds=elapsed_seconds,
+        log_path=str(log_path.relative_to(ROOT)),
+        preset=preset,
+        code_mutation=code_mutation,
+        parents=parents,
+        config=config,
+        description=description,
+    )
+
+
+def run_trial(
+    index: int,
+    backend: str,
+    mode: str,
+    cfg: dict[str, str],
+    nproc: int,
+    description: str,
+    preset: str = "",
+    code_mutation: str = "",
+    parents: list[str] | None = None,
+) -> TrialResult:
+    run_id = f"ar_{backend}_{mode}_{time.strftime('%Y%m%d_%H%M%S')}_{index:03d}"
+    script_path = create_candidate_script(run_id, backend, cfg, code_mutation) if mode == "code" else script_for_backend(backend)
+    env = os.environ.copy()
+    env.update(cfg)
+    env["RUN_ID"] = run_id
+    log_path = LOG_DIR / f"{run_id}.log"
+    started = time.time()
+    with log_path.open("w", encoding="utf-8") as handle:
+        proc = subprocess.run(build_command(backend, script_path, nproc), cwd=ROOT, env=env, stdout=handle, stderr=subprocess.STDOUT, text=True)
+    elapsed = time.time() - started
+    text = read_text(log_path)
+    status = "ok" if proc.returncode == 0 else "crash"
+    val_loss = 0.0
+    val_bpb = 0.0
+    total_bytes = 0
+    quantized_model_bytes = 0
+    model_params = 0
+    if status == "ok":
+        try:
+            val_loss, val_bpb, total_bytes, quantized_model_bytes, model_params = parse_metrics(text, backend, script_path)
+            if total_bytes > ARTIFACT_LIMIT_BYTES:
+                status = "over_limit"
+        except Exception as exc:
+            status = f"parse_error:{type(exc).__name__}"
+    result = make_result(
+        run_id,
+        backend,
+        mode,
+        status,
+        val_bpb,
+        val_loss,
+        total_bytes,
+        script_path,
+        quantized_model_bytes,
+        model_params,
+        elapsed,
+        log_path,
+        preset,
+        code_mutation,
+        parents or [],
+        cfg,
+        description,
+    )
+    append_result(result)
+    return result
+
+
+def run_preset_mode(args: argparse.Namespace, best: TrialResult | None) -> TrialResult | None:
+    rng = random.Random(args.seed)
+    preset_names = [args.preset] if args.preset else list(PRESETS[args.backend].keys())
+    for index in range(args.trials):
+        preset_name = preset_names[index % len(preset_names)] if args.preset else rng.choice(preset_names)
+        cfg = normalize_config(args.backend, PRESETS[args.backend][preset_name])
+        if estimated_total_bytes(cfg, script_for_backend(args.backend)) >= ARTIFACT_LIMIT_BYTES:
+            continue
+        result = run_trial(index, args.backend, "preset", cfg, args.nproc, f"preset:{preset_name}", preset=preset_name)
+        if better(result, best):
+            best = result
+            save_best(best)
+            print(f"new best: {best.val_bpb:.8f} {best.run_id}")
+        else:
+            print(f"kept best: {best.val_bpb:.8f} ({best.run_id}) status={result.status}" if best else f"no valid best yet after {result.run_id} status={result.status}")
+    return best
+
+
+def run_random_mode(args: argparse.Namespace, best: TrialResult | None) -> TrialResult | None:
+    rng = random.Random(args.seed)
+    seed_cfg = normalize_config(args.backend, best.config) if best is not None else normalize_config(args.backend, PRESETS[args.backend]["baseline"])
+    for index in range(args.trials):
+        candidate = mutate_config(seed_cfg, args.backend, rng, intensity=rng.randint(2, 5))
+        while estimated_total_bytes(candidate, script_for_backend(args.backend)) >= ARTIFACT_LIMIT_BYTES:
+            candidate = mutate_config(seed_cfg, args.backend, rng, intensity=rng.randint(2, 5))
+        result = run_trial(index, args.backend, "random", candidate, args.nproc, describe_delta(seed_cfg, candidate))
+        if better(result, best):
+            best = result
+            seed_cfg = normalize_config(args.backend, result.config)
+            save_best(best)
+            print(f"new best: {best.val_bpb:.8f} {best.run_id}")
+        else:
+            print(f"kept best: {best.val_bpb:.8f} ({best.run_id}) status={result.status}" if best else f"no valid best yet after {result.run_id} status={result.status}")
+    return best
+
+
+def run_evolution_mode(args: argparse.Namespace, best: TrialResult | None) -> TrialResult | None:
+    rng = random.Random(args.seed)
+    population = load_population(args.backend)
+    pool = population[: max(2, args.population)]
+    if not pool:
+        for preset_name, preset_cfg in PRESETS[args.backend].items():
+            pool.append(
+                make_result(
+                    f"seed_{preset_name}",
+                    args.backend,
+                    "seed",
+                    "ok",
+                    float("inf"),
+                    float("inf"),
+                    estimated_total_bytes(preset_cfg, script_for_backend(args.backend)),
+                    script_for_backend(args.backend),
+                    0,
+                    estimate_params(preset_cfg),
+                    0.0,
+                    LOG_DIR / "seed.log",
+                    preset_name,
+                    "",
+                    [],
+                    normalize_config(args.backend, preset_cfg),
+                    f"seed:{preset_name}",
+                )
+            )
+    for index in range(args.trials):
+        parents = rng.sample(pool, k=2 if len(pool) > 1 else 1)
+        base_a = normalize_config(args.backend, parents[0].config)
+        if len(parents) == 1:
+            candidate = mutate_config(base_a, args.backend, rng, intensity=rng.randint(2, 4))
+        else:
+            base_b = normalize_config(args.backend, parents[1].config)
+            candidate = crossover_config(base_a, base_b, args.backend, rng)
+            candidate = mutate_config(candidate, args.backend, rng, intensity=rng.randint(1, 3))
+        while estimated_total_bytes(candidate, script_for_backend(args.backend)) >= ARTIFACT_LIMIT_BYTES:
+            candidate = mutate_config(base_a, args.backend, rng, intensity=3)
+        result = run_trial(index, args.backend, "evolution", candidate, args.nproc, describe_delta(base_a, candidate), parents=[item.run_id for item in parents])
+        if result.status == "ok":
+            pool.append(result)
+            pool.sort(key=lambda item: item.val_bpb)
+            pool = pool[: max(2, args.population)]
+        if better(result, best):
+            best = result
+            save_best(best)
+            print(f"new best: {best.val_bpb:.8f} {best.run_id}")
+        else:
+            print(f"kept best: {best.val_bpb:.8f} ({best.run_id}) status={result.status}" if best else f"no valid best yet after {result.run_id} status={result.status}")
+    return best
+
+
+def run_code_mode(args: argparse.Namespace, best: TrialResult | None) -> TrialResult | None:
+    rng = random.Random(args.seed)
+    seed_cfg = normalize_config(args.backend, best.config) if best is not None else normalize_config(args.backend, PRESETS[args.backend]["baseline"])
+    mutation_names = [args.code_mutation] if args.code_mutation else list(CODE_MUTATIONS[args.backend].keys())
+    for index in range(args.trials):
+        candidate = mutate_config(seed_cfg, args.backend, rng, intensity=rng.randint(1, 4))
+        mutation_name = mutation_names[index % len(mutation_names)] if args.code_mutation else rng.choice(mutation_names)
+        estimate_script = create_candidate_script(f"estimate_{args.backend}_{index}", args.backend, candidate, mutation_name)
+        if estimated_total_bytes(candidate, estimate_script) >= ARTIFACT_LIMIT_BYTES:
+            continue
+        result = run_trial(index, args.backend, "code", candidate, args.nproc, f"mutation:{mutation_name}; {describe_delta(seed_cfg, candidate)}", code_mutation=mutation_name)
+        if better(result, best):
+            best = result
+            seed_cfg = normalize_config(args.backend, result.config)
+            save_best(best)
+            print(f"new best: {best.val_bpb:.8f} {best.run_id}")
+        else:
+            print(f"kept best: {best.val_bpb:.8f} ({best.run_id}) status={result.status}" if best else f"no valid best yet after {result.run_id} status={result.status}")
+    return best
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--backend", choices=["mlx", "cuda"], default="mlx")
+    parser.add_argument("--mode", choices=["random", "preset", "evolution", "code"], default="random")
+    parser.add_argument("--trials", type=int, default=5)
+    parser.add_argument("--seed", type=int, default=1337)
+    parser.add_argument("--nproc", type=int, default=1)
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--baseline-first", action="store_true")
+    parser.add_argument("--preset", type=str, default=None)
+    parser.add_argument("--population", type=int, default=6)
+    parser.add_argument("--code-mutation", type=str, default=None)
+    args = parser.parse_args()
+
+    ensure_dirs()
+    best = load_best() if args.resume else None
+    if best is not None and best.backend != args.backend:
+        best = None
+
+    if args.baseline_first and best is None:
+        baseline_cfg = normalize_config(args.backend, PRESETS[args.backend]["baseline"])
+        if estimated_total_bytes(baseline_cfg, script_for_backend(args.backend)) < ARTIFACT_LIMIT_BYTES:
+            baseline = run_trial(0, args.backend, "preset", baseline_cfg, args.nproc, "preset:baseline", preset="baseline")
+            if better(baseline, best):
+                best = baseline
+                save_best(best)
+
+    if args.mode == "preset":
+        best = run_preset_mode(args, best)
+    elif args.mode == "evolution":
+        best = run_evolution_mode(args, best)
+    elif args.mode == "code":
+        best = run_code_mode(args, best)
+    else:
+        best = run_random_mode(args, best)
+
+    if best is None:
+        print("no valid runs found", file=sys.stderr)
+        raise SystemExit(1)
+    print(json.dumps(asdict(best), indent=2, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

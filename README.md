@@ -46,38 +46,109 @@ If you have an Apple laptop or desktop with Apple Silicon, we've set up a simple
 
 If you don't have a Mac with Apple Silicon, you can run an adapted version of this script without MLX support. Just ask [Codex](https://openai.com/codex/) to refactor it; the change is straightforward. It may still be fairly slow, so we recommend jumping straight to cloud GPUs with Runpod.
 
-First, clone the repository, create a fresh Python environment, and install the packages needed for the MLX path plus dataset download:
+First, clone the repository, install `uv` and `just` if you don't already have them, and sync the MLX environment:
 
 ```bash
 git clone https://github.com/openai/parameter-golf.git
 cd parameter-golf
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install mlx numpy sentencepiece huggingface-hub datasets tqdm
+uv sync --extra mlx
 ```
 
 Download our cached version of FineWeb with the 1024-token vocabulary:
 
 ```bash
-python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
+just download-data 10
 ```
 
 This populates `./data/datasets/fineweb10B_sp1024/` and `./data/tokenizers/`.
-By default this downloads the full validation split plus 80 training shards (8B tokens). For a smaller local smoke subset, pass `--train-shards 1`, for example `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1`.
+By default this downloads the full validation split plus 80 training shards (8B tokens). For a smaller local smoke subset, pass `1`, for example `just download-data 1`.
 
 Then run a small MLX training job:
 
 ```bash
-RUN_ID=mlx_smoke \
-ITERATIONS=200 \
-TRAIN_BATCH_TOKENS=8192 \
-VAL_LOSS_EVERY=0 \
-VAL_BATCH_SIZE=8192 \
-python3 train_gpt_mlx.py
+just mlx-smoke
 ```
 
 Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
+
+ A few useful shortcuts are included in `justfile`:
+ 
+ ```bash
+ just setup
+ just download-data 1
+ just mlx-smoke
+ just mlx-train mlx_run 2000 524288 0 524288
+ just autoresearch-mlx 5 1337
+ just autoresearch-preset-mlx 5 1337 balanced
+ just autoresearch-evolution-mlx 5 1337 6
+ just autoresearch-code-mlx 5 1337 gelu_mlp
+ just setup-cuda
+ just torch-train baseline_sp1024 1
+ just autoresearch-cuda 5 1 1337
+ just autoresearch-preset-cuda 5 1 1337 depth_first
+ just autoresearch-evolution-cuda 5 1 1337 6
+ just autoresearch-code-cuda 5 1 1337 plain_logits
+ ```
+
+### Autoresearch Modes
+
+This repo also includes a lightweight adaptation of [`karpathy/autoresearch`](https://github.com/karpathy/autoresearch) for automated hyperparameter search against the challenge objective.
+
+The local harness lives in `autoresearch/run_search.py` and supports four explicit search modes:
+
+- `random`: mutate around the current best config or baseline
+- `preset`: run a named preset, or sample across preset families
+- `evolution`: seed from persisted successful trials and maintain a small top-K population
+- `code`: test safe textual mutations on dedicated copies in `logs/autoresearch/workbench/`
+
+Each trial keeps the best configuration according to:
+
+- lowest final `val_bpb`
+- under the 16,000,000 byte artifact cap
+- successful end-to-end quantized roundtrip evaluation
+
+Recommended order of use:
+
+1. Start on MLX with `preset` or `random` for cheap local iteration.
+2. Switch to MLX `evolution` once you have a few successful trials.
+3. Validate promising families on CUDA with `preset` or `random`.
+4. Use CUDA `evolution` and `code` once you want stronger exploitation or mutation-based search.
+
+For Apple Silicon local iteration, start with:
+
+```bash
+just autoresearch-mlx 5 1337
+just autoresearch-preset-mlx 5 1337 balanced
+```
+
+To run evolutionary search locally:
+
+```bash
+just autoresearch-evolution-mlx 5 1337 6
+```
+
+For CUDA search on a remote machine:
+
+```bash
+just autoresearch-cuda 5 1 1337
+just autoresearch-preset-cuda 5 1 1337 depth_first
+just autoresearch-evolution-cuda 5 1 1337 6
+just autoresearch-code-cuda 5 1 1337 plain_logits
+```
+
+To resume from the current best result with the original default search path:
+
+```bash
+just autoresearch-resume mlx 5 1 1337
+```
+
+Search logs are written to `logs/autoresearch/`, including:
+
+- `results.tsv` for a human-readable summary of completed trials
+- `best_config.json` for the current best configuration snapshot
+- `trials/*.json` for full per-trial metadata, including mode, parents, preset, mutation, and script provenance
+- `workbench/` for generated candidate training scripts used by code-mutation mode
+- one log file per run
 
 ### Scaling Up to a Remote Machine
 
