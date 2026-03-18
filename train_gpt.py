@@ -72,6 +72,7 @@ class Hyperparameters:
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Depth recurrence.
@@ -259,19 +260,21 @@ def eval_val(
     base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
+    eval_seq_len: int | None = None,
 ) -> tuple[float, float]:
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    seq_len = eval_seq_len if eval_seq_len is not None else args.train_seq_len
     local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
-    if local_batch_tokens < args.train_seq_len:
+    if local_batch_tokens < seq_len:
         raise ValueError(
             "VAL_BATCH_SIZE must provide at least one sequence per rank; "
             f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
-            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, seq_len={seq_len}"
         )
-    local_batch_seqs = local_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    local_batch_seqs = local_batch_tokens // seq_len
+    total_seqs = (val_tokens.numel() - 1) // seq_len
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
@@ -282,11 +285,11 @@ def eval_val(
     with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-            raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
+            raw_start = batch_seq_start * seq_len
+            raw_end = batch_seq_end * seq_len + 1
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, args.train_seq_len)
-            y = local[1:].reshape(-1, args.train_seq_len)
+            x = local[:-1].reshape(-1, seq_len)
+            y = local[1:].reshape(-1, seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 batch_loss = model(x, y).detach()
             batch_token_count = float(y.numel())
@@ -671,6 +674,18 @@ class Rotary(nn.Module):
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
         self._sin_cached: Tensor | None = None
+
+    def scale_for_eval(self, train_len: int, eval_len: int) -> None:
+        """NTK-aware RoPE scaling: adjust base frequency for longer contexts."""
+        if eval_len <= train_len:
+            return
+        dim = self.inv_freq.numel() * 2
+        scale = eval_len / train_len
+        new_base = self.inv_freq.new_tensor(10000.0) * (scale ** (dim / (dim - 2)))
+        self.inv_freq = 1.0 / (new_base ** (torch.arange(0, dim, 2, dtype=torch.float32, device=self.inv_freq.device) / dim))
+        self._seq_len_cached = 0
+        self._cos_cached = None
+        self._sin_cached = None
 
     def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
         if (
@@ -1259,6 +1274,23 @@ def main() -> None:
 
     float_val_bpb = val_bpb  # Preserve float-model BPB for post-quant comparison
 
+    # Apply NTK-aware RoPE scaling for longer eval context
+    if args.eval_seq_len > args.train_seq_len:
+        log0(f"rope_scaling: NTK-aware {args.train_seq_len}->{args.eval_seq_len} tokens")
+        for module in base_model.modules():
+            if isinstance(module, Rotary):
+                module.scale_for_eval(args.train_seq_len, args.eval_seq_len)
+
+    # Re-evaluate with longer context if eval_seq_len differs from train_seq_len
+    if args.eval_seq_len != args.train_seq_len:
+        ext_val_loss, ext_val_bpb = eval_val(
+            args, model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            eval_seq_len=args.eval_seq_len,
+        )
+        log0(f"extended_context val_loss:{ext_val_loss:.4f} val_bpb:{ext_val_bpb:.4f} seq_len:{args.eval_seq_len}")
+        float_val_bpb = ext_val_bpb  # Use extended-context BPB as the reference
+
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
@@ -1316,6 +1348,7 @@ def main() -> None:
         base_bytes_lut,
         has_leading_space_lut,
         is_boundary_token_lut,
+        eval_seq_len=args.eval_seq_len,
     )
     torch.cuda.synchronize()
     log0(
