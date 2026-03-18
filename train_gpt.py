@@ -1198,6 +1198,14 @@ def main() -> None:
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        total_submission_bytes = quant_file_bytes + code_bytes
+        assert total_submission_bytes < 16_000_000, (
+            f"Artifact too large: {total_submission_bytes:,} bytes "
+            f"(code:{code_bytes:,} model:{quant_file_bytes:,} "
+            f"headroom:{16_000_000 - total_submission_bytes:,})"
+        )
+        log0(f"Artifact size check passed: {total_submission_bytes:,} bytes "
+             f"(headroom: {16_000_000 - total_submission_bytes:,} bytes)")
 
     if distributed:
         dist.barrier()
