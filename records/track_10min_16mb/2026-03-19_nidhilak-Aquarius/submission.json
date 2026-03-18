@@ -1,0 +1,22 @@
+{
+  "run_name": "recurrent_mqa_v1",
+  "author": "nidhilak-Aquarius",
+  "github_id": "nidhilak-Aquarius",
+  "val_bpb": "pending",
+  "val_loss": "pending",
+  "artifact_bytes": 5200000,
+  "training_time_seconds": "pending",
+  "hardware": "pending - awaiting compute grant",
+  "date": "2026-03-19",
+  "summary": "Depth recurrence (1 shared block x12 loops) + MQA (8Q/1KV) + weight-tied embeddings + SwiGLU FFN + RoPE. ~3.5M unique params, ~5.2MB compressed. 10.8MB budget reserved for Phase 2 BitNet ternary quantization.",
+  "status": "WIP - local smoke test complete, pending GPU run",
+  "innovations": [
+    "Depth recurrence: 1 shared TransformerBlock looped 12 times (Universal Transformer style)",
+    "Weight-tied embeddings: zero-parameter output projection",
+    "Multi-Query Attention: 8Q heads / 1 shared KV head (43% fewer attention params)",
+    "SwiGLU FFN: outperforms GELU at identical parameter count (Shazeer 2020)",
+    "RoPE: zero learned positional parameters"
+  ],
+  "hypothesis": "Recurrence depth N=12 outperforms N=8 at identical parameter count, with diminishing returns beyond N=16",
+  "phase_2": "BitNet ternary weights {-1,0,+1} at log2(3)=1.58 bits vs 16 bits = ~10x more effective parameters"
+}
