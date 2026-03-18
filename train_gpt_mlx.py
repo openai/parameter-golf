@@ -405,7 +405,7 @@ class GPT(nn.Module):
             b.mlp.proj.weight = mx.zeros_like(b.mlp.proj.weight)
         self.tok_emb.weight = (
             mx.random.normal(self.tok_emb.weight.shape, dtype=mx.float32) * tied_embed_init_std
-        ).astype(COMPUTE_DTYPE)
+        )
 
     def softcap(self, logits: mx.array) -> mx.array:
         c = self.logit_softcap
