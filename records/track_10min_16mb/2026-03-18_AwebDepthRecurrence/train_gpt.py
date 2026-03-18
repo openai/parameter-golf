@@ -9,6 +9,9 @@ Quantization-aware training (QAT) via straight-through fake int8 after warmup.
 Mixture of Experts (MoE) MLP: 4 tiny experts per block with top-1 routing — same
 param count as single SwiGLU but each token gets a specialized expert.
 Test-time training (TTT): adapts MLP weights on validation context before final scoring.
+Differential Attention (Microsoft, ICLR 2025): splits Q/K into two halves, computes
+two attention maps, and subtracts them to cancel noise — needs only 65% of model size
+to match standard transformers.
 
 Inspired by Universal Transformers (Dehghani et al., ICLR 2019) and recent
 depth-recurrence results showing that shared-weight deep networks match or beat
@@ -370,7 +373,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,lambda_",
     ).split(",")
     if pattern
 )
@@ -656,6 +659,10 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
+    """Differential Attention (Microsoft, ICLR 2025): compute two attention maps
+    from split Q/K halves and subtract them to cancel noise.
+    y = SDPA(Q1,K1,V) - lambda * SDPA(Q2,K2,V)"""
+
     def __init__(
         self,
         dim: int,
@@ -672,8 +679,9 @@ class CausalSelfAttention(nn.Module):
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
-        if self.head_dim % 2 != 0:
-            raise ValueError("head_dim must be even for RoPE")
+        if self.head_dim % 4 != 0:
+            raise ValueError("head_dim must be divisible by 4 for DiffAttn (RoPE needs half_head_dim even)")
+        self.half_head_dim = self.head_dim // 2
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
@@ -681,27 +689,57 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        # DiffAttn: learnable lambda parameters per head
+        self.lambda_q1 = nn.Parameter(torch.randn(num_heads, self.half_head_dim) * 0.1)
+        self.lambda_k1 = nn.Parameter(torch.randn(num_heads, self.half_head_dim) * 0.1)
+        self.lambda_q2 = nn.Parameter(torch.randn(num_heads, self.half_head_dim) * 0.1)
+        self.lambda_k2 = nn.Parameter(torch.randn(num_heads, self.half_head_dim) * 0.1)
+        self.lambda_init = 0.8
+        # Use half_head_dim for RoPE since DiffAttn splits heads in half
+        self.rotary = Rotary(self.half_head_dim, base=rope_base)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
-        cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
-        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+
+        # Split Q and K into two halves for differential attention
+        q1, q2 = q[..., :self.half_head_dim], q[..., self.half_head_dim:]
+        k1, k2 = k[..., :self.half_head_dim], k[..., self.half_head_dim:]
+
+        # Apply RMSNorm to each half separately
+        q1 = F.rms_norm(q1, (q1.size(-1),))
+        q2 = F.rms_norm(q2, (q2.size(-1),))
+        k1 = F.rms_norm(k1, (k1.size(-1),))
+        k2 = F.rms_norm(k2, (k2.size(-1),))
+
+        # Apply RoPE to each half
+        cos, sin = self.rotary(seqlen, x.device, q1.dtype)
+        q1 = apply_rotary_emb(q1, cos, sin)
+        q2 = apply_rotary_emb(q2, cos, sin)
+        k1 = apply_rotary_emb(k1, cos, sin)
+        k2 = apply_rotary_emb(k2, cos, sin)
+
+        # Apply q_gain
+        gain = self.q_gain.to(dtype=q1.dtype)[None, :, None, None]
+        q1 = q1 * gain
+        q2 = q2 * gain
+
+        # Compute two attention outputs using SDPA
+        gqa = self.num_kv_heads != self.num_heads
+        attn1 = F.scaled_dot_product_attention(q1, k1, v, is_causal=True, enable_gqa=gqa)
+        attn2 = F.scaled_dot_product_attention(q2, k2, v, is_causal=True, enable_gqa=gqa)
+
+        # Compute learnable lambda
+        lambda_val = (torch.exp(self.lambda_q1.to(q1.dtype)) * torch.exp(self.lambda_k1.to(q1.dtype))).sum(-1)
+        lambda_val = lambda_val - (torch.exp(self.lambda_q2.to(q1.dtype)) * torch.exp(self.lambda_k2.to(q1.dtype))).sum(-1)
+        lambda_val = lambda_val + self.lambda_init
+        lambda_val = lambda_val[None, :, None, None]  # (1, H, 1, 1)
+
+        # Differential attention: subtract noise attention, scaled by lambda
+        y = attn1 - lambda_val * attn2
+
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -1059,7 +1097,7 @@ def main() -> None:
     log0(f"ttt: steps:{args.ttt_steps} lr:{args.ttt_lr} (applied at final eval only)")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
-    log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(f"attention_mode:diff_attn+gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads} half_head_dim:{args.model_dim // args.num_heads // 2}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
