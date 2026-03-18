@@ -273,13 +273,26 @@ class TokenLoader:
 # MODEL BLOCKS
 # ==============================================================================
 
+def fake_quantize_per_row(w: mx.array) -> mx.array:
+    """Simulate int8 per-row quantization during training (STE).
+    Forward: returns quantized-then-dequantized weights.
+    Backward: straight-through (gradient flows as if no quantization)."""
+    w32 = w.astype(mx.float32)
+    row_max = mx.max(mx.abs(w32), axis=1, keepdims=True)
+    scale = mx.maximum(row_max / 127.0, mx.array(1.0 / 127.0))
+    w_q = mx.round(mx.clip(w32 / scale, -127, 127)) * scale
+    # STE: forward uses w_q, backward gradient flows through w32
+    return (w32 + mx.stop_gradient(w_q - w32)).astype(w.dtype)
+
+
 class CastedLinear(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super().__init__()
         self.weight = nn.Linear(in_dim, out_dim, bias=False).weight.astype(mx.float32)
 
-    def __call__(self, x: mx.array) -> mx.array:
-        return x @ self.weight.astype(x.dtype).T
+    def __call__(self, x: mx.array, training: bool = False) -> mx.array:
+        w = fake_quantize_per_row(self.weight) if training else self.weight
+        return x @ w.astype(x.dtype).T
 
 
 class RMSNormNoWeight(nn.Module):
@@ -320,18 +333,18 @@ class CausalSelfAttention(nn.Module):
         self.rope = nn.RoPE(self.head_dim, traditional=False, base=rope_base)
         self.scale = self.head_dim ** -0.5
 
-    def __call__(self, x: mx.array) -> mx.array:
+    def __call__(self, x: mx.array, training: bool = False) -> mx.array:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        q = self.c_q(x, training=training).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
+        k = self.c_k(x, training=training).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        v = self.c_v(x, training=training).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
 
         q = self.rope(rms_norm(q).astype(COMPUTE_DTYPE))
         k = self.rope(rms_norm(k).astype(COMPUTE_DTYPE))
         q = q * self.q_gain.astype(q.dtype)[None, :, None, None]
         y = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask="causal")
         y = y.transpose(0, 2, 1, 3).reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        return self.proj(y, training=training)
 
 
 class MLP(nn.Module):
@@ -342,9 +355,9 @@ class MLP(nn.Module):
         self.fc = CastedLinear(dim, hidden)
         self.proj = CastedLinear(hidden, dim)
 
-    def __call__(self, x: mx.array) -> mx.array:
-        x = nn.relu(self.fc(x))
-        return self.proj(x * x)
+    def __call__(self, x: mx.array, training: bool = False) -> mx.array:
+        x = nn.relu(self.fc(x, training=training))
+        return self.proj(x * x, training=training)
 
 
 class Block(nn.Module):
@@ -366,12 +379,12 @@ class Block(nn.Module):
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
 
-    def __call__(self, x: mx.array, x0: mx.array) -> mx.array:
+    def __call__(self, x: mx.array, x0: mx.array, training: bool = False) -> mx.array:
         mix = self.resid_mix.astype(x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        attn_out = self.attn(self.attn_norm(x), training=training)
         x = x + self.attn_scale.astype(x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), training=training)
         return x
 
 
@@ -411,13 +424,13 @@ class GPT(nn.Module):
         c = self.logit_softcap
         return c * mx.tanh(logits / c)
 
-    def __call__(self, input_ids: mx.array) -> mx.array:
+    def __call__(self, input_ids: mx.array, training: bool = False) -> mx.array:
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
         x0 = x
         skips: list[mx.array] = []
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[i](x, x0, training=training)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             # Odd layer counts have one more decoder block than encoder block. The baseline only
@@ -425,13 +438,13 @@ class GPT(nn.Module):
             # without an added skip.
             if skips:
                 x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self.blocks[self.num_encoder_layers + i](x, x0, training=training)
         return self.final_norm(x)
 
     def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
         # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
         # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
-        x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
+        x = self(input_ids, training=True).reshape(-1, self.tok_emb.weight.shape[1])
         y = target_ids.reshape(-1)
         if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
             logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
