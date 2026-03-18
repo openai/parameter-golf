@@ -24,7 +24,7 @@ The downloader is manifest-driven and can fetch only a prefix of train shards fr
 ```bash
 MATCHED_FINEWEB_REPO_ID=your-hf-username/your-dataset-repo \
 MATCHED_FINEWEB_REMOTE_ROOT_PREFIX=your_50B_export_root \
-python3 data/cached_challenge_fineweb.py --variant sp2048 --train-shards 100
+python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 100
 ```
 
 Validation is always downloaded in full from the fixed `fineweb_val_*` split. Training on the first `N` train shards means training on the prefix of the same frozen shuffled export, so the data order stays aligned with the baseline for that tokenizer family.
@@ -63,22 +63,14 @@ This keeps the blobstore as the canonical source, takes the first `50k` document
 
 ## Rebuilding Tokenizers From Published Docs
 
-To retrain a tokenizer or re-export shards from exactly the same selected documents, first download the frozen docs cache explicitly:
+To retrain a tokenizer or re-export shards from exactly the same selected documents, run the standalone retokenizer against the published docs cache:
 
 ```bash
-MATCHED_FINEWEB_REPO_ID=your-hf-username/your-dataset-repo \
-MATCHED_FINEWEB_REMOTE_ROOT_PREFIX=your_50B_export_root \
-python3 data/cached_challenge_fineweb.py --variant sp2048 --train-shards 0 --with-docs
-```
-
-Then run the matched exporter against the downloaded `docs_selected.jsonl`:
-
-```bash
-python3 data/export_matched_fineweb_tokenizer_datasets.py \
-  --docs_jsonl ./data/docs_selected.jsonl \
+python3 data/download_hf_docs_and_tokenize.py \
+  --repo-id your-hf-username/your-dataset-repo \
+  --remote-root your_50B_export_root \
   --output_root /tmp/my_custom_tokenizer_export \
-  --tokenizer_config ./data/demo_tokenizer_specs.json \
-  --trust_tokenizer_config_code
+  --tokenizer-config ./data/demo_tokenizer_specs.json
 ```
 
 The sidecar `docs_selected.source_manifest.json` includes `docs_sha256`, so users can verify they are rebuilding from the exact same document list and order as the baseline export.

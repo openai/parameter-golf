@@ -29,23 +29,12 @@ LEGACY_LOCAL_ROOT = repo_relative_env_path("MATCHED_FINEWEB_LOCAL_ALIAS", "chall
 LOCAL_DATASETS_DIR = repo_relative_env_path("MATCHED_FINEWEB_LOCAL_DATASETS_DIR", "datasets")
 LOCAL_TOKENIZERS_DIR = repo_relative_env_path("MATCHED_FINEWEB_LOCAL_TOKENIZERS_DIR", "tokenizers")
 
-VARIANTS = {
-    "byte260": {
-        "dataset_dir": "fineweb10B_byte260",
-    },
-    "sp512": {
-        "dataset_dir": "fineweb10B_sp512",
-    },
-    "sp1024": {
-        "dataset_dir": "fineweb10B_sp1024",
-    },
-    "sp2048": {
-        "dataset_dir": "fineweb10B_sp2048",
-    },
-    "sp4096": {
-        "dataset_dir": "fineweb10B_sp4096",
-    },
-}
+def dataset_dir_for_variant(name: str) -> str:
+    if name == "byte260":
+        return "fineweb10B_byte260"
+    if name.startswith("sp") and name[2:].isdigit():
+        return f"fineweb10B_{name}"
+    raise ValueError(f"unsupported variant {name!r}; expected byte260 or sp<VOCAB_SIZE>")
 
 
 def local_dir() -> Path:
@@ -159,9 +148,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--variant",
-        choices=sorted(VARIANTS),
-        default="sp2048",
-        help="Tokenizer family to download.",
+        default="sp1024",
+        help="Tokenizer family to download, for example sp1024, sp4096, or byte260.",
     )
     parser.add_argument(
         "--skip-manifest",
@@ -178,16 +166,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    variant = VARIANTS[args.variant]
+    dataset_dir = dataset_dir_for_variant(args.variant)
     train_shards = args.train_shards_positional if args.train_shards_positional is not None else args.train_shards
     if train_shards < 0:
         raise ValueError("train_shards must be non-negative")
 
     ensure_local_layout()
     manifest = load_manifest(skip_manifest_download=args.skip_manifest)
-    dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == variant["dataset_dir"]), None)
+    dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == dataset_dir), None)
     if dataset_entry is None:
-        raise ValueError(f"dataset {variant['dataset_dir']} not found in {REMOTE_ROOT_PREFIX}/manifest.json")
+        raise ValueError(f"dataset {dataset_dir} not found in {REMOTE_ROOT_PREFIX}/manifest.json")
     max_train_shards = int((dataset_entry.get("stats") or {}).get("files_train"))
     val_shards = int((dataset_entry.get("stats") or {}).get("files_val"))
     if train_shards > max_train_shards:
@@ -205,7 +193,7 @@ def main() -> None:
         get(f"{REMOTE_ROOT_PREFIX}/docs_selected.jsonl")
         get(f"{REMOTE_ROOT_PREFIX}/docs_selected.source_manifest.json")
 
-    dataset_prefix = f"{REMOTE_ROOT_PREFIX}/datasets/{variant['dataset_dir']}"
+    dataset_prefix = f"{REMOTE_ROOT_PREFIX}/datasets/{dataset_dir}"
     for i in range(val_shards):
         get(f"{dataset_prefix}/fineweb_val_{i:06d}.bin")
     for i in range(train_shards):

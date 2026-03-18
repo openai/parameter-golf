@@ -2,10 +2,10 @@
   "author": "Baseline",
   "github_id": "openai",
   "name": "Naive Baseline",
-  "blurb": "SP-1024 9x512 KV4 run on pgut3 using wallclock warmdown, vector residual controls, per-head QK gain, and fp32-preserved control tensors at export; score is the default final int8+zlib roundtrip metric under the 16,000,000-byte cap.",
-  "date": "2026-03-18T00:05:35Z",
-  "val_loss": 2.06035852,
-  "val_bpb": 1.21687994,
-  "bytes_total": 15863068,
-  "bytes_code": 48140
+  "blurb": "SP-1024 9x512 KV4 run on pgut1 using the published Hugging Face fineweb10B_sp1024 export and the current train_gpt.py; score is the default final int8+zlib roundtrip metric under the 16,000,000-byte cap.",
+  "date": "2026-03-18T14:56:29Z",
+  "val_loss": 2.07269931,
+  "val_bpb": 1.2243657,
+  "bytes_total": 15863489,
+  "bytes_code": 47642
 }

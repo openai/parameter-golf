@@ -28,7 +28,13 @@ Happy training!
 
 | Rank | Run | Score | Author | Summary | Date | Info |
 |-----:|-----|------:|--------|---------|------|------|
-| 1 | Naive Baseline | 1.2169 | Baseline | 9layer 512dim 1024vocab TiedEmbeddings 4 KV heads | 2026-03-18 | [info](records/track_10min_16mb/2026-03-17_SP1024_9x512_KV4_VectorQK_Q150_FP32Clip_pgut3/README.md) |
+| 1 | Naive Baseline | 1.2244 | Baseline | 9layer 512dim 1024vocab TiedEmbeddings 4 KV heads | 2026-03-18 | [info](records/track_10min_16mb/2026-03-17_NaiveBaseline/README.md) |
+
+## Non-Record Leaderboard
+
+| Run | Score | Author | Summary | Date | Info |
+|-----|------:|--------|---------|------|------|
+| 4-Hour Baseline | 1.2074 | Will DePue | Testing unlimited compute, 4 hours on 8xH100 | 2026-03-18 | [info](records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/README.md) |
 
 ## Getting Started
 

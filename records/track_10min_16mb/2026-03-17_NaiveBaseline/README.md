@@ -1,12 +1,10 @@
 This record captures the `Simple Baseline`.
 
 Trainer changes in this snapshot:
-- wallclock-aware warmdown with `WARMDOWN_ITERS=1200`
-- per-channel attention and MLP branch scales
-- vector skip weights and vector residual mixing
-- per-head `q_gain` with `QK_GAIN_INIT=1.5`
-- `fp32` preservation for tiny control tensors during export
-- `INT8_CLIP_PERCENTILE=99.99984`
+- current repository `train_gpt.py` snapshot copied into the record folder
+- published `fineweb10B_sp1024` dataset and tokenizer loaded from the new Hugging Face export
+- 10-minute wallclock cap on `8xH100`
+- periodic validation every `200` steps on the full `fineweb_val_*` split
 
 Configuration:
 - Layout: `VOCAB_SIZE=1024 NUM_LAYERS=9 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=2`
@@ -16,45 +14,31 @@ Configuration:
 
 Command (track-relevant params):
 ```bash
-OMP_NUM_THREADS=1 \
-TORCH_NCCL_ASYNC_ERROR_HANDLING=1 \
-RUN_ID=train_gpt_pgut3_sp1024_full_20260317_1653 \
-DATA_PATH=/tmp/parametergolf_fineweb/datasets/fineweb10B_sp1024 \
-TOKENIZER_PATH=/tmp/parametergolf_fineweb/tokenizers/fineweb_1024_bpe.model \
+NCCL_IB_DISABLE=1 \
+RUN_ID=hf_verify_sp1024_8gpu \
+DATA_PATH=/root/code/parameter-golf/data/datasets/fineweb10B_sp1024 \
+TOKENIZER_PATH=/root/code/parameter-golf/data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
-NUM_LAYERS=9 \
-MODEL_DIM=512 \
-NUM_HEADS=8 \
-NUM_KV_HEADS=4 \
-MLP_MULT=2 \
-TIE_EMBEDDINGS=1 \
-TIED_EMBED_LR=0.05 \
-ITERATIONS=20000 \
-WARMUP_STEPS=20 \
-MAX_WALLCLOCK_SECONDS=598 \
-TRAIN_BATCH_TOKENS=524288 \
-TRAIN_SEQ_LEN=1024 \
-TRAIN_LOG_EVERY=200 \
-VAL_LOSS_EVERY=0 \
-VAL_TOKENS=10485760 \
-VAL_BATCH_SIZE=524288 \
+MAX_WALLCLOCK_SECONDS=600 \
+TRAIN_LOG_EVERY=50 \
+VAL_LOSS_EVERY=200 \
 torchrun --standalone --nproc_per_node=8 /root/code/parameter-golf/train_gpt.py
 ```
 
 Key metrics (from `train.log`):
-- Timed training stopped at `13365/20000` steps due to the wallclock cap.
-- Pre-quant eval at stop: `val_loss:2.0490`, `val_bpb:1.2102`
-- Post-quant roundtrip eval: `val_loss:2.0604`, `val_bpb:1.2169`
-- Exact printed metric: `final_int8_zlib_roundtrip_exact val_bpb:1.21687994`
-- Train time: `598047ms` (`step_avg:44.75ms`)
-- Peak memory: `10472 MiB allocated`, `10728 MiB reserved`
-- Serialized model int8+zlib: `15814928 bytes`
-- Code size: `48140 bytes`
-- Total submission size int8+zlib: `15863068 bytes`
+- Timed training stopped at `13780/20000` steps due to the wallclock cap.
+- Pre-quant eval at stop: `val_loss:2.0606`, `val_bpb:1.2172`
+- Post-quant roundtrip eval: `val_loss:2.0727`, `val_bpb:1.2244`
+- Exact printed metric: `final_int8_zlib_roundtrip_exact val_bpb:1.22436570`
+- Train time: `600038ms` (`step_avg:43.54ms`)
+- Peak memory: `10184 MiB allocated`, `10200 MiB reserved`
+- Serialized model int8+zlib: `15815847 bytes`
+- Code size: `47642 bytes`
+- Total submission size int8+zlib: `15863489 bytes`
 
 Training volume:
 - Global batch: `524288` tokens/step
-- Total train tokens seen: `7007109120`
+- Total train tokens seen: `7224688640`
 
 Included files:
 - `train_gpt.py` (code snapshot used for the run)
