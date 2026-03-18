@@ -669,6 +669,7 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.pre_enrich = nn.Sequential(
             CastedLinear(model_dim, model_dim, bias=False),
+            nn.GELU(),
             CastedLinear(model_dim, model_dim, bias=False),
         )
         self.num_encoder_layers = num_layers // 2
