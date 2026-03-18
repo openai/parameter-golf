@@ -1,0 +1,15 @@
+{
+  "name": "Chris Hasinski",
+  "github_id": "khasinski",
+  "val_bpb": null,
+  "val_loss": null,
+  "status": "in_progress",
+  "tokenizer": "sp4096_bpe",
+  "vocab_size": 4096,
+  "num_layers": 9,
+  "model_dim": 512,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "tie_embeddings": true,
+  "notes": "Preliminary results on 1xRTX 5090: val_bpb=1.3217. Awaiting 8xH100 validation."
+}
