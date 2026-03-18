@@ -41,15 +41,19 @@ EXPECTED_DOCS_SHA256 = "47812b882b6a11cf0f7cbdfeca77fb590785fbbda991db9599619633
 
 
 def write_datafile(path: Path, toks: Any) -> None:
-    assert len(toks) < 2**31, "token count too large"
-    header = np.zeros(256, dtype=np.int32)
+    if len(toks) >= 2**31:
+        raise ValueError("token count too large")
+    header = np.zeros(256, dtype="<i4")
     header[0] = 20240520
     header[1] = 1
     header[2] = len(toks)
     toks = np.asarray(toks)
     if toks.dtype != np.uint16:
-        assert (0 <= toks).all() and (toks < 2**16).all(), "token dictionary too large for uint16"
-        toks = toks.astype(np.uint16)
+        if not ((0 <= toks).all() and (toks < 2**16).all()):
+            raise ValueError("token dictionary too large for uint16")
+        toks = toks.astype("<u2", copy=False)
+    else:
+        toks = toks.astype("<u2", copy=False)
     with path.open("wb") as f:
         f.write(header.tobytes())
         f.write(toks.tobytes())
@@ -97,14 +101,16 @@ def load_builder(ref: str, base_dir: Path):
     if module_ref.endswith(".py") or "/" in module_ref:
         module_path = (base_dir / module_ref).expanduser().resolve() if not Path(module_ref).is_absolute() else Path(module_ref)
         spec = importlib.util.spec_from_file_location(module_path.stem, module_path)
-        assert spec is not None and spec.loader is not None, module_path
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Could not load builder module from {module_path}")
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
     else:
         module = importlib.import_module(module_ref)
     fn = getattr(module, fn_name)
-    assert callable(fn), ref
+    if not callable(fn):
+        raise TypeError(f"Builder reference is not callable: {ref}")
     return fn
 
 
@@ -112,10 +118,13 @@ def load_specs(config_path: str | None) -> list[dict[str, Any]]:
     config_path = Path(config_path or DEMO_CONFIG)
     payload = json.loads(config_path.read_text(encoding="utf-8"))
     specs = payload["tokenizers"] if isinstance(payload, dict) else payload
-    assert isinstance(specs, list) and specs, "tokenizer_config must define a non-empty list"
+    if not isinstance(specs, list) or not specs:
+        raise ValueError("tokenizer_config must define a non-empty list")
     for spec in specs:
-        assert isinstance(spec, dict), "each tokenizer spec must be a JSON object"
-        assert isinstance(spec.get("builder"), str) and spec["builder"], "each tokenizer spec needs a builder"
+        if not isinstance(spec, dict):
+            raise ValueError("each tokenizer spec must be a JSON object")
+        if not isinstance(spec.get("builder"), str) or not spec["builder"]:
+            raise ValueError("each tokenizer spec needs a builder")
         spec["_base_dir"] = str(config_path.parent)
     return specs
 
@@ -139,7 +148,8 @@ def build_docs_cache(path: Path) -> dict[str, Any]:
             if written == NUM_DOCS:
                 break
         pbar.close()
-    assert written == NUM_DOCS, written
+    if written != NUM_DOCS:
+        raise ValueError(f"Expected to cache {NUM_DOCS} docs, wrote {written}")
     return {
         "remote_name": REMOTE_NAME,
         "num_docs": written,
@@ -190,8 +200,13 @@ def export_shards(docs_jsonl: Path, tok: dict[str, Any], output_dir: Path) -> di
         if APPEND_EOS:
             token_ids.append(tok["eos_id"])
         toks = np.asarray(token_ids, dtype=np.int32)
-        assert (0 <= toks).all() and (toks < 2**16).all(), "token dictionary too large for uint16"
-        toks = toks.astype(np.uint16)
+        vocab_size = int(tok["vocab_size"])
+        if not ((0 <= toks).all() and (toks < vocab_size).all()):
+            bad = int(toks[(toks < 0) | (toks >= vocab_size)][0])
+            raise ValueError(f"token id {bad} outside declared vocab_size={vocab_size}")
+        if vocab_size > 2**16:
+            raise ValueError(f"vocab_size={vocab_size} is too large for uint16 shard storage")
+        toks = toks.astype("<u2", copy=False)
 
         stats["docs_total"] += 1
         stats[f"docs_{split}"] += 1
@@ -226,27 +241,29 @@ def main() -> None:
     tokenizers_dir.mkdir(parents=True, exist_ok=True)
     datasets_dir.mkdir(parents=True, exist_ok=True)
 
-    assert not (args.docs_jsonl and args.rebuild_docs_cache), "--rebuild_docs_cache conflicts with --docs_jsonl"
+    if args.docs_jsonl and args.rebuild_docs_cache:
+        raise ValueError("--rebuild_docs_cache conflicts with --docs_jsonl")
 
     docs_jsonl = Path(args.docs_jsonl).resolve() if args.docs_jsonl else output_root / "docs_selected.jsonl"
     build_cache = args.docs_jsonl is None and (args.rebuild_docs_cache or not docs_jsonl.exists())
     if build_cache:
         docs_meta = build_docs_cache(docs_jsonl)
     else:
-        assert docs_jsonl.is_file(), docs_jsonl
+        if not docs_jsonl.is_file():
+            raise FileNotFoundError(docs_jsonl)
         docs_meta = {
             "remote_name": "external_cache" if args.docs_jsonl else "cached_local",
             "num_docs": count_docs(docs_jsonl),
             "docs_sha256": sha256(docs_jsonl),
             "dataset_fingerprint": None,
         }
-    assert docs_meta["num_docs"] == NUM_DOCS, (
-        f"docs cache must contain exactly {NUM_DOCS} docs, got {docs_meta['num_docs']}"
-    )
+    if docs_meta["num_docs"] != NUM_DOCS:
+        raise ValueError(f"docs cache must contain exactly {NUM_DOCS} docs, got {docs_meta['num_docs']}")
     if EXPECTED_DOCS_SHA256 is not None:
-        assert docs_meta["docs_sha256"] == EXPECTED_DOCS_SHA256, (
-            f"docs cache sha256 mismatch: expected {EXPECTED_DOCS_SHA256}, got {docs_meta['docs_sha256']}"
-        )
+        if docs_meta["docs_sha256"] != EXPECTED_DOCS_SHA256:
+            raise ValueError(
+                f"docs cache sha256 mismatch: expected {EXPECTED_DOCS_SHA256}, got {docs_meta['docs_sha256']}"
+            )
 
     # Challenge-fairness rules:
     # - Users may change tokenizer specs only.
@@ -266,15 +283,11 @@ def main() -> None:
             dataset_suffix = raw.get("dataset_suffix")
             if dataset_suffix is None:
                 dataset_suffix = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
-            assert dataset_suffix, name
             dataset_name = str(raw.get("dataset_name", f"fineweb{VERSION}_{dataset_suffix}"))
             vocab_size = int(raw["vocab_size"])
             bos_id = int(raw["bos_id"])
             eos_id = int(raw["eos_id"])
             encode = raw["encode"]
-            assert callable(encode), name
-            assert name not in seen_names, name
-            assert dataset_name not in seen_datasets, dataset_name
             seen_names.add(name)
             seen_datasets.add(dataset_name)
             tokenizers.append(
@@ -303,7 +316,6 @@ def main() -> None:
                     },
                 }
             )
-    assert tokenizers, "no tokenizers selected"
 
     manifest = {
         "version": VERSION,
