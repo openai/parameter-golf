@@ -14,52 +14,52 @@ namespace RunMonitor;
 public partial class MainWindow : Window
 {
     private static readonly Regex ConfigRegex = new(
-        @"iterations:(?<iterations>\d+)\s+warmup_steps:(?<warmup>\d+)",
+        @"^train_batch_tokens:\d+\s+train_seq_len:\d+\s+iterations:(?<iterations>\d+)\s+warmup_steps:(?<warmup>\d+)",
         RegexOptions.Compiled
     );
 
     private static readonly Regex MaxWallclockRegex = new(
-        @"max_wallclock_seconds:(?<maxwall>[0-9.]+)",
+        @"^train_batch_tokens:\d+\s+train_seq_len:\d+\s+iterations:\d+\s+warmup_steps:\d+\s+max_wallclock_seconds:(?<maxwall>[0-9.]+)",
         RegexOptions.Compiled
     );
 
     private static readonly Regex WarmupRegex = new(
-        @"warmup_step:(?<step>\d+)/(?<total>\d+)",
+        @"^warmup_step:(?<step>\d+)/(?<total>\d+)$",
         RegexOptions.Compiled
     );
 
     private static readonly Regex TrainRegex = new(
-        @"step:(?<step>\d+)/(?<total>\d+)\s+train_loss:(?<loss>[0-9.]+)\s+train_time:(?<time>[0-9.]+)ms\s+step_avg:(?<avg>[0-9.]+)ms",
+        @"^step:(?<step>\d+)/(?<total>\d+)\s+train_loss:(?<loss>[0-9.]+)\s+train_time:(?<time>[0-9.]+)ms\s+step_avg:(?<avg>[0-9.]+)ms$",
         RegexOptions.Compiled
     );
 
     private static readonly Regex ValRegex = new(
-        @"step:(?<step>\d+)/(?<total>\d+)\s+val_loss:(?<loss>[0-9.]+)\s+val_bpb:(?<bpb>[0-9.]+)\s+train_time:(?<time>[0-9.]+)ms\s+step_avg:(?<avg>[0-9.]+)ms",
+        @"^step:(?<step>\d+)/(?<total>\d+)\s+val_loss:(?<loss>[0-9.]+)\s+val_bpb:(?<bpb>[0-9.]+)\s+train_time:(?<time>[0-9.]+)ms\s+step_avg:(?<avg>[0-9.]+)ms$",
         RegexOptions.Compiled
     );
 
     private static readonly Regex FinalRegex = new(
-        @"final_int8_zlib_roundtrip_exact\s+val_loss:(?<loss>[0-9.]+)\s+val_bpb:(?<bpb>[0-9.]+)",
+        @"^final_int8_zlib_roundtrip_exact\s+val_loss:(?<loss>[0-9.]+)\s+val_bpb:(?<bpb>[0-9.]+)$",
         RegexOptions.Compiled
     );
 
     private static readonly Regex FinalSkippedRegex = new(
-        @"final_int8_zlib_roundtrip skipped by FINAL_ROUNDTRIP_EVAL=0",
+        @"^final_int8_zlib_roundtrip skipped by FINAL_ROUNDTRIP_EVAL=0$",
         RegexOptions.Compiled
     );
 
     private static readonly Regex StopEarlyRegex = new(
-        @"stopping_early:\s+wallclock_cap",
+        @"^stopping_early:\s+wallclock_cap",
         RegexOptions.Compiled
     );
 
     private static readonly Regex SerializedInt8Regex = new(
-        @"Serialized model int8\+zlib:\s+(?<bytes>\d+)\s+bytes",
+        @"^Serialized model int8\+zlib:\s+(?<bytes>\d+)\s+bytes",
         RegexOptions.Compiled
     );
 
     private static readonly Regex ArtifactRegex = new(
-        @"Total submission size int8\+zlib:\s+(?<bytes>\d+)\s+bytes",
+        @"^Total submission size int8\+zlib:\s+(?<bytes>\d+)\s+bytes$",
         RegexOptions.Compiled
     );
 
@@ -1143,7 +1143,8 @@ public partial class MainWindow : Window
         return Directory.EnumerateFiles(_logsDirectory, "*.txt", SearchOption.TopDirectoryOnly)
             .Where(path =>
                 !path.EndsWith(".stdout.txt", StringComparison.OrdinalIgnoreCase) &&
-                !path.EndsWith(".stderr.txt", StringComparison.OrdinalIgnoreCase))
+                !path.EndsWith(".stderr.txt", StringComparison.OrdinalIgnoreCase) &&
+                !path.EndsWith(".controller.txt", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
     }

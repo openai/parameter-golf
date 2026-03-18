@@ -15,6 +15,7 @@ param(
     [int]$NumHeads = 8,
     [int]$NumKvHeads = 4,
     [int]$MlpMult = 2,
+    [int]$WindowSize = 0,
     [double]$CompressionRegWeight = 0.02,
     [int]$CompressionRegInterval = 4,
     [int]$CompressionRegWarmupSteps = 10,
@@ -54,6 +55,7 @@ $env:EMBED_DIM = $EmbedDim.ToString()
 $env:NUM_HEADS = $NumHeads.ToString()
 $env:NUM_KV_HEADS = $NumKvHeads.ToString()
 $env:MLP_MULT = $MlpMult.ToString()
+$env:WINDOW_SIZE = $WindowSize.ToString()
 $env:ENABLE_TORCH_COMPILE = "0"
 $env:SDP_BACKEND = "math"
 $env:INT8_AXIS_MODE = "auto"

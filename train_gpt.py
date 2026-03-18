@@ -70,6 +70,7 @@ class Hyperparameters:
     embed_dim = int(os.environ.get("EMBED_DIM", "0"))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    window_size = int(os.environ.get("WINDOW_SIZE", "0"))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -786,6 +787,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        window_size: int = 0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -804,6 +806,7 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.window_size = window_size
 
     def forward(self, x: Tensor, q_gain: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -816,12 +819,17 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * q_gain.to(dtype=q.dtype)[None, :, None, None]
+        attn_mask = None
+        if 0 < self.window_size < seqlen:
+            idx = torch.arange(seqlen, device=x.device)
+            blocked = (idx.unsqueeze(0) > idx.unsqueeze(1)) | (idx.unsqueeze(1) - idx.unsqueeze(0) >= self.window_size)
+            attn_mask = torch.zeros(seqlen, seqlen, device=x.device, dtype=q.dtype).masked_fill(blocked, float("-inf"))
         y = F.scaled_dot_product_attention(
             q,
             k,
             v,
-            attn_mask=None,
-            is_causal=True,
+            attn_mask=attn_mask,
+            is_causal=(attn_mask is None),
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
@@ -851,11 +859,12 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        window_size: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, window_size)
         self.mlp = MLP(dim, mlp_mult)
 
     def forward(self, x: Tensor, q_gain: Tensor) -> tuple[Tensor, Tensor]:
@@ -880,6 +889,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        window_size: int,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -888,6 +898,7 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.num_layers = num_layers
+        self.window_size = window_size
         self.embed_dim = embed_dim if 0 < embed_dim <= model_dim else model_dim
         self.num_unique_blocks = num_unique_blocks if num_unique_blocks > 0 else num_layers
         if self.num_unique_blocks <= 0 or self.num_unique_blocks > num_layers:
@@ -915,6 +926,7 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    window_size,
                 )
                 for _ in range(self.num_unique_blocks)
             ]
@@ -1104,6 +1116,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        window_size=args.window_size,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1174,7 +1187,10 @@ def main() -> None:
     n_params = sum(p.numel() for p in base_model.parameters())
     compression_reg_tensors = compression_regularizer_candidates(base_model)
     log0(f"model_params:{n_params}")
-    log0(f"effective_layers:{args.num_layers} unique_blocks:{base_model.num_unique_blocks} embed_dim:{base_model.embed_dim}")
+    log0(
+        f"effective_layers:{args.num_layers} unique_blocks:{base_model.num_unique_blocks} "
+        f"embed_dim:{base_model.embed_dim} window_size:{base_model.window_size}"
+    )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(f"torch_compile:{args.enable_torch_compile}")
     log0(

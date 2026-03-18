@@ -14,6 +14,8 @@ Priority order is dictated by the challenge rules:
   - optional outlier suppression penalty
 - Weight sharing / recurrence:
   - shared-block transformer via `NUM_UNIQUE_BLOCKS`
+- Sparse attention:
+  - optional sliding-window attention via `WINDOW_SIZE`
 - Factorized embeddings:
   - optional `EMBED_DIM < MODEL_DIM`
 - Hybrid eval-time compute:
@@ -26,6 +28,7 @@ Priority order is dictated by the challenge rules:
 ## Current knobs
 
 - `NUM_UNIQUE_BLOCKS`
+- `WINDOW_SIZE`
 - `EMBED_DIM`
 - `COMPRESSION_REG_WEIGHT`
 - `TERNARY_REG_WEIGHT`
@@ -97,11 +100,29 @@ Use this when ranking experiments on a more faithful local objective:
   - total artifact: `6,839,798` bytes
   - delta vs matched roundtrip baseline: `-0.05003780 bpb`, about `2.37%` better
   - interpretation: compression-aware training is now the leading local research branch when measured on a more faithful objective
+- Sparse-attention probe on the winning compression setup:
+  - run: `compressrt_sparse512_20260318_1842`
+  - knobs: `WINDOW_SIZE=512`, `COMPRESSION_REG_WEIGHT=0.005`
+  - exact final roundtrip result: `val_bpb=2.07004634`, `val_loss=3.49566562`
+  - delta vs best compression baseline: `+0.00918797 bpb` worse
+  - interpretation: not good enough to displace the dense compression-aware path; sparse attention stays experimental for later
+- Focused QAT roundtrip sweep around the winning compression point:
+  - sweep: `qatrtsweep_20260318_1906`
+  - best result in sweep:
+    - run: `qatrtsweep_20260318_1906_w0045_o0000`
+    - knobs: `COMPRESSION_REG_WEIGHT=0.0045`, `OUTLIER_REG_WEIGHT=0.0`
+    - exact final roundtrip result: `val_bpb=2.06804196`, `val_loss=3.49228084`
+    - total artifact: `6,814,995` bytes
+  - interpretation:
+    - tiny outlier regularization did not help on this local roundtrip track
+    - none of the focused QAT sweep runs beat the standing best dense compression-aware run at `2.06085837`
+    - the dense compression-aware baseline remains the current best local result
 
 ## Immediate next step
 
-- Sweep around `COMPRESSION_REG_WEIGHT=0.005` on the roundtrip proxy track
-- add tiny `OUTLIER_REG_WEIGHT` values and keep the rest of the setup fixed
+- Begin the recurrent/shared-block roundtrip sweep
+- keep the compression-aware training path active
+- vary `NUM_LAYERS`, `NUM_UNIQUE_BLOCKS`, and `EMBED_DIM`
 - rank experiments by `final_int8_zlib_roundtrip_exact val_bpb`
 
 ## Next experiments
