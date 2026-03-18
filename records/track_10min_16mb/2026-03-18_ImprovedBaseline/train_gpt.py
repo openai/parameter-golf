@@ -1,9 +1,13 @@
 """
 Improved baseline for Parameter Golf challenge.
 Key changes from naive baseline:
-- Depth recurrence: 5 unique layers looped 2x = 10 effective layers (vs 9)
-- Wider model: dim=576 (vs 512) using param savings from weight sharing
-- Per-recurrence RMSNorms so shared blocks can distinguish which pass they're on
+- Depth recurrence: 5 unique layers looped 2x = 10 effective layers
+- Wider model: dim=704 using param savings from weight sharing
+- SwiGLU MLP at 2/3 expansion (param-neutral vs ReLU^2)
+- Per-loop LoRA adapters (rank-16) on Q/K/V/O for loop specialization
+- Multi-token prediction (MTP) auxiliary loss (training-only, excluded from artifact)
+- EMA weight averaging for smoother eval weights
+- Per-recurrence learned scales so shared blocks can distinguish passes
 """
 
 from __future__ import annotations
@@ -64,6 +68,9 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    lora_rank = int(os.environ.get("LORA_RANK", 16))
+    mtp_heads = int(os.environ.get("MTP_HEADS", 2))
+    mtp_weight = float(os.environ.get("MTP_WEIGHT", 0.15))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -80,6 +87,10 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+
+    # EMA weight averaging
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.995))
+    ema_start_step = int(os.environ.get("EMA_START_STEP", 100))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -236,7 +247,8 @@ def eval_val(
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                batch_loss = model(x, y).detach()
+                out = model(x, y)
+                batch_loss = (out[0] if isinstance(out, tuple) else out).detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
@@ -471,6 +483,17 @@ class CastedLinear(nn.Linear):
         return F.linear(x, self.weight.to(x.dtype), bias)
 
 
+class LoRAAdapter(nn.Module):
+    def __init__(self, in_dim: int, out_dim: int, rank: int):
+        super().__init__()
+        self.down = CastedLinear(in_dim, rank, bias=False)
+        self.up = CastedLinear(rank, out_dim, bias=False)
+        nn.init.zeros_(self.up.weight)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.up(self.down(x))
+
+
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
     with torch.no_grad():
         for name, param in module.named_parameters():
@@ -536,11 +559,18 @@ class CausalSelfAttention(nn.Module):
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, lora: "LoRASet | None" = None) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = self.c_q(x)
+        k = self.c_k(x)
+        v = self.c_v(x)
+        if lora is not None:
+            q = q + lora.q(x)
+            k = k + lora.k(x)
+            v = v + lora.v(x)
+        q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -554,20 +584,36 @@ class CausalSelfAttention(nn.Module):
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        out = self.proj(y)
+        if lora is not None:
+            out = out + lora.o(y)
+        return out
 
 
-class MLP(nn.Module):
+class LoRASet(nn.Module):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rank: int):
+        super().__init__()
+        head_dim = dim // num_heads
+        kv_dim = num_kv_heads * head_dim
+        self.q = LoRAAdapter(dim, dim, rank)
+        self.k = LoRAAdapter(dim, kv_dim, rank)
+        self.v = LoRAAdapter(dim, kv_dim, rank)
+        self.o = LoRAAdapter(dim, dim, rank)
+
+
+class SwiGLUMLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
-        hidden = mlp_mult * dim
-        self.fc = CastedLinear(dim, hidden, bias=False)
+        # SwiGLU has 3 weight matrices instead of 2, so use 2/3 expansion to stay param-neutral
+        # hidden = 2/3 * mlp_mult * dim, rounded to multiple of 64 for hardware efficiency
+        hidden = ((2 * mlp_mult * dim // 3 + 63) // 64) * 64
+        self.gate = CastedLinear(dim, hidden, bias=False)
+        self.up = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
-        return self.proj(x.square())
+        return self.proj(F.silu(self.gate(x)) * self.up(x))
 
 
 class Block(nn.Module):
@@ -584,15 +630,15 @@ class Block(nn.Module):
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = SwiGLUMLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, lora: "LoRASet | None" = None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        attn_out = self.attn(self.attn_norm(x), lora=lora)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
@@ -613,6 +659,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        lora_rank: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -642,6 +689,16 @@ class GPT(nn.Module):
                 for _ in range(num_unique_layers)
             ]
         )
+        # LoRA adapters for loops 1+ (loop 0 uses base weights only)
+        self.lora_rank = lora_rank
+        if lora_rank > 0 and num_recurrence > 1:
+            self.lora_sets = nn.ModuleList([
+                LoRASet(model_dim, num_heads, num_kv_heads, lora_rank)
+                for _ in range(num_recurrence - 1)
+            ])
+        else:
+            self.lora_sets = nn.ModuleList()
+
         # Per-recurrence learned scale so shared blocks can distinguish passes
         self.recurrence_scales = nn.Parameter(
             torch.ones(effective_layers, model_dim, dtype=torch.float32)
@@ -670,13 +727,16 @@ class GPT(nn.Module):
         skip_idx = 0
 
         for eff_i in range(effective_layers):
-            # Map effective layer index to physical block
+            # Map effective layer index to physical block and loop index
             block_idx = eff_i % self.num_unique_layers
+            loop_idx = eff_i // self.num_unique_layers
             # Per-recurrence scale lets shared blocks distinguish which pass
             x = x * self.recurrence_scales[eff_i].to(dtype=x.dtype)[None, None, :]
+            # LoRA for loops 1+ (loop 0 uses base weights)
+            lora = self.lora_sets[loop_idx - 1] if loop_idx > 0 and self.lora_sets else None
 
             if eff_i < encoder_count:
-                x = self.blocks[block_idx](x, x0)
+                x = self.blocks[block_idx](x, x0, lora=lora)
                 skips.append(x)
             else:
                 dec_i = eff_i - encoder_count
@@ -684,18 +744,39 @@ class GPT(nn.Module):
                     skip = skips[len(skips) - 1 - dec_i]
                     x = x + self.skip_weights[skip_idx].to(dtype=x.dtype)[None, None, :] * skip
                     skip_idx += 1
-                x = self.blocks[block_idx](x, x0)
+                x = self.blocks[block_idx](x, x0, lora=lora)
 
-        x = self.final_norm(x).reshape(-1, x.size(-1))
+        x = self.final_norm(x)
+        x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(x_flat, self.tok_emb.weight)
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
+            logits_proj = self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        return loss, x  # return hidden for MTP
+
+
+class MTPHead(nn.Module):
+    def __init__(self, model_dim: int, vocab_size: int, logit_softcap: float):
+        super().__init__()
+        self.proj = CastedLinear(model_dim, model_dim, bias=False)
+        self.norm = RMSNorm()
+        self.logit_softcap = logit_softcap
+        self.vocab_size = vocab_size
+
+    def forward(self, hidden: Tensor, emb_weight: Tensor, target_ids: Tensor) -> Tensor:
+        # hidden: (B, T, D), target_ids: (B, T) shifted by k positions
+        h = self.norm(self.proj(hidden))
+        h_flat = h[:, :-1, :].reshape(-1, h.size(-1))  # drop last pos
+        targets = target_ids[:, 1:].reshape(-1)  # shift targets
+        logits = F.linear(h_flat, emb_weight)
+        logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
+
 
 
 # -----------------------------
@@ -800,6 +881,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        lora_rank=args.lora_rank,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -807,6 +889,16 @@ def main() -> None:
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    # MTP heads are training-only, kept outside compiled graph to avoid fullgraph issues
+    mtp_heads: list[MTPHead] = []
+    if args.mtp_heads > 0:
+        for _ in range(args.mtp_heads):
+            head = MTPHead(args.model_dim, args.vocab_size, args.logit_softcap).to(device).bfloat16()
+            for m in head.modules():
+                if isinstance(m, CastedLinear):
+                    m.float()
+            restore_low_dim_params_to_fp32(head)
+            mtp_heads.append(head)
 
     block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [
@@ -823,6 +915,21 @@ def main() -> None:
         scalar_params.append(base_model.skip_weights)
     # Include recurrence_scales in scalar group
     scalar_params.append(base_model.recurrence_scales)
+    # LoRA params: matrices go to Muon, others to Adam scalar
+    if base_model.lora_sets:
+        lora_named = list(base_model.lora_sets.named_parameters())
+        lora_matrix = [p for n, p in lora_named if p.ndim == 2]
+        lora_scalar = [p for n, p in lora_named if p.ndim < 2]
+        matrix_params.extend(lora_matrix)
+        scalar_params.extend(lora_scalar)
+    # MTP head params
+    if mtp_heads:
+        for head in mtp_heads:
+            for n, p in head.named_parameters():
+                if p.ndim == 2:
+                    matrix_params.append(p)
+                else:
+                    scalar_params.append(p)
 
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
@@ -854,6 +961,11 @@ def main() -> None:
             fused=True,
         )
         optimizers.insert(1, optimizer_head)
+
+    # EMA shadow weights (only for base_model, not MTP heads). Delay activation so
+    # short runs still serialize the trained live weights instead of near-init weights.
+    ema_state = {name: t.detach().clone() for name, t in base_model.state_dict().items()}
+    ema_active = False
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params} (effective_layers:{effective_layers} unique_layers:{args.num_unique_layers} recurrence:{args.num_recurrence})")
@@ -903,7 +1015,8 @@ def main() -> None:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_loss = model(x, y)
+                    warmup_out = model(x, y)
+                    warmup_loss = warmup_out[0] if isinstance(warmup_out, tuple) else warmup_out
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -960,7 +1073,22 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                out = model(x, y)
+                loss, hidden = (out[0], out[1]) if isinstance(out, tuple) else (out, None)
+                # MTP auxiliary loss
+                if mtp_heads and hidden is not None:
+                    emb_w = base_model.tok_emb.weight
+                    mtp_loss = torch.zeros((), device=device)
+                    for k, head in enumerate(mtp_heads, 1):
+                        if hidden.size(1) > k + 1:
+                            shifted_targets = y[:, k:]
+                            h_trunc = hidden[:, :shifted_targets.size(1), :]
+                            h_flat = head.norm(head.proj(h_trunc)).reshape(-1, hidden.size(-1))
+                            tgt_flat = shifted_targets.reshape(-1)
+                            logits = F.linear(h_flat, emb_w)
+                            logits = head.logit_softcap * torch.tanh(logits / head.logit_softcap)
+                            mtp_loss = mtp_loss + F.cross_entropy(logits.float(), tgt_flat, reduction="mean")
+                    loss = loss + args.mtp_weight * mtp_loss / max(len(mtp_heads), 1)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
@@ -978,6 +1106,16 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
+
+        # EMA update
+        if step >= args.ema_start_step:
+            with torch.no_grad():
+                if not ema_active:
+                    for name, param in base_model.state_dict().items():
+                        ema_state[name].copy_(param)
+                    ema_active = True
+                for name, param in base_model.state_dict().items():
+                    ema_state[name].lerp_(param.to(ema_state[name].device), 1.0 - args.ema_decay)
 
         zero_grad_all()
 
@@ -1005,6 +1143,13 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+
+    # Swap in EMA weights for eval and serialization once EMA has actually been populated.
+    if ema_active:
+        base_model.load_state_dict(ema_state, strict=True)
+        log0("Loaded EMA weights for evaluation and serialization")
+    else:
+        log0("EMA inactive; using live weights for evaluation and serialization")
 
     # SERIALIZATION + ROUNDTRIP VALIDATION
     if master_process:
