@@ -26,11 +26,9 @@ Happy training!
 ## Leaderboard
 
 
-| Rank | Run              | Score  | Author         | Summary                              | Date       | Info              |
-|-----:|------------------|-------:|----------------|--------------------------------------|------------|-------------------|
-| 1    | 2048vocab d11 448dim |  1.2166 | Codex | 11layer 448dim 2048vocab tied embed 4 KV heads & row-wise `int8+zlib` | 2026-03-12 | [info](records/track_10min_16mb/2026-03-11_SP2048_11x448_KV4_Tied_pgze1/README.md) |
-| 2    | 1024vocab d9 512dim VectorQK | 1.2169 | Codex | 9layer 512dim 1024vocab tied embed 4 KV heads, vector residual controls, per-head QK gain & row-wise `int8+zlib` | 2026-03-18 | [info](records/track_10min_16mb/2026-03-17_SP1024_9x512_KV4_VectorQK_Q150_FP32Clip_pgut3/README.md) |
-| 3    | Very Simple Baseline| 1.2499 | Codex 5.4          | 9layer 512dim 1024vocab tied embed 4 KV heads & row-wise `int8+zlib` | 2026-03-12 | [info](records/track_10min_16mb/2026-03-11_Baseline/README.md) |
+| Rank | Run | Score | Author | Summary | Date | Info |
+|-----:|-----|------:|--------|---------|------|------|
+| 1 | Naive Baseline | 1.2169 | Baseline | 9layer 512dim 1024vocab TiedEmbeddings 4 KV heads | 2026-03-18 | [info](records/track_10min_16mb/2026-03-17_SP1024_9x512_KV4_VectorQK_Q150_FP32Clip_pgut3/README.md) |
 
 ## Getting Started
 

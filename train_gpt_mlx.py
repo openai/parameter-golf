@@ -35,7 +35,7 @@ COMPUTE_DTYPE = mx.bfloat16
 # ==============================================================================
 # HYPERPARAMETERS
 # ==============================================================================
-# Default baseline / record-style run:
+# Default Simple Baseline run:
 # - 9 transformer blocks at width 512
 # - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
 # - vocab size 1024, sequence length 1024, tied embeddings

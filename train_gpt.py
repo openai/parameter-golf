@@ -31,7 +31,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
-# Default baseline / record-style run:
+# Default Simple Baseline run:
 # - 9 transformer blocks at width 512
 # - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
 # - vocab size 1024, sequence length 1024, tied embeddings
@@ -271,6 +271,8 @@ def eval_val(
     if local_batch_tokens < args.train_seq_len:
         raise ValueError(
             "VAL_BATCH_SIZE must provide at least one sequence per rank; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
         )
     local_batch_seqs = local_batch_tokens // args.train_seq_len
     total_seqs = (val_tokens.numel() - 1) // args.train_seq_len

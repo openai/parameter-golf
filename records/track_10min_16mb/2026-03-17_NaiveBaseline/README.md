@@ -1,16 +1,4 @@
-This record captures the improved top-level `train_gpt.py` run on `pgut3` using the mirrored `SP-1024` dataset from Azure.
-
-Important metric note:
-- This run's score is the trainer's default final `int8+zlib` roundtrip metric.
-- The exact printed leaderboard value is `final_int8_zlib_roundtrip_exact val_bpb:1.21687994`.
-- This run cleanly beats the saved `SP-1024` baseline and lands just behind the current `SP-2048` leader.
-
-Run environment:
-- Pool: `pgut3`
-- Pod: `pgut3-0`
-- Cluster: `scandium`
-- Hardware: `8x H100`
-- Dataset: mirrored `SP-1024` shards from `az://oaidatasets2/speedrunkits/parametergolf_fineweb`, staged to `/tmp/parametergolf_fineweb` with `azcopy`
+This record captures the `Simple Baseline`.
 
 Trainer changes in this snapshot:
 - wallclock-aware warmdown with `WARMDOWN_ITERS=1200`
@@ -25,7 +13,6 @@ Configuration:
 - Tied output/input embeddings: `TIE_EMBEDDINGS=1`
 - Tied embedding LR: `TIED_EMBED_LR=0.05`
 - Batching: `TRAIN_BATCH_TOKENS=524288 TRAIN_SEQ_LEN=1024`
-- Runtime cap: `MAX_WALLCLOCK_SECONDS=598`
 
 Command (track-relevant params):
 ```bash
