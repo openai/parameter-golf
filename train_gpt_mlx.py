@@ -2,7 +2,7 @@
 """
 The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
 
-Hard stop: `train_gpt.py` and `train_gpt_mlx.py` must never be longer than 1500 lines.
+Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
 """
 from __future__ import annotations
 
@@ -925,6 +925,7 @@ def eval_val(
     has_leading_space_lut: np.ndarray,
     is_boundary_token_lut: np.ndarray,
     eval_seq_len: int | None = None,
+    log_fn: Callable[[str], None] | None = None,
 ) -> tuple[float, float]:
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
@@ -939,10 +940,11 @@ def eval_val(
         )
     val_batch_seqs = val_batch_tokens // seq_len
     total_seqs = (val_tokens.size - 1) // seq_len
-    total_loss = mx.array(0.0, dtype=mx.float32)
+    total_batches = max((total_seqs + val_batch_seqs - 1) // val_batch_seqs, 1)
+    total_loss_sum = 0.0
     total_tokens = 0.0
     total_bytes = 0.0
-    for batch_seq_start in range(0, total_seqs, val_batch_seqs):
+    for batch_idx, batch_seq_start in enumerate(range(0, total_seqs, val_batch_seqs), start=1):
         batch_seq_end = min(batch_seq_start + val_batch_seqs, total_seqs)
         raw_start = batch_seq_start * seq_len
         raw_end = batch_seq_end * seq_len + 1
@@ -952,7 +954,9 @@ def eval_val(
         x = mx.array(x_np, dtype=mx.int32)
         y = mx.array(y_np, dtype=mx.int32)
         chunk_token_count = float(y.size)
-        total_loss = total_loss + compiled_loss(x, y).astype(mx.float32) * chunk_token_count
+        batch_loss = compiled_loss(x, y).astype(mx.float32)
+        mx.eval(batch_loss)
+        total_loss_sum += float(batch_loss.item()) * chunk_token_count
         prev_ids = x_np.reshape(-1)
         tgt_ids = y_np.reshape(-1)
         bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
@@ -961,9 +965,11 @@ def eval_val(
         ).astype(np.int16, copy=False)
         total_tokens += chunk_token_count
         total_bytes += float(bytes_np.astype(np.float64).sum())
-    total_loss = total_loss / total_tokens
-    mx.eval(total_loss)
-    val_loss = float(total_loss.item())
+        if log_fn is not None and total_batches > 1 and (
+            batch_idx == 1 or batch_idx == total_batches or batch_idx % 25 == 0
+        ):
+            log_fn(f"val_progress:{batch_idx}/{total_batches}")
+    val_loss = total_loss_sum / total_tokens
     bits_per_token = val_loss / math.log(2.0)
     val_bpb = bits_per_token * (total_tokens / total_bytes)
     return val_loss, val_bpb
@@ -1189,6 +1195,7 @@ def main() -> None:
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
+            train_time_ms += 1000.0 * (time.perf_counter() - t0)
             val_loss, val_bpb = eval_val(
                 args,
                 compiled_loss,
@@ -1196,8 +1203,8 @@ def main() -> None:
                 base_bytes_lut,
                 has_leading_space_lut,
                 is_boundary_token_lut,
+                log_fn=log,
             )
-            train_time_ms += 1000.0 * (time.perf_counter() - t0)
             if step % 25 == 0 or last_step:
                 log(
                     f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
@@ -1339,6 +1346,7 @@ def main() -> None:
         has_leading_space_lut,
         is_boundary_token_lut,
         eval_seq_len=q_eval_seq_len,
+        log_fn=log,
     )
     q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
     log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
