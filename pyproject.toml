@@ -1,0 +1,27 @@
+[project]
+name = "parameter-golf"
+version = "0.1.0"
+description = "OpenAI Parameter Golf challenge baseline scripts"
+requires-python = ">=3.11"
+dependencies = [
+  "datasets",
+  "huggingface-hub",
+  "numpy",
+  "sentencepiece",
+  "setuptools",
+  "tiktoken",
+  "tqdm",
+  "typing-extensions==4.15.0",
+]
+
+[project.optional-dependencies]
+mlx = [
+  "mlx",
+]
+cuda = [
+  "kernels",
+  "torch==2.10",
+]
+
+[tool.uv]
+default-groups = []
