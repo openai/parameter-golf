@@ -8,10 +8,23 @@ from huggingface_hub import hf_hub_download
 
 REPO_ID = os.environ.get("MATCHED_FINEWEB_REPO_ID", "willdepueoai/parameter-golf")
 REMOTE_ROOT_PREFIX = os.environ.get("MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "datasets")
+
+
+def repo_relative_env_path(name: str, default: str) -> Path:
+    path = Path(os.environ.get(name, default))
+    if not path.parts or path.is_absolute():
+        raise ValueError(f"{name} must be a non-empty repo-relative path under data/, got {path}")
+    root = Path(__file__).resolve().parent
+    resolved = (root / path).resolve()
+    if resolved != root and root not in resolved.parents:
+        raise ValueError(f"{name} must stay under {root}, got {path}")
+    return path
+
+
 # Preserve existing local exports under data/challenge_fineweb while exposing canonical data/* paths.
-LEGACY_LOCAL_ROOT = os.environ.get("MATCHED_FINEWEB_LOCAL_ALIAS", "challenge_fineweb")
-LOCAL_DATASETS_DIR = Path(os.environ.get("MATCHED_FINEWEB_LOCAL_DATASETS_DIR", "datasets"))
-LOCAL_TOKENIZERS_DIR = Path(os.environ.get("MATCHED_FINEWEB_LOCAL_TOKENIZERS_DIR", "tokenizers"))
+LEGACY_LOCAL_ROOT = repo_relative_env_path("MATCHED_FINEWEB_LOCAL_ALIAS", "challenge_fineweb")
+LOCAL_DATASETS_DIR = repo_relative_env_path("MATCHED_FINEWEB_LOCAL_DATASETS_DIR", "datasets")
+LOCAL_TOKENIZERS_DIR = repo_relative_env_path("MATCHED_FINEWEB_LOCAL_TOKENIZERS_DIR", "tokenizers")
 
 VARIANTS = {
     "byte260": {

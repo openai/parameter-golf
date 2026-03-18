@@ -4,6 +4,8 @@ USER-EDITABLE:
 - Pass `--tokenizer_config`, or edit `data/demo_tokenizer_specs.json`.
 - Point each tokenizer spec at a Python builder in `data/demo_tokenizer_builders.py`
   or your own file/module.
+- Custom tokenizer configs execute Python builder code. Only use them with trusted
+  local configs, and pass `--trust_tokenizer_config_code` to opt in.
 
 FIXED:
 - The challenge dataset selection, split, shard format, and manifest fields below.
@@ -230,10 +232,24 @@ def export_shards(docs_jsonl: Path, tok: dict[str, Any], output_dir: Path) -> di
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export matched FineWeb datasets across tokenizer variants")
     parser.add_argument("--tokenizer_config", type=str, default=None)
+    parser.add_argument(
+        "--trust_tokenizer_config_code",
+        action="store_true",
+        help="Allow a custom tokenizer config to import and execute its builder code. "
+        "Required for non-bundled configs because the builder field is trusted code.",
+    )
     parser.add_argument("--output_root", type=str, default=str(OUTPUT_ROOT))
     parser.add_argument("--docs_jsonl", type=str, default=None)
     parser.add_argument("--rebuild_docs_cache", action="store_true")
     args = parser.parse_args()
+
+    config_path = Path(args.tokenizer_config).resolve() if args.tokenizer_config else DEMO_CONFIG.resolve()
+    trusted_builder_code = config_path == DEMO_CONFIG.resolve() or args.trust_tokenizer_config_code
+    if not trusted_builder_code:
+        raise ValueError(
+            "Custom tokenizer configs are trusted-code only because `builder` is imported and executed. "
+            "Rerun with --trust_tokenizer_config_code only for a trusted local config."
+        )
 
     output_root = Path(args.output_root).resolve()
     tokenizers_dir = output_root / "tokenizers"
@@ -271,7 +287,7 @@ def main() -> None:
     #   SHUFFLE_SEED, APPEND_EOS, or SHARD_SIZE if they want comparable scores.
     # - docs_sha256 is the final check that two exports used the same raw docs.
 
-    specs = load_specs(args.tokenizer_config)
+    specs = load_specs(str(config_path))
     tokenizers: list[dict[str, Any]] = []
     seen_names: set[str] = set()
     seen_datasets: set[str] = set()
