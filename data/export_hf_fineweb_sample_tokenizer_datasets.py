@@ -12,8 +12,7 @@ from datasets import load_dataset
 import tiktoken
 from tqdm import tqdm
 
-from export_matched_fineweb_tokenizer_datasets import DEMO_CONFIG, build_parser as build_matched_parser
-from export_matched_fineweb_tokenizer_datasets import run_export as run_matched_export
+from export_matched_fineweb_tokenizer_datasets import DEMO_CONFIG, build_parser as build_matched_parser, run_export as run_matched_export
 
 
 DEFAULT_DATASET_NAME = "sample-350BT"
