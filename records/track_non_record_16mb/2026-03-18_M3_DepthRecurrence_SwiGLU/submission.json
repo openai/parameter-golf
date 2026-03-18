@@ -1,0 +1,13 @@
+{
+  "author": "troy",
+  "github_id": "troy",
+  "name": "Depth Recurrence + SwiGLU (M3 8GB)",
+  "blurb": "4 unique layers x3 recurrence = 12 effective layers with SwiGLU MLP at 640 dim. Trained on Apple M3 with 8GB RAM as a proof-of-concept for depth recurrence in parameter-constrained settings.",
+  "date": "2026-03-18",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null,
+  "hardware": "Apple M3, 8GB RAM",
+  "note": "Non-record submission. Hardware-limited — results are directional, not competitive with H100 runs."
+}
