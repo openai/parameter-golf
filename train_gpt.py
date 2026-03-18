@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import glob
 import io
+import json
 import math
 import os
 import random
@@ -62,6 +63,7 @@ class Hyperparameters:
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    shared_depth_blocks = int(os.environ.get("SHARED_DEPTH_BLOCKS", 0))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -85,6 +87,27 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    qat_last_steps = int(os.environ.get("QAT_LAST_STEPS", 0))
+    qat_quant_scheme = os.environ.get("QAT_QUANT_SCHEME", "affine_int8")
+    qat_blend_start = float(os.environ.get("QAT_BLEND_START", 0.25))
+    qat_blend_end = float(os.environ.get("QAT_BLEND_END", 1.0))
+    qat_include_patterns = tuple(
+        pattern for pattern in os.environ.get("QAT_INCLUDE_PATTERNS", "").split(",") if pattern
+    )
+    qat_exclude_patterns = tuple(
+        pattern for pattern in os.environ.get("QAT_EXCLUDE_PATTERNS", "").split(",") if pattern
+    )
+    tta_lr = float(os.environ.get("TTA_LR", 0.0))
+    tta_beta1 = float(os.environ.get("TTA_BETA1", 0.9))
+    tta_beta2 = float(os.environ.get("TTA_BETA2", 0.95))
+    tta_eps = float(os.environ.get("TTA_EPS", 1e-8))
+    tta_steps_per_batch = int(os.environ.get("TTA_STEPS_PER_BATCH", 1))
+    tta_include_patterns = tuple(
+        pattern for pattern in os.environ.get("TTA_INCLUDE_PATTERNS", "").split(",") if pattern
+    )
+    tta_exclude_patterns = tuple(
+        pattern for pattern in os.environ.get("TTA_EXCLUDE_PATTERNS", "").split(",") if pattern
+    )
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -216,21 +239,9 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     return tokens[: usable + 1]
 
 
-def eval_val(
-    args: Hyperparameters,
-    model: nn.Module,
-    rank: int,
-    world_size: int,
-    device: torch.device,
-    grad_accum_steps: int,
-    val_tokens: Tensor,
-    base_bytes_lut: Tensor,
-    has_leading_space_lut: Tensor,
-    is_boundary_token_lut: Tensor,
-) -> tuple[float, float]:
-    # Validation computes two metrics:
-    # - val_loss: token cross-entropy (natural log)
-    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+def get_eval_layout(
+    args: Hyperparameters, rank: int, world_size: int, grad_accum_steps: int, val_tokens: Tensor
+) -> dict[str, int]:
     local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
     if local_batch_tokens < args.train_seq_len:
         raise ValueError(
@@ -242,21 +253,68 @@ def eval_val(
     total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
+    local_total_seqs = seq_end - seq_start
+    num_batches = math.ceil(local_total_seqs / local_batch_seqs) if local_total_seqs > 0 else 0
+    return {
+        "local_batch_seqs": local_batch_seqs,
+        "local_batch_tokens": local_batch_tokens,
+        "local_total_seqs": local_total_seqs,
+        "num_batches": num_batches,
+        "seq_end": seq_end,
+        "seq_start": seq_start,
+        "total_seqs": total_seqs,
+    }
+
+
+def iter_eval_batches(
+    args: Hyperparameters,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+):
+    layout = get_eval_layout(args, rank, world_size, grad_accum_steps, val_tokens)
+    for batch_seq_start in range(layout["seq_start"], layout["seq_end"], layout["local_batch_seqs"]):
+        batch_seq_end = min(batch_seq_start + layout["local_batch_seqs"], layout["seq_end"])
+        raw_start = batch_seq_start * args.train_seq_len
+        raw_end = batch_seq_end * args.train_seq_len + 1
+        local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+        x = local[:-1].reshape(-1, args.train_seq_len)
+        y = local[1:].reshape(-1, args.train_seq_len)
+        yield x, y
+
+
+def eval_val(
+    args: Hyperparameters,
+    model: nn.Module,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float, dict[str, object]]:
+    # Validation computes two metrics:
+    # - val_loss: token cross-entropy (natural log)
+    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    tta = EvalControlTensorTTA(args, list(base_model.named_parameters()), world_size)
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
+    was_training = model.training
     model.eval()
-    with torch.inference_mode():
-        for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
-            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-            raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
-            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, args.train_seq_len)
-            y = local[1:].reshape(-1, args.train_seq_len)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                batch_loss = model(x, y).detach()
+    if tta.enabled:
+        tta.begin()
+    try:
+        for x, y in iter_eval_batches(args, rank, world_size, device, grad_accum_steps, val_tokens):
+            with torch.inference_mode():
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    batch_loss = model(x, y).detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
@@ -265,6 +323,11 @@ def eval_val(
             token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
             token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
             val_byte_count += token_bytes.to(torch.float64).sum()
+            if tta.enabled:
+                tta.adapt_batch(model, x, y)
+    finally:
+        if tta.enabled:
+            tta.restore()
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
@@ -274,8 +337,16 @@ def eval_val(
     val_loss = val_loss_sum / val_token_count
     bits_per_token = val_loss.item() / math.log(2.0)
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
-    model.train()
-    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+    eval_stats = {
+        "tta_enabled": bool(tta.enabled),
+        "tta_param_count": tta.param_count,
+        "tta_update_steps": tta.update_steps,
+    }
+    if was_training:
+        model.train()
+    else:
+        model.eval()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte), eval_stats
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -304,8 +375,15 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
+INT8_PER_ROW_OFFSET_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+EXPORT_MAX_BYTES = int(os.environ.get("EXPORT_MAX_BYTES", 16_000_000))
+EXPORT_CANDIDATE_NAMES = tuple(
+    name
+    for name in os.environ.get("EXPORT_CANDIDATE_NAMES", "sym_int8,affine_int8").split(",")
+    if name
+)
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -318,7 +396,7 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor_symmetric(t: Tensor) -> tuple[Tensor, Tensor, Tensor | None, str]:
     t32 = t.float()
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
@@ -331,28 +409,72 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
         scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
         q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous(), None, "per_row_sym"
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
-    return q, scale
+    return q, scale, None, "per_tensor_sym"
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
-    # Single supported clean-script export format:
-    # - per-row int8 for 2D float tensors
-    # - per-tensor int8 for other float tensors
-    # - exact passthrough for non-floats
-    # - passthrough for small float tensors, stored as fp16 to save bytes
+
+def quantize_float_tensor_affine(t: Tensor) -> tuple[Tensor, Tensor, Tensor | None, str]:
+    t32 = t.float()
+    if t32.ndim == 2:
+        offset = t32.mean(dim=1)
+        centered = t32 - offset[:, None]
+        clip_abs = (
+            torch.quantile(centered.abs(), INT8_CLIP_Q, dim=1)
+            if centered.numel()
+            else torch.empty((centered.shape[0],), dtype=torch.float32)
+        )
+        clipped = torch.maximum(torch.minimum(centered, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        return (
+            q,
+            scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous(),
+            offset.to(dtype=INT8_PER_ROW_OFFSET_DTYPE).contiguous(),
+            "per_row_affine",
+        )
+
+    offset = torch.tensor(float(t32.mean().item()) if t32.numel() else 0.0, dtype=torch.float32)
+    centered = t32 - offset
+    clip_abs = float(torch.quantile(centered.abs().flatten(), INT8_CLIP_Q).item()) if centered.numel() else 0.0
+    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(centered, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    return q, scale, offset, "per_tensor_affine"
+
+
+def quantize_float_tensor(t: Tensor, quant_scheme: str) -> tuple[Tensor, Tensor, Tensor | None, str]:
+    if quant_scheme == "sym_int8":
+        return quantize_float_tensor_symmetric(t)
+    if quant_scheme == "affine_int8":
+        return quantize_float_tensor_affine(t)
+    raise ValueError(f"Unsupported quant_scheme={quant_scheme}")
+
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_scheme: str = "sym_int8"):
+    # Supported clean-script export formats:
+    # - sym_int8: per-row / per-tensor symmetric int8
+    # - affine_int8: per-row / per-tensor int8 with learned float offsets
+    # Non-floats pass through exactly; small float tensors stay in higher precision.
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
+    offsets: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
     passthrough: dict[str, Tensor] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
     stats = dict.fromkeys(
-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        (
+            "param_count",
+            "num_tensors",
+            "num_float_tensors",
+            "num_nonfloat_tensors",
+            "baseline_tensor_bytes",
+            "int8_payload_bytes",
+            "offset_bytes",
+        ),
         0,
     )
 
@@ -377,21 +499,29 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        q, s, offset, scheme = quantize_float_tensor(t, quant_scheme=quant_scheme)
+        qmeta[name] = {"scheme": scheme}
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
+            qmeta[name]["axis"] = 0
         quantized[name] = q
         scales[name] = s
+        if offset is not None:
+            offsets[name] = offset
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
+        if offset is not None:
+            stats["int8_payload_bytes"] += tensor_nbytes(offset)
+            stats["offset_bytes"] += tensor_nbytes(offset)
 
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
+        "__quant_format__": f"{quant_scheme}_mixed_precision_v2",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
         "passthrough": passthrough,
     }
+    if offsets:
+        obj["offsets"] = offsets
     if qmeta:
         obj["qmeta"] = qmeta
     if passthrough_orig_dtypes:
@@ -401,17 +531,26 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
+    offsets = obj.get("offsets", {})
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+        offset = offsets.get(name)
+        scheme = str(qmeta.get(name, {}).get("scheme", ""))
+        if "per_row" in scheme or s.ndim > 0:
             s = s.to(dtype=torch.float32)
             # Broadcast the saved row scale back across trailing dimensions.
-            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+            out_t = q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))
+            if offset is not None:
+                out_t = out_t + offset.to(dtype=torch.float32).view(q.shape[0], *([1] * (q.ndim - 1)))
+            out[name] = out_t.to(dtype=dtype).contiguous()
         else:
             scale = float(s.item())
-            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
+            out_t = q.float() * scale
+            if offset is not None:
+                out_t = out_t + float(offset.to(dtype=torch.float32).item())
+            out[name] = out_t.to(dtype=dtype).contiguous()
     for name, t in obj["passthrough"].items():
         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
         out_t = t.detach().to("cpu").contiguous()
@@ -420,6 +559,206 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
             out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
         out[name] = out_t
     return out
+
+
+def build_quantized_export_candidate(
+    state_dict: dict[str, Tensor],
+    quant_scheme: str,
+) -> dict[str, object]:
+    quant_obj, quant_stats = quantize_state_dict_int8(state_dict, quant_scheme=quant_scheme)
+    quant_buf = io.BytesIO()
+    torch.save(quant_obj, quant_buf)
+    quant_raw = quant_buf.getvalue()
+    quant_blob = zlib.compress(quant_raw, level=9)
+    return {
+        "blob": quant_blob,
+        "file_bytes": len(quant_blob),
+        "name": quant_scheme,
+        "quant_obj": quant_obj,
+        "quant_raw_bytes": len(quant_raw),
+        "stats": quant_stats,
+    }
+
+
+def dequantize_quantized_tensor(
+    q: Tensor,
+    s: Tensor,
+    offset: Tensor | None,
+    scheme: str,
+    dtype: torch.dtype,
+) -> Tensor:
+    if "per_row" in scheme or s.ndim > 0:
+        out = q.float() * s.to(dtype=torch.float32).view(q.shape[0], *([1] * (q.ndim - 1)))
+        if offset is not None:
+            out = out + offset.to(dtype=torch.float32).view(q.shape[0], *([1] * (q.ndim - 1)))
+        return out.to(dtype=dtype).contiguous()
+    out = q.float() * float(s.to(dtype=torch.float32).item())
+    if offset is not None:
+        out = out + float(offset.to(dtype=torch.float32).item())
+    return out.to(dtype=dtype).contiguous()
+
+
+def quantize_dequantize_tensor(t: Tensor, quant_scheme: str) -> Tensor:
+    q, s, offset, scheme = quantize_float_tensor(t, quant_scheme=quant_scheme)
+    return dequantize_quantized_tensor(q, s, offset, scheme, dtype=t.dtype)
+
+
+def should_qat_quantize_param(args: Hyperparameters, name: str, param: Tensor) -> bool:
+    if not param.is_floating_point():
+        return False
+    if param.ndim < 2:
+        return False
+    if param.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+        return False
+    if args.qat_include_patterns and not any(pattern in name for pattern in args.qat_include_patterns):
+        return False
+    if args.qat_exclude_patterns and any(pattern in name for pattern in args.qat_exclude_patterns):
+        return False
+    return True
+
+
+class LateStageQAT:
+    def __init__(self, args: Hyperparameters, named_params: list[tuple[str, nn.Parameter]]):
+        self.args = args
+        self.quant_scheme = args.qat_quant_scheme
+        self.active_steps = 0
+        self._applied = False
+        self._backups: list[tuple[nn.Parameter, Tensor]] = []
+        self.params = [
+            (name, param)
+            for name, param in named_params
+            if should_qat_quantize_param(args, name, param)
+        ]
+
+    @property
+    def enabled(self) -> bool:
+        return self.args.qat_last_steps > 0 and bool(self.params)
+
+    def should_activate(
+        self,
+        step: int,
+        elapsed_ms: float,
+        max_wallclock_ms: float | None,
+        iterations: int,
+    ) -> bool:
+        if not self.enabled:
+            return False
+        if self._applied:
+            return True
+        if max_wallclock_ms is None:
+            return step >= max(iterations - self.args.qat_last_steps, 0)
+        step_ms = elapsed_ms / max(step, 1)
+        remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
+        return remaining_ms <= self.args.qat_last_steps * step_ms
+
+    def current_blend(self) -> float:
+        progress = min(self.active_steps / max(self.args.qat_last_steps, 1), 1.0)
+        return (1.0 - progress) * self.args.qat_blend_start + progress * self.args.qat_blend_end
+
+    @torch.no_grad()
+    def apply(self) -> float:
+        if not self.enabled:
+            return 0.0
+        if self._applied:
+            raise RuntimeError("LateStageQAT.apply called twice without restore")
+        self.active_steps += 1
+        blend = self.current_blend()
+        self._backups = []
+        for _, param in self.params:
+            original = param.data.detach().clone()
+            quantized = quantize_dequantize_tensor(param.data, quant_scheme=self.quant_scheme)
+            param.data = torch.lerp(original, quantized.to(dtype=original.dtype), blend)
+            self._backups.append((param, original))
+        self._applied = True
+        return blend
+
+    @torch.no_grad()
+    def restore(self) -> None:
+        if not self._applied:
+            return
+        for param, original in self._backups:
+            param.data.copy_(original)
+        self._backups.clear()
+        self._applied = False
+
+
+def should_tta_adapt_param(args: Hyperparameters, name: str, param: Tensor) -> bool:
+    if not param.is_floating_point():
+        return False
+    if not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS):
+        return False
+    if args.tta_include_patterns and not any(pattern in name for pattern in args.tta_include_patterns):
+        return False
+    if args.tta_exclude_patterns and any(pattern in name for pattern in args.tta_exclude_patterns):
+        return False
+    return True
+
+
+class EvalControlTensorTTA:
+    def __init__(self, args: Hyperparameters, named_params: list[tuple[str, nn.Parameter]], world_size: int):
+        self.args = args
+        self.world_size = world_size
+        self.params = [
+            (name, param)
+            for name, param in named_params
+            if should_tta_adapt_param(args, name, param)
+        ]
+        self.optimizer = None
+        self._backups: list[tuple[nn.Parameter, Tensor]] = []
+        self.update_steps = 0
+
+    @property
+    def enabled(self) -> bool:
+        return self.args.tta_lr > 0.0 and self.args.tta_steps_per_batch > 0 and bool(self.params)
+
+    @property
+    def param_count(self) -> int:
+        return sum(int(param.numel()) for _, param in self.params)
+
+    @torch.no_grad()
+    def begin(self) -> None:
+        if not self.enabled:
+            return
+        self._backups = [(param, param.data.detach().clone()) for _, param in self.params]
+        self.optimizer = torch.optim.Adam(
+            [{"params": [param for _, param in self.params], "lr": self.args.tta_lr}],
+            betas=(self.args.tta_beta1, self.args.tta_beta2),
+            eps=self.args.tta_eps,
+            fused=False,
+        )
+        self.optimizer.zero_grad(set_to_none=True)
+        self.update_steps = 0
+
+    def adapt_batch(self, model: nn.Module, x: Tensor, y: Tensor) -> None:
+        if not self.enabled or self.optimizer is None:
+            return
+        selected_params = [param for _, param in self.params]
+        for _ in range(self.args.tta_steps_per_batch):
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                loss = model(x, y)
+            grads = torch.autograd.grad(loss, selected_params, allow_unused=True)
+            self.optimizer.zero_grad(set_to_none=True)
+            for param, grad in zip(selected_params, grads, strict=True):
+                if grad is None:
+                    continue
+                grad_to_apply = grad.detach()
+                if dist.is_available() and dist.is_initialized():
+                    dist.all_reduce(grad_to_apply, op=dist.ReduceOp.SUM)
+                    grad_to_apply /= self.world_size
+                param.grad = grad_to_apply
+            self.optimizer.step()
+            self.update_steps += 1
+
+    @torch.no_grad()
+    def restore(self) -> None:
+        if not self._backups:
+            return
+        for param, original in self._backups:
+            param.data.copy_(original)
+        self._backups.clear()
+        if self.optimizer is not None:
+            self.optimizer.zero_grad(set_to_none=True)
+        self.optimizer = None
 
 
 # -----------------------------
@@ -650,6 +989,7 @@ class GPT(nn.Module):
         self,
         vocab_size: int,
         num_layers: int,
+        shared_depth_blocks: int,
         model_dim: int,
         num_heads: int,
         num_kv_heads: int,
@@ -666,11 +1006,20 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_layers = num_layers
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        if shared_depth_blocks < 0:
+            raise ValueError(f"shared_depth_blocks must be non-negative, got {shared_depth_blocks}")
+        if shared_depth_blocks > num_layers:
+            raise ValueError(
+                f"shared_depth_blocks={shared_depth_blocks} cannot exceed num_layers={num_layers}"
+            )
+        self.num_physical_blocks = shared_depth_blocks if 0 < shared_depth_blocks < num_layers else num_layers
+        self.shared_depth_enabled = self.num_physical_blocks < num_layers
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -681,9 +1030,15 @@ class GPT(nn.Module):
                     rope_base,
                     qk_gain_init,
                 )
-                for i in range(num_layers)
+                for _ in range(self.num_physical_blocks)
             ]
         )
+        if self.shared_depth_enabled:
+            encoder_map = [i % self.num_physical_blocks for i in range(self.num_encoder_layers)]
+            decoder_map = [i % self.num_physical_blocks for i in range(self.num_decoder_layers)]
+            self.logical_to_physical = tuple(encoder_map + decoder_map)
+        else:
+            self.logical_to_physical = tuple(range(num_layers))
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -705,12 +1060,13 @@ class GPT(nn.Module):
 
         # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[self.logical_to_physical[i]](x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            logical_idx = self.num_encoder_layers + i
+            x = self.blocks[self.logical_to_physical[logical_idx]](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -732,6 +1088,7 @@ def main() -> None:
     global zeropower_via_newtonschulz5
 
     code = Path(__file__).read_text(encoding="utf-8")
+    code_bytes = len(code.encode("utf-8"))
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
@@ -769,9 +1126,14 @@ def main() -> None:
     enable_math_sdp(False)
 
     logfile = None
+    score_logfile = None
+    score_summary_file = None
     if master_process:
         os.makedirs("logs", exist_ok=True)
         logfile = f"logs/{args.run_id}.txt"
+        score_logfile = f"logs/{args.run_id}.score.jsonl"
+        score_summary_file = f"logs/{args.run_id}.score_summary.json"
+        Path(score_logfile).write_text("", encoding="utf-8")
         print(logfile)
 
     def log0(msg: str, console: bool = True) -> None:
@@ -782,6 +1144,18 @@ def main() -> None:
         if logfile is not None:
             with open(logfile, "a", encoding="utf-8") as f:
                 print(msg, file=f)
+
+    score_events: list[dict[str, object]] = []
+
+    def record_score_event(event: str, **payload: object) -> None:
+        if not master_process:
+            return
+        item = {"event": event, "run_id": args.run_id, **payload}
+        score_events.append(item)
+        if score_logfile is not None:
+            with open(score_logfile, "a", encoding="utf-8") as f:
+                json.dump(item, f, sort_keys=True)
+                f.write("\n")
 
     log0(code, console=False)
     log0("=" * 100, console=False)
@@ -826,6 +1200,7 @@ def main() -> None:
     base_model = GPT(
         vocab_size=args.vocab_size,
         num_layers=args.num_layers,
+        shared_depth_blocks=args.shared_depth_blocks,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
@@ -840,6 +1215,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    late_stage_qat = LateStageQAT(args, list(base_model.named_parameters()))
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -897,6 +1273,12 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    shared_depth_map = ",".join(str(idx) for idx in base_model.logical_to_physical)
+    log0(
+        f"shared_depth:enabled:{base_model.shared_depth_enabled} "
+        f"physical_blocks:{base_model.num_physical_blocks} logical_layers:{args.num_layers} "
+        f"map:{shared_depth_map}"
+    )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
@@ -908,6 +1290,61 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+    log0(
+        f"late_qat:enabled:{late_stage_qat.enabled} last_steps:{args.qat_last_steps} "
+        f"scheme:{args.qat_quant_scheme} params:{len(late_stage_qat.params)} "
+        f"blend_start:{args.qat_blend_start:.3f} blend_end:{args.qat_blend_end:.3f}"
+    )
+    tta_param_count = sum(
+        int(param.numel())
+        for name, param in base_model.named_parameters()
+        if should_tta_adapt_param(args, name, param)
+    )
+    tta_requested = bool(args.tta_lr > 0.0 and args.tta_steps_per_batch > 0)
+    if tta_requested and world_size != 1:
+        raise ValueError(
+            "Control-tensor eval TTA currently requires WORLD_SIZE=1. "
+            "Per-batch adaptation uses online updates, and uneven validation batch counts across ranks "
+            "can desynchronize collective ops."
+        )
+    tta_enabled = bool(tta_requested and tta_param_count > 0)
+    tta_include_patterns = ",".join(args.tta_include_patterns)
+    tta_exclude_patterns = ",".join(args.tta_exclude_patterns)
+    log0(
+        f"eval_tta:enabled:{tta_enabled} "
+        f"lr:{args.tta_lr:.6g} steps_per_batch:{args.tta_steps_per_batch} "
+        f"params:{tta_param_count} include:{tta_include_patterns or '-'} "
+        f"exclude:{tta_exclude_patterns or '-'}"
+    )
+    record_score_event(
+        "run_config",
+        code_bytes=code_bytes,
+        data_path=str(dataset_dir),
+        grad_accum_steps=grad_accum_steps,
+        iterations=args.iterations,
+        max_wallclock_seconds=args.max_wallclock_seconds,
+        qat_blend_end=args.qat_blend_end,
+        qat_blend_start=args.qat_blend_start,
+        qat_enabled=bool(late_stage_qat.enabled),
+        qat_last_steps=args.qat_last_steps,
+        qat_param_count=len(late_stage_qat.params),
+        qat_quant_scheme=args.qat_quant_scheme,
+        tokenizer_path=args.tokenizer_path,
+        train_batch_tokens=args.train_batch_tokens,
+        train_seq_len=args.train_seq_len,
+        shared_depth_blocks=args.shared_depth_blocks,
+        shared_depth_enabled=bool(base_model.shared_depth_enabled),
+        shared_depth_map=list(base_model.logical_to_physical),
+        physical_block_count=base_model.num_physical_blocks,
+        tta_enabled=tta_enabled,
+        tta_exclude_patterns=list(args.tta_exclude_patterns),
+        tta_include_patterns=list(args.tta_include_patterns),
+        tta_lr=args.tta_lr,
+        tta_param_count=tta_param_count,
+        tta_steps_per_batch=args.tta_steps_per_batch,
+        vocab_size=args.vocab_size,
+        world_size=world_size,
+    )
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
@@ -966,6 +1403,7 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    qat_started_step: int | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -977,9 +1415,10 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = eval_val(
+            val_loss, val_bpb, val_eval_stats = eval_val(
                 args,
-                model,
+                compiled_model,
+                base_model,
                 rank,
                 world_size,
                 device,
@@ -991,7 +1430,21 @@ def main() -> None:
             )
             log0(
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
-                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
+                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms "
+                f"tta_updates:{val_eval_stats['tta_update_steps']}"
+            )
+            record_score_event(
+                "validation",
+                iterations=args.iterations,
+                phase="pre_quant",
+                step=step,
+                step_avg_ms=training_time_ms / max(step, 1),
+                train_time_ms=training_time_ms,
+                val_bpb=val_bpb,
+                val_loss=val_loss,
+                tta_enabled=val_eval_stats["tta_enabled"],
+                tta_param_count=val_eval_stats["tta_param_count"],
+                tta_update_steps=val_eval_stats["tta_update_steps"],
             )
             torch.cuda.synchronize()
             t0 = time.perf_counter()
@@ -1008,14 +1461,35 @@ def main() -> None:
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
-        for micro_step in range(grad_accum_steps):
-            if distributed:
-                model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
-            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
-            train_loss += loss.detach()
-            (loss * grad_scale).backward()
+        qat_blend = 0.0
+        qat_active = late_stage_qat.should_activate(step, elapsed_ms, max_wallclock_ms, args.iterations)
+        if qat_active:
+            qat_blend = late_stage_qat.apply()
+            if qat_started_step is None:
+                qat_started_step = step
+                log0(
+                    f"late_qat_start: step:{step}/{args.iterations} blend:{qat_blend:.4f} "
+                    f"scheme:{args.qat_quant_scheme} params:{len(late_stage_qat.params)}"
+                )
+                record_score_event(
+                    "qat_start",
+                    qat_blend=qat_blend,
+                    qat_quant_scheme=args.qat_quant_scheme,
+                    step=step,
+                    target_param_count=len(late_stage_qat.params),
+                )
+        try:
+            for micro_step in range(grad_accum_steps):
+                if distributed:
+                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    loss = model(x, y)
+                train_loss += loss.detach()
+                (loss * grad_scale).backward()
+        finally:
+            if qat_active:
+                late_stage_qat.restore()
         train_loss /= grad_accum_steps
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
@@ -1042,8 +1516,17 @@ def main() -> None:
         if should_log_train:
             log0(
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
-                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms "
+                f"qat_active:{qat_active} qat_blend:{qat_blend:.4f}"
             )
+            if qat_active:
+                record_score_event(
+                    "qat_step",
+                    qat_blend=qat_blend,
+                    step=step,
+                    train_loss=float(train_loss.item()),
+                    train_time_ms=approx_training_time_ms,
+                )
 
         # Needed to sync whether we've reached the wallclock cap.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
@@ -1054,9 +1537,20 @@ def main() -> None:
         if stop_after_step is None and reached_cap:
             stop_after_step = step
 
+    peak_memory_allocated_mib = torch.cuda.max_memory_allocated() // 1024 // 1024
+    peak_memory_reserved_mib = torch.cuda.max_memory_reserved() // 1024 // 1024
     log0(
-        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
-        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+        f"peak memory allocated: {peak_memory_allocated_mib} MiB "
+        f"reserved: {peak_memory_reserved_mib} MiB"
+    )
+    record_score_event(
+        "training_end",
+        final_step=step,
+        iterations=args.iterations,
+        peak_memory_allocated_mib=peak_memory_allocated_mib,
+        peak_memory_reserved_mib=peak_memory_reserved_mib,
+        stopped_early=bool(stop_after_step is not None and step < args.iterations),
+        train_time_ms=training_time_ms,
     )
 
     # -----------------------------
@@ -1068,55 +1562,207 @@ def main() -> None:
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
-        code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
+        record_score_event(
+            "artifact_raw",
+            code_bytes=code_bytes,
+            model_bytes=model_bytes,
+            total_submission_bytes=model_bytes + code_bytes,
+        )
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
-    quant_buf = io.BytesIO()
-    torch.save(quant_obj, quant_buf)
-    quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
-    quant_raw_bytes = len(quant_raw)
+    export_candidates = [
+        build_quantized_export_candidate(base_model.state_dict(), quant_scheme=name)
+        for name in EXPORT_CANDIDATE_NAMES
+    ]
+    viable_export_candidates = []
+    for candidate in export_candidates:
+        total_submission_bytes = candidate["file_bytes"] + code_bytes
+        payload_ratio = candidate["stats"]["baseline_tensor_bytes"] / max(candidate["stats"]["int8_payload_bytes"], 1)
+        candidate["payload_ratio"] = payload_ratio
+        candidate["total_submission_bytes"] = total_submission_bytes
+        candidate["within_budget"] = total_submission_bytes <= EXPORT_MAX_BYTES
+        log0(
+            f"export_candidate:{candidate['name']} size:{candidate['file_bytes']} bytes "
+            f"payload:{candidate['stats']['int8_payload_bytes']} raw_torch:{candidate['quant_raw_bytes']} "
+            f"payload_ratio:{payload_ratio:.2f}x total_submission:{total_submission_bytes} "
+            f"within_budget:{candidate['within_budget']}"
+        )
+        record_score_event(
+            "export_candidate",
+            candidate_name=candidate["name"],
+            code_bytes=code_bytes,
+            int8_payload_bytes=candidate["stats"]["int8_payload_bytes"],
+            offset_bytes=candidate["stats"]["offset_bytes"],
+            payload_ratio=payload_ratio,
+            quant_raw_bytes=candidate["quant_raw_bytes"],
+            quantized_model_bytes=candidate["file_bytes"],
+            total_submission_bytes=total_submission_bytes,
+            within_budget=bool(candidate["within_budget"]),
+        )
+        if candidate["within_budget"]:
+            viable_export_candidates.append(candidate)
+
+    if not viable_export_candidates:
+        smallest_candidate = min(export_candidates, key=lambda item: item["total_submission_bytes"])
+        raise RuntimeError(
+            "No export candidate fit under the artifact cap. "
+            f"smallest_candidate={smallest_candidate['name']} "
+            f"total_submission_bytes={smallest_candidate['total_submission_bytes']} "
+            f"limit={EXPORT_MAX_BYTES}"
+        )
+
+    best_export_candidate = None
+    for candidate in viable_export_candidates:
+        quant_state = torch.load(io.BytesIO(zlib.decompress(candidate["blob"])), map_location="cpu")
+        base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+        torch.cuda.synchronize()
+        t_qeval = time.perf_counter()
+        q_val_loss, q_val_bpb, q_eval_stats = eval_val(
+            args,
+            compiled_model,
+            base_model,
+            rank,
+            world_size,
+            device,
+            grad_accum_steps,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
+        torch.cuda.synchronize()
+        q_eval_time_ms = 1000.0 * (time.perf_counter() - t_qeval)
+        candidate["eval_time_ms"] = q_eval_time_ms
+        candidate["eval_stats"] = q_eval_stats
+        candidate["val_bpb"] = q_val_bpb
+        candidate["val_loss"] = q_val_loss
+        log0(
+            f"export_candidate_eval:{candidate['name']} val_loss:{q_val_loss:.4f} "
+            f"val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_time_ms:.0f}ms "
+            f"tta_updates:{q_eval_stats['tta_update_steps']}"
+        )
+        record_score_event(
+            "export_candidate_eval",
+            candidate_name=candidate["name"],
+            eval_time_ms=q_eval_time_ms,
+            total_submission_bytes=candidate["total_submission_bytes"],
+            tta_enabled=q_eval_stats["tta_enabled"],
+            tta_param_count=q_eval_stats["tta_param_count"],
+            tta_update_steps=q_eval_stats["tta_update_steps"],
+            val_bpb=q_val_bpb,
+            val_loss=q_val_loss,
+        )
+        if best_export_candidate is None or (q_val_bpb, candidate["total_submission_bytes"]) < (
+            best_export_candidate["val_bpb"],
+            best_export_candidate["total_submission_bytes"],
+        ):
+            best_export_candidate = candidate
+
+    if best_export_candidate is None:
+        raise RuntimeError("Failed to select an export candidate")
+
+    quant_blob = best_export_candidate["blob"]
+    quant_file_bytes = best_export_candidate["file_bytes"]
+    quant_raw_bytes = best_export_candidate["quant_raw_bytes"]
+    quant_stats = best_export_candidate["stats"]
+    q_eval_time_ms = best_export_candidate["eval_time_ms"]
+    q_eval_stats = best_export_candidate["eval_stats"]
+    q_val_bpb = best_export_candidate["val_bpb"]
+    q_val_loss = best_export_candidate["val_loss"]
+    best_quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob)), map_location="cpu")
+    base_model.load_state_dict(dequantize_state_dict_int8(best_quant_state), strict=True)
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = os.path.getsize("final_model.int8.ptz")
-        code_bytes = len(code.encode("utf-8"))
-        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+        log0(f"Selected export candidate: {best_export_candidate['name']}")
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
+            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} "
+            f"payload_ratio:{best_export_candidate['payload_ratio']:.2f}x)"
         )
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        record_score_event(
+            "artifact_quantized",
+            candidate_name=best_export_candidate["name"],
+            code_bytes=code_bytes,
+            int8_payload_bytes=quant_stats["int8_payload_bytes"],
+            offset_bytes=quant_stats["offset_bytes"],
+            payload_ratio=best_export_candidate["payload_ratio"],
+            quant_raw_bytes=quant_raw_bytes,
+            quantized_model_bytes=quant_file_bytes,
+            total_submission_bytes=quant_file_bytes + code_bytes,
+        )
+        record_score_event(
+            "export_candidate_selected",
+            candidate_name=best_export_candidate["name"],
+            eval_time_ms=q_eval_time_ms,
+            total_submission_bytes=quant_file_bytes + code_bytes,
+            val_bpb=q_val_bpb,
+            val_loss=q_val_loss,
+        )
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
-        quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
-    torch.cuda.synchronize()
-    t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args,
-        model,
-        rank,
-        world_size,
-        device,
-        grad_accum_steps,
-        val_tokens,
-        base_bytes_lut,
-        has_leading_space_lut,
-        is_boundary_token_lut,
-    )
-    torch.cuda.synchronize()
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+        f"eval_time:{q_eval_time_ms:.0f}ms tta_updates:{q_eval_stats['tta_update_steps']}"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    record_score_event(
+        "roundtrip_eval",
+        eval_time_ms=q_eval_time_ms,
+        phase="post_quant",
+        tta_enabled=q_eval_stats["tta_enabled"],
+        tta_param_count=q_eval_stats["tta_param_count"],
+        tta_update_steps=q_eval_stats["tta_update_steps"],
+        val_bpb=q_val_bpb,
+        val_loss=q_val_loss,
+    )
+    if master_process and score_summary_file is not None:
+        last_validation = next((event for event in reversed(score_events) if event["event"] == "validation"), None)
+        quantized_artifact = next((event for event in reversed(score_events) if event["event"] == "artifact_quantized"), None)
+        raw_artifact = next((event for event in reversed(score_events) if event["event"] == "artifact_raw"), None)
+        training_end = next((event for event in reversed(score_events) if event["event"] == "training_end"), None)
+        summary = {
+            "artifact_bytes": quantized_artifact["total_submission_bytes"] if quantized_artifact else None,
+            "candidate_name": quantized_artifact["candidate_name"] if quantized_artifact else None,
+            "code_bytes": code_bytes,
+            "eval_time_ms": q_eval_time_ms,
+            "final_step": training_end["final_step"] if training_end else None,
+            "peak_memory_allocated_mib": training_end["peak_memory_allocated_mib"] if training_end else None,
+            "peak_memory_reserved_mib": training_end["peak_memory_reserved_mib"] if training_end else None,
+            "physical_block_count": base_model.num_physical_blocks,
+            "post_quant_bpb": q_val_bpb,
+            "post_quant_val_loss": q_val_loss,
+            "pre_quant_bpb": last_validation["val_bpb"] if last_validation else None,
+            "pre_quant_val_loss": last_validation["val_loss"] if last_validation else None,
+            "qat_enabled": bool(args.qat_last_steps > 0),
+            "qat_last_steps": args.qat_last_steps,
+            "qat_param_count": len(late_stage_qat.params),
+            "qat_quant_scheme": args.qat_quant_scheme,
+            "quant_penalty_bpb": (q_val_bpb - last_validation["val_bpb"]) if last_validation else None,
+            "quant_penalty_val_loss": (q_val_loss - last_validation["val_loss"]) if last_validation else None,
+            "quantized_model_bytes": quantized_artifact["quantized_model_bytes"] if quantized_artifact else None,
+            "raw_model_bytes": raw_artifact["model_bytes"] if raw_artifact else None,
+            "run_id": args.run_id,
+            "shared_depth_blocks": args.shared_depth_blocks,
+            "shared_depth_enabled": bool(base_model.shared_depth_enabled),
+            "shared_depth_map": list(base_model.logical_to_physical),
+            "tta_enabled": tta_enabled,
+            "tta_exclude_patterns": list(args.tta_exclude_patterns),
+            "tta_include_patterns": list(args.tta_include_patterns),
+            "tta_lr": args.tta_lr,
+            "tta_param_count": tta_param_count,
+            "tta_steps_per_batch": args.tta_steps_per_batch,
+            "tta_update_steps": q_eval_stats["tta_update_steps"],
+            "train_time_ms": training_end["train_time_ms"] if training_end else None,
+        }
+        with open(score_summary_file, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2, sort_keys=True)
+            f.write("\n")
 
     if distributed:
         dist.destroy_process_group()
