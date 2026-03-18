@@ -788,7 +788,7 @@ class GPT(nn.Module):
         # MTP losses (training only)
         if self.training and self.mtp_heads is not None and target_ids.size(1) > self.mtp_num_heads:
             for i, mtp_head in enumerate(self.mtp_heads):
-                shift = i + 2  # predict t+2, t+3, ...
+                shift = i + 1  # predict t+2, t+3, ... (target_ids is already t+1)
                 if shift >= target_ids.size(1):
                     continue
                 mtp_x = x[:, :-shift, :].reshape(-1, x.size(-1))
@@ -917,7 +917,7 @@ def main() -> None:
         mtp_loss_weight=args.mtp_loss_weight,
     ).to(device).bfloat16()
     for module in base_model.modules():
-        if isinstance(module, CastedLinear):
+        if isinstance(module, (CastedLinear, LoRAAdapter)):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
