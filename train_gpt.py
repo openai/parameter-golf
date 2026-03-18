@@ -667,6 +667,10 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.pre_enrich = nn.Sequential(
+            CastedLinear(model_dim, model_dim, bias=False),
+            CastedLinear(model_dim, model_dim, bias=False),
+        )
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -699,6 +703,7 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
+        x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
@@ -854,6 +859,7 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
+    matrix_params.extend(p for p in base_model.pre_enrich.parameters() if p.ndim == 2)
     scalar_params = [
         p
         for name, p in block_named_params
