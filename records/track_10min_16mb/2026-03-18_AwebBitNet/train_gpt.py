@@ -13,6 +13,8 @@ Architecture:
 - Differential Attention (Microsoft, ICLR 2025)
 - SwiGLU activation with ternary weights
 - U-net skip connections across 48 effective layers
+- Per-loop LoRA adapters (fp32 low-rank, rank=16) for specialization
+- Multi-token prediction (Meta FAIR) with auxiliary heads (training-only)
 - Test-time training (TTT) at final evaluation
 - Ternary 2-bit packing codec (4 values per byte) + zlib compression
 
@@ -95,6 +97,12 @@ class Hyperparameters:
     # Test-time training (TTT) during evaluation — adapts MLP weights on val context.
     ttt_steps = int(os.environ.get("TTT_STEPS", 3))
     ttt_lr = float(os.environ.get("TTT_LR", 1e-4))
+
+    # Per-loop LoRA adapters (fp32 low-rank for per-repeat specialization).
+    lora_rank = int(os.environ.get("LORA_RANK", 16))
+
+    # Multi-token prediction (Meta FAIR): aux heads predict k+1..k+N tokens ahead.
+    num_predict_tokens = int(os.environ.get("NUM_PREDICT_TOKENS", 4))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -805,6 +813,18 @@ class Block(nn.Module):
         return x
 
 
+class LoRAAdapter(nn.Module):
+    """Low-rank adapter for per-loop specialization.
+    Uses regular fp32 params (not BitLinear) since rank is tiny."""
+    def __init__(self, dim: int, rank: int = 16):
+        super().__init__()
+        self.down = nn.Parameter(torch.randn(dim, rank) * (1.0 / math.sqrt(dim)))
+        self.up = nn.Parameter(torch.zeros(rank, dim))
+
+    def forward(self, x: Tensor) -> Tensor:
+        return x + (x @ self.down @ self.up)
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -821,6 +841,8 @@ class GPT(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         num_experts: int = 1,
+        lora_rank: int = 0,
+        num_predict_tokens: int = 1,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -856,6 +878,22 @@ class GPT(nn.Module):
                 for _ in range(num_unique_layers)
             ]
         )
+        # Per-loop LoRA adapters (one per effective layer, fp32 low-rank).
+        self.lora_rank = lora_rank
+        if lora_rank > 0:
+            self.lora_adapters = nn.ModuleList([
+                LoRAAdapter(model_dim, lora_rank)
+                for _ in range(num_unique_layers * num_repeats)
+            ])
+
+        # Multi-token prediction auxiliary heads (training-only, excluded from artifact).
+        self.num_predict_tokens = num_predict_tokens
+        if num_predict_tokens > 1:
+            self.aux_heads = nn.ModuleList([
+                nn.Linear(model_dim, vocab_size, bias=False)
+                for _ in range(num_predict_tokens - 1)
+            ])
+
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -879,6 +917,8 @@ class GPT(nn.Module):
         for i in range(self.num_encoder_layers):
             block_idx = i % self.num_unique_layers
             x = self.blocks[block_idx](x, x0)
+            if self.lora_rank > 0:
+                x = self.lora_adapters[i](x)
             skips.append(x)
 
         # Decoder half: remaining layers consume skip connections in reverse.
@@ -887,17 +927,35 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             block_idx = (self.num_encoder_layers + i) % self.num_unique_layers
             x = self.blocks[block_idx](x, x0)
+            if self.lora_rank > 0:
+                x = self.lora_adapters[self.num_encoder_layers + i](x)
 
-        x = self.final_norm(x).reshape(-1, x.size(-1))
+        x_final = self.final_norm(x)
+        x_flat = x_final.reshape(-1, x_final.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(x_flat, self.tok_emb.weight)
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
+            logits_proj = self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+
+        # Multi-token prediction: auxiliary heads predict k+1..k+N tokens ahead.
+        if self.training and self.num_predict_tokens > 1 and hasattr(self, 'aux_heads'):
+            aux_loss = torch.zeros((), device=main_loss.device)
+            bsz, seq_len, dim = x_final.shape
+            for k, head in enumerate(self.aux_heads, start=1):
+                if seq_len > k:
+                    aux_x = x_final[:, :-k, :].reshape(-1, dim)
+                    aux_targets = target_ids[:, k:].reshape(-1)
+                    aux_logits = head(aux_x)
+                    aux_logits = self.logit_softcap * torch.tanh(aux_logits / self.logit_softcap)
+                    aux_loss = aux_loss + F.cross_entropy(aux_logits.float(), aux_targets, reduction="mean")
+            return main_loss + 0.1 * aux_loss / len(self.aux_heads)
+
+        return main_loss
 
 
 # -----------------------------
@@ -1013,6 +1071,8 @@ def main() -> None:
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
         num_experts=args.num_experts,
+        lora_rank=args.lora_rank,
+        num_predict_tokens=args.num_predict_tokens,
     ).to(device).bfloat16()
     # BitLinear weights must stay in fp32 (master copy for STE training).
     for module in base_model.modules():
@@ -1025,6 +1085,15 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    # LoRA adapters stay in fp32 (tiny, needs full precision for low-rank update).
+    if hasattr(base_model, 'lora_adapters'):
+        for module in base_model.lora_adapters:
+            for p in module.parameters():
+                p.data = p.data.float()
+    # Aux heads stay in fp32 (training-only, excluded from artifact).
+    if hasattr(base_model, 'aux_heads'):
+        for module in base_model.aux_heads:
+            module.float()
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -1046,6 +1115,14 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    # LoRA adapter params go to Adam (too small for Muon/ternary).
+    if hasattr(base_model, 'lora_adapters'):
+        for p in base_model.lora_adapters.parameters():
+            scalar_params.append(p)
+    # Aux heads for multi-token prediction go to Adam (training-only, excluded from artifact).
+    if hasattr(base_model, 'aux_heads'):
+        for p in base_model.aux_heads.parameters():
+            scalar_params.append(p)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -1083,6 +1160,10 @@ def main() -> None:
     log0(f"bitnet_1.58: {args.num_unique_layers} unique blocks x {args.num_repeats} repeats = {args.num_layers} effective layers")
     log0(f"moe: num_experts:{args.num_experts} hidden_per_expert:{max(args.model_dim * args.mlp_mult // args.num_experts, 1) if args.num_experts > 1 else args.model_dim * args.mlp_mult}")
     log0(f"ttt: steps:{args.ttt_steps} lr:{args.ttt_lr} (applied at final eval only)")
+    n_lora_params = sum(p.numel() for p in base_model.lora_adapters.parameters()) if hasattr(base_model, 'lora_adapters') else 0
+    n_aux_params = sum(p.numel() for p in base_model.aux_heads.parameters()) if hasattr(base_model, 'aux_heads') else 0
+    log0(f"lora: rank:{args.lora_rank} adapters:{base_model.effective_depth if args.lora_rank > 0 else 0} params:{n_lora_params}")
+    log0(f"multi_token_prediction: num_predict_tokens:{args.num_predict_tokens} aux_heads:{args.num_predict_tokens - 1 if args.num_predict_tokens > 1 else 0} aux_params:{n_aux_params} (training-only)")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:diff_attn+gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads} half_head_dim:{args.model_dim // args.num_heads // 2}")
@@ -1263,7 +1344,9 @@ def main() -> None:
         log0(f"Serialized model (raw fp32): {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_ternary(base_model.state_dict())
+    # Exclude aux_heads from artifact (training-only multi-token prediction heads).
+    model_state = {k: v for k, v in base_model.state_dict().items() if 'aux_heads' not in k}
+    quant_obj, quant_stats = quantize_state_dict_ternary(model_state)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1286,7 +1369,8 @@ def main() -> None:
     with open("final_model.ternary.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_ternary(quant_state), strict=True)
+    # strict=False: aux_heads are excluded from artifact (training-only).
+    base_model.load_state_dict(dequantize_state_dict_ternary(quant_state), strict=False)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val_with_ttt(
