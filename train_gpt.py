@@ -71,6 +71,11 @@ class Hyperparameters:
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
+    # Depth recurrence.
+    num_shared_blocks = int(os.environ.get("NUM_SHARED_BLOCKS", 3))
+    num_loops = int(os.environ.get("NUM_LOOPS", 3))
+    lora_rank = int(os.environ.get("LORA_RANK", 4))
+
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
@@ -753,6 +758,19 @@ class Block(nn.Module):
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
+
+
+class LoRADelta(nn.Module):
+    """Per-iteration low-rank additive correction for shared blocks in depth recurrence."""
+
+    def __init__(self, dim: int, rank: int):
+        super().__init__()
+        self.down = CastedLinear(dim, rank, bias=False)
+        self.up = CastedLinear(rank, dim, bias=False)
+        self.up._zero_init = True  # Delta starts at zero (identity at init)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.up(self.down(x))
 
 
 class GPT(nn.Module):
