@@ -13,6 +13,17 @@ ROOT = Path(__file__).resolve().parent
 DATASETS_DIR = ROOT / "datasets"
 TOKENIZERS_DIR = ROOT / "tokenizers"
 
+
+def prefixed_remote_path(relative_path: str) -> str:
+    relative_path = relative_path.lstrip("/")
+    prefix = REMOTE_ROOT_PREFIX.strip("/")
+    return f"{prefix}/{relative_path}" if prefix else relative_path
+
+
+def remote_root_parts() -> tuple[str, ...]:
+    prefix = REMOTE_ROOT_PREFIX.strip("/")
+    return Path(prefix).parts if prefix else ()
+
 def dataset_dir_for_variant(name: str) -> str:
     if name == "byte260":
         return "fineweb10B_byte260"
@@ -22,9 +33,10 @@ def dataset_dir_for_variant(name: str) -> str:
 
 
 def local_path_for_remote(relative_path: str) -> Path:
-    remote_path = Path(relative_path)
-    if REMOTE_ROOT_PREFIX and remote_path.parts[:1] == (REMOTE_ROOT_PREFIX,):
-        remote_path = remote_path.relative_to(REMOTE_ROOT_PREFIX)
+    remote_path = Path(relative_path.lstrip("/"))
+    prefix_parts = remote_root_parts()
+    if prefix_parts and remote_path.parts[: len(prefix_parts)] == prefix_parts:
+        remote_path = Path(*remote_path.parts[len(prefix_parts) :])
     if remote_path.parts[:1] == ("datasets",):
         return DATASETS_DIR.joinpath(*remote_path.parts[1:])
     if remote_path.parts[:1] == ("tokenizers",):
@@ -59,7 +71,7 @@ def get(relative_path: str) -> None:
 
 
 def manifest_path() -> Path:
-    return local_path_for_remote(f"{REMOTE_ROOT_PREFIX}/manifest.json")
+    return local_path_for_remote(prefixed_remote_path("manifest.json"))
 
 
 def load_manifest(*, skip_manifest_download: bool) -> dict:
@@ -69,7 +81,7 @@ def load_manifest(*, skip_manifest_download: bool) -> dict:
             raise FileNotFoundError(
                 f"manifest.json is required for manifest-driven shard counts but is not present locally at {path}"
             )
-        get(f"{REMOTE_ROOT_PREFIX}/manifest.json")
+        get(prefixed_remote_path("manifest.json"))
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -140,17 +152,17 @@ def main() -> None:
         raise ValueError(f"tokenizer {tokenizer_name} not found in {REMOTE_ROOT_PREFIX}/manifest.json")
 
     if args.with_docs:
-        get(f"{REMOTE_ROOT_PREFIX}/docs_selected.jsonl")
-        get(f"{REMOTE_ROOT_PREFIX}/docs_selected.source_manifest.json")
+        get(prefixed_remote_path("docs_selected.jsonl"))
+        get(prefixed_remote_path("docs_selected.source_manifest.json"))
 
-    dataset_prefix = f"{REMOTE_ROOT_PREFIX}/datasets/{dataset_dir}"
+    dataset_prefix = prefixed_remote_path(f"datasets/{dataset_dir}")
     for i in range(val_shards):
         get(f"{dataset_prefix}/fineweb_val_{i:06d}.bin")
     for i in range(train_shards):
         get(f"{dataset_prefix}/fineweb_train_{i:06d}.bin")
 
     for artifact_path in artifact_paths_for_tokenizer(tokenizer_entry):
-        get(f"{REMOTE_ROOT_PREFIX}/{artifact_path}")
+        get(prefixed_remote_path(artifact_path))
 
 
 if __name__ == "__main__":
