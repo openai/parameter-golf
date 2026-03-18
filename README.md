@@ -54,7 +54,7 @@ cd parameter-golf
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install mlx numpy sentencepiece huggingface-hub datasets tqdm
+pip install -r requirements_mlx.txt
 ```
 
 Download our cached version of FineWeb with the 1024-token vocabulary:
