@@ -4,6 +4,8 @@ Depth Recurrence submission for Parameter Golf (track: 10min / 16MB).
 Strategy: 4 unique transformer blocks repeated 6 times each = 24 effective layers.
 Same parameter cost as ~4 layers but 24 layers of depth via weight sharing.
 Wider model (768 dim) to maximize capacity per unique layer.
+SwiGLU activation (gate + up + down projections) with mlp_mult=1 for parameter parity.
+Quantization-aware training (QAT) via straight-through fake int8 after warmup.
 
 Inspired by Universal Transformers (Dehghani et al., ICLR 2019) and recent
 depth-recurrence results showing that shared-weight deep networks match or beat
@@ -73,10 +75,11 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 768))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    mlp_mult = int(os.environ.get("MLP_MULT", 1))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    qat_start_step = int(os.environ.get("QAT_START_STEP", 2000))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -514,11 +517,33 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
+class FakeQuantize(torch.autograd.Function):
+    """Straight-through estimator for fake int8 quantization during training."""
+
+    @staticmethod
+    def forward(ctx, x):
+        scale = x.abs().max(dim=-1, keepdim=True).values / 127.0
+        scale = scale.clamp(min=1e-8)
+        x_q = torch.clamp(torch.round(x / scale), -127, 127)
+        return (x_q * scale).to(x.dtype)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output  # straight-through
+
+
+def fake_quantize(x: Tensor) -> Tensor:
+    return FakeQuantize.apply(x)
+
+
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if self.training and getattr(self, "_qat_enabled", False):
+            w = fake_quantize(w)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -612,17 +637,17 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    # relu^2 MLP from the original modded-nanogpt setup
+    # SwiGLU MLP: gate + up projections with SiLU gating, then down projection.
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
-        self.fc = CastedLinear(dim, hidden, bias=False)
-        self.proj = CastedLinear(hidden, dim, bias=False)
+        self.gate = CastedLinear(dim, hidden, bias=False)  # gate projection
+        self.fc = CastedLinear(dim, hidden, bias=False)     # up projection
+        self.proj = CastedLinear(hidden, dim, bias=False)   # down projection
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
-        return self.proj(x.square())
+        return self.proj(F.silu(self.gate(x)) * self.fc(x))
 
 
 class Block(nn.Module):
@@ -1059,6 +1084,14 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
+
+        # Enable quantization-aware training after warmup phase.
+        if step == args.qat_start_step:
+            for m in base_model.modules():
+                if isinstance(m, CastedLinear):
+                    m._qat_enabled = True
+            log0(f"qat:enabled at step {args.qat_start_step}")
+
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
             args.train_log_every > 0
