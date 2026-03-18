@@ -71,6 +71,8 @@ class Hyperparameters:
     lora_rank = int(os.environ.get("LORA_RANK", 16))
     mtp_heads = int(os.environ.get("MTP_HEADS", 2))
     mtp_weight = float(os.environ.get("MTP_WEIGHT", 0.15))
+    use_swiglu = bool(int(os.environ.get("USE_SWIGLU", "1")))
+    use_recurrence_scales = bool(int(os.environ.get("USE_RECURRENCE_SCALES", "1")))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -89,6 +91,7 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     # EMA weight averaging
+    use_ema = bool(int(os.environ.get("USE_EMA", "1")))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.995))
     ema_start_step = int(os.environ.get("EMA_START_STEP", 100))
 
@@ -601,6 +604,19 @@ class LoRASet(nn.Module):
         self.o = LoRAAdapter(dim, dim, rank)
 
 
+class ReLUSquaredMLP(nn.Module):
+    def __init__(self, dim: int, mlp_mult: int):
+        super().__init__()
+        hidden = mlp_mult * dim
+        self.fc = CastedLinear(dim, hidden, bias=False)
+        self.proj = CastedLinear(hidden, dim, bias=False)
+        self.proj._zero_init = True
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = torch.relu(self.fc(x))
+        return self.proj(x.square())
+
+
 class SwiGLUMLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
@@ -623,6 +639,7 @@ class Block(nn.Module):
         num_heads: int,
         num_kv_heads: int,
         mlp_mult: int,
+        use_swiglu: bool,
         rope_base: float,
         qk_gain_init: float,
     ):
@@ -630,7 +647,7 @@ class Block(nn.Module):
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = SwiGLUMLP(dim, mlp_mult)
+        self.mlp = SwiGLUMLP(dim, mlp_mult) if use_swiglu else ReLUSquaredMLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -657,6 +674,8 @@ class GPT(nn.Module):
         tie_embeddings: bool,
         tied_embed_init_std: float,
         logit_softcap: float,
+        use_swiglu: bool,
+        use_recurrence_scales: bool,
         rope_base: float,
         qk_gain_init: float,
         lora_rank: int = 0,
@@ -667,6 +686,7 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.use_recurrence_scales = use_recurrence_scales
         self.num_unique_layers = num_unique_layers
         self.num_recurrence = num_recurrence
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
@@ -684,6 +704,7 @@ class GPT(nn.Module):
             [
                 Block(
                     model_dim, num_heads, num_kv_heads, mlp_mult,
+                    use_swiglu,
                     rope_base, qk_gain_init,
                 )
                 for _ in range(num_unique_layers)
@@ -731,7 +752,8 @@ class GPT(nn.Module):
             block_idx = eff_i % self.num_unique_layers
             loop_idx = eff_i // self.num_unique_layers
             # Per-recurrence scale lets shared blocks distinguish which pass
-            x = x * self.recurrence_scales[eff_i].to(dtype=x.dtype)[None, None, :]
+            if self.use_recurrence_scales:
+                x = x * self.recurrence_scales[eff_i].to(dtype=x.dtype)[None, None, :]
             # LoRA for loops 1+ (loop 0 uses base weights)
             lora = self.lora_sets[loop_idx - 1] if loop_idx > 0 and self.lora_sets else None
 
@@ -879,6 +901,8 @@ def main() -> None:
         tie_embeddings=args.tie_embeddings,
         tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap,
+        use_swiglu=args.use_swiglu,
+        use_recurrence_scales=args.use_recurrence_scales,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
         lora_rank=args.lora_rank,
@@ -914,7 +938,8 @@ def main() -> None:
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     # Include recurrence_scales in scalar group
-    scalar_params.append(base_model.recurrence_scales)
+    if args.use_recurrence_scales:
+        scalar_params.append(base_model.recurrence_scales)
     # LoRA params: matrices go to Muon, others to Adam scalar
     if base_model.lora_sets:
         lora_named = list(base_model.lora_sets.named_parameters())
@@ -1108,7 +1133,7 @@ def main() -> None:
             opt.step()
 
         # EMA update
-        if step >= args.ema_start_step:
+        if args.use_ema and step >= args.ema_start_step:
             with torch.no_grad():
                 if not ema_active:
                     for name, param in base_model.state_dict().items():
@@ -1145,7 +1170,7 @@ def main() -> None:
     )
 
     # Swap in EMA weights for eval and serialization once EMA has actually been populated.
-    if ema_active:
+    if args.use_ema and ema_active:
         base_model.load_state_dict(ema_state, strict=True)
         log0("Loaded EMA weights for evaluation and serialization")
     else:
