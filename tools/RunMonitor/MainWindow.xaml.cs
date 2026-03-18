@@ -73,6 +73,7 @@ public partial class MainWindow : Window
     private readonly string _repoRoot;
     private readonly string _logsDirectory;
     private string? _selectedLogPath;
+    private bool _followLatest;
     private const int WarmupPhase = 0;
     private const int InitialValidationPhase = 1;
     private const int TrainingPhase = 2;
@@ -87,6 +88,7 @@ public partial class MainWindow : Window
         _repoRoot = FindRepoRoot();
         _logsDirectory = Path.Combine(_repoRoot, "logs");
         _selectedLogPath = ResolveInitialLogPath();
+        _followLatest = string.IsNullOrWhiteSpace(_selectedLogPath);
         _timer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(2),
@@ -105,6 +107,7 @@ public partial class MainWindow : Window
 
     private void LatestButton_Click(object sender, RoutedEventArgs e)
     {
+        _followLatest = true;
         _selectedLogPath = FindLatestLogPath();
         RefreshSnapshot();
     }
@@ -119,6 +122,7 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog(this) == true)
         {
+            _followLatest = false;
             _selectedLogPath = dialog.FileName;
             RefreshSnapshot();
         }
@@ -140,6 +144,15 @@ public partial class MainWindow : Window
 
     private void RefreshSnapshot()
     {
+        if (_followLatest)
+        {
+            var latestLogPath = FindLatestLogPath();
+            if (!string.IsNullOrWhiteSpace(latestLogPath))
+            {
+                _selectedLogPath = latestLogPath;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(_selectedLogPath) || !File.Exists(_selectedLogPath))
         {
             _selectedLogPath = FindLatestLogPath();

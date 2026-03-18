@@ -23,6 +23,7 @@ param(
     [double]$TernaryRegWeight = 0.15,
     [double]$OutlierRegWeight = 0.01,
     [double]$EvalCacheMixWeight = 0.03,
+    [double]$EvalBigramMixWeight = 0.0,
     [int]$EvalCacheSize = 8,
     [int]$SaveRawCheckpoint = 0,
     [int]$FinalRoundtripEval = 0,
@@ -76,6 +77,7 @@ $env:COMPRESSION_REG_MAX_COLS = $CompressionRegMaxCols.ToString()
 $env:TERNARY_REG_WEIGHT = $TernaryRegWeight.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 $env:OUTLIER_REG_WEIGHT = $OutlierRegWeight.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 $env:EVAL_CACHE_MIX_WEIGHT = $EvalCacheMixWeight.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+$env:EVAL_BIGRAM_MIX_WEIGHT = $EvalBigramMixWeight.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 $env:EVAL_CACHE_SIZE = $EvalCacheSize.ToString()
 
 $scriptPath = Join-Path $root "train_gpt.py"

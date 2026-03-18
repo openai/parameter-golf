@@ -101,6 +101,7 @@ class Hyperparameters:
     ternary_reg_weight = float(os.environ.get("TERNARY_REG_WEIGHT", "0.0"))
     outlier_reg_weight = float(os.environ.get("OUTLIER_REG_WEIGHT", "0.0"))
     eval_cache_mix_weight = float(os.environ.get("EVAL_CACHE_MIX_WEIGHT", "0.0"))
+    eval_bigram_mix_weight = float(os.environ.get("EVAL_BIGRAM_MIX_WEIGHT", "0.0"))
     eval_cache_size = int(os.environ.get("EVAL_CACHE_SIZE", "0"))
 
 # -----------------------------
@@ -277,9 +278,11 @@ def eval_val(
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                if args.eval_cache_mix_weight > 0.0 and args.eval_cache_size > 0:
+                if (args.eval_cache_mix_weight > 0.0 or args.eval_bigram_mix_weight > 0.0) and args.eval_cache_size > 0:
                     logits = model(x, return_logits=True)
-                    logits = apply_recent_token_bias(logits, x, args.eval_cache_mix_weight, args.eval_cache_size)
+                    logits = apply_recent_token_bias(
+                        logits, x, args.eval_cache_mix_weight, args.eval_bigram_mix_weight, args.eval_cache_size
+                    )
                     batch_loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y.reshape(-1), reduction="mean").detach()
                 else:
                     batch_loss = model(x, y).detach()
@@ -304,18 +307,25 @@ def eval_val(
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 
-def apply_recent_token_bias(logits: Tensor, input_ids: Tensor, mix_weight: float, cache_size: int) -> Tensor:
-    if mix_weight <= 0.0 or cache_size <= 0 or logits.size(1) <= 1:
+def apply_recent_token_bias(
+    logits: Tensor, input_ids: Tensor, mix_weight: float, bigram_mix_weight: float, cache_size: int
+) -> Tensor:
+    if (mix_weight <= 0.0 and bigram_mix_weight <= 0.0) or cache_size <= 0 or logits.size(1) <= 1:
         return logits
     out = logits.float()
     bonus = torch.zeros_like(out)
     max_lag = min(cache_size, input_ids.size(1) - 1)
-    for lag in range(1, max_lag + 1):
-        bonus[:, lag:].scatter_add_(
-            2,
-            input_ids[:, :-lag].unsqueeze(-1),
-            torch.full((*input_ids[:, :-lag].shape, 1), mix_weight / lag, device=out.device, dtype=out.dtype),
-        )
+    if mix_weight > 0.0:
+        for lag in range(1, max_lag + 1):
+            bonus[:, lag:].scatter_add_(
+                2,
+                input_ids[:, :-lag].unsqueeze(-1),
+                torch.full((*input_ids[:, :-lag].shape, 1), mix_weight / lag, device=out.device, dtype=out.dtype),
+            )
+    if bigram_mix_weight > 0.0 and input_ids.size(1) > 2:
+        for lag in range(1, min(cache_size, input_ids.size(1) - 2) + 1):
+            match = (input_ids[:, lag:-1] == input_ids[:, :-lag-1]).to(dtype=out.dtype).unsqueeze(-1)
+            bonus[:, lag + 1:].scatter_add_(2, input_ids[:, 1:-lag].unsqueeze(-1), match * (bigram_mix_weight / lag))
     return (out + bonus).to(dtype=logits.dtype)
 
 # -----------------------------
@@ -1193,7 +1203,10 @@ def main() -> None:
         f"max_cols:{args.compression_reg_max_cols} ternary:{args.ternary_reg_weight} "
         f"outlier:{args.outlier_reg_weight} candidates:{len(compression_reg_tensors)}"
     )
-    log0(f"eval_cache:mix_weight:{args.eval_cache_mix_weight} size:{args.eval_cache_size}")
+    log0(
+        f"eval_cache:mix_weight:{args.eval_cache_mix_weight} "
+        f"bigram_mix_weight:{args.eval_bigram_mix_weight} size:{args.eval_cache_size}"
+    )
     log0(f"seed:{args.seed}")
 
     # -----------------------------
