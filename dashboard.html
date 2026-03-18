@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parameter Golf - Training Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --bg-hover: #30363d;
+  --border: #30363d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-orange: #d29922;
+  --accent-red: #f85149;
+  --accent-purple: #bc8cff;
+  --accent-cyan: #39d2c0;
+  --accent-pink: #f778ba;
+  --accent-yellow: #e3b341;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Header */
+.header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header h1 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+.header h1 span {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.run-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.btn {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.btn:hover { background: var(--bg-hover); border-color: var(--text-muted); }
+
+.btn-primary {
+  background: rgba(88, 166, 255, 0.15);
+  border-color: rgba(88, 166, 255, 0.4);
+  color: var(--accent-blue);
+}
+
+.btn-primary:hover {
+  background: rgba(88, 166, 255, 0.25);
+}
+
+.btn-danger {
+  background: rgba(248, 81, 73, 0.1);
+  border-color: rgba(248, 81, 73, 0.3);
+  color: var(--accent-red);
+}
+
+.btn-danger:hover {
+  background: rgba(248, 81, 73, 0.2);
+}
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  margin: 20px 24px;
+  transition: all 0.2s;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  position: relative;
+}
+
+.drop-zone.active {
+  border-color: var(--accent-blue);
+  background: rgba(88, 166, 255, 0.05);
+}
+
+.drop-zone.has-runs {
+  padding: 16px 20px;
+  margin: 12px 24px;
+}
+
+.drop-zone h2 {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.drop-zone p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.drop-zone .hint {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.input-row input[type="text"] {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  width: 400px;
+  max-width: 80vw;
+  outline: none;
+}
+
+.input-row input[type="text"]:focus {
+  border-color: var(--accent-blue);
+}
+
+.input-row input[type="text"]::placeholder {
+  color: var(--text-muted);
+}
+
+/* Main layout */
+.main {
+  padding: 16px 24px 40px;
+  display: none;
+}
+
+.main.visible { display: block; }
+
+/* Run tabs */
+.run-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.run-tab {
+  font-family: inherit;
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.run-tab:hover { background: var(--bg-tertiary); }
+
+.run-tab.active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.run-tab .color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.run-tab .remove-run {
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: 2px;
+  line-height: 1;
+}
+
+.run-tab .remove-run:hover { color: var(--accent-red); }
+
+/* Grid layout */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  grid-template-rows: auto auto;
+  gap: 16px;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Cards */
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-body { padding: 16px; }
+
+/* Charts */
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 320px;
+}
+
+.chart-container.large { height: 400px; }
+
+.chart-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.charts-area {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Stats panel */
+.stats-panel {
+  grid-column: 2;
+  grid-row: 1 / 3;
+}
+
+@media (max-width: 1200px) {
+  .stats-panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+.stat-group {
+  margin-bottom: 16px;
+}
+
+.stat-group:last-child { margin-bottom: 0; }
+
+.stat-group-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 12px;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  color: var(--text-primary);
+  font-weight: 500;
+  text-align: right;
+}
+
+.stat-value.good { color: var(--accent-green); }
+.stat-value.warn { color: var(--accent-orange); }
+.stat-value.bad { color: var(--accent-red); }
+.stat-value.highlight { color: var(--accent-blue); font-weight: 700; font-size: 14px; }
+.stat-value.big { font-size: 20px; font-weight: 700; }
+
+/* Progress bar */
+.progress-bar-container {
+  margin-top: 4px;
+}
+
+.progress-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.progress-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* Secondary charts row */
+.secondary-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .secondary-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Paste modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay.visible { display: flex; }
+
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modal-body { padding: 16px 20px; flex: 1; overflow: auto; }
+
+.modal-body textarea {
+  width: 100%;
+  height: 300px;
+  font-family: inherit;
+  font-size: 11px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  resize: vertical;
+  outline: none;
+}
+
+.modal-body textarea:focus { border-color: var(--accent-blue); }
+
+.modal-body label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.modal-body input[type="text"] {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  width: 100%;
+  outline: none;
+  margin-bottom: 12px;
+}
+
+.modal-body input[type="text"]:focus { border-color: var(--accent-blue); }
+
+.modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 12px;
+  z-index: 300;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s;
+  pointer-events: none;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.success { background: rgba(63, 185, 80, 0.2); border: 1px solid rgba(63, 185, 80, 0.4); color: var(--accent-green); }
+.toast.error { background: rgba(248, 81, 73, 0.2); border: 1px solid rgba(248, 81, 73, 0.4); color: var(--accent-red); }
+.toast.info { background: rgba(88, 166, 255, 0.2); border: 1px solid rgba(88, 166, 255, 0.4); color: var(--accent-blue); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* File input hidden */
+#file-input { display: none; }
+
+/* Comparison table */
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+.comparison-table th, .comparison-table td {
+  padding: 5px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.comparison-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.comparison-table td:first-child, .comparison-table th:first-child {
+  text-align: left;
+}
+
+.comparison-table td.run-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comparison-table .best {
+  color: var(--accent-green);
+  font-weight: 600;
+}
+
+/* Auto-refresh indicator */
+.auto-refresh-indicator {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent-green);
+}
+
+.auto-refresh-indicator.active { display: flex; }
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent-green);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Parameter Golf <span>/ Training Dashboard</span></h1>
+    <span class="run-count" id="run-count">0 runs</span>
+    <div class="auto-refresh-indicator" id="auto-refresh-indicator">
+      <span class="pulse-dot"></span>
+      <span>Auto-refresh</span>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="btn" id="btn-paste" title="Paste log contents">Paste Log</button>
+    <button class="btn" id="btn-url" title="Fetch log from URL">Fetch URL</button>
+    <button class="btn btn-primary" id="btn-browse" title="Browse for log files">Open File</button>
+    <button class="btn btn-danger" id="btn-clear-all" style="display:none">Clear All</button>
+  </div>
+</div>
+
+<input type="file" id="file-input" multiple accept=".log,.txt,.out">
+
+<div class="drop-zone" id="drop-zone">
+  <h2>Drop training log files here</h2>
+  <p>
+    Drag & drop <code>.log</code> / <code>.txt</code> files, or use the buttons above to paste, fetch, or browse.
+    <br>Supports multiple files for run comparison.
+  </p>
+  <div class="hint">Parses step/loss/bpb/timing from Parameter Golf training output</div>
+</div>
+
+<div class="main" id="main-content">
+  <div class="run-tabs" id="run-tabs"></div>
+
+  <div class="dashboard-grid">
+    <div class="charts-area">
+      <!-- Training Loss Chart -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Training Loss</span>
+          <span id="train-loss-subtitle" style="font-size:11px;color:var(--text-muted)"></span>
+        </div>
+        <div class="card-body">
+          <div class="chart-container large">
+            <canvas id="chart-train-loss"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="secondary-charts">
+        <!-- Validation Loss & BPB Chart -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Validation BPB</span>
+          </div>
+          <div class="card-body">
+            <div class="chart-container">
+              <canvas id="chart-val-bpb"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step Avg Time Chart -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Step Time (ms)</span>
+          </div>
+          <div class="card-body">
+            <div class="chart-container">
+              <canvas id="chart-step-avg"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Validation Loss chart -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Validation Loss</span>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="chart-val-loss"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comparison table (shown when multiple runs) -->
+      <div class="card" id="comparison-card" style="display:none">
+        <div class="card-header">
+          <span class="card-title">Run Comparison</span>
+        </div>
+        <div class="card-body">
+          <div id="comparison-table-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Panel -->
+    <div class="stats-panel">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" id="stats-run-name">Summary</span>
+          <button class="btn" id="btn-refresh" style="display:none;font-size:11px;padding:3px 10px">Refresh</button>
+        </div>
+        <div class="card-body" id="stats-body">
+          <!-- Filled dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Paste Modal -->
+<div class="modal-overlay" id="paste-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Paste Log Contents</h3>
+      <button class="btn" onclick="closePasteModal()" style="padding:2px 8px">&times;</button>
+    </div>
+    <div class="modal-body">
+      <label for="paste-name">Run Name (optional)</label>
+      <input type="text" id="paste-name" placeholder="e.g. baseline-9layer">
+      <label for="paste-text">Log Output</label>
+      <textarea id="paste-text" placeholder="Paste training log output here..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closePasteModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitPaste()">Load</button>
+    </div>
+  </div>
+</div>
+
+<!-- URL Modal -->
+<div class="modal-overlay" id="url-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Fetch Log from URL</h3>
+      <button class="btn" onclick="closeUrlModal()" style="padding:2px 8px">&times;</button>
+    </div>
+    <div class="modal-body">
+      <label for="url-name">Run Name (optional)</label>
+      <input type="text" id="url-name" placeholder="e.g. experiment-v2">
+      <label for="url-input">URL</label>
+      <input type="text" id="url-input" placeholder="https://example.com/train.log">
+      <div style="margin-top:8px">
+        <label><input type="checkbox" id="url-auto-refresh" style="margin-right:6px">Auto-refresh every 5 seconds</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeUrlModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitUrl()">Fetch</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// State
+// ============================================================
+const RUN_COLORS = [
+  '#58a6ff', '#3fb950', '#d29922', '#f85149',
+  '#bc8cff', '#39d2c0', '#f778ba', '#e3b341',
+  '#79c0ff', '#56d364', '#e09b13', '#ff7b72',
+  '#d2a8ff', '#2ad4bf', '#ff9bce', '#f0d96d'
+];
+
+let runs = [];           // Array of {name, data, color, url, autoRefresh}
+let activeRunIndex = 0;
+let charts = {};
+let autoRefreshTimers = {};
+let colorIndex = 0;
+
+// ============================================================
+// Log Parser
+// ============================================================
+function parseLog(text) {
+  const lines = text.split('\n');
+  const data = {
+    steps: [],
+    trainLoss: [],
+    valSteps: [],
+    valLoss: [],
+    valBpb: [],
+    stepAvg: [],
+    stepAvgSteps: [],
+    trainTime: [],         // step -> train_time_ms
+    trainTimeSteps: [],
+    // Metadata
+    totalIterations: null,
+    modelParams: null,
+    effectiveLayers: null,
+    peakMemoryAllocated: null,
+    peakMemoryReserved: null,
+    qatStep: null,
+    qatElapsedMs: null,
+    stoppedEarly: false,
+    stopReason: null,
+    stopStep: null,
+    stopTime: null,
+    // Final results
+    finalValLoss: null,
+    finalValBpb: null,
+    finalExactValLoss: null,
+    finalExactValBpb: null,
+    finalEvalTime: null,
+    // Artifact sizes
+    serializedInt8Zlib: null,
+    serializedPayload: null,
+    serializedRawTorch: null,
+    payloadRatio: null,
+    totalSubmissionSize: null,
+    serializedModelRaw: null,
+    codeSize: null,
+    totalSubmissionRaw: null,
+    // Config
+    worldSize: null,
+    attentionMode: null,
+    numHeads: null,
+    numKvHeads: null,
+    tieEmbeddings: null,
+    trainBatchTokens: null,
+    trainSeqLen: null,
+    iterations: null,
+    warmupSteps: null,
+    maxWallclock: null,
+    seed: null,
+    warmdownIters: null,
+  };
+
+  for (const line of lines) {
+    const l = line.trim();
+
+    // step:N/M train_loss:X train_time:Yms step_avg:Zms
+    const stepMatch = l.match(/^step:(\d+)\/(\d+)\s+train_loss:([\d.]+)\s+train_time:(\d+)ms\s+step_avg:([\d.]+)ms/);
+    if (stepMatch) {
+      const step = parseInt(stepMatch[1]);
+      const total = parseInt(stepMatch[2]);
+      const trainLoss = parseFloat(stepMatch[3]);
+      const trainTime = parseInt(stepMatch[4]);
+      const stepAvg = parseFloat(stepMatch[5]);
+      data.steps.push(step);
+      data.trainLoss.push(trainLoss);
+      data.trainTimeSteps.push(step);
+      data.trainTime.push(trainTime);
+      data.stepAvgSteps.push(step);
+      data.stepAvg.push(stepAvg);
+      if (!data.totalIterations) data.totalIterations = total;
+      continue;
+    }
+
+    // step:N/M val_loss:X val_bpb:Y train_time:Zms step_avg:Wms
+    const valMatch = l.match(/^step:(\d+)\/(\d+)\s+val_loss:([\d.]+)\s+val_bpb:([\d.]+)\s+train_time:(\d+)ms\s+step_avg:([\d.]+)ms/);
+    if (valMatch) {
+      const step = parseInt(valMatch[1]);
+      const total = parseInt(valMatch[2]);
+      const valLoss = parseFloat(valMatch[3]);
+      const valBpb = parseFloat(valMatch[4]);
+      const trainTime = parseInt(valMatch[5]);
+      const stepAvg = parseFloat(valMatch[6]);
+      data.valSteps.push(step);
+      data.valLoss.push(valLoss);
+      data.valBpb.push(valBpb);
+      if (!data.totalIterations) data.totalIterations = total;
+      // Also add timing data from val lines if not already present
+      if (!data.trainTimeSteps.includes(step)) {
+        data.trainTimeSteps.push(step);
+        data.trainTime.push(trainTime);
+      }
+      if (!data.stepAvgSteps.includes(step)) {
+        data.stepAvgSteps.push(step);
+        data.stepAvg.push(stepAvg);
+      }
+      continue;
+    }
+
+    // model_params:N
+    const paramsMatch = l.match(/^model_params:(\d+)/);
+    if (paramsMatch) {
+      data.modelParams = parseInt(paramsMatch[1]);
+      // Check for effective_layers on same line
+      const layersOnLine = l.match(/effective_layers:(\d+)/);
+      if (layersOnLine) data.effectiveLayers = parseInt(layersOnLine[1]);
+      continue;
+    }
+
+    // effective_layers standalone
+    const layersMatch = l.match(/^effective_layers:(\d+)/);
+    if (layersMatch) {
+      data.effectiveLayers = parseInt(layersMatch[1]);
+      continue;
+    }
+
+    // peak memory allocated: N MiB reserved: M MiB
+    const memMatch = l.match(/^peak memory allocated:\s*([\d.]+)\s*MiB\s*reserved:\s*([\d.]+)\s*MiB/);
+    if (memMatch) {
+      data.peakMemoryAllocated = parseFloat(memMatch[1]);
+      data.peakMemoryReserved = parseFloat(memMatch[2]);
+      continue;
+    }
+
+    // qat:activated step:N elapsed_ms:M
+    const qatMatch = l.match(/^qat:activated\s+step:(\d+)\s+elapsed_ms:(\d+)/);
+    if (qatMatch) {
+      data.qatStep = parseInt(qatMatch[1]);
+      data.qatElapsedMs = parseInt(qatMatch[2]);
+      continue;
+    }
+
+    // stopping_early: reason train_time:Nms step:X/Y
+    const stopMatch = l.match(/^stopping_early:\s*(\S+)\s+train_time:(\d+)ms\s+step:(\d+)\/(\d+)/);
+    if (stopMatch) {
+      data.stoppedEarly = true;
+      data.stopReason = stopMatch[1];
+      data.stopTime = parseInt(stopMatch[2]);
+      data.stopStep = parseInt(stopMatch[3]);
+      if (!data.totalIterations) data.totalIterations = parseInt(stopMatch[4]);
+      continue;
+    }
+
+    // final_int8_zlib_roundtrip val_loss:X val_bpb:Y eval_time:Zms
+    const finalMatch = l.match(/^final_int8_zlib_roundtrip\s+val_loss:([\d.]+)\s+val_bpb:([\d.]+)\s+eval_time:(\d+)ms/);
+    if (finalMatch) {
+      data.finalValLoss = parseFloat(finalMatch[1]);
+      data.finalValBpb = parseFloat(finalMatch[2]);
+      data.finalEvalTime = parseInt(finalMatch[3]);
+      continue;
+    }
+
+    // final_int8_zlib_roundtrip_exact val_loss:X val_bpb:Y
+    const finalExactMatch = l.match(/^final_int8_zlib_roundtrip_exact\s+val_loss:([\d.]+)\s+val_bpb:([\d.]+)/);
+    if (finalExactMatch) {
+      data.finalExactValLoss = parseFloat(finalExactMatch[1]);
+      data.finalExactValBpb = parseFloat(finalExactMatch[2]);
+      continue;
+    }
+
+    // Serialized model int8+zlib: N bytes (payload:M raw_torch:O payload_ratio:Px)
+    const serMatch = l.match(/^Serialized model int8\+zlib:\s*(\d+)\s*bytes\s*\(payload:(\d+)\s*raw_torch:(\d+)\s*payload_ratio:([\d.]+)x\)/);
+    if (serMatch) {
+      data.serializedInt8Zlib = parseInt(serMatch[1]);
+      data.serializedPayload = parseInt(serMatch[2]);
+      data.serializedRawTorch = parseInt(serMatch[3]);
+      data.payloadRatio = parseFloat(serMatch[4]);
+      continue;
+    }
+
+    // Total submission size int8+zlib: N bytes
+    const totalSubMatch = l.match(/^Total submission size int8\+zlib:\s*(\d+)\s*bytes/);
+    if (totalSubMatch) {
+      data.totalSubmissionSize = parseInt(totalSubMatch[1]);
+      continue;
+    }
+
+    // Serialized model: N bytes (raw, non-quantized)
+    const serRawMatch = l.match(/^Serialized model:\s*(\d+)\s*bytes/);
+    if (serRawMatch) {
+      data.serializedModelRaw = parseInt(serRawMatch[1]);
+      continue;
+    }
+
+    // Code size: N bytes
+    const codeMatch = l.match(/^Code size:\s*(\d+)\s*bytes/);
+    if (codeMatch) {
+      data.codeSize = parseInt(codeMatch[1]);
+      continue;
+    }
+
+    // Total submission size: N bytes (raw)
+    const totalSubRawMatch = l.match(/^Total submission size:\s*(\d+)\s*bytes$/);
+    if (totalSubRawMatch) {
+      data.totalSubmissionRaw = parseInt(totalSubRawMatch[1]);
+      continue;
+    }
+
+    // Config lines
+    const wsMatch = l.match(/^world_size:(\d+)/);
+    if (wsMatch) { data.worldSize = parseInt(wsMatch[1]); continue; }
+
+    const attMatch = l.match(/^attention_mode:(\w+)/);
+    if (attMatch) {
+      data.attentionMode = attMatch[1];
+      const nh = l.match(/num_heads:(\d+)/);
+      const nkv = l.match(/num_kv_heads:(\d+)/);
+      if (nh) data.numHeads = parseInt(nh[1]);
+      if (nkv) data.numKvHeads = parseInt(nkv[1]);
+      continue;
+    }
+
+    const batchMatch = l.match(/^train_batch_tokens:(\d+)/);
+    if (batchMatch) {
+      data.trainBatchTokens = parseInt(batchMatch[1]);
+      const sl = l.match(/train_seq_len:(\d+)/);
+      const it = l.match(/iterations:(\d+)/);
+      const ws = l.match(/warmup_steps:(\d+)/);
+      const mw = l.match(/max_wallclock_seconds:([\d.]+)/);
+      if (sl) data.trainSeqLen = parseInt(sl[1]);
+      if (it) data.iterations = parseInt(it[1]);
+      if (ws) data.warmupSteps = parseInt(ws[1]);
+      if (mw) data.maxWallclock = parseFloat(mw[1]);
+      continue;
+    }
+
+    const tieMatch = l.match(/^tie_embeddings:(True|False)/);
+    if (tieMatch) { data.tieEmbeddings = tieMatch[1] === 'True'; continue; }
+
+    const seedMatch = l.match(/^seed:(\d+)/);
+    if (seedMatch) { data.seed = parseInt(seedMatch[1]); continue; }
+  }
+
+  return data;
+}
+
+// ============================================================
+// UI Helpers
+// ============================================================
+function showToast(message, type = 'info') {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = 'toast ' + type;
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  setTimeout(() => toast.classList.remove('visible'), 3000);
+}
+
+function formatBytes(bytes) {
+  if (bytes === null || bytes === undefined) return '--';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(2) + ' MB';
+}
+
+function formatTime(ms) {
+  if (ms === null || ms === undefined) return '--';
+  if (ms < 1000) return ms + 'ms';
+  const seconds = ms / 1000;
+  if (seconds < 60) return seconds.toFixed(1) + 's';
+  const minutes = Math.floor(seconds / 60);
+  const secs = (seconds % 60).toFixed(0);
+  return minutes + 'm ' + secs.toString().padStart(2, '0') + 's';
+}
+
+function formatNumber(n) {
+  if (n === null || n === undefined) return '--';
+  return n.toLocaleString();
+}
+
+function getNextColor() {
+  const c = RUN_COLORS[colorIndex % RUN_COLORS.length];
+  colorIndex++;
+  return c;
+}
+
+// ============================================================
+// Run Management
+// ============================================================
+function addRun(name, text, url = null, autoRefresh = false) {
+  const data = parseLog(text);
+
+  if (data.steps.length === 0 && data.valSteps.length === 0) {
+    showToast('No training data found in log', 'error');
+    return;
+  }
+
+  // Check for existing run with same name to update
+  const existingIndex = runs.findIndex(r => r.name === name && r.url === url);
+  if (existingIndex >= 0) {
+    runs[existingIndex].data = data;
+    runs[existingIndex].rawText = text;
+    updateDashboard();
+    return;
+  }
+
+  const color = getNextColor();
+  const run = { name, data, color, url, autoRefresh, rawText: text };
+  runs.push(run);
+  activeRunIndex = runs.length - 1;
+
+  if (autoRefresh && url) {
+    startAutoRefresh(runs.length - 1);
+  }
+
+  updateDashboard();
+  showToast('Loaded: ' + name, 'success');
+}
+
+function removeRun(index) {
+  if (autoRefreshTimers[index]) {
+    clearInterval(autoRefreshTimers[index]);
+    delete autoRefreshTimers[index];
+  }
+  runs.splice(index, 1);
+  // Reindex timers
+  const newTimers = {};
+  for (const [k, v] of Object.entries(autoRefreshTimers)) {
+    const ki = parseInt(k);
+    if (ki > index) newTimers[ki - 1] = v;
+    else if (ki < index) newTimers[ki] = v;
+  }
+  Object.keys(autoRefreshTimers).forEach(k => delete autoRefreshTimers[k]);
+  Object.assign(autoRefreshTimers, newTimers);
+
+  if (activeRunIndex >= runs.length) activeRunIndex = Math.max(0, runs.length - 1);
+  updateDashboard();
+}
+
+function startAutoRefresh(index) {
+  if (autoRefreshTimers[index]) clearInterval(autoRefreshTimers[index]);
+  autoRefreshTimers[index] = setInterval(async () => {
+    const run = runs[index];
+    if (!run || !run.url) return;
+    try {
+      const resp = await fetch(run.url);
+      const text = await resp.text();
+      run.data = parseLog(text);
+      run.rawText = text;
+      updateDashboard();
+    } catch (e) {
+      // Silent fail for polling
+    }
+  }, 5000);
+}
+
+// ============================================================
+// Charts
+// ============================================================
+function initCharts() {
+  const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 0 },
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      legend: {
+        display: false,
+        labels: { color: '#8b949e', font: { family: "'SF Mono', monospace", size: 11 } }
+      },
+      tooltip: {
+        backgroundColor: '#21262d',
+        titleColor: '#e6edf3',
+        bodyColor: '#e6edf3',
+        borderColor: '#30363d',
+        borderWidth: 1,
+        titleFont: { family: "'SF Mono', monospace", size: 11 },
+        bodyFont: { family: "'SF Mono', monospace", size: 11 },
+        padding: 10,
+        displayColors: true,
+        callbacks: {}
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(48,54,61,0.5)', drawBorder: false },
+        ticks: { color: '#6e7681', font: { family: "'SF Mono', monospace", size: 10 }, maxTicksLimit: 10 },
+        title: { display: true, text: 'Step', color: '#6e7681', font: { family: "'SF Mono', monospace", size: 11 } }
+      },
+      y: {
+        grid: { color: 'rgba(48,54,61,0.5)', drawBorder: false },
+        ticks: { color: '#6e7681', font: { family: "'SF Mono', monospace", size: 10 } },
+      }
+    }
+  };
+
+  // Training Loss
+  charts.trainLoss = new Chart(document.getElementById('chart-train-loss'), {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      ...commonOptions,
+      plugins: {
+        ...commonOptions.plugins,
+        legend: { ...commonOptions.plugins.legend, display: true },
+        tooltip: {
+          ...commonOptions.plugins.tooltip,
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(4)
+          }
+        }
+      },
+      scales: {
+        ...commonOptions.scales,
+        y: { ...commonOptions.scales.y, title: { display: true, text: 'Loss', color: '#6e7681', font: { family: "'SF Mono', monospace", size: 11 } } }
+      }
+    }
+  });
+
+  // Val BPB
+  charts.valBpb = new Chart(document.getElementById('chart-val-bpb'), {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      ...commonOptions,
+      plugins: {
+        ...commonOptions.plugins,
+        legend: { ...commonOptions.plugins.legend, display: true },
+        tooltip: {
+          ...commonOptions.plugins.tooltip,
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(4)
+          }
+        }
+      },
+      scales: {
+        ...commonOptions.scales,
+        y: { ...commonOptions.scales.y, title: { display: true, text: 'BPB', color: '#6e7681', font: { family: "'SF Mono', monospace", size: 11 } } }
+      }
+    }
+  });
+
+  // Step Avg
+  charts.stepAvg = new Chart(document.getElementById('chart-step-avg'), {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      ...commonOptions,
+      plugins: {
+        ...commonOptions.plugins,
+        legend: { ...commonOptions.plugins.legend, display: true },
+        tooltip: {
+          ...commonOptions.plugins.tooltip,
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + ' ms'
+          }
+        }
+      },
+      scales: {
+        ...commonOptions.scales,
+        y: { ...commonOptions.scales.y, title: { display: true, text: 'ms/step', color: '#6e7681', font: { family: "'SF Mono', monospace", size: 11 } } }
+      }
+    }
+  });
+
+  // Val Loss
+  charts.valLoss = new Chart(document.getElementById('chart-val-loss'), {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      ...commonOptions,
+      plugins: {
+        ...commonOptions.plugins,
+        legend: { ...commonOptions.plugins.legend, display: true },
+        tooltip: {
+          ...commonOptions.plugins.tooltip,
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(4)
+          }
+        }
+      },
+      scales: {
+        ...commonOptions.scales,
+        y: { ...commonOptions.scales.y, title: { display: true, text: 'Val Loss', color: '#6e7681', font: { family: "'SF Mono', monospace", size: 11 } } }
+      }
+    }
+  });
+}
+
+function updateCharts() {
+  // Training Loss
+  charts.trainLoss.data.datasets = runs.map((run, i) => ({
+    label: run.name,
+    data: run.data.steps.map((s, j) => ({ x: s, y: run.data.trainLoss[j] })),
+    borderColor: run.color,
+    backgroundColor: run.color + '20',
+    borderWidth: 1.5,
+    pointRadius: 0,
+    pointHitRadius: 8,
+    tension: 0.1,
+    fill: runs.length === 1,
+  }));
+  charts.trainLoss.update('none');
+
+  // Val BPB
+  charts.valBpb.data.datasets = runs.filter(r => r.data.valBpb.length > 0).map((run, i) => ({
+    label: run.name,
+    data: run.data.valSteps.map((s, j) => ({ x: s, y: run.data.valBpb[j] })),
+    borderColor: run.color,
+    backgroundColor: run.color + '40',
+    borderWidth: 2,
+    pointRadius: 3,
+    pointHitRadius: 8,
+    tension: 0.2,
+  }));
+  charts.valBpb.update('none');
+
+  // Step Avg (skip first few points which may be outliers)
+  charts.stepAvg.data.datasets = runs.map((run, i) => {
+    // Filter out very early steps where avg is still settling
+    const startIdx = Math.min(5, run.data.stepAvgSteps.length);
+    return {
+      label: run.name,
+      data: run.data.stepAvgSteps.slice(startIdx).map((s, j) => ({ x: s, y: run.data.stepAvg[j + startIdx] })),
+      borderColor: run.color,
+      borderWidth: 1.5,
+      pointRadius: 0,
+      pointHitRadius: 8,
+      tension: 0.2,
+    };
+  });
+  charts.stepAvg.update('none');
+
+  // Val Loss
+  charts.valLoss.data.datasets = runs.filter(r => r.data.valLoss.length > 0).map((run, i) => ({
+    label: run.name,
+    data: run.data.valSteps.map((s, j) => ({ x: s, y: run.data.valLoss[j] })),
+    borderColor: run.color,
+    backgroundColor: run.color + '40',
+    borderWidth: 2,
+    pointRadius: 3,
+    pointHitRadius: 8,
+    tension: 0.2,
+  }));
+  charts.valLoss.update('none');
+}
+
+// ============================================================
+// Stats Panel
+// ============================================================
+function updateStats() {
+  if (runs.length === 0) return;
+
+  const run = runs[activeRunIndex] || runs[0];
+  const d = run.data;
+
+  document.getElementById('stats-run-name').textContent = run.name;
+  document.getElementById('btn-refresh').style.display = (run.url && !run.autoRefresh) ? 'inline-block' : 'none';
+
+  // Derived values
+  const currentStep = d.steps.length > 0 ? d.steps[d.steps.length - 1] : (d.stopStep || 0);
+  const total = d.totalIterations || d.iterations || 0;
+  const lastTrainLoss = d.trainLoss.length > 0 ? d.trainLoss[d.trainLoss.length - 1] : null;
+  const lastValLoss = d.valLoss.length > 0 ? d.valLoss[d.valLoss.length - 1] : null;
+  const lastValBpb = d.valBpb.length > 0 ? d.valBpb[d.valBpb.length - 1] : null;
+  const lastTrainTime = d.trainTime.length > 0 ? d.trainTime[d.trainTime.length - 1] : d.stopTime;
+  const lastStepAvg = d.stepAvg.length > 0 ? d.stepAvg[d.stepAvg.length - 1] : null;
+
+  const BUDGET = 16 * 1024 * 1024; // 16 MB
+  const artifactSize = d.totalSubmissionSize;
+  const artifactPct = artifactSize ? (artifactSize / BUDGET * 100) : null;
+
+  const finalBpb = d.finalExactValBpb || d.finalValBpb;
+  const prequantBpb = lastValBpb;
+  const quantGap = (finalBpb && prequantBpb) ? (finalBpb - prequantBpb) : null;
+
+  // Progress through training
+  const trainPct = total > 0 ? (currentStep / total * 100) : 0;
+
+  // Time budget
+  const timeBudget = d.maxWallclock ? d.maxWallclock * 1000 : 600000;
+  const timePct = lastTrainTime ? (lastTrainTime / timeBudget * 100) : 0;
+
+  let html = '';
+
+  // Key Metric
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">Key Metric</div>';
+  html += '<div class="stat-row"><span class="stat-label">Post-Quant BPB</span>';
+  html += '<span class="stat-value big ' + (finalBpb ? 'highlight' : '') + '">' + (finalBpb ? finalBpb.toFixed(4) : (lastValBpb ? lastValBpb.toFixed(4) + '*' : '--')) + '</span></div>';
+  if (quantGap !== null) {
+    html += '<div class="stat-row"><span class="stat-label">Quant Gap</span>';
+    html += '<span class="stat-value ' + (quantGap > 0.03 ? 'bad' : quantGap > 0.01 ? 'warn' : 'good') + '">+' + quantGap.toFixed(4) + '</span></div>';
+  }
+  if (d.finalExactValBpb && d.finalValBpb) {
+    html += '<div class="stat-row"><span class="stat-label">Exact BPB</span>';
+    html += '<span class="stat-value">' + d.finalExactValBpb.toFixed(8) + '</span></div>';
+  }
+  html += '</div>';
+
+  // Training Progress
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">Training Progress</div>';
+  html += '<div class="stat-row"><span class="stat-label">Step</span>';
+  html += '<span class="stat-value">' + formatNumber(currentStep) + ' / ' + formatNumber(total) + '</span></div>';
+  html += '<div class="progress-bar-container"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + Math.min(100, trainPct) + '%;background:var(--accent-blue)"></div></div>';
+  html += '<div class="progress-bar-label"><span>' + trainPct.toFixed(1) + '%</span><span>' + (total > 0 ? (total - currentStep).toLocaleString() + ' remaining' : '') + '</span></div></div>';
+
+  if (d.stoppedEarly) {
+    html += '<div class="stat-row"><span class="stat-label">Stopped Early</span>';
+    html += '<span class="stat-value warn">' + d.stopReason + '</span></div>';
+  }
+
+  html += '<div class="stat-row"><span class="stat-label">Train Time</span>';
+  html += '<span class="stat-value">' + formatTime(lastTrainTime) + '</span></div>';
+
+  html += '<div class="progress-bar-container"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + Math.min(100, timePct) + '%;background:' + (timePct > 95 ? 'var(--accent-red)' : timePct > 80 ? 'var(--accent-orange)' : 'var(--accent-green)') + '"></div></div>';
+  html += '<div class="progress-bar-label"><span>' + timePct.toFixed(1) + '% of ' + formatTime(timeBudget) + '</span><span>' + (lastTrainTime ? formatTime(timeBudget - lastTrainTime) + ' left' : '') + '</span></div></div>';
+  html += '</div>';
+
+  // Loss & BPB
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">Loss & BPB</div>';
+  html += '<div class="stat-row"><span class="stat-label">Train Loss</span>';
+  html += '<span class="stat-value">' + (lastTrainLoss !== null ? lastTrainLoss.toFixed(4) : '--') + '</span></div>';
+  html += '<div class="stat-row"><span class="stat-label">Val Loss</span>';
+  html += '<span class="stat-value">' + (lastValLoss !== null ? lastValLoss.toFixed(4) : '--') + '</span></div>';
+  html += '<div class="stat-row"><span class="stat-label">Val BPB</span>';
+  html += '<span class="stat-value">' + (lastValBpb !== null ? lastValBpb.toFixed(4) : '--') + '</span></div>';
+  if (d.finalValLoss !== null) {
+    html += '<div class="stat-row"><span class="stat-label">Final Val Loss (int8)</span>';
+    html += '<span class="stat-value">' + d.finalValLoss.toFixed(4) + '</span></div>';
+  }
+  html += '</div>';
+
+  // Performance
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">Performance</div>';
+  html += '<div class="stat-row"><span class="stat-label">Step Avg</span>';
+  html += '<span class="stat-value">' + (lastStepAvg !== null ? lastStepAvg.toFixed(2) + ' ms' : '--') + '</span></div>';
+  if (lastStepAvg && d.trainBatchTokens) {
+    const tokPerSec = (d.trainBatchTokens / (lastStepAvg / 1000));
+    html += '<div class="stat-row"><span class="stat-label">Throughput</span>';
+    html += '<span class="stat-value">' + (tokPerSec / 1e6).toFixed(2) + ' Mtok/s</span></div>';
+  }
+  if (d.finalEvalTime) {
+    html += '<div class="stat-row"><span class="stat-label">Eval Time</span>';
+    html += '<span class="stat-value">' + formatTime(d.finalEvalTime) + '</span></div>';
+  }
+  html += '</div>';
+
+  // Artifact Size
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">Artifact Size</div>';
+  if (artifactSize !== null) {
+    html += '<div class="stat-row"><span class="stat-label">Submission (int8+zlib)</span>';
+    html += '<span class="stat-value ' + (artifactPct <= 100 ? 'good' : 'bad') + '">' + formatBytes(artifactSize) + '</span></div>';
+    html += '<div class="progress-bar-container"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + Math.min(100, artifactPct) + '%;background:' + (artifactPct > 100 ? 'var(--accent-red)' : artifactPct > 95 ? 'var(--accent-orange)' : 'var(--accent-green)') + '"></div></div>';
+    html += '<div class="progress-bar-label"><span>' + artifactPct.toFixed(1) + '% of 16 MB</span><span>' + formatBytes(BUDGET - artifactSize) + ' headroom</span></div></div>';
+  }
+  if (d.serializedInt8Zlib) {
+    html += '<div class="stat-row"><span class="stat-label">Model (int8+zlib)</span>';
+    html += '<span class="stat-value">' + formatBytes(d.serializedInt8Zlib) + '</span></div>';
+  }
+  if (d.serializedPayload) {
+    html += '<div class="stat-row"><span class="stat-label">Payload (int8)</span>';
+    html += '<span class="stat-value">' + formatBytes(d.serializedPayload) + '</span></div>';
+  }
+  if (d.serializedRawTorch) {
+    html += '<div class="stat-row"><span class="stat-label">Raw Torch</span>';
+    html += '<span class="stat-value">' + formatBytes(d.serializedRawTorch) + '</span></div>';
+  }
+  if (d.payloadRatio) {
+    html += '<div class="stat-row"><span class="stat-label">Compression Ratio</span>';
+    html += '<span class="stat-value">' + d.payloadRatio.toFixed(2) + 'x</span></div>';
+  }
+  if (d.codeSize) {
+    html += '<div class="stat-row"><span class="stat-label">Code Size</span>';
+    html += '<span class="stat-value">' + formatBytes(d.codeSize) + '</span></div>';
+  }
+  html += '</div>';
+
+  // Model & Config
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">Model & Config</div>';
+  if (d.modelParams) {
+    html += '<div class="stat-row"><span class="stat-label">Parameters</span>';
+    html += '<span class="stat-value">' + formatNumber(d.modelParams) + '</span></div>';
+  }
+  if (d.effectiveLayers) {
+    html += '<div class="stat-row"><span class="stat-label">Effective Layers</span>';
+    html += '<span class="stat-value">' + d.effectiveLayers + '</span></div>';
+  }
+  if (d.attentionMode) {
+    html += '<div class="stat-row"><span class="stat-label">Attention</span>';
+    html += '<span class="stat-value">' + d.attentionMode + (d.numHeads ? ' ' + d.numHeads + 'h' : '') + (d.numKvHeads ? '/' + d.numKvHeads + 'kv' : '') + '</span></div>';
+  }
+  if (d.tieEmbeddings !== null) {
+    html += '<div class="stat-row"><span class="stat-label">Tied Embeddings</span>';
+    html += '<span class="stat-value">' + (d.tieEmbeddings ? 'Yes' : 'No') + '</span></div>';
+  }
+  if (d.trainBatchTokens) {
+    html += '<div class="stat-row"><span class="stat-label">Batch Tokens</span>';
+    html += '<span class="stat-value">' + formatNumber(d.trainBatchTokens) + '</span></div>';
+  }
+  if (d.trainSeqLen) {
+    html += '<div class="stat-row"><span class="stat-label">Seq Length</span>';
+    html += '<span class="stat-value">' + formatNumber(d.trainSeqLen) + '</span></div>';
+  }
+  if (d.worldSize) {
+    html += '<div class="stat-row"><span class="stat-label">World Size</span>';
+    html += '<span class="stat-value">' + d.worldSize + ' GPUs</span></div>';
+  }
+  if (d.seed !== null) {
+    html += '<div class="stat-row"><span class="stat-label">Seed</span>';
+    html += '<span class="stat-value">' + d.seed + '</span></div>';
+  }
+  html += '</div>';
+
+  // QAT & Memory
+  if (d.qatStep || d.peakMemoryAllocated) {
+    html += '<div class="stat-group">';
+    html += '<div class="stat-group-title">QAT & Memory</div>';
+    if (d.qatStep !== null) {
+      html += '<div class="stat-row"><span class="stat-label">QAT Activated</span>';
+      html += '<span class="stat-value">Step ' + formatNumber(d.qatStep) + '</span></div>';
+      if (d.qatElapsedMs !== null) {
+        html += '<div class="stat-row"><span class="stat-label">QAT Start Time</span>';
+        html += '<span class="stat-value">' + formatTime(d.qatElapsedMs) + '</span></div>';
+      }
+    }
+    if (d.peakMemoryAllocated) {
+      html += '<div class="stat-row"><span class="stat-label">Peak Allocated</span>';
+      html += '<span class="stat-value">' + d.peakMemoryAllocated.toFixed(0) + ' MiB</span></div>';
+    }
+    if (d.peakMemoryReserved) {
+      html += '<div class="stat-row"><span class="stat-label">Peak Reserved</span>';
+      html += '<span class="stat-value">' + d.peakMemoryReserved.toFixed(0) + ' MiB</span></div>';
+    }
+    html += '</div>';
+  }
+
+  document.getElementById('stats-body').innerHTML = html;
+}
+
+// ============================================================
+// Comparison Table
+// ============================================================
+function updateComparisonTable() {
+  const card = document.getElementById('comparison-card');
+  if (runs.length < 2) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+
+  // Find best values
+  const finalBpbs = runs.map(r => r.data.finalExactValBpb || r.data.finalValBpb || null);
+  const lastValBpbs = runs.map(r => r.data.valBpb.length > 0 ? r.data.valBpb[r.data.valBpb.length - 1] : null);
+  const lastTrainLoss = runs.map(r => r.data.trainLoss.length > 0 ? r.data.trainLoss[r.data.trainLoss.length - 1] : null);
+  const steps = runs.map(r => r.data.steps.length > 0 ? r.data.steps[r.data.steps.length - 1] : r.data.stopStep || 0);
+  const sizes = runs.map(r => r.data.totalSubmissionSize);
+
+  const minBpb = Math.min(...finalBpbs.filter(v => v !== null));
+  const minValBpb = Math.min(...lastValBpbs.filter(v => v !== null));
+  const minTrainLoss = Math.min(...lastTrainLoss.filter(v => v !== null));
+  const maxSteps = Math.max(...steps);
+  const minSize = Math.min(...sizes.filter(v => v !== null));
+
+  let html = '<table class="comparison-table">';
+  html += '<tr><th>Run</th><th>Post-Q BPB</th><th>Val BPB</th><th>Train Loss</th><th>Steps</th><th>Size</th></tr>';
+
+  runs.forEach((run, i) => {
+    const fb = finalBpbs[i];
+    const vb = lastValBpbs[i];
+    const tl = lastTrainLoss[i];
+    const st = steps[i];
+    const sz = sizes[i];
+
+    html += '<tr>';
+    html += '<td class="run-name"><span class="color-dot" style="background:' + run.color + ';width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0"></span>' + run.name + '</td>';
+    html += '<td class="' + (fb === minBpb ? 'best' : '') + '">' + (fb !== null ? fb.toFixed(4) : '--') + '</td>';
+    html += '<td class="' + (vb === minValBpb ? 'best' : '') + '">' + (vb !== null ? vb.toFixed(4) : '--') + '</td>';
+    html += '<td class="' + (tl === minTrainLoss ? 'best' : '') + '">' + (tl !== null ? tl.toFixed(4) : '--') + '</td>';
+    html += '<td class="' + (st === maxSteps ? 'best' : '') + '">' + formatNumber(st) + '</td>';
+    html += '<td class="' + (sz === minSize ? 'best' : '') + '">' + formatBytes(sz) + '</td>';
+    html += '</tr>';
+  });
+
+  html += '</table>';
+  document.getElementById('comparison-table-container').innerHTML = html;
+}
+
+// ============================================================
+// Run Tabs
+// ============================================================
+function updateRunTabs() {
+  const container = document.getElementById('run-tabs');
+  container.innerHTML = '';
+
+  if (runs.length <= 1) return;
+
+  runs.forEach((run, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'run-tab' + (i === activeRunIndex ? ' active' : '');
+    tab.innerHTML = '<span class="color-dot" style="background:' + run.color + '"></span>' +
+      '<span>' + run.name + '</span>' +
+      '<span class="remove-run" data-index="' + i + '">&times;</span>';
+    tab.addEventListener('click', (e) => {
+      if (e.target.classList.contains('remove-run')) {
+        removeRun(parseInt(e.target.dataset.index));
+        return;
+      }
+      activeRunIndex = i;
+      updateRunTabs();
+      updateStats();
+    });
+    container.appendChild(tab);
+  });
+}
+
+// ============================================================
+// Master Update
+// ============================================================
+function updateDashboard() {
+  const hasRuns = runs.length > 0;
+  const dropZone = document.getElementById('drop-zone');
+  const mainContent = document.getElementById('main-content');
+  const clearBtn = document.getElementById('btn-clear-all');
+  const runCountEl = document.getElementById('run-count');
+
+  if (hasRuns) {
+    dropZone.classList.add('has-runs');
+    dropZone.querySelector('h2').textContent = 'Drop more logs to compare';
+    dropZone.querySelector('p').style.display = 'none';
+    dropZone.querySelector('.hint').style.display = 'none';
+    const inputRow = dropZone.querySelector('.input-row');
+    if (inputRow) inputRow.style.display = 'none';
+    mainContent.classList.add('visible');
+    clearBtn.style.display = 'inline-block';
+  } else {
+    dropZone.classList.remove('has-runs');
+    dropZone.querySelector('h2').textContent = 'Drop training log files here';
+    dropZone.querySelector('p').style.display = '';
+    dropZone.querySelector('.hint').style.display = '';
+    const inputRow = dropZone.querySelector('.input-row');
+    if (inputRow) inputRow.style.display = '';
+    mainContent.classList.remove('visible');
+    clearBtn.style.display = 'none';
+  }
+
+  runCountEl.textContent = runs.length + ' run' + (runs.length !== 1 ? 's' : '');
+
+  // Auto-refresh indicator
+  const hasAutoRefresh = runs.some(r => r.autoRefresh && r.url);
+  document.getElementById('auto-refresh-indicator').classList.toggle('active', hasAutoRefresh);
+
+  updateRunTabs();
+  if (hasRuns) {
+    updateCharts();
+    updateStats();
+    updateComparisonTable();
+
+    const subtitle = document.getElementById('train-loss-subtitle');
+    if (runs.length === 1) {
+      const d = runs[0].data;
+      const lastLoss = d.trainLoss.length > 0 ? d.trainLoss[d.trainLoss.length - 1].toFixed(4) : '--';
+      subtitle.textContent = 'Latest: ' + lastLoss;
+    } else {
+      subtitle.textContent = runs.length + ' runs';
+    }
+  }
+}
+
+// ============================================================
+// Event Handlers
+// ============================================================
+function setupEventHandlers() {
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  // Drag & Drop on the drop zone
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('active');
+  });
+
+  dropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('active');
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('active');
+    handleFiles(e.dataTransfer.files);
+  });
+
+  dropZone.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  // Also allow drag-drop on entire page
+  document.body.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('active');
+  });
+
+  document.body.addEventListener('dragleave', (e) => {
+    if (!e.relatedTarget || e.relatedTarget === document.documentElement) {
+      dropZone.classList.remove('active');
+    }
+  });
+
+  document.body.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('active');
+    if (e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    handleFiles(e.target.files);
+    fileInput.value = '';
+  });
+
+  // Buttons
+  document.getElementById('btn-browse').addEventListener('click', (e) => {
+    e.stopPropagation();
+    fileInput.click();
+  });
+
+  document.getElementById('btn-paste').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('paste-modal').classList.add('visible');
+    document.getElementById('paste-text').focus();
+  });
+
+  document.getElementById('btn-url').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('url-modal').classList.add('visible');
+    document.getElementById('url-input').focus();
+  });
+
+  document.getElementById('btn-clear-all').addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Clear all auto-refresh timers
+    for (const k of Object.keys(autoRefreshTimers)) {
+      clearInterval(autoRefreshTimers[k]);
+      delete autoRefreshTimers[k];
+    }
+    runs = [];
+    activeRunIndex = 0;
+    colorIndex = 0;
+    updateDashboard();
+    showToast('All runs cleared', 'info');
+  });
+
+  document.getElementById('btn-refresh').addEventListener('click', async () => {
+    const run = runs[activeRunIndex];
+    if (!run || !run.url) return;
+    try {
+      const resp = await fetch(run.url);
+      const text = await resp.text();
+      run.data = parseLog(text);
+      run.rawText = text;
+      updateDashboard();
+      showToast('Refreshed: ' + run.name, 'success');
+    } catch (e) {
+      showToast('Fetch failed: ' + e.message, 'error');
+    }
+  });
+
+  // Close modals on overlay click
+  document.getElementById('paste-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('paste-modal')) closePasteModal();
+  });
+  document.getElementById('url-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('url-modal')) closeUrlModal();
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closePasteModal();
+      closeUrlModal();
+    }
+  });
+}
+
+function handleFiles(fileList) {
+  for (const file of fileList) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const name = file.name.replace(/\.(log|txt|out)$/i, '');
+      addRun(name, e.target.result);
+    };
+    reader.readAsText(file);
+  }
+}
+
+function closePasteModal() {
+  document.getElementById('paste-modal').classList.remove('visible');
+  document.getElementById('paste-text').value = '';
+  document.getElementById('paste-name').value = '';
+}
+
+function closeUrlModal() {
+  document.getElementById('url-modal').classList.remove('visible');
+  document.getElementById('url-input').value = '';
+  document.getElementById('url-name').value = '';
+  document.getElementById('url-auto-refresh').checked = false;
+}
+
+function submitPaste() {
+  const text = document.getElementById('paste-text').value.trim();
+  if (!text) {
+    showToast('No log content to parse', 'error');
+    return;
+  }
+  const name = document.getElementById('paste-name').value.trim() || ('pasted-' + (runs.length + 1));
+  addRun(name, text);
+  closePasteModal();
+}
+
+async function submitUrl() {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) {
+    showToast('Please enter a URL', 'error');
+    return;
+  }
+  const name = document.getElementById('url-name').value.trim() || url.split('/').pop().replace(/\.(log|txt|out)$/i, '') || ('url-' + (runs.length + 1));
+  const autoRefresh = document.getElementById('url-auto-refresh').checked;
+
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const text = await resp.text();
+    addRun(name, text, url, autoRefresh);
+    closeUrlModal();
+  } catch (e) {
+    showToast('Fetch failed: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// Init
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  setupEventHandlers();
+});
+</script>
+</body>
+</html>
