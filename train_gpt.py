@@ -16,7 +16,6 @@ import sys
 import time
 import uuid
 import zlib
-from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -36,7 +35,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # - vocab size 1024, sequence length 1024, tied embeddings
 # - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
 
-@dataclass
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
@@ -284,6 +282,7 @@ def eval_val(
 
     bits_per_token = val_loss.item() / math.log(2.0)
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 # -----------------------------
@@ -319,6 +318,35 @@ INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
+def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
+    if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
+        return t.float().contiguous()
+    if t.dtype in {torch.float32, torch.bfloat16}:
+        passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
+        return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
+    return t
+
+def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    if t32.ndim == 2:
+        # Matrices get one scale per row, which usually tracks output-channel
+        # ranges much better than a single tensor-wide scale.
+        clip_abs = (
+            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+            if t32.numel()
+            else torch.empty((t32.shape[0],), dtype=torch.float32)
+        )
+        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+
+    # Vectors / scalars use a simpler per-tensor scale.
+    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    return q, scale
+
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     # Single supported clean-script export format:
     # - per-row int8 for 2D float tensors
@@ -331,14 +359,10 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     passthrough: dict[str, Tensor] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
-    stats = {
-        "param_count": 0,
-        "num_tensors": 0,
-        "num_float_tensors": 0,
-        "num_nonfloat_tensors": 0,
-        "baseline_tensor_bytes": 0,
-        "int8_payload_bytes": 0,
-    }
+    stats = dict.fromkeys(
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        0,
+    )
 
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
@@ -346,58 +370,28 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         stats["num_tensors"] += 1
         stats["baseline_tensor_bytes"] += tensor_nbytes(t)
 
-        if t.is_floating_point():
-            # Small float tensors are cheap enough to keep directly. We still downcast
-            # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
-            if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
-                kept = t
-                if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
-                    kept = kept.float().contiguous()
-                elif kept.dtype in {torch.float32, torch.bfloat16}:
-                    kept = kept.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
-                    passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
-                passthrough[name] = kept
-                stats["int8_payload_bytes"] += tensor_nbytes(kept)
-                continue
-
-            stats["num_float_tensors"] += 1
-            t32 = t.float()
-            if t32.ndim == 2:
-                # Matrices get one scale per row, which usually tracks output-channel
-                # ranges much better than a single tensor-wide scale.
-                abs_t = t32.abs()
-                if t32.numel():
-                    clip_abs = torch.quantile(abs_t, INT8_CLIP_Q, dim=1)
-                    t32_for_quant = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-                else:
-                    clip_abs = torch.empty((t32.shape[0],), dtype=torch.float32)
-                    t32_for_quant = t32
-                scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-                q = torch.clamp(torch.round(t32_for_quant / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-                s = scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
-                qmeta[name] = {"scheme": "per_row", "axis": 0}
-            else:
-                # Vectors / scalars use a simpler per-tensor scale.
-                max_abs = 0.0
-                if t32.numel():
-                    abs_t = t32.abs()
-                    clip_abs = float(torch.quantile(abs_t.flatten(), INT8_CLIP_Q).item())
-                    t32_for_quant = torch.clamp(t32, -clip_abs, clip_abs)
-                    max_abs = clip_abs
-                else:
-                    t32_for_quant = t32
-                scale = max_abs / 127.0 if max_abs > 0 else 1.0
-                q = torch.clamp(torch.round(t32_for_quant / scale), -127, 127).to(torch.int8).contiguous()
-                s = torch.tensor(scale, dtype=torch.float32)
-
-            quantized[name] = q
-            scales[name] = s
-            dtypes[name] = str(t.dtype).removeprefix("torch.")
-            stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
-        else:
+        if not t.is_floating_point():
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = t
             stats["int8_payload_bytes"] += tensor_nbytes(t)
+            continue
+
+        # Small float tensors are cheap enough to keep directly. We still downcast
+        # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+            kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
+            passthrough[name] = kept
+            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            continue
+
+        stats["num_float_tensors"] += 1
+        q, s = quantize_float_tensor(t)
+        if s.ndim > 0:
+            qmeta[name] = {"scheme": "per_row", "axis": 0}
+        quantized[name] = q
+        scales[name] = s
+        dtypes[name] = str(t.dtype).removeprefix("torch.")
+        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_clean_per_row_v1",
@@ -418,13 +412,13 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
-        meta = qmeta.get(name, {"scheme": "per_tensor"})
-        if meta.get("scheme") == "per_row":
-            s = obj["scales"][name].to(dtype=torch.float32)
+        s = obj["scales"][name]
+        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+            s = s.to(dtype=torch.float32)
             # Broadcast the saved row scale back across trailing dimensions.
             out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
-            scale = float(obj["scales"][name].item())
+            scale = float(s.item())
             out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
     for name, t in obj["passthrough"].items():
         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
@@ -980,12 +974,10 @@ def main() -> None:
                 has_leading_space_lut,
                 is_boundary_token_lut,
             )
-            if step % 25 == 0 or last_step:
-                log0(
-                    f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
-                    f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
-                )
-            model.train()
+            log0(
+                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
+            )
             torch.cuda.synchronize()
             t0 = time.perf_counter()
 
