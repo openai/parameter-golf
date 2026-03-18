@@ -1169,6 +1169,8 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
+    float_val_bpb = val_bpb  # Preserve float-model BPB for post-quant comparison
+
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
@@ -1233,6 +1235,17 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    bpb_degradation = q_val_bpb - float_val_bpb
+    log0(
+        f"bpb_comparison float_val_bpb:{float_val_bpb:.8f} "
+        f"int8_roundtrip_val_bpb:{q_val_bpb:.8f} "
+        f"bpb_degradation:{bpb_degradation:.8f}"
+    )
+    if bpb_degradation > 0.01:
+        log0(
+            f"WARNING: INT8 roundtrip BPB degradation ({bpb_degradation:.6f}) "
+            f"exceeds 0.01 threshold -- investigate quantization quality"
+        )
 
     if distributed:
         dist.destroy_process_group()
