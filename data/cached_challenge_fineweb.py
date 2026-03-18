@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import shutil
 from pathlib import Path
@@ -7,7 +8,9 @@ from huggingface_hub import hf_hub_download
 
 
 REPO_ID = os.environ.get("MATCHED_FINEWEB_REPO_ID", "willdepueoai/parameter-golf")
-REMOTE_ROOT_PREFIX = os.environ.get("MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "datasets")
+REMOTE_ROOT_PREFIX = os.environ.get(
+    "MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "matched_100B_train30Btok_even_seed1337"
+)
 
 
 def repo_relative_env_path(name: str, default: str) -> Path:
@@ -29,33 +32,18 @@ LOCAL_TOKENIZERS_DIR = repo_relative_env_path("MATCHED_FINEWEB_LOCAL_TOKENIZERS_
 VARIANTS = {
     "byte260": {
         "dataset_dir": "fineweb10B_byte260",
-        "tokenizer_files": ["fineweb_pure_byte_260.json"],
-        "train_shards": 61,
-        "val_shards": 2,
     },
     "sp512": {
         "dataset_dir": "fineweb10B_sp512",
-        "tokenizer_files": ["fineweb_512_bpe.model", "fineweb_512_bpe.vocab"],
-        "train_shards": 33,
-        "val_shards": 1,
     },
     "sp1024": {
         "dataset_dir": "fineweb10B_sp1024",
-        "tokenizer_files": ["fineweb_1024_bpe.model", "fineweb_1024_bpe.vocab"],
-        "train_shards": 25,
-        "val_shards": 1,
     },
     "sp2048": {
         "dataset_dir": "fineweb10B_sp2048",
-        "tokenizer_files": ["fineweb_2048_bpe.model", "fineweb_2048_bpe.vocab"],
-        "train_shards": 21,
-        "val_shards": 1,
     },
     "sp4096": {
         "dataset_dir": "fineweb10B_sp4096",
-        "tokenizer_files": ["fineweb_4096_bpe.model", "fineweb_4096_bpe.vocab"],
-        "train_shards": 19,
-        "val_shards": 1,
     },
 }
 
@@ -127,14 +115,46 @@ def ensure_local_layout() -> None:
     ensure_alias(root / "docs_selected.jsonl", legacy_root / "docs_selected.jsonl")
 
 
+def manifest_path() -> Path:
+    return local_path_for_remote(f"{REMOTE_ROOT_PREFIX}/manifest.json")
+
+
+def load_manifest(*, skip_manifest_download: bool) -> dict:
+    path = manifest_path()
+    if not path.is_file():
+        if skip_manifest_download:
+            raise FileNotFoundError(
+                f"manifest.json is required for manifest-driven shard counts but is not present locally at {path}"
+            )
+        get(f"{REMOTE_ROOT_PREFIX}/manifest.json")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def artifact_paths_for_tokenizer(tokenizer_entry: dict) -> list[str]:
+    artifacts = []
+    for key in ("model_path", "vocab_path", "path"):
+        value = tokenizer_entry.get(key)
+        if value:
+            artifacts.append(str(value))
+    if not artifacts:
+        raise ValueError(f"tokenizer entry is missing downloadable artifacts: {tokenizer_entry}")
+    return artifacts
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Download challenge FineWeb shards from Hugging Face")
     parser.add_argument(
-        "train_shards",
+        "train_shards_positional",
         nargs="?",
         type=int,
         default=None,
-        help="Number of training shards to download for the selected variant. Defaults to all shards.",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--train-shards",
+        type=int,
+        default=1,
+        help="Number of training shards to download for the selected variant. Defaults to 1.",
     )
     parser.add_argument(
         "--variant",
@@ -153,30 +173,37 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     variant = VARIANTS[args.variant]
-    max_train_shards = variant["train_shards"]
-    train_shards = max_train_shards if args.train_shards is None else args.train_shards
+    train_shards = args.train_shards_positional if args.train_shards_positional is not None else args.train_shards
     if train_shards < 0:
         raise ValueError("train_shards must be non-negative")
-    if train_shards > max_train_shards:
-        raise ValueError(
-            f"{args.variant} only has {max_train_shards} training shards on {REPO_ID}, "
-            f"requested {train_shards}"
-        )
 
     ensure_local_layout()
+    manifest = load_manifest(skip_manifest_download=args.skip_manifest)
+    dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == variant["dataset_dir"]), None)
+    if dataset_entry is None:
+        raise ValueError(f"dataset {variant['dataset_dir']} not found in {REMOTE_ROOT_PREFIX}/manifest.json")
+    max_train_shards = int((dataset_entry.get("stats") or {}).get("files_train"))
+    val_shards = int((dataset_entry.get("stats") or {}).get("files_val"))
+    if train_shards > max_train_shards:
+        raise ValueError(
+            f"{args.variant} only has {max_train_shards} training shards on {REPO_ID}, requested {train_shards}"
+        )
+    tokenizer_name = dataset_entry.get("tokenizer_name")
+    tokenizer_entry = next((x for x in manifest.get("tokenizers", []) if x.get("name") == tokenizer_name), None)
+    if tokenizer_entry is None:
+        raise ValueError(f"tokenizer {tokenizer_name} not found in {REMOTE_ROOT_PREFIX}/manifest.json")
 
     if not args.skip_manifest:
         get(f"{REMOTE_ROOT_PREFIX}/manifest.json")
 
     dataset_prefix = f"{REMOTE_ROOT_PREFIX}/datasets/{variant['dataset_dir']}"
-    for i in range(variant["val_shards"]):
+    for i in range(val_shards):
         get(f"{dataset_prefix}/fineweb_val_{i:06d}.bin")
     for i in range(train_shards):
         get(f"{dataset_prefix}/fineweb_train_{i:06d}.bin")
 
-    tokenizer_prefix = f"{REMOTE_ROOT_PREFIX}/tokenizers"
-    for tokenizer_file in variant["tokenizer_files"]:
-        get(f"{tokenizer_prefix}/{tokenizer_file}")
+    for artifact_path in artifact_paths_for_tokenizer(tokenizer_entry):
+        get(f"{REMOTE_ROOT_PREFIX}/{artifact_path}")
     ensure_local_layout()
 
 

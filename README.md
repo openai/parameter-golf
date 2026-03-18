@@ -172,7 +172,7 @@ MATCHED_FINEWEB_GPT2_COUNT_BATCH_SIZE=512
 MATCHED_FINEWEB_SP_BATCH_SIZE=2048
 ```
 
-The first controls exact batched GPT-2 token counting while building the docs cache, and the second controls batched SentencePiece encoding during shard export.
+The first controls exact batched GPT-2 token counting while building the docs cache, and the second controls batched tokenizer encoding during shard export.
 
 
 ## FAQ

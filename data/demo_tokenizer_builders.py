@@ -7,6 +7,7 @@ different file/module entirely.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import sentencepiece as spm
@@ -14,12 +15,15 @@ import sentencepiece as spm
 from pure_byte_tokenizer import default_pure_byte_tokenizer
 
 
-def _iter_sentencepiece_text(docs_jsonl: Path):
+def _iter_sentencepiece_text(docs_jsonl: Path, *, max_docs: int | None = None):
     with Path(docs_jsonl).open("r", encoding="utf-8") as f:
-        for line in f:
+        for i, line in enumerate(f):
+            if max_docs is not None and i >= max_docs:
+                break
             text = json.loads(line)["text"].replace("\x00", " ").strip()
             if text:
                 yield text
+
 
 def build_pure_byte_tokenizer(*, spec, docs_jsonl, tokenizers_dir):
     del docs_jsonl
@@ -35,6 +39,7 @@ def build_pure_byte_tokenizer(*, spec, docs_jsonl, tokenizers_dir):
         "bos_id": tok.bos_id,
         "eos_id": tok.eos_id,
         "encode": tok.encode,
+        "encode_batch": tok.encode_batch,
         "manifest": {"path": str(path), "pad_id": tok.pad_id, "unk_id": tok.unk_id},
     }
 
@@ -48,25 +53,47 @@ def build_sentencepiece_tokenizer(*, spec, docs_jsonl, tokenizers_dir):
     for artifact in (model_path, vocab_path):
         if artifact.exists():
             artifact.unlink()
-    print(f"Training SentencePiece tokenizer name={spec.get('name', f'sp_bpe_{vocab_size}')} vocab={vocab_size}")
-    kwargs = {
-        "sentence_iterator": _iter_sentencepiece_text(Path(docs_jsonl)),
-        "model_prefix": str(prefix),
-        "model_type": "bpe",
-        "vocab_size": vocab_size,
-        "character_coverage": 0.999,
-        "byte_fallback": True,
-        "split_digits": True,
-        "normalization_rule_name": "nmt_nfkc",
-        "add_dummy_prefix": False,
-        "pad_id": 0,
-        "bos_id": 1,
-        "eos_id": 2,
-        "unk_id": 3,
-        "hard_vocab_limit": False,
-    }
-    kwargs.update(spec.get("trainer_overrides") or {})
-    spm.SentencePieceTrainer.train(**kwargs)
+
+    reuse_model_path = spec.get("reuse_model_path")
+    if reuse_model_path is not None:
+        reuse_model_path = Path(reuse_model_path).expanduser().resolve()
+        if not reuse_model_path.is_file():
+            raise FileNotFoundError(reuse_model_path)
+        shutil.copy2(reuse_model_path, model_path)
+        reuse_vocab_path = reuse_model_path.with_suffix(".vocab")
+        if reuse_vocab_path.is_file():
+            shutil.copy2(reuse_vocab_path, vocab_path)
+        print(
+            f"Reusing SentencePiece tokenizer name={spec.get('name', f'sp_bpe_{vocab_size}')} "
+            f"vocab={vocab_size} model={reuse_model_path}"
+        )
+    else:
+        print(f"Training SentencePiece tokenizer name={spec.get('name', f'sp_bpe_{vocab_size}')} vocab={vocab_size}")
+        kwargs = {
+            "sentence_iterator": _iter_sentencepiece_text(
+                Path(docs_jsonl),
+                max_docs=(
+                    None
+                    if spec.get("tokenizer_train_docs") is None
+                    else int(spec["tokenizer_train_docs"])
+                ),
+            ),
+            "model_prefix": str(prefix),
+            "model_type": "bpe",
+            "vocab_size": vocab_size,
+            "character_coverage": 0.999,
+            "byte_fallback": True,
+            "split_digits": True,
+            "normalization_rule_name": "nmt_nfkc",
+            "add_dummy_prefix": False,
+            "pad_id": 0,
+            "bos_id": 1,
+            "eos_id": 2,
+            "unk_id": 3,
+            "hard_vocab_limit": False,
+        }
+        kwargs.update(spec.get("trainer_overrides") or {})
+        spm.SentencePieceTrainer.train(**kwargs)
 
     tok = spm.SentencePieceProcessor(model_file=str(model_path))
     return {
@@ -77,5 +104,6 @@ def build_sentencepiece_tokenizer(*, spec, docs_jsonl, tokenizers_dir):
         "bos_id": int(tok.bos_id()),
         "eos_id": int(tok.eos_id()),
         "encode": lambda text, tok=tok: tok.encode(text, out_type=int),
+        "encode_batch": lambda texts, tok=tok: tok.encode(texts, out_type=int),
         "manifest": {"model_path": str(model_path), "vocab_path": str(vocab_path)},
     }

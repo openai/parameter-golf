@@ -18,6 +18,7 @@ import hashlib
 import importlib
 import importlib.util
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -40,6 +41,7 @@ APPEND_EOS = False
 OUTPUT_ROOT = ROOT / "challenge_fineweb"
 DEMO_CONFIG = ROOT / "demo_tokenizer_specs.json"
 EXPECTED_DOCS_SHA256 = "47812b882b6a11cf0f7cbdfeca77fb590785fbbda991db9599619633bfe9bca9"
+SP_BATCH_SIZE = int(os.environ.get("MATCHED_FINEWEB_SP_BATCH_SIZE", "1024"))
 
 
 def write_datafile(path: Path, toks: Any) -> None:
@@ -72,6 +74,17 @@ def count_docs(path: Path) -> int:
         return sum(1 for _ in f)
 
 
+def batched_docs_jsonl(path: Path, batch_size: int):
+    batch: list[str] = []
+    for text in iter_docs(path):
+        batch.append(text)
+        if len(batch) == batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -81,6 +94,20 @@ def sha256(path: Path) -> str:
                 break
             h.update(chunk)
     return h.hexdigest()
+
+
+def docs_sidecar_path(docs_jsonl: Path) -> Path:
+    return docs_jsonl.with_name(f"{docs_jsonl.stem}.source_manifest.json")
+
+
+def maybe_load_docs_sidecar_meta(docs_jsonl: Path) -> dict[str, Any] | None:
+    sidecar_path = docs_sidecar_path(docs_jsonl)
+    if not sidecar_path.is_file():
+        return None
+    payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"docs sidecar must be a JSON object: {sidecar_path}")
+    return payload
 
 
 def relativize_manifest_paths(value: Any, root: Path) -> Any:
@@ -160,7 +187,15 @@ def build_docs_cache(path: Path) -> dict[str, Any]:
     }
 
 
-def export_shards(docs_jsonl: Path, tok: dict[str, Any], output_dir: Path) -> dict[str, int]:
+def export_shards(
+    docs_jsonl: Path,
+    tok: dict[str, Any],
+    output_dir: Path,
+    *,
+    num_val_docs: int,
+    shard_size: int,
+    docs_total_hint: int | None,
+) -> dict[str, int]:
     output_dir.mkdir(parents=True, exist_ok=True)
     for pattern in ("fineweb_train_*.bin", "fineweb_val_*.bin"):
         for stale in output_dir.glob(pattern):
@@ -176,7 +211,7 @@ def export_shards(docs_jsonl: Path, tok: dict[str, Any], output_dir: Path) -> di
         "tokens_val": 0,
         "tokens_train": 0,
     }
-    buf = np.empty((SHARD_SIZE,), dtype=np.uint16)
+    buf = np.empty((shard_size,), dtype=np.uint16)
     fill = 0
     split = "val"
     shards = {"val": 0, "train": 0}
@@ -191,45 +226,66 @@ def export_shards(docs_jsonl: Path, tok: dict[str, Any], output_dir: Path) -> di
         shards[split] += 1
         fill = 0
 
-    pbar = tqdm(total=count_docs(docs_jsonl), unit="docs", desc=f"Tokenizing {output_dir.name}")
-    for i, text in enumerate(iter_docs(docs_jsonl)):
-        next_split = "val" if i < NUM_VAL_DOCS else "train"
-        if next_split != split:
-            flush()
-            split = next_split
-
-        token_ids = [tok["bos_id"], *tok["encode"](text)]
-        if APPEND_EOS:
-            token_ids.append(tok["eos_id"])
-        toks = np.asarray(token_ids, dtype=np.int32)
-        vocab_size = int(tok["vocab_size"])
-        if not ((0 <= toks).all() and (toks < vocab_size).all()):
-            bad = int(toks[(toks < 0) | (toks >= vocab_size)][0])
-            raise ValueError(f"token id {bad} outside declared vocab_size={vocab_size}")
-        if vocab_size > 2**16:
-            raise ValueError(f"vocab_size={vocab_size} is too large for uint16 shard storage")
-        toks = toks.astype("<u2", copy=False)
-
-        stats["docs_total"] += 1
-        stats[f"docs_{split}"] += 1
-        stats["tokens_total"] += len(toks)
-        stats[f"tokens_{split}"] += len(toks)
-
-        pos = 0
-        while pos < len(toks):
-            take = min(SHARD_SIZE - fill, len(toks) - pos)
-            buf[fill : fill + take] = toks[pos : pos + take]
-            fill += take
-            pos += take
-            if fill == SHARD_SIZE:
+    vocab_size = int(tok["vocab_size"])
+    if vocab_size > 2**16:
+        raise ValueError(f"vocab_size={vocab_size} is too large for uint16 shard storage")
+    docs_total = docs_total_hint if docs_total_hint is not None else count_docs(docs_jsonl)
+    batch_encode = tok.get("encode_batch")
+    batch_size = SP_BATCH_SIZE if callable(batch_encode) else 1
+    pbar = tqdm(total=docs_total, unit="docs", desc=f"Tokenizing {output_dir.name}")
+    doc_index = 0
+    for texts in batched_docs_jsonl(docs_jsonl, batch_size):
+        encoded_docs = batch_encode(texts) if callable(batch_encode) else [tok["encode"](text) for text in texts]
+        for text, encoded in zip(texts, encoded_docs, strict=True):
+            del text
+            next_split = "val" if doc_index < num_val_docs else "train"
+            if next_split != split:
                 flush()
-        pbar.update(1)
+                split = next_split
+
+            encoded_arr = np.asarray(encoded, dtype=np.int32)
+            toks = np.empty((encoded_arr.size + 1 + int(APPEND_EOS),), dtype=np.int32)
+            toks[0] = tok["bos_id"]
+            toks[1 : 1 + encoded_arr.size] = encoded_arr
+            if APPEND_EOS:
+                toks[-1] = tok["eos_id"]
+            if not ((0 <= toks).all() and (toks < vocab_size).all()):
+                bad = int(toks[(toks < 0) | (toks >= vocab_size)][0])
+                raise ValueError(f"token id {bad} outside declared vocab_size={vocab_size}")
+            toks = toks.astype("<u2", copy=False)
+
+            stats["docs_total"] += 1
+            stats[f"docs_{split}"] += 1
+            stats["tokens_total"] += len(toks)
+            stats[f"tokens_{split}"] += len(toks)
+
+            pos = 0
+            while pos < len(toks):
+                take = min(shard_size - fill, len(toks) - pos)
+                buf[fill : fill + take] = toks[pos : pos + take]
+                fill += take
+                pos += take
+                if fill == shard_size:
+                    flush()
+            pbar.update(1)
+            doc_index += 1
     pbar.close()
     flush()
     return stats
 
 
-def main() -> None:
+def parse_reuse_sp_models(values: list[str]) -> dict[int, Path]:
+    reuse_models: dict[int, Path] = {}
+    for value in values:
+        vocab_size_str, model_path = value.split("=", 1)
+        vocab_size = int(vocab_size_str)
+        if vocab_size in reuse_models:
+            raise ValueError(f"duplicate --reuse_sp_model for vocab_size={vocab_size}")
+        reuse_models[vocab_size] = Path(model_path).expanduser().resolve()
+    return reuse_models
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Export matched FineWeb datasets across tokenizer variants")
     parser.add_argument("--tokenizer_config", type=str, default=None)
     parser.add_argument(
@@ -241,7 +297,23 @@ def main() -> None:
     parser.add_argument("--output_root", type=str, default=str(OUTPUT_ROOT))
     parser.add_argument("--docs_jsonl", type=str, default=None)
     parser.add_argument("--rebuild_docs_cache", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument("--num_val_docs", type=int, default=None)
+    parser.add_argument("--chunk_tokens", type=int, default=SHARD_SIZE)
+    parser.add_argument("--tokenizer_train_docs", type=int, default=None)
+    parser.add_argument("--skip_byte", action="store_true")
+    parser.add_argument(
+        "--reuse_sp_model",
+        action="append",
+        default=[],
+        metavar="VOCAB=MODEL",
+        help="Reuse an existing SentencePiece model for the given vocab size instead of retraining it.",
+    )
+    return parser
+
+
+def run_export(args: argparse.Namespace) -> dict[str, Any]:
+    if args.chunk_tokens <= 0:
+        raise ValueError(f"--chunk_tokens must be positive, got {args.chunk_tokens}")
 
     config_path = Path(args.tokenizer_config).resolve() if args.tokenizer_config else DEMO_CONFIG.resolve()
     trusted_builder_code = config_path == DEMO_CONFIG.resolve() or args.trust_tokenizer_config_code
@@ -256,26 +328,36 @@ def main() -> None:
     datasets_dir = output_root / "datasets"
     tokenizers_dir.mkdir(parents=True, exist_ok=True)
     datasets_dir.mkdir(parents=True, exist_ok=True)
+    docs_jsonl = Path(args.docs_jsonl).resolve() if args.docs_jsonl else output_root / "docs_selected.jsonl"
+    docs_sidecar = maybe_load_docs_sidecar_meta(docs_jsonl) if docs_jsonl.exists() else None
+    reuse_sp_models = parse_reuse_sp_models(args.reuse_sp_model)
 
     if args.docs_jsonl and args.rebuild_docs_cache:
         raise ValueError("--rebuild_docs_cache conflicts with --docs_jsonl")
 
-    docs_jsonl = Path(args.docs_jsonl).resolve() if args.docs_jsonl else output_root / "docs_selected.jsonl"
     build_cache = args.docs_jsonl is None and (args.rebuild_docs_cache or not docs_jsonl.exists())
     if build_cache:
         docs_meta = build_docs_cache(docs_jsonl)
     else:
         if not docs_jsonl.is_file():
             raise FileNotFoundError(docs_jsonl)
+        docs_sidecar = maybe_load_docs_sidecar_meta(docs_jsonl)
+        docs_total_hint = docs_sidecar.get("num_docs") if docs_sidecar is not None else None
         docs_meta = {
             "remote_name": "external_cache" if args.docs_jsonl else "cached_local",
-            "num_docs": count_docs(docs_jsonl),
-            "docs_sha256": sha256(docs_jsonl),
+            "num_docs": int(docs_total_hint) if docs_total_hint is not None else count_docs(docs_jsonl),
+            "docs_sha256": None if args.docs_jsonl else sha256(docs_jsonl),
             "dataset_fingerprint": None,
         }
-    if docs_meta["num_docs"] != NUM_DOCS:
+        if docs_sidecar is not None:
+            docs_meta["source_manifest"] = str(docs_sidecar_path(docs_jsonl))
+            if docs_sidecar.get("docs_sha256") is not None:
+                docs_meta["docs_sha256"] = docs_sidecar["docs_sha256"]
+
+    use_challenge_fairness_checks = args.docs_jsonl is None
+    if use_challenge_fairness_checks and docs_meta["num_docs"] != NUM_DOCS:
         raise ValueError(f"docs cache must contain exactly {NUM_DOCS} docs, got {docs_meta['num_docs']}")
-    if EXPECTED_DOCS_SHA256 is not None:
+    if use_challenge_fairness_checks and EXPECTED_DOCS_SHA256 is not None:
         if docs_meta["docs_sha256"] != EXPECTED_DOCS_SHA256:
             raise ValueError(
                 f"docs cache sha256 mismatch: expected {EXPECTED_DOCS_SHA256}, got {docs_meta['docs_sha256']}"
@@ -288,10 +370,17 @@ def main() -> None:
     # - docs_sha256 is the final check that two exports used the same raw docs.
 
     specs = load_specs(str(config_path))
+    if args.skip_byte:
+        specs = [spec for spec in specs if "byte" not in spec["builder"]]
     tokenizers: list[dict[str, Any]] = []
     seen_names: set[str] = set()
     seen_datasets: set[str] = set()
     for spec in specs:
+        spec = dict(spec)
+        if args.tokenizer_train_docs is not None and "sentencepiece" in spec["builder"]:
+            spec["tokenizer_train_docs"] = int(args.tokenizer_train_docs)
+        if "vocab_size" in spec and int(spec["vocab_size"]) in reuse_sp_models:
+            spec["reuse_model_path"] = str(reuse_sp_models[int(spec["vocab_size"])])
         built = load_builder(spec["builder"], Path(spec.pop("_base_dir")))(spec=spec, docs_jsonl=docs_jsonl, tokenizers_dir=tokenizers_dir)
         built = built if isinstance(built, list) else [built]
         for raw in built:
@@ -304,6 +393,11 @@ def main() -> None:
             bos_id = int(raw["bos_id"])
             eos_id = int(raw["eos_id"])
             encode = raw["encode"]
+            encode_batch = raw.get("encode_batch")
+            if name in seen_names:
+                raise ValueError(f"duplicate tokenizer name: {name}")
+            if dataset_name in seen_datasets:
+                raise ValueError(f"duplicate dataset name: {dataset_name}")
             seen_names.add(name)
             seen_datasets.add(dataset_name)
             tokenizers.append(
@@ -315,6 +409,7 @@ def main() -> None:
                     "bos_id": bos_id,
                     "eos_id": eos_id,
                     "encode": encode,
+                    "encode_batch": encode_batch,
                     "recommended_bigram_vocab_size": int(
                         raw.get("recommended_bigram_vocab_size", ((vocab_size + 127) // 128) * 128 * 5)
                     ),
@@ -333,13 +428,29 @@ def main() -> None:
                 }
             )
 
+    docs_total = int(docs_meta["num_docs"])
+    docs_total_hint = docs_total
+    if args.num_val_docs is not None:
+        num_val_docs = int(args.num_val_docs)
+    elif docs_sidecar is not None and docs_sidecar.get("docs_val") is not None:
+        num_val_docs = int(docs_sidecar["docs_val"])
+    else:
+        num_val_docs = NUM_VAL_DOCS
+    if not (0 <= num_val_docs <= docs_total):
+        raise ValueError(f"num_val_docs must be in [0, {docs_total}], got {num_val_docs}")
+    manifest_shuffle_seed = (
+        int(docs_sidecar["shuffle_seed"])
+        if docs_sidecar is not None and docs_sidecar.get("shuffle_seed") is not None
+        else SHUFFLE_SEED
+    )
+
     manifest = {
         "version": VERSION,
-        "num_docs": NUM_DOCS,
-        "num_val_docs": NUM_VAL_DOCS,
-        "shuffle_seed": SHUFFLE_SEED,
+        "num_docs": docs_total,
+        "num_val_docs": num_val_docs,
+        "shuffle_seed": manifest_shuffle_seed,
         "dataset_revision": DATASET_REVISION,
-        "shard_size": SHARD_SIZE,
+        "shard_size": int(args.chunk_tokens),
         "append_eos": APPEND_EOS,
         "docs_jsonl": str(docs_jsonl),
         "docs_meta": docs_meta,
@@ -351,7 +462,14 @@ def main() -> None:
     for tok in tokenizers:
         output_dir = datasets_dir / tok["dataset_name"]
         print(f"Exporting dataset: {tok['dataset_name']}")
-        stats = export_shards(docs_jsonl, tok, output_dir)
+        stats = export_shards(
+            docs_jsonl,
+            tok,
+            output_dir,
+            num_val_docs=num_val_docs,
+            shard_size=int(args.chunk_tokens),
+            docs_total_hint=docs_total_hint,
+        )
         manifest["tokenizers"].append(tok["manifest"])
         manifest["datasets"].append(
             {
@@ -378,6 +496,12 @@ def main() -> None:
         print(f"- {ds['name']}: vocab_size={ds['vocab_size']} bos_id={ds['bos_id']}")
         print(f"  TRAIN_FILES={ds['train_glob']}")
         print(f"  VAL_FILES={ds['val_glob']}")
+    return manifest
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
+    run_export(args)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,8 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import numpy as np
+
 
 @dataclass(frozen=True)
 class PureByteTokenizer:
@@ -28,9 +30,12 @@ class PureByteTokenizer:
     def vocab_size(self) -> int:
         return self.byte_offset + self.byte_count
 
-    def encode(self, text: str) -> list[int]:
+    def encode(self, text: str) -> np.ndarray:
         data = text.encode("utf-8", errors="replace")
-        return [self.byte_offset + b for b in data]
+        return np.frombuffer(data, dtype=np.uint8).astype(np.uint16, copy=False) + self.byte_offset
+
+    def encode_batch(self, texts: list[str]) -> list[np.ndarray]:
+        return [self.encode(text) for text in texts]
 
     def decode(self, token_ids: list[int], *, skip_special_tokens: bool = True) -> str:
         special = {self.pad_id, self.bos_id, self.eos_id, self.unk_id}
