@@ -9,7 +9,6 @@ from __future__ import annotations
 import copy
 import glob
 import io
-import json
 import math
 import os
 import random
@@ -203,43 +202,6 @@ def build_sentencepiece_luts(
         torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
         torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
     )
-
-
-def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> tuple[str, int, int | None]:
-    # The shard directory and tokenizer are coupled: val_bpb is only meaningful if we
-    # decode bytes with the exact tokenizer that produced the shards. The manifest
-    # lets the training script fail fast on accidental dataset/tokenizer mismatches.
-    dataset_dir = Path(data_path).resolve()
-    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
-    if len(dataset_dir.parents) < 2:
-        return dataset_dir.name, actual_train_files, None
-    manifest_path = dataset_dir.parents[1] / "manifest.json"
-    if not manifest_path.is_file():
-        return dataset_dir.name, actual_train_files, None
-
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == dataset_dir.name), None)
-    if dataset_entry is None:
-        return dataset_dir.name, actual_train_files, None
-
-    tokenizer_name = dataset_entry.get("tokenizer_name")
-    tokenizer_entry = (
-        next((x for x in manifest.get("tokenizers", []) if x.get("name") == tokenizer_name), None)
-        if tokenizer_name
-        else None
-    )
-    expected_name = Path((tokenizer_entry or {}).get("model_path") or (tokenizer_entry or {}).get("path") or "").name
-    if expected_name and Path(tokenizer_path).name != expected_name:
-        raise ValueError(f"{dataset_dir.name} expects tokenizer {expected_name}, got {Path(tokenizer_path).name}")
-    expected_train_files = (dataset_entry.get("stats") or {}).get("files_train")
-    if expected_train_files is not None:
-        expected_train_files = int(expected_train_files)
-        if actual_train_files > expected_train_files:
-            raise ValueError(
-                f"{dataset_dir.name} has more train shards than expected: found {actual_train_files}, "
-                f"manifest says {expected_train_files}"
-            )
-    return dataset_dir.name, actual_train_files, expected_train_files
 
 
 def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
@@ -847,23 +809,14 @@ def main() -> None:
         raise ValueError(
             f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
         )
-    dataset_name, actual_train_files, expected_train_files = validate_dataset_tokenizer_pair(
-        args.data_path, args.tokenizer_path
-    )
+    dataset_dir = Path(args.data_path).resolve()
+    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
     val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size, device
     )
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
-    if expected_train_files is None:
-        log0(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}")
-    elif actual_train_files == expected_train_files:
-        log0(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}/{expected_train_files}")
-    else:
-        log0(
-            f"train_loader:dataset:{dataset_name} subset_train_shards:{actual_train_files}/{expected_train_files} "
-            f"using local prefix only"
-        )
+    log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
     log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
 
     # -----------------------------
