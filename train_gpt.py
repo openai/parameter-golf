@@ -506,11 +506,27 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
+def fake_quantize_int8(x: Tensor) -> Tensor:
+    """Simulate per-row INT8 quantization with STE for gradient passthrough.
+    Matches quantize_float_tensor() scheme for 2D tensors but uses full-range
+    amax instead of clip percentile (lets the model learn to avoid outliers).
+    """
+    if x.ndim == 2:
+        scale = x.detach().abs().amax(dim=-1, keepdim=True) / 127.0
+        scale = scale.clamp_min(1.0 / 127.0)
+        x_q = (x / scale).round().clamp(-127, 127)
+        return (x_q * scale - x).detach() + x
+    return x
+
+
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if self.training:
+            w = fake_quantize_int8(w)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
