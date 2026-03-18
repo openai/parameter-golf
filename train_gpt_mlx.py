@@ -291,7 +291,7 @@ class CastedLinear(nn.Module):
         self.weight = nn.Linear(in_dim, out_dim, bias=False).weight.astype(mx.float32)
 
     def __call__(self, x: mx.array, training: bool = False) -> mx.array:
-        w = fake_quantize_per_row(self.weight) if training else self.weight
+        w = fake_quantize_per_row(self.weight) if (training and self.weight.size > INT8_KEEP_FLOAT_MAX_NUMEL) else self.weight
         return x @ w.astype(x.dtype).T
 
 
@@ -425,7 +425,8 @@ class GPT(nn.Module):
         return c * mx.tanh(logits / c)
 
     def __call__(self, input_ids: mx.array, training: bool = False) -> mx.array:
-        x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
+        emb_w = fake_quantize_per_row(self.tok_emb.weight) if (training and self.tok_emb.weight.size > INT8_KEEP_FLOAT_MAX_NUMEL) else self.tok_emb.weight
+        x = rms_norm(emb_w[input_ids].astype(COMPUTE_DTYPE))
         x0 = x
         skips: list[mx.array] = []
 
@@ -446,7 +447,7 @@ class GPT(nn.Module):
         # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
         x = self(input_ids, training=training).reshape(-1, self.tok_emb.weight.shape[1])
         y = target_ids.reshape(-1)
-        lm_weight = fake_quantize_per_row(self.tok_emb.weight) if training else self.tok_emb.weight
+        lm_weight = fake_quantize_per_row(self.tok_emb.weight) if (training and self.tok_emb.weight.size > INT8_KEEP_FLOAT_MAX_NUMEL) else self.tok_emb.weight
         if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
             logits_proj = x @ lm_weight.astype(x.dtype).T
             logits = self.softcap(logits_proj)
