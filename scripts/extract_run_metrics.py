@@ -33,13 +33,76 @@ PATTERNS = {
     ),
 }
 
+ENV_KEY_MAP = {
+    "RUN_ID": ("run_id", str),
+    "GIT_SHA": ("git_sha", str),
+    "GIT_BRANCH": ("git_branch", str),
+    "LAUNCH_ID": ("launch_id", str),
+    "DATA_PATH": ("data_path", str),
+    "TOKENIZER_PATH": ("tokenizer_path", str),
+    "VOCAB_SIZE": ("vocab_size", int),
+    "NUM_LAYERS": ("num_layers", int),
+    "MODEL_DIM": ("model_dim", int),
+    "NUM_HEADS": ("num_heads", int),
+    "NUM_KV_HEADS": ("num_kv_heads", int),
+    "MLP_MULT": ("mlp_mult", int),
+    "TIE_EMBEDDINGS": ("tie_embeddings", lambda value: bool(int(value))),
+    "TRAIN_SEQ_LEN": ("train_seq_len", int),
+    "TRAIN_BATCH_TOKENS": ("train_batch_tokens", int),
+    "VAL_BATCH_SIZE": ("val_batch_size", int),
+    "ITERATIONS": ("iterations", int),
+    "WARMUP_STEPS": ("warmup_steps", int),
+    "WARMDOWN_ITERS": ("warmdown_iters", int),
+    "TRAIN_LOG_EVERY": ("train_log_every", int),
+    "VAL_LOSS_EVERY": ("val_loss_every", int),
+    "MAX_WALLCLOCK_SECONDS": ("max_wallclock_seconds", float),
+    "SEED": ("seed", int),
+    "TIED_EMBED_LR": ("tied_embed_lr", float),
+    "MATRIX_LR": ("matrix_lr", float),
+    "SCALAR_LR": ("scalar_lr", float),
+    "MUON_MOMENTUM": ("muon_momentum", float),
+    "MUON_BACKEND_STEPS": ("muon_backend_steps", int),
+    "MUON_MOMENTUM_WARMUP_START": ("muon_momentum_warmup_start", float),
+    "MUON_MOMENTUM_WARMUP_STEPS": ("muon_momentum_warmup_steps", int),
+    "BETA1": ("beta1", float),
+    "BETA2": ("beta2", float),
+    "ADAM_EPS": ("adam_eps", float),
+    "GRAD_CLIP_NORM": ("grad_clip_norm", float),
+    "QK_GAIN_INIT": ("qk_gain_init", float),
+    "LOGIT_SOFTCAP": ("logit_softcap", float),
+    "ROPE_BASE": ("rope_base", float),
+    "WORLD_SIZE": ("world_size", int),
+}
+
+
+def parse_env_file(path: Path) -> dict[str, object]:
+    result: dict[str, object] = {}
+    if not path.exists():
+        return result
+    for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw_line.strip()
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        target = ENV_KEY_MAP.get(key)
+        if target is None:
+            continue
+        field_name, caster = target
+        try:
+            result[field_name] = caster(value)
+        except ValueError:
+            result[field_name] = value
+    return result
+
 
 def parse_log(path: Path) -> dict[str, object]:
+    env_path = path.parent.parent / "env.txt"
     result: dict[str, object] = {
         "log_path": str(path),
         "run_dir": str(path.parent.parent),
         "run_id": path.stem,
     }
+    result.update(parse_env_file(env_path))
     for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
         line = raw_line.strip()
         if not line:
@@ -61,8 +124,8 @@ def parse_log(path: Path) -> dict[str, object]:
                 result["num_heads"] = int(groups["num_heads"])
                 result["num_kv_heads"] = int(groups["num_kv_heads"])
             elif key == "optimizer":
-                result["tie_embeddings"] = groups["tie_embeddings"]
-                result["embed_lr"] = float(groups["embed_lr"])
+                result["tie_embeddings"] = groups["tie_embeddings"] == "True"
+                result["tied_embed_lr"] = float(groups["embed_lr"])
                 result["head_lr"] = float(groups["head_lr"])
                 result["matrix_lr"] = float(groups["matrix_lr"])
                 result["scalar_lr"] = float(groups["scalar_lr"])

@@ -2,10 +2,13 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-run_date="$(date +%Y%m%d)"
-run_root="${RUN_ROOT:-$repo_root/runs/$run_date}"
+launch_id_default="$(date +%Y%m%dT%H%M%S)"
+launch_id="${LAUNCH_ID:-$launch_id_default}"
+run_root="${RUN_ROOT:-$repo_root/runs/$launch_id}"
 world_size="${WORLD_SIZE_OVERRIDE:-1}"
 dry_run=0
+git_sha="$(git -C "$repo_root" rev-parse HEAD)"
+git_branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD)"
 
 for arg in "$@"; do
   case "$arg" in
@@ -56,6 +59,9 @@ export LOGIT_SOFTCAP="${LOGIT_SOFTCAP:-30}"
 export ROPE_BASE="${ROPE_BASE:-10000}"
 
 base_env_pairs=(
+  "GIT_SHA=$git_sha"
+  "GIT_BRANCH=$git_branch"
+  "LAUNCH_ID=$launch_id"
   "DATA_PATH=$DATA_PATH"
   "TOKENIZER_PATH=$TOKENIZER_PATH"
   "VOCAB_SIZE=$VOCAB_SIZE"
@@ -89,6 +95,7 @@ base_env_pairs=(
   "QK_GAIN_INIT=$QK_GAIN_INIT"
   "LOGIT_SOFTCAP=$LOGIT_SOFTCAP"
   "ROPE_BASE=$ROPE_BASE"
+  "WORLD_SIZE=$world_size"
 )
 
 configs=(

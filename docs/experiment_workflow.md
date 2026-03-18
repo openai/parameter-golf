@@ -123,14 +123,14 @@ Only promote the best candidates to `nproc_per_node=8` and the 600-second track 
 - `final_model.int8.ptz`
 - `logs/<RUN_ID>.txt`
 
-For sweeps, every run should get its own working directory. The helper script in `scripts/run_wave1_screen.sh` creates:
+For sweeps, every launcher invocation should get its own timestamped root. The helper script in `scripts/run_wave1_screen.sh` defaults to `runs/<launch_id>/`, where `launch_id` is `YYYYMMDDTHHMMSS`. Under that root it creates one working directory per run:
 
-- `runs/<date>/<run_id>/command.sh`
-- `runs/<date>/<run_id>/env.txt`
-- `runs/<date>/<run_id>/train.log`
-- `runs/<date>/<run_id>/logs/<run_id>.txt`
-- `runs/<date>/<run_id>/final_model.pt`
-- `runs/<date>/<run_id>/final_model.int8.ptz`
+- `runs/<launch_id>/<run_id>/command.sh`
+- `runs/<launch_id>/<run_id>/env.txt`
+- `runs/<launch_id>/<run_id>/train.log`
+- `runs/<launch_id>/<run_id>/logs/<run_id>.txt`
+- `runs/<launch_id>/<run_id>/final_model.pt`
+- `runs/<launch_id>/<run_id>/final_model.int8.ptz`
 
 ## Ledger Fields
 
@@ -172,7 +172,12 @@ Track at least:
 - `final_int8_zlib_roundtrip_exact_val_bpb`
 - `bytes_total_int8_zlib`
 
-The parser at `scripts/extract_run_metrics.py` emits one JSON object per run using the stable log lines already printed by `train_gpt.py`.
+The parser at `scripts/extract_run_metrics.py` emits one JSON object per run by combining:
+
+- stable metric anchors from `logs/<RUN_ID>.txt`
+- the saved `env.txt` snapshot next to that log
+
+This matters because the trainer log intentionally contains only a subset of the full experiment configuration.
 
 ## Remote Usage
 
