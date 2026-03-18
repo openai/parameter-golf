@@ -10,7 +10,6 @@ from huggingface_hub import HfApi
 
 
 DEFAULT_REPO_ID = "willdepueoai/parameter-golf"
-DEFAULT_LOCAL_EXPORT_ROOT = "/Users/Williamd/code/fineweb_quasi10b"
 DEFAULT_PATH_IN_REPO = "datasets"
 DATA_ARTIFACT_NAMES = {
     "datasets",
@@ -30,7 +29,7 @@ def repo_path(prefix: str, name: str) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Replace old dataset artifacts in a HF dataset repo with a local export")
     parser.add_argument("--repo-id", default=DEFAULT_REPO_ID)
-    parser.add_argument("--local-export-root", default=DEFAULT_LOCAL_EXPORT_ROOT)
+    parser.add_argument("--local-export-root", required=True)
     parser.add_argument("--path-in-repo", default=DEFAULT_PATH_IN_REPO, help="Subdirectory inside the dataset repo")
     parser.add_argument("--repo-type", default="dataset")
     parser.add_argument("--revision", default=None)
@@ -49,11 +48,20 @@ def main() -> None:
     prefix = args.path_in_repo.strip("/")
     top_level_local = {path.name for path in local_export_root.iterdir()}
     delete_names = sorted(DATA_ARTIFACT_NAMES | top_level_local)
+    root_entries = {
+        entry.path: entry
+        for entry in api.list_repo_tree(
+            repo_id=args.repo_id,
+            recursive=False,
+            repo_type=args.repo_type,
+            revision=args.revision,
+        )
+    }
 
     if prefix:
-        print(f"delete {prefix}")
-        if not args.dry_run:
-            try:
+        if prefix in root_entries:
+            print(f"delete {prefix}")
+            if not args.dry_run:
                 api.delete_folder(
                     prefix,
                     repo_id=args.repo_id,
@@ -61,23 +69,8 @@ def main() -> None:
                     revision=args.revision,
                     commit_message=f"Delete {prefix}",
                 )
-            except Exception:
-                pass
 
-    remote_entries = (
-        {
-            entry.path: entry
-            for entry in api.list_repo_tree(
-                repo_id=args.repo_id,
-                path_in_repo=prefix or None,
-                recursive=False,
-                repo_type=args.repo_type,
-                revision=args.revision,
-            )
-        }
-        if not prefix
-        else {}
-    )
+    remote_entries = root_entries if not prefix else {}
 
     for name in delete_names:
         if prefix:

@@ -11,8 +11,6 @@ import os
 import shutil
 from pathlib import Path
 
-import sentencepiece as spm
-
 from pure_byte_tokenizer import default_pure_byte_tokenizer
 
 
@@ -49,6 +47,8 @@ def build_pure_byte_tokenizer(*, spec, docs_jsonl, tokenizers_dir):
 
 
 def build_sentencepiece_tokenizer(*, spec, docs_jsonl, tokenizers_dir):
+    import sentencepiece as spm
+
     vocab_size = int(spec["vocab_size"])
     prefix = Path(tokenizers_dir) / spec.get("model_prefix", f"fineweb_{vocab_size}_bpe")
     model_path = prefix.with_suffix(".model")

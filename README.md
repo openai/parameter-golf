@@ -84,7 +84,7 @@ Once you're happy with your local tests, or you want more compute, switch to a r
 
 You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make setup as easy as possible.
 
-We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute credits to help people get started training their models. To request a compute grant of up to $500, use this form: [Request a Compute Grant](url).
+We also know compute is expensive, so OpenAI is sponsoring $1,000,000 in compute credits to help people get started training their models. To request a compute grant of up to $500, use this form: [Request a Compute Grant](https://openai.com/index/parameter-golf/#credit-form).
 
 #### Launching a 1xH100 Pod
 
@@ -180,8 +180,7 @@ The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching
 
 ## Support
 
-Reach out to parametergolf@openai.com for any other questions.
 
-Join the [Discord server](url).
+Join the [OpenAI Discord server](https://discord.com/invite/openai) and visit the Parameter Golf channels and ask questions.
 
 This repository adapts code from `modded-nanogpt`, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution.
