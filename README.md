@@ -79,6 +79,8 @@ python3 train_gpt_mlx.py
 
 Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
 
+For a reproducible local-to-CUDA experiment flow, including run isolation, a first-wave sweep matrix, and a ledger parser, see [docs/experiment_workflow.md](docs/experiment_workflow.md).
+
 ### Scaling Up to a Remote Machine
 
 Once you're happy with your local tests, or you want more compute, switch to a remote CUDA machine.
