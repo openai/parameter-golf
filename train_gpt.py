@@ -538,8 +538,9 @@ class FractalLinear(nn.Module):
         self.out_features = out_features
 
     def forward(self, x: Tensor) -> Tensor:
-        weight = self.dna.grow_weight(self.layer_id, self.type_id, self.out_features, self.in_features)
-        return F.linear(x, weight.to(x.dtype))
+        r, c = self.dna.get_chromosomes(self.layer_id, self.type_id, self.out_features, self.in_features)
+        step1 = F.linear(x, c.t())
+        return F.linear(step1, r)
 
 
 class RMSNorm(nn.Module):
