@@ -1,0 +1,11 @@
+{
+  "author": "PLACEHOLDER",
+  "github_id": "PLACEHOLDER",
+  "name": "DepthRecurrentQAT",
+  "blurb": "Depth-recurrent transformer (3 shared blocks x 3 loops, rank-4 LoRA deltas) with QAT fake-quantize, dim=768, LAWA weight averaging, and NTK-aware RoPE scaling for 2048-token eval; INT8+zlib compressed under 16MB",
+  "date": "PLACEHOLDER",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "bytes_total": 0,
+  "bytes_code": 0
+}
