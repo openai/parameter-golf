@@ -712,12 +712,15 @@ class GPT(nn.Module):
 
         # Overwrite first K positions with learnable memory tokens.
         # All later real tokens attend to them via causal mask.
+        # Target positions for memory slots are set to -100 (ignored by cross_entropy).
         K = self.num_memory_tokens
         if K > 0:
             mem = self.memory_tokens.expand(bsz, -1, -1).to(dtype=x.dtype)
             mem = F.rms_norm(mem, (mem.size(-1),))
             x = x.clone()
             x[:, :K, :] = mem
+            target_ids = target_ids.clone()
+            target_ids[:, :K] = -100
 
         x0 = x
         skips: list[Tensor] = []
@@ -731,14 +734,7 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
-        x = self.final_norm(x)
-
-        # Only compute loss on non-memory positions.
-        if K > 0:
-            x = x[:, K:, :].contiguous()
-            target_ids = target_ids[:, K:]
-
-        x = x.reshape(-1, x.size(-1))
+        x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -747,7 +743,7 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        return F.cross_entropy(logits.float(), targets, ignore_index=-100, reduction="mean")
 
 
 # -----------------------------
