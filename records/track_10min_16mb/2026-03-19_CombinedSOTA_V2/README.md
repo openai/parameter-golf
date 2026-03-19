@@ -1,4 +1,4 @@
-This record submission is called `Combined SOTA V2`.
+This record submission is called `ArjunAutoresearch`.
 
 ## Research Methodology
 
