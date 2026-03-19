@@ -310,17 +310,9 @@ INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS", "").split(",")
     if pattern
 )
-INT8_ROW_RESCUE_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("INT8_ROW_RESCUE_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-INT8_ROW_RESCUE_TOPK = int(os.environ.get("INT8_ROW_RESCUE_TOPK", 0))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
-INT8_ROW_RESCUE_STORE_DTYPE = torch.float16
-INT8_ROW_RESCUE_INDEX_DTYPE = torch.int16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 
@@ -368,20 +360,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     passthrough: dict[str, Tensor] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
-    row_rescue_indices: dict[str, Tensor] = {}
-    row_rescue_values: dict[str, Tensor] = {}
     stats = dict.fromkeys(
-        (
-            "param_count",
-            "num_tensors",
-            "num_float_tensors",
-            "num_nonfloat_tensors",
-            "baseline_tensor_bytes",
-            "int8_payload_bytes",
-            "row_rescue_tensors",
-            "row_rescue_rows",
-            "row_rescue_payload_bytes",
-        ),
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
         0,
     )
 
@@ -415,29 +395,9 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
-        if (
-            t.ndim == 2
-            and INT8_ROW_RESCUE_TOPK > 0
-            and any(pattern in name for pattern in INT8_ROW_RESCUE_NAME_PATTERNS)
-        ):
-            row_count = min(INT8_ROW_RESCUE_TOPK, t.shape[0])
-            if row_count > 0:
-                dequantized = q.float() * s.to(dtype=torch.float32).view(-1, 1)
-                row_error = (t.float() - dequantized).abs().mean(dim=1)
-                rescue_idx = torch.topk(row_error, k=row_count, largest=True, sorted=False).indices
-                rescue_idx = rescue_idx.to(dtype=INT8_ROW_RESCUE_INDEX_DTYPE).contiguous()
-                rescue_values = t.index_select(0, rescue_idx.to(dtype=torch.int64))
-                rescue_values = rescue_values.to(dtype=INT8_ROW_RESCUE_STORE_DTYPE).contiguous()
-                row_rescue_indices[name] = rescue_idx
-                row_rescue_values[name] = rescue_values
-                rescue_bytes = tensor_nbytes(rescue_idx) + tensor_nbytes(rescue_values)
-                stats["row_rescue_tensors"] += 1
-                stats["row_rescue_rows"] += int(rescue_idx.numel())
-                stats["row_rescue_payload_bytes"] += rescue_bytes
-                stats["int8_payload_bytes"] += rescue_bytes
 
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v2" if row_rescue_values else "int8_clean_per_row_v1",
+        "__quant_format__": "int8_clean_per_row_v1",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -447,17 +407,12 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         obj["qmeta"] = qmeta
     if passthrough_orig_dtypes:
         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
-    if row_rescue_values:
-        obj["row_rescue"] = {"indices": row_rescue_indices, "values": row_rescue_values}
     return obj, stats
 
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
-    row_rescue = obj.get("row_rescue", {})
-    row_rescue_indices = row_rescue.get("indices", {})
-    row_rescue_values = row_rescue.get("values", {})
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
@@ -468,10 +423,6 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         else:
             scale = float(s.item())
             out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
-        if name in row_rescue_values:
-            rescue_idx = row_rescue_indices[name].to(dtype=torch.int64)
-            rescue_values = row_rescue_values[name].to(dtype=dtype).contiguous()
-            out[name].index_copy_(0, rescue_idx, rescue_values)
     for name, t in obj["passthrough"].items():
         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
         out_t = t.detach().to("cpu").contiguous()
@@ -1171,12 +1122,6 @@ def main() -> None:
         quant_file_bytes = os.path.getsize("final_model.int8.ptz")
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
-        if quant_stats["row_rescue_tensors"]:
-            log0(
-                f"Int8 row rescue: tensors:{quant_stats['row_rescue_tensors']} "
-                f"rows:{quant_stats['row_rescue_rows']} payload_bytes:{quant_stats['row_rescue_payload_bytes']} "
-                f"topk:{INT8_ROW_RESCUE_TOPK}"
-            )
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
