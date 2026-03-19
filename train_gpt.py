@@ -69,6 +69,8 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
+    eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -276,6 +278,89 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    """Sliding window evaluation: each token scored with near-maximum context."""
+    seq_len = args.train_seq_len
+    stride = args.eval_stride
+    batch_seqs = args.eval_batch_seqs
+    total_tokens = val_tokens.numel() - 1
+
+    # Build window starts so every token is scored exactly once
+    # Window i scores tokens [i*stride + (seq_len - stride) : i*stride + seq_len]
+    # i.e. the last `stride` tokens of each window
+    num_windows = (total_tokens - seq_len + stride) // stride
+    # Distribute windows across ranks
+    win_start = (num_windows * rank) // world_size
+    win_end = (num_windows * (rank + 1)) // world_size
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    # Access the base model (unwrap DDP/compile if needed)
+    base = model
+    while hasattr(base, "module"):
+        base = base.module
+    while hasattr(base, "_orig_mod"):
+        base = base._orig_mod
+
+    model.eval()
+    with torch.inference_mode():
+        for batch_start in range(win_start, win_end, batch_seqs):
+            batch_end = min(batch_start + batch_seqs, win_end)
+            # Build input sequences for this batch of windows
+            inputs = []
+            for w in range(batch_start, batch_end):
+                tok_start = w * stride
+                tok_end = tok_start + seq_len + 1
+                if tok_end > val_tokens.numel():
+                    tok_end = val_tokens.numel()
+                    tok_start = tok_end - seq_len - 1
+                inputs.append(val_tokens[tok_start:tok_end])
+            batch = torch.stack(inputs).to(device=device, dtype=torch.int64)
+            x = batch[:, :-1]  # (B, seq_len)
+            y = batch[:, 1:]   # (B, seq_len)
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = base.forward_logits(x)  # (B, seq_len, vocab)
+
+            # Only score the last `stride` tokens of each window
+            score_logits = logits[:, -stride:, :].reshape(-1, logits.size(-1))
+            score_targets = y[:, -stride:].reshape(-1)
+            score_prev = x[:, -stride:].reshape(-1)
+            score_tgt = y[:, -stride:].reshape(-1)
+
+            per_token_loss = F.cross_entropy(score_logits.float(), score_targets, reduction="none")
+            val_loss_sum += per_token_loss.to(torch.float64).sum()
+            val_token_count += float(score_targets.numel())
+
+            token_bytes = base_bytes_lut[score_tgt].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[score_tgt] & ~is_boundary_token_lut[score_prev]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -726,6 +811,25 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        x = self.final_norm(x)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            logits_proj = self.lm_head(x)
+        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+
 
 # -----------------------------
 # TRAINING
@@ -1102,18 +1206,16 @@ def main() -> None:
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args,
-        model,
-        rank,
-        world_size,
-        device,
-        grad_accum_steps,
-        val_tokens,
-        base_bytes_lut,
-        has_leading_space_lut,
-        is_boundary_token_lut,
-    )
+    if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
+        q_val_loss, q_val_bpb = eval_val_sliding(
+            args, model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+    else:
+        q_val_loss, q_val_bpb = eval_val(
+            args, model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
     torch.cuda.synchronize()
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
