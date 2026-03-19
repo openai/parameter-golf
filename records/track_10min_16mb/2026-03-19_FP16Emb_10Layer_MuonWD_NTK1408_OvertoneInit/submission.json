@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-19",
+  "name": "FP16 Embed + 10L + Muon WD + NTK@1408 + Overtone Init",
+  "author": "notapplica",
+  "seed_results": {
+    "1337": {"val_loss": 2.02684236, "val_bpb": 1.20041090, "steps": 10562, "ms_per_step": 56.81},
+    "42":   {"val_loss": 2.02602033, "val_bpb": 1.19992405, "steps": 10525, "ms_per_step": 57.04},
+    "7":    {"val_loss": 2.02539598, "val_bpb": 1.19955427, "steps": 10710, "ms_per_step": 56.02}
+  },
+  "mean_val_loss": 2.02608622,
+  "mean_val_bpb": 1.19996307,
+  "p_value": 0.0003,
+  "artifact_bytes": 15351573,
+  "code_bytes": 50651
+}
