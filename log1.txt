@@ -1,0 +1,294 @@
+root@4b8ec0b88f95:/workspace/parameter-golf# MTP_NUM_HEADS=2 \
+MTP_ALPHA=0.2 \
+MTP_ALPHA_DECAY=1 \
+MTP_HEAD_LR=0.008 \
+RUN_ID=mtp_1xh100 \
+DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
+VAL_LOSS_EVERY=500 \
+torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1 | tee mtp.log
+logs/mtp_1xh100.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17059912
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9357 val_bpb:4.1077 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9357 train_time:595ms step_avg:595.34ms
+step:2/20000 train_loss:16.7414 train_time:1178ms step_avg:588.84ms
+step:3/20000 train_loss:9.4255 train_time:1785ms step_avg:594.97ms
+step:4/20000 train_loss:6.6029 train_time:2457ms step_avg:614.13ms
+step:5/20000 train_loss:6.4733 train_time:3090ms step_avg:617.91ms
+step:6/20000 train_loss:6.5959 train_time:3793ms step_avg:632.14ms
+step:7/20000 train_loss:6.3123 train_time:4484ms step_avg:640.53ms
+step:8/20000 train_loss:6.1739 train_time:5184ms step_avg:648.05ms
+step:9/20000 train_loss:6.0634 train_time:5871ms step_avg:652.35ms
+step:10/20000 train_loss:5.9695 train_time:6477ms step_avg:647.73ms
+step:200/20000 train_loss:2.7501 train_time:111499ms step_avg:557.50ms
+step:400/20000 train_loss:2.3657 train_time:216883ms step_avg:542.21ms
+step:500/20000 val_loss:2.4611 val_bpb:1.4576 train_time:275085ms step_avg:550.17ms
+step:600/20000 train_loss:2.4629 train_time:331760ms step_avg:552.93ms
+step:800/20000 train_loss:2.3040 train_time:446050ms step_avg:557.56ms
+step:1000/20000 train_loss:2.3199 train_time:558757ms step_avg:558.76ms
+step:1000/20000 val_loss:2.2863 val_bpb:1.3541 train_time:558766ms step_avg:558.77ms
+step:1078/20000 val_loss:2.2769 val_bpb:1.3485 train_time:600161ms step_avg:556.74ms
+stopping_early: wallclock_cap train_time:600161ms step:1078/20000
+peak memory allocated: 10239 MiB reserved: 10730 MiB
+Serialized model: 67224983 bytes
+Code size: 47686 bytes
+Total submission size: 67272669 bytes
+Serialized model int8+zlib: 12645206 bytes (payload:17178912 raw_torch:17224025 payload_ratio:3.91x)
+Total submission size int8+zlib: 12692892 bytes
+final_int8_zlib_roundtrip val_loss:2.2794 val_bpb:1.3500 eval_time:11088ms
+final_int8_zlib_roundtrip_exact val_loss:2.27939344 val_bpb:1.34998519
+root@4b8ec0b88f95:/workspace/parameter-golf# git remote add fork https://github.com/sp00mm/parameter-golf.git 
+root@4b8ec0b88f95:/workspace/parameter-golf# git fetch fork 
+remote: Enumerating objects: 25, done.
+remote: Counting objects: 100% (21/21), done.
+remote: Compressing objects: 100% (9/9), done.
+remote: Total 25 (delta 14), reused 19 (delta 12), pack-reused 4 (from 1)
+Unpacking objects: 100% (25/25), 13.51 KiB | 53.00 KiB/s, done.
+From https://github.com/sp00mm/parameter-golf
+ * [new branch]      0hq-patch-1         -> fork/0hq-patch-1
+ * [new branch]      0hq-patch-2         -> fork/0hq-patch-2
+ * [new branch]      main                -> fork/main
+ * [new branch]      mtp-auxiliary-heads -> fork/mtp-auxiliary-heads
+root@4b8ec0b88f95:/workspace/parameter-golf# git checkout fork/mtp-auxiliary-heads -- train_gpt.py
+root@4b8ec0b88f95:/workspace/parameter-golf# MTP_NUM_HEADS=2 \
+MTP_ALPHA=0.2 \
+MTP_ALPHA_DECAY=1 \
+MTP_HEAD_LR=0.008 \
+RUN_ID=mtp_1xh100 \
+DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
+VAL_LOSS_EVERY=500 \
+torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1 | tee mtp.log
+logs/mtp_1xh100.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:18108488
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9357 val_bpb:4.1077 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:8.3220 train_time:546ms step_avg:545.59ms
+step:2/20000 train_loss:18.0230 train_time:1095ms step_avg:547.48ms
+step:3/20000 train_loss:10.2222 train_time:8537ms step_avg:2845.53ms
+step:4/20000 train_loss:7.6992 train_time:15941ms step_avg:3985.17ms
+step:5/20000 train_loss:6.4318 train_time:23367ms step_avg:4673.44ms
+step:6/20000 train_loss:6.2890 train_time:30233ms step_avg:5038.79ms
+[rank0]:W0319 21:20:24.564000 10518 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0319 21:20:24.564000 10518 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:727)
+[rank0]:W0319 21:20:24.564000 10518 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: self._mtp_alpha == 0.024411986018812528                  # return primary_loss + self._mtp_alpha * aux_loss  # orkspace/parameter-golf/train_gpt.py:765 in forward
+[rank0]:W0319 21:20:24.564000 10518 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0319 21:20:24.564000 10518 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1193, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1076, in main
+[rank0]:     loss = model(x, y)
+[rank0]:            ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank0]:     return super().__call__(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1869, in __call__
+[rank0]:     return hijacked_callback(
+[rank0]:            ^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank0]:     result = _compile(
+[rank0]:              ^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank0]:     raise FailOnRecompileLimitHit(
+[rank0]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank0]:[W319 21:20:26.688805919 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+E0319 21:20:28.337000 10434 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 0 (pid: 10518) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-19_21:20:28
+  host      : 4b8ec0b88f95
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 10518)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+root@4b8ec0b88f95:/workspace/parameter-golf# git fetch fork
+remote: Enumerating objects: 3, done.
+remote: Counting objects: 100% (3/3), done.
+remote: Total 3 (delta 2), reused 3 (delta 2), pack-reused 0 (from 0)
+Unpacking objects: 100% (3/3), 524 bytes | 10.00 KiB/s, done.
+From https://github.com/sp00mm/parameter-golf
+   11fbc30..8fbfe69  mtp-auxiliary-heads -> fork/mtp-auxiliary-heads
+root@4b8ec0b88f95:/workspace/parameter-golf# git checkout fork/mtp-auxiliary-heads -- train_gpt.py
+root@4b8ec0b88f95:/workspace/parameter-golf# MTP_NUM_HEADS=2 \
+MTP_ALPHA=0.2 \
+MTP_ALPHA_DECAY=1 \
+MTP_HEAD_LR=0.008 \
+RUN_ID=mtp_1xh100 \
+DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
+VAL_LOSS_EVERY=500 \
+torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1 | tee mtp.log
+logs/mtp_1xh100.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:18108488
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9357 val_bpb:4.1077 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:8.3234 train_time:542ms step_avg:542.08ms
+step:2/20000 train_loss:18.0242 train_time:1138ms step_avg:569.23ms
+step:3/20000 train_loss:10.1826 train_time:1841ms step_avg:613.62ms
+step:4/20000 train_loss:7.6573 train_time:2539ms step_avg:634.67ms
+step:5/20000 train_loss:7.4055 train_time:3224ms step_avg:644.85ms
+step:6/20000 train_loss:7.4664 train_time:3739ms step_avg:623.14ms
+step:7/20000 train_loss:7.1859 train_time:4337ms step_avg:619.64ms
+step:8/20000 train_loss:7.1026 train_time:5035ms step_avg:629.36ms
+step:9/20000 train_loss:7.0074 train_time:5740ms step_avg:637.82ms
+step:10/20000 train_loss:6.8927 train_time:6436ms step_avg:643.62ms
+step:200/20000 train_loss:3.4607 train_time:113063ms step_avg:565.32ms
+step:400/20000 train_loss:2.8936 train_time:223498ms step_avg:558.74ms
+step:500/20000 val_loss:2.4605 val_bpb:1.4573 train_time:279454ms step_avg:558.91ms
+step:600/20000 train_loss:2.8676 train_time:324890ms step_avg:541.48ms
+step:800/20000 train_loss:2.5775 train_time:419316ms step_avg:524.14ms
+step:1000/20000 train_loss:2.4226 train_time:531011ms step_avg:531.01ms
+step:1000/20000 val_loss:2.2859 val_bpb:1.3538 train_time:531019ms step_avg:531.02ms
+step:1124/20000 val_loss:2.2651 val_bpb:1.3415 train_time:600090ms step_avg:533.89ms
+stopping_early: wallclock_cap train_time:600090ms step:1124/20000
+peak memory allocated: 10702 MiB reserved: 11104 MiB
+Serialized model: 67224983 bytes
+Code size: 50890 bytes
+Total submission size: 67275873 bytes
+Serialized model int8+zlib: 12666211 bytes (payload:17178912 raw_torch:17224025 payload_ratio:3.91x)
+Total submission size int8+zlib: 12717101 bytes
+final_int8_zlib_roundtrip val_loss:2.2676 val_bpb:1.3430 eval_time:16637ms
+final_int8_zlib_roundtrip_exact val_loss:2.26760969 val_bpb:1.34300619
+root@4b8ec0b88f95:/workspace/parameter-golf# Connection to 100.65.31.243 closed.
+Connection to ssh.runpod.io closed.
+atarango@atarangolap01:~/Desktop/ParameterGolf$ 
