@@ -11,3 +11,6 @@ data/docs_selected.jsonl
 logs/
 final_model.pt
 final_model.int8.ptz
+MPK_EXPERIMENTS.md
+PORTFOLIO_RUNNING_NOTES.md
+PRIVATE_*

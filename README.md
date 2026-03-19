@@ -3,6 +3,8 @@
 <br>
 <br>
 
+> Personal working fork by DJLougen. This repo tracks public-facing experiments and tooling around OpenAI's Parameter Golf challenge. Sensitive local notes, tuned configs, and generated artifacts are intentionally kept out of the public branch unless needed for an official submission.
+
 **OpenAI Model Craft Challenge: Parameter Golf** is a challenge to train the best language model that fits in a 16MB artifact and trains in under 10 minutes on 8xH100s, evaluated by compression on the FineWeb validation set (tokenizer-agnostic, bits per byte).
 
 This challenge is heavily inspired by the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where participants compete to train a model that reaches 3.28 FineWeb validation loss as quickly as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people toward unique architectures (test-time compute, aggressive parameter tying, depth recurrence, low-rank training, ...), compression schemes (low precision, QAT, bitnets, novel tokenizers, ...), and other creative submissions (test-time training, long context, megakernels ...). 
@@ -24,6 +26,23 @@ In June, we plan to hire a small cohort of early-career researchers, targeting c
 The challenge runs from March 18th to April 30th. 
 
 Happy training!
+
+## Public / Private Workflow
+
+This fork uses a simple split:
+
+- Public branch: reusable training code, generic tooling, and anything needed for eventual reproducibility.
+- Private/local files: tuned experiment logs, portfolio notes, generated model artifacts, and any sensitive iteration details that are not ready to share.
+
+Ignored private-local patterns include:
+
+- `final_model.pt`
+- `final_model.int8.ptz`
+- `MPK_EXPERIMENTS.md`
+- `PORTFOLIO_RUNNING_NOTES.md`
+- `PRIVATE_*`
+
+If I decide to make an official challenge submission, I can promote the necessary pieces from local notes into a clean public record at that time.
 
 ## Leaderboard
 
