@@ -348,7 +348,7 @@ def quantize_float_tensor(t: Tensor, bits: int = 6) -> tuple[Tensor, Tensor]:
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / float(max_val)).clamp_min(1.0 / float(max_val))
+        scale = (clip_abs / float(max_val)).clamp_min(1e-12)
         q = torch.clamp(torch.round(clipped / scale[:, None]), -max_val, max_val).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
