@@ -713,13 +713,12 @@ class GPT(nn.Module):
             for i in range(self.num_encoder_layers):
                 x = self.blocks[i](x, x0)
                 skips.append(x)
-            if _pass == 0:
-                x = F.rms_norm(x, (x.size(-1),))
-                continue
             for i in range(self.num_decoder_layers):
                 if skips:
                     x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
                 x = self.blocks[self.num_encoder_layers + i](x, x0)
+            if _pass == 0:
+                x = F.rms_norm(x, (x.size(-1),))
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
