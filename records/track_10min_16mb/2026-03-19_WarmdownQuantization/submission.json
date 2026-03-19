@@ -1,11 +1,11 @@
 {
   "author": "samuellarson",
   "github_id": "samuellarson",
-  "name": "Warmdown-Quantization",
-  "blurb": "Warmdown-quantization co-optimization with FP16 tied embeddings and NTK-RoPE eval@1408",
-  "date": "2026-03-19",
-  "val_loss": 2.05221139,
-  "val_bpb": 1.21543588,
-  "bytes_total": 15908936,
-  "bytes_code": 49177
+  "name": "Int6 MLP3x Sliding Window",
+  "blurb": "Int6 post-training quantization enables 3x MLP expansion (21.8M params in 16MB). Combined with train@2048 + sliding window eval + FP16 tied embeddings + Late-K passthrough.",
+  "date": "2026-03-20",
+  "val_loss": 1.95428963,
+  "val_bpb": 1.15744040,
+  "bytes_total": 15977717,
+  "bytes_code": 51200
 }
