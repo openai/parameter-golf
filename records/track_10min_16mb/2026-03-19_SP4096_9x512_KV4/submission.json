@@ -10,6 +10,6 @@
   "model_dim": 512,
   "num_heads": 8,
   "num_kv_heads": 4,
-  "tie_embeddings": true,
-  "notes": "Preliminary results on 1xRTX 5090: val_bpb=1.3217. Awaiting 8xH100 validation."
+  "tie_embeddings": false,
+  "notes": "Preliminary results on 1xRTX 5090: val_bpb=1.2970 (untied embeddings). Awaiting 8xH100 validation."
 }
