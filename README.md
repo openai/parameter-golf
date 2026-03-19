@@ -17,6 +17,19 @@ Current public-safe additions include:
 - automatic SDP backend fallback for local CUDA setups
 - compile toggles for easier debugging
 
+## Why This Is Worth Compute
+
+This fork exists because local experiments produced a credible positive signal on a novel architecture direction for Parameter Golf.
+
+Public-safe summary of current evidence:
+
+- local matched-budget comparisons beat a parameter-matched baseline on post-quantization `val_bpb`
+- tuned larger variants improved further once the optimizer recipe was adjusted
+- a longer local proxy run reached `final_int8_zlib_roundtrip val_bpb 2.1952`
+- that same local proxy run stayed under the 16 MB compressed artifact budget at `8,856,992` bytes
+
+The point of requesting compute is not to test a vague idea. It is to determine whether an already-promising local result survives under official challenge-like training and evaluation conditions.
+
 ## Public vs Private
 
 I am intentionally keeping some materials out of the public branch until I am ready to submit or disclose them more broadly.
