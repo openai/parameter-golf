@@ -1,0 +1,17 @@
+{
+  "author": "Kian Kyars",
+  "github_id": "kiankyars",
+  "name": "Modal 8xH100 Timed Validation",
+  "blurb": "Non-record submission: a 10-minute Modal 8xH100 run using the current root train_gpt.py snapshot and the published sp1024 export. The run stayed under the 16,000,000-byte cap, but the final int8+zlib roundtrip metric was 1.2296, so it is submitted on the non-record track.",
+  "date": "2026-03-19T00:43:59Z",
+  "val_loss": 2.07620573,
+  "val_bpb": 1.22964598,
+  "bytes_total": 15853604,
+  "bytes_code": 49353,
+  "track": "non-record-unlimited-compute-16mb",
+  "pre_quant_val_loss": 2.0622,
+  "pre_quant_val_bpb": 1.2214,
+  "step_stop": 13262,
+  "wallclock_seconds": 599.942,
+  "bytes_model_int8_zlib": 15804251
+}
