@@ -49,6 +49,10 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    # Sliding window eval: longer context windows with overlap for more accurate BPB.
+    # eval_seq_len=0 means use train_seq_len. eval_stride=0 means non-overlapping.
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 0))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 0))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
@@ -231,40 +235,86 @@ def eval_val(
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    #
+    # When EVAL_SEQ_LEN > 0 and EVAL_STRIDE < EVAL_SEQ_LEN, uses sliding window
+    # evaluation: overlapping windows where only the last `stride` tokens per window
+    # are scored. This gives scored tokens more context for lower-variance BPB.
+    # When EVAL_SEQ_LEN=0 (default), uses the original fast non-overlapping eval.
+    eval_seq_len = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
+    eval_stride = args.eval_stride if args.eval_stride > 0 else eval_seq_len
+    use_sliding = eval_stride < eval_seq_len
+
     local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
-    if local_batch_tokens < args.train_seq_len:
+    if local_batch_tokens < eval_seq_len:
         raise ValueError(
             "VAL_BATCH_SIZE must provide at least one sequence per rank; "
             f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
-            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, EVAL_SEQ_LEN={eval_seq_len}"
         )
-    local_batch_seqs = local_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
-    seq_start = (total_seqs * rank) // world_size
-    seq_end = (total_seqs * (rank + 1)) // world_size
+    local_batch_seqs = max(1, local_batch_tokens // eval_seq_len)
+
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     model.eval()
     with torch.inference_mode():
-        for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
-            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-            raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
-            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, args.train_seq_len)
-            y = local[1:].reshape(-1, args.train_seq_len)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                batch_loss = model(x, y).detach()
-            batch_token_count = float(y.numel())
-            val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
-            val_token_count += batch_token_count
-            prev_ids = x.reshape(-1)
-            tgt_ids = y.reshape(-1)
-            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
-            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
-            val_byte_count += token_bytes.to(torch.float64).sum()
+        if not use_sliding:
+            # ---- FAST PATH: non-overlapping contiguous windows (original logic) ----
+            total_seqs = (val_tokens.numel() - 1) // eval_seq_len
+            seq_start = (total_seqs * rank) // world_size
+            seq_end = (total_seqs * (rank + 1)) // world_size
+            for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+                batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+                raw_start = batch_seq_start * eval_seq_len
+                raw_end = batch_seq_end * eval_seq_len + 1
+                local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+                x = local[:-1].reshape(-1, eval_seq_len)
+                y = local[1:].reshape(-1, eval_seq_len)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    batch_loss = model(x, y).detach()
+                batch_token_count = float(y.numel())
+                val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
+                val_token_count += batch_token_count
+                prev_ids = x.reshape(-1)
+                tgt_ids = y.reshape(-1)
+                token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+                token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+                val_byte_count += token_bytes.to(torch.float64).sum()
+        else:
+            # ---- SLIDING WINDOW: overlapping windows, score only last stride tokens ----
+            n = val_tokens.numel() - 1
+            total_windows = max(1, (n - eval_seq_len) // eval_stride + 1)
+            win_start = (total_windows * rank) // world_size
+            win_end = (total_windows * (rank + 1)) // world_size
+            score_start = eval_seq_len - eval_stride
+
+            for batch_start in range(win_start, win_end, local_batch_seqs):
+                batch_end = min(batch_start + local_batch_seqs, win_end)
+                x_list: list[Tensor] = []
+                y_list: list[Tensor] = []
+                for wi in range(batch_start, batch_end):
+                    tok_start = wi * eval_stride
+                    window = val_tokens[tok_start : tok_start + eval_seq_len + 1].to(dtype=torch.int64)
+                    x_list.append(window[:-1])
+                    y_win = window[1:].clone()
+                    y_win[:score_start] = -100
+                    y_list.append(y_win)
+
+                x = torch.stack(x_list).to(device=device, non_blocking=True)
+                y = torch.stack(y_list).to(device=device, non_blocking=True)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    batch_loss = model(x, y).detach()
+                scored_mask = y != -100
+                batch_scored = float(scored_mask.sum().item())
+                val_loss_sum += batch_loss.to(torch.float64) * batch_scored
+                val_token_count += batch_scored
+                mask_flat = scored_mask.reshape(-1)
+                scored_prev = x.reshape(-1)[mask_flat]
+                scored_tgt = y.reshape(-1)[mask_flat]
+                token_bytes = base_bytes_lut[scored_tgt].to(dtype=torch.int16)
+                token_bytes += (has_leading_space_lut[scored_tgt] & ~is_boundary_token_lut[scored_prev]).to(dtype=torch.int16)
+                val_byte_count += token_bytes.to(torch.float64).sum()
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
