@@ -189,10 +189,10 @@ Bias:
 Order:
 
 - stabilize `sp1024`
-- then try `byte260` with explicit tokenizer support
 - then `sp4096`
+- only revisit `byte260` after the trainers gain non-SentencePiece tokenizer support
 
-Tokenizer work only after one `sp1024` branch clearly beats the baseline proxy and the eval pipeline is trusted. The run-command helper auto-generates `sp*` variants; `byte260` still needs an explicit tokenizer path.
+Tokenizer work only after one `sp1024` branch clearly beats the baseline proxy and the eval pipeline is trusted. The run-command helper auto-generates `sp*` variants only. `byte260` is deliberately blocked for now because the current trainers only support SentencePiece `.model` tokenizers.
 
 ## First 8 runs
 

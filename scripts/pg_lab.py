@@ -427,6 +427,15 @@ def variant_tokenizer_path(variant: str) -> str | None:
     return None
 
 
+def ensure_variant_supported_by_trainers(variant: str) -> None:
+    if variant == "byte260":
+        raise SystemExit(
+            "byte260 is not supported by the current trainers. "
+            "Both train_gpt.py and train_gpt_mlx.py currently require SentencePiece .model tokenizers, "
+            "while byte260 is exported as a pure-byte JSON tokenizer. Use an sp* variant for now."
+        )
+
+
 def ensure_submission_ready(result: dict[str, Any]) -> None:
     if result.get("val_loader_subset"):
         subset = result["val_loader_subset"]
@@ -611,6 +620,7 @@ def cmd_prepare_record(args: argparse.Namespace) -> int:
 def cmd_command(args: argparse.Namespace) -> int:
     env = dict(PROFILE_ENVS[args.profile])
     if args.variant:
+        ensure_variant_supported_by_trainers(args.variant)
         dataset_path, tokenizer_path = default_paths_for_variant(args.variant)
         env["DATA_PATH"] = dataset_path
         vocab_size = variant_vocab_size(args.variant)
