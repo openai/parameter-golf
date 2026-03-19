@@ -672,8 +672,7 @@ class GPT(nn.Module):
             nn.GELU(),
             CastedLinear(model_dim, model_dim, bias=False),
         )
-        enc_override = int(os.environ.get("NUM_ENCODER_LAYERS", 0))
-        self.num_encoder_layers = enc_override if enc_override > 0 else num_layers // 2
+        self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
