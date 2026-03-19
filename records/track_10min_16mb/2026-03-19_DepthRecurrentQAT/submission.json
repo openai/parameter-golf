@@ -1,0 +1,19 @@
+{
+    "author": "hacksurvivor",
+    "name": "Depth-Recurrent QAT Transformer",
+    "date": "2026-03-19",
+    "val_bpb": null,
+    "val_loss": null,
+    "artifact_bytes": null,
+    "status": "wip",
+    "config": {
+        "model_dim": 768,
+        "num_layers": 3,
+        "num_loops": 4,
+        "num_heads": 12,
+        "num_kv_heads": 6,
+        "mlp_mult": 2,
+        "lora_rank": 4,
+        "vocab_size": 1024
+    }
+}
