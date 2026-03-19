@@ -6,111 +6,84 @@ metadata:
   version: "1.0"
 ---
 
-# Parameter Golf AutoResearch
+# AutoResearch
 
-Six-phase workflow for beating the openai/parameter-golf leaderboard.
+Systematic workflow for winning ML competitions where competitors share approaches via PRs.
 
-## Phase 1: Pull and rank all competitor PRs
+## Phase 1: Gather all candidate approaches
 
-Fetch every PR's metadata and diff in one shot:
-
-```bash
-scripts/pull-pr-diffs.sh openai/parameter-golf pr_diffs 60
-```
-
-This saves `pr_<number>_view.txt` and `pr_<number>_diff.txt` for each PR into the output directory. Then sort each technique into three buckets:
-
-| Tier | Criteria | Examples |
-|------|----------|---------|
-| **High** | Verified score on 8xH100 | Sliding window eval, seq_len tuning, fp16 embed |
-| **Medium** | Promising but untested at scale | QAT, mixed-precision layers |
-| **Low** | Negative or architecture-specific | Warmdown-only, depth recurrence |
-
-Per PR, note: score delta, artifact size impact, step time change, quant gap.
-
-## Phase 2: Compose the config
-
-Stack High-tier techniques in BPB-impact order. Key interactions to watch:
-
-- **fp16 embed + low LR** already brings quant gap to ~0.001 — QAT is redundant and slows steps
-- **seq_len=4096 + eval_batch_seqs=1024** — OOM (4.2M tokens/fwd pass). Use `eval_batch_seqs=128`
-- **val_loss_every > 0** eats ~20s of training budget at seq_len=4096 — set to 0
-
-Best validated config (1.18335372 BPB, 8xH100 SXM):
+Fetch every PR's metadata and diff:
 
 ```bash
-TRAIN_SEQ_LEN=4096         # 4x richer context per step
-TRAIN_BATCH_TOKENS=393216  # 3/4 batch = more steps per minute
-MATRIX_LR=0.02             # halved — lower quant gap, smoother convergence
-SCALAR_LR=0.02
-TIED_EMBED_LR=0.03
-MUON_MOMENTUM=0.99
-MUON_MOMENTUM_WARMUP_STEPS=1500
-MUON_MOMENTUM_WARMUP_START=0.92
-WARMDOWN_ITERS=3000
-MLP_HIDDEN=992             # trim MLP to fit fp16 embedding under 16MB
-QAT=0                      # redundant with fp16 embed
-VAL_LOSS_EVERY=0           # skip mid-run evals, saves ~300 steps
-EVAL_STRIDE=64             # each token gets ~4032 tokens of context
-EVAL_BATCH_SEQS=128        # safe at seq_len=4096
+scripts/pull-pr-diffs.sh <org>/<repo> pr_diffs 60
 ```
 
-## Phase 3: Run and watch the log
+This saves `pr_<number>_view.txt` and `pr_<number>_diff.txt` for each PR. Read through all diffs and extract:
 
-```bash
-RUN_ID=<name> SEED=1337 DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-VOCAB_SIZE=1024 MLP_HIDDEN=992 MAX_WALLCLOCK_SECONDS=600 \
-torchrun --standalone --nproc_per_node=8 train_gpt.py
-```
+- **What** the technique does
+- **Score** achieved (and whether it was verified on target hardware)
+- **Side effects** on artifact size, step time, memory
 
-In `logs/<RUN_ID>.txt`, look for:
-- `step_avg` ~55-65ms/step is healthy
-- `final_eval_mode:sliding_window stride:64 batch_seqs:128` — eval started
-- `final_int8_zlib_roundtrip_exact val_bpb:<score>` — final score
+Sort into three tiers:
 
-If the log stops after `final_eval_mode:...` with no score, the sliding window eval OOM'd. Halve `EVAL_BATCH_SEQS` and rerun.
+| Tier | Criteria |
+|------|----------|
+| **High** | Verified improvement on target hardware, clean mechanism |
+| **Medium** | Promising idea, but no verified run or unclear interactions |
+| **Low** | Negative result, breaks constraints, or too architecture-specific |
 
-## Phase 4: Run 3 seeds for significance
+## Phase 2: Compose the best combination
 
-The challenge requires p < 0.01 beating SOTA by >= 0.005 BPB. Repeat Phase 3 with SEED=1338 and SEED=1339, then:
+Stack High-tier techniques in order of expected gain. The hard part is catching interactions — techniques that work alone can hurt each other.
+
+**General patterns to watch for:**
+
+- **Redundant defenses**: If technique A already solves a problem (e.g. quantization gap), technique B targeting the same problem adds overhead for no gain. Remove B.
+- **Memory budget conflicts**: Stacking changes that each increase memory (larger batch, longer sequences, bigger eval windows) can OOM. Estimate total memory before running.
+- **Time budget tradeoffs**: Any change that slows per-step time means fewer total steps under a wallclock cap. The per-step quality gain must outweigh the lost steps.
+- **Size budget math**: If the artifact has a size cap, changes that grow the model (larger vocab, fp16 tensors) need to be offset by trimming elsewhere (smaller hidden dims, fewer layers).
+
+Write down the composed config before running. Note which techniques you kept, which you dropped, and why.
+
+## Phase 3: Run, watch, iterate
+
+Run the experiment and monitor the log in real time. Things to look for:
+
+- **Step timing**: Is it in the expected range? Much slower than expected may mean an unintended overhead got compiled in.
+- **Loss trajectory**: Compare to reference runs at the same step counts. If you're tracking behind, something is wrong.
+- **Eval completion**: If the run finishes training but the eval crashes (e.g. OOM), you need to reduce eval batch size and rerun — don't waste a full training run.
+- **Artifact size**: Check the final compressed size against the cap before celebrating the score.
+
+After the first run, review what worked and what didn't. Drop anything that hurt, adjust parameters, and run again. Two to three iterations usually converges.
+
+## Phase 4: Establish statistical significance
+
+Most challenges require multiple seeds to prove the result isn't a fluke. Three seeds is standard. Run the same config with different random seeds, then:
 
 ```python
-threshold = current_SOTA - 0.005
-t = (threshold - mean_bpb) / (std_bpb / sqrt(3))
-# Need t > 6.965 for p < 0.01 (df=2, one-tailed)
+from math import sqrt
+
+scores = [seed1_score, seed2_score, seed3_score]
+mean = sum(scores) / len(scores)
+std = (sum((x - mean)**2 for x in scores) / (len(scores) - 1)) ** 0.5
+threshold = current_best - required_margin
+
+t = (threshold - mean) / (std / sqrt(len(scores)))
+# For 3 seeds (df=2): need t > 6.965 for p < 0.01 one-tailed
 ```
 
 ## Phase 5: Package the submission
 
-```
-records/track_10min_16mb/YYYY-MM-DD_<Name>/
-├── README.md
-├── submission.json
-├── train.log
-├── train_seed1338.log
-├── train_seed1339.log
-└── train_gpt.py
-```
+Follow whatever format the challenge requires. Common elements:
 
-Run command in README must use the full path:
-```bash
-torchrun --standalone --nproc_per_node=8 \
-  records/track_10min_16mb/<Name>/train_gpt.py
-```
+- **README**: what you did, config, run command, metrics, significance stats
+- **submission.json**: author info, score, artifact size
+- **Train logs**: one per seed
+- **Training script**: must be standalone and runnable from the submission folder
 
-Artifact check: `bytes_model_int8_zlib + bytes_code < 16,000,000`
+## Gotchas
 
-## Phase 6: PR checklist
-
-- [ ] PR only adds the new `records/` folder — no root `train_gpt.py` changes
-- [ ] `train_gpt.py` is under 1500 lines
-- [ ] `val_bpb` in `submission.json` matches the exact log line
-- [ ] README has t-statistic, df, and p-value
-- [ ] Artifact is under 16MB
-
-## Reference
-
-- Baseline: 1.2244 BPB
-- Best result with this workflow: **1.18335372** (mean 1.18418 across 3 seeds, std 0.00075)
-- Sliding window eval takes ~4-5 min at seq_len=4096 on 8xH100
+- **Run command paths**: If reviewers run your script from the repo root, the run command in your README needs the full path to your script, not just `train_gpt.py`.
+- **Leaking root files into the PR**: If you modified shared files during development, revert them before opening the PR. The submission should only add your folder.
+- **Eval OOM on longer sequences**: If you trained at a longer sequence length than the baseline, the eval may need a much smaller batch size. A 4x longer sequence can need an 8x smaller eval batch.
+- **Intermediate validation burns time**: Under a wallclock cap, every mid-training eval pass is time you could have spent training. Disable periodic eval for final scored runs.
