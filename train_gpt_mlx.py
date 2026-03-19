@@ -26,11 +26,23 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 from mlx.utils import tree_flatten, tree_unflatten
 
+from bitlinear import BitLinear
+
 # ==============================================================================
 # SHARD FORMAT + COMPUTE DTYPE
 # ==============================================================================
 
 COMPUTE_DTYPE = mx.bfloat16
+
+USE_BITLINEAR = False
+
+NUM_SHARED_BLOCKS = 3
+NUM_REPEATS = 4
+
+
+def _make_linear(in_dim: int, out_dim: int):
+    """Block-local linear layer: BitLinear when enabled, CastedLinear otherwise."""
+    return BitLinear(in_dim, out_dim) if USE_BITLINEAR else CastedLinear(in_dim, out_dim)
 
 # ==============================================================================
 # HYPERPARAMETERS
@@ -66,7 +78,7 @@ class Hyperparameters:
     # Model (defaults match the current baseline setup).
     vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers: int = int(os.environ.get("NUM_LAYERS", 9))
-    model_dim: int = int(os.environ.get("MODEL_DIM", 512))
+    model_dim: int = int(os.environ.get("MODEL_DIM", 1024))
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
     mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
@@ -339,12 +351,48 @@ class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = dim * mlp_mult
-        self.fc = CastedLinear(dim, hidden)
-        self.proj = CastedLinear(hidden, dim)
+        self.fc = _make_linear(dim, hidden)
+        self.proj = _make_linear(hidden, dim)
 
     def __call__(self, x: mx.array) -> mx.array:
         x = nn.relu(self.fc(x))
         return self.proj(x * x)
+
+
+# Experimental PhiDelay-style sequence mixer replacing attention for parameter-efficiency experiments.
+class PhiDelayLayer(nn.Module):
+    def __init__(self, dim: int, num_heads: int = 8, max_delay: int = 16):
+        super().__init__()
+        if dim % num_heads != 0:
+            raise ValueError("dim must be divisible by num_heads")
+        self.dim = dim
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.max_delay = max_delay
+        self.alpha = mx.full((num_heads,), 0.1, dtype=mx.float32)
+        self.beta = mx.zeros((num_heads,), dtype=mx.float32)
+        self.gate = mx.array(0.0, dtype=mx.float32)
+        self.proj = _make_linear(dim, dim)
+
+    def __call__(self, x: mx.array) -> mx.array:
+        B, T, C = x.shape
+        H, D = self.num_heads, self.head_dim
+        xh = x.reshape(B, T, H, D)                                          # (B, T, H, D)
+        var = mx.mean(mx.var(xh, axis=1, keepdims=True), axis=-1, keepdims=True)  # (B, 1, H, 1)
+        alpha = self.alpha.reshape(1, 1, H, 1)
+        beta = self.beta.reshape(1, 1, H, 1)
+        tau = mx.clip(alpha * var + beta, 0, self.max_delay)                 # (B, 1, H, 1)
+        idx = mx.arange(T).astype(mx.float32).reshape(1, T, 1, 1)
+        shifted_idx = mx.clip(idx - tau, 0, T - 1)
+        idx0 = mx.floor(shifted_idx).astype(mx.int32)
+        idx1 = mx.clip(idx0 + 1, 0, T - 1)
+        w = shifted_idx - idx0.astype(mx.float32)
+        idx0_exp = mx.broadcast_to(idx0, (B, T, H, D))
+        idx1_exp = mx.broadcast_to(idx1, (B, T, H, D))
+        x0 = mx.take_along_axis(xh, idx0_exp, axis=1)
+        x1 = mx.take_along_axis(xh, idx1_exp, axis=1)
+        x_shifted = ((1 - w) * x0 + w * x1).reshape(B, T, C)
+        return x + self.gate * self.proj(x_shifted)
 
 
 class Block(nn.Module):
@@ -360,7 +408,7 @@ class Block(nn.Module):
         super().__init__()
         self.attn_norm = RMSNormNoWeight()
         self.mlp_norm = RMSNormNoWeight()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = PhiDelayLayer(dim, num_heads=num_heads)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
@@ -377,8 +425,7 @@ class Block(nn.Module):
 
 class GPT(nn.Module):
     # - token embedding + RMSNorm
-    # - encoder half accumulates skip tensors
-    # - decoder half consumes reversed skips with learned skip_weights
+    # - NUM_SHARED_BLOCKS physical blocks applied NUM_REPEATS times (recurrent weight sharing)
     # - tied embeddings for the LM head (the baseline default setup)
     def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
@@ -390,14 +437,13 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
 
         self.tok_emb = nn.Embedding(vocab_size, dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-        self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
+        self.num_shared_blocks = NUM_SHARED_BLOCKS
+        self.num_repeats = NUM_REPEATS
         self.blocks = [
             Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
-            for i in range(num_layers)
+            for _ in range(NUM_SHARED_BLOCKS)
         ]
+        self.repeat_gates = [mx.array(1.0, dtype=mx.float32) for _ in range(NUM_SHARED_BLOCKS)]
         self.final_norm = RMSNormNoWeight()
 
         for b in self.blocks:
@@ -414,18 +460,10 @@ class GPT(nn.Module):
     def __call__(self, input_ids: mx.array) -> mx.array:
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
         x0 = x
-        skips: list[mx.array] = []
-
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            # Odd layer counts have one more decoder block than encoder block. The baseline only
-            # applies a skip connection when one exists, then runs the remaining decoder block(s)
-            # without an added skip.
-            if skips:
-                x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        for _ in range(self.num_repeats):
+            for block, gate in zip(self.blocks, self.repeat_gates):
+                x_new = block(x, x0)
+                x = x + gate.astype(x.dtype) * (x_new - x)
         return self.final_norm(x)
 
     def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
@@ -495,7 +533,7 @@ class SplitOptimizers:
         self.scalar_keys = [
             k
             for k, p in params.items()
-            if k == "skip_weights" or (k.startswith("blocks.") and (p.ndim < 2 or any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)))
+            if k == "skip_weights" or k.startswith("repeat_gates.") or (k.startswith("blocks.") and (p.ndim < 2 or any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)))
         ]
 
         self.muon = Muon(self.matrix_keys, params, args)
@@ -775,7 +813,13 @@ def eval_val(
     total_loss = mx.array(0.0, dtype=mx.float32)
     total_tokens = 0.0
     total_bytes = 0.0
+    # Limit validation batches for local MLX testing (avoids scanning full dataset).
+    max_val_batches = int(os.environ.get("MAX_VAL_BATCHES", 0))
+    val_batch_idx = 0
     for batch_seq_start in range(0, total_seqs, val_batch_seqs):
+        if max_val_batches > 0 and val_batch_idx >= max_val_batches:
+            break
+        val_batch_idx += 1
         batch_seq_end = min(batch_seq_start + val_batch_seqs, total_seqs)
         raw_start = batch_seq_start * args.train_seq_len
         raw_end = batch_seq_end * args.train_seq_len + 1
@@ -904,6 +948,17 @@ def main() -> None:
 
     # Print config once so logs are self-describing.
     n_params = sum(int(np.prod(p.shape)) for _, p in tree_flatten(model.parameters()))
+
+    # BitLinear parameter accounting.
+    if USE_BITLINEAR:
+        _bit_modules, _cast_modules = [], []
+        for i, b in enumerate(model.blocks):
+            for name, mod in [("attn.proj", b.attn.proj), ("mlp.fc", b.mlp.fc), ("mlp.proj", b.mlp.proj)]:
+                tag = f"blocks.{i}.{name}"
+                (_bit_modules if isinstance(mod, BitLinear) else _cast_modules).append(tag)
+        log(f"bitlinear:enabled replaced={_bit_modules}")
+        log(f"bitlinear:unchanged modules=[tok_emb, lm_head(tied), norms, scales, resid_mix] + {_cast_modules or 'none'}")
+        log(f"bitlinear:total_params={n_params}")
     log(f"run_id:{args.run_id}")
     log(f"mlx_version:{mx.__version__}")
     log(f"train_loader:shards pattern={args.train_files}")
@@ -921,6 +976,7 @@ def main() -> None:
     log(f"tokenizer_path:{args.tokenizer_path}")
     log(
         f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} "
+        f"shared_blocks:{NUM_SHARED_BLOCKS} repeats:{NUM_REPEATS} effective_depth:{NUM_SHARED_BLOCKS * NUM_REPEATS} "
         f"dim:{args.model_dim} heads:{args.num_heads} kv_heads:{args.num_kv_heads} "
         f"seq_len:{args.train_seq_len} tie_embeddings:{args.tie_embeddings}"
     )
@@ -941,8 +997,7 @@ def main() -> None:
     log(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
     log(
         f"dtypes tok_emb:{model.tok_emb.weight.dtype} "
-        f"linear_weight:{model.blocks[0].attn.c_q.weight.dtype} "
-        f"skip_weights:{model.skip_weights.dtype}"
+        f"linear_weight:{model.blocks[0].attn.proj.weight.dtype}"
     )
 
     # ==============================================================================

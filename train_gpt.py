@@ -617,6 +617,41 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
+# Experimental PhiDelay-style sequence mixer replacing attention for parameter-efficiency experiments.
+class PhiDelayLayer(nn.Module):
+    def __init__(self, dim: int, num_heads: int = 8, max_delay: int = 16):
+        super().__init__()
+        if dim % num_heads != 0:
+            raise ValueError("dim must be divisible by num_heads")
+        self.dim = dim
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.max_delay = max_delay
+        self.alpha = nn.Parameter(torch.full((num_heads,), 0.1))
+        self.beta = nn.Parameter(torch.zeros(num_heads))
+        self.gate = nn.Parameter(torch.tensor(0.0))
+        self.proj = CastedLinear(dim, dim, bias=False)
+        self.proj._zero_init = True
+
+    def forward(self, x: Tensor) -> Tensor:
+        B, T, C = x.shape
+        H, D = self.num_heads, self.head_dim
+        xh = x.reshape(B, T, H, D)                                     # (B, T, H, D)
+        var = torch.var(xh, dim=1, keepdim=True).mean(dim=-1, keepdim=True)  # (B, 1, H, 1)
+        alpha = self.alpha.view(1, 1, H, 1)
+        beta = self.beta.view(1, 1, H, 1)
+        tau = (alpha * var + beta).clamp(0, self.max_delay)             # (B, 1, H, 1)
+        idx = torch.arange(T, device=x.device).float().view(1, T, 1, 1)
+        shifted_idx = (idx - tau).clamp(0, T - 1)
+        idx0 = shifted_idx.floor().long()
+        idx1 = (idx0 + 1).clamp(max=T - 1)
+        w = shifted_idx - idx0.float()
+        x0 = torch.gather(xh, 1, idx0.expand(B, T, H, D))
+        x1 = torch.gather(xh, 1, idx1.expand(B, T, H, D))
+        x_shifted = ((1 - w) * x0 + w * x1).reshape(B, T, C)
+        return x + self.gate * self.proj(x_shifted)
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -630,7 +665,7 @@ class Block(nn.Module):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = PhiDelayLayer(dim, num_heads=num_heads)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
