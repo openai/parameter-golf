@@ -1,0 +1,32 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-19",
+  "name": "10-Layer + Muon WD + NTK Eval + Overtone Init",
+  "author": "notapplica",
+  "description": "10 transformer layers (up from 9) with decoupled weight decay for Muon-optimized matrix params, overtone spectral embedding init, phase-transition residual mixing, NTK-aware RoPE eval@2048.",
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.03123284,
+      "val_bpb": 1.20301050,
+      "steps": 10605,
+      "ms_per_step": 56.58
+    },
+    "42": {
+      "val_loss": 2.02877662,
+      "val_bpb": 1.20155579,
+      "steps": 10606,
+      "ms_per_step": 56.57
+    },
+    "7": {
+      "val_loss": 2.03301783,
+      "val_bpb": 1.20406767,
+      "steps": 10605,
+      "ms_per_step": 56.49
+    }
+  },
+  "mean_val_loss": 2.03100910,
+  "mean_val_bpb": 1.20287799,
+  "p_value": 0.000560,
+  "artifact_bytes": 15039175,
+  "code_bytes": 50269
+}

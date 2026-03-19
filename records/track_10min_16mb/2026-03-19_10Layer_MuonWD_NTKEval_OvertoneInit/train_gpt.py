@@ -62,7 +62,7 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -1069,7 +1069,7 @@ def main() -> None:
         # Decoupled weight decay for Muon-optimized matrix params (not built into Muon)
         with torch.no_grad():
             for p in matrix_params:
-                p.mul_(1.0 - 0.01 * optimizer_muon.param_groups[0]["lr"])
+                p.mul_(1.0 - 0.02 * optimizer_muon.param_groups[0]["lr"])
         zero_grad_all()
 
         step += 1
