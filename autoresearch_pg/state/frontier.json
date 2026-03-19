@@ -1,23 +1,44 @@
 {
   "best_by_family": {
     "architecture": {
-      "bytes_total": 2952414,
-      "candidate_id": "port_architecture_20260319_023023_5357",
-      "mutation_operator": "depth_sweep",
+      "bytes_total": 9443899,
+      "candidate_id": "cod_architecture_20260319_030157_4144",
+      "mutation_operator": "codex_proposal",
       "mutation_payload": {
-        "env_overrides": {
-          "NUM_LAYERS": 6
+        "artifacts": {
+          "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_context_latest.json",
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_context_20260319_030157.json",
+          "engine": "codex",
+          "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_last_message_latest.md",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_last_message_20260319_030157.md",
+          "model": "gpt-5.4",
+          "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_prompt_latest.md",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_prompt_20260319_030157.md",
+          "reasoning_effort": "xhigh",
+          "return_code": 0,
+          "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_exec_latest.jsonl",
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_exec_20260319_030157.jsonl"
         },
-        "operator_type": "env_choice"
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "proposal_engine": "codex",
+        "proposal_mode": "deep",
+        "proposal_mode_reasons": [
+          "architecture defaults to deep mode",
+          "top same-tier family contenders are within 0.0030 BPB"
+        ],
+        "reasoning_effort": "xhigh"
       },
-      "parent_candidate_id": "port_architecture_20260319_022832_5187",
-      "post_quant_val_bpb": 3.24020662,
-      "pre_quant_val_bpb": 3.2153,
+      "parent_candidate_id": "port_architecture_20260319_023023_5357",
+      "post_quant_val_bpb": 2.94656776,
+      "pre_quant_val_bpb": 2.941,
       "primary_family": "architecture",
-      "proxy_score": 3.24020662,
-      "quant_gap_bpb": 0.02490661999999988,
-      "run_dir": "autoresearch_pg/runs/port_architecture_20260319_023023_5357/smoke_mlx_local/port_architecture_20260319_023023_5357_smoke_mlx_local_20260319_023023",
-      "run_id": "port_architecture_20260319_023023_5357_smoke_mlx_local_20260319_023023",
+      "proxy_score": 2.94656776,
+      "quant_gap_bpb": 0.005567760000000366,
+      "run_dir": "autoresearch_pg/runs/cod_architecture_20260319_030157_4144/smoke_mlx_local/cod_architecture_20260319_030157_4144_smoke_mlx_local_20260319_030809",
+      "run_id": "cod_architecture_20260319_030157_4144_smoke_mlx_local_20260319_030809",
       "template_id": null,
       "tier": "smoke_mlx_local",
       "valid": true
@@ -63,23 +84,23 @@
     "systems": null,
     "tokenizer": null,
     "training_recipe": {
-      "bytes_total": 6475490,
-      "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967",
+      "bytes_total": 6370063,
+      "candidate_id": "rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194",
       "mutation_operator": "replicate",
       "mutation_payload": {
         "operator_type": "replicate",
-        "replication_of": "cod_training_recipe_20260318_235033_8561",
-        "source_run_id": "cod_training_recipe_20260318_235033_8561_smoke_mlx_local_20260318_235408",
+        "replication_of": "port_training_recipe_20260319_025140_4806",
+        "source_run_id": "port_training_recipe_20260319_025140_4806_smoke_mlx_local_20260319_025140",
         "source_tier": "smoke_mlx_local"
       },
-      "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
-      "post_quant_val_bpb": 2.83917722,
-      "pre_quant_val_bpb": 2.8354,
+      "parent_candidate_id": "port_training_recipe_20260319_025140_4806",
+      "post_quant_val_bpb": 2.80694456,
+      "pre_quant_val_bpb": 2.8014,
       "primary_family": "training_recipe",
-      "proxy_score": 2.83917722,
-      "quant_gap_bpb": 0.0037772199999999145,
-      "run_dir": "autoresearch_pg/runs/rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967/smoke_mlx_local/rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967_smoke_mlx_local_20260319_021109",
-      "run_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967_smoke_mlx_local_20260319_021109",
+      "proxy_score": 2.80694456,
+      "quant_gap_bpb": 0.005544559999999699,
+      "run_dir": "autoresearch_pg/runs/rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194/smoke_mlx_local/rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194_smoke_mlx_local_20260319_030832",
+      "run_id": "rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194_smoke_mlx_local_20260319_030832",
       "template_id": null,
       "tier": "smoke_mlx_local",
       "valid": true
@@ -141,23 +162,44 @@
       "valid": true
     },
     {
-      "bytes_total": 2952414,
-      "candidate_id": "port_architecture_20260319_023023_5357",
-      "mutation_operator": "depth_sweep",
+      "bytes_total": 9443899,
+      "candidate_id": "cod_architecture_20260319_030157_4144",
+      "mutation_operator": "codex_proposal",
       "mutation_payload": {
-        "env_overrides": {
-          "NUM_LAYERS": 6
+        "artifacts": {
+          "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_context_latest.json",
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_context_20260319_030157.json",
+          "engine": "codex",
+          "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_last_message_latest.md",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_last_message_20260319_030157.md",
+          "model": "gpt-5.4",
+          "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_prompt_latest.md",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_prompt_20260319_030157.md",
+          "reasoning_effort": "xhigh",
+          "return_code": 0,
+          "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_exec_latest.jsonl",
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_exec_20260319_030157.jsonl"
         },
-        "operator_type": "env_choice"
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "proposal_engine": "codex",
+        "proposal_mode": "deep",
+        "proposal_mode_reasons": [
+          "architecture defaults to deep mode",
+          "top same-tier family contenders are within 0.0030 BPB"
+        ],
+        "reasoning_effort": "xhigh"
       },
-      "parent_candidate_id": "port_architecture_20260319_022832_5187",
-      "post_quant_val_bpb": 3.24020662,
-      "pre_quant_val_bpb": 3.2153,
+      "parent_candidate_id": "port_architecture_20260319_023023_5357",
+      "post_quant_val_bpb": 2.94656776,
+      "pre_quant_val_bpb": 2.941,
       "primary_family": "architecture",
-      "proxy_score": 3.24020662,
-      "quant_gap_bpb": 0.02490661999999988,
-      "run_dir": "autoresearch_pg/runs/port_architecture_20260319_023023_5357/smoke_mlx_local/port_architecture_20260319_023023_5357_smoke_mlx_local_20260319_023023",
-      "run_id": "port_architecture_20260319_023023_5357_smoke_mlx_local_20260319_023023",
+      "proxy_score": 2.94656776,
+      "quant_gap_bpb": 0.005567760000000366,
+      "run_dir": "autoresearch_pg/runs/cod_architecture_20260319_030157_4144/smoke_mlx_local/cod_architecture_20260319_030157_4144_smoke_mlx_local_20260319_030809",
+      "run_id": "cod_architecture_20260319_030157_4144_smoke_mlx_local_20260319_030809",
       "template_id": null,
       "tier": "smoke_mlx_local",
       "valid": true
@@ -200,23 +242,23 @@
       "valid": true
     },
     {
-      "bytes_total": 6475490,
-      "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967",
+      "bytes_total": 6370063,
+      "candidate_id": "rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194",
       "mutation_operator": "replicate",
       "mutation_payload": {
         "operator_type": "replicate",
-        "replication_of": "cod_training_recipe_20260318_235033_8561",
-        "source_run_id": "cod_training_recipe_20260318_235033_8561_smoke_mlx_local_20260318_235408",
+        "replication_of": "port_training_recipe_20260319_025140_4806",
+        "source_run_id": "port_training_recipe_20260319_025140_4806_smoke_mlx_local_20260319_025140",
         "source_tier": "smoke_mlx_local"
       },
-      "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
-      "post_quant_val_bpb": 2.83917722,
-      "pre_quant_val_bpb": 2.8354,
+      "parent_candidate_id": "port_training_recipe_20260319_025140_4806",
+      "post_quant_val_bpb": 2.80694456,
+      "pre_quant_val_bpb": 2.8014,
       "primary_family": "training_recipe",
-      "proxy_score": 2.83917722,
-      "quant_gap_bpb": 0.0037772199999999145,
-      "run_dir": "autoresearch_pg/runs/rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967/smoke_mlx_local/rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967_smoke_mlx_local_20260319_021109",
-      "run_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967_smoke_mlx_local_20260319_021109",
+      "proxy_score": 2.80694456,
+      "quant_gap_bpb": 0.005544559999999699,
+      "run_dir": "autoresearch_pg/runs/rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194/smoke_mlx_local/rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194_smoke_mlx_local_20260319_030832",
+      "run_id": "rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194_smoke_mlx_local_20260319_030832",
       "template_id": null,
       "tier": "smoke_mlx_local",
       "valid": true
@@ -276,8 +318,181 @@
     "tier": "smoke_local",
     "valid": true
   },
-  "last_updated": "2026-03-19T02:44:00.413779Z",
+  "last_updated": "2026-03-19T03:09:27.034827Z",
   "recent_runs": [
+    {
+      "bytes_total": 6370063,
+      "candidate_id": "rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194",
+      "mutation_operator": "replicate",
+      "mutation_payload": {
+        "operator_type": "replicate",
+        "replication_of": "port_training_recipe_20260319_025140_4806",
+        "source_run_id": "port_training_recipe_20260319_025140_4806_smoke_mlx_local_20260319_025140",
+        "source_tier": "smoke_mlx_local"
+      },
+      "parent_candidate_id": "port_training_recipe_20260319_025140_4806",
+      "post_quant_val_bpb": 2.80694456,
+      "pre_quant_val_bpb": 2.8014,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.80694456,
+      "quant_gap_bpb": 0.005544559999999699,
+      "run_dir": "autoresearch_pg/runs/rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194/smoke_mlx_local/rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194_smoke_mlx_local_20260319_030832",
+      "run_id": "rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194_smoke_mlx_local_20260319_030832",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 9443899,
+      "candidate_id": "cod_architecture_20260319_030157_4144",
+      "mutation_operator": "codex_proposal",
+      "mutation_payload": {
+        "artifacts": {
+          "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_context_latest.json",
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_context_20260319_030157.json",
+          "engine": "codex",
+          "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_last_message_latest.md",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_last_message_20260319_030157.md",
+          "model": "gpt-5.4",
+          "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_prompt_latest.md",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_prompt_20260319_030157.md",
+          "reasoning_effort": "xhigh",
+          "return_code": 0,
+          "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_exec_latest.jsonl",
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/proposal_artifacts/codex_exec_20260319_030157.jsonl"
+        },
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "proposal_engine": "codex",
+        "proposal_mode": "deep",
+        "proposal_mode_reasons": [
+          "architecture defaults to deep mode",
+          "top same-tier family contenders are within 0.0030 BPB"
+        ],
+        "reasoning_effort": "xhigh"
+      },
+      "parent_candidate_id": "port_architecture_20260319_023023_5357",
+      "post_quant_val_bpb": 2.94656776,
+      "pre_quant_val_bpb": 2.941,
+      "primary_family": "architecture",
+      "proxy_score": 2.94656776,
+      "quant_gap_bpb": 0.005567760000000366,
+      "run_dir": "autoresearch_pg/runs/cod_architecture_20260319_030157_4144/smoke_mlx_local/cod_architecture_20260319_030157_4144_smoke_mlx_local_20260319_030809",
+      "run_id": "cod_architecture_20260319_030157_4144_smoke_mlx_local_20260319_030809",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": null,
+      "candidate_id": "cod_architecture_20260319_025235_3818",
+      "mutation_operator": "codex_proposal",
+      "mutation_payload": {
+        "artifacts": {
+          "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_025235_3818/proposal_artifacts/codex_context_latest.json",
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_025235_3818/proposal_artifacts/codex_context_20260319_025235.json",
+          "engine": "codex",
+          "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_025235_3818/proposal_artifacts/codex_last_message_latest.md",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_025235_3818/proposal_artifacts/codex_last_message_20260319_025235.md",
+          "model": "gpt-5.4",
+          "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_025235_3818/proposal_artifacts/codex_prompt_latest.md",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_025235_3818/proposal_artifacts/codex_prompt_20260319_025235.md",
+          "reasoning_effort": "xhigh",
+          "return_code": 0,
+          "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_025235_3818/proposal_artifacts/codex_exec_latest.jsonl",
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_025235_3818/proposal_artifacts/codex_exec_20260319_025235.jsonl"
+        },
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "proposal_engine": "codex",
+        "proposal_mode": "deep",
+        "proposal_mode_reasons": [
+          "architecture defaults to deep mode",
+          "top same-tier family contenders are within 0.0030 BPB"
+        ],
+        "reasoning_effort": "xhigh"
+      },
+      "parent_candidate_id": "port_architecture_20260319_023023_5357",
+      "post_quant_val_bpb": null,
+      "pre_quant_val_bpb": 3.2142,
+      "primary_family": "architecture",
+      "proxy_score": 1000000.0,
+      "quant_gap_bpb": null,
+      "run_dir": "autoresearch_pg/runs/cod_architecture_20260319_025235_3818/smoke_mlx_local/cod_architecture_20260319_025235_3818_smoke_mlx_local_20260319_030138",
+      "run_id": "cod_architecture_20260319_025235_3818_smoke_mlx_local_20260319_030138",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": false
+    },
+    {
+      "bytes_total": 6371204,
+      "candidate_id": "port_training_recipe_20260319_025140_4806",
+      "mutation_operator": "embed_lr_sweep",
+      "mutation_payload": {
+        "env_overrides": {
+          "TIED_EMBED_LR": 0.03
+        },
+        "operator_type": "env_choice"
+      },
+      "parent_candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967",
+      "post_quant_val_bpb": 2.80811527,
+      "pre_quant_val_bpb": 2.8019,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.80811527,
+      "quant_gap_bpb": 0.006215270000000217,
+      "run_dir": "autoresearch_pg/runs/port_training_recipe_20260319_025140_4806/smoke_mlx_local/port_training_recipe_20260319_025140_4806_smoke_mlx_local_20260319_025140",
+      "run_id": "port_training_recipe_20260319_025140_4806_smoke_mlx_local_20260319_025140",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 2955765,
+      "candidate_id": "cod_architecture_20260319_024400_5344",
+      "mutation_operator": "codex_proposal",
+      "mutation_payload": {
+        "artifacts": {
+          "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_024400_5344/proposal_artifacts/codex_context_latest.json",
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_024400_5344/proposal_artifacts/codex_context_20260319_024400.json",
+          "engine": "codex",
+          "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_024400_5344/proposal_artifacts/codex_last_message_latest.md",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_024400_5344/proposal_artifacts/codex_last_message_20260319_024400.md",
+          "model": "gpt-5.4",
+          "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_024400_5344/proposal_artifacts/codex_prompt_latest.md",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_024400_5344/proposal_artifacts/codex_prompt_20260319_024400.md",
+          "reasoning_effort": "xhigh",
+          "return_code": 0,
+          "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_024400_5344/proposal_artifacts/codex_exec_latest.jsonl",
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_024400_5344/proposal_artifacts/codex_exec_20260319_024400.jsonl"
+        },
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "proposal_engine": "codex",
+        "proposal_mode": "deep",
+        "proposal_mode_reasons": [
+          "architecture defaults to deep mode",
+          "top same-tier family contenders are within 0.0030 BPB"
+        ],
+        "reasoning_effort": "xhigh"
+      },
+      "parent_candidate_id": "port_architecture_20260319_023023_5357",
+      "post_quant_val_bpb": 3.24034187,
+      "pre_quant_val_bpb": 3.2154,
+      "primary_family": "architecture",
+      "proxy_score": 3.24034187,
+      "quant_gap_bpb": 0.024941870000000144,
+      "run_dir": "autoresearch_pg/runs/cod_architecture_20260319_024400_5344/smoke_mlx_local/cod_architecture_20260319_024400_5344_smoke_mlx_local_20260319_025118",
+      "run_id": "cod_architecture_20260319_024400_5344_smoke_mlx_local_20260319_025118",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
     {
       "bytes_total": 6476130,
       "candidate_id": "cod_training_recipe_20260319_023810_8693",
@@ -1546,35 +1761,42 @@
     {
       "families": [
         "training_recipe",
-        "compression"
+        "architecture"
       ],
-      "primary_candidate_id": "cod_training_recipe_20260319_023044_2410",
-      "priority": 5.884905809999999,
+      "primary_candidate_id": "port_training_recipe_20260319_025140_4806",
+      "priority": 5.754683030000001,
       "reason": "cross_family_frontier",
-      "secondary_candidate_id": "rec_validate_compression_recipe_warmdown"
+      "secondary_candidate_id": "cod_architecture_20260319_030157_4144"
     },
     {
       "families": [
         "training_recipe",
-        "architecture"
+        "compression"
       ],
-      "primary_candidate_id": "cod_training_recipe_20260319_023044_2410",
-      "priority": 6.079542249999999,
+      "primary_candidate_id": "port_training_recipe_20260319_025140_4806",
+      "priority": 5.85368545,
       "reason": "cross_family_frontier",
-      "secondary_candidate_id": "port_architecture_20260319_023023_5357"
+      "secondary_candidate_id": "rec_validate_compression_recipe_warmdown"
     },
     {
       "families": [
         "architecture",
         "compression"
       ],
-      "primary_candidate_id": "port_architecture_20260319_023023_5357",
-      "priority": 6.2857768,
+      "primary_candidate_id": "cod_architecture_20260319_030157_4144",
+      "priority": 5.99213794,
       "reason": "cross_family_frontier",
       "secondary_candidate_id": "rec_validate_compression_recipe_warmdown"
     }
   ],
   "replication_queue": [
+    {
+      "candidate_id": "port_training_recipe_20260319_025140_4806",
+      "primary_family": "training_recipe",
+      "priority": 2.80811527,
+      "reason": "frontier_valid",
+      "template_id": null
+    },
     {
       "candidate_id": "cod_training_recipe_20260319_023044_2410",
       "primary_family": "training_recipe",
@@ -1600,13 +1822,6 @@
       "candidate_id": "cod_training_recipe_20260319_023810_8693",
       "primary_family": "training_recipe",
       "priority": 2.84704437,
-      "reason": "frontier_valid",
-      "template_id": null
-    },
-    {
-      "candidate_id": "cod_training_recipe_20260318_222108_4091",
-      "primary_family": "training_recipe",
-      "priority": 2.85863372,
       "reason": "frontier_valid",
       "template_id": null
     }

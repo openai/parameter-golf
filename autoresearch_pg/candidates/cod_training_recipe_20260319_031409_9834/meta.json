@@ -1,0 +1,21 @@
+{
+  "candidate_id": "cod_training_recipe_20260319_031409_9834",
+  "created_at": "2026-03-19T03:14:09.364922Z",
+  "entrypoint_filename": "train_gpt_mlx.py",
+  "env_overrides": {
+    "MATRIX_LR": 0.05,
+    "SCALAR_LR": 0.04,
+    "TIED_EMBED_LR": 0.03,
+    "WARMDOWN_ITERS": 256,
+    "WARMUP_STEPS": 64
+  },
+  "mutation_operator": "codex_proposal",
+  "parent_candidate_id": "rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194",
+  "primary_family": "training_recipe",
+  "promotion_history": [],
+  "secondary_tags": [
+    "codex_proposal"
+  ],
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194/train_gpt_mlx.py",
+  "status": "proposal_pending"
+}

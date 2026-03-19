@@ -1,0 +1,521 @@
+{
+  "base": {
+    "inherited_env_overrides": {
+      "MLP_MULT": 1,
+      "MODEL_DIM": 576,
+      "NUM_HEADS": 9,
+      "NUM_KV_HEADS": 3,
+      "NUM_LAYERS": 6
+    },
+    "parent_candidate_id": "port_architecture_20260319_023023_5357"
+  },
+  "family": {
+    "description": "Depth, width, head layout, and MLP expansion sweeps that preserve the baseline code path.",
+    "focus_areas": [
+      "parameter efficiency",
+      "depth/width/head tradeoffs",
+      "challenge-native recurrence or sharing ideas"
+    ],
+    "name": "architecture",
+    "stats": {
+      "best_score": 3.24020662,
+      "completed": 8,
+      "duplicates_skipped": 5,
+      "invalid": 1,
+      "last_score": 1000000.0,
+      "recent_scores": [
+        3.24045934,
+        3.24180117,
+        3.24020662,
+        3.24034187,
+        1000000.0
+      ],
+      "scheduled": 8,
+      "valid": 7,
+      "wins": 4
+    }
+  },
+  "family_frontier": {
+    "family_best": {
+      "bytes_total": 2952414,
+      "candidate_id": "port_architecture_20260319_023023_5357",
+      "mutation_operator": "depth_sweep",
+      "parent_candidate_id": "port_architecture_20260319_022832_5187",
+      "post_quant_val_bpb": 3.24020662,
+      "pre_quant_val_bpb": 3.2153,
+      "proxy_score": 3.24020662,
+      "quant_gap_bpb": 0.02490661999999988,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "recent_family_failures": [
+      {
+        "candidate_id": "cod_architecture_20260319_025235_3818",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "pre_quant_val_bpb": 3.2142,
+        "proxy_score": 1000000.0,
+        "step_avg_ms": 286.82,
+        "tier": "smoke_mlx_local",
+        "valid": false
+      }
+    ],
+    "recent_family_runs": [
+      {
+        "candidate_id": "cod_architecture_20260319_025235_3818",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "pre_quant_val_bpb": 3.2142,
+        "proxy_score": 1000000.0,
+        "step_avg_ms": 286.82,
+        "tier": "smoke_mlx_local",
+        "valid": false
+      },
+      {
+        "bytes_total": 2955765,
+        "candidate_id": "cod_architecture_20260319_024400_5344",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "post_quant_val_bpb": 3.24034187,
+        "pre_quant_val_bpb": 3.2154,
+        "proxy_score": 3.24034187,
+        "quant_gap_bpb": 0.024941870000000144,
+        "step_avg_ms": 301.09,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 2952414,
+        "candidate_id": "port_architecture_20260319_023023_5357",
+        "mutation_operator": "depth_sweep",
+        "parent_candidate_id": "port_architecture_20260319_022832_5187",
+        "post_quant_val_bpb": 3.24020662,
+        "pre_quant_val_bpb": 3.2153,
+        "proxy_score": 3.24020662,
+        "quant_gap_bpb": 0.02490661999999988,
+        "step_avg_ms": 293.15,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6361209,
+        "candidate_id": "port_architecture_20260319_022908_5031",
+        "mutation_operator": "mlp_sweep",
+        "parent_candidate_id": "port_architecture_20260319_022832_5187",
+        "post_quant_val_bpb": 3.24180117,
+        "pre_quant_val_bpb": 3.2074,
+        "proxy_score": 3.24180117,
+        "quant_gap_bpb": 0.0344011700000002,
+        "step_avg_ms": 570.66,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 4732662,
+        "candidate_id": "port_architecture_20260319_022832_5187",
+        "mutation_operator": "arch_slim_10x576_mlp1",
+        "parent_candidate_id": "port_architecture_20260319_020016_7076",
+        "post_quant_val_bpb": 3.24045934,
+        "pre_quant_val_bpb": 3.2109,
+        "proxy_score": 3.24045934,
+        "quant_gap_bpb": 0.029559340000000045,
+        "step_avg_ms": 491.39,
+        "template_id": "arch_slim_10x576_mlp1",
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 2832507,
+        "candidate_id": "cod_architecture_20260319_022421_4423",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_020016_7076",
+        "post_quant_val_bpb": 3.2461878,
+        "pre_quant_val_bpb": 3.2218,
+        "proxy_score": 3.2461878,
+        "quant_gap_bpb": 0.02438779999999996,
+        "step_avg_ms": 280.78,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      }
+    ],
+    "recent_same_tier_valid_runs": [
+      {
+        "bytes_total": 2955765,
+        "candidate_id": "cod_architecture_20260319_024400_5344",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "post_quant_val_bpb": 3.24034187,
+        "pre_quant_val_bpb": 3.2154,
+        "proxy_score": 3.24034187,
+        "quant_gap_bpb": 0.024941870000000144,
+        "step_avg_ms": 301.09,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 2952414,
+        "candidate_id": "port_architecture_20260319_023023_5357",
+        "mutation_operator": "depth_sweep",
+        "parent_candidate_id": "port_architecture_20260319_022832_5187",
+        "post_quant_val_bpb": 3.24020662,
+        "pre_quant_val_bpb": 3.2153,
+        "proxy_score": 3.24020662,
+        "quant_gap_bpb": 0.02490661999999988,
+        "step_avg_ms": 293.15,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6361209,
+        "candidate_id": "port_architecture_20260319_022908_5031",
+        "mutation_operator": "mlp_sweep",
+        "parent_candidate_id": "port_architecture_20260319_022832_5187",
+        "post_quant_val_bpb": 3.24180117,
+        "pre_quant_val_bpb": 3.2074,
+        "proxy_score": 3.24180117,
+        "quant_gap_bpb": 0.0344011700000002,
+        "step_avg_ms": 570.66,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 4732662,
+        "candidate_id": "port_architecture_20260319_022832_5187",
+        "mutation_operator": "arch_slim_10x576_mlp1",
+        "parent_candidate_id": "port_architecture_20260319_020016_7076",
+        "post_quant_val_bpb": 3.24045934,
+        "pre_quant_val_bpb": 3.2109,
+        "proxy_score": 3.24045934,
+        "quant_gap_bpb": 0.029559340000000045,
+        "step_avg_ms": 491.39,
+        "template_id": "arch_slim_10x576_mlp1",
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 2832507,
+        "candidate_id": "cod_architecture_20260319_022421_4423",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_020016_7076",
+        "post_quant_val_bpb": 3.2461878,
+        "pre_quant_val_bpb": 3.2218,
+        "proxy_score": 3.2461878,
+        "quant_gap_bpb": 0.02438779999999996,
+        "step_avg_ms": 280.78,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 2831898,
+        "candidate_id": "port_architecture_20260319_020016_7076",
+        "mutation_operator": "mlp_sweep",
+        "parent_candidate_id": "port_architecture_20260319_014604_8294",
+        "post_quant_val_bpb": 3.24603899,
+        "pre_quant_val_bpb": 3.2218,
+        "proxy_score": 3.24603899,
+        "quant_gap_bpb": 0.024238990000000182,
+        "step_avg_ms": 271.86,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      }
+    ],
+    "same_tier_family_best": {
+      "bytes_total": 2952414,
+      "candidate_id": "port_architecture_20260319_023023_5357",
+      "mutation_operator": "depth_sweep",
+      "parent_candidate_id": "port_architecture_20260319_022832_5187",
+      "post_quant_val_bpb": 3.24020662,
+      "pre_quant_val_bpb": 3.2153,
+      "proxy_score": 3.24020662,
+      "quant_gap_bpb": 0.02490661999999988,
+      "step_avg_ms": 293.15,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    }
+  },
+  "global_frontier": {
+    "best_low_quant_gap": {
+      "bytes_total": 6508742,
+      "candidate_id": "port_training_recipe_20260319_022239_9771",
+      "mutation_operator": "embed_lr_sweep",
+      "parent_candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967",
+      "post_quant_val_bpb": 2.9179085,
+      "pre_quant_val_bpb": 2.915,
+      "proxy_score": 2.9179085,
+      "quant_gap_bpb": 0.0029084999999997585,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "best_with_byte_headroom": {
+      "bytes_total": 2831898,
+      "candidate_id": "port_architecture_20260319_020016_7076",
+      "mutation_operator": "mlp_sweep",
+      "parent_candidate_id": "port_architecture_20260319_014604_8294",
+      "post_quant_val_bpb": 3.24603899,
+      "pre_quant_val_bpb": 3.2218,
+      "proxy_score": 3.24603899,
+      "quant_gap_bpb": 0.024238990000000182,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "champion_set": [
+      {
+        "bytes_total": 15863489,
+        "candidate_id": "first_candidate",
+        "post_quant_val_bpb": 1.2243657,
+        "proxy_score": 1.2243657,
+        "tier": "smoke_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 2952414,
+        "candidate_id": "port_architecture_20260319_023023_5357",
+        "mutation_operator": "depth_sweep",
+        "parent_candidate_id": "port_architecture_20260319_022832_5187",
+        "post_quant_val_bpb": 3.24020662,
+        "pre_quant_val_bpb": 3.2153,
+        "proxy_score": 3.24020662,
+        "quant_gap_bpb": 0.02490661999999988,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 5972859,
+        "candidate_id": "rec_validate_compression_recipe_warmdown",
+        "mutation_operator": "recombine",
+        "parent_candidate_id": "port_compression_20260318_210204_9293",
+        "post_quant_val_bpb": 3.04557018,
+        "pre_quant_val_bpb": 3.0274,
+        "proxy_score": 3.04557018,
+        "quant_gap_bpb": 0.018170179999999814,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6371204,
+        "candidate_id": "port_training_recipe_20260319_025140_4806",
+        "mutation_operator": "embed_lr_sweep",
+        "parent_candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967",
+        "post_quant_val_bpb": 2.80811527,
+        "pre_quant_val_bpb": 2.8019,
+        "proxy_score": 2.80811527,
+        "quant_gap_bpb": 0.006215270000000217,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      }
+    ],
+    "global_best": {
+      "bytes_total": 15863489,
+      "candidate_id": "first_candidate",
+      "post_quant_val_bpb": 1.2243657,
+      "proxy_score": 1.2243657,
+      "tier": "smoke_local",
+      "valid": true
+    },
+    "same_tier_best": {
+      "bytes_total": 6371204,
+      "candidate_id": "port_training_recipe_20260319_025140_4806",
+      "post_quant_val_bpb": 2.80811527,
+      "proxy_score": 2.80811527,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    }
+  },
+  "objective": {
+    "allowed_files": [
+      "train_gpt.py",
+      "train_gpt_mlx.py",
+      "notes.md"
+    ],
+    "byte_cap": 16000000,
+    "entrypoint_filename": "train_gpt_mlx.py",
+    "starter_idea_prompt_limit": 3,
+    "tier": "smoke_mlx_local"
+  },
+  "observations": [
+    "Current base already inherits env overrides {\"MLP_MULT\": 1, \"MODEL_DIM\": 576, \"NUM_HEADS\": 9, \"NUM_KV_HEADS\": 3, \"NUM_LAYERS\": 6}. Build incrementally unless you mean to replace that behavior in code.",
+    "architecture family best still has a material quant gap (0.024907 BPB). Export-aware changes remain valuable.",
+    "Use same-tier results as the main local compass. Current tier best is port_training_recipe_20260319_025140_4806 at proxy_score=2.80811527.",
+    "Best low-quant-gap candidate currently comes from training_recipe. Borrow export-stable habits if relevant.",
+    "Recent failed family attempts include operators [\"codex_proposal\"]. Avoid repeating the same weak pattern without a sharper hypothesis."
+  ],
+  "parent_context": {
+    "best_run": {
+      "bytes_total": 2952414,
+      "candidate_id": "port_architecture_20260319_023023_5357",
+      "mutation_operator": "depth_sweep",
+      "parent_candidate_id": "port_architecture_20260319_022832_5187",
+      "post_quant_val_bpb": 3.24020662,
+      "pre_quant_val_bpb": 3.2153,
+      "proxy_score": 3.24020662,
+      "quant_gap_bpb": 0.02490661999999988,
+      "step_avg_ms": 293.15,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "changed_symbols": [],
+    "diff_excerpt": "no diff from source",
+    "note_sections": {
+      "Exact knobs changed": "",
+      "Expected risk": "",
+      "Expected upside": "",
+      "Hypothesis": "Scheduler cycle 29: action=mutate family=architecture, operator=depth_sweep, parent=port_architecture_20260319_022832_5187, env_overrides={'MLP_MULT': 1, 'MODEL_DIM': 576, 'NUM_HEADS': 9, 'NUM_KV_HEADS': 3, 'NUM_LAYERS': 6}",
+      "Promotion bar": "",
+      "Scheduler Metadata": "family: architecture operator: depth_sweep template_id: None parent_candidate_id: port_architecture_20260319_022832_5187 env_overrides: {'MLP_MULT': '1', 'MODEL_DIM': '576', 'NUM_HEADS': '9', 'NUM_KV_HEADS': '3', 'NUM_LAYERS': '6'} config_hash: af6b4611325802c52b5ab67762876daf..."
+    },
+    "proposal_summary": "none",
+    "summary": {
+      "candidate_id": "port_architecture_20260319_023023_5357",
+      "env_overrides": {
+        "MLP_MULT": 1,
+        "MODEL_DIM": 576,
+        "NUM_HEADS": 9,
+        "NUM_KV_HEADS": 3,
+        "NUM_LAYERS": 6
+      },
+      "mutation_operator": "depth_sweep",
+      "parent_candidate_id": "port_architecture_20260319_022832_5187"
+    }
+  },
+  "proposal": {
+    "ambiguity_competitors": [
+      {
+        "bytes_total": 2952414,
+        "candidate_id": "port_architecture_20260319_023023_5357",
+        "mutation_operator": "depth_sweep",
+        "parent_candidate_id": "port_architecture_20260319_022832_5187",
+        "post_quant_val_bpb": 3.24020662,
+        "pre_quant_val_bpb": 3.2153,
+        "proxy_score": 3.24020662,
+        "quant_gap_bpb": 0.02490661999999988,
+        "step_avg_ms": 293.15,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 2955765,
+        "candidate_id": "cod_architecture_20260319_024400_5344",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "port_architecture_20260319_023023_5357",
+        "post_quant_val_bpb": 3.24034187,
+        "pre_quant_val_bpb": 3.2154,
+        "proxy_score": 3.24034187,
+        "quant_gap_bpb": 0.024941870000000144,
+        "step_avg_ms": 301.09,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 4732662,
+        "candidate_id": "port_architecture_20260319_022832_5187",
+        "mutation_operator": "arch_slim_10x576_mlp1",
+        "parent_candidate_id": "port_architecture_20260319_020016_7076",
+        "post_quant_val_bpb": 3.24045934,
+        "pre_quant_val_bpb": 3.2109,
+        "proxy_score": 3.24045934,
+        "quant_gap_bpb": 0.029559340000000045,
+        "step_avg_ms": 491.39,
+        "template_id": "arch_slim_10x576_mlp1",
+        "tier": "smoke_mlx_local",
+        "valid": true
+      }
+    ],
+    "mode": "deep",
+    "reasons": [
+      "architecture defaults to deep mode",
+      "top same-tier family contenders are within 0.0030 BPB"
+    ]
+  },
+  "starter_ideas": [
+    {
+      "family_match_rank": 0,
+      "horizon": "medium_term",
+      "idea_id": "shared_depth_recurrence_3x_unroll",
+      "implementation_sketch": "Start from the current trunk, keep attention/MLP shapes fixed, tie block weights across repeated steps, inject a learned step embedding, and add minimal per-step scaling to avoid optimization collapse.",
+      "primary_family": "architecture",
+      "priority": 1,
+      "risk": "high",
+      "secondary_families": [],
+      "source_refs": [
+        "https://arxiv.org/abs/1807.03819"
+      ],
+      "summary": "Replace many untied layers with 2-3 shared blocks unrolled multiple times, using step embeddings and per-step gates or norms.",
+      "tags": [
+        "parameter_sharing",
+        "recurrent_depth",
+        "challenge_native"
+      ],
+      "title": "3-block shared-depth recurrence",
+      "why_it_fits": "The challenge is byte-constrained but not compute-starved, so reusing parameters across depth is a direct way to buy more effective depth per byte."
+    },
+    {
+      "family_match_rank": 0,
+      "horizon": "medium_term",
+      "idea_id": "factorized_embeddings_sp4096",
+      "implementation_sketch": "Introduce vocab->embed_dim and embed_dim->model_dim factors with tied decoding through the transpose path. Sweep embed_dim aggressively downward and pair it with a higher-vocab sentencepiece variant.",
+      "primary_family": "architecture",
+      "priority": 2,
+      "risk": "medium",
+      "secondary_families": [
+        "tokenizer"
+      ],
+      "source_refs": [
+        "https://arxiv.org/abs/1909.11942"
+      ],
+      "summary": "Factor the token embedding/output map so the model can afford a 2k-4k tokenizer without paying a full vocab x model_dim byte tax.",
+      "tags": [
+        "factorized_embeddings",
+        "tokenizer",
+        "byte_reallocation"
+      ],
+      "title": "Factorized tied embeddings with larger vocab",
+      "why_it_fits": "The current baseline keeps vocab small because embeddings are expensive. Factorization can reallocate bytes from embeddings into a better tokenizer or a slightly stronger trunk."
+    },
+    {
+      "family_match_rank": 1,
+      "horizon": "near_term",
+      "idea_id": "mtp_aux_heads_train_only",
+      "implementation_sketch": "Reuse the final hidden states. Add two lightweight projection heads for t+2 and t+3 targets, weight their losses below the main next-token loss, and strip the extra heads before serialization and eval.",
+      "primary_family": "training_recipe",
+      "priority": 1,
+      "risk": "medium",
+      "secondary_families": [
+        "architecture"
+      ],
+      "source_refs": [
+        "https://arxiv.org/abs/2404.19737"
+      ],
+      "summary": "Add 2 auxiliary future-token heads on top of the shared trunk during training, then drop them before export so bytes stay nearly unchanged.",
+      "tags": [
+        "sample_efficiency",
+        "train_only",
+        "export_free"
+      ],
+      "title": "Train-only multi-token heads",
+      "why_it_fits": "Parameter Golf is wallclock-limited, so sample-efficiency improvements that disappear at export are unusually attractive."
+    },
+    {
+      "family_match_rank": 1,
+      "horizon": "moonshot",
+      "idea_id": "aqlm_style_codebook_mlp",
+      "implementation_sketch": "Start with MLP matrices only. Replace full tensors with codebook indices plus a small shared codebook, optionally with a low-rank residual. First try post-training codebooks, then move to jointly learned codebooks if the export path stays stable.",
+      "primary_family": "compression",
+      "priority": 2,
+      "risk": "high",
+      "secondary_families": [
+        "architecture"
+      ],
+      "source_refs": [
+        "https://arxiv.org/abs/2401.06118"
+      ],
+      "summary": "Treat the largest MLP matrices as additive-codebook or prototype-compressed weights so artifact bytes fall faster than with naive int8 per-row quantization.",
+      "tags": [
+        "codebook_quantization",
+        "extreme_compression",
+        "mlp_heavy"
+      ],
+      "title": "AQLM-style codebook MLP compression",
+      "why_it_fits": "Most of the baseline parameter mass sits in large matrices, especially MLPs. Extreme-compression methods target exactly that regime."
+    }
+  ]
+}

@@ -1,22 +1,25 @@
 {
   "families": {
     "architecture": {
-      "best_score": 3.24020662,
-      "completed": 6,
+      "best_score": 2.94656776,
+      "completed": 9,
       "duplicates_skipped": 5,
-      "invalid": 0,
-      "last_score": 3.24020662,
+      "invalid": 1,
+      "last_score": 2.94656776,
       "recent_scores": [
         3.24664863,
         3.24603899,
         3.2461878,
         3.24045934,
         3.24180117,
-        3.24020662
+        3.24020662,
+        3.24034187,
+        1000000.0,
+        2.94656776
       ],
-      "scheduled": 6,
-      "valid": 6,
-      "wins": 4
+      "scheduled": 9,
+      "valid": 8,
+      "wins": 5
     },
     "compression": {
       "best_score": 3.04557018,
@@ -72,14 +75,12 @@
       "wins": 0
     },
     "training_recipe": {
-      "best_score": 2.83917722,
-      "completed": 29,
-      "duplicates_skipped": 9,
+      "best_score": 2.80694456,
+      "completed": 31,
+      "duplicates_skipped": 17,
       "invalid": 1,
-      "last_score": 2.84704437,
+      "last_score": 2.80694456,
       "recent_scores": [
-        2.84004919,
-        2.83995685,
         2.83917722,
         3.19026223,
         2.9437401,
@@ -87,12 +88,14 @@
         3.22210155,
         2.83933563,
         2.84030417,
-        2.84704437
+        2.84704437,
+        2.80811527,
+        2.80694456
       ],
-      "scheduled": 29,
-      "valid": 28,
-      "wins": 10
+      "scheduled": 31,
+      "valid": 30,
+      "wins": 12
     }
   },
-  "last_updated": "2026-03-19T02:44:00.414398Z"
+  "last_updated": "2026-03-19T03:09:27.035562Z"
 }

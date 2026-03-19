@@ -11,12 +11,12 @@
       "valid": true
     },
     "smoke_mlx_local": {
-      "bytes_total": 6475490,
-      "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967",
-      "post_quant_val_bpb": 2.83917722,
-      "proxy_score": 2.83917722,
-      "run_dir": "autoresearch_pg/runs/rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967/smoke_mlx_local/rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967_smoke_mlx_local_20260319_021109",
-      "run_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_021109_9967_smoke_mlx_local_20260319_021109",
+      "bytes_total": 6370063,
+      "candidate_id": "rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194",
+      "post_quant_val_bpb": 2.80694456,
+      "proxy_score": 2.80694456,
+      "run_dir": "autoresearch_pg/runs/rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194/smoke_mlx_local/rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194_smoke_mlx_local_20260319_030832",
+      "run_id": "rep_port_training_recipe_20260319_025140_4806_20260319_030832_3194_smoke_mlx_local_20260319_030832",
       "tier": "smoke_mlx_local",
       "valid": true
     }

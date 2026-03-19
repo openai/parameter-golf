@@ -1,0 +1,44 @@
+logs/port_training_recipe_20260319_025140_4806_smoke_mlx_local_20260319_025140.txt
+Code size: 51289 bytes
+run_id:port_training_recipe_20260319_025140_4806_smoke_mlx_local_20260319_025140
+mlx_version:0.31.1
+train_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+val_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:262144
+WARNING: train_loader:subset dataset:fineweb10B_sp1024 train_shards:1/195 new epochs will arrive sooner than the full dataset
+tokenizer_path:/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+model_params:17059912 vocab_size:1024 layers:9 dim:512 heads:8 kv_heads:4 seq_len:1024 tie_embeddings:True
+iterations:50 train_batch_tokens:8192 grad_accum_steps:8 microbatch_tokens:1024 microbatch_batch_size:1 val_batch_size:8192 warmup_steps:64 max_wallclock_seconds:0.000
+mlx_max_microbatch_tokens:2048
+optimizer:muon+adam muon_matrix_params:54 scalar_params:37 embed_lr:0.03 embed_lr_floor_ratio:0.05 matrix_lr:0.05 matrix_lr_floor_ratio:0.01 scalar_lr:0.04 scalar_lr_floor_ratio:0.25 muon_momentum:0.95 muon_steps:5
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+compute_dtype:mlx.core.bfloat16 compile:True
+dtypes tok_emb:mlx.core.bfloat16 linear_weight:mlx.core.float32 skip_weights:mlx.core.float32
+warmup_step:10/64
+warmup_step:20/64
+warmup_step:30/64
+warmup_step:40/64
+warmup_step:50/64
+warmup_step:60/64
+warmup_step:64/64
+step:1/50 train_loss:6.9428 train_time:140ms step_avg:140.23ms tok_s:58421
+step:2/50 train_loss:6.6915 train_time:554ms step_avg:276.85ms tok_s:19826
+step:3/50 train_loss:6.3792 train_time:958ms step_avg:319.49ms tok_s:20250
+step:4/50 train_loss:6.2598 train_time:1364ms step_avg:340.89ms tok_s:20233
+step:5/50 train_loss:6.1201 train_time:1769ms step_avg:353.79ms tok_s:20220
+step:6/50 train_loss:5.9237 train_time:2174ms step_avg:362.31ms tok_s:20241
+step:7/50 train_loss:5.7418 train_time:2579ms step_avg:368.40ms tok_s:20241
+step:8/50 train_loss:5.7596 train_time:2985ms step_avg:373.10ms tok_s:20184
+step:9/50 train_loss:5.7100 train_time:3391ms step_avg:376.77ms tok_s:20187
+step:10/50 train_loss:5.6544 train_time:3797ms step_avg:379.74ms tok_s:20163
+step:20/50 train_loss:5.5126 train_time:7891ms step_avg:394.55ms tok_s:20039
+step:30/50 train_loss:5.1716 train_time:11973ms step_avg:399.08ms tok_s:20079
+step:40/50 train_loss:4.9372 train_time:16054ms step_avg:401.36ms tok_s:20090
+step:50/50 train_loss:4.7922 train_time:20142ms step_avg:402.84ms tok_s:20095
+step:50/50 val_loss:4.7315 val_bpb:2.8019 train_time:22951ms step_avg:459.03ms
+saved_model:logs/port_training_recipe_20260319_025140_4806_smoke_mlx_local_20260319_025140_mlx_model.npz bytes:67212188
+serialized_model_int8_zlib:6319915 bytes (payload:17178912 raw_pickle:17188361 payload_ratio:3.91x)
+Serialized model: 67212188 bytes
+Serialized model int8+zlib: 6319915 bytes
+Total submission size int8+zlib: 6371204 bytes
+final_int8_zlib_roundtrip val_loss:4.7420 val_bpb:2.8081 eval_time:2517ms
+final_int8_zlib_roundtrip_exact val_loss:4.74203491 val_bpb:2.80811527

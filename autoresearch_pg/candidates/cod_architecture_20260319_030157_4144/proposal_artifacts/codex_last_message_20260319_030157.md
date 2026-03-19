@@ -1,0 +1,5 @@
+Hypothesis: factor each block linear into normalized row directions plus a learned per-row `out_scale`, then rebalance row norms into those small scale vectors after every optimizer step. That keeps more magnitude information in cheap float control tensors and should reduce the parent’s post-quant gap without changing the inherited 6x576, 9/3-head, MLP=1 shape.
+
+Changed [train_gpt_mlx.py](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/train_gpt_mlx.py#L121) and [notes.md](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_architecture_20260319_030157_4144/notes.md#L1). Expected upside is lower `final_int8_zlib_roundtrip_exact val_bpb` from a smaller quantization gap with only modest byte growth from the new scale vectors. Main risk is optimization instability or slower learning from the extra weight/scale symmetry, especially around the zero-init projection layers.
+
+Verification: `python3 -m py_compile train_gpt_mlx.py` passed. I did not run training.
