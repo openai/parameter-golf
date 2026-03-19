@@ -602,15 +602,11 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin)
         if q_gain is not None:
             q = q * q_gain.to(dtype=q.dtype)[None, :, None, None]
-        # Manual GQA: repeat K/V heads to match Q heads (compatible with older PyTorch)
-        if self.num_kv_heads != self.num_heads:
-            n_rep = self.num_heads // self.num_kv_heads
-            k = k[:, :, None, :, :].expand(bsz, self.num_kv_heads, n_rep, seqlen, self.head_dim).reshape(bsz, self.num_heads, seqlen, self.head_dim)
-            v = v[:, :, None, :, :].expand(bsz, self.num_kv_heads, n_rep, seqlen, self.head_dim).reshape(bsz, self.num_heads, seqlen, self.head_dim)
         y = F.scaled_dot_product_attention(
             q, k, v,
             attn_mask=None,
             is_causal=True,
+            enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         out = self.proj(y)
