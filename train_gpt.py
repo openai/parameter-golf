@@ -315,12 +315,6 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
-INT8_CLIP_PERCENTILE_OVERRIDES = tuple(
-    (name_pattern, float(percentile))
-    for item in os.environ.get("INT8_CLIP_PERCENTILE_OVERRIDES", "").split(",")
-    if item
-    for name_pattern, percentile in [item.rsplit(":", 1)]
-)
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -333,20 +327,13 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def clip_quantile_for_tensor(name: str) -> float:
-    for name_pattern, percentile in INT8_CLIP_PERCENTILE_OVERRIDES:
-        if name_pattern in name:
-            return percentile / 100.0
-    return INT8_CLIP_Q
-
-def quantize_float_tensor(name: str, t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
-    clip_q = clip_quantile_for_tensor(name)
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
         clip_abs = (
-            torch.quantile(t32.abs(), clip_q, dim=1)
+            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
             if t32.numel()
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
@@ -356,7 +343,7 @@ def quantize_float_tensor(name: str, t: Tensor) -> tuple[Tensor, Tensor]:
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
-    clip_abs = float(torch.quantile(t32.abs().flatten(), clip_q).item()) if t32.numel() else 0.0
+    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
@@ -374,15 +361,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
     stats = dict.fromkeys(
-        (
-            "param_count",
-            "num_tensors",
-            "num_float_tensors",
-            "num_nonfloat_tensors",
-            "num_clip_override_tensors",
-            "baseline_tensor_bytes",
-            "int8_payload_bytes",
-        ),
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
         0,
     )
 
@@ -409,9 +388,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        if clip_quantile_for_tensor(name) != INT8_CLIP_Q:
-            stats["num_clip_override_tensors"] += 1
-        q, s = quantize_float_tensor(name, t)
+        q, s = quantize_float_tensor(t)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -1147,8 +1124,7 @@ def main() -> None:
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x "
-            f"clip_override_tensors:{quant_stats['num_clip_override_tensors']})"
+            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
 
