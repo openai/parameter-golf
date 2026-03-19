@@ -59,13 +59,14 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape — recurrent architecture.
+    # Config D: 6 blocks × 3 loops = 18 eff layers, dim=704, ~23.4M params, ~15.4MB artifact
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_blocks = int(os.environ.get("NUM_BLOCKS", 5))
+    num_blocks = int(os.environ.get("NUM_BLOCKS", 6))
     num_loops = int(os.environ.get("NUM_LOOPS", 3))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 5))
-    model_dim = int(os.environ.get("MODEL_DIM", 640))
-    num_heads = int(os.environ.get("NUM_HEADS", 10))
-    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 1024))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
+    model_dim = int(os.environ.get("MODEL_DIM", 704))
+    num_heads = int(os.environ.get("NUM_HEADS", 8))
+    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 1088))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
