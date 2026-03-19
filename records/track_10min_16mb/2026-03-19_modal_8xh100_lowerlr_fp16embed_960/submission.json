@@ -1,0 +1,11 @@
+{
+  "author": "Kian Kyars",
+  "github_id": "kiankyars",
+  "name": "Modal 8xH100 LowerLR FP16Embed 960",
+  "blurb": "Modal 8xH100 LowerLR FP16Embed 960 on Modal 8xH100 using the current root train_gpt.py snapshot and the published sp1024 export; score is the final int8+zlib roundtrip metric under the 16,000,000-byte cap.",
+  "date": "2026-03-19T02:21:45Z",
+  "val_loss": 2.0665889,
+  "val_bpb": 1.22395035,
+  "bytes_total": 15844118,
+  "bytes_code": 52036
+}
