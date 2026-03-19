@@ -2,10 +2,10 @@
   "author": "samuellarson",
   "github_id": "samuellarson",
   "name": "Warmdown-Quantization",
-  "blurb": "Warmdown-quantization co-optimization with FP16 tied embeddings and NTK-RoPE eval@1408",
+  "blurb": "Long-context training with sliding window evaluation and quantization-aware schedule tuning",
   "date": "2026-03-19",
-  "val_loss": 2.05221139,
-  "val_bpb": 1.21543588,
-  "bytes_total": 15908936,
-  "bytes_code": 49177
+  "val_loss": 1.99123878,
+  "val_bpb": 1.17932376,
+  "bytes_total": 15884376,
+  "bytes_code": 50543
 }
