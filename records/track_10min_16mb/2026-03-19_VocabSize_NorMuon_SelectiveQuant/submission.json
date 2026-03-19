@@ -1,0 +1,11 @@
+{
+  "author": "Spruce Campbell",
+  "github_id": "mtybadger",
+  "name": "8192 Vocab Size, NorMuon, Selective Quantization",
+  "blurb": "SP-8192 8xH100 SXM5 run using a new tokenizer and NorMuon implementation from the original paper, 1.185 bpb on val, 14.79 MB.",
+  "date": "2026-03-19T12:09:29Z",
+  "val_loss": 3.06233041,
+  "val_bpb": 1.18576208,
+  "bytes_total": 14796836,
+  "bytes_code": 53612
+}
