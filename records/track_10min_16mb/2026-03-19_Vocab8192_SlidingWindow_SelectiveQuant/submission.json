@@ -1,0 +1,11 @@
+{
+  "author": "Sai Krishna Rallabandi",
+  "github_id": "saikrishnarallabandi",
+  "name": "8192 Vocab, Sliding Window Eval, Selective Quantization (w6e8)",
+  "blurb": "SP-8192 tokenizer, 8-layer model, NorMuon optimizer, stride-256 sliding window eval, selective w6e8 quantization. 8xH100 SXM, 1.1938 bpb post-quant.",
+  "date": "2026-03-19T15:30:00Z",
+  "val_loss": 3.08326666,
+  "val_bpb": 1.19384345,
+  "bytes_total": 14715057,
+  "bytes_code": 56813
+}
