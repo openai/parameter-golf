@@ -1,0 +1,31 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-19",
+  "name": "FP16 Tied Embedding + 10-Layer + Muon WD + NTK Eval + Overtone Init",
+  "author": "notapplica",
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.02825477,
+      "val_bpb": 1.20124672,
+      "steps": 11044,
+      "ms_per_step": 54.33
+    },
+    "42": {
+      "val_loss": 2.02747367,
+      "val_bpb": 1.20078411,
+      "steps": 10605,
+      "ms_per_step": 56.57
+    },
+    "7": {
+      "val_loss": 2.02660857,
+      "val_bpb": 1.20027175,
+      "steps": 10640,
+      "ms_per_step": 56.40
+    }
+  },
+  "mean_val_loss": 2.02744567,
+  "mean_val_bpb": 1.20076753,
+  "p_value": 0.0003,
+  "artifact_bytes": 15367018,
+  "code_bytes": 50651
+}
