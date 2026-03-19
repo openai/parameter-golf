@@ -102,7 +102,7 @@ Each candidate directory contains round-by-round trace material such as:
 - proposer prompt
 - proposer log
 - candidate patch
-- candidate rationale/env file
+- candidate rationale/spec file
 - pre-review prompt
 - pre-review log
 - pre-review decision
@@ -123,7 +123,7 @@ The proposer is expected to read both the structured history and the raw artifac
 
 **Rationale File**
 
-The proposer must write `controller_state/current_candidate.env` in its scratch clone with these fields:
+The proposer must write `controller_state/current_candidate.json` in its scratch clone as a JSON object with these string fields:
 
 - `IDEA`
 - `HYPOTHESIS`
@@ -131,7 +131,7 @@ The proposer must write `controller_state/current_candidate.env` in its scratch 
 - `NOTES`
 - `EXTRA_ENV`
 
-This is what makes the experiment traceable. The controller persists that rationale alongside the patch and the eventual result.
+`EXTRA_ENV` remains a single-line space-separated `KEY=VALUE` list inside the JSON value. This is what makes the experiment traceable. The controller persists that rationale alongside the patch and the eventual result.
 
 **Commands**
 
@@ -163,7 +163,9 @@ uv run python run_pgolf_experiment.py --hours 8
 
 - The proposer is restricted to changing `train_gpt.py`. Run config changes belong in `EXTRA_ENV`.
 - The controller expects exactly one candidate commit per proposer round.
-- `controller_state/current_candidate.env` is trace metadata, not part of the experiment patch. Leave it untracked.
+- `controller_state/current_candidate.json` is trace metadata, not part of the experiment patch. Leave it untracked.
+- New model-authored artifacts now use JSON by default: `candidate.json`, `pre_review.json`, and `post_review.json`.
+- The controller still reads legacy `.env` artifacts so older traces remain valid.
 - A candidate can be rejected before it ever reaches the GPU.
 - A queued patch can still fail to apply later if the reviewed base has moved too far; those failures are recorded in trace artifacts.
 - `results.tsv` and `reviews.tsv` are still the high-level human-readable ledgers.

@@ -235,6 +235,31 @@ def write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ControllerError(f"invalid JSON in {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ControllerError(f"expected JSON object in {path}")
+    return payload
+
+
+def fallback_env_path(path: Path) -> Path:
+    if path.suffix == ".json":
+        return path.with_suffix(".env")
+    return path
+
+
+def resolve_artifact_path(path: Path) -> Path:
+    if path.exists():
+        return path
+    fallback = fallback_env_path(path)
+    if fallback != path and fallback.exists():
+        return fallback
+    return path
+
+
 def append_jsonl(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as fh:
@@ -306,13 +331,17 @@ def detect_next_candidate_number(candidates_dir: Path) -> int:
     return maximum + 1
 
 
-def parse_relaxed_assignment_value(
+def parse_shell_assignment_value(
     rhs: str, *, spec_file: Path, raw_line: str
 ) -> str:
     if not rhs:
         return ""
     if rhs[0] not in {"'", '"'}:
-        return rhs
+        try:
+            tokens = shlex.split(rhs, posix=True)
+        except ValueError:
+            return rhs
+        return " ".join(tokens)
     quote = rhs[0]
     if len(rhs) < 2 or rhs[-1] != quote:
         raise ControllerError(f"invalid shell assignment in {spec_file}: {raw_line}")
@@ -332,19 +361,40 @@ def parse_shell_assignments(spec_file: Path) -> dict[str, str]:
         if not match:
             raise ControllerError(f"invalid assignment in {spec_file}: {raw_line}")
         key, rhs = match.group(1), match.group(2)
-        try:
-            tokens = shlex.split(f"{key}={rhs}", posix=True)
-        except ValueError:
-            values[key] = parse_relaxed_assignment_value(
-                rhs,
-                spec_file=spec_file,
-                raw_line=raw_line,
-            )
-            continue
-        if len(tokens) != 1 or "=" not in tokens[0]:
-            raise ControllerError(f"invalid shell assignment in {spec_file}: {raw_line}")
-        parsed_key, parsed_value = tokens[0].split("=", 1)
-        values[parsed_key] = parsed_value
+        values[key] = parse_shell_assignment_value(
+            rhs,
+            spec_file=spec_file,
+            raw_line=raw_line,
+        )
+    return values
+
+
+def load_text_fields(path: Path, required: tuple[str, ...]) -> dict[str, str]:
+    resolved = resolve_artifact_path(path)
+    if not resolved.exists():
+        raise ControllerError(f"missing artifact file: {path}")
+    if resolved.suffix == ".json":
+        payload = read_json_object(resolved)
+        values: dict[str, str] = {}
+        missing: list[str] = []
+        for key in required:
+            value = payload.get(key)
+            if value is None:
+                missing.append(key)
+                continue
+            if not isinstance(value, str):
+                raise ControllerError(f"field {key} in {resolved} must be a string")
+            values[key] = value
+        if missing:
+            raise ControllerError(f"missing fields in {resolved}: {', '.join(missing)}")
+        for key, value in payload.items():
+            if isinstance(value, str):
+                values.setdefault(key, value)
+        return values
+    values = parse_shell_assignments(resolved)
+    missing = [key for key in required if key not in values]
+    if missing:
+        raise ControllerError(f"missing fields in {resolved}: {', '.join(missing)}")
     return values
 
 
@@ -405,11 +455,8 @@ def git_changed_files(repo_dir: Path, start: str, end: str) -> list[str]:
 
 
 def load_candidate_spec(spec_file: Path) -> CandidateSpec:
-    values = parse_shell_assignments(spec_file)
     required = ("IDEA", "HYPOTHESIS", "EXPECTED_SIGNALS", "NOTES", "EXTRA_ENV")
-    missing = [key for key in required if key not in values]
-    if missing:
-        raise ControllerError(f"missing fields in {spec_file}: {', '.join(missing)}")
+    values = load_text_fields(spec_file, required)
     return CandidateSpec(
         idea=values["IDEA"],
         hypothesis=values["HYPOTHESIS"],
@@ -421,7 +468,7 @@ def load_candidate_spec(spec_file: Path) -> CandidateSpec:
 
 
 def load_pre_review_decision(path: Path) -> PreReviewDecision:
-    values = parse_shell_assignments(path)
+    values = load_text_fields(path, ("DECISION", "SUMMARY", "FINDINGS", "FEEDBACK"))
     decision = values.get("DECISION", "")
     if decision not in {"approve", "revise"}:
         raise ControllerError(f"invalid pre-review decision in {path}: {decision}")
@@ -434,7 +481,7 @@ def load_pre_review_decision(path: Path) -> PreReviewDecision:
 
 
 def load_post_review_decision(path: Path) -> PostReviewDecision:
-    values = parse_shell_assignments(path)
+    values = load_text_fields(path, ("DECISION", "SUMMARY", "FINDINGS"))
     decision = values.get("DECISION", "")
     if decision not in {"keep", "revert"}:
         raise ControllerError(f"invalid post-review decision in {path}: {decision}")
@@ -446,7 +493,7 @@ def load_post_review_decision(path: Path) -> PostReviewDecision:
 
 
 def load_baseline_review_decision(path: Path) -> BaselineReviewDecision:
-    values = parse_shell_assignments(path)
+    values = load_text_fields(path, ("DECISION", "SUMMARY", "FINDINGS"))
     decision = values.get("DECISION", "")
     if decision not in {"keep", "invalid_baseline"}:
         raise ControllerError(f"invalid baseline review decision in {path}: {decision}")
@@ -758,8 +805,8 @@ class PgolfController:
             pre_review_log = round_dir / "pre_review.log"
             pre_review_prompt_file = round_dir / "pre_review_prompt.txt"
             patch_file = round_dir / "candidate.patch"
-            spec_file = round_dir / "candidate.env"
-            review_decision_file = round_dir / "pre_review.env"
+            spec_file = round_dir / "candidate.json"
+            review_decision_file = round_dir / "pre_review.json"
 
             self._refresh_history_summary()
             try:
@@ -797,10 +844,12 @@ class PgolfController:
                 )
                 if exit_code != 0:
                     raise ControllerError(f"proposer exited with code {exit_code}")
-                generated_spec = clone_dir / "controller_state" / "current_candidate.env"
+                generated_spec = clone_dir / "controller_state" / "current_candidate.json"
+                if not generated_spec.exists():
+                    generated_spec = clone_dir / "controller_state" / "current_candidate.env"
                 if not generated_spec.exists():
                     raise ControllerError(
-                        "proposer did not write controller_state/current_candidate.env"
+                        "proposer did not write controller_state/current_candidate.json"
                     )
                 commit_count = int(
                     git_output(clone_dir, "rev-list", "--count", f"{base_commit}..HEAD")
@@ -886,7 +935,7 @@ class PgolfController:
                 )
                 if decision.decision == "approve":
                     approved_patch = candidate_dir / "approved.patch"
-                    approved_spec = candidate_dir / "approved.env"
+                    approved_spec = candidate_dir / "approved.json"
                     copy_file(patch_file, approved_patch)
                     copy_file(spec_file, approved_spec)
                     manifest["status"] = "approved"
@@ -978,19 +1027,25 @@ class PgolfController:
     ) -> str:
         head_commit = git_output(clone_dir, "rev-parse", "HEAD")
         changed_files = git_changed_files(clone_dir, base_commit, head_commit)
-        allowed_files = {"train_gpt.py", "controller_state/current_candidate.env"}
+        spec_paths = {
+            "controller_state/current_candidate.json",
+            "controller_state/current_candidate.env",
+        }
+        allowed_files = {"train_gpt.py", *spec_paths}
         unexpected_files = [path for path in changed_files if path not in allowed_files]
         if unexpected_files:
             raise ControllerError(
                 "candidate commit must only touch train_gpt.py; changed files were "
                 + ", ".join(changed_files)
             )
-        if "controller_state/current_candidate.env" not in changed_files:
+        staged_spec_paths = [path for path in changed_files if path in spec_paths]
+        if not staged_spec_paths:
             return head_commit
 
         spec_text = spec_path.read_text(encoding="utf-8")
+        spec_rel_path = str(spec_path.relative_to(clone_dir))
         run_cmd(
-            ["git", "rm", "--cached", "--quiet", "--", "controller_state/current_candidate.env"],
+            ["git", "rm", "--cached", "--quiet", "--", spec_rel_path],
             cwd=clone_dir,
         )
         run_cmd(["git", "commit", "--amend", "--no-edit"], cwd=clone_dir)
@@ -1249,7 +1304,7 @@ class PgolfController:
         outcome: RunOutcome,
     ) -> PostReviewDecision:
         best_prior_bpb = latest_kept_bpb(self.config.results_file) or "none"
-        output_file = run_dir / "post_review.env"
+        output_file = run_dir / "post_review.json"
         prompt = self._build_post_review_prompt(
             candidate=candidate,
             iteration=iteration,
@@ -1305,7 +1360,7 @@ class PgolfController:
         outcome: RunOutcome,
     ) -> BaselineReviewDecision:
         best_prior_bpb = latest_kept_bpb(self.config.results_file) or "none"
-        output_file = run_dir / "post_review.env"
+        output_file = run_dir / "post_review.json"
         prompt = self._build_baseline_post_review_prompt(
             iteration=iteration,
             run_id=run_id,
@@ -1759,7 +1814,7 @@ class PgolfController:
         clone_dir: Path,
         prior_feedback: str,
     ) -> str:
-        spec_file = clone_dir / "controller_state" / "current_candidate.env"
+        spec_file = clone_dir / "controller_state" / "current_candidate.json"
         protocol_path = clone_dir / "autoresearch" / self.config.proposer_protocol_file.name
         history_summary = self.history_summary
         extra_env_prefix = (
@@ -1816,6 +1871,14 @@ class PgolfController:
                     "that would support or falsify it."
                 ),
                 (
+                    "- Write a JSON object with string fields IDEA, HYPOTHESIS, "
+                    "EXPECTED_SIGNALS, NOTES, and EXTRA_ENV."
+                ),
+                (
+                    "- EXTRA_ENV must stay a single-line space-separated list of "
+                    "KEY=VALUE pairs."
+                ),
+                (
                     "- The next Codex instance will pre-review your patch for correctness "
                     "and trustworthiness before it is queued."
                 ),
@@ -1848,6 +1911,10 @@ class PgolfController:
                 "- Assume the controller will only queue the patch if you approve it.",
                 "- Be strict. Reject speculative or weakly justified changes.",
                 f"- Write your decision to {output_file}.",
+                (
+                    "- Write a JSON object with string fields DECISION, SUMMARY, "
+                    "FINDINGS, and FEEDBACK."
+                ),
                 "- Do not edit train_gpt.py yourself.",
                 "- Do not run training.",
             ]
@@ -1896,6 +1963,7 @@ class PgolfController:
                 ),
                 "- Revert if the result regresses or if the evidence is not trustworthy.",
                 f"- Write your decision to {output_file}.",
+                "- Write a JSON object with string fields DECISION, SUMMARY, and FINDINGS.",
                 "- Do not edit the repository yourself.",
                 "- Do not run training.",
             ]
@@ -1947,6 +2015,7 @@ class PgolfController:
                     "- Use DECISION=invalid_baseline if the baseline should be discarded "
                     "and retried."
                 ),
+                "- Write a JSON object with string fields DECISION, SUMMARY, and FINDINGS.",
                 "- Do not edit the repository yourself.",
                 "- Do not run training.",
             ]

@@ -23,7 +23,7 @@ Protocol:
 4. Decide one of:
    - `approve`
    - `revise`
-5. Write the decision file with exactly these shell variables:
+5. Write the decision file as a JSON object with exactly these string fields:
    - `DECISION`
    - `SUMMARY`
    - `FINDINGS`

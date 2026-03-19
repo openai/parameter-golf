@@ -25,7 +25,7 @@ Protocol:
 6. Decide one of:
    - `keep`
    - `revert`
-7. Write the decision file with exactly these shell variables:
+7. Write the decision file as a JSON object with exactly these string fields:
    - `DECISION`
    - `SUMMARY`
    - `FINDINGS`
