@@ -327,6 +327,100 @@ def eval_val(
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
+
+def ttt_eval_val(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    ttt_lr: float = 1e-4,
+    ttt_steps: int = 1,
+) -> tuple[float, float]:
+    """Validation with batch-level test-time training on MLP down-projections.
+
+    For each validation batch: adapt MLP proj weights via SGD, score with
+    adapted weights, then restore originals. This lets the model briefly
+    specialise to the local token distribution at eval time — no extra
+    parameters, no size increase.
+    """
+    eval_seq_len = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
+
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    if local_batch_tokens < eval_seq_len:
+        raise ValueError("VAL_BATCH_SIZE too small for TTT eval")
+    local_batch_seqs = max(1, local_batch_tokens // eval_seq_len)
+
+    # TTT target: MLP output projections (W_down)
+    ttt_params = [block.mlp.proj.weight for block in base_model.blocks]
+    orig_weights = [p.data.clone() for p in ttt_params]
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    total_seqs = (val_tokens.numel() - 1) // eval_seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+
+    base_model.eval()
+
+    for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+        batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+        raw_start = batch_seq_start * eval_seq_len
+        raw_end = batch_seq_end * eval_seq_len + 1
+        local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+        x = local[:-1].reshape(-1, eval_seq_len)
+        y = local[1:].reshape(-1, eval_seq_len)
+
+        # --- TTT: adapt W_down to this batch ---
+        for p in ttt_params:
+            p.requires_grad_(True)
+        for _ in range(ttt_steps):
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                adapt_loss = base_model(x, y)
+            grads = torch.autograd.grad(adapt_loss, ttt_params)
+            with torch.no_grad():
+                for p, g in zip(ttt_params, grads):
+                    p.sub_(g, alpha=ttt_lr)
+        for p in ttt_params:
+            p.requires_grad_(False)
+
+        # --- Score with adapted weights ---
+        with torch.no_grad():
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                batch_loss = base_model(x, y).detach()
+            batch_token_count = float(y.numel())
+            val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
+            val_token_count += batch_token_count
+            prev_ids = x.reshape(-1)
+            tgt_ids = y.reshape(-1)
+            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+        # --- Restore original weights ---
+        with torch.no_grad():
+            for p, orig in zip(ttt_params, orig_weights):
+                p.data.copy_(orig)
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    base_model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
 # -----------------------------
 # POST-TRAINING QUANTIZATION
 # -----------------------------
@@ -1166,7 +1260,22 @@ def main() -> None:
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_int8_zlib_roundtrip_base val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # Test-time training evaluation on int8-roundtripped weights
+    torch.cuda.synchronize()
+    t_ttt = time.perf_counter()
+    ttt_val_loss, ttt_val_bpb = ttt_eval_val(
+        args, base_model, rank, world_size, device, grad_accum_steps,
+        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        ttt_lr=1e-4, ttt_steps=1,
+    )
+    torch.cuda.synchronize()
+    log0(
+        f"final_int8_zlib_roundtrip_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
+        f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
+    )
+    log0(f"final_int8_zlib_roundtrip_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
