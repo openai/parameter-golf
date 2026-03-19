@@ -1,0 +1,10 @@
+I'm working on the OpenAI Parameter Golf challenge. Read CLAUDE.md for full context. The code is on branch mtp-auxiliary-heads of sp00mm/parameter-golf.
+
+My novel idea is "memory tokens" — learnable tokens that replace the first K positions of every sequence, giving the model a global context scratchpad.
+
+I have a full combo run (memory tokens + seq2048 + sliding window eval + fp16 embed + muon weight decay) that either just finished or is still running on a RunPod H100 pod. Check the memory files for experiment results so far.
+
+Next steps:
+1. Review the full combo run results (I'll paste them)
+2. If good, do the 8xH100 submission run (run_8xh100.sh)
+3. Prepare the submission PR to openai/parameter-golf
