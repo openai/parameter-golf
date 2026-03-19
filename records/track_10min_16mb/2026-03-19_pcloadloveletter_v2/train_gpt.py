@@ -322,7 +322,7 @@ INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 # Int6 quantization: values in [-32, 31] stored in int8 containers.
 # "Late-K passthrough" keeps last 2 layers' K projections in fp16.
 INT6_RANGE_MAX = 31
-INT6_RANGE_MIN = -32
+INT6_RANGE_MIN = -31  # symmetric with INT6_RANGE_MAX
 INT6_LATE_K_FP16_PATTERNS = ("blocks.7.attn.c_k.weight", "blocks.8.attn.c_k.weight")
 
 def tensor_nbytes(t: Tensor) -> int:
@@ -336,20 +336,26 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
-    """Int6 per-row quantization: scale = max(abs(row)) / 31, clamp to [-32, 31].
-    Stored in int8 containers for compatibility."""
+def quantize_float_tensor(t: Tensor, bits: int = 6) -> tuple[Tensor, Tensor]:
+    """Per-row quantization at specified bit width with outlier clipping.
+    Matches PR #114's proven approach. Stored in int8 containers."""
+    max_val = (2 ** (bits - 1)) - 1  # 31 for int6, 127 for int8
     t32 = t.float()
     if t32.ndim == 2:
-        row_max = t32.abs().amax(dim=1)
-        scale = (row_max / INT6_RANGE_MAX).clamp_min(1.0 / INT6_RANGE_MAX)
-        q = torch.clamp(torch.round(t32 / scale[:, None]), INT6_RANGE_MIN, INT6_RANGE_MAX).to(torch.int8).contiguous()
+        clip_abs = (
+            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+            if t32.numel()
+            else torch.empty((t32.shape[0],), dtype=torch.float32)
+        )
+        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / float(max_val)).clamp_min(1.0 / float(max_val))
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -max_val, max_val).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
-    amax = float(t32.abs().max().item()) if t32.numel() else 0.0
-    scale = torch.tensor(amax / INT6_RANGE_MAX if amax > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(t32 / scale), INT6_RANGE_MIN, INT6_RANGE_MAX).to(torch.int8).contiguous()
+    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+    scale = torch.tensor(clip_abs / float(max_val) if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -max_val, max_val).to(torch.int8).contiguous()
     return q, scale
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
