@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${1:-openai/parameter-golf}"
-OUTDIR="${2:-pr_diffs}"
-LIMIT="${3:-60}"
+REPO="openai/parameter-golf"
+OUTDIR="${1:-pr_diffs}"
+LIMIT="${2:-60}"
 
 mkdir -p "$OUTDIR"
 
