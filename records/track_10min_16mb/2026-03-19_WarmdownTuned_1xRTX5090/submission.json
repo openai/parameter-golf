@@ -1,0 +1,14 @@
+{
+  "author": "Swapnil Patel",
+  "github_id": "swapp1990",
+  "name": "Warmdown-Tuned Training on 1xRTX 5090",
+  "blurb": "Systematic experiment-driven optimization across 8 experiments. Key findings: warmdown phase produces disproportionate BPB gains, batch=65536 optimal for single GPU, position degradation is architectural not training-dependent. Best result 1.312 BPB on 1xRTX 5090 (1200s). Applying for H100 compute grant to scale up.",
+  "date": "2026-03-19",
+  "val_loss": 2.2159,
+  "val_bpb": 1.3124,
+  "bytes_total": 15795671,
+  "bytes_code": 48344,
+  "hardware": "1xRTX 5090 (not 8xH100 - compute grant application)",
+  "wallclock_seconds": 1200,
+  "steps": 11909
+}

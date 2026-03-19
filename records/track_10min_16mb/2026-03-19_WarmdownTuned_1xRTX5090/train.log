@@ -1,0 +1,22 @@
+step:0/20000 val_loss:6.9357 val_bpb:4.1077 train_time:0ms step_avg:0.01ms
+step:1000/20000 val_loss:2.6465 val_bpb:1.5674 train_time:100386ms step_avg:100.39ms
+step:2000/20000 val_loss:2.4999 val_bpb:1.4806 train_time:201195ms step_avg:100.60ms
+step:3000/20000 val_loss:2.4404 val_bpb:1.4453 train_time:301598ms step_avg:100.53ms
+step:4000/20000 val_loss:2.3916 val_bpb:1.4164 train_time:402929ms step_avg:100.73ms
+step:5000/20000 val_loss:2.3635 val_bpb:1.3998 train_time:503723ms step_avg:100.74ms
+step:6000/20000 val_loss:2.3380 val_bpb:1.3847 train_time:604173ms step_avg:100.70ms
+step:7000/20000 val_loss:2.3179 val_bpb:1.3728 train_time:705047ms step_avg:100.72ms
+step:8000/20000 val_loss:2.3077 val_bpb:1.3668 train_time:806108ms step_avg:100.76ms
+step:9000/20000 val_loss:2.2953 val_bpb:1.3594 train_time:906524ms step_avg:100.72ms
+step:10000/20000 val_loss:2.2837 val_bpb:1.3525 train_time:1007419ms step_avg:100.74ms
+step:11000/20000 val_loss:2.2699 val_bpb:1.3444 train_time:1108766ms step_avg:100.80ms
+step:11909/20000 val_loss:2.2090 val_bpb:1.3083 train_time:1200047ms step_avg:100.77ms
+stopping_early: wallclock_cap train_time:1200047ms step:11909/20000
+peak memory allocated: 1552 MiB reserved: 1568 MiB
+Serialized model: 67224983 bytes
+Code size: 48344 bytes
+Total submission size: 67273327 bytes
+Serialized model int8+zlib: 15747327 bytes (payload:17178912 raw_torch:17224025 payload_ratio:3.91x)
+Total submission size int8+zlib: 15795671 bytes
+final_int8_zlib_roundtrip val_loss:2.2159 val_bpb:1.3124 eval_time:20825ms
+final_int8_zlib_roundtrip_exact val_loss:2.21590298 val_bpb:1.31238256
