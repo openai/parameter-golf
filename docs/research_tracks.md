@@ -242,28 +242,72 @@ Use this when ranking experiments on a more faithful local objective:
     - both nearby grid weights regressed versus the `0.10` winner
     - `COMPRESSION_GRID_REG_WEIGHT=0.10` currently looks like a real local optimum on the fixed-step track
     - the next compression-aware pivot should keep `grid=0.10` fixed and test only very small outlier pressure around it
+- Tiny outlier sweep on top of the grid-aligned winner:
+  - sweep: `gridoutlier_fixedstep_20260318_225946`
+  - completed results:
+    - `o00010` -> `2.04373218`
+    - `o00025` -> `2.04372289`
+  - interpretation:
+    - even very small outlier pressure still regresses
+    - outlier suppression should stay parked unless it becomes tensor-targeted
+- Dense iso-byte frontier sweep:
+  - sweep: `isobyte_fixedstep_20260318_234805`
+  - completed results:
+    - `b10` -> `2.02814871` at `9,683,932` bytes
+    - `b12` -> `2.05262920` at `11,334,608` bytes
+    - `b14` -> `2.03768242` at `13,094,288` bytes
+    - `b155` -> `2.00290272` at `13,741,308` bytes
+  - interpretation:
+    - dense scaling dominates the small-model micro-ideas by a wide margin
+    - the current best result is no longer the 6.66 MB regime; it is the larger dense `b155` run
+    - the frontier is not monotonic with size alone, so geometry still matters, but the main lesson is clear: under-byte-spent local negatives were misleading
+    - the next step should stay on the dense high-cap frontier and compare width-vs-depth near the byte ceiling
+- High-cap dense frontier:
+  - recovered / rerun results:
+    - `w608_l12` -> `2.00551677` at `14,371,393` bytes
+    - `w624_l12` -> `2.01128088` at `15,024,114` bytes
+    - `d576_l14` -> `1.99806297` at `15,222,128` bytes
+  - interpretation:
+    - depth beat width at roughly the same byte spend in this near-cap regime
+    - the first sub-`2.0` local fixed-step result came from the deeper dense model, not the wider one
+    - near the byte cap, width is not obviously the best place to spend additional budget
+    - the remaining unresolved dense point is `w640_l12`, after which the next branch should probably be export-side permutation or tensor-aware allocation built on top of the deeper dense control
 
 ## Current leader
 
-- `exportaware_fixedstep_20260318_223456_g010_r000`
+- `highcapdense_rerun_20260319_d576_l14`
 - dense attention, no sidecar, no recurrence, no factorized embedding
 - `COMPRESSION_REG_WEIGHT=0.005`
 - `COMPRESSION_GRID_REG_WEIGHT=0.10`
-- fixed-step exact final roundtrip result: `val_bpb=2.04288777`
-- total artifact: `6,663,470` bytes
+- fixed-step exact final roundtrip result: `val_bpb=1.99806297`
+- total artifact: `15,222,128` bytes
 - best wallclock-track reference remains `compressrt3090_20260318_175828` at `2.06085837`
+
+## Regime correction
+
+- The current fixed-step leader is still only about `6.66 MB`, which is far below the `16,000,000` byte cap.
+- That means many earlier negative results were gathered in an under-byte-spent regime.
+- The next trustworthy question is not "what tiny regularizer wins on this small model?" but "how should the remaining budget be spent?"
+- Dense iso-byte controls now take priority over more recurrence / sparse / ternary / sidecar work.
 
 ## Immediate next step
 
-- Attack compression-aware training more directly
-- keep the now-stable dense fixed-step baseline as the control
-- keep the export-aware grid term at `0.10`
-- test only tiny outlier pressure around the current winner
+- Stay on the dense high-cap frontier
+- keep the current compression-aware recipe as the control
+- keep `COMPRESSION_REG_WEIGHT=0.005` and `COMPRESSION_GRID_REG_WEIGHT=0.10`
+- compare width-vs-depth near the `15 MB` to `16 MB` region
 - rank new compression-native ideas on the fixed-step roundtrip track first
 - rank experiments by `final_int8_zlib_roundtrip_exact val_bpb`
 
 ## Next experiments
 
+- Iso-byte dense sweep:
+  - treat dense attention plus compression-aware training as the control family
+  - continue comparing larger dense models before trusting more negative results from byte-saving tricks
+- High-cap width-vs-depth dense sweep:
+  - compare dense shapes in roughly the same byte neighborhood near the cap
+  - depth currently looks stronger than width in the near-cap regime
+  - finish the last unresolved dense width point, then use the deeper dense model as the control for export-side ideas like symmetry-aware permutation
 - Export-aware compression regularizer:
   - continue aligning sampled training-time regularization with the actual export path
   - hold `COMPRESSION_GRID_REG_WEIGHT=0.10` fixed unless new evidence suggests otherwise
