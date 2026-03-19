@@ -1,0 +1,16 @@
+{
+  "author": "m0at",
+  "github_id": "m0at",
+  "name": "FA3 + Post-Training QAT",
+  "blurb": "Flash Attention 3 (Hopper kernels) for ~8% faster steps + post-training quantization-aware training to reduce int8+zlib penalty from +0.007 to +0.002 BPB. Architecture unchanged from baseline.",
+  "date": "2026-03-19",
+  "val_loss": 2.06730467,
+  "val_bpb": 1.22437427,
+  "bytes_total": 15883336,
+  "bytes_code": 50902,
+  "runs": [
+    {"seed": 1337, "val_loss": 2.06730467, "val_bpb": 1.22437427},
+    {"seed": 42, "val_loss": 2.06767457, "val_bpb": 1.22459335},
+    {"seed": 7, "val_loss": 2.06741910, "val_bpb": 1.22444204}
+  ]
+}
