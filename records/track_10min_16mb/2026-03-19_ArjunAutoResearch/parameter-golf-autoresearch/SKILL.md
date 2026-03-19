@@ -1,6 +1,9 @@
 ---
 name: parameter-golf-autoresearch
 description: Beat the OpenAI Parameter Golf leaderboard by pulling all competitor PRs with the GitHub CLI, ranking techniques by expected BPB impact, stacking the best ones, running experiments, and packaging a compliant submission. Use when working on the parameter-golf challenge, trying to improve val_bpb, or submitting a leaderboard record.
+metadata:
+  author: arjun-krishna1
+  version: "1.0"
 ---
 
 # Parameter Golf AutoResearch
@@ -28,16 +31,16 @@ Per PR, note: score delta, artifact size impact, step time change, quant gap.
 
 Stack High-tier techniques in BPB-impact order. Key interactions to watch:
 
-- **fp16 embed + low LR** already brings quant gap to ~0.001 → QAT is redundant and slows steps
-- **seq_len=4096 + eval_batch_seqs=1024** → OOM (4.2M tokens/fwd pass). Use `eval_batch_seqs=128`
-- **val_loss_every > 0** eats ~20s of training budget at seq_len=4096 → set to 0
+- **fp16 embed + low LR** already brings quant gap to ~0.001 — QAT is redundant and slows steps
+- **seq_len=4096 + eval_batch_seqs=1024** — OOM (4.2M tokens/fwd pass). Use `eval_batch_seqs=128`
+- **val_loss_every > 0** eats ~20s of training budget at seq_len=4096 — set to 0
 
 Best validated config (1.18335372 BPB, 8xH100 SXM):
 
 ```bash
 TRAIN_SEQ_LEN=4096         # 4x richer context per step
 TRAIN_BATCH_TOKENS=393216  # 3/4 batch = more steps per minute
-MATRIX_LR=0.02             # halved → lower quant gap, smoother convergence
+MATRIX_LR=0.02             # halved — lower quant gap, smoother convergence
 SCALAR_LR=0.02
 TIED_EMBED_LR=0.03
 MUON_MOMENTUM=0.99
@@ -69,7 +72,7 @@ If the log stops after `final_eval_mode:...` with no score, the sliding window e
 
 ## Phase 4: Run 3 seeds for significance
 
-The challenge requires p < 0.01 beating SOTA by ≥ 0.005 BPB. Repeat Phase 3 with SEED=1338 and SEED=1339, then:
+The challenge requires p < 0.01 beating SOTA by >= 0.005 BPB. Repeat Phase 3 with SEED=1338 and SEED=1339, then:
 
 ```python
 threshold = current_SOTA - 0.005
@@ -81,12 +84,12 @@ t = (threshold - mean_bpb) / (std_bpb / sqrt(3))
 
 ```
 records/track_10min_16mb/YYYY-MM-DD_<Name>/
-├── README.md           # approach, config, run command, metrics, significance
-├── submission.json     # author, github_id, name, val_bpb, bytes_total, bytes_code
-├── train.log           # seed 1337
+├── README.md
+├── submission.json
+├── train.log
 ├── train_seed1338.log
 ├── train_seed1339.log
-└── train_gpt.py        # must run standalone from repo root
+└── train_gpt.py
 ```
 
 Run command in README must use the full path:
@@ -105,15 +108,7 @@ Artifact check: `bytes_model_int8_zlib + bytes_code < 16,000,000`
 - [ ] README has t-statistic, df, and p-value
 - [ ] Artifact is under 16MB
 
-```bash
-git add records/track_10min_16mb/<Name>/
-git commit -m "Add <Name> record: val_bpb <score>"
-git push -u origin <branch>
-gh pr create --repo openai/parameter-golf --head <user>:<branch> --base main \
-  --title "Record: <Name> — val_bpb <score>"
-```
-
-## Reference numbers
+## Reference
 
 - Baseline: 1.2244 BPB
 - Best result with this workflow: **1.18335372** (mean 1.18418 across 3 seeds, std 0.00075)
