@@ -1,0 +1,17 @@
+{
+  "name": "Majdi Zamim",
+  "github_id": "MajdiZamim",
+  "val_bpb": 1.2381,
+  "val_loss": 2.09043162,
+  "model_params": 17059912,
+  "artifact_bytes": 15854719,
+  "hardware": "8xH100 SXM",
+  "warmdown_iters": 3000,
+  "train_batch_tokens": 524288,
+  "train_seq_len": 1024,
+  "vocab_size": 1024,
+  "num_layers": 9,
+  "model_dim": 512,
+  "num_heads": 8,
+  "num_kv_heads": 4
+}
