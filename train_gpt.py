@@ -62,6 +62,8 @@ class Hyperparameters:
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_loop_iters = int(os.environ.get("NUM_LOOP_ITERS", 9))
+    min_loop_iters = int(os.environ.get("MIN_LOOP_ITERS", 3))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -650,6 +652,8 @@ class GPT(nn.Module):
         self,
         vocab_size: int,
         num_layers: int,
+        num_loop_iters: int,
+        min_loop_iters: int,
         model_dim: int,
         num_heads: int,
         num_kv_heads: int,
@@ -666,24 +670,19 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_loop_iters = num_loop_iters
+        self.min_loop_iters = min_loop_iters
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.blocks = nn.ModuleList(
-            [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-                for i in range(num_layers)
-            ]
+        self.skip_weights = nn.Parameter(torch.ones(model_dim, dtype=torch.float32))
+        self.shared_block = Block(
+            model_dim,
+            num_heads,
+            num_kv_heads,
+            mlp_mult,
+            rope_base,
+            qk_gain_init,
         )
+        self.iter_scales = nn.Parameter(torch.ones(num_loop_iters, model_dim, dtype=torch.float32))
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -701,16 +700,23 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        if self.training:
+            num_iters = random.randint(self.min_loop_iters, self.num_loop_iters)
+        else:
+            num_iters = self.num_loop_iters
+
+        # U-Net skip reinterpreted across loop iterations:
+        # store at the midpoint iteration, reinject in the second half.
+        mid = self.num_loop_iters // 2
+        skip = x  # initialised to a valid tensor; overwritten at i == mid
+        for i in range(num_iters):
+            x = x * self.iter_scales[i].to(dtype=x.dtype)[None, None, :]
+            if i > mid:
+                x = x + self.skip_weights.to(dtype=x.dtype)[None, None, :] * skip
+            x = self.shared_block(x, x0)
+            if i == mid:
+                skip = x
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -826,6 +832,8 @@ def main() -> None:
     base_model = GPT(
         vocab_size=args.vocab_size,
         num_layers=args.num_layers,
+        num_loop_iters=args.num_loop_iters,
+        min_loop_iters=args.min_loop_iters,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
@@ -848,7 +856,7 @@ def main() -> None:
     # - untied lm_head (Adam) uses HEAD_LR
     # - matrix params in transformer blocks use MATRIX_LR via Muon
     # - vectors/scalars use SCALAR_LR via Adam
-    block_named_params = list(base_model.blocks.named_parameters())
+    block_named_params = list(base_model.shared_block.named_parameters())
     matrix_params = [
         p
         for name, p in block_named_params
@@ -861,6 +869,7 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    scalar_params.append(base_model.iter_scales)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
