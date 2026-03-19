@@ -1148,6 +1148,33 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
+    # FRESH MODEL VERIFICATION: create entirely new model, load same weights, eval
+    fresh_model = GPT(
+        vocab_size=args.vocab_size,
+        num_unique_blocks=args.num_unique_blocks,
+        num_loops=args.num_loops,
+        model_dim=args.model_dim,
+        num_heads=args.num_heads,
+        num_kv_heads=args.num_kv_heads,
+        mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings,
+        tied_embed_init_std=args.tied_embed_init_std,
+        logit_softcap=args.logit_softcap,
+        rope_base=args.rope_base,
+        qk_gain_init=args.qk_gain_init,
+    ).to(device).bfloat16()
+    for module in fresh_model.modules():
+        if isinstance(module, CastedLinear):
+            module.float()
+    restore_low_dim_params_to_fp32(fresh_model)
+    fresh_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    fresh_model.to(device)
+    f_val_loss, f_val_bpb = eval_val(
+        args, fresh_model, rank, world_size, device, grad_accum_steps,
+        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+    )
+    log0(f"fresh_model_verify val_loss:{f_val_loss:.4f} val_bpb:{f_val_bpb:.4f}")
+
     if distributed:
         dist.destroy_process_group()
 
