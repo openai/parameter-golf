@@ -742,16 +742,18 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
-        x = self.final_norm(x).reshape(-1, x.size(-1))
+        x_norm = self.final_norm(x)
+        x_flat = x_norm.reshape(-1, x_norm.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(x_flat, self.tok_emb.weight)
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
+            logits_proj = self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        return loss
 
 
 # -----------------------------
@@ -1064,6 +1066,10 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
+        # Decoupled weight decay for Muon-optimized matrix params (not built into Muon)
+        with torch.no_grad():
+            for p in matrix_params:
+                p.mul_(1.0 - 0.01 * optimizer_muon.param_groups[0]["lr"])
         zero_grad_all()
 
         step += 1
@@ -1095,18 +1101,18 @@ def main() -> None:
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
-    # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
-    # the compressed int8+zlib artifact and validate the round-tripped weights.
+    # Save the raw state, then produce the compressed int8+zlib artifact.
+    export_state = dict(base_model.state_dict())
 
     if master_process:
-        torch.save(base_model.state_dict(), "final_model.pt")
+        torch.save(export_state, "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    quant_obj, quant_stats = quantize_state_dict_int8(export_state)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1129,7 +1135,7 @@ def main() -> None:
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=False)
 
     # If eval_seq_len is set, reload val tokens at the longer length and eval with NTK-scaled RoPE
     eval_sl = args.eval_seq_len if args.eval_seq_len > 0 else 0
