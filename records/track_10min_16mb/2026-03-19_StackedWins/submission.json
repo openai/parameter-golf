@@ -1,0 +1,16 @@
+{
+  "name": "pcloadloveletter - Stacked Wins v1",
+  "github_id": "NotADevIAmaMeatPopsicle",
+  "val_bpb": null,
+  "metadata": {
+    "description": "Combined sliding window eval (stride=64) + seq2048 + fp16 embed passthrough + warmdown 3600 + tuned LRs",
+    "train_seq_len": 2048,
+    "mlp_hidden": 992,
+    "warmdown_iters": 3600,
+    "eval_stride": 64,
+    "matrix_lr": 0.06,
+    "scalar_lr": 0.032,
+    "tied_embed_lr": 0.04,
+    "status": "pending_validation"
+  }
+}
