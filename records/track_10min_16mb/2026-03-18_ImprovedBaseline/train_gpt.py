@@ -1,10 +1,10 @@
 """
 Improved baseline for Parameter Golf challenge.
 Key changes from naive baseline:
-- Depth recurrence: 5 unique layers looped 2x = 10 effective layers
-- Wider model: dim=704 using param savings from weight sharing
+- Depth recurrence: 4 unique layers looped 3x = 12 effective layers
+- Wider model: dim=768 using param savings from weight sharing
 - SwiGLU MLP at 2/3 expansion (param-neutral vs ReLU^2)
-- Per-loop LoRA adapters (rank-16) on Q/K/V/O for loop specialization
+- Per-loop LoRA adapters (rank-32) on Q/K/V/O for loop specialization
 - Multi-token prediction (MTP) auxiliary loss (training-only, excluded from artifact)
 - EMA weight averaging for smoother eval weights
 - Per-recurrence learned scales so shared blocks can distinguish passes
@@ -59,16 +59,16 @@ class Hyperparameters:
 
     # Model shape — depth recurrence: num_unique_layers looped num_recurrence times
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_unique_layers = int(os.environ.get("NUM_UNIQUE_LAYERS", 5))
-    num_recurrence = int(os.environ.get("NUM_RECURRENCE", 2))
+    num_unique_layers = int(os.environ.get("NUM_UNIQUE_LAYERS", 4))
+    num_recurrence = int(os.environ.get("NUM_RECURRENCE", 3))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 704))
+    model_dim = int(os.environ.get("MODEL_DIM", 768))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    lora_rank = int(os.environ.get("LORA_RANK", 16))
+    lora_rank = int(os.environ.get("LORA_RANK", 32))
     mtp_heads = int(os.environ.get("MTP_HEADS", 2))
     mtp_weight = float(os.environ.get("MTP_WEIGHT", 0.15))
     use_swiglu = bool(int(os.environ.get("USE_SWIGLU", "1")))
@@ -911,7 +911,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
     # MTP heads are training-only, kept outside compiled graph to avoid fullgraph issues
     mtp_heads: list[MTPHead] = []
