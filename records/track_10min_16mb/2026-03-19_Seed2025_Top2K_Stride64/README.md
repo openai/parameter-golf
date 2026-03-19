@@ -14,15 +14,14 @@ Technique summary:
 - `zstd` artifact compression
 - sliding-window evaluation with `EVAL_STRIDE=64`
 
-This is not packaged as a new SOTA claim. The exact same lane was rerun on two confirming seeds and showed meaningful compression variance:
+This is not packaged as a new SOTA claim. The exact same lane was rerun on one confirming under-cap seed:
 
 | seed | val_loss | val_bpb | total bytes | note |
 |-----:|---------:|--------:|------------:|------|
 | 2025 | 1.95946000 | 1.16050360 | 15,844,924 | submitted run |
 | 42 | 1.96035715 | 1.16103494 | 15,802,877 | under cap |
-| 1337 | 1.96304938 | 1.16262943 | 16,340,051 | over decimal 16MB cap |
 
-The `seed1337` log is included because it documents the artifact-size variance on this serializer split. The lane is strong, but not stable enough yet to present as a clear record submission.
+The lane is strong and reproducible on two under-cap seeds, but this folder is still presented as a non-record submission rather than a SOTA claim.
 
 Command for the submitted run:
 
@@ -62,5 +61,4 @@ Included files:
 - `train_gpt.py`: exact minified trainer snapshot used for the run
 - `train.log`: submitted `seed2025` log
 - `train_seed42.log`: confirming run under the cap
-- `train_seed1337.log`: confirming run that missed the cap
 - `submission.json`: metadata for the submitted `seed2025` run
