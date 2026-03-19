@@ -310,11 +310,6 @@ INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS", "").split(",")
     if pattern
 )
-INT8_FP32_SCALE_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("INT8_FP32_SCALE_NAME_PATTERNS", "").split(",")
-    if pattern
-)
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -332,7 +327,7 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(name: str, t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
@@ -345,12 +340,7 @@ def quantize_float_tensor(name: str, t: Tensor) -> tuple[Tensor, Tensor]:
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
         scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
         q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        scale_dtype = (
-            torch.float32
-            if any(pattern in name for pattern in INT8_FP32_SCALE_NAME_PATTERNS)
-            else INT8_PER_ROW_SCALE_DTYPE
-        )
-        return q, scale.to(dtype=scale_dtype).contiguous()
+        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
@@ -371,18 +361,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
     stats = dict.fromkeys(
-        (
-            "param_count",
-            "num_tensors",
-            "num_float_tensors",
-            "num_nonfloat_tensors",
-            "baseline_tensor_bytes",
-            "int8_payload_bytes",
-            "scale_tensor_count",
-            "scale_bytes",
-            "fp32_scale_tensor_count",
-            "fp32_scale_bytes",
-        ),
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
         0,
     )
 
@@ -409,17 +388,12 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(name, t)
+        q, s = quantize_float_tensor(t)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
-        stats["scale_tensor_count"] += 1
-        stats["scale_bytes"] += tensor_nbytes(s)
-        if s.ndim > 0 and s.dtype == torch.float32:
-            stats["fp32_scale_tensor_count"] += 1
-            stats["fp32_scale_bytes"] += tensor_nbytes(s)
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
     obj: dict[str, object] = {
@@ -1151,10 +1125,6 @@ def main() -> None:
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
-        )
-        log0(
-            f"Int8 scale storage: tensors:{quant_stats['scale_tensor_count']} bytes:{quant_stats['scale_bytes']} "
-            f"fp32_tensors:{quant_stats['fp32_scale_tensor_count']} fp32_bytes:{quant_stats['fp32_scale_bytes']}"
         )
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
 
