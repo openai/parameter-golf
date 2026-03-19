@@ -109,6 +109,12 @@ class Hyperparameters:
     # SWA: average N checkpoints during warmdown for better generalization.
     swa_count = int(os.environ.get("SWA_COUNT", 7))
 
+    # TTT: test-time training — fine-tune on val data during eval budget.
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 30))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
+    ttt_max_seconds = float(os.environ.get("TTT_MAX_SECONDS", 480.0))
+
 # -----------------------------
 # MUON OPTIMIZER 
 # -----------------------------
@@ -1243,6 +1249,55 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # --- TEST-TIME TRAINING: fine-tune on val data during eval budget ---
+    if args.ttt_enabled:
+        torch.cuda.synchronize()
+        t_ttt = time.perf_counter()
+        log0(f"ttt:starting epochs={args.ttt_epochs} lr={args.ttt_lr} max_seconds={args.ttt_max_seconds}")
+
+        # Set up TTT optimizer on base_model (uncompiled, supports per_token later).
+        ttt_optimizer = torch.optim.Adam(base_model.parameters(), lr=args.ttt_lr, betas=(0.9, 0.99))
+        base_model.train()
+
+        seq_len = args.train_seq_len
+        total_tokens = val_tokens.numel() - 1
+        total_seqs = total_tokens // seq_len
+        batch_seqs = max(1, args.val_batch_size // seq_len)
+        ttt_step = 0
+
+        for epoch in range(args.ttt_epochs):
+            for batch_start in range(0, total_seqs, batch_seqs):
+                batch_end = min(batch_start + batch_seqs, total_seqs)
+                raw_start = batch_start * seq_len
+                raw_end = batch_end * seq_len + 1
+                local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+                x = local[:-1].reshape(-1, seq_len)
+                y = local[1:].reshape(-1, seq_len)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    loss = base_model(x, y)
+                ttt_optimizer.zero_grad(set_to_none=True)
+                loss.backward()
+                ttt_optimizer.step()
+                ttt_step += 1
+
+            elapsed = time.perf_counter() - t_ttt
+            log0(f"ttt:epoch {epoch+1}/{args.ttt_epochs} loss={loss.item():.4f} elapsed={elapsed:.1f}s")
+            if elapsed >= args.ttt_max_seconds:
+                log0(f"ttt:stopping at time limit ({args.ttt_max_seconds}s)")
+                break
+
+        torch.cuda.synchronize()
+        log0(f"ttt:completed steps={ttt_step} time={1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
+
+        # Quick eval after TTT to see the improvement.
+        base_model.eval()
+        with torch.inference_mode():
+            ttt_val_loss, ttt_val_bpb = eval_val(
+                args, base_model, rank, world_size, device, grad_accum_steps, val_tokens,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            )
+        log0(f"ttt:post_adapt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f}")
 
     if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
         torch.cuda.synchronize()
