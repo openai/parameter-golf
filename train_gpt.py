@@ -710,12 +710,14 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
 
-        # Prepend learnable memory tokens — all real tokens can attend to them via causal mask.
+        # Replace first K positions with learnable memory tokens.
+        # All later real tokens attend to them via causal mask.
+        # Loss is only computed on non-memory positions (K onward).
         K = self.num_memory_tokens
         if K > 0:
             mem = self.memory_tokens.expand(bsz, -1, -1).to(dtype=x.dtype)
             mem = F.rms_norm(mem, (mem.size(-1),))
-            x = torch.cat([mem, x], dim=1)
+            x = torch.cat([mem, x[:, K:, :]], dim=1)
 
         x0 = x
         skips: list[Tensor] = []
@@ -729,9 +731,10 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
-        # Strip memory token positions — only compute loss on real tokens.
+        # Strip memory token positions — only predict from real positions.
         if K > 0:
             x = x[:, K:, :]
+        target_ids = target_ids[:, K:] if K > 0 else target_ids
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
