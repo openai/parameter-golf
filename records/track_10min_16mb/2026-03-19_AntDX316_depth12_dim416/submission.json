@@ -1,0 +1,11 @@
+{
+"author": "AntDX316",
+"github_id": "AntDX316",
+"name": "Depth12 Dim416 KV4",
+"blurb": "SP-1024 12x416 KV4 tied-embedding run on 8xH100 with a 10-minute wallclock cap; deeper/narrower tweak of the naive baseline that fits under the 16,000,000-byte cap.",
+"date": "2026-03-19T08:54:00Z",
+"val_loss": 2.28096783,
+"val_bpb": 1.35091763,
+"bytes_total": 14301562,
+"bytes_code": 51856
+}
