@@ -1,0 +1,18 @@
+{
+  "author": "Will DePue",
+  "github_id": "unixmadtoonslab",
+  "name": "Int6 + Wider MLP 3x + FP16 Embed + Sliding Window",
+  "blurb": "Stacking four orthogonal improvements: int6 mixed-precision quantization on MLP+attention weights with zstd-22 compression, 3x MLP expansion (hidden=1536), fp16 tied embedding passthrough, and sliding window evaluation (stride=256). Each technique contributes independently to beat the current SOTA.",
+  "date": "2026-03-19T00:00:00Z",
+  "track": "10min-8xH100-16mb",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "pre_quant_val_loss": 0.0,
+  "pre_quant_val_bpb": 0.0,
+  "step_stop": 0,
+  "wallclock_seconds": 600.0,
+  "bytes_total": 0,
+  "bytes_model_int6_zstd": 0,
+  "bytes_code": 0,
+  "status": "WIP - awaiting 8xH100 SXM compute credits"
+}
