@@ -1256,9 +1256,21 @@ def main() -> None:
         t_ttt = time.perf_counter()
         log0(f"ttt:starting epochs={args.ttt_epochs} lr={args.ttt_lr} max_seconds={args.ttt_max_seconds}")
 
-        # Set up TTT optimizer on base_model (uncompiled, supports per_token later).
-        ttt_optimizer = torch.optim.Adam(base_model.parameters(), lr=args.ttt_lr, betas=(0.9, 0.99))
-        base_model.train()
+        # Build a fresh uncompiled model for TTT to avoid torch.compile issues.
+        ttt_model = GPT(
+            vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
+            num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
+            tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
+            logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
+        ).to(device).bfloat16()
+        for m in ttt_model.modules():
+            if isinstance(m, CastedLinear):
+                m.float()
+        restore_low_dim_params_to_fp32(ttt_model)
+        ttt_model.load_state_dict(base_model.state_dict(), strict=True)
+
+        ttt_optimizer = torch.optim.Adam(ttt_model.parameters(), lr=args.ttt_lr, betas=(0.9, 0.99))
+        ttt_model.train()
 
         seq_len = args.train_seq_len
         total_tokens = val_tokens.numel() - 1
@@ -1275,7 +1287,7 @@ def main() -> None:
                 x = local[:-1].reshape(-1, seq_len)
                 y = local[1:].reshape(-1, seq_len)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    loss = base_model(x, y)
+                    loss = ttt_model(x, y)
                 ttt_optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 ttt_optimizer.step()
@@ -1290,20 +1302,21 @@ def main() -> None:
         torch.cuda.synchronize()
         log0(f"ttt:completed steps={ttt_step} time={1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
-        # Quick eval after TTT to see the improvement.
-        base_model.eval()
+        # Quick eval after TTT.
+        ttt_model.eval()
         with torch.inference_mode():
             ttt_val_loss, ttt_val_bpb = eval_val(
-                args, base_model, rank, world_size, device, grad_accum_steps, val_tokens,
+                args, ttt_model, rank, world_size, device, grad_accum_steps, val_tokens,
                 base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             )
         log0(f"ttt:post_adapt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f}")
 
+        # Use ttt_model for sliding window eval too.
+        base_model = ttt_model
+
     if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
         torch.cuda.synchronize()
         t_slide = time.perf_counter()
-        # Use base_model (uncompiled) for sliding window since per_token=True
-        # triggers recompilation issues with fullgraph=True.
         sw_val_loss, sw_val_bpb = eval_val(
             args, base_model, rank, world_size, device, grad_accum_steps, val_tokens,
             base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
