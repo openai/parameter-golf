@@ -16,6 +16,7 @@ The controller is designed to keep the GPU busy while still maintaining traceabi
 - `codex` must be available in `PATH`.
 - `REMOTE_HOST` must be set to your GPU box, for example `user@host`.
 - The remote machine must already have the repo cloned and the dataset/tokenizer paths available.
+- The remote repo should start clean before the controller begins applying and pushing experiment commits.
 - `uv` is the expected runner for this subproject.
 
 Common remote env vars:
@@ -26,6 +27,8 @@ Common remote env vars:
 - `REMOTE_BRANCH`: defaults to `runpod-autoresearch`.
 - `REMOTE_TORCHRUN`: defaults to `torchrun`.
 - `REMOTE_IDENTITY`: optional SSH key path.
+- `REMOTE_SSH_FORCE_TTY`: optional boolean override. The controller enables `ssh -tt`
+  automatically for `*.runpod.io` hosts because that gateway expects a PTY.
 
 Common experiment env vars:
 
@@ -162,6 +165,8 @@ uv run python run_pgolf_experiment.py --hours 8
 - `results.tsv` and `reviews.tsv` are still the high-level human-readable ledgers.
 - Detailed artifacts live outside git-tracked history under `TRACE_ROOT`.
 - The prompt files in this directory are part of the controller contract. If you change them, do it deliberately.
+- Under `systemd --user`, prefer `journalctl --user -u parameter-golf-autoresearch`
+  for logs instead of systemd-managed file append targets.
 
 **Checks**
 

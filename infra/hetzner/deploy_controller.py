@@ -2,14 +2,12 @@
 from __future__ import annotations
 
 import argparse
-import os
 import shlex
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
-
+SERVICE_PATH = "%h/.local/bin:%h/.npm/bin:%h/bin:/usr/local/bin:/usr/bin:/bin"
 REPO_EXCLUDES = [
     ".venv/",
     "autoresearch/.venv/",
@@ -97,6 +95,11 @@ def render_service(args: argparse.Namespace, remote_repo_dir: str, remote_env_fi
     escaped_args = shell_join(shlex.split(args.controller_args.strip() or "--forever"))
     service_repo_dir = remote_service_path(remote_repo_dir)
     service_env_file = remote_service_path(remote_env_file)
+    exec_start = (
+        '/bin/bash -lc "cd '
+        f"{service_repo_dir}/autoresearch"
+        f' && uv run python run_pgolf_experiment.py {escaped_args}"'
+    )
     return f"""[Unit]
 Description=Parameter Golf Autoresearch Controller
 After=network-online.target
@@ -105,9 +108,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory={service_repo_dir}
-Environment=PATH=%h/.local/bin:%h/.npm/bin:%h/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH={SERVICE_PATH}
 EnvironmentFile={service_env_file}
-ExecStart=/bin/bash -lc "cd {service_repo_dir}/autoresearch && uv run python run_pgolf_experiment.py {escaped_args}"
+ExecStart={exec_start}
 Restart=always
 RestartSec=15
 
@@ -152,18 +155,32 @@ def remote_prepare_script(args: argparse.Namespace) -> str:
     systemd_dir = shlex.quote(remote_shell_path(args.remote_systemd_dir))
     state_dir = shlex.quote(remote_shell_path(args.remote_state_dir))
     service_name = shlex.quote(args.service_name)
+    require_python = (
+        "command -v python3 >/dev/null 2>&1 || "
+        "{ echo 'python3 is required on the controller host'; exit 1; }"
+    )
+    require_git = (
+        "command -v git >/dev/null 2>&1 || "
+        "{ echo 'git is required on the controller host'; exit 1; }"
+    )
+    export_path = f'export PATH="{SERVICE_PATH.replace("%h", "$HOME")}"'
+    require_uv = "command -v uv >/dev/null 2>&1 || { echo 'uv install failed'; exit 1; }"
+    require_codex = (
+        "command -v codex >/dev/null 2>&1 || "
+        "{ echo 'codex CLI missing on controller host'; exit 1; }"
+    )
     return "\n".join(
         [
             "set -euo pipefail",
             f"mkdir -p {repo_dir} {env_dir} {systemd_dir} {state_dir}",
-            "command -v python3 >/dev/null 2>&1 || { echo 'python3 is required on the controller host'; exit 1; }",
-            "command -v git >/dev/null 2>&1 || { echo 'git is required on the controller host'; exit 1; }",
+            require_python,
+            require_git,
             "if ! command -v uv >/dev/null 2>&1; then",
             "  curl -LsSf https://astral.sh/uv/install.sh | sh",
             "fi",
-            "export PATH=\"$HOME/.local/bin:$HOME/.npm/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin\"",
-            "command -v uv >/dev/null 2>&1 || { echo 'uv install failed'; exit 1; }",
-            "command -v codex >/dev/null 2>&1 || { echo 'codex CLI missing on controller host'; exit 1; }",
+            export_path,
+            require_uv,
+            require_codex,
             f"git config --global --add safe.directory {repo_dir}",
             f"systemctl --user stop {service_name} >/dev/null 2>&1 || true",
         ]
@@ -174,12 +191,17 @@ def remote_finalize_script(args: argparse.Namespace) -> str:
     service_name = shlex.quote(args.service_name)
     remote_systemd_dir = remote_shell_path(args.remote_systemd_dir).rstrip("/")
     service_file = shlex.quote(f"{remote_systemd_dir}/{args.service_name}.service")
+    export_path = f'export PATH="{SERVICE_PATH.replace("%h", "$HOME")}"'
+    require_systemctl = (
+        "command -v systemctl >/dev/null 2>&1 || "
+        "{ echo 'systemctl is required on the controller host'; exit 1; }"
+    )
     commands = [
         "set -euo pipefail",
-        "export PATH=\"$HOME/.local/bin:$HOME/.npm/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin\"",
-        "command -v systemctl >/dev/null 2>&1 || { echo 'systemctl is required on the controller host'; exit 1; }",
+        export_path,
+        require_systemctl,
         f"test -f {service_file}",
-        f"systemctl --user daemon-reload",
+        "systemctl --user daemon-reload",
         f"systemctl --user enable {service_name}",
     ]
     if args.enable_linger:

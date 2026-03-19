@@ -55,5 +55,16 @@ Useful flags:
 - The deploy script requires a clean local git worktree.
 - It syncs the current repository contents to the controller host with `rsync`.
 - The installed service is a user service named `parameter-golf-autoresearch` by default.
-- Service logs go to `~/.local/state/parameter-golf/` on the controller host.
+- Prefer `journalctl --user -u parameter-golf-autoresearch -f --output=cat` for service logs.
 - This bootstraps the controller host only. The GPU worker bootstrap belongs in the Runpod path.
+
+## Operational Notes
+
+These are safe to keep in the public repo because they are process notes, not credentials:
+
+- Do not commit controller hostnames, Tailscale names, SSH keys, OpenAI credentials, or Runpod SSH destinations.
+- The controller host repo must be trusted by git. The deploy script now adds the remote repo to `safe.directory`.
+- Do not exclude tracked artifacts from deploy sync. Missing tracked files make the controller repo dirty and the controller refuses to start.
+- If you use Runpod's `ssh.runpod.io` gateway, the controller should allocate a PTY for remote commands. `REMOTE_SSH_FORCE_TTY` exists for that, and the controller auto-enables it for `*.runpod.io`.
+- On typical Runpod pods, a working default is `REMOTE_TORCHRUN=/usr/local/bin/torchrun`.
+- If the worker already contains the dataset and tokenizer inside the repo under `/workspace/parameter-golf/data/...`, prefer those concrete paths over speculative network-volume placeholders.

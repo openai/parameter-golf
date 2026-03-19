@@ -52,6 +52,7 @@ class Config:
     remote_branch: str
     remote_torchrun: str
     remote_identity: str
+    remote_force_tty: bool
     local_torchrun: str
     base_extra_env_text: str
     base_extra_env_pairs: list[tuple[str, str]]
@@ -298,6 +299,18 @@ def parse_extra_env(extra_env_text: str) -> list[tuple[str, str]]:
             raise ControllerError(f"invalid EXTRA_ENV key: {key}")
         pairs.append((key, value))
     return pairs
+
+
+def env_flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ControllerError(f"invalid boolean value for {name}: {raw}")
 
 
 def shell_assignments(pairs: list[tuple[str, str]]) -> str:
@@ -1303,6 +1316,8 @@ class PgolfController:
         options = ["-p", str(self.config.remote_port)]
         if self.config.remote_identity:
             options.extend(["-i", self.config.remote_identity])
+        if self.config.remote_force_tty:
+            options.append("-tt")
         options.extend(["-o", "StrictHostKeyChecking=accept-new"])
         return options
 
@@ -1601,6 +1616,10 @@ def build_config(args: argparse.Namespace) -> Config:
         remote_branch=os.environ.get("REMOTE_BRANCH", "runpod-autoresearch"),
         remote_torchrun=os.environ.get("REMOTE_TORCHRUN", "torchrun"),
         remote_identity=os.environ.get("REMOTE_IDENTITY", ""),
+        remote_force_tty=env_flag(
+            "REMOTE_SSH_FORCE_TTY",
+            "runpod.io" in os.environ.get("REMOTE_HOST", ""),
+        ),
         local_torchrun=os.environ.get("LOCAL_TORCHRUN", str(repo_dir / ".venv/bin/torchrun")),
         base_extra_env_text=base_extra_env_text,
         base_extra_env_pairs=parse_extra_env(base_extra_env_text),
