@@ -213,6 +213,11 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - `experiment_log.md`: append-only experiment ledger
 - `submission.json`: staging metadata for this local candidate
 
+**H100 handoff**
+
+- Exact `8xH100` run commands, validation steps, and promotion criteria are in `H100_RUNBOOK.md`.
+- That runbook is written for a real leaderboard attempt while staying inside the written rules: no val-only training, no tokenizer edits, no dataset edits.
+
 **Remaining risks**
 
 - No CUDA or `8xH100` verification was possible in this workspace.
