@@ -924,7 +924,7 @@ def main() -> None:
             flat_parts.append(p.data.float().reshape(-1))
             ema_param_shapes.append((name, p.shape, p.dtype))
         ema_flat = torch.cat(flat_parts).clone()
-        _ema_param_flat = torch.empty_like(ema_flat)  # pre-allocated scratch buffer
+        _ema_updated = False
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
@@ -1056,6 +1056,7 @@ def main() -> None:
         zero_grad_all()
 
         if args.ema_enabled and ema_flat is not None and step > 0 and step % args.ema_every == 0:
+            _ema_updated = True
             with torch.no_grad():
                 offset = 0
                 for p in base_model.parameters():
@@ -1089,8 +1090,8 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
-    # Apply EMA weights for export
-    if args.ema_enabled and ema_flat is not None:
+    # Apply EMA weights for export (only if EMA was actually updated)
+    if args.ema_enabled and ema_flat is not None and _ema_updated:
         log0("Applying EMA weights for export...")
         with torch.no_grad():
             offset = 0

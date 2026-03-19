@@ -44,7 +44,7 @@ All other parameters match the baseline exactly:
 - Peak memory: `10249 MiB allocated`
 - Serialized model int8+zlib: `15843708 bytes`
 - Code size: `49825 bytes`
-- Total submission size int8+zlib: `15893533 bytes`
+- Total submission size int8+zlib: `15863608 bytes`
 
 ### Training volume
 
