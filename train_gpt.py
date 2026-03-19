@@ -305,6 +305,11 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
+INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get("INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS", "").split(",")
+    if pattern
+)
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -374,7 +379,9 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 
         # Small float tensors are cheap enough to keep directly. We still downcast
         # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or any(
+            pattern in name for pattern in INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS
+        ):
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
