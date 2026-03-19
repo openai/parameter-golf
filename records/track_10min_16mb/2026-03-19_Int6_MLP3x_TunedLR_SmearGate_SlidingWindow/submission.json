@@ -1,16 +1,16 @@
 {
   "author": "vadim borisov (tabularis.ai)",
   "github_id": "unnir",
-  "name": "Int6 MLP3x + Tuned LR + SmearGate + SlidingWindow",
-  "blurb": "Four stacked improvements over baseline: (1) int6 per-row quantization on MLP+attention matrices with zstd-22 compression and fp16 tied embedding passthrough, enabling (2) 3x MLP expansion (hidden=1536). (3) Tuned optimizer: halved LRs (matrix_lr=0.02, scalar_lr=0.02, tied_embed_lr=0.03), higher Muon momentum (0.99 with warmup from 0.92 over 1500 steps), extended warmdown (3000 iters), gradient clipping (1.0). (4) SmearGate blending adjacent token embeddings. Sliding window eval with stride=64.",
-  "date": "2026-03-19T16:19:00Z",
-  "val_loss": 1.96166532,
-  "val_bpb": 1.16180971,
-  "pre_quant_val_loss": 2.006,
-  "pre_quant_val_bpb": 1.1881,
-  "int6_zstd_val_loss": 2.01799411,
-  "int6_zstd_val_bpb": 1.19516978,
-  "bytes_total": 15144136,
-  "bytes_model_int6_zstd": 15084480,
-  "bytes_code": 59656
+  "name": "Int6 MLP3x + OrthoInit + SmearGate + BigramHash + SlidingWindow",
+  "blurb": "Six stacked improvements: (1) int6 per-row quant on MLP+attention with zstd-22, fp16 tied embedding + last-2-layer K passthrough. (2) 3x MLP expansion. (3) Tuned optimizer: matrix_lr=0.02, Muon momentum 0.99, warmdown 3000, grad clip 0.3. (4) Orthogonal + muP-scaled weight init (output projections scaled by 1/sqrt(2*num_layers)). (5) SmearGate + Bigram hash embedding. (6) Sliding window eval stride=64.",
+  "date": "2026-03-19T21:30:00Z",
+  "val_loss": 1.94822966,
+  "val_bpb": 1.15385454,
+  "pre_quant_val_loss": 1.9748,
+  "pre_quant_val_bpb": 1.1696,
+  "int6_zstd_val_loss": 1.98362969,
+  "int6_zstd_val_bpb": 1.17481724,
+  "bytes_total": 15162375,
+  "bytes_model_int6_zstd": 15097804,
+  "bytes_code": 64571
 }
