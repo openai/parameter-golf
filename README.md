@@ -168,7 +168,7 @@ All submissions should be made as a pull request that only adds a new folder to 
 
 2. A `submission.json` file (see the example runs) that includes your name, GitHub ID, `val_bpb`, and related metadata.
 
-3. A train log, automatically produced by your script.
+3. Sufficient number of train logs, automatically produced by your script, to show with statistical significance that your submission beats the existing SOTA by at least 0.005 nats.
 
 4. A `train_gpt.py` script and any other dependencies. Note: this must successfully compile and run within the records folder. Broken scripts will not be accepted.
 
