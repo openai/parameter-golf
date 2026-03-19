@@ -68,7 +68,7 @@ class Hyperparameters:
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
-    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 0.0))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -662,8 +662,8 @@ class GPT(nn.Module):
         qk_gain_init: float,
     ):
         super().__init__()
-        if logit_softcap <= 0.0:
-            raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+        if logit_softcap < 0.0:
+            raise ValueError(f"logit_softcap must be non-negative, got {logit_softcap}")
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
@@ -721,7 +721,10 @@ class GPT(nn.Module):
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        if self.logit_softcap > 0.0:
+            logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        else:
+            logits = logits_proj
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
