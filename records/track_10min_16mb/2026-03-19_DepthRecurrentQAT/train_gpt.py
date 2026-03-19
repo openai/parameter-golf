@@ -303,7 +303,8 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
-INT8_KEEP_FLOAT_MAX_NUMEL = 1_000_000  # Keep tok_emb (786K params) in fp16 for better quality
+INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
+INT8_KEEP_FP16_NAME_PATTERNS = ("tok_emb",)  # Always keep embedding in fp16 for output head quality
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
@@ -363,6 +364,14 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         stats["param_count"] += int(t.numel())
         stats["num_tensors"] += 1
         stats["baseline_tensor_bytes"] += tensor_nbytes(t)
+
+        # Force-keep embedding in fp16 regardless of size (QAT handles the rest)
+        if t.is_floating_point() and any(p in name for p in INT8_KEEP_FP16_NAME_PATTERNS):
+            kept = t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
+            passthrough[name] = kept
+            passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
+            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            continue
 
         if not t.is_floating_point():
             stats["num_nonfloat_tensors"] += 1
