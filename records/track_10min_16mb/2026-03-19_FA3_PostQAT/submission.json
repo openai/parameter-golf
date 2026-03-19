@@ -1,16 +1,11 @@
 {
   "author": "m0at",
   "github_id": "m0at",
-  "name": "FA3 + Post-Training QAT",
-  "blurb": "Flash Attention 3 (Hopper kernels) for ~8% faster steps + post-training quantization-aware training to reduce int8+zlib penalty from +0.007 to +0.002 BPB. Architecture unchanged from baseline.",
+  "name": "Int6+zstd MLP1500 + FA3 + Sliding Window + QAT",
+  "blurb": "Int6 quantization on MLP/Q/V/proj + zstd compression fits 21.4M params in 16MB. MLP hidden=1500 (2.93x). Sliding window eval stride=64. FA3 Hopper attention. Post-training QAT reduces quant penalty. Train seq_len=2048.",
   "date": "2026-03-19",
-  "val_loss": 2.06730467,
-  "val_bpb": 1.22437427,
-  "bytes_total": 15883336,
-  "bytes_code": 50902,
-  "runs": [
-    {"seed": 1337, "val_loss": 2.06730467, "val_bpb": 1.22437427},
-    {"seed": 42, "val_loss": 2.06767457, "val_bpb": 1.22459335},
-    {"seed": 7, "val_loss": 2.06741910, "val_bpb": 1.22444204}
-  ]
+  "val_loss": 1.98346841,
+  "val_bpb": 1.17472482,
+  "bytes_total": 15976719,
+  "bytes_code": 64176
 }
