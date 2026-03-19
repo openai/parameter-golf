@@ -75,7 +75,7 @@ class Hyperparameters:
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.06))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.08))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
@@ -84,7 +84,7 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.99))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.25))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.15))
 
 # -----------------------------
 # MUON OPTIMIZER 
