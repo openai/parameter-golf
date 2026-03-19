@@ -50,10 +50,10 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3000))
+    warmdown_frac = float(os.environ.get("WARMDOWN_FRAC", 0.25))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 10))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 4096))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -70,7 +70,7 @@ class Hyperparameters:
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # LoRA config for per-virtual-layer adaptation
-    lora_rank = int(os.environ.get("LORA_RANK", 4))
+    lora_rank = int(os.environ.get("LORA_RANK", 3))
 
     # Export format
     export_bits = int(os.environ.get("EXPORT_BITS", 6))
@@ -772,7 +772,7 @@ def main():
     dummy_seq_len = args.train_seq_len
     for block in base_model.blocks:
         block.attn.rotary._build_cache(dummy_seq_len, device)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
     model = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer setup: base blocks use Muon, LoRA + scalars use Adam
@@ -805,21 +805,16 @@ def main():
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step, elapsed_ms):
-        """Compute LR multiplier with warmup + wallclock-aware warmdown."""
+        """Compute LR multiplier with warmup + wallclock-fraction warmdown."""
         if step < args.warmup_steps:
             return step / max(args.warmup_steps, 1)
-        if args.warmdown_iters <= 0:
+        if args.warmdown_frac <= 0:
             return 1.0
-        if max_wallclock_ms is not None and step > 0:
-            step_ms = elapsed_ms / step
-            warmdown_ms = args.warmdown_iters * step_ms
+        if max_wallclock_ms is not None:
+            warmdown_ms = max_wallclock_ms * args.warmdown_frac
             remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
             if remaining_ms <= warmdown_ms:
                 return max(remaining_ms / warmdown_ms, 0.0)
-        else:
-            warmdown_start = max(args.iterations - args.warmdown_iters, 0)
-            if step >= warmdown_start:
-                return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0)
         return 1.0
 
     # Training loop
@@ -880,16 +875,19 @@ def main():
         dt = time.perf_counter() - t0
         training_time_ms += dt * 1000.0
 
-        # SWA: collect snapshots during warmdown
-        if lr_frac < 1.0 and args.swa_checkpoints > 0:
+        # SWA: collect snapshots during warmdown (evenly spaced, capped)
+        if lr_frac < 1.0 and lr_frac > 0 and args.swa_checkpoints > 0 and len(swa_snapshots) < args.swa_checkpoints:
             if not swa_started:
                 swa_started = True
-                swa_interval = max(args.warmdown_iters // args.swa_checkpoints, 1)
                 swa_step_counter = 0
+                # Estimate steps remaining in warmdown to space snapshots
+                step_ms = training_time_ms / max(step, 1)
+                warmdown_steps_est = max(int(args.warmdown_frac * max_wallclock_ms / step_ms), 1) if max_wallclock_ms else 100
+                swa_interval = max(warmdown_steps_est // args.swa_checkpoints, 1)
             swa_step_counter += 1
             if swa_step_counter % swa_interval == 0:
                 swa_snapshots.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
-                log0(f"step:{step} SWA snapshot {len(swa_snapshots)} captured")
+                log0(f"step:{step} SWA snapshot {len(swa_snapshots)}/{args.swa_checkpoints} captured")
 
         if step > 0 and step % args.train_log_every == 0:
             log0(f"step:{step} loss:{loss.item():.4f} dt:{dt*1000:.1f}ms lr:{lr_frac:.3f} tokens:{tokens_processed} time:{training_time_ms/1000:.1f}s")
