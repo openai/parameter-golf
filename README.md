@@ -184,3 +184,5 @@ The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching
 Join the [OpenAI Discord server](https://discord.com/invite/openai) and visit the Parameter Golf channels (#parameter-golf-discussions, #parameter-golf-announcements) and ask questions.
 
 This repository adapts code from `modded-nanogpt`, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution.
+
+## My approach: depth recurrence + 1-bit compression
