@@ -86,6 +86,9 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
+    # Memory tokens: learnable tokens prepended to every sequence.
+    num_memory_tokens = int(os.environ.get("NUM_MEMORY_TOKENS", 0))
+
 # -----------------------------
 # MUON OPTIMIZER 
 # -----------------------------
@@ -659,6 +662,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        num_memory_tokens: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -666,6 +670,10 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_memory_tokens = num_memory_tokens
+        # Learnable memory tokens prepended to every sequence as global context.
+        if num_memory_tokens > 0:
+            self.memory_tokens = nn.Parameter(torch.randn(1, num_memory_tokens, model_dim) * 0.02)
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -698,8 +706,17 @@ class GPT(nn.Module):
                 nn.init.zeros_(module.weight)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        bsz = input_ids.shape[0]
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
+
+        # Prepend learnable memory tokens — all real tokens can attend to them via causal mask.
+        K = self.num_memory_tokens
+        if K > 0:
+            mem = self.memory_tokens.expand(bsz, -1, -1).to(dtype=x.dtype)
+            mem = F.rms_norm(mem, (mem.size(-1),))
+            x = torch.cat([mem, x], dim=1)
+
         x0 = x
         skips: list[Tensor] = []
 
@@ -711,6 +728,10 @@ class GPT(nn.Module):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
+
+        # Strip memory token positions — only compute loss on real tokens.
+        if K > 0:
+            x = x[:, K:, :]
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -835,6 +856,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        num_memory_tokens=args.num_memory_tokens,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -861,6 +883,8 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    if args.num_memory_tokens > 0:
+        scalar_params.append(base_model.memory_tokens)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -894,6 +918,9 @@ def main() -> None:
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
+    if args.num_memory_tokens > 0:
+        mem_params = base_model.memory_tokens.numel()
+        log0(f"memory_tokens:{args.num_memory_tokens} memory_params:{mem_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
