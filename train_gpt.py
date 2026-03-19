@@ -1009,7 +1009,7 @@ def main() -> None:
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             val_loss, val_bpb = eval_val(
                 args,
-                model,
+                base_model,
                 rank,
                 world_size,
                 device,
@@ -1131,7 +1131,7 @@ def main() -> None:
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
         args,
-        model,
+        base_model,
         rank,
         world_size,
         device,
