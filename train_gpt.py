@@ -59,13 +59,18 @@ class Hyperparameters:
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
-    # Model shape.
+    # Model shape — depth-recurrent: num_unique_blocks shared blocks × num_loops recurrent passes.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
+    num_unique_blocks = int(os.environ.get("NUM_UNIQUE_BLOCKS", 3))
+    num_loops = int(os.environ.get("NUM_LOOPS", 3))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 6))
+    model_dim = int(os.environ.get("MODEL_DIM", 768))
+    num_heads = int(os.environ.get("NUM_HEADS", 12))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    # Legacy compat
+    @property
+    def num_layers(self):
+        return self.num_unique_blocks * self.num_loops
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -289,7 +294,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,adaln_params,cycle_gates",
     ).split(",")
     if pattern
 )
@@ -649,7 +654,8 @@ class GPT(nn.Module):
     def __init__(
         self,
         vocab_size: int,
-        num_layers: int,
+        num_unique_blocks: int,
+        num_loops: int,
         model_dim: int,
         num_heads: int,
         num_kv_heads: int,
@@ -666,22 +672,20 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_unique_blocks = num_unique_blocks
+        self.num_loops = num_loops
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        # Mini U-Net per loop: encoder half collects skips, decoder half consumes them.
+        self.num_encoder_blocks = num_unique_blocks // 2
+        self.num_skip_per_cycle = min(self.num_encoder_blocks, num_unique_blocks - self.num_encoder_blocks)
+        # Per-loop parameters: AdaLN conditioning, skip weights, cycle gates.
+        self.adaln_params = nn.Parameter(torch.zeros(num_loops, model_dim * 2, dtype=torch.float32))
+        self.skip_weights = nn.Parameter(torch.ones(num_loops, max(self.num_skip_per_cycle, 1), model_dim, dtype=torch.float32))
+        self.cycle_gates = nn.Parameter(torch.zeros(num_loops, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList(
             [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-                for i in range(num_layers)
+                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+                for _ in range(num_unique_blocks)
             ]
         )
         self.final_norm = RMSNorm()
@@ -701,16 +705,31 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        skips: list[Tensor] = []
+        dim = x.size(-1)
 
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        for loop_idx in range(self.num_loops):
+            # AdaLN/FiLM conditioning: per-cycle scale and shift
+            adaln = self.adaln_params[loop_idx].to(dtype=x.dtype)
+            scale = adaln[:dim]
+            shift = adaln[dim:]
+            x = F.rms_norm(x, (dim,)) * (1.0 + scale[None, None, :]) + shift[None, None, :]
+
+            # Mini U-Net: encoder half collects skips
+            skips: list[Tensor] = []
+            for bi in range(self.num_encoder_blocks):
+                x = self.blocks[bi](x, x0)
+                skips.append(x)
+            # Decoder half consumes skips in reverse order
+            for bi in range(self.num_encoder_blocks, self.num_unique_blocks):
+                di = bi - self.num_encoder_blocks
+                if di < self.num_skip_per_cycle and skips:
+                    sw = self.skip_weights[loop_idx, di].to(dtype=x.dtype)
+                    x = x + sw[None, None, :] * skips.pop()
+                x = self.blocks[bi](x, x0)
+
+            # Per-cycle gate: blend with original embedding
+            gate = torch.sigmoid(self.cycle_gates[loop_idx].to(dtype=x.dtype))
+            x = gate[None, None, :] * x + (1.0 - gate[None, None, :]) * x0
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -825,7 +844,8 @@ def main() -> None:
 
     base_model = GPT(
         vocab_size=args.vocab_size,
-        num_layers=args.num_layers,
+        num_unique_blocks=args.num_unique_blocks,
+        num_loops=args.num_loops,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
@@ -861,6 +881,8 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    scalar_params.append(base_model.adaln_params)
+    scalar_params.append(base_model.cycle_gates)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
