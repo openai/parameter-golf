@@ -306,6 +306,22 @@ def detect_next_candidate_number(candidates_dir: Path) -> int:
     return maximum + 1
 
 
+def parse_relaxed_assignment_value(
+    rhs: str, *, spec_file: Path, raw_line: str
+) -> str:
+    if not rhs:
+        return ""
+    if rhs[0] not in {"'", '"'}:
+        return rhs
+    quote = rhs[0]
+    if len(rhs) < 2 or rhs[-1] != quote:
+        raise ControllerError(f"invalid shell assignment in {spec_file}: {raw_line}")
+    inner = rhs[1:-1]
+    if quote == "'":
+        return inner.replace("\\'", "'").replace("\\\\", "\\")
+    return inner.replace('\\"', '"').replace("\\\\", "\\")
+
+
 def parse_shell_assignments(spec_file: Path) -> dict[str, str]:
     values: dict[str, str] = {}
     for raw_line in spec_file.read_text(encoding="utf-8").splitlines():
@@ -316,7 +332,15 @@ def parse_shell_assignments(spec_file: Path) -> dict[str, str]:
         if not match:
             raise ControllerError(f"invalid assignment in {spec_file}: {raw_line}")
         key, rhs = match.group(1), match.group(2)
-        tokens = shlex.split(f"{key}={rhs}", posix=True)
+        try:
+            tokens = shlex.split(f"{key}={rhs}", posix=True)
+        except ValueError:
+            values[key] = parse_relaxed_assignment_value(
+                rhs,
+                spec_file=spec_file,
+                raw_line=raw_line,
+            )
+            continue
         if len(tokens) != 1 or "=" not in tokens[0]:
             raise ControllerError(f"invalid shell assignment in {spec_file}: {raw_line}")
         parsed_key, parsed_value = tokens[0].split("=", 1)
@@ -696,6 +720,11 @@ class PgolfController:
                 )
             except queue.Full:
                 self._update_candidate_status(candidate.manifest_path, "approved")
+            except Exception as exc:
+                self.logger.log(
+                    f"prep_worker_error error={sanitize_tsv(str(exc))}"
+                )
+                time.sleep(self.config.prep_poll_seconds)
 
     def _prepare_candidate(self) -> PreparedCandidate | None:
         candidate_id = f"candidate_{self.next_candidate_number:04d}"
@@ -889,7 +918,7 @@ class PgolfController:
                     f"candidate_revise candidate_id={candidate_id} round={round_number} "
                     f"feedback={sanitize_tsv(decision.feedback)}"
                 )
-            except (ControllerError, subprocess.CalledProcessError) as exc:
+            except Exception as exc:
                 manifest["status"] = "failed"
                 manifest["failed_at"] = iso_now()
                 manifest["failure"] = str(exc)
