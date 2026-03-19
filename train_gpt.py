@@ -714,7 +714,7 @@ class GPT(nn.Module):
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         self.mtp_heads: MTPHeads | None = None
-        self._mtp_alpha: float = 0.0
+        self.register_buffer("_mtp_alpha", torch.zeros((), dtype=torch.float32), persistent=False)
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -887,7 +887,7 @@ def main() -> None:
             vocab_size=args.vocab_size,
             logit_softcap=args.logit_softcap,
         ).to(device).bfloat16()
-        base_model._mtp_alpha = args.mtp_alpha
+        base_model._mtp_alpha.fill_(args.mtp_alpha)
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
@@ -1087,7 +1087,7 @@ def main() -> None:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * scale
         if args.mtp_num_heads > 0 and args.mtp_alpha_decay:
-            base_model._mtp_alpha = args.mtp_alpha * scale
+            base_model._mtp_alpha.fill_(args.mtp_alpha * scale)
 
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
@@ -1130,7 +1130,7 @@ def main() -> None:
     # Strip MTP auxiliary heads before export — they are training-only.
     if base_model.mtp_heads is not None:
         base_model.mtp_heads = None
-    base_model._mtp_alpha = 0.0
+    base_model._mtp_alpha.fill_(0.0)
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
