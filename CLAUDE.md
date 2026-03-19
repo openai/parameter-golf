@@ -2,71 +2,70 @@
 
 ## Project
 
-OpenAI's Parameter Golf challenge: train the best language model that fits in a 16MB artifact (code + int8+zlib compressed weights), under 10 minutes on 8xH100 SXM. Scored by `val_bpb` (bits per byte) on FineWeb validation set.
+OpenAI's Parameter Golf challenge: train the best language model that fits in a 16MB artifact (code + int8+zlib compressed weights), under 10 minutes on 8xH100 SXM. Scored by `val_bpb` (bits per byte) on FineWeb validation set. Challenge runs March 18 — April 30, 2026.
 
-## Baseline Features (upstream train_gpt.py)
+## Our Novel Contribution: Memory Tokens
 
-The upstream script already includes:
-- **MTP** (multi-token prediction) — 1 auxiliary head, weight 0.1, trained via Muon, stripped on export
-- **EMA** — exponential moving average of weights (decay 0.999), used for export
-- **QAT** — fake-quantize weights during last 15% of training for int8 robustness
-- **FP16 embedding export** — keeps tok_emb in fp16 instead of int8
-- **Sliding window eval** — optional (`EVAL_STRIDE>0`), scores with near-full context
-- **Magnitude pruning** — optional (`PRUNE_FRACTION>0`), zeros small weights for better zlib
-- **Int6 quantization** — optional (`INT6_QUANT=1`), narrower range for better compression
-- **Configurable MLP hidden dim** — `MLP_HIDDEN` decoupled from `MLP_MULT`
+32 learnable tokens (`NUM_MEMORY_TOKENS=32`) overwrite the first 32 positions of every input sequence. All real tokens can attend to them via causal mask, giving every position access to learned global context — like a shared "cheat sheet." Cost: 16K params (0.1% of model). Memory positions use `ignore_index=-100` so they're excluded from loss.
 
-Key env vars: `MTP_NUM_HEADS` (default 1), `MTP_LOSS_WEIGHT` (default 0.1), `EMA_ENABLED` (default 1), `EMA_DECAY` (default 0.999), `QAT_FRACTION` (default 0.15), `EVAL_STRIDE` (default 0), `EVAL_SEQ_LEN`, `PRUNE_FRACTION` (default 0), `INT6_QUANT` (default 0), `FP16_EMBED_EXPORT` (default 1)
+## Current Config
+
+Our best approach combines memory tokens with proven techniques:
+- **Memory tokens (32)** — our novel idea
+- **TRAIN_SEQ_LEN=2048** — longer context during training
+- **Sliding window eval** (`EVAL_STRIDE=64, EVAL_SEQ_LEN=1024`) — scores tokens with near-full context at eval time (runs after training, doesn't count against 10 min cap)
+- **FP16 embedding export** (`FP16_EMBED_EXPORT=1`) — keeps tok_emb in fp16 instead of int8
+- **Muon weight decay** (`MUON_WEIGHT_DECAY=0.02`) — decoupled weight decay for generalization
+
+MTP (multi-token prediction) was tested and dropped — showed no improvement over memory tokens.
 
 ## Experiment Results (1xH100 SXM, 10 min cap)
 
-| Run | Steps | val_bpb (post-quant) |
-|-----|-------|---------------------|
-| Old baseline (no MTP/EMA/QAT) | 1078 | 1.3500 |
-| Our MTP K=2 α=0.2 (old code) | 1124 | 1.3430 |
-| New baseline (needs testing) | — | — |
+| Run | Steps | val_bpb | Notes |
+|-----|-------|---------|-------|
+| Original baseline | 1078 | 1.3500 | |
+| Memory tokens (32) + seq 1024 | 1336 | 1.3333 | |
+| Memory tokens (32) + seq 2048 | 1379 | 1.3080 | Best confirmed |
+| Full combo (pending) | — | — | + sliding window + fp16 + muon wd |
+
+Note: 1xH100 results are for relative comparison only. 8xH100 gets many more steps and much better final val_bpb.
 
 ## Repo Structure
 
-- `train_gpt.py` — main training script (model, optimizer, eval, serialization — all in one)
-- `train_gpt_mlx.py` — Apple Silicon variant
+- `train_gpt.py` — main training script (model, optimizer, eval, serialization)
+- `run_mtp.sh` — current experiment command (1xH100), includes pod setup
+- `run_8xh100.sh` — submission run command (8xH100), includes pod setup
+- `run_save.sh` — scp artifacts from pod (edit IP/port per pod)
 - `data/` — dataset download scripts and tokenizers
-- `records/` — leaderboard submissions (README, submission.json, train_gpt.py, train.log each)
-- `run_baseline.sh` / `run_mtp.sh` — convenience scripts for RunPod
+- `records/` — leaderboard submissions
 
-## Workflow
+## Git Setup
 
-- Code lives locally and on `sp00mm/parameter-golf` GitHub fork (branch: `mtp-auxiliary-heads`)
-- Training runs on RunPod H100 SXM pods — clone from fork, download data, run, grab results, terminate
-- Data download: `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10`
-- 1xH100 for iteration (~$2.69/hr), 8xH100 SXM for final submission only
+- Fork: `sp00mm/parameter-golf` on GitHub
+- Branch: `mtp-auxiliary-heads`
+- Remote `origin` = our fork, remote `upstream` = `openai/parameter-golf`
+- Local git config uses personal GitHub identity (sp00mm@users.noreply.github.com)
 
-## Key Commands (RunPod)
+## RunPod Workflow
 
-```bash
-# Setup
-cd /workspace && git clone https://github.com/sp00mm/parameter-golf.git && cd parameter-golf
-git checkout mtp-auxiliary-heads
-python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
-
-# New baseline (1xH100) — MTP(1) + EMA + QAT + FP16 embed all on by default
-RUN_ID=baseline_v2 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 VAL_LOSS_EVERY=500 torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1 | tee baseline_v2.log
-
-# Experiment: MTP K=2 + higher weight
-MTP_NUM_HEADS=2 MTP_LOSS_WEIGHT=0.2 RUN_ID=mtp2 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 VAL_LOSS_EVERY=500 torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1 | tee mtp2.log
-```
+1. Deploy H100 SXM pod using Parameter Golf template (has torch 2.8+)
+2. SSH in, run setup from `run_mtp.sh` (clone, checkout, download data)
+3. Run experiment command
+4. Copy results via `run_save.sh` (use direct TCP, not relay)
+5. Terminate pod
 
 ## Submission Requirements
 
-PR to `openai/parameter-golf` adding a folder under `records/track_10min_16mb/` with:
-- `README.md` — explains approach
-- `submission.json` — author, github_id (sp00mm), val_bpb, byte sizes
+PR to `openai/parameter-golf` adding `records/track_10min_16mb/YYYY-MM-DD_MemoryTokens/`:
+- `README.md` — explains memory tokens approach
+- `submission.json` — author (Austin Tarango), github_id (sp00mm), val_bpb, byte sizes
 - `train_gpt.py` — standalone script
 - `train.log` — from 8xH100 SXM run
-- Must beat SOTA by 0.005 nats at p < 0.01 (multiple seed runs needed)
+- Must beat SOTA by 0.005 nats at p < 0.01 (3+ seed runs needed)
 
-## Leaderboard (as of 2026-03-18)
+## Next Steps
 
-1. 2048 seq length: val_bpb 1.206
-2. fp16 Embed: val_bpb 1.2197
-3. Naive Baseline: val_bpb 1.2244
+1. Check results of full combo run (memory + seq2048 + sliding window + fp16 + muon wd)
+2. If good, do 8xH100 submission run with `run_8xh100.sh`
+3. Save `submission.log` and `final_model.int8.ptz` from pod
+4. Prepare submission PR
