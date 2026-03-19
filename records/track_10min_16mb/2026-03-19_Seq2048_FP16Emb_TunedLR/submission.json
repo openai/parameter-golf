@@ -1,11 +1,11 @@
 {
   "author": "yahya010",
   "github_id": "yahya010",
-  "name": "10L Seq2048 + FP16 Emb + Int6 Mid + Sliding Window",
-  "blurb": "10-layer 512dim SP-1024, seq_len=2048, fp16 tied embedding, int6 middle layers (step-4), MLP hidden=960, tuned LRs, sliding window eval (stride=64).",
+  "name": "10L Int6+Zstd MLP2.6x Muon0.99 Sliding Window",
+  "blurb": "10-layer 512dim SP-1024, full int6 [-31,31] + zstd-22 compression, MLP hidden=1344 (2.6x), fp16 tied embedding, Muon momentum=0.99, MATRIX_LR=0.02, grad_clip=0.3, sliding window eval stride=64.",
   "date": "2026-03-19",
-  "val_loss": 1.99018678,
-  "val_bpb": 1.17869921,
-  "bytes_total": 15693340,
-  "bytes_code": 55657
+  "val_loss": 1.96283464,
+  "val_bpb": 1.16249975,
+  "bytes_total": 15678040,
+  "bytes_code": 55153
 }

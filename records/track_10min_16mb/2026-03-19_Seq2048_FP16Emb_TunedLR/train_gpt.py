@@ -17,6 +17,7 @@ import sys
 import time
 import uuid
 import zlib
+import zstandard as zstd
 from pathlib import Path
 
 import numpy as np
@@ -69,7 +70,7 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
-    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 960))  # trimmed from 1024 to fit fp16 embedding
+    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 1536))  # 3x model_dim, enabled by int6+zstd compression
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -79,16 +80,16 @@ class Hyperparameters:
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.04))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.032))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.032))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
-    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -397,10 +398,11 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
-# Mixed-precision: middle layers use int6 (step=4 rounding in int8 container)
-# to reduce zlib entropy and fit an extra transformer layer under 16MB.
-# Format: "first_int8,last_int8" e.g. "3,3" = first 3 and last 3 layers int8, rest int6
-INT6_LAYER_RANGE = os.environ.get("INT6_LAYER_RANGE", "3,3")  # first_n, last_n kept as int8
+# Full int6 quantization: all 2D block weights use [-31,31] range (63 levels)
+# stored in int8 container. zstd-22 compresses the low-entropy data much better.
+USE_INT6 = bool(int(os.environ.get("USE_INT6", "1")))
+USE_ZSTD = bool(int(os.environ.get("USE_ZSTD", "1")))
+ZSTD_LEVEL = int(os.environ.get("ZSTD_LEVEL", 22))
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -415,6 +417,7 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
 
 def quantize_float_tensor(t: Tensor, use_int6: bool = False) -> tuple[Tensor, Tensor]:
     t32 = t.float()
+    qmax = 31 if use_int6 else 127
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
@@ -424,38 +427,19 @@ def quantize_float_tensor(t: Tensor, use_int6: bool = False) -> tuple[Tensor, Te
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        if use_int6:
-            # Round to nearest multiple of 4 → 64 distinct values.
-            # Stored as int8 but zlib compresses much better.
-            q = (torch.round(q.float() / 4.0) * 4.0).clamp(-128, 124).to(torch.int8).contiguous()
+        scale = (clip_abs / float(qmax)).clamp_min(1.0 / float(qmax))
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -qmax, qmax).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / float(qmax) if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -qmax, qmax).to(torch.int8).contiguous()
     return q, scale
 
-def _is_int6_layer(name: str, num_layers: int) -> bool:
-    """Determine if a tensor belongs to a middle layer that should use int6."""
-    parts = INT6_LAYER_RANGE.split(",")
-    if len(parts) != 2:
-        return False
-    first_n, last_n = int(parts[0]), int(parts[1])
-    # Extract block index from name like "blocks.4.attn.c_q.weight"
-    if "blocks." not in name:
-        return False
-    try:
-        block_idx = int(name.split("blocks.")[1].split(".")[0])
-    except (IndexError, ValueError):
-        return False
-    return first_n <= block_idx < (num_layers - last_n)
-
-def quantize_state_dict_int8(state_dict: dict[str, Tensor], num_layers: int = 10):
-    # Single supported clean-script export format:
-    # - per-row int8 for 2D float tensors (int6 step-4 for middle layers)
+def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+    # Export format:
+    # - per-row int6/int8 for 2D float tensors (int6 if USE_INT6)
     # - per-tensor int8 for other float tensors
     # - exact passthrough for non-floats
     # - passthrough for small float tensors, stored as fp16 to save bytes
@@ -499,8 +483,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], num_layers: int = 10
             continue
 
         stats["num_float_tensors"] += 1
-        use_int6 = _is_int6_layer(name, num_layers)
-        q, s = quantize_float_tensor(t, use_int6=use_int6)
+        q, s = quantize_float_tensor(t, use_int6=USE_INT6)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -1223,12 +1206,17 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), num_layers=args.num_layers)
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    if USE_ZSTD:
+        cctx = zstd.ZstdCompressor(level=ZSTD_LEVEL)
+        quant_blob = cctx.compress(quant_raw)
+    else:
+        quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
+    compress_label = f"zstd-{ZSTD_LEVEL}" if USE_ZSTD else "zlib"
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
             f.write(quant_blob)
@@ -1236,16 +1224,20 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+            f"Serialized model int6+{compress_label}: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size int6+{compress_label}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    if USE_ZSTD:
+        dctx = zstd.ZstdDecompressor()
+        quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+    else:
+        quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()

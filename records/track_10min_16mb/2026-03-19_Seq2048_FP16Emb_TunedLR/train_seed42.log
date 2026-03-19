@@ -17,6 +17,7 @@ import sys
 import time
 import uuid
 import zlib
+import zstandard as zstd
 from pathlib import Path
 
 import numpy as np
@@ -69,7 +70,7 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
-    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 960))  # trimmed from 1024 to fit fp16 embedding
+    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 1536))  # 3x model_dim, enabled by int6+zstd compression
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -79,16 +80,16 @@ class Hyperparameters:
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.04))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.032))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.032))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
-    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -397,10 +398,11 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
-# Mixed-precision: middle layers use int6 (step=4 rounding in int8 container)
-# to reduce zlib entropy and fit an extra transformer layer under 16MB.
-# Format: "first_int8,last_int8" e.g. "3,3" = first 3 and last 3 layers int8, rest int6
-INT6_LAYER_RANGE = os.environ.get("INT6_LAYER_RANGE", "3,3")  # first_n, last_n kept as int8
+# Full int6 quantization: all 2D block weights use [-31,31] range (63 levels)
+# stored in int8 container. zstd-22 compresses the low-entropy data much better.
+USE_INT6 = bool(int(os.environ.get("USE_INT6", "1")))
+USE_ZSTD = bool(int(os.environ.get("USE_ZSTD", "1")))
+ZSTD_LEVEL = int(os.environ.get("ZSTD_LEVEL", 22))
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -415,6 +417,7 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
 
 def quantize_float_tensor(t: Tensor, use_int6: bool = False) -> tuple[Tensor, Tensor]:
     t32 = t.float()
+    qmax = 31 if use_int6 else 127
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
@@ -424,38 +427,19 @@ def quantize_float_tensor(t: Tensor, use_int6: bool = False) -> tuple[Tensor, Te
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        if use_int6:
-            # Round to nearest multiple of 4 → 64 distinct values.
-            # Stored as int8 but zlib compresses much better.
-            q = (torch.round(q.float() / 4.0) * 4.0).clamp(-128, 124).to(torch.int8).contiguous()
+        scale = (clip_abs / float(qmax)).clamp_min(1.0 / float(qmax))
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -qmax, qmax).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / float(qmax) if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -qmax, qmax).to(torch.int8).contiguous()
     return q, scale
 
-def _is_int6_layer(name: str, num_layers: int) -> bool:
-    """Determine if a tensor belongs to a middle layer that should use int6."""
-    parts = INT6_LAYER_RANGE.split(",")
-    if len(parts) != 2:
-        return False
-    first_n, last_n = int(parts[0]), int(parts[1])
-    # Extract block index from name like "blocks.4.attn.c_q.weight"
-    if "blocks." not in name:
-        return False
-    try:
-        block_idx = int(name.split("blocks.")[1].split(".")[0])
-    except (IndexError, ValueError):
-        return False
-    return first_n <= block_idx < (num_layers - last_n)
-
-def quantize_state_dict_int8(state_dict: dict[str, Tensor], num_layers: int = 10):
-    # Single supported clean-script export format:
-    # - per-row int8 for 2D float tensors (int6 step-4 for middle layers)
+def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+    # Export format:
+    # - per-row int6/int8 for 2D float tensors (int6 if USE_INT6)
     # - per-tensor int8 for other float tensors
     # - exact passthrough for non-floats
     # - passthrough for small float tensors, stored as fp16 to save bytes
@@ -499,8 +483,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], num_layers: int = 10
             continue
 
         stats["num_float_tensors"] += 1
-        use_int6 = _is_int6_layer(name, num_layers)
-        q, s = quantize_float_tensor(t, use_int6=use_int6)
+        q, s = quantize_float_tensor(t, use_int6=USE_INT6)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -1223,12 +1206,17 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), num_layers=args.num_layers)
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    if USE_ZSTD:
+        cctx = zstd.ZstdCompressor(level=ZSTD_LEVEL)
+        quant_blob = cctx.compress(quant_raw)
+    else:
+        quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
+    compress_label = f"zstd-{ZSTD_LEVEL}" if USE_ZSTD else "zlib"
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
             f.write(quant_blob)
@@ -1236,16 +1224,20 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+            f"Serialized model int6+{compress_label}: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size int6+{compress_label}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    if USE_ZSTD:
+        dctx = zstd.ZstdDecompressor()
+        quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+    else:
+        quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
@@ -1303,7 +1295,7 @@ if __name__ == "__main__":
 ====================================================================================================
 Running Python 3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]
 Running PyTorch 2.8.0+cu128
-Thu Mar 19 15:05:24 2026       
+Thu Mar 19 17:08:40 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 590.48.01              Driver Version: 590.48.01      CUDA Version: 13.1     |
 +-----------------------------------------+------------------------+----------------------+
@@ -1312,35 +1304,35 @@ Thu Mar 19 15:05:24 2026
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA H100 80GB HBM3          On  |   00000000:53:00.0 Off |                    0 |
-| N/A   30C    P0            103W /  700W |    1542MiB /  81559MiB |      0%      Default |
+| N/A   32C    P0            105W /  700W |    1542MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   1  NVIDIA H100 80GB HBM3          On  |   00000000:64:00.0 Off |                    0 |
-| N/A   31C    P0            102W /  700W |    1526MiB /  81559MiB |      0%      Default |
+| N/A   36C    P0            104W /  700W |    2271MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   2  NVIDIA H100 80GB HBM3          On  |   00000000:75:00.0 Off |                    0 |
-| N/A   31C    P0            103W /  700W |    2167MiB /  81559MiB |      0%      Default |
+| N/A   34C    P0            105W /  700W |    1546MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   3  NVIDIA H100 80GB HBM3          On  |   00000000:86:00.0 Off |                    0 |
-| N/A   33C    P0            104W /  700W |    1566MiB /  81559MiB |      0%      Default |
+| N/A   39C    P0            107W /  700W |    2183MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   4  NVIDIA H100 80GB HBM3          On  |   00000000:97:00.0 Off |                    0 |
-| N/A   33C    P0            102W /  700W |    1652MiB /  81559MiB |      0%      Default |
+| N/A   39C    P0            105W /  700W |    2271MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   5  NVIDIA H100 80GB HBM3          On  |   00000000:A8:00.0 Off |                    0 |
-| N/A   29C    P0            103W /  700W |    2185MiB /  81559MiB |      0%      Default |
+| N/A   32C    P0            104W /  700W |    1564MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   6  NVIDIA H100 80GB HBM3          On  |   00000000:B9:00.0 Off |                    0 |
-| N/A   32C    P0            104W /  700W |    2197MiB /  81559MiB |      0%      Default |
+| N/A   36C    P0            105W /  700W |    1576MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   7  NVIDIA H100 80GB HBM3          On  |   00000000:CA:00.0 Off |                    0 |
-| N/A   30C    P0            102W /  700W |    2101MiB /  81559MiB |      0%      Default |
+| N/A   33C    P0            104W /  700W |    1574MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 
@@ -1349,30 +1341,29 @@ Thu Mar 19 15:05:24 2026
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
 |        ID   ID                                                               Usage      |
 |=========================================================================================|
-|    0   N/A  N/A         4194121      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    1   N/A  N/A         4194122      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    2   N/A  N/A         4179934      C   /opt/venv/bin/python                    616MiB |
-|    2   N/A  N/A         4194123      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    3   N/A  N/A         4194124      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    4   N/A  N/A         4194125      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    5   N/A  N/A         4190638      C   /opt/venv/bin/python                    616MiB |
-|    5   N/A  N/A         4194126      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    6   N/A  N/A         4187322      C   /opt/venv/bin/python                    616MiB |
-|    6   N/A  N/A         4194127      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    7   N/A  N/A         4184801      C   /opt/venv/bin/python                    522MiB |
-|    7   N/A  N/A         4194128      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    0   N/A  N/A           81492      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    1   N/A  N/A           77784      C   /opt/venv/bin/python                    616MiB |
+|    1   N/A  N/A           81493      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    2   N/A  N/A           81494      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    3   N/A  N/A           51911      C   /opt/venv/bin/python                    616MiB |
+|    3   N/A  N/A           81495      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    4   N/A  N/A           36261      C   /opt/venv/bin/python                    616MiB |
+|    4   N/A  N/A           81496      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    5   N/A  N/A           81497      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    6   N/A  N/A           81498      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    7   N/A  N/A           81499      C   .../envs/fi-bench/bin/python3.12       1516MiB |
 +-----------------------------------------------------------------------------------------+
 
 ====================================================================================================
 val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
 train_loader:dataset:fineweb10B_sp1024 train_shards:80
 val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
-mlp_hidden:960
-model_params:18242128
+mlp_hidden:1344
+model_params:22174288
 world_size:8 grad_accum_steps:1
 sdp_backends:cudnn=False flash=True mem_efficient=False math=False
 attention_mode:gqa num_heads:8 num_kv_heads:4
-tie_embeddings:True embed_lr:0.04 head_lr:0.0 matrix_lr:0.032 scalar_lr:0.032
+tie_embeddings:True embed_lr:0.04 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.02
 train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
 seed:42
 warmup_step:1/20
@@ -1395,72 +1386,68 @@ warmup_step:17/20
 warmup_step:18/20
 warmup_step:19/20
 warmup_step:20/20
-step:1/20000 train_loss:6.9366 train_time:86ms step_avg:85.71ms
-step:2/20000 train_loss:14.4720 train_time:118ms step_avg:58.87ms
-step:3/20000 train_loss:7.9304 train_time:181ms step_avg:60.29ms
-step:4/20000 train_loss:6.6689 train_time:244ms step_avg:61.06ms
-step:5/20000 train_loss:6.9288 train_time:307ms step_avg:61.43ms
-step:6/20000 train_loss:7.6964 train_time:370ms step_avg:61.72ms
-step:7/20000 train_loss:6.6983 train_time:434ms step_avg:61.99ms
-step:8/20000 train_loss:6.3613 train_time:497ms step_avg:62.09ms
-step:9/20000 train_loss:6.1639 train_time:560ms step_avg:62.19ms
-step:10/20000 train_loss:6.0606 train_time:623ms step_avg:62.28ms
-step:200/20000 train_loss:2.7819 train_time:12751ms step_avg:63.75ms
-step:400/20000 train_loss:2.2965 train_time:25509ms step_avg:63.77ms
-step:600/20000 train_loss:2.4928 train_time:38248ms step_avg:63.75ms
-step:800/20000 train_loss:2.2352 train_time:50977ms step_avg:63.72ms
-step:1000/20000 train_loss:2.3290 train_time:63709ms step_avg:63.71ms
-step:1200/20000 train_loss:2.3472 train_time:76446ms step_avg:63.71ms
-step:1400/20000 train_loss:2.3785 train_time:89190ms step_avg:63.71ms
-step:1600/20000 train_loss:2.0398 train_time:101930ms step_avg:63.71ms
-step:1800/20000 train_loss:2.1572 train_time:114662ms step_avg:63.70ms
-step:2000/20000 train_loss:2.2037 train_time:127391ms step_avg:63.70ms
-step:2200/20000 train_loss:2.0209 train_time:140117ms step_avg:63.69ms
-step:2400/20000 train_loss:2.1557 train_time:152833ms step_avg:63.68ms
-step:2600/20000 train_loss:2.3717 train_time:165553ms step_avg:63.67ms
-step:2800/20000 train_loss:2.1882 train_time:178267ms step_avg:63.67ms
-step:3000/20000 train_loss:2.1829 train_time:190993ms step_avg:63.66ms
-step:3200/20000 train_loss:2.1401 train_time:203706ms step_avg:63.66ms
-step:3400/20000 train_loss:2.1085 train_time:216432ms step_avg:63.66ms
-step:3600/20000 train_loss:2.0561 train_time:229152ms step_avg:63.65ms
-step:3800/20000 train_loss:2.1637 train_time:241854ms step_avg:63.65ms
-step:4000/20000 train_loss:2.1285 train_time:254558ms step_avg:63.64ms
-step:4200/20000 train_loss:2.1223 train_time:267411ms step_avg:63.67ms
-step:4400/20000 train_loss:2.0574 train_time:280128ms step_avg:63.67ms
-step:4600/20000 train_loss:1.9284 train_time:292839ms step_avg:63.66ms
-step:4800/20000 train_loss:2.2087 train_time:305552ms step_avg:63.66ms
-step:5000/20000 train_loss:1.9663 train_time:318279ms step_avg:63.66ms
-step:5200/20000 train_loss:2.1237 train_time:330996ms step_avg:63.65ms
-step:5400/20000 train_loss:2.1411 train_time:343725ms step_avg:63.65ms
-step:5600/20000 train_loss:2.1318 train_time:356441ms step_avg:63.65ms
-step:5800/20000 train_loss:2.0846 train_time:369157ms step_avg:63.65ms
-step:6000/20000 train_loss:2.1648 train_time:381881ms step_avg:63.65ms
-step:6200/20000 train_loss:2.0321 train_time:394615ms step_avg:63.65ms
-step:6400/20000 train_loss:2.1102 train_time:407334ms step_avg:63.65ms
-step:6600/20000 train_loss:2.0638 train_time:420074ms step_avg:63.65ms
-step:6800/20000 train_loss:2.1228 train_time:432799ms step_avg:63.65ms
-step:7000/20000 train_loss:2.1671 train_time:445537ms step_avg:63.65ms
-step:7200/20000 train_loss:2.1351 train_time:458257ms step_avg:63.65ms
-step:7400/20000 train_loss:2.0548 train_time:470993ms step_avg:63.65ms
-step:7600/20000 train_loss:1.9355 train_time:483714ms step_avg:63.65ms
-step:7800/20000 train_loss:2.0738 train_time:496439ms step_avg:63.65ms
-step:8000/20000 train_loss:2.0459 train_time:509159ms step_avg:63.64ms
-step:8200/20000 train_loss:2.1164 train_time:521881ms step_avg:63.64ms
-step:8400/20000 train_loss:2.0596 train_time:534754ms step_avg:63.66ms
-step:8600/20000 train_loss:2.0649 train_time:547470ms step_avg:63.66ms
-step:8800/20000 train_loss:2.0224 train_time:560204ms step_avg:63.66ms
-step:9000/20000 train_loss:1.9397 train_time:572927ms step_avg:63.66ms
-step:9200/20000 train_loss:2.0012 train_time:585648ms step_avg:63.66ms
-step:9400/20000 train_loss:2.0456 train_time:598373ms step_avg:63.66ms
-step:9426/20000 val_loss:2.0239 val_bpb:1.1987 train_time:600040ms step_avg:63.66ms
-stopping_early: wallclock_cap train_time:600040ms step:9426/20000
-peak memory allocated: 11295 MiB reserved: 11608 MiB
-Serialized model: 71957475 bytes
-Code size: 55657 bytes
-Total submission size: 72013132 bytes
-Serialized model int8+zlib: 15637523 bytes (payload:18895936 raw_torch:18945723 payload_ratio:3.81x)
-Total submission size int8+zlib: 15693180 bytes
-final_int8_zlib_roundtrip val_loss:2.0276 val_bpb:1.2009 eval_time:1983ms
-final_int8_zlib_roundtrip_exact val_loss:2.02759756 val_bpb:1.20085748
-final_sliding_window val_loss:1.9921 val_bpb:1.1798 stride:64 eval_seq_len:2048 eval_time:364566ms
-final_sliding_window_exact val_loss:1.99210752 val_bpb:1.17983678
+step:1/20000 train_loss:6.9351 train_time:131ms step_avg:130.83ms
+step:2/20000 train_loss:15.3380 train_time:185ms step_avg:92.26ms
+step:3/20000 train_loss:13.1723 train_time:252ms step_avg:83.98ms
+step:4/20000 train_loss:10.1004 train_time:320ms step_avg:79.93ms
+step:5/20000 train_loss:7.6515 train_time:388ms step_avg:77.55ms
+step:6/20000 train_loss:7.3363 train_time:456ms step_avg:75.96ms
+step:7/20000 train_loss:5.9770 train_time:524ms step_avg:74.82ms
+step:8/20000 train_loss:5.8726 train_time:591ms step_avg:73.93ms
+step:9/20000 train_loss:5.8691 train_time:659ms step_avg:73.26ms
+step:10/20000 train_loss:5.7400 train_time:727ms step_avg:72.72ms
+step:200/20000 train_loss:2.7551 train_time:13782ms step_avg:68.91ms
+step:400/20000 train_loss:2.2525 train_time:27502ms step_avg:68.76ms
+step:600/20000 train_loss:2.4657 train_time:41220ms step_avg:68.70ms
+step:800/20000 train_loss:2.2192 train_time:54951ms step_avg:68.69ms
+step:1000/20000 train_loss:2.3183 train_time:68675ms step_avg:68.67ms
+step:1200/20000 train_loss:2.3386 train_time:82398ms step_avg:68.66ms
+step:1400/20000 train_loss:2.3726 train_time:96120ms step_avg:68.66ms
+step:1600/20000 train_loss:2.0468 train_time:109838ms step_avg:68.65ms
+step:1800/20000 train_loss:2.1575 train_time:123550ms step_avg:68.64ms
+step:2000/20000 train_loss:2.1919 train_time:137255ms step_avg:68.63ms
+step:2200/20000 train_loss:2.0052 train_time:150960ms step_avg:68.62ms
+step:2400/20000 train_loss:2.1337 train_time:164667ms step_avg:68.61ms
+step:2600/20000 train_loss:2.3505 train_time:178375ms step_avg:68.61ms
+step:2800/20000 train_loss:2.1609 train_time:192082ms step_avg:68.60ms
+step:3000/20000 train_loss:2.1524 train_time:205787ms step_avg:68.60ms
+step:3200/20000 train_loss:2.1125 train_time:219492ms step_avg:68.59ms
+step:3400/20000 train_loss:2.0810 train_time:233197ms step_avg:68.59ms
+step:3600/20000 train_loss:2.0203 train_time:246898ms step_avg:68.58ms
+step:3800/20000 train_loss:2.1294 train_time:260601ms step_avg:68.58ms
+step:4000/20000 train_loss:2.0944 train_time:274309ms step_avg:68.58ms
+step:4200/20000 train_loss:2.0885 train_time:288166ms step_avg:68.61ms
+step:4400/20000 train_loss:2.0222 train_time:301877ms step_avg:68.61ms
+step:4600/20000 train_loss:1.8922 train_time:315589ms step_avg:68.61ms
+step:4800/20000 train_loss:2.1728 train_time:329308ms step_avg:68.61ms
+step:5000/20000 train_loss:1.9301 train_time:343035ms step_avg:68.61ms
+step:5200/20000 train_loss:2.0838 train_time:356755ms step_avg:68.61ms
+step:5400/20000 train_loss:2.0976 train_time:370473ms step_avg:68.61ms
+step:5600/20000 train_loss:2.0829 train_time:384191ms step_avg:68.61ms
+step:5800/20000 train_loss:2.0397 train_time:397905ms step_avg:68.60ms
+step:6000/20000 train_loss:2.1164 train_time:411620ms step_avg:68.60ms
+step:6200/20000 train_loss:1.9856 train_time:425335ms step_avg:68.60ms
+step:6400/20000 train_loss:2.0594 train_time:439045ms step_avg:68.60ms
+step:6600/20000 train_loss:2.0138 train_time:452750ms step_avg:68.60ms
+step:6800/20000 train_loss:2.0783 train_time:466507ms step_avg:68.60ms
+step:7000/20000 train_loss:2.1177 train_time:480328ms step_avg:68.62ms
+step:7200/20000 train_loss:2.0801 train_time:495813ms step_avg:68.86ms
+step:7400/20000 train_loss:2.0081 train_time:510912ms step_avg:69.04ms
+step:7600/20000 train_loss:1.8803 train_time:524635ms step_avg:69.03ms
+step:7800/20000 train_loss:2.0276 train_time:538358ms step_avg:69.02ms
+step:8000/20000 train_loss:1.9917 train_time:552092ms step_avg:69.01ms
+step:8200/20000 train_loss:2.0677 train_time:565818ms step_avg:69.00ms
+step:8400/20000 train_loss:2.0050 train_time:579688ms step_avg:69.01ms
+step:8600/20000 train_loss:2.0188 train_time:593417ms step_avg:69.00ms
+step:8697/20000 val_loss:1.9873 val_bpb:1.1770 train_time:600023ms step_avg:68.99ms
+stopping_early: wallclock_cap train_time:600023ms step:8697/20000
+peak memory allocated: 12108 MiB reserved: 12414 MiB
+Serialized model: 87686115 bytes
+Code size: 55153 bytes
+Total submission size: 87741268 bytes
+Serialized model int6+zstd-22: 15358643 bytes (payload:22835776 raw_torch:22885563 payload_ratio:3.84x)
+Total submission size int6+zstd-22: 15413796 bytes
+final_int8_zlib_roundtrip val_loss:2.0009 val_bpb:1.1850 eval_time:2156ms
+final_int8_zlib_roundtrip_exact val_loss:2.00088566 val_bpb:1.18503719
+final_sliding_window val_loss:1.9652 val_bpb:1.1639 stride:64 eval_seq_len:2048 eval_time:357121ms
+final_sliding_window_exact val_loss:1.96519108 val_bpb:1.16389537
