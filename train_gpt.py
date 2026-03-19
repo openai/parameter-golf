@@ -315,6 +315,7 @@ INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS", "").split(",")
     if pattern
 )
+INT8_AUTO_KEEP_FLOAT_TOPK = max(int(os.environ.get("INT8_AUTO_KEEP_FLOAT_TOPK", "1")), 0)
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -392,8 +393,8 @@ def score_keep_float_candidate(name: str, t: Tensor) -> dict[str, object]:
         "keep_payload_bytes": tensor_nbytes(kept),
     }
 
-def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, object] | None:
-    if not INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS:
+def select_auto_keep_float_tensors(state_dict: dict[str, Tensor]) -> dict[str, object] | None:
+    if not INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS or INT8_AUTO_KEEP_FLOAT_TOPK <= 0:
         return None
     candidates: list[dict[str, object]] = []
     for name, tensor in state_dict.items():
@@ -408,18 +409,26 @@ def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, ob
     if not candidates:
         return {
             "candidate_count": 0,
-            "name": "",
-            "selected_name": "",
+            "selected_count": 0,
+            "selected_names": (),
             "estimated_gain": 0.0,
             "quantized_error": 0.0,
             "keep_error": 0.0,
             "quantized_payload_bytes": 0,
             "keep_payload_bytes": 0,
         }
-    best = max(candidates, key=lambda item: (float(item["estimated_gain"]), -int(item["keep_payload_bytes"])))
-    best["candidate_count"] = len(candidates)
-    best["selected_name"] = str(best["name"])
-    return best
+    ranked = sorted(candidates, key=lambda item: (float(item["estimated_gain"]), -int(item["keep_payload_bytes"])), reverse=True)
+    selected = ranked[: min(INT8_AUTO_KEEP_FLOAT_TOPK, len(ranked))]
+    return {
+        "candidate_count": len(candidates),
+        "selected_count": len(selected),
+        "selected_names": tuple(str(item["name"]) for item in selected),
+        "estimated_gain": float(sum(float(item["estimated_gain"]) for item in selected)),
+        "quantized_error": float(sum(float(item["quantized_error"]) for item in selected)),
+        "keep_error": float(sum(float(item["keep_error"]) for item in selected)),
+        "quantized_payload_bytes": int(sum(int(item["quantized_payload_bytes"]) for item in selected)),
+        "keep_payload_bytes": int(sum(int(item["keep_payload_bytes"]) for item in selected)),
+    }
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     # Single supported clean-script export format:
@@ -433,10 +442,11 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     passthrough: dict[str, Tensor] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
-    auto_keep = select_auto_keep_float_tensor(state_dict)
-    selected_auto_keep_name = ""
+    auto_keep = select_auto_keep_float_tensors(state_dict)
+    selected_auto_keep_names: tuple[str, ...] = ()
     if auto_keep is not None:
-        selected_auto_keep_name = str(auto_keep["selected_name"])
+        selected_auto_keep_names = tuple(str(name) for name in auto_keep["selected_names"])
+    selected_auto_keep_name_set = set(selected_auto_keep_names)
     stats = dict.fromkeys(
         (
             "param_count",
@@ -453,7 +463,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         0,
     )
     stats["auto_keep_candidate_count"] = int(auto_keep["candidate_count"]) if auto_keep is not None else 0
-    stats["auto_keep_selected_name"] = selected_auto_keep_name
+    stats["auto_keep_selected_count"] = int(auto_keep["selected_count"]) if auto_keep is not None else 0
+    stats["auto_keep_selected_names"] = ",".join(selected_auto_keep_names)
     stats["auto_keep_estimated_gain"] = float(auto_keep["estimated_gain"]) if auto_keep is not None else 0.0
     stats["auto_keep_quantized_error"] = float(auto_keep["quantized_error"]) if auto_keep is not None else 0.0
     stats["auto_keep_keep_error"] = float(auto_keep["keep_error"]) if auto_keep is not None else 0.0
@@ -478,7 +489,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         # Small float tensors are cheap enough to keep directly. We still downcast
         # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
         keep_large = matches_name_patterns(name, INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS)
-        keep_auto = name == selected_auto_keep_name
+        keep_auto = name in selected_auto_keep_name_set
         if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or keep_large or keep_auto:
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
@@ -1226,7 +1237,9 @@ def main() -> None:
             log0(
                 "Int8 auto-keep selector: "
                 f"candidates:{quant_stats['auto_keep_candidate_count']} "
-                f"selected:{quant_stats['auto_keep_selected_name'] or 'none'} "
+                f"topk:{INT8_AUTO_KEEP_FLOAT_TOPK} "
+                f"selected_tensors:{quant_stats['auto_keep_selected_count']} "
+                f"selected:{quant_stats['auto_keep_selected_names'] or 'none'} "
                 f"estimated_gain:{quant_stats['auto_keep_estimated_gain']:.8f} "
                 f"quantized_error:{quant_stats['auto_keep_quantized_error']:.8f} "
                 f"keep_error:{quant_stats['auto_keep_keep_error']:.8f}"
