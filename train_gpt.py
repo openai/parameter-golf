@@ -58,9 +58,6 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
-    prune_ratio = float(os.environ.get("PRUNE_RATIO", 0.0))  # fraction of int8 range to prune (e.g. 0.1 = zero out |val| <= 12)
-    int4_layers = os.environ.get("INT4_LAYERS", "")  # comma-separated layer indices for reduced precision (e.g. "3,4,5,6")
-    int4_step = int(os.environ.get("INT4_STEP", 16))  # rounding step: 2=int7, 4=int6, 8=int5, 16=int4
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -279,8 +276,6 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
-
-
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -606,7 +601,6 @@ class CausalSelfAttention(nn.Module):
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
-
 
 
 class MLP(nn.Module):
@@ -1080,26 +1074,6 @@ def main() -> None:
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
-    # Optional post-quantization pruning: zero out small int8 values for better compression
-    if args.prune_ratio > 0:
-        threshold = int(127 * args.prune_ratio)
-        for name in list(quant_obj.get("quantized", {}).keys()):
-            t = quant_obj["quantized"][name]
-            t[t.abs() <= threshold] = 0
-    # Optional mixed-precision: round middle layers to int4 (16 levels) for better compression
-    if args.int4_layers:
-        int4_set = set(int(x) for x in args.int4_layers.split(",") if x.strip())
-        for name in list(quant_obj.get("quantized", {}).keys()):
-            layer_num = -1
-            if "blocks." in name:
-                try:
-                    layer_num = int(name.split("blocks.")[1].split(".")[0])
-                except (ValueError, IndexError):
-                    pass
-            if layer_num in int4_set:
-                t = quant_obj["quantized"][name]
-                step = args.int4_step
-                quant_obj["quantized"][name] = ((t.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
