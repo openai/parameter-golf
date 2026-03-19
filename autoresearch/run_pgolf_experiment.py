@@ -54,6 +54,8 @@ class Config:
     remote_port: int
     remote_repo_dir: str
     remote_branch: str
+    push_remote: str
+    remote_fetch_remote: str
     remote_torchrun: str
     remote_identity: str
     remote_force_tty: bool
@@ -1045,10 +1047,15 @@ class PgolfController:
         branch_name = git_output(self.config.repo_dir, "branch", "--show-current")
         self.logger.log(
             f"push_start iteration={iteration} run_id={run_id} "
-            f"commit={experiment_commit} branch={branch_name}"
+            f"commit={experiment_commit} branch={branch_name} push_remote={self.config.push_remote}"
         )
         run_cmd(
-            ["git", "push", "origin", f"HEAD:refs/heads/{self.config.remote_branch}"],
+            [
+                "git",
+                "push",
+                self.config.push_remote,
+                f"HEAD:refs/heads/{self.config.remote_branch}",
+            ],
             cwd=self.config.repo_dir,
         )
         remote_log = self.config.remote_log_dir / f"{run_id}.log"
@@ -1668,7 +1675,8 @@ class PgolfController:
         return (
             "set -euo pipefail\n"
             f"cd {shlex.quote(self.config.remote_repo_dir)}\n"
-            f"git fetch origin {shlex.quote(self.config.remote_branch)}\n"
+            f"git fetch {shlex.quote(self.config.remote_fetch_remote)} "
+            f"{shlex.quote(self.config.remote_branch)}\n"
             f"git checkout -B {shlex.quote(self.config.remote_branch)} FETCH_HEAD\n"
             "git reset --hard FETCH_HEAD\n"
             "mkdir -p logs\n"
@@ -1996,6 +2004,8 @@ def build_config(args: argparse.Namespace) -> Config:
         remote_port=int(os.environ.get("REMOTE_PORT", "22")),
         remote_repo_dir=os.environ.get("REMOTE_REPO_DIR", "/workspace/parameter-golf"),
         remote_branch=os.environ.get("REMOTE_BRANCH", "runpod-autoresearch"),
+        push_remote=os.environ.get("PUSH_REMOTE", "origin"),
+        remote_fetch_remote=os.environ.get("REMOTE_FETCH_REMOTE", "origin"),
         remote_torchrun=os.environ.get("REMOTE_TORCHRUN", "torchrun"),
         remote_identity=os.environ.get("REMOTE_IDENTITY", ""),
         remote_force_tty=env_flag(

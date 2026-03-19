@@ -67,4 +67,5 @@ These are safe to keep in the public repo because they are process notes, not cr
 - Do not exclude tracked artifacts from deploy sync. Missing tracked files make the controller repo dirty and the controller refuses to start.
 - If you use Runpod's `ssh.runpod.io` gateway, the controller should allocate a PTY for remote commands. `REMOTE_SSH_FORCE_TTY` exists for that, and the controller auto-enables it for `*.runpod.io`.
 - On typical Runpod pods, a working default is `REMOTE_TORCHRUN=/usr/local/bin/torchrun`.
+- The controller host may need to push experiment branches to a writable fork remote while the GPU worker fetches that branch from its own `origin`. Use `PUSH_REMOTE` and `REMOTE_FETCH_REMOTE` instead of assuming both sides use the same remote name.
 - If the worker already contains the dataset and tokenizer inside the repo under `/workspace/parameter-golf/data/...`, prefer those concrete paths over speculative network-volume placeholders.

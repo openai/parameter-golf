@@ -25,6 +25,8 @@ Common remote env vars:
 - `REMOTE_PORT`: defaults to `22`.
 - `REMOTE_REPO_DIR`: defaults to `/workspace/parameter-golf`.
 - `REMOTE_BRANCH`: defaults to `runpod-autoresearch`.
+- `PUSH_REMOTE`: git remote name on the controller host used for publishing the branch. Defaults to `origin`.
+- `REMOTE_FETCH_REMOTE`: git remote name on the GPU worker used for fetching the branch. Defaults to `origin`.
 - `REMOTE_TORCHRUN`: defaults to `torchrun`.
 - `REMOTE_IDENTITY`: optional SSH key path.
 - `REMOTE_SSH_FORCE_TTY`: optional boolean override. The controller enables `ssh -tt`
