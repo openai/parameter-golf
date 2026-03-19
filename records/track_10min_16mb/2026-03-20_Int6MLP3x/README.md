@@ -37,6 +37,17 @@ Int6 post-training quantization compresses weight matrices to 6-bit precision (Â
 
 **15.98MB** artifact. **600s** training + **240s** eval on 8xH100 SXM.
 
+### Multi-Seed Validation
+| Seed | val_bpb | val_loss |
+|------|---------|----------|
+| 1337 | 1.1574 | 1.9543 |
+| 1338 | 1.1576 | 1.9546 |
+| 1339 | 1.1576 | 1.9546 |
+| **Mean** | **1.1575** | **1.9545** |
+| Std | 0.0001 | 0.0002 |
+
+Improvement over baseline: 0.118 nats (p << 0.01).
+
 ## Reproduction
 
 ```bash
