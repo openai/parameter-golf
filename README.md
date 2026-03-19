@@ -25,8 +25,14 @@ Public-safe summary of current evidence:
 
 - local matched-budget comparisons beat a parameter-matched baseline on post-quantization `val_bpb`
 - tuned larger variants improved further once the optimizer recipe was adjusted
-- a longer local proxy run reached `final_int8_zlib_roundtrip val_bpb 2.1952`
+- a longer `500`-step local proxy run reached `final_int8_zlib_roundtrip val_bpb 2.1952`
 - that same local proxy run stayed under the 16 MB compressed artifact budget at `8,856,992` bytes
+
+Context for that run:
+
+- `500` training iterations
+- `1,048,576` validation tokens
+- tuned `8 x 384` MPK configuration
 
 The point of requesting compute is not to test a vague idea. It is to determine whether an already-promising local result survives under official challenge-like training and evaluation conditions.
 

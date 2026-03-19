@@ -18,8 +18,15 @@ This project already has strong local evidence and is no longer in the "untested
 
 The strongest local proxy result so far reached:
 
+- after a `500`-step local proxy run
 - `final_int8_zlib_roundtrip val_bpb 2.1952`
 - compressed artifact size `8,856,992` bytes
+
+Run context:
+
+- `500` training iterations
+- `1,048,576` validation tokens
+- tuned `8 x 384` MPK configuration
 
 That means the current leading local configuration:
 
