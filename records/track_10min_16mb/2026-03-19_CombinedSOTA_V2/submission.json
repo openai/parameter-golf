@@ -1,0 +1,17 @@
+{
+  "author": "Arjun Krishna",
+  "github_id": "arjun-krishna1",
+  "name": "Combined SOTA V2",
+  "blurb": "SP-1024 9x512 KV4 with seq_len=4096, lower LRs (matrix/scalar 0.02, embed 0.03), Muon momentum 0.99, warmdown 3000 steps, fp16 tied embedding export (MLP_HIDDEN=992 to stay under 16MB), and sliding window evaluation at stride=64 with 4096-token context windows. Each token scored with up to 4032 tokens of context.",
+  "date": "2026-03-19T07:27:19Z",
+  "val_loss": 1.99803244,
+  "val_bpb": 1.18335372,
+  "pre_quant_val_loss": 2.0172,
+  "pre_quant_val_bpb": 1.1947,
+  "step_stop": 9919,
+  "wallclock_seconds": 601.589,
+  "eval_time_seconds": 277.849,
+  "bytes_total": 15932938,
+  "bytes_model_int8_zlib": 15879361,
+  "bytes_code": 53577
+}
