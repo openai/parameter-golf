@@ -61,11 +61,13 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 3))
+    num_repeats = int(os.environ.get("NUM_REPEATS", 4))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    model_dim = int(os.environ.get("MODEL_DIM", 832))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    num_value_embeds = int(os.environ.get("NUM_VALUE_EMBEDS", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -650,10 +652,12 @@ class GPT(nn.Module):
         self,
         vocab_size: int,
         num_layers: int,
+        num_repeats: int,
         model_dim: int,
         num_heads: int,
         num_kv_heads: int,
         mlp_mult: int,
+        num_value_embeds: int,
         tie_embeddings: bool,
         tied_embed_init_std: float,
         logit_softcap: float,
@@ -666,11 +670,14 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_repeats = num_repeats
+        effective_depth = num_layers * num_repeats
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        # Value embeddings: extra embedding tables mixed into each effective layer
+        self.num_value_embeds = num_value_embeds
+        if num_value_embeds > 0:
+            self.value_embeds = nn.ModuleList([nn.Embedding(vocab_size, model_dim) for _ in range(num_value_embeds)])
+            self.value_scales = nn.Parameter(torch.zeros(effective_depth, num_value_embeds, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -684,6 +691,11 @@ class GPT(nn.Module):
                 for i in range(num_layers)
             ]
         )
+        # Loop embedding: tells the model which effective layer it's at
+        self.loop_embed = nn.Parameter(torch.zeros(effective_depth, model_dim, dtype=torch.float32))
+        # Cross-repeat skip: each block remembers its output from previous repeat
+        # Per-repeat scales (repeat 0 has no prev, so num_repeats-1 scales per block)
+        self.cross_repeat_scales = nn.Parameter(torch.zeros(num_layers, num_repeats - 1, model_dim, dtype=torch.float32))
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -701,16 +713,30 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        # Pre-compute value embeddings once
+        ve_list: list[Tensor] = []
+        if self.num_value_embeds > 0:
+            for ve in self.value_embeds:
+                ve_list.append(ve(input_ids))  # (bsz, seq, dim)
+
+        num_blocks = len(self.blocks)
+        prev_block_outputs: list[Tensor | None] = [None] * num_blocks
+        layer_idx = 0
+        for repeat in range(self.num_repeats):
+            for block_idx, block in enumerate(self.blocks):
+                x = x + self.loop_embed[layer_idx].to(dtype=x.dtype)
+                # Value embeddings: add weighted extra embeddings at each layer
+                for ve_idx, ve_out in enumerate(ve_list):
+                    vs = self.value_scales[layer_idx, ve_idx].to(dtype=x.dtype)
+                    x = x + vs[None, None, :] * ve_out
+                # Cross-repeat skip: mix in this block's output from previous repeat
+                if repeat > 0 and prev_block_outputs[block_idx] is not None:
+                    scale = self.cross_repeat_scales[block_idx, repeat - 1].to(dtype=x.dtype)
+                    x = x + scale[None, None, :] * prev_block_outputs[block_idx]
+                x = block(x, x0)
+                prev_block_outputs[block_idx] = x.detach() if not self.training else x
+                layer_idx += 1
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -826,10 +852,12 @@ def main() -> None:
     base_model = GPT(
         vocab_size=args.vocab_size,
         num_layers=args.num_layers,
+        num_repeats=args.num_repeats,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
         mlp_mult=args.mlp_mult,
+        num_value_embeds=args.num_value_embeds,
         tie_embeddings=args.tie_embeddings,
         tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap,
@@ -859,11 +887,16 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
-    if base_model.skip_weights.numel() > 0:
-        scalar_params.append(base_model.skip_weights)
+    scalar_params.append(base_model.loop_embed)
+    scalar_params.append(base_model.cross_repeat_scales)
+    if base_model.num_value_embeds > 0:
+        scalar_params.append(base_model.value_scales)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
+    embed_params = [base_model.tok_emb.weight]
+    if base_model.num_value_embeds > 0:
+        embed_params.extend(ve.weight for ve in base_model.value_embeds)
     optimizer_tok = torch.optim.Adam(
-        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
+        [{"params": embed_params, "lr": token_lr, "base_lr": token_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
         fused=True,
