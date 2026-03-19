@@ -72,6 +72,10 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 3))  # v2: 3x MLP (was 2x), ~0.02 BPB improvement
+    # v3: Weight sharing. num_unique_blocks unique blocks repeated to fill num_layers.
+    # Set to 0 to disable (each layer gets its own block, original behavior).
+    # E.g., num_unique_blocks=4, num_layers=12 → 4 unique blocks × 3 repeats = 12 effective layers.
+    num_unique_blocks = int(os.environ.get("NUM_UNIQUE_BLOCKS", 0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -785,6 +789,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        num_unique_blocks: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -792,24 +797,38 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_layers = num_layers
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.blocks = nn.ModuleList(
-            [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-                for i in range(num_layers)
-            ]
-        )
+
+        # v3: Weight sharing — create fewer unique blocks, reuse them
+        self.weight_sharing = num_unique_blocks > 0 and num_unique_blocks < num_layers
+        if self.weight_sharing:
+            self.num_unique = num_unique_blocks
+            self.blocks = nn.ModuleList(
+                [
+                    Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+                    for _ in range(num_unique_blocks)
+                ]
+            )
+            # Per-layer adapters: lightweight scale + gate per virtual layer
+            # These differentiate repeated uses of the same block (tiny param cost)
+            self.layer_scales = nn.ParameterList(
+                [nn.Parameter(torch.ones(model_dim, dtype=torch.float32)) for _ in range(num_layers)]
+            )
+        else:
+            self.num_unique = num_layers
+            self.blocks = nn.ModuleList(
+                [
+                    Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+                    for _ in range(num_layers)
+                ]
+            )
+            self.layer_scales = None
+
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -823,6 +842,12 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
+    def _get_block(self, layer_idx: int) -> Block:
+        """Get the block for a given virtual layer index."""
+        if self.weight_sharing:
+            return self.blocks[layer_idx % self.num_unique]
+        return self.blocks[layer_idx]
+
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
@@ -831,12 +856,16 @@ class GPT(nn.Module):
 
         # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self._get_block(i)(x, x0)
+            if self.layer_scales is not None:
+                x = x * self.layer_scales[i].to(dtype=x.dtype)[None, None, :]
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self._get_block(self.num_encoder_layers + i)(x, x0)
+            if self.layer_scales is not None:
+                x = x * self.layer_scales[self.num_encoder_layers + i].to(dtype=x.dtype)[None, None, :]
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -856,12 +885,16 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self._get_block(i)(x, x0)
+            if self.layer_scales is not None:
+                x = x * self.layer_scales[i].to(dtype=x.dtype)[None, None, :]
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self._get_block(self.num_encoder_layers + i)(x, x0)
+            if self.layer_scales is not None:
+                x = x * self.layer_scales[self.num_encoder_layers + i].to(dtype=x.dtype)[None, None, :]
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
@@ -986,6 +1019,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        num_unique_blocks=args.num_unique_blocks,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
