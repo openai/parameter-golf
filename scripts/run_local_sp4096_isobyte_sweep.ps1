@@ -1,0 +1,107 @@
+param(
+    [string]$SweepId = ""
+)
+
+$ErrorActionPreference = "Stop"
+
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$launcher = Join-Path $root "scripts\run_local_3090.ps1"
+$dataPath = Join-Path $root "data\datasets\fineweb10B_sp4096_local"
+$tokenizerPath = Join-Path $root "data\tokenizers\fineweb_4096_bpe.model"
+
+if (-not (Test-Path $launcher)) {
+    throw "Launcher not found at $launcher"
+}
+if (-not (Test-Path $dataPath)) {
+    throw "SP4096 local dataset not found at $dataPath"
+}
+if (-not (Test-Path $tokenizerPath)) {
+    throw "SP4096 tokenizer not found at $tokenizerPath"
+}
+
+if ([string]::IsNullOrWhiteSpace($SweepId)) {
+    $SweepId = "sp4096isobyte_fixedstep_" + (Get-Date -Format "yyyyMMdd_HHmmss")
+}
+
+$controllerLog = Join-Path $root "logs\$SweepId.controller.txt"
+New-Item -ItemType Directory -Force -Path (Join-Path $root "logs") | Out-Null
+
+function Test-RoundtripRunComplete {
+    param(
+        [string]$LogPath
+    )
+
+    if (-not (Test-Path $LogPath)) {
+        return $false
+    }
+
+    return [bool](Select-String -Path $LogPath -Pattern '^final_int8_zlib_roundtrip_exact ' -Quiet)
+}
+
+$experiments = @(
+    @{ Suffix = "l15_d544"; Layers = "15"; Dim = "544"; Heads = "8"; KvHeads = "4"; Note = "depth_lean_near_cap" },
+    @{ Suffix = "l14_d560"; Layers = "14"; Dim = "560"; Heads = "8"; KvHeads = "4"; Note = "trimmed_width_control" },
+    @{ Suffix = "l12_d608"; Layers = "12"; Dim = "608"; Heads = "8"; KvHeads = "4"; Note = "width_lean_near_cap" }
+)
+
+foreach ($experiment in $experiments) {
+    $runId = "{0}_{1}" -f $SweepId, $experiment.Suffix
+    $runLog = Join-Path $root "logs\$runId.txt"
+    Add-Content -Path $controllerLog -Value ("[{0}] START {1} note={2} layers={3} dim={4} heads={5} kv={6}" -f (Get-Date -Format s), $runId, $experiment.Note, $experiment.Layers, $experiment.Dim, $experiment.Heads, $experiment.KvHeads)
+    $args = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $launcher,
+        "-RunId", $runId,
+        "-DataPath", $dataPath,
+        "-TokenizerPath", $tokenizerPath,
+        "-VocabSize", "4096",
+        "-TieEmbeddings", "1",
+        "-MaxWallclockSeconds", "0",
+        "-Iterations", "300",
+        "-TrainBatchTokens", "32768",
+        "-ValBatchSize", "32768",
+        "-ValMaxTokens", "524288",
+        "-RoundtripValMaxTokens", "262144",
+        "-TrainLogEvery", "10",
+        "-ValLossEvery", "50",
+        "-WarmupSteps", "0",
+        "-NumLayers", $experiment.Layers,
+        "-NumUniqueBlocks", $experiment.Layers,
+        "-ModelDim", $experiment.Dim,
+        "-EmbedDim", "0",
+        "-NumHeads", $experiment.Heads,
+        "-NumKvHeads", $experiment.KvHeads,
+        "-MlpMult", "2",
+        "-WindowSize", "0",
+        "-Int8AxisMode", "auto",
+        "-Int8ResidualRank", "1",
+        "-Int8ResidualBudgetBytes", "65536",
+        "-CompressionRegWeight", "0.005",
+        "-CompressionRegInterval", "4",
+        "-CompressionRegWarmupSteps", "32",
+        "-CompressionRegSampleTensors", "4",
+        "-CompressionRegMaxCols", "128",
+        "-CompressionGridRegWeight", "0.10",
+        "-CompressionScaleRegWeight", "0.0",
+        "-CompressionRank1RegWeight", "0.0",
+        "-TernaryRegWeight", "0",
+        "-OutlierRegWeight", "0",
+        "-EvalCacheMixWeight", "0",
+        "-EvalBigramMixWeight", "0",
+        "-EvalCacheSize", "0",
+        "-SaveRawCheckpoint", "0",
+        "-FinalRoundtripEval", "1"
+    )
+    & powershell @args
+    if ($LASTEXITCODE -ne 0) {
+        Add-Content -Path $controllerLog -Value ("[{0}] FAIL {1}" -f (Get-Date -Format s), $runId)
+        throw "Sweep run failed: $runId"
+    }
+    if (-not (Test-RoundtripRunComplete -LogPath $runLog)) {
+        Add-Content -Path $controllerLog -Value ("[{0}] FAIL {1} missing_final_roundtrip_metric" -f (Get-Date -Format s), $runId)
+        throw "Sweep run missing final roundtrip metric: $runId"
+    }
+    Add-Content -Path $controllerLog -Value ("[{0}] DONE {1}" -f (Get-Date -Format s), $runId)
+}
+
+Add-Content -Path $controllerLog -Value ("[{0}] SWEEP_DONE {1}" -f (Get-Date -Format s), $SweepId)

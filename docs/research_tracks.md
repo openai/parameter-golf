@@ -267,53 +267,85 @@ Use this when ranking experiments on a more faithful local objective:
     - `w608_l12` -> `2.00551677` at `14,371,393` bytes
     - `w624_l12` -> `2.01128088` at `15,024,114` bytes
     - `d576_l14` -> `1.99806297` at `15,222,128` bytes
+    - `w640_l12` -> `2.00505534` at `15,658,993` bytes
   - interpretation:
     - depth beat width at roughly the same byte spend in this near-cap regime
     - the first sub-`2.0` local fixed-step result came from the deeper dense model, not the wider one
     - near the byte cap, width is not obviously the best place to spend additional budget
-    - the remaining unresolved dense point is `w640_l12`, after which the next branch should probably be export-side permutation or tensor-aware allocation built on top of the deeper dense control
+- Tokenizer sanity check on the current best dense recipe:
+  - matched local subset controls built from the same `120k` selected-doc prefix
+  - SP1024 subset control:
+    - `sp1024subsetbest_20260319_020125` -> `1.99806297`
+    - total artifact: `15,222,128` bytes
+    - dataset stats: `149,659,022` total tokens on the subset
+  - SP4096 subset swap on the same trainer:
+    - `sp4096best_20260319_015500` -> `1.89591231`
+    - total artifact: `16,627,470` bytes
+    - dataset stats: `109,783,049` total tokens on the same subset
+  - interpretation:
+    - moving from SP1024 to SP4096 on the same local subset improved exact roundtrip BPB by `0.10215066`, about `5.11%`
+    - the same subset needed about `26.64%` fewer tokens with SP4096, which matches the expected compression benefit
+    - the merged `14x576` SP4096 run broke the `16,000,000` byte cap by `627,470` bytes, so it is a strong signal but not yet a submission-shape replacement
+    - tokenizer work is no longer purely deferred; it is now a real frontier lever, but it must be co-optimized with model size to stay under cap
+- Iso-byte SP4096 dense sweep:
+  - sweep: `sp4096isobyte_fixedstep_20260319_022236`
+  - completed results:
+    - `l15_d544` -> `1.90194008` at `16,090,675` bytes
+    - `l14_d560` -> `1.89329916` at `15,869,071` bytes
+    - `l12_d608` -> `1.89424125` at `15,844,603` bytes
+  - interpretation:
+    - SP4096 is now a cap-compliant win, not just an over-budget curiosity
+    - the best cap-legal SP4096 point beat the SP1024 `14x576` control by `0.10476381` bpb, about `5.24%`
+    - `l14_d560` is the current best local result overall
+    - `l12_d608` is slightly worse on fixed-step BPB but notably faster per step, so it remains a plausible wallclock-oriented backup shape
+    - the first deeper SP4096 point (`l15_d544`) pushed just over the cap, which suggests the next useful local refinement is a slightly narrower deeper sweep
 
 ## Current leader
 
-- `highcapdense_rerun_20260319_d576_l14`
+- `sp4096isobyte_fixedstep_20260319_022236_l14_d560`
 - dense attention, no sidecar, no recurrence, no factorized embedding
+- `VOCAB_SIZE=4096`, tied embeddings
 - `COMPRESSION_REG_WEIGHT=0.005`
 - `COMPRESSION_GRID_REG_WEIGHT=0.10`
-- fixed-step exact final roundtrip result: `val_bpb=1.99806297`
-- total artifact: `15,222,128` bytes
+- fixed-step exact final roundtrip result: `val_bpb=1.89329916`
+- total artifact: `15,869,071` bytes
 - best wallclock-track reference remains `compressrt3090_20260318_175828` at `2.06085837`
 
 ## Regime correction
 
-- The current fixed-step leader is still only about `6.66 MB`, which is far below the `16,000,000` byte cap.
-- That means many earlier negative results were gathered in an under-byte-spent regime.
-- The next trustworthy question is not "what tiny regularizer wins on this small model?" but "how should the remaining budget be spent?"
-- Dense iso-byte controls now take priority over more recurrence / sparse / ternary / sidecar work.
+- The trusted local dense control is now in the near-cap regime, not the old `6.66 MB` regime.
+- That is why the dense iso-byte and high-cap frontier sweeps changed the project direction so much.
+- Many earlier negative results were gathered in an under-byte-spent regime and should not be treated as globally final.
+- The trustworthy questions now are:
+  - how should the remaining byte budget be spent near the cap?
+  - which export-aware or tokenizer-aware changes still help once the dense control is already strong?
+  - how should the remaining cap headroom be spent inside the stronger SP4096 regime?
 
 ## Immediate next step
 
-- Stay on the dense high-cap frontier
-- keep the current compression-aware recipe as the control
+- Keep the SP1024 `14x576` run as the baseline control and the SP4096 `14x560` run as the new frontier control
 - keep `COMPRESSION_REG_WEIGHT=0.005` and `COMPRESSION_GRID_REG_WEIGHT=0.10`
-- compare width-vs-depth near the `15 MB` to `16 MB` region
-- rank new compression-native ideas on the fixed-step roundtrip track first
-- rank experiments by `final_int8_zlib_roundtrip_exact val_bpb`
+- treat tokenizer changes as a real branch, not a deferred curiosity
+- next tokenizer-aware experiments should stay near the cap:
+  - refine the SP4096 depth/width trade in the `15.7 MB` to `16.0 MB` band
+  - keep a close eye on step time, because `l12_d608` was materially faster than `l14_d560`
+- continue ranking ideas by `final_int8_zlib_roundtrip_exact val_bpb`
 
 ## Next experiments
 
-- Iso-byte dense sweep:
-  - treat dense attention plus compression-aware training as the control family
-  - continue comparing larger dense models before trusting more negative results from byte-saving tricks
-- High-cap width-vs-depth dense sweep:
-  - compare dense shapes in roughly the same byte neighborhood near the cap
-  - depth currently looks stronger than width in the near-cap regime
-  - finish the last unresolved dense width point, then use the deeper dense model as the control for export-side ideas like symmetry-aware permutation
+- SP4096 frontier refinement:
+  - test slightly narrower deeper shapes like `15x528` and `16x512`
+  - compare them against the current `14x560` leader and the faster `12x608` backup
+  - stay under `16,000,000` bytes
+- Export-side symmetry-aware permutation:
+  - apply function-preserving reordering of MLP channels / attention heads before export
+  - test whether the grid-alignment hint can be turned into a larger zlib win without quality loss
+- Tensor sensitivity mapping / heterogeneous export allocation:
+  - measure which tensors hurt roundtrip BPB most when quantized
+  - spend residual / protection budget selectively instead of globally
 - Export-aware compression regularizer:
   - continue aligning sampled training-time regularization with the actual export path
   - hold `COMPRESSION_GRID_REG_WEIGHT=0.10` fixed unless new evidence suggests otherwise
-- Tiny outlier suppression on top of grid alignment:
-  - revisit outlier pressure in the much smaller `1e-4` regime
-  - use the fixed-step track so tiny deltas are actually trustworthy
 - Scale-aware compression regularizer:
   - parked for now after the first two weights regressed
   - revisit only if a different formulation of scale entropy or scale clustering becomes compelling
@@ -340,6 +372,6 @@ Use this when ranking experiments on a more faithful local objective:
 
 ## Deferred until the model is stronger
 
-- Tokenizer redesign
+- full tokenizer redesign beyond the SP1024 vs SP4096 sanity branch
 - aggressive code-size golf
 - heavy hyperparameter brute force

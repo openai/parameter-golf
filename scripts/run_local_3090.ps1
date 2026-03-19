@@ -1,5 +1,9 @@
 param(
     [string]$RunId = "",
+    [string]$DataPath = "",
+    [string]$TokenizerPath = "",
+    [int]$VocabSize = 1024,
+    [int]$TieEmbeddings = 1,
     [int]$MaxWallclockSeconds = 420,
     [int]$Iterations = 20000,
     [int]$TrainBatchTokens = 65536,
@@ -50,11 +54,14 @@ if ([string]::IsNullOrWhiteSpace($RunId)) {
     $RunId = "local3090_" + (Get-Date -Format "yyyyMMdd_HHmmss")
 }
 
+$resolvedDataPath = if ([string]::IsNullOrWhiteSpace($DataPath)) { Join-Path $root "data\datasets\fineweb10B_sp1024" } else { (Resolve-Path $DataPath).Path }
+$resolvedTokenizerPath = if ([string]::IsNullOrWhiteSpace($TokenizerPath)) { Join-Path $root "data\tokenizers\fineweb_1024_bpe.model" } else { (Resolve-Path $TokenizerPath).Path }
+
 $env:RUN_ID = $RunId
-$env:DATA_PATH = (Join-Path $root "data\datasets\fineweb10B_sp1024")
-$env:TOKENIZER_PATH = (Join-Path $root "data\tokenizers\fineweb_1024_bpe.model")
-$env:VOCAB_SIZE = "1024"
-$env:TIE_EMBEDDINGS = "1"
+$env:DATA_PATH = $resolvedDataPath
+$env:TOKENIZER_PATH = $resolvedTokenizerPath
+$env:VOCAB_SIZE = $VocabSize.ToString()
+$env:TIE_EMBEDDINGS = $TieEmbeddings.ToString()
 $env:NUM_LAYERS = $NumLayers.ToString()
 $env:NUM_UNIQUE_BLOCKS = $NumUniqueBlocks.ToString()
 $env:MODEL_DIM = $ModelDim.ToString()
