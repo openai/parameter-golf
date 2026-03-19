@@ -2,7 +2,7 @@ This record captures an unlimited-compute non-record Apple Silicon MLX run using
 
 The main idea was to trade some width for depth while keeping the artifact comfortably under the `16,000,000` byte cap:
 - Layout: `VOCAB_SIZE=1024 NUM_LAYERS=14 MODEL_DIM=416 NUM_HEADS=8 NUM_KV_HEADS=2 MLP_MULT=2`
-- Trainer: root `train_gpt_mlx.py` snapshot copied into this record folder
+- Trainer: root `train_gpt_mlx.py` snapshot copied into this record folder as `train_gpt.py`
 - Hardware: Apple Silicon (`Apple M5 Max`, local MLX run)
 - Dataset/tokenizer: published `fineweb10B_sp1024` export with `10` train shards downloaded locally plus the full fixed validation split
 - Track: non-record, unlimited compute, still under the `16,000,000` byte artifact cap
@@ -31,7 +31,7 @@ MODEL_DIM=416 \
 NUM_HEADS=8 \
 NUM_KV_HEADS=2 \
 MLP_MULT=2 \
-python3 ./train_gpt_mlx.py
+python3 ./train_gpt.py
 ```
 
 Key metrics (from `train.log`):
@@ -50,6 +50,6 @@ Training volume:
 - Local dataset subset: `10/195` train shards from `fineweb10B_sp1024`
 
 Included files:
-- `train_gpt_mlx.py` (exact code snapshot used for the run)
+- `train_gpt.py` (exact MLX trainer snapshot used for the run, copied under the conventional record entrypoint name)
 - `train.log` (exact local training log)
 - `submission.json` (leaderboard metadata)
