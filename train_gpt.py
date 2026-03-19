@@ -89,6 +89,12 @@ class Hyperparameters:
     # Memory tokens: learnable tokens prepended to every sequence.
     num_memory_tokens = int(os.environ.get("NUM_MEMORY_TOKENS", 0))
 
+    # Multi-token prediction auxiliary heads (training only, stripped before export).
+    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 0))
+    mtp_alpha = float(os.environ.get("MTP_ALPHA", 0.2))
+    mtp_alpha_decay = bool(int(os.environ.get("MTP_ALPHA_DECAY", 1)))
+    mtp_head_lr = float(os.environ.get("MTP_HEAD_LR", 0.008))
+
 # -----------------------------
 # MUON OPTIMIZER 
 # -----------------------------
@@ -648,6 +654,25 @@ class Block(nn.Module):
         return x
 
 
+class MTPHeads(nn.Module):
+    """K auxiliary linear heads for multi-token prediction. Training only."""
+
+    def __init__(self, k: int, model_dim: int, vocab_size: int, logit_softcap: float):
+        super().__init__()
+        self.logit_softcap = logit_softcap
+        self.heads = nn.ModuleList([CastedLinear(model_dim, vocab_size, bias=False) for _ in range(k)])
+        for h in self.heads:
+            nn.init.zeros_(h.weight)
+
+    def forward(self, hidden: Tensor, shifted_targets: list[Tensor]) -> Tensor:
+        total_loss = torch.zeros((), device=hidden.device, dtype=torch.float32)
+        cap = self.logit_softcap
+        for head, targets in zip(self.heads, shifted_targets):
+            logits = cap * torch.tanh(head(hidden) / cap)
+            total_loss = total_loss + F.cross_entropy(logits.float(), targets, ignore_index=-100, reduction="mean")
+        return total_loss / len(self.heads)
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -696,6 +721,8 @@ class GPT(nn.Module):
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
+        self.mtp_heads: MTPHeads | None = None
+        self.register_buffer("_mtp_alpha", torch.zeros((), dtype=torch.float32), persistent=False)
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -734,16 +761,32 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
-        x = self.final_norm(x).reshape(-1, x.size(-1))
+        x = self.final_norm(x)
+        hidden_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(hidden_flat, self.tok_emb.weight)
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
+            logits_proj = self.lm_head(hidden_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, ignore_index=-100, reduction="mean")
+        primary_loss = F.cross_entropy(logits.float(), targets, ignore_index=-100, reduction="mean")
+
+        if self.mtp_heads is not None and self.training:
+            num_mtp = len(self.mtp_heads.heads)
+            # Truncate hidden and build shifted targets for each aux head.
+            # Head k predicts token at position t+k+1 from hidden at position t.
+            trunc_len = seqlen - num_mtp
+            hidden_trunc = x[:, :trunc_len, :].reshape(-1, x.size(-1))
+            shifted_targets = []
+            for k in range(1, num_mtp + 1):
+                t = target_ids[:, k : trunc_len + k].reshape(-1)
+                shifted_targets.append(t)
+            aux_loss = self.mtp_heads(hidden_trunc, shifted_targets)
+            return primary_loss + self._mtp_alpha * aux_loss
+
+        return primary_loss
 
 
 # -----------------------------
@@ -859,6 +902,14 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         num_memory_tokens=args.num_memory_tokens,
     ).to(device).bfloat16()
+    if args.mtp_num_heads > 0:
+        base_model.mtp_heads = MTPHeads(
+            k=args.mtp_num_heads,
+            model_dim=args.model_dim,
+            vocab_size=args.vocab_size,
+            logit_softcap=args.logit_softcap,
+        ).to(device).bfloat16()
+        base_model._mtp_alpha.fill_(args.mtp_alpha)
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
@@ -916,6 +967,14 @@ def main() -> None:
             fused=True,
         )
         optimizers.insert(1, optimizer_head)
+    if base_model.mtp_heads is not None:
+        optimizer_mtp = torch.optim.Adam(
+            [{"params": list(base_model.mtp_heads.parameters()), "lr": args.mtp_head_lr, "base_lr": args.mtp_head_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.adam_eps,
+            fused=True,
+        )
+        optimizers.append(optimizer_mtp)
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
@@ -1054,6 +1113,8 @@ def main() -> None:
         for opt in optimizers:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * scale
+        if args.mtp_num_heads > 0 and args.mtp_alpha_decay:
+            base_model._mtp_alpha.fill_(args.mtp_alpha * scale)
 
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
@@ -1092,6 +1153,11 @@ def main() -> None:
     # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
+
+    # Strip MTP auxiliary heads before export — training only.
+    if base_model.mtp_heads is not None:
+        base_model.mtp_heads = None
+    base_model._mtp_alpha.fill_(0.0)
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
