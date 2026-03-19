@@ -707,6 +707,8 @@ class GPT(nn.Module):
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
+        targets = target_ids.reshape(-1)
+        enc_loss = torch.zeros((), device=x.device)
 
         for _pass in range(2):
             skips: list[Tensor] = []
@@ -716,13 +718,16 @@ class GPT(nn.Module):
             if _pass == 0:
                 x = F.rms_norm(x, (x.size(-1),))
                 continue
+            enc_repr = F.rms_norm(x, (x.size(-1),)).reshape(-1, x.size(-1))
+            if self.tie_embeddings:
+                enc_logits = self.logit_softcap * torch.tanh(F.linear(enc_repr, self.tok_emb.weight) / self.logit_softcap)
+            enc_loss = F.cross_entropy(enc_logits.float(), targets, reduction="mean")
             for i in range(self.num_decoder_layers):
                 if skips:
                     x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
                 x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
-        targets = target_ids.reshape(-1)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
@@ -730,7 +735,8 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        final_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        return final_loss + 0.1 * enc_loss
 
 
 # -----------------------------
