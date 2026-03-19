@@ -67,7 +67,7 @@ class Hyperparameters:
     num_heads = int(os.environ.get("NUM_HEADS", 4))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "0")))
-    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    rope_base = float(os.environ.get("ROPE_BASE", 5000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 15.0))
 
     # Optimizer hyperparameters.
