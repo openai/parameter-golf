@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "enabled": true,
+  "model": "gpt-5.4",
+  "default_reasoning_effort": "high",
+  "proposal_reasoning_effort": "xhigh",
+  "sandbox": "workspace-write",
+  "approval_policy": "never",
+  "json_output": true,
+  "skip_git_repo_check": true,
+  "allow_web_search": false,
+  "candidate_prefix": "cod",
+  "proposal_operator_id": "codex_proposal",
+  "allowed_files": [
+    "train_gpt.py",
+    "train_gpt_mlx.py",
+    "notes.md"
+  ],
+  "context": {
+    "history_scan_limit": 300,
+    "champion_limit": 4,
+    "family_recent_limit": 6,
+    "family_failure_limit": 4,
+    "note_char_limit": 280,
+    "diff_line_limit": 80
+  },
+  "modes": {
+    "default": "brief",
+    "deep_families": [
+      "architecture",
+      "compression"
+    ],
+    "ambiguity_margin_bpb": 0.003,
+    "ambiguity_top_k": 3
+  },
+  "research_starters": {
+    "enabled": true,
+    "prompt_limit": 3,
+    "context_limit": 5
+  },
+  "family_focus": {
+    "training_recipe": [
+      "learning-rate schedule",
+      "optimizer-group balance",
+      "sample-efficiency under a short wallclock"
+    ],
+    "architecture": [
+      "parameter efficiency",
+      "depth/width/head tradeoffs",
+      "challenge-native recurrence or sharing ideas"
+    ],
+    "compression": [
+      "export sensitivity",
+      "post-quant gap reduction",
+      "artifact-byte awareness"
+    ]
+  }
+}

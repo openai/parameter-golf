@@ -30,7 +30,7 @@ from mlx.utils import tree_flatten, tree_unflatten
 # SHARD FORMAT + COMPUTE DTYPE
 # ==============================================================================
 
-COMPUTE_DTYPE = mx.bfloat16
+COMPUTE_DTYPE = mx.float32
 
 # ==============================================================================
 # HYPERPARAMETERS

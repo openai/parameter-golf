@@ -1095,3 +1095,51 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.13.1 (main, Dec  3 2024, 17:59:52) [Clang 16.0.0 (clang-1600.0.26.4)]
+Running MLX 0.31.1
+====================================================================================================
+Code size: 49759 bytes
+run_id:rep_port_training_recipe_20260318_210940_4091_20260318_212556_4091_smoke_mlx_local_20260318_212556
+mlx_version:0.31.1
+train_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+val_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:262144
+WARNING: train_loader:subset dataset:fineweb10B_sp1024 train_shards:1/195 new epochs will arrive sooner than the full dataset
+tokenizer_path:/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+model_params:17059912 vocab_size:1024 layers:9 dim:512 heads:8 kv_heads:4 seq_len:1024 tie_embeddings:True
+iterations:50 train_batch_tokens:8192 grad_accum_steps:8 microbatch_tokens:1024 microbatch_batch_size:1 val_batch_size:8192 warmup_steps:64 max_wallclock_seconds:0.000
+mlx_max_microbatch_tokens:2048
+optimizer:muon+adam muon_matrix_params:54 scalar_params:37 embed_lr:0.05 matrix_lr:0.05 scalar_lr:0.04 muon_momentum:0.95 muon_steps:5
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+compute_dtype:mlx.core.bfloat16 compile:True
+dtypes tok_emb:mlx.core.bfloat16 linear_weight:mlx.core.float32 skip_weights:mlx.core.float32
+warmup_step:10/64
+warmup_step:20/64
+warmup_step:30/64
+warmup_step:40/64
+warmup_step:50/64
+warmup_step:60/64
+warmup_step:64/64
+step:1/50 train_loss:6.9428 train_time:139ms step_avg:139.01ms tok_s:58932
+step:2/50 train_loss:6.8392 train_time:561ms step_avg:280.57ms tok_s:19430
+step:3/50 train_loss:6.7417 train_time:976ms step_avg:325.33ms tok_s:19756
+step:4/50 train_loss:6.5523 train_time:1390ms step_avg:347.50ms tok_s:19795
+step:5/50 train_loss:6.3016 train_time:1799ms step_avg:359.89ms tok_s:20019
+step:6/50 train_loss:6.0352 train_time:2212ms step_avg:368.72ms tok_s:19851
+step:7/50 train_loss:5.8204 train_time:2627ms step_avg:375.25ms tok_s:19774
+step:8/50 train_loss:5.8472 train_time:3044ms step_avg:380.50ms tok_s:19643
+step:9/50 train_loss:5.7741 train_time:3460ms step_avg:384.40ms tok_s:19721
+step:10/50 train_loss:5.7640 train_time:3869ms step_avg:386.93ms tok_s:20003
+step:20/50 train_loss:5.5844 train_time:8005ms step_avg:400.24ms tok_s:19969
+step:30/50 train_loss:5.3213 train_time:12150ms step_avg:405.00ms tok_s:19860
+step:40/50 train_loss:5.1310 train_time:16290ms step_avg:407.26ms tok_s:19789
+step:50/50 train_loss:4.9997 train_time:20431ms step_avg:408.62ms tok_s:19682
+step:50/50 val_loss:4.9677 val_bpb:2.9417 train_time:23257ms step_avg:465.14ms
+saved_model:logs/rep_port_training_recipe_20260318_210940_4091_20260318_212556_4091_smoke_mlx_local_20260318_212556_mlx_model.npz bytes:67212188
+serialized_model_int8_zlib:6237223 bytes (payload:17178912 raw_pickle:17188361 payload_ratio:3.91x)
+Serialized model: 67212188 bytes
+Serialized model int8+zlib: 6237223 bytes
+Total submission size int8+zlib: 6286982 bytes
+final_int8_zlib_roundtrip val_loss:4.9808 val_bpb:2.9495 eval_time:2539ms
+final_int8_zlib_roundtrip_exact val_loss:4.98079729 val_bpb:2.94950442

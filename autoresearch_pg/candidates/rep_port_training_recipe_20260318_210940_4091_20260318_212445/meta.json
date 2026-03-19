@@ -1,0 +1,35 @@
+{
+  "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_212445",
+  "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+  "created_at": "2026-03-18T21:24:45.994971Z",
+  "entrypoint_filename": "train_gpt_mlx.py",
+  "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+  "env_overrides": {
+    "MATRIX_LR": 0.05,
+    "SCALAR_LR": 0.04,
+    "WARMDOWN_ITERS": 256,
+    "WARMUP_STEPS": 64
+  },
+  "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+  "mutation_hash": "35cebf0da85e6e58a7fa823808359a5f7b9d1670a7af6a54707586163b3b5075",
+  "mutation_operator": "replicate",
+  "mutation_payload": {
+    "operator_type": "replicate",
+    "replication_of": "port_training_recipe_20260318_210940_4091",
+    "source_run_id": "port_training_recipe_20260318_210940_4091_smoke_mlx_local_20260318_210940",
+    "source_tier": "smoke_mlx_local"
+  },
+  "parent_candidate_id": "port_training_recipe_20260318_210940_4091",
+  "primary_family": "training_recipe",
+  "promotion_history": [],
+  "secondary_tags": [
+    "600s_tuned",
+    "low_risk",
+    "recipe",
+    "replicate",
+    "template"
+  ],
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/port_training_recipe_20260318_210940_4091/train_gpt_mlx.py",
+  "status": "planned",
+  "template_id": "recipe_fast_decay"
+}

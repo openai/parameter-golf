@@ -1,0 +1,5 @@
+Hypothesis: keep the parent scalar and tied-embedding LR tails, and add a much smaller Muon matrix LR floor so the large quantized block weights can still make tiny late co-adaptation updates instead of freezing before the float-kept controls and shared embedding/logit table.
+
+Changed files: [train_gpt_mlx.py](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/train_gpt_mlx.py), [notes.md](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/notes.md). In code, this adds `MATRIX_LR_FLOOR_RATIO` with a default of `0.01`, routes Muon through `matrix_lr_mul(...)`, and logs `matrix_lr_floor_ratio`.
+
+Expected upside is a smaller `final_int8_zlib_roundtrip_exact val_bpb` gap by letting quantized block matrices stay lightly synchronized with the parent’s late scalar/embed calibration. Main risk is that even a tiny late matrix tail destabilizes the fast-decay behavior and gives back raw or roundtrip quality. Verification: `python3 -m py_compile train_gpt_mlx.py` passed; I did not run training.

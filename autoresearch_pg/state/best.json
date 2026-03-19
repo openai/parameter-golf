@@ -1,0 +1,34 @@
+{
+  "by_tier": {
+    "smoke_local": {
+      "bytes_total": 15863489,
+      "candidate_id": "first_candidate",
+      "post_quant_val_bpb": 1.2243657,
+      "proxy_score": 1.2243657,
+      "run_dir": "autoresearch_pg/runs/first_candidate/smoke_local/first_candidate_smoke_local_20260318_192600",
+      "run_id": "first_candidate_smoke_local_20260318_192600",
+      "tier": "smoke_local",
+      "valid": true
+    },
+    "smoke_mlx_local": {
+      "bytes_total": 6475349,
+      "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+      "post_quant_val_bpb": 2.83995742,
+      "proxy_score": 2.83995742,
+      "run_dir": "autoresearch_pg/runs/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249/smoke_mlx_local/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+      "run_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    }
+  },
+  "global": {
+    "bytes_total": 15863489,
+    "candidate_id": "first_candidate",
+    "post_quant_val_bpb": 1.2243657,
+    "proxy_score": 1.2243657,
+    "run_dir": "autoresearch_pg/runs/first_candidate/smoke_local/first_candidate_smoke_local_20260318_192600",
+    "run_id": "first_candidate_smoke_local_20260318_192600",
+    "tier": "smoke_local",
+    "valid": true
+  }
+}

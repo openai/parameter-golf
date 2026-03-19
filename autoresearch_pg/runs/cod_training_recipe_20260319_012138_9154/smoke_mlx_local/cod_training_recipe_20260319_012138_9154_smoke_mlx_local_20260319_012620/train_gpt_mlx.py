@@ -84,8 +84,14 @@ class Hyperparameters:
     beta2: float = float(os.environ.get("BETA2", 0.95))
     adam_eps: float = float(os.environ.get("ADAM_EPS", 1e-8))
     tied_embed_lr: float = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_lr_floor_ratio: float = float(os.environ.get("TIED_EMBED_LR_FLOOR_RATIO", 0.05))
     matrix_lr: float = float(os.environ.get("MATRIX_LR", 0.04))
+    matrix_lr_floor_ratio: float = float(os.environ.get("MATRIX_LR_FLOOR_RATIO", 0.01))
+    matrix_int8_snap_start_lr_mul: float = float(os.environ.get("MATRIX_INT8_SNAP_START_LR_MUL", 0.5))
+    matrix_int8_snap_interval: int = int(os.environ.get("MATRIX_INT8_SNAP_INTERVAL", 8))
+    matrix_int8_snap_min_numel: int = int(os.environ.get("MATRIX_INT8_SNAP_MIN_NUMEL", 131_072))
     scalar_lr: float = float(os.environ.get("SCALAR_LR", 0.04))
+    scalar_lr_floor_ratio: float = float(os.environ.get("SCALAR_LR_FLOOR_RATIO", 0.25))
     muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps: int = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -116,6 +122,26 @@ class Hyperparameters:
         warmdown_ms = self.warmdown_iters * step_ms
         remaining_ms = max(1000.0 * self.max_wallclock_seconds - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
+    @staticmethod
+    def floored_lr_mul(base_lr_mul: float, floor_ratio: float) -> float:
+        floor = min(max(floor_ratio, 0.0), 1.0)
+        return floor + (1.0 - floor) * base_lr_mul
+
+    def tied_embed_lr_mul(self, base_lr_mul: float) -> float:
+        return self.floored_lr_mul(base_lr_mul, self.tied_embed_lr_floor_ratio)
+
+    def matrix_lr_mul(self, base_lr_mul: float) -> float:
+        return self.floored_lr_mul(base_lr_mul, self.matrix_lr_floor_ratio)
+
+    def scalar_lr_mul(self, base_lr_mul: float) -> float:
+        return self.floored_lr_mul(base_lr_mul, self.scalar_lr_floor_ratio)
+
+    def should_snap_matrix_int8(self, step: int, base_lr_mul: float) -> bool:
+        if self.matrix_int8_snap_interval <= 0:
+            return False
+        start_lr_mul = min(max(self.matrix_int8_snap_start_lr_mul, 0.0), 1.0)
+        return base_lr_mul <= start_lr_mul and (step + 1) % self.matrix_int8_snap_interval == 0
 
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
@@ -494,6 +520,9 @@ class SplitOptimizers:
             for k, p in params.items()
             if k.startswith("blocks.") and p.ndim == 2 and not any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)
         ]
+        self.matrix_int8_snap_keys = [
+            k for k in self.matrix_keys if int(params[k].size) >= args.matrix_int8_snap_min_numel
+        ]
         self.scalar_keys = [
             k
             for k, p in params.items()
@@ -514,14 +543,23 @@ class SplitOptimizers:
             bias_correction=True,
         )
 
-    def step(self, model: GPT, grads_tree: dict, step: int, lr_mul: float) -> None:
+    def step(
+        self,
+        model: GPT,
+        grads_tree: dict,
+        step: int,
+        matrix_lr_mul: float,
+        embed_lr_mul: float,
+        scalar_lr_mul: float,
+        snap_matrix_int8: bool = False,
+    ) -> None:
         params = dict(tree_flatten(model.parameters()))
         grads = dict(tree_flatten(grads_tree))
         updated = dict(params)
 
-        updated.update(self.muon.step(params, grads, step=step, lr_mul=lr_mul))
+        updated.update(self.muon.step(params, grads, step=step, lr_mul=matrix_lr_mul))
 
-        self.adam_embed.learning_rate = self.args.tied_embed_lr * lr_mul
+        self.adam_embed.learning_rate = self.args.tied_embed_lr * embed_lr_mul
         updated.update(
             self.adam_embed.apply_gradients(
                 {self.embed_key: grads[self.embed_key]},
@@ -529,10 +567,16 @@ class SplitOptimizers:
             )
         )
 
-        self.adam_scalar.learning_rate = self.args.scalar_lr * lr_mul
+        self.adam_scalar.learning_rate = self.args.scalar_lr * scalar_lr_mul
         scalar_grads = {k: grads[k] for k in self.scalar_keys}
         scalar_params = {k: params[k] for k in self.scalar_keys}
         updated.update(self.adam_scalar.apply_gradients(scalar_grads, scalar_params))
+
+        if snap_matrix_int8:
+            # Match the deployed per-row int8 roundtrip on the large Muon matrices so
+            # late updates adapt to the actual export distortion instead of only float weights.
+            for k in self.matrix_int8_snap_keys:
+                updated[k] = roundtrip_int8_array(updated[k])
 
         model.update(tree_unflatten(list(updated.items())))
 
@@ -588,6 +632,20 @@ def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
     return np.ascontiguousarray(q), scale
 
 
+def dequantize_quantized_array(q_np: np.ndarray, scale: np.ndarray, dtype_name: str) -> mx.array:
+    scale_f32 = np.asarray(scale, dtype=np.float32)
+    if scale_f32.ndim > 0:
+        out_arr = q_np.astype(np.float32) * scale_f32.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
+    else:
+        out_arr = q_np.astype(np.float32) * float(scale_f32)
+    return mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[dtype_name])
+
+
+def roundtrip_int8_array(arr: mx.array) -> mx.array:
+    q, scale = quantize_float_array(arr)
+    return dequantize_quantized_array(q, scale, str(arr.dtype).split(".")[-1])
+
+
 def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
     quantized: dict[str, np.ndarray] = {}
     scales: dict[str, np.ndarray] = {}
@@ -641,18 +699,11 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
 
 def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.array]:
     out: dict[str, mx.array] = {}
-    qmeta = quant_obj.get("qmeta", {})
     passthrough_orig_dtypes = quant_obj.get("passthrough_orig_dtypes", {})
     for name, q in quant_obj["quantized"].items():
         q_np = np.asarray(q, dtype=np.int8)
         dtype_name = quant_obj["dtypes"][name]
-        scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
-        if qmeta.get(name, {}).get("scheme") == "per_row" or scale.ndim > 0:
-            # Broadcast the saved row scale back across trailing dimensions.
-            out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
-        else:
-            out_arr = q_np.astype(np.float32) * float(scale)
-        out[name] = mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[dtype_name])
+        out[name] = dequantize_quantized_array(q_np, quant_obj["scales"][name], dtype_name)
     for name, arr in quant_obj["passthrough"].items():
         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
         out_arr = np.array(arr, copy=True)
@@ -940,7 +991,14 @@ def main() -> None:
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
         f"embed_lr:{args.tied_embed_lr} "
-        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
+        f"embed_lr_floor_ratio:{args.tied_embed_lr_floor_ratio} "
+        f"matrix_lr:{args.matrix_lr} matrix_lr_floor_ratio:{args.matrix_lr_floor_ratio} "
+        f"matrix_int8_snap_interval:{args.matrix_int8_snap_interval} "
+        f"matrix_int8_snap_start_lr_mul:{args.matrix_int8_snap_start_lr_mul} "
+        f"matrix_int8_snap_min_numel:{args.matrix_int8_snap_min_numel} "
+        f"matrix_int8_snap_tensors:{len(opt.matrix_int8_snap_keys)} "
+        f"scalar_lr:{args.scalar_lr} "
+        f"scalar_lr_floor_ratio:{args.scalar_lr_floor_ratio} "
         f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
     )
     log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
@@ -1018,7 +1076,11 @@ def main() -> None:
                 log(f"stopping_early: wallclock_cap train_time:{train_time_ms:.0f}ms step:{step}/{args.iterations}")
             break
 
-        lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        base_lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        matrix_lr_mul = args.matrix_lr_mul(base_lr_mul)
+        embed_lr_mul = args.tied_embed_lr_mul(base_lr_mul)
+        scalar_lr_mul = args.scalar_lr_mul(base_lr_mul)
+        snap_matrix_int8 = bool(opt.matrix_int8_snap_keys) and args.should_snap_matrix_int8(step, base_lr_mul)
         step_t0 = time.perf_counter()
 
         accum: dict[str, mx.array] | None = None
@@ -1032,13 +1094,26 @@ def main() -> None:
         grads = tree_unflatten(list(accum.items()))
         grads = clip_grad_tree(grads, args.grad_clip_norm)
         train_loss_value = float(train_loss.item())
-        opt.step(model, grads, step=step, lr_mul=lr_mul)
+        opt.step(
+            model,
+            grads,
+            step=step,
+            matrix_lr_mul=matrix_lr_mul,
+            embed_lr_mul=embed_lr_mul,
+            scalar_lr_mul=scalar_lr_mul,
+            snap_matrix_int8=snap_matrix_int8,
+        )
         mx.synchronize()
 
         step_ms = 1000.0 * (time.perf_counter() - step_t0)
         approx_train_time_ms = train_time_ms + 1000.0 * (time.perf_counter() - t0)
         tok_s = args.train_batch_tokens / (step_ms / 1000.0)
         step += 1
+        if snap_matrix_int8:
+            log(
+                f"step:{step}/{args.iterations} matrix_int8_snap "
+                f"base_lr_mul:{base_lr_mul:.4f} tensors:{len(opt.matrix_int8_snap_keys)}"
+            )
         if args.train_log_every > 0 and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None):
             log(
                 f"step:{step}/{args.iterations} train_loss:{train_loss_value:.4f} "

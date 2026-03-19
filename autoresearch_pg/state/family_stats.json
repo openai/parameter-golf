@@ -1,0 +1,87 @@
+{
+  "families": {
+    "architecture": {
+      "best_score": 3.24664863,
+      "completed": 1,
+      "duplicates_skipped": 0,
+      "invalid": 0,
+      "last_score": 3.24664863,
+      "recent_scores": [
+        3.24664863
+      ],
+      "scheduled": 1,
+      "valid": 1,
+      "wins": 1
+    },
+    "compression": {
+      "best_score": 3.04557018,
+      "completed": 2,
+      "duplicates_skipped": 0,
+      "invalid": 0,
+      "last_score": 3.04557018,
+      "recent_scores": [
+        3.23747214,
+        3.04557018
+      ],
+      "scheduled": 2,
+      "valid": 2,
+      "wins": 2
+    },
+    "eval_time": {
+      "best_score": null,
+      "completed": 0,
+      "duplicates_skipped": 0,
+      "invalid": 0,
+      "last_score": null,
+      "recent_scores": [],
+      "scheduled": 0,
+      "valid": 0,
+      "wins": 0
+    },
+    "systems": {
+      "best_score": null,
+      "completed": 0,
+      "duplicates_skipped": 0,
+      "invalid": 0,
+      "last_score": null,
+      "recent_scores": [],
+      "scheduled": 0,
+      "valid": 0,
+      "wins": 0
+    },
+    "tokenizer": {
+      "best_score": null,
+      "completed": 0,
+      "duplicates_skipped": 0,
+      "invalid": 0,
+      "last_score": null,
+      "recent_scores": [],
+      "scheduled": 0,
+      "valid": 0,
+      "wins": 0
+    },
+    "training_recipe": {
+      "best_score": 2.83995742,
+      "completed": 12,
+      "duplicates_skipped": 0,
+      "invalid": 0,
+      "last_score": 3.1897757,
+      "recent_scores": [
+        2.94950442,
+        2.94900999,
+        2.88946131,
+        2.85863372,
+        2.84089884,
+        3.04638341,
+        3.04063857,
+        3.06682539,
+        2.83995742,
+        3.1897757
+      ],
+      "scheduled": 12,
+      "valid": 12,
+      "wins": 8
+    }
+  },
+  "last_updated": "2026-03-19T01:46:28.024943Z"
+}

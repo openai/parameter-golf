@@ -1,0 +1,162 @@
+{
+  "operators": {
+    "warmup_sweep": {
+      "family": "training_recipe",
+      "type": "env_choice",
+      "parameter": "WARMUP_STEPS",
+      "expected_cost": "low"
+    },
+    "warmdown_sweep": {
+      "family": "training_recipe",
+      "type": "env_choice",
+      "parameter": "WARMDOWN_ITERS",
+      "expected_cost": "low"
+    },
+    "matrix_lr_sweep": {
+      "family": "training_recipe",
+      "type": "env_choice",
+      "parameter": "MATRIX_LR",
+      "expected_cost": "low"
+    },
+    "scalar_lr_sweep": {
+      "family": "training_recipe",
+      "type": "env_choice",
+      "parameter": "SCALAR_LR",
+      "expected_cost": "low"
+    },
+    "embed_lr_sweep": {
+      "family": "training_recipe",
+      "type": "env_choice",
+      "parameter": "TIED_EMBED_LR",
+      "expected_cost": "low"
+    },
+    "recipe_fast_decay_bundle": {
+      "family": "training_recipe",
+      "type": "env_bundle",
+      "parameters": ["WARMUP_STEPS", "WARMDOWN_ITERS", "MATRIX_LR", "SCALAR_LR"],
+      "bundles": [
+        {
+          "WARMUP_STEPS": 64,
+          "WARMDOWN_ITERS": 256,
+          "MATRIX_LR": 0.05,
+          "SCALAR_LR": 0.04
+        },
+        {
+          "WARMUP_STEPS": 128,
+          "WARMDOWN_ITERS": 512,
+          "MATRIX_LR": 0.05,
+          "SCALAR_LR": 0.06
+        },
+        {
+          "WARMUP_STEPS": 64,
+          "WARMDOWN_ITERS": 800,
+          "MATRIX_LR": 0.04,
+          "SCALAR_LR": 0.02
+        }
+      ],
+      "expected_cost": "medium"
+    },
+    "depth_sweep": {
+      "family": "architecture",
+      "type": "env_choice",
+      "parameter": "NUM_LAYERS",
+      "expected_cost": "low"
+    },
+    "mlp_sweep": {
+      "family": "architecture",
+      "type": "env_choice",
+      "parameter": "MLP_MULT",
+      "expected_cost": "low"
+    },
+    "kv_head_sweep": {
+      "family": "architecture",
+      "type": "env_choice",
+      "parameter": "NUM_KV_HEADS",
+      "constraints": ["num_heads_divisible_by_num_kv_heads"],
+      "expected_cost": "low"
+    },
+    "width_head_bundle": {
+      "family": "architecture",
+      "type": "constrained_bundle",
+      "parameters": ["MODEL_DIM", "NUM_HEADS", "NUM_KV_HEADS"],
+      "constraints": [
+        "model_dim_divisible_by_num_heads",
+        "num_heads_divisible_by_num_kv_heads"
+      ],
+      "expected_cost": "medium"
+    },
+    "compact_architecture_bundle": {
+      "family": "architecture",
+      "type": "env_bundle",
+      "parameters": ["NUM_LAYERS", "MODEL_DIM", "NUM_HEADS", "NUM_KV_HEADS", "MLP_MULT"],
+      "bundles": [
+        {
+          "NUM_LAYERS": 8,
+          "MODEL_DIM": 448,
+          "NUM_HEADS": 7,
+          "NUM_KV_HEADS": 1,
+          "MLP_MULT": 2
+        },
+        {
+          "NUM_LAYERS": 10,
+          "MODEL_DIM": 576,
+          "NUM_HEADS": 9,
+          "NUM_KV_HEADS": 3,
+          "MLP_MULT": 1
+        },
+        {
+          "NUM_LAYERS": 7,
+          "MODEL_DIM": 640,
+          "NUM_HEADS": 10,
+          "NUM_KV_HEADS": 5,
+          "MLP_MULT": 1
+        }
+      ],
+      "expected_cost": "medium"
+    },
+    "logit_softcap_sweep": {
+      "family": "compression",
+      "type": "env_choice",
+      "parameter": "LOGIT_SOFTCAP",
+      "expected_cost": "low"
+    },
+    "qk_gain_sweep": {
+      "family": "compression",
+      "type": "env_choice",
+      "parameter": "QK_GAIN_INIT",
+      "expected_cost": "low"
+    },
+    "compression_stability_bundle": {
+      "family": "compression",
+      "type": "env_bundle",
+      "parameters": ["QK_GAIN_INIT", "LOGIT_SOFTCAP"],
+      "bundles": [
+        {
+          "QK_GAIN_INIT": 1.25,
+          "LOGIT_SOFTCAP": 20.0
+        },
+        {
+          "QK_GAIN_INIT": 1.5,
+          "LOGIT_SOFTCAP": 40.0
+        },
+        {
+          "QK_GAIN_INIT": 1.75,
+          "LOGIT_SOFTCAP": 30.0
+        }
+      ],
+      "expected_cost": "low"
+    },
+    "mlx_compute_float32_patch": {
+      "family": "systems",
+      "type": "search_replace_patch",
+      "compatible_entrypoints": ["train_gpt_mlx.py"],
+      "replacements": [
+        {
+          "find": "COMPUTE_DTYPE = mx.bfloat16",
+          "replace": "COMPUTE_DTYPE = mx.float32"
+        }
+      ],
+      "expected_cost": "medium"
+    }
+  }
+}

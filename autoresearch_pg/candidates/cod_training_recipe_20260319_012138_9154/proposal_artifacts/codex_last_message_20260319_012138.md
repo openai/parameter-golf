@@ -1,0 +1,5 @@
+Hypothesis: keep the parent matrix-LR floor, but add a staged late-phase int8 roundtrip snap on the large Muon-managed `blocks.*` matrices so they adapt to the exact per-row export distortion during warmdown instead of only in float space.
+
+Changed [train_gpt_mlx.py](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/train_gpt_mlx.py) and [notes.md](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/notes.md). The code change adds default-on `MATRIX_INT8_SNAP_*` knobs, reuses the existing int8 quantize/dequantize path for periodic late snaps of large Muon matrix weights only, and logs the new settings for reproducibility.
+
+Expected upside: smaller `final_int8_zlib_roundtrip_exact val_bpb` gap with essentially unchanged bytes. Main risk: the discrete late snaps may add optimization noise and give back some raw validation if they are too abrupt. `python3 -m py_compile train_gpt_mlx.py` passed; I did not run training.

@@ -1,0 +1,94 @@
+{
+  "tiers": {
+    "smoke_local": {
+      "description": "Short local correctness and export-path check on 1 GPU.",
+      "launcher": "torchrun",
+      "nproc_per_node": 1,
+      "env": {
+        "DATA_PATH": "${REPO_ROOT}/data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model",
+        "VOCAB_SIZE": "1024",
+        "ITERATIONS": "100",
+        "MAX_WALLCLOCK_SECONDS": "0",
+        "TRAIN_BATCH_TOKENS": "131072",
+        "TRAIN_SEQ_LEN": "1024",
+        "VAL_BATCH_SIZE": "131072",
+        "VAL_LOSS_EVERY": "50",
+        "TRAIN_LOG_EVERY": "10"
+      }
+    },
+    "proxy_1gpu_fast": {
+      "description": "Cheap 1xH100 proxy for fast filtering.",
+      "launcher": "torchrun",
+      "nproc_per_node": 1,
+      "env": {
+        "DATA_PATH": "${REPO_ROOT}/data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model",
+        "VOCAB_SIZE": "1024",
+        "MAX_WALLCLOCK_SECONDS": "180",
+        "TRAIN_BATCH_TOKENS": "524288",
+        "TRAIN_SEQ_LEN": "1024",
+        "VAL_BATCH_SIZE": "524288",
+        "VAL_LOSS_EVERY": "200",
+        "TRAIN_LOG_EVERY": "50",
+        "OMP_NUM_THREADS": "1"
+      }
+    },
+    "proxy_1gpu_full": {
+      "description": "Full-length 1xH100 proxy that preserves the challenge export path.",
+      "launcher": "torchrun",
+      "nproc_per_node": 1,
+      "env": {
+        "DATA_PATH": "${REPO_ROOT}/data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model",
+        "VOCAB_SIZE": "1024",
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_BATCH_TOKENS": "524288",
+        "TRAIN_SEQ_LEN": "1024",
+        "VAL_BATCH_SIZE": "524288",
+        "VAL_LOSS_EVERY": "200",
+        "TRAIN_LOG_EVERY": "50",
+        "OMP_NUM_THREADS": "1"
+      }
+    },
+    "track_8gpu_600s": {
+      "description": "Challenge-shaped run on 8 GPUs with a 600 second cap.",
+      "launcher": "torchrun",
+      "nproc_per_node": 8,
+      "env": {
+        "DATA_PATH": "${REPO_ROOT}/data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model",
+        "VOCAB_SIZE": "1024",
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_BATCH_TOKENS": "524288",
+        "TRAIN_SEQ_LEN": "1024",
+        "VAL_BATCH_SIZE": "524288",
+        "VAL_LOSS_EVERY": "200",
+        "TRAIN_LOG_EVERY": "50",
+        "NCCL_IB_DISABLE": "1",
+        "OMP_NUM_THREADS": "1",
+        "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1"
+      }
+    },
+    "smoke_mlx_local": {
+      "description": "True local Apple-Silicon smoke run using train_gpt_mlx.py.",
+      "launcher": "python",
+      "nproc_per_node": 1,
+      "env": {
+        "DATA_PATH": "${REPO_ROOT}/data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model",
+        "VOCAB_SIZE": "1024",
+        "ITERATIONS": "50",
+        "MAX_WALLCLOCK_SECONDS": "0",
+        "TRAIN_BATCH_TOKENS": "8192",
+        "TRAIN_SEQ_LEN": "1024",
+        "VAL_BATCH_SIZE": "8192",
+        "VAL_MAX_TOKENS": "262144",
+        "VAL_LOSS_EVERY": "0",
+        "TRAIN_LOG_EVERY": "10",
+        "MLX_MAX_MICROBATCH_TOKENS": "2048",
+        "OUT_DIR": "logs"
+      }
+    }
+  }
+}

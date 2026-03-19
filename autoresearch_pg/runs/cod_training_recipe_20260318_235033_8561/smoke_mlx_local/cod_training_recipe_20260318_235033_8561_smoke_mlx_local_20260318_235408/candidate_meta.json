@@ -1,0 +1,66 @@
+{
+  "candidate_id": "cod_training_recipe_20260318_235033_8561",
+  "config_hash": "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687",
+  "created_at": "2026-03-18T23:50:33.047092Z",
+  "entrypoint_filename": "train_gpt_mlx.py",
+  "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+  "env_overrides": {
+    "MATRIX_LR": 0.05,
+    "SCALAR_LR": 0.04,
+    "WARMDOWN_ITERS": 256,
+    "WARMUP_STEPS": 64
+  },
+  "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+  "mutation_hash": "bfd3dac63603ac93551faa5eeac4217ca3b396ff748e7b99ac1fdd3c6c7c7c0c",
+  "mutation_operator": "codex_proposal",
+  "mutation_payload": {
+    "artifacts": {
+      "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_context_latest.json",
+      "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_context_20260318_235033.json",
+      "engine": "codex",
+      "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_last_message_latest.md",
+      "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_last_message_20260318_235033.md",
+      "model": "gpt-5.4",
+      "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_prompt_latest.md",
+      "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_prompt_20260318_235033.md",
+      "reasoning_effort": "medium",
+      "return_code": 0,
+      "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_exec_latest.jsonl",
+      "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_exec_20260318_235033.jsonl"
+    },
+    "changed_entrypoint": true,
+    "model": "gpt-5.4",
+    "operator_type": "codex_proposal",
+    "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+    "proposal_engine": "codex",
+    "proposal_mode": "brief",
+    "proposal_mode_reasons": [],
+    "reasoning_effort": "medium"
+  },
+  "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+  "primary_family": "training_recipe",
+  "promotion_history": [],
+  "proposal_artifacts": {
+    "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_context_latest.json",
+    "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_context_20260318_235033.json",
+    "engine": "codex",
+    "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_last_message_latest.md",
+    "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_last_message_20260318_235033.md",
+    "model": "gpt-5.4",
+    "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_prompt_latest.md",
+    "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_prompt_20260318_235033.md",
+    "reasoning_effort": "medium",
+    "return_code": 0,
+    "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_exec_latest.jsonl",
+    "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_exec_20260318_235033.jsonl"
+  },
+  "proposal_changed_entrypoint": true,
+  "proposal_engine": "codex",
+  "proposal_mode": "brief",
+  "proposal_mode_reasons": [],
+  "secondary_tags": [
+    "codex_proposal"
+  ],
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_222108_4091/train_gpt_mlx.py",
+  "status": "proposed"
+}

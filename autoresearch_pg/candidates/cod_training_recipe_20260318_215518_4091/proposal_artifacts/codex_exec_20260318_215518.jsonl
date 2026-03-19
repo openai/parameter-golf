@@ -1,0 +1,7 @@
+error: unexpected argument '-a' found
+
+  tip: to pass '-a' as a value, use '-- -a'
+
+Usage: codex exec [OPTIONS] [PROMPT] [COMMAND]
+
+For more information, try '--help'.

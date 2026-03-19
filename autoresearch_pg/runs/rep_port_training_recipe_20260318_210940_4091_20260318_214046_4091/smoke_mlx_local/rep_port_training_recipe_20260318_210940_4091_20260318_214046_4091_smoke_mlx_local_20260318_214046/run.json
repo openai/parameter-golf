@@ -1,0 +1,224 @@
+{
+  "candidate_dir": "autoresearch_pg/candidates/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+  "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+  "command": [
+    "/Users/calmdentist/Desktop/parameter-golf/.venv_mlx313/bin/python",
+    "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/runs/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091/smoke_mlx_local/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091_smoke_mlx_local_20260318_214046/train_gpt_mlx.py"
+  ],
+  "created_at": "2026-03-18T21:41:40.757483Z",
+  "entrypoint": "autoresearch_pg/candidates/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091/train_gpt_mlx.py",
+  "env": {
+    "DATA_PATH": "/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "ITERATIONS": "50",
+    "MATRIX_LR": "0.05",
+    "MAX_WALLCLOCK_SECONDS": "0",
+    "MLX_MAX_MICROBATCH_TOKENS": "2048",
+    "OUT_DIR": "logs",
+    "RUN_ID": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091_smoke_mlx_local_20260318_214046",
+    "SCALAR_LR": "0.04",
+    "TOKENIZER_PATH": "/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "8192",
+    "TRAIN_LOG_EVERY": "10",
+    "TRAIN_SEQ_LEN": "1024",
+    "VAL_BATCH_SIZE": "8192",
+    "VAL_LOSS_EVERY": "0",
+    "VAL_MAX_TOKENS": "262144",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "256",
+    "WARMUP_STEPS": "64"
+  },
+  "metrics": {
+    "artifact": {
+      "bytes_total": 6287645,
+      "code_bytes": 49759,
+      "model_int8_zlib_bytes": 6237886,
+      "model_raw_bytes": 67212188
+    },
+    "dataset": {
+      "val_pattern": "/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin",
+      "val_tokens": 262144
+    },
+    "final_int8": {
+      "eval_time_ms": 2530,
+      "val_bpb": 2.949,
+      "val_loss": 4.98
+    },
+    "final_int8_exact": {
+      "val_bpb": 2.94900999,
+      "val_loss": 4.97996235
+    },
+    "last_train_loss": {
+      "iterations": 50,
+      "step": 50,
+      "step_avg_ms": 408.13,
+      "train_loss": 4.9994,
+      "train_time_ms": 20407
+    },
+    "last_train_val": {
+      "iterations": 50,
+      "step": 50,
+      "step_avg_ms": 464.68,
+      "train_time_ms": 23234,
+      "val_bpb": 2.9416,
+      "val_loss": 4.9674
+    },
+    "model_params": 17059912,
+    "path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/runs/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091/smoke_mlx_local/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091_smoke_mlx_local_20260318_214046/train.log",
+    "timing": {
+      "step_avg_ms": 464.68,
+      "train_time_ms": 23234
+    },
+    "train_losses": [
+      {
+        "iterations": 50,
+        "step": 1,
+        "step_avg_ms": 136.93,
+        "train_loss": 6.9428,
+        "train_time_ms": 137
+      },
+      {
+        "iterations": 50,
+        "step": 2,
+        "step_avg_ms": 281.67,
+        "train_loss": 6.8385,
+        "train_time_ms": 563
+      },
+      {
+        "iterations": 50,
+        "step": 3,
+        "step_avg_ms": 325.3,
+        "train_loss": 6.7415,
+        "train_time_ms": 976
+      },
+      {
+        "iterations": 50,
+        "step": 4,
+        "step_avg_ms": 347.17,
+        "train_loss": 6.5522,
+        "train_time_ms": 1389
+      },
+      {
+        "iterations": 50,
+        "step": 5,
+        "step_avg_ms": 360.18,
+        "train_loss": 6.3013,
+        "train_time_ms": 1801
+      },
+      {
+        "iterations": 50,
+        "step": 6,
+        "step_avg_ms": 368.23,
+        "train_loss": 6.0349,
+        "train_time_ms": 2209
+      },
+      {
+        "iterations": 50,
+        "step": 7,
+        "step_avg_ms": 374.67,
+        "train_loss": 5.8216,
+        "train_time_ms": 2623
+      },
+      {
+        "iterations": 50,
+        "step": 8,
+        "step_avg_ms": 379.74,
+        "train_loss": 5.8464,
+        "train_time_ms": 3038
+      },
+      {
+        "iterations": 50,
+        "step": 9,
+        "step_avg_ms": 383.4,
+        "train_loss": 5.7746,
+        "train_time_ms": 3451
+      },
+      {
+        "iterations": 50,
+        "step": 10,
+        "step_avg_ms": 385.95,
+        "train_loss": 5.7632,
+        "train_time_ms": 3860
+      },
+      {
+        "iterations": 50,
+        "step": 20,
+        "step_avg_ms": 399.17,
+        "train_loss": 5.5841,
+        "train_time_ms": 7983
+      },
+      {
+        "iterations": 50,
+        "step": 30,
+        "step_avg_ms": 403.7,
+        "train_loss": 5.3211,
+        "train_time_ms": 12111
+      },
+      {
+        "iterations": 50,
+        "step": 40,
+        "step_avg_ms": 406.46,
+        "train_loss": 5.1304,
+        "train_time_ms": 16258
+      },
+      {
+        "iterations": 50,
+        "step": 50,
+        "step_avg_ms": 408.13,
+        "train_loss": 4.9994,
+        "train_time_ms": 20407
+      }
+    ],
+    "train_vals": [
+      {
+        "iterations": 50,
+        "step": 50,
+        "step_avg_ms": 464.68,
+        "train_time_ms": 23234,
+        "val_bpb": 2.9416,
+        "val_loss": 4.9674
+      }
+    ]
+  },
+  "mutation_operator": "replicate",
+  "mutation_payload": {
+    "operator_type": "replicate",
+    "replication_of": "port_training_recipe_20260318_210940_4091",
+    "source_run_id": "port_training_recipe_20260318_210940_4091_smoke_mlx_local_20260318_210940",
+    "source_tier": "smoke_mlx_local"
+  },
+  "objective": {
+    "byte_cap": 16000000,
+    "bytes_code": 49759,
+    "bytes_model_int8_zlib": 6237886,
+    "bytes_over": 0,
+    "bytes_total": 6287645,
+    "model_params": 17059912,
+    "post_quant_val_bpb": 2.94900999,
+    "post_quant_val_loss": 4.97996235,
+    "pre_quant_val_bpb": 2.9416,
+    "pre_quant_val_loss": 4.9674,
+    "proxy_score": 2.94900999,
+    "quant_gap_bpb": 0.007409989999999755,
+    "quant_gap_loss": 0.0125623500000005,
+    "reasons": [],
+    "step_avg_ms": 464.68,
+    "train_time_ms": 23234,
+    "valid": true
+  },
+  "parent_candidate_id": "port_training_recipe_20260318_210940_4091",
+  "primary_family": "training_recipe",
+  "return_code": 0,
+  "run_dir": "autoresearch_pg/runs/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091/smoke_mlx_local/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091_smoke_mlx_local_20260318_214046",
+  "run_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091_smoke_mlx_local_20260318_214046",
+  "secondary_tags": [
+    "600s_tuned",
+    "low_risk",
+    "recipe",
+    "replicate",
+    "template"
+  ],
+  "stdout_log": "autoresearch_pg/runs/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091/smoke_mlx_local/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091_smoke_mlx_local_20260318_214046/stdout.log",
+  "template_id": "recipe_fast_decay",
+  "tier": "smoke_mlx_local",
+  "train_log": "autoresearch_pg/runs/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091/smoke_mlx_local/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091_smoke_mlx_local_20260318_214046/train.log"
+}

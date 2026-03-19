@@ -1,0 +1,32 @@
+{
+  "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+  "config_hash": "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687",
+  "created_at": "2026-03-19T01:44:00.743955Z",
+  "entrypoint_filename": "train_gpt_mlx.py",
+  "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+  "env_overrides": {
+    "MATRIX_LR": 0.05,
+    "SCALAR_LR": 0.04,
+    "WARMDOWN_ITERS": 256,
+    "WARMUP_STEPS": 64
+  },
+  "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+  "mutation_hash": "7e488ba22551f0f7c0fdb0034b8e9f319b39ca6d62a83bc0a67d0b82f4a93f8b",
+  "mutation_operator": "replicate",
+  "mutation_payload": {
+    "operator_type": "replicate",
+    "replication_of": "cod_training_recipe_20260318_235033_8561",
+    "source_run_id": "cod_training_recipe_20260318_235033_8561_smoke_mlx_local_20260318_235408",
+    "source_tier": "smoke_mlx_local"
+  },
+  "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+  "primary_family": "training_recipe",
+  "promotion_history": [],
+  "secondary_tags": [
+    "codex_proposal",
+    "replicate"
+  ],
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/train_gpt_mlx.py",
+  "status": "planned",
+  "template_id": null
+}

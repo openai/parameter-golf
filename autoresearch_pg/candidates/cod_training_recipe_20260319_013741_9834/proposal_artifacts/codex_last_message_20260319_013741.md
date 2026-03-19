@@ -1,0 +1,7 @@
+Hypothesis: keep the parent LR-floor recipe, but in late warmdown periodically snap only the large matrices that actually export as int8 back onto their exact int8 roundtrip grid so the model adapts to the deployment lattice instead of drifting away from it.
+
+Changed [train_gpt_mlx.py](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/train_gpt_mlx.py#L82), [train_gpt_mlx.py](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/train_gpt_mlx.py#L701), [train_gpt_mlx.py](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/train_gpt_mlx.py#L1002), and [notes.md](/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/notes.md#L3). The code adds `QAT_INTERVAL=8`, `QAT_TRIGGER_LR_MUL=0.5`, a helper that reuses the exact existing int8 quantizer/dequantizer, and a post-update late-phase projection of `tok_emb.weight` plus the Muon-managed block matrices.
+
+Expected upside: lower `final_int8_zlib_roundtrip_exact val_bpb` by shrinking the post-quant gap with essentially unchanged artifact bytes. Main risk: the late snapping step adds some optimization noise and CPU quantization overhead, which could reduce completed steps under the 600s cap or slightly hurt raw validation if it is too aggressive.
+
+Verification: `python -m py_compile train_gpt_mlx.py`.

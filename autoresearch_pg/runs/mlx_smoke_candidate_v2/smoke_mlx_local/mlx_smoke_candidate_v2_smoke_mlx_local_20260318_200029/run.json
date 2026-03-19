@@ -1,0 +1,203 @@
+{
+  "candidate_dir": "autoresearch_pg/candidates/mlx_smoke_candidate_v2",
+  "candidate_id": "mlx_smoke_candidate_v2",
+  "command": [
+    "/Users/calmdentist/Desktop/parameter-golf/.venv_mlx313/bin/python",
+    "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/runs/mlx_smoke_candidate_v2/smoke_mlx_local/mlx_smoke_candidate_v2_smoke_mlx_local_20260318_200029/train_gpt_mlx.py"
+  ],
+  "created_at": "2026-03-18T20:01:03.122377Z",
+  "entrypoint": "autoresearch_pg/candidates/mlx_smoke_candidate_v2/train_gpt_mlx.py",
+  "env": {
+    "DATA_PATH": "/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "ITERATIONS": "50",
+    "MAX_WALLCLOCK_SECONDS": "0",
+    "MLX_MAX_MICROBATCH_TOKENS": "2048",
+    "OUT_DIR": "logs",
+    "RUN_ID": "mlx_smoke_candidate_v2_smoke_mlx_local_20260318_200029",
+    "TOKENIZER_PATH": "/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "8192",
+    "TRAIN_LOG_EVERY": "10",
+    "TRAIN_SEQ_LEN": "1024",
+    "VAL_BATCH_SIZE": "8192",
+    "VAL_LOSS_EVERY": "0",
+    "VAL_MAX_TOKENS": "262144",
+    "VOCAB_SIZE": "1024"
+  },
+  "metrics": {
+    "artifact": {
+      "bytes_total": 5160614,
+      "code_bytes": 49759,
+      "model_int8_zlib_bytes": 5110855,
+      "model_raw_bytes": 67212188
+    },
+    "dataset": {
+      "val_pattern": "/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin",
+      "val_tokens": 262144
+    },
+    "final_int8": {
+      "eval_time_ms": 2525,
+      "val_bpb": 3.2439,
+      "val_loss": 5.478
+    },
+    "final_int8_exact": {
+      "val_bpb": 3.24391161,
+      "val_loss": 5.47795963
+    },
+    "last_train_loss": {
+      "iterations": 50,
+      "step": 50,
+      "step_avg_ms": 408.15,
+      "train_loss": 5.4536,
+      "train_time_ms": 20408
+    },
+    "last_train_val": {
+      "iterations": 50,
+      "step": 50,
+      "step_avg_ms": 464.65,
+      "train_time_ms": 23232,
+      "val_bpb": 3.2131,
+      "val_loss": 5.4259
+    },
+    "model_params": 17059912,
+    "path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/runs/mlx_smoke_candidate_v2/smoke_mlx_local/mlx_smoke_candidate_v2_smoke_mlx_local_20260318_200029/train.log",
+    "timing": {
+      "step_avg_ms": 464.65,
+      "train_time_ms": 23232
+    },
+    "train_losses": [
+      {
+        "iterations": 50,
+        "step": 1,
+        "step_avg_ms": 135.15,
+        "train_loss": 6.9428,
+        "train_time_ms": 135
+      },
+      {
+        "iterations": 50,
+        "step": 2,
+        "step_avg_ms": 273.14,
+        "train_loss": 6.8016,
+        "train_time_ms": 546
+      },
+      {
+        "iterations": 50,
+        "step": 3,
+        "step_avg_ms": 322.84,
+        "train_loss": 6.601,
+        "train_time_ms": 969
+      },
+      {
+        "iterations": 50,
+        "step": 4,
+        "step_avg_ms": 345.9,
+        "train_loss": 6.4174,
+        "train_time_ms": 1384
+      },
+      {
+        "iterations": 50,
+        "step": 5,
+        "step_avg_ms": 359.65,
+        "train_loss": 6.2561,
+        "train_time_ms": 1798
+      },
+      {
+        "iterations": 50,
+        "step": 6,
+        "step_avg_ms": 368.16,
+        "train_loss": 6.1006,
+        "train_time_ms": 2209
+      },
+      {
+        "iterations": 50,
+        "step": 7,
+        "step_avg_ms": 374.54,
+        "train_loss": 5.9524,
+        "train_time_ms": 2622
+      },
+      {
+        "iterations": 50,
+        "step": 8,
+        "step_avg_ms": 379.69,
+        "train_loss": 5.9246,
+        "train_time_ms": 3038
+      },
+      {
+        "iterations": 50,
+        "step": 9,
+        "step_avg_ms": 383.69,
+        "train_loss": 5.8929,
+        "train_time_ms": 3453
+      },
+      {
+        "iterations": 50,
+        "step": 10,
+        "step_avg_ms": 386.53,
+        "train_loss": 5.7923,
+        "train_time_ms": 3865
+      },
+      {
+        "iterations": 50,
+        "step": 20,
+        "step_avg_ms": 399.16,
+        "train_loss": 5.5864,
+        "train_time_ms": 7983
+      },
+      {
+        "iterations": 50,
+        "step": 30,
+        "step_avg_ms": 404.36,
+        "train_loss": 5.4784,
+        "train_time_ms": 12131
+      },
+      {
+        "iterations": 50,
+        "step": 40,
+        "step_avg_ms": 406.68,
+        "train_loss": 5.503,
+        "train_time_ms": 16267
+      },
+      {
+        "iterations": 50,
+        "step": 50,
+        "step_avg_ms": 408.15,
+        "train_loss": 5.4536,
+        "train_time_ms": 20408
+      }
+    ],
+    "train_vals": [
+      {
+        "iterations": 50,
+        "step": 50,
+        "step_avg_ms": 464.65,
+        "train_time_ms": 23232,
+        "val_bpb": 3.2131,
+        "val_loss": 5.4259
+      }
+    ]
+  },
+  "objective": {
+    "byte_cap": 16000000,
+    "bytes_code": 49759,
+    "bytes_model_int8_zlib": 5110855,
+    "bytes_over": 0,
+    "bytes_total": 5160614,
+    "model_params": 17059912,
+    "post_quant_val_bpb": 3.24391161,
+    "post_quant_val_loss": 5.47795963,
+    "pre_quant_val_bpb": 3.2131,
+    "pre_quant_val_loss": 5.4259,
+    "proxy_score": 3.24391161,
+    "quant_gap_bpb": 0.03081161000000021,
+    "quant_gap_loss": 0.05205962999999958,
+    "reasons": [],
+    "step_avg_ms": 464.65,
+    "train_time_ms": 23232,
+    "valid": true
+  },
+  "return_code": 0,
+  "run_dir": "autoresearch_pg/runs/mlx_smoke_candidate_v2/smoke_mlx_local/mlx_smoke_candidate_v2_smoke_mlx_local_20260318_200029",
+  "run_id": "mlx_smoke_candidate_v2_smoke_mlx_local_20260318_200029",
+  "stdout_log": "autoresearch_pg/runs/mlx_smoke_candidate_v2/smoke_mlx_local/mlx_smoke_candidate_v2_smoke_mlx_local_20260318_200029/stdout.log",
+  "tier": "smoke_mlx_local",
+  "train_log": "autoresearch_pg/runs/mlx_smoke_candidate_v2/smoke_mlx_local/mlx_smoke_candidate_v2_smoke_mlx_local_20260318_200029/train.log"
+}

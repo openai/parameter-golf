@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "templates": {
+    "recipe_fast_decay": {
+      "enabled": true,
+      "family": "training_recipe",
+      "selection_weight": 1.0,
+      "description": "Faster warmdown and slightly hotter matrix learning rate for the hard 600s regime.",
+      "source_refs": [
+        "challenge_local_prior",
+        "README.md"
+      ],
+      "tags": ["recipe", "low_risk", "600s_tuned"],
+      "mutation": {
+        "type": "env_template",
+        "env_overrides": {
+          "WARMUP_STEPS": 64,
+          "WARMDOWN_ITERS": 256,
+          "MATRIX_LR": 0.05,
+          "SCALAR_LR": 0.04
+        }
+      }
+    },
+    "recipe_long_warmup_low_scalar": {
+      "enabled": true,
+      "family": "training_recipe",
+      "selection_weight": 0.9,
+      "description": "Longer warmup with lower scalar LR to trade early speed for stability.",
+      "source_refs": [
+        "challenge_local_prior"
+      ],
+      "tags": ["recipe", "stability"],
+      "mutation": {
+        "type": "env_template",
+        "env_overrides": {
+          "WARMUP_STEPS": 128,
+          "WARMDOWN_ITERS": 512,
+          "MATRIX_LR": 0.04,
+          "SCALAR_LR": 0.02
+        }
+      }
+    },
+    "arch_compact_8x448": {
+      "enabled": true,
+      "family": "architecture",
+      "selection_weight": 1.0,
+      "description": "Smaller, cheaper trunk that may export more favorably under the byte cap.",
+      "source_refs": [
+        "challenge_local_prior"
+      ],
+      "tags": ["architecture", "compact"],
+      "mutation": {
+        "type": "env_template",
+        "env_overrides": {
+          "NUM_LAYERS": 8,
+          "MODEL_DIM": 448,
+          "NUM_HEADS": 7,
+          "NUM_KV_HEADS": 1,
+          "MLP_MULT": 2
+        }
+      }
+    },
+    "arch_slim_10x576_mlp1": {
+      "enabled": true,
+      "family": "architecture",
+      "selection_weight": 0.8,
+      "description": "Slightly deeper but slimmer architecture with reduced MLP cost.",
+      "source_refs": [
+        "challenge_local_prior",
+        "https://arxiv.org/abs/1909.11942"
+      ],
+      "tags": ["architecture", "factorization_adjacent"],
+      "mutation": {
+        "type": "env_template",
+        "env_overrides": {
+          "NUM_LAYERS": 10,
+          "MODEL_DIM": 576,
+          "NUM_HEADS": 9,
+          "NUM_KV_HEADS": 3,
+          "MLP_MULT": 1
+        }
+      }
+    },
+    "compression_low_softcap_qk125": {
+      "enabled": true,
+      "family": "compression",
+      "selection_weight": 1.0,
+      "description": "More conservative logits and lower qk gain to reduce export sensitivity.",
+      "source_refs": [
+        "challenge_local_prior"
+      ],
+      "tags": ["compression", "low_risk"],
+      "mutation": {
+        "type": "env_template",
+        "env_overrides": {
+          "LOGIT_SOFTCAP": 20.0,
+          "QK_GAIN_INIT": 1.25
+        }
+      }
+    },
+    "compression_high_softcap_qk175": {
+      "enabled": true,
+      "family": "compression",
+      "selection_weight": 0.7,
+      "description": "More aggressive qk gain with a higher softcap to probe calibration/export behavior.",
+      "source_refs": [
+        "challenge_local_prior"
+      ],
+      "tags": ["compression", "calibration"],
+      "mutation": {
+        "type": "env_template",
+        "env_overrides": {
+          "LOGIT_SOFTCAP": 40.0,
+          "QK_GAIN_INIT": 1.75
+        }
+      }
+    },
+    "systems_mlx_float32": {
+      "enabled": true,
+      "family": "systems",
+      "selection_weight": 0.5,
+      "description": "Force MLX compute to float32 as a debugging and numerical stability template.",
+      "source_refs": [
+        "mlx_local_debugging"
+      ],
+      "tags": ["systems", "patch", "mlx_only"],
+      "mutation": {
+        "type": "patch_template",
+        "compatible_entrypoints": ["train_gpt_mlx.py"],
+        "replacements": [
+          {
+            "find": "COMPUTE_DTYPE = mx.bfloat16",
+            "replace": "COMPUTE_DTYPE = mx.float32"
+          }
+        ]
+      }
+    }
+  }
+}

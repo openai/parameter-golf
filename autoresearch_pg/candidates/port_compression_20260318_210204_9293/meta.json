@@ -1,0 +1,25 @@
+{
+  "candidate_id": "port_compression_20260318_210204_9293",
+  "config_hash": "e495482e9295e04b943d758aac7ab9942216546c7e21d3dbbbd06d77182ad671",
+  "created_at": "2026-03-18T21:02:04.835372Z",
+  "entrypoint_filename": "train_gpt_mlx.py",
+  "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+  "env_overrides": {
+    "LOGIT_SOFTCAP": 20.0
+  },
+  "env_overrides_hash": "f88a496f433c8ff70eb367be5ef9bc58ff70c9665405295daeb7c2a30715ead4",
+  "mutation_hash": "2f1cd841d4665fafb59e1b028b3f899d36524eb4e7b7dc45af14162cbb84393d",
+  "mutation_operator": "logit_softcap_sweep",
+  "mutation_payload": {
+    "env_overrides": {
+      "LOGIT_SOFTCAP": 20.0
+    },
+    "operator_type": "env_choice"
+  },
+  "parent_candidate_id": null,
+  "primary_family": "compression",
+  "promotion_history": [],
+  "secondary_tags": [],
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/train_gpt_mlx.py",
+  "status": "planned"
+}

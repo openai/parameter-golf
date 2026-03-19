@@ -1,0 +1,809 @@
+{
+  "best_by_family": {
+    "architecture": {
+      "bytes_total": 3673463,
+      "candidate_id": "port_architecture_20260319_014604_8294",
+      "mutation_operator": "arch_compact_8x448",
+      "mutation_payload": {
+        "description": "Smaller, cheaper trunk that may export more favorably under the byte cap.",
+        "env_overrides": {
+          "MLP_MULT": 2,
+          "MODEL_DIM": 448,
+          "NUM_HEADS": 7,
+          "NUM_KV_HEADS": 1,
+          "NUM_LAYERS": 8
+        },
+        "operator_type": "template",
+        "replacements": [],
+        "source_refs": [
+          "challenge_local_prior"
+        ],
+        "template_id": "arch_compact_8x448",
+        "template_type": "env_template"
+      },
+      "parent_candidate_id": null,
+      "post_quant_val_bpb": 3.24664863,
+      "pre_quant_val_bpb": 3.2187,
+      "primary_family": "architecture",
+      "proxy_score": 3.24664863,
+      "quant_gap_bpb": 0.02794863000000003,
+      "run_dir": "autoresearch_pg/runs/port_architecture_20260319_014604_8294/smoke_mlx_local/port_architecture_20260319_014604_8294_smoke_mlx_local_20260319_014604",
+      "run_id": "port_architecture_20260319_014604_8294_smoke_mlx_local_20260319_014604",
+      "template_id": "arch_compact_8x448",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "compression": {
+      "bytes_total": 5972859,
+      "candidate_id": "rec_validate_compression_recipe_warmdown",
+      "mutation_operator": "recombine",
+      "mutation_payload": {
+        "conflict_policy": "primary",
+        "conflicts": {},
+        "env_overrides": {
+          "LOGIT_SOFTCAP": 20.0,
+          "WARMDOWN_ITERS": 256
+        },
+        "operator_type": "recombine",
+        "primary_candidate_id": "port_compression_20260318_210204_9293",
+        "primary_env_overrides": {
+          "LOGIT_SOFTCAP": 20.0
+        },
+        "primary_operator": "logit_softcap_sweep",
+        "primary_template_id": null,
+        "secondary_candidate_id": "port_training_recipe_20260318_204700_9293",
+        "secondary_env_overrides": {
+          "WARMDOWN_ITERS": 256
+        },
+        "secondary_operator": "warmdown_sweep",
+        "secondary_template_id": null
+      },
+      "parent_candidate_id": "port_compression_20260318_210204_9293",
+      "post_quant_val_bpb": 3.04557018,
+      "pre_quant_val_bpb": 3.0274,
+      "primary_family": "compression",
+      "proxy_score": 3.04557018,
+      "quant_gap_bpb": 0.018170179999999814,
+      "run_dir": "autoresearch_pg/runs/rec_validate_compression_recipe_warmdown/smoke_mlx_local/rec_validate_compression_recipe_warmdown_smoke_mlx_local_20260318_212705",
+      "run_id": "rec_validate_compression_recipe_warmdown_smoke_mlx_local_20260318_212705",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "eval_time": null,
+    "systems": null,
+    "tokenizer": null,
+    "training_recipe": {
+      "bytes_total": 6475349,
+      "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+      "mutation_operator": "replicate",
+      "mutation_payload": {
+        "operator_type": "replicate",
+        "replication_of": "cod_training_recipe_20260318_235033_8561",
+        "source_run_id": "cod_training_recipe_20260318_235033_8561_smoke_mlx_local_20260318_235408",
+        "source_tier": "smoke_mlx_local"
+      },
+      "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "post_quant_val_bpb": 2.83995742,
+      "pre_quant_val_bpb": 2.8353,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.83995742,
+      "quant_gap_bpb": 0.004657420000000023,
+      "run_dir": "autoresearch_pg/runs/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249/smoke_mlx_local/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+      "run_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    }
+  },
+  "best_low_quant_gap": {
+    "bytes_total": 6475349,
+    "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+    "mutation_operator": "replicate",
+    "mutation_payload": {
+      "operator_type": "replicate",
+      "replication_of": "cod_training_recipe_20260318_235033_8561",
+      "source_run_id": "cod_training_recipe_20260318_235033_8561_smoke_mlx_local_20260318_235408",
+      "source_tier": "smoke_mlx_local"
+    },
+    "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+    "post_quant_val_bpb": 2.83995742,
+    "pre_quant_val_bpb": 2.8353,
+    "primary_family": "training_recipe",
+    "proxy_score": 2.83995742,
+    "quant_gap_bpb": 0.004657420000000023,
+    "run_dir": "autoresearch_pg/runs/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249/smoke_mlx_local/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+    "run_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+    "template_id": null,
+    "tier": "smoke_mlx_local",
+    "valid": true
+  },
+  "best_with_byte_headroom": {
+    "bytes_total": 3673463,
+    "candidate_id": "port_architecture_20260319_014604_8294",
+    "mutation_operator": "arch_compact_8x448",
+    "mutation_payload": {
+      "description": "Smaller, cheaper trunk that may export more favorably under the byte cap.",
+      "env_overrides": {
+        "MLP_MULT": 2,
+        "MODEL_DIM": 448,
+        "NUM_HEADS": 7,
+        "NUM_KV_HEADS": 1,
+        "NUM_LAYERS": 8
+      },
+      "operator_type": "template",
+      "replacements": [],
+      "source_refs": [
+        "challenge_local_prior"
+      ],
+      "template_id": "arch_compact_8x448",
+      "template_type": "env_template"
+    },
+    "parent_candidate_id": null,
+    "post_quant_val_bpb": 3.24664863,
+    "pre_quant_val_bpb": 3.2187,
+    "primary_family": "architecture",
+    "proxy_score": 3.24664863,
+    "quant_gap_bpb": 0.02794863000000003,
+    "run_dir": "autoresearch_pg/runs/port_architecture_20260319_014604_8294/smoke_mlx_local/port_architecture_20260319_014604_8294_smoke_mlx_local_20260319_014604",
+    "run_id": "port_architecture_20260319_014604_8294_smoke_mlx_local_20260319_014604",
+    "template_id": "arch_compact_8x448",
+    "tier": "smoke_mlx_local",
+    "valid": true
+  },
+  "champion_set": [
+    {
+      "bytes_total": 15863489,
+      "candidate_id": "first_candidate",
+      "post_quant_val_bpb": 1.2243657,
+      "proxy_score": 1.2243657,
+      "run_dir": "autoresearch_pg/runs/first_candidate/smoke_local/first_candidate_smoke_local_20260318_192600",
+      "run_id": "first_candidate_smoke_local_20260318_192600",
+      "tier": "smoke_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 3673463,
+      "candidate_id": "port_architecture_20260319_014604_8294",
+      "mutation_operator": "arch_compact_8x448",
+      "mutation_payload": {
+        "description": "Smaller, cheaper trunk that may export more favorably under the byte cap.",
+        "env_overrides": {
+          "MLP_MULT": 2,
+          "MODEL_DIM": 448,
+          "NUM_HEADS": 7,
+          "NUM_KV_HEADS": 1,
+          "NUM_LAYERS": 8
+        },
+        "operator_type": "template",
+        "replacements": [],
+        "source_refs": [
+          "challenge_local_prior"
+        ],
+        "template_id": "arch_compact_8x448",
+        "template_type": "env_template"
+      },
+      "parent_candidate_id": null,
+      "post_quant_val_bpb": 3.24664863,
+      "pre_quant_val_bpb": 3.2187,
+      "primary_family": "architecture",
+      "proxy_score": 3.24664863,
+      "quant_gap_bpb": 0.02794863000000003,
+      "run_dir": "autoresearch_pg/runs/port_architecture_20260319_014604_8294/smoke_mlx_local/port_architecture_20260319_014604_8294_smoke_mlx_local_20260319_014604",
+      "run_id": "port_architecture_20260319_014604_8294_smoke_mlx_local_20260319_014604",
+      "template_id": "arch_compact_8x448",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 5972859,
+      "candidate_id": "rec_validate_compression_recipe_warmdown",
+      "mutation_operator": "recombine",
+      "mutation_payload": {
+        "conflict_policy": "primary",
+        "conflicts": {},
+        "env_overrides": {
+          "LOGIT_SOFTCAP": 20.0,
+          "WARMDOWN_ITERS": 256
+        },
+        "operator_type": "recombine",
+        "primary_candidate_id": "port_compression_20260318_210204_9293",
+        "primary_env_overrides": {
+          "LOGIT_SOFTCAP": 20.0
+        },
+        "primary_operator": "logit_softcap_sweep",
+        "primary_template_id": null,
+        "secondary_candidate_id": "port_training_recipe_20260318_204700_9293",
+        "secondary_env_overrides": {
+          "WARMDOWN_ITERS": 256
+        },
+        "secondary_operator": "warmdown_sweep",
+        "secondary_template_id": null
+      },
+      "parent_candidate_id": "port_compression_20260318_210204_9293",
+      "post_quant_val_bpb": 3.04557018,
+      "pre_quant_val_bpb": 3.0274,
+      "primary_family": "compression",
+      "proxy_score": 3.04557018,
+      "quant_gap_bpb": 0.018170179999999814,
+      "run_dir": "autoresearch_pg/runs/rec_validate_compression_recipe_warmdown/smoke_mlx_local/rec_validate_compression_recipe_warmdown_smoke_mlx_local_20260318_212705",
+      "run_id": "rec_validate_compression_recipe_warmdown_smoke_mlx_local_20260318_212705",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 6475349,
+      "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+      "mutation_operator": "replicate",
+      "mutation_payload": {
+        "operator_type": "replicate",
+        "replication_of": "cod_training_recipe_20260318_235033_8561",
+        "source_run_id": "cod_training_recipe_20260318_235033_8561_smoke_mlx_local_20260318_235408",
+        "source_tier": "smoke_mlx_local"
+      },
+      "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "post_quant_val_bpb": 2.83995742,
+      "pre_quant_val_bpb": 2.8353,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.83995742,
+      "quant_gap_bpb": 0.004657420000000023,
+      "run_dir": "autoresearch_pg/runs/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249/smoke_mlx_local/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+      "run_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    }
+  ],
+  "global_best": {
+    "bytes_total": 15863489,
+    "candidate_id": "first_candidate",
+    "post_quant_val_bpb": 1.2243657,
+    "proxy_score": 1.2243657,
+    "run_dir": "autoresearch_pg/runs/first_candidate/smoke_local/first_candidate_smoke_local_20260318_192600",
+    "run_id": "first_candidate_smoke_local_20260318_192600",
+    "tier": "smoke_local",
+    "valid": true
+  },
+  "last_updated": "2026-03-19T01:46:28.024352Z",
+  "recent_runs": [
+    {
+      "bytes_total": 3673463,
+      "candidate_id": "port_architecture_20260319_014604_8294",
+      "mutation_operator": "arch_compact_8x448",
+      "mutation_payload": {
+        "description": "Smaller, cheaper trunk that may export more favorably under the byte cap.",
+        "env_overrides": {
+          "MLP_MULT": 2,
+          "MODEL_DIM": 448,
+          "NUM_HEADS": 7,
+          "NUM_KV_HEADS": 1,
+          "NUM_LAYERS": 8
+        },
+        "operator_type": "template",
+        "replacements": [],
+        "source_refs": [
+          "challenge_local_prior"
+        ],
+        "template_id": "arch_compact_8x448",
+        "template_type": "env_template"
+      },
+      "parent_candidate_id": null,
+      "post_quant_val_bpb": 3.24664863,
+      "pre_quant_val_bpb": 3.2187,
+      "primary_family": "architecture",
+      "proxy_score": 3.24664863,
+      "quant_gap_bpb": 0.02794863000000003,
+      "run_dir": "autoresearch_pg/runs/port_architecture_20260319_014604_8294/smoke_mlx_local/port_architecture_20260319_014604_8294_smoke_mlx_local_20260319_014604",
+      "run_id": "port_architecture_20260319_014604_8294_smoke_mlx_local_20260319_014604",
+      "template_id": "arch_compact_8x448",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 5389962,
+      "candidate_id": "port_training_recipe_20260319_014455_4479",
+      "mutation_operator": "recipe_long_warmup_low_scalar",
+      "mutation_payload": {
+        "description": "Longer warmup with lower scalar LR to trade early speed for stability.",
+        "env_overrides": {
+          "MATRIX_LR": 0.04,
+          "SCALAR_LR": 0.02,
+          "WARMDOWN_ITERS": 512,
+          "WARMUP_STEPS": 128
+        },
+        "operator_type": "template",
+        "replacements": [],
+        "source_refs": [
+          "challenge_local_prior"
+        ],
+        "template_id": "recipe_long_warmup_low_scalar",
+        "template_type": "env_template"
+      },
+      "parent_candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+      "post_quant_val_bpb": 3.1897757,
+      "pre_quant_val_bpb": 3.131,
+      "primary_family": "training_recipe",
+      "proxy_score": 3.1897757,
+      "quant_gap_bpb": 0.05877570000000043,
+      "run_dir": "autoresearch_pg/runs/port_training_recipe_20260319_014455_4479/smoke_mlx_local/port_training_recipe_20260319_014455_4479_smoke_mlx_local_20260319_014455",
+      "run_id": "port_training_recipe_20260319_014455_4479_smoke_mlx_local_20260319_014455",
+      "template_id": "recipe_long_warmup_low_scalar",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 6475349,
+      "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+      "mutation_operator": "replicate",
+      "mutation_payload": {
+        "operator_type": "replicate",
+        "replication_of": "cod_training_recipe_20260318_235033_8561",
+        "source_run_id": "cod_training_recipe_20260318_235033_8561_smoke_mlx_local_20260318_235408",
+        "source_tier": "smoke_mlx_local"
+      },
+      "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "post_quant_val_bpb": 2.83995742,
+      "pre_quant_val_bpb": 2.8353,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.83995742,
+      "quant_gap_bpb": 0.004657420000000023,
+      "run_dir": "autoresearch_pg/runs/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249/smoke_mlx_local/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+      "run_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249_smoke_mlx_local_20260319_014400",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 5455994,
+      "candidate_id": "cod_training_recipe_20260319_013741_9834",
+      "mutation_operator": "codex_proposal",
+      "mutation_payload": {
+        "artifacts": {
+          "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/proposal_artifacts/codex_context_latest.json",
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/proposal_artifacts/codex_context_20260319_013741.json",
+          "engine": "codex",
+          "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/proposal_artifacts/codex_last_message_latest.md",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/proposal_artifacts/codex_last_message_20260319_013741.md",
+          "model": "gpt-5.4",
+          "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/proposal_artifacts/codex_prompt_latest.md",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/proposal_artifacts/codex_prompt_20260319_013741.md",
+          "reasoning_effort": "xhigh",
+          "return_code": 0,
+          "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/proposal_artifacts/codex_exec_latest.jsonl",
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_013741_9834/proposal_artifacts/codex_exec_20260319_013741.jsonl"
+        },
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+        "proposal_engine": "codex",
+        "proposal_mode": "brief",
+        "proposal_mode_reasons": [],
+        "reasoning_effort": "xhigh"
+      },
+      "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "post_quant_val_bpb": 3.06682539,
+      "pre_quant_val_bpb": 3.0493,
+      "primary_family": "training_recipe",
+      "proxy_score": 3.06682539,
+      "quant_gap_bpb": 0.017525389999999863,
+      "run_dir": "autoresearch_pg/runs/cod_training_recipe_20260319_013741_9834/smoke_mlx_local/cod_training_recipe_20260319_013741_9834_smoke_mlx_local_20260319_014310",
+      "run_id": "cod_training_recipe_20260319_013741_9834_smoke_mlx_local_20260319_014310",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 5454863,
+      "candidate_id": "cod_training_recipe_20260319_012138_9154",
+      "mutation_operator": "codex_proposal",
+      "mutation_payload": {
+        "artifacts": {
+          "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/proposal_artifacts/codex_context_latest.json",
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/proposal_artifacts/codex_context_20260319_012138.json",
+          "engine": "codex",
+          "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/proposal_artifacts/codex_last_message_latest.md",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/proposal_artifacts/codex_last_message_20260319_012138.md",
+          "model": "gpt-5.4",
+          "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/proposal_artifacts/codex_prompt_latest.md",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/proposal_artifacts/codex_prompt_20260319_012138.md",
+          "reasoning_effort": "medium",
+          "return_code": 0,
+          "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/proposal_artifacts/codex_exec_latest.jsonl",
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_012138_9154/proposal_artifacts/codex_exec_20260319_012138.jsonl"
+        },
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+        "proposal_engine": "codex",
+        "proposal_mode": "brief",
+        "proposal_mode_reasons": [],
+        "reasoning_effort": "medium"
+      },
+      "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "post_quant_val_bpb": 3.04063857,
+      "pre_quant_val_bpb": 3.0344,
+      "primary_family": "training_recipe",
+      "proxy_score": 3.04063857,
+      "quant_gap_bpb": 0.006238569999999832,
+      "run_dir": "autoresearch_pg/runs/cod_training_recipe_20260319_012138_9154/smoke_mlx_local/cod_training_recipe_20260319_012138_9154_smoke_mlx_local_20260319_012620",
+      "run_id": "cod_training_recipe_20260319_012138_9154_smoke_mlx_local_20260319_012620",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 5454774,
+      "candidate_id": "cod_training_recipe_20260319_010431_7532",
+      "mutation_operator": "codex_proposal",
+      "mutation_payload": {
+        "artifacts": {
+          "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_010431_7532/proposal_artifacts/codex_context_latest.json",
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_010431_7532/proposal_artifacts/codex_context_20260319_010431.json",
+          "engine": "codex",
+          "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_010431_7532/proposal_artifacts/codex_last_message_latest.md",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_010431_7532/proposal_artifacts/codex_last_message_20260319_010431.md",
+          "model": "gpt-5.4",
+          "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_010431_7532/proposal_artifacts/codex_prompt_latest.md",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_010431_7532/proposal_artifacts/codex_prompt_20260319_010431.md",
+          "reasoning_effort": "medium",
+          "return_code": 0,
+          "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_010431_7532/proposal_artifacts/codex_exec_latest.jsonl",
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260319_010431_7532/proposal_artifacts/codex_exec_20260319_010431.jsonl"
+        },
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+        "proposal_engine": "codex",
+        "proposal_mode": "brief",
+        "proposal_mode_reasons": [],
+        "reasoning_effort": "medium"
+      },
+      "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "post_quant_val_bpb": 3.04638341,
+      "pre_quant_val_bpb": 3.0405,
+      "primary_family": "training_recipe",
+      "proxy_score": 3.04638341,
+      "quant_gap_bpb": 0.005883409999999589,
+      "run_dir": "autoresearch_pg/runs/cod_training_recipe_20260319_010431_7532/smoke_mlx_local/cod_training_recipe_20260319_010431_7532_smoke_mlx_local_20260319_011001",
+      "run_id": "cod_training_recipe_20260319_010431_7532_smoke_mlx_local_20260319_011001",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 6475015,
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "mutation_operator": "codex_proposal",
+      "mutation_payload": {
+        "artifacts": {
+          "context_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_context_latest.json",
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_context_20260318_235033.json",
+          "engine": "codex",
+          "last_message_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_last_message_latest.md",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_last_message_20260318_235033.md",
+          "model": "gpt-5.4",
+          "prompt_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_prompt_latest.md",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_prompt_20260318_235033.md",
+          "reasoning_effort": "medium",
+          "return_code": 0,
+          "stdout_latest_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_exec_latest.jsonl",
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/proposal_artifacts/codex_exec_20260318_235033.jsonl"
+        },
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+        "proposal_engine": "codex",
+        "proposal_mode": "brief",
+        "proposal_mode_reasons": [],
+        "reasoning_effort": "medium"
+      },
+      "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+      "post_quant_val_bpb": 2.84089884,
+      "pre_quant_val_bpb": 2.8352,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.84089884,
+      "quant_gap_bpb": 0.005698839999999983,
+      "run_dir": "autoresearch_pg/runs/cod_training_recipe_20260318_235033_8561/smoke_mlx_local/cod_training_recipe_20260318_235033_8561_smoke_mlx_local_20260318_235408",
+      "run_id": "cod_training_recipe_20260318_235033_8561_smoke_mlx_local_20260318_235408",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 6377750,
+      "candidate_id": "cod_training_recipe_20260318_222108_4091",
+      "mutation_operator": "codex_proposal",
+      "mutation_payload": {
+        "artifacts": {
+          "context_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_222108_4091/proposal_artifacts/codex_context_20260318_222108.json",
+          "engine": "codex",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_222108_4091/proposal_artifacts/codex_last_message_20260318_222108.md",
+          "model": "gpt-5.4",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_222108_4091/proposal_artifacts/codex_prompt_20260318_222108.md",
+          "reasoning_effort": "xhigh",
+          "return_code": 0,
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_222108_4091/proposal_artifacts/codex_exec_20260318_222108.jsonl"
+        },
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_215548_4091",
+        "proposal_engine": "codex",
+        "reasoning_effort": "xhigh"
+      },
+      "parent_candidate_id": "cod_training_recipe_20260318_215548_4091",
+      "post_quant_val_bpb": 2.85863372,
+      "pre_quant_val_bpb": 2.8539,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.85863372,
+      "quant_gap_bpb": 0.004733719999999941,
+      "run_dir": "autoresearch_pg/runs/cod_training_recipe_20260318_222108_4091/smoke_mlx_local/cod_training_recipe_20260318_222108_4091_smoke_mlx_local_20260318_222425",
+      "run_id": "cod_training_recipe_20260318_222108_4091_smoke_mlx_local_20260318_222425",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 6338650,
+      "candidate_id": "cod_training_recipe_20260318_215548_4091",
+      "mutation_operator": "codex_proposal",
+      "mutation_payload": {
+        "artifacts": {
+          "engine": "codex",
+          "last_message_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_215548_4091/proposal_artifacts/codex_last_message_20260318_215548.md",
+          "model": "gpt-5.4",
+          "prompt_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_215548_4091/proposal_artifacts/codex_prompt_20260318_215548.md",
+          "reasoning_effort": "xhigh",
+          "return_code": 0,
+          "stdout_path": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_215548_4091/proposal_artifacts/codex_exec_20260318_215548.jsonl"
+        },
+        "changed_entrypoint": true,
+        "model": "gpt-5.4",
+        "operator_type": "codex_proposal",
+        "parent_candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+        "proposal_engine": "codex",
+        "reasoning_effort": "xhigh"
+      },
+      "parent_candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+      "post_quant_val_bpb": 2.88946131,
+      "pre_quant_val_bpb": 2.8848,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.88946131,
+      "quant_gap_bpb": 0.004661310000000363,
+      "run_dir": "autoresearch_pg/runs/cod_training_recipe_20260318_215548_4091/smoke_mlx_local/cod_training_recipe_20260318_215548_4091_smoke_mlx_local_20260318_215944",
+      "run_id": "cod_training_recipe_20260318_215548_4091_smoke_mlx_local_20260318_215944",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 6287645,
+      "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+      "mutation_operator": "replicate",
+      "mutation_payload": {
+        "operator_type": "replicate",
+        "replication_of": "port_training_recipe_20260318_210940_4091",
+        "source_run_id": "port_training_recipe_20260318_210940_4091_smoke_mlx_local_20260318_210940",
+        "source_tier": "smoke_mlx_local"
+      },
+      "parent_candidate_id": "port_training_recipe_20260318_210940_4091",
+      "post_quant_val_bpb": 2.94900999,
+      "pre_quant_val_bpb": 2.9416,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.94900999,
+      "quant_gap_bpb": 0.007409989999999755,
+      "run_dir": "autoresearch_pg/runs/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091/smoke_mlx_local/rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091_smoke_mlx_local_20260318_214046",
+      "run_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091_smoke_mlx_local_20260318_214046",
+      "template_id": "recipe_fast_decay",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 5972859,
+      "candidate_id": "rec_validate_compression_recipe_warmdown",
+      "mutation_operator": "recombine",
+      "mutation_payload": {
+        "conflict_policy": "primary",
+        "conflicts": {},
+        "env_overrides": {
+          "LOGIT_SOFTCAP": 20.0,
+          "WARMDOWN_ITERS": 256
+        },
+        "operator_type": "recombine",
+        "primary_candidate_id": "port_compression_20260318_210204_9293",
+        "primary_env_overrides": {
+          "LOGIT_SOFTCAP": 20.0
+        },
+        "primary_operator": "logit_softcap_sweep",
+        "primary_template_id": null,
+        "secondary_candidate_id": "port_training_recipe_20260318_204700_9293",
+        "secondary_env_overrides": {
+          "WARMDOWN_ITERS": 256
+        },
+        "secondary_operator": "warmdown_sweep",
+        "secondary_template_id": null
+      },
+      "parent_candidate_id": "port_compression_20260318_210204_9293",
+      "post_quant_val_bpb": 3.04557018,
+      "pre_quant_val_bpb": 3.0274,
+      "primary_family": "compression",
+      "proxy_score": 3.04557018,
+      "quant_gap_bpb": 0.018170179999999814,
+      "run_dir": "autoresearch_pg/runs/rec_validate_compression_recipe_warmdown/smoke_mlx_local/rec_validate_compression_recipe_warmdown_smoke_mlx_local_20260318_212705",
+      "run_id": "rec_validate_compression_recipe_warmdown_smoke_mlx_local_20260318_212705",
+      "template_id": null,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 6286982,
+      "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_212556_4091",
+      "mutation_operator": "replicate",
+      "mutation_payload": {
+        "operator_type": "replicate",
+        "replication_of": "port_training_recipe_20260318_210940_4091",
+        "source_run_id": "port_training_recipe_20260318_210940_4091_smoke_mlx_local_20260318_210940",
+        "source_tier": "smoke_mlx_local"
+      },
+      "parent_candidate_id": "port_training_recipe_20260318_210940_4091",
+      "post_quant_val_bpb": 2.94950442,
+      "pre_quant_val_bpb": 2.9417,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.94950442,
+      "quant_gap_bpb": 0.007804419999999812,
+      "run_dir": "autoresearch_pg/runs/rep_port_training_recipe_20260318_210940_4091_20260318_212556_4091/smoke_mlx_local/rep_port_training_recipe_20260318_210940_4091_20260318_212556_4091_smoke_mlx_local_20260318_212556",
+      "run_id": "rep_port_training_recipe_20260318_210940_4091_20260318_212556_4091_smoke_mlx_local_20260318_212556",
+      "template_id": "recipe_fast_decay",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 6288423,
+      "candidate_id": "port_training_recipe_20260318_210940_4091",
+      "mutation_operator": "recipe_fast_decay",
+      "mutation_payload": {
+        "description": "Faster warmdown and slightly hotter matrix learning rate for the hard 600s regime.",
+        "env_overrides": {
+          "MATRIX_LR": 0.05,
+          "SCALAR_LR": 0.04,
+          "WARMDOWN_ITERS": 256,
+          "WARMUP_STEPS": 64
+        },
+        "operator_type": "template",
+        "replacements": [],
+        "source_refs": [
+          "challenge_local_prior",
+          "README.md"
+        ],
+        "template_id": "recipe_fast_decay",
+        "template_type": "env_template"
+      },
+      "parent_candidate_id": "port_training_recipe_20260318_204700_9293",
+      "post_quant_val_bpb": 2.95063221,
+      "pre_quant_val_bpb": 2.9421,
+      "primary_family": "training_recipe",
+      "proxy_score": 2.95063221,
+      "quant_gap_bpb": 0.008532210000000262,
+      "run_dir": "autoresearch_pg/runs/port_training_recipe_20260318_210940_4091/smoke_mlx_local/port_training_recipe_20260318_210940_4091_smoke_mlx_local_20260318_210940",
+      "run_id": "port_training_recipe_20260318_210940_4091_smoke_mlx_local_20260318_210940",
+      "template_id": "recipe_fast_decay",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 5162359,
+      "candidate_id": "port_compression_20260318_210204_9293",
+      "mutation_operator": "logit_softcap_sweep",
+      "mutation_payload": {
+        "env_overrides": {
+          "LOGIT_SOFTCAP": 20.0
+        },
+        "operator_type": "env_choice"
+      },
+      "parent_candidate_id": null,
+      "post_quant_val_bpb": 3.23747214,
+      "pre_quant_val_bpb": 3.2082,
+      "primary_family": "compression",
+      "proxy_score": 3.23747214,
+      "quant_gap_bpb": 0.02927213999999978,
+      "run_dir": "autoresearch_pg/runs/port_compression_20260318_210204_9293/smoke_mlx_local/port_compression_20260318_210204_9293_smoke_mlx_local_20260318_210204",
+      "run_id": "port_compression_20260318_210204_9293_smoke_mlx_local_20260318_210204",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    {
+      "bytes_total": 5967317,
+      "candidate_id": "port_training_recipe_20260318_204700_9293",
+      "mutation_operator": "warmdown_sweep",
+      "mutation_payload": {
+        "env_overrides": {
+          "WARMDOWN_ITERS": 256
+        }
+      },
+      "parent_candidate_id": null,
+      "post_quant_val_bpb": 3.05836894,
+      "pre_quant_val_bpb": 3.0395,
+      "primary_family": "training_recipe",
+      "proxy_score": 3.05836894,
+      "quant_gap_bpb": 0.018868939999999945,
+      "run_dir": "autoresearch_pg/runs/port_training_recipe_20260318_204700_9293/smoke_mlx_local/port_training_recipe_20260318_204700_9293_smoke_mlx_local_20260318_204700",
+      "run_id": "port_training_recipe_20260318_204700_9293_smoke_mlx_local_20260318_204700",
+      "tier": "smoke_mlx_local",
+      "valid": true
+    }
+  ],
+  "recombine_queue": [
+    {
+      "families": [
+        "training_recipe",
+        "compression"
+      ],
+      "primary_candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "priority": 5.88646902,
+      "reason": "cross_family_frontier",
+      "secondary_candidate_id": "rec_validate_compression_recipe_warmdown"
+    },
+    {
+      "families": [
+        "training_recipe",
+        "architecture"
+      ],
+      "primary_candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "priority": 6.0875474700000005,
+      "reason": "cross_family_frontier",
+      "secondary_candidate_id": "port_architecture_20260319_014604_8294"
+    },
+    {
+      "families": [
+        "architecture",
+        "compression"
+      ],
+      "primary_candidate_id": "port_architecture_20260319_014604_8294",
+      "priority": 6.29221881,
+      "reason": "cross_family_frontier",
+      "secondary_candidate_id": "rec_validate_compression_recipe_warmdown"
+    }
+  ],
+  "replication_queue": [
+    {
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "primary_family": "training_recipe",
+      "priority": 2.84089884,
+      "reason": "frontier_valid",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260318_222108_4091",
+      "primary_family": "training_recipe",
+      "priority": 2.85863372,
+      "reason": "frontier_valid",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260318_215548_4091",
+      "primary_family": "training_recipe",
+      "priority": 2.88946131,
+      "reason": "frontier_valid",
+      "template_id": null
+    },
+    {
+      "candidate_id": "port_training_recipe_20260318_210940_4091",
+      "primary_family": "training_recipe",
+      "priority": 2.95063221,
+      "reason": "frontier_valid",
+      "template_id": "recipe_fast_decay"
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260319_012138_9154",
+      "primary_family": "training_recipe",
+      "priority": 3.04063857,
+      "reason": "frontier_valid",
+      "template_id": null
+    }
+  ]
+}

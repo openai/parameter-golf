@@ -1,0 +1,7 @@
+{
+  "candidate_id": "mlx_smoke_candidate_v2",
+  "created_at": "2026-03-18T20:00:26.112638Z",
+  "entrypoint_filename": "train_gpt_mlx.py",
+  "parent_candidate_id": null,
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/train_gpt_mlx.py"
+}

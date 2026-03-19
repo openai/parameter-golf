@@ -1095,3 +1095,64 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.13.1 (main, Dec  3 2024, 17:59:52) [Clang 16.0.0 (clang-1600.0.26.4)]
+Running MLX 0.31.1
+====================================================================================================
+Code size: 49759 bytes
+run_id:port_training_recipe_20260318_204700_9293_smoke_mlx_local_20260318_204700
+mlx_version:0.31.1
+train_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+val_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:262144
+WARNING: train_loader:subset dataset:fineweb10B_sp1024 train_shards:1/195 new epochs will arrive sooner than the full dataset
+tokenizer_path:/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+model_params:17059912 vocab_size:1024 layers:9 dim:512 heads:8 kv_heads:4 seq_len:1024 tie_embeddings:True
+iterations:50 train_batch_tokens:8192 grad_accum_steps:8 microbatch_tokens:1024 microbatch_batch_size:1 val_batch_size:8192 warmup_steps:20 max_wallclock_seconds:0.000
+mlx_max_microbatch_tokens:2048
+optimizer:muon+adam muon_matrix_params:54 scalar_params:37 embed_lr:0.05 matrix_lr:0.04 scalar_lr:0.04 muon_momentum:0.95 muon_steps:5
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+compute_dtype:mlx.core.bfloat16 compile:True
+dtypes tok_emb:mlx.core.bfloat16 linear_weight:mlx.core.float32 skip_weights:mlx.core.float32
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/50 train_loss:6.9428 train_time:132ms step_avg:132.20ms tok_s:61973
+step:2/50 train_loss:6.8411 train_time:554ms step_avg:276.99ms tok_s:19428
+step:3/50 train_loss:6.7497 train_time:967ms step_avg:322.42ms tok_s:19828
+step:4/50 train_loss:6.5636 train_time:1381ms step_avg:345.30ms tok_s:19799
+step:5/50 train_loss:6.3152 train_time:1805ms step_avg:360.92ms tok_s:19356
+step:6/50 train_loss:6.0492 train_time:2212ms step_avg:368.65ms tok_s:20122
+step:7/50 train_loss:5.8339 train_time:2619ms step_avg:374.18ms tok_s:20119
+step:8/50 train_loss:5.8584 train_time:3047ms step_avg:380.93ms tok_s:19140
+step:9/50 train_loss:5.7853 train_time:3458ms step_avg:384.24ms tok_s:19954
+step:10/50 train_loss:5.7695 train_time:3871ms step_avg:387.14ms tok_s:19830
+step:20/50 train_loss:5.6152 train_time:7964ms step_avg:398.19ms tok_s:19973
+step:30/50 train_loss:5.4079 train_time:12062ms step_avg:402.07ms tok_s:19949
+step:40/50 train_loss:5.2864 train_time:16156ms step_avg:403.90ms tok_s:20015
+step:50/50 train_loss:5.1669 train_time:20257ms step_avg:405.14ms tok_s:19890
+step:50/50 val_loss:5.1328 val_bpb:3.0395 train_time:23084ms step_avg:461.67ms
+saved_model:logs/port_training_recipe_20260318_204700_9293_smoke_mlx_local_20260318_204700_mlx_model.npz bytes:67212188
+serialized_model_int8_zlib:5917558 bytes (payload:17178912 raw_pickle:17188361 payload_ratio:3.91x)
+Serialized model: 67212188 bytes
+Serialized model int8+zlib: 5917558 bytes
+Total submission size int8+zlib: 5967317 bytes
+final_int8_zlib_roundtrip val_loss:5.1646 val_bpb:3.0584 eval_time:2497ms
+final_int8_zlib_roundtrip_exact val_loss:5.16463566 val_bpb:3.05836894

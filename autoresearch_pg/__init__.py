@@ -1,0 +1,1 @@
+"""Parameter Golf autoresearch scaffold."""

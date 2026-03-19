@@ -1,0 +1,45 @@
+{
+  "candidate_id": "port_architecture_20260319_014604_8294",
+  "config_hash": "5754ba3ab16c86798a1b036b9d94b04fc4860b8d5d8d8e17b94ebed9924f6ba6",
+  "created_at": "2026-03-19T01:46:04.541016Z",
+  "entrypoint_filename": "train_gpt_mlx.py",
+  "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+  "env_overrides": {
+    "MLP_MULT": 2,
+    "MODEL_DIM": 448,
+    "NUM_HEADS": 7,
+    "NUM_KV_HEADS": 1,
+    "NUM_LAYERS": 8
+  },
+  "env_overrides_hash": "06758277ec0564b8a6c5c43f01d46ab39cab42a315d44681175f4ea554f1c640",
+  "mutation_hash": "70e6bef7995da627e1956b425b300def481e820c56cfe0cd1ddce168fec09005",
+  "mutation_operator": "arch_compact_8x448",
+  "mutation_payload": {
+    "description": "Smaller, cheaper trunk that may export more favorably under the byte cap.",
+    "env_overrides": {
+      "MLP_MULT": 2,
+      "MODEL_DIM": 448,
+      "NUM_HEADS": 7,
+      "NUM_KV_HEADS": 1,
+      "NUM_LAYERS": 8
+    },
+    "operator_type": "template",
+    "replacements": [],
+    "source_refs": [
+      "challenge_local_prior"
+    ],
+    "template_id": "arch_compact_8x448",
+    "template_type": "env_template"
+  },
+  "parent_candidate_id": null,
+  "primary_family": "architecture",
+  "promotion_history": [],
+  "secondary_tags": [
+    "architecture",
+    "compact",
+    "template"
+  ],
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/train_gpt_mlx.py",
+  "status": "planned",
+  "template_id": "arch_compact_8x448"
+}

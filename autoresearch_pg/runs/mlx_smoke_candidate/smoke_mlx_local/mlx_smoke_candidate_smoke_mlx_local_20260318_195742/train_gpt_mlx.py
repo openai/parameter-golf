@@ -50,10 +50,8 @@ class Hyperparameters:
     # Training loop. These defaults now mirror train_gpt.py on a single process.
     iterations: int = int(os.environ.get("ITERATIONS", 20_000))
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
-    # Validation defaults to the full fineweb_val split. Local smoke tiers can cap
-    # it with VAL_MAX_TOKENS to keep end-to-end harness checks fast.
+    # Validation always uses the full fineweb_val split.
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_max_tokens: int = int(os.environ.get("VAL_MAX_TOKENS", 0))
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
@@ -724,14 +722,12 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> tupl
     return dataset_dir.name, actual_train_files, expected_train_files
 
 
-def load_validation_tokens(pattern: str, seq_len: int, max_tokens: int = 0) -> np.ndarray:
+def load_validation_tokens(pattern: str, seq_len: int) -> np.ndarray:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
     # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
     tokens = np.ascontiguousarray(np.concatenate([load_data_shard(file) for file in files], axis=0))
-    if max_tokens > 0:
-        tokens = tokens[: min(max_tokens + 1, tokens.size)]
     usable = ((tokens.size - 1) // seq_len) * seq_len
     if usable <= 0:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
@@ -842,13 +838,11 @@ def main() -> None:
             print(msg, file=f)
 
     code = Path(__file__).read_text(encoding="utf-8")
-    code_bytes = len(code.encode("utf-8"))
     log(code, console=False)
     log("=" * 100, console=False)
     log(f"Running Python {sys.version}", console=False)
     log(f"Running MLX {mx.__version__}", console=False)
     log("=" * 100, console=False)
-    log(f"Code size: {code_bytes} bytes")
 
     if not args.tie_embeddings:
         raise NotImplementedError("train_gpt_mlx.py only supports tied embeddings")
@@ -863,7 +857,7 @@ def main() -> None:
         args.data_path,
         args.tokenizer_path,
     )
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len, args.val_max_tokens)
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
 
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size
@@ -1071,9 +1065,6 @@ def main() -> None:
         f"serialized_model_int8_zlib:{quant_file_bytes} bytes "
         f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
     )
-    log(f"Serialized model: {out_path.stat().st_size} bytes")
-    log(f"Serialized model int8+zlib: {quant_file_bytes} bytes")
-    log(f"Total submission size int8+zlib: {code_bytes + quant_file_bytes} bytes")
 
     with quant_path.open("rb") as f:
         quant_blob_disk = f.read()

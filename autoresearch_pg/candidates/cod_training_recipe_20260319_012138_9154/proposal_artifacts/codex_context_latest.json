@@ -1,0 +1,426 @@
+{
+  "base": {
+    "inherited_env_overrides": {
+      "MATRIX_LR": 0.05,
+      "SCALAR_LR": 0.04,
+      "WARMDOWN_ITERS": 256,
+      "WARMUP_STEPS": 64
+    },
+    "parent_candidate_id": "cod_training_recipe_20260318_235033_8561"
+  },
+  "family": {
+    "description": "Schedules, optimizer-group learning rates, and other fast-turn recipe knobs.",
+    "focus_areas": [
+      "learning-rate schedule",
+      "optimizer-group balance",
+      "sample-efficiency under a short wallclock"
+    ],
+    "name": "training_recipe",
+    "stats": {
+      "best_score": 2.84089884,
+      "completed": 8,
+      "duplicates_skipped": 0,
+      "invalid": 0,
+      "last_score": 3.04638341,
+      "recent_scores": [
+        2.94900999,
+        2.88946131,
+        2.85863372,
+        2.84089884,
+        3.04638341
+      ],
+      "scheduled": 8,
+      "valid": 8,
+      "wins": 7
+    }
+  },
+  "family_frontier": {
+    "family_best": {
+      "bytes_total": 6475015,
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "mutation_operator": "codex_proposal",
+      "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+      "post_quant_val_bpb": 2.84089884,
+      "pre_quant_val_bpb": 2.8352,
+      "proxy_score": 2.84089884,
+      "quant_gap_bpb": 0.005698839999999983,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "recent_family_failures": [],
+    "recent_family_runs": [
+      {
+        "bytes_total": 5454774,
+        "candidate_id": "cod_training_recipe_20260319_010431_7532",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+        "post_quant_val_bpb": 3.04638341,
+        "pre_quant_val_bpb": 3.0405,
+        "proxy_score": 3.04638341,
+        "quant_gap_bpb": 0.005883409999999589,
+        "step_avg_ms": 484.13,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6475015,
+        "candidate_id": "cod_training_recipe_20260318_235033_8561",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+        "post_quant_val_bpb": 2.84089884,
+        "pre_quant_val_bpb": 2.8352,
+        "proxy_score": 2.84089884,
+        "quant_gap_bpb": 0.005698839999999983,
+        "step_avg_ms": 461.88,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6377750,
+        "candidate_id": "cod_training_recipe_20260318_222108_4091",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_215548_4091",
+        "post_quant_val_bpb": 2.85863372,
+        "pre_quant_val_bpb": 2.8539,
+        "proxy_score": 2.85863372,
+        "quant_gap_bpb": 0.004733719999999941,
+        "step_avg_ms": 455.32,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6338650,
+        "candidate_id": "cod_training_recipe_20260318_215548_4091",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+        "post_quant_val_bpb": 2.88946131,
+        "pre_quant_val_bpb": 2.8848,
+        "proxy_score": 2.88946131,
+        "quant_gap_bpb": 0.004661310000000363,
+        "step_avg_ms": 462.83,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6287645,
+        "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+        "mutation_operator": "replicate",
+        "parent_candidate_id": "port_training_recipe_20260318_210940_4091",
+        "post_quant_val_bpb": 2.94900999,
+        "pre_quant_val_bpb": 2.9416,
+        "proxy_score": 2.94900999,
+        "quant_gap_bpb": 0.007409989999999755,
+        "step_avg_ms": 464.68,
+        "template_id": "recipe_fast_decay",
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6286982,
+        "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_212556_4091",
+        "mutation_operator": "replicate",
+        "parent_candidate_id": "port_training_recipe_20260318_210940_4091",
+        "post_quant_val_bpb": 2.94950442,
+        "pre_quant_val_bpb": 2.9417,
+        "proxy_score": 2.94950442,
+        "quant_gap_bpb": 0.007804419999999812,
+        "step_avg_ms": 465.14,
+        "template_id": "recipe_fast_decay",
+        "tier": "smoke_mlx_local",
+        "valid": true
+      }
+    ],
+    "recent_same_tier_valid_runs": [
+      {
+        "bytes_total": 5454774,
+        "candidate_id": "cod_training_recipe_20260319_010431_7532",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_235033_8561",
+        "post_quant_val_bpb": 3.04638341,
+        "pre_quant_val_bpb": 3.0405,
+        "proxy_score": 3.04638341,
+        "quant_gap_bpb": 0.005883409999999589,
+        "step_avg_ms": 484.13,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6475015,
+        "candidate_id": "cod_training_recipe_20260318_235033_8561",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+        "post_quant_val_bpb": 2.84089884,
+        "pre_quant_val_bpb": 2.8352,
+        "proxy_score": 2.84089884,
+        "quant_gap_bpb": 0.005698839999999983,
+        "step_avg_ms": 461.88,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6377750,
+        "candidate_id": "cod_training_recipe_20260318_222108_4091",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_215548_4091",
+        "post_quant_val_bpb": 2.85863372,
+        "pre_quant_val_bpb": 2.8539,
+        "proxy_score": 2.85863372,
+        "quant_gap_bpb": 0.004733719999999941,
+        "step_avg_ms": 455.32,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6338650,
+        "candidate_id": "cod_training_recipe_20260318_215548_4091",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+        "post_quant_val_bpb": 2.88946131,
+        "pre_quant_val_bpb": 2.8848,
+        "proxy_score": 2.88946131,
+        "quant_gap_bpb": 0.004661310000000363,
+        "step_avg_ms": 462.83,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6287645,
+        "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+        "mutation_operator": "replicate",
+        "parent_candidate_id": "port_training_recipe_20260318_210940_4091",
+        "post_quant_val_bpb": 2.94900999,
+        "pre_quant_val_bpb": 2.9416,
+        "proxy_score": 2.94900999,
+        "quant_gap_bpb": 0.007409989999999755,
+        "step_avg_ms": 464.68,
+        "template_id": "recipe_fast_decay",
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6286982,
+        "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_212556_4091",
+        "mutation_operator": "replicate",
+        "parent_candidate_id": "port_training_recipe_20260318_210940_4091",
+        "post_quant_val_bpb": 2.94950442,
+        "pre_quant_val_bpb": 2.9417,
+        "proxy_score": 2.94950442,
+        "quant_gap_bpb": 0.007804419999999812,
+        "step_avg_ms": 465.14,
+        "template_id": "recipe_fast_decay",
+        "tier": "smoke_mlx_local",
+        "valid": true
+      }
+    ],
+    "same_tier_family_best": {
+      "bytes_total": 6475015,
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "mutation_operator": "codex_proposal",
+      "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+      "post_quant_val_bpb": 2.84089884,
+      "pre_quant_val_bpb": 2.8352,
+      "proxy_score": 2.84089884,
+      "quant_gap_bpb": 0.005698839999999983,
+      "step_avg_ms": 461.88,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    }
+  },
+  "global_frontier": {
+    "best_low_quant_gap": {
+      "bytes_total": 6338650,
+      "candidate_id": "cod_training_recipe_20260318_215548_4091",
+      "mutation_operator": "codex_proposal",
+      "parent_candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+      "post_quant_val_bpb": 2.88946131,
+      "pre_quant_val_bpb": 2.8848,
+      "proxy_score": 2.88946131,
+      "quant_gap_bpb": 0.004661310000000363,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "best_with_byte_headroom": {
+      "bytes_total": 5162359,
+      "candidate_id": "port_compression_20260318_210204_9293",
+      "mutation_operator": "logit_softcap_sweep",
+      "post_quant_val_bpb": 3.23747214,
+      "pre_quant_val_bpb": 3.2082,
+      "proxy_score": 3.23747214,
+      "quant_gap_bpb": 0.02927213999999978,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "champion_set": [
+      {
+        "bytes_total": 15863489,
+        "candidate_id": "first_candidate",
+        "post_quant_val_bpb": 1.2243657,
+        "proxy_score": 1.2243657,
+        "tier": "smoke_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 5972859,
+        "candidate_id": "rec_validate_compression_recipe_warmdown",
+        "mutation_operator": "recombine",
+        "parent_candidate_id": "port_compression_20260318_210204_9293",
+        "post_quant_val_bpb": 3.04557018,
+        "pre_quant_val_bpb": 3.0274,
+        "proxy_score": 3.04557018,
+        "quant_gap_bpb": 0.018170179999999814,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6475015,
+        "candidate_id": "cod_training_recipe_20260318_235033_8561",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+        "post_quant_val_bpb": 2.84089884,
+        "pre_quant_val_bpb": 2.8352,
+        "proxy_score": 2.84089884,
+        "quant_gap_bpb": 0.005698839999999983,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      },
+      {
+        "bytes_total": 6338650,
+        "candidate_id": "cod_training_recipe_20260318_215548_4091",
+        "mutation_operator": "codex_proposal",
+        "parent_candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+        "post_quant_val_bpb": 2.88946131,
+        "pre_quant_val_bpb": 2.8848,
+        "proxy_score": 2.88946131,
+        "quant_gap_bpb": 0.004661310000000363,
+        "tier": "smoke_mlx_local",
+        "valid": true
+      }
+    ],
+    "global_best": {
+      "bytes_total": 15863489,
+      "candidate_id": "first_candidate",
+      "post_quant_val_bpb": 1.2243657,
+      "proxy_score": 1.2243657,
+      "tier": "smoke_local",
+      "valid": true
+    },
+    "same_tier_best": {
+      "bytes_total": 6475015,
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "post_quant_val_bpb": 2.84089884,
+      "proxy_score": 2.84089884,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    }
+  },
+  "objective": {
+    "allowed_files": [
+      "train_gpt.py",
+      "train_gpt_mlx.py",
+      "notes.md"
+    ],
+    "byte_cap": 16000000,
+    "entrypoint_filename": "train_gpt_mlx.py",
+    "starter_idea_prompt_limit": 3,
+    "tier": "smoke_mlx_local"
+  },
+  "observations": [
+    "Current base already inherits env overrides {\"MATRIX_LR\": 0.05, \"SCALAR_LR\": 0.04, \"WARMDOWN_ITERS\": 256, \"WARMUP_STEPS\": 64}. Build incrementally unless you mean to replace that behavior in code.",
+    "training_recipe family best still has a material quant gap (0.005699 BPB). Export-aware changes remain valuable.",
+    "Use same-tier results as the main local compass. Current tier best is cod_training_recipe_20260318_235033_8561 at proxy_score=2.84089884."
+  ],
+  "parent_context": {
+    "best_run": {
+      "bytes_total": 6475015,
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "mutation_operator": "codex_proposal",
+      "parent_candidate_id": "cod_training_recipe_20260318_222108_4091",
+      "post_quant_val_bpb": 2.84089884,
+      "pre_quant_val_bpb": 2.8352,
+      "proxy_score": 2.84089884,
+      "quant_gap_bpb": 0.005698839999999983,
+      "step_avg_ms": 461.88,
+      "tier": "smoke_mlx_local",
+      "valid": true
+    },
+    "changed_symbols": [
+      "matrix_lr_floor_ratio",
+      "MATRIX_LR_FLOOR_RATIO",
+      "matrix_lr_mul"
+    ],
+    "diff_excerpt": "--- /Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_222108_4091/train_gpt_mlx.py\n+++ /Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/cod_training_recipe_20260318_235033_8561/train_gpt_mlx.py\n@@ -86,6 +86,7 @@\n     tied_embed_lr: float = float(os.environ.get(\"TIED_EMBED_LR\", 0.05))\n     tied_embed_lr_floor_ratio: float = float(os.environ.get(\"TIED_EMBED_LR_FLOOR_RATIO\", 0.05))\n     matrix_lr: float = float(os.environ.get(\"MATRIX_LR\", 0.04))\n+    matrix_lr_floor_ratio: float = float(os.environ.get(\"MATRIX_LR_FLOOR_RATIO\", 0.01))\n     scalar_lr: float = float(os.environ.get(\"SCALAR_LR\", 0.04))\n     scalar_lr_floor_ratio: float = float(os.environ.get(\"SCALAR_LR_FLOOR_RATIO\", 0.25))\n     muon_momentum: float = float(os.environ.get(\"MUON_MOMENTUM\", 0.95))\n@@ -126,6 +127,9 @@\n \n     def tied_embed_lr_mul(self, base_lr_mul: float) -> float:\n         return self.floored_lr_mul(base_lr_mul, self.tied_embed_lr_floor_ratio)\n+\n+    def matrix_lr_mul(self, base_lr_mul: float) -> float:\n+        return self.floored_lr_mul(base_lr_mul, self.matrix_lr_floor_ratio)\n \n     def scalar_lr_mul(self, base_lr_mul: float) -> float:\n         return self.floored_lr_mul(base_lr_mul, self.scalar_lr_floor_ratio)\n@@ -962,7 +966,8 @@\n         f\"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} \"\n         f\"embed_lr:{args.tied_embed_lr} \"\n         f\"embed_lr_floor_ratio:{args.tied_embed_lr_floor_ratio} \"\n-        f\"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} \"\n+        f\"matrix_lr:{args.matrix_lr} matrix_lr_floor_ratio:{args.matrix_lr_floor_ratio} \"\n+        f\"scalar_lr:{args.scalar_lr} \"\n         f\"scalar_lr_floor_ratio:{args.scalar_lr_floor_ratio} \"\n         f\"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}\"\n     )\n@@ -1042,6 +1047,7 @@\n             break\n \n         base_lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))\n+        matrix_lr_mul = args.matrix_lr_mul(base_lr_mul)\n         embed_lr_mul = args.tied_embed_lr_mul(base_lr_mul)\n         scalar_lr_mul = args.scalar_lr_mul(base_lr_mul)\n         step_t0 = time.perf_counter()\n@@ -1061,7 +1067,7 @@\n             model,\n             grads,\n             step=step,\n-            matrix_lr_mul=base_lr_mul,\n+            matrix_lr_mul=matrix_lr_mul,\n             embed_lr_mul=embed_lr_mul,\n             scalar_lr_mul=scalar_lr_mul,\n         )",
+    "note_sections": {
+      "Exact knobs changed": "Added `MATRIX_LR_FLOOR_RATIO` in `train_gpt_mlx.py`, defaulting to `0.01`. Wired Muon to use `matrix_lr_mul = floor + (1 - floor) * lr_mul`, while keeping the inherited parent behavior unchanged for: - tied embedding Adam via `tied_embed_lr_mul` - scalar/control Adam via `scal...",
+      "Expected risk": "If the matrix tail is even slightly too large, it could give back the fast-decay stability that made this family work, causing late noise in the biggest quantized tensors and hurting either raw validation or the roundtrip score.",
+      "Expected upside": "Reduce `final_int8_zlib_roundtrip_exact val_bpb` by trimming the remaining post-quant gap. The current family already improved raw validation materially, but the roundtrip gap is still around `0.0047` BPB, which suggests the quantized block matrices may be lagging the late cal...",
+      "Hypothesis": "Keep the parent scalar-tail plus tied-embedding-tail recipe, but add a much smaller nonzero LR floor to the Muon matrix group so the large quantized block weights can keep making tiny late co-adaptation moves instead of fully freezing ahead of the float-kept control tensors an...",
+      "Promotion bar": "`smoke_local`: no runtime breakage, logs show `matrix_lr_floor_ratio`, and submission bytes stay effectively unchanged. `proxy_1gpu_fast`: beat the parent on `final_int8_zlib_roundtrip_exact val_bpb`, or at minimum reduce the raw-vs-roundtrip gap without giving back most of th..."
+    },
+    "proposal_summary": "Hypothesis: keep the parent scalar and tied-embedding LR tails, and add a much smaller Muon matrix LR floor so the large quantized block weights can still make tiny late co-adaptation updates instead of freezing before the float-kept controls and shared embedding/logit table....",
+    "summary": {
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "env_overrides": {
+        "MATRIX_LR": 0.05,
+        "SCALAR_LR": 0.04,
+        "WARMDOWN_ITERS": 256,
+        "WARMUP_STEPS": 64
+      },
+      "mutation_operator": "codex_proposal",
+      "parent_candidate_id": "cod_training_recipe_20260318_222108_4091"
+    }
+  },
+  "proposal": {
+    "ambiguity_competitors": [],
+    "mode": "brief",
+    "reasons": []
+  },
+  "starter_ideas": [
+    {
+      "family_match_rank": 0,
+      "horizon": "near_term",
+      "idea_id": "mtp_aux_heads_train_only",
+      "implementation_sketch": "Reuse the final hidden states. Add two lightweight projection heads for t+2 and t+3 targets, weight their losses below the main next-token loss, and strip the extra heads before serialization and eval.",
+      "primary_family": "training_recipe",
+      "priority": 1,
+      "risk": "medium",
+      "secondary_families": [
+        "architecture"
+      ],
+      "source_refs": [
+        "https://arxiv.org/abs/2404.19737"
+      ],
+      "summary": "Add 2 auxiliary future-token heads on top of the shared trunk during training, then drop them before export so bytes stay nearly unchanged.",
+      "tags": [
+        "sample_efficiency",
+        "train_only",
+        "export_free"
+      ],
+      "title": "Train-only multi-token heads",
+      "why_it_fits": "Parameter Golf is wallclock-limited, so sample-efficiency improvements that disappear at export are unusually attractive."
+    },
+    {
+      "family_match_rank": 1,
+      "horizon": "near_term",
+      "idea_id": "staged_qat_large_matrices",
+      "implementation_sketch": "Start with the existing int8 per-row export path as a differentiable or straight-through approximation. Apply it every N steps late in training, then optionally explore 4-bit groupwise variants once the int8-aware version is stable.",
+      "primary_family": "compression",
+      "priority": 1,
+      "risk": "medium",
+      "secondary_families": [
+        "training_recipe"
+      ],
+      "source_refs": [
+        "https://arxiv.org/abs/2402.17764",
+        "https://arxiv.org/abs/2406.09904"
+      ],
+      "summary": "During the last 10-15% of training, periodically fake-quantize only the large 2D block matrices while keeping small control tensors in higher precision.",
+      "tags": [
+        "quantization_aware",
+        "post_quant_gap",
+        "selective_precision"
+      ],
+      "title": "Staged fake-quant final phase",
+      "why_it_fits": "The current baseline loses meaningful score at roundtrip export, so export-aware training is one of the cleanest ways to improve the true objective."
+    }
+  ]
+}

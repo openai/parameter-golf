@@ -84,8 +84,10 @@ class Hyperparameters:
     beta2: float = float(os.environ.get("BETA2", 0.95))
     adam_eps: float = float(os.environ.get("ADAM_EPS", 1e-8))
     tied_embed_lr: float = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_lr_floor_ratio: float = float(os.environ.get("TIED_EMBED_LR_FLOOR_RATIO", 0.05))
     matrix_lr: float = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr: float = float(os.environ.get("SCALAR_LR", 0.04))
+    scalar_lr_floor_ratio: float = float(os.environ.get("SCALAR_LR_FLOOR_RATIO", 0.25))
     muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps: int = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -116,6 +118,17 @@ class Hyperparameters:
         warmdown_ms = self.warmdown_iters * step_ms
         remaining_ms = max(1000.0 * self.max_wallclock_seconds - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
+    @staticmethod
+    def floored_lr_mul(base_lr_mul: float, floor_ratio: float) -> float:
+        floor = min(max(floor_ratio, 0.0), 1.0)
+        return floor + (1.0 - floor) * base_lr_mul
+
+    def tied_embed_lr_mul(self, base_lr_mul: float) -> float:
+        return self.floored_lr_mul(base_lr_mul, self.tied_embed_lr_floor_ratio)
+
+    def scalar_lr_mul(self, base_lr_mul: float) -> float:
+        return self.floored_lr_mul(base_lr_mul, self.scalar_lr_floor_ratio)
 
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
@@ -514,14 +527,22 @@ class SplitOptimizers:
             bias_correction=True,
         )
 
-    def step(self, model: GPT, grads_tree: dict, step: int, lr_mul: float) -> None:
+    def step(
+        self,
+        model: GPT,
+        grads_tree: dict,
+        step: int,
+        matrix_lr_mul: float,
+        embed_lr_mul: float,
+        scalar_lr_mul: float,
+    ) -> None:
         params = dict(tree_flatten(model.parameters()))
         grads = dict(tree_flatten(grads_tree))
         updated = dict(params)
 
-        updated.update(self.muon.step(params, grads, step=step, lr_mul=lr_mul))
+        updated.update(self.muon.step(params, grads, step=step, lr_mul=matrix_lr_mul))
 
-        self.adam_embed.learning_rate = self.args.tied_embed_lr * lr_mul
+        self.adam_embed.learning_rate = self.args.tied_embed_lr * embed_lr_mul
         updated.update(
             self.adam_embed.apply_gradients(
                 {self.embed_key: grads[self.embed_key]},
@@ -529,7 +550,7 @@ class SplitOptimizers:
             )
         )
 
-        self.adam_scalar.learning_rate = self.args.scalar_lr * lr_mul
+        self.adam_scalar.learning_rate = self.args.scalar_lr * scalar_lr_mul
         scalar_grads = {k: grads[k] for k in self.scalar_keys}
         scalar_params = {k: params[k] for k in self.scalar_keys}
         updated.update(self.adam_scalar.apply_gradients(scalar_grads, scalar_params))
@@ -940,7 +961,9 @@ def main() -> None:
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
         f"embed_lr:{args.tied_embed_lr} "
+        f"embed_lr_floor_ratio:{args.tied_embed_lr_floor_ratio} "
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
+        f"scalar_lr_floor_ratio:{args.scalar_lr_floor_ratio} "
         f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
     )
     log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
@@ -1018,7 +1041,9 @@ def main() -> None:
                 log(f"stopping_early: wallclock_cap train_time:{train_time_ms:.0f}ms step:{step}/{args.iterations}")
             break
 
-        lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        base_lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        embed_lr_mul = args.tied_embed_lr_mul(base_lr_mul)
+        scalar_lr_mul = args.scalar_lr_mul(base_lr_mul)
         step_t0 = time.perf_counter()
 
         accum: dict[str, mx.array] | None = None
@@ -1032,7 +1057,14 @@ def main() -> None:
         grads = tree_unflatten(list(accum.items()))
         grads = clip_grad_tree(grads, args.grad_clip_norm)
         train_loss_value = float(train_loss.item())
-        opt.step(model, grads, step=step, lr_mul=lr_mul)
+        opt.step(
+            model,
+            grads,
+            step=step,
+            matrix_lr_mul=base_lr_mul,
+            embed_lr_mul=embed_lr_mul,
+            scalar_lr_mul=scalar_lr_mul,
+        )
         mx.synchronize()
 
         step_ms = 1000.0 * (time.perf_counter() - step_t0)
@@ -1095,3 +1127,51 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.13.1 (main, Dec  3 2024, 17:59:52) [Clang 16.0.0 (clang-1600.0.26.4)]
+Running MLX 0.31.1
+====================================================================================================
+Code size: 50945 bytes
+run_id:cod_training_recipe_20260318_222108_4091_smoke_mlx_local_20260318_222425
+mlx_version:0.31.1
+train_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+val_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:262144
+WARNING: train_loader:subset dataset:fineweb10B_sp1024 train_shards:1/195 new epochs will arrive sooner than the full dataset
+tokenizer_path:/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+model_params:17059912 vocab_size:1024 layers:9 dim:512 heads:8 kv_heads:4 seq_len:1024 tie_embeddings:True
+iterations:50 train_batch_tokens:8192 grad_accum_steps:8 microbatch_tokens:1024 microbatch_batch_size:1 val_batch_size:8192 warmup_steps:64 max_wallclock_seconds:0.000
+mlx_max_microbatch_tokens:2048
+optimizer:muon+adam muon_matrix_params:54 scalar_params:37 embed_lr:0.05 embed_lr_floor_ratio:0.05 matrix_lr:0.05 scalar_lr:0.04 scalar_lr_floor_ratio:0.25 muon_momentum:0.95 muon_steps:5
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+compute_dtype:mlx.core.bfloat16 compile:True
+dtypes tok_emb:mlx.core.bfloat16 linear_weight:mlx.core.float32 skip_weights:mlx.core.float32
+warmup_step:10/64
+warmup_step:20/64
+warmup_step:30/64
+warmup_step:40/64
+warmup_step:50/64
+warmup_step:60/64
+warmup_step:64/64
+step:1/50 train_loss:6.9428 train_time:137ms step_avg:137.32ms tok_s:59663
+step:2/50 train_loss:7.0670 train_time:561ms step_avg:280.61ms tok_s:19336
+step:3/50 train_loss:6.9025 train_time:965ms step_avg:321.63ms tok_s:20304
+step:4/50 train_loss:6.5549 train_time:1368ms step_avg:342.01ms tok_s:20330
+step:5/50 train_loss:6.2591 train_time:1772ms step_avg:354.46ms tok_s:20271
+step:6/50 train_loss:6.0259 train_time:2177ms step_avg:362.84ms tok_s:20251
+step:7/50 train_loss:5.8405 train_time:2580ms step_avg:368.63ms tok_s:20317
+step:8/50 train_loss:5.8743 train_time:2985ms step_avg:373.12ms tok_s:20266
+step:9/50 train_loss:5.7975 train_time:3389ms step_avg:376.57ms tok_s:20279
+step:10/50 train_loss:5.7989 train_time:3794ms step_avg:379.37ms tok_s:20260
+step:20/50 train_loss:5.6057 train_time:7835ms step_avg:391.74ms tok_s:20309
+step:30/50 train_loss:5.3509 train_time:11878ms step_avg:395.95ms tok_s:20253
+step:40/50 train_loss:5.0922 train_time:15922ms step_avg:398.04ms tok_s:20220
+step:50/50 train_loss:4.8830 train_time:19961ms step_avg:399.21ms tok_s:20265
+step:50/50 val_loss:4.8193 val_bpb:2.8539 train_time:22766ms step_avg:455.32ms
+saved_model:logs/cod_training_recipe_20260318_222108_4091_smoke_mlx_local_20260318_222425_mlx_model.npz bytes:67212188
+serialized_model_int8_zlib:6326805 bytes (payload:17178912 raw_pickle:17188361 payload_ratio:3.91x)
+Serialized model: 67212188 bytes
+Serialized model int8+zlib: 6326805 bytes
+Total submission size int8+zlib: 6377750 bytes
+final_int8_zlib_roundtrip val_loss:4.8273 val_bpb:2.8586 eval_time:2521ms
+final_int8_zlib_roundtrip_exact val_loss:4.82734489 val_bpb:2.85863372

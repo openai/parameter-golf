@@ -1,0 +1,14 @@
+{
+  "phase_1_allowed_paths": [
+    "train_gpt.py"
+  ],
+  "phase_2_allowed_paths": [
+    "train_gpt.py",
+    "data/tokenizer_specs.json"
+  ],
+  "notes": [
+    "All edits should happen inside candidate-local workspaces.",
+    "Do not modify the repository root train_gpt.py through the harness.",
+    "Tokenizer edits are intentionally deferred until the training-only loop is stable."
+  ]
+}

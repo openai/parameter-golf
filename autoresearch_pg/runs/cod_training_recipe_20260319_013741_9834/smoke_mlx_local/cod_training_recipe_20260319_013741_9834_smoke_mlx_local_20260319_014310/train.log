@@ -84,13 +84,18 @@ class Hyperparameters:
     beta2: float = float(os.environ.get("BETA2", 0.95))
     adam_eps: float = float(os.environ.get("ADAM_EPS", 1e-8))
     tied_embed_lr: float = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_lr_floor_ratio: float = float(os.environ.get("TIED_EMBED_LR_FLOOR_RATIO", 0.05))
     matrix_lr: float = float(os.environ.get("MATRIX_LR", 0.04))
+    matrix_lr_floor_ratio: float = float(os.environ.get("MATRIX_LR_FLOOR_RATIO", 0.01))
     scalar_lr: float = float(os.environ.get("SCALAR_LR", 0.04))
+    scalar_lr_floor_ratio: float = float(os.environ.get("SCALAR_LR_FLOOR_RATIO", 0.25))
     muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps: int = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    qat_interval: int = int(os.environ.get("QAT_INTERVAL", 8))
+    qat_trigger_lr_mul: float = float(os.environ.get("QAT_TRIGGER_LR_MUL", 0.5))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 
@@ -116,6 +121,26 @@ class Hyperparameters:
         warmdown_ms = self.warmdown_iters * step_ms
         remaining_ms = max(1000.0 * self.max_wallclock_seconds - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
+    @staticmethod
+    def floored_lr_mul(base_lr_mul: float, floor_ratio: float) -> float:
+        floor = min(max(floor_ratio, 0.0), 1.0)
+        return floor + (1.0 - floor) * base_lr_mul
+
+    def tied_embed_lr_mul(self, base_lr_mul: float) -> float:
+        return self.floored_lr_mul(base_lr_mul, self.tied_embed_lr_floor_ratio)
+
+    def matrix_lr_mul(self, base_lr_mul: float) -> float:
+        return self.floored_lr_mul(base_lr_mul, self.matrix_lr_floor_ratio)
+
+    def scalar_lr_mul(self, base_lr_mul: float) -> float:
+        return self.floored_lr_mul(base_lr_mul, self.scalar_lr_floor_ratio)
+
+    def qat_should_project(self, step: int, base_lr_mul: float) -> bool:
+        if self.qat_interval <= 0:
+            return False
+        trigger = min(max(self.qat_trigger_lr_mul, 0.0), 1.0)
+        return base_lr_mul <= trigger and (step + 1) % self.qat_interval == 0
 
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
@@ -514,14 +539,22 @@ class SplitOptimizers:
             bias_correction=True,
         )
 
-    def step(self, model: GPT, grads_tree: dict, step: int, lr_mul: float) -> None:
+    def step(
+        self,
+        model: GPT,
+        grads_tree: dict,
+        step: int,
+        matrix_lr_mul: float,
+        embed_lr_mul: float,
+        scalar_lr_mul: float,
+    ) -> None:
         params = dict(tree_flatten(model.parameters()))
         grads = dict(tree_flatten(grads_tree))
         updated = dict(params)
 
-        updated.update(self.muon.step(params, grads, step=step, lr_mul=lr_mul))
+        updated.update(self.muon.step(params, grads, step=step, lr_mul=matrix_lr_mul))
 
-        self.adam_embed.learning_rate = self.args.tied_embed_lr * lr_mul
+        self.adam_embed.learning_rate = self.args.tied_embed_lr * embed_lr_mul
         updated.update(
             self.adam_embed.apply_gradients(
                 {self.embed_key: grads[self.embed_key]},
@@ -529,7 +562,7 @@ class SplitOptimizers:
             )
         )
 
-        self.adam_scalar.learning_rate = self.args.scalar_lr * lr_mul
+        self.adam_scalar.learning_rate = self.args.scalar_lr * scalar_lr_mul
         scalar_grads = {k: grads[k] for k in self.scalar_keys}
         scalar_params = {k: params[k] for k in self.scalar_keys}
         updated.update(self.adam_scalar.apply_gradients(scalar_grads, scalar_params))
@@ -639,19 +672,20 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
     return obj, stats
 
 
+def dequantize_int8_array(q: np.ndarray, scale: np.ndarray) -> np.ndarray:
+    scale_f32 = np.asarray(scale, dtype=np.float32)
+    if scale_f32.ndim > 0:
+        return q.astype(np.float32) * scale_f32.reshape((q.shape[0],) + (1,) * (q.ndim - 1))
+    return q.astype(np.float32) * float(scale_f32)
+
+
 def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.array]:
     out: dict[str, mx.array] = {}
-    qmeta = quant_obj.get("qmeta", {})
     passthrough_orig_dtypes = quant_obj.get("passthrough_orig_dtypes", {})
     for name, q in quant_obj["quantized"].items():
         q_np = np.asarray(q, dtype=np.int8)
         dtype_name = quant_obj["dtypes"][name]
-        scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
-        if qmeta.get(name, {}).get("scheme") == "per_row" or scale.ndim > 0:
-            # Broadcast the saved row scale back across trailing dimensions.
-            out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
-        else:
-            out_arr = q_np.astype(np.float32) * float(scale)
+        out_arr = dequantize_int8_array(q_np, quant_obj["scales"][name])
         out[name] = mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[dtype_name])
     for name, arr in quant_obj["passthrough"].items():
         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
@@ -662,6 +696,25 @@ def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.arr
         else:
             out[name] = mx.array(out_arr)
     return out
+
+
+def project_large_matrices_to_export_grid(model: GPT, keys: list[str]) -> int:
+    params = dict(tree_flatten(model.parameters()))
+    updated: dict[str, mx.array] = {}
+    for name in keys:
+        arr = params[name]
+        if (
+            arr.ndim != 2
+            or not mx.issubdtype(arr.dtype, mx.floating)
+            or int(arr.size) <= INT8_KEEP_FLOAT_MAX_NUMEL
+        ):
+            continue
+        q, scale = quantize_float_array(arr)
+        updated[name] = mx.array(dequantize_int8_array(q, scale), dtype=arr.dtype)
+    if not updated:
+        return 0
+    model.update(tree_unflatten(list(updated.items())))
+    return len(updated)
 
 
 def build_sentencepiece_luts(
@@ -940,8 +993,15 @@ def main() -> None:
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
         f"embed_lr:{args.tied_embed_lr} "
-        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
+        f"embed_lr_floor_ratio:{args.tied_embed_lr_floor_ratio} "
+        f"matrix_lr:{args.matrix_lr} matrix_lr_floor_ratio:{args.matrix_lr_floor_ratio} "
+        f"scalar_lr:{args.scalar_lr} "
+        f"scalar_lr_floor_ratio:{args.scalar_lr_floor_ratio} "
         f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
+    )
+    log(
+        f"qat_large_matrix_projection interval:{args.qat_interval} "
+        f"trigger_lr_mul:{args.qat_trigger_lr_mul}"
     )
     log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
     log(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
@@ -992,6 +1052,8 @@ def main() -> None:
     train_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     stop_after_step: int | None = None
+    qat_projection_steps = 0
+    qat_projected_tensors = 0
     t0 = time.perf_counter()
     step = 0
     while True:
@@ -1018,7 +1080,10 @@ def main() -> None:
                 log(f"stopping_early: wallclock_cap train_time:{train_time_ms:.0f}ms step:{step}/{args.iterations}")
             break
 
-        lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        base_lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        matrix_lr_mul = args.matrix_lr_mul(base_lr_mul)
+        embed_lr_mul = args.tied_embed_lr_mul(base_lr_mul)
+        scalar_lr_mul = args.scalar_lr_mul(base_lr_mul)
         step_t0 = time.perf_counter()
 
         accum: dict[str, mx.array] | None = None
@@ -1032,7 +1097,23 @@ def main() -> None:
         grads = tree_unflatten(list(accum.items()))
         grads = clip_grad_tree(grads, args.grad_clip_norm)
         train_loss_value = float(train_loss.item())
-        opt.step(model, grads, step=step, lr_mul=lr_mul)
+        opt.step(
+            model,
+            grads,
+            step=step,
+            matrix_lr_mul=matrix_lr_mul,
+            embed_lr_mul=embed_lr_mul,
+            scalar_lr_mul=scalar_lr_mul,
+        )
+        if args.qat_should_project(step, base_lr_mul):
+            projected = project_large_matrices_to_export_grid(model, [opt.embed_key, *opt.matrix_keys])
+            if projected:
+                qat_projection_steps += 1
+                qat_projected_tensors += projected
+                log(
+                    f"step:{step + 1}/{args.iterations} qat_large_matrix_projection "
+                    f"tensors:{projected} base_lr_mul:{base_lr_mul:.4f}"
+                )
         mx.synchronize()
 
         step_ms = 1000.0 * (time.perf_counter() - step_t0)
@@ -1050,6 +1131,7 @@ def main() -> None:
     # ==============================================================================
     # FINAL SERIALIZATION + QUANTIZED ROUNDTRIP EVAL
     # ==============================================================================
+    log(f"qat_large_matrix_projection_total steps:{qat_projection_steps} tensors:{qat_projected_tensors}")
     # We always write a raw artifact and a quantized artifact, then validate the
     # quantized roundtrip directly by loading the dequantized tensors back into the
     # model and running one final validation pass.
@@ -1095,3 +1177,59 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.13.1 (main, Dec  3 2024, 17:59:52) [Clang 16.0.0 (clang-1600.0.26.4)]
+Running MLX 0.31.1
+====================================================================================================
+Code size: 53064 bytes
+run_id:cod_training_recipe_20260319_013741_9834_smoke_mlx_local_20260319_014310
+mlx_version:0.31.1
+train_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+val_loader:shards pattern=/Users/calmdentist/Desktop/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:262144
+WARNING: train_loader:subset dataset:fineweb10B_sp1024 train_shards:1/195 new epochs will arrive sooner than the full dataset
+tokenizer_path:/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+model_params:17059912 vocab_size:1024 layers:9 dim:512 heads:8 kv_heads:4 seq_len:1024 tie_embeddings:True
+iterations:50 train_batch_tokens:8192 grad_accum_steps:8 microbatch_tokens:1024 microbatch_batch_size:1 val_batch_size:8192 warmup_steps:64 max_wallclock_seconds:0.000
+mlx_max_microbatch_tokens:2048
+optimizer:muon+adam muon_matrix_params:54 scalar_params:37 embed_lr:0.05 embed_lr_floor_ratio:0.05 matrix_lr:0.05 matrix_lr_floor_ratio:0.01 scalar_lr:0.04 scalar_lr_floor_ratio:0.25 muon_momentum:0.95 muon_steps:5
+qat_large_matrix_projection interval:8 trigger_lr_mul:0.5
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/Users/calmdentist/Desktop/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+compute_dtype:mlx.core.bfloat16 compile:True
+dtypes tok_emb:mlx.core.bfloat16 linear_weight:mlx.core.float32 skip_weights:mlx.core.float32
+warmup_step:10/64
+warmup_step:20/64
+warmup_step:30/64
+warmup_step:40/64
+warmup_step:50/64
+warmup_step:60/64
+warmup_step:64/64
+step:1/50 train_loss:6.9428 train_time:139ms step_avg:139.13ms tok_s:58884
+step:2/50 train_loss:7.0663 train_time:559ms step_avg:279.36ms tok_s:19533
+step:3/50 train_loss:6.8997 train_time:967ms step_avg:322.22ms tok_s:20090
+step:4/50 train_loss:6.5530 train_time:1374ms step_avg:343.49ms tok_s:20122
+step:5/50 train_loss:6.2565 train_time:1782ms step_avg:356.38ms tok_s:20091
+step:6/50 train_loss:6.0235 train_time:2189ms step_avg:364.91ms tok_s:20110
+step:7/50 train_loss:5.8374 train_time:2598ms step_avg:371.09ms tok_s:20078
+step:8/50 qat_large_matrix_projection tensors:55 base_lr_mul:0.1680
+step:8/50 train_loss:5.8718 train_time:3506ms step_avg:438.27ms tok_s:9019
+step:9/50 train_loss:5.8552 train_time:3641ms step_avg:404.51ms tok_s:61060
+step:10/50 train_loss:5.8335 train_time:4050ms step_avg:405.01ms tok_s:20018
+step:16/50 qat_large_matrix_projection tensors:55 base_lr_mul:0.1367
+step:20/50 train_loss:5.6436 train_time:8414ms step_avg:420.71ms tok_s:19706
+step:24/50 qat_large_matrix_projection tensors:55 base_lr_mul:0.1055
+step:30/50 train_loss:5.4634 train_time:12760ms step_avg:425.33ms tok_s:20031
+step:32/50 qat_large_matrix_projection tensors:55 base_lr_mul:0.0742
+step:40/50 qat_large_matrix_projection tensors:55 base_lr_mul:0.0430
+step:40/50 train_loss:5.3573 train_time:17474ms step_avg:436.85ms tok_s:9520
+step:48/50 qat_large_matrix_projection tensors:55 base_lr_mul:0.0117
+step:50/50 train_loss:5.2098 train_time:21469ms step_avg:429.38ms tok_s:20023
+step:50/50 val_loss:5.1493 val_bpb:3.0493 train_time:24283ms step_avg:485.66ms
+qat_large_matrix_projection_total steps:6 tensors:330
+saved_model:logs/cod_training_recipe_20260319_013741_9834_smoke_mlx_local_20260319_014310_mlx_model.npz bytes:67212188
+serialized_model_int8_zlib:5402930 bytes (payload:17178912 raw_pickle:17188361 payload_ratio:3.91x)
+Serialized model: 67212188 bytes
+Serialized model int8+zlib: 5402930 bytes
+Total submission size int8+zlib: 5455994 bytes
+final_int8_zlib_roundtrip val_loss:5.1789 val_bpb:3.0668 eval_time:2515ms
+final_int8_zlib_roundtrip_exact val_loss:5.17891598 val_bpb:3.06682539

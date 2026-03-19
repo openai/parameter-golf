@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "candidate_prefix": "port",
+  "default_cycles": 1,
+  "family_selection": {
+    "exploration_bonus": 0.3,
+    "failure_penalty": 0.08,
+    "win_bonus": 0.1,
+    "novelty_floor": 0.05
+  },
+  "parent_selection": {
+    "fallback": "global_best",
+    "fallback_to_root": true
+  },
+  "frontier_limits": {
+    "recent_runs": 50,
+    "champion_set": 8
+  },
+  "mutation": {
+    "max_attempts_per_cycle": 8
+  },
+  "action_selection": {
+    "propose_probability": 0.25,
+    "replicate_probability": 0.2,
+    "recombine_probability": 0.1
+  },
+  "template_selection": {
+    "enabled": true,
+    "probability": 0.4
+  },
+  "tier_defaults": {
+    "darwin_arm64": "smoke_mlx_local",
+    "default": "smoke_local"
+  },
+  "baseline_env": {
+    "NUM_LAYERS": 9,
+    "MODEL_DIM": 512,
+    "NUM_HEADS": 8,
+    "NUM_KV_HEADS": 4,
+    "MLP_MULT": 2,
+    "TIED_EMBED_LR": 0.05,
+    "MATRIX_LR": 0.04,
+    "SCALAR_LR": 0.04,
+    "WARMDOWN_ITERS": 1200,
+    "WARMUP_STEPS": 20,
+    "QK_GAIN_INIT": 1.5,
+    "LOGIT_SOFTCAP": 30.0
+  }
+}

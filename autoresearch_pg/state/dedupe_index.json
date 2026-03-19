@@ -1,0 +1,1201 @@
+{
+  "by_config_hash": {
+    "02e88d506ccf132085e3aacaf4202d48bc78418ebc8bbdeaa5b1259acdd2afc4": {
+      "candidate_id": "cod_training_recipe_20260318_233727_6121",
+      "config_hash": "02e88d506ccf132085e3aacaf4202d48bc78418ebc8bbdeaa5b1259acdd2afc4",
+      "created_at": "2026-03-18T23:37:27.325907Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "6fb6886a5f4ccd1a376925bc0c9e22fdc811425731e5ad3b35c22a6021653dd1",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "17a9813b8665603e51bbb929f8e6bf1a7e2f802c6204713573e97f4b55871283",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "0ad80de1a0e47ea8cbf899854a23b5821551c446163aafd602269b3e2bfbd023": {
+      "candidate_id": "cod_training_recipe_20260318_215548_4091",
+      "config_hash": "0ad80de1a0e47ea8cbf899854a23b5821551c446163aafd602269b3e2bfbd023",
+      "created_at": "2026-03-18T21:55:48.445694Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "a5daa2f862ced2ca057c4057abfad5303977de05c5de3ef530664e299625bc1a",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "9849f1dad135edfb4acfa2854e88928f1cbcf521d4f8d4d7eb337ffbd1f5ead9",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "0eb14e2cf7fed8a5bf26721651d22e34ccc5fca588564a2a2c5f81686bf8847e": {
+      "candidate_id": "rec_port_compression_20260318_210204_9293__port_training_recipe_20260318_210940_4091_20260318_212538",
+      "config_hash": "0eb14e2cf7fed8a5bf26721651d22e34ccc5fca588564a2a2c5f81686bf8847e",
+      "created_at": "2026-03-18T21:25:38.215155Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "LOGIT_SOFTCAP": "20.0",
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "2d95fd4e4b2c2c36fb13eb231948a7c4facb1c20deb285a3290130157526e725",
+      "mutation_hash": "862fbd522ce0fd03d5ea98808e9a08539211ba501919b6fb1b79900f10668523",
+      "mutation_operator": "recombine",
+      "primary_family": "compression",
+      "template_id": null
+    },
+    "1fc0c7f6f630261ae0dc643a00e65a913bb06193234c83884e5bb04a12f01598": {
+      "candidate_id": "mlx_smoke_candidate_v2",
+      "config_hash": "1fc0c7f6f630261ae0dc643a00e65a913bb06193234c83884e5bb04a12f01598",
+      "created_at": "2026-03-18T20:00:26.112638Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "dbf9bfe33eda615f53e8c3353c66ae6231261e1ffcb9d3e9a4b28bd8a49477cf",
+      "mutation_operator": null,
+      "primary_family": null,
+      "template_id": null
+    },
+    "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687": {
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "config_hash": "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687",
+      "created_at": "2026-03-18T23:50:33.047092Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "bfd3dac63603ac93551faa5eeac4217ca3b396ff748e7b99ac1fdd3c6c7c7c0c",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "3d4faebb2f2acdfd09c9043f8eabdaa49458fe190de47c163fdf186551016268": {
+      "candidate_id": "first_candidate",
+      "config_hash": "3d4faebb2f2acdfd09c9043f8eabdaa49458fe190de47c163fdf186551016268",
+      "created_at": "2026-03-18T19:24:59.639474Z",
+      "entrypoint_filename": "train_gpt.py",
+      "entrypoint_hash": "e77cf46e4a37cdb6ae8de4f82ac4f139674e5e60f16e0533aa6beecefacf3421",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "59cf14ef8187c20297d9543694b68e6d10ea19720a1e26dc4633c99817057442",
+      "mutation_operator": null,
+      "primary_family": null,
+      "template_id": null
+    },
+    "455370c77acd914850a28d5a55cf93c2ad19f5817d6c64db2960dcd8f5d5ffd3": {
+      "candidate_id": "rec_validate_compression_recipe_warmdown",
+      "config_hash": "455370c77acd914850a28d5a55cf93c2ad19f5817d6c64db2960dcd8f5d5ffd3",
+      "created_at": "2026-03-18T21:27:05.369692Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "LOGIT_SOFTCAP": "20.0",
+        "WARMDOWN_ITERS": "256"
+      },
+      "env_overrides_hash": "29f67fb8d62f2820a97745f053c88fadb1b587446e2530cac1d90a60187e09b9",
+      "mutation_hash": "e70823719290156d05884bad9a4ed9c67cc86a62defffa582d824b4d817cf106",
+      "mutation_operator": "recombine",
+      "primary_family": "compression",
+      "template_id": null
+    },
+    "5754ba3ab16c86798a1b036b9d94b04fc4860b8d5d8d8e17b94ebed9924f6ba6": {
+      "candidate_id": "port_architecture_20260319_014604_8294",
+      "config_hash": "5754ba3ab16c86798a1b036b9d94b04fc4860b8d5d8d8e17b94ebed9924f6ba6",
+      "created_at": "2026-03-19T01:46:04.541016Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MLP_MULT": "2",
+        "MODEL_DIM": "448",
+        "NUM_HEADS": "7",
+        "NUM_KV_HEADS": "1",
+        "NUM_LAYERS": "8"
+      },
+      "env_overrides_hash": "06758277ec0564b8a6c5c43f01d46ab39cab42a315d44681175f4ea554f1c640",
+      "mutation_hash": "70e6bef7995da627e1956b425b300def481e820c56cfe0cd1ddce168fec09005",
+      "mutation_operator": "arch_compact_8x448",
+      "primary_family": "architecture",
+      "template_id": "arch_compact_8x448"
+    },
+    "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0": {
+      "candidate_id": "cod_training_recipe_20260318_215512_4091",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:55:12.093407Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "083b9f1bd977e1d3a2cdec03358402818ed614afeb29a4335c57ef68121224c5",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "5e45e403801c3b6995bbb9690303ef0298701bdae9169d90c67526191ff69ca1": {
+      "candidate_id": "cod_training_recipe_20260319_012138_9154",
+      "config_hash": "5e45e403801c3b6995bbb9690303ef0298701bdae9169d90c67526191ff69ca1",
+      "created_at": "2026-03-19T01:21:38.757882Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "949df1c9d527e6349143a9dd6551f0f85507dadaab83c4dcae0619894034ac02",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "9994f45376ff9cc612cadadaff94c2c559f1f1f248fa8504d741f171880777e5",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "698739272ba4d9f50902c66e0f89c9b6791afd0f8aa7c11ba90fcb98a4033a41": {
+      "candidate_id": "port_training_recipe_20260318_204700_9293",
+      "config_hash": "698739272ba4d9f50902c66e0f89c9b6791afd0f8aa7c11ba90fcb98a4033a41",
+      "created_at": "2026-03-18T20:47:00.493115Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "WARMDOWN_ITERS": "256"
+      },
+      "env_overrides_hash": "2961581cde2ab585131ada895e5eaf928751cc1427965f97b32f078f3e5ca5dd",
+      "mutation_hash": "00978c3a9ca37a2bbf4b92657a3385fc307a27bc8bcb0818449dc34ae1a9e5da",
+      "mutation_operator": "warmdown_sweep",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "6d9f085947dc746a4017a07cce27846cad72f0e5866135625d01b3c26b11216c": {
+      "candidate_id": "cod_training_recipe_20260319_013741_9834",
+      "config_hash": "6d9f085947dc746a4017a07cce27846cad72f0e5866135625d01b3c26b11216c",
+      "created_at": "2026-03-19T01:37:41.319539Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "c1192f166688c8317dffd93b2e38e8a93891a14496daa2822d4016869787adeb",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "7336c5c76f6f9f5fb17cf64306f5bee503264c673addfaf738d0a96b4e3e1abc",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "97ff0b95c353c33df9fa7ff5476f5689c92884723359b7b950bb4b4adf901850": {
+      "candidate_id": "mlx_smoke_candidate",
+      "config_hash": "97ff0b95c353c33df9fa7ff5476f5689c92884723359b7b950bb4b4adf901850",
+      "created_at": "2026-03-18T19:57:39.182664Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "ef58fbaa863a52db849656fd2434f57c7acf1b2a9fb629ad0330c08ae6ce8983",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "46bd4af0f9ec3e666c5b1ec0ab4ca991f1a7249cbb48faefea0ff37986f80ac3",
+      "mutation_operator": null,
+      "primary_family": null,
+      "template_id": null
+    },
+    "a978bc15d2638d580d6d0f7ab3fb55f8590dfe2194a50173d3e9314a567d14cb": {
+      "candidate_id": "mut_systems_float32_test",
+      "config_hash": "a978bc15d2638d580d6d0f7ab3fb55f8590dfe2194a50173d3e9314a567d14cb",
+      "created_at": "2026-03-18T21:01:50.867007Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "08ca0cb0f11401f9701ce7d725930a5b04a695578914266a94b6e8ccfb27f718",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "8070efbc1aff5bf9f8e2a36a3ad388deec9e0746d626286833c955ad0b6f86a0",
+      "mutation_operator": "mlx_compute_float32_patch",
+      "primary_family": "systems",
+      "template_id": null
+    },
+    "b5171426565578a4c59a237e07fd864695434fbf39a40840854aa28d755fa698": {
+      "candidate_id": "port_training_recipe_20260319_014455_4479",
+      "config_hash": "b5171426565578a4c59a237e07fd864695434fbf39a40840854aa28d755fa698",
+      "created_at": "2026-03-19T01:44:55.487049Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.04",
+        "SCALAR_LR": "0.02",
+        "WARMDOWN_ITERS": "512",
+        "WARMUP_STEPS": "128"
+      },
+      "env_overrides_hash": "5b1b2efa568572b3fa802c178c8b78679c52800f1e71f70bc886c96daf297f18",
+      "mutation_hash": "26975e8d27d851c1e2fc29044a04c3a6ce9b5c55aeeae79eaa848b6fd9f0d7c9",
+      "mutation_operator": "recipe_long_warmup_low_scalar",
+      "primary_family": "training_recipe",
+      "template_id": "recipe_long_warmup_low_scalar"
+    },
+    "bc9f5be2c89164819ccf6a3409fd738860b3762140c4d1f2e8e124ca5d5c1def": {
+      "candidate_id": "cod_training_recipe_20260319_010431_7532",
+      "config_hash": "bc9f5be2c89164819ccf6a3409fd738860b3762140c4d1f2e8e124ca5d5c1def",
+      "created_at": "2026-03-19T01:04:31.493323Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "b7b38f94963edd632beb7bcc41d3b653f3d40abe5185d029dae53455d24ce6da",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "94ddc820ba66d4fb030a524e03e3dc34296fd83a7e83c361b65cf3f41e709429",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "c7430cad9d0d2e6a998dca473b69a74fd627e921a7238d99cc04a9e75afaa89c": {
+      "candidate_id": "cod_training_recipe_20260318_222108_4091",
+      "config_hash": "c7430cad9d0d2e6a998dca473b69a74fd627e921a7238d99cc04a9e75afaa89c",
+      "created_at": "2026-03-18T22:21:08.512672Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "8e6d5b711333c201b1621b4c7a328a6b7ca94b786f2deb2d297d37694d556703",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "5160b856a306b25b320205e4d71d315ba1ca5505d2b009316f4411a4c76e100a",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "d13211b071388ca2c8b7216df74fd4979986333e1bff78f0bc976a6adaf9529a": {
+      "candidate_id": "port_training_recipe_20260318_204603_6994",
+      "config_hash": "d13211b071388ca2c8b7216df74fd4979986333e1bff78f0bc976a6adaf9529a",
+      "created_at": "2026-03-18T20:46:03.582170Z",
+      "entrypoint_filename": "train_gpt.py",
+      "entrypoint_hash": "e77cf46e4a37cdb6ae8de4f82ac4f139674e5e60f16e0533aa6beecefacf3421",
+      "env_overrides": {
+        "TIED_EMBED_LR": "0.1"
+      },
+      "env_overrides_hash": "8a1184b3ff123aa485f6cb69984dc647f92957c341d9943feebc4c80bed9081e",
+      "mutation_hash": "f71cde7f887a56db9679bd740bf6c49eb41fb1d5a96b7b7e44ad4a7396e763c8",
+      "mutation_operator": "embed_lr_sweep",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "e495482e9295e04b943d758aac7ab9942216546c7e21d3dbbbd06d77182ad671": {
+      "candidate_id": "port_compression_20260318_210204_9293",
+      "config_hash": "e495482e9295e04b943d758aac7ab9942216546c7e21d3dbbbd06d77182ad671",
+      "created_at": "2026-03-18T21:02:04.835372Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "LOGIT_SOFTCAP": "20.0"
+      },
+      "env_overrides_hash": "f88a496f433c8ff70eb367be5ef9bc58ff70c9665405295daeb7c2a30715ead4",
+      "mutation_hash": "2f1cd841d4665fafb59e1b028b3f899d36524eb4e7b7dc45af14162cbb84393d",
+      "mutation_operator": "logit_softcap_sweep",
+      "primary_family": "compression",
+      "template_id": null
+    }
+  },
+  "by_mutation_hash": {
+    "00978c3a9ca37a2bbf4b92657a3385fc307a27bc8bcb0818449dc34ae1a9e5da": {
+      "candidate_id": "port_training_recipe_20260318_204700_9293",
+      "config_hash": "698739272ba4d9f50902c66e0f89c9b6791afd0f8aa7c11ba90fcb98a4033a41",
+      "created_at": "2026-03-18T20:47:00.493115Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "WARMDOWN_ITERS": "256"
+      },
+      "env_overrides_hash": "2961581cde2ab585131ada895e5eaf928751cc1427965f97b32f078f3e5ca5dd",
+      "mutation_hash": "00978c3a9ca37a2bbf4b92657a3385fc307a27bc8bcb0818449dc34ae1a9e5da",
+      "mutation_operator": "warmdown_sweep",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "083b9f1bd977e1d3a2cdec03358402818ed614afeb29a4335c57ef68121224c5": {
+      "candidate_id": "cod_training_recipe_20260318_215512_4091",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:55:12.093407Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "083b9f1bd977e1d3a2cdec03358402818ed614afeb29a4335c57ef68121224c5",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "17a9813b8665603e51bbb929f8e6bf1a7e2f802c6204713573e97f4b55871283": {
+      "candidate_id": "cod_training_recipe_20260318_233727_6121",
+      "config_hash": "02e88d506ccf132085e3aacaf4202d48bc78418ebc8bbdeaa5b1259acdd2afc4",
+      "created_at": "2026-03-18T23:37:27.325907Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "6fb6886a5f4ccd1a376925bc0c9e22fdc811425731e5ad3b35c22a6021653dd1",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "17a9813b8665603e51bbb929f8e6bf1a7e2f802c6204713573e97f4b55871283",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "26975e8d27d851c1e2fc29044a04c3a6ce9b5c55aeeae79eaa848b6fd9f0d7c9": {
+      "candidate_id": "port_training_recipe_20260319_014455_4479",
+      "config_hash": "b5171426565578a4c59a237e07fd864695434fbf39a40840854aa28d755fa698",
+      "created_at": "2026-03-19T01:44:55.487049Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.04",
+        "SCALAR_LR": "0.02",
+        "WARMDOWN_ITERS": "512",
+        "WARMUP_STEPS": "128"
+      },
+      "env_overrides_hash": "5b1b2efa568572b3fa802c178c8b78679c52800f1e71f70bc886c96daf297f18",
+      "mutation_hash": "26975e8d27d851c1e2fc29044a04c3a6ce9b5c55aeeae79eaa848b6fd9f0d7c9",
+      "mutation_operator": "recipe_long_warmup_low_scalar",
+      "primary_family": "training_recipe",
+      "template_id": "recipe_long_warmup_low_scalar"
+    },
+    "2f1cd841d4665fafb59e1b028b3f899d36524eb4e7b7dc45af14162cbb84393d": {
+      "candidate_id": "port_compression_20260318_210204_9293",
+      "config_hash": "e495482e9295e04b943d758aac7ab9942216546c7e21d3dbbbd06d77182ad671",
+      "created_at": "2026-03-18T21:02:04.835372Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "LOGIT_SOFTCAP": "20.0"
+      },
+      "env_overrides_hash": "f88a496f433c8ff70eb367be5ef9bc58ff70c9665405295daeb7c2a30715ead4",
+      "mutation_hash": "2f1cd841d4665fafb59e1b028b3f899d36524eb4e7b7dc45af14162cbb84393d",
+      "mutation_operator": "logit_softcap_sweep",
+      "primary_family": "compression",
+      "template_id": null
+    },
+    "35cebf0da85e6e58a7fa823808359a5f7b9d1670a7af6a54707586163b3b5075": {
+      "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_212445",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:24:45.994971Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "35cebf0da85e6e58a7fa823808359a5f7b9d1670a7af6a54707586163b3b5075",
+      "mutation_operator": "replicate",
+      "primary_family": "training_recipe",
+      "template_id": "recipe_fast_decay"
+    },
+    "36416688f7b32ad56b5527b7123fb124ae1fb350fb2668b0720dc1859fd6a9bf": {
+      "candidate_id": "cod_training_recipe_20260318_215518_4091",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:55:18.159053Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "36416688f7b32ad56b5527b7123fb124ae1fb350fb2668b0720dc1859fd6a9bf",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "46bd4af0f9ec3e666c5b1ec0ab4ca991f1a7249cbb48faefea0ff37986f80ac3": {
+      "candidate_id": "mlx_smoke_candidate",
+      "config_hash": "97ff0b95c353c33df9fa7ff5476f5689c92884723359b7b950bb4b4adf901850",
+      "created_at": "2026-03-18T19:57:39.182664Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "ef58fbaa863a52db849656fd2434f57c7acf1b2a9fb629ad0330c08ae6ce8983",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "46bd4af0f9ec3e666c5b1ec0ab4ca991f1a7249cbb48faefea0ff37986f80ac3",
+      "mutation_operator": null,
+      "primary_family": null,
+      "template_id": null
+    },
+    "5160b856a306b25b320205e4d71d315ba1ca5505d2b009316f4411a4c76e100a": {
+      "candidate_id": "cod_training_recipe_20260318_222108_4091",
+      "config_hash": "c7430cad9d0d2e6a998dca473b69a74fd627e921a7238d99cc04a9e75afaa89c",
+      "created_at": "2026-03-18T22:21:08.512672Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "8e6d5b711333c201b1621b4c7a328a6b7ca94b786f2deb2d297d37694d556703",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "5160b856a306b25b320205e4d71d315ba1ca5505d2b009316f4411a4c76e100a",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "59cf14ef8187c20297d9543694b68e6d10ea19720a1e26dc4633c99817057442": {
+      "candidate_id": "first_candidate",
+      "config_hash": "3d4faebb2f2acdfd09c9043f8eabdaa49458fe190de47c163fdf186551016268",
+      "created_at": "2026-03-18T19:24:59.639474Z",
+      "entrypoint_filename": "train_gpt.py",
+      "entrypoint_hash": "e77cf46e4a37cdb6ae8de4f82ac4f139674e5e60f16e0533aa6beecefacf3421",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "59cf14ef8187c20297d9543694b68e6d10ea19720a1e26dc4633c99817057442",
+      "mutation_operator": null,
+      "primary_family": null,
+      "template_id": null
+    },
+    "70e6bef7995da627e1956b425b300def481e820c56cfe0cd1ddce168fec09005": {
+      "candidate_id": "port_architecture_20260319_014604_8294",
+      "config_hash": "5754ba3ab16c86798a1b036b9d94b04fc4860b8d5d8d8e17b94ebed9924f6ba6",
+      "created_at": "2026-03-19T01:46:04.541016Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MLP_MULT": "2",
+        "MODEL_DIM": "448",
+        "NUM_HEADS": "7",
+        "NUM_KV_HEADS": "1",
+        "NUM_LAYERS": "8"
+      },
+      "env_overrides_hash": "06758277ec0564b8a6c5c43f01d46ab39cab42a315d44681175f4ea554f1c640",
+      "mutation_hash": "70e6bef7995da627e1956b425b300def481e820c56cfe0cd1ddce168fec09005",
+      "mutation_operator": "arch_compact_8x448",
+      "primary_family": "architecture",
+      "template_id": "arch_compact_8x448"
+    },
+    "7336c5c76f6f9f5fb17cf64306f5bee503264c673addfaf738d0a96b4e3e1abc": {
+      "candidate_id": "cod_training_recipe_20260319_013741_9834",
+      "config_hash": "6d9f085947dc746a4017a07cce27846cad72f0e5866135625d01b3c26b11216c",
+      "created_at": "2026-03-19T01:37:41.319539Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "c1192f166688c8317dffd93b2e38e8a93891a14496daa2822d4016869787adeb",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "7336c5c76f6f9f5fb17cf64306f5bee503264c673addfaf738d0a96b4e3e1abc",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "7e488ba22551f0f7c0fdb0034b8e9f319b39ca6d62a83bc0a67d0b82f4a93f8b": {
+      "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+      "config_hash": "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687",
+      "created_at": "2026-03-19T01:44:00.743955Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "7e488ba22551f0f7c0fdb0034b8e9f319b39ca6d62a83bc0a67d0b82f4a93f8b",
+      "mutation_operator": "replicate",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "8070efbc1aff5bf9f8e2a36a3ad388deec9e0746d626286833c955ad0b6f86a0": {
+      "candidate_id": "mut_systems_float32_test",
+      "config_hash": "a978bc15d2638d580d6d0f7ab3fb55f8590dfe2194a50173d3e9314a567d14cb",
+      "created_at": "2026-03-18T21:01:50.867007Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "08ca0cb0f11401f9701ce7d725930a5b04a695578914266a94b6e8ccfb27f718",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "8070efbc1aff5bf9f8e2a36a3ad388deec9e0746d626286833c955ad0b6f86a0",
+      "mutation_operator": "mlx_compute_float32_patch",
+      "primary_family": "systems",
+      "template_id": null
+    },
+    "862fbd522ce0fd03d5ea98808e9a08539211ba501919b6fb1b79900f10668523": {
+      "candidate_id": "rec_port_compression_20260318_210204_9293__port_training_recipe_20260318_210940_4091_20260318_212538",
+      "config_hash": "0eb14e2cf7fed8a5bf26721651d22e34ccc5fca588564a2a2c5f81686bf8847e",
+      "created_at": "2026-03-18T21:25:38.215155Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "LOGIT_SOFTCAP": "20.0",
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "2d95fd4e4b2c2c36fb13eb231948a7c4facb1c20deb285a3290130157526e725",
+      "mutation_hash": "862fbd522ce0fd03d5ea98808e9a08539211ba501919b6fb1b79900f10668523",
+      "mutation_operator": "recombine",
+      "primary_family": "compression",
+      "template_id": null
+    },
+    "94ddc820ba66d4fb030a524e03e3dc34296fd83a7e83c361b65cf3f41e709429": {
+      "candidate_id": "cod_training_recipe_20260319_010431_7532",
+      "config_hash": "bc9f5be2c89164819ccf6a3409fd738860b3762140c4d1f2e8e124ca5d5c1def",
+      "created_at": "2026-03-19T01:04:31.493323Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "b7b38f94963edd632beb7bcc41d3b653f3d40abe5185d029dae53455d24ce6da",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "94ddc820ba66d4fb030a524e03e3dc34296fd83a7e83c361b65cf3f41e709429",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "9849f1dad135edfb4acfa2854e88928f1cbcf521d4f8d4d7eb337ffbd1f5ead9": {
+      "candidate_id": "cod_training_recipe_20260318_215548_4091",
+      "config_hash": "0ad80de1a0e47ea8cbf899854a23b5821551c446163aafd602269b3e2bfbd023",
+      "created_at": "2026-03-18T21:55:48.445694Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "a5daa2f862ced2ca057c4057abfad5303977de05c5de3ef530664e299625bc1a",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "9849f1dad135edfb4acfa2854e88928f1cbcf521d4f8d4d7eb337ffbd1f5ead9",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "9994f45376ff9cc612cadadaff94c2c559f1f1f248fa8504d741f171880777e5": {
+      "candidate_id": "cod_training_recipe_20260319_012138_9154",
+      "config_hash": "5e45e403801c3b6995bbb9690303ef0298701bdae9169d90c67526191ff69ca1",
+      "created_at": "2026-03-19T01:21:38.757882Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "949df1c9d527e6349143a9dd6551f0f85507dadaab83c4dcae0619894034ac02",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "9994f45376ff9cc612cadadaff94c2c559f1f1f248fa8504d741f171880777e5",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "bfd3dac63603ac93551faa5eeac4217ca3b396ff748e7b99ac1fdd3c6c7c7c0c": {
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "config_hash": "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687",
+      "created_at": "2026-03-18T23:50:33.047092Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "bfd3dac63603ac93551faa5eeac4217ca3b396ff748e7b99ac1fdd3c6c7c7c0c",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "c2c3165d00929643673d9c93f467b44a71201db6228fd2621aba3b48ff9417ce": {
+      "candidate_id": "port_training_recipe_20260318_210940_4091",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:09:40.895140Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "c2c3165d00929643673d9c93f467b44a71201db6228fd2621aba3b48ff9417ce",
+      "mutation_operator": "recipe_fast_decay",
+      "primary_family": "training_recipe",
+      "template_id": "recipe_fast_decay"
+    },
+    "dbf9bfe33eda615f53e8c3353c66ae6231261e1ffcb9d3e9a4b28bd8a49477cf": {
+      "candidate_id": "mlx_smoke_candidate_v2",
+      "config_hash": "1fc0c7f6f630261ae0dc643a00e65a913bb06193234c83884e5bb04a12f01598",
+      "created_at": "2026-03-18T20:00:26.112638Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "dbf9bfe33eda615f53e8c3353c66ae6231261e1ffcb9d3e9a4b28bd8a49477cf",
+      "mutation_operator": null,
+      "primary_family": null,
+      "template_id": null
+    },
+    "e70823719290156d05884bad9a4ed9c67cc86a62defffa582d824b4d817cf106": {
+      "candidate_id": "rec_validate_compression_recipe_warmdown",
+      "config_hash": "455370c77acd914850a28d5a55cf93c2ad19f5817d6c64db2960dcd8f5d5ffd3",
+      "created_at": "2026-03-18T21:27:05.369692Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "LOGIT_SOFTCAP": "20.0",
+        "WARMDOWN_ITERS": "256"
+      },
+      "env_overrides_hash": "29f67fb8d62f2820a97745f053c88fadb1b587446e2530cac1d90a60187e09b9",
+      "mutation_hash": "e70823719290156d05884bad9a4ed9c67cc86a62defffa582d824b4d817cf106",
+      "mutation_operator": "recombine",
+      "primary_family": "compression",
+      "template_id": null
+    },
+    "f3884ad3c7a69104633fe2d104c960627963ba52c31c9d0a079a2ee4868e1902": {
+      "candidate_id": "cod_training_recipe_20260319_012955_9834",
+      "config_hash": "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687",
+      "created_at": "2026-03-19T01:29:55.942236Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "f3884ad3c7a69104633fe2d104c960627963ba52c31c9d0a079a2ee4868e1902",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "f71cde7f887a56db9679bd740bf6c49eb41fb1d5a96b7b7e44ad4a7396e763c8": {
+      "candidate_id": "port_training_recipe_20260318_204603_6994",
+      "config_hash": "d13211b071388ca2c8b7216df74fd4979986333e1bff78f0bc976a6adaf9529a",
+      "created_at": "2026-03-18T20:46:03.582170Z",
+      "entrypoint_filename": "train_gpt.py",
+      "entrypoint_hash": "e77cf46e4a37cdb6ae8de4f82ac4f139674e5e60f16e0533aa6beecefacf3421",
+      "env_overrides": {
+        "TIED_EMBED_LR": "0.1"
+      },
+      "env_overrides_hash": "8a1184b3ff123aa485f6cb69984dc647f92957c341d9943feebc4c80bed9081e",
+      "mutation_hash": "f71cde7f887a56db9679bd740bf6c49eb41fb1d5a96b7b7e44ad4a7396e763c8",
+      "mutation_operator": "embed_lr_sweep",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    "fa59a24596fdb00d7243428e6e71634eebf83216c0df43e29a6ef38c930f5cd9": {
+      "candidate_id": "cod_training_recipe_20260318_222102_4091",
+      "config_hash": "0ad80de1a0e47ea8cbf899854a23b5821551c446163aafd602269b3e2bfbd023",
+      "created_at": "2026-03-18T22:21:02.451921Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "a5daa2f862ced2ca057c4057abfad5303977de05c5de3ef530664e299625bc1a",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "fa59a24596fdb00d7243428e6e71634eebf83216c0df43e29a6ef38c930f5cd9",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    }
+  },
+  "last_updated": "2026-03-19T01:46:04.544902Z",
+  "records": [
+    {
+      "candidate_id": "cod_training_recipe_20260318_215512_4091",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:55:12.093407Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "083b9f1bd977e1d3a2cdec03358402818ed614afeb29a4335c57ef68121224c5",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260318_215518_4091",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:55:18.159053Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "36416688f7b32ad56b5527b7123fb124ae1fb350fb2668b0720dc1859fd6a9bf",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260318_215548_4091",
+      "config_hash": "0ad80de1a0e47ea8cbf899854a23b5821551c446163aafd602269b3e2bfbd023",
+      "created_at": "2026-03-18T21:55:48.445694Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "a5daa2f862ced2ca057c4057abfad5303977de05c5de3ef530664e299625bc1a",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "9849f1dad135edfb4acfa2854e88928f1cbcf521d4f8d4d7eb337ffbd1f5ead9",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260318_222102_4091",
+      "config_hash": "0ad80de1a0e47ea8cbf899854a23b5821551c446163aafd602269b3e2bfbd023",
+      "created_at": "2026-03-18T22:21:02.451921Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "a5daa2f862ced2ca057c4057abfad5303977de05c5de3ef530664e299625bc1a",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "fa59a24596fdb00d7243428e6e71634eebf83216c0df43e29a6ef38c930f5cd9",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260318_222108_4091",
+      "config_hash": "c7430cad9d0d2e6a998dca473b69a74fd627e921a7238d99cc04a9e75afaa89c",
+      "created_at": "2026-03-18T22:21:08.512672Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "8e6d5b711333c201b1621b4c7a328a6b7ca94b786f2deb2d297d37694d556703",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "5160b856a306b25b320205e4d71d315ba1ca5505d2b009316f4411a4c76e100a",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260318_233727_6121",
+      "config_hash": "02e88d506ccf132085e3aacaf4202d48bc78418ebc8bbdeaa5b1259acdd2afc4",
+      "created_at": "2026-03-18T23:37:27.325907Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "6fb6886a5f4ccd1a376925bc0c9e22fdc811425731e5ad3b35c22a6021653dd1",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "17a9813b8665603e51bbb929f8e6bf1a7e2f802c6204713573e97f4b55871283",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260318_235033_8561",
+      "config_hash": "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687",
+      "created_at": "2026-03-18T23:50:33.047092Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "bfd3dac63603ac93551faa5eeac4217ca3b396ff748e7b99ac1fdd3c6c7c7c0c",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260319_010431_7532",
+      "config_hash": "bc9f5be2c89164819ccf6a3409fd738860b3762140c4d1f2e8e124ca5d5c1def",
+      "created_at": "2026-03-19T01:04:31.493323Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "b7b38f94963edd632beb7bcc41d3b653f3d40abe5185d029dae53455d24ce6da",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "94ddc820ba66d4fb030a524e03e3dc34296fd83a7e83c361b65cf3f41e709429",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260319_012138_9154",
+      "config_hash": "5e45e403801c3b6995bbb9690303ef0298701bdae9169d90c67526191ff69ca1",
+      "created_at": "2026-03-19T01:21:38.757882Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "949df1c9d527e6349143a9dd6551f0f85507dadaab83c4dcae0619894034ac02",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "9994f45376ff9cc612cadadaff94c2c559f1f1f248fa8504d741f171880777e5",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260319_012955_9834",
+      "config_hash": "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687",
+      "created_at": "2026-03-19T01:29:55.942236Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "f3884ad3c7a69104633fe2d104c960627963ba52c31c9d0a079a2ee4868e1902",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "cod_training_recipe_20260319_013741_9834",
+      "config_hash": "6d9f085947dc746a4017a07cce27846cad72f0e5866135625d01b3c26b11216c",
+      "created_at": "2026-03-19T01:37:41.319539Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "c1192f166688c8317dffd93b2e38e8a93891a14496daa2822d4016869787adeb",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "7336c5c76f6f9f5fb17cf64306f5bee503264c673addfaf738d0a96b4e3e1abc",
+      "mutation_operator": "codex_proposal",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "first_candidate",
+      "config_hash": "3d4faebb2f2acdfd09c9043f8eabdaa49458fe190de47c163fdf186551016268",
+      "created_at": "2026-03-18T19:24:59.639474Z",
+      "entrypoint_filename": "train_gpt.py",
+      "entrypoint_hash": "e77cf46e4a37cdb6ae8de4f82ac4f139674e5e60f16e0533aa6beecefacf3421",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "59cf14ef8187c20297d9543694b68e6d10ea19720a1e26dc4633c99817057442",
+      "mutation_operator": null,
+      "primary_family": null,
+      "template_id": null
+    },
+    {
+      "candidate_id": "mlx_smoke_candidate",
+      "config_hash": "97ff0b95c353c33df9fa7ff5476f5689c92884723359b7b950bb4b4adf901850",
+      "created_at": "2026-03-18T19:57:39.182664Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "ef58fbaa863a52db849656fd2434f57c7acf1b2a9fb629ad0330c08ae6ce8983",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "46bd4af0f9ec3e666c5b1ec0ab4ca991f1a7249cbb48faefea0ff37986f80ac3",
+      "mutation_operator": null,
+      "primary_family": null,
+      "template_id": null
+    },
+    {
+      "candidate_id": "mlx_smoke_candidate_v2",
+      "config_hash": "1fc0c7f6f630261ae0dc643a00e65a913bb06193234c83884e5bb04a12f01598",
+      "created_at": "2026-03-18T20:00:26.112638Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "dbf9bfe33eda615f53e8c3353c66ae6231261e1ffcb9d3e9a4b28bd8a49477cf",
+      "mutation_operator": null,
+      "primary_family": null,
+      "template_id": null
+    },
+    {
+      "candidate_id": "mut_systems_float32_test",
+      "config_hash": "a978bc15d2638d580d6d0f7ab3fb55f8590dfe2194a50173d3e9314a567d14cb",
+      "created_at": "2026-03-18T21:01:50.867007Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "08ca0cb0f11401f9701ce7d725930a5b04a695578914266a94b6e8ccfb27f718",
+      "env_overrides": {},
+      "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "mutation_hash": "8070efbc1aff5bf9f8e2a36a3ad388deec9e0746d626286833c955ad0b6f86a0",
+      "mutation_operator": "mlx_compute_float32_patch",
+      "primary_family": "systems",
+      "template_id": null
+    },
+    {
+      "candidate_id": "port_architecture_20260319_014604_8294",
+      "config_hash": "5754ba3ab16c86798a1b036b9d94b04fc4860b8d5d8d8e17b94ebed9924f6ba6",
+      "created_at": "2026-03-19T01:46:04.541016Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MLP_MULT": "2",
+        "MODEL_DIM": "448",
+        "NUM_HEADS": "7",
+        "NUM_KV_HEADS": "1",
+        "NUM_LAYERS": "8"
+      },
+      "env_overrides_hash": "06758277ec0564b8a6c5c43f01d46ab39cab42a315d44681175f4ea554f1c640",
+      "mutation_hash": "70e6bef7995da627e1956b425b300def481e820c56cfe0cd1ddce168fec09005",
+      "mutation_operator": "arch_compact_8x448",
+      "primary_family": "architecture",
+      "template_id": "arch_compact_8x448"
+    },
+    {
+      "candidate_id": "port_compression_20260318_210204_9293",
+      "config_hash": "e495482e9295e04b943d758aac7ab9942216546c7e21d3dbbbd06d77182ad671",
+      "created_at": "2026-03-18T21:02:04.835372Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "LOGIT_SOFTCAP": "20.0"
+      },
+      "env_overrides_hash": "f88a496f433c8ff70eb367be5ef9bc58ff70c9665405295daeb7c2a30715ead4",
+      "mutation_hash": "2f1cd841d4665fafb59e1b028b3f899d36524eb4e7b7dc45af14162cbb84393d",
+      "mutation_operator": "logit_softcap_sweep",
+      "primary_family": "compression",
+      "template_id": null
+    },
+    {
+      "candidate_id": "port_training_recipe_20260318_204603_6994",
+      "config_hash": "d13211b071388ca2c8b7216df74fd4979986333e1bff78f0bc976a6adaf9529a",
+      "created_at": "2026-03-18T20:46:03.582170Z",
+      "entrypoint_filename": "train_gpt.py",
+      "entrypoint_hash": "e77cf46e4a37cdb6ae8de4f82ac4f139674e5e60f16e0533aa6beecefacf3421",
+      "env_overrides": {
+        "TIED_EMBED_LR": "0.1"
+      },
+      "env_overrides_hash": "8a1184b3ff123aa485f6cb69984dc647f92957c341d9943feebc4c80bed9081e",
+      "mutation_hash": "f71cde7f887a56db9679bd740bf6c49eb41fb1d5a96b7b7e44ad4a7396e763c8",
+      "mutation_operator": "embed_lr_sweep",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "port_training_recipe_20260318_204700_9293",
+      "config_hash": "698739272ba4d9f50902c66e0f89c9b6791afd0f8aa7c11ba90fcb98a4033a41",
+      "created_at": "2026-03-18T20:47:00.493115Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "WARMDOWN_ITERS": "256"
+      },
+      "env_overrides_hash": "2961581cde2ab585131ada895e5eaf928751cc1427965f97b32f078f3e5ca5dd",
+      "mutation_hash": "00978c3a9ca37a2bbf4b92657a3385fc307a27bc8bcb0818449dc34ae1a9e5da",
+      "mutation_operator": "warmdown_sweep",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "port_training_recipe_20260318_210940_4091",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:09:40.895140Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "c2c3165d00929643673d9c93f467b44a71201db6228fd2621aba3b48ff9417ce",
+      "mutation_operator": "recipe_fast_decay",
+      "primary_family": "training_recipe",
+      "template_id": "recipe_fast_decay"
+    },
+    {
+      "candidate_id": "port_training_recipe_20260319_014455_4479",
+      "config_hash": "b5171426565578a4c59a237e07fd864695434fbf39a40840854aa28d755fa698",
+      "created_at": "2026-03-19T01:44:55.487049Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.04",
+        "SCALAR_LR": "0.02",
+        "WARMDOWN_ITERS": "512",
+        "WARMUP_STEPS": "128"
+      },
+      "env_overrides_hash": "5b1b2efa568572b3fa802c178c8b78679c52800f1e71f70bc886c96daf297f18",
+      "mutation_hash": "26975e8d27d851c1e2fc29044a04c3a6ce9b5c55aeeae79eaa848b6fd9f0d7c9",
+      "mutation_operator": "recipe_long_warmup_low_scalar",
+      "primary_family": "training_recipe",
+      "template_id": "recipe_long_warmup_low_scalar"
+    },
+    {
+      "candidate_id": "rec_port_compression_20260318_210204_9293__port_training_recipe_20260318_210940_4091_20260318_212538",
+      "config_hash": "0eb14e2cf7fed8a5bf26721651d22e34ccc5fca588564a2a2c5f81686bf8847e",
+      "created_at": "2026-03-18T21:25:38.215155Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "LOGIT_SOFTCAP": "20.0",
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "2d95fd4e4b2c2c36fb13eb231948a7c4facb1c20deb285a3290130157526e725",
+      "mutation_hash": "862fbd522ce0fd03d5ea98808e9a08539211ba501919b6fb1b79900f10668523",
+      "mutation_operator": "recombine",
+      "primary_family": "compression",
+      "template_id": null
+    },
+    {
+      "candidate_id": "rec_validate_compression_recipe_warmdown",
+      "config_hash": "455370c77acd914850a28d5a55cf93c2ad19f5817d6c64db2960dcd8f5d5ffd3",
+      "created_at": "2026-03-18T21:27:05.369692Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "LOGIT_SOFTCAP": "20.0",
+        "WARMDOWN_ITERS": "256"
+      },
+      "env_overrides_hash": "29f67fb8d62f2820a97745f053c88fadb1b587446e2530cac1d90a60187e09b9",
+      "mutation_hash": "e70823719290156d05884bad9a4ed9c67cc86a62defffa582d824b4d817cf106",
+      "mutation_operator": "recombine",
+      "primary_family": "compression",
+      "template_id": null
+    },
+    {
+      "candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+      "config_hash": "3c87c095c63f105c60fde822aeab305825c89962b1356e7a2847ce6bd449c687",
+      "created_at": "2026-03-19T01:44:00.743955Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "7e488ba22551f0f7c0fdb0034b8e9f319b39ca6d62a83bc0a67d0b82f4a93f8b",
+      "mutation_operator": "replicate",
+      "primary_family": "training_recipe",
+      "template_id": null
+    },
+    {
+      "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_212445",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:24:45.994971Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "35cebf0da85e6e58a7fa823808359a5f7b9d1670a7af6a54707586163b3b5075",
+      "mutation_operator": "replicate",
+      "primary_family": "training_recipe",
+      "template_id": "recipe_fast_decay"
+    },
+    {
+      "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_212556_4091",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:25:56.484453Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "35cebf0da85e6e58a7fa823808359a5f7b9d1670a7af6a54707586163b3b5075",
+      "mutation_operator": "replicate",
+      "primary_family": "training_recipe",
+      "template_id": "recipe_fast_decay"
+    },
+    {
+      "candidate_id": "rep_port_training_recipe_20260318_210940_4091_20260318_214046_4091",
+      "config_hash": "5aa0acaf8374ff8b3e85241889b3e4b4ae827a6cb2319658ebc670aeb5f0abe0",
+      "created_at": "2026-03-18T21:40:46.149143Z",
+      "entrypoint_filename": "train_gpt_mlx.py",
+      "entrypoint_hash": "d8d8501c00c14ddbb3e79199ef308e8496ea1ac38bf56b3729852a5679e000aa",
+      "env_overrides": {
+        "MATRIX_LR": "0.05",
+        "SCALAR_LR": "0.04",
+        "WARMDOWN_ITERS": "256",
+        "WARMUP_STEPS": "64"
+      },
+      "env_overrides_hash": "966ac245f1b58e5cff2a4744f8d0ea9af1c68b355596253006bc0c1f323d1410",
+      "mutation_hash": "35cebf0da85e6e58a7fa823808359a5f7b9d1670a7af6a54707586163b3b5075",
+      "mutation_operator": "replicate",
+      "primary_family": "training_recipe",
+      "template_id": "recipe_fast_decay"
+    }
+  ],
+  "version": 1
+}

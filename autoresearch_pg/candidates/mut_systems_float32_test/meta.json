@@ -1,0 +1,27 @@
+{
+  "candidate_id": "mut_systems_float32_test",
+  "config_hash": "a978bc15d2638d580d6d0f7ab3fb55f8590dfe2194a50173d3e9314a567d14cb",
+  "created_at": "2026-03-18T21:01:50.867007Z",
+  "entrypoint_filename": "train_gpt_mlx.py",
+  "entrypoint_hash": "08ca0cb0f11401f9701ce7d725930a5b04a695578914266a94b6e8ccfb27f718",
+  "env_overrides": {},
+  "env_overrides_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "mutation_hash": "8070efbc1aff5bf9f8e2a36a3ad388deec9e0746d626286833c955ad0b6f86a0",
+  "mutation_operator": "mlx_compute_float32_patch",
+  "mutation_payload": {
+    "env_overrides": {},
+    "operator_type": "search_replace_patch",
+    "replacements": [
+      {
+        "find": "COMPUTE_DTYPE = mx.bfloat16",
+        "replace": "COMPUTE_DTYPE = mx.float32"
+      }
+    ]
+  },
+  "parent_candidate_id": null,
+  "primary_family": "systems",
+  "promotion_history": [],
+  "secondary_tags": [],
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/train_gpt_mlx.py",
+  "status": "planned"
+}

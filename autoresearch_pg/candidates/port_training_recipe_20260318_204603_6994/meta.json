@@ -1,0 +1,20 @@
+{
+  "candidate_id": "port_training_recipe_20260318_204603_6994",
+  "created_at": "2026-03-18T20:46:03.582170Z",
+  "entrypoint_filename": "train_gpt.py",
+  "env_overrides": {
+    "TIED_EMBED_LR": 0.1
+  },
+  "mutation_operator": "embed_lr_sweep",
+  "mutation_payload": {
+    "env_overrides": {
+      "TIED_EMBED_LR": 0.1
+    }
+  },
+  "parent_candidate_id": "first_candidate",
+  "primary_family": "training_recipe",
+  "promotion_history": [],
+  "secondary_tags": [],
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/first_candidate/train_gpt.py",
+  "status": "planned"
+}

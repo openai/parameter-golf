@@ -1,0 +1,65 @@
+{
+  "families": {
+    "training_recipe": {
+      "enabled": true,
+      "description": "Schedules, optimizer-group learning rates, and other fast-turn recipe knobs.",
+      "base_weight": 0.35,
+      "parent_policy": "family_best_then_global",
+      "operator_ids": [
+        "warmup_sweep",
+        "warmdown_sweep",
+        "matrix_lr_sweep",
+        "scalar_lr_sweep",
+        "embed_lr_sweep",
+        "recipe_fast_decay_bundle"
+      ]
+    },
+    "architecture": {
+      "enabled": true,
+      "description": "Depth, width, head layout, and MLP expansion sweeps that preserve the baseline code path.",
+      "base_weight": 0.25,
+      "parent_policy": "family_best_then_global",
+      "operator_ids": [
+        "depth_sweep",
+        "width_head_bundle",
+        "mlp_sweep",
+        "kv_head_sweep",
+        "compact_architecture_bundle"
+      ]
+    },
+    "compression": {
+      "enabled": true,
+      "description": "Near-term proxy family for export-sensitive knobs until dedicated quantization patches land.",
+      "base_weight": 0.2,
+      "parent_policy": "global_best_then_family",
+      "operator_ids": [
+        "logit_softcap_sweep",
+        "qk_gain_sweep",
+        "compression_stability_bundle"
+      ]
+    },
+    "tokenizer": {
+      "enabled": false,
+      "description": "Tokenizer and dataset re-export variants. Planned for later phases.",
+      "base_weight": 0.1,
+      "parent_policy": "global_best_then_family",
+      "operator_ids": []
+    },
+    "eval_time": {
+      "enabled": false,
+      "description": "Evaluation-time-only adaptations and long-context variants. Planned for later phases.",
+      "base_weight": 0.1,
+      "parent_policy": "global_best_then_family",
+      "operator_ids": []
+    },
+    "systems": {
+      "enabled": false,
+      "description": "Throughput and infrastructure tweaks. Planned for later phases.",
+      "base_weight": 0.05,
+      "parent_policy": "global_best_then_family",
+      "operator_ids": [
+        "mlx_compute_float32_patch"
+      ]
+    }
+  }
+}

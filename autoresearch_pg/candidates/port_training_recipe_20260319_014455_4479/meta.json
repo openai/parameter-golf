@@ -1,0 +1,43 @@
+{
+  "candidate_id": "port_training_recipe_20260319_014455_4479",
+  "config_hash": "b5171426565578a4c59a237e07fd864695434fbf39a40840854aa28d755fa698",
+  "created_at": "2026-03-19T01:44:55.487049Z",
+  "entrypoint_filename": "train_gpt_mlx.py",
+  "entrypoint_hash": "13e1af135aa6eaa18a679b8d8b4f85ee2e486f4010a7f3b180d817cd8aec2530",
+  "env_overrides": {
+    "MATRIX_LR": 0.04,
+    "SCALAR_LR": 0.02,
+    "WARMDOWN_ITERS": 512,
+    "WARMUP_STEPS": 128
+  },
+  "env_overrides_hash": "5b1b2efa568572b3fa802c178c8b78679c52800f1e71f70bc886c96daf297f18",
+  "mutation_hash": "26975e8d27d851c1e2fc29044a04c3a6ce9b5c55aeeae79eaa848b6fd9f0d7c9",
+  "mutation_operator": "recipe_long_warmup_low_scalar",
+  "mutation_payload": {
+    "description": "Longer warmup with lower scalar LR to trade early speed for stability.",
+    "env_overrides": {
+      "MATRIX_LR": 0.04,
+      "SCALAR_LR": 0.02,
+      "WARMDOWN_ITERS": 512,
+      "WARMUP_STEPS": 128
+    },
+    "operator_type": "template",
+    "replacements": [],
+    "source_refs": [
+      "challenge_local_prior"
+    ],
+    "template_id": "recipe_long_warmup_low_scalar",
+    "template_type": "env_template"
+  },
+  "parent_candidate_id": "rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249",
+  "primary_family": "training_recipe",
+  "promotion_history": [],
+  "secondary_tags": [
+    "recipe",
+    "stability",
+    "template"
+  ],
+  "source_train_gpt": "/Users/calmdentist/Desktop/parameter-golf/autoresearch_pg/candidates/rep_cod_training_recipe_20260318_235033_8561_20260319_014400_9249/train_gpt_mlx.py",
+  "status": "planned",
+  "template_id": "recipe_long_warmup_low_scalar"
+}
