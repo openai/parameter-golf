@@ -1,6 +1,6 @@
 ---
 name: arjunautoresearch
-description: Beat the OpenAI Parameter Golf leaderboard by pulling all competitor PRs with the GitHub CLI, ranking techniques by expected BPB impact, stacking the best ones, running experiments, and packaging a compliant submission. Use when working on the parameter-golf challenge, trying to improve val_bpb, or submitting a leaderboard record.
+description: Pulls all open PRs from a GitHub repo, ranks techniques by expected impact, composes the best combination, runs iterative experiments, and packages a compliant submission. Use when researching a competitive ML challenge, optimizing a metric across many candidate approaches, or preparing a leaderboard submission.
 metadata:
   author: arjun-krishna1
   version: "1.0"
