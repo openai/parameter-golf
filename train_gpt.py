@@ -61,14 +61,16 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
+    num_layers = int(os.environ.get("NUM_LAYERS", 1))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
+    model_dim = int(os.environ.get("MODEL_DIM", 1024))
+    num_heads = int(os.environ.get("NUM_HEADS", 16))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    num_loops = int(os.environ.get("NUM_LOOPS", 8))
+    lora_rank = int(os.environ.get("LORA_RANK", 8))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -84,7 +86,8 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+    lora_lr = float(os.environ.get("LORA_LR", 0.04))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -559,7 +562,6 @@ class CausalSelfAttention(nn.Module):
         num_heads: int,
         num_kv_heads: int,
         rope_base: float,
-        qk_gain_init: float,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -577,20 +579,28 @@ class CausalSelfAttention(nn.Module):
         self.c_v = CastedLinear(dim, kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
-        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, lora_bank: LoRABank | None = None,
+                loop_idx: int = 0, q_gain: Tensor | None = None) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = self.c_q(x)
+        k = self.c_k(x)
+        v = self.c_v(x)
+        if lora_bank is not None:
+            q = q + lora_bank.get_delta("attn_c_q", loop_idx, x)
+            k = k + lora_bank.get_delta("attn_c_k", loop_idx, x)
+            v = v + lora_bank.get_delta("attn_c_v", loop_idx, x)
+        q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
-        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+        if q_gain is not None:
+            q = q * q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
             q,
             k,
@@ -600,7 +610,10 @@ class CausalSelfAttention(nn.Module):
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        out = self.proj(y)
+        if lora_bank is not None:
+            out = out + lora_bank.get_delta("attn_proj", loop_idx, y)
+        return out
 
 
 class MLP(nn.Module):
@@ -612,9 +625,65 @@ class MLP(nn.Module):
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
-    def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
-        return self.proj(x.square())
+    def forward(self, x: Tensor, lora_bank: LoRABank | None = None, loop_idx: int = 0) -> Tensor:
+        h = self.fc(x)
+        if lora_bank is not None:
+            h = h + lora_bank.get_delta("mlp_fc", loop_idx, x)
+        h = torch.relu(h)
+        h_sq = h.square()
+        out = self.proj(h_sq)
+        if lora_bank is not None:
+            out = out + lora_bank.get_delta("mlp_proj", loop_idx, h_sq)
+        return out
+
+
+class LoRABank(nn.Module):
+    """Per-loop LoRA deltas for all linear layers in the shared Block.
+    Uses stacked tensors for torch.compile(fullgraph=True) compatibility."""
+    def __init__(self, model_dim: int, num_kv_heads: int, head_dim: int, mlp_mult: int, num_loops: int, rank: int):
+        super().__init__()
+        self.num_loops = num_loops
+        self.rank = rank
+        kv_dim = num_kv_heads * head_dim
+        hidden_dim = mlp_mult * model_dim
+        # Define (out_dim, in_dim) for each target linear layer
+        targets = {
+            "attn_c_q": (model_dim, model_dim),
+            "attn_c_k": (kv_dim, model_dim),
+            "attn_c_v": (kv_dim, model_dim),
+            "attn_proj": (model_dim, model_dim),
+            "mlp_fc":   (hidden_dim, model_dim),
+            "mlp_proj": (model_dim, hidden_dim),
+        }
+        for tname, (out_dim, in_dim) in targets.items():
+            # A: (num_loops, in_dim, rank) — Kaiming init
+            setattr(self, f"A_{tname}", nn.Parameter(
+                torch.randn(num_loops, in_dim, rank) * (1.0 / math.sqrt(in_dim))
+            ))
+            # B: (num_loops, rank, out_dim) — zero init so LoRA starts as identity
+            setattr(self, f"B_{tname}", nn.Parameter(
+                torch.zeros(num_loops, rank, out_dim)
+            ))
+
+    def get_delta(self, target_name: str, loop_idx: int, x: Tensor) -> Tensor:
+        """Compute LoRA delta: x @ A[loop_idx] @ B[loop_idx]"""
+        A = getattr(self, f"A_{target_name}")[loop_idx].to(x.dtype)
+        B = getattr(self, f"B_{target_name}")[loop_idx].to(x.dtype)
+        return (x @ A) @ B
+
+
+class LoopScalars(nn.Module):
+    """Per-loop scalar parameters (attn_scale, mlp_scale, resid_mix, q_gain)."""
+    def __init__(self, dim: int, num_heads: int, num_loops: int, qk_gain_init: float):
+        super().__init__()
+        self.attn_scales = nn.Parameter(torch.ones(num_loops, dim, dtype=torch.float32))
+        self.mlp_scales = nn.Parameter(torch.ones(num_loops, dim, dtype=torch.float32))
+        self.resid_mixes = nn.Parameter(
+            torch.stack([torch.stack([torch.ones(dim), torch.zeros(dim)]) for _ in range(num_loops)]).float()
+        )  # (num_loops, 2, dim)
+        self.q_gains = nn.Parameter(
+            torch.full((num_loops, num_heads), qk_gain_init, dtype=torch.float32)
+        )
 
 
 class Block(nn.Module):
@@ -625,23 +694,28 @@ class Block(nn.Module):
         num_kv_heads: int,
         mlp_mult: int,
         rope_base: float,
-        qk_gain_init: float,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base)
         self.mlp = MLP(dim, mlp_mult)
-        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
-        mix = self.resid_mix.to(dtype=x.dtype)
-        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+    def forward(self, x: Tensor, x0: Tensor, lora_bank: LoRABank | None = None,
+                loop_idx: int = 0, attn_scale: Tensor | None = None,
+                mlp_scale: Tensor | None = None, resid_mix: Tensor | None = None,
+                q_gain: Tensor | None = None) -> Tensor:
+        if resid_mix is not None:
+            mix = resid_mix.to(dtype=x.dtype)
+            x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        attn_out = self.attn(self.attn_norm(x), lora_bank=lora_bank, loop_idx=loop_idx, q_gain=q_gain)
+        if attn_scale is not None:
+            attn_out = attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        x = x + attn_out
+        mlp_out = self.mlp(self.mlp_norm(x), lora_bank=lora_bank, loop_idx=loop_idx)
+        if mlp_scale is not None:
+            mlp_out = mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
+        x = x + mlp_out
         return x
 
 
@@ -649,11 +723,12 @@ class GPT(nn.Module):
     def __init__(
         self,
         vocab_size: int,
-        num_layers: int,
         model_dim: int,
         num_heads: int,
         num_kv_heads: int,
         mlp_mult: int,
+        num_loops: int,
+        lora_rank: int,
         tie_embeddings: bool,
         tied_embed_init_std: float,
         logit_softcap: float,
@@ -666,24 +741,15 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_loops = num_loops
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.blocks = nn.ModuleList(
-            [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-                for i in range(num_layers)
-            ]
-        )
+        head_dim = model_dim // num_heads
+        # Single shared transformer block
+        self.block = Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base)
+        # Per-loop LoRA deltas for diversity across loops
+        self.lora_bank = LoRABank(model_dim, num_kv_heads, head_dim, mlp_mult, num_loops, lora_rank)
+        # Per-loop scalar controls
+        self.loop_scalars = LoopScalars(model_dim, num_heads, num_loops, qk_gain_init)
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -701,16 +767,18 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        # Recursive: loop shared block N times with per-loop LoRA deltas and scalars
+        for loop_idx in range(self.num_loops):
+            x = self.block(
+                x, x0,
+                lora_bank=self.lora_bank,
+                loop_idx=loop_idx,
+                attn_scale=self.loop_scalars.attn_scales[loop_idx],
+                mlp_scale=self.loop_scalars.mlp_scales[loop_idx],
+                resid_mix=self.loop_scalars.resid_mixes[loop_idx],
+                q_gain=self.loop_scalars.q_gains[loop_idx],
+            )
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -825,11 +893,12 @@ def main() -> None:
 
     base_model = GPT(
         vocab_size=args.vocab_size,
-        num_layers=args.num_layers,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
         mlp_mult=args.mlp_mult,
+        num_loops=args.num_loops,
+        lora_rank=args.lora_rank,
         tie_embeddings=args.tie_embeddings,
         tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap,
@@ -839,6 +908,9 @@ def main() -> None:
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
+    # LoRA and LoopScalars params are small — keep in fp32 for optimizer quality
+    base_model.lora_bank.float()
+    base_model.loop_scalars.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
@@ -846,21 +918,23 @@ def main() -> None:
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
     # - untied lm_head (Adam) uses HEAD_LR
-    # - matrix params in transformer blocks use MATRIX_LR via Muon
-    # - vectors/scalars use SCALAR_LR via Adam
-    block_named_params = list(base_model.blocks.named_parameters())
+    # - shared block matrix params use MATRIX_LR via Muon
+    # - LoRA A/B params (small 2D) use LORA_LR via Adam
+    # - loop scalars + other vectors use SCALAR_LR via Adam
+    block_named_params = list(base_model.block.named_parameters())
     matrix_params = [
         p
         for name, p in block_named_params
         if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
-    scalar_params = [
+    block_scalar_params = [
         p
         for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
-    if base_model.skip_weights.numel() > 0:
-        scalar_params.append(base_model.skip_weights)
+    lora_params = list(base_model.lora_bank.parameters())
+    loop_scalar_params = list(base_model.loop_scalars.parameters())
+    all_scalar_params = block_scalar_params + loop_scalar_params
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -876,13 +950,19 @@ def main() -> None:
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
-    optimizer_scalar = torch.optim.Adam(
-        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+    optimizer_lora = torch.optim.Adam(
+        [{"params": lora_params, "lr": args.lora_lr, "base_lr": args.lora_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
         fused=True,
     )
-    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+    optimizer_scalar = torch.optim.Adam(
+        [{"params": all_scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.adam_eps,
+        fused=True,
+    )
+    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_lora, optimizer_scalar]
     if base_model.lm_head is not None:
         optimizer_head = torch.optim.Adam(
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
@@ -893,14 +973,17 @@ def main() -> None:
         optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
-    log0(f"model_params:{n_params}")
+    n_lora_params = sum(p.numel() for p in lora_params)
+    n_loop_scalar_params = sum(p.numel() for p in loop_scalar_params)
+    log0(f"model_params:{n_params} (lora:{n_lora_params} loop_scalars:{n_loop_scalar_params})")
+    log0(f"architecture:recursive num_loops:{args.num_loops} lora_rank:{args.lora_rank}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
-        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
+        f"matrix_lr:{args.matrix_lr} lora_lr:{args.lora_lr} scalar_lr:{args.scalar_lr}"
     )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
