@@ -1,0 +1,6 @@
+experiment,script,params,val_bpb,val_loss,iterations,model_dim,elapsed_sec,date
+baseline_512_rerun,train_gpt_mlx.py,17059912,2.30325137,3.88894346,200,512,1817,2026-03-18_19:33
+recurrent_768,train_gpt_mlx_recurrent.py,12589860,2.27144657,3.83524238,200,768,2136,2026-03-18_19:32
+recur_2x4_d768_h12,train_gpt_mlx_recurrent.py,8656920,2.33633184,3.94479844,200,768,1618,2026-03-18_21:23
+recur_2x5_d768_h12,train_gpt_mlx_recurrent.py,8656920,2.31679810,3.91181654,200,768,2160,2026-03-18_21:59
+adaptive_enhanced_3x3_d768,train_gpt_mlx_enhanced.py,12592174,2.51643207,4.24889015,200,768,12,0,0,6293832,2468,2026-03-18_23:01
