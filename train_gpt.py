@@ -708,12 +708,12 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
 
-        for _pass in range(3):
+        for _pass in range(2):
             skips: list[Tensor] = []
             for i in range(self.num_encoder_layers):
                 x = self.blocks[i](x, x0)
                 skips.append(x)
-            if _pass < 2:
+            if _pass == 0:
                 x = F.rms_norm(x, (x.size(-1),))
                 continue
             for i in range(self.num_decoder_layers):
