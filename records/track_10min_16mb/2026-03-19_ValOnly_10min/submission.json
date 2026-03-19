@@ -1,0 +1,11 @@
+{
+  "author": "Daniel Lawson",
+  "github_id": "daniellawson9999",
+  "name": "Val-Only 10min",
+  "blurb": "Baseline 9x512 SP-1024 tied-embedding run trained entirely on the validation shard for 10 minutes on 8 H100 GPUs; score is the final int8+zlib roundtrip metric under the 16,000,000-byte cap.",
+  "date": "2026-03-19T01:57:41Z",
+  "val_loss": 1.87612956,
+  "val_bpb": 1.1111496,
+  "bytes_total": 15889933,
+  "bytes_code": 47894
+}
