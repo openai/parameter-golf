@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "report_id": "parameter_golf.record_folder_replay_verification.v1",
+  "submission_id": "2026-03-18_psionic_local_reference_runtime_replay_v2",
+  "track_id": "non-record-unlimited-compute-16mb",
+  "record_folder_relpath": "records/track_non_record_16mb/2026-03-18_psionic_local_reference_runtime_replay_v2",
+  "run_id": "parameter-golf-local-reference-run",
+  "entrypoint_path": "train_gpt.py",
+  "submission_manifest_metrics": {
+    "val_loss": 8.598987817764282,
+    "val_bpb": 9.924573665082512
+  },
+  "train_log_metrics": {
+    "val_loss": 8.59898782,
+    "val_bpb": 9.92457367
+  },
+  "benchmark_receipt_metrics": {
+    "val_loss": 8.598987817764282,
+    "val_bpb": 9.924573665082512
+  },
+  "runtime_receipt_metrics": {
+    "val_loss": 8.598987817764282,
+    "val_bpb": 9.924573665082512
+  },
+  "submission_manifest_wallclock_seconds": 25.779,
+  "benchmark_training_wallclock_seconds": 25.779,
+  "submission_manifest_bytes": {
+    "total_bytes": 956676,
+    "code_bytes": 877718,
+    "model_bytes": 78958
+  },
+  "accounting_receipt_bytes": {
+    "total_bytes": 956676,
+    "code_bytes": 877718,
+    "model_bytes": 78958
+  },
+  "actual_shipped_bytes": {
+    "total_bytes": 956676,
+    "code_bytes": 877718,
+    "model_bytes": 78958
+  },
+  "accounting_component_verifications": [
+    {
+      "component_id": "entrypoint_code_bytes",
+      "declared_size_bytes": 390,
+      "actual_size_bytes": 390,
+      "matches_actual_size": true,
+      "detail": "the package ships one Python train_gpt.py launcher at the submission root that execs the shipped Psionic runtime payload"
+    },
+    {
+      "component_id": "compressed_model_bytes",
+      "declared_size_bytes": 78958,
+      "actual_size_bytes": 78958,
+      "matches_actual_size": true,
+      "detail": "the counted model artifact is the final int8+zlib roundtrip export emitted by the Psionic local-reference lane"
+    },
+    {
+      "component_id": "shipped_runtime_code_bytes",
+      "declared_size_bytes": 877328,
+      "actual_size_bytes": 877328,
+      "matches_actual_size": true,
+      "detail": "the package ships one prebuilt Psionic runtime payload that restores the included int8+zlib artifact and replays the bounded local-reference validation path"
+    },
+    {
+      "component_id": "shipped_wrapper_code_bytes",
+      "declared_size_bytes": 0,
+      "actual_size_bytes": 0,
+      "matches_actual_size": true,
+      "detail": "no helper wrapper code beyond the top-level train_gpt.py launcher is shipped in this package"
+    },
+    {
+      "component_id": "required_build_dependency_bytes",
+      "declared_size_bytes": 0,
+      "actual_size_bytes": 0,
+      "matches_actual_size": true,
+      "detail": "the package ships a prebuilt runtime payload and requires no build step or vendored dependency tree during execution"
+    }
+  ],
+  "matches_train_log_metrics": true,
+  "matches_benchmark_receipt_metrics": true,
+  "matches_runtime_receipt_metrics": true,
+  "matches_benchmark_wallclock": true,
+  "runtime_receipt_consistent": true,
+  "matches_benchmark_artifact_bytes": true,
+  "verdict": "verified",
+  "claim_boundary": "This verifier confirms only the current exported-folder replay path: offline entrypoint execution, final int8+zlib metrics, bounded wallclock facts, and counted-byte facts. It does not by itself turn the bounded non-record replay into a record-track claim.",
+  "report_digest": "66dc80376e4c447a8dc74b9eeacfd6aaecb9b49ab0515e157370b7801e9e37fd"
+}

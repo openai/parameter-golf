@@ -1,0 +1,88 @@
+{
+  "run_id": "parameter-golf-local-reference-run",
+  "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review",
+  "benchmark_package_artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_benchmark_package.json",
+  "benchmark_package_artifact_digest": "4acb4e45127e8312790f2f78c4f204a87d8bda05af51931530fcfbcf1221bc2b",
+  "challenge_score_report_artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_challenge_score_report.json",
+  "challenge_score_report_artifact_digest": "e8998d155eff97777255bea4d2765ee5c24aec5dfb33bb3198225279d1ea1c95",
+  "benchmark_receipt_artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_challenge_benchmark_receipt.json",
+  "benchmark_receipt_artifact_digest": "2edee6f5a5b61cecb2b72fc2ca8d37d42c4122166737c5a37234f162315cfbcf",
+  "train_bundle_root": {
+    "root_ref": "bundle://parameter_golf/parameter-golf-local-reference-run/train",
+    "artifacts": [
+      {
+        "artifact_kind": "parameter_golf_checkpoint_manifest",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00000/checkpoint_manifest.json",
+        "artifact_digest": "b481221b47b8fdd7c40058f78964f70ae69de33e0c6335b3474c81ec357fae85",
+        "size_bytes": 4459802
+      },
+      {
+        "artifact_kind": "parameter_golf_model_safetensors",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00000/checkpoint_model.safetensors",
+        "artifact_digest": "b912aba865f5fc749d588443c05059d4cf20bf5dbace914ecd3d44403f215acd",
+        "size_bytes": 68248240
+      },
+      {
+        "artifact_kind": "parameter_golf_checkpoint_manifest",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/checkpoint_manifest.json",
+        "artifact_digest": "4a1fb31c2c074b0086423586b511d88860c08688b47e89fb4dd502ba6c658de5",
+        "size_bytes": 4460522
+      },
+      {
+        "artifact_kind": "parameter_golf_model_safetensors",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/checkpoint_model.safetensors",
+        "artifact_digest": "b11b01d7aa2879fc6e6ca87cbd44d604287abefb181870ca034acb6977d14e98",
+        "size_bytes": 68248240
+      },
+      {
+        "artifact_kind": "parameter_golf_model_int8_zlib",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+        "artifact_digest": "efe272503950104f1557f5c73cad69ce717e60d9b75f05e48d17ffbeb6940af1",
+        "size_bytes": 78958
+      }
+    ]
+  },
+  "eval_bundle_root": {
+    "root_ref": "bundle://parameter_golf/parameter-golf-local-reference-run/eval",
+    "artifacts": [
+      {
+        "artifact_kind": "parameter_golf_benchmark_package",
+        "artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_benchmark_package.json",
+        "artifact_digest": "4acb4e45127e8312790f2f78c4f204a87d8bda05af51931530fcfbcf1221bc2b",
+        "size_bytes": 2164
+      },
+      {
+        "artifact_kind": "parameter_golf_challenge_score_report",
+        "artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_challenge_score_report.json",
+        "artifact_digest": "e8998d155eff97777255bea4d2765ee5c24aec5dfb33bb3198225279d1ea1c95",
+        "size_bytes": 2140
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/initial_validation_eval.json",
+        "artifact_digest": "216cb9ec4496bec5a5092a979f8ff5fe961364d9822e6879eabfb238ab44bf4e",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/final_validation_eval.json",
+        "artifact_digest": "b294d6e08caf171236aeba882740e36b34aec1f2b2ef8f2209eb6ce23f5baef4",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/raw_roundtrip_validation_eval.json",
+        "artifact_digest": "a3079cce0e91475f04047efd08dcb54685a8987acfbddd2409d6aeefe67a36d7",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/int8_zlib_roundtrip_validation_eval.json",
+        "artifact_digest": "a0b32bb227a8e7aff63e9948df30d961d2e080d586080ed3348e39afb00d9068",
+        "size_bytes": 406
+      }
+    ]
+  },
+  "claim_boundary": "bounded local-reference benchmark receipt lane only; not measured 8xH100 challenge closure",
+  "bundle_digest": "6f8aafb150e592fa4fe6031ae5d83d725c18265c2616339607e0ba7ce2c03126"
+}

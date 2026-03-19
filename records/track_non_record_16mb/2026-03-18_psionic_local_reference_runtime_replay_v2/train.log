@@ -1,0 +1,5 @@
+psionic_parameter_golf_submission run_id=parameter-golf-local-reference-run track=non-record-unlimited-compute-16mb benchmark_ref=benchmark://openagents/psionic/parameter_golf/challenge_review
+step=1 mean_microbatch_loss=8.28510094 validation_loss=8.60875082 validation_bpb=9.93584169 learning_rate_multiplier=1.00000000 muon_momentum=0.85000002
+step=2 mean_microbatch_loss=8.28215694 validation_loss=8.60598779 validation_bpb=9.93265272 learning_rate_multiplier=1.00000000 muon_momentum=0.85020006
+trained_validation_exact val_loss:8.60598779 val_bpb:9.93265272
+final_int8_zlib_roundtrip_exact val_loss:8.59898782 val_bpb:9.92457367

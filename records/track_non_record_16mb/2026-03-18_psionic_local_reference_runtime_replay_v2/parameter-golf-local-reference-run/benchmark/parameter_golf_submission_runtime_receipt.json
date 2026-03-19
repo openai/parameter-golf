@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "run_id": "parameter-golf-local-reference-run",
+  "runtime_posture": "shipped_binary_restores_int8_zlib_artifact_and_replays_bounded_local_reference_validation",
+  "entrypoint_path": "train_gpt.py",
+  "runtime_payload_path": "runtime/parameter_golf_submission_runtime",
+  "submission_manifest_path": "submission.json",
+  "accounting_receipt_path": "parameter-golf-local-reference-run/benchmark/parameter_golf_submission_accounting.json",
+  "fixture_path": "runtime/parameter_golf_local_reference_fixture.json",
+  "model_artifact_path": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+  "executed_validation": {
+    "eval_ref": "benchmark://openagents/psionic/parameter_golf/local_reference_validation",
+    "model_descriptor_digest": "ec6327b2db04ee768b5cad95745dbfa3e1882f1b933b3178ff34083609a70623",
+    "sequence_length": 4,
+    "batch_token_budget": 4,
+    "evaluated_sequence_count": 4,
+    "evaluated_token_count": 16,
+    "evaluated_byte_count": 20,
+    "mean_loss": 8.598987817764282,
+    "bits_per_byte": 9.924573665082512
+  },
+  "matches_submission_val_loss": true,
+  "matches_submission_val_bpb": true,
+  "matches_accounting_code_bytes": true,
+  "matches_accounting_total_bytes": true,
+  "matches_submission_model_bytes": true,
+  "matches_accounting_model_bytes": true,
+  "receipt_digest": "8919e2952cc23f12bf0983c3bb52356c9c59488b248f978d6d5a3f6ff65762e6"
+}

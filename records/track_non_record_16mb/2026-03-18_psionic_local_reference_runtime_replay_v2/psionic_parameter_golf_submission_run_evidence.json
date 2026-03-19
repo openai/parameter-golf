@@ -1,0 +1,398 @@
+{
+  "schema_version": 1,
+  "report_id": "parameter_golf.submission_run_evidence.v1",
+  "package_version": "2026.03.18.non_record_submission.v2",
+  "submission_id": "2026-03-18_psionic_local_reference_runtime_replay_v2",
+  "track_id": "non-record-unlimited-compute-16mb",
+  "record_folder_relpath": "records/track_non_record_16mb/2026-03-18_psionic_local_reference_runtime_replay_v2",
+  "run_id": "parameter-golf-local-reference-run",
+  "challenge_execution_posture": {
+    "posture_id": "local_review_host_single_rtx4080",
+    "detail": "single display-attached RTX 4080 local review host; this posture can bind exported-folder bytes and replay evidence to the challenge lane, but it refuses the true 8xH100 benchmark because the inventory is not challenge-matching",
+    "devices": [
+      {
+        "backend": "cuda",
+        "device": {
+          "kind": "Cuda",
+          "ordinal": 0,
+          "label": "cuda:0"
+        },
+        "device_name": "NVIDIA GeForce RTX 4080",
+        "supported_dtypes": [
+          "F32",
+          "BF16"
+        ],
+        "supported_quantization": [],
+        "memory_capacity_bytes": 17179869184,
+        "unified_memory": false,
+        "feature_flags": [
+          "cuda_architecture_surface"
+        ],
+        "nvidia_metadata": {
+          "topology": {
+            "architecture": "ada",
+            "compute_capability": "8.9",
+            "pci_bdf": "00000000:01:00.0",
+            "sm_count": 76,
+            "vram_bytes": 17179869184,
+            "mig_profile": null
+          },
+          "risk": {
+            "level": "elevated",
+            "display_attached": true,
+            "mig_partitioned": false,
+            "warnings": [
+              "display-attached NVIDIA devices may show variable latency under local desktop load"
+            ]
+          },
+          "recovery": {
+            "supports_gpu_reset": true,
+            "expected_actions": [
+              "process_restart",
+              "gpu_reset",
+              "reboot_host"
+            ]
+          }
+        }
+      }
+    ],
+    "capability_profile": {
+      "runtime_backend": "cuda",
+      "supported_communication_classes": [
+        "tensor_collective_mesh"
+      ],
+      "detail": "local review host advertises the same backend family and collective vocabulary, but not the required 8-device challenge inventory"
+    }
+  },
+  "entrypoint": {
+    "relative_path": "train_gpt.py",
+    "size_bytes": 390,
+    "sha256_digest": "018c98cebca044ae72c38eed3799b60de46926dff4f6c787d92d2d366562bd39"
+  },
+  "runtime_payload": {
+    "relative_path": "runtime/parameter_golf_submission_runtime",
+    "size_bytes": 877328,
+    "sha256_digest": "555cfb1605d8512c4c075e00462702bc2434adf5d480a7ce6e2c598299203287"
+  },
+  "runtime_manifest": {
+    "relative_path": "runtime/parameter_golf_submission_runtime.json",
+    "size_bytes": 1428,
+    "sha256_digest": "66c8d3ec51a45d0b79773c0eeb2e7dd7e3b79159570245003cea6aff4c6c3130"
+  },
+  "train_log": {
+    "relative_path": "train.log",
+    "size_bytes": 634,
+    "sha256_digest": "e7a3c1805c6d5b20b2c005333e3eb06454aed0ee47a2385250dba52ad39ebc70"
+  },
+  "model_artifact": {
+    "relative_path": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+    "size_bytes": 78958,
+    "sha256_digest": "016f74f4e958adc56ba26b13e41a316724bf966deebcb44cdf867fe51b065a16"
+  },
+  "accounting_receipt": {
+    "relative_path": "parameter-golf-local-reference-run/benchmark/parameter_golf_submission_accounting.json",
+    "size_bytes": 1991,
+    "sha256_digest": "9177d05a5f80bbd8231c873d3eaa3b341375aaa060fd33c9ea398e51173ab8a4"
+  },
+  "benchmark_receipt": {
+    "relative_path": "parameter-golf-local-reference-run/benchmark/parameter_golf_challenge_benchmark_receipt.json",
+    "size_bytes": 11075,
+    "sha256_digest": "1a8389405edfbdf6c90f88a1eed822bcf374e80bfaa4fb6b8492a44a4a8f5ac1"
+  },
+  "run_bundle": {
+    "relative_path": "parameter-golf-local-reference-run/benchmark/run_bundle.json",
+    "size_bytes": 4681,
+    "sha256_digest": "4b5214c5df0838be6e764c679c1360a772d522b5421f9c266bfdb2dc94e74237"
+  },
+  "runtime_receipt": {
+    "relative_path": "parameter-golf-local-reference-run/benchmark/parameter_golf_submission_runtime_receipt.json",
+    "size_bytes": 1419,
+    "sha256_digest": "9ade0e84447db43aab97480ff102dba82eb22114bcf6d1364cfecb6b25c66943"
+  },
+  "entrypoint_dry_run_command": [
+    "python3",
+    "train_gpt.py"
+  ],
+  "entrypoint_dry_run_exit_code": 0,
+  "benchmark_wallclock_receipt": {
+    "measurement_posture": "observed_process_and_logical_step_budget",
+    "training_observed_ms": 25779,
+    "training_logical_ms": 100,
+    "raw_restore_eval_observed_ms": 527,
+    "int8_zlib_restore_eval_observed_ms": 544,
+    "wallclock_cap_ms": 600000,
+    "within_wallclock_cap": true
+  },
+  "benchmark_memory_receipt": {
+    "measurement_posture": "estimated_tensor_state_bytes",
+    "model_parameter_bytes": 68239648,
+    "optimizer_state_bytes": 1048592,
+    "raw_model_artifact_bytes": 68248240,
+    "int8_zlib_artifact_bytes": 78958,
+    "checkpoint_manifest_bytes": 4460522,
+    "estimated_live_bytes_upper_bound": 142075960
+  },
+  "benchmark_artifact_size_receipt": {
+    "submission_artifact_ref": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+    "submission_artifact_digest": "efe272503950104f1557f5c73cad69ce717e60d9b75f05e48d17ffbeb6940af1",
+    "submission_artifact_size_bytes": 78958,
+    "artifacts": [
+      {
+        "artifact_kind": "parameter_golf_checkpoint_manifest",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00000/checkpoint_manifest.json",
+        "artifact_digest": "b481221b47b8fdd7c40058f78964f70ae69de33e0c6335b3474c81ec357fae85",
+        "size_bytes": 4459802
+      },
+      {
+        "artifact_kind": "parameter_golf_model_safetensors",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00000/checkpoint_model.safetensors",
+        "artifact_digest": "b912aba865f5fc749d588443c05059d4cf20bf5dbace914ecd3d44403f215acd",
+        "size_bytes": 68248240
+      },
+      {
+        "artifact_kind": "parameter_golf_checkpoint_manifest",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/checkpoint_manifest.json",
+        "artifact_digest": "4a1fb31c2c074b0086423586b511d88860c08688b47e89fb4dd502ba6c658de5",
+        "size_bytes": 4460522
+      },
+      {
+        "artifact_kind": "parameter_golf_model_safetensors",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/checkpoint_model.safetensors",
+        "artifact_digest": "b11b01d7aa2879fc6e6ca87cbd44d604287abefb181870ca034acb6977d14e98",
+        "size_bytes": 68248240
+      },
+      {
+        "artifact_kind": "parameter_golf_model_int8_zlib",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+        "artifact_digest": "efe272503950104f1557f5c73cad69ce717e60d9b75f05e48d17ffbeb6940af1",
+        "size_bytes": 78958
+      },
+      {
+        "artifact_kind": "parameter_golf_benchmark_package",
+        "artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_benchmark_package.json",
+        "artifact_digest": "4acb4e45127e8312790f2f78c4f204a87d8bda05af51931530fcfbcf1221bc2b",
+        "size_bytes": 2164
+      },
+      {
+        "artifact_kind": "parameter_golf_challenge_score_report",
+        "artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_challenge_score_report.json",
+        "artifact_digest": "e8998d155eff97777255bea4d2765ee5c24aec5dfb33bb3198225279d1ea1c95",
+        "size_bytes": 2140
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/initial_validation_eval.json",
+        "artifact_digest": "216cb9ec4496bec5a5092a979f8ff5fe961364d9822e6879eabfb238ab44bf4e",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/final_validation_eval.json",
+        "artifact_digest": "b294d6e08caf171236aeba882740e36b34aec1f2b2ef8f2209eb6ce23f5baef4",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/raw_roundtrip_validation_eval.json",
+        "artifact_digest": "a3079cce0e91475f04047efd08dcb54685a8987acfbddd2409d6aeefe67a36d7",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/int8_zlib_roundtrip_validation_eval.json",
+        "artifact_digest": "a0b32bb227a8e7aff63e9948df30d961d2e080d586080ed3348e39afb00d9068",
+        "size_bytes": 406
+      }
+    ],
+    "total_artifact_bytes": 145501690
+  },
+  "distributed_challenge_receipt": {
+    "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/distributed_8xh100",
+    "run_id": "parameter-golf-local-reference-run.exported_submission",
+    "model_descriptor_digest": "cf6b56b598b50cbd3397bc30d5ed92ce2a0772724556be55c65828cff2cc2228",
+    "optimizer_plan_digest": "fbeb11df505efdd2bb3f2104f3e01920062da8507cd75e6a62a9634b47e1b02b",
+    "thresholds": {
+      "required_backend": "cuda",
+      "required_device_name": "H100",
+      "required_world_size": 8,
+      "max_total_wallclock_ms": 600000,
+      "max_peak_device_bytes_per_worker": 85899345920,
+      "max_peak_host_bytes_per_worker": 17179869184
+    },
+    "topology": {
+      "backend_selection": {
+        "requested_backend": "cuda",
+        "effective_backend": "cuda",
+        "selected_device": {
+          "backend": "cuda",
+          "device": {
+            "kind": "Cuda",
+            "ordinal": 0,
+            "label": "cuda:0"
+          },
+          "device_name": "NVIDIA GeForce RTX 4080",
+          "supported_dtypes": [
+            "F32",
+            "BF16"
+          ],
+          "supported_quantization": [],
+          "memory_capacity_bytes": 17179869184,
+          "unified_memory": false,
+          "feature_flags": [
+            "cuda_architecture_surface"
+          ],
+          "nvidia_metadata": {
+            "topology": {
+              "architecture": "ada",
+              "compute_capability": "8.9",
+              "pci_bdf": "00000000:01:00.0",
+              "sm_count": 76,
+              "vram_bytes": 17179869184,
+              "mig_profile": null
+            },
+            "risk": {
+              "level": "elevated",
+              "display_attached": true,
+              "mig_partitioned": false,
+              "warnings": [
+                "display-attached NVIDIA devices may show variable latency under local desktop load"
+              ]
+            },
+            "recovery": {
+              "supports_gpu_reset": true,
+              "expected_actions": [
+                "process_restart",
+                "gpu_reset",
+                "reboot_host"
+              ]
+            }
+          }
+        },
+        "selected_devices": [
+          {
+            "backend": "cuda",
+            "device": {
+              "kind": "Cuda",
+              "ordinal": 0,
+              "label": "cuda:0"
+            },
+            "device_name": "NVIDIA GeForce RTX 4080",
+            "supported_dtypes": [
+              "F32",
+              "BF16"
+            ],
+            "supported_quantization": [],
+            "memory_capacity_bytes": 17179869184,
+            "unified_memory": false,
+            "feature_flags": [
+              "cuda_architecture_surface"
+            ],
+            "nvidia_metadata": {
+              "topology": {
+                "architecture": "ada",
+                "compute_capability": "8.9",
+                "pci_bdf": "00000000:01:00.0",
+                "sm_count": 76,
+                "vram_bytes": 17179869184,
+                "mig_profile": null
+              },
+              "risk": {
+                "level": "elevated",
+                "display_attached": true,
+                "mig_partitioned": false,
+                "warnings": [
+                  "display-attached NVIDIA devices may show variable latency under local desktop load"
+                ]
+              },
+              "recovery": {
+                "supports_gpu_reset": true,
+                "expected_actions": [
+                  "process_restart",
+                  "gpu_reset",
+                  "reboot_host"
+                ]
+              }
+            }
+          }
+        ],
+        "supported_ops": [
+          "parameter_golf_distributed_train"
+        ],
+        "policy": {
+          "unavailable": "refuse",
+          "degraded": "allow_same_backend"
+        },
+        "fallback_lattice": {
+          "unavailable": "refuse",
+          "degraded": "degrade",
+          "numerical_safety": "refuse",
+          "memory_pressure": "refuse",
+          "plan_unavailable": "same_backend_slow_path",
+          "transient_backend_failure": "retry"
+        },
+        "selection_state": "refused",
+        "fallback_trigger": "requested_backend_unavailable",
+        "fallback_action": "refuse",
+        "fallback_reason": "expected exactly 8 devices for the 8xH100 lane, found 1",
+        "degraded_reason": null,
+        "retry_attempt": null,
+        "execution_topology": {
+          "effective_backend": "cuda",
+          "kind": "replicated",
+          "assignments": [
+            {
+              "shard_id": 0,
+              "device": {
+                "stable_device_id": "00000000:01:00.0",
+                "topology_key": "00000000:01:00.0",
+                "placement_index": 0
+              },
+              "partition": {
+                "kind": "replica",
+                "replica_index": 0
+              }
+            }
+          ]
+        }
+      },
+      "topology_digest": "e08204f70e7ed05a52cb4333c5dc250139b8c9f1c3d47c79fe392bca33c02361",
+      "selected_device_names": [
+        "NVIDIA GeForce RTX 4080"
+      ],
+      "all_devices_match_required_model": false
+    },
+    "communication": {
+      "communication_class": "tensor_collective_mesh",
+      "transport": "loopback",
+      "mesh_id": "mesh.parameter_golf.exported_submission",
+      "axes": [],
+      "stages": []
+    },
+    "training_capability_report_digest": "f0bc76d7c24511c38e59bbe5f677bb148e7e70cb1741e820f24846374abfec35",
+    "challenge_kernel_blockers": [
+      "cuda_bf16_train_precision_contract",
+      "cuda_rope_gqa_attention_block",
+      "cuda_rms_norm_train_path",
+      "cuda_residual_mix_train_path",
+      "cuda_muon_optimizer_path"
+    ],
+    "disposition": "refused",
+    "refusal": {
+      "refusal_kind": "device_inventory_mismatch",
+      "reason": "expected exactly 8 devices for the 8xH100 lane, found 1",
+      "fallback_benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review"
+    },
+    "boundary_notes": [
+      "The current exported-folder evidence is bound to a local review host rather than challenge-matching 8xH100 inventory, so the challenge receipt remains an explicit refusal.",
+      "cuda_bf16_train_precision_contract: Do not treat the BF16 policy contract as proof that the public CUDA array surface already owns broad BF16 tensor, backward, and optimizer execution.",
+      "cuda_rope_gqa_attention_block: IR-level attention or RoPE coverage is now explicit, but the public CUDA train path still lacks a declared direct decoder-block execution surface.",
+      "cuda_rms_norm_train_path: The current repo owns RMSNorm semantics, not full direct CUDA train-time RMSNorm closure.",
+      "cuda_residual_mix_train_path: Treat residual support as seeded operator evidence only until the fused decoder path is widened on CUDA.",
+      "cuda_muon_optimizer_path: Muon semantics are explicit and distributed communication is explicit, but the train-time CUDA optimizer surface is still narrower than the lane contract."
+    ],
+    "claim_boundary": "exact 8xH100 DDP-style topology, communication, wallclock, and memory receipts are explicit, but challenge-ready CUDA kernel and runtime widening remains a separate closure item",
+    "receipt_digest": "49d33d5b7e0cf45e91b139173e070477c46f97c464c4b7eee6c035d8c422c108"
+  },
+  "claim_boundary": "This report binds the exact exported submission folder to one real folder-local entrypoint replay, the preserved bounded wallclock/memory/artifact receipts, and one measured-or-refused 8xH100 challenge receipt. The committed evidence is still a local review-host refusal rather than true 8xH100 success.",
+  "report_digest": "f8c20b44af363900c3f8dc9394578e67a1bc94557f8ad0fa1525f32540c22c35"
+}

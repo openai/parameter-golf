@@ -1,0 +1,51 @@
+{
+  "abi_version": "psionic.benchmark.v1",
+  "key": {
+    "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review",
+    "version": "2026.03.18.local_reference.v1"
+  },
+  "display_name": "Parameter Golf Challenge Review",
+  "environment": {
+    "environment_ref": "env.openagents.parameter_golf.challenge_eval",
+    "version": "2026.03.18.local_reference.v1"
+  },
+  "dataset": {
+    "dataset_ref": "dataset://openagents/parameter_golf/local_reference_fixture",
+    "version": "2026.03.18.local_reference.v1"
+  },
+  "split": "validation",
+  "repeat_count": 1,
+  "aggregation": "mean_score",
+  "verification_policy": {
+    "require_timer_integrity": true,
+    "require_token_accounting": true,
+    "require_final_state_capture": true,
+    "require_execution_strategy": true
+  },
+  "cases": [
+    {
+      "case_id": "parameter_golf.local_reference.validation",
+      "ordinal": 0,
+      "input_ref": "parameter_golf://validation/48b0c65039efa19e41d54b4572fdd29fef3e7fbc0991fdd6c6abc3e95ebe143d",
+      "expected_output_ref": "parameter_golf.validation_bits_per_byte",
+      "metadata": {
+        "sequence_length": 4,
+        "training_dataset_digest": "e538ea23d42cef6c883e09c75adab67bc8d9b6a2adc0454da2b8fa1caf349a00",
+        "validation_dataset_digest": "48b0c65039efa19e41d54b4572fdd29fef3e7fbc0991fdd6c6abc3e95ebe143d",
+        "submission_metric_id": "parameter_golf.validation_bits_per_byte",
+        "claim_boundary": "bounded local-reference benchmark receipt lane only; not measured 8xH100 challenge closure"
+      }
+    }
+  ],
+  "metadata": {
+    "parameter_golf.bundle_roots": [
+      "train_bundle_root",
+      "eval_bundle_root"
+    ],
+    "parameter_golf.claim_boundary": "bounded local-reference benchmark receipt lane only; not measured 8xH100 challenge closure",
+    "parameter_golf.sequence_length": 4,
+    "parameter_golf.submission_metric_id": "parameter_golf.validation_bits_per_byte",
+    "parameter_golf.training_dataset_digest": "e538ea23d42cef6c883e09c75adab67bc8d9b6a2adc0454da2b8fa1caf349a00",
+    "parameter_golf.validation_dataset_digest": "48b0c65039efa19e41d54b4572fdd29fef3e7fbc0991fdd6c6abc3e95ebe143d"
+  }
+}

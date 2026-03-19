@@ -1,0 +1,51 @@
+{
+  "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review",
+  "initial_validation": {
+    "eval_ref": "benchmark://openagents/psionic/parameter_golf/local_reference_validation",
+    "model_descriptor_digest": "cf6b56b598b50cbd3397bc30d5ed92ce2a0772724556be55c65828cff2cc2228",
+    "sequence_length": 4,
+    "batch_token_budget": 4,
+    "evaluated_sequence_count": 4,
+    "evaluated_token_count": 16,
+    "evaluated_byte_count": 20,
+    "mean_loss": 8.611439228057861,
+    "bits_per_byte": 9.938944535388607
+  },
+  "trained_validation": {
+    "eval_ref": "benchmark://openagents/psionic/parameter_golf/local_reference_validation",
+    "model_descriptor_digest": "8e8d295bae873a00f98f3f1aa9c3e077ea2035e6b5dd4ed8afb8f2286a6f8974",
+    "sequence_length": 4,
+    "batch_token_budget": 4,
+    "evaluated_sequence_count": 4,
+    "evaluated_token_count": 16,
+    "evaluated_byte_count": 20,
+    "mean_loss": 8.605987787246704,
+    "bits_per_byte": 9.932652722089443
+  },
+  "raw_roundtrip_validation": {
+    "eval_ref": "benchmark://openagents/psionic/parameter_golf/local_reference_validation",
+    "model_descriptor_digest": "8e8d295bae873a00f98f3f1aa9c3e077ea2035e6b5dd4ed8afb8f2286a6f8974",
+    "sequence_length": 4,
+    "batch_token_budget": 4,
+    "evaluated_sequence_count": 4,
+    "evaluated_token_count": 16,
+    "evaluated_byte_count": 20,
+    "mean_loss": 8.605987787246704,
+    "bits_per_byte": 9.932652722089443
+  },
+  "int8_zlib_roundtrip_validation": {
+    "eval_ref": "benchmark://openagents/psionic/parameter_golf/local_reference_validation",
+    "model_descriptor_digest": "ec6327b2db04ee768b5cad95745dbfa3e1882f1b933b3178ff34083609a70623",
+    "sequence_length": 4,
+    "batch_token_budget": 4,
+    "evaluated_sequence_count": 4,
+    "evaluated_token_count": 16,
+    "evaluated_byte_count": 20,
+    "mean_loss": 8.598987817764282,
+    "bits_per_byte": 9.924573665082512
+  },
+  "submission_metric_id": "parameter_golf.validation_bits_per_byte",
+  "submission_bits_per_byte": 9.924573665082512,
+  "submission_mean_loss": 8.598987817764282,
+  "bits_per_byte_improvement_vs_initial": 0.014370870306095185
+}

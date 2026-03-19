@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "package_version": "2026.03.18.non_record_submission.v2",
+  "track": "non-record-unlimited-compute-16mb",
+  "run_id": "parameter-golf-local-reference-run",
+  "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review",
+  "entrypoint_path": "train_gpt.py",
+  "counted_components": [
+    {
+      "component_id": "entrypoint_code_bytes",
+      "size_bytes": 390,
+      "detail": "the package ships one Python train_gpt.py launcher at the submission root that execs the shipped Psionic runtime payload"
+    },
+    {
+      "component_id": "compressed_model_bytes",
+      "size_bytes": 78958,
+      "detail": "the counted model artifact is the final int8+zlib roundtrip export emitted by the Psionic local-reference lane"
+    },
+    {
+      "component_id": "shipped_runtime_code_bytes",
+      "size_bytes": 877328,
+      "detail": "the package ships one prebuilt Psionic runtime payload that restores the included int8+zlib artifact and replays the bounded local-reference validation path"
+    },
+    {
+      "component_id": "shipped_wrapper_code_bytes",
+      "size_bytes": 0,
+      "detail": "no helper wrapper code beyond the top-level train_gpt.py launcher is shipped in this package"
+    },
+    {
+      "component_id": "required_build_dependency_bytes",
+      "size_bytes": 0,
+      "detail": "the package ships a prebuilt runtime payload and requires no build step or vendored dependency tree during execution"
+    }
+  ],
+  "counted_code_bytes": 877718,
+  "compressed_model_bytes": 78958,
+  "total_counted_bytes": 956676,
+  "within_artifact_cap": true,
+  "claim_boundary": "current honest non-record submission package only; the shipped train_gpt.py launches a shipped Psionic runtime payload that restores the included int8+zlib artifact and re-runs the bounded local-reference validation path on the shipped fixture, not a record-track runtime claim",
+  "receipt_digest": "275494441ebe609b39960972d02e8b0f3fcdc192b8644f440f4671d5c29f32c3"
+}

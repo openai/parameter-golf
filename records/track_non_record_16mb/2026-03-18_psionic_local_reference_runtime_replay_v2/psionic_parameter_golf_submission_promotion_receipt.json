@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "report_id": "parameter_golf.submission_promotion_receipt.v1",
+  "challenge_rule_snapshot_date": "2026-03-18",
+  "challenge_readme_ref": "README.md",
+  "current_best": {
+    "submission_id": "2026-03-17_NaiveBaseline",
+    "readme_ref": "records/track_10min_16mb/2026-03-17_NaiveBaseline/README.md",
+    "val_bpb": 1.2243657,
+    "required_delta_nats_per_byte": 0.005,
+    "required_significance_p_value": 0.01
+  },
+  "candidate": {
+    "submission_id": "2026-03-18_psionic_local_reference_runtime_replay_v2",
+    "run_id": "parameter-golf-local-reference-run",
+    "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review",
+    "track_id": "non-record-unlimited-compute-16mb",
+    "record_track_candidate": false,
+    "val_bpb": 9.924573665082512,
+    "systems_only_waiver_claimed": false,
+    "systems_only_waiver_supported": false,
+    "evidence_refs": [
+      "records/track_non_record_16mb/2026-03-18_psionic_local_reference_runtime_replay_v2/psionic_parameter_golf_submission_run_evidence.json",
+      "records/track_non_record_16mb/2026-03-18_psionic_local_reference_runtime_replay_v2/psionic_parameter_golf_record_folder_replay_verification.json"
+    ]
+  },
+  "delta_bpb": -8.700207965082512,
+  "delta_nats_per_byte": -6.030524621282122,
+  "clears_required_nats_delta": false,
+  "significance_posture": "not_required",
+  "systems_only_waiver_posture": "not_claimed",
+  "disposition": "refused",
+  "refusal_reasons": [
+    "candidate is not targeting the record track, so record promotion review is out of scope",
+    "candidate improves the current best by only -6.03052462 nats per byte, below the required 0.005 nat bar"
+  ],
+  "claim_boundary": "This receipt makes the public README promotion gate machine-readable. It does not create score evidence by itself; it only records whether the supplied record-track delta, significance, waiver, and supporting artifacts justify a promotion claim.",
+  "receipt_digest": "ff5dffccadee79568b3b27d3ddaf7f756d63db5127de3c5ecd938febc29babd0"
+}

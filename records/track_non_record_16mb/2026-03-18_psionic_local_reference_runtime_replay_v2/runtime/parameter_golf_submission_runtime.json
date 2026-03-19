@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "package_version": "2026.03.18.non_record_submission.v2",
+  "run_id": "parameter-golf-local-reference-run",
+  "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review",
+  "entrypoint_path": "train_gpt.py",
+  "runtime_payload_path": "runtime/parameter_golf_submission_runtime",
+  "submission_manifest_path": "submission.json",
+  "accounting_receipt_path": "parameter-golf-local-reference-run/benchmark/parameter_golf_submission_accounting.json",
+  "fixture_path": "runtime/parameter_golf_local_reference_fixture.json",
+  "model_artifact_path": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+  "runtime_receipt_path": "parameter-golf-local-reference-run/benchmark/parameter_golf_submission_runtime_receipt.json",
+  "sequence_length": 4,
+  "validation_batch_tokens": 4,
+  "expected_val_loss": 8.598987817764282,
+  "expected_val_bpb": 9.924573665082512,
+  "runtime_posture": "shipped_binary_restores_int8_zlib_artifact_and_replays_bounded_local_reference_validation",
+  "claim_boundary": "current honest non-record submission package only; the shipped train_gpt.py launches a shipped Psionic runtime payload that restores the included int8+zlib artifact and re-runs the bounded local-reference validation path on the shipped fixture, not a record-track runtime claim",
+  "manifest_digest": "d14dac12f5ba28f91c170a7cfe1b8d55113fdf3744f8cf118b05196e0ce8818d"
+}

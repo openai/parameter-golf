@@ -1,0 +1,232 @@
+{
+  "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review",
+  "benchmark_package": {
+    "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review",
+    "version": "2026.03.18.local_reference.v1"
+  },
+  "run_id": "parameter-golf-local-reference-run",
+  "trained_model_descriptor_digest": "8e8d295bae873a00f98f3f1aa9c3e077ea2035e6b5dd4ed8afb8f2286a6f8974",
+  "final_checkpoint_manifest_digest": "2c41b0bc9aa64bff4ac273abf359075f9cf691b024fe6eda1af0b7285ae724cc",
+  "submission_artifact_ref": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+  "submission_artifact_digest": "efe272503950104f1557f5c73cad69ce717e60d9b75f05e48d17ffbeb6940af1",
+  "score_report": {
+    "benchmark_ref": "benchmark://openagents/psionic/parameter_golf/challenge_review",
+    "initial_validation": {
+      "eval_ref": "benchmark://openagents/psionic/parameter_golf/local_reference_validation",
+      "model_descriptor_digest": "cf6b56b598b50cbd3397bc30d5ed92ce2a0772724556be55c65828cff2cc2228",
+      "sequence_length": 4,
+      "batch_token_budget": 4,
+      "evaluated_sequence_count": 4,
+      "evaluated_token_count": 16,
+      "evaluated_byte_count": 20,
+      "mean_loss": 8.611439228057861,
+      "bits_per_byte": 9.938944535388607
+    },
+    "trained_validation": {
+      "eval_ref": "benchmark://openagents/psionic/parameter_golf/local_reference_validation",
+      "model_descriptor_digest": "8e8d295bae873a00f98f3f1aa9c3e077ea2035e6b5dd4ed8afb8f2286a6f8974",
+      "sequence_length": 4,
+      "batch_token_budget": 4,
+      "evaluated_sequence_count": 4,
+      "evaluated_token_count": 16,
+      "evaluated_byte_count": 20,
+      "mean_loss": 8.605987787246704,
+      "bits_per_byte": 9.932652722089443
+    },
+    "raw_roundtrip_validation": {
+      "eval_ref": "benchmark://openagents/psionic/parameter_golf/local_reference_validation",
+      "model_descriptor_digest": "8e8d295bae873a00f98f3f1aa9c3e077ea2035e6b5dd4ed8afb8f2286a6f8974",
+      "sequence_length": 4,
+      "batch_token_budget": 4,
+      "evaluated_sequence_count": 4,
+      "evaluated_token_count": 16,
+      "evaluated_byte_count": 20,
+      "mean_loss": 8.605987787246704,
+      "bits_per_byte": 9.932652722089443
+    },
+    "int8_zlib_roundtrip_validation": {
+      "eval_ref": "benchmark://openagents/psionic/parameter_golf/local_reference_validation",
+      "model_descriptor_digest": "ec6327b2db04ee768b5cad95745dbfa3e1882f1b933b3178ff34083609a70623",
+      "sequence_length": 4,
+      "batch_token_budget": 4,
+      "evaluated_sequence_count": 4,
+      "evaluated_token_count": 16,
+      "evaluated_byte_count": 20,
+      "mean_loss": 8.598987817764282,
+      "bits_per_byte": 9.924573665082512
+    },
+    "submission_metric_id": "parameter_golf.validation_bits_per_byte",
+    "submission_bits_per_byte": 9.924573665082512,
+    "submission_mean_loss": 8.598987817764282,
+    "bits_per_byte_improvement_vs_initial": 0.014370870306095185
+  },
+  "wallclock_receipt": {
+    "measurement_posture": "observed_process_and_logical_step_budget",
+    "training_observed_ms": 25779,
+    "training_logical_ms": 100,
+    "raw_restore_eval_observed_ms": 527,
+    "int8_zlib_restore_eval_observed_ms": 544,
+    "wallclock_cap_ms": 600000,
+    "within_wallclock_cap": true
+  },
+  "memory_receipt": {
+    "measurement_posture": "estimated_tensor_state_bytes",
+    "model_parameter_bytes": 68239648,
+    "optimizer_state_bytes": 1048592,
+    "raw_model_artifact_bytes": 68248240,
+    "int8_zlib_artifact_bytes": 78958,
+    "checkpoint_manifest_bytes": 4460522,
+    "estimated_live_bytes_upper_bound": 142075960
+  },
+  "artifact_size_receipt": {
+    "submission_artifact_ref": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+    "submission_artifact_digest": "efe272503950104f1557f5c73cad69ce717e60d9b75f05e48d17ffbeb6940af1",
+    "submission_artifact_size_bytes": 78958,
+    "artifacts": [
+      {
+        "artifact_kind": "parameter_golf_checkpoint_manifest",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00000/checkpoint_manifest.json",
+        "artifact_digest": "b481221b47b8fdd7c40058f78964f70ae69de33e0c6335b3474c81ec357fae85",
+        "size_bytes": 4459802
+      },
+      {
+        "artifact_kind": "parameter_golf_model_safetensors",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00000/checkpoint_model.safetensors",
+        "artifact_digest": "b912aba865f5fc749d588443c05059d4cf20bf5dbace914ecd3d44403f215acd",
+        "size_bytes": 68248240
+      },
+      {
+        "artifact_kind": "parameter_golf_checkpoint_manifest",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/checkpoint_manifest.json",
+        "artifact_digest": "4a1fb31c2c074b0086423586b511d88860c08688b47e89fb4dd502ba6c658de5",
+        "size_bytes": 4460522
+      },
+      {
+        "artifact_kind": "parameter_golf_model_safetensors",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/checkpoint_model.safetensors",
+        "artifact_digest": "b11b01d7aa2879fc6e6ca87cbd44d604287abefb181870ca034acb6977d14e98",
+        "size_bytes": 68248240
+      },
+      {
+        "artifact_kind": "parameter_golf_model_int8_zlib",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+        "artifact_digest": "efe272503950104f1557f5c73cad69ce717e60d9b75f05e48d17ffbeb6940af1",
+        "size_bytes": 78958
+      },
+      {
+        "artifact_kind": "parameter_golf_benchmark_package",
+        "artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_benchmark_package.json",
+        "artifact_digest": "4acb4e45127e8312790f2f78c4f204a87d8bda05af51931530fcfbcf1221bc2b",
+        "size_bytes": 2164
+      },
+      {
+        "artifact_kind": "parameter_golf_challenge_score_report",
+        "artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_challenge_score_report.json",
+        "artifact_digest": "e8998d155eff97777255bea4d2765ee5c24aec5dfb33bb3198225279d1ea1c95",
+        "size_bytes": 2140
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/initial_validation_eval.json",
+        "artifact_digest": "216cb9ec4496bec5a5092a979f8ff5fe961364d9822e6879eabfb238ab44bf4e",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/final_validation_eval.json",
+        "artifact_digest": "b294d6e08caf171236aeba882740e36b34aec1f2b2ef8f2209eb6ce23f5baef4",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/raw_roundtrip_validation_eval.json",
+        "artifact_digest": "a3079cce0e91475f04047efd08dcb54685a8987acfbddd2409d6aeefe67a36d7",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/int8_zlib_roundtrip_validation_eval.json",
+        "artifact_digest": "a0b32bb227a8e7aff63e9948df30d961d2e080d586080ed3348e39afb00d9068",
+        "size_bytes": 406
+      }
+    ],
+    "total_artifact_bytes": 145501690
+  },
+  "train_bundle_root": {
+    "root_ref": "bundle://parameter_golf/parameter-golf-local-reference-run/train",
+    "artifacts": [
+      {
+        "artifact_kind": "parameter_golf_checkpoint_manifest",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00000/checkpoint_manifest.json",
+        "artifact_digest": "b481221b47b8fdd7c40058f78964f70ae69de33e0c6335b3474c81ec357fae85",
+        "size_bytes": 4459802
+      },
+      {
+        "artifact_kind": "parameter_golf_model_safetensors",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00000/checkpoint_model.safetensors",
+        "artifact_digest": "b912aba865f5fc749d588443c05059d4cf20bf5dbace914ecd3d44403f215acd",
+        "size_bytes": 68248240
+      },
+      {
+        "artifact_kind": "parameter_golf_checkpoint_manifest",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/checkpoint_manifest.json",
+        "artifact_digest": "4a1fb31c2c074b0086423586b511d88860c08688b47e89fb4dd502ba6c658de5",
+        "size_bytes": 4460522
+      },
+      {
+        "artifact_kind": "parameter_golf_model_safetensors",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/checkpoint_model.safetensors",
+        "artifact_digest": "b11b01d7aa2879fc6e6ca87cbd44d604287abefb181870ca034acb6977d14e98",
+        "size_bytes": 68248240
+      },
+      {
+        "artifact_kind": "parameter_golf_model_int8_zlib",
+        "artifact_ref": "parameter-golf-local-reference-run/step-00002/final_model.int8.ptz",
+        "artifact_digest": "efe272503950104f1557f5c73cad69ce717e60d9b75f05e48d17ffbeb6940af1",
+        "size_bytes": 78958
+      }
+    ]
+  },
+  "eval_bundle_root": {
+    "root_ref": "bundle://parameter_golf/parameter-golf-local-reference-run/eval",
+    "artifacts": [
+      {
+        "artifact_kind": "parameter_golf_benchmark_package",
+        "artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_benchmark_package.json",
+        "artifact_digest": "4acb4e45127e8312790f2f78c4f204a87d8bda05af51931530fcfbcf1221bc2b",
+        "size_bytes": 2164
+      },
+      {
+        "artifact_kind": "parameter_golf_challenge_score_report",
+        "artifact_ref": "parameter-golf-local-reference-run/benchmark/parameter_golf_challenge_score_report.json",
+        "artifact_digest": "e8998d155eff97777255bea4d2765ee5c24aec5dfb33bb3198225279d1ea1c95",
+        "size_bytes": 2140
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/initial_validation_eval.json",
+        "artifact_digest": "216cb9ec4496bec5a5092a979f8ff5fe961364d9822e6879eabfb238ab44bf4e",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/final_validation_eval.json",
+        "artifact_digest": "b294d6e08caf171236aeba882740e36b34aec1f2b2ef8f2209eb6ce23f5baef4",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/raw_roundtrip_validation_eval.json",
+        "artifact_digest": "a3079cce0e91475f04047efd08dcb54685a8987acfbddd2409d6aeefe67a36d7",
+        "size_bytes": 406
+      },
+      {
+        "artifact_kind": "parameter_golf_validation_eval_report",
+        "artifact_ref": "parameter-golf-local-reference-run/eval/int8_zlib_roundtrip_validation_eval.json",
+        "artifact_digest": "a0b32bb227a8e7aff63e9948df30d961d2e080d586080ed3348e39afb00d9068",
+        "size_bytes": 406
+      }
+    ]
+  },
+  "claim_boundary": "bounded local-reference benchmark receipt lane only; not measured 8xH100 challenge closure"
+}
