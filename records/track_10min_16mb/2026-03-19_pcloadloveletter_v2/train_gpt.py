@@ -103,15 +103,15 @@ class Hyperparameters:
     swa_every = int(os.environ.get("SWA_EVERY", 200))  # collect checkpoint every N steps
 
 # -----------------------------
-# MUON OPTIMIZER 
+# NORMUON OPTIMIZER
 # -----------------------------
-# 
-# As borrowed from modded-nanogpt
+#
+# NorMuon: Muon with per-row second-moment normalization after Newton-Schulz.
+# Based on arXiv:2510.05491 and PR #89 (vmfunc).
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
-    # Muon uses this to normalize matrix-shaped gradients before applying them.
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
     X /= X.norm() + eps
@@ -126,10 +126,14 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
+    """NorMuon: Muon with per-row second-moment normalization.
+    Drop-in replacement for the original Muon optimizer."""
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int,
+                 nesterov: bool = True, beta2: float = 0.95):
         super().__init__(
             params,
-            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov),
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps,
+                 nesterov=nesterov, beta2=beta2),
         )
 
     @torch.no_grad()
@@ -151,6 +155,7 @@ class Muon(torch.optim.Optimizer):
             momentum = group["momentum"]
             backend_steps = group["backend_steps"]
             nesterov = group["nesterov"]
+            beta2 = group["beta2"]
 
             total_params = sum(int(p.numel()) for p in params)
             updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
@@ -162,14 +167,26 @@ class Muon(torch.optim.Optimizer):
                     state = self.state[p]
                     if "momentum_buffer" not in state:
                         state["momentum_buffer"] = torch.zeros_like(g)
+                        state["second_momentum"] = torch.zeros(
+                            g.size(0), 1, device=g.device, dtype=torch.float32
+                        )
                     buf = state["momentum_buffer"]
                     buf.mul_(momentum).add_(g)
                     if nesterov:
                         g = g.add(buf, alpha=momentum)
                     g = zeropower_via_newtonschulz5(g, steps=backend_steps)
+                    g = g.to(dtype=p.grad.dtype)
+                    # NorMuon: per-row second-moment normalization
+                    vnorm = g.norm(dim=(-2, -1), keepdim=True)
+                    v_mean = torch.mean(g * g, dim=-1, keepdim=True)
+                    state["second_momentum"].lerp_(v_mean, 1 - beta2)
+                    step_size = 1.0 / state["second_momentum"].sqrt().add_(1e-10)
+                    g.mul_(step_size)
+                    vnorm_new = g.norm(dim=(-2, -1), keepdim=True)
+                    g.mul_(vnorm / vnorm_new.add_(1e-10))
                     # Scale correction from Muon reference implementations.
                     g *= max(1, g.size(0) / g.size(1)) ** 0.5
-                    updates_flat[curr : curr + p.numel()] = g.reshape(-1)
+                    updates_flat[curr : curr + p.numel()] = g.reshape(-1).bfloat16()
                 curr += p.numel()
 
             if distributed:
