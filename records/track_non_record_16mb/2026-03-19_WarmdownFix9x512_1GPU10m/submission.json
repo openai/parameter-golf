@@ -1,0 +1,16 @@
+{
+  "author": "aamodbhatt",
+  "github_id": "aamodbhatt",
+  "name": "Warmdown Fix 9x512 1xH100 10m",
+  "blurb": "Non-record 16MB run on 1xH100 with baseline 9x512 architecture and a scheduler adjustment (WARMDOWN_ITERS=100) to better fit 1-GPU step times. This yields a modest score improvement versus same-session 1x baseline while staying within size limits.",
+  "date": "2026-03-19T15:10:35Z",
+  "val_loss": 2.27710001,
+  "val_bpb": 1.34862689,
+  "pre_quant_val_loss": 2.2755,
+  "pre_quant_val_bpb": 1.3477,
+  "step_stop": 1089,
+  "wallclock_seconds": 600.500,
+  "bytes_total": 14698858,
+  "bytes_model_int8_zlib": 14651172,
+  "bytes_code": 47686
+}
