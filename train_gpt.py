@@ -310,21 +310,6 @@ INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS", "").split(",")
     if pattern
 )
-_KEEP_FLOAT_DTYPE_ALIASES = {
-    "fp16": torch.float16,
-    "float16": torch.float16,
-    "half": torch.float16,
-    "bf16": torch.bfloat16,
-    "bfloat16": torch.bfloat16,
-    "fp32": torch.float32,
-    "float32": torch.float32,
-}
-INT8_KEEP_FLOAT_DTYPE_OVERRIDES = tuple(
-    (name_pattern, _KEEP_FLOAT_DTYPE_ALIASES[dtype_name.strip().lower()])
-    for entry in os.environ.get("INT8_KEEP_FLOAT_DTYPE_OVERRIDES", "").split(",")
-    if entry.strip()
-    for name_pattern, dtype_name in [entry.split(":", 1)]
-)
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -334,40 +319,12 @@ INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
-def get_keep_float_dtype_override(name: str) -> torch.dtype | None:
-    for pattern, dtype in INT8_KEEP_FLOAT_DTYPE_OVERRIDES:
-        if pattern in name:
-            return dtype
-    return None
-
-def keep_float_tensor(
-    name: str,
-    t: Tensor,
-    passthrough_orig_dtypes: dict[str, str],
-    keep_float_stats: dict[str, int],
-) -> Tensor:
-    override_dtype = get_keep_float_dtype_override(name)
-    if override_dtype is not None:
-        if t.dtype != override_dtype:
-            passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
-        kept = t.to(dtype=override_dtype).contiguous()
-        keep_float_stats["override_tensors"] += 1
-        keep_float_stats[f"{str(override_dtype).removeprefix('torch.')}_tensors"] += 1
-        keep_float_stats[f"{str(override_dtype).removeprefix('torch.')}_bytes"] += tensor_nbytes(kept)
-        return kept
+def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
     if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
-        kept = t.float().contiguous()
-        keep_float_stats["float32_tensors"] += 1
-        keep_float_stats["float32_bytes"] += tensor_nbytes(kept)
-        return kept
+        return t.float().contiguous()
     if t.dtype in {torch.float32, torch.bfloat16}:
         passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
-        kept = t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
-        keep_float_stats[f"{str(INT8_KEEP_FLOAT_STORE_DTYPE).removeprefix('torch.')}_tensors"] += 1
-        keep_float_stats[f"{str(INT8_KEEP_FLOAT_STORE_DTYPE).removeprefix('torch.')}_bytes"] += tensor_nbytes(kept)
-        return kept
-    keep_float_stats[f"{str(t.dtype).removeprefix('torch.')}_tensors"] += 1
-    keep_float_stats[f"{str(t.dtype).removeprefix('torch.')}_bytes"] += tensor_nbytes(t)
+        return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
@@ -404,21 +361,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
     stats = dict.fromkeys(
-        (
-            "param_count",
-            "num_tensors",
-            "num_float_tensors",
-            "num_nonfloat_tensors",
-            "baseline_tensor_bytes",
-            "int8_payload_bytes",
-            "keep_float_override_tensors",
-            "keep_float_float16_tensors",
-            "keep_float_bfloat16_tensors",
-            "keep_float_float32_tensors",
-            "keep_float_float16_bytes",
-            "keep_float_bfloat16_bytes",
-            "keep_float_float32_bytes",
-        ),
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
         0,
     )
 
@@ -436,28 +379,12 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 
         # Small float tensors are cheap enough to keep directly. We still downcast
         # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
-        if get_keep_float_dtype_override(name) is not None or t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or any(
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or any(
             pattern in name for pattern in INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS
         ):
-            keep_float_stats = {
-                "override_tensors": 0,
-                "float16_tensors": 0,
-                "bfloat16_tensors": 0,
-                "float32_tensors": 0,
-                "float16_bytes": 0,
-                "bfloat16_bytes": 0,
-                "float32_bytes": 0,
-            }
-            kept = keep_float_tensor(name, t, passthrough_orig_dtypes, keep_float_stats)
+            kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
-            stats["keep_float_override_tensors"] += keep_float_stats["override_tensors"]
-            stats["keep_float_float16_tensors"] += keep_float_stats["float16_tensors"]
-            stats["keep_float_bfloat16_tensors"] += keep_float_stats["bfloat16_tensors"]
-            stats["keep_float_float32_tensors"] += keep_float_stats["float32_tensors"]
-            stats["keep_float_float16_bytes"] += keep_float_stats["float16_bytes"]
-            stats["keep_float_bfloat16_bytes"] += keep_float_stats["bfloat16_bytes"]
-            stats["keep_float_float32_bytes"] += keep_float_stats["float32_bytes"]
             continue
 
         stats["num_float_tensors"] += 1
@@ -1198,16 +1125,6 @@ def main() -> None:
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
-        )
-        log0(
-            "Kept float storage: "
-            f"override_tensors:{quant_stats['keep_float_override_tensors']} "
-            f"fp16_tensors:{quant_stats['keep_float_float16_tensors']} "
-            f"bf16_tensors:{quant_stats['keep_float_bfloat16_tensors']} "
-            f"fp32_tensors:{quant_stats['keep_float_float32_tensors']} "
-            f"fp16_bytes:{quant_stats['keep_float_float16_bytes']} "
-            f"bf16_bytes:{quant_stats['keep_float_bfloat16_bytes']} "
-            f"fp32_bytes:{quant_stats['keep_float_float32_bytes']}"
         )
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
 
