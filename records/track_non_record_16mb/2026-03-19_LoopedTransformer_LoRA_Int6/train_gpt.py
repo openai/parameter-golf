@@ -290,18 +290,19 @@ def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens
 
 CONTROL_TENSOR_NAME_PATTERNS = ("attn_scale", "mlp_scale", "resid_mix", "q_gain", "skip_weight")
 INT6_KEEP_FLOAT_MAX_NUMEL = 65_536
+INT6_CLIP_PERCENTILE = 99.99
 
 
 def quantize_tensor_int6(t):
     """Quantize a float tensor to int6 range [-31, 31], stored as int8."""
     t32 = t.float()
     if t32.ndim == 2:
-        row_max = t32.abs().amax(dim=1).clamp_min(1e-8)
-        scale = (row_max / 31.0).to(torch.float16)
+        clip_abs = torch.quantile(t32.abs(), INT6_CLIP_PERCENTILE / 100.0, dim=1).clamp_min(1e-8)
+        scale = (clip_abs / 31.0).to(torch.float16)
         q = torch.clamp(torch.round(t32 / scale[:, None].float()), -31, 31).to(torch.int8)
     else:
-        amax = t32.abs().max().clamp_min(1e-8).item()
-        scale = torch.tensor(amax / 31.0, dtype=torch.float16)
+        clip_abs = torch.quantile(t32.abs().flatten(), INT6_CLIP_PERCENTILE / 100.0).clamp_min(1e-8).item()
+        scale = torch.tensor(clip_abs / 31.0, dtype=torch.float16)
         q = torch.clamp(torch.round(t32 / scale.float()), -31, 31).to(torch.int8)
     return q, scale
 
@@ -432,9 +433,10 @@ class Rotary(nn.Module):
     def _build_cache(self, seq_len, device):
         t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
         freqs = torch.outer(t, self.inv_freq.to(device))
-        # Store as non-inference tensors (requires_grad=False but not inference-only)
-        self._cos_cached = freqs.cos()[None, None, :, :].clone()
-        self._sin_cached = freqs.sin()[None, None, :, :].clone()
+        emb = freqs[None, None, :, :]
+        # Use register_buffer to avoid inference-mode tensor issues with torch.compile
+        self._cos_cached = nn.Parameter(emb.cos(), requires_grad=False)
+        self._sin_cached = nn.Parameter(emb.sin(), requires_grad=False)
         self._seq_len_cached = seq_len
 
     def forward(self, seq_len, device, dtype):
@@ -770,7 +772,7 @@ def main():
     dummy_seq_len = args.train_seq_len
     for block in base_model.blocks:
         block.attn.rotary._build_cache(dummy_seq_len, device)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer setup: base blocks use Muon, LoRA + scalars use Adam
@@ -859,6 +861,9 @@ def main():
             opt.zero_grad(set_to_none=True)
 
         for micro in range(grad_accum_steps):
+            # Only sync gradients on last micro-step (critical for multi-GPU perf)
+            if distributed:
+                model.require_backward_grad_sync = (micro == grad_accum_steps - 1)
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
