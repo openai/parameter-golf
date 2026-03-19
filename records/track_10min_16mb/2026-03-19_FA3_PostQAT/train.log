@@ -1,0 +1,208 @@
+W0319 20:25:50.545000 674299 torch/distributed/run.py:766] 
+W0319 20:25:50.545000 674299 torch/distributed/run.py:766] *****************************************
+W0319 20:25:50.545000 674299 torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0319 20:25:50.545000 674299 torch/distributed/run.py:766] *****************************************
+logs/09da21bf-83c3-4c04-ac96-e7263d49b899.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:25
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+qat:True
+model_params:21446728 (unique_layers:9 loops:1 effective_depth:9)
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+post_qat:reserving 30.0s (main_loop:570.0s)
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9364 val_bpb:4.1081 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9362 train_time:128ms step_avg:127.79ms
+step:2/20000 train_loss:17.4184 train_time:190ms step_avg:94.80ms
+step:3/20000 train_loss:14.7750 train_time:249ms step_avg:83.03ms
+step:4/20000 train_loss:11.2201 train_time:310ms step_avg:77.49ms
+step:5/20000 train_loss:8.2307 train_time:369ms step_avg:73.81ms
+step:6/20000 train_loss:7.6668 train_time:429ms step_avg:71.45ms
+step:7/20000 train_loss:6.0725 train_time:489ms step_avg:69.87ms
+step:8/20000 train_loss:5.8793 train_time:549ms step_avg:68.59ms
+step:9/20000 train_loss:5.8126 train_time:609ms step_avg:67.67ms
+step:10/20000 train_loss:5.7062 train_time:668ms step_avg:66.82ms
+step:200/20000 train_loss:2.7844 train_time:12118ms step_avg:60.59ms
+step:400/20000 train_loss:2.2783 train_time:24175ms step_avg:60.44ms
+step:600/20000 train_loss:2.4849 train_time:36196ms step_avg:60.33ms
+step:800/20000 train_loss:2.2380 train_time:48218ms step_avg:60.27ms
+step:1000/20000 train_loss:2.3326 train_time:60236ms step_avg:60.24ms
+step:1000/20000 val_loss:2.2861 val_bpb:1.3540 train_time:60260ms step_avg:60.26ms
+step:1200/20000 train_loss:2.3549 train_time:72265ms step_avg:60.22ms
+step:1400/20000 train_loss:2.3949 train_time:84276ms step_avg:60.20ms
+step:1600/20000 train_loss:2.0622 train_time:96293ms step_avg:60.18ms
+step:1800/20000 train_loss:2.1699 train_time:108306ms step_avg:60.17ms
+step:2000/20000 train_loss:2.2105 train_time:120331ms step_avg:60.17ms
+step:2000/20000 val_loss:2.1902 val_bpb:1.2972 train_time:120356ms step_avg:60.18ms
+step:2200/20000 train_loss:2.0239 train_time:132375ms step_avg:60.17ms
+step:2400/20000 train_loss:2.1520 train_time:144393ms step_avg:60.16ms
+step:2600/20000 train_loss:2.3675 train_time:156435ms step_avg:60.17ms
+step:2800/20000 train_loss:2.1768 train_time:168458ms step_avg:60.16ms
+step:3000/20000 train_loss:2.1723 train_time:180484ms step_avg:60.16ms
+step:3000/20000 val_loss:2.1318 val_bpb:1.2626 train_time:180509ms step_avg:60.17ms
+step:3200/20000 train_loss:2.1281 train_time:192521ms step_avg:60.16ms
+step:3400/20000 train_loss:2.0965 train_time:204556ms step_avg:60.16ms
+step:3600/20000 train_loss:2.0410 train_time:216612ms step_avg:60.17ms
+step:3800/20000 train_loss:2.1470 train_time:228637ms step_avg:60.17ms
+step:4000/20000 train_loss:2.1104 train_time:240671ms step_avg:60.17ms
+step:4000/20000 val_loss:2.1011 val_bpb:1.2444 train_time:240695ms step_avg:60.17ms
+step:4200/20000 train_loss:2.1035 train_time:252769ms step_avg:60.18ms
+step:4400/20000 train_loss:2.0364 train_time:264805ms step_avg:60.18ms
+step:4600/20000 train_loss:1.9073 train_time:276844ms step_avg:60.18ms
+step:4800/20000 train_loss:2.0542 train_time:288863ms step_avg:60.18ms
+step:5000/20000 train_loss:2.0690 train_time:300886ms step_avg:60.18ms
+step:5000/20000 val_loss:2.0814 val_bpb:1.2327 train_time:300910ms step_avg:60.18ms
+step:5200/20000 train_loss:2.1629 train_time:312907ms step_avg:60.17ms
+step:5400/20000 train_loss:2.2218 train_time:324942ms step_avg:60.17ms
+step:5600/20000 train_loss:2.0909 train_time:337007ms step_avg:60.18ms
+step:5800/20000 train_loss:2.1707 train_time:349069ms step_avg:60.18ms
+step:6000/20000 train_loss:2.1461 train_time:361100ms step_avg:60.18ms
+step:6000/20000 val_loss:2.0673 val_bpb:1.2244 train_time:361124ms step_avg:60.19ms
+step:6200/20000 train_loss:2.0386 train_time:373128ms step_avg:60.18ms
+step:6400/20000 train_loss:2.0367 train_time:385155ms step_avg:60.18ms
+step:6600/20000 train_loss:1.9293 train_time:397182ms step_avg:60.18ms
+step:6800/20000 train_loss:1.8799 train_time:409219ms step_avg:60.18ms
+step:7000/20000 train_loss:2.1160 train_time:421268ms step_avg:60.18ms
+step:7000/20000 val_loss:2.0501 val_bpb:1.2142 train_time:421292ms step_avg:60.18ms
+step:7200/20000 train_loss:1.9524 train_time:433309ms step_avg:60.18ms
+step:7400/20000 train_loss:2.0571 train_time:445335ms step_avg:60.18ms
+step:7600/20000 train_loss:2.0666 train_time:457357ms step_avg:60.18ms
+step:7800/20000 train_loss:1.9771 train_time:469378ms step_avg:60.18ms
+step:8000/20000 train_loss:2.0522 train_time:481405ms step_avg:60.18ms
+step:8000/20000 val_loss:2.0264 val_bpb:1.2001 train_time:481430ms step_avg:60.18ms
+step:8200/20000 train_loss:1.9143 train_time:493431ms step_avg:60.17ms
+step:8400/20000 train_loss:2.1079 train_time:505519ms step_avg:60.18ms
+step:8600/20000 train_loss:2.0204 train_time:517546ms step_avg:60.18ms
+step:8800/20000 train_loss:1.9433 train_time:529581ms step_avg:60.18ms
+step:9000/20000 train_loss:2.2120 train_time:541603ms step_avg:60.18ms
+step:9000/20000 val_loss:2.0045 val_bpb:1.1872 train_time:541628ms step_avg:60.18ms
+step:9200/20000 train_loss:2.1874 train_time:553625ms step_avg:60.18ms
+step:9400/20000 train_loss:1.8163 train_time:565650ms step_avg:60.18ms
+step:9473/20000 val_loss:1.9979 val_bpb:1.1832 train_time:570040ms step_avg:60.18ms
+stopping_early: wallclock_cap train_time:570040ms step:9473/20000
+peak memory allocated: 11251 MiB reserved: 11762 MiB
+post_qat:starting reserved_seconds=30.0 lr=0.001
+post_qat:eligible_params=55
+post_qat step:1 loss:2.0626 elapsed:63ms
+post_qat step:2 loss:2.1750 elapsed:478ms
+post_qat step:3 loss:2.1102 elapsed:680ms
+post_qat step:4 loss:2.4679 elapsed:858ms
+post_qat step:5 loss:2.0003 elapsed:1037ms
+post_qat step:20 loss:2.0077 elapsed:3625ms
+post_qat step:40 loss:1.9636 elapsed:7153ms
+post_qat step:60 loss:1.9447 elapsed:10680ms
+post_qat step:80 loss:2.0061 elapsed:14208ms
+post_qat step:100 loss:2.1508 elapsed:17735ms
+post_qat step:120 loss:2.0228 elapsed:21261ms
+post_qat step:140 loss:2.0855 elapsed:24786ms
+post_qat step:160 loss:1.9921 elapsed:28312ms
+post_qat:wallclock_stop at step 169 elapsed:30077ms
+post_qat:done steps=169
+Serialized model: 84772247 bytes
+Code size: 64517 bytes
+Total submission size: 84836764 bytes
+Serialized model int8+zstd: 15912202 bytes (payload:16643736 raw_torch:16689305 payload_ratio:5.09x)
+Total submission size int8+zstd: 15976719 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32
+  sliding_eval [  0.0%] 32/121136 windows running_bpb=1.239412
+  sliding_eval [  1.3%] 1632/121136 windows running_bpb=1.169441
+  sliding_eval [  2.7%] 3232/121136 windows running_bpb=1.169866
+  sliding_eval [  4.0%] 4832/121136 windows running_bpb=1.164186
+  sliding_eval [  5.3%] 6432/121136 windows running_bpb=1.176698
+  sliding_eval [  6.6%] 8032/121136 windows running_bpb=1.177888
+  sliding_eval [  8.0%] 9632/121136 windows running_bpb=1.179636
+  sliding_eval [  9.3%] 11232/121136 windows running_bpb=1.175233
+  sliding_eval [ 10.6%] 12832/121136 windows running_bpb=1.172670
+  sliding_eval [ 11.9%] 14432/121136 windows running_bpb=1.174217
+  sliding_eval [ 13.2%] 16032/121136 windows running_bpb=1.182949
+  sliding_eval [ 14.6%] 17632/121136 windows running_bpb=1.180939
+  sliding_eval [ 15.9%] 19232/121136 windows running_bpb=1.182217
+  sliding_eval [ 17.2%] 20832/121136 windows running_bpb=1.180593
+  sliding_eval [ 18.5%] 22432/121136 windows running_bpb=1.179337
+  sliding_eval [ 19.8%] 24032/121136 windows running_bpb=1.179827
+  sliding_eval [ 21.2%] 25632/121136 windows running_bpb=1.181216
+  sliding_eval [ 22.5%] 27232/121136 windows running_bpb=1.181941
+  sliding_eval [ 23.8%] 28832/121136 windows running_bpb=1.188089
+  sliding_eval [ 25.1%] 30432/121136 windows running_bpb=1.185418
+  sliding_eval [ 26.4%] 32032/121136 windows running_bpb=1.186373
+  sliding_eval [ 27.8%] 33632/121136 windows running_bpb=1.184995
+  sliding_eval [ 29.1%] 35232/121136 windows running_bpb=1.184409
+  sliding_eval [ 30.4%] 36832/121136 windows running_bpb=1.184004
+  sliding_eval [ 31.7%] 38432/121136 windows running_bpb=1.184649
+  sliding_eval [ 33.0%] 40032/121136 windows running_bpb=1.182289
+  sliding_eval [ 34.4%] 41632/121136 windows running_bpb=1.181253
+  sliding_eval [ 35.7%] 43232/121136 windows running_bpb=1.181610
+  sliding_eval [ 37.0%] 44832/121136 windows running_bpb=1.180495
+  sliding_eval [ 38.3%] 46432/121136 windows running_bpb=1.180309
+  sliding_eval [ 39.7%] 48032/121136 windows running_bpb=1.179546
+  sliding_eval [ 41.0%] 49632/121136 windows running_bpb=1.180700
+  sliding_eval [ 42.3%] 51232/121136 windows running_bpb=1.181803
+  sliding_eval [ 43.6%] 52832/121136 windows running_bpb=1.182326
+  sliding_eval [ 44.9%] 54432/121136 windows running_bpb=1.181827
+  sliding_eval [ 46.3%] 56032/121136 windows running_bpb=1.182167
+  sliding_eval [ 47.6%] 57632/121136 windows running_bpb=1.181287
+  sliding_eval [ 48.9%] 59232/121136 windows running_bpb=1.177438
+  sliding_eval [ 50.2%] 60832/121136 windows running_bpb=1.177533
+  sliding_eval [ 51.5%] 62432/121136 windows running_bpb=1.178429
+  sliding_eval [ 52.9%] 64032/121136 windows running_bpb=1.178556
+  sliding_eval [ 54.2%] 65632/121136 windows running_bpb=1.178399
+  sliding_eval [ 55.5%] 67232/121136 windows running_bpb=1.177183
+  sliding_eval [ 56.8%] 68832/121136 windows running_bpb=1.176843
+  sliding_eval [ 58.1%] 70432/121136 windows running_bpb=1.176104
+  sliding_eval [ 59.5%] 72032/121136 windows running_bpb=1.176164
+  sliding_eval [ 60.8%] 73632/121136 windows running_bpb=1.176222
+  sliding_eval [ 62.1%] 75232/121136 windows running_bpb=1.176386
+  sliding_eval [ 63.4%] 76832/121136 windows running_bpb=1.176070
+  sliding_eval [ 64.7%] 78432/121136 windows running_bpb=1.176677
+  sliding_eval [ 66.1%] 80032/121136 windows running_bpb=1.176978
+  sliding_eval [ 67.4%] 81632/121136 windows running_bpb=1.176679
+  sliding_eval [ 68.7%] 83232/121136 windows running_bpb=1.177736
+  sliding_eval [ 70.0%] 84832/121136 windows running_bpb=1.179668
+  sliding_eval [ 71.4%] 86432/121136 windows running_bpb=1.178963
+  sliding_eval [ 72.7%] 88032/121136 windows running_bpb=1.179733
+  sliding_eval [ 74.0%] 89632/121136 windows running_bpb=1.180100
+  sliding_eval [ 75.3%] 91232/121136 windows running_bpb=1.180067
+  sliding_eval [ 76.6%] 92832/121136 windows running_bpb=1.179630
+  sliding_eval [ 78.0%] 94432/121136 windows running_bpb=1.179880
+  sliding_eval [ 79.3%] 96032/121136 windows running_bpb=1.179283
+  sliding_eval [ 80.6%] 97632/121136 windows running_bpb=1.182113
+  sliding_eval [ 81.9%] 99232/121136 windows running_bpb=1.182098
+  sliding_eval [ 83.2%] 100832/121136 windows running_bpb=1.182135
+  sliding_eval [ 84.6%] 102432/121136 windows running_bpb=1.181770
+  sliding_eval [ 85.9%] 104032/121136 windows running_bpb=1.181249
+  sliding_eval [ 87.2%] 105632/121136 windows running_bpb=1.180500
+  sliding_eval [ 88.5%] 107232/121136 windows running_bpb=1.180499
+  sliding_eval [ 89.8%] 108832/121136 windows running_bpb=1.181145
+  sliding_eval [ 91.2%] 110432/121136 windows running_bpb=1.181170
+  sliding_eval [ 92.5%] 112032/121136 windows running_bpb=1.181138
+  sliding_eval [ 93.8%] 113632/121136 windows running_bpb=1.181576
+  sliding_eval [ 95.1%] 115232/121136 windows running_bpb=1.181330
+  sliding_eval [ 96.4%] 116832/121136 windows running_bpb=1.180940
+  sliding_eval [ 97.8%] 118432/121136 windows running_bpb=1.181253
+  sliding_eval [ 99.1%] 120032/121136 windows running_bpb=1.181373
+final_int8_zstd_roundtrip val_loss:1.9835 val_bpb:1.1747 eval_time:217586ms
+final_int8_zstd_roundtrip_exact val_loss:1.98346841 val_bpb:1.17472482
