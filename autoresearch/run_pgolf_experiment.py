@@ -1060,7 +1060,12 @@ class PgolfController:
         )
         remote_log = self.config.remote_log_dir / f"{run_id}.log"
         remote_command = self._build_remote_command(run_id, extra_env_pairs)
-        ssh_cmd = ["ssh", *self._ssh_options(), self.config.remote_host, remote_command]
+        stdin_text: str | None = None
+        ssh_cmd = ["ssh", *self._ssh_options(), self.config.remote_host]
+        if self.config.remote_force_tty:
+            stdin_text = remote_command + "exit\n"
+        else:
+            ssh_cmd.append(remote_command)
         self.logger.log(
             f"remote_start iteration={iteration} run_id={run_id} "
             f"remote_branch={self.config.remote_branch}"
@@ -1070,6 +1075,7 @@ class PgolfController:
             cwd=self.config.repo_dir,
             prefix=f"remote[{run_id}] ",
             raw_log_path=remote_log,
+            stdin_text=stdin_text,
         )
         if exit_code != 0:
             raise ControllerError(
@@ -1894,17 +1900,23 @@ class PgolfController:
         prefix: str,
         raw_log_path: Path,
         env: dict[str, str] | None = None,
+        stdin_text: str | None = None,
     ) -> int:
         raw_log_path.parent.mkdir(parents=True, exist_ok=True)
         process = subprocess.Popen(
             cmd,
             cwd=cwd,
             env=env,
+            stdin=subprocess.PIPE if stdin_text is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
         )
+        if stdin_text is not None:
+            assert process.stdin is not None
+            process.stdin.write(stdin_text)
+            process.stdin.close()
         assert process.stdout is not None
         with raw_log_path.open("w", encoding="utf-8") as raw_fh:
             for line in process.stdout:
