@@ -1,0 +1,20 @@
+{
+    "name": "pcloadloveletter v2",
+    "github_id": "NotADevIAmaMeatPopsicle",
+    "track": "10min_16mb",
+    "date": "2026-03-19",
+    "val_bpb": null,
+    "base_script": "2026-03-19_SlidingWindowEval/train_gpt.py",
+    "techniques": [
+        "int6 quantization ([-32, 31] in int8 containers)",
+        "zstd level 22 compression",
+        "late-K passthrough (last 2 layers K proj in fp16)",
+        "tok_emb.weight in fp16",
+        "SmearGate (temporal smoothing before first block)",
+        "MLP 3x width (hidden=1536)",
+        "sliding window eval (stride=64, batch_seqs=1024)",
+        "tuned Muon hyperparameters (momentum=0.99, warmup_start=0.92, warmup_steps=1500)",
+        "TRAIN_SEQ_LEN=2048",
+        "WARMDOWN_ITERS=3000"
+    ]
+}
