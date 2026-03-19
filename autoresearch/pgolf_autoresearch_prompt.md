@@ -20,7 +20,7 @@ Protocol:
    - `NOTES`
    - `EXTRA_ENV`
 5. `EXTRA_ENV` must be a single-line space-separated list of additional `KEY=VALUE` pairs for this run, for example `TRAIN_SEQ_LEN=512 EVAL_SEQ_LEN=1024`.
-6. Commit your experiment before stopping so the controller can push it and a later reviewer can revert it cleanly if it loses.
+6. Make exactly one git commit for your experiment before stopping so the controller can export it as a single patch and a later reviewer can revert it cleanly if it loses.
 7. Do not run training yourself. The controller will run the exact experiment remotely on the GPU box.
 8. Stop after one completed experiment-preparation iteration.
 
@@ -29,6 +29,7 @@ Rules:
 - Do not delete or redownload the dataset.
 - Do not change the tokenizer or dataset export path unless that is the explicit experiment.
 - Prefer bounded changes that can be evaluated in one run.
+- Keep the code change self-contained and cherry-pick friendly. The controller may apply it onto a slightly newer reviewed state.
 - Keep the repo runnable after the iteration.
 - Do not update `results.tsv` or `reviews.tsv` yourself.
 - Do not revert the experiment commit yourself. The reviewer handles the keep/revert decision after the remote run finishes.

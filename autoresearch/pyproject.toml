@@ -1,0 +1,24 @@
+[project]
+name = "autoresearch"
+version = "0.1.0"
+description = "Parameter Golf autoresearch controller and helpers"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.0",
+    "ty>=0.0.1a16",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+include = ["*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
