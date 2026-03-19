@@ -1,6 +1,6 @@
 # Vocab 4096 + MLP 3x + Sliding Window Eval
 
-**val_bpb: 1.1655** | **Artifact: 15,846,785 bytes** (under 16MB)
+**mean val_bpb: 1.1642** across 3 seeds (1.1650, 1.1640, 1.1637) | **Artifact: ~15.85 MB** (under 16MB)
 
 ## Summary
 
@@ -62,6 +62,18 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | Eval time (sliding window) | 148s |
 | Peak GPU memory | 10,571 MiB |
 
+## 3-Seed Validation
+
+| Seed | val_bpb | Artifact |
+|------|---------|----------|
+| 1337 | 1.1650 | 15,846,785 bytes |
+| 42 | 1.1640 | 15,846,550 bytes |
+| 7 | 1.1637 | 15,846,550 bytes |
+
+**Mean: 1.1642, Std: 0.0007**
+
+One-sample t-test against baseline (1.2244): t=-157.3, **p < 0.0001**
+
 ## Tokenizer
 
 Custom SentencePiece BPE tokenizer with 4096 vocab, trained on FineWeb. Included as `fineweb_4096_bpe.model`. Tokenizer and pre-tokenized dataset available at [sproos/parameter-golf-tokenizers](https://huggingface.co/sproos/parameter-golf-tokenizers).
@@ -69,6 +81,7 @@ Custom SentencePiece BPE tokenizer with 4096 vocab, trained on FineWeb. Included
 ## Included Files
 
 - `train_gpt.py` — self-contained training script (1390 lines)
-- `train.log` — full training log
+- `train.log` — full training log (seed 1337)
+- `train_seed1337.log`, `train_seed42.log`, `train_seed7.log` — 3-seed validation logs
 - `submission.json` — leaderboard metadata
 - `fineweb_4096_bpe.model` — SentencePiece tokenizer

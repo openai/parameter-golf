@@ -1,8 +1,10 @@
 {
   "name": "Sai Krishna Rallabandi",
   "github_id": "saikrishnarallabandi",
-  "val_bpb": 1.1655,
-  "val_loss": 2.7156,
+  "val_bpb": 1.1642,
+  "val_bpb_seeds": [1.1650, 1.1640, 1.1637],
+  "val_bpb_std": 0.0007,
+  "val_loss": 2.7138,
   "artifact_bytes": 15846785,
   "model_bytes": 15787592,
   "code_bytes": 59193,
