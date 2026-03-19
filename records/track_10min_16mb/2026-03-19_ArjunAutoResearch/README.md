@@ -52,7 +52,8 @@ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
 MLP_HIDDEN=992 \
 MAX_WALLCLOCK_SECONDS=600 \
-torchrun --standalone --nproc_per_node=8 train_gpt.py
+torchrun --standalone --nproc_per_node=8 \
+  records/track_10min_16mb/2026-03-19_ArjunAutoResearch/train_gpt.py
 ```
 
 All optimizer/eval hyperparameters are baked into the script defaults; only paths and `MLP_HIDDEN` need to be passed explicitly.
