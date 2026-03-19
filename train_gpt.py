@@ -77,8 +77,8 @@ class Hyperparameters:
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -1043,13 +1043,12 @@ def main() -> None:
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
-        # LAWA: collect checkpoints during warmdown for weight averaging
-        if scale < 1.0:
-            if not in_warmdown:
-                in_warmdown = True
-                log0(f"lawa:warmdown_started step:{step}")
-            if step % lawa_interval == 0:
-                lawa_checkpoints.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
+        # LAWA: collect checkpoints from last 20% of training for weight averaging
+        if scale < 0.5 and not in_warmdown:
+            in_warmdown = True
+            log0(f"lawa:collection_started step:{step}")
+        if in_warmdown and step % lawa_interval == 0:
+            lawa_checkpoints.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
 
         should_log_train = (
             args.train_log_every > 0
