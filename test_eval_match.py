@@ -63,22 +63,35 @@ def main():
     val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
     print(f"val_tokens: {val_tokens.numel():,}")
 
-    # Test 1: uncompiled model with eval_val (same function as training)
-    print("\n=== Test 1: uncompiled model, eval_val ===")
+    # Test 0: raw checkpoint (no quantization)
+    import os
+    if os.path.exists("final_model.pt"):
+        print("\n=== Test 0: raw checkpoint (final_model.pt) ===")
+        raw_state = torch.load("final_model.pt", map_location="cpu")
+        model.load_state_dict(raw_state, strict=True)
+        model.to(device)
+        vl0, vb0 = eval_val(args, model, 0, 1, device, 8, val_tokens, *luts)
+        print(f"val_loss={vl0:.4f} val_bpb={vb0:.4f}")
+    else:
+        print("\nfinal_model.pt not found, skipping raw test")
+        vb0 = 0.0
+
+    # Test 1: int8+zlib checkpoint
+    print("\n=== Test 1: int8+zlib checkpoint ===")
+    with open("final_model.int8.ptz", "rb") as f:
+        blob = f.read()
+    state = torch.load(io.BytesIO(zlib.decompress(blob)), map_location="cpu")
+    model.load_state_dict(dequantize_state_dict_int8(state), strict=True)
+    model.to(device)
     vl, vb = eval_val(args, model, 0, 1, device, 8, val_tokens, *luts)
     print(f"val_loss={vl:.4f} val_bpb={vb:.4f}")
 
-    # Test 2: compiled model with eval_val
-    print("\n=== Test 2: compiled model, eval_val ===")
-    compiled_model = torch.compile(model, dynamic=False, fullgraph=True)
-    vl2, vb2 = eval_val(args, compiled_model, 0, 1, device, 8, val_tokens, *luts)
-    print(f"val_loss={vl2:.4f} val_bpb={vb2:.4f}")
-
     # Summary
     print("\n=== COMPARISON ===")
-    print(f"Training reported:  val_bpb=1.4177")
-    print(f"Uncompiled eval_val: val_bpb={vb:.4f}")
-    print(f"Compiled eval_val:   val_bpb={vb2:.4f}")
+    print(f"Training reported:    val_bpb=1.4177")
+    if vb0 > 0:
+        print(f"Raw checkpoint:       val_bpb={vb0:.4f}")
+    print(f"Int8+zlib checkpoint: val_bpb={vb:.4f}")
 
 
 if __name__ == "__main__":
