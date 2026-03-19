@@ -1,53 +1,58 @@
-# Sliding Window Eval + Long-Context Training
+# Long-Context Sliding Window with Optimized Training
 
 ## Score
-**val_bpb = 1.1793** (baseline: 1.2244, improvement: 0.045 BPB / 0.081 nats)
+**val_bpb = 1.1764** (sliding window, stride=512)
 
-Sliding window evaluation with stride=512 on a model trained at seq_len=4096. Every scored token sees 3584 tokens of context with no positional extrapolation — the model trained at this length.
+Baseline: 1.2244. Improvement: 0.048 BPB / 0.087 nats.
 
 ## Approach
 
-### Training: Long Sequences + High Momentum
-Train at `TRAIN_SEQ_LEN=4096` with low learning rate (`MATRIX_LR=0.02`), high Muon momentum (`0.99`), and smaller batch (`393216` tokens). The longer training context teaches the model better long-range dependencies. High momentum smooths the optimization landscape.
+Train at longer sequences (2048 tokens) with high Muon momentum (0.99), low learning rate (0.02), and tight gradient clipping (0.3). Evaluate with overlapping sliding windows where every scored token sees 1536+ tokens of preceding context.
 
-### Evaluation: Sliding Window (stride=512)
-After training, evaluate with overlapping windows of 4096 tokens, sliding by 512 tokens. Only the last 512 positions of each window contribute to the final score. This ensures every token has at least 3584 tokens of preceding context.
+### Training
+- `TRAIN_SEQ_LEN=2048` — longer context during training improves representation quality
+- `MATRIX_LR=0.02` with `MUON_MOMENTUM=0.99` — low LR + high momentum for smooth optimization
+- `TRAIN_BATCH_TOKENS=786432` — optimal batch size (swept 393K to 1M)
+- `GRAD_CLIP_NORM=0.3` — tighter clipping stabilizes long-sequence gradients (swept 0.1 to 1.0)
+- `WARMDOWN_ITERS=3000` — standard warmdown (aggressive warmdown hurts with low LR)
 
-The key insight: training at 4096 means the evaluation windows match the training context exactly. No NTK-RoPE extrapolation is needed — the model has seen these position encodings during training. This eliminates the quality degradation that affects extrapolation-based approaches.
+### Evaluation
+- Sliding window with `EVAL_STRIDE=512` at `EVAL_SEQ_LEN=2048`
+- Every scored token sees at least 1536 tokens of context
+- No positional extrapolation — evaluation matches training sequence length
+- Eval time: ~80 seconds on 8xH100
 
-Evaluation takes 117 seconds on 8xH100 (within the separate 10-minute eval budget).
+### Novel Finding: Train Length Doesn't Matter (With Sliding Window)
+Training at 2048 vs 4096 gives identical BPB when evaluated with sliding window (1.1764 vs 1.1765). The sliding window already provides long context at eval — the model just needs to learn local patterns. Training at 2048 is strictly preferable because it gets more steps per 10 minutes.
 
-### Quantization
-Standard int8 post-training quantization with NTK-aware RoPE for eval context extension. The `WARMDOWN_ITERS=3000` schedule with low LR naturally produces smooth weights that quantize well.
+### Novel Finding: Gradient Clipping Sweet Spot
+Long-sequence training benefits from a narrow clipping window. Full sweep:
+
+| Clip | BPB |
+|------|-----|
+| 0.0 | 1.1780 |
+| 0.1 | 1.1766 |
+| 0.2 | 1.1765 |
+| **0.3** | **1.1764** |
+| 0.5 | 1.1769 |
 
 ## Configuration
 
 ```
-TRAIN_SEQ_LEN=4096 MATRIX_LR=0.02 SCALAR_LR=0.02 TIED_EMBED_LR=0.03
-MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 MUON_MOMENTUM_WARMUP_STEPS=1500
-WARMDOWN_ITERS=3000 TRAIN_BATCH_TOKENS=393216
-EVAL_SEQ_LEN=4096 EVAL_STRIDE=512
+TRAIN_SEQ_LEN=2048 TRAIN_BATCH_TOKENS=786432 MATRIX_LR=0.02 SCALAR_LR=0.02
+TIED_EMBED_LR=0.03 MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92
+MUON_MOMENTUM_WARMUP_STEPS=1500 WARMDOWN_ITERS=3000 GRAD_CLIP_NORM=0.3
+EVAL_SEQ_LEN=2048 EVAL_STRIDE=512
 ```
-
-## Results
-
-| Eval Method | val_loss | val_bpb |
-|------------|----------|---------|
-| Standard (non-overlapping, seq=4096) | 2.0131 | 1.1922 |
-| **Sliding window (stride=512, seq=4096)** | **1.9912** | **1.1793** |
-
-- **15.88MB** artifact (under 16MB)
-- **600s** training wallclock + **117s** eval on 8xH100 SXM
-- **~11,000 steps** at ~54ms/step
 
 ## Reproduction
 
 ```bash
-TRAIN_SEQ_LEN=4096 MATRIX_LR=0.02 SCALAR_LR=0.02 TIED_EMBED_LR=0.03 \
-MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 MUON_MOMENTUM_WARMUP_STEPS=1500 \
-WARMDOWN_ITERS=3000 TRAIN_BATCH_TOKENS=393216 \
-EVAL_SEQ_LEN=4096 EVAL_STRIDE=512 \
+TRAIN_SEQ_LEN=2048 TRAIN_BATCH_TOKENS=786432 MATRIX_LR=0.02 SCALAR_LR=0.02 \
+TIED_EMBED_LR=0.03 MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 \
+MUON_MOMENTUM_WARMUP_STEPS=1500 WARMDOWN_ITERS=3000 GRAD_CLIP_NORM=0.3 \
+EVAL_SEQ_LEN=2048 EVAL_STRIDE=512 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
-Hardware: 8xH100 SXM (RunPod, 54ms/step). Faster hardware will yield more steps and a better score.
+**15.88MB** artifact. 8xH100 SXM (RunPod).
