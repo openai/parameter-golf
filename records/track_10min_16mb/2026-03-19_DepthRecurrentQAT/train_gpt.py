@@ -795,7 +795,8 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    if os.environ.get("SKIP_COMPILE", "0") != "1":
+        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -1119,15 +1120,15 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
-        # LAWA: accumulate weight average during warmdown
+        # LAWA: accumulate weight average during warmdown (on GPU to avoid PCIe overhead)
         if scale < 1.0:
             if lawa_state is None:
-                lawa_state = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
+                lawa_state = {k: v.detach().clone().float() for k, v in base_model.state_dict().items()}
                 lawa_count = 1
             else:
                 lawa_count += 1
                 for k, v in base_model.state_dict().items():
-                    lawa_state[k] += (v.detach().cpu().float() - lawa_state[k]) / lawa_count
+                    lawa_state[k].lerp_(v.float(), 1.0 / lawa_count)
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -1164,8 +1165,10 @@ def main() -> None:
     # LAWA: load averaged weights if available
     if lawa_state is not None and lawa_count > 1:
         log0(f"LAWA: using averaged weights from {lawa_count} warmdown steps")
-        averaged = {k: v.to(dtype=base_model.state_dict()[k].dtype) for k, v in lawa_state.items()}
+        cur_sd = base_model.state_dict()
+        averaged = {k: v.to(dtype=cur_sd[k].dtype, device=cur_sd[k].device) for k, v in lawa_state.items()}
         base_model.load_state_dict(averaged, strict=True)
+        del lawa_state  # free GPU memory
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
