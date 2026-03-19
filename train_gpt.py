@@ -62,14 +62,14 @@ class Hyperparameters:
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 1))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
-    model_dim = int(os.environ.get("MODEL_DIM", 1024))
-    num_heads = int(os.environ.get("NUM_HEADS", 16))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    num_loops = int(os.environ.get("NUM_LOOPS", 8))
+    num_loops = int(os.environ.get("NUM_LOOPS", 4))
     lora_rank = int(os.environ.get("LORA_RANK", 8))
 
     # Optimizer hyperparameters.
@@ -77,7 +77,7 @@ class Hyperparameters:
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
@@ -662,9 +662,9 @@ class LoRABank(nn.Module):
             setattr(self, f"A_{tname}", nn.Parameter(
                 torch.randn(num_loops, in_dim, rank) * (1.0 / math.sqrt(in_dim))
             ))
-            # B: (num_loops, rank, out_dim) — zero init so LoRA starts as identity
+            # B: (num_loops, rank, out_dim) — small random init so loops differentiate immediately
             setattr(self, f"B_{tname}", nn.Parameter(
-                torch.zeros(num_loops, rank, out_dim)
+                torch.randn(num_loops, rank, out_dim) * (0.01 / math.sqrt(rank))
             ))
 
     def get_delta(self, target_name: str, loop_idx: int, x: Tensor) -> Tensor:
