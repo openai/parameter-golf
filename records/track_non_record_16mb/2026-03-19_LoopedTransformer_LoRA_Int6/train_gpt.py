@@ -50,10 +50,10 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 10))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 4096))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -82,19 +82,20 @@ class Hyperparameters:
     # Optimizer hyperparameters
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.03))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
     lora_lr = float(os.environ.get("LORA_LR", 0.01))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
-    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 200))
+    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+    swa_checkpoints = int(os.environ.get("SWA_CHECKPOINTS", 7))
 
 
 # -----------------------------
@@ -130,12 +131,14 @@ class LoRALinear(nn.Module):
 
 
 # -----------------------------
-# MUON OPTIMIZER (unchanged from baseline)
+# NORMUON OPTIMIZER (row-normalized Newton-Schulz)
 # -----------------------------
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
+    # Per-row normalization (NorMuon): ensures each row contributes equally
+    X = X / X.norm(dim=1, keepdim=True).clamp_min(eps)
     X /= X.norm() + eps
     transposed = G.size(0) > G.size(1)
     if transposed:
@@ -496,8 +499,11 @@ class Block(nn.Module):
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
     def forward(self, x, x0):
+        mix = self.resid_mix.to(dtype=x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
@@ -505,7 +511,7 @@ class Block(nn.Module):
 
 
 class LoopedGPT(nn.Module):
-    """GPT with looped/cycled transformer blocks and per-layer LoRA adapters."""
+    """GPT with looped/cycled transformer blocks, per-layer LoRA, and encoder-decoder skip connections."""
     def __init__(self, vocab_size, model_dim, unique_layers, virtual_depth,
                  num_heads, num_kv_heads, mlp_mult, tie_embeddings,
                  tied_embed_init_std, logit_softcap, rope_base, qk_gain_init, lora_rank):
@@ -514,6 +520,11 @@ class LoopedGPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.virtual_depth = virtual_depth
         self.unique_layers = unique_layers
+
+        # Encoder-decoder split
+        self.num_encoder_layers = virtual_depth // 2
+        self.num_decoder_layers = virtual_depth - self.num_encoder_layers
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
 
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.blocks = nn.ModuleList([
@@ -529,6 +540,9 @@ class LoopedGPT(nn.Module):
         # Per-virtual-layer scale (learnable, cheap)
         self.layer_scales = nn.Parameter(torch.ones(virtual_depth, dtype=torch.float32))
 
+        # Skip connections from encoder to decoder (learned weights)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
 
@@ -538,49 +552,66 @@ class LoopedGPT(nn.Module):
             if isinstance(m, nn.Linear) and getattr(m, "_zero_init", False):
                 nn.init.zeros_(m.weight)
 
+    def _run_layer(self, x, x0, i):
+        """Run one virtual layer: resid_mix + LoRA attention + MLP."""
+        block = self.blocks[i % self.unique_layers]
+
+        # Residual mixing (blend hidden state with original embedding)
+        mix = block.resid_mix.to(dtype=x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+
+        # LoRA-augmented attention
+        norm_x = block.attn_norm(x)
+        q = block.attn.c_q(norm_x) + self.lora_q[i](norm_x)
+        k = block.attn.c_k(norm_x)
+        v = block.attn.c_v(norm_x) + self.lora_v[i](norm_x)
+
+        bsz, seqlen, dim = x.shape
+        hd = block.attn.head_dim
+        nh = block.attn.num_heads
+        nkv = block.attn.num_kv_heads
+
+        q = q.reshape(bsz, seqlen, nh, hd).transpose(1, 2)
+        k = k.reshape(bsz, seqlen, nkv, hd).transpose(1, 2)
+        v = v.reshape(bsz, seqlen, nkv, hd).transpose(1, 2)
+
+        q = F.rms_norm(q, (q.size(-1),))
+        k = F.rms_norm(k, (k.size(-1),))
+        cos, sin = block.attn.rotary(seqlen, x.device, q.dtype)
+        q = apply_rotary_emb(q, cos, sin)
+        k = apply_rotary_emb(k, cos, sin)
+        q = q * block.attn.q_gain.to(dtype=q.dtype)[None, :, None, None]
+
+        attn_out = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True, enable_gqa=(nkv != nh))
+        attn_out = block.attn.proj(attn_out.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim))
+
+        # Scale and residual
+        scale = self.layer_scales[i].to(dtype=x.dtype)
+        x = x + scale * block.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        x = x + scale * block.mlp_scale.to(dtype=x.dtype)[None, None, :] * block.mlp(block.mlp_norm(x))
+        return x
+
+    def _looped_pass(self, x, x0):
+        """Encoder-decoder forward with skip connections."""
+        skips = []
+        # Encoder half: store skip tensors
+        for i in range(self.num_encoder_layers):
+            x = self._run_layer(x, x0, i)
+            skips.append(x)
+        # Decoder half: add skip connections in reverse
+        for i in range(self.num_encoder_layers, self.virtual_depth):
+            dec_idx = i - self.num_encoder_layers
+            if dec_idx < self.num_skip_weights and skips:
+                x = x + self.skip_weights[dec_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self._run_layer(x, x0, i)
+        return x
+
     def forward(self, input_ids, target_ids):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
 
-        # Looped forward pass with per-layer LoRA
-        for i in range(self.virtual_depth):
-            block = self.blocks[i % self.unique_layers]
-
-            # Apply LoRA deltas to Q and V for this virtual layer
-            norm_x = block.attn_norm(x)
-            q_base = block.attn.c_q(norm_x)
-            q = q_base + self.lora_q[i](norm_x)
-
-            k = block.attn.c_k(norm_x)
-
-            v_base = block.attn.c_v(norm_x)
-            v = v_base + self.lora_v[i](norm_x)
-
-            # Reshape for attention
-            bsz, seqlen, dim = x.shape
-            hd = block.attn.head_dim
-            nh = block.attn.num_heads
-            nkv = block.attn.num_kv_heads
-
-            q = q.reshape(bsz, seqlen, nh, hd).transpose(1, 2)
-            k = k.reshape(bsz, seqlen, nkv, hd).transpose(1, 2)
-            v = v.reshape(bsz, seqlen, nkv, hd).transpose(1, 2)
-
-            q = F.rms_norm(q, (q.size(-1),))
-            k = F.rms_norm(k, (k.size(-1),))
-            cos, sin = block.attn.rotary(seqlen, x.device, q.dtype)
-            q = apply_rotary_emb(q, cos, sin)
-            k = apply_rotary_emb(k, cos, sin)
-            q = q * block.attn.q_gain.to(dtype=q.dtype)[None, :, None, None]
-
-            attn_out = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True, enable_gqa=(nkv != nh))
-            attn_out = block.attn.proj(attn_out.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim))
-
-            # Scale and residual
-            scale = self.layer_scales[i].to(dtype=x.dtype)
-            x = x + scale * block.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-            x = x + scale * block.mlp_scale.to(dtype=x.dtype)[None, None, :] * block.mlp(block.mlp_norm(x))
+        x = self._looped_pass(x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -597,35 +628,7 @@ class LoopedGPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
 
-        for i in range(self.virtual_depth):
-            block = self.blocks[i % self.unique_layers]
-            norm_x = block.attn_norm(x)
-            q = block.attn.c_q(norm_x) + self.lora_q[i](norm_x)
-            k = block.attn.c_k(norm_x)
-            v = block.attn.c_v(norm_x) + self.lora_v[i](norm_x)
-
-            bsz, seqlen, dim = x.shape
-            hd = block.attn.head_dim
-            nh = block.attn.num_heads
-            nkv = block.attn.num_kv_heads
-
-            q = q.reshape(bsz, seqlen, nh, hd).transpose(1, 2)
-            k = k.reshape(bsz, seqlen, nkv, hd).transpose(1, 2)
-            v = v.reshape(bsz, seqlen, nkv, hd).transpose(1, 2)
-
-            q = F.rms_norm(q, (q.size(-1),))
-            k = F.rms_norm(k, (k.size(-1),))
-            cos, sin = block.attn.rotary(seqlen, x.device, q.dtype)
-            q = apply_rotary_emb(q, cos, sin)
-            k = apply_rotary_emb(k, cos, sin)
-            q = q * block.attn.q_gain.to(dtype=q.dtype)[None, :, None, None]
-
-            attn_out = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True, enable_gqa=(nkv != nh))
-            attn_out = block.attn.proj(attn_out.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim))
-
-            scale = self.layer_scales[i].to(dtype=x.dtype)
-            x = x + scale * block.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-            x = x + scale * block.mlp_scale.to(dtype=x.dtype)[None, None, :] * block.mlp(block.mlp_norm(x))
+        x = self._looped_pass(x, x0)
 
         x = self.final_norm(x)
         if self.tie_embeddings:
@@ -775,6 +778,7 @@ def main():
     block_scalar_params = [p for n, p in base_model.blocks.named_parameters() if p.ndim < 2 or any(pat in n for pat in CONTROL_TENSOR_NAME_PATTERNS)]
     lora_params = list(base_model.lora_q.parameters()) + list(base_model.lora_v.parameters())
     block_scalar_params.append(base_model.layer_scales)
+    block_scalar_params.append(base_model.skip_weights)
 
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam([{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}], betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
@@ -784,6 +788,9 @@ def main():
     optimizer_scalar = torch.optim.Adam([{"params": block_scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}], betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
     optimizer_lora = torch.optim.Adam([{"params": lora_params, "lr": args.lora_lr, "base_lr": args.lora_lr}], betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
     optimizers = [optimizer_tok, optimizer_muon, optimizer_scalar, optimizer_lora]
+    if not args.tie_embeddings and base_model.lm_head is not None:
+        optimizer_head = torch.optim.Adam([{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}], betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
+        optimizers.append(optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
     n_base_params = sum(p.numel() for p in base_model.blocks.parameters()) + base_model.tok_emb.weight.numel()
@@ -792,20 +799,37 @@ def main():
     log0(f"unique_layers:{args.unique_layers} virtual_depth:{args.virtual_depth} model_dim:{args.model_dim}")
     log0(f"export_bits:{args.export_bits}")
 
+    # Wallclock-based warmdown scheduling
+    max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+
+    def lr_mul(step, elapsed_ms):
+        """Compute LR multiplier with warmup + wallclock-aware warmdown."""
+        if step < args.warmup_steps:
+            return step / max(args.warmup_steps, 1)
+        if args.warmdown_iters <= 0:
+            return 1.0
+        if max_wallclock_ms is not None and step > 0:
+            step_ms = elapsed_ms / step
+            warmdown_ms = args.warmdown_iters * step_ms
+            remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
+            if remaining_ms <= warmdown_ms:
+                return max(remaining_ms / warmdown_ms, 0.0)
+        else:
+            warmdown_start = max(args.iterations - args.warmdown_iters, 0)
+            if step >= warmdown_start:
+                return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0)
+        return 1.0
+
     # Training loop
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
-    training_time = 0.0
+    training_time_ms = 0.0
     tokens_processed = 0
+    swa_snapshots = []
+    swa_started = False
 
     for step in range(args.iterations + 1):
-        # LR scheduling
-        if step < args.warmup_steps:
-            lr_frac = step / max(args.warmup_steps, 1)
-        elif step >= args.iterations - args.warmdown_iters:
-            lr_frac = 1.0 - (step - (args.iterations - args.warmdown_iters)) / max(args.warmdown_iters, 1)
-        else:
-            lr_frac = 1.0
-        lr_frac = max(lr_frac, 0.0)
+        # LR scheduling (wallclock-aware)
+        lr_frac = lr_mul(step, training_time_ms)
         for opt in optimizers:
             for g in opt.param_groups:
                 g["lr"] = g.get("base_lr", g["lr"]) * lr_frac
@@ -826,8 +850,8 @@ def main():
             break
 
         # Wallclock cap
-        if training_time >= args.max_wallclock_seconds:
-            log0(f"Wallclock cap hit at step {step}, {training_time:.1f}s")
+        if max_wallclock_ms is not None and training_time_ms >= max_wallclock_ms:
+            log0(f"Wallclock cap hit at step {step}, {training_time_ms/1000:.1f}s")
             break
 
         t0 = time.perf_counter()
@@ -841,19 +865,49 @@ def main():
             (loss * grad_scale).backward()
             tokens_processed += x.numel()
 
+        # Gradient clipping
+        if args.grad_clip_norm > 0:
+            torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+
         for opt in optimizers:
             opt.step()
 
         dt = time.perf_counter() - t0
-        training_time += dt
+        training_time_ms += dt * 1000.0
+
+        # SWA: collect snapshots during warmdown
+        if lr_frac < 1.0 and args.swa_checkpoints > 0:
+            if not swa_started:
+                swa_started = True
+                swa_interval = max(args.warmdown_iters // args.swa_checkpoints, 1)
+                swa_step_counter = 0
+            swa_step_counter += 1
+            if swa_step_counter % swa_interval == 0:
+                swa_snapshots.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
+                log0(f"step:{step} SWA snapshot {len(swa_snapshots)} captured")
 
         if step > 0 and step % args.train_log_every == 0:
-            log0(f"step:{step} loss:{loss.item():.4f} dt:{dt*1000:.1f}ms tokens:{tokens_processed} time:{training_time:.1f}s")
+            log0(f"step:{step} loss:{loss.item():.4f} dt:{dt*1000:.1f}ms lr:{lr_frac:.3f} tokens:{tokens_processed} time:{training_time_ms/1000:.1f}s")
+
+    # Capture final snapshot for SWA if in warmdown
+    if swa_started and args.swa_checkpoints > 0:
+        swa_snapshots.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
+        log0(f"SWA final snapshot captured (total: {len(swa_snapshots)})")
+
+    # Apply SWA averaging
+    if len(swa_snapshots) > 1:
+        avg_sd = {}
+        for key in swa_snapshots[0]:
+            stacked = torch.stack([s[key].float() for s in swa_snapshots])
+            avg_sd[key] = stacked.mean(dim=0).to(swa_snapshots[0][key].dtype)
+        base_model.load_state_dict(avg_sd, strict=True)
+        log0(f"SWA: averaged {len(swa_snapshots)} checkpoints")
+        del swa_snapshots  # free memory
 
     # Final validation (standard, for training-loop consistency)
     val_loss, val_bpb = eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
     log0(f"FINAL val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}")
-    log0(f"Train time: {training_time:.1f}s, Tokens: {tokens_processed}")
+    log0(f"Train time: {training_time_ms/1000:.1f}s, Tokens: {tokens_processed}")
 
     # Export
     if master_process:

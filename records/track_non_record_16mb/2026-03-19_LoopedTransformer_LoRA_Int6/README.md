@@ -4,33 +4,40 @@
 
 ## Method
 
-This submission combines **depth recurrence** with **per-virtual-layer adaptation** to maximize model depth per stored byte.
+This submission combines **depth recurrence** with **per-virtual-layer adaptation** and **encoder-decoder skip connections** to maximize model depth per stored byte.
 
-### Architecture: Looped Transformer with LoRA
+### Architecture: Looped Transformer with LoRA + Skip Connections
 
-- **5 unique transformer blocks** looped to create **30 virtual layers**
-- Forward pass: `for i in range(30): x = blocks[i % 5](x, x0)`
-- Stores 5 blocks but computes 30 layers deep (6x depth multiplier)
-- **Per-virtual-layer LoRA adapters** on Q and V projections (rank=4) differentiate each virtual layer
-- **Per-virtual-layer learnable scale** parameter for fine-grained control
-- Base block weights trained with Muon optimizer; LoRA/scalar params with Adam
+- **5 unique transformer blocks** looped to create **30 virtual layers** (6x depth multiplier)
+- **Encoder-decoder structure**: first 15 virtual layers = encoder (stores skip tensors), last 15 = decoder (consumes them in reverse via learned `skip_weights`)
+- **Per-virtual-layer LoRA adapters** (rank=4) on Q,V projections differentiate each virtual layer
+- **Residual mixing** (`resid_mix`): learned blend of hidden state with original embedding at each layer
+- **Per-virtual-layer learnable scale** for fine-grained depth control
+- Base block weights trained with NorMuon optimizer; LoRA/scalar params with Adam
 
-The key insight is that naive weight sharing (as shown in PR #31, which got 1.2663 BPB, *worse* than baseline) fails because identical layers cannot specialize. Per-virtual-layer LoRA adapters solve this at minimal parameter cost: 30 pairs of rank-4 adapters add only ~307K parameters (~1.5% of total), but allow each virtual layer to develop distinct attention patterns.
+The key insight is that naive weight sharing (PR #31: 1.2663 BPB, *worse* than baseline) fails because identical layers cannot specialize. Per-virtual-layer LoRA adapters solve this at minimal cost: 30 pairs of rank-4 adapters add only ~307K params (~1.5% of total).
+
+### Training Improvements
+
+- **NorMuon optimizer**: per-row normalized Newton-Schulz orthogonalization for better gradient conditioning
+- **Wallclock-aware warmdown**: LR decay triggers based on remaining wall time, not step count (fixes warmdown never triggering when wallclock cap is hit before max iterations)
+- **Stochastic Weight Averaging (SWA)**: averages 7 checkpoints during warmdown for smoother final weights
+- **Gradient clipping** (norm=1.0) for stability with 30 virtual layers
+- **Tuned LRs**: MATRIX_LR=0.02, SCALAR_LR=0.02, TIED_EMBED_LR=0.03, MUON_MOMENTUM=0.99 with warmup from 0.92 over 1500 steps
+- **Training at seq_len=4096** for richer context per token
 
 ### Quantization: Int6 with FP16 Embedding Passthrough
 
 - Block weights quantized to int6 range [-31, 31], stored as int8 bytes
-- Per-row fp16 scales (same approach as int8, but 6-bit range)
+- Per-row fp16 scales
 - **Token embedding kept in fp16** (most quantization-sensitive tensor)
 - **LoRA parameters kept in fp16** (small, sensitive to quantization)
 - Zlib compresses the zero high bits in int8-stored int6 values efficiently
-- No outlier protection needed (int6 has sufficient dynamic range)
 
 ### Evaluation: Sliding Window
 
 - Overlapping windows of 4096 tokens, stride 64
 - Each scored token gets nearly full 4096-token context
-- Only the rightmost 64 tokens per window are scored
 - Zero artifact cost improvement (~0.03-0.04 BPB from PR #77 ablations)
 
 ## Configuration
@@ -49,35 +56,41 @@ EVAL_SEQ_LEN=4096
 EVAL_STRIDE=64
 TIE_EMBEDDINGS=1
 TRAIN_BATCH_TOKENS=524288
-TRAIN_SEQ_LEN=1024
+TRAIN_SEQ_LEN=4096
+MATRIX_LR=0.02
+SCALAR_LR=0.02
+TIED_EMBED_LR=0.03
+MUON_MOMENTUM=0.99
+WARMDOWN_ITERS=3000
+GRAD_CLIP_NORM=1.0
+SWA_CHECKPOINTS=7
 ```
 
-## Results (1xH100, RunPod)
+## Results (1xH100, RunPod — prior version without skip connections/NorMuon/SWA)
 
-Three development runs were performed on a single H100 80GB (RunPod). The pod was terminated after runs completed to save costs; detailed step logs were not preserved.
+Three development runs were performed on a single H100 80GB (RunPod) with an earlier version of this script (int4 quant, no skip connections, basic Muon). Pod terminated after runs; detailed step logs not preserved.
 
-### Run 1: Smoke test (d=384, 3 blocks, 9 virtual depth)
-- val_bpb: 2.26 (2.28 roundtrip int4) | Artifact: 1.96 MB | 64.6s training
-
-### Run 2: Scaled (d=768, 5 blocks, 25 virtual depth, batch=65K)
-- val_bpb: 1.57 (1.78 roundtrip int4) | Artifact: 8.56 MB | 600s, 59M tokens
-
-### Run 3: Improved (d=768, 5 blocks, 25 virtual depth, batch=524K, compile)
+### Run 3 (Best): d=768, 5 blocks, 25 virtual depth, batch=524K
 - val_bpb: **1.50 pre-quant** (1.60 roundtrip int4) | Artifact: 8.88 MB | 600s, 203M tokens
-- Outlier protection cut int4 quantization loss by 53%
 
-### Estimated improvement with int6 + fp16 embed + sliding window
-Based on ablation data from PR #65, #66, #77:
-- Int6 quant gap: ~+0.025 (vs +0.10 with int4), saving ~0.075 BPB
-- FP16 embedding: ~-0.007 BPB
-- Sliding window: ~-0.035 BPB
-- **Estimated 1xH100 BPB: ~1.48** (vs 1.60 with int4)
+### Estimated improvements (cumulative)
+
+| Technique | Est. BPB Impact |
+|-----------|----------------|
+| Int6 quant (vs int4) | -0.075 |
+| FP16 embedding passthrough | -0.007 |
+| Sliding window eval | -0.035 |
+| Encoder-decoder skip connections | -0.01 to -0.02 |
+| Residual mixing | -0.01 |
+| NorMuon optimizer | -0.002 to -0.003 |
+| Tuned LRs + warmdown fix | -0.01 to -0.02 |
+| SWA (7 checkpoints) | -0.003 to -0.005 |
+| **Estimated 1xH100 BPB** | **~1.35-1.40** |
 
 ### 8xH100 Projection
-- 8xH100 would process ~1.77B tokens (vs 203M on 1xH100, 8.7x more)
-- BPB improves ~0.09 per data doubling (~3.1 doublings)
-- **Projected 8xH100 BPB: ~1.20** (would beat baseline 1.2244)
-- With further optimization (wider MLP, QAT, hyperparameter tuning): potentially ~1.17-1.19
+- 8xH100 processes ~1.77B tokens (8.7x more than 203M on 1xH100)
+- ~3.1 data doublings at ~0.09 BPB/doubling = -0.28 BPB from data scaling
+- **Projected 8xH100 BPB: ~1.07-1.12** (would beat current SOTA ~1.163)
 
 ## Artifact Size Estimate
 
@@ -85,29 +98,23 @@ Based on ablation data from PR #65, #66, #77:
 |-----------|-----------|-------|
 | Block weights (int6 as int8) | 19.66 MB | 5 blocks, d=768, MLP 2x |
 | Scales (fp16) | 0.04 MB | Per-row scales |
-| Embedding (fp16) | 1.57 MB | 1024 vocab, kept full precision |
+| Embedding (fp16) | 1.57 MB | 1024 vocab, full precision |
 | LoRA (fp16) | 0.61 MB | 30 virtual layers, rank 4 |
-| Scalars (fp32) | 0.03 MB | Norms, gains, layer scales |
-| **Raw total** | **21.92 MB** | |
-| **After zlib (est. 0.65)** | **~14.3 MB** | |
-| Code | 0.039 MB | |
-| **Total artifact (est.)** | **~14.3 MB** | Under 16 MB cap |
+| Skip weights + scalars (fp32) | 0.08 MB | skip_weights, resid_mix, layer_scales |
+| **Raw total** | **22.00 MB** | |
+| **After zlib (est. 0.65)** | **~14.9 MB** | |
+| Code | ~0.04 MB | |
+| **Total artifact (est.)** | **~14.9 MB** | Under 16 MB cap |
 
 ## Command
 
 ```bash
-RUN_ID=looped_int6_v1 \
+RUN_ID=looped_int6_v2 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
-```
-
-For 1xH100 development:
-```bash
-RUN_ID=looped_int6_dev \
-torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```
 
 ## Included Files
 
-- `train_gpt.py` — Complete training script with looped architecture, LoRA, int6 export, sliding window eval
+- `train_gpt.py` — Complete training script
 - `submission.json` — Leaderboard metadata
-- `train_summary.log` — Summary of 1xH100 development runs (detailed logs lost with terminated pod)
+- `train_summary.log` — Summary of 1xH100 development runs
