@@ -1,4 +1,6 @@
-# Stacked Wins: Sliding Window Eval + Seq2048 + FP16 Embed + LR Tuning
+# pcloadloveletter v1: Sliding Window Eval + Seq2048 + FP16 Embed + LR Tuning
+
+**Team:** pcloadloveletter (Artie AI)
 
 This submission combines three proven improvements that were previously submitted independently, leveraging the fact that they target orthogonal aspects of the pipeline (training architecture, quantization, and evaluation strategy).
 
@@ -36,7 +38,7 @@ Quantization:
 ## Command
 
 ```bash
-RUN_ID=stacked_wins_v1 \
+RUN_ID=pcloadloveletter_v1 \
 DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
 TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
