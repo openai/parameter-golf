@@ -11,8 +11,10 @@ This run also increases validation batch size and enables logit chunking so the 
 - `VAL_BATCH_SIZE=8388608`
 - `LOGIT_CHUNK_TOKENS=65536`
 
-Command (track-relevant params):
+Command (run from this record folder so it uses the archived trainer snapshot):
 ```bash
+cd records/track_non_record_16mb/2026-03-19_Deep14x416_KV2_SP1024_MLX_750it
+
 RUN_ID=deep14_416_kv2_full_750 \
 ITERATIONS=750 \
 MAX_WALLCLOCK_SECONDS=0 \
@@ -22,12 +24,14 @@ VAL_BATCH_SIZE=8388608 \
 LOGIT_CHUNK_TOKENS=65536 \
 TRAIN_LOG_EVERY=50 \
 WARMUP_STEPS=10 \
+DATA_PATH=../../../data/datasets/fineweb10B_sp1024 \
+TOKENIZER_PATH=../../../data/tokenizers/fineweb_1024_bpe.model \
 NUM_LAYERS=14 \
 MODEL_DIM=416 \
 NUM_HEADS=8 \
 NUM_KV_HEADS=2 \
 MLP_MULT=2 \
-python3 train_gpt_mlx.py
+python3 ./train_gpt_mlx.py
 ```
 
 Key metrics (from `train.log`):
