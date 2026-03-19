@@ -702,19 +702,22 @@ class GPT(nn.Module):
         x0 = x
 
         if self.training:
-            num_iters = random.randint(self.min_loop_iters, self.num_loop_iters)
+            depth = torch.randint(self.min_loop_iters, self.num_loop_iters + 1, (), device=x.device)
+            active = torch.arange(self.num_loop_iters, device=x.device) < depth
         else:
-            num_iters = self.num_loop_iters
+            active = x.new_ones(self.num_loop_iters, dtype=torch.bool)
 
         # U-Net skip reinterpreted across loop iterations:
         # store at the midpoint iteration, reinject in the second half.
         mid = self.num_loop_iters // 2
         skip = x  # initialised to a valid tensor; overwritten at i == mid
-        for i in range(num_iters):
+        for i in range(self.num_loop_iters):
+            x_in = x  # full-iteration checkpoint: inactive iterations are true no-ops
             x = x * self.iter_scales[i].to(dtype=x.dtype)[None, None, :]
             if i > mid:
                 x = x + self.skip_weights.to(dtype=x.dtype)[None, None, :] * skip
-            x = self.shared_block(x, x0)
+            x_new = self.shared_block(x, x0)
+            x = torch.where(active[i].view(1, 1, 1), x_new, x_in)
             if i == mid:
                 skip = x
 
