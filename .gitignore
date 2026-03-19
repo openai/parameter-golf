@@ -11,3 +11,4 @@ data/docs_selected.jsonl
 logs/
 controller_state/
 remote_logs/
+infra/private/
