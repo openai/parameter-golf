@@ -162,6 +162,20 @@ def sanitize_tsv(value: str) -> str:
     return value.replace("\t", " ").replace("\r", " ").replace("\n", " ")
 
 
+def format_process_error(exc: subprocess.CalledProcessError) -> str:
+    parts = [f"exit_code={exc.returncode}"]
+    if exc.cmd:
+        rendered = " ".join(shlex.quote(str(part)) for part in exc.cmd)
+        parts.append(f"cmd={rendered}")
+    stderr_text = sanitize_tsv((exc.stderr or "").strip())
+    stdout_text = sanitize_tsv((exc.stdout or "").strip())
+    if stderr_text:
+        parts.append(f"stderr={stderr_text}")
+    elif stdout_text:
+        parts.append(f"stdout={stdout_text}")
+    return " | ".join(parts)
+
+
 def run_cmd(
     cmd: list[str],
     *,
@@ -501,7 +515,7 @@ class PgolfController:
                         run_dir=run_dir,
                         experiment_commit=experiment_commit,
                     )
-                except ControllerError as exc:
+                except (ControllerError, subprocess.CalledProcessError) as exc:
                     self._record_run_error(
                         candidate=candidate,
                         iteration=iteration,
@@ -509,7 +523,11 @@ class PgolfController:
                         run_dir=run_dir,
                         experiment_commit=experiment_commit,
                         stage="experiment",
-                        error=str(exc),
+                        error=(
+                            format_process_error(exc)
+                            if isinstance(exc, subprocess.CalledProcessError)
+                            else str(exc)
+                        ),
                     )
                     ensure_clean_git(self.config.repo_dir)
                     self.next_iteration += 1
@@ -524,7 +542,7 @@ class PgolfController:
                         experiment_commit=experiment_commit,
                         outcome=outcome,
                     )
-                except ControllerError as exc:
+                except (ControllerError, subprocess.CalledProcessError) as exc:
                     self._record_run_error(
                         candidate=candidate,
                         iteration=iteration,
@@ -532,7 +550,11 @@ class PgolfController:
                         run_dir=run_dir,
                         experiment_commit=experiment_commit,
                         stage="post_review",
-                        error=str(exc),
+                        error=(
+                            format_process_error(exc)
+                            if isinstance(exc, subprocess.CalledProcessError)
+                            else str(exc)
+                        ),
                         outcome=outcome,
                     )
                     ensure_clean_git(self.config.repo_dir)
@@ -592,14 +614,18 @@ class PgolfController:
                 run_dir=run_dir,
                 experiment_commit=base_commit,
             )
-        except ControllerError as exc:
+        except (ControllerError, subprocess.CalledProcessError) as exc:
             self._record_baseline_error(
                 iteration=iteration,
                 run_id=run_id,
                 run_dir=run_dir,
                 experiment_commit=base_commit,
                 stage="experiment",
-                error=str(exc),
+                error=(
+                    format_process_error(exc)
+                    if isinstance(exc, subprocess.CalledProcessError)
+                    else str(exc)
+                ),
             )
             ensure_clean_git(self.config.repo_dir)
             self.next_iteration += 1
@@ -613,14 +639,18 @@ class PgolfController:
                 experiment_commit=base_commit,
                 outcome=outcome,
             )
-        except ControllerError as exc:
+        except (ControllerError, subprocess.CalledProcessError) as exc:
             self._record_baseline_error(
                 iteration=iteration,
                 run_id=run_id,
                 run_dir=run_dir,
                 experiment_commit=base_commit,
                 stage="post_review",
-                error=str(exc),
+                error=(
+                    format_process_error(exc)
+                    if isinstance(exc, subprocess.CalledProcessError)
+                    else str(exc)
+                ),
                 outcome=outcome,
             )
             ensure_clean_git(self.config.repo_dir)
@@ -1053,6 +1083,7 @@ class PgolfController:
             [
                 "git",
                 "push",
+                "--force",
                 self.config.push_remote,
                 f"HEAD:refs/heads/{self.config.remote_branch}",
             ],
