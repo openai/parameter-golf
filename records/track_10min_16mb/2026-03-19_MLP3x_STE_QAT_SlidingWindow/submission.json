@@ -1,0 +1,17 @@
+{
+  "author": "andrewgcodes",
+  "github_id": "andrewgcodes",
+  "name": "9L MLP3x seq4096 + STE int6 QAT + sliding window + tuned Muon + ROPE=200K + warmdown=14K",
+  "blurb": "9-layer transformer with MLP 3x expansion (h=1536), seq_len=4096, val-only training, STE fake-int6 quantization-aware training (near-zero quant penalty), mixed post-training quantization (int6 per-row blocks, int8 per-row embedding), sliding window eval (stride=64), tuned Muon optimizer (momentum=0.99, LR=0.025), ROPE_BASE=200000, extended warmdown (14000 steps), seed=42.",
+  "date": "2026-03-19T19:00:00Z",
+  "val_loss": 1.61885348,
+  "val_bpb": 0.95878137,
+  "pre_quant_val_loss": 1.6574,
+  "pre_quant_val_bpb": 0.9816,
+  "step_stop": 9952,
+  "wallclock_seconds": 599.915,
+  "eval_time_seconds": 388.556,
+  "bytes_total": 15381981,
+  "bytes_model_int8_zlib": 15331109,
+  "bytes_code": 50872
+}
