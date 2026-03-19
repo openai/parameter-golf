@@ -90,8 +90,31 @@ All optimizer/eval hyperparameters are baked into the script defaults; only path
 
 8x NVIDIA H100 80GB SXM (NVLink)
 
+## Statistical Significance
+
+The challenge requires beating the current SOTA (1.2244) by ≥ 0.005 BPB at p < 0.01. The threshold to beat is **1.2194**.
+
+Three independent seeds were run, all under the standard 10-minute compute budget:
+
+| Seed | val_bpb | Step stop |
+|------|---------|-----------|
+| 1337 | 1.18335372 | 9919 |
+| 1338 | 1.18437368 | 9919 |
+| 1339 | 1.18481782 | 9919 |
+
+- Sample mean: **1.18418174**
+- Sample standard deviation: **0.00075068**
+- Threshold (SOTA − 0.005): 1.2194
+- One-sided one-sample t-test against threshold: **t = 81.26**, df = 2
+- Critical value for p < 0.01 (df=2, one-tailed): t = 6.965
+- **p << 0.001** (t = 81.26 far exceeds the critical value)
+
+All three seeds comfortably clear the threshold by more than 0.035 BPB, with extremely low variance (std = 0.00075). The result is highly reproducible.
+
 ## Included Files
 
 - `train_gpt.py` (standalone script used for the run; all V2 defaults baked in)
-- `train.log` (exact training log from the run)
+- `train.log` (exact training log from seed 1337, the canonical run)
+- `train_seed1338.log` (full rerun, SEED=1338)
+- `train_seed1339.log` (full rerun, SEED=1339)
 - `submission.json` (leaderboard metadata)
