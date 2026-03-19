@@ -1,0 +1,1 @@
+run_id,model_dim,recur_steps,mlp_dim,num_layers,num_heads,num_kv_heads,train_seq_len,iterations,train_batch_tokens,max_wallclock_seconds,val_loss,val_bpb,int8_model_bytes,total_artifact_bytes,pass_16mb,notes
