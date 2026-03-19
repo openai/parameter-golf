@@ -53,10 +53,12 @@ Useful flags:
 ## Notes
 
 - The deploy script requires a clean local git worktree.
-- It syncs the current repository contents to the controller host with `rsync`.
+- It now ships the current local git branch as a temporary bundle and merges it into the host repo.
+- This preserves host-only experiment history instead of replacing the remote `.git` directory.
 - The installed service is a user service named `parameter-golf-autoresearch` by default.
 - Prefer `journalctl --user -u parameter-golf-autoresearch -f --output=cat` for service logs.
 - This bootstraps the controller host only. The GPU worker bootstrap belongs in the Runpod path.
+- The deploy script assumes the controller host already has a git repo at the target path. For a brand-new host, do an initial clone/bootstrap first, then use the deploy script for subsequent updates.
 
 ## Operational Notes
 
