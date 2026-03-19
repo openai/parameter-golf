@@ -607,8 +607,8 @@ class MLP(nn.Module):
     # SwiGLU MLP — gated linear unit with SiLU activation
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
-        # Scale hidden to keep ~same param count as 2-matrix ReLU^2 MLP
-        hidden = int(mlp_mult * dim * 2 / 3)
+        # Scale hidden for SwiGLU 3-matrix param budget
+        hidden = int(mlp_mult * dim * 3 / 4)
         self.gate = CastedLinear(dim, hidden, bias=False)
         self.up = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
