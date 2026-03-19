@@ -1,6 +1,6 @@
 ---
 name: arjunautoresearch
-description: Pulls all open PRs from a GitHub repo, ranks techniques by expected impact, composes the best combination, runs iterative experiments, and packages a compliant submission. Use when researching a competitive ML challenge, optimizing a metric across many candidate approaches, or preparing a leaderboard submission.
+description: Pulls all open PRs from the openai/parameter-golf repo, ranks techniques by expected impact, composes the best combination, runs iterative experiments, and packages a submission.
 metadata:
   author: arjun-krishna1
   version: "1.0"
@@ -8,14 +8,14 @@ metadata:
 
 # AutoResearch
 
-Systematic workflow for winning ML competitions where competitors share approaches via PRs.
+Systematic workflow for distilling and composing the best approaches from the openai/parameter-golf challenge
 
 ## Phase 1: Gather all candidate approaches
 
 Fetch every PR's metadata and diff:
 
 ```bash
-scripts/pull-pr-diffs.sh <org>/<repo> pr_diffs 60
+scripts/pull-pr-diffs.sh pr_diffs 60
 ```
 
 This saves `pr_<number>_view.txt` and `pr_<number>_diff.txt` for each PR. Read through all diffs and extract:
