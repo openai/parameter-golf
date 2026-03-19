@@ -171,6 +171,31 @@ if runtime:
              echo 'To follow: ssh in and run: tail -f $REMOTE_DIR/autoresearch.out'"
         ;;
 
+    pull)
+        PARTS=$(get_ssh_parts)
+        if [ -z "$PARTS" ]; then
+            echo "Pod not ready. Check './pod.sh status'"
+            exit 1
+        fi
+        HOST=$(echo "$PARTS" | cut -d' ' -f1)
+        PORT=$(echo "$PARTS" | cut -d' ' -f2)
+
+        echo "Pulling experiment results from pod..."
+        rsync -avz --progress \
+            -e "ssh -p $PORT -o StrictHostKeyChecking=no" \
+            "root@$HOST:$REMOTE_DIR/autoresearch/experiments/" \
+            "$SCRIPT_DIR/autoresearch/experiments/"
+        rsync -avz \
+            -e "ssh -p $PORT -o StrictHostKeyChecking=no" \
+            "root@$HOST:$REMOTE_DIR/autoresearch/history.jsonl" \
+            "$SCRIPT_DIR/autoresearch/history.jsonl"
+        rsync -avz \
+            -e "ssh -p $PORT -o StrictHostKeyChecking=no" \
+            "root@$HOST:$REMOTE_DIR/autoresearch/train_gpt.best.py" \
+            "$SCRIPT_DIR/autoresearch/train_gpt.best.py" 2>/dev/null || true
+        echo "Done. Results in autoresearch/experiments/"
+        ;;
+
     stop)
         pod_id=$(get_pod_id)
         if [ -z "$pod_id" ]; then
@@ -195,13 +220,14 @@ if runtime:
         ;;
 
     *)
-        echo "Usage: ./pod.sh {create|status|ssh|sync|run|stop|destroy}"
+        echo "Usage: ./pod.sh {create|status|ssh|sync|run|pull|stop|destroy}"
         echo ""
         echo "  create [gpus]  — spin up H100 pod (default 1 GPU)"
         echo "  status         — show pod info"
         echo "  ssh            — connect to pod"
         echo "  sync           — rsync project files to pod"
         echo "  run            — sync + start autoresearch in background"
+        echo "  pull           — pull experiment results from pod"
         echo "  stop           — pause pod (keeps volume/data)"
         echo "  destroy        — terminate pod completely"
         ;;

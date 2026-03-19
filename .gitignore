@@ -14,5 +14,6 @@ logs/
 autoresearch/logs/
 autoresearch/history.jsonl
 autoresearch/*.best.py
+autoresearch/experiments/*/train.log
 autoresearch.out
 final_model*
