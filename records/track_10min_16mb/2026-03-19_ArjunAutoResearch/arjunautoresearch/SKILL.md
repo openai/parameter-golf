@@ -12,12 +12,13 @@ Six-phase workflow for beating the openai/parameter-golf leaderboard.
 
 ## Phase 1: Pull and rank all competitor PRs
 
+Fetch every PR's metadata and diff in one shot:
+
 ```bash
-gh pr list --repo openai/parameter-golf --state all --limit 60
-gh pr diff --repo openai/parameter-golf <number> > pr_diffs/pr_<number>_diff.txt
+scripts/pull-pr-diffs.sh openai/parameter-golf pr_diffs 60
 ```
 
-Sort each technique into three buckets:
+This saves `pr_<number>_view.txt` and `pr_<number>_diff.txt` for each PR into the output directory. Then sort each technique into three buckets:
 
 | Tier | Criteria | Examples |
 |------|----------|---------|
