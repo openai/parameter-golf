@@ -30,7 +30,12 @@ FINAL_EXACT_RE = re.compile(
     r"val_bpb:(?P<val_bpb>[-+]?\d+(?:\.\d+)?)"
 )
 DELTA_RE = re.compile(
-    r"final_int8_zlib_delta(?:_exact)? "
+    r"final_int8_zlib_delta "
+    r"val_loss:(?P<val_loss>[-+]?\d+(?:\.\d+)?) "
+    r"val_bpb:(?P<val_bpb>[-+]?\d+(?:\.\d+)?)"
+)
+DELTA_EXACT_RE = re.compile(
+    r"final_int8_zlib_delta_exact "
     r"val_loss:(?P<val_loss>[-+]?\d+(?:\.\d+)?) "
     r"val_bpb:(?P<val_bpb>[-+]?\d+(?:\.\d+)?)"
 )
@@ -64,11 +69,25 @@ MODEL_LAYOUT_RE = re.compile(
     r"tie_embeddings:(?P<tie_embeddings>True|False)"
 )
 TRAIN_META_RE = re.compile(
+    r"iterations:(?P<iterations>\d+) "
+    r"train_batch_tokens:(?P<train_batch_tokens>\d+) "
+    r"grad_accum_steps:(?P<grad_accum_steps>\d+) "
+    r"microbatch_tokens:(?P<microbatch_tokens>\d+) "
+    r"microbatch_batch_size:(?P<microbatch_batch_size>\d+) "
+    r"val_batch_size:(?P<val_batch_size>\d+) "
+    r"warmup_steps:(?P<warmup_steps>\d+) "
+    r"max_wallclock_seconds:(?P<max_wallclock_seconds>[-+]?\d+(?:\.\d+)?)"
+)
+TRAIN_META_LEGACY_RE = re.compile(
     r"train_batch_tokens:(?P<train_batch_tokens>\d+) "
     r"train_seq_len:(?P<train_seq_len>\d+) "
     r"iterations:(?P<iterations>\d+) "
     r"warmup_steps:(?P<warmup_steps>\d+) "
     r"max_wallclock_seconds:(?P<max_wallclock_seconds>[-+]?\d+(?:\.\d+)?)"
+)
+VAL_SUBSET_RE = re.compile(
+    r"val_loader:subset max_seqs:(?P<val_max_seqs>\d+) "
+    r"actual_seqs:(?P<actual_seqs>\d+)"
 )
 TIE_LR_RE = re.compile(
     r"tie_embeddings:(?P<tie_embeddings>True|False) "
@@ -177,8 +196,11 @@ PROFILE_COMMANDS: dict[str, list[str]] = {
 
 def default_paths_for_variant(variant: str) -> tuple[str, str | None]:
     dataset = f"./data/datasets/fineweb10B_{variant}"
-    if variant == "sp1024":
-        return dataset, "./data/tokenizers/fineweb_1024_bpe.model"
+    if variant.startswith("sp") and variant[2:].isdigit():
+        vocab_size = variant[2:]
+        return dataset, f"./data/tokenizers/fineweb_{vocab_size}_bpe.model"
+    if variant == "byte260":
+        return dataset, None
     return dataset, None
 
 
@@ -251,6 +273,8 @@ def parse_log(path: Path) -> dict[str, Any]:
     final: dict[str, Any] | None = None
     final_exact: dict[str, Any] | None = None
     delta: dict[str, Any] | None = None
+    delta_exact: dict[str, Any] | None = None
+    smoke_subset: dict[str, Any] | None = None
 
     with path.open("r", encoding="utf-8", errors="replace") as handle:
         for raw_line in handle:
@@ -269,6 +293,12 @@ def parse_log(path: Path) -> dict[str, Any]:
             if match := DELTA_RE.search(line):
                 delta = {k: _coerce_number(v) for k, v in match.groupdict().items()}
                 continue
+            if match := DELTA_EXACT_RE.search(line):
+                delta_exact = {k: _coerce_number(v) for k, v in match.groupdict().items()}
+                continue
+            if match := VAL_SUBSET_RE.search(line):
+                smoke_subset = {k: _coerce_number(v) for k, v in match.groupdict().items()}
+                continue
             _apply_match(data, SERIALIZED_RE.search(line))
             _apply_match(data, CODE_SIZE_RE.search(line))
             _apply_match(data, TOTAL_SIZE_RE.search(line))
@@ -280,6 +310,7 @@ def parse_log(path: Path) -> dict[str, Any]:
             _apply_match(data, MODEL_LAYOUT_RE.search(line))
             _apply_match(data, MODEL_PARAMS_RE.search(line))
             _apply_match(data, TRAIN_META_RE.search(line))
+            _apply_match(data, TRAIN_META_LEGACY_RE.search(line))
             _apply_match(data, TIE_LR_RE.search(line))
             _apply_match(data, ATTN_RE.search(line))
             _apply_match(data, QUANT_CONFIG_RE.search(line))
@@ -293,8 +324,18 @@ def parse_log(path: Path) -> dict[str, Any]:
         data["post_quant_exact"] = final_exact
     if delta:
         data["post_quant_delta"] = delta
+    if delta_exact:
+        data["post_quant_delta_exact"] = delta_exact
+    if smoke_subset:
+        data["val_loader_subset"] = smoke_subset
 
-    if pre_quant and final:
+    if delta_exact:
+        data["quant_delta_bpb"] = float(delta_exact["val_bpb"])
+        data["quant_delta_val_loss"] = float(delta_exact["val_loss"])
+    elif final_exact and pre_quant:
+        data["quant_delta_bpb"] = round(float(final_exact["val_bpb"]) - float(pre_quant["val_bpb"]), 8)
+        data["quant_delta_val_loss"] = round(float(final_exact["val_loss"]) - float(pre_quant["val_loss"]), 8)
+    elif pre_quant and final:
         data["quant_delta_bpb"] = round(float(final["val_bpb"]) - float(pre_quant["val_bpb"]), 8)
         data["quant_delta_val_loss"] = round(float(final["val_loss"]) - float(pre_quant["val_loss"]), 8)
     if "file_bytes" in data:
@@ -326,6 +367,12 @@ def render_summary(result: dict[str, Any]) -> str:
             "post_quant: "
             f"val_bpb={post_quant.get('val_bpb')} "
             f"val_loss={post_quant.get('val_loss')}"
+        )
+    if result.get("post_quant_delta_exact"):
+        lines.append(
+            "delta_exact: "
+            f"val_bpb={result['post_quant_delta_exact'].get('val_bpb')} "
+            f"val_loss={result['post_quant_delta_exact'].get('val_loss')}"
         )
     if "quant_delta_bpb" in result:
         lines.append(
@@ -364,6 +411,33 @@ def compare_logs(paths: list[Path]) -> list[dict[str, Any]]:
 def slugify(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9]+", "_", value).strip("_")
     return slug or "record"
+
+
+def variant_vocab_size(variant: str) -> int | None:
+    if variant.startswith("sp") and variant[2:].isdigit():
+        return int(variant[2:])
+    if variant == "byte260":
+        return 260
+    return None
+
+
+def variant_tokenizer_path(variant: str) -> str | None:
+    if variant.startswith("sp") and variant[2:].isdigit():
+        return f"./data/tokenizers/fineweb_{variant[2:]}_bpe.model"
+    return None
+
+
+def ensure_submission_ready(result: dict[str, Any]) -> None:
+    if result.get("val_loader_subset"):
+        subset = result["val_loader_subset"]
+        raise SystemExit(
+            f"Refusing to package smoke/subset validation log with VAL_MAX_SEQS={subset.get('val_max_seqs')}; "
+            "real submission logs must use the full fixed validation split."
+        )
+    if "post_quant_exact" not in result:
+        raise SystemExit("Refusing to package an incomplete log: missing final_int8_zlib_roundtrip_exact footer.")
+    if "total_submission_bytes" not in result or "int8_zlib_bytes" not in result:
+        raise SystemExit("Refusing to package an incomplete log: missing final submission byte totals.")
 
 
 def build_submission_payload(args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
@@ -407,8 +481,9 @@ def build_record_readme(args: argparse.Namespace, result: dict[str, Any], copied
     if result.get("model_params") is not None:
         lines.append(f"- Model params: `{result['model_params']}`")
     layout_bits = []
-    if args.variant:
-        layout_bits.append(f"VOCAB_SIZE={args.variant.removeprefix('sp') if args.variant.startswith('sp') else args.variant}")
+    vocab_size = result.get("vocab_size") or variant_vocab_size(args.variant)
+    if vocab_size is not None:
+        layout_bits.append(f"VOCAB_SIZE={vocab_size}")
     for key, label in (
         ("num_layers", "layers"),
         ("model_dim", "dim"),
@@ -504,6 +579,7 @@ def print_compare_table(rows: list[dict[str, Any]]) -> None:
 def cmd_prepare_record(args: argparse.Namespace) -> int:
     log_path = Path(args.log).resolve()
     result = parse_log(log_path)
+    ensure_submission_ready(result)
     date_prefix = args.folder_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     record_dir = Path(args.output_root) / f"{date_prefix}_{slugify(args.record_name)}"
     if record_dir.exists():
@@ -536,10 +612,12 @@ def cmd_command(args: argparse.Namespace) -> int:
     env = dict(PROFILE_ENVS[args.profile])
     if args.variant:
         dataset_path, tokenizer_path = default_paths_for_variant(args.variant)
-        env.setdefault("DATA_PATH", dataset_path)
+        env["DATA_PATH"] = dataset_path
+        vocab_size = variant_vocab_size(args.variant)
+        if vocab_size is not None:
+            env["VOCAB_SIZE"] = str(vocab_size)
         if tokenizer_path:
-            env.setdefault("TOKENIZER_PATH", tokenizer_path)
-        env.setdefault("VOCAB_SIZE", args.variant.removeprefix("sp") if args.variant.startswith("sp") else env.get("VOCAB_SIZE", "1024"))
+            env["TOKENIZER_PATH"] = tokenizer_path
     if args.data_path:
         env["DATA_PATH"] = args.data_path
     if args.tokenizer_path:

@@ -18,7 +18,7 @@ The repo now has:
 
 ## What still needs real compute
 
-Do not submit any run that uses `VAL_MAX_SEQS`.
+Do not submit any run that uses `VAL_MAX_SEQS`. The packaging helper rejects smoke/subset logs on purpose.
 
 For a real challenge PR, the winning run still needs:
 

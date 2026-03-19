@@ -189,10 +189,10 @@ Bias:
 Order:
 
 - stabilize `sp1024`
-- then try `byte260`
+- then try `byte260` with explicit tokenizer support
 - then `sp4096`
 
-Tokenizer work only after one `sp1024` branch clearly beats the baseline proxy and the eval pipeline is trusted.
+Tokenizer work only after one `sp1024` branch clearly beats the baseline proxy and the eval pipeline is trusted. The run-command helper auto-generates `sp*` variants; `byte260` still needs an explicit tokenizer path.
 
 ## First 8 runs
 
