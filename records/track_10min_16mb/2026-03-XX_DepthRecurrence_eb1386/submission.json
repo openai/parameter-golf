@@ -1,0 +1,11 @@
+{
+  "author": "Evan Borodow",
+  "github_id": "eb1386",
+  "name": "Depth Recurrence 5x3 d672 SwiGLU",
+  "blurb": "5 unique transformer blocks reused 3x for 15 effective layers at width 672 with SwiGLU MLP. Same ~16.5M param budget, 67% more effective depth and 31% wider than baseline via parameter sharing. Eval at 2048 seqlen for longer context. SP-1024 tied embeddings, int8+zlib under 16MB.",
+  "date": "pending",
+  "val_loss": "pending",
+  "val_bpb": "pending",
+  "bytes_total": "pending",
+  "bytes_code": "pending"
+}
