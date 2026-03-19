@@ -1,0 +1,10 @@
+{
+  "author": "Joe Gaither",
+  "github_id": "JoeProAI",
+  "name": "FP16 Embed + Sliding Window Eval + Warmdown Tuning",
+  "blurb": "Combine three orthogonal improvements: fp16 tied embedding passthrough to eliminate quantization degradation on the output head, sliding window evaluation (stride=64) for near-maximum context per scored token, and warmdown/LR schedule tuning (3600 iters, 0.06 matrix LR) for better convergence under the 10-min cap.",
+  "date": "2026-03-19",
+  "val_bpb": null,
+  "bytes_total": null,
+  "note": "Pending 8xH100 verification run. Estimated val_bpb ~1.187 based on component-level improvements."
+}
