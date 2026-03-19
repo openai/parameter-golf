@@ -52,10 +52,15 @@ class Hyperparameters:
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
     # Validation always uses the full fineweb_val split.
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_max_tokens: int = int(os.environ.get("VAL_MAX_TOKENS", 0))
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
     train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", os.environ.get("TRAIN_MAX_SEQ_LEN", 1024)))
+    val_seq_len: int = int(os.environ.get("VAL_SEQ_LEN", os.environ.get("TRAIN_SEQ_LEN", os.environ.get("TRAIN_MAX_SEQ_LEN", 1024))))
+    seq_len_schedule: str = os.environ.get("SEQ_LEN_SCHEDULE", "none")
+    seq_len_min: int = int(os.environ.get("SEQ_LEN_MIN", os.environ.get("TRAIN_SEQ_LEN", os.environ.get("TRAIN_MAX_SEQ_LEN", 1024))))
+    seq_len_ramp_steps: int = int(os.environ.get("SEQ_LEN_RAMP_STEPS", 0))
     # Chunk each logical MLX microbatch into smaller sub-batches to reduce peak
     # memory pressure without changing the effective optimizer batch.
     mlx_max_microbatch_tokens: int = int(os.environ.get("MLX_MAX_MICROBATCH_TOKENS", 8_192))
@@ -76,6 +81,18 @@ class Hyperparameters:
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     qk_gain_init: float = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    depth_share_mode: str = os.environ.get("DEPTH_SHARE_MODE", "none")
+    depth_unique_layers: int = int(os.environ.get("DEPTH_UNIQUE_LAYERS", 3))
+    depth_step_scale: bool = bool(int(os.environ.get("DEPTH_STEP_SCALE", "1")))
+    depth_share_heavy_only: bool = bool(int(os.environ.get("DEPTH_SHARE_HEAVY_ONLY", "0")))
+    attnres_mode: str = os.environ.get("ATTNRES_MODE", "full")
+    attnres_block_size: int = int(os.environ.get("ATTNRES_BLOCK_SIZE", 3))
+    attnres_local_blend: float = float(os.environ.get("ATTNRES_LOCAL_BLEND", 0.5))
+    attnres_sublayers: str = os.environ.get("ATTNRES_SUBLAYERS", "both")
+    attnres_decoder_last_n: int = int(os.environ.get("ATTNRES_DECODER_LAST_N", 0))
+    latent_mem_mode: str = os.environ.get("LATENT_MEM_MODE", "none")
+    latent_mem_slots: int = int(os.environ.get("LATENT_MEM_SLOTS", 8))
+    latent_mem_layers: int = int(os.environ.get("LATENT_MEM_LAYERS", 2))
 
     # Optimizer. We keep the same per-group defaults as train_gpt.py.
     beta1: float = float(os.environ.get("BETA1", 0.9))
@@ -91,6 +108,7 @@ class Hyperparameters:
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
+    load_model_path: str = os.environ.get("LOAD_MODEL_PATH", "")
 
     @property
     def train_files(self) -> str:
@@ -103,6 +121,14 @@ class Hyperparameters:
     @property
     def microbatch_tokens(self) -> int:
         return self.train_batch_tokens // self.grad_accum_steps
+
+    def train_seq_len_for_step(self, step: int) -> int:
+        if self.seq_len_schedule == "none" or self.seq_len_ramp_steps <= 0 or self.seq_len_min >= self.train_seq_len:
+            return self.train_seq_len
+        if self.seq_len_schedule != "linear":
+            raise ValueError(f"SEQ_LEN_SCHEDULE must be none or linear, got {self.seq_len_schedule!r}")
+        t = min(step, self.seq_len_ramp_steps) / max(self.seq_len_ramp_steps, 1)
+        return max(1, min(self.train_seq_len, int(round(self.seq_len_min + t * (self.train_seq_len - self.seq_len_min)))))
 
     def lr_mul(self, step: int, elapsed_ms: float) -> float:
         if self.warmdown_iters <= 0:
@@ -120,7 +146,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,attn_res_query,mlp_res_query,step_scale,step_scales,latent_mem",
     ).split(",")
     if pattern
 )
@@ -347,6 +373,36 @@ class MLP(nn.Module):
         return self.proj(x * x)
 
 
+class LatentSummaryMemory(nn.Module):
+    def __init__(self, dim: int, slots: int):
+        super().__init__()
+        self.latent_mem_queries = mx.random.normal((slots, dim), dtype=mx.float32) * 0.02
+        self.latent_mem_scale = mx.zeros((dim,), dtype=mx.float32)
+        self.score_scale = dim ** -0.5
+
+    def summarize(self, x: mx.array) -> mx.array:
+        x_norm = rms_norm(x)
+        q = self.latent_mem_queries.astype(x.dtype)
+        scores = mx.sum(x_norm[:, :, None, :] * q[None, None, :, :], axis=-1) * self.score_scale
+        weights = mx.softmax(scores.transpose(0, 2, 1), axis=-1)
+        return weights @ x
+
+    def read(self, x: mx.array, memory: mx.array) -> mx.array:
+        scores = (rms_norm(x) @ rms_norm(memory).transpose(0, 2, 1)) * self.score_scale
+        weights = mx.softmax(scores, axis=-1)
+        ctx = weights @ memory
+        return x + self.latent_mem_scale.astype(x.dtype)[None, None, :] * ctx
+
+
+class BlockCore(nn.Module):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float, qk_gain_init: float):
+        super().__init__()
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.mlp = MLP(dim, mlp_mult)
+        self.attn.proj.weight = mx.zeros_like(self.attn.proj.weight)
+        self.mlp.proj.weight = mx.zeros_like(self.mlp.proj.weight)
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -356,22 +412,67 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        share_heavy_only: bool = False,
     ):
         super().__init__()
+        self.core = None if share_heavy_only else BlockCore(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
         self.attn_norm = RMSNormNoWeight()
         self.mlp_norm = RMSNormNoWeight()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
+        self.attn_res_query = mx.zeros((dim,), dtype=mx.float32)
+        self.mlp_res_query = mx.zeros((dim,), dtype=mx.float32)
+        self.attn_res_norm = RMSNormNoWeight()
+        self.mlp_res_norm = RMSNormNoWeight()
 
-    def __call__(self, x: mx.array, x0: mx.array) -> mx.array:
+    def _depth_mix(self, outputs: list, query: mx.array, norm) -> mx.array:
+        """Softmax-weighted combination of prior layer outputs (Attention Residuals).
+        Returns a weighted combination where weights come from softmax attention
+        using the learned pseudo-query against RMSNorm'd layer outputs as keys."""
+        q = query.astype(outputs[0].dtype)
+        stacked = mx.stack(outputs, axis=0)  # (L, B, S, D)
+        scores = mx.sum(norm(stacked) * q[None, None, None, :], axis=-1)
+        weights = mx.softmax(scores, axis=0)[:, :, :, None]
+        return mx.sum(weights * stacked, axis=0)
+
+    def _blend_local(self, local_x: mx.array, mixed_x: mx.array, local_blend: float) -> mx.array:
+        if local_blend <= 0.0:
+            return mixed_x
+        if local_blend >= 1.0:
+            return local_x
+        return local_x * local_blend + mixed_x * (1.0 - local_blend)
+
+    def __call__(
+        self,
+        history_outputs: list,
+        *,
+        attnres_mode: str = "none",
+        local_blend: float = 0.0,
+        use_attnres_attn: bool = True,
+        use_attnres_mlp: bool = True,
+        step_scales: mx.array | None = None,
+        core: BlockCore | None = None,
+    ) -> mx.array:
+        core = self.core if core is None else core
+        x = history_outputs[-1]  # standard residual base (previous layer output)
+        attn_gate = mlp_gate = mx.array(1.0, dtype=x.dtype)
+        if step_scales is not None:
+            gates = step_scales.astype(x.dtype)
+            attn_gate, mlp_gate = gates[0], gates[1]
+        x0 = history_outputs[0]
         mix = self.resid_mix.astype(x.dtype)
-        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.astype(x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        attn_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        if attnres_mode != "none" and use_attnres_attn:
+            attn_in = self._depth_mix(history_outputs, self.attn_res_query, self.attn_res_norm)
+            attn_in = self._blend_local(x, attn_in, local_blend)
+        attn_out = core.attn(self.attn_norm(attn_in))
+        x = x + (attn_gate * self.attn_scale.astype(x.dtype))[None, None, :] * attn_out
+        mlp_in = x
+        if attnres_mode != "none" and use_attnres_mlp:
+            mlp_in = self._depth_mix(history_outputs + [x], self.mlp_res_query, self.mlp_res_norm)
+            mlp_in = self._blend_local(x, mlp_in, local_blend)
+        x = x + (mlp_gate * self.mlp_scale.astype(x.dtype))[None, None, :] * core.mlp(self.mlp_norm(mlp_in))
         return x
 
 
@@ -382,56 +483,210 @@ class GPT(nn.Module):
     # - tied embeddings for the LM head (the baseline default setup)
     def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
-                 qk_gain_init: float):
+                 qk_gain_init: float, depth_share_mode: str, depth_unique_layers: int, depth_step_scale: bool, depth_share_heavy_only: bool,
+                 attnres_mode: str, attnres_block_size: int, attnres_local_blend: float,
+                 attnres_sublayers: str, attnres_decoder_last_n: int,
+                 latent_mem_mode: str, latent_mem_slots: int, latent_mem_layers: int):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+        if depth_share_mode not in {"none", "cycle", "single", "encdec"}:
+            raise ValueError(f"DEPTH_SHARE_MODE must be one of none, cycle, single, encdec; got {depth_share_mode!r}")
+        if depth_unique_layers <= 0:
+            raise ValueError(f"DEPTH_UNIQUE_LAYERS must be positive, got {depth_unique_layers}")
+        if attnres_mode not in {"none", "full", "block", "hybrid"}:
+            raise ValueError(f"ATTNRES_MODE must be one of none, full, block, hybrid; got {attnres_mode!r}")
+        if attnres_block_size <= 0:
+            raise ValueError(f"ATTNRES_BLOCK_SIZE must be positive, got {attnres_block_size}")
+        if not 0.0 <= attnres_local_blend <= 1.0:
+            raise ValueError(f"ATTNRES_LOCAL_BLEND must be in [0, 1], got {attnres_local_blend}")
+        if attnres_sublayers not in {"both", "attn", "mlp"}:
+            raise ValueError(f"ATTNRES_SUBLAYERS must be one of both, attn, mlp; got {attnres_sublayers!r}")
+        if attnres_decoder_last_n < 0:
+            raise ValueError(f"ATTNRES_DECODER_LAST_N must be non-negative, got {attnres_decoder_last_n}")
+        if latent_mem_mode not in {"none", "summary", "recurrent", "segment"}:
+            raise ValueError(f"LATENT_MEM_MODE must be one of none, summary, recurrent, segment; got {latent_mem_mode!r}")
+        if latent_mem_slots <= 0:
+            raise ValueError(f"LATENT_MEM_SLOTS must be positive, got {latent_mem_slots}")
+        if latent_mem_layers < 0:
+            raise ValueError(f"LATENT_MEM_LAYERS must be non-negative, got {latent_mem_layers}")
         self.logit_chunk_tokens = logit_chunk_tokens
         self.logit_softcap = logit_softcap
+        self.depth_share_mode = depth_share_mode
+        self.depth_unique_layers = depth_unique_layers
+        self.depth_step_scale = depth_step_scale
+        self.depth_share_heavy_only = depth_share_heavy_only
+        self.attnres_mode = attnres_mode
+        self.attnres_block_size = attnres_block_size
+        self.attnres_local_blend = attnres_local_blend
+        self.attnres_sublayers = attnres_sublayers
+        self.attnres_decoder_last_n = attnres_decoder_last_n
+        self.latent_mem_mode = latent_mem_mode
+        self.latent_mem_slots = latent_mem_slots
+        self.latent_mem_layers = latent_mem_layers
 
         self.tok_emb = nn.Embedding(vocab_size, dim)
+        self.num_layers_total = num_layers
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
-        self.blocks = [
-            Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
-            for i in range(num_layers)
-        ]
+        self.layer_block_indices, num_unique_blocks = self._build_layer_block_indices()
+        self.block_cores = (
+            [BlockCore(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init) for _ in range(num_unique_blocks)]
+            if self.depth_share_heavy_only else None
+        )
+        self.blocks = [Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, share_heavy_only=self.depth_share_heavy_only)
+                       for _ in range(self.num_layers_total if self.depth_share_heavy_only else num_unique_blocks)]
+        self.step_scales = (
+            mx.ones((num_layers, 2), dtype=mx.float32)
+            if self.depth_step_scale
+            else None
+        )
+        self.latent_mem = LatentSummaryMemory(dim, latent_mem_slots) if self.latent_mem_mode != "none" and self.latent_mem_layers > 0 else None
         self.final_norm = RMSNormNoWeight()
 
-        for b in self.blocks:
-            b.attn.proj.weight = mx.zeros_like(b.attn.proj.weight)
-            b.mlp.proj.weight = mx.zeros_like(b.mlp.proj.weight)
         self.tok_emb.weight = (
             mx.random.normal(self.tok_emb.weight.shape, dtype=mx.float32) * tied_embed_init_std
         ).astype(COMPUTE_DTYPE)
+
+    def _build_layer_block_indices(self) -> tuple[list[int], int]:
+        if self.depth_share_mode == "none":
+            return list(range(self.num_layers_total)), self.num_layers_total
+        if self.depth_share_mode == "single":
+            return [0] * self.num_layers_total, 1
+        if self.depth_share_mode == "cycle":
+            num_unique = min(self.depth_unique_layers, self.num_layers_total)
+            return [i % num_unique for i in range(self.num_layers_total)], num_unique
+
+        enc_unique = min(self.depth_unique_layers, max(self.num_encoder_layers, 1))
+        dec_unique = min(self.depth_unique_layers, max(self.num_decoder_layers, 1))
+        indices: list[int] = []
+        for i in range(self.num_encoder_layers):
+            indices.append(i % enc_unique)
+        offset = enc_unique
+        for i in range(self.num_decoder_layers):
+            indices.append(offset + (i % dec_unique))
+        return indices, enc_unique + dec_unique
 
     def softcap(self, logits: mx.array) -> mx.array:
         c = self.logit_softcap
         return c * mx.tanh(logits / c)
 
-    def __call__(self, input_ids: mx.array) -> mx.array:
+    def __call__(self, input_ids: mx.array, latent_memory: mx.array | None = None) -> mx.array:
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
-        x0 = x
-        skips: list[mx.array] = []
+        layer_outputs = [x]  # x0 is entry 0
+        block_outputs = [x]
+        latent_read = None
+
+        def step_scales_for(layer_idx: int) -> mx.array | None:
+            if self.step_scales is None:
+                return None
+            return self.step_scales[layer_idx]
+
+        def block_for(layer_idx: int) -> Block:
+            return self.blocks[layer_idx] if self.depth_share_heavy_only else self.blocks[self.layer_block_indices[layer_idx]]
+
+        def core_for(layer_idx: int) -> BlockCore | None:
+            return self.block_cores[self.layer_block_indices[layer_idx]] if self.block_cores is not None else None
+
+        def history_for_mode() -> list[mx.array]:
+            if self.attnres_mode == "block":
+                return block_outputs + [layer_outputs[-1]]
+            return layer_outputs
+
+        def local_blend() -> float:
+            return self.attnres_local_blend if self.attnres_mode == "hybrid" else 0.0
+
+        def attnres_active(absolute_layer_idx: int) -> bool:
+            if self.attnres_mode == "none":
+                return False
+            if self.attnres_decoder_last_n <= 0:
+                return True
+            if absolute_layer_idx < self.num_encoder_layers:
+                return False
+            decoder_idx = absolute_layer_idx - self.num_encoder_layers
+            return decoder_idx >= self.num_decoder_layers - self.attnres_decoder_last_n
+
+        def use_attnres_attn_for(absolute_layer_idx: int) -> bool:
+            return attnres_active(absolute_layer_idx) and self.attnres_sublayers in {"both", "attn"}
+
+        def use_attnres_mlp_for(absolute_layer_idx: int) -> bool:
+            return attnres_active(absolute_layer_idx) and self.attnres_sublayers in {"both", "mlp"}
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            # Odd layer counts have one more decoder block than encoder block. The baseline only
-            # applies a skip connection when one exists, then runs the remaining decoder block(s)
-            # without an added skip.
-            if skips:
-                x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
-        return self.final_norm(x)
+            block = block_for(i)
+            x = block(
+                history_for_mode(),
+                attnres_mode=self.attnres_mode,
+                local_blend=local_blend(),
+                use_attnres_attn=use_attnres_attn_for(i),
+                use_attnres_mlp=use_attnres_mlp_for(i),
+                step_scales=step_scales_for(i),
+                core=core_for(i),
+            )
+            layer_outputs.append(x)
+            if self.attnres_mode == "block" and (
+                (i + 1) % self.attnres_block_size == 0 or i + 1 == self.num_layers_total
+            ):
+                block_outputs.append(x)
 
-    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
+        if self.latent_mem is not None:
+            if self.latent_mem_mode == "summary":
+                latent_read = self.latent_mem.summarize(layer_outputs[-1])
+            elif self.latent_mem_mode in {"recurrent", "segment"} and latent_memory is not None:
+                latent_read = mx.broadcast_to(latent_memory.astype(layer_outputs[-1].dtype), (x.shape[0],) + latent_memory.shape[1:])
+
+        skips = list(layer_outputs[1:self.num_encoder_layers + 1])
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = layer_outputs[-1] + self.skip_weights[i].astype(layer_outputs[-1].dtype)[None, None, :] * skips.pop()
+                layer_outputs[-1] = x
+            if latent_read is not None and i >= self.num_decoder_layers - self.latent_mem_layers:
+                x = self.latent_mem.read(layer_outputs[-1], latent_read)
+                layer_outputs[-1] = x
+            absolute_layer_idx = self.num_encoder_layers + i
+            block = block_for(absolute_layer_idx)
+            x = block(
+                history_for_mode(),
+                attnres_mode=self.attnres_mode,
+                local_blend=local_blend(),
+                use_attnres_attn=use_attnres_attn_for(absolute_layer_idx),
+                use_attnres_mlp=use_attnres_mlp_for(absolute_layer_idx),
+                step_scales=step_scales_for(absolute_layer_idx),
+                core=core_for(absolute_layer_idx),
+            )
+            layer_outputs.append(x)
+            if self.attnres_mode == "block" and (
+                (absolute_layer_idx + 1) % self.attnres_block_size == 0
+                or absolute_layer_idx + 1 == self.num_layers_total
+            ):
+                block_outputs.append(x)
+
+        return self.final_norm(layer_outputs[-1])
+
+    def next_memory(self, input_ids: mx.array, latent_memory: mx.array | None = None) -> mx.array:
+        if self.latent_mem is None or self.latent_mem_mode == "none":
+            return mx.zeros((1, self.latent_mem_slots, self.tok_emb.weight.shape[1]), dtype=COMPUTE_DTYPE)
+        if self.latent_mem_mode == "segment":
+            x = self(input_ids, latent_memory=latent_memory)
+            tail = x[-1:, -min(self.latent_mem_slots, x.shape[1]):, :]
+            if tail.shape[1] == self.latent_mem_slots:
+                return tail
+            pad = mx.zeros((1, self.latent_mem_slots - tail.shape[1], tail.shape[2]), dtype=tail.dtype)
+            return mx.concatenate([pad, tail], axis=1)
+        if self.latent_mem_mode != "recurrent":
+            return mx.zeros((1, self.latent_mem_slots, self.tok_emb.weight.shape[1]), dtype=COMPUTE_DTYPE)
+        x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
+        summary = mx.mean(self.latent_mem.summarize(x), axis=0, keepdims=True)
+        if latent_memory is None:
+            return summary
+        return 0.5 * latent_memory.astype(summary.dtype) + 0.5 * summary
+
+    def loss(self, input_ids: mx.array, target_ids: mx.array, latent_memory: mx.array | None = None) -> mx.array:
         # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
         # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
-        x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
+        x = self(input_ids, latent_memory=latent_memory).reshape(-1, self.tok_emb.weight.shape[1])
         y = target_ids.reshape(-1)
         if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
             logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
@@ -490,12 +745,16 @@ class SplitOptimizers:
         self.matrix_keys = [
             k
             for k, p in params.items()
-            if k.startswith("blocks.") and p.ndim == 2 and not any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+            if k != self.embed_key and p.ndim == 2 and not any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)
         ]
         self.scalar_keys = [
             k
             for k, p in params.items()
-            if k == "skip_weights" or (k.startswith("blocks.") and (p.ndim < 2 or any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)))
+            if k != self.embed_key and (
+                k in {"skip_weights", "step_scales"}
+                or p.ndim < 2
+                or any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+            )
         ]
 
         self.muon = Muon(self.matrix_keys, params, args)
@@ -548,11 +807,18 @@ MX_DTYPE_FROM_NAME = {
     "bfloat16": mx.bfloat16,
 }
 
-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
+QUANT_MATRIX_BITS = int(os.environ.get("QUANT_MATRIX_BITS", "8"))
+if QUANT_MATRIX_BITS not in {8, 4}:
+    raise ValueError(f"QUANT_MATRIX_BITS must be 8 or 4, got {QUANT_MATRIX_BITS}")
+INT8_KEEP_FLOAT_MAX_NUMEL = int(os.environ.get("INT8_KEEP_FLOAT_MAX_NUMEL", "65536"))
 INT8_KEEP_FLOAT_STORE_DTYPE = np.float16
 INT8_PER_ROW_SCALE_DTYPE = np.float16
-INT8_CLIP_PERCENTILE = 99.99984
+INT8_CLIP_PERCENTILE = float(os.environ.get("INT8_CLIP_PERCENTILE", "99.99984"))
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+
+
+def quant_label() -> str:
+    return "int8" if QUANT_MATRIX_BITS == 8 else f"m{QUANT_MATRIX_BITS}"
 
 
 def _np_float32(arr: mx.array) -> np.ndarray:
@@ -568,22 +834,48 @@ def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str
     return np.ascontiguousarray(np.array(arr, copy=True))
 
 
-def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
+def pack_int4(values: np.ndarray) -> tuple[np.ndarray, tuple[int, ...]]:
+    q = np.asarray(values, dtype=np.int8, order="C")
+    orig_shape = q.shape
+    flat = q.reshape(-1).astype(np.int16, copy=False) + 8
+    if flat.size % 2:
+        flat = np.pad(flat, (0, 1))
+    packed = ((flat[1::2] << 4) | flat[0::2]).astype(np.uint8, copy=False)
+    return np.ascontiguousarray(packed), orig_shape
+
+
+def unpack_int4(packed: np.ndarray, orig_shape: tuple[int, ...]) -> np.ndarray:
+    packed_u8 = np.asarray(packed, dtype=np.uint8)
+    flat = np.empty((packed_u8.size * 2,), dtype=np.int8)
+    flat[0::2] = (packed_u8 & 0x0F).astype(np.int8, copy=False) - 8
+    flat[1::2] = ((packed_u8 >> 4) & 0x0F).astype(np.int8, copy=False) - 8
+    needed = int(np.prod(orig_shape))
+    return np.ascontiguousarray(flat[:needed].reshape(orig_shape))
+
+
+def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray, dict[str, object]]:
     f32 = _np_float32(arr)
     if f32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
         clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((f32.shape[0],), dtype=np.float32)
         clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
-        scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
-        q = np.clip(np.round(clipped / scale[:, None]), -127, 127).astype(np.int8, copy=False)
-        return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False))
+        qmax = 127 if QUANT_MATRIX_BITS == 8 else 7
+        scale = np.maximum(clip_abs / qmax, 1.0 / qmax).astype(np.float32, copy=False)
+        q = np.clip(np.round(clipped / scale[:, None]), -qmax, qmax).astype(np.int8, copy=False)
+        meta: dict[str, object] = {"scheme": "per_row", "axis": 0, "bits": QUANT_MATRIX_BITS}
+        if QUANT_MATRIX_BITS == 4:
+            packed, orig_shape = pack_int4(q)
+            meta["packed"] = True
+            meta["orig_shape"] = orig_shape
+            return packed, np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False)), meta
+        return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False)), meta
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(np.quantile(np.abs(f32).reshape(-1), INT8_CLIP_Q)) if f32.size else 0.0
     scale = np.array(clip_abs / 127.0 if clip_abs > 0.0 else 1.0, dtype=np.float32)
     q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -127, 127).astype(np.int8, copy=False)
-    return np.ascontiguousarray(q), scale
+    return np.ascontiguousarray(q), scale, {"bits": 8}
 
 
 def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
@@ -616,15 +908,15 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_array(arr)
-        if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
+        q, s, meta = quantize_float_array(arr)
+        if meta:
+            qmeta[name] = meta
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(arr.dtype).split(".")[-1]
         stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
+        "__quant_format__": f"{quant_label()}_clean_per_row_v1",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -642,10 +934,14 @@ def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.arr
     qmeta = quant_obj.get("qmeta", {})
     passthrough_orig_dtypes = quant_obj.get("passthrough_orig_dtypes", {})
     for name, q in quant_obj["quantized"].items():
-        q_np = np.asarray(q, dtype=np.int8)
+        meta = qmeta.get(name, {})
+        if meta.get("bits") == 4 and meta.get("packed"):
+            q_np = unpack_int4(q, tuple(meta["orig_shape"]))
+        else:
+            q_np = np.asarray(q, dtype=np.int8)
         dtype_name = quant_obj["dtypes"][name]
         scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
-        if qmeta.get(name, {}).get("scheme") == "per_row" or scale.ndim > 0:
+        if meta.get("scheme") == "per_row" or scale.ndim > 0:
             # Broadcast the saved row scale back across trailing dimensions.
             out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
         else:
@@ -734,27 +1030,59 @@ def load_validation_tokens(pattern: str, seq_len: int) -> np.ndarray:
     return tokens[: usable + 1]
 
 
+def maybe_limit_validation_tokens(tokens: np.ndarray, seq_len: int, max_tokens: int) -> np.ndarray:
+    if max_tokens <= 0:
+        return tokens
+    usable = min(((max_tokens // seq_len) * seq_len), tokens.size - 1)
+    if usable <= 0:
+        raise ValueError(f"VAL_MAX_TOKENS={max_tokens} is too small for TRAIN_SEQ_LEN={seq_len}")
+    return tokens[: usable + 1]
+
+
 def loss_and_grad_chunked(
     args: Hyperparameters,
     train_loader: TokenLoader,
     compiled_loss_and_grad,
-) -> tuple[mx.array, dict]:
-    chunk_sizes = token_chunks(args.microbatch_tokens, args.train_seq_len, args.mlx_max_microbatch_tokens)
+    compiled_next_memory,
+    latent_memory: mx.array,
+    seq_len: int,
+) -> tuple[mx.array, dict, mx.array]:
+    chunk_sizes = token_chunks(args.microbatch_tokens, seq_len, args.mlx_max_microbatch_tokens)
     total_tokens = float(sum(chunk_sizes))
     loss_value = mx.array(0.0, dtype=mx.float32)
     grad_accum: dict[str, mx.array] | None = None
     for chunk_tokens in chunk_sizes:
-        x, y = train_loader.next_batch(chunk_tokens, args.train_seq_len)
-        loss, grads = compiled_loss_and_grad(x, y)
+        x, y = train_loader.next_batch(chunk_tokens, seq_len)
+        loss, grads = compiled_loss_and_grad(x, y, latent_memory)
         scale = float(y.size) / total_tokens
         loss_value = loss_value + loss.astype(mx.float32) * scale
         grad_accum = accumulate_flat_grads(grad_accum, grads, scale)
-    return loss_value, tree_unflatten(list(grad_accum.items()))
+        if args.latent_mem_mode in {"recurrent", "segment"}:
+            latent_memory = compiled_next_memory(x, latent_memory)
+    return loss_value, tree_unflatten(list(grad_accum.items())), latent_memory
+
+
+def is_state_array_leaf(value: object) -> bool:
+    return hasattr(value, "dtype") and hasattr(value, "shape") and hasattr(value, "nbytes")
+
+
+def load_flat_state_npz(path: Path) -> dict[str, mx.array]:
+    if not hasattr(mx, "load"):
+        raise RuntimeError("mlx.core does not expose mx.load; cannot load raw .npz checkpoints safely")
+    loaded = mx.load(str(path))
+    if not isinstance(loaded, dict):
+        raise TypeError(f"Expected mx.load({path}) to return a dict, got {type(loaded)!r}")
+    return {str(k): v for k, v in loaded.items()}
+
+
+def init_latent_memory(args: Hyperparameters) -> mx.array:
+    return mx.zeros((1, max(args.latent_mem_slots, 1), args.model_dim), dtype=COMPUTE_DTYPE)
 
 
 def eval_val(
     args: Hyperparameters,
     compiled_loss,
+    compiled_next_memory,
     val_tokens: np.ndarray,
     base_bytes_lut: np.ndarray,
     has_leading_space_lut: np.ndarray,
@@ -764,28 +1092,31 @@ def eval_val(
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
     val_batch_tokens = args.val_batch_size // args.grad_accum_steps
-    if val_batch_tokens < args.train_seq_len:
+    if val_batch_tokens < args.val_seq_len:
         raise ValueError(
             "VAL_BATCH_SIZE must provide at least one sequence; "
             f"got VAL_BATCH_SIZE={args.val_batch_size}, GRAD_ACCUM_STEPS={args.grad_accum_steps}, "
-            f"TRAIN_SEQ_LEN={args.train_seq_len}"
+            f"VAL_SEQ_LEN={args.val_seq_len}"
         )
-    val_batch_seqs = val_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.size - 1) // args.train_seq_len
+    val_batch_seqs = val_batch_tokens // args.val_seq_len
+    total_seqs = (val_tokens.size - 1) // args.val_seq_len
     total_loss = mx.array(0.0, dtype=mx.float32)
     total_tokens = 0.0
     total_bytes = 0.0
+    latent_memory = init_latent_memory(args)
     for batch_seq_start in range(0, total_seqs, val_batch_seqs):
         batch_seq_end = min(batch_seq_start + val_batch_seqs, total_seqs)
-        raw_start = batch_seq_start * args.train_seq_len
-        raw_end = batch_seq_end * args.train_seq_len + 1
+        raw_start = batch_seq_start * args.val_seq_len
+        raw_end = batch_seq_end * args.val_seq_len + 1
         chunk = val_tokens[raw_start:raw_end]
-        x_np = chunk[:-1].reshape(-1, args.train_seq_len)
-        y_np = chunk[1:].reshape(-1, args.train_seq_len)
+        x_np = chunk[:-1].reshape(-1, args.val_seq_len)
+        y_np = chunk[1:].reshape(-1, args.val_seq_len)
         x = mx.array(x_np, dtype=mx.int32)
         y = mx.array(y_np, dtype=mx.int32)
         chunk_token_count = float(y.size)
-        total_loss = total_loss + compiled_loss(x, y).astype(mx.float32) * chunk_token_count
+        total_loss = total_loss + compiled_loss(x, y, latent_memory).astype(mx.float32) * chunk_token_count
+        if args.latent_mem_mode in {"recurrent", "segment"}:
+            latent_memory = compiled_next_memory(x, latent_memory)
         prev_ids = x_np.reshape(-1)
         tgt_ids = y_np.reshape(-1)
         bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
@@ -830,6 +1161,10 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     logfile = out_dir / f"{args.run_id}.txt"
     print(logfile)
+    if min(args.train_seq_len, args.val_seq_len, args.seq_len_min) <= 0:
+        raise ValueError("TRAIN_SEQ_LEN, VAL_SEQ_LEN, and SEQ_LEN_MIN must be positive")
+    if args.seq_len_min > args.train_seq_len:
+        raise ValueError(f"SEQ_LEN_MIN={args.seq_len_min} must be <= TRAIN_SEQ_LEN={args.train_seq_len}")
 
     def log(msg: str, console: bool = True) -> None:
         if console:
@@ -857,7 +1192,8 @@ def main() -> None:
         args.data_path,
         args.tokenizer_path,
     )
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    val_tokens = load_validation_tokens(args.val_files, args.val_seq_len)
+    val_tokens = maybe_limit_validation_tokens(val_tokens, args.val_seq_len, args.val_max_tokens)
 
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size
@@ -885,7 +1221,24 @@ def main() -> None:
         rope_base=args.rope_base,
         tied_embed_init_std=args.tied_embed_init_std,
         qk_gain_init=args.qk_gain_init,
+        depth_share_mode=args.depth_share_mode,
+        depth_unique_layers=args.depth_unique_layers,
+        depth_step_scale=args.depth_step_scale,
+        depth_share_heavy_only=args.depth_share_heavy_only,
+        attnres_mode=args.attnres_mode,
+        attnres_block_size=args.attnres_block_size,
+        attnres_local_blend=args.attnres_local_blend,
+        attnres_sublayers=args.attnres_sublayers,
+        attnres_decoder_last_n=args.attnres_decoder_last_n,
+        latent_mem_mode=args.latent_mem_mode,
+        latent_mem_slots=args.latent_mem_slots,
+        latent_mem_layers=args.latent_mem_layers,
     )
+    if args.load_model_path:
+        load_path = Path(args.load_model_path)
+        if not load_path.exists():
+            raise FileNotFoundError(f"LOAD_MODEL_PATH does not exist: {load_path}")
+        model.update(tree_unflatten(list(load_flat_state_npz(load_path).items())))
     opt = SplitOptimizers(model, args)
 
     # ==============================================================================
@@ -895,19 +1248,24 @@ def main() -> None:
     # inside RoPE modules), so compiling only against trainable parameters throws "uncaptured inputs".
     # Compiling the model-bound functions and capturing the full model state fixes that while still
     # returning gradients only for trainable parameters via nn.value_and_grad(...).
-    compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
+    compiled_loss = mx.compile(lambda x, y, m: model.loss(x, y, m), inputs=model.state, outputs=model.state)
     compiled_loss_and_grad = mx.compile(
-        nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
+        nn.value_and_grad(model, lambda x, y, m: model.loss(x, y, m)),
         inputs=model.state,
         outputs=model.state,
     )
+    compiled_next_memory = mx.compile(lambda x, m: model.next_memory(x, m), inputs=model.state, outputs=model.state)
 
     # Print config once so logs are self-describing.
     n_params = sum(int(np.prod(p.shape)) for _, p in tree_flatten(model.parameters()))
     log(f"run_id:{args.run_id}")
     log(f"mlx_version:{mx.__version__}")
+    if args.load_model_path:
+        log(f"load_model_path:{args.load_model_path}")
     log(f"train_loader:shards pattern={args.train_files}")
     log(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.size - 1}")
+    if args.val_max_tokens > 0:
+        log(f"val_loader:limited_tokens:{val_tokens.size - 1}")
     if expected_train_files is None:
         log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}")
     elif actual_train_files < expected_train_files:
@@ -922,7 +1280,7 @@ def main() -> None:
     log(
         f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} "
         f"dim:{args.model_dim} heads:{args.num_heads} kv_heads:{args.num_kv_heads} "
-        f"seq_len:{args.train_seq_len} tie_embeddings:{args.tie_embeddings}"
+        f"train_seq_len:{args.train_seq_len} val_seq_len:{args.val_seq_len} tie_embeddings:{args.tie_embeddings}"
     )
     log(
         f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} grad_accum_steps:{args.grad_accum_steps} "
@@ -930,18 +1288,47 @@ def main() -> None:
         f"val_batch_size:{args.val_batch_size} "
         f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log(
+        f"seq_len_schedule:{args.seq_len_schedule} "
+        f"seq_len_min:{args.seq_len_min} "
+        f"seq_len_ramp_steps:{args.seq_len_ramp_steps}"
+    )
     log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
+    log(
+        f"depth_share_mode:{args.depth_share_mode} "
+        f"depth_unique_layers:{args.depth_unique_layers} "
+        f"depth_step_scale:{int(args.depth_step_scale)} "
+        f"depth_share_heavy_only:{int(args.depth_share_heavy_only)} "
+        f"block_wrappers:{len(model.blocks)} unique_cores:{len(model.block_cores) if model.block_cores is not None else len(model.blocks)}"
+    )
+    log(
+        f"attnres_mode:{args.attnres_mode} "
+        f"attnres_block_size:{args.attnres_block_size} "
+        f"attnres_local_blend:{args.attnres_local_blend:.3f} "
+        f"attnres_sublayers:{args.attnres_sublayers} "
+        f"attnres_decoder_last_n:{args.attnres_decoder_last_n}"
+    )
+    log(
+        f"latent_mem_mode:{args.latent_mem_mode} "
+        f"latent_mem_slots:{args.latent_mem_slots} "
+        f"latent_mem_layers:{args.latent_mem_layers}"
+    )
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
         f"embed_lr:{args.tied_embed_lr} "
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
         f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
     )
+    log(
+        f"quantization:label:{quant_label()} matrix_bits:{QUANT_MATRIX_BITS} "
+        f"keep_float_max_numel:{INT8_KEEP_FLOAT_MAX_NUMEL} clip_percentile:{INT8_CLIP_PERCENTILE}"
+    )
     log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
     log(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
+    sample_core = model.block_cores[0] if model.block_cores is not None else model.blocks[0].core
     log(
         f"dtypes tok_emb:{model.tok_emb.weight.dtype} "
-        f"linear_weight:{model.blocks[0].attn.c_q.weight.dtype} "
+        f"linear_weight:{sample_core.attn.c_q.weight.dtype} "
         f"skip_weights:{model.skip_weights.dtype}"
     )
 
@@ -957,28 +1344,34 @@ def main() -> None:
             accum: dict[str, mx.array] | None = None
             warmup_loss = mx.array(0.0, dtype=mx.float32)
             grad_scale = 1.0 / args.grad_accum_steps
+            warm_memory = init_latent_memory(args)
+            warm_seq_len = args.train_seq_len_for_step(warmup_step)
             for _ in range(args.grad_accum_steps):
-                warmup_loss, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad)
+                warmup_loss, grads, warm_memory = loss_and_grad_chunked(
+                    args, train_loader, compiled_loss_and_grad, compiled_next_memory, warm_memory, warm_seq_len
+                )
                 accum = accumulate_flat_grads(accum, grads, grad_scale)
-            mx.eval(warmup_loss, accum)
+            mx.eval(warmup_loss, accum, warm_memory)
             mx.synchronize()
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
 
         # Prime the standalone eval graph once too. It is compiled separately from value_and_grad.
         val_batch_tokens = args.val_batch_size // args.grad_accum_steps
-        if val_batch_tokens < args.train_seq_len:
+        if val_batch_tokens < args.val_seq_len:
             raise ValueError(
                 "VAL_BATCH_SIZE must provide at least one sequence; "
                 f"got VAL_BATCH_SIZE={args.val_batch_size}, GRAD_ACCUM_STEPS={args.grad_accum_steps}, "
-                f"TRAIN_SEQ_LEN={args.train_seq_len}"
+                f"VAL_SEQ_LEN={args.val_seq_len}"
             )
-        warm_val_seqs = min(val_batch_tokens // args.train_seq_len, (val_tokens.size - 1) // args.train_seq_len)
-        warm_chunk = val_tokens[: warm_val_seqs * args.train_seq_len + 1]
-        x_val = mx.array(warm_chunk[:-1].reshape(-1, args.train_seq_len), dtype=mx.int32)
-        y_val = mx.array(warm_chunk[1:].reshape(-1, args.train_seq_len), dtype=mx.int32)
-        warm_val_loss = compiled_loss(x_val, y_val)
-        mx.eval(warm_val_loss)
+        warm_val_seqs = min(val_batch_tokens // args.val_seq_len, (val_tokens.size - 1) // args.val_seq_len)
+        warm_chunk = val_tokens[: warm_val_seqs * args.val_seq_len + 1]
+        x_val = mx.array(warm_chunk[:-1].reshape(-1, args.val_seq_len), dtype=mx.int32)
+        y_val = mx.array(warm_chunk[1:].reshape(-1, args.val_seq_len), dtype=mx.int32)
+        warm_memory = init_latent_memory(args)
+        warm_val_loss = compiled_loss(x_val, y_val, warm_memory)
+        warm_next_memory = compiled_next_memory(x_val, warm_memory)
+        mx.eval(warm_val_loss, warm_next_memory)
         mx.synchronize()
 
         train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
@@ -986,6 +1379,7 @@ def main() -> None:
     train_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     stop_after_step: int | None = None
+    latent_memory = init_latent_memory(args)
     t0 = time.perf_counter()
     step = 0
     while True:
@@ -995,6 +1389,7 @@ def main() -> None:
             val_loss, val_bpb = eval_val(
                 args,
                 compiled_loss,
+                compiled_next_memory,
                 val_tokens,
                 base_bytes_lut,
                 has_leading_space_lut,
@@ -1018,8 +1413,11 @@ def main() -> None:
         accum: dict[str, mx.array] | None = None
         train_loss = mx.array(0.0, dtype=mx.float32)
         grad_scale = 1.0 / args.grad_accum_steps
+        step_seq_len = args.train_seq_len_for_step(step)
         for _ in range(args.grad_accum_steps):
-            loss, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad)
+            loss, grads, latent_memory = loss_and_grad_chunked(
+                args, train_loader, compiled_loss_and_grad, compiled_next_memory, latent_memory, step_seq_len
+            )
             accum = accumulate_flat_grads(accum, grads, grad_scale)
             train_loss = train_loss + loss.astype(mx.float32) * grad_scale
 
@@ -1036,7 +1434,8 @@ def main() -> None:
         if args.train_log_every > 0 and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None):
             log(
                 f"step:{step}/{args.iterations} train_loss:{train_loss_value:.4f} "
-                f"train_time:{approx_train_time_ms:.0f}ms step_avg:{approx_train_time_ms / step:.2f}ms tok_s:{tok_s:.0f}"
+                f"train_time:{approx_train_time_ms:.0f}ms step_avg:{approx_train_time_ms / step:.2f}ms tok_s:{tok_s:.0f} "
+                f"seq_len:{step_seq_len}"
             )
         if max_wallclock_ms is not None and stop_after_step is None and approx_train_time_ms >= max_wallclock_ms:
             stop_after_step = step
@@ -1048,7 +1447,11 @@ def main() -> None:
     # quantized roundtrip directly by loading the dequantized tensors back into the
     # model and running one final validation pass.
     out_path = out_dir / f"{args.run_id}_mlx_model.npz"
-    flat_state = {k: v for k, v in tree_flatten(model.state)}
+    raw_state_items = list(tree_flatten(model.state))
+    flat_state = {k: v for k, v in raw_state_items if is_state_array_leaf(v)}
+    dropped_state_keys = [k for k, v in raw_state_items if not is_state_array_leaf(v)]
+    if dropped_state_keys:
+        log(f"state_export:dropped_nonarray_keys:{','.join(dropped_state_keys)}")
     mx.savez(str(out_path), **flat_state)
     log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
 
@@ -1056,13 +1459,13 @@ def main() -> None:
     quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
     quant_blob = zlib.compress(quant_raw, level=9)
     quant_serialized_bytes = len(quant_raw)
-    quant_path = out_dir / f"{args.run_id}_mlx_model.int8.ptz"
+    quant_path = out_dir / f"{args.run_id}_mlx_model.{quant_label()}.ptz"
     with quant_path.open("wb") as f:
         f.write(quant_blob)
     quant_file_bytes = quant_path.stat().st_size
     ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
     log(
-        f"serialized_model_int8_zlib:{quant_file_bytes} bytes "
+        f"serialized_model_{quant_label()}_zlib:{quant_file_bytes} bytes "
         f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
     )
 
@@ -1074,14 +1477,15 @@ def main() -> None:
     q_val_loss, q_val_bpb = eval_val(
         args,
         compiled_loss,
+        compiled_next_memory,
         val_tokens,
         base_bytes_lut,
         has_leading_space_lut,
         is_boundary_token_lut,
     )
     q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
-    log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
-    log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log(f"final_{quant_label()}_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
+    log(f"final_{quant_label()}_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
 
 if __name__ == "__main__":
