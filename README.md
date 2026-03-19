@@ -172,7 +172,7 @@ All submissions should be made as a pull request that only adds a new folder to 
 
 2. A `submission.json` file (see the example runs) that includes your name, GitHub ID, `val_bpb`, and related metadata.
 
-3. A train log, automatically produced by your script.
+3. A train log, automatically produced by your script. Please demonstrate a statistically significant win. Most often, submitting an average over 3 training runs is sufficient.
 
 4. A `train_gpt.py` script and any other dependencies. Note: this must successfully compile and run within the records folder. Broken scripts will not be accepted.
 
