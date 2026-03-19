@@ -1,0 +1,32 @@
+{
+  "author": "Bahman Masarrat",
+  "github_id": "bahman2017",
+  "email": "bmasarrat@gmail.com",
+  "name": "PhiDelay-Inspired Shared-Recurrent Language Model",
+  "blurb": "Shared-recurrent PhiDelay-inspired language model with artifact-aware scaling and training-driven optimization under strict size constraints. Replaces self-attention with a lightweight multi-head delay mixer and reuses 3 physical blocks across 4 recurrent passes (effective depth 12) at dim=1024. Final int8+zlib roundtrip scored 3.2306 BPB under the 16 MB artifact cap.",
+  "date": "2026-03-18T23:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 5.5573,
+  "val_bpb": 3.2306,
+  "pre_quant_val_loss": 5.5573,
+  "pre_quant_val_bpb": 3.2306,
+  "step_stop": 60,
+  "wallclock_seconds": 32.96,
+  "bytes_total": 6839143,
+  "bytes_model_int8_zlib": 6839143,
+  "model_params": 16789558,
+  "architecture": {
+    "mixer": "PhiDelayLayer (multi-head, gated)",
+    "shared_blocks": 3,
+    "repeats": 4,
+    "effective_depth": 12,
+    "dim": 1024,
+    "num_heads": 8,
+    "mlp_mult": 2,
+    "vocab_size": 1024,
+    "tie_embeddings": true,
+    "recurrence_gates": true,
+    "bitlinear": false
+  },
+  "reference": "https://doi.org/10.5281/zenodo.16790526"
+}
