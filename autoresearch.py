@@ -33,6 +33,7 @@ import subprocess
 import sys
 import time
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,17 +42,16 @@ from pathlib import Path
 # ---------------------
 
 TRAIN_SCRIPT = Path("train_gpt.py")
-TRAIN_SCRIPT_BEST = Path("autoresearch/train_gpt.best.py")
 PROGRAM_FILE = Path("program.md")
-HISTORY_FILE = Path("autoresearch/history.jsonl")
-LOGS_DIR = Path("autoresearch/logs")
-EXPERIMENTS_DIR = Path("autoresearch/experiments")
 
 EXPERIMENT_SECONDS = int(os.environ.get("EXPERIMENT_SECONDS", "180"))
 MAX_EXPERIMENTS = int(os.environ.get("MAX_EXPERIMENTS", "100"))
 GPUS = int(os.environ.get("GPUS", "1"))
 CLAUDE_MODEL = os.environ.get("AUTORESEARCH_MODEL", "opus")
 CLAUDE_EFFORT = os.environ.get("CLAUDE_EFFORT", "high")
+LANE = os.environ.get("AUTORESEARCH_LANE", "core").strip().lower()
+STAGE = os.environ.get("AUTORESEARCH_STAGE", "discovery").strip().lower()
+NAMESPACE = os.environ.get("AUTORESEARCH_NAMESPACE", "").strip()
 
 # When iterating on fewer GPUs or shorter times, reduce iterations
 # so the model doesn't waste time in warmdown too early
@@ -60,10 +60,75 @@ VAL_LOSS_EVERY = int(os.environ.get("VAL_LOSS_EVERY", "0"))  # 0 = only at end
 
 # Baseline BPB to seed the first comparison (from the official baseline run)
 BASELINE_BPB = float(os.environ.get("BASELINE_BPB", "0"))
+MAX_ARTIFACT_BYTES = int(os.environ.get("MAX_ARTIFACT_BYTES", "16000000"))
+MAX_EVAL_TIME_MS = int(os.environ.get("MAX_EVAL_TIME_MS", "120000"))
+MAX_EVAL_MEMORY_MIB = int(os.environ.get("MAX_EVAL_MEMORY_MIB", "0"))
+MAX_QUANTIZATION_GAP = float(os.environ.get("MAX_QUANTIZATION_GAP", "0.08"))
+STORAGE_MAX_REGRESSION = float(os.environ.get("STORAGE_MAX_REGRESSION", "0.003"))
+STORAGE_MIN_SIZE_IMPROVEMENT = int(os.environ.get("STORAGE_MIN_SIZE_IMPROVEMENT", "250000"))
+REPRESENTATION_VERIFIED = bool(int(os.environ.get("REPRESENTATION_VERIFIED", "0")))
+
+AUTORESEARCH_DIR = Path("autoresearch") / NAMESPACE if NAMESPACE else Path("autoresearch")
+TRAIN_SCRIPT_BEST = AUTORESEARCH_DIR / "train_gpt.best.py"
+HISTORY_FILE = AUTORESEARCH_DIR / "history.jsonl"
+LOGS_DIR = AUTORESEARCH_DIR / "logs"
+EXPERIMENTS_DIR = AUTORESEARCH_DIR / "experiments"
+
+
+@dataclass(frozen=True)
+class LanePolicy:
+    name: str
+    objective: str
+    stage_desc: str
+    prompt_guidance: tuple[str, ...]
+
+
+LANE_POLICIES: dict[str, LanePolicy] = {
+    "core": LanePolicy(
+        name="core",
+        objective="Improve post-quantization val_bpb under the artifact cap without sacrificing training throughput.",
+        stage_desc="Use the 1xH100 short-horizon proxy for discovery, then promote promising configs to longer and wider runs.",
+        prompt_guidance=(
+            "This lane is for core model, optimizer, and schedule changes close to the current training stack.",
+            "Prefer changes that improve early convergence in the first ~300 steps and do not materially slow step time.",
+            "Avoid large parameter-count increases unless there is clear size headroom or a concrete compression hypothesis.",
+        ),
+    ),
+    "eval_time": LanePolicy(
+        name="eval_time",
+        objective="Trade evaluation compute for lower val_bpb while staying within a strict evaluation-time budget.",
+        stage_desc="Treat evaluation latency and memory as first-class constraints, not just the training metric.",
+        prompt_guidance=(
+            "This lane is for cache, copy/pointer, dynamic evaluation, and online adaptation ideas.",
+            "Changes must improve compression without creating runaway eval-time or memory costs.",
+            "Prefer narrow, measurable evaluation logic over large architecture changes.",
+        ),
+    ),
+    "representation": LanePolicy(
+        name="representation",
+        objective="Change tokenization or segmentation only when accounting and reproducibility remain exact.",
+        stage_desc="Correctness comes before performance in this lane; invalid accounting disqualifies the result.",
+        prompt_guidance=(
+            "This lane is for tokenizer, segmentation, and byte/latent representation work.",
+            "Do not chase tiny metric wins through unclear accounting. Exact byte accounting and dataset/tokenizer consistency are mandatory.",
+            "Favor narrow, testable representation changes over wholesale pipeline rewrites.",
+        ),
+    ),
+    "storage": LanePolicy(
+        name="storage",
+        objective="Optimize final compressed artifact bytes and post-export val_bpb together.",
+        stage_desc="A discovery win can come from either lower post-export bpb or materially smaller compressed artifacts at near-equal bpb.",
+        prompt_guidance=(
+            "This lane is for quantization-aware training, codebooks, tying, and zlib/export-friendly parameterization.",
+            "Focus on post-export behavior, not just raw training loss.",
+            "Prefer changes that reduce quantization gap or shrink final bytes without hurting bpb much.",
+        ),
+    ),
+}
 
 
 def ensure_dirs():
-    Path("autoresearch").mkdir(exist_ok=True)
+    AUTORESEARCH_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(exist_ok=True)
     EXPERIMENTS_DIR.mkdir(exist_ok=True)
 
@@ -92,14 +157,26 @@ def save_experiment_snapshot(
     bpb_str = f"{bpb:.4f}" if bpb is not None else "N/A (failed)"
     size = entry.get("artifact_bytes")
     size_str = f"{size:,}" if size else "N/A"
+    model_params = entry.get("model_params")
+    prequant_bpb = entry.get("prequant_val_bpb")
+    q_gap = entry.get("quantization_gap")
+    last_step = entry.get("last_step")
     error = entry.get("error", "")
 
     md = f"""# Experiment {experiment_id}
 
 **Date:** {entry.get('timestamp', 'unknown')}
+**Lane/Stage:** {entry.get('lane', LANE)}/{entry.get('stage', STAGE)}
 **Result:** {kept_str}
 **val_bpb:** {bpb_str}
 **Artifact size:** {size_str} bytes
+**Model params:** {model_params if model_params else 'N/A'}
+**Last step:** {last_step if last_step is not None else 'N/A'}
+**Pre-quant val_bpb:** {f'{prequant_bpb:.4f}' if prequant_bpb is not None else 'N/A'}
+**Quantization gap:** {f'{q_gap:.4f}' if q_gap is not None else 'N/A'}
+**Eval time:** {entry.get('eval_time_ms', 'N/A')} ms
+**Peak memory:** {entry.get('peak_memory_mib', 'N/A')} MiB
+**Gate reason:** {entry.get('gate_reason', 'N/A')}
 **Propose time:** {entry.get('propose_seconds', '?')}s
 **Train time:** {entry.get('train_seconds', '?')}s
 """
@@ -163,11 +240,155 @@ def parse_artifact_size(output: str) -> int | None:
     return None
 
 
+def parse_model_params(output: str) -> int | None:
+    """Extract model parameter count from training output."""
+    m = re.search(r"model_params:(\d+)", output)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def parse_last_step_val_bpb(output: str) -> float | None:
+    """Extract the final pre-quantization val_bpb from step logs."""
+    matches = re.findall(r"step:\d+/\d+ val_loss:\S+ val_bpb:(\d+\.\d+)", output)
+    if matches:
+        return float(matches[-1])
+    return None
+
+
+def parse_last_step_index(output: str) -> int | None:
+    """Extract the last completed training step from output."""
+    matches = re.findall(r"step:(\d+)/\d+", output)
+    if matches:
+        return int(matches[-1])
+    return None
+
+
+def parse_eval_time_ms(output: str) -> int | None:
+    """Extract final evaluation time in milliseconds."""
+    m = re.search(r"final_int8_zlib_roundtrip val_loss:\S+ val_bpb:\S+ eval_time:(\d+)ms", output)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def parse_peak_memory_mib(output: str) -> int | None:
+    """Extract peak memory usage in MiB."""
+    m = re.search(r"peak memory allocated:\s*(\d+)\s*MiB", output)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def lane_policy() -> LanePolicy:
+    if LANE not in LANE_POLICIES:
+        valid = ", ".join(sorted(LANE_POLICIES))
+        raise ValueError(f"Unknown AUTORESEARCH_LANE={LANE!r}. Expected one of: {valid}")
+    return LANE_POLICIES[LANE]
+
+
+def stage_config() -> str:
+    return f"{LANE}/{STAGE}"
+
+
+def kept_entries(history: list[dict]) -> list[dict]:
+    entries = []
+    for h in history:
+        entry_lane = h.get("lane")
+        lane_matches = entry_lane == LANE or (entry_lane is None and LANE == "core" and not NAMESPACE)
+        if lane_matches and h.get("kept") and h.get("val_bpb") is not None:
+            entries.append(h)
+    return entries
+
+
+def best_entry_for_lane(history: list[dict]) -> dict | None:
+    entries = kept_entries(history)
+    if not entries:
+        return None
+    return min(entries, key=lambda h: h["val_bpb"])
+
+
+def keep_decision(
+    *,
+    val_bpb: float | None,
+    artifact_bytes: int | None,
+    eval_time_ms: int | None,
+    peak_memory_mib: int | None,
+    quantization_gap: float | None,
+    best_entry: dict | None,
+    over_budget: bool,
+) -> tuple[bool, str]:
+    """Return whether to keep a result under the active lane policy."""
+    if over_budget:
+        return False, f"artifact_over_budget ({artifact_bytes} > {MAX_ARTIFACT_BYTES})"
+    if val_bpb is None:
+        return False, "missing_val_bpb"
+
+    best_bpb = best_entry["val_bpb"] if best_entry is not None else None
+
+    if LANE == "representation" and not REPRESENTATION_VERIFIED:
+        return False, "representation_requires_verification"
+
+    if LANE == "eval_time":
+        if eval_time_ms is None:
+            return False, "missing_eval_time"
+        if eval_time_ms > MAX_EVAL_TIME_MS:
+            return False, f"eval_time_exceeded ({eval_time_ms}ms > {MAX_EVAL_TIME_MS}ms)"
+        if MAX_EVAL_MEMORY_MIB > 0 and peak_memory_mib is not None and peak_memory_mib > MAX_EVAL_MEMORY_MIB:
+            return False, f"eval_memory_exceeded ({peak_memory_mib}MiB > {MAX_EVAL_MEMORY_MIB}MiB)"
+
+    if LANE == "storage":
+        if quantization_gap is not None and quantization_gap > MAX_QUANTIZATION_GAP:
+            return False, f"quantization_gap_exceeded ({quantization_gap:.4f} > {MAX_QUANTIZATION_GAP:.4f})"
+        if best_entry is None:
+            return True, "first_successful_storage_result"
+        best_size = best_entry.get("artifact_bytes")
+        if val_bpb < best_bpb:
+            return True, f"improved_val_bpb ({best_bpb:.4f} -> {val_bpb:.4f})"
+        if (
+            best_size is not None
+            and artifact_bytes is not None
+            and val_bpb <= best_bpb + STORAGE_MAX_REGRESSION
+            and artifact_bytes <= best_size - STORAGE_MIN_SIZE_IMPROVEMENT
+        ):
+            return True, (
+                "accepted_storage_tradeoff "
+                f"(bpb {best_bpb:.4f}->{val_bpb:.4f}, size {best_size}->{artifact_bytes})"
+            )
+        return False, "no_storage_improvement"
+
+    if best_bpb is None or val_bpb < best_bpb:
+        return True, f"improved_val_bpb ({best_bpb if best_bpb is not None else 'none'} -> {val_bpb:.4f})"
+    return False, f"no_val_bpb_improvement (best={best_bpb:.4f}, got={val_bpb:.4f})"
+
+
+def summarize_current_config(code: str) -> str:
+    """Summarize the current default config from train_gpt.py for the prompt."""
+    def extract_int(name: str) -> str:
+        m = re.search(rf'{name} = int\(os\.environ\.get\("[^"]+", (\d+)\)\)', code)
+        return m.group(1) if m else "?"
+
+    def extract_float(name: str) -> str:
+        m = re.search(rf'{name} = float\(os\.environ\.get\("[^"]+", ([0-9.]+)\)\)', code)
+        return m.group(1) if m else "?"
+
+    return (
+        f"layers={extract_int('num_layers')}, dim={extract_int('model_dim')}, "
+        f"heads={extract_int('num_heads')}, kv_heads={extract_int('num_kv_heads')}, "
+        f"mlp_mult={extract_int('mlp_mult')}, matrix_lr={extract_float('matrix_lr')}, "
+        f"scalar_lr={extract_float('scalar_lr')}"
+    )
+
+
 def format_history_for_prompt(history: list[dict], max_entries: int = 30) -> str:
-    if not history:
+    lane_history = [
+        h for h in history
+        if h.get("lane") == LANE or (h.get("lane") is None and LANE == "core" and not NAMESPACE)
+    ]
+    if not lane_history:
         return "No experiments run yet."
 
-    recent = history[-max_entries:]
+    recent = lane_history[-max_entries:]
     lines = []
     for h in recent:
         status = "KEPT" if h.get("kept") else "REVERTED"
@@ -175,16 +396,20 @@ def format_history_for_prompt(history: list[dict], max_entries: int = 30) -> str
         bpb_str = f"{bpb:.4f}" if bpb is not None else "FAILED"
         size = h.get("artifact_bytes")
         size_str = f" size={size}" if size else ""
+        params = h.get("model_params")
+        params_str = f" params={params}" if params else ""
+        q_gap = h.get("quantization_gap")
+        q_gap_str = f" qgap={q_gap:.4f}" if q_gap is not None else ""
         error = h.get("error", "")
         error_str = f" error={error}" if error else ""
         lines.append(
-            f"  #{h['id']:3d} [{status:8s}] bpb={bpb_str}{size_str}{error_str} | {h['description']}"
+            f"  #{h['id']:3d} [{status:8s}] bpb={bpb_str}{size_str}{params_str}{q_gap_str}{error_str} | {h['description']}"
         )
 
-    best_kept = [h for h in history if h.get("kept") and h.get("val_bpb") is not None]
+    best_kept = kept_entries(history)
     best_bpb = min(h["val_bpb"] for h in best_kept) if best_kept else None
 
-    summary = f"Experiments so far: {len(history)} total, {len(best_kept)} kept\n"
+    summary = f"Experiments so far: {len(lane_history)} total, {len(best_kept)} kept\n"
     if best_bpb is not None:
         summary += f"Current best val_bpb: {best_bpb:.4f}\n"
     summary += "\nRecent experiments:\n" + "\n".join(lines)
@@ -194,6 +419,9 @@ def format_history_for_prompt(history: list[dict], max_entries: int = 30) -> str
 def build_proposal_prompt(program: str, history: list[dict], best_bpb: float | None) -> str:
     history_block = format_history_for_prompt(history)
     best_str = f"{best_bpb:.4f}" if best_bpb is not None else "unknown (no successful run yet)"
+    current_config = summarize_current_config(TRAIN_SCRIPT.read_text())
+    policy = lane_policy()
+    lane_guidance = "\n".join(f"- {line}" for line in policy.prompt_guidance)
 
     return f"""You are an autonomous ML researcher running experiments for the parameter-golf challenge.
 Your job: make ONE specific modification to train_gpt.py to try to improve validation BPB.
@@ -204,7 +432,12 @@ Your job: make ONE specific modification to train_gpt.py to try to improve valid
 ## Experiment History
 {history_block}
 
+Lane: {policy.name}
+Stage: {STAGE}
+Lane objective: {policy.objective}
+Stage intent: {policy.stage_desc}
 Current best val_bpb: {best_str}
+Current default config in train_gpt.py: {current_config}
 Experiment time budget: {EXPERIMENT_SECONDS}s on {GPUS} GPU(s)
 
 ## Instructions
@@ -218,9 +451,15 @@ Guidelines:
 - Consider what has and hasn't worked in the experiment history
 - The script must remain functional — don't break imports, class structure, etc.
 - The final metric is post-int8-quantization roundtrip val_bpb (lower is better)
-- Total artifact (compressed weights + code) must stay under 16,000,000 bytes
+- Total artifact (compressed weights + code) must stay under {MAX_ARTIFACT_BYTES:,} bytes
 - Be creative but grounded — vary your approaches, don't repeat failed ideas
-- Focus on changes likely to improve BPB: architecture, hyperparameters, training tricks, compression"""
+- This is a 1xH100 short-horizon proxy. Prefer changes that improve convergence in the first ~300 steps and do not materially slow step time
+- The current best is already close to the size ceiling, so avoid parameter increases unless you also have a concrete compression hypothesis
+- Favor small shape/hyperparameter/training-schedule changes over speculative full-module rewrites
+- Focus on changes likely to improve BPB: architecture, hyperparameters, training tricks, compression
+
+Lane-specific guidance:
+{lane_guidance}"""
 
 
 def run_claude_proposal(prompt: str) -> str | None:
@@ -319,6 +558,7 @@ def evaluate_and_record(
         entry = {
             "id": experiment_id, "description": description,
             "val_bpb": None, "artifact_bytes": None, "kept": False,
+            "lane": LANE, "stage": STAGE, "gate_reason": f"exit_{returncode}",
             "error": f"exit_{returncode}",
             "propose_seconds": round(propose_time, 1),
             "train_seconds": round(train_time, 1), "timestamp": timestamp,
@@ -334,6 +574,7 @@ def evaluate_and_record(
         entry = {
             "id": experiment_id, "description": description,
             "val_bpb": None, "artifact_bytes": None, "kept": False,
+            "lane": LANE, "stage": STAGE, "gate_reason": "timeout",
             "error": "timeout",
             "propose_seconds": round(propose_time, 1),
             "train_seconds": round(train_time, 1), "timestamp": timestamp,
@@ -345,34 +586,64 @@ def evaluate_and_record(
 
     val_bpb = parse_val_bpb(output)
     artifact_bytes = parse_artifact_size(output)
+    model_params = parse_model_params(output)
+    prequant_val_bpb = parse_last_step_val_bpb(output)
+    last_step = parse_last_step_index(output)
+    eval_time_ms = parse_eval_time_ms(output)
+    peak_memory_mib = parse_peak_memory_mib(output)
+    quantization_gap = (
+        val_bpb - prequant_val_bpb
+        if val_bpb is not None and prequant_val_bpb is not None
+        else None
+    )
 
     print(f"  val_bpb:       {val_bpb}")
     print(f"  artifact size: {artifact_bytes}")
+    print(f"  model params:  {model_params}")
+    print(f"  last step:     {last_step}")
+    print(f"  prequant_bpb:  {prequant_val_bpb}")
+    print(f"  quant gap:     {quantization_gap}")
+    print(f"  eval time ms:  {eval_time_ms}")
+    print(f"  peak mem MiB:  {peak_memory_mib}")
 
     kept = False
-    over_budget = artifact_bytes is not None and artifact_bytes > 16_000_000
+    over_budget = artifact_bytes is not None and artifact_bytes > MAX_ARTIFACT_BYTES
+    best_entry = best_entry_for_lane(history)
+    decision_keep, gate_reason = keep_decision(
+        val_bpb=val_bpb,
+        artifact_bytes=artifact_bytes,
+        eval_time_ms=eval_time_ms,
+        peak_memory_mib=peak_memory_mib,
+        quantization_gap=quantization_gap,
+        best_entry=best_entry,
+        over_budget=over_budget,
+    )
 
-    if over_budget:
-        print(f"  OVER SIZE BUDGET ({artifact_bytes} > 16,000,000). Reverting.")
-        TRAIN_SCRIPT.write_text(prev_code)
-    elif val_bpb is not None:
-        if best_bpb is None or val_bpb < best_bpb:
-            improvement = (best_bpb - val_bpb) if best_bpb else 0
-            print(f"  IMPROVEMENT! {best_bpb} → {val_bpb} (Δ = {improvement:.4f})")
-            best_bpb = val_bpb
-            shutil.copy2(TRAIN_SCRIPT, TRAIN_SCRIPT_BEST)
-            kept = True
-        else:
-            delta = val_bpb - best_bpb
-            print(f"  No improvement (Δ = +{delta:.4f}). Reverting.")
-            TRAIN_SCRIPT.write_text(prev_code)
+    if decision_keep:
+        prior_best = best_entry["val_bpb"] if best_entry is not None else None
+        improvement = (prior_best - val_bpb) if prior_best is not None and val_bpb is not None else 0.0
+        print(f"  KEPT by lane policy: {gate_reason}")
+        if prior_best is not None and val_bpb is not None:
+            print(f"  Improvement: {prior_best:.4f} -> {val_bpb:.4f} (Δ = {improvement:.4f})")
+        best_bpb = val_bpb if val_bpb is not None else best_bpb
+        shutil.copy2(TRAIN_SCRIPT, TRAIN_SCRIPT_BEST)
+        kept = True
     else:
-        print("  Could not parse val_bpb. Reverting.")
+        print(f"  Reverting by lane policy: {gate_reason}")
         TRAIN_SCRIPT.write_text(prev_code)
 
     entry = {
         "id": experiment_id, "description": description,
         "val_bpb": val_bpb, "artifact_bytes": artifact_bytes,
+        "model_params": model_params,
+        "prequant_val_bpb": prequant_val_bpb,
+        "quantization_gap": quantization_gap,
+        "last_step": last_step,
+        "eval_time_ms": eval_time_ms,
+        "peak_memory_mib": peak_memory_mib,
+        "lane": LANE,
+        "stage": STAGE,
+        "gate_reason": gate_reason,
         "kept": kept, "over_budget": over_budget,
         "propose_seconds": round(propose_time, 1),
         "train_seconds": round(train_time, 1), "timestamp": timestamp,
@@ -409,11 +680,8 @@ def main():
     if not TRAIN_SCRIPT_BEST.exists():
         shutil.copy2(TRAIN_SCRIPT, TRAIN_SCRIPT_BEST)
 
-    best_bpb: float | None = None
-    for h in history:
-        if h.get("kept") and h.get("val_bpb") is not None:
-            if best_bpb is None or h["val_bpb"] < best_bpb:
-                best_bpb = h["val_bpb"]
+    best = best_entry_for_lane(history)
+    best_bpb: float | None = best["val_bpb"] if best is not None else None
 
     if best_bpb is None and BASELINE_BPB > 0:
         best_bpb = BASELINE_BPB
@@ -423,6 +691,8 @@ def main():
     print("=" * 70)
     print("AUTORESEARCH — Parameter Golf (Claude Code, pipelined)")
     print("=" * 70)
+    print(f"  Lane/stage:      {stage_config()}")
+    print(f"  Namespace dir:   {AUTORESEARCH_DIR}")
     print(f"  Best BPB so far:  {f'{best_bpb:.4f}' if best_bpb else 'none (starting fresh)'}")
     print(f"  Experiments done: {len(history)}")
     print(f"  Time per run:     {EXPERIMENT_SECONDS}s on {GPUS} GPU(s)")
@@ -483,6 +753,7 @@ def main():
                 entry = {
                     "id": experiment_id, "description": "Failed to propose",
                     "val_bpb": None, "artifact_bytes": None, "kept": False,
+                    "lane": LANE, "stage": STAGE, "gate_reason": "invalid_proposal",
                     "error": "invalid_proposal", "timestamp": timestamp,
                 }
                 append_history(entry)
@@ -499,6 +770,7 @@ def main():
                 "id": experiment_id,
                 "description": f"{description} (NO CHANGES)",
                 "val_bpb": None, "artifact_bytes": None, "kept": False,
+                "lane": LANE, "stage": STAGE, "gate_reason": "no_changes",
                 "error": "no_changes", "timestamp": timestamp,
             }
             append_history(entry)
@@ -601,8 +873,13 @@ def main():
     print("\n" + "=" * 70)
     print("AUTORESEARCH COMPLETE")
     print("=" * 70)
-    kept_count = sum(1 for h in history if h.get("kept"))
-    print(f"  Total experiments: {len(history)}")
+    kept_count = len(kept_entries(history))
+    lane_total = sum(
+        1 for h in history if h.get("lane") == LANE or (h.get("lane") is None and LANE == "core" and not NAMESPACE)
+    )
+    print(f"  Lane/stage:        {stage_config()}")
+    print(f"  Namespace dir:     {AUTORESEARCH_DIR}")
+    print(f"  Total experiments: {lane_total}")
     print(f"  Kept:              {kept_count}")
     print(f"  Best val_bpb:      {best_bpb}")
     print(f"  Best code saved:   {TRAIN_SCRIPT_BEST}")
