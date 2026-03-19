@@ -1,0 +1,11 @@
+{
+  "author": "samuellarson",
+  "github_id": "saml212",
+  "name": "Int6 MLP3x Sliding Window",
+  "blurb": "Int6 post-training quantization enables 3x MLP expansion (21.8M params in 16MB). Sliding window eval stride=256 with train@2048.",
+  "date": "2026-03-20",
+  "val_loss": 1.95428963,
+  "val_bpb": 1.15744040,
+  "bytes_total": 15977717,
+  "bytes_code": 51200
+}
