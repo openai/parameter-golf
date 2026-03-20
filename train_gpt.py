@@ -129,6 +129,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    weight_decay = float(os.environ.get("WEIGHT_DECAY", str(_O.get("weight_decay", 0.04))))
 
     # Test-time training (LoRA) hyperparameters.
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
@@ -1359,6 +1360,12 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
+        # Decoupled weight decay (keeps weights small for better int6 quantization)
+        if args.weight_decay > 0:
+            with torch.no_grad():
+                for p in base_model.parameters():
+                    if p.ndim >= 2:
+                        p.mul_(1.0 - args.weight_decay * scale * args.matrix_lr)
         zero_grad_all()
 
         step += 1
