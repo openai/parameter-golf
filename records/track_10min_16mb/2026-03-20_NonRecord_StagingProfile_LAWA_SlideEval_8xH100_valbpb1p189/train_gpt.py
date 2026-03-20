@@ -24,13 +24,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from train_gpt_lawa import (
-    lawa_broadcast_float_state,
-    lawa_ema_shadow_init,
-    lawa_ema_update,
-    lawa_finalize_to_model,
-    lawa_float_state_cpu,
-)
+from train_gpt_lawa import lawa_broadcast_float_state, lawa_ema_shadow_init, lawa_ema_update, lawa_finalize_to_model, lawa_float_state_cpu
 from train_gpt_sliding import eval_sliding_roundtrip
 
 # Staging profile: inject merged-baseline defaults before Hyperparameters reads env.
