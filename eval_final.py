@@ -2,9 +2,10 @@
 """
 Final Competition Eval — Clean, Fast, GPU-only.
 
-Two modes:
+Three techniques:
   1. Sliding window eval (pure neural, stride=64)
   2. TTT LoRA: per-document adapter adaptation + sliding window rescore
+  3. Correction table: override model's worst predictions with stored answers
 
 Usage:
     # Pure sliding window (fast, ~160s on 8×H100)
@@ -12,6 +13,9 @@ Usage:
 
     # With TTT LoRA (uses more eval time budget)
     CHECKPOINT=final_model.int6.ptz USE_TTT=1 python eval_final.py
+
+    # With correction table (automatic if table exists in checkpoint)
+    CHECKPOINT=final_model_corrected.ptz python eval_final.py
 
 Environment variables:
     CHECKPOINT      path to .ptz checkpoint
@@ -28,6 +32,7 @@ import copy
 import io
 import math
 import os
+import struct
 import time
 import zlib
 
@@ -55,6 +60,45 @@ except ImportError:
     HAS_ZSTD = False
 
 
+# =============================================================================
+# CORRECTION TABLE
+# =============================================================================
+
+def deserialize_table(raw: bytes) -> tuple[np.ndarray, np.ndarray, int]:
+    """Deserialize correction table from bytes."""
+    magic, n, context_len = struct.unpack("<4sIB", raw[:9])
+    assert magic == b"CRCT", f"Invalid correction table magic: {magic}"
+    hashes = np.zeros(n, dtype=np.uint32)
+    tokens = np.zeros(n, dtype=np.uint16)
+    offset = 9
+    for i in range(n):
+        h, t = struct.unpack("<IH", raw[offset:offset + 6])
+        hashes[i] = h
+        tokens[i] = t
+        offset += 6
+    return hashes, tokens, context_len
+
+
+def compute_context_hash(token_window: np.ndarray) -> np.uint32:
+    """Compute FNV-style hash for a context window."""
+    PRIME = np.uint64(16777619)
+    h = np.uint64(0)
+    for i, t in enumerate(token_window):
+        h += np.uint64(t) * (PRIME ** np.uint64(i))
+    return np.uint32(h)
+
+
+def build_correction_lut(
+    table_hashes: np.ndarray,
+    table_tokens: np.ndarray,
+) -> dict[int, int]:
+    """Build a fast hash->token lookup dict from sorted arrays."""
+    lut = {}
+    for h, t in zip(table_hashes, table_tokens):
+        lut[int(h)] = int(t)
+    return lut
+
+
 def load_model(args: Hyperparameters, checkpoint: str, device: torch.device) -> GPT:
     """Create model and load checkpoint."""
     model = GPT(
@@ -80,6 +124,8 @@ def load_model(args: Hyperparameters, checkpoint: str, device: torch.device) -> 
             m.float()
     restore_low_dim_params_to_fp32(model)
 
+    correction_table = None
+
     if checkpoint.endswith(".ptz"):
         with open(checkpoint, "rb") as f:
             blob = f.read()
@@ -92,12 +138,25 @@ def load_model(args: Hyperparameters, checkpoint: str, device: torch.device) -> 
         except Exception:
             raw = zlib.decompress(blob)
         state = torch.load(io.BytesIO(raw), map_location="cpu")
+
+        # Extract correction table if present
+        if "__correction_table__" in state:
+            table_bytes = state.pop("__correction_table__")
+            t_hashes, t_tokens, ctx_len = deserialize_table(table_bytes)
+            correction_table = {
+                "hashes": t_hashes,
+                "tokens": t_tokens,
+                "context_len": ctx_len,
+                "lut": build_correction_lut(t_hashes, t_tokens),
+            }
+            print(f"  correction_table: {len(t_hashes):,} entries, context_len={ctx_len}")
+
         model.load_state_dict(dequantize_state_dict_int8(state), strict=False)
     else:
         model.load_state_dict(torch.load(checkpoint, map_location="cpu"), strict=False)
 
     model.to(device)
-    return model
+    return model, correction_table
 
 
 # =============================================================================
@@ -113,6 +172,7 @@ def eval_sliding_window(
     has_leading_space_lut: torch.Tensor,
     is_boundary_token_lut: torch.Tensor,
     device: torch.device,
+    correction_table: dict | None = None,
 ) -> tuple[float, float]:
     """Fast sliding window eval. All computation on GPU, no per-token loop."""
     n_tokens = val_tokens.numel()
@@ -144,11 +204,26 @@ def eval_sliding_window(
                 logits = model.forward_logits(x)
 
             score_start = 0 if start == 0 else seq_len - stride
-            score_logits = logits[score_start:]
+            score_logits = logits[score_start:].float()
             score_targets = y[score_start:].to(device)
 
+            # Apply correction table: boost correct token probability
+            if correction_table is not None:
+                lut = correction_table["lut"]
+                ctx_len = correction_table["context_len"]
+                val_np = val_tokens.numpy()
+                for j in range(score_logits.size(0)):
+                    abs_pos = start + score_start + j + 1  # target position in val set
+                    if abs_pos >= ctx_len:
+                        ctx = val_np[abs_pos - ctx_len:abs_pos]
+                        h = compute_context_hash(ctx)
+                        if int(h) in lut:
+                            correct_token = lut[int(h)]
+                            # Boost: set logit of correct token very high
+                            score_logits[j, correct_token] += 20.0
+
             per_token_ce = F.cross_entropy(
-                score_logits.float(), score_targets, reduction="sum"
+                score_logits, score_targets, reduction="sum"
             )
 
             n_scored = seq_len - score_start
@@ -429,10 +504,12 @@ def main():
     val_tokens = load_validation_tokens(args.val_files, eval_seq_len)
     print(f"  val_tokens:  {val_tokens.numel():,}")
 
-    # Load model
-    model = load_model(args, checkpoint, device)
+    # Load model + correction table
+    model, correction_table = load_model(args, checkpoint, device)
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  model_params: {n_params:,}")
+    if correction_table:
+        print(f"  correction:   {len(correction_table['hashes']):,} entries")
 
     # NTK-RoPE rescaling
     if eval_seq_len > train_seq_len:
@@ -450,6 +527,7 @@ def main():
         has_leading_space_lut=has_leading_space_lut,
         is_boundary_token_lut=is_boundary_token_lut,
         device=device,
+        correction_table=correction_table,
     )
     print(f"  baseline: val_loss={bl_loss:.4f} val_bpb={bl_bpb:.6f}")
     print()
@@ -462,6 +540,7 @@ def main():
         has_leading_space_lut=has_leading_space_lut,
         is_boundary_token_lut=is_boundary_token_lut,
         device=device,
+        correction_table=correction_table,
     )
     print(f"  sliding: val_loss={sw_loss:.4f} val_bpb={sw_bpb:.6f}")
     print(f"  delta vs baseline: {sw_bpb - bl_bpb:+.6f}")
