@@ -320,16 +320,10 @@ INT8_FP32_SCALE_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_FP32_SCALE_NAME_PATTERNS", "").split(",")
     if pattern
 )
-INT8_ROW_MEAN_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("INT8_ROW_MEAN_NAME_PATTERNS", "").split(",")
-    if pattern
-)
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
-INT8_PER_ROW_MEAN_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 SUBMISSION_SIZE_CAP_BYTES = int(os.environ.get("SUBMISSION_SIZE_CAP_BYTES", 16_000_000))
@@ -465,7 +459,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     # - passthrough for small float tensors, stored as fp16 to save bytes
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
-    row_means: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
     passthrough: dict[str, Tensor] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
@@ -488,9 +481,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             "auto_keep_payload_bytes",
             "fp32_scale_tensor_count",
             "fp32_scale_payload_bytes",
-            "row_mean_tensor_count",
-            "row_mean_value_count",
-            "row_mean_payload_bytes",
         ),
         0,
     )
@@ -536,29 +526,16 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 
         stats["num_float_tensors"] += 1
         scale_dtype = int8_scale_dtype_for_tensor(name, t)
-        t_for_quant = t
-        row_mean = None
-        if t.ndim == 2 and matches_name_patterns(name, INT8_ROW_MEAN_NAME_PATTERNS):
-            row_mean = t.float().mean(dim=1)
-            t_for_quant = (t.float() - row_mean[:, None]).contiguous()
-        q, s = quantize_float_tensor(name, t_for_quant, scale_dtype=scale_dtype)
-        row_mean_payload_bytes = 0
+        q, s = quantize_float_tensor(name, t, scale_dtype=scale_dtype)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
             if scale_dtype == torch.float32:
                 stats["fp32_scale_tensor_count"] += 1
                 stats["fp32_scale_payload_bytes"] += tensor_nbytes(s)
-            if row_mean is not None:
-                row_mean_stored = row_mean.to(dtype=INT8_PER_ROW_MEAN_DTYPE).contiguous()
-                row_means[name] = row_mean_stored
-                row_mean_payload_bytes = tensor_nbytes(row_mean_stored)
-                stats["row_mean_tensor_count"] += 1
-                stats["row_mean_value_count"] += int(row_mean_stored.numel())
-                stats["row_mean_payload_bytes"] += row_mean_payload_bytes
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
-        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s) + row_mean_payload_bytes
+        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_clean_per_row_v1",
@@ -569,8 +546,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     }
     if qmeta:
         obj["qmeta"] = qmeta
-    if row_means:
-        obj["row_means"] = row_means
     if passthrough_orig_dtypes:
         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
     return obj, stats
@@ -578,7 +553,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
-    row_means = obj.get("row_means", {})
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
@@ -586,11 +560,7 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
             # Broadcast the saved row scale back across trailing dimensions.
-            recon = q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))
-            if name in row_means:
-                row_mean = row_means[name].to(dtype=torch.float32)
-                recon = recon + row_mean.view(q.shape[0], *([1] * (q.ndim - 1)))
-            out[name] = recon.to(dtype=dtype).contiguous()
+            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
             scale = float(s.item())
             out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
@@ -1314,13 +1284,6 @@ def main() -> None:
                 "Int8 scale storage: "
                 f"fp32_tensors:{quant_stats['fp32_scale_tensor_count']} "
                 f"fp32_bytes:{quant_stats['fp32_scale_payload_bytes']}"
-            )
-        if INT8_ROW_MEAN_NAME_PATTERNS:
-            log0(
-                "Int8 row mean export: "
-                f"tensors:{quant_stats['row_mean_tensor_count']} "
-                f"values:{quant_stats['row_mean_value_count']} "
-                f"bytes:{quant_stats['row_mean_payload_bytes']}"
             )
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
