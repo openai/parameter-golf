@@ -1,0 +1,25 @@
+{
+    "name": "Combined_Int6_QAT_SlidingWindow",
+    "author": "DizSi",
+    "date": "2026-03-20",
+    "track": "10min_16mb",
+    "description": "Combines Int6 quantization + FP16 tied embeddings + Late-K passthrough from WarmdownQuantization with batched sliding window eval + overtone init + phase-transition resid_mix + Muon weight decay + AdamW from SlidingWindow. Novel addition: QAT (quantization-aware training) with STE in last 30% of steps + cosine warmdown schedule.",
+    "base_submissions": [
+        "2026-03-19_WarmdownQuantization",
+        "2026-03-19_SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit"
+    ],
+    "env": {
+        "WARMDOWN_ITERS": 20000,
+        "MATRIX_LR": 0.06,
+        "TIED_EMBED_LR": 0.10,
+        "SCALAR_LR": 0.06,
+        "GRAD_CLIP_NORM": 1.0,
+        "MUON_BACKEND_STEPS": 5,
+        "MUON_MOMENTUM_WARMUP_STEPS": 700,
+        "NUM_LAYERS": 9,
+        "MLP_HIDDEN": 1536,
+        "EVAL_SEQ_LEN": 1024,
+        "EVAL_STRIDE": 64,
+        "QAT_START_FRAC": 0.70
+    }
+}
