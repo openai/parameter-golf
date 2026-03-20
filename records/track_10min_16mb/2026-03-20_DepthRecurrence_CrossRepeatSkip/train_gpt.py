@@ -462,7 +462,7 @@ INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 # Int6 quantization: ±31 instead of ±127. Stored as int8 but zlib compresses better.
-QUANT_LEVELS = int(os.environ.get("QUANT_LEVELS", 31))  # 31 = int6, 127 = int8
+QUANT_LEVELS = int(os.environ.get("QUANT_LEVELS", 127))  # 127 = int8, 31 = int6
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
