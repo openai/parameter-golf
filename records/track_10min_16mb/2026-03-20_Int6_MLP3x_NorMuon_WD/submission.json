@@ -1,0 +1,11 @@
+{
+  "author": "Matthew Rockwell",
+  "github_id": "MatthewHRockwell",
+  "name": "Int6 + MLP 3x + NorMuon + Weight Decay",
+  "blurb": "9L 512dim MLP 3x with int6 per-row quantization, fp16 tied embedding passthrough, NorMuon optimizer with decoupled weight decay, tuned LRs and warmdown. 8xH100 SXM.",
+  "date": "2026-03-20T16:17:00Z",
+  "val_loss": 2.00504764,
+  "val_bpb": 1.18750215,
+  "bytes_total": 15669844,
+  "bytes_code": 50221
+}
