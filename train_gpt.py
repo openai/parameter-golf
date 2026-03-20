@@ -321,6 +321,12 @@ INT8_FP32_SCALE_NAME_PATTERNS = tuple(
     if pattern
 )
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
+INT8_AXIS_AUDIT_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get("INT8_AXIS_AUDIT_NAME_PATTERNS", "").split(",")
+    if pattern
+)
+INT8_AXIS_AUDIT_LOG_TOPK = int(os.environ.get("INT8_AXIS_AUDIT_LOG_TOPK", 3))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -381,11 +387,120 @@ def dequantize_quantized_tensor(q: Tensor, s: Tensor, dtype: torch.dtype) -> Ten
         return (q.float() * s32.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
     return (q.float() * float(s.item())).to(dtype=dtype).contiguous()
 
+def quantize_float_tensor_axis_audit(
+    t: Tensor,
+    axis: int,
+    scale_dtype: torch.dtype = INT8_PER_ROW_SCALE_DTYPE,
+) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    if t32.ndim != 2:
+        raise ValueError(f"Axis audit only supports 2D tensors, got ndim={t32.ndim}")
+    if axis not in (0, 1):
+        raise ValueError(f"Axis audit only supports axis 0 or 1, got axis={axis}")
+    reduce_dim = 1 if axis == 0 else 0
+    if t32.numel():
+        clip_abs = torch.quantile(t32.abs(), INT8_CLIP_Q, dim=reduce_dim)
+    else:
+        clip_abs = torch.empty((t32.shape[axis],), dtype=torch.float32)
+    if axis == 0:
+        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+    else:
+        clipped = torch.maximum(torch.minimum(t32, clip_abs[None, :]), -clip_abs[None, :])
+        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+        q = torch.clamp(torch.round(clipped / scale[None, :]), -127, 127).to(torch.int8).contiguous()
+    return q, scale.to(dtype=scale_dtype).contiguous()
+
+def dequantize_quantized_tensor_axis_audit(q: Tensor, s: Tensor, dtype: torch.dtype, axis: int) -> Tensor:
+    s32 = s.to(dtype=torch.float32)
+    if axis == 0:
+        return (q.float() * s32[:, None]).to(dtype=dtype).contiguous()
+    if axis == 1:
+        return (q.float() * s32[None, :]).to(dtype=dtype).contiguous()
+    raise ValueError(f"Axis audit only supports axis 0 or 1, got axis={axis}")
+
 def normalized_mae(reference: Tensor, reconstructed: Tensor) -> float:
     ref32 = reference.float()
     recon32 = reconstructed.float()
     denom = max(float(ref32.abs().mean().item()), 1e-12)
     return float((recon32 - ref32).abs().mean().item() / denom)
+
+def run_axis_audit(state_dict: dict[str, Tensor], selected_auto_keep_name: str) -> dict[str, object] | None:
+    if not INT8_AXIS_AUDIT_NAME_PATTERNS:
+        return None
+    candidates: list[dict[str, object]] = []
+    axis0_payload_bytes = 0
+    axis1_payload_bytes = 0
+    for name, tensor in state_dict.items():
+        t = tensor.detach().to("cpu").contiguous()
+        if not t.is_floating_point() or t.ndim != 2:
+            continue
+        keep_large = matches_name_patterns(name, INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS)
+        keep_auto = name == selected_auto_keep_name
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or keep_large or keep_auto:
+            continue
+        if not matches_name_patterns(name, INT8_AXIS_AUDIT_NAME_PATTERNS):
+            continue
+        scale_dtype = int8_scale_dtype_for_tensor(name, t)
+        q0, s0 = quantize_float_tensor_axis_audit(t, axis=0, scale_dtype=scale_dtype)
+        q1, s1 = quantize_float_tensor_axis_audit(t, axis=1, scale_dtype=scale_dtype)
+        axis0_recon = dequantize_quantized_tensor_axis_audit(q0, s0, dtype=t.dtype, axis=0)
+        axis1_recon = dequantize_quantized_tensor_axis_audit(q1, s1, dtype=t.dtype, axis=1)
+        axis0_error = normalized_mae(t, axis0_recon)
+        axis1_error = normalized_mae(t, axis1_recon)
+        axis0_payload = tensor_nbytes(q0) + tensor_nbytes(s0)
+        axis1_payload = tensor_nbytes(q1) + tensor_nbytes(s1)
+        axis0_payload_bytes += axis0_payload
+        axis1_payload_bytes += axis1_payload
+        candidates.append(
+            {
+                "name": name,
+                "estimated_gain": axis0_error - axis1_error,
+                "axis0_error": axis0_error,
+                "axis1_error": axis1_error,
+                "axis0_payload_bytes": axis0_payload,
+                "axis1_payload_bytes": axis1_payload,
+                "payload_delta_bytes": axis1_payload - axis0_payload,
+            }
+        )
+    if not candidates:
+        return {
+            "candidate_count": 0,
+            "positive_count": 0,
+            "selected_name": "",
+            "selected_gain": 0.0,
+            "selected_axis0_error": 0.0,
+            "selected_axis1_error": 0.0,
+            "selected_payload_delta_bytes": 0,
+            "axis0_payload_bytes": 0,
+            "axis1_payload_bytes": 0,
+            "top_candidates_summary": "",
+        }
+    ranked = sorted(
+        candidates,
+        key=lambda item: (float(item["estimated_gain"]), -int(item["payload_delta_bytes"])),
+        reverse=True,
+    )
+    best = ranked[0]
+    positive_count = sum(float(item["estimated_gain"]) > 0.0 for item in candidates)
+    return {
+        "candidate_count": len(candidates),
+        "positive_count": positive_count,
+        "selected_name": str(best["name"]) if float(best["estimated_gain"]) > 0.0 else "",
+        "selected_gain": float(best["estimated_gain"]) if float(best["estimated_gain"]) > 0.0 else 0.0,
+        "selected_axis0_error": float(best["axis0_error"]),
+        "selected_axis1_error": float(best["axis1_error"]),
+        "selected_payload_delta_bytes": int(best["payload_delta_bytes"]) if float(best["estimated_gain"]) > 0.0 else 0,
+        "axis0_payload_bytes": axis0_payload_bytes,
+        "axis1_payload_bytes": axis1_payload_bytes,
+        "top_candidates_summary": ",".join(
+            (
+                f"{str(item['name'])}|gain={float(item['estimated_gain']):.8f}|delta={int(item['payload_delta_bytes'])}"
+                for item in ranked[: max(INT8_AXIS_AUDIT_LOG_TOPK, 0)]
+            )
+        ),
+    }
 
 def score_keep_float_candidate(name: str, t: Tensor) -> dict[str, object]:
     # Keep selector scoring on the baseline fp16-scale quantized path so export
@@ -467,6 +582,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     selected_auto_keep_name = ""
     if auto_keep is not None:
         selected_auto_keep_name = str(auto_keep["selected_name"])
+    axis_audit = run_axis_audit(state_dict, selected_auto_keep_name)
     stats = dict.fromkeys(
         (
             "param_count",
@@ -495,6 +611,22 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         stats["auto_keep_keep_payload_bytes"] - stats["auto_keep_quantized_payload_bytes"]
     )
     stats["auto_keep_top_candidates_summary"] = str(auto_keep["top_candidates_summary"]) if auto_keep is not None else ""
+    stats["axis_audit_candidate_count"] = int(axis_audit["candidate_count"]) if axis_audit is not None else 0
+    stats["axis_audit_positive_count"] = int(axis_audit["positive_count"]) if axis_audit is not None else 0
+    stats["axis_audit_selected_name"] = str(axis_audit["selected_name"]) if axis_audit is not None else ""
+    stats["axis_audit_selected_gain"] = float(axis_audit["selected_gain"]) if axis_audit is not None else 0.0
+    stats["axis_audit_selected_axis0_error"] = (
+        float(axis_audit["selected_axis0_error"]) if axis_audit is not None else 0.0
+    )
+    stats["axis_audit_selected_axis1_error"] = (
+        float(axis_audit["selected_axis1_error"]) if axis_audit is not None else 0.0
+    )
+    stats["axis_audit_selected_payload_delta_bytes"] = (
+        int(axis_audit["selected_payload_delta_bytes"]) if axis_audit is not None else 0
+    )
+    stats["axis_audit_axis0_payload_bytes"] = int(axis_audit["axis0_payload_bytes"]) if axis_audit is not None else 0
+    stats["axis_audit_axis1_payload_bytes"] = int(axis_audit["axis1_payload_bytes"]) if axis_audit is not None else 0
+    stats["axis_audit_top_candidates_summary"] = str(axis_audit["top_candidates_summary"]) if axis_audit is not None else ""
 
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
@@ -1284,6 +1416,24 @@ def main() -> None:
                 "Int8 scale storage: "
                 f"fp32_tensors:{quant_stats['fp32_scale_tensor_count']} "
                 f"fp32_bytes:{quant_stats['fp32_scale_payload_bytes']}"
+            )
+        if INT8_AXIS_AUDIT_NAME_PATTERNS:
+            log0(
+                "Int8 axis audit: "
+                f"candidates:{quant_stats['axis_audit_candidate_count']} "
+                f"positive:{quant_stats['axis_audit_positive_count']} "
+                f"selected:{quant_stats['axis_audit_selected_name'] or 'none'} "
+                f"estimated_gain:{quant_stats['axis_audit_selected_gain']:.8f} "
+                f"axis0_error:{quant_stats['axis_audit_selected_axis0_error']:.8f} "
+                f"axis1_error:{quant_stats['axis_audit_selected_axis1_error']:.8f} "
+                f"selected_payload_delta:{quant_stats['axis_audit_selected_payload_delta_bytes']}"
+            )
+            if quant_stats["axis_audit_top_candidates_summary"]:
+                log0(f"Int8 axis audit top candidates: {quant_stats['axis_audit_top_candidates_summary']}")
+            log0(
+                "Int8 axis audit payloads: "
+                f"axis0:{quant_stats['axis_audit_axis0_payload_bytes']} "
+                f"axis1:{quant_stats['axis_audit_axis1_payload_bytes']}"
             )
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
