@@ -605,7 +605,7 @@ class CausalSelfAttention(nn.Module):
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
-        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+        q = q * self.q_gain.clamp(0.5, 3.0).to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
             q,
             k,
@@ -713,19 +713,19 @@ class Block(nn.Module):
 
     def forward(self, x: Tensor, x0: Tensor, expert_ids: Tensor,
                 q_delta_fn=None, v_delta_fn=None) -> Tensor:
-        mix = self.resid_mix.to(dtype=x.dtype)
+        mix = self.resid_mix.clamp(0, 1).to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         n = self.attn_norm(x)
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
         attn_out = self.attn(n, qd, vd)
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        x = x + self.attn_scale.clamp(0, 2).to(dtype=x.dtype)[None, None, :] * attn_out
         x = self.mu_dyn(x)
         if self.use_moe:
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), expert_ids)
+            x = x + self.mlp_scale.clamp(0, 2).to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), expert_ids)
         else:
             m = self.mlp_norm(x)
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.proj(torch.relu(self.fc(m)).square())
+            x = x + self.mlp_scale.clamp(0, 2).to(dtype=x.dtype)[None, None, :] * self.proj(torch.relu(self.fc(m)).square())
         return x
 
 class GPT(nn.Module):
