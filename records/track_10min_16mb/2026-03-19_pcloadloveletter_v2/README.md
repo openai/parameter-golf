@@ -1,4 +1,4 @@
-# pcloadloveletter v2
+# pcloadloveletter v4
 
 Submission for the OpenAI Parameter Golf challenge, 10min/16MB track.
 
@@ -6,48 +6,50 @@ Submission for the OpenAI Parameter Golf challenge, 10min/16MB track.
 
 Built on `2026-03-19_SlidingWindowEval/train_gpt.py` which provides loop support, LoRA scaffolding, QAT scaffolding, and sliding window evaluation.
 
-## Techniques
+## Changes from v3
 
-### Int6 Quantization
+### 11 Layers (up from 9)
 
-Replaces int8 per-row quantization with int6: `scale = max(abs(row)) / 31`, values clamped to `[-32, 31]`. Stored in int8 containers for PyTorch compatibility. This gives ~25% size reduction over int8 at a small accuracy cost, which is partially mitigated by keeping critical tensors in fp16.
+Increased transformer depth from 9 to 11 layers. The int6+zstd compression budget accommodates the extra parameters. Skip connection weights automatically adjust via `effective_depth // 2` (5 encoder, 6 decoder, 5 skip weights). Late-K passthrough updated to blocks.9 and blocks.10.
 
-### Late-K Passthrough
+### BigramHash Embedding
 
-The last 2 transformer layers' K-projection weights (`blocks.7.attn.c_k.weight` and `blocks.8.attn.c_k.weight`) are kept in fp16 instead of being quantized. These late-layer attention keys are disproportionately important for output quality.
+New `BigramHashEmbedding` module adds learned bigram features to the token embeddings. Uses a hash function `XOR(36313 * t[i], 27191 * t[i-1]) % (vocab_size - 1)` to map consecutive token pairs to a 2048-entry embedding table (128 dims), projected to model_dim with a learnable scale (init 0.05). Zero-initialized so training starts from the unigram baseline. Embed weights go to Adam (token LR), proj weight to Muon, scale to scalar Adam.
 
-### tok_emb.weight in fp16
+### Weight Decay on Muon (0.04)
 
-The token embedding table is kept in fp16 rather than quantized, preserving embedding quality.
+Added decoupled weight decay to the NorMuon optimizer. Applied as `p.mul_(1 - lr * weight_decay)` before the Muon update step. Helps regularize the large matrix parameters.
 
-### zstd Compression (level 22)
+### Orthogonal Initialization
 
-Replaces zlib level 9 with zstandard level 22 for better compression ratios on the quantized model blob. Falls back to zlib if `zstandard` is not installed.
+All CastedLinear weights with `min(shape) >= 64` are initialized with `nn.init.orthogonal_(gain=1.0)` instead of PyTorch's default Kaiming uniform. Zero-init modules (output projections) are preserved. Orthogonal init provides better gradient flow at initialization.
 
-### MLP 3x Width
+### SWA Every 50 Steps (down from 200)
 
-MLP hidden dimension increased from 2x (1024) to 3x (1536) model_dim. More expressive feedforward layers within the same parameter budget tradeoff.
+Stochastic Weight Averaging now collects checkpoints every 50 steps instead of 200, providing more snapshots during the warmdown phase for a better averaged model.
 
-### SmearGate
+### RoPE Base 50K (up from 10K)
 
-A cheap (~512 parameter) learned temporal smoothing module applied after embedding normalization and before the first transformer block. Computes `x = (1 - gate) * x + gate * x_prev` where `x_prev` is x shifted right by 1 position and `gate = sigmoid(learned_param)`. Initialized at 0 (sigmoid(0) = 0.5). Helps the model capture local token dependencies cheaply.
+Rotary position embedding base frequency increased from 10,000 to 50,000. With TRAIN_SEQ_LEN=2048, the higher base provides smoother position encoding across the sequence.
 
-### Sliding Window Eval
+### Eval Stride 64 (down from 256)
 
-Evaluation uses a sliding window with stride=64 and batch_seqs=1024. Each token is scored with maximum available context, giving a more accurate BPB estimate than fixed-chunk evaluation.
+Sliding window evaluation stride reduced to 64 for more accurate BPB scoring. Each token gets scored with near-maximum context. EVAL_BATCH_SEQS=64 keeps memory usage reasonable on 8xH100.
 
-### Tuned Hyperparameters
+## Techniques (inherited from v3)
 
-- `TRAIN_SEQ_LEN=2048` (up from 1024)
-- `MATRIX_LR=0.02` (down from 0.04)
-- `SCALAR_LR=0.02` (down from 0.04)
-- `TIED_EMBED_LR=0.04` (down from 0.05)
-- `MUON_MOMENTUM=0.99` (up from 0.95)
-- `MUON_MOMENTUM_WARMUP_START=0.92` (up from 0.85)
-- `MUON_MOMENTUM_WARMUP_STEPS=1500` (up from 500)
-- `WARMDOWN_ITERS=3000` (up from 1200)
-- `QAT=0` (disabled; int6 post-training quantization is sufficient)
-- `NUM_LOOPS=1`, `LORA_RANK=0` (single pass, no LoRA)
+- Int6 quantization ([-31, 31] in int8 containers) with outlier clipping
+- zstd level 22 compression
+- Late-K passthrough (last 2 layers' K proj in fp16)
+- tok_emb.weight in fp16
+- SmearGate (learned temporal smoothing before first block)
+- MLP hidden=1500
+- Tied embeddings (init std=0.005)
+- Logit softcap=30
+- NorMuon optimizer (per-row second-moment normalization)
+- TRAIN_SEQ_LEN=2048, TRAIN_BATCH_TOKENS=786432
+- WARMDOWN_ITERS=3000
+- Grad clip norm=0.3
 
 ## Running
 
