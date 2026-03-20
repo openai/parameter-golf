@@ -1,0 +1,4 @@
+variant,mode,eval_seq_len,stride,val_loss,val_bpb,model_bytes,artifact_bytes,compressor,eval_ms
+prequant,doc_sliding,2048,256,1.94480674,1.15089548,NA,NA,none,64743
+int6_zstd_core_fp16_embed,doc_sliding,2048,256,1.95387822,1.15626379,16017863,16088182,zstd,62137
+int6_zstd_core_fp16_embed_groupk,doc_sliding,2048,256,1.95389474,1.15627357,16030249,16100568,zstd,62383

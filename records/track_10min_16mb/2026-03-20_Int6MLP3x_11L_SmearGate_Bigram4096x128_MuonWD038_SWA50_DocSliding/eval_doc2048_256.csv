@@ -1,0 +1,2 @@
+variant,mode,eval_seq_len,stride,val_loss,val_bpb,model_bytes,artifact_bytes,compressor,eval_ms
+int6_zstd_core,doc_sliding,2048,256,1.95474571,1.15677715,15634707,15705026,zstd,65244
