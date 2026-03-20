@@ -315,6 +315,11 @@ INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS", "").split(",")
     if pattern
 )
+INT8_FP32_SCALE_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get("INT8_FP32_SCALE_NAME_PATTERNS", "").split(",")
+    if pattern
+)
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
@@ -337,7 +342,12 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def int8_scale_dtype_for_tensor(name: str, t: Tensor) -> torch.dtype:
+    if t.ndim == 2 and matches_name_patterns(name, INT8_FP32_SCALE_NAME_PATTERNS):
+        return torch.float32
+    return INT8_PER_ROW_SCALE_DTYPE
+
+def quantize_float_tensor(name: str, t: Tensor, scale_dtype: torch.dtype = INT8_PER_ROW_SCALE_DTYPE) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
@@ -350,7 +360,7 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
         scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
         q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        return q, scale.to(dtype=scale_dtype).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
@@ -378,7 +388,9 @@ def normalized_mae(reference: Tensor, reconstructed: Tensor) -> float:
     return float((recon32 - ref32).abs().mean().item() / denom)
 
 def score_keep_float_candidate(name: str, t: Tensor) -> dict[str, object]:
-    q, s = quantize_float_tensor(t)
+    # Keep selector scoring on the baseline fp16-scale quantized path so export
+    # ablations on still-quantized tensors do not also change the selector.
+    q, s = quantize_float_tensor(name, t, scale_dtype=INT8_PER_ROW_SCALE_DTYPE)
     quantized_recon = dequantize_quantized_tensor(q, s, dtype=t.dtype)
     candidate_orig_dtypes: dict[str, str] = {}
     kept = keep_float_tensor(name, t, candidate_orig_dtypes)
@@ -467,6 +479,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             "large_keep_payload_bytes",
             "auto_keep_tensor_count",
             "auto_keep_payload_bytes",
+            "fp32_scale_tensor_count",
+            "fp32_scale_payload_bytes",
         ),
         0,
     )
@@ -511,9 +525,13 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        scale_dtype = int8_scale_dtype_for_tensor(name, t)
+        q, s = quantize_float_tensor(name, t, scale_dtype=scale_dtype)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
+            if scale_dtype == torch.float32:
+                stats["fp32_scale_tensor_count"] += 1
+                stats["fp32_scale_payload_bytes"] += tensor_nbytes(s)
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
@@ -1260,6 +1278,12 @@ def main() -> None:
                 f"selected_payload:{quant_stats['auto_keep_payload_bytes']} "
                 f"selected_quantized_payload:{quant_stats['auto_keep_quantized_payload_bytes']} "
                 f"selected_extra_payload:{quant_stats['auto_keep_extra_payload_bytes']}"
+            )
+        if INT8_FP32_SCALE_NAME_PATTERNS:
+            log0(
+                "Int8 scale storage: "
+                f"fp32_tensors:{quant_stats['fp32_scale_tensor_count']} "
+                f"fp32_bytes:{quant_stats['fp32_scale_payload_bytes']}"
             )
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
