@@ -96,16 +96,15 @@ def _forward_logits(model: nn.Module, input_ids: Tensor) -> Tensor:
     x = F.rms_norm(x, (x.size(-1),))
     x0 = x
     expert_ids = model.token_to_expert[input_ids.clamp(0, model.vocab_size - 1)]
-    vel = torch.zeros_like(x)
     skips = []
     for i in range(model.num_encoder_layers):
-        x, vel = model.blocks[i](x, x0, vel, expert_ids)
+        x = model.blocks[i](x, x0, expert_ids)
         skips.append(x)
     for i in range(model.num_decoder_layers):
         bi = model.num_encoder_layers + i
         if skips:
             x = x + model.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-        x, vel = model.blocks[bi](x, x0, vel, expert_ids)
+        x = model.blocks[bi](x, x0, expert_ids)
     x = model.final_norm(x)
     logits = F.linear(x, model.tok_emb.weight) if model.tie_embeddings else model.lm_head(x)
     logits = model.logit_softcap * torch.tanh(logits / model.logit_softcap)
@@ -139,9 +138,7 @@ def main():
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         num_experts=args.num_experts, moe_activation=args.moe_activation,
         moe_routing=args.moe_routing,
-        pid_alpha=args.pid_alpha, pid_beta=args.pid_beta, pid_gate=args.pid_gate,
-        pid_dt=args.pid_dt, pid_mu_min=args.pid_mu_min, pid_mu_max=args.pid_mu_max,
-        pid_velocity_max=args.pid_velocity_max,
+        pid_mu_min=args.pid_mu_min, pid_mu_max=args.pid_mu_max,
     ).to(device)
 
     # Load quantized weights
