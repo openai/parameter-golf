@@ -122,7 +122,7 @@ graph TD
 ## Quick Start
 
 ```bash
-git clone https://github.com/Evreu1pro/muon-bitlinear-shadowmoe.git
+git clone git clone https://github.com/Evreu1pro/parameter-golf.git
 cd muon-bitlinear-shadowmoe
 pip install -r requirements.txt
 
@@ -176,7 +176,7 @@ We believe this combination sets a new direction for extreme compression: **smal
   author={Evreu1pro and Contributors},
   year={2026},
   publisher={GitHub},
-  url={https://github.com/Evreu1pro/muon-bitlinear-shadowmoe}
+  url={git clone https://github.com/Evreu1pro/parameter-golf}
 }
 
 ## Acknowledgments
