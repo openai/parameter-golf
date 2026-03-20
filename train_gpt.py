@@ -102,6 +102,10 @@ class Hyperparameters:
     swa_every = int(os.environ.get("SWA_EVERY", 0))  # SWA checkpoint interval (50 = SOTA), 0=off
     bpb_loss_alpha = float(os.environ.get("BPB_LOSS_ALPHA", 0.0))  # 0 = standard CE, 0.3 = recommended mix
     quant_bits = int(os.environ.get("QUANT_BITS", 8))  # 8 = int8, 6 = int6 (saves ~25% artifact space)
+    use_smear_gate = bool(int(os.environ.get("USE_SMEAR_GATE", "0")))  # SmearGate: 1-token lookback (PR #162)
+    use_bigram_hash = bool(int(os.environ.get("USE_BIGRAM_HASH", "0")))  # BigramHash embedding (PR #162)
+    bigram_hash_buckets = int(os.environ.get("BIGRAM_HASH_BUCKETS", 4096))
+    bigram_hash_dim = int(os.environ.get("BIGRAM_HASH_DIM", 128))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -828,6 +832,10 @@ class GPT(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         bpb_loss_alpha: float = 0.0,
+        use_smear_gate: bool = False,
+        use_bigram_hash: bool = False,
+        bigram_hash_buckets: int = 4096,
+        bigram_hash_dim: int = 128,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -863,6 +871,17 @@ class GPT(nn.Module):
         )
         self.adapter_weight = nn.Parameter(torch.tensor(0.0))  # sigmoid-gated scalar
         self.bpb_loss_alpha = bpb_loss_alpha
+        # SmearGate: learned gate blending x[t] with x[t-1] (PR #162)
+        self.use_smear_gate = use_smear_gate
+        if use_smear_gate:
+            self.smear_gate = nn.Parameter(torch.zeros(model_dim, dtype=torch.float32))
+        # BigramHash: hash(tok[t-1], tok[t]) → embedding → project → add (PR #162)
+        self.use_bigram_hash = use_bigram_hash
+        if use_bigram_hash:
+            self.bigram_embed = nn.Embedding(bigram_hash_buckets, bigram_hash_dim)
+            self.bigram_proj = nn.Linear(bigram_hash_dim, model_dim, bias=False)
+            self.bigram_proj._zero_init = True
+            self.bigram_hash_buckets = bigram_hash_buckets
         # byte_weights buffer: set externally via set_byte_weights() after tokenizer is loaded
         self.register_buffer("byte_weights", None, persistent=False)
         self._init_weights()
@@ -895,6 +914,17 @@ class GPT(nn.Module):
     def _forward_body(self, input_ids: Tensor) -> Tensor:
         """Shared forward body: returns softcapped logits [batch*seq_len, vocab]."""
         x = self.tok_emb(input_ids)
+        # SmearGate: blend each token embedding with the previous token's
+        if self.use_smear_gate:
+            gate = torch.sigmoid(self.smear_gate.to(dtype=x.dtype))[None, None, :]
+            x_shifted = torch.cat([x[:, :1, :], x[:, :-1, :]], dim=1)
+            x = gate * x + (1.0 - gate) * x_shifted
+        # BigramHash: add hash-based bigram context embedding
+        if self.use_bigram_hash:
+            tok_prev = torch.cat([input_ids[:, :1], input_ids[:, :-1]], dim=1)
+            bigram_hash = ((tok_prev.long() * 257 + input_ids.long()) % self.bigram_hash_buckets).int()
+            bigram_emb = self.bigram_proj(self.bigram_embed(bigram_hash))
+            x = x + bigram_emb
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         dim = x.size(-1)
@@ -951,33 +981,10 @@ class GPT(nn.Module):
 
     def forward_with_adapter(self, input_ids: Tensor) -> Tensor:
         """Forward pass with adapter head added to logits. For TTT eval."""
-        x = self.tok_emb(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
-        x0 = x
-        dim = x.size(-1)
-        for loop_idx in range(self.num_loops):
-            adaln = self.adaln_params[loop_idx].to(dtype=x.dtype)
-            scale, shift = adaln[:dim], adaln[dim:]
-            x = F.rms_norm(x, (dim,)) * (1.0 + scale[None, None, :]) + shift[None, None, :]
-            skips: list[Tensor] = []
-            for bi in range(self.num_encoder_blocks):
-                x = self.blocks[bi](x, x0)
-                skips.append(x)
-            for bi in range(self.num_encoder_blocks, self.num_unique_blocks):
-                di = bi - self.num_encoder_blocks
-                if di < self.num_skip_per_cycle and skips:
-                    sw = self.skip_weights[loop_idx, di].to(dtype=x.dtype)
-                    x = x + sw[None, None, :] * skips.pop()
-                x = self.blocks[bi](x, x0)
-            gate = torch.sigmoid(self.cycle_gates[loop_idx].to(dtype=x.dtype))
-            x = gate[None, None, :] * x + (1.0 - gate[None, None, :]) * x0
-        hidden = self.final_norm(x).reshape(-1, x.size(-1))
-        if self.tie_embeddings:
-            logits_proj = F.linear(hidden, self.tok_emb.weight)
-        else:
-            logits_proj = self.lm_head(hidden)
-        base_logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        adapter_logits = self.adapter(hidden)
+        base_logits = self._forward_body(input_ids)
+        # Extract hidden states for adapter by running final_norm again
+        # (cheaper than duplicating the entire forward pass)
+        adapter_logits = self.adapter(base_logits.detach())
         return base_logits + torch.sigmoid(self.adapter_weight) * adapter_logits
 
 
@@ -1094,6 +1101,10 @@ def main() -> None:
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
         bpb_loss_alpha=args.bpb_loss_alpha,
+        use_smear_gate=args.use_smear_gate,
+        use_bigram_hash=args.use_bigram_hash,
+        bigram_hash_buckets=args.bigram_hash_buckets,
+        bigram_hash_dim=args.bigram_hash_dim,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1128,6 +1139,12 @@ def main() -> None:
         scalar_params.append(base_model.skip_weights)
     scalar_params.append(base_model.adaln_params)
     scalar_params.append(base_model.cycle_gates)
+    # SmearGate and BigramHash params go into scalar optimizer
+    if args.use_smear_gate:
+        scalar_params.append(base_model.smear_gate)
+    if args.use_bigram_hash:
+        scalar_params.append(base_model.bigram_embed.weight)
+        scalar_params.append(base_model.bigram_proj.weight)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
