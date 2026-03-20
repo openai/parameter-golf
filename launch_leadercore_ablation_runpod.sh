@@ -45,10 +45,26 @@ case "$VARIANT" in
     export MATRIX_LR=0.05
     OUT_DIR="$RECORD_ROOT/runpod_${DATA_ROOT_MODE}_matrixlr005"
     ;;
+  matrixlr006)
+    export RUN_ID=leadercore10l_valid_matrixlr006
+    export MATRIX_LR=0.06
+    OUT_DIR="$RECORD_ROOT/runpod_${DATA_ROOT_MODE}_matrixlr006"
+    ;;
   warmdown1800)
     export RUN_ID=leadercore10l_valid_warmdown1800
     export WARMDOWN_ITERS=1800
     OUT_DIR="$RECORD_ROOT/runpod_${DATA_ROOT_MODE}_warmdown1800"
+    ;;
+  warmdown800)
+    export RUN_ID=leadercore10l_valid_warmdown800
+    export WARMDOWN_ITERS=800
+    OUT_DIR="$RECORD_ROOT/runpod_${DATA_ROOT_MODE}_warmdown800"
+    ;;
+  warmdown800_matrixlr006)
+    export RUN_ID=leadercore10l_valid_warmdown800_matrixlr006
+    export WARMDOWN_ITERS=800
+    export MATRIX_LR=0.06
+    OUT_DIR="$RECORD_ROOT/runpod_${DATA_ROOT_MODE}_warmdown800_matrixlr006"
     ;;
   tokemb_int8)
     export RUN_ID=leadercore10l_valid_tokemb_int8
@@ -56,7 +72,7 @@ case "$VARIANT" in
     OUT_DIR="$RECORD_ROOT/runpod_${DATA_ROOT_MODE}_tokemb_int8"
     ;;
   *)
-    echo "Usage: $0 {base|embedlr08|matrixlr005|warmdown1800|tokemb_int8}"
+    echo "Usage: $0 {base|embedlr08|matrixlr005|matrixlr006|warmdown1800|warmdown800|warmdown800_matrixlr006|tokemb_int8}"
     exit 1
     ;;
 esac
