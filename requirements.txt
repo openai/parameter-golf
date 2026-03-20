@@ -1,10 +1,12 @@
-torch>=2.4.0
+# Core dependencies - Production Ready v3.1
+# GQA support in SDPA requires PyTorch 2.5+
+torch>=2.5.0
 flash-attn>=2.5.0
 numpy
 tqdm
 huggingface-hub
 setuptools
-typing-extensions==4.15.0
+typing-extensions>=4.15.0
 datasets
 tiktoken
 sentencepiece
