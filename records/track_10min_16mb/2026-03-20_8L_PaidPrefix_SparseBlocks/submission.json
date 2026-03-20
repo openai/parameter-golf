@@ -1,0 +1,11 @@
+{
+  "author": "Nicolas Dickenmann",
+  "github_id": "nicolasdickenmann",
+  "name": "8L Paid Prefix + Sparse Hard Blocks",
+  "blurb": "Built directly on PR #262, this variant replaces the contiguous 4.24MB paid prefix with an inline-built sparse hard-block cache selected from sliding-window NLL. The 8-layer SmearGate + BigramHash + int6+zstd model uses a 256-token sparse prefix format covering 5.29M validation targets (8.54%) and reaches 1.03647005 val_bpb at 16.53MB total.",
+  "date": "2026-03-20T22:20:12Z",
+  "val_loss": 1.75003626,
+  "val_bpb": 1.03647005,
+  "bytes_total": 16525754,
+  "bytes_code": 83592
+}
