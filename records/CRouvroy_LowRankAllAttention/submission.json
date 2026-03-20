@@ -1,0 +1,7 @@
+{
+  "author": "CRouvroy",
+  "val_bpb": 1.3446,
+  "training_time_seconds": 555.3,
+  "hardware": "8xH100",
+  "summary": "16-layer Low-Rank All-Attention (No MLP) + Persistent Memory (512) + TTT LoRA. Fits 17.3M params into 15.0MB via strict INT8."
+}
