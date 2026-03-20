@@ -91,6 +91,8 @@ class Hyperparameters:
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
+    mlx_compile_sanity_only: bool = bool(int(os.environ.get("MLX_COMPILE_SANITY_ONLY", "0")))
+    mlx_skip_validation: bool = bool(int(os.environ.get("MLX_SKIP_VALIDATION", "0")))
 
     @property
     def train_files(self) -> str:
@@ -335,16 +337,31 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    # Baseline MLP uses relu^2 instead of GELU/SiLU. It is cheap and works well in this setup.
+    # Baseline relu^2 MLP with optional PowerInfer-style top-k activation sparsity.
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = dim * mlp_mult
+        self.hidden_dim = hidden
+        self.topk_ratio = float(os.environ.get("SPARSE_FFN_TOPK_RATIO", "0.5"))
         self.fc = CastedLinear(dim, hidden)
         self.proj = CastedLinear(hidden, dim)
 
     def __call__(self, x: mx.array) -> mx.array:
         x = nn.relu(self.fc(x))
-        return self.proj(x * x)
+        x = x * x
+        if self.topk_ratio >= 1.0:
+            return self.proj(x)
+
+        # Keep only top-k hidden activations per token to reduce FFN compute.
+        k = max(1, int(self.hidden_dim * self.topk_ratio))
+        flat = x.reshape(-1, self.hidden_dim)
+        # Use a per-row threshold mask to avoid non-compiled scatter paths.
+        row_sorted = mx.sort(flat, axis=-1)
+        threshold = row_sorted[:, self.hidden_dim - k][:, None]
+        keep_mask = (flat >= threshold).astype(flat.dtype)
+        sparse_flat = flat * keep_mask
+        proj_w_t = self.proj.weight.astype(sparse_flat.dtype).T
+        return (sparse_flat @ proj_w_t).reshape(*x.shape[:-1], self.proj.weight.shape[0])
 
 
 class Block(nn.Module):
@@ -364,11 +381,13 @@ class Block(nn.Module):
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
-        self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
+        # Keep residual mixing constants as Python floats to avoid array-eval issues
+        # under MLX compile transformations.
+        self.resid_lambda = 0.9
+        self.x0_lambda = 0.0
 
     def __call__(self, x: mx.array, x0: mx.array) -> mx.array:
-        mix = self.resid_mix.astype(x.dtype)
-        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        x = self.resid_lambda * x + self.x0_lambda * x0
         attn_out = self.attn(self.attn_norm(x))
         x = x + self.attn_scale.astype(x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
@@ -945,6 +964,20 @@ def main() -> None:
         f"skip_weights:{model.skip_weights.dtype}"
     )
 
+    if args.mlx_compile_sanity_only:
+        # Fast compile validation path to confirm model/loss/grad graphs run without
+        # paying full validation or serialization cost.
+        x, y = train_loader.next_batch(args.train_seq_len, args.train_seq_len)
+        sanity_loss, sanity_grads = compiled_loss_and_grad(x, y)
+        sanity_eval_loss = compiled_loss(x, y)
+        mx.eval(sanity_loss, sanity_eval_loss, sanity_grads)
+        mx.synchronize()
+        log(
+            f"mlx_compile_sanity_only:ok loss:{float(sanity_loss.item()):.6f} "
+            f"eval_loss:{float(sanity_eval_loss.item()):.6f}"
+        )
+        return
+
     # ==============================================================================
     # TRAINING LOOP
     # ==============================================================================
@@ -990,7 +1023,7 @@ def main() -> None:
     step = 0
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
-        if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
+        if (not args.mlx_skip_validation) and (last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)):
             # Validation always scans the same fixed full validation split.
             val_loss, val_bpb = eval_val(
                 args,
@@ -1010,6 +1043,8 @@ def main() -> None:
         if last_step:
             if stop_after_step is not None and step < args.iterations:
                 log(f"stopping_early: wallclock_cap train_time:{train_time_ms:.0f}ms step:{step}/{args.iterations}")
+            elif args.mlx_skip_validation:
+                log(f"mlx_skip_validation: last_step reached at step:{step}/{args.iterations}")
             break
 
         lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
@@ -1044,6 +1079,10 @@ def main() -> None:
     # ==============================================================================
     # FINAL SERIALIZATION + QUANTIZED ROUNDTRIP EVAL
     # ==============================================================================
+    if args.mlx_skip_validation:
+        log("mlx_skip_validation: skipping final serialization + quantized roundtrip eval")
+        return
+
     # We always write a raw artifact and a quantized artifact, then validate the
     # quantized roundtrip directly by loading the dequantized tensors back into the
     # model and running one final validation pass.

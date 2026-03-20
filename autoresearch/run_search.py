@@ -11,9 +11,10 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ARTIFACT_LIMIT_BYTES = 16_000_000
+MAX_CANDIDATE_ATTEMPTS = int(os.environ.get("AR_MAX_CANDIDATE_ATTEMPTS", 200))
 ROOT = Path(__file__).resolve().parents[1]
 LOG_DIR = ROOT / "logs" / "autoresearch"
 TRIALS_DIR = LOG_DIR / "trials"
@@ -23,11 +24,14 @@ BEST_JSON = LOG_DIR / "best_config.json"
 TRAIN_CUDA = ROOT / "train_gpt.py"
 TRAIN_MLX = ROOT / "train_gpt_mlx.py"
 
-VAL_RE = re.compile(r"final_int8_zlib_roundtrip_exact val_loss:(?P<val_loss>[-+0-9.eE]+) val_bpb:(?P<val_bpb>[-+0-9.eE]+)")
-CUDA_MODEL_SIZE_RE = re.compile(r"Serialized model int8\+zlib: (?P<bytes>\d+) bytes")
-CUDA_TOTAL_SIZE_RE = re.compile(r"Total submission size int8\+zlib: (?P<bytes>\d+) bytes")
-MLX_MODEL_SIZE_RE = re.compile(r"serialized_model_int8_zlib:(?P<bytes>\d+) bytes")
-PARAM_RE = re.compile(r"model_params:(?P<params>\d+)")
+VAL_RE = re.compile(
+    r"final_int8_zlib_roundtrip_exact.*?val_loss:\s*(?P<val_loss>[-+0-9.eE]+).*?val_bpb:\s*(?P<val_bpb>[-+0-9.eE]+)",
+    flags=re.IGNORECASE,
+)
+CUDA_MODEL_SIZE_RE = re.compile(r"serialized\s+model\s+int8\+zlib:\s*(?P<bytes>\d+)\s*bytes", flags=re.IGNORECASE)
+CUDA_TOTAL_SIZE_RE = re.compile(r"total\s+submission\s+size\s+int8\+zlib:\s*(?P<bytes>\d+)\s*bytes", flags=re.IGNORECASE)
+MLX_MODEL_SIZE_RE = re.compile(r"serialized_model_int8_zlib:\s*(?P<bytes>\d+)\s*bytes", flags=re.IGNORECASE)
+PARAM_RE = re.compile(r"model_params:\s*(?P<params>\d+)", flags=re.IGNORECASE)
 
 CONFIG_KEYS = [
     "VOCAB_SIZE",
@@ -54,23 +58,43 @@ CONFIG_KEYS = [
     "MLX_MAX_MICROBATCH_TOKENS",
 ]
 
-SEARCH_CHOICES: dict[str, list[str]] = {
-    "NUM_LAYERS": ["8", "9", "10", "12"],
-    "MODEL_DIM": ["384", "448", "512", "576", "640"],
-    "NUM_HEADS": ["6", "7", "8", "9", "10"],
-    "NUM_KV_HEADS": ["1", "2", "4", "5"],
-    "MLP_MULT": ["2", "3"],
-    "TRAIN_SEQ_LEN": ["512", "768", "1024"],
-    "TRAIN_BATCH_TOKENS": ["131072", "262144", "393216", "524288", "786432"],
-    "TIED_EMBED_LR": ["0.03", "0.04", "0.05", "0.06", "0.07"],
-    "MATRIX_LR": ["0.02", "0.025", "0.03", "0.04", "0.05"],
-    "SCALAR_LR": ["0.02", "0.025", "0.03", "0.04", "0.05"],
-    "MUON_MOMENTUM": ["0.92", "0.95", "0.97"],
-    "MUON_BACKEND_STEPS": ["4", "5", "6"],
-    "QK_GAIN_INIT": ["1.0", "1.25", "1.5", "1.75", "2.0"],
-    "LOGIT_SOFTCAP": ["20.0", "30.0", "40.0"],
-    "WARMDOWN_ITERS": ["600", "800", "1200", "1600"],
-    "TIED_EMBED_INIT_STD": ["0.003", "0.005", "0.007", "0.01"],
+SEARCH_CHOICES: dict[str, dict[str, list[str]]] = {
+    "cuda": {
+        "NUM_LAYERS": ["8", "9", "10", "12"],
+        "MODEL_DIM": ["384", "448", "512", "576", "640"],
+        "NUM_HEADS": ["6", "7", "8", "9", "10"],
+        "NUM_KV_HEADS": ["1", "2", "4", "5"],
+        "MLP_MULT": ["2", "3"],
+        "TRAIN_SEQ_LEN": ["512", "768", "1024"],
+        "TRAIN_BATCH_TOKENS": ["131072", "262144", "393216", "524288", "786432"],
+        "TIED_EMBED_LR": ["0.03", "0.04", "0.05", "0.06", "0.07"],
+        "MATRIX_LR": ["0.02", "0.025", "0.03", "0.04", "0.05"],
+        "SCALAR_LR": ["0.02", "0.025", "0.03", "0.04", "0.05"],
+        "MUON_MOMENTUM": ["0.92", "0.95", "0.97"],
+        "MUON_BACKEND_STEPS": ["4", "5", "6"],
+        "QK_GAIN_INIT": ["1.0", "1.25", "1.5", "1.75", "2.0"],
+        "LOGIT_SOFTCAP": ["20.0", "30.0", "40.0"],
+        "WARMDOWN_ITERS": ["600", "800", "1200", "1600"],
+        "TIED_EMBED_INIT_STD": ["0.003", "0.005", "0.007", "0.01"],
+    },
+    "mlx": {
+        "NUM_LAYERS": ["8", "9", "10", "12"],
+        "MODEL_DIM": ["384", "448", "512", "576"],
+        "NUM_HEADS": ["6", "7", "8", "9"],
+        "NUM_KV_HEADS": ["1", "2", "4"],
+        "MLP_MULT": ["2", "3"],
+        "TRAIN_SEQ_LEN": ["512", "1024"],
+        "TRAIN_BATCH_TOKENS": ["8192", "16384", "32768", "65536"],
+        "TIED_EMBED_LR": ["0.03", "0.04", "0.05", "0.06", "0.07"],
+        "MATRIX_LR": ["0.02", "0.025", "0.03", "0.04", "0.05"],
+        "SCALAR_LR": ["0.02", "0.025", "0.03", "0.04", "0.05"],
+        "MUON_MOMENTUM": ["0.92", "0.95", "0.97"],
+        "MUON_BACKEND_STEPS": ["4", "5", "6"],
+        "QK_GAIN_INIT": ["1.0", "1.25", "1.5", "1.75", "2.0"],
+        "LOGIT_SOFTCAP": ["20.0", "30.0", "40.0"],
+        "WARMDOWN_ITERS": ["600", "800", "1200", "1600"],
+        "TIED_EMBED_INIT_STD": ["0.003", "0.005", "0.007", "0.01"],
+    },
 }
 
 PRESETS: dict[str, dict[str, dict[str, str]]] = {
@@ -173,8 +197,8 @@ PRESETS: dict[str, dict[str, dict[str, str]]] = {
             "NUM_KV_HEADS": "4",
             "MLP_MULT": "2",
             "TRAIN_SEQ_LEN": "1024",
-            "TRAIN_BATCH_TOKENS": "131072",
-            "VAL_BATCH_SIZE": "131072",
+            "TRAIN_BATCH_TOKENS": "32768",
+            "VAL_BATCH_SIZE": "32768",
             "ITERATIONS": "1200",
             "MAX_WALLCLOCK_SECONDS": "180",
             "TIED_EMBED_LR": "0.05",
@@ -377,6 +401,50 @@ def estimated_total_bytes(cfg: dict[str, Any], script_path: Path) -> int:
     return quantized + script_bytes(script_path)
 
 
+def find_under_limit_candidate(
+    *,
+    backend: str,
+    mode: str,
+    base_cfg: dict[str, str],
+    script_path: Path,
+    build_candidate: Callable[[], dict[str, str]],
+    max_attempts: int = MAX_CANDIDATE_ATTEMPTS,
+) -> dict[str, str]:
+    for attempt in range(1, max_attempts + 1):
+        candidate = build_candidate()
+        if estimated_total_bytes(candidate, script_path) < ARTIFACT_LIMIT_BYTES:
+            return candidate
+    raise RuntimeError(
+        "unable to generate under-limit candidate "
+        f"backend={backend} mode={mode} attempts={max_attempts} "
+        f"limit={ARTIFACT_LIMIT_BYTES} base_model_dim={base_cfg.get('MODEL_DIM')} "
+        f"base_layers={base_cfg.get('NUM_LAYERS')} base_seq={base_cfg.get('TRAIN_SEQ_LEN')}"
+    )
+
+
+def find_under_limit_code_candidate(
+    *,
+    backend: str,
+    mode: str,
+    base_cfg: dict[str, str],
+    code_mutation: str,
+    index: int,
+    rng: random.Random,
+    max_attempts: int = MAX_CANDIDATE_ATTEMPTS,
+) -> dict[str, str]:
+    for attempt in range(1, max_attempts + 1):
+        candidate = mutate_config(base_cfg, backend, rng, intensity=rng.randint(1, 4))
+        estimate_script = create_candidate_script(f"estimate_{backend}_{index}_{attempt}", backend, candidate, code_mutation)
+        if estimated_total_bytes(candidate, estimate_script) < ARTIFACT_LIMIT_BYTES:
+            return candidate
+    raise RuntimeError(
+        "unable to generate under-limit code candidate "
+        f"backend={backend} mode={mode} mutation={code_mutation} attempts={max_attempts} "
+        f"limit={ARTIFACT_LIMIT_BYTES} base_model_dim={base_cfg.get('MODEL_DIM')} "
+        f"base_layers={base_cfg.get('NUM_LAYERS')} base_seq={base_cfg.get('TRAIN_SEQ_LEN')}"
+    )
+
+
 def valid_shape(cfg: dict[str, str]) -> bool:
     dim = int(cfg["MODEL_DIM"])
     heads = int(cfg["NUM_HEADS"])
@@ -394,11 +462,12 @@ def valid_shape(cfg: dict[str, str]) -> bool:
 
 def mutate_config(base: dict[str, str], backend: str, rng: random.Random, intensity: int = 4) -> dict[str, str]:
     cfg = dict(base)
-    keys = list(SEARCH_CHOICES.keys())
+    choices = SEARCH_CHOICES[backend]
+    keys = list(choices.keys())
     for key in rng.sample(keys, k=min(intensity, len(keys))):
-        cfg[key] = rng.choice(SEARCH_CHOICES[key])
+        cfg[key] = rng.choice(choices[key])
     if backend == "mlx":
-        cfg["TRAIN_BATCH_TOKENS"] = rng.choice(["32768", "65536", "131072", "262144"])
+        cfg["TRAIN_BATCH_TOKENS"] = rng.choice(["8192", "16384", "32768", "65536"])
         cfg["VAL_BATCH_SIZE"] = cfg["TRAIN_BATCH_TOKENS"]
         cfg["ITERATIONS"] = str(rng.choice([400, 800, 1200, 1600]))
         cfg["MAX_WALLCLOCK_SECONDS"] = str(rng.choice([120, 180, 240]))
@@ -409,10 +478,10 @@ def mutate_config(base: dict[str, str], backend: str, rng: random.Random, intens
         cfg["ITERATIONS"] = str(rng.choice([12000, 16000, 20000, 24000]))
         cfg["MAX_WALLCLOCK_SECONDS"] = "600"
     while not valid_shape(cfg):
-        cfg["MODEL_DIM"] = rng.choice(SEARCH_CHOICES["MODEL_DIM"])
-        cfg["NUM_HEADS"] = rng.choice([item for item in SEARCH_CHOICES["NUM_HEADS"] if int(cfg["MODEL_DIM"]) % int(item) == 0])
-        cfg["NUM_KV_HEADS"] = rng.choice([item for item in SEARCH_CHOICES["NUM_KV_HEADS"] if int(cfg["NUM_HEADS"]) % int(item) == 0])
-        cfg["TRAIN_BATCH_TOKENS"] = rng.choice([item for item in SEARCH_CHOICES["TRAIN_BATCH_TOKENS"] if int(item) % int(cfg["TRAIN_SEQ_LEN"]) == 0])
+        cfg["MODEL_DIM"] = rng.choice(choices["MODEL_DIM"])
+        cfg["NUM_HEADS"] = rng.choice([item for item in choices["NUM_HEADS"] if int(cfg["MODEL_DIM"]) % int(item) == 0])
+        cfg["NUM_KV_HEADS"] = rng.choice([item for item in choices["NUM_KV_HEADS"] if int(cfg["NUM_HEADS"]) % int(item) == 0])
+        cfg["TRAIN_BATCH_TOKENS"] = rng.choice([item for item in choices["TRAIN_BATCH_TOKENS"] if int(item) % int(cfg["TRAIN_SEQ_LEN"]) == 0])
         cfg["VAL_BATCH_SIZE"] = cfg["TRAIN_BATCH_TOKENS"]
     return cfg
 
@@ -443,11 +512,15 @@ def parse_metrics(log_text: str, backend: str, script_path: Path) -> tuple[float
     if backend == "cuda":
         total_match = list(CUDA_TOTAL_SIZE_RE.finditer(log_text))
         model_match = list(CUDA_MODEL_SIZE_RE.finditer(log_text))
-        total_bytes = int(total_match[-1].group("bytes")) if total_match else 0
+        if not total_match:
+            raise ValueError("missing cuda total submission size metric")
+        total_bytes = int(total_match[-1].group("bytes"))
         quantized_model_bytes = int(model_match[-1].group("bytes")) if model_match else max(total_bytes - script_bytes(script_path), 0)
     else:
         model_match = list(MLX_MODEL_SIZE_RE.finditer(log_text))
-        quantized_model_bytes = int(model_match[-1].group("bytes")) if model_match else 0
+        if not model_match:
+            raise ValueError("missing mlx serialized model size metric")
+        quantized_model_bytes = int(model_match[-1].group("bytes"))
         total_bytes = quantized_model_bytes + script_bytes(script_path)
     param_match = list(PARAM_RE.finditer(log_text))
     model_params = int(param_match[-1].group("params")) if param_match else 0
@@ -641,9 +714,13 @@ def run_random_mode(args: argparse.Namespace, best: TrialResult | None) -> Trial
     rng = random.Random(args.seed)
     seed_cfg = normalize_config(args.backend, best.config) if best is not None else normalize_config(args.backend, PRESETS[args.backend]["baseline"])
     for index in range(args.trials):
-        candidate = mutate_config(seed_cfg, args.backend, rng, intensity=rng.randint(2, 5))
-        while estimated_total_bytes(candidate, script_for_backend(args.backend)) >= ARTIFACT_LIMIT_BYTES:
-            candidate = mutate_config(seed_cfg, args.backend, rng, intensity=rng.randint(2, 5))
+        candidate = find_under_limit_candidate(
+            backend=args.backend,
+            mode="random",
+            base_cfg=seed_cfg,
+            script_path=script_for_backend(args.backend),
+            build_candidate=lambda: mutate_config(seed_cfg, args.backend, rng, intensity=rng.randint(2, 5)),
+        )
         result = run_trial(index, args.backend, "random", candidate, args.nproc, describe_delta(seed_cfg, candidate))
         if better(result, best):
             best = result
@@ -686,13 +763,22 @@ def run_evolution_mode(args: argparse.Namespace, best: TrialResult | None) -> Tr
         parents = rng.sample(pool, k=2 if len(pool) > 1 else 1)
         base_a = normalize_config(args.backend, parents[0].config)
         if len(parents) == 1:
-            candidate = mutate_config(base_a, args.backend, rng, intensity=rng.randint(2, 4))
+            candidate = find_under_limit_candidate(
+                backend=args.backend,
+                mode="evolution",
+                base_cfg=base_a,
+                script_path=script_for_backend(args.backend),
+                build_candidate=lambda: mutate_config(base_a, args.backend, rng, intensity=rng.randint(2, 4)),
+            )
         else:
             base_b = normalize_config(args.backend, parents[1].config)
-            candidate = crossover_config(base_a, base_b, args.backend, rng)
-            candidate = mutate_config(candidate, args.backend, rng, intensity=rng.randint(1, 3))
-        while estimated_total_bytes(candidate, script_for_backend(args.backend)) >= ARTIFACT_LIMIT_BYTES:
-            candidate = mutate_config(base_a, args.backend, rng, intensity=3)
+            candidate = find_under_limit_candidate(
+                backend=args.backend,
+                mode="evolution",
+                base_cfg=base_a,
+                script_path=script_for_backend(args.backend),
+                build_candidate=lambda: mutate_config(crossover_config(base_a, base_b, args.backend, rng), args.backend, rng, intensity=rng.randint(1, 3)),
+            )
         result = run_trial(index, args.backend, "evolution", candidate, args.nproc, describe_delta(base_a, candidate), parents=[item.run_id for item in parents])
         if result.status == "ok":
             pool.append(result)
@@ -712,11 +798,15 @@ def run_code_mode(args: argparse.Namespace, best: TrialResult | None) -> TrialRe
     seed_cfg = normalize_config(args.backend, best.config) if best is not None else normalize_config(args.backend, PRESETS[args.backend]["baseline"])
     mutation_names = [args.code_mutation] if args.code_mutation else list(CODE_MUTATIONS[args.backend].keys())
     for index in range(args.trials):
-        candidate = mutate_config(seed_cfg, args.backend, rng, intensity=rng.randint(1, 4))
         mutation_name = mutation_names[index % len(mutation_names)] if args.code_mutation else rng.choice(mutation_names)
-        estimate_script = create_candidate_script(f"estimate_{args.backend}_{index}", args.backend, candidate, mutation_name)
-        if estimated_total_bytes(candidate, estimate_script) >= ARTIFACT_LIMIT_BYTES:
-            continue
+        candidate = find_under_limit_code_candidate(
+            backend=args.backend,
+            mode="code",
+            base_cfg=seed_cfg,
+            code_mutation=mutation_name,
+            index=index,
+            rng=rng,
+        )
         result = run_trial(index, args.backend, "code", candidate, args.nproc, f"mutation:{mutation_name}; {describe_delta(seed_cfg, candidate)}", code_mutation=mutation_name)
         if better(result, best):
             best = result

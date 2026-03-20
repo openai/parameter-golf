@@ -9,6 +9,9 @@ setup:
 setup-cuda:
     uv sync --extra cuda
 
+test:
+    uv run python3 -m unittest discover -s tests -p "test_*.py"
+
 download-data train_shards="10" variant="sp1024":
     uv run python3 data/cached_challenge_fineweb.py --variant {{variant}} --train-shards {{train_shards}}
 

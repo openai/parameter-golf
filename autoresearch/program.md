@@ -85,7 +85,7 @@ Additional artifacts:
 Local MLX:
 
 ```bash
-just autoresearch-preset-mlx 5 1337 balanced
+just autoresearch-preset-mlx 5 1337 small_fast
 just autoresearch-mlx 5 1337
 just autoresearch-evolution-mlx 5 1337 6
 ```
