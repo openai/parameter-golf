@@ -3,23 +3,16 @@ import torch
 import torch.nn.functional as F
 import math
 from train_gpt import GPT, Hyperparameters, dequantize_state_dict_int8, build_sentencepiece_luts, load_validation_tokens
+from eval_competition import load_model
 import sentencepiece as spm
-import os, zstandard, io
+import os
 
 args = Hyperparameters()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 checkpoint = os.environ.get("CHECKPOINT", "final_model.int6.ptz")
 
 # Load model
-with open(checkpoint, "rb") as f:
-    raw = f.read()
-try:
-    raw = zstandard.ZstdDecompressor().decompress(raw)
-except:
-    pass
-state = torch.load(io.BytesIO(raw), weights_only=True)
-model = GPT(args).to(device)
-model.load_state_dict(dequantize_state_dict_int8(state), strict=False)
+model = load_model(args, checkpoint, device)
 model.eval()
 
 # Load val tokens
