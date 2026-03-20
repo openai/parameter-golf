@@ -4,15 +4,20 @@
   "name": "Test-Time Training (TTT) with Full-Model SGD Adaptation",
   "author": "FarnsworthTech",
   "github_id": "timowhite88",
+  "x_handle": "FARNSWORTHLLC",
+  "email": ["timeowhite88@gmail.com", "timeowhite88@icloud.com"],
   "blurb": "Standard 9x512 KV4 baseline training + aggressive test-time training during eval: 2-epoch full-model SGD adaptation on validation data (lr=0.002, momentum=0.9) before sliding-window scoring. No architecture changes -- all gains come from smarter use of the 10-min eval budget.",
   "seed_results": {
-    "1337_conservative": {"val_loss": 1.98674420, "val_bpb": 1.17666183, "steps": 9647, "ms_per_step": 62.19, "ttt_lr": 0.0003, "ttt_epochs": 1},
-    "1337_aggressive":   {"val_loss": 1.98286428, "val_bpb": 1.17436392, "steps": 9728, "ms_per_step": 61.79, "ttt_lr": 0.002, "ttt_epochs": 2}
+    "1337_conservative": {"val_loss": 1.98674420, "val_bpb": 1.17666183, "steps": 9647, "ms_per_step": 62.19, "train_time_s": 599.988, "ttt_lr": 0.0003, "ttt_epochs": 1},
+    "1337_aggressive":   {"val_loss": 1.98286428, "val_bpb": 1.17436392, "steps": 9728, "ms_per_step": 61.79, "train_time_s": 601.124, "ttt_lr": 0.002, "ttt_epochs": 2}
   },
   "mean_val_loss": 1.98480424,
   "mean_val_bpb": 1.17551288,
   "best_val_loss": 1.98286428,
   "best_val_bpb": 1.17436392,
   "artifact_bytes": 15328877,
-  "code_bytes": 58683
+  "code_bytes": 58683,
+  "hardware": "8x NVIDIA H100 80GB HBM3 (SXM), RunPod",
+  "pytorch": "2.6.0+cu124",
+  "cuda": "12.4"
 }
