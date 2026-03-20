@@ -668,27 +668,20 @@ class TokenRoutedMLP(nn.Module):
         if kernel is not None and self.activation == "swiglu":
             token_ids_flat = expert_ids.reshape(-1).to(torch.int64)
             return kernel.forward(flat_x.half(), token_ids_flat, self.gate_up_proj.half(), self.down_proj.half(), self.num_experts).to(flat_x.dtype).reshape(bsz, seq, self.dim)
-        # Fallback: soft routing (mask multiply, fullgraph safe)
-        if self.routing == "learned":
-            weights = self.router(flat_x)
-        elif self.routing == "hybrid":
-            flat_ids = expert_ids.reshape(-1)
-            base = F.one_hot(flat_ids, self.num_experts).to(flat_x.dtype)
-            learned = self.router(flat_x)
-            weights = F.softmax(base * 10.0 + torch.log(learned + 1e-8), dim=-1)
-        else:
-            flat_ids = expert_ids.reshape(-1)
-            weights = F.one_hot(flat_ids, self.num_experts).to(flat_x.dtype)
+        # Real scatter dispatch: only compute active expert per token (no wasted compute)
+        flat_ids = expert_ids.reshape(-1)
         out = torch.zeros_like(flat_x)
-        for e in range(self.num_experts):  # unrolled by torch.compile
-            w = weights[:, e].unsqueeze(-1)  # [N, 1]
+        for e in range(self.num_experts):
+            mask = flat_ids == e
+            if not mask.any(): continue
+            xe = flat_x[mask]
             if self.activation == "swiglu":
-                gu = flat_x @ self.gate_up_proj[e]
+                gu = xe @ self.gate_up_proj[e]
                 gate, up = gu.chunk(2, dim=-1)
-                out = out + (F.silu(gate) * up @ self.down_proj[e]) * w
+                out[mask] = (F.silu(gate) * up) @ self.down_proj[e]
             else:
-                h = torch.relu(flat_x @ self.fc_weight[e])
-                out = out + (h.square() @ self.proj_weight[e]) * w
+                h = torch.relu(xe @ self.fc_weight[e])
+                out[mask] = h.square() @ self.proj_weight[e]
         return out.reshape(bsz, seq, self.dim)
 
 class Block(nn.Module):
@@ -1110,6 +1103,7 @@ def main() -> None:
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
+    torch.backends.cudnn.deterministic = True
 
     if not args.tokenizer_path.endswith(".model"):
         raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
@@ -1157,7 +1151,7 @@ def main() -> None:
         if isinstance(module, Rotary):
             module.inv_freq.data = module.inv_freq.data.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
