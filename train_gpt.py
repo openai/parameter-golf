@@ -60,11 +60,11 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 12 if _RUN_CONFIG == "C" else 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 3))
+    mlp_mult = int(os.environ.get("MLP_MULT", 2 if _RUN_CONFIG == "C" else 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -83,7 +83,7 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     swa_every = int(os.environ.get("SWA_EVERY", 200))
@@ -429,6 +429,8 @@ def quantize_float_tensor_int6(t: Tensor) -> tuple[Tensor, Tensor]:
     return q, scale
 
 def quantize_state_dict_int6(state_dict: dict[str, Tensor]):
+    all_ck = sorted([n for n in state_dict if "attn.c_k.weight" in n])
+    late_k_names = set(all_ck[-2:]) if len(all_ck) >= 2 else set()
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -449,7 +451,7 @@ def quantize_state_dict_int6(state_dict: dict[str, Tensor]):
             passthrough[name] = t
             stats["int8_payload_bytes"] += tensor_nbytes(t)
             continue
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or "tok_emb.weight" in name:
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or "tok_emb.weight" in name or name in late_k_names:
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
@@ -865,6 +867,12 @@ class GPT(nn.Module):
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
+        num_layers = len(self.blocks)
+        for i, block in enumerate(self.blocks):
+            with torch.no_grad():
+                phase = torch.sigmoid(torch.tensor(3.0 * (i / max(num_layers - 1, 1) - 0.5)))
+                block.resid_mix.data[0] = phase * torch.ones(block.resid_mix.shape[1])
+                block.resid_mix.data[1] = (1 - phase) * torch.ones(block.resid_mix.shape[1])
 
     def _run_blocks(self, x: Tensor, x0: Tensor) -> Tensor:
         if self.encoder_recurrence:
