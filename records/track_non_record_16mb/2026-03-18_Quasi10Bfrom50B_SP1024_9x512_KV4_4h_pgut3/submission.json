@@ -1,8 +1,8 @@
 {
   "author": "Evreu1pro",
   "github_id": "Evreu1pro",
-  "name": "BitNet + Logical Priors + TTT",
-  "blurb": "Ternary weights, 12-layer weight-tied stack, and test-time adaptation",
+  "name": "BitNet + Structural Priors + Honest TTT",
+  "blurb": "Ternary weights, weight-tying (4→12), transparent structural priors, and document-isolated test-time adaptation",
   "track": "track-10min-16mb",
   "date": "2026-03-20T00:00:00Z",
   "val_bpb": 1.20,
