@@ -79,15 +79,52 @@ Based on the **WarmdownQuantization record** (int6 quant, FP16 tied embed, slidi
 10. **WARMDOWN_ITERS=6500** matches 8xH100 LR schedule better (LR starts at ~50% of peak). Gives best compression (11.7MB) but worse quant penalty
 11. **Best competition-legal result: 1.3260 BPB** (9L, zstd-22, sliding window stride=1024)
 
+### Round 3 Results (Session 2 continued)
+
+| # | Config | Steps | Post-quant BPB | Sliding BPB | Artifact | Notes |
+|---|--------|-------|----------------|-------------|----------|-------|
+| G | 9L + zstd (no SWA) | 3617 | 1.3431 | **1.3260** | 12.5MB | **Best legal w/ sliding** |
+| H | 10L + FTLE-lite | 3265 | 1.3418 | — | 18.1MB | Over 16MB! Eval recurrence = 3.47 (useless) |
+| I | 10L + long WD (6500) | 3272 | 1.3517 | 1.3358 | 11.7MB | Better compression, matches H100 LR schedule |
+
+---
+
+## Competition Intelligence (gathered 2026-03-20)
+
+### Current Leaderboard State
+- **Best merged:** 1.1428 BPB (PR #180: 10L Int5-MLP + BigramHash(10240) + SWA + WD=0.04)
+- **Best clean open:** 1.1318 BPB (PR #198: 11L Int6 + WD=0.04 + SWA + stride=64)
+- **Paid prefix exploit:** 1.02-1.05 BPB (stores val tokens in artifact — controversial)
+
+### Key Techniques We're Missing
+1. **WD=0.04** (we use 0.02) — competition found 0.04 is better for both quality and artifact size
+2. **11 layers** — PR #198 uses 11L (vs our 9-10L)
+3. **SWA every 50 steps during warmdown** (not continuous averaging — explains why our SWA hurt!)
+4. **BigramHash table 10240** (PR #180) vs our 4096
+5. **RoPE base 50000** (not default 10000)
+6. **Stride-64 sliding window** with batched processing (32 windows) — ~172s on 8xH100
+7. **Low-Rank Q factorization** (PR #215) — Q has extreme condition numbers, 25% param savings
+8. **muP scaling** — output projections scaled by 1/sqrt(2*num_layers)
+9. **Smaller batch wins** — 524K beats 786K (more gradient updates in fixed time)
+10. **Stride-OGD** (PR #241) — online gradient descent on vocab bias during eval, zero artifact cost
+
+### Priority Fixes for Next Session
+1. **MUON_WEIGHT_DECAY=0.04** (instant improvement)
+2. **NUM_LAYERS=11** (go deeper)
+3. **BIGRAM_TABLE_SIZE=10240** (larger hash table)
+4. **ROPE_BASE=50000** (better position encoding)
+5. **Fix SWA** to use periodic checkpointing (every N steps) not continuous
+6. **Batch sliding window** (process 32 windows at once for stride=64)
+
 ### Recommended 8xH100 Submission Config
 ```bash
 torchrun --standalone --nproc_per_node=8 train_exp.py \
-  NUM_LAYERS=10 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=3 \
-  MUON_WEIGHT_DECAY=0.02 QUANT_BITS=6 GRAD_CLIP_NORM=1.0 \
-  BIGRAM_HASH=1 BIGRAM_TABLE_SIZE=4096 BIGRAM_HASH_DIM=128 SMEAR_GATE=1 \
-  WARMDOWN_ITERS=20000 EVAL_STRIDE=1024 EVAL_SEQ_LEN=2048 \
+  NUM_LAYERS=11 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=3 \
+  MUON_WEIGHT_DECAY=0.04 QUANT_BITS=6 GRAD_CLIP_NORM=1.0 \
+  BIGRAM_HASH=1 BIGRAM_TABLE_SIZE=10240 BIGRAM_HASH_DIM=128 SMEAR_GATE=1 \
+  WARMDOWN_ITERS=20000 EVAL_STRIDE=64 EVAL_SEQ_LEN=2048 \
   TIED_EMBED_LR=0.05 MATRIX_LR=0.04 SCALAR_LR=0.04 \
-  USE_ZSTD=1 ZSTD_LEVEL=22 USE_SWA=0
+  USE_ZSTD=1 ZSTD_LEVEL=22 USE_SWA=0 ROPE_BASE=50000
 ```
 
 ---
