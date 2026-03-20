@@ -108,6 +108,7 @@ class Hyperparameters:
     bigram_hash_dim = int(os.environ.get("BIGRAM_HASH_DIM", 128))
     use_ste_qat = bool(int(os.environ.get("USE_STE_QAT", "0")))  # STE QAT: fake quantization during training
     ste_qat_start_frac = float(os.environ.get("STE_QAT_START_FRAC", 0.25))  # Start QAT after this fraction of training
+    use_mixed_quant = bool(int(os.environ.get("USE_MIXED_QUANT", "0")))  # Mixed int5-MLP/int6-attn (default off)
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -466,8 +467,10 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_bits: int = 8)
     if quant_bits == 6:
         fp16_keep_patterns = fp16_keep_patterns + ("bigram_embed.weight",)
     # Mixed int5/int6: MLP weights use int5 for better zstd compression (PR #180)
-    # MLP tensor names contain 'fc' or 'proj' inside block modules but NOT attention tensors
-    mlp_patterns = ("mlp.",) if quant_bits == 6 else ()
+    # Disabled by default — int5 causes large roundtrip gap in short training
+    # Enable with USE_MIXED_QUANT=1 only after H100 validation
+    use_mixed = bool(int(os.environ.get("USE_MIXED_QUANT", "0")))
+    mlp_patterns = ("mlp.",) if (quant_bits == 6 and use_mixed) else ()
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
