@@ -731,10 +731,11 @@ class CausalSelfAttention(nn.Module):
             raise ValueError("head_dim must be divisible by 4 for DiffAttn (RoPE needs half_head_dim even)")
         self.half_head_dim = self.head_dim // 2
         kv_dim = self.num_kv_heads * self.head_dim
+        half_kv_dim = self.num_kv_heads * self.half_head_dim
         self.c_q = BitLinear(dim, dim, bias=False)
         self.c_k = BitLinear(dim, kv_dim, bias=False)
-        self.c_v = BitLinear(dim, kv_dim, bias=False)
-        self.proj = BitLinear(dim, dim, bias=False)
+        self.c_v = BitLinear(dim, half_kv_dim, bias=False)  # half_head_dim to match Q/K splits
+        self.proj = BitLinear(num_heads * self.half_head_dim, dim, bias=False)  # half_head_dim output
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         # DiffAttn: learnable lambda parameters per head
@@ -750,7 +751,7 @@ class CausalSelfAttention(nn.Module):
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.half_head_dim).transpose(1, 2)
 
         # Split Q and K into two halves for differential attention
         q1, q2 = q[..., :self.half_head_dim], q[..., self.half_head_dim:]
@@ -780,14 +781,9 @@ class CausalSelfAttention(nn.Module):
             k1 = k1.repeat_interleave(rep, dim=1)
             k2 = k2.repeat_interleave(rep, dim=1)
             v = v.repeat_interleave(rep, dim=1)
-        # Manual attention to handle Q/K half_head_dim != V head_dim
-        scale = q1.size(-1) ** -0.5
-        # attn1: softmax(q1 @ k1^T / sqrt(d)) @ v
-        a1 = F.softmax(torch.matmul(q1 * scale, k1.transpose(-2, -1)), dim=-1)
-        attn1 = torch.matmul(a1, v)
-        # attn2: softmax(q2 @ k2^T / sqrt(d)) @ v
-        a2 = F.softmax(torch.matmul(q2 * scale, k2.transpose(-2, -1)), dim=-1)
-        attn2 = torch.matmul(a2, v)
+        # Flash attention — Q/K/V all have half_head_dim now
+        attn1 = F.scaled_dot_product_attention(q1, k1, v, is_causal=True)
+        attn2 = F.scaled_dot_product_attention(q2, k2, v, is_causal=True)
 
         # Compute learnable lambda
         lambda_val = (torch.exp(self.lambda_q1.to(q1.dtype)) * torch.exp(self.lambda_k1.to(q1.dtype))).sum(-1)
@@ -798,7 +794,7 @@ class CausalSelfAttention(nn.Module):
         # Differential attention: subtract noise attention, scaled by lambda
         y = attn1 - lambda_val * attn2
 
-        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, self.num_heads * self.half_head_dim)
         return self.proj(y)
 
 
