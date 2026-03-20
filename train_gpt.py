@@ -387,76 +387,31 @@ def normalized_mae(reference: Tensor, reconstructed: Tensor) -> float:
     denom = max(float(ref32.abs().mean().item()), 1e-12)
     return float((recon32 - ref32).abs().mean().item() / denom)
 
-def summarize_export_state_error(state_dict: dict[str, Tensor], selected_auto_keep_name: str = "") -> dict[str, object]:
-    total_abs_error = 0.0
-    total_abs_ref = 0.0
-    stats = {
-        "large_keep_tensor_count": 0,
-        "large_keep_payload_bytes": 0,
-        "auto_keep_tensor_count": 0,
-        "auto_keep_payload_bytes": 0,
-        "fp32_scale_tensor_count": 0,
-        "fp32_scale_payload_bytes": 0,
-    }
-    for name, tensor in state_dict.items():
-        t = tensor.detach().to("cpu").contiguous()
-        if not t.is_floating_point():
-            continue
-        ref32 = t.float()
-        total_abs_ref += float(ref32.abs().sum().item())
-
-        keep_large = matches_name_patterns(name, INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS)
-        keep_auto = name == selected_auto_keep_name
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or keep_large or keep_auto:
-            passthrough_orig_dtypes: dict[str, str] = {}
-            kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
-            recon = restore_passthrough_tensor(name, kept, passthrough_orig_dtypes)
-            payload_bytes = tensor_nbytes(kept)
-            if keep_large:
-                stats["large_keep_tensor_count"] += 1
-                stats["large_keep_payload_bytes"] += payload_bytes
-            if keep_auto:
-                stats["auto_keep_tensor_count"] += 1
-                stats["auto_keep_payload_bytes"] += payload_bytes
-        else:
-            scale_dtype = int8_scale_dtype_for_tensor(name, t)
-            q, s = quantize_float_tensor(name, t, scale_dtype=scale_dtype)
-            recon = dequantize_quantized_tensor(q, s, dtype=t.dtype)
-            if s.ndim > 0 and scale_dtype == torch.float32:
-                stats["fp32_scale_tensor_count"] += 1
-                stats["fp32_scale_payload_bytes"] += tensor_nbytes(s)
-        total_abs_error += float((recon.float() - ref32).abs().sum().item())
-    stats["full_export_error"] = total_abs_error / max(total_abs_ref, 1e-12)
-    return stats
-
-def score_keep_float_candidate(name: str, t: Tensor, state_dict: dict[str, Tensor], baseline_export_error: float) -> dict[str, object]:
-    scale_dtype = int8_scale_dtype_for_tensor(name, t)
-    q, s = quantize_float_tensor(name, t, scale_dtype=scale_dtype)
-    keep_orig_dtypes: dict[str, str] = {}
-    kept = keep_float_tensor(name, t, keep_orig_dtypes)
-    selected_export = summarize_export_state_error(state_dict, selected_auto_keep_name=name)
-    keep_payload_bytes = tensor_nbytes(kept)
+def score_keep_float_candidate(name: str, t: Tensor) -> dict[str, object]:
+    # Keep selector scoring on the baseline fp16-scale quantized path so export
+    # ablations on still-quantized tensors do not also change the selector.
+    q, s = quantize_float_tensor(name, t, scale_dtype=INT8_PER_ROW_SCALE_DTYPE)
+    quantized_recon = dequantize_quantized_tensor(q, s, dtype=t.dtype)
+    candidate_orig_dtypes: dict[str, str] = {}
+    kept = keep_float_tensor(name, t, candidate_orig_dtypes)
+    kept_recon = restore_passthrough_tensor(name, kept, candidate_orig_dtypes)
+    quantized_error = normalized_mae(t, quantized_recon)
+    keep_error = normalized_mae(t, kept_recon)
     quantized_payload_bytes = tensor_nbytes(q) + tensor_nbytes(s)
+    keep_payload_bytes = tensor_nbytes(kept)
     return {
         "name": name,
-        "scorer_mode": "full_export_state_v1",
-        "estimated_gain": baseline_export_error - float(selected_export["full_export_error"]),
-        "baseline_full_error": baseline_export_error,
-        "selected_full_error": float(selected_export["full_export_error"]),
+        "estimated_gain": quantized_error - keep_error,
+        "quantized_error": quantized_error,
+        "keep_error": keep_error,
         "quantized_payload_bytes": quantized_payload_bytes,
         "keep_payload_bytes": keep_payload_bytes,
         "extra_payload_bytes": keep_payload_bytes - quantized_payload_bytes,
-        "selected_fp32_scale_tensor_count": int(selected_export["fp32_scale_tensor_count"]),
-        "selected_fp32_scale_payload_bytes": int(selected_export["fp32_scale_payload_bytes"]),
-        "selected_large_keep_tensor_count": int(selected_export["large_keep_tensor_count"]),
-        "selected_large_keep_payload_bytes": int(selected_export["large_keep_payload_bytes"]),
     }
 
 def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, object] | None:
     if not INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS:
         return None
-    baseline_export = summarize_export_state_error(state_dict, selected_auto_keep_name="")
-    baseline_full_error = float(baseline_export["full_export_error"])
     candidates: list[dict[str, object]] = []
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
@@ -466,25 +421,18 @@ def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, ob
             continue
         if not matches_name_patterns(name, INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS):
             continue
-        candidates.append(score_keep_float_candidate(name, t, state_dict, baseline_full_error))
+        candidates.append(score_keep_float_candidate(name, t))
     if not candidates:
         return {
             "candidate_count": 0,
             "name": "",
             "selected_name": "",
-            "scorer_mode": "full_export_state_v1",
             "estimated_gain": 0.0,
-            "baseline_full_error": baseline_full_error,
-            "selected_full_error": baseline_full_error,
+            "quantized_error": 0.0,
+            "keep_error": 0.0,
             "quantized_payload_bytes": 0,
             "keep_payload_bytes": 0,
             "extra_payload_bytes": 0,
-            "baseline_fp32_scale_tensor_count": int(baseline_export["fp32_scale_tensor_count"]),
-            "baseline_fp32_scale_payload_bytes": int(baseline_export["fp32_scale_payload_bytes"]),
-            "selected_fp32_scale_tensor_count": int(baseline_export["fp32_scale_tensor_count"]),
-            "selected_fp32_scale_payload_bytes": int(baseline_export["fp32_scale_payload_bytes"]),
-            "selected_large_keep_tensor_count": int(baseline_export["large_keep_tensor_count"]),
-            "selected_large_keep_payload_bytes": int(baseline_export["large_keep_payload_bytes"]),
             "top_candidates_summary": "",
         }
     ranked = sorted(
@@ -495,11 +443,9 @@ def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, ob
     best = ranked[0]
     best["candidate_count"] = len(candidates)
     best["selected_name"] = str(best["name"])
-    best["baseline_fp32_scale_tensor_count"] = int(baseline_export["fp32_scale_tensor_count"])
-    best["baseline_fp32_scale_payload_bytes"] = int(baseline_export["fp32_scale_payload_bytes"])
     best["top_candidates_summary"] = ",".join(
         (
-            f"{str(item['name'])}|gain={float(item['estimated_gain']):.8f}|full={float(item['selected_full_error']):.8f}|fp32={int(item['selected_fp32_scale_tensor_count'])}|extra={int(item['extra_payload_bytes'])}"
+            f"{str(item['name'])}|gain={float(item['estimated_gain']):.8f}|extra={int(item['extra_payload_bytes'])}"
             for item in ranked[: max(INT8_AUTO_KEEP_FLOAT_LOG_TOPK, 0)]
         )
     )
@@ -540,32 +486,13 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     )
     stats["auto_keep_candidate_count"] = int(auto_keep["candidate_count"]) if auto_keep is not None else 0
     stats["auto_keep_selected_name"] = selected_auto_keep_name
-    stats["auto_keep_scorer_mode"] = str(auto_keep["scorer_mode"]) if auto_keep is not None else ""
     stats["auto_keep_estimated_gain"] = float(auto_keep["estimated_gain"]) if auto_keep is not None else 0.0
-    stats["auto_keep_baseline_full_error"] = float(auto_keep["baseline_full_error"]) if auto_keep is not None else 0.0
-    stats["auto_keep_selected_full_error"] = float(auto_keep["selected_full_error"]) if auto_keep is not None else 0.0
+    stats["auto_keep_quantized_error"] = float(auto_keep["quantized_error"]) if auto_keep is not None else 0.0
+    stats["auto_keep_keep_error"] = float(auto_keep["keep_error"]) if auto_keep is not None else 0.0
     stats["auto_keep_quantized_payload_bytes"] = int(auto_keep["quantized_payload_bytes"]) if auto_keep is not None else 0
     stats["auto_keep_keep_payload_bytes"] = int(auto_keep["keep_payload_bytes"]) if auto_keep is not None else 0
     stats["auto_keep_extra_payload_bytes"] = (
         stats["auto_keep_keep_payload_bytes"] - stats["auto_keep_quantized_payload_bytes"]
-    )
-    stats["auto_keep_baseline_fp32_scale_tensor_count"] = (
-        int(auto_keep["baseline_fp32_scale_tensor_count"]) if auto_keep is not None else 0
-    )
-    stats["auto_keep_baseline_fp32_scale_payload_bytes"] = (
-        int(auto_keep["baseline_fp32_scale_payload_bytes"]) if auto_keep is not None else 0
-    )
-    stats["auto_keep_selected_fp32_scale_tensor_count"] = (
-        int(auto_keep["selected_fp32_scale_tensor_count"]) if auto_keep is not None else 0
-    )
-    stats["auto_keep_selected_fp32_scale_payload_bytes"] = (
-        int(auto_keep["selected_fp32_scale_payload_bytes"]) if auto_keep is not None else 0
-    )
-    stats["auto_keep_selected_large_keep_tensor_count"] = (
-        int(auto_keep["selected_large_keep_tensor_count"]) if auto_keep is not None else 0
-    )
-    stats["auto_keep_selected_large_keep_payload_bytes"] = (
-        int(auto_keep["selected_large_keep_payload_bytes"]) if auto_keep is not None else 0
     )
     stats["auto_keep_top_candidates_summary"] = str(auto_keep["top_candidates_summary"]) if auto_keep is not None else ""
 
@@ -1335,12 +1262,11 @@ def main() -> None:
         if INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS:
             log0(
                 "Int8 auto-keep selector: "
-                f"scorer:{quant_stats['auto_keep_scorer_mode'] or 'none'} "
                 f"candidates:{quant_stats['auto_keep_candidate_count']} "
                 f"selected:{quant_stats['auto_keep_selected_name'] or 'none'} "
                 f"estimated_gain:{quant_stats['auto_keep_estimated_gain']:.8f} "
-                f"baseline_full_error:{quant_stats['auto_keep_baseline_full_error']:.8f} "
-                f"selected_full_error:{quant_stats['auto_keep_selected_full_error']:.8f}"
+                f"quantized_error:{quant_stats['auto_keep_quantized_error']:.8f} "
+                f"keep_error:{quant_stats['auto_keep_keep_error']:.8f}"
             )
             if quant_stats["auto_keep_top_candidates_summary"]:
                 log0(f"Int8 auto-keep top candidates: {quant_stats['auto_keep_top_candidates_summary']}")
@@ -1352,15 +1278,6 @@ def main() -> None:
                 f"selected_payload:{quant_stats['auto_keep_payload_bytes']} "
                 f"selected_quantized_payload:{quant_stats['auto_keep_quantized_payload_bytes']} "
                 f"selected_extra_payload:{quant_stats['auto_keep_extra_payload_bytes']}"
-            )
-            log0(
-                "Int8 auto-keep full-state audit: "
-                f"baseline_fp32_tensors:{quant_stats['auto_keep_baseline_fp32_scale_tensor_count']} "
-                f"baseline_fp32_bytes:{quant_stats['auto_keep_baseline_fp32_scale_payload_bytes']} "
-                f"selected_fp32_tensors:{quant_stats['auto_keep_selected_fp32_scale_tensor_count']} "
-                f"selected_fp32_bytes:{quant_stats['auto_keep_selected_fp32_scale_payload_bytes']} "
-                f"selected_large_tensors:{quant_stats['auto_keep_selected_large_keep_tensor_count']} "
-                f"selected_large_bytes:{quant_stats['auto_keep_selected_large_keep_payload_bytes']}"
             )
         if INT8_FP32_SCALE_NAME_PATTERNS:
             log0(
