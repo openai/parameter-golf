@@ -134,7 +134,7 @@ On RunPod:
 
 ```bash
 cd /workspace/parameter-golf
-git remote set-url origin git@github.com:Kevxn97/parameter-golf.git
+git remote set-url origin https://github.com/Kevxn97/parameter-golf.git
 git remote add upstream https://github.com/openai/parameter-golf.git 2>/dev/null || true
 git fetch origin
 git checkout codex/my-experiment
@@ -142,6 +142,8 @@ git pull
 ```
 
 Track all of this in `EXPERIMENT_TRACKER.md`.
+
+If the pod does not have your GitHub SSH key loaded, prefer HTTPS remotes for fetch/pull on public branches. SSH is only needed if you plan to push from inside the pod.
 
 ## Submission shape
 

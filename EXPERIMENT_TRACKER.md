@@ -84,6 +84,8 @@ git push origin main
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-03-20 | infra-001 | `main` | n/a | local macOS | none | cloned repo, created `.venv`, installed deps, verified MLX/PyTorch env | `./scripts/verify_env.sh` | success | local development environment ready |
 | 2026-03-20 | infra-002 | `main` | n/a | RunPod 1xH100 pod | none | first pod bootstrap attempt from clean clone | `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1` and baseline `torchrun` | failed | missing `huggingface_hub` and `sentencepiece`; pod required manual `pip install -r requirements.txt` |
+| 2026-03-20 | infra-003 | `main` | n/a | RunPod 1xH100 pod | `fineweb10B_sp1024` val + 1 train shard | first baseline launch after installing deps | baseline `torchrun --standalone --nproc_per_node=1 train_gpt.py` | failed | pod image has `torch 2.4.1+cu124`; this build does not support `enable_gqa` in SDPA, so baseline code needed compatibility fallback |
+| 2026-03-20 | infra-004 | `main` | n/a | RunPod 1xH100 pod | none | tried pulling experiment branch from fork over SSH | `git fetch origin` after `origin=git@github.com:Kevxn97/parameter-golf.git` | failed | pod had no GitHub SSH key loaded; for public forks use HTTPS remotes for fetch/pull |
 
 ## Hypothesis Backlog
 
@@ -138,7 +140,7 @@ Copy this block when we start a new run:
 - Date: 2026-03-20
 - Owner: Kevin + Codex
 - Branch: `codex/looped-shared-depth-v1`
-- Commit: pending local commit
+- Commit: `1c25913` initially, then compatibility follow-up pending
 - Goal: test whether shared-block recurrent depth improves the baseline under tight parameter budget
 - Hypothesis: reusing the same `NUM_LAYERS` blocks for multiple `NUM_LOOPS` will increase effective depth and expressivity faster than widening the model, while keeping unique parameter bytes close to baseline
 - Code changes: add `NUM_LOOPS` to `train_gpt.py` and reuse the same block stack across loops during forward pass; log unique/effective depth at startup
@@ -149,13 +151,15 @@ Copy this block when we start a new run:
 - Metrics: pending
 - Artifact size: pending
 - Outcome: pending
-- Next action: run baseline-compatible smoke, compare stability/speed/quantized `val_bpb` to standard 9-layer baseline
+- Next action: rerun from the compatibility-patched branch on RunPod and compare stability/speed/quantized `val_bpb` to standard 9-layer baseline
 
 ## Decisions and Learnings
 
 - 2026-03-20: Git-based sync is the default workflow between local and RunPod; avoid manual file copying unless it is a one-off emergency.
 - 2026-03-20: Environment/bootstrap failures belong in this tracker because they affect iteration speed and reproducibility.
 - 2026-03-20: We will use this file to decide which architectural or evaluation changes are worth promoting into real submission candidates.
+- 2026-03-20: Public-branch sync from RunPod should use HTTPS remotes unless the pod has an authorized GitHub SSH key.
+- 2026-03-20: Hosted GPU images may lag on PyTorch features; challenge code should not assume `scaled_dot_product_attention(enable_gqa=...)` exists.
 
 ## Next Actions
 
