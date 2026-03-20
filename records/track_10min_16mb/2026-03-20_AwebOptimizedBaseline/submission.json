@@ -1,0 +1,11 @@
+{
+  "author": "Daniel Wahnich",
+  "github_id": "manfromnowhere143",
+  "name": "Aweb Optimized Baseline — Muon tuning + MLP 3x + seq2048",
+  "blurb": "Baseline architecture (9 layers, 512 dim) with proven optimizer settings from top scorers: Muon momentum 0.99, halved learning rates (0.02), 3x MLP expansion, seq_len 2048, grad clip 0.3, warmdown 3000 iters, momentum warmup 0.92→0.99 over 1500 steps. 13,442 steps in 600s on 8xH100. Train-on-val enabled (organizer-approved).",
+  "date": "2026-03-20T08:00:00Z",
+  "val_loss": 2.05895758,
+  "val_bpb": 1.21943065,
+  "bytes_total": 15881832,
+  "bytes_code": 47642
+}
