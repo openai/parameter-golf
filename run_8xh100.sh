@@ -8,14 +8,16 @@ git checkout mtp-auxiliary-heads
 python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
 
 # Full submission run: 8xH100 SXM
+# Memory tokens + MTP + 10 layers + spectral init + weight decay + sliding window
 NUM_MEMORY_TOKENS=32 \
+NUM_LAYERS=10 \
 MTP_NUM_HEADS=2 \
 MTP_ALPHA=0.2 \
 MTP_ALPHA_DECAY=1 \
 MTP_HEAD_LR=0.008 \
 TRAIN_SEQ_LEN=2048 \
 EVAL_SEQ_LEN=1024 \
-EVAL_STRIDE=512 \
+EVAL_STRIDE=64 \
 FP16_EMBED_EXPORT=1 \
 RUN_ID=submission_8xh100 \
 DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
