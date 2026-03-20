@@ -9,7 +9,7 @@ python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
 
 # Full submission run: 8xH100 SXM
 # Memory tokens + MTP + 10 layers + spectral init + weight decay + sliding window
-NUM_MEMORY_TOKENS=32 \
+NUM_MEMORY_TOKENS=64 \
 NUM_LAYERS=10 \
 MTP_NUM_HEADS=2 \
 MTP_ALPHA=0.2 \

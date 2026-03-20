@@ -52,7 +52,7 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 2500))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
@@ -73,7 +73,7 @@ class Hyperparameters:
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.10))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
@@ -825,28 +825,9 @@ class GPT(nn.Module):
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-            # Spectral shaping: force a smooth singular value decay so the
-            # embedding starts with structured, low-rank-ish geometry rather
-            # than pure noise.  This helps the tied output head converge faster.
-            with torch.no_grad():
-                U, S, V = torch.linalg.svd(self.tok_emb.weight.data, full_matrices=False)
-                decay = S[0] * (1.0 / torch.arange(1, S.shape[0] + 1, dtype=S.dtype)) ** 0.5
-                self.tok_emb.weight.data = (U * decay[None, :]) @ V
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
-        # Graduated residual mixing: early layers lean on the raw embedding (x0)
-        # while deeper layers increasingly trust the evolved residual stream.
-        # This matches the intuition that early layers extract local features
-        # and later layers compose them — and it works well with memory tokens
-        # since the memory signal lives in x0.
-        num_layers = len(self.blocks)
-        for i, block in enumerate(self.blocks):
-            with torch.no_grad():
-                t = i / max(num_layers - 1, 1)
-                alpha = torch.sigmoid(torch.tensor(3.0 * (t - 0.5)))
-                block.resid_mix.data[0] = alpha * torch.ones(block.resid_mix.shape[1])
-                block.resid_mix.data[1] = (1 - alpha) * torch.ones(block.resid_mix.shape[1])
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         bsz, seqlen = input_ids.shape
