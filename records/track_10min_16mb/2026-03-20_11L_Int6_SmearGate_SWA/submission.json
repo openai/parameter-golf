@@ -1,0 +1,10 @@
+{
+  "name": "11L Int6 + SmearGate + SWA + AdamW WD (val_bpb=1.1400)",
+  "val_loss": 1.9267,
+  "val_bpb": 1.1400,
+  "bytes_total": 15951384,
+  "blurb": "11 layers with 3x MLP (1536), int6 per-row for attention+MLP, int8 for tied embedding. SmearGate + BigramHash(2048). Orthogonal init, Muon+AdamW WD=0.04, SWA ~7 checkpoint average. FlashAttention 2.8.3. Sliding window eval stride=64 with batched windows. Key finding: smaller batch (524K vs 786K) gives 40% more optimization steps at lower per-step cost, beating larger batches for total convergence.",
+  "author": "samuellarson",
+  "github_id": "samuellarson",
+  "date": "2026-03-20"
+}
