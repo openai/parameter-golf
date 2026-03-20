@@ -1,11 +1,11 @@
 {
   "author": "m0at",
   "github_id": "m0at",
-  "name": "Int6+zstd MLP1500 + FA3 + Sliding Window + QAT",
-  "blurb": "Int6 quantization on MLP/Q/V/proj + zstd compression fits 21.4M params in 16MB. MLP hidden=1500 (2.93x). Sliding window eval stride=64. FA3 Hopper attention. Post-training QAT reduces quant penalty. Train seq_len=2048.",
+  "name": "Int6+zstd MLP1488 + Sliding Window + QAT + Tuned LR",
+  "blurb": "Int6 quantization on MLP/Q/V/proj + zstd level 22 fits 21.3M params in 15.93MB. MLP hidden=1488. Sliding window eval stride=64. Post-training QAT. Tuned LRs: matrix=0.02, scalar=0.02, embed=0.03. Train seq_len=2048.",
   "date": "2026-03-19",
-  "val_loss": 1.98346841,
-  "val_bpb": 1.17472482,
-  "bytes_total": 15976719,
+  "val_loss": 1.96677131,
+  "val_bpb": 1.16483584,
+  "bytes_total": 15925577,
   "bytes_code": 64176
 }
