@@ -1,0 +1,17 @@
+{
+  "author": "Kshitiz",
+  "github_id": "kshitizz36",
+  "name": "SP-4096 + Sliding Window Eval",
+  "blurb": "SP-4096 tokenizer (0.30 tokens/byte vs 0.41) combined with stride-64 sliding window evaluation for better context utilization; 8x512 GQA with encoder-decoder skip connections.",
+  "date": "2026-03-19T12:00:00Z",
+  "val_loss": 2.73510678,
+  "val_bpb": 1.18883084,
+  "pre_quant_val_loss": 2.7763,
+  "pre_quant_val_bpb": 1.2067,
+  "step_stop": 14006,
+  "wallclock_seconds": 600.062,
+  "eval_time_seconds": 52.977,
+  "bytes_total": 15683958,
+  "bytes_model_int8_zlib": 15629714,
+  "bytes_code": 54244
+}
