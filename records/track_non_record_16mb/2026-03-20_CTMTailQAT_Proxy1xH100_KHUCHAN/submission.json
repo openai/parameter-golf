@@ -1,0 +1,11 @@
+{
+  "author": "Chanyoung Kim",
+  "github_id": "KHUCHAN",
+  "name": "CTM Tail QAT Proxy",
+  "blurb": "1xH100 proxy run for a causal CTM workspace + error-gated skip + export-matched tail QAT recipe on the published fineweb10B_sp1024 export. The exact logged run improves the local proxy winner to val_bpb 1.29167890, but the logged standalone artifact is 9,531 bytes over the 16,000,000-byte cap, so this folder is submitted as a non-record, in-progress snapshot.",
+  "date": "2026-03-20T00:00:00Z",
+  "val_loss": 2.18094572,
+  "val_bpb": 1.2916789,
+  "bytes_total": 16009531,
+  "bytes_code": 67788
+}
