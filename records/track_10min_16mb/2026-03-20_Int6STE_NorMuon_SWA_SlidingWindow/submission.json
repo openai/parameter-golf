@@ -3,12 +3,17 @@
   "date": "2026-03-20",
   "name": "Int6 STE + NorMuon + SWA + Sliding Window Eval",
   "author": "dexhunter",
+  "github_id": "dexhunter",
   "seed_results": {
     "1337": {"val_bpb": 1.16146, "steps": 12357, "ms_per_step": 48.55, "artifact_bytes": 15045740},
     "42":   {"val_bpb": 1.15935, "steps": 12351, "ms_per_step": 48.58, "artifact_bytes": 15053489},
     "7":    {"val_bpb": 1.15976, "steps": 12336, "ms_per_step": 48.69, "artifact_bytes": 15157415}
   },
+  "val_bpb": 1.16019,
+  "val_loss": null,
   "mean_val_bpb": 1.16019,
+  "bytes_total": 15085548,
+  "bytes_code": 54630,
   "artifact_bytes": 15085548,
   "code_bytes": 54630
 }
