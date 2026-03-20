@@ -77,7 +77,7 @@ class Hyperparameters:
     lora_rank = int(os.environ.get("LORA_RANK", 0))
     qat = bool(int(os.environ.get("QAT", "0")))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 256))
-    eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 1024))
+    eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 64))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
