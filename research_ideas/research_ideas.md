@@ -1,0 +1,3 @@
+knowing challenges like these, the way we efficiently retrain on interesting samplings and resampling may help a lot. -gk Mar 18
+new idea, learn what works from others and improve upon it. 
+new idea, not knowing anything so I can reinvent it from scratch...
