@@ -1,0 +1,20 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "Seq4096 Training + 10L + Sliding Window Eval (stride=64)",
+  "author": "shajalahamedcse",
+  "seed_results": {
+    "1337": {"val_bpb": 1.1900, "artifact_bytes": 15115793},
+    "42":   {"val_bpb": 1.1908, "artifact_bytes": 15128724},
+    "7":    {"val_bpb": 1.1888, "artifact_bytes": 15154068}
+  },
+  "mean_val_bpb": 1.1899,
+  "std_val_bpb": 0.0008,
+  "artifact_bytes": 15154068,
+  "key_changes": [
+    "train_seq_len=4096 (longer training context vs SOTA 1024)",
+    "num_layers=10",
+    "eval_stride=64 (sliding window evaluation)",
+    "warmdown_iters=3600"
+  ]
+}
