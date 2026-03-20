@@ -79,6 +79,7 @@ just download-data 1
 just mlx-smoke
 just mlx-train mlx_run 2000 524288 0 524288
 just autoresearch-mlx 5 1337
+just autoresearch-preset-mlx 5 1337 micro_smoke
 just autoresearch-preset-mlx 5 1337 small_fast
 just autoresearch-evolution-mlx 5 1337 6
 just autoresearch-code-mlx 5 1337 gelu_mlp
@@ -107,6 +108,17 @@ Each trial keeps the best configuration according to:
 - under the 16,000,000 byte artifact cap
 - successful end-to-end quantized roundtrip evaluation
 
+MLX-specific note:
+
+- `VAL_EVAL_MAX_SEQS=0` (or unset) evaluates the full fixed `fineweb_val_*` split and is the only setting that should be used for score claims.
+- Setting `VAL_EVAL_MAX_SEQS>0` truncates validation for speed and is intended only for local smoke loops and autoresearch exploration.
+- MLX quantized roundtrip validation runs in a follow-up `MLX_VALIDATE_ONLY=1` process after training writes the quantized artifact.
+
+Current scope note:
+
+- CUDA `train_gpt.py` remains the canonical leaderboard-oriented baseline path.
+- MLX-only fast-loop controls (`MLX_COMPILE_SANITY_ONLY`, `MLX_SKIP_VALIDATION`, `VAL_EVAL_MAX_SEQS`) are experimental iteration helpers and are not intended to redefine CUDA baseline behavior.
+
 Recommended order of use:
 
 1. Start on MLX with `preset` or `random` for cheap local iteration.
@@ -118,6 +130,7 @@ For Apple Silicon local iteration, start with:
 
 ```bash
 just autoresearch-mlx 5 1337
+just autoresearch-preset-mlx 5 1337 micro_smoke
 just autoresearch-preset-mlx 5 1337 small_fast
 ```
 

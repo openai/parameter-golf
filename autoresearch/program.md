@@ -23,6 +23,13 @@ Minimize held-out FineWeb validation loss indirectly through the challenge metri
 - Prefer simple changes that improve architecture or optimizer hyperparameters
 - Focus on changes that are plausible under the real 8xH100 budget
 
+## Metric integrity guardrails
+
+- Use full validation (`VAL_EVAL_MAX_SEQS=0` or unset) for any run you intend to compare against leaderboard/baseline scores.
+- Truncated validation (`VAL_EVAL_MAX_SEQS>0`) is for fast local smoke loops only.
+- On MLX, quantized roundtrip evaluation runs in a follow-up `MLX_VALIDATE_ONLY=1` process after the parent run writes the quantized artifact.
+- CUDA baseline behavior is intentionally unchanged; MLX fast-loop controls are scoped to local iteration.
+
 ## Search modes
 
 ### `random`
@@ -85,6 +92,7 @@ Additional artifacts:
 Local MLX:
 
 ```bash
+just autoresearch-preset-mlx 5 1337 micro_smoke
 just autoresearch-preset-mlx 5 1337 small_fast
 just autoresearch-mlx 5 1337
 just autoresearch-evolution-mlx 5 1337 6

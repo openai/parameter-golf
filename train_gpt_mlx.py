@@ -6,6 +6,7 @@ Hard stop: `train_gpt.py` and `train_gpt_mlx.py` must never be longer than 1500 
 """
 from __future__ import annotations
 
+import gc
 import glob
 import json
 import math
@@ -15,6 +16,7 @@ import sys
 import time
 import uuid
 import zlib
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
@@ -93,6 +95,9 @@ class Hyperparameters:
     out_dir: str = os.environ.get("OUT_DIR", "logs")
     mlx_compile_sanity_only: bool = bool(int(os.environ.get("MLX_COMPILE_SANITY_ONLY", "0")))
     mlx_skip_validation: bool = bool(int(os.environ.get("MLX_SKIP_VALIDATION", "0")))
+    mlx_validate_only: bool = bool(int(os.environ.get("MLX_VALIDATE_ONLY", "0")))
+    val_eval_max_seqs: int = int(os.environ.get("VAL_EVAL_MAX_SEQS", "0"))
+    mlx_eval_clear_cache: bool = bool(int(os.environ.get("MLX_EVAL_CLEAR_CACHE", "1")))
 
     @property
     def train_files(self) -> str:
@@ -782,6 +787,9 @@ def eval_val(
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    if args.mlx_eval_clear_cache:
+        gc.collect()
+        mx.clear_cache()
     val_batch_tokens = args.val_batch_size // args.grad_accum_steps
     if val_batch_tokens < args.train_seq_len:
         raise ValueError(
@@ -791,11 +799,12 @@ def eval_val(
         )
     val_batch_seqs = val_batch_tokens // args.train_seq_len
     total_seqs = (val_tokens.size - 1) // args.train_seq_len
-    total_loss = mx.array(0.0, dtype=mx.float32)
+    total_loss = 0.0
     total_tokens = 0.0
     total_bytes = 0.0
-    for batch_seq_start in range(0, total_seqs, val_batch_seqs):
-        batch_seq_end = min(batch_seq_start + val_batch_seqs, total_seqs)
+    eval_total_seqs = min(total_seqs, args.val_eval_max_seqs) if args.val_eval_max_seqs > 0 else total_seqs
+    for batch_seq_start in range(0, eval_total_seqs, val_batch_seqs):
+        batch_seq_end = min(batch_seq_start + val_batch_seqs, eval_total_seqs)
         raw_start = batch_seq_start * args.train_seq_len
         raw_end = batch_seq_end * args.train_seq_len + 1
         chunk = val_tokens[raw_start:raw_end]
@@ -804,7 +813,8 @@ def eval_val(
         x = mx.array(x_np, dtype=mx.int32)
         y = mx.array(y_np, dtype=mx.int32)
         chunk_token_count = float(y.size)
-        total_loss = total_loss + compiled_loss(x, y).astype(mx.float32) * chunk_token_count
+        batch_loss = float(compiled_loss(x, y).item())
+        total_loss += batch_loss * chunk_token_count
         prev_ids = x_np.reshape(-1)
         tgt_ids = y_np.reshape(-1)
         bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
@@ -813,12 +823,45 @@ def eval_val(
         ).astype(np.int16, copy=False)
         total_tokens += chunk_token_count
         total_bytes += float(bytes_np.astype(np.float64).sum())
-    total_loss = total_loss / total_tokens
-    mx.eval(total_loss)
-    val_loss = float(total_loss.item())
+    val_loss = total_loss / total_tokens
     bits_per_token = val_loss / math.log(2.0)
     val_bpb = bits_per_token * (total_tokens / total_bytes)
     return val_loss, val_bpb
+
+
+def run_quantized_roundtrip_eval(
+    args: Hyperparameters,
+    log: Callable[[str], None],
+    model: GPT,
+    compiled_loss,
+    val_tokens: np.ndarray,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    out_dir: Path,
+) -> None:
+    log("mlx_validate_only:starting quantized roundtrip evaluation")
+    quant_path = out_dir / f"{args.run_id}_mlx_model.int8.ptz"
+    with quant_path.open("rb") as f:
+        quant_blob_disk = f.read()
+    quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
+    model.update(tree_unflatten(list(quant_flat.items())))
+    gc.collect()
+    mx.clear_cache()
+    quant_file_bytes = quant_path.stat().st_size
+    log(f"serialized_model_int8_zlib:{quant_file_bytes} bytes")
+    q_t0 = time.perf_counter()
+    q_val_loss, q_val_bpb = eval_val(
+        args,
+        compiled_loss,
+        val_tokens,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+    )
+    q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
+    log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
+    log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
 # -----------------------------
 # TRAINING
@@ -856,12 +899,13 @@ def main() -> None:
         with logfile.open("a", encoding="utf-8") as f:
             print(msg, file=f)
 
-    code = Path(__file__).read_text(encoding="utf-8")
-    log(code, console=False)
-    log("=" * 100, console=False)
-    log(f"Running Python {sys.version}", console=False)
-    log(f"Running MLX {mx.__version__}", console=False)
-    log("=" * 100, console=False)
+    if not args.mlx_validate_only:
+        code = Path(__file__).read_text(encoding="utf-8")
+        log(code, console=False)
+        log("=" * 100, console=False)
+        log(f"Running Python {sys.version}", console=False)
+        log(f"Running MLX {mx.__version__}", console=False)
+        log("=" * 100, console=False)
 
     if not args.tie_embeddings:
         raise NotImplementedError("train_gpt_mlx.py only supports tied embeddings")
@@ -921,6 +965,20 @@ def main() -> None:
         outputs=model.state,
     )
 
+    if args.mlx_validate_only:
+        run_quantized_roundtrip_eval(
+            args,
+            log,
+            model,
+            compiled_loss,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            out_dir,
+        )
+        return
+
     # Print config once so logs are self-describing.
     n_params = sum(int(np.prod(p.shape)) for _, p in tree_flatten(model.parameters()))
     log(f"run_id:{args.run_id}")
@@ -963,6 +1021,8 @@ def main() -> None:
         f"linear_weight:{model.blocks[0].attn.c_q.weight.dtype} "
         f"skip_weights:{model.skip_weights.dtype}"
     )
+    if args.val_eval_max_seqs > 0:
+        log(f"val_eval:truncated max_seqs:{args.val_eval_max_seqs}")
 
     if args.mlx_compile_sanity_only:
         # Fast compile validation path to confirm model/loss/grad graphs run without
@@ -1105,22 +1165,10 @@ def main() -> None:
         f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
     )
 
-    with quant_path.open("rb") as f:
-        quant_blob_disk = f.read()
-    quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
-    model.update(tree_unflatten(list(quant_flat.items())))
-    q_t0 = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args,
-        compiled_loss,
-        val_tokens,
-        base_bytes_lut,
-        has_leading_space_lut,
-        is_boundary_token_lut,
-    )
-    q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
-    log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
-    log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    eval_env = os.environ.copy()
+    eval_env["MLX_VALIDATE_ONLY"] = "1"
+    eval_env["PYTHONUNBUFFERED"] = "1"
+    subprocess.run([sys.executable, str(Path(__file__))], cwd=Path(__file__).resolve().parent, env=eval_env, check=True)
 
 
 if __name__ == "__main__":

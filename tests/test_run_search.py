@@ -170,6 +170,16 @@ class RunSearchPersistenceTests(unittest.TestCase):
 
         self.assertTrue(all(token <= 65_536 for token in mlx_batch_tokens))
         self.assertEqual("32768", run_search.PRESETS["mlx"]["baseline"]["TRAIN_BATCH_TOKENS"])
+        self.assertEqual("384", run_search.PRESETS["mlx"]["small_fast"]["MODEL_DIM"])
+        self.assertEqual("512", run_search.PRESETS["mlx"]["small_fast"]["TRAIN_SEQ_LEN"])
+        self.assertEqual("65536", run_search.PRESETS["mlx"]["small_fast"]["TRAIN_BATCH_TOKENS"])
+        self.assertEqual("120", run_search.PRESETS["mlx"]["small_fast"]["MAX_WALLCLOCK_SECONDS"])
+        self.assertEqual("2", run_search.PRESETS["mlx"]["micro_smoke"]["WARMUP_STEPS"])
+        self.assertEqual("256", run_search.PRESETS["mlx"]["micro_smoke"]["VAL_EVAL_MAX_SEQS"])
+        self.assertEqual("128", run_search.PRESETS["mlx"]["micro_smoke"]["MODEL_DIM"])
+        self.assertEqual("64", run_search.PRESETS["mlx"]["micro_smoke"]["TRAIN_SEQ_LEN"])
+        self.assertEqual("64", run_search.PRESETS["mlx"]["micro_smoke"]["TRAIN_BATCH_TOKENS"])
+        self.assertEqual("1", run_search.PRESETS["mlx"]["micro_smoke"]["GRAD_ACCUM_STEPS"])
 
     def test_parse_metrics_cuda_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -211,6 +221,27 @@ class RunSearchPersistenceTests(unittest.TestCase):
         self.assertEqual(654 + len("print('x')\n".encode("utf-8")), total_bytes)
         self.assertEqual(654, quantized_model_bytes)
         self.assertEqual(98765, model_params)
+
+    def test_parse_metrics_mlx_combined_parent_child_log_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            script_path = Path(tmpdir) / "train_gpt_mlx.py"
+            script_path.write_text("print('x')\n", encoding="utf-8")
+            log_text = "\n".join(
+                [
+                    "val_eval:truncated max_seqs:64",
+                    "serialized_model_int8_zlib:700 bytes",
+                    "logs/mlx_contract_check.txt",
+                    "mlx_validate_only:starting quantized roundtrip evaluation",
+                    "serialized_model_int8_zlib:654 bytes",
+                    "final_int8_zlib_roundtrip val_loss:3.2 val_bpb:1.2 eval_time:123ms",
+                    "final_int8_zlib_roundtrip_exact val_loss:3.10000000 val_bpb:1.10000000",
+                ]
+            )
+            _, _, total_bytes, quantized_model_bytes, _ = run_search.parse_metrics(
+                log_text, "mlx", script_path
+            )
+        self.assertEqual(654, quantized_model_bytes)
+        self.assertEqual(654 + len("print('x')\n".encode("utf-8")), total_bytes)
 
     def test_parse_metrics_missing_final_raises(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -278,6 +309,60 @@ class RunSearchPersistenceTests(unittest.TestCase):
                     rng=random.Random(1337),
                     max_attempts=2,
                 )
+
+    def test_build_command_and_run_trial_use_unbuffered_output_for_mlx(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            log_dir = root / "logs" / "autoresearch"
+            trials_dir = log_dir / "trials"
+            workbench_dir = log_dir / "workbench"
+            results_tsv = log_dir / "results.tsv"
+            best_json = log_dir / "best_config.json"
+            script_path = root / "train_gpt_mlx.py"
+            script_path.write_text("print('candidate')\n", encoding="utf-8")
+
+            patches = [
+                mock.patch.object(run_search, "ROOT", root),
+                mock.patch.object(run_search, "LOG_DIR", log_dir),
+                mock.patch.object(run_search, "TRIALS_DIR", trials_dir),
+                mock.patch.object(run_search, "WORKBENCH_DIR", workbench_dir),
+                mock.patch.object(run_search, "RESULTS_TSV", results_tsv),
+                mock.patch.object(run_search, "BEST_JSON", best_json),
+                mock.patch.object(run_search, "TRAIN_MLX", script_path),
+                mock.patch.object(run_search, "TRAIN_CUDA", root / "train_gpt.py"),
+            ]
+
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+                run_search.ensure_dirs()
+                command = run_search.build_command("mlx", script_path, 1)
+                self.assertEqual(["uv", "run", "python3", "-u", str(script_path)], command)
+
+                captured_env: dict[str, str] = {}
+
+                def fake_run(command, cwd, env, stdout, stderr, text):  # noqa: ANN001
+                    captured_env.update(env)
+                    class Completed:
+                        returncode = 0
+                    stdout.write(
+                        "model_params:1\n"
+                        "serialized_model_int8_zlib:1 bytes\n"
+                        "final_int8_zlib_roundtrip_exact val_loss:1.0 val_bpb:1.0\n"
+                    )
+                    return Completed()
+
+                with mock.patch.object(run_search.subprocess, "run", side_effect=fake_run):
+                    result = run_search.run_trial(
+                        index=0,
+                        backend="mlx",
+                        mode="preset",
+                        cfg=run_search.normalize_config("mlx", run_search.PRESETS["mlx"]["small_fast"]),
+                        nproc=1,
+                        description="preset:small_fast",
+                        preset="small_fast",
+                    )
+
+            self.assertEqual("1", captured_env["PYTHONUNBUFFERED"])
+            self.assertEqual("ok", result.status)
 
 
 if __name__ == "__main__":

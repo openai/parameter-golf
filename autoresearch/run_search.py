@@ -45,6 +45,8 @@ CONFIG_KEYS = [
     "VAL_BATCH_SIZE",
     "ITERATIONS",
     "MAX_WALLCLOCK_SECONDS",
+    "WARMUP_STEPS",
+    "VAL_EVAL_MAX_SEQS",
     "TIED_EMBED_LR",
     "MATRIX_LR",
     "SCALAR_LR",
@@ -235,6 +237,32 @@ PRESETS: dict[str, dict[str, dict[str, str]]] = {
             "WARMDOWN_ITERS": "800",
             "TIED_EMBED_INIT_STD": "0.007",
             "GRAD_ACCUM_STEPS": "8",
+            "MLX_MAX_MICROBATCH_TOKENS": "4096",
+        },
+        "micro_smoke": {
+            "VOCAB_SIZE": "1024",
+            "NUM_LAYERS": "2",
+            "MODEL_DIM": "128",
+            "NUM_HEADS": "2",
+            "NUM_KV_HEADS": "1",
+            "MLP_MULT": "2",
+            "TRAIN_SEQ_LEN": "64",
+            "TRAIN_BATCH_TOKENS": "64",
+            "VAL_BATCH_SIZE": "64",
+            "GRAD_ACCUM_STEPS": "1",
+            "ITERATIONS": "400",
+            "MAX_WALLCLOCK_SECONDS": "8",
+            "WARMUP_STEPS": "2",
+            "VAL_EVAL_MAX_SEQS": "256",
+            "TIED_EMBED_LR": "0.06",
+            "MATRIX_LR": "0.04",
+            "SCALAR_LR": "0.04",
+            "MUON_MOMENTUM": "0.92",
+            "MUON_BACKEND_STEPS": "4",
+            "QK_GAIN_INIT": "1.25",
+            "LOGIT_SOFTCAP": "30.0",
+            "WARMDOWN_ITERS": "800",
+            "TIED_EMBED_INIT_STD": "0.007",
             "MLX_MAX_MICROBATCH_TOKENS": "4096",
         },
         "balanced": {
@@ -500,7 +528,7 @@ def crossover_config(a: dict[str, str], b: dict[str, str], backend: str, rng: ra
 def build_command(backend: str, script_path: Path, nproc: int) -> list[str]:
     if backend == "cuda":
         return ["uv", "run", "torchrun", "--standalone", f"--nproc_per_node={nproc}", str(script_path)]
-    return ["uv", "run", "python3", str(script_path)]
+    return ["uv", "run", "python3", "-u", str(script_path)]
 
 
 def parse_metrics(log_text: str, backend: str, script_path: Path) -> tuple[float, float, int, int, int]:
@@ -715,6 +743,7 @@ def run_trial(
     env = os.environ.copy()
     env.update(cfg)
     env["RUN_ID"] = run_id
+    env["PYTHONUNBUFFERED"] = "1"
     log_path = LOG_DIR / f"{run_id}.log"
     started = time.time()
     with log_path.open("w", encoding="utf-8") as handle:
