@@ -708,7 +708,7 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         targets = target_ids.reshape(-1)
-        enc_loss = torch.zeros((), device=x.device)
+        enc_loss = torch.zeros((), device=x.device, dtype=x.dtype)
 
         for _pass in range(2):
             skips: list[Tensor] = []
@@ -719,8 +719,7 @@ class GPT(nn.Module):
                 x = F.rms_norm(x, (x.size(-1),))
                 continue
             enc_repr = F.rms_norm(x, (x.size(-1),)).reshape(-1, x.size(-1))
-            if self.tie_embeddings:
-                enc_logits = self.logit_softcap * torch.tanh(F.linear(enc_repr, self.tok_emb.weight) / self.logit_softcap)
+            enc_logits = self.logit_softcap * torch.tanh(F.linear(enc_repr, self.tok_emb.weight) / self.logit_softcap)
             enc_loss = F.cross_entropy(enc_logits.float(), targets, reduction="mean")
             for i in range(self.num_decoder_layers):
                 if skips:
@@ -736,7 +735,8 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         final_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
-        return final_loss + 0.1 * enc_loss
+        aux_weight = 0.1 if self.training else 0.0
+        return final_loss + aux_weight * enc_loss
 
 
 # -----------------------------
