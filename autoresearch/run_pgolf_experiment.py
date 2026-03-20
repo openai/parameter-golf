@@ -33,6 +33,10 @@ class ControllerError(RuntimeError):
     pass
 
 
+class InfrastructureUnavailableError(ControllerError):
+    pass
+
+
 @dataclass(frozen=True)
 class Config:
     proposer_model: str
@@ -76,6 +80,7 @@ class Config:
     remote_log_dir: Path
     prep_queue_depth: int
     prep_poll_seconds: float
+    infrastructure_retry_schedule: tuple[float, ...]
     codex_binary: str
 
 
@@ -437,6 +442,26 @@ def grep_last(pattern: str, path: Path) -> str:
     return last
 
 
+def detect_remote_infrastructure_issue(log_path: Path) -> str:
+    if not log_path.exists():
+        return ""
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    patterns = [
+        ("CUDA is required", "remote worker reported that CUDA is required"),
+        (
+            "CUDA initialization failed",
+            "remote worker failed CUDA initialization and likely had no usable GPU",
+        ),
+        ("No CUDA GPUs are available", "remote worker reported no CUDA GPUs available"),
+        ("Found no NVIDIA driver", "remote worker reported no NVIDIA driver"),
+        ("No devices were found", "remote worker reported no GPU devices"),
+    ]
+    for needle, reason in patterns:
+        if needle in text:
+            return reason
+    return ""
+
+
 def resolve_repo_path(repo_dir: Path, raw_value: str) -> Path:
     path = Path(raw_value)
     if path.is_absolute():
@@ -517,6 +542,8 @@ class PgolfController:
         self.ready_queue: queue.Queue[PreparedCandidate] = queue.Queue(
             maxsize=config.prep_queue_depth
         )
+        self.retry_candidate: PreparedCandidate | None = None
+        self.infrastructure_retry_attempts: dict[str, int] = {}
         self.prep_thread = threading.Thread(
             target=self._prep_worker,
             name="pgolf-prep",
@@ -586,7 +613,26 @@ class PgolfController:
                         run_dir=run_dir,
                         experiment_commit=experiment_commit,
                     )
+                except InfrastructureUnavailableError as exc:
+                    retry_after = self._next_infrastructure_retry_delay(candidate.candidate_id)
+                    self._record_run_infrastructure_retry(
+                        candidate=candidate,
+                        iteration=iteration,
+                        run_id=run_id,
+                        run_dir=run_dir,
+                        experiment_commit=experiment_commit,
+                        error=str(exc),
+                        retry_after_seconds=retry_after,
+                    )
+                    ensure_clean_git(self.config.repo_dir)
+                    self.next_iteration += 1
+                    self.next_run_number += 1
+                    self.retry_candidate = candidate
+                    if self.stop_event.wait(retry_after):
+                        break
+                    continue
                 except (ControllerError, subprocess.CalledProcessError) as exc:
+                    self._clear_infrastructure_retry_state(candidate.candidate_id)
                     self._record_run_error(
                         candidate=candidate,
                         iteration=iteration,
@@ -604,6 +650,7 @@ class PgolfController:
                     self.next_iteration += 1
                     self.next_run_number += 1
                     continue
+                self._clear_infrastructure_retry_state(candidate.candidate_id)
                 try:
                     decision = self._run_post_review(
                         candidate=candidate,
@@ -685,7 +732,23 @@ class PgolfController:
                 run_dir=run_dir,
                 experiment_commit=base_commit,
             )
+        except InfrastructureUnavailableError as exc:
+            retry_after = self._next_infrastructure_retry_delay('baseline')
+            self._record_baseline_infrastructure_retry(
+                iteration=iteration,
+                run_id=run_id,
+                run_dir=run_dir,
+                experiment_commit=base_commit,
+                error=str(exc),
+                retry_after_seconds=retry_after,
+            )
+            ensure_clean_git(self.config.repo_dir)
+            self.next_iteration += 1
+            self.next_run_number += 1
+            self.stop_event.wait(retry_after)
+            return
         except (ControllerError, subprocess.CalledProcessError) as exc:
+            self._clear_infrastructure_retry_state('baseline')
             self._record_baseline_error(
                 iteration=iteration,
                 run_id=run_id,
@@ -702,6 +765,7 @@ class PgolfController:
             self.next_iteration += 1
             self.next_run_number += 1
             return
+        self._clear_infrastructure_retry_state('baseline')
         try:
             decision = self._run_baseline_post_review(
                 iteration=iteration,
@@ -1007,6 +1071,12 @@ class PgolfController:
 
     def _wait_for_candidate(self) -> PreparedCandidate | None:
         while not self.stop_event.is_set():
+            if self.retry_candidate is not None:
+                candidate = self.retry_candidate
+                self.retry_candidate = None
+                self._update_candidate_status(candidate.manifest_path, "dequeued")
+                self.logger.log(f"candidate_retry candidate_id={candidate.candidate_id}")
+                return candidate
             if self._deadline_reached() and self.ready_queue.empty():
                 return None
             try:
@@ -1193,6 +1263,9 @@ class PgolfController:
             stdin_text=stdin_text,
         )
         if exit_code != 0:
+            issue = detect_remote_infrastructure_issue(remote_log)
+            if issue:
+                raise InfrastructureUnavailableError(issue)
             raise ControllerError(
                 f"remote training failed for run_id={run_id} with exit code {exit_code}"
             )
@@ -1200,6 +1273,9 @@ class PgolfController:
         metrics_line = grep_last("final_int8_zlib_roundtrip_exact", remote_log)
         size_line = grep_last("Total submission size int8+zlib:", remote_log)
         if not metrics_line:
+            issue = detect_remote_infrastructure_issue(remote_log)
+            if issue:
+                raise InfrastructureUnavailableError(issue)
             raise ControllerError(f"missing final metric line in {remote_log}")
         val_loss_match = re.search(r"val_loss:([0-9.]+)", metrics_line)
         val_bpb_match = re.search(r"val_bpb:([0-9.]+)", metrics_line)
@@ -1264,6 +1340,9 @@ class PgolfController:
             env=env,
         )
         if exit_code != 0:
+            issue = detect_remote_infrastructure_issue(local_log)
+            if issue:
+                raise InfrastructureUnavailableError(issue)
             raise ControllerError(
                 f"local training failed for run_id={run_id} with exit code {exit_code}"
             )
@@ -1271,6 +1350,9 @@ class PgolfController:
         metrics_line = grep_last("final_int8_zlib_roundtrip_exact", local_log)
         size_line = grep_last("Total submission size int8+zlib:", local_log)
         if not metrics_line:
+            issue = detect_remote_infrastructure_issue(local_log)
+            if issue:
+                raise InfrastructureUnavailableError(issue)
             raise ControllerError(f"missing final metric line in {local_log}")
         val_loss_match = re.search(r"val_loss:([0-9.]+)", metrics_line)
         val_bpb_match = re.search(r"val_bpb:([0-9.]+)", metrics_line)
@@ -1487,6 +1569,84 @@ class PgolfController:
         with self.reviewed_base_lock:
             self.reviewed_base_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
 
+    def _record_run_infrastructure_retry(
+        self,
+        *,
+        candidate: PreparedCandidate,
+        iteration: int,
+        run_id: str,
+        run_dir: Path,
+        experiment_commit: str,
+        error: str,
+        retry_after_seconds: float,
+    ) -> None:
+        self.logger.log(
+            "run_infrastructure_retry "
+            f"run_id={run_id} retry_after={retry_after_seconds} "
+            f"error={sanitize_tsv(error)}"
+        )
+        self._revert_experiment_commit_if_active(
+            run_id=run_id,
+            experiment_commit=experiment_commit,
+        )
+        remote_log = self.config.remote_log_dir / f"{run_id}.log"
+        if remote_log.exists():
+            copy_file(remote_log, run_dir / "remote.log")
+
+        timestamp = iso_now()
+        note_parts = [
+            "stage=experiment",
+            f"error={error}",
+            f"retry_after_seconds={retry_after_seconds}",
+            f"hypothesis={candidate.spec.hypothesis}",
+            f"expected_signals={candidate.spec.expected_signals}",
+            f"pre_review_round={candidate.approved_round}",
+        ]
+        if candidate.spec.notes:
+            note_parts.insert(0, candidate.spec.notes)
+        results_row = (
+            f"{iteration}\t{timestamp}\t{self.config.proposer_model}\t"
+            f"{self.config.post_review_model}\t{run_id}\tinfra_retry\t\t\t\t"
+            f"{experiment_commit}\t{sanitize_tsv(candidate.spec.idea)}\t"
+            f"{sanitize_tsv(candidate.spec.extra_env_text)}\t"
+            f"{sanitize_tsv(' | '.join(note_parts))}\n"
+        )
+        with self.config.results_file.open("a", encoding="utf-8") as fh:
+            fh.write(results_row)
+        reviews_row = (
+            f"{iteration}\t{timestamp}\t{self.config.post_review_model}\t{run_id}\t"
+            f"infra_retry\t{experiment_commit}\t"
+            f"{sanitize_tsv('infrastructure unavailable; retry scheduled')}\t"
+            f"{sanitize_tsv(error)}\n"
+        )
+        with self.config.reviews_file.open("a", encoding="utf-8") as fh:
+            fh.write(reviews_row)
+
+        retry_manifest = {
+            "run_id": run_id,
+            "candidate_id": candidate.candidate_id,
+            "iteration": iteration,
+            "experiment_commit": experiment_commit,
+            "candidate_manifest": str(candidate.manifest_path),
+            "decision": "infra_retry",
+            "failure_stage": "experiment",
+            "error": error,
+            "retry_after_seconds": retry_after_seconds,
+            "idea": candidate.spec.idea,
+            "hypothesis": candidate.spec.hypothesis,
+            "expected_signals": candidate.spec.expected_signals,
+            "notes": candidate.spec.notes,
+            "extra_env": candidate.spec.extra_env_text,
+            "remote_log": str(remote_log) if remote_log.exists() else "",
+            "timestamp": timestamp,
+        }
+        write_json(run_dir / "infrastructure_retry.json", retry_manifest)
+        self._append_history({"event": "run_infrastructure_retry", **retry_manifest})
+        self._update_candidate_status(candidate.manifest_path, "approved")
+        self._commit_ledger_updates(run_id=run_id, decision="infra_retry")
+        with self.reviewed_base_lock:
+            self.reviewed_base_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
+
     def _record_baseline_error(
         self,
         *,
@@ -1557,6 +1717,74 @@ class PgolfController:
         write_json(run_dir / "failure.json", failure_manifest)
         self._append_history({"event": "baseline_failed", **failure_manifest})
         self._commit_ledger_updates(run_id=run_id, decision="error")
+        with self.reviewed_base_lock:
+            self.reviewed_base_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
+
+    def _record_baseline_infrastructure_retry(
+        self,
+        *,
+        iteration: int,
+        run_id: str,
+        run_dir: Path,
+        experiment_commit: str,
+        error: str,
+        retry_after_seconds: float,
+    ) -> None:
+        self.logger.log(
+            "baseline_infrastructure_retry "
+            f"run_id={run_id} retry_after={retry_after_seconds} "
+            f"error={sanitize_tsv(error)}"
+        )
+        remote_log = self.config.remote_log_dir / f"{run_id}.log"
+        if remote_log.exists():
+            copy_file(remote_log, run_dir / "remote.log")
+
+        timestamp = iso_now()
+        note_parts = [
+            BASELINE_NOTES,
+            "stage=experiment",
+            f"error={error}",
+            f"retry_after_seconds={retry_after_seconds}",
+            f"hypothesis={BASELINE_HYPOTHESIS}",
+            f"expected_signals={BASELINE_EXPECTED_SIGNALS}",
+        ]
+        results_row = (
+            f"{iteration}\t{timestamp}\tbaseline\t{self.config.post_review_model}\t"
+            f"{run_id}\tinfra_retry\t\t\t\t{experiment_commit}\t{BASELINE_IDEA}\t"
+            f"{sanitize_tsv(self.config.base_extra_env_text)}\t"
+            f"{sanitize_tsv(' | '.join(note_parts))}\n"
+        )
+        with self.config.results_file.open("a", encoding="utf-8") as fh:
+            fh.write(results_row)
+        reviews_row = (
+            f"{iteration}\t{timestamp}\t{self.config.post_review_model}\t{run_id}\t"
+            f"infra_retry\t{experiment_commit}\t"
+            f"{sanitize_tsv('baseline infrastructure unavailable; retry scheduled')}\t"
+            f"{sanitize_tsv(error)}\n"
+        )
+        with self.config.reviews_file.open("a", encoding="utf-8") as fh:
+            fh.write(reviews_row)
+
+        retry_manifest = {
+            "run_type": "baseline",
+            "run_id": run_id,
+            "iteration": iteration,
+            "experiment_commit": experiment_commit,
+            "decision": "infra_retry",
+            "failure_stage": "experiment",
+            "error": error,
+            "retry_after_seconds": retry_after_seconds,
+            "idea": BASELINE_IDEA,
+            "hypothesis": BASELINE_HYPOTHESIS,
+            "expected_signals": BASELINE_EXPECTED_SIGNALS,
+            "notes": BASELINE_NOTES,
+            "extra_env": self.config.base_extra_env_text,
+            "remote_log": str(remote_log) if remote_log.exists() else "",
+            "timestamp": timestamp,
+        }
+        write_json(run_dir / "infrastructure_retry.json", retry_manifest)
+        self._append_history({"event": "baseline_infrastructure_retry", **retry_manifest})
+        self._commit_ledger_updates(run_id=run_id, decision="infra_retry")
         with self.reviewed_base_lock:
             self.reviewed_base_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
 
@@ -1697,6 +1925,23 @@ class PgolfController:
         )
         message = f"chore(autoresearch): record {decision} for {run_id}"
         run_cmd(["git", "commit", "-m", message], cwd=self.config.repo_dir)
+
+    def _revert_experiment_commit_if_active(self, *, run_id: str, experiment_commit: str) -> None:
+        active_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
+        if active_commit != experiment_commit:
+            return
+        self.logger.log(f"revert_start run_id={run_id} commit={experiment_commit}")
+        run_cmd(["git", "revert", "--no-edit", experiment_commit], cwd=self.config.repo_dir)
+
+    def _next_infrastructure_retry_delay(self, key: str) -> float:
+        attempt = self.infrastructure_retry_attempts.get(key, 0)
+        schedule = self.config.infrastructure_retry_schedule
+        delay = schedule[min(attempt, len(schedule) - 1)]
+        self.infrastructure_retry_attempts[key] = attempt + 1
+        return delay
+
+    def _clear_infrastructure_retry_state(self, key: str) -> None:
+        self.infrastructure_retry_attempts.pop(key, None)
 
     def _cleanup_unused_candidates(self) -> None:
         while True:
@@ -2176,6 +2421,12 @@ def build_config(args: argparse.Namespace) -> Config:
         remote_log_dir=env_path("REMOTE_LOG_DIR", "remote_logs"),
         prep_queue_depth=max(1, args.prep_queue_depth),
         prep_poll_seconds=max(1.0, float(os.environ.get("PREP_POLL_SECONDS", "5"))),
+        infrastructure_retry_schedule=tuple(
+            max(1.0, float(part.strip()))
+            for part in os.environ.get("INFRASTRUCTURE_RETRY_SCHEDULE", "3,30,300").split(',')
+            if part.strip()
+        )
+        or (3.0, 30.0, 300.0),
         codex_binary=os.environ.get("CODEX_BIN", "codex"),
     )
     if config.execution_mode == "remote" and not config.remote_host:
