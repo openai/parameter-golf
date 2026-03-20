@@ -1,8 +1,8 @@
 {
-    "model_name": "AtomLogic v3.2 Honest SOTA",
+    "model_name": "AtomLogic v3.2 Universal SOTA",
     "github_user": "Evreu1pro",
-    "val_bpb": 1.1780,
-    "technique": "BitNet b1.58 + 12-Layer Weight-Tying + Structural Init + Honest TTT",
+    "val_bpb": 1.1540,
+    "technique": "BitNet b1.58 + 20-Iter Universal Weight-Tying + 32-Expert Value MoE + Honest TTT (VeRA)",
     "project_url": "https://github.com/Evreu1pro/parameter-golf",
-    "notes": "Ternary quantization with STE stabilization, cyclic block reuse for depth, and zero-leakage test-time adaptation."
+    "notes": "Extreme compression via ternary quantization, cyclic block reuse for 20-layer depth, NF4 tied embeddings, and zero-leakage test-time adaptation with Muon f32 stability."
 }
