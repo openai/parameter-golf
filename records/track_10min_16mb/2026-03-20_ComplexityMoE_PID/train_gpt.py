@@ -1094,6 +1094,12 @@ def main() -> None:
     torch.cuda.manual_seed_all(args.seed)
     # torch.backends.cudnn.deterministic removed — too slow
 
+    # Auto-download data if not present
+    if not glob.glob(args.train_files) or not glob.glob(args.val_files):
+        dl_script = os.path.join(os.path.dirname(__file__), "data", "cached_challenge_fineweb.py")
+        if os.path.isfile(dl_script):
+            log0("Data not found, downloading...")
+            subprocess.run([sys.executable, dl_script, "--variant", "sp1024"], check=True)
     if not args.tokenizer_path.endswith(".model"):
         raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
     sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
