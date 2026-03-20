@@ -552,11 +552,22 @@ MX_DTYPE_FROM_NAME = {
     "bfloat16": mx.bfloat16,
 }
 
-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
+INT8_KEEP_FLOAT_MAX_NUMEL = int(os.environ.get("INT8_KEEP_FLOAT_MAX_NUMEL", 65_536))
 INT8_KEEP_FLOAT_STORE_DTYPE = np.float16
 INT8_PER_ROW_SCALE_DTYPE = np.float16
-INT8_CLIP_PERCENTILE = 99.99984
+INT8_GROUP_SIZE = int(os.environ.get("INT8_GROUP_SIZE", 64))
+INT8_CLIP_PERCENTILE = float(os.environ.get("INT8_CLIP_PERCENTILE", 99.99984))
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+INT8_OUTLIER_COLS = int(os.environ.get("INT8_OUTLIER_COLS", 0))
+INT8_OUTLIER_MIN_ROWS = int(os.environ.get("INT8_OUTLIER_MIN_ROWS", 256))
+INT8_OUTLIER_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "INT8_OUTLIER_NAME_PATTERNS",
+        "tok_emb,lm_head,c_q,c_k,c_v,proj,fc",
+    ).split(",")
+    if pattern
+)
 
 
 def _np_float32(arr: mx.array) -> np.ndarray:
@@ -572,22 +583,57 @@ def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str
     return np.ascontiguousarray(np.array(arr, copy=True))
 
 
-def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
+def maybe_extract_outlier_columns(name: str, f32: np.ndarray) -> tuple[np.ndarray, dict[str, np.ndarray] | None]:
+    if (
+        INT8_OUTLIER_COLS <= 0
+        or f32.ndim != 2
+        or f32.shape[0] < INT8_OUTLIER_MIN_ROWS
+        or f32.shape[1] <= INT8_OUTLIER_COLS
+        or not any(pattern in name for pattern in INT8_OUTLIER_NAME_PATTERNS)
+    ):
+        return f32, None
+    col_score = np.mean(np.square(f32, dtype=np.float32), axis=0, dtype=np.float32)
+    topk = min(INT8_OUTLIER_COLS, int(col_score.shape[0]))
+    if topk <= 0:
+        return f32, None
+    idx = np.ascontiguousarray(np.argsort(col_score)[-topk:].astype(np.int32, copy=False))
+    keep = np.ascontiguousarray(f32[:, idx].astype(INT8_KEEP_FLOAT_STORE_DTYPE, copy=False))
+    work = np.array(f32, copy=True)
+    work[:, idx] = 0.0
+    return work, {"indices": idx, "values": keep}
+
+
+def quantize_float_array(name: str, arr: mx.array) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray] | None]:
     f32 = _np_float32(arr)
+    outlier_cols: dict[str, np.ndarray] | None = None
     if f32.ndim == 2:
-        # Matrices get one scale per row, which usually tracks output-channel
-        # ranges much better than a single tensor-wide scale.
-        clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((f32.shape[0],), dtype=np.float32)
+        f32, outlier_cols = maybe_extract_outlier_columns(name, f32)
+        # Matrices use groupwise per-row scales over the input dimension. This keeps
+        # the int8 payload size unchanged while spending a small amount of extra
+        # scale metadata to reduce quantization error on especially sensitive layers.
+        rows, cols = f32.shape
+        group_size = max(INT8_GROUP_SIZE, 1)
+        if cols % group_size == 0:
+            groups = cols // group_size
+            view = f32.reshape(rows, groups, group_size)
+            clip_abs = np.quantile(np.abs(view), INT8_CLIP_Q, axis=2) if f32.size else np.empty((rows, groups), dtype=np.float32)
+            clipped = np.clip(view, -clip_abs[..., None], clip_abs[..., None])
+            scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
+            q = np.clip(np.round(clipped / scale[..., None]), -127, 127).astype(np.int8, copy=False)
+            return np.ascontiguousarray(q.reshape(rows, cols)), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False)), outlier_cols
+
+        # Fallback for matrices whose width is not divisible by the requested group size.
+        clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((rows,), dtype=np.float32)
         clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
         scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
         q = np.clip(np.round(clipped / scale[:, None]), -127, 127).astype(np.int8, copy=False)
-        return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False))
+        return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False)), outlier_cols
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(np.quantile(np.abs(f32).reshape(-1), INT8_CLIP_Q)) if f32.size else 0.0
     scale = np.array(clip_abs / 127.0 if clip_abs > 0.0 else 1.0, dtype=np.float32)
     q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -127, 127).astype(np.int8, copy=False)
-    return np.ascontiguousarray(q), scale
+    return np.ascontiguousarray(q), scale, None
 
 
 def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
@@ -597,8 +643,17 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
     passthrough: dict[str, np.ndarray] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
+    outlier_cols: dict[str, dict[str, np.ndarray]] = {}
     stats = dict.fromkeys(
-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        (
+            "param_count",
+            "num_tensors",
+            "num_float_tensors",
+            "num_nonfloat_tensors",
+            "baseline_tensor_bytes",
+            "int8_payload_bytes",
+            "outlier_col_bytes",
+        ),
         0,
     )
     for name, arr in flat_state.items():
@@ -620,13 +675,20 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_array(arr)
-        if s.ndim > 0:
+        q, s, cols = quantize_float_array(name, arr)
+        if s.ndim == 2:
+            qmeta[name] = {"scheme": "per_row_group", "axis": 0, "group_size": INT8_GROUP_SIZE}
+        elif s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(arr.dtype).split(".")[-1]
         stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
+        if cols is not None:
+            outlier_cols[name] = cols
+            extra_bytes = sum(int(v.nbytes) for v in cols.values())
+            stats["int8_payload_bytes"] += extra_bytes
+            stats["outlier_col_bytes"] += extra_bytes
     obj: dict[str, object] = {
         "__quant_format__": "int8_clean_per_row_v1",
         "quantized": quantized,
@@ -636,6 +698,8 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
     }
     if qmeta:
         obj["qmeta"] = qmeta
+    if outlier_cols:
+        obj["outlier_cols"] = outlier_cols
     if passthrough_orig_dtypes:
         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
     return obj, stats
@@ -644,16 +708,31 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
 def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.array]:
     out: dict[str, mx.array] = {}
     qmeta = quant_obj.get("qmeta", {})
+    outlier_cols = quant_obj.get("outlier_cols", {})
     passthrough_orig_dtypes = quant_obj.get("passthrough_orig_dtypes", {})
     for name, q in quant_obj["quantized"].items():
         q_np = np.asarray(q, dtype=np.int8)
         dtype_name = quant_obj["dtypes"][name]
         scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
-        if qmeta.get(name, {}).get("scheme") == "per_row" or scale.ndim > 0:
+        scheme = qmeta.get(name, {}).get("scheme")
+        if scheme == "per_row_group" and scale.ndim == 2:
+            group_size = int(qmeta.get(name, {}).get("group_size", q_np.shape[1]))
+            rows, cols = q_np.shape
+            groups = scale.shape[1]
+            if groups * group_size != cols:
+                raise ValueError(
+                    f"Grouped scale metadata mismatch for {name}: groups={groups} group_size={group_size} cols={cols}"
+                )
+            out_arr = q_np.astype(np.float32).reshape(rows, groups, group_size) * scale[..., None]
+            out_arr = out_arr.reshape(rows, cols)
+        elif scheme == "per_row" or scale.ndim > 0:
             # Broadcast the saved row scale back across trailing dimensions.
             out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
         else:
             out_arr = q_np.astype(np.float32) * float(scale)
+        cols = outlier_cols.get(name)
+        if cols is not None:
+            out_arr[:, np.asarray(cols["indices"], dtype=np.int64)] = np.asarray(cols["values"], dtype=np.float32)
         out[name] = mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[dtype_name])
     for name, arr in quant_obj["passthrough"].items():
         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
@@ -1078,7 +1157,8 @@ def main() -> None:
     ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
     log(
         f"serialized_model_int8_zlib:{quant_file_bytes} bytes "
-        f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
+        f"(payload:{quant_stats['int8_payload_bytes']} outlier_cols:{quant_stats['outlier_col_bytes']} "
+        f"raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
     )
 
     with quant_path.open("rb") as f:

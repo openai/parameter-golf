@@ -1,0 +1,723 @@
+diff --git a/train_gpt.py b/train_gpt.py
+index 651beb2..7c487a2 100644
+--- a/train_gpt.py
++++ b/train_gpt.py
+@@ -301,11 +301,22 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
+     ).split(",")
+     if pattern
+ )
+-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
++INT8_KEEP_FLOAT_MAX_NUMEL = int(os.environ.get("INT8_KEEP_FLOAT_MAX_NUMEL", 65_536))
+ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
+ INT8_PER_ROW_SCALE_DTYPE = torch.float16
+-INT8_CLIP_PERCENTILE = 99.99984
++INT8_GROUP_SIZE = int(os.environ.get("INT8_GROUP_SIZE", 64))
++INT8_CLIP_PERCENTILE = float(os.environ.get("INT8_CLIP_PERCENTILE", 99.99984))
+ INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
++INT8_OUTLIER_COLS = int(os.environ.get("INT8_OUTLIER_COLS", 0))
++INT8_OUTLIER_MIN_ROWS = int(os.environ.get("INT8_OUTLIER_MIN_ROWS", 256))
++INT8_OUTLIER_NAME_PATTERNS = tuple(
++    pattern
++    for pattern in os.environ.get(
++        "INT8_OUTLIER_NAME_PATTERNS",
++        "tok_emb,lm_head,c_q,c_k,c_v,proj,fc",
++    ).split(",")
++    if pattern
++)
+ 
+ def tensor_nbytes(t: Tensor) -> int:
+     return int(t.numel()) * int(t.element_size())
+@@ -318,26 +329,66 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
+         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
+     return t
+ 
+-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
++def maybe_extract_outlier_columns(name: str, t32: Tensor) -> tuple[Tensor, dict[str, Tensor] | None]:
++    if (
++        INT8_OUTLIER_COLS <= 0
++        or t32.ndim != 2
++        or t32.shape[0] < INT8_OUTLIER_MIN_ROWS
++        or t32.shape[1] <= INT8_OUTLIER_COLS
++        or not any(pattern in name for pattern in INT8_OUTLIER_NAME_PATTERNS)
++    ):
++        return t32, None
++    col_score = t32.square().mean(dim=0)
++    topk = min(INT8_OUTLIER_COLS, int(col_score.numel()))
++    if topk <= 0:
++        return t32, None
++    idx = torch.topk(col_score, k=topk, largest=True, sorted=True).indices.to(dtype=torch.int32)
++    keep = t32[:, idx].to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
++    work = t32.clone()
++    work[:, idx] = 0.0
++    return work, {"indices": idx.contiguous(), "values": keep}
++
++
++def quantize_float_tensor(name: str, t: Tensor) -> tuple[Tensor, Tensor, dict[str, Tensor] | None]:
+     t32 = t.float()
++    outlier_cols: dict[str, Tensor] | None = None
+     if t32.ndim == 2:
+-        # Matrices get one scale per row, which usually tracks output-channel
+-        # ranges much better than a single tensor-wide scale.
++        t32, outlier_cols = maybe_extract_outlier_columns(name, t32)
++        # Matrices use groupwise per-row scales over the input dimension. This keeps
++        # the int8 payload size unchanged while spending a small amount of extra
++        # scale metadata to reduce quantization error on especially sensitive layers
++        # like embeddings and projection matrices.
++        rows, cols = t32.shape
++        group_size = max(INT8_GROUP_SIZE, 1)
++        if cols % group_size == 0:
++            groups = cols // group_size
++            view = t32.view(rows, groups, group_size)
++            clip_abs = (
++                torch.quantile(view.abs(), INT8_CLIP_Q, dim=2)
++                if t32.numel()
++                else torch.empty((rows, groups), dtype=torch.float32)
++            )
++            scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
++            clipped = torch.maximum(torch.minimum(view, clip_abs[..., None]), -clip_abs[..., None])
++            q = torch.clamp(torch.round(clipped / scale[..., None]), -127, 127).to(torch.int8).contiguous()
++            return q.view(rows, cols), scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous(), outlier_cols
++
++        # Fallback for matrices whose width is not divisible by the requested group size.
+         clip_abs = (
+             torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+             if t32.numel()
+-            else torch.empty((t32.shape[0],), dtype=torch.float32)
++            else torch.empty((rows,), dtype=torch.float32)
+         )
+         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+         scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+         q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
++        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous(), outlier_cols
+ 
+     # Vectors / scalars use a simpler per-tensor scale.
+     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
+     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+-    return q, scale
++    return q, scale, None
+ 
+ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+     # Single supported clean-script export format:
+@@ -351,8 +402,17 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+     passthrough: dict[str, Tensor] = {}
+     passthrough_orig_dtypes: dict[str, str] = {}
+     qmeta: dict[str, dict[str, object]] = {}
++    outlier_cols: dict[str, dict[str, Tensor]] = {}
+     stats = dict.fromkeys(
+-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
++        (
++            "param_count",
++            "num_tensors",
++            "num_float_tensors",
++            "num_nonfloat_tensors",
++            "baseline_tensor_bytes",
++            "int8_payload_bytes",
++            "outlier_col_bytes",
++        ),
+         0,
+     )
+ 
+@@ -377,13 +437,20 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+             continue
+ 
+         stats["num_float_tensors"] += 1
+-        q, s = quantize_float_tensor(t)
+-        if s.ndim > 0:
++        q, s, cols = quantize_float_tensor(name, t)
++        if s.ndim == 2:
++            qmeta[name] = {"scheme": "per_row_group", "axis": 0, "group_size": INT8_GROUP_SIZE}
++        elif s.ndim > 0:
+             qmeta[name] = {"scheme": "per_row", "axis": 0}
+         quantized[name] = q
+         scales[name] = s
+         dtypes[name] = str(t.dtype).removeprefix("torch.")
+         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
++        if cols is not None:
++            outlier_cols[name] = cols
++            extra_bytes = sum(tensor_nbytes(v) for v in cols.values())
++            stats["int8_payload_bytes"] += extra_bytes
++            stats["outlier_col_bytes"] += extra_bytes
+ 
+     obj: dict[str, object] = {
+         "__quant_format__": "int8_clean_per_row_v1",
+@@ -394,6 +461,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+     }
+     if qmeta:
+         obj["qmeta"] = qmeta
++    if outlier_cols:
++        obj["outlier_cols"] = outlier_cols
+     if passthrough_orig_dtypes:
+         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
+     return obj, stats
+@@ -401,17 +470,34 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
+     out: dict[str, Tensor] = {}
+     qmeta = obj.get("qmeta", {})
++    outlier_cols = obj.get("outlier_cols", {})
+     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
+     for name, q in obj["quantized"].items():
+         dtype = getattr(torch, obj["dtypes"][name])
+         s = obj["scales"][name]
+-        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
++        scheme = qmeta.get(name, {}).get("scheme")
++        if scheme == "per_row_group" and s.ndim == 2:
++            group_size = int(qmeta.get(name, {}).get("group_size", q.shape[1]))
++            rows, cols = q.shape
++            groups = s.shape[1]
++            if groups * group_size != cols:
++                raise ValueError(
++                    f"Grouped scale metadata mismatch for {name}: groups={groups} group_size={group_size} cols={cols}"
++                )
++            qf = q.float().view(rows, groups, group_size)
++            sf = s.to(dtype=torch.float32)[..., None]
++            out_t = (qf * sf).view(rows, cols).to(dtype=dtype).contiguous()
++        elif scheme == "per_row" or s.ndim > 0:
+             s = s.to(dtype=torch.float32)
+             # Broadcast the saved row scale back across trailing dimensions.
+-            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
++            out_t = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+         else:
+             scale = float(s.item())
+-            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
++            out_t = (q.float() * scale).to(dtype=dtype).contiguous()
++        cols = outlier_cols.get(name)
++        if cols is not None:
++            out_t[:, cols["indices"].long()] = cols["values"].to(dtype=dtype)
++        out[name] = out_t
+     for name, t in obj["passthrough"].items():
+         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
+         out_t = t.detach().to("cpu").contiguous()
+@@ -1087,7 +1173,8 @@ def main() -> None:
+         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+         log0(
+             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
++            f"(payload:{quant_stats['int8_payload_bytes']} outlier_cols:{quant_stats['outlier_col_bytes']} "
++            f"raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
+         )
+         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+ 
+diff --git a/train_gpt_mlx.py b/train_gpt_mlx.py
+index 7ab9bb6..803daca 100644
+--- a/train_gpt_mlx.py
++++ b/train_gpt_mlx.py
+@@ -548,11 +548,22 @@ MX_DTYPE_FROM_NAME = {
+     "bfloat16": mx.bfloat16,
+ }
+ 
+-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
++INT8_KEEP_FLOAT_MAX_NUMEL = int(os.environ.get("INT8_KEEP_FLOAT_MAX_NUMEL", 65_536))
+ INT8_KEEP_FLOAT_STORE_DTYPE = np.float16
+ INT8_PER_ROW_SCALE_DTYPE = np.float16
+-INT8_CLIP_PERCENTILE = 99.99984
++INT8_GROUP_SIZE = int(os.environ.get("INT8_GROUP_SIZE", 64))
++INT8_CLIP_PERCENTILE = float(os.environ.get("INT8_CLIP_PERCENTILE", 99.99984))
+ INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
++INT8_OUTLIER_COLS = int(os.environ.get("INT8_OUTLIER_COLS", 0))
++INT8_OUTLIER_MIN_ROWS = int(os.environ.get("INT8_OUTLIER_MIN_ROWS", 256))
++INT8_OUTLIER_NAME_PATTERNS = tuple(
++    pattern
++    for pattern in os.environ.get(
++        "INT8_OUTLIER_NAME_PATTERNS",
++        "tok_emb,lm_head,c_q,c_k,c_v,proj,fc",
++    ).split(",")
++    if pattern
++)
+ 
+ 
+ def _np_float32(arr: mx.array) -> np.ndarray:
+@@ -568,22 +579,57 @@ def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str
+     return np.ascontiguousarray(np.array(arr, copy=True))
+ 
+ 
+-def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
++def maybe_extract_outlier_columns(name: str, f32: np.ndarray) -> tuple[np.ndarray, dict[str, np.ndarray] | None]:
++    if (
++        INT8_OUTLIER_COLS <= 0
++        or f32.ndim != 2
++        or f32.shape[0] < INT8_OUTLIER_MIN_ROWS
++        or f32.shape[1] <= INT8_OUTLIER_COLS
++        or not any(pattern in name for pattern in INT8_OUTLIER_NAME_PATTERNS)
++    ):
++        return f32, None
++    col_score = np.mean(np.square(f32, dtype=np.float32), axis=0, dtype=np.float32)
++    topk = min(INT8_OUTLIER_COLS, int(col_score.shape[0]))
++    if topk <= 0:
++        return f32, None
++    idx = np.ascontiguousarray(np.argsort(col_score)[-topk:].astype(np.int32, copy=False))
++    keep = np.ascontiguousarray(f32[:, idx].astype(INT8_KEEP_FLOAT_STORE_DTYPE, copy=False))
++    work = np.array(f32, copy=True)
++    work[:, idx] = 0.0
++    return work, {"indices": idx, "values": keep}
++
++
++def quantize_float_array(name: str, arr: mx.array) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray] | None]:
+     f32 = _np_float32(arr)
++    outlier_cols: dict[str, np.ndarray] | None = None
+     if f32.ndim == 2:
+-        # Matrices get one scale per row, which usually tracks output-channel
+-        # ranges much better than a single tensor-wide scale.
+-        clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((f32.shape[0],), dtype=np.float32)
++        f32, outlier_cols = maybe_extract_outlier_columns(name, f32)
++        # Matrices use groupwise per-row scales over the input dimension. This keeps
++        # the int8 payload size unchanged while spending a small amount of extra
++        # scale metadata to reduce quantization error on especially sensitive layers.
++        rows, cols = f32.shape
++        group_size = max(INT8_GROUP_SIZE, 1)
++        if cols % group_size == 0:
++            groups = cols // group_size
++            view = f32.reshape(rows, groups, group_size)
++            clip_abs = np.quantile(np.abs(view), INT8_CLIP_Q, axis=2) if f32.size else np.empty((rows, groups), dtype=np.float32)
++            clipped = np.clip(view, -clip_abs[..., None], clip_abs[..., None])
++            scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
++            q = np.clip(np.round(clipped / scale[..., None]), -127, 127).astype(np.int8, copy=False)
++            return np.ascontiguousarray(q.reshape(rows, cols)), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False)), outlier_cols
++
++        # Fallback for matrices whose width is not divisible by the requested group size.
++        clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((rows,), dtype=np.float32)
+         clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
+         scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
+         q = np.clip(np.round(clipped / scale[:, None]), -127, 127).astype(np.int8, copy=False)
+-        return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False))
++        return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False)), outlier_cols
+ 
+     # Vectors / scalars use a simpler per-tensor scale.
+     clip_abs = float(np.quantile(np.abs(f32).reshape(-1), INT8_CLIP_Q)) if f32.size else 0.0
+     scale = np.array(clip_abs / 127.0 if clip_abs > 0.0 else 1.0, dtype=np.float32)
+     q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -127, 127).astype(np.int8, copy=False)
+-    return np.ascontiguousarray(q), scale
++    return np.ascontiguousarray(q), scale, None
+ 
+ 
+ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
+@@ -593,8 +639,17 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
+     passthrough: dict[str, np.ndarray] = {}
+     passthrough_orig_dtypes: dict[str, str] = {}
+     qmeta: dict[str, dict[str, object]] = {}
++    outlier_cols: dict[str, dict[str, np.ndarray]] = {}
+     stats = dict.fromkeys(
+-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
++        (
++            "param_count",
++            "num_tensors",
++            "num_float_tensors",
++            "num_nonfloat_tensors",
++            "baseline_tensor_bytes",
++            "int8_payload_bytes",
++            "outlier_col_bytes",
++        ),
+         0,
+     )
+     for name, arr in flat_state.items():
+@@ -616,13 +671,20 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
+             continue
+ 
+         stats["num_float_tensors"] += 1
+-        q, s = quantize_float_array(arr)
+-        if s.ndim > 0:
++        q, s, cols = quantize_float_array(name, arr)
++        if s.ndim == 2:
++            qmeta[name] = {"scheme": "per_row_group", "axis": 0, "group_size": INT8_GROUP_SIZE}
++        elif s.ndim > 0:
+             qmeta[name] = {"scheme": "per_row", "axis": 0}
+         quantized[name] = q
+         scales[name] = s
+         dtypes[name] = str(arr.dtype).split(".")[-1]
+         stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
++        if cols is not None:
++            outlier_cols[name] = cols
++            extra_bytes = sum(int(v.nbytes) for v in cols.values())
++            stats["int8_payload_bytes"] += extra_bytes
++            stats["outlier_col_bytes"] += extra_bytes
+     obj: dict[str, object] = {
+         "__quant_format__": "int8_clean_per_row_v1",
+         "quantized": quantized,
+@@ -632,6 +694,8 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
+     }
+     if qmeta:
+         obj["qmeta"] = qmeta
++    if outlier_cols:
++        obj["outlier_cols"] = outlier_cols
+     if passthrough_orig_dtypes:
+         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
+     return obj, stats
+@@ -640,16 +704,31 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
+ def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.array]:
+     out: dict[str, mx.array] = {}
+     qmeta = quant_obj.get("qmeta", {})
++    outlier_cols = quant_obj.get("outlier_cols", {})
+     passthrough_orig_dtypes = quant_obj.get("passthrough_orig_dtypes", {})
+     for name, q in quant_obj["quantized"].items():
+         q_np = np.asarray(q, dtype=np.int8)
+         dtype_name = quant_obj["dtypes"][name]
+         scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
+-        if qmeta.get(name, {}).get("scheme") == "per_row" or scale.ndim > 0:
++        scheme = qmeta.get(name, {}).get("scheme")
++        if scheme == "per_row_group" and scale.ndim == 2:
++            group_size = int(qmeta.get(name, {}).get("group_size", q_np.shape[1]))
++            rows, cols = q_np.shape
++            groups = scale.shape[1]
++            if groups * group_size != cols:
++                raise ValueError(
++                    f"Grouped scale metadata mismatch for {name}: groups={groups} group_size={group_size} cols={cols}"
++                )
++            out_arr = q_np.astype(np.float32).reshape(rows, groups, group_size) * scale[..., None]
++            out_arr = out_arr.reshape(rows, cols)
++        elif scheme == "per_row" or scale.ndim > 0:
+             # Broadcast the saved row scale back across trailing dimensions.
+             out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
+         else:
+             out_arr = q_np.astype(np.float32) * float(scale)
++        cols = outlier_cols.get(name)
++        if cols is not None:
++            out_arr[:, np.asarray(cols["indices"], dtype=np.int64)] = np.asarray(cols["values"], dtype=np.float32)
+         out[name] = mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[dtype_name])
+     for name, arr in quant_obj["passthrough"].items():
+         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
+@@ -1070,7 +1149,8 @@ def main() -> None:
+     ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+     log(
+         f"serialized_model_int8_zlib:{quant_file_bytes} bytes "
+-        f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
++        f"(payload:{quant_stats['int8_payload_bytes']} outlier_cols:{quant_stats['outlier_col_bytes']} "
++        f"raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
+     )
+ 
+     with quant_path.open("rb") as f:
+diff --git a/Users/antdx/clawd/tmp/parameter-golf/RUNS.md b/Users/antdx/clawd/tmp/parameter-golf/RUNS.md
+new file mode 100644
+index 0000000..d076924
+--- /dev/null
++++ b/Users/antdx/clawd/tmp/parameter-golf/RUNS.md
+@@ -0,0 +1,106 @@
++# RUNS
++
++These are the 3 highest-value CUDA experiments for the current repo state. They isolate whether the new quantization path helps enough on artifact size / roundtrip `val_bpb` to justify carrying it forward.
++
++## Common setup
++
++Assumptions:
++- repo lives at `/workspace/parameter-golf` on the remote box
++- dataset/tokenizer were downloaded with `python3 data/cached_challenge_fineweb.py --variant sp1024`
++- Python deps from the official Parameter Golf image are already present
++
++Common env:
++
++```bash
++export REPO_DIR=/workspace/parameter-golf
++export DATA_PATH=$REPO_DIR/data/datasets/fineweb10B_sp1024
++export TOKENIZER_PATH=$REPO_DIR/data/tokenizers/fineweb_1024_bpe.model
++export VOCAB_SIZE=1024
++export NPROC_PER_NODE=1   # use 8 for final 8xH100 timing later
++export MAX_WALLCLOCK_SECONDS=600
++export VAL_LOSS_EVERY=200
++export TRAIN_LOG_EVERY=100
++```
++
++Each run writes a log under `logs/remote_runs/` and should end with:
++- `Serialized model int8+zlib:`
++- `Total submission size int8+zlib:`
++- `final_int8_zlib_roundtrip val_loss:... val_bpb:...`
++
++Primary comparison metrics:
++1. `final_int8_zlib_roundtrip val_bpb` (lower is better)
++2. `Total submission size int8+zlib` (must stay safely under 16,000,000 bytes)
++3. `outlier_cols:` bytes inside the int8 payload log line
++4. effective train speed (`step_avg`, whether the 10 min cap truncates training too early)
++
++## Experiment 1: control / old behavior inside new code
++
++Purpose: recover the pre-change per-row quantization behavior as the control.
++
++```bash
++cd "$REPO_DIR"
++RUN_ID=control_per_row \
++INT8_GROUP_SIZE=999999 \
++INT8_OUTLIER_COLS=0 \
++INT8_CLIP_PERCENTILE=99.99984 \
++DATA_PATH="$DATA_PATH" TOKENIZER_PATH="$TOKENIZER_PATH" VOCAB_SIZE=$VOCAB_SIZE \
++MAX_WALLCLOCK_SECONDS=$MAX_WALLCLOCK_SECONDS VAL_LOSS_EVERY=$VAL_LOSS_EVERY TRAIN_LOG_EVERY=$TRAIN_LOG_EVERY \
++torchrun --standalone --nproc_per_node=$NPROC_PER_NODE train_gpt.py
++```
++
++Go if this reproduces the expected baseline neighborhood (~1.2 `val_bpb`, artifact under cap). Stop if the run is already badly off, because later comparisons will be noisy.
++
++## Experiment 2: grouped scales only
++
++Purpose: test whether per-row groupwise scales buy better size/quality tradeoff without extra outlier payload.
++
++```bash
++cd "$REPO_DIR"
++RUN_ID=group64 \
++INT8_GROUP_SIZE=64 \
++INT8_OUTLIER_COLS=0 \
++INT8_CLIP_PERCENTILE=99.99984 \
++DATA_PATH="$DATA_PATH" TOKENIZER_PATH="$TOKENIZER_PATH" VOCAB_SIZE=$VOCAB_SIZE \
++MAX_WALLCLOCK_SECONDS=$MAX_WALLCLOCK_SECONDS VAL_LOSS_EVERY=$VAL_LOSS_EVERY TRAIN_LOG_EVERY=$TRAIN_LOG_EVERY \
++torchrun --standalone --nproc_per_node=$NPROC_PER_NODE train_gpt.py
++```
++
++Go if either:
++- `val_bpb` improves by at least `0.002` vs control with submission size still < `15.8MB`, or
++- submission size drops by at least `100KB` with `val_bpb` regression <= `0.001`
++
++Stop if `val_bpb` worsens by > `0.003` and size is not meaningfully better.
++
++## Experiment 3: grouped scales + saved outlier columns
++
++Purpose: spend a little payload on the most sensitive columns to see if the quality recovered per extra byte is worth it.
++
++```bash
++cd "$REPO_DIR"
++RUN_ID=group64_outliers8 \
++INT8_GROUP_SIZE=64 \
++INT8_OUTLIER_COLS=8 \
++INT8_OUTLIER_MIN_ROWS=256 \
++INT8_OUTLIER_NAME_PATTERNS=tok_emb,lm_head,c_q,c_k,c_v,proj,fc \
++INT8_CLIP_PERCENTILE=99.99984 \
++DATA_PATH="$DATA_PATH" TOKENIZER_PATH="$TOKENIZER_PATH" VOCAB_SIZE=$VOCAB_SIZE \
++MAX_WALLCLOCK_SECONDS=$MAX_WALLCLOCK_SECONDS VAL_LOSS_EVERY=$VAL_LOSS_EVERY TRAIN_LOG_EVERY=$TRAIN_LOG_EVERY \
++torchrun --standalone --nproc_per_node=$NPROC_PER_NODE train_gpt.py
++```
++
++Go if `val_bpb` beats Experiment 2 by at least `0.0015` while staying below `15.9MB` total submission size. Stop if `outlier_cols` adds noticeable bytes but `val_bpb` barely moves (`<0.0008`).
++
++## Recommended order
++
++1. `control_per_row`
++2. `group64`
++3. `group64_outliers8`
++
++If `group64` wins clearly, skip more outlier sweeps and move straight to a small 8-GPU timing confirmation. If `group64_outliers8` wins, the next sweep should be only `INT8_OUTLIER_COLS in {4, 8, 16}`.
++
++## Fast result extraction
++
++```bash
++cd "$REPO_DIR"
++./scripts/run_remote_experiment.sh summary logs/remote_runs/*.log
++```
+diff --git a/Users/antdx/clawd/tmp/parameter-golf/PACKAGING.md b/Users/antdx/clawd/tmp/parameter-golf/PACKAGING.md
+new file mode 100644
+index 0000000..cc31b9e
+--- /dev/null
++++ b/Users/antdx/clawd/tmp/parameter-golf/PACKAGING.md
+@@ -0,0 +1,74 @@
++# PACKAGING
++
++This repo is still based on upstream `openai/parameter-golf`, with only two code files modified:
++- `train_gpt.py`
++- `train_gpt_mlx.py`
++
++## What changed vs upstream
++
++The changes are all in the post-training int8 export / roundtrip path:
++
++1. `INT8_GROUP_SIZE` is now configurable from the environment.
++   - If a matrix width is divisible by the group size, export uses grouped per-row scales.
++   - If not divisible, it falls back to the previous per-row scale behavior.
++
++2. `INT8_CLIP_PERCENTILE` is now configurable from the environment.
++
++3. Optional outlier-column preservation was added.
++   - `INT8_OUTLIER_COLS`
++   - `INT8_OUTLIER_MIN_ROWS`
++   - `INT8_OUTLIER_NAME_PATTERNS`
++   
++   Matching 2D tensors can keep their top-energy columns in fp16 while zeroing them out before int8 quantization.
++
++4. Export stats now report `outlier_cols:` bytes so the extra payload is visible in logs.
++
++5. Matching logic was implemented in both PyTorch and MLX so local MLX iteration and CUDA runs stay aligned.
++
++## How to verify artifact-size and `val_bpb`
++
++Run one of the commands from `RUNS.md` or the helper script.
++
++In the log, capture these lines:
++
++```text
++Serialized model int8+zlib: ...
++Total submission size int8+zlib: ...
++final_int8_zlib_roundtrip val_loss:... val_bpb:...
++```
++
++What to check:
++- `Total submission size int8+zlib` must be `< 16000000`
++- `final_int8_zlib_roundtrip val_bpb` is the score to compare across experiments
++- `outlier_cols:` should justify itself with a real `val_bpb` gain
++
++## Useful one-liners
++
++Artifact size and roundtrip score from a single log:
++
++```bash
++grep -E 'Serialized model int8\+zlib:|Total submission size int8\+zlib:|final_int8_zlib_roundtrip ' logs/remote_runs/<run>.log
++```
++
++Patch for transfer:
++
++```bash
++git diff > handoff.patch
++```
++
++Branch-ready check:
++
++```bash
++git status --short
++git diff --stat
++```
++
++## Minimal handoff contents
++
++To move this work elsewhere, copy:
++- `train_gpt.py`
++- `train_gpt_mlx.py`
++- `RUNS.md`
++- `PACKAGING.md`
++- `scripts/run_remote_experiment.sh`
++- optionally `handoff.patch`
+diff --git a/Users/antdx/clawd/tmp/parameter-golf/BRANCH_READY_SUMMARY.md b/Users/antdx/clawd/tmp/parameter-golf/BRANCH_READY_SUMMARY.md
+new file mode 100644
+index 0000000..05bb9df
+--- /dev/null
++++ b/Users/antdx/clawd/tmp/parameter-golf/BRANCH_READY_SUMMARY.md
+@@ -0,0 +1,31 @@
++# BRANCH READY SUMMARY
++
++Base: `origin/main` from `https://github.com/openai/parameter-golf.git`
++
++Modified tracked files:
++- `train_gpt.py`
++- `train_gpt_mlx.py`
++
++Added handoff files:
++- `RUNS.md`
++- `PACKAGING.md`
++- `scripts/run_remote_experiment.sh`
++- `handoff.patch`
++
++Suggested transfer flow:
++
++```bash
++cd parameter-golf
++git checkout -b quant-grouping-handoff
++# copy files in, then:
++git add train_gpt.py train_gpt_mlx.py RUNS.md PACKAGING.md scripts/run_remote_experiment.sh
++# optionally keep handoff.patch out of the branch
++```
++
++Quick verification after transfer:
++
++```bash
++bash -n scripts/run_remote_experiment.sh
++python3 -m py_compile train_gpt.py train_gpt_mlx.py
++git status --short
++```
+diff --git a/Users/antdx/clawd/tmp/parameter-golf/scripts/run_remote_experiment.sh b/Users/antdx/clawd/tmp/parameter-golf/scripts/run_remote_experiment.sh
+new file mode 100755
+index 0000000..8a65681
+--- /dev/null
++++ b/Users/antdx/clawd/tmp/parameter-golf/scripts/run_remote_experiment.sh
+@@ -0,0 +1,100 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++usage() {
++  cat <<'EOF'
++Usage:
++  scripts/run_remote_experiment.sh <control|group64|group64_outliers8>
++  scripts/run_remote_experiment.sh summary <log1> [log2 ...]
++
++Environment overrides:
++  REPO_DIR=/workspace/parameter-golf
++  DATA_PATH=$REPO_DIR/data/datasets/fineweb10B_sp1024
++  TOKENIZER_PATH=$REPO_DIR/data/tokenizers/fineweb_1024_bpe.model
++  VOCAB_SIZE=1024
++  NPROC_PER_NODE=1
++  MAX_WALLCLOCK_SECONDS=600
++  VAL_LOSS_EVERY=200
++  TRAIN_LOG_EVERY=100
++EOF
++}
++
++summary() {
++  for log in "$@"; do
++    echo "===== ${log} ====="
++    grep -E 'Serialized model int8\+zlib:|Total submission size int8\+zlib:|final_int8_zlib_roundtrip ' "$log" || true
++    echo
++  done
++}
++
++if [[ $# -lt 1 ]]; then
++  usage
++  exit 1
++fi
++
++MODE="$1"
++shift || true
++
++if [[ "$MODE" == "summary" ]]; then
++  if [[ $# -lt 1 ]]; then
++    usage
++    exit 1
++  fi
++  summary "$@"
++  exit 0
++fi
++
++REPO_DIR="${REPO_DIR:-/workspace/parameter-golf}"
++DATA_PATH="${DATA_PATH:-$REPO_DIR/data/datasets/fineweb10B_sp1024}"
++TOKENIZER_PATH="${TOKENIZER_PATH:-$REPO_DIR/data/tokenizers/fineweb_1024_bpe.model}"
++VOCAB_SIZE="${VOCAB_SIZE:-1024}"
++NPROC_PER_NODE="${NPROC_PER_NODE:-1}"
++MAX_WALLCLOCK_SECONDS="${MAX_WALLCLOCK_SECONDS:-600}"
++VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-200}"
++TRAIN_LOG_EVERY="${TRAIN_LOG_EVERY:-100}"
++
++mkdir -p "$REPO_DIR/logs/remote_runs"
++cd "$REPO_DIR"
++
++case "$MODE" in
++  control)
++    RUN_ID="control_per_row"
++    export INT8_GROUP_SIZE=999999
++    export INT8_OUTLIER_COLS=0
++    export INT8_CLIP_PERCENTILE=99.99984
++    ;;
++  group64)
++    RUN_ID="group64"
++    export INT8_GROUP_SIZE=64
++    export INT8_OUTLIER_COLS=0
++    export INT8_CLIP_PERCENTILE=99.99984
++    ;;
++  group64_outliers8)
++    RUN_ID="group64_outliers8"
++    export INT8_GROUP_SIZE=64
++    export INT8_OUTLIER_COLS=8
++    export INT8_OUTLIER_MIN_ROWS=256
++    export INT8_OUTLIER_NAME_PATTERNS='tok_emb,lm_head,c_q,c_k,c_v,proj,fc'
++    export INT8_CLIP_PERCENTILE=99.99984
++    ;;
++  *)
++    usage
++    exit 1
++    ;;
++esac
++
++STAMP="$(date +%Y%m%d_%H%M%S)"
++LOG="logs/remote_runs/${STAMP}_${RUN_ID}.log"
++
++echo "mode=$MODE run_id=$RUN_ID log=$LOG"
++echo "repo=$REPO_DIR data=$DATA_PATH nproc=$NPROC_PER_NODE"
++
++export RUN_ID DATA_PATH TOKENIZER_PATH VOCAB_SIZE MAX_WALLCLOCK_SECONDS VAL_LOSS_EVERY TRAIN_LOG_EVERY
++
++set -x
++torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" train_gpt.py 2>&1 | tee "$LOG"
++set +x
++
++echo
++echo "Summary from $LOG"
++grep -E 'Serialized model int8\+zlib:|Total submission size int8\+zlib:|final_int8_zlib_roundtrip ' "$LOG" || true
