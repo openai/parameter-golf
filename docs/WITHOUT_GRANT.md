@@ -36,6 +36,8 @@ You do not need a score to start review prep:
 4. Commit and `git push -u origin submission/your-name`
 5. Open a PR to `openai/parameter-golf` — mark as draft until `train.log` and `submission.json` metrics are filled
 
+**This repo’s draft PR (pending H100 `train.log`):** [openai/parameter-golf#223](https://github.com/openai/parameter-golf/pull/223) (branch `submission/allinone-smeargate-int6qat-slidingwindow` on fork `0xjaishy/parameter-golf`).
+
 ## 4. Cheap GPU smoke (optional)
 
 Rent a **single** H100 or A100 for an hour on RunPod (paid, not grant) to catch CUDA-only bugs (DDP, compile, NCCL) before an 8-GPU run.
