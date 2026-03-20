@@ -5,7 +5,9 @@ Final submission score: `val_bpb:1.01558307` (`val_loss:2.28798722`) after the i
 Additional supporting seeds now included:
 - `seed=1338`: `val_bpb:1.04330173` (`val_loss:2.35043404`)
 - `seed=1339`: `val_bpb:1.03281422` (`val_loss:2.32680692`)
+- `seed=1340` (clean rerun): `val_bpb:1.01452726` (`val_loss:2.28560860`)
 - 3-seed mean across `1337/1338/1339`: `val_bpb:1.03056634`
+- 2-seed mean across matched-environment clean runs `1337/1340`: `val_bpb:1.01505517`
 
 Trainer/model changes in this snapshot:
 - MPK model family enabled in `train_gpt.py`
@@ -69,10 +71,12 @@ Supporting seeds:
 - `mpk_seed_1338.txt`: slower host / non-template rerun with a compatibility patch for hosts whose PyTorch lacked native `enable_gqa`; stopped at `2146` steps and finished at `val_bpb:1.04330173`
 - `mpk_seed_1339.txt`: same slower environment / compatibility setup; stopped at `2480` steps and finished at `val_bpb:1.03281422`
 - These runs were gathered after accidentally provisioning a fresh 8x H100 instance without the exact prior par-golf template environment, which reduced throughput versus the original `145.94ms` step average run
+- `mpk_seed_1340_clean.txt`: clean rerun on the correct native-GQA environment; stopped at `4094` steps with `step_avg:146.50ms` and finished at `val_bpb:1.01452726`, closely matching the original `1.01558307` run
 
 Included files:
 - `train_gpt.py` (MPK trainer snapshot used for the run)
 - `train.log` (remote training log for the timed run)
 - `mpk_seed_1338.txt` (supporting seed log)
 - `mpk_seed_1339.txt` (supporting seed log)
+- `mpk_seed_1340_clean.txt` (clean matched-environment supporting seed log)
 - `submission.json` (leaderboard metadata)
