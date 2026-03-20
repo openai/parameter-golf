@@ -33,6 +33,10 @@ class ControllerError(RuntimeError):
     pass
 
 
+class InfrastructureUnavailableError(ControllerError):
+    pass
+
+
 @dataclass(frozen=True)
 class Config:
     proposer_model: str
@@ -75,7 +79,9 @@ class Config:
     prep_clones_dir: Path
     remote_log_dir: Path
     prep_queue_depth: int
+    prep_worker_count: int
     prep_poll_seconds: float
+    infrastructure_retry_schedule: tuple[float, ...]
     codex_binary: str
 
 
@@ -437,6 +443,26 @@ def grep_last(pattern: str, path: Path) -> str:
     return last
 
 
+def detect_remote_infrastructure_issue(log_path: Path) -> str:
+    if not log_path.exists():
+        return ""
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    patterns = [
+        ("CUDA is required", "remote worker reported that CUDA is required"),
+        (
+            "CUDA initialization failed",
+            "remote worker failed CUDA initialization and likely had no usable GPU",
+        ),
+        ("No CUDA GPUs are available", "remote worker reported no CUDA GPUs available"),
+        ("Found no NVIDIA driver", "remote worker reported no NVIDIA driver"),
+        ("No devices were found", "remote worker reported no GPU devices"),
+    ]
+    for needle, reason in patterns:
+        if needle in text:
+            return reason
+    return ""
+
+
 def resolve_repo_path(repo_dir: Path, raw_value: str) -> Path:
     path = Path(raw_value)
     if path.is_absolute():
@@ -511,17 +537,25 @@ class PgolfController:
         self.next_iteration = detect_next_iteration(config.results_file)
         self.next_run_number = detect_next_run_number(config.results_file, config.tag)
         self.next_candidate_number = detect_next_candidate_number(config.candidates_dir)
+        self.next_candidate_number_lock = threading.Lock()
         self.reviewed_base_lock = threading.Lock()
+        self.history_summary_lock = threading.Lock()
         self.reviewed_base_commit = git_output(config.repo_dir, "rev-parse", "HEAD")
         self.stop_event = threading.Event()
         self.ready_queue: queue.Queue[PreparedCandidate] = queue.Queue(
             maxsize=config.prep_queue_depth
         )
-        self.prep_thread = threading.Thread(
-            target=self._prep_worker,
-            name="pgolf-prep",
-            daemon=True,
-        )
+        self.retry_candidate: PreparedCandidate | None = None
+        self.infrastructure_retry_attempts: dict[str, int] = {}
+        self.prep_threads = [
+            threading.Thread(
+                target=self._prep_worker,
+                args=(worker_index,),
+                name=f"pgolf-prep-{worker_index}",
+                daemon=True,
+            )
+            for worker_index in range(1, config.prep_worker_count + 1)
+        ]
         self.history_ledger = self.config.history_dir / "ledger.jsonl"
         self.history_summary = self.config.history_dir / "summary.md"
         for path in (
@@ -536,8 +570,9 @@ class PgolfController:
 
     def close(self) -> None:
         self.stop_event.set()
-        if self.prep_thread.is_alive():
-            self.prep_thread.join()
+        for prep_thread in self.prep_threads:
+            if prep_thread.is_alive():
+                prep_thread.join()
         self.logger.close()
 
     def run(self) -> None:
@@ -550,9 +585,11 @@ class PgolfController:
             f"tag={self.config.tag} "
             f"deadline={self.config.deadline if self.config.deadline is not None else 'forever'} "
             f"prep_queue_depth={self.config.prep_queue_depth} "
+            f"prep_worker_count={self.config.prep_worker_count} "
             f"max_pre_review_rounds={self.config.max_pre_review_rounds}"
         )
-        self.prep_thread.start()
+        for prep_thread in self.prep_threads:
+            prep_thread.start()
         try:
             while not self._deadline_reached():
                 if self._needs_bootstrap_baseline():
@@ -586,7 +623,26 @@ class PgolfController:
                         run_dir=run_dir,
                         experiment_commit=experiment_commit,
                     )
+                except InfrastructureUnavailableError as exc:
+                    retry_after = self._next_infrastructure_retry_delay(candidate.candidate_id)
+                    self._record_run_infrastructure_retry(
+                        candidate=candidate,
+                        iteration=iteration,
+                        run_id=run_id,
+                        run_dir=run_dir,
+                        experiment_commit=experiment_commit,
+                        error=str(exc),
+                        retry_after_seconds=retry_after,
+                    )
+                    ensure_clean_git(self.config.repo_dir)
+                    self.next_iteration += 1
+                    self.next_run_number += 1
+                    self.retry_candidate = candidate
+                    if self.stop_event.wait(retry_after):
+                        break
+                    continue
                 except (ControllerError, subprocess.CalledProcessError) as exc:
+                    self._clear_infrastructure_retry_state(candidate.candidate_id)
                     self._record_run_error(
                         candidate=candidate,
                         iteration=iteration,
@@ -604,6 +660,7 @@ class PgolfController:
                     self.next_iteration += 1
                     self.next_run_number += 1
                     continue
+                self._clear_infrastructure_retry_state(candidate.candidate_id)
                 try:
                     decision = self._run_post_review(
                         candidate=candidate,
@@ -647,7 +704,8 @@ class PgolfController:
                 self.next_run_number += 1
         finally:
             self.stop_event.set()
-            self.prep_thread.join()
+            for prep_thread in self.prep_threads:
+                prep_thread.join()
             self._cleanup_unused_candidates()
             self.logger.log("controller_finished")
 
@@ -685,7 +743,23 @@ class PgolfController:
                 run_dir=run_dir,
                 experiment_commit=base_commit,
             )
+        except InfrastructureUnavailableError as exc:
+            retry_after = self._next_infrastructure_retry_delay('baseline')
+            self._record_baseline_infrastructure_retry(
+                iteration=iteration,
+                run_id=run_id,
+                run_dir=run_dir,
+                experiment_commit=base_commit,
+                error=str(exc),
+                retry_after_seconds=retry_after,
+            )
+            ensure_clean_git(self.config.repo_dir)
+            self.next_iteration += 1
+            self.next_run_number += 1
+            self.stop_event.wait(retry_after)
+            return
         except (ControllerError, subprocess.CalledProcessError) as exc:
+            self._clear_infrastructure_retry_state('baseline')
             self._record_baseline_error(
                 iteration=iteration,
                 run_id=run_id,
@@ -702,6 +776,7 @@ class PgolfController:
             self.next_iteration += 1
             self.next_run_number += 1
             return
+        self._clear_infrastructure_retry_state('baseline')
         try:
             decision = self._run_baseline_post_review(
                 iteration=iteration,
@@ -743,39 +818,47 @@ class PgolfController:
         self.next_iteration += 1
         self.next_run_number += 1
 
-    def _prep_worker(self) -> None:
+    def _prep_worker(self, worker_index: int) -> None:
         while not self.stop_event.is_set():
             if self._deadline_reached():
                 return
             if self.ready_queue.full():
                 time.sleep(self.config.prep_poll_seconds)
                 continue
-            candidate = self._prepare_candidate()
+            candidate = self._prepare_candidate(worker_index=worker_index)
             if candidate is None:
                 time.sleep(self.config.prep_poll_seconds)
                 continue
-            self._update_candidate_status(candidate.manifest_path, "queued")
-            try:
-                self.ready_queue.put(candidate, timeout=self.config.prep_poll_seconds)
-                self._append_history(
-                    {
-                        "event": "candidate_queued",
-                        "candidate_id": candidate.candidate_id,
-                        "manifest_path": str(candidate.manifest_path),
-                        "timestamp": iso_now(),
-                    }
-                )
-            except queue.Full:
-                self._update_candidate_status(candidate.manifest_path, "approved")
-            except Exception as exc:
-                self.logger.log(
-                    f"prep_worker_error error={sanitize_tsv(str(exc))}"
-                )
-                time.sleep(self.config.prep_poll_seconds)
+            while not self.stop_event.is_set():
+                if self._deadline_reached():
+                    return
+                try:
+                    self.ready_queue.put(candidate, timeout=self.config.prep_poll_seconds)
+                    self._update_candidate_status(candidate.manifest_path, "queued")
+                    self._append_history(
+                        {
+                            "event": "candidate_queued",
+                            "candidate_id": candidate.candidate_id,
+                            "manifest_path": str(candidate.manifest_path),
+                            "prep_worker": worker_index,
+                            "timestamp": iso_now(),
+                        }
+                    )
+                    break
+                except queue.Full:
+                    continue
+                except Exception as exc:
+                    self.logger.log(
+                        "prep_worker_error "
+                        f"worker={worker_index} error={sanitize_tsv(str(exc))}"
+                    )
+                    time.sleep(self.config.prep_poll_seconds)
+                    break
 
-    def _prepare_candidate(self) -> PreparedCandidate | None:
-        candidate_id = f"candidate_{self.next_candidate_number:04d}"
-        self.next_candidate_number += 1
+    def _prepare_candidate(self, *, worker_index: int) -> PreparedCandidate | None:
+        with self.next_candidate_number_lock:
+            candidate_id = f"candidate_{self.next_candidate_number:04d}"
+            self.next_candidate_number += 1
         candidate_dir = self.config.candidates_dir / candidate_id
         candidate_dir.mkdir(parents=True, exist_ok=True)
         manifest_path = candidate_dir / "manifest.json"
@@ -786,12 +869,16 @@ class PgolfController:
             "base_commit": base_commit,
             "created_at": iso_now(),
             "status": "drafting",
+            "prep_worker": worker_index,
             "proposer_model": self.config.proposer_model,
             "pre_review_model": self.config.pre_review_model,
             "rounds": [],
         }
         self._write_candidate_manifest(manifest_path, manifest)
-        self.logger.log(f"candidate_start candidate_id={candidate_id} base_commit={base_commit}")
+        self.logger.log(
+            f"candidate_start candidate_id={candidate_id} "
+            f"worker={worker_index} base_commit={base_commit}"
+        )
 
         prior_feedback = ""
         for round_number in range(1, self.config.max_pre_review_rounds + 1):
@@ -827,7 +914,7 @@ class PgolfController:
                 proposer_prompt_file.write_text(proposer_prompt, encoding="utf-8")
                 self.logger.log(
                     f"proposer_start candidate_id={candidate_id} round={round_number} "
-                    f"base_commit={base_commit}"
+                    f"worker={worker_index} base_commit={base_commit}"
                 )
                 exit_code = self._stream_subprocess(
                     [
@@ -881,7 +968,8 @@ class PgolfController:
                 )
                 pre_review_prompt_file.write_text(pre_review_prompt, encoding="utf-8")
                 self.logger.log(
-                    f"pre_review_start candidate_id={candidate_id} round={round_number}"
+                    f"pre_review_start candidate_id={candidate_id} round={round_number} "
+                    f"worker={worker_index}"
                 )
                 review_exit = self._stream_subprocess(
                     [
@@ -951,7 +1039,8 @@ class PgolfController:
                     self._write_candidate_manifest(manifest_path, manifest)
                     self.logger.log(
                         f"candidate_approved candidate_id={candidate_id} "
-                        f"round={round_number} idea={sanitize_tsv(spec.idea)}"
+                        f"round={round_number} worker={worker_index} "
+                        f"idea={sanitize_tsv(spec.idea)}"
                     )
                     return PreparedCandidate(
                         candidate_id=candidate_id,
@@ -965,7 +1054,7 @@ class PgolfController:
                 prior_feedback = decision.feedback
                 self.logger.log(
                     f"candidate_revise candidate_id={candidate_id} round={round_number} "
-                    f"feedback={sanitize_tsv(decision.feedback)}"
+                    f"worker={worker_index} feedback={sanitize_tsv(decision.feedback)}"
                 )
             except Exception as exc:
                 manifest["status"] = "failed"
@@ -982,7 +1071,8 @@ class PgolfController:
                     }
                 )
                 self.logger.log(
-                    f"candidate_failed candidate_id={candidate_id} error={sanitize_tsv(str(exc))}"
+                    f"candidate_failed candidate_id={candidate_id} worker={worker_index} "
+                    f"error={sanitize_tsv(str(exc))}"
                 )
                 return None
             finally:
@@ -1001,12 +1091,19 @@ class PgolfController:
             }
         )
         self.logger.log(
-            f"candidate_rejected candidate_id={candidate_id} reason=max_pre_review_rounds"
+            f"candidate_rejected candidate_id={candidate_id} worker={worker_index} "
+            "reason=max_pre_review_rounds"
         )
         return None
 
     def _wait_for_candidate(self) -> PreparedCandidate | None:
         while not self.stop_event.is_set():
+            if self.retry_candidate is not None:
+                candidate = self.retry_candidate
+                self.retry_candidate = None
+                self._update_candidate_status(candidate.manifest_path, "dequeued")
+                self.logger.log(f"candidate_retry candidate_id={candidate.candidate_id}")
+                return candidate
             if self._deadline_reached() and self.ready_queue.empty():
                 return None
             try:
@@ -1193,6 +1290,9 @@ class PgolfController:
             stdin_text=stdin_text,
         )
         if exit_code != 0:
+            issue = detect_remote_infrastructure_issue(remote_log)
+            if issue:
+                raise InfrastructureUnavailableError(issue)
             raise ControllerError(
                 f"remote training failed for run_id={run_id} with exit code {exit_code}"
             )
@@ -1200,6 +1300,9 @@ class PgolfController:
         metrics_line = grep_last("final_int8_zlib_roundtrip_exact", remote_log)
         size_line = grep_last("Total submission size int8+zlib:", remote_log)
         if not metrics_line:
+            issue = detect_remote_infrastructure_issue(remote_log)
+            if issue:
+                raise InfrastructureUnavailableError(issue)
             raise ControllerError(f"missing final metric line in {remote_log}")
         val_loss_match = re.search(r"val_loss:([0-9.]+)", metrics_line)
         val_bpb_match = re.search(r"val_bpb:([0-9.]+)", metrics_line)
@@ -1264,6 +1367,9 @@ class PgolfController:
             env=env,
         )
         if exit_code != 0:
+            issue = detect_remote_infrastructure_issue(local_log)
+            if issue:
+                raise InfrastructureUnavailableError(issue)
             raise ControllerError(
                 f"local training failed for run_id={run_id} with exit code {exit_code}"
             )
@@ -1271,6 +1377,9 @@ class PgolfController:
         metrics_line = grep_last("final_int8_zlib_roundtrip_exact", local_log)
         size_line = grep_last("Total submission size int8+zlib:", local_log)
         if not metrics_line:
+            issue = detect_remote_infrastructure_issue(local_log)
+            if issue:
+                raise InfrastructureUnavailableError(issue)
             raise ControllerError(f"missing final metric line in {local_log}")
         val_loss_match = re.search(r"val_loss:([0-9.]+)", metrics_line)
         val_bpb_match = re.search(r"val_bpb:([0-9.]+)", metrics_line)
@@ -1487,6 +1596,84 @@ class PgolfController:
         with self.reviewed_base_lock:
             self.reviewed_base_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
 
+    def _record_run_infrastructure_retry(
+        self,
+        *,
+        candidate: PreparedCandidate,
+        iteration: int,
+        run_id: str,
+        run_dir: Path,
+        experiment_commit: str,
+        error: str,
+        retry_after_seconds: float,
+    ) -> None:
+        self.logger.log(
+            "run_infrastructure_retry "
+            f"run_id={run_id} retry_after={retry_after_seconds} "
+            f"error={sanitize_tsv(error)}"
+        )
+        self._revert_experiment_commit_if_active(
+            run_id=run_id,
+            experiment_commit=experiment_commit,
+        )
+        remote_log = self.config.remote_log_dir / f"{run_id}.log"
+        if remote_log.exists():
+            copy_file(remote_log, run_dir / "remote.log")
+
+        timestamp = iso_now()
+        note_parts = [
+            "stage=experiment",
+            f"error={error}",
+            f"retry_after_seconds={retry_after_seconds}",
+            f"hypothesis={candidate.spec.hypothesis}",
+            f"expected_signals={candidate.spec.expected_signals}",
+            f"pre_review_round={candidate.approved_round}",
+        ]
+        if candidate.spec.notes:
+            note_parts.insert(0, candidate.spec.notes)
+        results_row = (
+            f"{iteration}\t{timestamp}\t{self.config.proposer_model}\t"
+            f"{self.config.post_review_model}\t{run_id}\tinfra_retry\t\t\t\t"
+            f"{experiment_commit}\t{sanitize_tsv(candidate.spec.idea)}\t"
+            f"{sanitize_tsv(candidate.spec.extra_env_text)}\t"
+            f"{sanitize_tsv(' | '.join(note_parts))}\n"
+        )
+        with self.config.results_file.open("a", encoding="utf-8") as fh:
+            fh.write(results_row)
+        reviews_row = (
+            f"{iteration}\t{timestamp}\t{self.config.post_review_model}\t{run_id}\t"
+            f"infra_retry\t{experiment_commit}\t"
+            f"{sanitize_tsv('infrastructure unavailable; retry scheduled')}\t"
+            f"{sanitize_tsv(error)}\n"
+        )
+        with self.config.reviews_file.open("a", encoding="utf-8") as fh:
+            fh.write(reviews_row)
+
+        retry_manifest = {
+            "run_id": run_id,
+            "candidate_id": candidate.candidate_id,
+            "iteration": iteration,
+            "experiment_commit": experiment_commit,
+            "candidate_manifest": str(candidate.manifest_path),
+            "decision": "infra_retry",
+            "failure_stage": "experiment",
+            "error": error,
+            "retry_after_seconds": retry_after_seconds,
+            "idea": candidate.spec.idea,
+            "hypothesis": candidate.spec.hypothesis,
+            "expected_signals": candidate.spec.expected_signals,
+            "notes": candidate.spec.notes,
+            "extra_env": candidate.spec.extra_env_text,
+            "remote_log": str(remote_log) if remote_log.exists() else "",
+            "timestamp": timestamp,
+        }
+        write_json(run_dir / "infrastructure_retry.json", retry_manifest)
+        self._append_history({"event": "run_infrastructure_retry", **retry_manifest})
+        self._update_candidate_status(candidate.manifest_path, "approved")
+        self._commit_ledger_updates(run_id=run_id, decision="infra_retry")
+        with self.reviewed_base_lock:
+            self.reviewed_base_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
+
     def _record_baseline_error(
         self,
         *,
@@ -1557,6 +1744,74 @@ class PgolfController:
         write_json(run_dir / "failure.json", failure_manifest)
         self._append_history({"event": "baseline_failed", **failure_manifest})
         self._commit_ledger_updates(run_id=run_id, decision="error")
+        with self.reviewed_base_lock:
+            self.reviewed_base_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
+
+    def _record_baseline_infrastructure_retry(
+        self,
+        *,
+        iteration: int,
+        run_id: str,
+        run_dir: Path,
+        experiment_commit: str,
+        error: str,
+        retry_after_seconds: float,
+    ) -> None:
+        self.logger.log(
+            "baseline_infrastructure_retry "
+            f"run_id={run_id} retry_after={retry_after_seconds} "
+            f"error={sanitize_tsv(error)}"
+        )
+        remote_log = self.config.remote_log_dir / f"{run_id}.log"
+        if remote_log.exists():
+            copy_file(remote_log, run_dir / "remote.log")
+
+        timestamp = iso_now()
+        note_parts = [
+            BASELINE_NOTES,
+            "stage=experiment",
+            f"error={error}",
+            f"retry_after_seconds={retry_after_seconds}",
+            f"hypothesis={BASELINE_HYPOTHESIS}",
+            f"expected_signals={BASELINE_EXPECTED_SIGNALS}",
+        ]
+        results_row = (
+            f"{iteration}\t{timestamp}\tbaseline\t{self.config.post_review_model}\t"
+            f"{run_id}\tinfra_retry\t\t\t\t{experiment_commit}\t{BASELINE_IDEA}\t"
+            f"{sanitize_tsv(self.config.base_extra_env_text)}\t"
+            f"{sanitize_tsv(' | '.join(note_parts))}\n"
+        )
+        with self.config.results_file.open("a", encoding="utf-8") as fh:
+            fh.write(results_row)
+        reviews_row = (
+            f"{iteration}\t{timestamp}\t{self.config.post_review_model}\t{run_id}\t"
+            f"infra_retry\t{experiment_commit}\t"
+            f"{sanitize_tsv('baseline infrastructure unavailable; retry scheduled')}\t"
+            f"{sanitize_tsv(error)}\n"
+        )
+        with self.config.reviews_file.open("a", encoding="utf-8") as fh:
+            fh.write(reviews_row)
+
+        retry_manifest = {
+            "run_type": "baseline",
+            "run_id": run_id,
+            "iteration": iteration,
+            "experiment_commit": experiment_commit,
+            "decision": "infra_retry",
+            "failure_stage": "experiment",
+            "error": error,
+            "retry_after_seconds": retry_after_seconds,
+            "idea": BASELINE_IDEA,
+            "hypothesis": BASELINE_HYPOTHESIS,
+            "expected_signals": BASELINE_EXPECTED_SIGNALS,
+            "notes": BASELINE_NOTES,
+            "extra_env": self.config.base_extra_env_text,
+            "remote_log": str(remote_log) if remote_log.exists() else "",
+            "timestamp": timestamp,
+        }
+        write_json(run_dir / "infrastructure_retry.json", retry_manifest)
+        self._append_history({"event": "baseline_infrastructure_retry", **retry_manifest})
+        self._commit_ledger_updates(run_id=run_id, decision="infra_retry")
         with self.reviewed_base_lock:
             self.reviewed_base_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
 
@@ -1698,6 +1953,23 @@ class PgolfController:
         message = f"chore(autoresearch): record {decision} for {run_id}"
         run_cmd(["git", "commit", "-m", message], cwd=self.config.repo_dir)
 
+    def _revert_experiment_commit_if_active(self, *, run_id: str, experiment_commit: str) -> None:
+        active_commit = git_output(self.config.repo_dir, "rev-parse", "HEAD")
+        if active_commit != experiment_commit:
+            return
+        self.logger.log(f"revert_start run_id={run_id} commit={experiment_commit}")
+        run_cmd(["git", "revert", "--no-edit", experiment_commit], cwd=self.config.repo_dir)
+
+    def _next_infrastructure_retry_delay(self, key: str) -> float:
+        attempt = self.infrastructure_retry_attempts.get(key, 0)
+        schedule = self.config.infrastructure_retry_schedule
+        delay = schedule[min(attempt, len(schedule) - 1)]
+        self.infrastructure_retry_attempts[key] = attempt + 1
+        return delay
+
+    def _clear_infrastructure_retry_state(self, key: str) -> None:
+        self.infrastructure_retry_attempts.pop(key, None)
+
     def _cleanup_unused_candidates(self) -> None:
         while True:
             try:
@@ -1719,57 +1991,58 @@ class PgolfController:
         append_jsonl(self.history_ledger, payload)
 
     def _refresh_history_summary(self) -> None:
-        result_lines = read_lines(self.config.results_file)
-        lines = [
-            "# Autoresearch Summary",
-            "",
-            f"Generated: {iso_now()}",
-            "",
-            "## Best kept results",
-        ]
-        kept_rows = []
-        for line in result_lines[1:]:
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) < 13 or parts[5] != "keep":
-                continue
-            kept_rows.append(parts)
-        kept_rows.sort(key=lambda row: float(row[6]))
-        if kept_rows:
-            for row in kept_rows[:5]:
-                lines.append(
-                    f"- {row[4]} val_bpb={row[6]} idea={row[10]} env={row[11]} notes={row[12]}"
-                )
-        else:
-            lines.append("- none yet")
-        lines.extend(["", "## Recent results"])
-        recent_rows = result_lines[max(1, len(result_lines) - 10) :]
-        if not recent_rows:
-            lines.append("- none yet")
-        else:
-            for row_line in recent_rows:
-                row = row_line.rstrip("\n").split("\t")
-                if len(row) < 13:
+        with self.history_summary_lock:
+            result_lines = read_lines(self.config.results_file)
+            lines = [
+                "# Autoresearch Summary",
+                "",
+                f"Generated: {iso_now()}",
+                "",
+                "## Best kept results",
+            ]
+            kept_rows = []
+            for line in result_lines[1:]:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) < 13 or parts[5] != "keep":
                     continue
-                lines.append(
-                    f"- {row[4]} decision={row[5]} val_bpb={row[6]} idea={row[10]} notes={row[12]}"
-                )
-        lines.extend(["", "## Recent history events"])
-        history_lines = read_lines(self.history_ledger)[-15:]
-        if history_lines:
-            for raw in history_lines:
-                event = json.loads(raw)
-                event_name = event.get("event", "unknown")
-                timestamp = event.get("timestamp", "?")
-                candidate_id = event.get("candidate_id", "")
-                run_id = event.get("run_id", "")
-                idea = event.get("idea", "")
-                lines.append(
-                    f"- {timestamp} event={event_name} candidate={candidate_id} "
-                    f"run={run_id} idea={idea}"
-                )
-        else:
-            lines.append("- none yet")
-        self.history_summary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                kept_rows.append(parts)
+            kept_rows.sort(key=lambda row: float(row[6]))
+            if kept_rows:
+                for row in kept_rows[:5]:
+                    lines.append(
+                        f"- {row[4]} val_bpb={row[6]} idea={row[10]} env={row[11]} notes={row[12]}"
+                    )
+            else:
+                lines.append("- none yet")
+            lines.extend(["", "## Recent results"])
+            recent_rows = result_lines[max(1, len(result_lines) - 10) :]
+            if not recent_rows:
+                lines.append("- none yet")
+            else:
+                for row_line in recent_rows:
+                    row = row_line.rstrip("\n").split("\t")
+                    if len(row) < 13:
+                        continue
+                    lines.append(
+                        f"- {row[4]} decision={row[5]} val_bpb={row[6]} idea={row[10]} notes={row[12]}"
+                    )
+            lines.extend(["", "## Recent history events"])
+            history_lines = read_lines(self.history_ledger)[-15:]
+            if history_lines:
+                for raw in history_lines:
+                    event = json.loads(raw)
+                    event_name = event.get("event", "unknown")
+                    timestamp = event.get("timestamp", "?")
+                    candidate_id = event.get("candidate_id", "")
+                    run_id = event.get("run_id", "")
+                    idea = event.get("idea", "")
+                    lines.append(
+                        f"- {timestamp} event={event_name} candidate={candidate_id} "
+                        f"run={run_id} idea={idea}"
+                    )
+            else:
+                lines.append("- none yet")
+            self.history_summary.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def _ssh_options(self) -> list[str]:
         options = ["-p", str(self.config.remote_port)]
@@ -2082,7 +2355,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--prep-queue-depth",
         type=int,
-        default=int(os.environ.get("PREP_QUEUE_DEPTH", "1")),
+        default=int(os.environ.get("PREP_QUEUE_DEPTH", "4")),
+    )
+    parser.add_argument(
+        "--prep-workers",
+        type=int,
+        default=int(os.environ.get("PREP_WORKERS", "2")),
     )
     return parser.parse_args(argv)
 
@@ -2175,7 +2453,14 @@ def build_config(args: argparse.Namespace) -> Config:
         prep_clones_dir=prep_clones_dir,
         remote_log_dir=env_path("REMOTE_LOG_DIR", "remote_logs"),
         prep_queue_depth=max(1, args.prep_queue_depth),
+        prep_worker_count=max(1, args.prep_workers),
         prep_poll_seconds=max(1.0, float(os.environ.get("PREP_POLL_SECONDS", "5"))),
+        infrastructure_retry_schedule=tuple(
+            max(1.0, float(part.strip()))
+            for part in os.environ.get("INFRASTRUCTURE_RETRY_SCHEDULE", "3,30,300").split(',')
+            if part.strip()
+        )
+        or (3.0, 30.0, 300.0),
         codex_binary=os.environ.get("CODEX_BIN", "codex"),
     )
     if config.execution_mode == "remote" and not config.remote_host:

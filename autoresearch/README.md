@@ -7,7 +7,7 @@ uv run python run_pgolf_experiment.py --hours 8
 uv run python run_pgolf_experiment.py --forever
 ```
 
-The controller is designed to keep the GPU busy while still maintaining traceability. It drafts reviewed patches in the background, queues only pre-approved candidates, runs them remotely, and records both the reasoning and the outcome.
+The controller is designed to keep the GPU busy while still maintaining traceability. It drafts reviewed patches in the background, queues only pre-approved candidates, runs them remotely, and records both the reasoning and the outcome. Candidate preparation now runs through a small worker pool so the queue can stay ahead of 10-minute experiments instead of relying on a single proposer/reviewer lane.
 
 **Requirements**
 
@@ -48,6 +48,7 @@ Controller-specific env vars:
 - `PRE_REVIEW_MODEL`
 - `POST_REVIEW_MODEL`
 - `MAX_PRE_REVIEW_ROUNDS`
+- `PREP_WORKERS`
 - `PREP_QUEUE_DEPTH`
 - `TRACE_ROOT`
 - `RESULTS_FILE`
@@ -148,6 +149,8 @@ Run until you stop it after the current in-flight work finishes:
 cd autoresearch
 uv run python run_pgolf_experiment.py --forever
 ```
+
+For short experiments, a practical starting point is `PREP_WORKERS=2` and `PREP_QUEUE_DEPTH=4`. Increase the worker count if proposer plus pre-review latency is still longer than your train wallclock.
 
 Override models if needed:
 

@@ -47,16 +47,62 @@ Useful flags:
 - `--identity ~/.ssh/hetzner_ed25519`
 - `--port 2222`
 - `--controller-args "--hours 8"`
+- `--install-monitor --start-monitor`
 - `--enable-linger`
 - `--dry-run`
 
 ## Notes
 
 - The deploy script requires a clean local git worktree.
-- It syncs the current repository contents to the controller host with `rsync`.
+- It now ships the current local git branch as a temporary bundle and merges it into the host repo.
+- This preserves host-only experiment history instead of replacing the remote `.git` directory.
 - The installed service is a user service named `parameter-golf-autoresearch` by default.
 - Prefer `journalctl --user -u parameter-golf-autoresearch -f --output=cat` for service logs.
 - This bootstraps the controller host only. The GPU worker bootstrap belongs in the Runpod path.
+- The deploy script assumes the controller host already has a git repo at the target path. For a brand-new host, do an initial clone/bootstrap first, then use the deploy script for subsequent updates.
+
+## Monitor
+
+The Hetzner path now includes an optional health monitor:
+
+- script: `infra/hetzner/monitor_controller.py`
+- service: `parameter-golf-monitor.service`
+- timer: `parameter-golf-monitor.timer`
+
+Recommended deployment flags:
+
+```bash
+python3 infra/hetzner/deploy_controller.py \
+  --host your-user@your-hetzner-host \
+  --env-file /absolute/path/to/autoresearch.env \
+  --install-monitor \
+  --start-monitor \
+  --start
+```
+
+The monitor runs a deterministic healthcheck every 10 minutes by default. It checks:
+
+- controller service state
+- recent harness-log activity
+- whether an active run has gone silent for too long
+- whether the active run has exceeded the expected wallclock window
+- basic Runpod reachability when there is an active run or another anomaly
+
+It only escalates to `codex exec` when it sees an anomaly. Monitor artifacts live under:
+
+- `controller_state/autoresearch/monitor/health.json`
+- `controller_state/autoresearch/monitor/checks.jsonl`
+- `controller_state/autoresearch/monitor/incidents/`
+
+Useful env knobs in `autoresearch.env`:
+
+- `MONITOR_CODEX_MODEL`
+- `MONITOR_MAX_IDLE_MINUTES`
+- `MONITOR_REMOTE_SILENCE_MINUTES`
+- `MONITOR_RUN_GRACE_MINUTES`
+- `MONITOR_CODEX_COOLDOWN_MINUTES`
+- `MONITOR_AUTO_RESTART_SERVICE`
+- `MONITOR_JOURNAL_LINES`
 
 ## Operational Notes
 
@@ -69,3 +115,5 @@ These are safe to keep in the public repo because they are process notes, not cr
 - On typical Runpod pods, a working default is `REMOTE_TORCHRUN=/usr/local/bin/torchrun`.
 - The controller host may need to push experiment branches to a writable fork remote while the GPU worker fetches that branch from its own `origin`. Use `PUSH_REMOTE` and `REMOTE_FETCH_REMOTE` instead of assuming both sides use the same remote name.
 - If the worker already contains the dataset and tokenizer inside the repo under `/workspace/parameter-golf/data/...`, prefer those concrete paths over speculative network-volume placeholders.
+
+
