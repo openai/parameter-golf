@@ -28,3 +28,4 @@ iteration	timestamp	model	run_id	decision	commit	summary	findings
 27	2026-03-20T09:25:18+00:00	gpt-5.4	pgolf_0027	infra_retry	ef589c4addaeb6540dbd73f45d14afe91d98db8f	infrastructure unavailable; retry scheduled	remote worker reported that CUDA is required
 28	2026-03-20T09:25:34+00:00	gpt-5.4	pgolf_0028	infra_retry	cce89a20d850e577da92a2c90bcfd0678bfb81a7	infrastructure unavailable; retry scheduled	remote worker reported that CUDA is required
 29	2026-03-20T09:26:16+00:00	gpt-5.4	pgolf_0029	infra_retry	c40fae1651f60764b490d1684107916374d06f8f	infrastructure unavailable; retry scheduled	remote worker reported that CUDA is required
+30	2026-03-20T09:31:40+00:00	gpt-5.4	pgolf_0030	error	8e750def93f714b897eeede2953826b5aec75a27	experiment failed	remote training failed for run_id=pgolf_0030 with exit code 255
