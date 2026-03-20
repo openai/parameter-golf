@@ -14,20 +14,29 @@ This plan is optimized for limited budget and the challenge rules.
 Run these in order on remote GPUs:
 
 1. `base10l`
-2. `zloss_low`
-3. `zloss_med`
-4. `twice_low`
-5. `zloss_twice`
-6. `eval2048`
+2. `twice_low`
+3. `twice_eval2048_ttt1024`
+4. `twice_layerwise`
+5. `drope_eval`
+6. `yarn_eval`
+7. `mtp_low`
+8. `muon_balance`
+9. `hybrid_delta`
 
 Use the named launcher:
 
 ```bash
 NPROC_PER_NODE=1 bash scripts/run_remote_profile.sh base10l
-NPROC_PER_NODE=1 bash scripts/run_remote_profile.sh zloss_low
+NPROC_PER_NODE=1 bash scripts/run_remote_profile.sh twice_eval2048_ttt1024
 ```
 
 Then repeat the best 2-3 profiles on `8x H100 SXM`.
+
+Interpretation order:
+
+- If `drope_eval` or `yarn_eval` beats `twice_eval2048_ttt1024`, keep the better rope scaling and discard the other.
+- If `mtp_low` wins, sweep `MTP_DEPTH=3` and `MTP_LOSS_WEIGHT` around `0.05-0.2`.
+- If `hybrid_delta` wins even slightly, open a dedicated hybrid branch before changing more optimizer knobs.
 
 ## Dataset And Tokenizer Work
 
@@ -52,6 +61,12 @@ Default ablation config:
 - `sp_bpe_1280`
 - `sp_bpe_1536`
 - `pure_byte_260`
+
+After the model-side shortlist settles, do these data sweeps:
+
+1. Rebuild `sp_bpe_768`, `sp_bpe_1280`, and `pure_byte_260`
+2. Rerun the current best profile on `TRAIN_SHARDS=1`
+3. Only promote tokenizer changes that help `final_int8_ttt_lora` without pushing artifact bytes in the wrong direction
 
 ## Dataset Ideas That Look Safe
 
