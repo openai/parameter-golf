@@ -96,7 +96,7 @@ class Hyperparameters:
     # BigramHash: add hash-based bigram features to token embeddings.
     bigram_hash = bool(int(os.environ.get("BIGRAM_HASH", "0")))
     bigram_table_size = int(os.environ.get("BIGRAM_TABLE_SIZE", 4096))
-    bigram_hash_dim = int(os.environ.get("BIGRAM_HASH_DIM", 32))
+    bigram_hash_dim = int(os.environ.get("BIGRAM_HASH_DIM", 128))
     # SmearGate: causal mixing gate before each block.
     smear_gate = bool(int(os.environ.get("SMEAR_GATE", "0")))
     # SWA: stochastic weight averaging during warmdown.
@@ -111,6 +111,12 @@ class Hyperparameters:
     muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.02))
     # Orthogonal init for linear layers.
     ortho_init = bool(int(os.environ.get("ORTHO_INIT", "0")))
+    # Eval-time extra recurrence: repeat decoder blocks N more times at eval.
+    eval_extra_repeats = int(os.environ.get("EVAL_EXTRA_REPEATS", 0))
+    # FTLE-lite: sensitivity-aware mixed-precision quantization.
+    ftle_quant = bool(int(os.environ.get("FTLE_QUANT", "0")))
+    ftle_high_frac = float(os.environ.get("FTLE_HIGH_FRAC", 0.10))
+    ftle_low_frac = float(os.environ.get("FTLE_LOW_FRAC", 0.10))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -320,7 +326,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,bigram_hash.scale,smear_gate_mod.gate",
     ).split(",")
     if pattern
 )
@@ -368,7 +374,68 @@ def quantize_float_tensor(t: Tensor, bits: int = 8) -> tuple[Tensor, Tensor]:
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -max_val, max_val).to(torch.int8).contiguous()
     return q, scale
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_bits: int = 6):
+def quantize_float_tensor_mixed(t: Tensor, row_bits: Tensor) -> tuple[Tensor, Tensor]:
+    """Per-row mixed-precision quantization: each row can have different bit depth."""
+    t32 = t.float()
+    if t32.ndim != 2:
+        return quantize_float_tensor(t32, bits=6)
+    max_vals = (2 ** (row_bits.float() - 1) - 1).to(t32.device)  # per-row max_val
+    clip_abs = (
+        torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+        if t32.numel()
+        else torch.empty((t32.shape[0],), dtype=torch.float32)
+    )
+    clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+    scale = (clip_abs / max_vals).clamp_min(1e-7)
+    q = torch.clamp(torch.round(clipped / scale[:, None]), -max_vals[:, None], max_vals[:, None]).to(torch.int8).contiguous()
+    return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+
+
+def compute_row_sensitivity(model: nn.Module, val_tokens: Tensor, device: torch.device,
+                            num_batches: int = 4, seq_len: int = 1024) -> dict[str, Tensor]:
+    """Compute per-row gradient norms on validation data as sensitivity proxy (FTLE-lite)."""
+    sensitivity: dict[str, Tensor] = {}
+    model.train()
+    for batch_idx in range(num_batches):
+        start = batch_idx * seq_len * 32
+        local = val_tokens[start:start + seq_len * 32 + 1].to(device=device, dtype=torch.int64)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
+        model.zero_grad()
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            loss = model(x, y)
+        loss.backward()
+        for name, p in model.named_parameters():
+            if p.grad is not None and p.ndim == 2 and p.numel() > INT8_KEEP_FLOAT_MAX_NUMEL:
+                row_norm = p.grad.float().norm(dim=1)
+                if name in sensitivity:
+                    sensitivity[name] += row_norm
+                else:
+                    sensitivity[name] = row_norm.clone()
+    # Normalize
+    for name in sensitivity:
+        sensitivity[name] /= num_batches
+    model.zero_grad()
+    return sensitivity
+
+
+def assign_row_bits(sensitivity: dict[str, Tensor], default_bits: int = 6,
+                    high_frac: float = 0.10, low_frac: float = 0.10) -> dict[str, Tensor]:
+    """Assign per-row bit depths based on sensitivity scores."""
+    row_bits: dict[str, Tensor] = {}
+    for name, scores in sensitivity.items():
+        bits = torch.full_like(scores, default_bits, dtype=torch.int32)
+        if scores.numel() > 10:
+            low_thresh = torch.quantile(scores, low_frac)
+            high_thresh = torch.quantile(scores, 1.0 - high_frac)
+            bits[scores > high_thresh] = 8   # protect sensitive rows
+            bits[scores < low_thresh] = 4    # compress cold rows
+        row_bits[name] = bits
+    return row_bits
+
+
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_bits: int = 6,
+                             row_bits_map: dict[str, Tensor] | None = None):
     # Single supported clean-script export format:
     # - per-row int8 for 2D float tensors
     # - per-tensor int8 for other float tensors
@@ -421,9 +488,12 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_bits: int = 6)
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
             continue
 
-        # Everything else: int6 quantization (saves ~25% vs int8)
+        # Everything else: quantization (int6 default, FTLE-lite mixed if available)
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t, bits=quant_bits)
+        if row_bits_map is not None and name in row_bits_map:
+            q, s = quantize_float_tensor_mixed(t, row_bits_map[name])
+        else:
+            q, s = quantize_float_tensor(t, bits=quant_bits)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -544,32 +614,40 @@ class DistributedTokenLoader:
 # -----------------------------
 
 class BigramHash(nn.Module):
-    """Hash-based bigram features: map (prev_token, curr_token) pairs to embeddings."""
+    """Hash-based bigram features using XOR hash (matches PR #162 SOTA)."""
     def __init__(self, vocab_size: int, table_size: int, hash_dim: int, model_dim: int):
         super().__init__()
-        self.vocab_size = vocab_size
         self.table_size = table_size
         self.embed = nn.Embedding(table_size, hash_dim)
-        self.proj = nn.Linear(hash_dim, model_dim, bias=False)
-        nn.init.normal_(self.embed.weight, std=0.02)
+        nn.init.zeros_(self.embed.weight)
+        self.proj = CastedLinear(hash_dim, model_dim, bias=False)
         nn.init.zeros_(self.proj.weight)
+        self.scale = nn.Parameter(torch.tensor(0.05, dtype=torch.float32))
+
+    def bigram_hash(self, tokens: Tensor) -> Tensor:
+        t = tokens.to(torch.int32)
+        mod = self.table_size - 1
+        out = torch.empty_like(t)
+        out[..., 0] = mod
+        out[..., 1:] = torch.bitwise_xor(36313 * t[..., 1:], 27191 * t[..., :-1]) % mod
+        return out.long()
 
     def forward(self, input_ids: Tensor) -> Tensor:
-        prev = F.pad(input_ids[:, :-1], (1, 0))
-        idx = (prev * self.vocab_size + input_ids) % self.table_size
-        return self.proj(self.embed(idx).to(self.proj.weight.dtype))
+        h = self.embed(self.bigram_hash(input_ids))
+        h = self.proj(h)
+        return h * self.scale.to(dtype=h.dtype)
 
 
 class SmearGate(nn.Module):
-    """Learned causal mixing: each dim decides how much to blend from previous position."""
+    """Learned causal mixing (PR #162): gate blends current with previous position."""
     def __init__(self, dim: int):
         super().__init__()
-        self.gate = nn.Parameter(torch.zeros(dim))
+        self.gate = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
 
     def forward(self, x: Tensor) -> Tensor:
-        g = torch.sigmoid(self.gate)[None, None, :].to(dtype=x.dtype)
-        x_prev = F.pad(x[:, :-1], (0, 0, 1, 0))
-        return g * x + (1 - g) * x_prev
+        g = torch.sigmoid(self.gate.to(dtype=x.dtype))[None, None, :]
+        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
+        return (1 - g) * x + g * x_prev
 
 
 # -----------------------------
@@ -801,8 +879,8 @@ class GPT(nn.Module):
                 torch.zeros(num_layers, model_dim, dtype=torch.float32),
             ]))
 
-        # SmearGate: one gate per unique block
-        self.smear_gates = nn.ModuleList([SmearGate(model_dim) for _ in range(n_unique)]) if use_smear_gate else None
+        # SmearGate: single gate applied once after embed+RMSNorm (PR #162 placement)
+        self.smear_gate_mod = SmearGate(model_dim) if use_smear_gate else None
 
         # BigramHash: add bigram features to embeddings
         self.bigram_hash = BigramHash(vocab_size, bigram_table_size, bigram_hash_dim, model_dim) if use_bigram_hash else None
@@ -823,8 +901,6 @@ class GPT(nn.Module):
     def _block_at(self, virtual_idx: int, x: Tensor, x0: Tensor) -> Tensor:
         block_idx = self._layer_map[virtual_idx]
         block = self.blocks[block_idx]
-        if self.smear_gates is not None:
-            x = self.smear_gates[block_idx](x)
         if self.use_per_layer_scales:
             return block(x, x0,
                          ext_attn_scale=self.vl_attn_scales[virtual_idx],
@@ -832,11 +908,13 @@ class GPT(nn.Module):
                          ext_resid_mix=self.vl_resid_mixes[:, virtual_idx])
         return block(x, x0)
 
-    def _forward_body(self, input_ids: Tensor) -> Tensor:
+    def _forward_body(self, input_ids: Tensor, eval_extra_repeats: int = 0) -> Tensor:
         x = self.tok_emb(input_ids)
         if self.bigram_hash is not None:
             x = x + self.bigram_hash(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
+        if self.smear_gate_mod is not None:
+            x = self.smear_gate_mod(x)
         x0 = x
         skips: list[Tensor] = []
         for i in range(self.num_encoder_layers):
@@ -846,6 +924,11 @@ class GPT(nn.Module):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self._block_at(self.num_encoder_layers + i, x, x0)
+        # Eval-time extra recurrence: repeat decoder blocks for additional refinement
+        if eval_extra_repeats > 0:
+            for _rep in range(eval_extra_repeats):
+                for i in range(self.num_decoder_layers):
+                    x = self._block_at(self.num_encoder_layers + i, x, x0)
         return self.final_norm(x)
 
     def _logits(self, x: Tensor) -> Tensor:
@@ -861,8 +944,8 @@ class GPT(nn.Module):
         return F.cross_entropy(logits.float(), target_ids.reshape(-1), reduction="mean")
 
     @torch.no_grad()
-    def get_logits(self, input_ids: Tensor) -> Tensor:
-        x = self._forward_body(input_ids)
+    def get_logits(self, input_ids: Tensor, eval_extra_repeats: int = 0) -> Tensor:
+        x = self._forward_body(input_ids, eval_extra_repeats=eval_extra_repeats)
         return self._logits(x)
 
 
@@ -870,6 +953,7 @@ def eval_val_sliding(
     args, base_model: nn.Module, rank: int, world_size: int, device: torch.device,
     val_tokens: Tensor, base_bytes_lut: Tensor, has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor, eval_seq_len: int, eval_stride: int,
+    eval_extra_repeats: int = 0,
 ) -> tuple[float, float]:
     total_tokens = val_tokens.numel() - 1
     all_starts = list(range(0, total_tokens - eval_seq_len + 1, eval_stride))
@@ -886,7 +970,7 @@ def eval_val_sliding(
             x = val_tokens[start:end].to(device=device, dtype=torch.int64).unsqueeze(0)
             y = val_tokens[start + 1:end + 1].to(device=device, dtype=torch.int64).unsqueeze(0)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits = base_model.get_logits(x)
+                logits = base_model.get_logits(x, eval_extra_repeats=eval_extra_repeats)
             score_from = eval_seq_len - eval_stride
             if start == 0:
                 score_from = 0
@@ -1048,8 +1132,8 @@ def main() -> None:
     # - vectors/scalars use SCALAR_LR via Adam
     # Collect matrix and scalar params from blocks + auxiliary modules
     all_named_params: list[tuple[str, nn.Parameter]] = list(base_model.blocks.named_parameters())
-    if base_model.smear_gates is not None:
-        all_named_params.extend(("smear_gates." + n, p) for n, p in base_model.smear_gates.named_parameters())
+    if base_model.smear_gate_mod is not None:
+        all_named_params.extend(("smear_gate_mod." + n, p) for n, p in base_model.smear_gate_mod.named_parameters())
     if base_model.bigram_hash is not None:
         all_named_params.extend(("bigram_hash." + n, p) for n, p in base_model.bigram_hash.named_parameters())
     matrix_params = [
@@ -1261,7 +1345,8 @@ def main() -> None:
         zero_grad_all()
 
         # SWA: accumulate weight averages during warmdown phase
-        if args.use_swa and scale < args.swa_start_frac and not swa_started:
+        # Guard: require at least 100 training steps before SWA can start (avoids early-start bug)
+        if args.use_swa and step >= 100 and scale < args.swa_start_frac and not swa_started:
             swa_state = {n: p.detach().clone() for n, p in base_model.named_parameters()}
             swa_count = 1
             swa_started = True
@@ -1321,7 +1406,21 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), quant_bits=args.quant_bits)
+    # FTLE-lite: compute sensitivity-aware per-row bit allocation
+    ftle_row_bits = None
+    if args.ftle_quant:
+        log0("Computing FTLE-lite row sensitivity scores...")
+        sensitivity = compute_row_sensitivity(base_model, val_tokens, device, num_batches=4)
+        ftle_row_bits = assign_row_bits(sensitivity, default_bits=args.quant_bits,
+                                        high_frac=args.ftle_high_frac, low_frac=args.ftle_low_frac)
+        for name, bits in ftle_row_bits.items():
+            n8 = (bits == 8).sum().item()
+            n6 = (bits == 6).sum().item()
+            n4 = (bits == 4).sum().item()
+            log0(f"  {name}: {n8} rows@8bit, {n6} rows@6bit, {n4} rows@4bit")
+
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), quant_bits=args.quant_bits,
+                                                       row_bits_map=ftle_row_bits)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1380,21 +1479,45 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
+    # Eval-time extra recurrence: test with additional decoder passes
+    if args.eval_extra_repeats > 0 and args.eval_stride > 0:
+        for n_rep in range(1, args.eval_extra_repeats + 1):
+            torch.cuda.synchronize()
+            t_rep = time.perf_counter()
+            rep_loss, rep_bpb = eval_val_sliding(
+                args, base_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                eval_seq_len=effective_eval_seq_len, eval_stride=args.eval_stride,
+                eval_extra_repeats=n_rep,
+            )
+            torch.cuda.synchronize()
+            log0(
+                f"eval_extra_repeats:{n_rep} val_loss:{rep_loss:.4f} val_bpb:{rep_bpb:.4f} "
+                f"eval_time:{1000.0 * (time.perf_counter() - t_rep):.0f}ms"
+            )
+
     if args.eval_stride > 0:
-        torch.cuda.synchronize()
-        t_slide = time.perf_counter()
-        s_val_loss, s_val_bpb = eval_val_sliding(
-            args, base_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            eval_seq_len=effective_eval_seq_len, eval_stride=args.eval_stride,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"final_sliding_window val_loss:{s_val_loss:.4f} val_bpb:{s_val_bpb:.4f} "
-            f"eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms "
-            f"stride:{args.eval_stride} seq_len:{effective_eval_seq_len}"
-        )
-        log0(f"final_sliding_window_exact val_loss:{s_val_loss:.8f} val_bpb:{s_val_bpb:.8f}")
+        total_val_tokens = val_tokens.numel() - 1
+        num_windows = (total_val_tokens - effective_eval_seq_len + 1 + args.eval_stride - 1) // args.eval_stride
+        est_time_s = num_windows * 0.005  # ~5ms per window estimate
+        log0(f"sliding_window_eval: {num_windows} windows, stride={args.eval_stride}, est_time={est_time_s:.0f}s")
+        if est_time_s > 600:
+            log0(f"SKIPPING sliding window eval (estimated {est_time_s:.0f}s > 600s limit). Use larger EVAL_STRIDE.")
+        else:
+            torch.cuda.synchronize()
+            t_slide = time.perf_counter()
+            s_val_loss, s_val_bpb = eval_val_sliding(
+                args, base_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                eval_seq_len=effective_eval_seq_len, eval_stride=args.eval_stride,
+            )
+            torch.cuda.synchronize()
+            log0(
+                f"final_sliding_window val_loss:{s_val_loss:.4f} val_bpb:{s_val_bpb:.4f} "
+                f"eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms "
+                f"stride:{args.eval_stride} seq_len:{effective_eval_seq_len}"
+            )
+            log0(f"final_sliding_window_exact val_loss:{s_val_loss:.8f} val_bpb:{s_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()

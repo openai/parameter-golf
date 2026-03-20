@@ -49,6 +49,49 @@ Based on the **WarmdownQuantization record** (int6 quant, FP16 tied embed, slidi
 
 ---
 
+## Session 2: Bug Fixes + A100 x3 Parallel Experiments (2026-03-20)
+
+**Hardware**: c301-001, 3x A100-PCIE-40GB (SLURM job 3020340).
+**Key fixes applied**: BigramHash XOR hash (128-dim, zero-init, learned scale 0.05), SmearGate single-gate placement after embed+RMSNorm.
+
+| # | Config | Params | Artifact | Steps | ms/step | BPB (post-quant) | BPB (sliding window) | Notes |
+|---|--------|--------|----------|-------|---------|-------------------|---------------------|-------|
+| A | 9L + fixed BigramHash + SmearGate (zlib) | 22.4M | 12.8MB | 3595 | 167ms | 1.3442 | — | BigramHash/SmearGate fix = +0.094 |
+| B | 10L + SWA(bug) + zstd | 24.7M | 12.3MB | 3239 | 185ms | 1.6226 | — | SWA started at step 2, destroyed model |
+| C | 9L + higher LR + SWA + zstd | 22.4M | 12.3MB | 3578 | 166ms | 1.4033 | — | Higher LR hurt |
+| D | 10L clean + zstd | 24.7M | 13.3MB | 3251 | 185ms | 1.3456 | — | Clean 10L baseline |
+| E | 10L + SWA(0.5) + zstd | 24.7M | 13.2MB | 3251 | 185ms | 1.3566 | — | SWA hurt by +0.011 |
+| F | 9L + SWA(0.5) + zstd | 22.4M | 12.0MB | 3645 | 165ms | 1.3491 | — | SWA hurt by +0.005 |
+| G | 9L + zstd (no SWA) | 22.4M | 12.5MB | 3617 | 166ms | 1.3431 | **1.3260** | **Best legal result!** |
+| H | 10L + FTLE-lite + eval recurrence | 24.7M | 18.1MB | 3265 | 184ms | 1.3418 | — | Over 16MB limit. Eval recurrence=3.47 BPB (useless) |
+| I | 10L + long warmdown (6500) | 24.7M | 11.7MB | 3272 | 183ms | 1.3517 | 1.3358 | Better compression, matches 8xH100 LR schedule |
+
+**Key findings from Session 2:**
+1. BigramHash/SmearGate fixes gave **0.094 BPB improvement** (1.3442 vs 1.4384)
+2. **SWA consistently hurts** at SWA_START_FRAC=0.5 — adds 0.005-0.011 BPB penalty
+3. 10L slightly better than 9L pre-quant but fewer steps on A100 (184 vs 167 ms/step)
+4. **Higher LR (0.10/0.06) hurts** vs default (0.05/0.04)
+5. zstd-22 gives 5-8% smaller artifacts than zlib-9 with no quality impact
+6. TRAIN_BATCH_TOKENS must be 65536 for 1xA100 (524K default gives 880ms/step!)
+7. **Sliding window eval (stride=1024, seq_len=2048) gives 0.017 BPB boost** (477s eval time, within 10-min budget)
+8. **Eval-time extra recurrence is useless** on non-shared models — repeating decoder blocks gives 3.47 BPB (random noise)
+9. **FTLE-lite mixed precision** improves BPB but increases artifact size (18MB > 16MB). Bug: only detects gradient for BigramHash embed, not block weights
+10. **WARMDOWN_ITERS=6500** matches 8xH100 LR schedule better (LR starts at ~50% of peak). Gives best compression (11.7MB) but worse quant penalty
+11. **Best competition-legal result: 1.3260 BPB** (9L, zstd-22, sliding window stride=1024)
+
+### Recommended 8xH100 Submission Config
+```bash
+torchrun --standalone --nproc_per_node=8 train_exp.py \
+  NUM_LAYERS=10 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=3 \
+  MUON_WEIGHT_DECAY=0.02 QUANT_BITS=6 GRAD_CLIP_NORM=1.0 \
+  BIGRAM_HASH=1 BIGRAM_TABLE_SIZE=4096 BIGRAM_HASH_DIM=128 SMEAR_GATE=1 \
+  WARMDOWN_ITERS=20000 EVAL_STRIDE=1024 EVAL_SEQ_LEN=2048 \
+  TIED_EMBED_LR=0.05 MATRIX_LR=0.04 SCALAR_LR=0.04 \
+  USE_ZSTD=1 ZSTD_LEVEL=22 USE_SWA=0
+```
+
+---
+
 ## Detailed Analysis
 
 ### Experiment 7: Full 10-min Run (the problematic one)
