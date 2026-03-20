@@ -140,7 +140,7 @@ Copy this block when we start a new run:
 - Date: 2026-03-20
 - Owner: Kevin + Codex
 - Branch: `codex/looped-shared-depth-v1`
-- Commit: `1c25913` initially, then compatibility follow-up pending
+- Commit: `848f31f`
 - Goal: test whether shared-block recurrent depth improves the baseline under tight parameter budget
 - Hypothesis: reusing the same `NUM_LAYERS` blocks for multiple `NUM_LOOPS` will increase effective depth and expressivity faster than widening the model, while keeping unique parameter bytes close to baseline
 - Code changes: add `NUM_LOOPS` to `train_gpt.py` and reuse the same block stack across loops during forward pass; log unique/effective depth at startup
@@ -148,10 +148,38 @@ Copy this block when we start a new run:
   `RUN_ID=looped_shared_depth_v1 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 NUM_LAYERS=6 NUM_LOOPS=2 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=2 TRAIN_LOG_EVERY=50 VAL_LOSS_EVERY=200 torchrun --standalone --nproc_per_node=1 train_gpt.py`
 - Machine: RunPod 1xH100 first, then scale only if promising
 - Dataset/tokenizer: `fineweb10B_sp1024`, initial run can use `--train-shards 1` for smoke/bootstrap
+- Metrics:
+  - `sdpa_enable_gqa_supported:False`
+  - `model_params:11549744 unique_layers:6 loops:2 effective_depth:12`
+  - `step:200 val_bpb:1.6602`
+  - `step:400 val_bpb:1.5148`
+  - `step:600 val_bpb:1.4561`
+  - `step:800 val_bpb:1.4212`
+  - `step:1000 val_bpb:1.3988`
+  - final `final_int8_zlib_roundtrip_exact val_bpb:1.39779315`
+- Artifact size:
+  - serialized model int8+zlib: `8506653` bytes
+  - total submission size int8+zlib: `8567061` bytes
+- Outcome: successful run, but decisively worse than the upstream baseline quality-wise while also being much slower per step
+- Next action: stop investing in naive shared-depth looping; next experiment should prioritize quality-per-minute, likely via better evaluation or a stronger non-shared 10-layer baseline variant
+
+### exp-002
+- Date: 2026-03-20
+- Owner: Kevin + Codex
+- Branch: `codex/sliding-window-eval-v1`
+- Commit: pending
+- Goal: test the highest-confidence isolated improvement path after exp-001 failed
+- Hypothesis: sliding-window post-quant evaluation will improve reported `val_bpb` materially without changing training dynamics, because each scored validation token sees near-max context instead of the low-context chunk boundaries used by standard evaluation
+- Why this next: repo evidence shows `SlidingWindowEval` improved post-quant `val_bpb` by about `0.032` with training otherwise unchanged, while stronger 10-layer records combine multiple simultaneous changes and are harder to attribute cleanly
+- Code changes: add opt-in `EVAL_STRIDE` / `EVAL_BATCH_SEQS`, `forward_logits`, and `eval_val_sliding`; keep training-time validation and optimization unchanged
+- Command:
+  `RUN_ID=baseline_slide64_v1 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 NUM_LOOPS=1 EVAL_STRIDE=64 EVAL_BATCH_SEQS=128 TRAIN_LOG_EVERY=50 VAL_LOSS_EVERY=200 torchrun --standalone --nproc_per_node=1 train_gpt.py`
+- Machine: RunPod 1xH100
+- Dataset/tokenizer: `fineweb10B_sp1024` + `fineweb_1024_bpe.model`
 - Metrics: pending
 - Artifact size: pending
 - Outcome: pending
-- Next action: rerun from the compatibility-patched branch on RunPod and compare stability/speed/quantized `val_bpb` to standard 9-layer baseline
+- Next action: if the isolated eval gain is real on 1xH100 too, stack it with the next strongest training-side lever, likely the tuned 10-layer family
 
 ## Decisions and Learnings
 
@@ -160,9 +188,12 @@ Copy this block when we start a new run:
 - 2026-03-20: We will use this file to decide which architectural or evaluation changes are worth promoting into real submission candidates.
 - 2026-03-20: Public-branch sync from RunPod should use HTTPS remotes unless the pod has an authorized GitHub SSH key.
 - 2026-03-20: Hosted GPU images may lag on PyTorch features; challenge code should not assume `scaled_dot_product_attention(enable_gqa=...)` exists.
+- 2026-03-20: Simple block reuse (`6` unique layers, `2` loops) is very parameter-efficient on disk, but the quality hit is too large for this challenge in its current form.
+- 2026-03-20: On 1xH100, the looped shared-depth variant ran at roughly `570ms/step`, far slower than the upstream 8xH100 baseline step budget, so it is not a good candidate for scale-up without further optimization.
+- 2026-03-20: After a failed speculative architecture change, the next experiment should maximize causal clarity; isolated evaluation changes are a better follow-up than stacking several new training tricks at once.
 
 ## Next Actions
 
 - Finish pod bootstrap with `pip install -r requirements.txt`.
-- Run a clean 1xH100 baseline with `--train-shards 1`.
-- Choose the first real experiment branch and log it here before launching.
+- Run experiment 002: baseline-compatible training with sliding-window post-quant eval on 1xH100.
+- If experiment 002 shows the expected eval-only gain, use it as the measurement base for the next training-side experiment.
