@@ -23,7 +23,7 @@ Hardware / execution regime:
 Main SMM configuration:
 
 - `MODEL_KIND=smm`
-- `NUM_LAYERS=6`
+- `NUM_LAYERS=8`
 - `MODEL_DIM=256`
 - `NUM_HEADS=4`
 - `NUM_KV_HEADS=4`
@@ -46,10 +46,10 @@ The current SMM migration does not yet implement the upstream LoRA test-time-tra
 
 SMM smoke run:
 
-- `model_params: 3,776,088`
-- `final_int8_zlib_roundtrip_exact val_loss: 2.99375746`
-- `final_int8_zlib_roundtrip_exact val_bpb: 1.77307180`
-- `Total submission size int8+zlib: 4,509,767 bytes`
+- `model_params: 4,826,720`
+- `final_int8_zlib_roundtrip_exact val_loss: 2.93367972`
+- `final_int8_zlib_roundtrip_exact val_bpb: 1.73749038`
+- `Total submission size int8+zlib: 5,760,489 bytes`
 
 This is well below the 16,000,000-byte cap.
 
@@ -58,20 +58,20 @@ This is well below the 16,000,000-byte cap.
 A baseline run under the same smoke regime was also executed for comparison:
 
 - `MODEL_KIND=baseline`
-- same `NUM_LAYERS=6`, `MODEL_DIM=256`, `NUM_HEADS=4`, `NUM_KV_HEADS=4`, `MLP_MULT=2`
+- same `NUM_LAYERS=8`, `MODEL_DIM=256`, `NUM_HEADS=4`, `NUM_KV_HEADS=4`, `MLP_MULT=2`
 - `ITERATIONS=300`
 - `RUN_TTT_EVAL=0`
 
 Baseline reference result:
 
-- `model_params: 3,414,808`
-- `final_int8_zlib_roundtrip_exact val_loss: 3.01110288`
-- `final_int8_zlib_roundtrip_exact val_bpb: 1.78334473`
-- `Total submission size int8+zlib: 4,036,102 bytes`
+- `model_params: 4,465,696`
+- `final_int8_zlib_roundtrip_exact val_loss: 2.94709347`
+- `final_int8_zlib_roundtrip_exact val_bpb: 1.74543475`
+- `Total submission size int8+zlib: 5,296,081 bytes`
 
 In this smoke regime, the SMM path improves over the baseline by about:
 
-- `1.78334473 - 1.77307180 = 0.01027293 bpb`
+- `1.74543475 - 1.73749038 = 0.00794437 bpb`
 
 ## Interpretation
 

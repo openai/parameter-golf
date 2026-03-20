@@ -1630,7 +1630,7 @@ if __name__ == "__main__":
 ====================================================================================================
 Running Python 3.10.12 (main, Feb  4 2025, 14:57:36) [GCC 11.4.0]
 Running PyTorch 2.6.0+cu124
-Fri Mar 20 08:33:10 2026       
+Fri Mar 20 09:45:11 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 570.133.20             Driver Version: 570.133.20     CUDA Version: 12.8     |
 |-----------------------------------------+------------------------+----------------------+
@@ -1638,8 +1638,8 @@ Fri Mar 20 08:33:10 2026
 | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
-|   0  NVIDIA H100 80GB HBM3          On  |   00000000:DF:00.0 Off |                    0 |
-| N/A   32C    P0             83W /  700W |    1039MiB /  81559MiB |      9%      Default |
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:9D:00.0 Off |                    0 |
+| N/A   24C    P0             90W /  700W |    2075MiB /  81559MiB |     23%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
                                                                                          
@@ -1648,7 +1648,8 @@ Fri Mar 20 08:33:10 2026
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
 |        ID   ID                                                               Usage      |
 |=========================================================================================|
-|    0   N/A  N/A            9049      C   /usr/bin/python                        1030MiB |
+|    0   N/A  N/A            4405      C   /usr/bin/python                        1030MiB |
+|    0   N/A  N/A            4408      C   /usr/bin/python                        1030MiB |
 +-----------------------------------------------------------------------------------------+
 
 ====================================================================================================
@@ -1656,7 +1657,7 @@ val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fi
 train_loader:dataset:fineweb10B_sp1024 train_shards:1
 val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
 smm_init:mode=freq token_budget:500000 min_count:5 ngram_sizes:(2, 3, 4)
-model_params:3776088
+model_params:4826720
 model_kind:smm
 world_size:1 grad_accum_steps:8
 sdp_backends:cudnn=False flash=True mem_efficient=False math=False
@@ -1670,29 +1671,29 @@ warmup_step:2/5
 warmup_step:3/5
 warmup_step:4/5
 warmup_step:5/5
-step:1/300 train_loss:6.9312 train_time:173ms step_avg:173.05ms
-step:2/300 train_loss:6.6291 train_time:373ms step_avg:186.35ms
-step:3/300 train_loss:5.9496 train_time:573ms step_avg:191.03ms
-step:4/300 train_loss:5.6776 train_time:773ms step_avg:193.28ms
-step:5/300 train_loss:5.4914 train_time:965ms step_avg:193.06ms
-step:6/300 train_loss:5.3445 train_time:1174ms step_avg:195.71ms
-step:7/300 train_loss:5.1745 train_time:1380ms step_avg:197.18ms
-step:8/300 train_loss:5.0626 train_time:1574ms step_avg:196.69ms
-step:9/300 train_loss:4.9791 train_time:1789ms step_avg:198.75ms
-step:10/300 train_loss:4.8761 train_time:2005ms step_avg:200.49ms
-step:50/300 train_loss:4.1561 train_time:10222ms step_avg:204.43ms
-step:100/300 train_loss:3.5275 train_time:20689ms step_avg:206.89ms
-step:150/300 train_loss:3.2869 train_time:31290ms step_avg:208.60ms
-step:200/300 train_loss:3.0642 train_time:45396ms step_avg:226.98ms
-step:250/300 train_loss:2.9450 train_time:55788ms step_avg:223.15ms
-step:300/300 train_loss:2.9444 train_time:66389ms step_avg:221.30ms
-step:300/300 val_loss:2.9645 val_bpb:1.7557 train_time:66396ms step_avg:221.32ms
-peak memory allocated: 5105 MiB reserved: 5360 MiB
-Serialized model: 14538028 bytes
+step:1/300 train_loss:6.9309 train_time:392ms step_avg:391.99ms
+step:2/300 train_loss:6.6222 train_time:783ms step_avg:391.49ms
+step:3/300 train_loss:5.9140 train_time:1090ms step_avg:363.26ms
+step:4/300 train_loss:5.5914 train_time:1291ms step_avg:322.63ms
+step:5/300 train_loss:5.3724 train_time:1489ms step_avg:297.83ms
+step:6/300 train_loss:5.2298 train_time:1688ms step_avg:281.40ms
+step:7/300 train_loss:5.0474 train_time:1899ms step_avg:271.26ms
+step:8/300 train_loss:4.9457 train_time:2099ms step_avg:262.39ms
+step:9/300 train_loss:4.8518 train_time:2291ms step_avg:254.52ms
+step:10/300 train_loss:4.7967 train_time:2491ms step_avg:249.06ms
+step:50/300 train_loss:4.1122 train_time:10562ms step_avg:211.23ms
+step:100/300 train_loss:3.4758 train_time:20720ms step_avg:207.20ms
+step:150/300 train_loss:3.2228 train_time:41189ms step_avg:274.59ms
+step:200/300 train_loss:3.0082 train_time:64980ms step_avg:324.90ms
+step:250/300 train_loss:2.8912 train_time:88689ms step_avg:354.76ms
+step:300/300 train_loss:2.8905 train_time:111985ms step_avg:373.28ms
+step:300/300 val_loss:2.9086 val_bpb:1.7226 train_time:111992ms step_avg:373.31ms
+peak memory allocated: 6342 MiB reserved: 6602 MiB
+Serialized model: 18747840 bytes
 Code size: 69377 bytes
-Total submission size: 14607405 bytes
-Serialized model int8+zlib: 4440390 bytes (payload:5610208 raw_torch:5635994 payload_ratio:2.59x)
-Total submission size int8+zlib: 4509767 bytes
-final_int8_zlib_roundtrip val_loss:2.9938 val_bpb:1.7731 eval_time:5258ms
-final_int8_zlib_roundtrip_exact val_loss:2.99375746 val_bpb:1.77307180
+Total submission size: 18817217 bytes
+Serialized model int8+zlib: 5691112 bytes (payload:7194368 raw_torch:7227674 payload_ratio:2.60x)
+Total submission size int8+zlib: 5760489 bytes
+final_int8_zlib_roundtrip val_loss:2.9337 val_bpb:1.7375 eval_time:8028ms
+final_int8_zlib_roundtrip_exact val_loss:2.93367972 val_bpb:1.73749038
 final_int8_ttt_lora skipped:model_kind=smm run_ttt_eval:False
