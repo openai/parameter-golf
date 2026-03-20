@@ -26,6 +26,14 @@ Repo-local working notes for participating in `openai/parameter-golf` from this 
 - Record the branch, commit, command, machine, dataset slice, and key metrics for each run in `EXPERIMENT_TRACKER.md`.
 - If a run fails because of environment or infra, log it as part of experiment tracking, not just successful runs.
 
+## Run Command Rules
+- Do not invent run commands ad hoc; derive them from the latest validated experiment pattern in `EXPERIMENT_TRACKER.md`.
+- A run command must always include the common required core:
+  `RUN_ID`, `DATA_PATH`, `TOKENIZER_PATH`, `VOCAB_SIZE`, and the `torchrun --standalone --nproc_per_node=1 train_gpt.py` launcher unless the tracker explicitly says otherwise.
+- Add only the experiment-specific knobs on top of that core, for example `NUM_LOOPS`, `EVAL_STRIDE`, `EVAL_BATCH_SEQS`, `NUM_LAYERS`, or LR overrides.
+- Before telling the user to launch a command on RunPod, make sure the exact command is written into the active experiment block in `EXPERIMENT_TRACKER.md`.
+- For remote runs, also tell the user which branch and commit should be checked out before executing the command.
+
 ## Submission Guardrails
 - Do not guess challenge rules, artifact limits, model IDs, or evaluation behavior; verify against upstream docs.
 - New upstream/core-code improvements belong in top-level scripts only if they stay simple; the best models should stay in `records/`.
