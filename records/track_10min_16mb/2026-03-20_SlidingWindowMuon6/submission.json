@@ -1,0 +1,18 @@
+{
+  "author": "Maya Walcher",
+  "github": "beee003",
+  "val_bpb": 1.1973,
+  "val_loss": 2.0217,
+  "description": "Sliding Window Eval (stride=256) + Muon 6-step Newton-Schulz + Extended Momentum Warmup",
+  "seeds": [1337, 42, 7],
+  "results": {
+    "seed_1337": {"val_loss": 2.0208, "val_bpb": 1.1968, "steps": 13688, "ms_per_step": 45.09},
+    "seed_42": {"val_loss": 2.0217, "val_bpb": 1.1974, "steps": 13688, "ms_per_step": 45.09},
+    "seed_7": {"val_loss": 2.0225, "val_bpb": 1.1978, "steps": 13688, "ms_per_step": 45.09}
+  },
+  "mean_val_bpb": 1.1973,
+  "artifact_bytes": 15882060,
+  "eval_time_seconds": 126,
+  "hardware": "8xH100 SXM",
+  "date": "2026-03-20"
+}
