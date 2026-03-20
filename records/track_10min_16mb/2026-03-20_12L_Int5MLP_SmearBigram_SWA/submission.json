@@ -1,0 +1,23 @@
+{
+  "author": "Will DePue",
+  "github_id": "unixmadtoonslab",
+  "name": "12L Int5-MLP + SmearGate + BigramHash + SWA (1.1468 BPB)",
+  "blurb": "12-layer transformer (dim=512, 8H/4KV GQA) with mixed int5/int6 quantization: int5 per-row for MLP weights (3 zero high bits -> better zstd-22 compression), int6 per-row for attention weights, fp16 embedding passthrough. SmearGate per-dim blending, BigramHash (4096 buckets, dim=128), U-Net skip connections, orthogonal init with output scaling, SWA/50 during warmdown. Muon optimizer (LR=0.025, momentum=0.97, WD=0.04) with stable warmdown timing (ignores compilation overhead). PyTorch 2.8 SDPA at seq1024.",
+  "date": "2026-03-20T00:00:00Z",
+  "track": "10min-8xH100-16mb",
+  "val_loss": 1.93625,
+  "val_bpb": 1.14676,
+  "pre_quant_val_loss": 0.0,
+  "pre_quant_val_bpb": 0.0,
+  "step_stop": 9009,
+  "wallclock_seconds": 600.0,
+  "bytes_total": 15579491,
+  "bytes_model_int6_zstd": 15511955,
+  "bytes_code": 67536,
+  "seeds": {
+    "1337": {"val_bpb": 1.14618, "artifact_bytes": 15511955},
+    "42": {"val_bpb": 1.14768, "artifact_bytes": 15533917},
+    "7": {"val_bpb": 1.14641, "artifact_bytes": 15066006}
+  },
+  "mean_val_bpb": 1.14676
+}
