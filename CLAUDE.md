@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-OpenAI's "Parameter Golf" challenge: train the best language model that fits in a **16MB artifact** (code + zlib-compressed int8 weights) and trains in **under 10 minutes on 8×H100s**. Scored by bits-per-byte (val_bpb) on a fixed FineWeb validation set. Inspired by NanoGPT Speedrunning but optimizing L(N) — lowest loss for fixed parameter count.
+OpenAI's "Parameter Golf" challenge: train the best language model that fits in a **16MB artifact** (code + compressed weights) and trains in **under 10 minutes on 8×H100s**. Scored by bits-per-byte (val_bpb) on a fixed FineWeb validation set. Inspired by NanoGPT Speedrunning but optimizing L(N) — lowest loss for fixed parameter count.
+
+- **Baseline**: 9 layers, dim 512, vocab 1024, ~22M params → val_bpb 1.2244
+- **SOTA merged**: 10 layers, FP16 embed, Muon WD, OvertoneInit → val_bpb 1.1748
+- **Frontier (open PRs)**: 11L, int6 QAT, SWA, SmearGate, MLP 3× → val_bpb ~1.13
 
 ## Key Commands
 
@@ -44,10 +48,41 @@ Two self-contained training scripts (hard cap: 1500 lines each):
 
 - **`records/`** — Submission history. Each record folder contains `train_gpt.py`, `submission.json`, `README.md`, and `train.log`. Two tracks: `track_10min_16mb/` (leaderboard) and `track_non_record_16mb/` (unlimited compute).
 
+## Knowledge Base
+
+Research and analysis documents live in `docs/`:
+
+- **`docs/README.md`** — Problem definition, leaderboard, submission analysis (merged vs PR frontier), contraste investigacion vs practica, prioritized R&D directions across 3 tiers.
+- **`docs/nanogpt-speedrun.md`** — Analysis of 77 records from modded-nanogpt (L(T) optimization). Key transferable techniques: SmearGate, BigramHash, Muon/NorMuon/Polar Express, value embeddings, sliding window attention, batch/seq schedules, U-net skips.
+- **`docs/nanogpt-slowrun.md`** — Analysis of 27 records across 3 tracks (L(D) optimization). Key techniques: heavy regularization, value projections from x0, per-head attention gating, layer looping, EMA/SWA, U-net skips.
+- **`docs/small-model-research.md`** — Deep research on sub-100M model techniques. Covers: MobileLLM (deep-thin), Depth Delusion (width scaling), RingFormer (depth recurrence), QAT, BitNet, optimizer advances (ROOT, CANS, IFNSO).
+
+Reference repos are included as subtrees:
+- **`modded-nanogpt/`** — NanoGPT Speedrun codebase (77 records, current record ~1.44 min)
+- **`slowrun/`** — NanoGPT Slowrun codebase (27 records across 3 tracks)
+
+## Frontier Technique Stack
+
+The competitive consensus from open PRs (val_bpb ~1.13):
+
+| Technique | Detail |
+|-----------|--------|
+| Int6 QAT (STE) | Fake 6-bit quantization during training with straight-through estimator |
+| zstd-22 compression | Replaces zlib; ~35% better compression for int6 values |
+| 11 layers / 512 dim | Sweet spot for 16MB budget under int6 |
+| MLP 3× (hidden=1536) | Optimal SwiGLU ratio ~2.7× |
+| SmearGate | Learned gate blending current + previous token embeddings |
+| SWA | Stochastic Weight Averaging during warmdown |
+| Muon WD = 0.038-0.04 | High weight decay keeps weights small for quantization |
+| FP16 tied embeddings | Never quantize the embedding/unembedding layer |
+| Sliding window eval stride=64 | Nearly full context for every scored token |
+| OrthoInit + muP | Orthogonal initialization + maximal update parametrization |
+| Seq 2048 + RoPE | 2× training context length |
+
 ## Submission Rules
 
 - New SOTA must beat existing by ≥0.005 nats at p < 0.01 (typically 3 run logs)
-- Artifact size = code bytes + zlib-compressed model bytes ≤ 16,000,000 (decimal, not MiB)
+- Artifact size = code bytes + compressed model bytes ≤ 16,000,000 (decimal, not MiB)
 - Submissions are PRs that add a folder under `records/` with: `README.md`, `submission.json`, `train_gpt.py`, `train.log`
 - No external downloads or network calls allowed during evaluation
 - Eval time limit: 10 minutes on 8×H100 (separate from training time)
