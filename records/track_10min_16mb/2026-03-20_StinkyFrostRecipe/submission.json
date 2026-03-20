@@ -1,0 +1,11 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "The Stinky Frost Recipe",
+  "blurb": "Int6 QAT with FP16 tied embeddings, MLP hidden=1344, SmearGate bigram blending, BigramHash (4096 buckets, dim=128), orthogonal weight initialization, Muon WD=0.01, early QAT at 25%, sliding window eval stride=64. 9L/512d with GQA (8 heads, 4 KV). Trained at seq_len=1024 with 524K batch tokens, 600s wallclock on 8xH100.",
+  "date": "2026-03-20T08:00:00Z",
+  "val_loss": 1.97965564,
+  "val_bpb": 1.1725,
+  "bytes_total": 15575922,
+  "bytes_code": 84556
+}
