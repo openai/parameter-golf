@@ -62,11 +62,16 @@ On RunPod:
 
 ```bash
 cd /workspace/parameter-golf
-git remote set-url origin git@github.com:Kevxn97/parameter-golf.git
-git remote add upstream https://github.com/openai/parameter-golf.git 2>/dev/null || true
+git remote set-url origin https://github.com/Kevxn97/parameter-golf.git
 git fetch origin
-git checkout codex/my-experiment
-git pull
+git checkout -B codex/my-experiment origin/codex/my-experiment
+git rev-parse --short HEAD
+```
+
+Before launching a run, verify the expected feature marker for that branch is present:
+
+```bash
+grep -n "FEATURE_MARKER_HERE" train_gpt.py
 ```
 
 ### Upstream refresh
@@ -86,6 +91,16 @@ git push origin main
 | 2026-03-20 | infra-002 | `main` | n/a | RunPod 1xH100 pod | none | first pod bootstrap attempt from clean clone | `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1` and baseline `torchrun` | failed | missing `huggingface_hub` and `sentencepiece`; pod required manual `pip install -r requirements.txt` |
 | 2026-03-20 | infra-003 | `main` | n/a | RunPod 1xH100 pod | `fineweb10B_sp1024` val + 1 train shard | first baseline launch after installing deps | baseline `torchrun --standalone --nproc_per_node=1 train_gpt.py` | failed | pod image has `torch 2.4.1+cu124`; this build does not support `enable_gqa` in SDPA, so baseline code needed compatibility fallback |
 | 2026-03-20 | infra-004 | `main` | n/a | RunPod 1xH100 pod | none | tried pulling experiment branch from fork over SSH | `git fetch origin` after `origin=git@github.com:Kevxn97/parameter-golf.git` | failed | pod had no GitHub SSH key loaded; for public forks use HTTPS remotes for fetch/pull |
+| 2026-03-20 | exp-002-attempt-001 | `codex/sliding-window-eval-v1` | unverified on pod | RunPod 1xH100 pod | `fineweb10B_sp1024` | attempted isolated sliding-window eval run | `RUN_ID=baseline_slide64_v1 ... EVAL_STRIDE=64 EVAL_BATCH_SEQS=128 torchrun --standalone --nproc_per_node=1 train_gpt.py` | ambiguous | run finished, but the expected `final_eval_mode:sliding_window` log line was missing and final eval time was only `11771ms`, so this result should not be treated as valid sliding-window evidence |
+
+## Experiment Scoreboard
+
+This is the fast comparison view. One row per experiment, updated as soon as a run finishes.
+
+| ID | Status | Branch | Commit | Main change | Final val_bpb | Size int8+zlib | Decision | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `exp-001` | complete | `codex/looped-shared-depth-v1` | `848f31f` | shared-depth looping (`NUM_LAYERS=6`, `NUM_LOOPS=2`) | `1.39779315` | `8567061` bytes | discard | very parameter-efficient, but quality and speed both poor |
+| `exp-002` | needs rerun | `codex/sliding-window-eval-v1` | `a5fe685` locally, unverified on pod | sliding-window post-quant eval (`EVAL_STRIDE=64`) | observed `1.35379936`, not accepted | `13510262` bytes observed | rerun | branch name matched, but expected sliding-window marker was absent, so attribution is not reliable |
 
 ## Hypothesis Backlog
 
@@ -167,7 +182,7 @@ Copy this block when we start a new run:
 - Date: 2026-03-20
 - Owner: Kevin + Codex
 - Branch: `codex/sliding-window-eval-v1`
-- Commit: pending
+- Commit: `a5fe685`
 - Goal: test the highest-confidence isolated improvement path after exp-001 failed
 - Hypothesis: sliding-window post-quant evaluation will improve reported `val_bpb` materially without changing training dynamics, because each scored validation token sees near-max context instead of the low-context chunk boundaries used by standard evaluation
 - Why this next: repo evidence shows `SlidingWindowEval` improved post-quant `val_bpb` by about `0.032` with training otherwise unchanged, while stronger 10-layer records combine multiple simultaneous changes and are harder to attribute cleanly
@@ -176,17 +191,29 @@ Copy this block when we start a new run:
   `RUN_ID=baseline_slide64_v1 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 NUM_LOOPS=1 EVAL_STRIDE=64 EVAL_BATCH_SEQS=128 TRAIN_LOG_EVERY=50 VAL_LOSS_EVERY=200 torchrun --standalone --nproc_per_node=1 train_gpt.py`
 - Machine: RunPod 1xH100
 - Dataset/tokenizer: `fineweb10B_sp1024` + `fineweb_1024_bpe.model`
-- Metrics: pending
-- Artifact size: pending
-- Outcome: pending
-- Next action: if the isolated eval gain is real on 1xH100 too, stack it with the next strongest training-side lever, likely the tuned 10-layer family
+- Metrics:
+  - observed on pod: `model_params:17059912 unique_layers:9 loops:1 effective_depth:9`
+  - observed on pod: `step:1200 val_bpb:1.3605`
+  - observed on pod: `step:1355 val_bpb:1.3525`
+  - observed on pod: `final_int8_zlib_roundtrip_exact val_bpb:1.35379936`
+  - observed on pod: `final_int8_ttt_lora val_bpb:1.3209`
+  - observed on pod: `step_avg:443.05ms`
+  - attribution warning: expected `final_eval_mode:sliding_window` startup marker was missing
+  - attribution warning: final quantized eval took only `11771ms`, which is not consistent with an active stride-64 sliding eval
+- Artifact size:
+  - observed on pod: serialized model int8+zlib `13449854` bytes
+  - observed on pod: total submission size int8+zlib `13510262` bytes
+- Outcome: run completed, but we should not count it as a valid sliding-window evaluation result because the log does not prove the sliding eval path was active
+- Next action: rerun `exp-002` only after explicit pod-side verification of both `git rev-parse --short HEAD` and a feature marker such as `grep -n "final_eval_mode" train_gpt.py`; only then compare the resulting `final_int8_zlib_roundtrip_exact val_bpb` against this observed baseline-like run
 
 ## Decisions and Learnings
 
 - 2026-03-20: Git-based sync is the default workflow between local and RunPod; avoid manual file copying unless it is a one-off emergency.
 - 2026-03-20: Environment/bootstrap failures belong in this tracker because they affect iteration speed and reproducibility.
 - 2026-03-20: We will use this file to decide which architectural or evaluation changes are worth promoting into real submission candidates.
+- 2026-03-20: Every experiment should be visible in two places: a detailed per-experiment block and a one-row scoreboard summary for quick comparison.
 - 2026-03-20: Public-branch sync from RunPod should use HTTPS remotes unless the pod has an authorized GitHub SSH key.
+- 2026-03-20: A branch name alone is not enough to trust remote experiment attribution; for every pod run we need the checked-out commit hash and at least one feature-specific source/log marker before treating results as valid evidence.
 - 2026-03-20: Hosted GPU images may lag on PyTorch features; challenge code should not assume `scaled_dot_product_attention(enable_gqa=...)` exists.
 - 2026-03-20: Simple block reuse (`6` unique layers, `2` loops) is very parameter-efficient on disk, but the quality hit is too large for this challenge in its current form.
 - 2026-03-20: On 1xH100, the looped shared-depth variant ran at roughly `570ms/step`, far slower than the upstream 8xH100 baseline step budget, so it is not a good candidate for scale-up without further optimization.
@@ -195,5 +222,5 @@ Copy this block when we start a new run:
 ## Next Actions
 
 - Finish pod bootstrap with `pip install -r requirements.txt`.
-- Run experiment 002: baseline-compatible training with sliding-window post-quant eval on 1xH100.
-- If experiment 002 shows the expected eval-only gain, use it as the measurement base for the next training-side experiment.
+- Rerun experiment 002 with explicit pod-side commit and feature-marker verification before launch.
+- If the rerun proves the sliding eval path is active and improves `final_int8_zlib_roundtrip_exact val_bpb`, use it as the measurement base for the next training-side experiment.
