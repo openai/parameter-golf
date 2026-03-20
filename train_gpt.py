@@ -315,18 +315,12 @@ INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS", "").split(",")
     if pattern
 )
-INT8_GROUPED_SCALE_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("INT8_GROUPED_SCALE_NAME_PATTERNS", "").split(",")
-    if pattern
-)
 INT8_FP32_SCALE_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get("INT8_FP32_SCALE_NAME_PATTERNS", "").split(",")
     if pattern
 )
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
-INT8_GROUPED_SCALE_GROUP_SIZE = int(os.environ.get("INT8_GROUPED_SCALE_GROUP_SIZE", 0))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -353,44 +347,11 @@ def int8_scale_dtype_for_tensor(name: str, t: Tensor) -> torch.dtype:
         return torch.float32
     return INT8_PER_ROW_SCALE_DTYPE
 
-def grouped_scale_group_size_for_tensor(name: str, t: Tensor) -> int:
-    if (
-        t.ndim == 2
-        and INT8_GROUPED_SCALE_GROUP_SIZE > 0
-        and matches_name_patterns(name, INT8_GROUPED_SCALE_NAME_PATTERNS)
-    ):
-        return min(INT8_GROUPED_SCALE_GROUP_SIZE, int(t.shape[1]))
-    return 0
-
-def quantize_float_tensor(
-    name: str,
-    t: Tensor,
-    scale_dtype: torch.dtype = INT8_PER_ROW_SCALE_DTYPE,
-    group_size: int = 0,
-) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(name: str, t: Tensor, scale_dtype: torch.dtype = INT8_PER_ROW_SCALE_DTYPE) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
-        if group_size > 0 and t32.shape[1] > group_size:
-            q_chunks: list[Tensor] = []
-            scale_chunks: list[Tensor] = []
-            for start in range(0, t32.shape[1], group_size):
-                end = min(start + group_size, t32.shape[1])
-                group = t32[:, start:end]
-                clip_abs = (
-                    torch.quantile(group.abs(), INT8_CLIP_Q, dim=1)
-                    if group.numel()
-                    else torch.empty((t32.shape[0],), dtype=torch.float32)
-                )
-                clipped = torch.maximum(torch.minimum(group, clip_abs[:, None]), -clip_abs[:, None])
-                scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-                q_chunks.append(torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8))
-                scale_chunks.append(scale)
-            return (
-                torch.cat(q_chunks, dim=1).contiguous(),
-                torch.stack(scale_chunks, dim=1).to(dtype=scale_dtype).contiguous(),
-            )
         clip_abs = (
             torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
             if t32.numel()
@@ -452,7 +413,6 @@ def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, ob
     if not INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS:
         return None
     candidates: list[dict[str, object]] = []
-    grouped_scale_candidate_count = 0
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
         if not t.is_floating_point():
@@ -461,8 +421,6 @@ def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, ob
             continue
         if not matches_name_patterns(name, INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS):
             continue
-        if grouped_scale_group_size_for_tensor(name, t) > 0:
-            grouped_scale_candidate_count += 1
         candidates.append(score_keep_float_candidate(name, t))
     if not candidates:
         return {
@@ -476,9 +434,6 @@ def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, ob
             "keep_payload_bytes": 0,
             "extra_payload_bytes": 0,
             "top_candidates_summary": "",
-            "selector_path": "baseline_fp16_per_row_v1",
-            "full_export_state": "full_export_state_v1",
-            "grouped_scale_candidate_count": grouped_scale_candidate_count,
         }
     ranked = sorted(
         candidates,
@@ -494,9 +449,6 @@ def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, ob
             for item in ranked[: max(INT8_AUTO_KEEP_FLOAT_LOG_TOPK, 0)]
         )
     )
-    best["selector_path"] = "baseline_fp16_per_row_v1"
-    best["full_export_state"] = "full_export_state_v1"
-    best["grouped_scale_candidate_count"] = grouped_scale_candidate_count
     return best
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
@@ -529,9 +481,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             "auto_keep_payload_bytes",
             "fp32_scale_tensor_count",
             "fp32_scale_payload_bytes",
-            "grouped_scale_tensor_count",
-            "grouped_scale_payload_bytes",
-            "grouped_scale_value_count",
         ),
         0,
     )
@@ -546,11 +495,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         stats["auto_keep_keep_payload_bytes"] - stats["auto_keep_quantized_payload_bytes"]
     )
     stats["auto_keep_top_candidates_summary"] = str(auto_keep["top_candidates_summary"]) if auto_keep is not None else ""
-    stats["auto_keep_selector_path"] = str(auto_keep["selector_path"]) if auto_keep is not None else ""
-    stats["auto_keep_full_export_state"] = str(auto_keep["full_export_state"]) if auto_keep is not None else ""
-    stats["auto_keep_grouped_scale_candidate_count"] = (
-        int(auto_keep["grouped_scale_candidate_count"]) if auto_keep is not None else 0
-    )
 
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
@@ -582,17 +526,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 
         stats["num_float_tensors"] += 1
         scale_dtype = int8_scale_dtype_for_tensor(name, t)
-        group_size = grouped_scale_group_size_for_tensor(name, t)
-        q, s = quantize_float_tensor(name, t, scale_dtype=scale_dtype, group_size=group_size)
-        if s.ndim > 1:
-            qmeta[name] = {"scheme": "per_row_grouped", "axis": 0, "group_size": group_size}
-            stats["grouped_scale_tensor_count"] += 1
-            stats["grouped_scale_payload_bytes"] += tensor_nbytes(s)
-            stats["grouped_scale_value_count"] += int(s.numel())
-            if scale_dtype == torch.float32:
-                stats["fp32_scale_tensor_count"] += 1
-                stats["fp32_scale_payload_bytes"] += tensor_nbytes(s)
-        elif s.ndim > 0:
+        q, s = quantize_float_tensor(name, t, scale_dtype=scale_dtype)
+        if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
             if scale_dtype == torch.float32:
                 stats["fp32_scale_tensor_count"] += 1
@@ -622,16 +557,7 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        scheme = qmeta.get(name, {}).get("scheme")
-        if scheme == "per_row_grouped":
-            group_size = int(qmeta.get(name, {}).get("group_size", q.shape[1]))
-            s = s.to(dtype=torch.float32)
-            out_t = torch.empty_like(q, dtype=torch.float32)
-            for group_idx, start in enumerate(range(0, q.shape[1], group_size)):
-                end = min(start + group_size, q.shape[1])
-                out_t[:, start:end] = q[:, start:end].float() * s[:, group_idx].view(q.shape[0], 1)
-            out[name] = out_t.to(dtype=dtype).contiguous()
-        elif scheme == "per_row" or s.ndim > 0:
+        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
             # Broadcast the saved row scale back across trailing dimensions.
             out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
@@ -1340,11 +1266,7 @@ def main() -> None:
                 f"selected:{quant_stats['auto_keep_selected_name'] or 'none'} "
                 f"estimated_gain:{quant_stats['auto_keep_estimated_gain']:.8f} "
                 f"quantized_error:{quant_stats['auto_keep_quantized_error']:.8f} "
-                f"keep_error:{quant_stats['auto_keep_keep_error']:.8f} "
-                f"selector_path:{quant_stats['auto_keep_selector_path'] or 'none'} "
-                f"export_path:{quant_stats['auto_keep_full_export_state'] or 'none'} "
-                f"grouped_scale_scoring:excluded "
-                f"grouped_scale_candidate_matches:{quant_stats['auto_keep_grouped_scale_candidate_count']}"
+                f"keep_error:{quant_stats['auto_keep_keep_error']:.8f}"
             )
             if quant_stats["auto_keep_top_candidates_summary"]:
                 log0(f"Int8 auto-keep top candidates: {quant_stats['auto_keep_top_candidates_summary']}")
@@ -1362,14 +1284,6 @@ def main() -> None:
                 "Int8 scale storage: "
                 f"fp32_tensors:{quant_stats['fp32_scale_tensor_count']} "
                 f"fp32_bytes:{quant_stats['fp32_scale_payload_bytes']}"
-            )
-        if INT8_GROUPED_SCALE_NAME_PATTERNS:
-            log0(
-                "Int8 grouped scale export: "
-                f"tensors:{quant_stats['grouped_scale_tensor_count']} "
-                f"scale_values:{quant_stats['grouped_scale_value_count']} "
-                f"scale_bytes:{quant_stats['grouped_scale_payload_bytes']} "
-                f"group_size:{INT8_GROUPED_SCALE_GROUP_SIZE}"
             )
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
