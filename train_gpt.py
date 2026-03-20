@@ -335,6 +335,10 @@ INT8_KEEP_FLOAT_FP32_EXTRA_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_KEEP_FLOAT_FP32_EXTRA_NAME_PATTERNS", "").split(",")
     if pattern
 )
+INT8_AUTO_KEEP_SELECTED_FP32_AUDIT = os.environ.get("INT8_AUTO_KEEP_SELECTED_FP32_AUDIT", "0") == "1"
+INT8_AUTO_KEEP_SELECTED_FP32_AUDIT_MIN_GAIN = float(
+    os.environ.get("INT8_AUTO_KEEP_SELECTED_FP32_AUDIT_MIN_GAIN", 0.0)
+)
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
 INT8_KEEP_FLOAT_FP32_AUDIT_LOG_TOPK = int(os.environ.get("INT8_KEEP_FLOAT_FP32_AUDIT_LOG_TOPK", 9))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
@@ -736,6 +740,84 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     if passthrough_orig_dtypes:
         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
     return obj, stats
+
+def audit_auto_keep_selected_fp32_promotion(
+    state_dict: dict[str, Tensor],
+    quant_obj: dict[str, object],
+    quant_file_bytes: int,
+    code_bytes: int,
+    selected_auto_keep_name: str,
+) -> dict[str, object] | None:
+    if not INT8_AUTO_KEEP_SELECTED_FP32_AUDIT:
+        return None
+    result: dict[str, object] = {
+        "selected_name": selected_auto_keep_name or "none",
+        "actionable": "none",
+        "reason": "no_selected_tensor",
+        "baseline_store_dtype": "none",
+        "promoted_store_dtype": "float32",
+        "baseline_error": 0.0,
+        "promoted_error": 0.0,
+        "gain": 0.0,
+        "baseline_submission_bytes": quant_file_bytes + code_bytes,
+        "promoted_submission_bytes": quant_file_bytes + code_bytes,
+        "extra_submission_bytes": 0,
+        "remaining_after_promotion": SUBMISSION_SIZE_CAP_BYTES - (quant_file_bytes + code_bytes),
+    }
+    if not selected_auto_keep_name:
+        return result
+    passthrough = quant_obj.get("passthrough")
+    if not isinstance(passthrough, dict):
+        result["reason"] = "missing_passthrough"
+        return result
+    stored = passthrough.get(selected_auto_keep_name)
+    if not isinstance(stored, torch.Tensor):
+        result["reason"] = "selected_not_passthrough"
+        return result
+    baseline_dtype = str(stored.dtype).removeprefix("torch.")
+    result["baseline_store_dtype"] = baseline_dtype
+    if stored.dtype != torch.float16:
+        result["reason"] = "selected_not_fp16_passthrough"
+        return result
+    selected_tensor = state_dict[selected_auto_keep_name].detach().to("cpu").contiguous()
+    baseline_orig_dtypes = dict(quant_obj.get("passthrough_orig_dtypes", {}))
+    baseline_recon = restore_passthrough_tensor(selected_auto_keep_name, stored, baseline_orig_dtypes)
+    promoted_stored = selected_tensor.float().contiguous()
+    promoted_orig_dtypes = dict(baseline_orig_dtypes)
+    promoted_orig_dtypes.pop(selected_auto_keep_name, None)
+    promoted_recon = restore_passthrough_tensor(selected_auto_keep_name, promoted_stored, promoted_orig_dtypes)
+    baseline_error = normalized_mae(selected_tensor, baseline_recon)
+    promoted_error = normalized_mae(selected_tensor, promoted_recon)
+    gain = baseline_error - promoted_error
+    result["baseline_error"] = baseline_error
+    result["promoted_error"] = promoted_error
+    result["gain"] = gain
+
+    promoted_obj = dict(quant_obj)
+    promoted_passthrough = dict(passthrough)
+    promoted_passthrough[selected_auto_keep_name] = promoted_stored
+    promoted_obj["passthrough"] = promoted_passthrough
+    if promoted_orig_dtypes:
+        promoted_obj["passthrough_orig_dtypes"] = promoted_orig_dtypes
+    else:
+        promoted_obj.pop("passthrough_orig_dtypes", None)
+    promoted_buf = io.BytesIO()
+    torch.save(promoted_obj, promoted_buf)
+    promoted_blob = zlib.compress(promoted_buf.getvalue(), level=9)
+    baseline_submission_bytes = quant_file_bytes + code_bytes
+    promoted_submission_bytes = len(promoted_blob) + code_bytes
+    result["baseline_submission_bytes"] = baseline_submission_bytes
+    result["promoted_submission_bytes"] = promoted_submission_bytes
+    result["extra_submission_bytes"] = promoted_submission_bytes - baseline_submission_bytes
+    result["remaining_after_promotion"] = SUBMISSION_SIZE_CAP_BYTES - promoted_submission_bytes
+    if gain >= INT8_AUTO_KEEP_SELECTED_FP32_AUDIT_MIN_GAIN and promoted_submission_bytes <= SUBMISSION_SIZE_CAP_BYTES:
+        result["actionable"] = "fp32"
+        result["reason"] = "positive_gain_exact_feasible"
+    elif gain < INT8_AUTO_KEEP_SELECTED_FP32_AUDIT_MIN_GAIN:
+        result["reason"] = "gain_below_threshold"
+    else:
+        result["reason"] = "exact_submission_infeasible"
+    return result
 
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
@@ -1434,7 +1516,8 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    state_dict = base_model.state_dict()
+    quant_obj, quant_stats = quantize_state_dict_int8(state_dict)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1445,6 +1528,13 @@ def main() -> None:
             f.write(quant_blob)
         quant_file_bytes = os.path.getsize("final_model.int8.ptz")
         code_bytes = len(code.encode("utf-8"))
+        auto_keep_selected_fp32_audit = audit_auto_keep_selected_fp32_promotion(
+            state_dict,
+            quant_obj,
+            quant_file_bytes,
+            code_bytes,
+            str(quant_stats["auto_keep_selected_name"]),
+        )
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         if INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS:
             log0(
@@ -1511,6 +1601,26 @@ def main() -> None:
             )
             if quant_stats["keep_float_fp32_audit_candidate_summary"]:
                 log0(f"Int8 kept-float fp32 candidates: {quant_stats['keep_float_fp32_audit_candidate_summary']}")
+        if auto_keep_selected_fp32_audit is not None:
+            log0(
+                "Int8 auto-keep selected fp32 audit: "
+                f"selected:{auto_keep_selected_fp32_audit['selected_name']} "
+                f"actionable:{auto_keep_selected_fp32_audit['actionable']} "
+                f"reason:{auto_keep_selected_fp32_audit['reason']} "
+                f"baseline_store_dtype:{auto_keep_selected_fp32_audit['baseline_store_dtype']} "
+                f"promoted_store_dtype:{auto_keep_selected_fp32_audit['promoted_store_dtype']} "
+                f"baseline_error:{auto_keep_selected_fp32_audit['baseline_error']:.8f} "
+                f"promoted_error:{auto_keep_selected_fp32_audit['promoted_error']:.8f} "
+                f"gain:{auto_keep_selected_fp32_audit['gain']:.8f}"
+            )
+            log0(
+                "Int8 auto-keep selected fp32 bytes: "
+                f"baseline_submission:{auto_keep_selected_fp32_audit['baseline_submission_bytes']} "
+                f"promoted_submission:{auto_keep_selected_fp32_audit['promoted_submission_bytes']} "
+                f"extra_submission:{auto_keep_selected_fp32_audit['extra_submission_bytes']} "
+                f"remaining_after:{auto_keep_selected_fp32_audit['remaining_after_promotion']} "
+                f"min_gain:{INT8_AUTO_KEEP_SELECTED_FP32_AUDIT_MIN_GAIN:.8f}"
+            )
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
