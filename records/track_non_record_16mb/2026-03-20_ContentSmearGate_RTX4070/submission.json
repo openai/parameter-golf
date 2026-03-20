@@ -1,0 +1,12 @@
+{
+  "name": "Thomas",
+  "github_id": "trasnake87",
+  "val_bpb": 1.6795,
+  "val_loss": 2.8357,
+  "hardware": "1x RTX 4070 12GB",
+  "steps": 500,
+  "track": "non_record_16mb",
+  "date": "2026-03-20",
+  "summary": "Content-dependent SmearGate: modulate token blending by inter-token similarity. Zero extra model size, 0.0285 BPB improvement over static SmearGate on local hardware.",
+  "artifact_bytes": 15802521
+}
