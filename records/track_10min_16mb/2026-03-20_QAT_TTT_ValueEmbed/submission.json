@@ -1,0 +1,14 @@
+{
+    "author": "bopmite",
+    "github_id": "bopmite",
+    "val_bpb": null,
+    "compressed_model_bytes": null,
+    "code_bytes": null,
+    "total_bytes": null,
+    "architecture": "10L 512dim 8heads 4KV 2xMLP sp1024 tied_embed + 3 value embedding tables",
+    "tokenizer": "sp1024",
+    "eval_method": "sliding window stride=64 + TTT LoRA + temperature scaling",
+    "training_time_minutes": 10,
+    "gpu_config": "8xH100",
+    "base": "notapplica SOTA (1.1748) + QAT + SWA + TTT + temperature + value embeddings"
+}
