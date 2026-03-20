@@ -52,7 +52,7 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 2500))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
@@ -73,7 +73,7 @@ class Hyperparameters:
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.10))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
@@ -85,6 +85,8 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.01))
+    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.02))
 
     # Memory tokens: learnable tokens prepended to every sequence.
     num_memory_tokens = int(os.environ.get("NUM_MEMORY_TOKENS", 0))
@@ -823,9 +825,28 @@ class GPT(nn.Module):
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
+            # Spectral shaping: force a smooth singular value decay so the
+            # embedding starts with structured, low-rank-ish geometry rather
+            # than pure noise.  This helps the tied output head converge faster.
+            with torch.no_grad():
+                U, S, V = torch.linalg.svd(self.tok_emb.weight.data, full_matrices=False)
+                decay = S[0] * (1.0 / torch.arange(1, S.shape[0] + 1, dtype=S.dtype)) ** 0.5
+                self.tok_emb.weight.data = (U * decay[None, :]) @ V
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
+        # Graduated residual mixing: early layers lean on the raw embedding (x0)
+        # while deeper layers increasingly trust the evolved residual stream.
+        # This matches the intuition that early layers extract local features
+        # and later layers compose them — and it works well with memory tokens
+        # since the memory signal lives in x0.
+        num_layers = len(self.blocks)
+        for i, block in enumerate(self.blocks):
+            with torch.no_grad():
+                t = i / max(num_layers - 1, 1)
+                alpha = torch.sigmoid(torch.tensor(3.0 * (t - 0.5)))
+                block.resid_mix.data[0] = alpha * torch.ones(block.resid_mix.shape[1])
+                block.resid_mix.data[1] = (1 - alpha) * torch.ones(block.resid_mix.shape[1])
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         bsz, seqlen = input_ids.shape
@@ -1061,10 +1082,11 @@ def main() -> None:
     if args.num_memory_tokens > 0:
         scalar_params.append(base_model.memory_tokens)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
-    optimizer_tok = torch.optim.Adam(
+    optimizer_tok = torch.optim.AdamW(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
+        weight_decay=args.weight_decay,
         fused=True,
     )
     optimizer_muon = Muon(
@@ -1075,10 +1097,11 @@ def main() -> None:
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
-    optimizer_scalar = torch.optim.Adam(
+    optimizer_scalar = torch.optim.AdamW(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
+        weight_decay=args.weight_decay,
         fused=True,
     )
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
@@ -1243,6 +1266,11 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
+        # Decoupled weight decay for Muon-optimized matrix params (Muon doesn't have built-in WD)
+        if args.muon_weight_decay > 0:
+            with torch.no_grad():
+                for p in matrix_params:
+                    p.mul_(1.0 - args.muon_weight_decay * optimizer_muon.param_groups[0]["lr"])
         zero_grad_all()
 
         step += 1

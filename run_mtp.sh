@@ -7,14 +7,14 @@ cd parameter-golf
 git checkout mtp-auxiliary-heads
 python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
 
-# Memory tokens + 10 layers + seq2048 + sliding window eval + fp16 embed (no MTP)
+# Memory tokens + 10 layers + seq2048 + init improvements + weight decay + sliding window
 NUM_MEMORY_TOKENS=32 \
 NUM_LAYERS=10 \
 TRAIN_SEQ_LEN=2048 \
 EVAL_SEQ_LEN=1024 \
-EVAL_STRIDE=512 \
+EVAL_STRIDE=64 \
 FP16_EMBED_EXPORT=1 \
-RUN_ID=no_mtp_10layer \
+RUN_ID=improved_init_wd \
 DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
 TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
