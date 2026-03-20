@@ -52,14 +52,19 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     ttt_steps = int(os.environ.get("TTT_STEPS", 0))
     ttt_lr = float(os.environ.get("TTT_LR", 1e-4))
+
+    # Sliding window eval.
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 256))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -77,10 +82,10 @@ class Hyperparameters:
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.015))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.012))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.012))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -88,7 +93,6 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -279,6 +283,72 @@ def eval_val(
     bits_per_token = val_loss.item() / math.log(2.0)
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    """Sliding window eval: each window is eval_seq_len tokens, advancing by eval_stride.
+    Loss is scored only on the last eval_stride tokens per window."""
+    seq_len = args.eval_seq_len
+    stride = args.eval_stride
+    total_tokens = val_tokens.numel()
+
+    starts: list[int] = []
+    pos = 0
+    while pos + seq_len < total_tokens:
+        starts.append(pos)
+        pos += stride
+    total_windows = len(starts)
+    win_start = (total_windows * rank) // world_size
+    win_end = (total_windows * (rank + 1)) // world_size
+    score_offset = seq_len - stride
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    base_model.eval()
+    with torch.no_grad():
+        for wi in range(win_start, win_end):
+            s = starts[wi]
+            window = val_tokens[s : s + seq_len + 1].to(device=device, dtype=torch.int64)
+            x = window[:-1].unsqueeze(0)
+            y = window[1:].unsqueeze(0)
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = base_model.forward_logits(x)
+
+            tail_logits = logits[0, score_offset:, :].float()
+            tail_targets = y[0, score_offset:]
+            per_token_loss = F.cross_entropy(tail_logits, tail_targets, reduction="none")
+            val_loss_sum += per_token_loss.to(torch.float64).sum()
+            val_token_count += float(stride)
+
+            tail_prev = x[0, score_offset:]
+            tail_tgt = y[0, score_offset:]
+            token_bytes = base_bytes_lut[tail_tgt].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[tail_tgt] & ~is_boundary_token_lut[tail_prev]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    base_model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 
@@ -792,7 +862,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -821,8 +891,7 @@ class GPT(nn.Module):
                 prev_block_outputs[block_idx] = x.detach() if not self.training else x
                 layer_idx += 1
 
-        x = self.final_norm(x).reshape(-1, x.size(-1))
-        targets = target_ids.reshape(-1)
+        x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
@@ -830,6 +899,12 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        return logits
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        logits = self.forward_logits(input_ids)
+        logits = logits.reshape(-1, logits.size(-1))
+        targets = target_ids.reshape(-1)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
@@ -854,9 +929,7 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    if 8 % world_size != 0:
-        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-    grad_accum_steps = 8 // world_size
+    grad_accum_steps = max(1, 8 // world_size)
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
@@ -1233,6 +1306,30 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # Sliding window eval
+    if args.eval_stride > 0:
+        base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+        torch.cuda.synchronize()
+        t_sw = time.perf_counter()
+        sw_val_loss, sw_val_bpb = eval_val_sliding(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
+            f"window:{args.eval_seq_len} stride:{args.eval_stride} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_sw):.0f}ms"
+        )
+        log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
 
     # TTT eval: adapt model on each batch before evaluating
     if args.ttt_steps > 0:
