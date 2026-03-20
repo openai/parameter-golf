@@ -69,7 +69,7 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 32))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
     # Optimizer hyperparameters.
