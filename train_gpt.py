@@ -626,7 +626,7 @@ class MuDynamics(nn.Module):
 
     def forward(self, h: Tensor) -> Tensor:
         mu = self.mu.clamp(self.mu_min, self.mu_max).to(dtype=h.dtype)
-        return h + 0.05 * (mu[None, None, :] - h)
+        return h + 0.02 * (mu[None, None, :] - h)
 
 # Learned Hash Router — Linear(H, E) micro-router, fullgraph safe.
 class LearnedHashRouter(nn.Module):
