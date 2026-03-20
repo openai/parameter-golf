@@ -1,0 +1,11 @@
+{
+  "author": "charmquark1984",
+  "github_id": "charmquark1984",
+  "name": "FA2 + SWA + WD0.042 (Farnsworth-adapted)",
+  "blurb": "Adapts FarnsworthEngine (PR #254) with FA2 fallback, weight decay tuning for artifact size control. 11L MLP3x INT6+zstd, SmearGate, BigramHash, TTT, SWA. 3-seed mean 1.1381 BPB (sliding window stride=64, post-TTT).",
+  "date": "2026-03-20T22:00:00Z",
+  "val_loss": 1.92048258,
+  "val_bpb": 1.13742097,
+  "bytes_total": 15502222,
+  "bytes_code": 69101
+}
