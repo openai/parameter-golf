@@ -320,12 +320,19 @@ INT8_FP32_SCALE_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_FP32_SCALE_NAME_PATTERNS", "").split(",")
     if pattern
 )
+INT8_GROUPED_SCALE_AUDIT_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get("INT8_GROUPED_SCALE_AUDIT_NAME_PATTERNS", "").split(",")
+    if pattern
+)
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
+INT8_GROUPED_SCALE_AUDIT_LOG_TOPK = int(os.environ.get("INT8_GROUPED_SCALE_AUDIT_LOG_TOPK", 3))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+INT8_GROUPED_SCALE_AUDIT_GROUP_SIZE = int(os.environ.get("INT8_GROUPED_SCALE_AUDIT_GROUP_SIZE", 128))
 SUBMISSION_SIZE_CAP_BYTES = int(os.environ.get("SUBMISSION_SIZE_CAP_BYTES", 16_000_000))
 
 def tensor_nbytes(t: Tensor) -> int:
@@ -368,6 +375,27 @@ def quantize_float_tensor(name: str, t: Tensor, scale_dtype: torch.dtype = INT8_
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
 
+def quantize_float_tensor_grouped(
+    name: str, t: Tensor, group_size: int, scale_dtype: torch.dtype = INT8_PER_ROW_SCALE_DTYPE
+) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    if t32.ndim != 2 or group_size <= 0:
+        raise ValueError(f"Grouped int8 audit requires a 2D tensor and positive group_size, got {name} {tuple(t32.shape)}")
+    q_chunks: list[Tensor] = []
+    scale_chunks: list[Tensor] = []
+    for start in range(0, t32.shape[1], group_size):
+        chunk = t32[:, start : start + group_size]
+        clip_abs = (
+            torch.quantile(chunk.abs(), INT8_CLIP_Q, dim=1)
+            if chunk.numel()
+            else torch.empty((t32.shape[0],), dtype=torch.float32)
+        )
+        clipped = torch.maximum(torch.minimum(chunk, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+        q_chunks.append(torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8))
+        scale_chunks.append(scale.to(dtype=scale_dtype))
+    return torch.cat(q_chunks, dim=1).contiguous(), torch.stack(scale_chunks, dim=1).contiguous()
+
 def restore_passthrough_tensor(name: str, stored: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
     out_t = stored.detach().to("cpu").contiguous()
     orig_dtype = passthrough_orig_dtypes.get(name)
@@ -380,6 +408,18 @@ def dequantize_quantized_tensor(q: Tensor, s: Tensor, dtype: torch.dtype) -> Ten
         s32 = s.to(dtype=torch.float32)
         return (q.float() * s32.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
     return (q.float() * float(s.item())).to(dtype=dtype).contiguous()
+
+def dequantize_grouped_quantized_tensor(q: Tensor, s: Tensor, dtype: torch.dtype) -> Tensor:
+    if q.ndim != 2 or s.ndim != 2:
+        raise ValueError(f"Grouped int8 audit expects 2D quantized tensors, got q={tuple(q.shape)} s={tuple(s.shape)}")
+    group_size = math.ceil(q.shape[1] / s.shape[1])
+    out = torch.empty_like(q, dtype=torch.float32)
+    s32 = s.to(dtype=torch.float32)
+    for group_idx in range(s.shape[1]):
+        start = group_idx * group_size
+        end = min(start + group_size, q.shape[1])
+        out[:, start:end] = q[:, start:end].float() * s32[:, group_idx : group_idx + 1]
+    return out.to(dtype=dtype).contiguous()
 
 def normalized_mae(reference: Tensor, reconstructed: Tensor) -> float:
     ref32 = reference.float()
@@ -451,6 +491,79 @@ def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, ob
     )
     return best
 
+def audit_grouped_scale_candidates(state_dict: dict[str, Tensor], selected_auto_keep_name: str) -> dict[str, object] | None:
+    if not INT8_GROUPED_SCALE_AUDIT_NAME_PATTERNS or INT8_GROUPED_SCALE_AUDIT_GROUP_SIZE <= 1:
+        return None
+    candidates: list[dict[str, object]] = []
+    for name, tensor in state_dict.items():
+        t = tensor.detach().to("cpu").contiguous()
+        if (
+            not t.is_floating_point()
+            or t.ndim != 2
+            or t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL
+            or name == selected_auto_keep_name
+            or matches_name_patterns(name, INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS)
+            or not matches_name_patterns(name, INT8_GROUPED_SCALE_AUDIT_NAME_PATTERNS)
+        ):
+            continue
+        scale_dtype = int8_scale_dtype_for_tensor(name, t)
+        if scale_dtype != INT8_PER_ROW_SCALE_DTYPE:
+            continue
+        baseline_q, baseline_s = quantize_float_tensor(name, t, scale_dtype=scale_dtype)
+        grouped_q, grouped_s = quantize_float_tensor_grouped(
+            name, t, group_size=INT8_GROUPED_SCALE_AUDIT_GROUP_SIZE, scale_dtype=scale_dtype
+        )
+        baseline_recon = dequantize_quantized_tensor(baseline_q, baseline_s, dtype=t.dtype)
+        grouped_recon = dequantize_grouped_quantized_tensor(grouped_q, grouped_s, dtype=t.dtype)
+        baseline_error = normalized_mae(t, baseline_recon)
+        grouped_error = normalized_mae(t, grouped_recon)
+        baseline_payload_bytes = tensor_nbytes(baseline_q) + tensor_nbytes(baseline_s)
+        grouped_payload_bytes = tensor_nbytes(grouped_q) + tensor_nbytes(grouped_s)
+        candidates.append(
+            {
+                "name": name,
+                "estimated_gain": baseline_error - grouped_error,
+                "baseline_error": baseline_error,
+                "grouped_error": grouped_error,
+                "baseline_payload_bytes": baseline_payload_bytes,
+                "grouped_payload_bytes": grouped_payload_bytes,
+                "extra_payload_bytes": grouped_payload_bytes - baseline_payload_bytes,
+            }
+        )
+    if not candidates:
+        return {
+            "candidate_count": 0,
+            "positive_count": 0,
+            "selected_name": "",
+            "estimated_gain": 0.0,
+            "baseline_error": 0.0,
+            "grouped_error": 0.0,
+            "extra_payload_bytes": 0,
+            "top_candidates_summary": "",
+        }
+    ranked = sorted(
+        candidates,
+        key=lambda item: (float(item["estimated_gain"]), -int(item["extra_payload_bytes"])),
+        reverse=True,
+    )
+    best = ranked[0]
+    positive = [item for item in ranked if float(item["estimated_gain"]) > 0.0]
+    return {
+        "candidate_count": len(candidates),
+        "positive_count": len(positive),
+        "selected_name": str(best["name"]) if positive else "",
+        "estimated_gain": float(best["estimated_gain"]) if positive else 0.0,
+        "baseline_error": float(best["baseline_error"]) if positive else 0.0,
+        "grouped_error": float(best["grouped_error"]) if positive else 0.0,
+        "extra_payload_bytes": int(best["extra_payload_bytes"]) if positive else 0,
+        "top_candidates_summary": ",".join(
+            (
+                f"{str(item['name'])}|gain={float(item['estimated_gain']):.8f}|extra={int(item['extra_payload_bytes'])}"
+                for item in ranked[: max(INT8_GROUPED_SCALE_AUDIT_LOG_TOPK, 0)]
+            )
+        ),
+    }
+
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     # Single supported clean-script export format:
     # - per-row int8 for 2D float tensors
@@ -467,6 +580,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     selected_auto_keep_name = ""
     if auto_keep is not None:
         selected_auto_keep_name = str(auto_keep["selected_name"])
+    grouped_scale_audit = audit_grouped_scale_candidates(state_dict, selected_auto_keep_name)
     stats = dict.fromkeys(
         (
             "param_count",
@@ -495,6 +609,30 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         stats["auto_keep_keep_payload_bytes"] - stats["auto_keep_quantized_payload_bytes"]
     )
     stats["auto_keep_top_candidates_summary"] = str(auto_keep["top_candidates_summary"]) if auto_keep is not None else ""
+    stats["grouped_scale_audit_candidate_count"] = (
+        int(grouped_scale_audit["candidate_count"]) if grouped_scale_audit is not None else 0
+    )
+    stats["grouped_scale_audit_positive_count"] = (
+        int(grouped_scale_audit["positive_count"]) if grouped_scale_audit is not None else 0
+    )
+    stats["grouped_scale_audit_selected_name"] = (
+        str(grouped_scale_audit["selected_name"]) if grouped_scale_audit is not None else ""
+    )
+    stats["grouped_scale_audit_estimated_gain"] = (
+        float(grouped_scale_audit["estimated_gain"]) if grouped_scale_audit is not None else 0.0
+    )
+    stats["grouped_scale_audit_baseline_error"] = (
+        float(grouped_scale_audit["baseline_error"]) if grouped_scale_audit is not None else 0.0
+    )
+    stats["grouped_scale_audit_grouped_error"] = (
+        float(grouped_scale_audit["grouped_error"]) if grouped_scale_audit is not None else 0.0
+    )
+    stats["grouped_scale_audit_extra_payload_bytes"] = (
+        int(grouped_scale_audit["extra_payload_bytes"]) if grouped_scale_audit is not None else 0
+    )
+    stats["grouped_scale_audit_top_candidates_summary"] = (
+        str(grouped_scale_audit["top_candidates_summary"]) if grouped_scale_audit is not None else ""
+    )
 
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
@@ -1285,6 +1423,20 @@ def main() -> None:
                 f"fp32_tensors:{quant_stats['fp32_scale_tensor_count']} "
                 f"fp32_bytes:{quant_stats['fp32_scale_payload_bytes']}"
             )
+        if INT8_GROUPED_SCALE_AUDIT_NAME_PATTERNS and INT8_GROUPED_SCALE_AUDIT_GROUP_SIZE > 1:
+            log0(
+                "Int8 grouped-scale audit: "
+                f"group_size:{INT8_GROUPED_SCALE_AUDIT_GROUP_SIZE} "
+                f"candidates:{quant_stats['grouped_scale_audit_candidate_count']} "
+                f"positive:{quant_stats['grouped_scale_audit_positive_count']} "
+                f"selected:{quant_stats['grouped_scale_audit_selected_name'] or 'none'} "
+                f"estimated_gain:{quant_stats['grouped_scale_audit_estimated_gain']:.8f} "
+                f"baseline_error:{quant_stats['grouped_scale_audit_baseline_error']:.8f} "
+                f"grouped_error:{quant_stats['grouped_scale_audit_grouped_error']:.8f} "
+                f"extra_payload:{quant_stats['grouped_scale_audit_extra_payload_bytes']}"
+            )
+            if quant_stats["grouped_scale_audit_top_candidates_summary"]:
+                log0(f"Int8 grouped-scale audit top candidates: {quant_stats['grouped_scale_audit_top_candidates_summary']}")
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
