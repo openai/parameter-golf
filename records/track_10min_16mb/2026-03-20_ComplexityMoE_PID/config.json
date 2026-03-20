@@ -1,0 +1,81 @@
+{
+  "_comment": "Complexity Framework x Parameter Golf v2 — Token-Routed I64 + PID + Learned Router",
+  "_version": "2.0.0",
+
+  "model": {
+    "vocab_size": 1024,
+    "num_layers": 11,
+    "_params_comment": "11L + MLP 2x + 4 experts SwiGLU = ~26.5M params, ~14.2MB with int6+zstd",
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "tie_embeddings": true,
+    "tied_embed_init_std": 0.005,
+    "logit_softcap": 30.0,
+    "rope_base": 10000.0,
+    "qk_gain_init": 1.5,
+    "quant_bits": 6
+  },
+
+  "moe": {
+    "num_experts": 4,
+    "activation": "swiglu",
+    "routing": "hybrid",
+    "_comment": "4 experts SwiGLU, mlp2x = 26.5M params fits 16MB with int6+zstd",
+    "mlp_mult": 2
+  },
+
+  "pid": {
+    "alpha": 0.95,
+    "beta": 0.3,
+    "gate": 0.1,
+    "dt": 0.1,
+    "mu_min": 0.5,
+    "mu_max": 1.5,
+    "velocity_max": 3.0,
+    "_comment": "effective step = dt * gate = 0.01, mu learnable per layer, v traverses all layers"
+  },
+
+  "training": {
+    "iterations": 20000,
+    "train_batch_tokens": 524288,
+    "train_seq_len": 1024,
+    "max_wallclock_seconds": 600.0,
+    "warmup_steps": 20,
+    "warmdown_iters": 1200,
+    "lr_schedule": "cosine_restarts",
+    "lr_restart_base_period": 5000,
+    "lr_restart_mult": 2.0,
+    "lr_restart_decay": 0.7,
+    "lr_min_ratio": 0.01,
+    "_lr_comment": "Cycles: 5k, 10k, 20k... Peak LR decays 0.7x each restart. Min LR = 1% of peak.",
+    "seed": 1337,
+    "val_loss_every": 1000,
+    "val_batch_size": 524288,
+    "train_log_every": 200
+  },
+
+  "optimizer": {
+    "embed_lr": 0.6,
+    "head_lr": 0.008,
+    "tied_embed_lr": 0.05,
+    "matrix_lr": 0.04,
+    "scalar_lr": 0.04,
+    "muon_momentum": 0.95,
+    "muon_backend_steps": 5,
+    "muon_momentum_warmup_start": 0.85,
+    "muon_momentum_warmup_steps": 500,
+    "beta1": 0.9,
+    "beta2": 0.95,
+    "adam_eps": 1e-8,
+    "grad_clip_norm": 0.0
+  },
+
+  "ttt": {
+    "lora_rank": 8,
+    "lora_lr": 0.01,
+    "chunk_size": 256,
+    "eval_seq_len": 1024,
+    "batch_size": 64
+  }
+}
