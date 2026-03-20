@@ -1,0 +1,9 @@
+{
+  "name": "RQZ-Golf v1",
+  "github_id": "TheCause",
+  "val_bpb": null,
+  "summary": "Depth recurrence: 7 unique layers + 1 shared recurrent layer (K=3 passes) with iteration embeddings and 1/sqrt(K) scaling. Test-time compute: increase K at inference. Preliminary baseline: 1.5283 BPB (1 shard, 1xA100).",
+  "date": "2026-03-19",
+  "track": "non_record",
+  "status": "experimental"
+}
