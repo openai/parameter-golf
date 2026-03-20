@@ -1,0 +1,17 @@
+{
+  "author": "Clay Schubiner",
+  "github_id": "cschubiner",
+  "name": "Deep14x416 KV2 SP1024 MLX 750-step",
+  "blurb": "Unlimited compute track: a deeper/narrower Apple Silicon MLX run with 14 layers at width 416, 2 KV heads, SP-1024 tokenizer, and 750 training steps on a 10-shard FineWeb subset; final int8+zlib roundtrip scored 1.8440 BPB under the 16,000,000-byte cap.",
+  "date": "2026-03-19T06:34:39Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 3.11359052,
+  "val_bpb": 1.84404368,
+  "pre_quant_val_loss": 3.1118,
+  "pre_quant_val_bpb": 1.8430,
+  "step_stop": 750,
+  "wallclock_seconds": 529.553,
+  "bytes_total": 12388989,
+  "bytes_model_int8_zlib": 12339367,
+  "bytes_code": 49622
+}
