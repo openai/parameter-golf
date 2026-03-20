@@ -340,9 +340,9 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(t: Tensor, bits: int = 8) -> tuple[Tensor, Tensor]:
-    step = 4 if bits <= 6 else 1
-    qmax = (1 << (bits - 1)) - 1  # 31 for int6, 127 for int8
+def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+    # Standard int8 per-row quantization (unchanged from baseline).
+    # Int6 step-rounding is applied post-hoc in quantize_state_dict_int8.
     t32 = t.float()
     if t32.ndim == 2:
         clip_abs = (
@@ -351,15 +351,13 @@ def quantize_float_tensor(t: Tensor, bits: int = 8) -> tuple[Tensor, Tensor]:
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / qmax).clamp_min(1.0 / qmax)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -qmax, qmax)
-        q = (q * step).to(torch.int8).contiguous()
+        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / qmax if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -qmax, qmax)
-    q = (q * step).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
@@ -407,7 +405,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t, bits=QUANT_BITS)
+        q, s = quantize_float_tensor(t)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -415,10 +413,17 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
-    quant_step = 4 if QUANT_BITS <= 6 else 1
+    # Post-hoc int6 step rounding: round int8 values to nearest multiple of step.
+    # This reduces to 64 distinct values, which zlib compresses much better.
+    # Dequantization is identical to int8 — no special handling needed.
+    if QUANT_BITS < 8:
+        step = 1 << (8 - QUANT_BITS)  # 4 for int6, 8 for int5
+        for name in list(quantized.keys()):
+            t = quantized[name]
+            quantized[name] = ((t.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
+
     obj: dict[str, object] = {
         "__quant_format__": f"int{QUANT_BITS}_clean_per_row_v1",
-        "quant_step": quant_step,
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -431,20 +436,20 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     return obj, stats
 
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
+    # Standard int8 dequantization. Also works for int6 step-rounded values because
+    # the step rounding only reduces precision — the scale is unchanged.
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
-    quant_step = obj.get("quant_step", 1)
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        q_float = q.float() / quant_step
         if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
-            out[name] = (q_float * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
             scale = float(s.item())
-            out[name] = (q_float * scale).to(dtype=dtype).contiguous()
+            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
     for name, t in obj["passthrough"].items():
         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
         out_t = t.detach().to("cpu").contiguous()
@@ -1415,7 +1420,7 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu", weights_only=False)
+    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
