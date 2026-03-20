@@ -1,0 +1,25 @@
+{
+  "run_name": "RecursoLM_v0",
+  "author": "avinash",
+  "github": "avinash",
+  "track": "track_non_record_16mb",
+  "date": "2026-03-19",
+  "val_bpb": null,
+  "summary": "2-layer recurrent shared-weight LM with ALiBi MQA, SwiGLU MLP, and learned recurrence gate.",
+  "model": {
+    "vocab_size": 1024,
+    "model_dim": 384,
+    "num_layers_unique": 2,
+    "recurrence_steps": 16,
+    "num_heads": 4,
+    "num_kv_heads": 1,
+    "train_seq_len": 512,
+    "mlp_dim": 1024,
+    "tie_embeddings": true
+  },
+  "artifact": {
+    "quantization": "int8_zlib_roundtrip",
+    "artifact_limit_bytes": 16000000
+  },
+  "status": "implementation_complete_pending_run"
+}
