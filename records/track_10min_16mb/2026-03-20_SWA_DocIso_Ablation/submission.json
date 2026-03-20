@@ -1,0 +1,59 @@
+{
+  "author": "mrdavtan",
+  "github_id": "mrdavtan",
+  "name": "Non-record: SWA + Doc-Isolated Eval ablation (two negative findings)",
+  "blurb": "Three controlled runs on fast hardware (44ms/step) testing SWA and doc-isolated eval independently. SWA does not improve int8 quantization under default warmdown (delta +0.0004 BPB, within noise). Doc-isolated eval hurts by 0.009 BPB at stride=64, contradicting the LoRA TTT finding at stride=256. The crossover depends on stride length: at stride=64 context quantity dominates, at stride=256+ context quality dominates.",
+  "date": "2026-03-20",
+  "seed": 1337,
+  "track": "track_10min_16mb",
+  "hardware": "8xH100 SXM (RunPod Parameter Golf template), PyTorch 2.9.1+cu128",
+  "runs": {
+    "A_control": {
+      "run_id": "swa_ablation_control",
+      "swa": false,
+      "doc_isolated": false,
+      "val_bpb": 1.19293811,
+      "pre_quant_val_bpb": 1.2195,
+      "steps": 13651,
+      "step_avg_ms": 43.95,
+      "compressed_model_bytes": 15819113,
+      "eval_time_seconds": 73.719
+    },
+    "B_swa": {
+      "run_id": "swa_ablation_swa_v2",
+      "swa": true,
+      "doc_isolated": false,
+      "val_bpb": 1.19329502,
+      "pre_quant_val_bpb": 1.2200,
+      "steps": 13611,
+      "step_avg_ms": 44.08,
+      "compressed_model_bytes": 15816795,
+      "eval_time_seconds": 73.470
+    },
+    "C_doc_isolated": {
+      "run_id": "doc_iso_ablation",
+      "swa": true,
+      "doc_isolated": true,
+      "val_bpb": 1.20152136,
+      "pre_quant_val_bpb": 1.2196,
+      "steps": 13619,
+      "step_avg_ms": 44.06,
+      "compressed_model_bytes": 15812296,
+      "eval_time_seconds": 37.580
+    }
+  },
+  "model": {
+    "num_layers": 9,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 2,
+    "vocab_size": 1024,
+    "tie_embeddings": true
+  },
+  "changes_from_baseline": [
+    "SWA: weight averaging during last 50% of training (float32 accumulation, sampled every 50 steps)",
+    "Doc-isolated eval: _find_docs() splits val tokens at BOS boundaries, sliding windows per document"
+  ],
+  "notes": "Both findings are negative. SWA may help with aggressive warmdown (WD=20000) or int6; doc-isolation may help at stride=256+ but hurts at stride=64."
+}
