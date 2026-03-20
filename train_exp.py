@@ -111,6 +111,8 @@ class Hyperparameters:
     muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.02))
     # Orthogonal init for linear layers.
     ortho_init = bool(int(os.environ.get("ORTHO_INIT", "0")))
+    # Low-Rank Q factorization: 0 = full rank (default), >0 = bottleneck dim for Q projection.
+    q_rank = int(os.environ.get("Q_RANK", 0))
     # Eval-time extra recurrence: repeat decoder blocks N more times at eval.
     eval_extra_repeats = int(os.environ.get("EVAL_EXTRA_REPEATS", 0))
     # FTLE-lite: sensitivity-aware mixed-precision quantization.
@@ -727,6 +729,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        q_rank: int = 0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -739,7 +742,15 @@ class CausalSelfAttention(nn.Module):
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
         kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim, bias=False)
+        # Low-Rank Q: factorize Q projection as down(dim→r) then up(r→dim)
+        # PR #215 found Q matrices have condition numbers >100M, naturally low-rank.
+        # With r=192 (for dim=512), saves 25% Q params and ~22% step time.
+        self.q_rank = q_rank
+        if q_rank > 0:
+            self.c_q_down = CastedLinear(dim, q_rank, bias=False)
+            self.c_q_up = CastedLinear(q_rank, dim, bias=False)
+        else:
+            self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
         self.c_v = CastedLinear(dim, kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
@@ -749,7 +760,10 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        if self.q_rank > 0:
+            q = self.c_q_up(self.c_q_down(x)).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        else:
+            q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
@@ -793,11 +807,12 @@ class Block(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         mlp_hidden: int = 0,
+        q_rank: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, q_rank=q_rank)
         self.mlp = MLP(dim, mlp_mult, mlp_hidden)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -836,6 +851,7 @@ class GPT(nn.Module):
         use_bigram_hash: bool = False,
         bigram_table_size: int = 4096,
         bigram_hash_dim: int = 32,
+        q_rank: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -863,6 +879,7 @@ class GPT(nn.Module):
                     rope_base,
                     qk_gain_init,
                     mlp_hidden=mlp_hidden,
+                    q_rank=q_rank,
                 )
                 for _ in range(n_unique)
             ]
@@ -1117,6 +1134,7 @@ def main() -> None:
         use_bigram_hash=args.bigram_hash,
         bigram_table_size=args.bigram_table_size,
         bigram_hash_dim=args.bigram_hash_dim,
+        q_rank=args.q_rank,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):

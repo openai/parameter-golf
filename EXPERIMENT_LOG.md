@@ -116,6 +116,14 @@ Based on the **WarmdownQuantization record** (int6 quant, FP16 tied embed, slidi
 5. **Fix SWA** to use periodic checkpointing (every N steps) not continuous
 6. **Batch sliding window** (process 32 windows at once for stride=64)
 
+### Low-Rank Q Factorization (added session 2)
+PR #215 found Q projection matrices have condition numbers >100M — Q is naturally low-rank.
+Factoring Q as `x @ W_down(512→r) @ W_up(r→512)` with r=192 saves:
+- 2.6% total params (590K fewer)
+- ~22% step time on H100 (smaller matmuls)
+- ~28% more training steps in 10 min
+Enable with `Q_RANK=192`. Default is 0 (full rank).
+
 ### Recommended 8xH100 Submission Config
 ```bash
 torchrun --standalone --nproc_per_node=8 train_exp.py \
@@ -124,7 +132,7 @@ torchrun --standalone --nproc_per_node=8 train_exp.py \
   BIGRAM_HASH=1 BIGRAM_TABLE_SIZE=10240 BIGRAM_HASH_DIM=128 SMEAR_GATE=1 \
   WARMDOWN_ITERS=20000 EVAL_STRIDE=64 EVAL_SEQ_LEN=2048 \
   TIED_EMBED_LR=0.05 MATRIX_LR=0.04 SCALAR_LR=0.04 \
-  USE_ZSTD=1 ZSTD_LEVEL=22 USE_SWA=0 ROPE_BASE=50000
+  USE_ZSTD=1 ZSTD_LEVEL=22 USE_SWA=0 ROPE_BASE=50000 Q_RANK=192
 ```
 
 ---
