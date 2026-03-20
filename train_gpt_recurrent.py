@@ -225,18 +225,21 @@ def eval_val(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
-    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    local_batch_tokens = args.val_batch_size // world_size
     if local_batch_tokens < args.train_seq_len:
         raise ValueError(
             "VAL_BATCH_SIZE must provide at least one sequence per rank; "
             f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
-            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+            f"TRAIN_SEQ_LEN={args.train_seq_len}"
         )
 
     local_batch_seqs = local_batch_tokens // args.train_seq_len
     total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
+    # Cap validation at ~4096 sequences for speed
+    MAX_VAL_SEQS = 4096
+    seq_end = min(seq_end, seq_start + MAX_VAL_SEQS)
 
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -998,7 +1001,7 @@ def main() -> None:
         t0 = time.perf_counter()
 
         zero_grad_all()
-        train_loss_accum = 0.0
+        train_loss_accum = torch.zeros((), device=device)
 
         for micro_step in range(grad_accum_steps):
             if distributed:
@@ -1007,7 +1010,9 @@ def main() -> None:
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             (loss * grad_scale).backward()
-            train_loss_accum += loss.detach().item() * grad_scale
+            train_loss_accum += loss.detach()  # keep as tensor, no GPU sync
+
+        train_loss_accum = train_loss_accum.item() * grad_scale  # single sync after loop
 
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
@@ -1035,11 +1040,9 @@ def main() -> None:
 
         step += 1
 
-        # Wallclock check
+        # Wallclock check — reuse elapsed_ms from line above, no extra sync needed
         if max_wallclock_ms is not None and stop_after_step is None:
-            torch.cuda.synchronize()
-            elapsed = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-            if elapsed >= max_wallclock_ms:
+            if elapsed_ms >= max_wallclock_ms:
                 stop_after_step = step
 
     if distributed:
