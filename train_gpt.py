@@ -1305,8 +1305,9 @@ def main() -> None:
     swa_min_step = 200  # default fallback
     if args.swa_every > 0:
         if max_wallclock_ms is not None:
-            # Estimate total steps from step time
-            est_total_steps = max(int(max_wallclock_ms / 700), 500)  # ~700ms/step estimate
+            # Use actual step time from warmup if available, else conservative estimate
+            step_time_ms = float(os.environ.get("SWA_STEP_TIME_MS", "400"))  # H100≈370, 5090≈700
+            est_total_steps = max(int(max_wallclock_ms / step_time_ms), 500)
             swa_min_step = int(est_total_steps * 0.7)
         else:
             swa_min_step = int(args.iterations * 0.7)
