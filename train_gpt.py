@@ -75,7 +75,7 @@ class Hyperparameters:
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Test-time training (TTT) at eval. 0 = disabled (fast), 1+ = SGD steps per batch.
-    ttt_steps = int(os.environ.get("TTT_STEPS", 0))
+    ttt_steps = int(os.environ.get("TTT_STEPS", 1))
     ttt_lr = float(os.environ.get("TTT_LR", 1e-4))
 
     # Optimizer hyperparameters.
@@ -360,8 +360,9 @@ def ttt_eval_val(
         raise ValueError("VAL_BATCH_SIZE too small for TTT eval")
     local_batch_seqs = max(1, local_batch_tokens // eval_seq_len)
 
-    # TTT target: MLP output projections (W_down)
-    ttt_params = [block.mlp.proj.weight for block in base_model.blocks]
+    # TTT target: both attention + MLP output projections
+    ttt_params = [p for block in base_model.blocks
+                  for p in (block.attn.proj.weight, block.mlp.proj.weight)]
     orig_weights = [p.data.clone() for p in ttt_params]
 
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
