@@ -17,6 +17,7 @@ import sys
 import time
 import uuid
 import zlib
+import zstandard as zstd
 from pathlib import Path
 
 import numpy as np
@@ -54,7 +55,7 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
@@ -71,7 +72,7 @@ class Hyperparameters:
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Sliding window evaluation
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 256))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
 
     # Bigram hash embedding
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
@@ -88,7 +89,7 @@ class Hyperparameters:
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
-    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.02))
+    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.04))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
@@ -350,12 +351,8 @@ def eval_val_sliding(args, base_model, rank, world_size, device, val_tokens,
 
 
 # -----------------------------
-# POST-TRAINING QUANTIZATION
+# POST-TRAINING QUANTIZATION (INT6 + ZSTD-22)
 # -----------------------------
-#
-# It's silly to export our model, which is trained in bf16 and fp32, at that same precision.
-# Instead, we get approximately the same model (with a small hit) by quantizing the model to int8 & zlib compressing.
-# We can then decompress the model and run in higher precision for evaluation, after closing in under the size limit.
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
@@ -365,137 +362,11 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
-INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get(
-        "INT8_KEEP_FLOAT_FP32_NAME_PATTERNS",
-        ",".join(CONTROL_TENSOR_NAME_PATTERNS),
-    ).split(",")
-    if pattern
-)
-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
-INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
-INT8_PER_ROW_SCALE_DTYPE = torch.float16
-INT8_CLIP_PERCENTILE = 99.99984
-INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
-
-def tensor_nbytes(t: Tensor) -> int:
-    return int(t.numel()) * int(t.element_size())
-
-def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
-    if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
-        return t.float().contiguous()
-    if t.dtype in {torch.float32, torch.bfloat16}:
-        passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
-        return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
-    return t
-
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
-    t32 = t.float()
-    if t32.ndim == 2:
-        # Matrices get one scale per row, which usually tracks output-channel
-        # ranges much better than a single tensor-wide scale.
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel()
-            else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
-
-    # Vectors / scalars use a simpler per-tensor scale.
-    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
-    return q, scale
-
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
-    # Single supported clean-script export format:
-    # - per-row int8 for 2D float tensors
-    # - per-tensor int8 for other float tensors
-    # - exact passthrough for non-floats
-    # - passthrough for small float tensors, stored as fp16 to save bytes
-    quantized: dict[str, Tensor] = {}
-    scales: dict[str, Tensor] = {}
-    dtypes: dict[str, str] = {}
-    passthrough: dict[str, Tensor] = {}
-    passthrough_orig_dtypes: dict[str, str] = {}
-    qmeta: dict[str, dict[str, object]] = {}
-    stats = dict.fromkeys(
-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
-        0,
-    )
-
-    for name, tensor in state_dict.items():
-        t = tensor.detach().to("cpu").contiguous()
-        stats["param_count"] += int(t.numel())
-        stats["num_tensors"] += 1
-        stats["baseline_tensor_bytes"] += tensor_nbytes(t)
-
-        if not t.is_floating_point():
-            stats["num_nonfloat_tensors"] += 1
-            passthrough[name] = t
-            stats["int8_payload_bytes"] += tensor_nbytes(t)
-            continue
-
-        # Small float tensors are cheap enough to keep directly. We still downcast
-        # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
-            kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
-            passthrough[name] = kept
-            stats["int8_payload_bytes"] += tensor_nbytes(kept)
-            continue
-
-        stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
-        if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
-        quantized[name] = q
-        scales[name] = s
-        dtypes[name] = str(t.dtype).removeprefix("torch.")
-        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
-
-    obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
-        "quantized": quantized,
-        "scales": scales,
-        "dtypes": dtypes,
-        "passthrough": passthrough,
-    }
-    if qmeta:
-        obj["qmeta"] = qmeta
-    if passthrough_orig_dtypes:
-        obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
-    return obj, stats
-
-def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
-    out: dict[str, Tensor] = {}
-    qmeta = obj.get("qmeta", {})
-    passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
-    for name, q in obj["quantized"].items():
-        dtype = getattr(torch, obj["dtypes"][name])
-        s = obj["scales"][name]
-        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
-            s = s.to(dtype=torch.float32)
-            # Broadcast the saved row scale back across trailing dimensions.
-            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
-        else:
-            scale = float(s.item())
-            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
-    for name, t in obj["passthrough"].items():
-        # Restore small tensors, undoing the temporary fp16 storage cast if needed.
-        out_t = t.detach().to("cpu").contiguous()
-        orig_dtype = passthrough_orig_dtypes.get(name)
-        if isinstance(orig_dtype, str):
-            out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
-        out[name] = out_t
-    return out
+INT6_KEEP_FLOAT_MAX_NUMEL = 65_536
 
 
 # -----------------------------
-# INT6 QUANTIZATION (replaces int8 for smaller artifact, enabling MLP 3x)
+# INT6 QUANTIZATION
 # -----------------------------
 
 INT6_CLIP_PERCENTILE = 99.99
@@ -516,14 +387,11 @@ def quantize_state_dict_int6(state_dict):
     quantized, scales, shapes, passthrough = {}, {}, {}, {}
     for name, tensor in state_dict.items():
         t = tensor.detach().cpu().contiguous()
-        # FP16 passthrough for tied embedding (most quantization-sensitive)
-        if "tok_emb.weight" in name:
-            passthrough[name] = t.to(torch.float16).contiguous()
-            continue
+        # tok_emb quantized to int6 (saves ~400KB vs fp16; <0.001 BPB cost per public data)
         if not t.is_floating_point():
             passthrough[name] = t
             continue
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+        if t.numel() <= INT6_KEEP_FLOAT_MAX_NUMEL:
             if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
                 passthrough[name] = t.float().contiguous()
             else:
@@ -1253,14 +1121,13 @@ def main() -> None:
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
-        # SWA: collect snapshots during warmdown only (scale < 1.0 but not warmup)
+        # SWA: collect snapshots every 200 steps during warmdown
         if scale < 1.0 and scale > 0 and args.swa_checkpoints > 0 and len(swa_snapshots) < args.swa_checkpoints:
             if not swa_started:
                 swa_started = True
                 swa_step_counter = 0
-                swa_interval = max(args.warmdown_iters // args.swa_checkpoints, 1)
             swa_step_counter += 1
-            if swa_step_counter % swa_interval == 0:
+            if swa_step_counter % 200 == 0:
                 swa_snapshots.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
                 log0(f"step:{step} SWA snapshot {len(swa_snapshots)}/{args.swa_checkpoints}")
         should_log_train = (
@@ -1316,23 +1183,23 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_blob = zstd.ZstdCompressor(level=22).compress(quant_raw)
     if master_process:
-        with open("final_model.int6.ptz", "wb") as f:
+        with open("final_model.int6.zst", "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = len(quant_blob)
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model int6+zlib: {quant_file_bytes} bytes")
+        log0(f"Serialized model int6+zstd22: {quant_file_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
-        log0(f"Total submission size int6+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size int6+zstd22: {quant_file_bytes + code_bytes} bytes")
         if quant_file_bytes + code_bytes > 16_000_000:
             log0(f"WARNING: OVER 16MB LIMIT by {quant_file_bytes + code_bytes - 16_000_000} bytes")
 
     if distributed:
         dist.barrier()
-    with open("final_model.int6.ptz", "rb") as f:
+    with open("final_model.int6.zst", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu", weights_only=False)
+    quant_state = torch.load(io.BytesIO(zstd.ZstdDecompressor().decompress(quant_blob_disk)), map_location="cpu", weights_only=False)
     base_model.load_state_dict(dequantize_state_dict_int6(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
