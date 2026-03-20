@@ -53,6 +53,9 @@ class MatchModel:
         self.n_matches = 0
         self.match_lengths: list[int] = []
 
+        # Preallocated buffer for predict() — avoids 10M+ np.zeros() allocations
+        self._pred_buf = np.zeros(vocab_size, dtype=np.float64)
+
     def _context_hash(self, tokens: list[int], start: int, length: int) -> int:
         """Hash a subsequence of the context buffer."""
         return hash(tuple(tokens[start:start + length]))
@@ -103,12 +106,15 @@ class MatchModel:
             if counts is not None:
                 total = sum(counts.values())
                 if total >= self.min_count:
-                    # Build probability distribution from counts
-                    probs = np.zeros(self.vocab_size, dtype=np.float64)
+                    # Build probability distribution from counts (reuse buffer)
+                    buf = self._pred_buf
+                    buf[:] = 0.0
                     for tok_id, count in counts.items():
                         if 0 <= tok_id < self.vocab_size:
-                            probs[tok_id] = count
-                    probs /= probs.sum()
+                            buf[tok_id] = count
+                    buf /= buf.sum()
+                    # Return a copy so caller can safely store the result
+                    probs = buf.copy()
 
                     self.n_matches += 1
                     self.match_lengths.append(k)

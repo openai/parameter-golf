@@ -650,8 +650,8 @@ class Rotary(nn.Module):
         scale = eval_seq_len / train_seq_len
         exponent = self.dim / (self.dim - 2)
         new_base = self.base * (scale ** exponent)
-        inv_freq = 1.0 / (new_base ** (torch.arange(0, self.dim, 2, dtype=torch.float32) / self.dim))
-        self.inv_freq = inv_freq.to(self.inv_freq.device)
+        new_inv_freq = 1.0 / (new_base ** (torch.arange(0, self.dim, 2, dtype=torch.float32) / self.dim))
+        self.inv_freq.copy_(new_inv_freq.to(self.inv_freq.device))
         # Invalidate cache
         self._seq_len_cached = 0
         self._cos_cached = None
@@ -1339,7 +1339,7 @@ def main() -> None:
         quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
     else:
         quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    eval_model.load_state_dict(dequantize_state_dict_int8(quant_state))
+    eval_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=False)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
