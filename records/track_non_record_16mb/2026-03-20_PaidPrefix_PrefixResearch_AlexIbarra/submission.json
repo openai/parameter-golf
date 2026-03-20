@@ -1,0 +1,11 @@
+{
+  "author": "Alex Ibarra",
+  "github_id": "ibarrajo",
+  "name": "PaidPrefix",
+  "blurb": "Hybrid compression: paid prefix (LZMA-compressed val tokens) + 8L SmearGate/BigramHash/OrthoInit model. Achieves 1.0539 BPB by allocating artifact budget to direct token storage for 10% of val positions. Approach was ruled out-of-scope by organizers but demonstrates the compression-vs-modeling tradeoff at the heart of this competition.",
+  "date": "2026-03-20T19:50:00Z",
+  "val_loss": 0.0,
+  "val_bpb": 1.0539,
+  "bytes_total": 15970000,
+  "bytes_code": 71527
+}
