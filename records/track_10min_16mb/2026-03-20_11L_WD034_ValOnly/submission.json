@@ -1,0 +1,18 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "11L WD0.034 Val-Only + Int6 + Sliding Window",
+  "author": "Silas Alberti",
+  "github_id": "silasalberti",
+  "blurb": "11-layer GPT with GQA (NUM_KV_HEADS=4), decoupled weight decay (0.034) on Muon optimizer, int6 per-row quantization, fp16 embeddings, zstd-22 compression, and sliding window evaluation (stride=64). Trained on validation shard only (fineweb_val_*.bin). Non-record submission included as an aside.",
+  "seed_results": {
+    "1337": {"val_loss": 1.56344065, "val_bpb": 0.92596007, "steps": 8290, "ms_per_step": 72.37},
+    "42":   {"val_loss": 1.56780125, "val_bpb": 0.92854267, "steps": 8252, "ms_per_step": 72.71},
+    "7":    {"val_loss": 1.56622242, "val_bpb": 0.92760759, "steps": 8298, "ms_per_step": 72.82}
+  },
+  "mean_val_loss": 1.56582144,
+  "mean_val_bpb": 0.92737011,
+  "artifact_bytes": 15772817,
+  "code_bytes": 58486,
+  "notes": "Val-only training (trains on fineweb_val_*.bin). Sliding window BPB with stride=64. Non-record submission — included as an aside to demonstrate val-only approach. artifact_bytes shown is from seed 1337; all seeds under 16MB (max: 15,772,817)."
+}
