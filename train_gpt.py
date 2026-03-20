@@ -293,8 +293,8 @@ def eval_val(
 
 
 def eval_val_sliding(
-    args: Hyperparameters,
-    base_model: nn.Module,
+    logits_fn,
+    num_memory_tokens: int,
     rank: int,
     world_size: int,
     device: torch.device,
@@ -302,62 +302,74 @@ def eval_val_sliding(
     base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
+    seq_len: int,
+    stride: int,
+    eval_batch_seqs: int = 256,
 ) -> tuple[float, float]:
-    """Sliding window eval: each token scored with near-full context."""
-    seq_len = args.eval_seq_len
-    stride = args.eval_stride
-    total_tokens = val_tokens.numel()
+    """Batched sliding window eval: each token scored with near-full context."""
+    total = val_tokens.numel() - 1
     score_offset = seq_len - stride
+    K = num_memory_tokens
 
+    # Build windows
     starts: list[int] = []
     pos = 0
-    while pos + seq_len < total_tokens:
+    while pos + seq_len <= total:
         starts.append(pos)
         pos += stride
-    total_windows = len(starts)
-    win_start = (total_windows * rank) // world_size
-    win_end = (total_windows * (rank + 1)) // world_size
 
-    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
-    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
-    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    # Distribute across ranks
+    n = len(starts)
+    per_rank = (n + world_size - 1) // world_size
+    my_start = rank * per_rank
+    my_end = min(my_start + per_rank, n)
+    my_windows = starts[my_start:my_end]
 
-    base_model.eval()
-    with torch.no_grad():
-        for wi in range(win_start, win_end):
-            s = starts[wi]
-            window = val_tokens[s : s + seq_len + 1].to(device=device, dtype=torch.int64)
-            x = window[:-1].unsqueeze(0)
-            y = window[1:].unsqueeze(0)
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    tok_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    with torch.inference_mode():
+        for i in range(0, len(my_windows), eval_batch_seqs):
+            batch_starts = my_windows[i : i + eval_batch_seqs]
+            bs = len(batch_starts)
+
+            # Build batch, pad to eval_batch_seqs to avoid recompilation
+            x_list = [val_tokens[s : s + seq_len] for s in batch_starts]
+            y_list = [val_tokens[s + 1 : s + seq_len + 1] for s in batch_starts]
+            pad = eval_batch_seqs - bs
+            if pad > 0:
+                x_list.extend([x_list[-1]] * pad)
+                y_list.extend([y_list[-1]] * pad)
+
+            x = torch.stack(x_list).to(device=device, dtype=torch.int64)
+            y = torch.stack(y_list).to(device=device, dtype=torch.int64)
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                logits = base_model.forward_logits(x)
+                logits = logits_fn(x)
 
-            # forward_logits prepends K memory tokens, so logits are [1, K+seq_len, V].
-            # Offset into logits by K to align with the real token positions.
-            K = base_model.num_memory_tokens
-            tail_logits = logits[0, K + score_offset:, :].float()
-            tail_targets = y[0, score_offset:]
-            per_token_loss = F.cross_entropy(tail_logits, tail_targets, reduction="none")
-            val_loss_sum += per_token_loss.to(torch.float64).sum()
-            val_token_count += float(stride)
+            # forward_logits prepends K memory tokens, so logits are [B, K+seq_len, V].
+            for b in range(bs):
+                tail_logits = logits[b, K + score_offset:, :].float()
+                tail_targets = y[b, score_offset:]
+                loss = F.cross_entropy(tail_logits, tail_targets, reduction="sum")
+                loss_sum += loss.to(torch.float64)
+                tok_count += float(stride)
 
-            tail_prev = x[0, score_offset:]
-            tail_tgt = y[0, score_offset:]
-            token_bytes = base_bytes_lut[tail_tgt].to(dtype=torch.int16)
-            token_bytes += (has_leading_space_lut[tail_tgt] & ~is_boundary_token_lut[tail_prev]).to(dtype=torch.int16)
-            val_byte_count += token_bytes.to(torch.float64).sum()
+                tail_prev = x[b, score_offset:]
+                tail_tgt = y[b, score_offset:]
+                tb = base_bytes_lut[tail_tgt].to(dtype=torch.int16)
+                tb += (has_leading_space_lut[tail_tgt] & ~is_boundary_token_lut[tail_prev]).to(dtype=torch.int16)
+                byte_count += tb.to(torch.float64).sum()
 
     if dist.is_available() and dist.is_initialized():
-        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
-        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
-        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(tok_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
 
-    val_loss = val_loss_sum / val_token_count
-    bits_per_token = val_loss.item() / math.log(2.0)
-    tokens_per_byte = val_token_count.item() / val_byte_count.item()
-    base_model.train()
-    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+    val_loss = (loss_sum / tok_count).item()
+    bpb = val_loss / math.log(2.0) * (tok_count.item() / byte_count.item())
+    return val_loss, bpb
 
 
 # -----------------------------
@@ -1324,11 +1336,20 @@ def main() -> None:
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if args.eval_stride > 0:
+        eval_batch_seqs = 256
+        log0(f"Compiling forward_logits for sliding window eval (stride={args.eval_stride}, seq_len={args.eval_seq_len})...")
+        compiled_logits = torch.compile(base_model.forward_logits, dynamic=False)
+        # Warmup compilation
+        base_model.eval()
+        warmup_x = torch.zeros(eval_batch_seqs, args.eval_seq_len, dtype=torch.int64, device=device)
+        with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            _ = compiled_logits(warmup_x)
+        log0("Compilation done, starting sliding window eval...")
         torch.cuda.synchronize()
         t_slide = time.perf_counter()
         slide_val_loss, slide_val_bpb = eval_val_sliding(
-            args,
-            base_model,
+            compiled_logits,
+            base_model.num_memory_tokens,
             rank,
             world_size,
             device,
@@ -1336,7 +1357,11 @@ def main() -> None:
             base_bytes_lut,
             has_leading_space_lut,
             is_boundary_token_lut,
+            args.eval_seq_len,
+            args.eval_stride,
+            eval_batch_seqs=eval_batch_seqs,
         )
+        base_model.train()
         torch.cuda.synchronize()
         log0(
             f"sliding_window_eval val_loss:{slide_val_loss:.4f} val_bpb:{slide_val_bpb:.4f} "
