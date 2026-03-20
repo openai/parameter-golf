@@ -310,16 +310,6 @@ INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS", "").split(",")
     if pattern
 )
-INT8_KEEP_FLOAT_DTYPE_OVERRIDES = tuple(
-    (
-        pattern.strip(),
-        dtype_name.strip(),
-    )
-    for item in os.environ.get("INT8_KEEP_FLOAT_DTYPE_OVERRIDES", "").split(",")
-    if item.strip() and ":" in item
-    for pattern, dtype_name in [item.split(":", 1)]
-    if pattern.strip() and dtype_name.strip()
-)
 INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get("INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS", "").split(",")
@@ -344,30 +334,12 @@ def tensor_nbytes(t: Tensor) -> int:
 def matches_name_patterns(name: str, patterns: tuple[str, ...]) -> bool:
     return any(pattern in name for pattern in patterns)
 
-def parse_torch_dtype(dtype_name: str) -> torch.dtype:
-    try:
-        dtype = getattr(torch, dtype_name)
-    except AttributeError as exc:
-        raise ValueError(f"Unsupported torch dtype override: {dtype_name}") from exc
-    if dtype not in {torch.float16, torch.bfloat16, torch.float32}:
-        raise ValueError(f"Unsupported keep-float storage dtype: {dtype_name}")
-    return dtype
-
-def keep_float_store_dtype_for_tensor(name: str, t: Tensor) -> tuple[torch.dtype, bool]:
-    if matches_name_patterns(name, INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
-        return torch.float32, False
-    for pattern, dtype_name in INT8_KEEP_FLOAT_DTYPE_OVERRIDES:
-        if pattern in name:
-            return parse_torch_dtype(dtype_name), True
-    if t.dtype in {torch.float32, torch.bfloat16}:
-        return INT8_KEEP_FLOAT_STORE_DTYPE, False
-    return t.dtype, False
-
 def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
-    target_dtype, _ = keep_float_store_dtype_for_tensor(name, t)
-    if target_dtype != t.dtype:
+    if matches_name_patterns(name, INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
+        return t.float().contiguous()
+    if t.dtype in {torch.float32, torch.bfloat16}:
         passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
-        return t.to(dtype=target_dtype).contiguous()
+        return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
 def int8_scale_dtype_for_tensor(name: str, t: Tensor) -> torch.dtype:
@@ -507,8 +479,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             "large_keep_payload_bytes",
             "auto_keep_tensor_count",
             "auto_keep_payload_bytes",
-            "keep_float_override_tensor_count",
-            "keep_float_override_payload_bytes",
             "fp32_scale_tensor_count",
             "fp32_scale_payload_bytes",
         ),
@@ -546,10 +516,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
-            _, used_dtype_override = keep_float_store_dtype_for_tensor(name, t)
-            if used_dtype_override:
-                stats["keep_float_override_tensor_count"] += 1
-                stats["keep_float_override_payload_bytes"] += tensor_nbytes(kept)
             if keep_large:
                 stats["large_keep_tensor_count"] += 1
                 stats["large_keep_payload_bytes"] += tensor_nbytes(kept)
@@ -1312,12 +1278,6 @@ def main() -> None:
                 f"selected_payload:{quant_stats['auto_keep_payload_bytes']} "
                 f"selected_quantized_payload:{quant_stats['auto_keep_quantized_payload_bytes']} "
                 f"selected_extra_payload:{quant_stats['auto_keep_extra_payload_bytes']}"
-            )
-        if INT8_KEEP_FLOAT_DTYPE_OVERRIDES:
-            log0(
-                "Kept float storage: "
-                f"override_tensors:{quant_stats['keep_float_override_tensor_count']} "
-                f"override_bytes:{quant_stats['keep_float_override_payload_bytes']}"
             )
         if INT8_FP32_SCALE_NAME_PATTERNS:
             log0(
