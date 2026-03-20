@@ -123,6 +123,52 @@ WantedBy=default.target
 """
 
 
+def render_monitor_service(
+    args: argparse.Namespace,
+    remote_repo_dir: str,
+    remote_env_file: str,
+) -> str:
+    service_repo_dir = remote_service_path(remote_repo_dir)
+    service_env_file = remote_service_path(remote_env_file)
+    exec_start = (
+        '/bin/bash -lc "cd '
+        f"{service_repo_dir}/autoresearch"
+        " && uv run python ../infra/hetzner/monitor_controller.py"
+        f" --repo-dir {service_repo_dir}"
+        f" --env-file {service_env_file}"
+        f" --service-name {shlex.quote(args.service_name)}"
+        '"'
+    )
+    return f"""[Unit]
+Description=Parameter Golf Controller Health Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory={service_repo_dir}
+Environment=PATH={SERVICE_PATH}
+EnvironmentFile={service_env_file}
+ExecStart={exec_start}
+"""
+
+
+def render_monitor_timer(args: argparse.Namespace) -> str:
+    return f"""[Unit]
+Description=Run Parameter Golf controller monitor every {args.monitor_interval_minutes} minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec={args.monitor_interval_minutes}min
+AccuracySec=1min
+Persistent=true
+Unit={args.monitor_service_name}.service
+
+[Install]
+WantedBy=timers.target
+"""
+
+
 def upload_file(args: argparse.Namespace, local_path: Path, remote_path: str) -> None:
     remote_target = f"{args.host}:{remote_path}"
     cmd = [
@@ -157,8 +203,7 @@ def remote_prepare_script(args: argparse.Namespace) -> str:
         "command -v codex >/dev/null 2>&1 || "
         "{ echo 'codex CLI missing on controller host'; exit 1; }"
     )
-    return "\n".join(
-        [
+    commands = [
             "set -euo pipefail",
             f"mkdir -p {repo_dir} {env_dir} {systemd_dir} {state_dir}",
             f"if [ ! -d {repo_dir}/.git ]; then git init {repo_dir}; fi",
@@ -178,8 +223,17 @@ def remote_prepare_script(args: argparse.Namespace) -> str:
             "git diff --quiet",
             "git diff --cached --quiet",
             f"systemctl --user stop {service_name} >/dev/null 2>&1 || true",
-        ]
-    )
+    ]
+    if args.install_monitor or args.start_monitor:
+        commands.append(
+            f"systemctl --user stop {shlex.quote(args.monitor_timer_name)}.timer "
+            ">/dev/null 2>&1 || true"
+        )
+        commands.append(
+            f"systemctl --user stop {shlex.quote(args.monitor_service_name)}.service "
+            ">/dev/null 2>&1 || true"
+        )
+    return "\n".join(commands)
 
 
 def remote_finalize_script(
@@ -191,6 +245,10 @@ def remote_finalize_script(
     service_name = shlex.quote(args.service_name)
     remote_systemd_dir = remote_shell_path(args.remote_systemd_dir).rstrip("/")
     service_file = shlex.quote(f"{remote_systemd_dir}/{args.service_name}.service")
+    monitor_service_file = shlex.quote(
+        f"{remote_systemd_dir}/{args.monitor_service_name}.service"
+    )
+    monitor_timer_file = shlex.quote(f"{remote_systemd_dir}/{args.monitor_timer_name}.timer")
     remote_repo_dir = remote_shell_expr(args.remote_repo_dir)
     remote_bundle_expr = remote_shell_expr(remote_bundle_path)
     export_path = f'export PATH="{SERVICE_PATH.replace("%h", "$HOME")}"'
@@ -203,6 +261,8 @@ def remote_finalize_script(
         export_path,
         require_systemctl,
         f"test -f {service_file}",
+        f"if [ -f {monitor_service_file} ]; then test -f {monitor_service_file}; fi",
+        f"if [ -f {monitor_timer_file} ]; then test -f {monitor_timer_file}; fi",
         f"chown -R \"$USER\":\"$USER\" {remote_repo_dir}",
         f"git config --global user.name {shlex.quote(args.git_user_name)}",
         f"git config --global user.email {shlex.quote(args.git_user_email)}",
@@ -227,6 +287,10 @@ def remote_finalize_script(
         "systemctl --user daemon-reload",
         f"systemctl --user enable {service_name}",
     ]
+    if args.install_monitor:
+        commands.append(f"systemctl --user enable {shlex.quote(args.monitor_timer_name)}.timer")
+    if args.start_monitor:
+        commands.append(f"systemctl --user start {shlex.quote(args.monitor_timer_name)}.timer")
     if args.enable_linger:
         commands.append("sudo loginctl enable-linger \"$USER\"")
     if args.start:
@@ -289,6 +353,32 @@ def parse_args() -> argparse.Namespace:
         help="Arguments passed to run_pgolf_experiment.py inside the service",
     )
     parser.add_argument(
+        "--install-monitor",
+        action="store_true",
+        help="Install the Hetzner health monitor service and timer",
+    )
+    parser.add_argument(
+        "--start-monitor",
+        action="store_true",
+        help="Start the monitor timer after deployment",
+    )
+    parser.add_argument(
+        "--monitor-service-name",
+        default="parameter-golf-monitor",
+        help="systemd user service name for the health monitor",
+    )
+    parser.add_argument(
+        "--monitor-timer-name",
+        default="parameter-golf-monitor",
+        help="systemd user timer name for the health monitor",
+    )
+    parser.add_argument(
+        "--monitor-interval-minutes",
+        type=int,
+        default=10,
+        help="Monitor timer interval in minutes",
+    )
+    parser.add_argument(
         "--start",
         action="store_true",
         help="Start or restart the service after deployment",
@@ -316,6 +406,8 @@ def main() -> None:
     bundle_path, deploy_ref = create_bundle(root, dry_run=args.dry_run)
     remote_bundle_path = f"{args.remote_state_dir.rstrip('/')}/deploy.bundle"
     service_path: Path | None = None
+    monitor_service_path: Path | None = None
+    monitor_timer_path: Path | None = None
 
     try:
         ssh_run(args, remote_prepare_script(args), dry_run=args.dry_run)
@@ -336,10 +428,37 @@ def main() -> None:
             service_path,
             f"{args.remote_systemd_dir.rstrip('/')}/{args.service_name}.service",
         )
+        if args.install_monitor:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as tmp:
+                tmp.write(
+                    render_monitor_service(
+                        args,
+                        remote_repo_dir=args.remote_repo_dir,
+                        remote_env_file=args.remote_env_file,
+                    )
+                )
+                monitor_service_path = Path(tmp.name)
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as tmp:
+                tmp.write(render_monitor_timer(args))
+                monitor_timer_path = Path(tmp.name)
+            upload_file(
+                args,
+                monitor_service_path,
+                f"{args.remote_systemd_dir.rstrip('/')}/{args.monitor_service_name}.service",
+            )
+            upload_file(
+                args,
+                monitor_timer_path,
+                f"{args.remote_systemd_dir.rstrip('/')}/{args.monitor_timer_name}.timer",
+            )
     finally:
         bundle_path.unlink(missing_ok=True)
         if service_path is not None:
             service_path.unlink(missing_ok=True)
+        if monitor_service_path is not None:
+            monitor_service_path.unlink(missing_ok=True)
+        if monitor_timer_path is not None:
+            monitor_timer_path.unlink(missing_ok=True)
 
     ssh_run(
         args,
