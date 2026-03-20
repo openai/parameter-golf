@@ -34,7 +34,7 @@ class MatchModel:
         self,
         vocab_size: int = 1024,
         min_order: int = 4,
-        max_order: int = 32,
+        max_order: int = 12,
         min_count: int = 1,
     ):
         self.vocab_size = vocab_size

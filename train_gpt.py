@@ -815,13 +815,18 @@ class GPT(nn.Module):
         nn.init.zeros_(self.adapter[0].weight)
         nn.init.zeros_(self.adapter[2].weight)
 
-    def set_byte_weights(self, base_bytes_lut: Tensor) -> None:
+    def set_byte_weights(self, base_bytes_lut: Tensor, has_leading_space_lut: Tensor) -> None:
         """Set per-token byte weights for BPB-weighted loss.
-        
-        base_bytes_lut[token_id] = number of bytes this token represents.
+
+        Approximates the BPB byte count: base_bytes + P(leading_space_contributes).
+        The leading space byte is context-dependent (requires non-boundary prev token),
+        so we add an average contribution (~0.7 for typical text).
         Weights are normalized so mean=1 (preserving gradient scale).
         """
         w = base_bytes_lut.float()
+        # Leading-space tokens get ~0.7 extra bytes on average
+        # (most prev tokens are non-boundary in natural text)
+        w = w + has_leading_space_lut.float() * 0.7
         w = w / w.mean()  # normalize so mean weight = 1
         self.byte_weights = w
 
@@ -1034,7 +1039,7 @@ def main() -> None:
     restore_low_dim_params_to_fp32(base_model)
     # Set byte weights for BPB-weighted loss (after tokenizer LUTs are built)
     if args.bpb_loss_alpha > 0:
-        base_model.set_byte_weights(base_bytes_lut)
+        base_model.set_byte_weights(base_bytes_lut, has_leading_space_lut)
         log0(f"bpb_loss_alpha:{args.bpb_loss_alpha} (byte-weighted loss enabled)")
     # Pristine copy for eval — torch.compile taints base_model's __call__ path
     eval_model = copy.deepcopy(base_model)

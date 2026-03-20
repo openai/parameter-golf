@@ -289,7 +289,7 @@ def main():
     ngram_alpha = float(os.environ.get("NGRAM_ALPHA", 0.5))
     match_lambda = float(os.environ.get("MATCH_LAMBDA", 0.1))
     match_min_order = int(os.environ.get("MATCH_MIN_ORDER", 4))
-    match_max_order = int(os.environ.get("MATCH_MAX_ORDER", 32))
+    match_max_order = int(os.environ.get("MATCH_MAX_ORDER", 12))
     disable_ngram = os.environ.get("DISABLE_NGRAM", "0") == "1"
     disable_sliding = os.environ.get("DISABLE_SLIDING", "0") == "1"
     disable_match = os.environ.get("DISABLE_MATCH", "0") == "1"
