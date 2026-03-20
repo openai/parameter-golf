@@ -1,0 +1,39 @@
+{
+  "author": "mrdavtan",
+  "github_id": "mrdavtan",
+  "name": "Non-record: FP16 Embed + WD20k + Seq2048 + Sliding Window + Doc-Isolated Eval",
+  "blurb": "Stacks proven community techniques on 9L baseline: FP16 tied embedding export, aggressive warmdown (WD=20000), seq2048 training, tuned LRs, sliding window eval (stride=64) with doc-isolated scoring. Score limited by slow RunPod node (70ms/step vs typical 44ms). Expect ~1.185 on standard hardware.",
+  "date": "2026-03-20",
+  "val_loss": 2.03272810,
+  "val_bpb": 1.20453424,
+  "pre_quant_val_loss": 2.0521,
+  "pre_quant_val_bpb": 1.2154,
+  "step_stop": 8528,
+  "wallclock_seconds": 599.996,
+  "eval_time_seconds": 43.360,
+  "bytes_total": 15912648,
+  "bytes_model_int8_zlib": 15849067,
+  "bytes_code": 63581,
+  "hardware": "8xH100 SXM (RunPod), PyTorch 2.9.1+cu128, step_avg 70ms (slow node)",
+  "seed": 1337,
+  "track": "track_10min_16mb",
+  "model": {
+    "num_layers": 9,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_hidden": 992,
+    "vocab_size": 1024,
+    "tie_embeddings": true
+  },
+  "changes_from_baseline": [
+    "FP16 tied embedding export (tok_emb.weight kept in fp16, avoids int8 compounding)",
+    "MLP_HIDDEN=992 (offset FP16 embed artifact cost)",
+    "WARMDOWN_ITERS=20000 (aggressive LR decay for tighter weight distributions)",
+    "TRAIN_SEQ_LEN=2048 (longer context training)",
+    "MATRIX_LR=0.06, SCALAR_LR=0.06, TIED_EMBED_LR=0.07 (tuned for WD20k)",
+    "GRAD_CLIP_NORM=1.0, MUON_BACKEND_STEPS=5, MUON_MOMENTUM=0.99",
+    "Sliding window eval stride=64 with doc-isolated scoring"
+  ],
+  "notes": "Score limited by hardware: 70ms/step on this RunPod node vs 44ms typical. Only 8,528 steps vs ~13,000 on standard hardware."
+}
