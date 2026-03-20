@@ -1,0 +1,8 @@
+{
+    "name": "Bee Bytez",
+    "github_id": "beebytez",
+    "val_bpb": null,
+    "technique_summary": "TF-IDF curriculum learning (Crystallizer) + 10 layers + Muon weight decay",
+    "date": "2026-03-20",
+    "notes": "Oversamples 4x candidate batches, selects by information density. Curriculum active for first 70% of training."
+}
