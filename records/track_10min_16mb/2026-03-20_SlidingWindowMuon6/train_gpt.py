@@ -901,8 +901,12 @@ def eval_val_sliding(
                 logits = raw.forward_logits(x)  # (1, L, V)
 
             # Only score tokens in the scoring window [score_start, score_end)
+            # Clamp to my_end to prevent double-counting at rank boundaries
             score_start = pos - win_start
-            score_end = min(score_start + stride, actual_len)
+            tokens_left_in_shard = my_end - pos
+            score_end = min(
+                score_start + stride, actual_len, score_start + tokens_left_in_shard
+            )
             if score_start >= score_end or score_start < 0:
                 pos += stride
                 continue
