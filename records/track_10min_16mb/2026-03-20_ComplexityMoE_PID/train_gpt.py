@@ -609,23 +609,18 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
-# PID Dynamics (INL Ultra-Lite) — mu traverses all layers, tight clamping.
-class PIDDynamics(nn.Module):
-    def __init__(self, dim: int, alpha: float, beta: float, gate: float, dt: float,
-                 mu_min: float, mu_max: float, velocity_max: float):
+# Mu Dynamics — learnable equilibrium per layer, no velocity overhead.
+class MuDynamics(nn.Module):
+    def __init__(self, dim: int, mu_min: float = 0.5, mu_max: float = 1.5, strength: float = 0.01):
         super().__init__()
-        self.dt, self.mu_min, self.mu_max, self.velocity_max = dt, mu_min, mu_max, velocity_max
-        self.register_buffer("alpha", torch.tensor(alpha))
-        self.register_buffer("beta", torch.tensor(beta))
-        self.register_buffer("gate", torch.tensor(gate))
+        self.mu_min, self.mu_max = mu_min, mu_max
         self.mu = nn.Parameter(torch.full((dim,), (mu_min + mu_max) / 2.0))
+        self.strength = nn.Parameter(torch.tensor(strength))
 
-    def forward(self, h: Tensor, v: Tensor) -> tuple[Tensor, Tensor]:
+    def forward(self, h: Tensor) -> Tensor:
         mu = self.mu.clamp(self.mu_min, self.mu_max).to(dtype=h.dtype)
-        error = h - mu[None, None, :]
-        v_next = self.alpha.to(dtype=h.dtype) * v - self.beta.to(dtype=h.dtype) * error
-        v_next = v_next.clamp(-self.velocity_max, self.velocity_max)
-        return h + self.dt * self.gate.to(dtype=h.dtype) * v_next, v_next
+        s = self.strength.clamp(0.0, 0.1).to(dtype=h.dtype)
+        return h + s * (mu[None, None, :] - h)
 
 # Learned Hash Router — Linear(H, E) micro-router, fullgraph safe.
 class LearnedHashRouter(nn.Module):
@@ -690,13 +685,8 @@ class Block(nn.Module):
         num_experts: int = 4,
         moe_activation: str = "swiglu",
         moe_routing: str = "hybrid",
-        pid_alpha: float = 0.95,
-        pid_beta: float = 0.3,
-        pid_gate: float = 0.1,
-        pid_dt: float = 0.1,
-        pid_mu_min: float = 0.5,
-        pid_mu_max: float = 1.5,
-        pid_velocity_max: float = 3.0,
+        mu_min: float = 0.5,
+        mu_max: float = 1.5,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -710,14 +700,13 @@ class Block(nn.Module):
             self.fc = CastedLinear(dim, hidden, bias=False)
             self.proj = CastedLinear(hidden, dim, bias=False)
             self.proj._zero_init = True
-        self.pid = PIDDynamics(dim, pid_alpha, pid_beta, pid_gate, pid_dt,
-                               pid_mu_min, pid_mu_max, pid_velocity_max)
+        self.mu_dyn = MuDynamics(dim, mu_min, mu_max)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor, vel: Tensor, expert_ids: Tensor,
-                q_delta_fn=None, v_delta_fn=None) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, x0: Tensor, expert_ids: Tensor,
+                q_delta_fn=None, v_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         n = self.attn_norm(x)
@@ -725,13 +714,13 @@ class Block(nn.Module):
         vd = v_delta_fn(n) if v_delta_fn is not None else None
         attn_out = self.attn(n, qd, vd)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x, vel = self.pid(x, vel)
+        x = self.mu_dyn(x)
         if self.use_moe:
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), expert_ids)
         else:
             m = self.mlp_norm(x)
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.proj(torch.relu(self.fc(m)).square())
-        return x, vel
+        return x
 
 class GPT(nn.Module):
     def __init__(
@@ -750,13 +739,8 @@ class GPT(nn.Module):
         num_experts: int = 4,
         moe_activation: str = "swiglu",
         moe_routing: str = "hybrid",
-        pid_alpha: float = 0.95,
-        pid_beta: float = 0.3,
-        pid_gate: float = 0.1,
-        pid_dt: float = 0.1,
         pid_mu_min: float = 0.5,
         pid_mu_max: float = 1.5,
-        pid_velocity_max: float = 3.0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -781,8 +765,7 @@ class GPT(nn.Module):
                 Block(
                     model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
                     num_experts, moe_activation, moe_routing,
-                    pid_alpha, pid_beta, pid_gate, pid_dt,
-                    pid_mu_min, pid_mu_max, pid_velocity_max,
+                    pid_mu_min, pid_mu_max,
                 )
                 for i in range(num_layers)
             ]
@@ -807,14 +790,11 @@ class GPT(nn.Module):
         skips: list[Tensor] = []
         # Compute expert routing from input token IDs (deterministic, zero cost)
         expert_ids = self.token_to_expert[input_ids.clamp(0, self.vocab_size - 1)]
-        # Initialize PID velocity to zero — traverses ALL layers
-        vel = torch.zeros_like(x)
 
-        # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x, vel = self.blocks[i](x, x0, vel, expert_ids, qd, vd)
+            x = self.blocks[i](x, x0, expert_ids, qd, vd)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -822,7 +802,7 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x, vel = self.blocks[bi](x, x0, vel, expert_ids, qd, vd)
+            x = self.blocks[bi](x, x0, expert_ids, qd, vd)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1140,13 +1120,8 @@ def main() -> None:
         num_experts=args.num_experts,
         moe_activation=args.moe_activation,
         moe_routing=args.moe_routing,
-        pid_alpha=args.pid_alpha,
-        pid_beta=args.pid_beta,
-        pid_gate=args.pid_gate,
-        pid_dt=args.pid_dt,
         pid_mu_min=args.pid_mu_min,
         pid_mu_max=args.pid_mu_max,
-        pid_velocity_max=args.pid_velocity_max,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
