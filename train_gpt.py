@@ -13,6 +13,7 @@ import io
 import math
 import os
 import random
+import statistics
 import subprocess
 import sys
 import time
@@ -325,7 +326,18 @@ INT8_MIN_CLIP_NAME_VALUE_OVERRIDES = tuple(
     for entry in os.environ.get("INT8_MIN_CLIP_NAME_VALUE_OVERRIDES", "").split(",")
     if entry.strip()
 )
+INT8_CLIP_SWEEP_AUDIT_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get("INT8_CLIP_SWEEP_AUDIT_NAME_PATTERNS", "").split(",")
+    if pattern
+)
+INT8_CLIP_SWEEP_AUDIT_PERCENTILES = tuple(
+    entry.strip()
+    for entry in os.environ.get("INT8_CLIP_SWEEP_AUDIT_PERCENTILES", "").split(",")
+    if entry.strip()
+)
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
+INT8_CLIP_SWEEP_AUDIT_LOG_TOPK = int(os.environ.get("INT8_CLIP_SWEEP_AUDIT_LOG_TOPK", 3))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -333,6 +345,10 @@ INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 INT8_BASELINE_MIN_CLIP = 1.0
 SUBMISSION_SIZE_CAP_BYTES = int(os.environ.get("SUBMISSION_SIZE_CAP_BYTES", 16_000_000))
+INT8_CLIP_SWEEP_AUDIT_MIN_TENSOR_GAIN = float(os.environ.get("INT8_CLIP_SWEEP_AUDIT_MIN_TENSOR_GAIN", "0.0"))
+INT8_CLIP_SWEEP_AUDIT_MIN_IMPROVED_TENSORS = int(os.environ.get("INT8_CLIP_SWEEP_AUDIT_MIN_IMPROVED_TENSORS", "1"))
+INT8_CLIP_SWEEP_AUDIT_MIN_MEAN_GAIN = float(os.environ.get("INT8_CLIP_SWEEP_AUDIT_MIN_MEAN_GAIN", "0.0"))
+INT8_CLIP_SWEEP_AUDIT_MIN_MEDIAN_GAIN = float(os.environ.get("INT8_CLIP_SWEEP_AUDIT_MIN_MEDIAN_GAIN", "0.0"))
 
 int8_min_clip_name_value_pairs: list[tuple[str, float]] = []
 for entry in INT8_MIN_CLIP_NAME_VALUE_OVERRIDES:
@@ -346,6 +362,22 @@ for pattern, value in INT8_MIN_CLIP_NAME_VALUE_PAIRS:
         raise ValueError("INT8_MIN_CLIP_NAME_VALUE_OVERRIDES entries must use non-empty pattern:value pairs")
     if value <= 0.0:
         raise ValueError("INT8_MIN_CLIP_NAME_VALUE_OVERRIDES values must be strictly positive")
+
+int8_clip_sweep_audit_percentiles: list[float] = []
+for entry in INT8_CLIP_SWEEP_AUDIT_PERCENTILES:
+    percentile = float(entry)
+    if not 0.0 < percentile < 100.0:
+        raise ValueError("INT8_CLIP_SWEEP_AUDIT_PERCENTILES entries must be strictly between 0 and 100")
+    int8_clip_sweep_audit_percentiles.append(percentile)
+INT8_CLIP_SWEEP_AUDIT_PERCENTILE_VALUES: tuple[float, ...] = tuple(int8_clip_sweep_audit_percentiles)
+if INT8_CLIP_SWEEP_AUDIT_MIN_TENSOR_GAIN < 0.0:
+    raise ValueError("INT8_CLIP_SWEEP_AUDIT_MIN_TENSOR_GAIN must be non-negative")
+if INT8_CLIP_SWEEP_AUDIT_MIN_IMPROVED_TENSORS < 0:
+    raise ValueError("INT8_CLIP_SWEEP_AUDIT_MIN_IMPROVED_TENSORS must be non-negative")
+if INT8_CLIP_SWEEP_AUDIT_MIN_MEAN_GAIN < 0.0:
+    raise ValueError("INT8_CLIP_SWEEP_AUDIT_MIN_MEAN_GAIN must be non-negative")
+if INT8_CLIP_SWEEP_AUDIT_MIN_MEDIAN_GAIN < 0.0:
+    raise ValueError("INT8_CLIP_SWEEP_AUDIT_MIN_MEDIAN_GAIN must be non-negative")
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -379,13 +411,14 @@ def quantize_float_tensor(
     t: Tensor,
     scale_dtype: torch.dtype = INT8_PER_ROW_SCALE_DTYPE,
     min_clip_value: float = INT8_BASELINE_MIN_CLIP,
+    clip_q: float = INT8_CLIP_Q,
 ) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
         clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+            torch.quantile(t32.abs(), clip_q, dim=1)
             if t32.numel()
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
@@ -395,7 +428,7 @@ def quantize_float_tensor(
         return q, scale.to(dtype=scale_dtype).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
-    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+    clip_abs = float(torch.quantile(t32.abs().flatten(), clip_q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
@@ -488,6 +521,108 @@ def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, ob
     )
     return best
 
+def run_clip_sweep_audit(
+    state_dict: dict[str, Tensor],
+    selected_auto_keep_name: str,
+) -> dict[str, object] | None:
+    if not INT8_CLIP_SWEEP_AUDIT_NAME_PATTERNS or not INT8_CLIP_SWEEP_AUDIT_PERCENTILE_VALUES:
+        return None
+    matched_tensors: list[dict[str, object]] = []
+    for name, tensor in state_dict.items():
+        t = tensor.detach().to("cpu").contiguous()
+        if (
+            not t.is_floating_point()
+            or t.ndim != 2
+            or t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL
+            or matches_name_patterns(name, INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS)
+            or name == selected_auto_keep_name
+            or not matches_name_patterns(name, INT8_CLIP_SWEEP_AUDIT_NAME_PATTERNS)
+        ):
+            continue
+        scale_dtype = int8_scale_dtype_for_tensor(name, t)
+        min_clip_value = int8_min_clip_value_for_tensor(name, t)
+        q_base, s_base = quantize_float_tensor(
+            name,
+            t,
+            scale_dtype=scale_dtype,
+            min_clip_value=min_clip_value,
+            clip_q=INT8_CLIP_Q,
+        )
+        baseline_error = normalized_mae(t, dequantize_quantized_tensor(q_base, s_base, dtype=t.dtype))
+        matched_tensors.append(
+            {
+                "name": name,
+                "tensor": t,
+                "scale_dtype": scale_dtype,
+                "min_clip_value": min_clip_value,
+                "baseline_error": baseline_error,
+            }
+        )
+    candidate_stats: list[dict[str, object]] = []
+    for percentile in INT8_CLIP_SWEEP_AUDIT_PERCENTILE_VALUES:
+        clip_q = percentile / 100.0
+        tensor_gains: list[float] = []
+        improved_count = 0
+        for item in matched_tensors:
+            t = item["tensor"]
+            q_alt, s_alt = quantize_float_tensor(
+                str(item["name"]),
+                t,
+                scale_dtype=item["scale_dtype"],
+                min_clip_value=float(item["min_clip_value"]),
+                clip_q=clip_q,
+            )
+            alt_error = normalized_mae(t, dequantize_quantized_tensor(q_alt, s_alt, dtype=t.dtype))
+            gain = float(item["baseline_error"]) - alt_error
+            tensor_gains.append(gain)
+            if gain >= INT8_CLIP_SWEEP_AUDIT_MIN_TENSOR_GAIN:
+                improved_count += 1
+        mean_gain = float(sum(tensor_gains) / len(tensor_gains)) if tensor_gains else 0.0
+        median_gain = float(statistics.median(tensor_gains)) if tensor_gains else 0.0
+        passes = (
+            improved_count >= INT8_CLIP_SWEEP_AUDIT_MIN_IMPROVED_TENSORS
+            and mean_gain >= INT8_CLIP_SWEEP_AUDIT_MIN_MEAN_GAIN
+            and median_gain >= INT8_CLIP_SWEEP_AUDIT_MIN_MEDIAN_GAIN
+        )
+        candidate_stats.append(
+            {
+                "percentile": percentile,
+                "improved_tensors": improved_count,
+                "mean_gain": mean_gain,
+                "median_gain": median_gain,
+                "passes": passes,
+            }
+        )
+    ranked = sorted(
+        candidate_stats,
+        key=lambda item: (
+            int(bool(item["passes"])),
+            int(item["improved_tensors"]),
+            float(item["mean_gain"]),
+            float(item["median_gain"]),
+            -float(item["percentile"]),
+        ),
+        reverse=True,
+    )
+    selected = ranked[0] if ranked and bool(ranked[0]["passes"]) else None
+    return {
+        "tensor_count": len(matched_tensors),
+        "candidate_count": len(candidate_stats),
+        "selected_percentile": float(selected["percentile"]) if selected is not None else 0.0,
+        "selected_percentile_label": f"{float(selected['percentile']):.5f}" if selected is not None else "none",
+        "selected_improved_tensors": int(selected["improved_tensors"]) if selected is not None else 0,
+        "selected_mean_gain": float(selected["mean_gain"]) if selected is not None else 0.0,
+        "selected_median_gain": float(selected["median_gain"]) if selected is not None else 0.0,
+        "candidate_summary": ",".join(
+            (
+                f"{float(item['percentile']):.5f}|improved={int(item['improved_tensors'])}|"
+                f"mean={float(item['mean_gain']):.8f}|median={float(item['median_gain']):.8f}|"
+                f"passes={int(bool(item['passes']))}"
+                for item in ranked[: max(INT8_CLIP_SWEEP_AUDIT_LOG_TOPK, 0)]
+            )
+        ),
+    }
+
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     # Single supported clean-script export format:
     # - per-row int8 for 2D float tensors
@@ -504,6 +639,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     selected_auto_keep_name = ""
     if auto_keep is not None:
         selected_auto_keep_name = str(auto_keep["selected_name"])
+    clip_sweep_audit = run_clip_sweep_audit(state_dict, selected_auto_keep_name)
     stats = dict.fromkeys(
         (
             "param_count",
@@ -533,6 +669,28 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         stats["auto_keep_keep_payload_bytes"] - stats["auto_keep_quantized_payload_bytes"]
     )
     stats["auto_keep_top_candidates_summary"] = str(auto_keep["top_candidates_summary"]) if auto_keep is not None else ""
+    stats["clip_sweep_audit_tensor_count"] = int(clip_sweep_audit["tensor_count"]) if clip_sweep_audit is not None else 0
+    stats["clip_sweep_audit_candidate_count"] = (
+        int(clip_sweep_audit["candidate_count"]) if clip_sweep_audit is not None else 0
+    )
+    stats["clip_sweep_audit_selected_percentile"] = (
+        float(clip_sweep_audit["selected_percentile"]) if clip_sweep_audit is not None else 0.0
+    )
+    stats["clip_sweep_audit_selected_percentile_label"] = (
+        str(clip_sweep_audit["selected_percentile_label"]) if clip_sweep_audit is not None else "none"
+    )
+    stats["clip_sweep_audit_selected_improved_tensors"] = (
+        int(clip_sweep_audit["selected_improved_tensors"]) if clip_sweep_audit is not None else 0
+    )
+    stats["clip_sweep_audit_selected_mean_gain"] = (
+        float(clip_sweep_audit["selected_mean_gain"]) if clip_sweep_audit is not None else 0.0
+    )
+    stats["clip_sweep_audit_selected_median_gain"] = (
+        float(clip_sweep_audit["selected_median_gain"]) if clip_sweep_audit is not None else 0.0
+    )
+    stats["clip_sweep_audit_candidate_summary"] = (
+        str(clip_sweep_audit["candidate_summary"]) if clip_sweep_audit is not None else ""
+    )
 
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
@@ -1336,6 +1494,26 @@ def main() -> None:
                 f"baseline:{INT8_BASELINE_MIN_CLIP:.5f} "
                 f"overrides:{override_summary}"
             )
+        if INT8_CLIP_SWEEP_AUDIT_NAME_PATTERNS and INT8_CLIP_SWEEP_AUDIT_PERCENTILE_VALUES:
+            log0(
+                "Int8 clip sweep audit: "
+                f"baseline:{INT8_CLIP_PERCENTILE:.5f} "
+                f"tensors:{quant_stats['clip_sweep_audit_tensor_count']} "
+                f"candidates:{quant_stats['clip_sweep_audit_candidate_count']} "
+                f"selected:{quant_stats['clip_sweep_audit_selected_percentile_label']}"
+            )
+            log0(
+                "Int8 clip sweep thresholds: "
+                f"min_tensor_gain:{INT8_CLIP_SWEEP_AUDIT_MIN_TENSOR_GAIN:.8f} "
+                f"min_improved_tensors:{INT8_CLIP_SWEEP_AUDIT_MIN_IMPROVED_TENSORS} "
+                f"min_mean_gain:{INT8_CLIP_SWEEP_AUDIT_MIN_MEAN_GAIN:.8f} "
+                f"min_median_gain:{INT8_CLIP_SWEEP_AUDIT_MIN_MEDIAN_GAIN:.8f} "
+                f"selected_improved:{quant_stats['clip_sweep_audit_selected_improved_tensors']} "
+                f"selected_mean_gain:{quant_stats['clip_sweep_audit_selected_mean_gain']:.8f} "
+                f"selected_median_gain:{quant_stats['clip_sweep_audit_selected_median_gain']:.8f}"
+            )
+            if quant_stats["clip_sweep_audit_candidate_summary"]:
+                log0(f"Int8 clip sweep candidates: {quant_stats['clip_sweep_audit_candidate_summary']}")
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
