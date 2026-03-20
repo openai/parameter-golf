@@ -348,6 +348,10 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
 
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
+    # 3D expert weights [E, in, out] → reshape to 2D [E*in, out] for per-row quantization
+    orig_shape = t32.shape
+    if t32.ndim == 3:
+        t32 = t32.reshape(-1, t32.shape[-1])
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
@@ -359,6 +363,9 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
         scale = (clip_abs / QUANT_MAX).clamp_min(1.0 / QUANT_MAX)
         q = torch.clamp(torch.round(clipped / scale[:, None]), -QUANT_MAX, QUANT_MAX).to(torch.int8).contiguous()
+        if len(orig_shape) == 3:
+            q = q.reshape(orig_shape)
+            scale = scale.reshape(orig_shape[0], orig_shape[1])
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
@@ -435,8 +442,8 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         s = obj["scales"][name]
         if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
-            # Broadcast the saved row scale back across trailing dimensions.
-            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+            # Broadcast scale: for 3D [E,in,out] scale is [E,in], for 2D [in,out] scale is [in]
+            out[name] = (q.float() * s.unsqueeze(-1)).to(dtype=dtype).contiguous()
         else:
             scale = float(s.item())
             out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
