@@ -1,8 +1,8 @@
 #!/bin/bash
 # === Parameter Golf: MoS 1-Hour Validation on 1x H100 ===
-# Paste this into your RunPod terminal.
-# Total time: ~18 min download + 60 min MoS run = ~78 min
-# Target to beat: val_bpb 1.2540 (PR#111 vanilla baseline, 1hr/1xH100)
+# Usage: bash setup_and_run_1h.sh
+# The script runs training inside nohup so it survives terminal disconnects.
+# Log is written to /workspace/mos_1h_log.txt — check with: tail -f /workspace/mos_1h_log.txt
 
 set -e
 
@@ -12,7 +12,7 @@ cd /workspace/parameter-golf
 # HF token for faster downloads
 export HF_TOKEN="${HF_TOKEN:-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}"
 
-# Download full dataset (~18 min)
+# Download full dataset (~18 min, skips if already present)
 python3 data/cached_challenge_fineweb.py --variant sp1024
 
 # Verify dataset
@@ -27,9 +27,14 @@ fi
 echo ""
 echo "=== Step 2: Run MoS K=2 R=64 (1 HOUR, 1x H100) ==="
 echo "Start time: $(date)"
-echo "Target: beat PR#111 baseline val_bpb=1.2540"
+echo ""
+echo "Training will run in the background via nohup."
+echo "Monitor with:  tail -f /workspace/mos_1h_log.txt"
+echo "Check GPU with: nvidia-smi"
+echo "Safe to close terminal — training will continue."
 echo ""
 
+nohup bash -c '
 RUN_ID=mos_k2_r64_1h \
 DATA_PATH=./data/datasets/fineweb10B_sp1024 \
 TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
@@ -42,16 +47,25 @@ WARMDOWN_ITERS=100 \
 MAX_WALLCLOCK_SECONDS=3600 \
 VAL_LOSS_EVERY=500 \
 TRAIN_LOG_EVERY=100 \
-torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1 | tee /workspace/mos_1h_log.txt
+torchrun --standalone --nproc_per_node=1 train_gpt.py
+' > /workspace/mos_1h_log.txt 2>&1 &
 
-echo ""
-echo "=== RESULTS ==="
-echo ""
-grep -E 'val_bpb|val_loss|bytes|param|model_params|stopping' /workspace/mos_1h_log.txt | tail -20
-echo ""
-echo "=== COMPARISON ==="
-echo "Target (PR#111 vanilla 1hr): val_bpb=1.2540"
-echo "Our 10-min MoS pilot:        val_bpb=1.3932"
-echo "PR#111 10-min baseline:       val_bpb=1.3486"
-echo ""
-echo "Done at: $(date)"
+TRAIN_PID=$!
+echo "Training PID: $TRAIN_PID"
+echo "PID saved to /workspace/train.pid"
+echo "$TRAIN_PID" > /workspace/train.pid
+
+# Wait a few seconds and confirm it started
+sleep 5
+if kill -0 $TRAIN_PID 2>/dev/null; then
+    echo "Training is running. You can safely close this terminal."
+    echo ""
+    echo "=== Quick commands ==="
+    echo "  Monitor:  tail -f /workspace/mos_1h_log.txt"
+    echo "  Status:   nvidia-smi"
+    echo "  Kill:     kill \$(cat /workspace/train.pid)"
+else
+    echo "ERROR: Training process died. Check /workspace/mos_1h_log.txt"
+    tail -20 /workspace/mos_1h_log.txt
+    exit 1
+fi
