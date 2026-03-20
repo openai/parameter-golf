@@ -1,0 +1,17 @@
+{
+  "author": "Deividas Mataciunas",
+  "github_id": "DeividasMat",
+  "name": "Runpod 1GPU Twicing Eval Split",
+  "blurb": "Exploratory 1x H100, 1-shard, 10-minute checkpoint run. The best balanced profile used ATTN_TWICE_ALPHA=0.05 with EVAL_SEQ_LEN=2048 and TTT_EVAL_SEQ_LEN=1024, reaching final_int8_ttt_lora val_bpb 1.3960 under the 16MB artifact cap.",
+  "date": "2026-03-20T18:30:00Z",
+  "track": "non-record-1gpu-16mb",
+  "val_loss": 2.3571,
+  "val_bpb": 1.3960,
+  "pre_quant_val_loss": 2.3308,
+  "pre_quant_val_bpb": 1.3805,
+  "step_stop": 1075,
+  "wallclock_seconds": 600.439,
+  "bytes_total": 10868875,
+  "bytes_model_int8_zlib": 10810291,
+  "bytes_code": 58584
+}

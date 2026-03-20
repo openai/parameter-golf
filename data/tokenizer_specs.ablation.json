@@ -1,0 +1,29 @@
+{
+  "tokenizers": [
+    {
+      "name": "sp_bpe_768",
+      "dataset_suffix": "sp768",
+      "vocab_size": 768
+    },
+    {
+      "name": "sp_bpe_1024",
+      "dataset_suffix": "sp1024",
+      "vocab_size": 1024
+    },
+    {
+      "name": "sp_bpe_1280",
+      "dataset_suffix": "sp1280",
+      "vocab_size": 1280
+    },
+    {
+      "name": "sp_bpe_1536",
+      "dataset_suffix": "sp1536",
+      "vocab_size": 1536
+    },
+    {
+      "name": "pure_byte_260",
+      "dataset_suffix": "byte260",
+      "kind": "pure_byte"
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "checkpoint_note": {
+    "best_raw_checkpoint_path": "/workspace/parameter-golf/final_model.pt",
+    "best_raw_checkpoint_size_human": "72M",
+    "best_raw_checkpoint_sha256": "292d79fa54a638be348354f09d185f80b69710e7de8f4dfa42b36e43afccdc96",
+    "transfer_status": "remote-only"
+  },
+  "runs": [
+    {
+      "run_id": "base10l",
+      "artifact_bytes": 10831123,
+      "code_bytes": 58584,
+      "roundtrip_eval_time_ms": 12984,
+      "roundtrip_val_bpb": 1.40296458,
+      "roundtrip_val_loss": 2.36884692,
+      "step_stop": 1061,
+      "total_train_time_ms": 600528,
+      "ttt_eval_time_ms": 507995,
+      "ttt_val_bpb": 1.3976,
+      "ttt_val_loss": 2.3598
+    },
+    {
+      "run_id": "zloss_low",
+      "artifact_bytes": 10804697,
+      "code_bytes": 58584,
+      "roundtrip_eval_time_ms": 13026,
+      "roundtrip_val_bpb": 1.40313158,
+      "roundtrip_val_loss": 2.3691289,
+      "step_stop": 1058,
+      "total_train_time_ms": 600386,
+      "ttt_eval_time_ms": 508243,
+      "ttt_val_bpb": 1.3984,
+      "ttt_val_loss": 2.3611
+    },
+    {
+      "run_id": "twice_low",
+      "artifact_bytes": 10836065,
+      "code_bytes": 58584,
+      "roundtrip_eval_time_ms": 12989,
+      "roundtrip_val_bpb": 1.40177526,
+      "roundtrip_val_loss": 2.3668388,
+      "step_stop": 1063,
+      "total_train_time_ms": 600242,
+      "ttt_eval_time_ms": 508663,
+      "ttt_val_bpb": 1.3969,
+      "ttt_val_loss": 2.3586
+    },
+    {
+      "run_id": "twice_eval2048",
+      "artifact_bytes": 10924367,
+      "code_bytes": 58584,
+      "roundtrip_eval_time_ms": 12988,
+      "roundtrip_val_bpb": 1.3990907,
+      "roundtrip_val_loss": 2.36230604,
+      "step_stop": 1085,
+      "total_train_time_ms": 600071,
+      "ttt_eval_time_ms": 755165,
+      "ttt_val_bpb": 1.3995,
+      "ttt_val_loss": 2.363
+    },
+    {
+      "run_id": "twice_eval2048_ttt1024",
+      "artifact_bytes": 10868875,
+      "code_bytes": 58584,
+      "roundtrip_eval_time_ms": 12982,
+      "roundtrip_val_bpb": 1.4013468,
+      "roundtrip_val_loss": 2.36611538,
+      "step_stop": 1075,
+      "total_train_time_ms": 600439,
+      "ttt_eval_time_ms": 508393,
+      "ttt_val_bpb": 1.396,
+      "ttt_val_loss": 2.3571
+    }
+  ],
+  "summary": {
+    "best_balanced_profile": "twice_eval2048_ttt1024",
+    "best_roundtrip_profile": "twice_eval2048",
+    "best_ttt_profile": "twice_eval2048_ttt1024",
+    "winner_notes": [
+      "ATTN_TWICE_ALPHA=0.05 outperformed baseline.",
+      "Z_LOSS_COEF=0.0001 regressed both metrics.",
+      "Longer roundtrip eval context and shorter TTT eval context worked best together."
+    ]
+  }
+}
