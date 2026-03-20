@@ -9,16 +9,19 @@ For non-record runs, slower but better-per-step models can be worthwhile if they
 ## What We Know
 - The 12x448 family improves strongly with longer training.
 - Its current limitations are export damage and byte overage, not purely optimization horizon.
+- Recent competitive PRs suggest QAT / fake-quant training and selective precision export are among the highest-leverage ways to close the remaining post-quant gap.
 
 ## Priority Order
 1. Keep the strong deeper family under the byte cap
-2. Reduce export/quantization damage
+2. Reduce export/quantization damage, especially with QAT-adjacent ideas
 3. Improve final convergence quality
-4. Then consider longer unlimited-compute runs
+4. Selective precision export for the most sensitive matrices
+5. Then consider longer unlimited-compute runs
 
 ## Preferred Directions
 - Byte-recovery changes on strong deeper families
 - Export-aware improvements
+- QAT / fake-quant directions if they are implementable without a large rewrite
 - Eval-time improvements that transfer to stronger cores
 
 ## Avoid

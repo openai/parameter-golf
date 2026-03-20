@@ -10,18 +10,27 @@ Some matrices are much more sensitive than others. Do not assume one export form
 - Strong model families are already close pre-quant and often lose at export time.
 - Public leaders are getting value from FP16 tied embeddings and other export-aware decisions.
 - Small byte increases can be worthwhile if they recover more post-export BPB than they cost.
+- Recent competitive PRs repeatedly converge on:
+  - int6 for most weights
+  - fp16 tied embeddings
+  - selective fp16 passthrough for especially sensitive matrices
+  - QAT / fake-quant training as a major quantization-gap reducer
 
 ## Priority Order
 1. FP16 or mixed-precision export for the most sensitive matrices
-2. Matrix-specific quantization or clipping choices
-3. Byte-neutral or byte-positive export changes with clear BPB upside
-4. Compression-friendly packing/layout improvements
+2. Selective precision for embeddings / late sensitive projections
+3. Int6-style export directions or approximations toward them
+4. Matrix-specific quantization or clipping choices
+5. Byte-neutral or byte-positive export changes with clear BPB upside
+6. Compression-friendly packing/layout improvements
 
 ## Preferred Directions
 - Keep tied embeddings or LM-head weights in FP16 while quantizing less sensitive matrices
+- Try selective fp16 passthrough for especially sensitive projections instead of all-or-nothing precision
 - Use matrix-specific or row-family-specific export precision rules
 - Reduce scale/metadata overhead where possible
 - Try export-path logic that preserves embedding/logit quality
+- Prefer same-day implementable versions of int6/mixed-precision and QAT-adjacent ideas over exotic codecs
 - Consider zlib-friendly packing only if it is simple and measurable
 
 ## Avoid

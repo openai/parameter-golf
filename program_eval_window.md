@@ -10,15 +10,17 @@ The leaderboard now shows that overlapping-window evaluation is a major lever. T
 - Plain post-quant calibration already helped.
 - Public leaders gained a large amount from sliding-window evaluation.
 - Cheap overlap is more useful than fancy calibration if it improves context coverage enough.
+- Recent competitive PRs suggest `stride=256` may slightly beat `64` while cutting eval cost substantially.
 
 ## Priority Order
-1. Sliding-window evaluation with overlap and score-only-new-token logic
-2. Stride tuning and batching for efficient overlap
-3. Hybrid overlap + calibration combinations
-4. Cache reuse or block reuse that preserves eval speed
+1. Direct `stride=256` vs `64` vs `128` comparisons with score-only-new-token logic
+2. Sliding-window evaluation with overlap and score-only-new-token logic
+3. Stride tuning and batching for efficient overlap
+4. Hybrid overlap + calibration combinations
+5. Cache reuse or block reuse that preserves eval speed
 
 ## Preferred Directions
-- Add overlapping eval windows with stride values like 64, 128, or 256
+- Add overlapping eval windows with stride values like 256, 128, and 64
 - Score only the fresh tokens rather than double-counting overlap
 - Use center-token or right-edge scoring if it improves stability
 - Reuse KV/cache state if it helps without changing semantics
@@ -35,3 +37,4 @@ The leaderboard now shows that overlapping-window evaluation is a major lever. T
 - Prefer concrete window/stride logic over abstract eval heuristics
 - Keep `eval_time_ms` visible and bounded
 - Optimize for something that could plausibly transfer to an 8xH100 record submission
+- The single most actionable question in this lane is whether `stride=256` beats `64` for our current stack
