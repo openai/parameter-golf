@@ -106,7 +106,7 @@ graph TD
         F --> G[Logical Priors Init]
     end
 
-    subgraph Inference (with TTT)
+    subgraph "Inference (with TTT)"
         H[Document Tokens] --> I[LoRA Adapters]
         I --> J[BitNet Forward]
         J --> K[Adaptation Steps]
