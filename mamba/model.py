@@ -168,54 +168,119 @@ def selective_scan(
     dt: Tensor,      # [n_heads] — timestep (after softplus)
     chunk_size: int,
 ) -> Tensor:
-    """Chunked selective scan — sequential loop over time, parallel over batch/head/state.
+    """Fully vectorized SSD-style chunked scan — no Python loops.
 
-    Recurrence per timestep:
-        decay = exp(A * dt)
-        h_t = decay * h_{t-1} + (B_t outer x_t) * dt
-        y_t = (C_t . h_t)                              (inner product over state dim)
-
-    Returns: y of shape [B, L, n_heads, head_dim].
+    Following the Mamba-2 reference (ssd_minimal.py) adapted for constant A/dt:
+    Step 1: Intra-chunk causal matmul (diagonal blocks)
+    Step 2: Compute per-chunk states via matmul
+    Step 3: Inter-chunk state propagation via matmul (vectorized, no loop)
+    Step 4: State-to-output correction via matmul
     """
     B_batch, L, n_heads, head_dim = x.shape
     d_state = B.shape[-1]
 
-    # Precompute scalar decay: exp(A * dt) per head — shape [n_heads]
-    decay = torch.exp(A * dt)  # A is negative, so decay in (0, 1)
+    # Scalar decay per head: exp(A * dt), in (0, 1)
+    decay = torch.exp(A * dt)  # [n_heads]
 
-    # Output buffer
-    y = torch.zeros_like(x)
-
-    # Hidden state: [B_batch, n_heads, head_dim, d_state]
-    h = torch.zeros(B_batch, n_heads, head_dim, d_state, device=x.device, dtype=x.dtype)
-
-    # Process in chunks for better compile/fusion
+    # Pad L to multiple of chunk_size
     n_chunks = (L + chunk_size - 1) // chunk_size
-    for chunk_idx in range(n_chunks):
-        t_start = chunk_idx * chunk_size
-        t_end = min(t_start + chunk_size, L)
+    L_padded = n_chunks * chunk_size
+    if L_padded > L:
+        pad = L_padded - L
+        x = F.pad(x, (0, 0, 0, 0, 0, pad))
+        B = F.pad(B, (0, 0, 0, 0, 0, pad))
+        C = F.pad(C, (0, 0, 0, 0, 0, pad))
 
-        x_chunk = x[:, t_start:t_end]          # [B, chunk, n_heads, head_dim]
-        B_chunk = B[:, t_start:t_end]           # [B, chunk, n_heads, d_state]
-        C_chunk = C[:, t_start:t_end]           # [B, chunk, n_heads, d_state]
+    # Reshape into chunks: [B, nc, cs, nh, ...]
+    x_c = x.reshape(B_batch, n_chunks, chunk_size, n_heads, head_dim)
+    B_c = B.reshape(B_batch, n_chunks, chunk_size, n_heads, d_state)
+    C_c = C.reshape(B_batch, n_chunks, chunk_size, n_heads, d_state)
 
-        for t in range(t_end - t_start):
-            # x_t: [B, n_heads, head_dim]
-            x_t = x_chunk[:, t]
-            # B_t: [B, n_heads, d_state]
-            B_t = B_chunk[:, t]
-            # C_t: [B, n_heads, d_state]
-            C_t = C_chunk[:, t]
+    # Permute to [B, nc, nh, cs, dim] for efficient batched matmul
+    C_p = C_c.permute(0, 1, 3, 2, 4)  # [B, nc, nh, cs, ds]
+    B_p = B_c.permute(0, 1, 3, 2, 4)  # [B, nc, nh, cs, ds]
+    x_p = x_c.permute(0, 1, 3, 2, 4)  # [B, nc, nh, cs, hd]
 
-            # h = decay * h + B_t outer x_t * dt
-            # decay: [n_heads] -> [1, n_heads, 1, 1]
-            h = decay[None, :, None, None] * h + torch.einsum("bhs,bhd->bhds", B_t, x_t) * dt[None, :, None, None]
+    # Scale x by dt
+    x_dt = x_p * dt[None, None, :, None, None]  # [B, nc, nh, cs, hd]
 
-            # y_t = sum over state dim: C_t * h -> [B, n_heads, head_dim]
-            y_t = torch.einsum("bhs,bhds->bhd", C_t, h)
-            y[:, t_start + t] = y_t
+    # ===== Step 1: Intra-chunk (diagonal blocks) =====
+    # y_diag[i] = sum_{j<=i} decay^(i-j) * dt * (C[i] . B[j]) * x[j]
+    # = (L_mat * (C @ B^T)) @ (x * dt)
 
-    return y
+    idx = torch.arange(chunk_size, device=x.device, dtype=x.dtype)
+    diff = idx[:, None] - idx[None, :]  # [cs, cs]
+    # Causal decay matrix: L[i,j] = decay^(i-j) if i>=j, else 0
+    # Shape: [nh, cs, cs]
+    L_mat = torch.where(
+        (diff >= 0).unsqueeze(0),
+        decay[:, None, None] ** diff.clamp(min=0).unsqueeze(0),
+        torch.zeros(1, device=x.device, dtype=x.dtype),
+    )
+
+    # CB: [B, nc, nh, cs_i, cs_j]
+    CB = torch.matmul(C_p, B_p.transpose(-1, -2))
+    CB_L = CB * L_mat[None, None]  # apply causal decay
+
+    # y_diag: [B, nc, nh, cs, hd]
+    y_diag = torch.matmul(CB_L, x_dt)
+
+    # ===== Step 2: Per-chunk states =====
+    # s[c] = sum_{j=0}^{cs-1} decay^(cs-1-j) * dt * (B[c,j] outer x[c,j])
+    # = B_weighted^T @ x_dt,  where B_weighted[j] = decay^(cs-1-j) * B[j]
+
+    rev_idx = torch.arange(chunk_size - 1, -1, -1, device=x.device, dtype=x.dtype)
+    decay_rev = decay[None, :] ** rev_idx[:, None]  # [cs, nh] -> broadcast to [nh, cs]
+    # B_weighted: [B, nc, nh, cs, ds] scaled by decay_rev
+    B_w = B_p * decay_rev.permute(1, 0)[None, None, :, :, None]
+    # states: [B, nc, nh, ds, hd] = B_w^T @ x_dt
+    states = torch.matmul(B_w.transpose(-1, -2), x_dt)  # [B, nc, nh, ds, hd]
+
+    # ===== Step 3: Inter-chunk state propagation (vectorized) =====
+    # h_carry[c] = sum_{c'<c} (decay^cs)^(c-1-c') * s[c']
+    # This is a strictly lower-triangular Toeplitz matmul.
+
+    chunk_idx = torch.arange(n_chunks, device=x.device, dtype=x.dtype)
+    shift = chunk_idx[:, None] - chunk_idx[None, :] - 1  # [nc, nc]
+    # M[c, c'] = (decay^cs)^shift if shift >= 0, else 0
+    # Shape: [nh, nc, nc]
+    chunk_decay = decay ** chunk_size  # [nh]
+    M = torch.where(
+        (shift >= 0).unsqueeze(0),
+        chunk_decay[:, None, None] ** shift.clamp(min=0).unsqueeze(0),
+        torch.zeros(1, device=x.device, dtype=x.dtype),
+    )
+
+    # h_carry: [B, nc, nh, ds, hd] via matmul over chunk dimension
+    # states: [B, nc, nh, ds, hd] -> reshape for matmul
+    # We need: h_carry[b, c, h, d, s] = sum_{c'} M[h, c, c'] * states[b, c', h, d, s]
+    # Reshape states to [B*nh*ds*hd, nc] for batched matmul, or use einsum
+    # More efficient: work in [B, nh, nc, ds*hd] layout
+    states_r = states.permute(0, 2, 1, 3, 4)  # [B, nh, nc, ds, hd]
+    states_flat = states_r.reshape(B_batch * n_heads, n_chunks, d_state * head_dim)
+    M_exp = M.unsqueeze(0).expand(B_batch, -1, -1, -1).reshape(B_batch * n_heads, n_chunks, n_chunks)
+    h_carry_flat = torch.matmul(M_exp, states_flat)  # [B*nh, nc, ds*hd]
+    h_carry = h_carry_flat.reshape(B_batch, n_heads, n_chunks, d_state, head_dim)
+    # -> [B, nc, nh, ds, hd]
+    h_carry = h_carry.permute(0, 2, 1, 3, 4)
+
+    # ===== Step 4: State-to-output correction =====
+    # y_off[c, i] = C[c,i] . (decay^(i+1) * h_carry[c])
+    # = decay^(i+1) * C[c,i] @ h_carry[c]
+
+    # decay_out: [nh, cs]
+    decay_out = decay[:, None] ** (idx[None, :] + 1)
+
+    # C_p @ h_carry: [B, nc, nh, cs, ds] @ [B, nc, nh, ds, hd] = [B, nc, nh, cs, hd]
+    y_off = torch.matmul(C_p, h_carry) * decay_out[None, None, :, :, None]
+
+    # ===== Combine =====
+    y = y_diag + y_off  # [B, nc, nh, cs, hd]
+
+    # Reshape: [B, nc, nh, cs, hd] -> [B, nc, cs, nh, hd] -> [B, L, nh, hd]
+    y = y.permute(0, 1, 3, 2, 4).reshape(B_batch, L_padded, n_heads, head_dim)
+
+    return y[:, :L] if L_padded > L else y
 
 
 # ---------------------------------------------------------------------------
