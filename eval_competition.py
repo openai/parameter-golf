@@ -299,6 +299,8 @@ def eval_competition(
                         # Multiplicative weight update: w_i *= p_i(actual)^lr
                         for m_idx in range(len(mix_w)):
                             mix_w[m_idx] *= model_scores[m_idx] ** mix_lr
+                        # Floor to prevent weight collapse (sub-models stay ≥1%)
+                        mix_w = [max(w, 0.01) for w in mix_w]
                         # Renormalize
                         w_total = sum(mix_w)
                         mix_w = [w / w_total for w in mix_w]
