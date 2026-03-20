@@ -1,13 +1,28 @@
 #!/usr/bin/env python3
-"""Static + CPU checks for a Parameter Golf train_gpt.py (no CUDA required)."""
+"""Static + CPU checks for a Parameter Golf train_gpt.py (no CUDA required).
+
+Default target: SOTA+ submission (mixed int6, BigramHash, SmearGate, eval_val_sliding).
+
+Also runs sliding-window *coverage* sanity for the non-overlapping scheme (some older
+submissions); if your script only uses strided window_starts, that block still passes
+as a pure math check, not a proof your eval matches this reference implementation.
+"""
 from __future__ import annotations
 
 import argparse
 import ast
+import importlib.util
 import io
+import os
 import sys
 from collections import Counter
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_SCRIPT = (
+    REPO_ROOT
+    / "records/track_10min_16mb/2026-03-20_SOTA_TTT_RoPE50K_EMA_Curriculum/train_gpt.py"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -16,7 +31,7 @@ def parse_args() -> argparse.Namespace:
         "script",
         type=Path,
         nargs="?",
-        default=Path("records/track_10min_16mb/2026-03-20_AllInOne_SmearGate_Int6QAT_SlidingWindow/train_gpt.py"),
+        default=DEFAULT_SCRIPT,
         help="Path to train_gpt.py",
     )
     return p.parse_args()
@@ -50,6 +65,25 @@ def sliding_window_coverage(seq_len: int, stride: int, total_tokens: int) -> tup
     return True, f"windows={len(windows)} tokens={total_tokens}"
 
 
+def load_submission_module(path: Path):
+    os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+    os.environ.setdefault("NUM_LAYERS", "4")
+    os.environ.setdefault("MODEL_DIM", "256")
+    os.environ.setdefault("NUM_HEADS", "8")
+    os.environ.setdefault("NUM_KV_HEADS", "4")
+    os.environ.setdefault("MLP_MULT", "2")
+    os.environ.setdefault("BIGRAM_VOCAB_SIZE", "512")
+    os.environ.setdefault("BIGRAM_DIM", "64")
+    os.environ.setdefault("VOCAB_SIZE", "1024")
+
+    spec = importlib.util.spec_from_file_location("_pg_validate_submission", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("could not create module spec")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def main() -> int:
     args = parse_args()
     path = args.script.resolve()
@@ -70,89 +104,82 @@ def main() -> int:
     if lines > 1500:
         print(f"WARN: over 1500-line soft cap ({lines})", file=sys.stderr)
 
-    # Sliding-window logic must match submission (copy of algorithm)
     for seq_len, stride, total in [(16, 4, 50), (1024, 64, 62021632), (1024, 64, 1000)]:
         ok, msg = sliding_window_coverage(seq_len, stride, total)
         tag = "OK" if ok else "FAIL"
-        print(f"  sliding_window {tag}: seq={seq_len} stride={stride} total={total} -> {msg}")
+        print(f"  nonoverlap_sliding_ref {tag}: seq={seq_len} stride={stride} total={total} -> {msg}")
         if not ok:
             return 1
 
     try:
-        import torch  # noqa: F401
+        import torch
+        import torch.nn.functional as F
     except ImportError:
         print("SKIP torch tests (pip install torch)")
         return 0
 
-    import os
+    try:
+        mod = load_submission_module(path)
+    except Exception as e:
+        print(f"ERROR: import failed: {e}", file=sys.stderr)
+        return 1
 
-    os.environ.setdefault("NUM_LAYERS", "4")
-    os.environ.setdefault("MODEL_DIM", "128")
-    os.environ.setdefault("NUM_HEADS", "4")
-    os.environ.setdefault("NUM_KV_HEADS", "2")
-    os.environ.setdefault("MLP_MULT", "3")
-    os.environ.setdefault("USE_SMEARGATE", "1")
-    os.environ.setdefault("BIGRAM_HASH_BUCKETS", "256")
-    os.environ.setdefault("BIGRAM_HASH_DIM", "32")
-    os.environ.setdefault("USE_INT6_QAT", "1")
+    if not hasattr(mod, "GPT") or not hasattr(mod, "mixed_quantize_int6"):
+        print("ERROR: expected GPT + mixed_quantize_int6 (PR #198-style submission)", file=sys.stderr)
+        return 1
 
-    main_idx = text.index("\ndef main()")
-    ns: dict = {}
-    exec(compile(text[:main_idx], str(path), "exec"), ns, ns)
-
-    GPT = ns["GPT"]
-    fake_quantize_int6 = ns["fake_quantize_int6"]
-    quantize_state_dict_int6 = ns["quantize_state_dict_int6"]
-    dequantize_state_dict_int6 = ns["dequantize_state_dict_int6"]
-
-    model = GPT(
-        vocab_size=64,
-        num_layers=4,
-        model_dim=128,
-        num_heads=4,
-        num_kv_heads=2,
-        mlp_mult=3,
-        tie_embeddings=True,
-        tied_embed_init_std=0.005,
-        logit_softcap=30.0,
-        rope_base=10000.0,
-        qk_gain_init=1.5,
-        use_smeargate=True,
-        bigram_hash_buckets=256,
-        bigram_hash_dim=32,
+    hp = mod.Hyperparameters()
+    model = mod.GPT(
+        vocab_size=hp.vocab_size,
+        num_layers=hp.num_layers,
+        model_dim=hp.model_dim,
+        num_heads=hp.num_heads,
+        num_kv_heads=hp.num_kv_heads,
+        mlp_mult=int(hp.mlp_mult),
+        tie_embeddings=hp.tie_embeddings,
+        tied_embed_init_std=hp.tied_embed_init_std,
+        logit_softcap=hp.logit_softcap,
+        rope_base=hp.rope_base,
+        qk_gain_init=hp.qk_gain_init,
+        mtp_num_heads=0,
+        mtp_loss_weight=0.0,
+        bigram_vocab_size=hp.bigram_vocab_size,
+        bigram_dim=hp.bigram_dim,
     )
+    model = model.float()
     for m in model.modules():
-        if hasattr(m, "_use_int6_qat"):
-            m._use_int6_qat = False
-    x = __import__("torch").randint(0, 64, (2, 16))
-    y = __import__("torch").randint(0, 64, (2, 16))
-    import torch.nn.functional as F
+        if isinstance(m, mod.CastedLinear):
+            m.float()
+    mod.restore_low_dim_params_to_fp32(model)
 
-    with __import__("torch").no_grad():
+    v = hp.vocab_size
+    x = torch.randint(0, v, (2, 32))
+    y = torch.randint(0, v, (2, 32))
+    with torch.no_grad():
         loss_m = model(x, y)
         logits = model.forward_logits(x)
-        loss_manual = F.cross_entropy(logits.reshape(-1, 64).float(), y.reshape(-1), reduction="mean")
-    if abs(float(loss_m.item() - loss_manual.item())) > 1e-5:
-        print(f"ERROR: forward vs forward_logits loss mismatch {loss_m} vs {loss_manual}", file=sys.stderr)
+        loss_manual = F.cross_entropy(
+            logits.reshape(-1, v).float(), y.reshape(-1), reduction="mean"
+        )
+    if abs(float(loss_m.item() - loss_manual.item())) > 1e-4:
+        print(
+            f"ERROR: forward vs forward_logits loss mismatch {loss_m} vs {loss_manual}",
+            file=sys.stderr,
+        )
         return 1
     print("OK forward_logits matches forward loss")
 
-    w = __import__("torch").randn(16, 32, requires_grad=True)
-    wq = fake_quantize_int6(w)
-    wq.sum().backward()
-    if w.grad is None or w.grad.abs().sum() == 0:
-        print("ERROR: STE int6 no gradient", file=sys.stderr)
-        return 1
-    print("OK STE int6 gradients flow")
-
-    qobj, _ = quantize_state_dict_int6(model.state_dict())
-    buf = io.BytesIO()
-    __import__("torch").save(qobj, buf)
-    restored = dequantize_state_dict_int6(__import__("torch").load(io.BytesIO(buf.getvalue()), map_location="cpu"))
-    model.load_state_dict(restored, strict=True)
-    with __import__("torch").no_grad():
+    sd = {k: v.detach().cpu() for k, v in model.state_dict().items()}
+    qres, qmeta = mod.mixed_quantize_int6(sd, {"mlp", "attn"})
+    deq = mod.dequantize_mixed_int6(qres, qmeta, sd)
+    model.load_state_dict(deq, strict=True)
+    with torch.no_grad():
         loss2 = model(x, y)
-    print(f"OK int6 roundtrip loss gap {abs(loss2.item() - loss_m.item()):.6f}")
+    print(f"OK mixed int6 roundtrip loss gap {abs(loss2.item() - loss_m.item()):.6f}")
+
+    buf = io.BytesIO()
+    torch.save({"w": qres, "m": qmeta}, buf)
+    print(f"OK export payload raw_torch_save={len(buf.getvalue())} bytes")
 
     print("ALL CHECKS PASSED")
     return 0

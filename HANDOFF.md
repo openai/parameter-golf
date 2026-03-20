@@ -30,7 +30,7 @@ Open **that** path in Cursor/VS Code. Do **not** keep a second `parameter-golf` 
 | `README.md` | Upstream readme + Mac / prep notes |
 | `scripts/check_submission_local.py` | CPU/MPS smoke test for a `train_gpt.py` |
 | `scripts/sample_fineweb_tokens.py` | Decode shard samples |
-| `scripts/validate_submission.py` | Optional extra checks |
+| `scripts/validate_submission.py` | AST + sliding ref + import + forward/quant (defaults to SOTA `train_gpt.py`) |
 | `data/datasets/`, `data/tokenizers/` | Downloaded data (**gitignored**, stays local) |
 | `.venv/` | Python venv (**gitignored**, stays local) |
 
@@ -55,6 +55,12 @@ python3 scripts/sample_fineweb_tokens.py --shard val --num-samples 5 --length 96
 ```bash
 python3 scripts/check_submission_local.py \
   records/track_10min_16mb/2026-03-20_SOTA_TTT_RoPE50K_EMA_Curriculum/train_gpt.py
+```
+
+**Validate (AST + optional torch checks; same default path):**
+
+```bash
+python3 scripts/validate_submission.py
 ```
 
 **MLX baseline on Apple Silicon:**
