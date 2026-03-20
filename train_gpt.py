@@ -21,6 +21,12 @@ import uuid
 import zlib
 from pathlib import Path
 
+try:
+    import zstandard as zstd
+    HAS_ZSTD = True
+except ImportError:
+    HAS_ZSTD = False
+
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -92,6 +98,8 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    bpb_loss_alpha = float(os.environ.get("BPB_LOSS_ALPHA", 0.0))  # 0 = standard CE, 0.3 = recommended mix
+    quant_bits = int(os.environ.get("QUANT_BITS", 8))  # 8 = int8, 6 = int6 (saves ~25% artifact space)
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -346,12 +354,79 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
-    # Single supported clean-script export format:
-    # - per-row int8 for 2D float tensors
-    # - per-tensor int8 for other float tensors
+def quantize_float_tensor_int6(t: Tensor) -> tuple[Tensor, Tensor]:
+    """Quantize a tensor to 6-bit integers (range [-32, 31]) with per-row scales.
+    
+    Returns int8 tensor (values in [-32, 31]) and fp16 scales.
+    The values are stored as int8 but only use 6 bits of range.
+    Packing into actual 6-bit happens at serialization time.
+    """
+    t32 = t.float()
+    if t32.ndim == 2:
+        clip_abs = (
+            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+            if t32.numel()
+            else torch.empty((t32.shape[0],), dtype=torch.float32)
+        )
+        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / 31.0).clamp_min(1.0 / 31.0)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -32, 31).to(torch.int8).contiguous()
+        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+    
+    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+    scale = torch.tensor(clip_abs / 31.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -32, 31).to(torch.int8).contiguous()
+    return q, scale
+
+def pack_int6(values: Tensor) -> bytes:
+    """Pack int8 tensor (values in [-32, 31]) into 6-bit packed bytes.
+    
+    Every 4 values → 3 bytes. Padding with zeros if not divisible by 4.
+    """
+    flat = values.flatten().numpy().astype(np.int8)
+    # Shift to unsigned: [-32, 31] → [0, 63]
+    unsigned = (flat.astype(np.int16) + 32).astype(np.uint8)
+    # Pad to multiple of 4
+    pad_len = (4 - len(unsigned) % 4) % 4
+    if pad_len:
+        unsigned = np.pad(unsigned, (0, pad_len))
+    # Pack 4 × 6-bit values into 3 bytes
+    result = bytearray()
+    for i in range(0, len(unsigned), 4):
+        a, b, c, d = unsigned[i], unsigned[i+1], unsigned[i+2], unsigned[i+3]
+        result.append((a << 2) | (b >> 4))
+        result.append(((b & 0x0F) << 4) | (c >> 2))
+        result.append(((c & 0x03) << 6) | d)
+    return bytes(result)
+
+def unpack_int6(data: bytes, numel: int) -> Tensor:
+    """Unpack 6-bit packed bytes back to int8 tensor with values in [-32, 31]."""
+    raw = np.frombuffer(data, dtype=np.uint8)
+    result = []
+    for i in range(0, len(raw), 3):
+        if i + 2 >= len(raw):
+            break
+        b0, b1, b2 = raw[i], raw[i+1], raw[i+2]
+        result.append(b0 >> 2)
+        result.append(((b0 & 0x03) << 4) | (b1 >> 4))
+        result.append(((b1 & 0x0F) << 2) | (b2 >> 6))
+        result.append(b2 & 0x3F)
+    # Convert back to signed: [0, 63] → [-32, 31]
+    arr = np.array(result[:numel], dtype=np.int8)
+    arr = arr.astype(np.int16) - 32
+    return torch.from_numpy(arr.astype(np.int8))
+
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_bits: int = 8):
+    # Supported export format:
+    # - per-row int8 or int6 for 2D float tensors
+    # - per-tensor int8/int6 for other float tensors  
     # - exact passthrough for non-floats
     # - passthrough for small float tensors, stored as fp16 to save bytes
+    # When quant_bits=6: tied embedding kept as fp16, block weights use int6
+    quantize_fn = quantize_float_tensor_int6 if quant_bits == 6 else quantize_float_tensor
+    quant_range = 31 if quant_bits == 6 else 127
+    # For int6, keep embedding in fp16 (it's dual-use: input embed + output projection)
+    fp16_keep_patterns = ("tok_emb.weight",) if quant_bits == 6 else ()
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -375,6 +450,14 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             stats["int8_payload_bytes"] += tensor_nbytes(t)
             continue
 
+        # For int6 mode, keep embedding as fp16 (precision-sensitive dual-use tensor)
+        if any(pattern in name for pattern in fp16_keep_patterns):
+            kept = t.to(dtype=torch.float16).contiguous()
+            passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
+            passthrough[name] = kept
+            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            continue
+
         # Small float tensors are cheap enough to keep directly. We still downcast
         # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
         if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
@@ -384,16 +467,21 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        q, s = quantize_fn(t)
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
+            scheme = f"per_row_int{quant_bits}"
+            qmeta[name] = {"scheme": scheme, "axis": 0}
+        else:
+            qmeta[name] = {"scheme": f"int{quant_bits}"}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
+    format_name = f"int{quant_bits}_clean_per_row_v1"
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
+        "__quant_format__": format_name,
+        "__quant_bits__": quant_bits,
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -408,13 +496,23 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
+    quant_bits = obj.get("__quant_bits__", 8)
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+        meta = qmeta.get(name, {})
+        scheme = meta.get("scheme", "")
+        # Determine the quantization range based on scheme or global setting
+        if "int6" in str(scheme):
+            qrange = 31.0
+        elif "int8" in str(scheme):
+            qrange = 127.0
+        else:
+            qrange = 31.0 if quant_bits == 6 else 127.0
+        is_per_row = ("per_row" in str(scheme)) or s.ndim > 0
+        if is_per_row:
             s = s.to(dtype=torch.float32)
-            # Broadcast the saved row scale back across trailing dimensions.
             out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
             scale = float(s.item())
@@ -667,6 +765,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        bpb_loss_alpha: float = 0.0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -701,6 +800,9 @@ class GPT(nn.Module):
             nn.Linear(64, vocab_size, bias=False),
         )
         self.adapter_weight = nn.Parameter(torch.tensor(0.0))  # sigmoid-gated scalar
+        self.bpb_loss_alpha = bpb_loss_alpha
+        # byte_weights buffer: set externally via set_byte_weights() after tokenizer is loaded
+        self.register_buffer("byte_weights", None, persistent=False)
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -712,6 +814,16 @@ class GPT(nn.Module):
         # Zero-init adapter so it starts as a no-op
         nn.init.zeros_(self.adapter[0].weight)
         nn.init.zeros_(self.adapter[2].weight)
+
+    def set_byte_weights(self, base_bytes_lut: Tensor) -> None:
+        """Set per-token byte weights for BPB-weighted loss.
+        
+        base_bytes_lut[token_id] = number of bytes this token represents.
+        Weights are normalized so mean=1 (preserving gradient scale).
+        """
+        w = base_bytes_lut.float()
+        w = w / w.mean()  # normalize so mean weight = 1
+        self.byte_weights = w
 
     def _forward_body(self, input_ids: Tensor) -> Tensor:
         """Shared forward body: returns softcapped logits [batch*seq_len, vocab]."""
@@ -756,6 +868,14 @@ class GPT(nn.Module):
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         logits = self._forward_body(input_ids)
         targets = target_ids.reshape(-1)
+        if self.byte_weights is not None and self.bpb_loss_alpha > 0.0:
+            # BPB-weighted loss: mix standard CE with byte-weighted CE
+            per_token_ce = F.cross_entropy(logits.float(), targets, reduction="none")
+            w = self.byte_weights[targets]  # per-token byte weight
+            weighted_loss = (per_token_ce * w).mean()
+            standard_loss = per_token_ce.mean()
+            alpha = self.bpb_loss_alpha
+            return (1.0 - alpha) * standard_loss + alpha * weighted_loss
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
@@ -906,11 +1026,16 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        bpb_loss_alpha=args.bpb_loss_alpha,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    # Set byte weights for BPB-weighted loss (after tokenizer LUTs are built)
+    if args.bpb_loss_alpha > 0:
+        base_model.set_byte_weights(base_bytes_lut)
+        log0(f"bpb_loss_alpha:{args.bpb_loss_alpha} (byte-weighted loss enabled)")
     # Pristine copy for eval — torch.compile taints base_model's __call__ path
     eval_model = copy.deepcopy(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
@@ -1139,7 +1264,11 @@ def main() -> None:
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
-    # the compressed int8+zlib artifact and validate the round-tripped weights.
+    # the compressed quantized artifact and validate the round-tripped weights.
+
+    quant_bits = args.quant_bits
+    use_zstd = HAS_ZSTD and quant_bits == 6
+    compress_label = "zstd" if use_zstd else "zlib"
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
@@ -1149,29 +1278,38 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), quant_bits=quant_bits)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    if use_zstd:
+        cctx = zstd.ZstdCompressor(level=22)
+        quant_blob = cctx.compress(quant_raw)
+    else:
+        quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
+    artifact_name = f"final_model.int{quant_bits}.ptz"
     if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
+        with open(artifact_name, "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        quant_file_bytes = os.path.getsize(artifact_name)
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+            f"Serialized model int{quant_bits}+{compress_label}: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size int{quant_bits}+{compress_label}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
+    with open(artifact_name, "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    if use_zstd:
+        dctx = zstd.ZstdDecompressor()
+        quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+    else:
+        quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
     eval_model.load_state_dict(dequantize_state_dict_int8(quant_state))
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
@@ -1189,10 +1327,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_int{quant_bits}_{compress_label}_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_int{quant_bits}_{compress_label}_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()

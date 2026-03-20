@@ -33,6 +33,7 @@ import torch
 import torch.nn.functional as F
 
 from online_ngram import SparseNgramPredictor
+from match_model import MatchModel
 from train_gpt import (
     CastedLinear,
     GPT,
@@ -44,8 +45,15 @@ from train_gpt import (
 )
 
 
+try:
+    import zstandard as zstd_mod
+    HAS_ZSTD_EVAL = True
+except ImportError:
+    HAS_ZSTD_EVAL = False
+
+
 def load_model(args: Hyperparameters, checkpoint: str, device: torch.device) -> GPT:
-    """Create model and load checkpoint (raw .pt or int8+zlib .ptz)."""
+    """Create model and load checkpoint (raw .pt or int8/int6+zlib/zstd .ptz)."""
     model = GPT(
         vocab_size=args.vocab_size,
         num_unique_blocks=args.num_unique_blocks,
@@ -68,7 +76,16 @@ def load_model(args: Hyperparameters, checkpoint: str, device: torch.device) -> 
     if checkpoint.endswith(".ptz"):
         with open(checkpoint, "rb") as f:
             blob = f.read()
-        state = torch.load(io.BytesIO(zlib.decompress(blob)), map_location="cpu")
+        # Try zstd first (for int6), fall back to zlib (for int8)
+        try:
+            if HAS_ZSTD_EVAL:
+                dctx = zstd_mod.ZstdDecompressor()
+                raw = dctx.decompress(blob)
+            else:
+                raw = zlib.decompress(blob)
+        except Exception:
+            raw = zlib.decompress(blob)
+        state = torch.load(io.BytesIO(raw), map_location="cpu")
         model.load_state_dict(dequantize_state_dict_int8(state), strict=True)
     else:
         model.load_state_dict(torch.load(checkpoint, map_location="cpu"), strict=True)
@@ -88,6 +105,8 @@ def eval_competition(
     device: torch.device,
     ngram: SparseNgramPredictor | None = None,
     ngram_lambda: float = 0.03,
+    match_model: MatchModel | None = None,
+    match_lambda: float = 0.0,  # 0 = disabled. Recommended: 0.05 - 0.15
 ) -> tuple[float, float]:
     """
     Full eval pipeline: sliding window + optional n-gram blending.
@@ -109,9 +128,12 @@ def eval_competition(
     total_windows = len(starts)
 
     use_ngram = ngram is not None and ngram_lambda > 0
+    use_match = match_model is not None and match_lambda > 0
+    use_blending = use_ngram or use_match
 
     print(f"eval_competition: {total_windows} windows, seq_len={seq_len}, stride={stride}")
     print(f"eval_competition: ngram={'ON λ=' + str(ngram_lambda) if use_ngram else 'OFF'}")
+    print(f"eval_competition: match={'ON λ=' + str(match_lambda) if use_match else 'OFF'}")
 
     model.eval()
     t0 = time.perf_counter()
@@ -139,31 +161,49 @@ def eval_competition(
             score_logits = logits[score_start:]  # [scored, vocab]
             score_targets = y[score_start:]  # [scored]
 
-            # N-gram blending
-            if use_ngram:
-                # Get neural log-probs
-                neural_log_probs = F.log_softmax(score_logits.float(), dim=-1)  # [scored, vocab]
-
-                # Get n-gram log-probs for each scored position
+            # Model blending (probability space)
+            if use_blending:
+                # Get neural probs
+                neural_probs = F.softmax(score_logits.float(), dim=-1)  # [scored, vocab]
                 n_scored = seq_len - score_start
-                ngram_log_probs = torch.zeros_like(neural_log_probs)
 
-                # Token positions in the global sequence
-                for j in range(n_scored):
-                    global_pos = start + score_start + j
-                    # Context: all tokens up to this position
-                    ctx_start = max(0, global_pos - ngram.max_order + 1)
-                    context = val_tokens[ctx_start:global_pos].tolist()
-                    probs = ngram.predict(context, alpha=ngram.max_order * 0.5)
-                    ngram_log_probs[j] = torch.from_numpy(
-                        np.log(np.maximum(probs, 1e-30))
-                    ).to(ngram_log_probs.device)
+                # Start with neural-only combination
+                combined_probs = neural_probs.clone()
+                neural_weight = 1.0
 
-                # Log-linear interpolation
-                combined_log_probs = (
-                    (1 - ngram_lambda) * neural_log_probs +
-                    ngram_lambda * ngram_log_probs
-                )
+                # N-gram contribution
+                if use_ngram:
+                    ngram_probs_t = torch.zeros_like(neural_probs)
+                    for j in range(n_scored):
+                        global_pos = start + score_start + j
+                        ctx_start = max(0, global_pos - ngram.max_order + 1)
+                        context = val_tokens[ctx_start:global_pos].tolist()
+                        probs = ngram.predict(context, alpha=ngram.max_order * 0.5)
+                        ngram_probs_t[j] = torch.from_numpy(probs).to(ngram_probs_t.device)
+                    neural_weight -= ngram_lambda
+                    combined_probs = neural_weight * neural_probs + ngram_lambda * ngram_probs_t
+                    neural_weight_after_ngram = neural_weight  # track for match model
+
+                # Match model contribution (per-token adaptive weight)
+                if use_match:
+                    for j in range(n_scored):
+                        global_pos = start + score_start + j
+                        ctx_start = max(0, global_pos - match_model.max_order)
+                        context = val_tokens[ctx_start:global_pos].tolist()
+                        match_probs, match_len = match_model.predict(context)
+
+                        if match_probs is not None and match_len >= match_model.min_order:
+                            # Adaptive weight: longer matches get higher weight
+                            # Scale from match_lambda (at min_order) to min(match_lambda*3, 0.5) (at max_order)
+                            length_factor = min(3.0, match_len / match_model.min_order)
+                            w_match = min(match_lambda * length_factor, 0.5)
+                            match_probs_t = torch.from_numpy(match_probs).to(
+                                device=combined_probs.device, dtype=combined_probs.dtype
+                            )
+                            # Blend: reduce current mixture by w_match, add match model
+                            combined_probs[j] = (1.0 - w_match) * combined_probs[j] + w_match * match_probs_t
+
+                combined_log_probs = torch.log(torch.clamp(combined_probs, min=1e-30))
 
                 # Compute loss from combined log-probs
                 per_token_ce = -combined_log_probs[
@@ -189,8 +229,8 @@ def eval_competition(
             ).to(dtype=torch.int16)
             total_bytes += token_bytes.to(torch.float64).sum().item()
 
-            # Update n-gram with newly revealed tokens
-            if use_ngram:
+            # Update n-gram and match model with newly revealed tokens
+            if use_ngram or use_match:
                 # The scored region reveals tokens at positions [start+score_start+1, start+seq_len]
                 new_start = max(ngram_tokens_updated, start + score_start + 1)
                 new_end = start + seq_len + 1
@@ -198,9 +238,12 @@ def eval_competition(
                     new_tokens = val_tokens[new_start:new_end].tolist()
                     for i, tok in enumerate(new_tokens):
                         global_pos = new_start + i
-                        ctx_start = max(0, global_pos - ngram.max_order + 1)
-                        history = val_tokens[ctx_start:global_pos + 1].tolist()
-                        ngram.update_token(history)
+                        if use_ngram:
+                            ctx_start = max(0, global_pos - ngram.max_order + 1)
+                            history = val_tokens[ctx_start:global_pos + 1].tolist()
+                            ngram.update_token(history)
+                        if use_match:
+                            match_model.update(tok)
                     ngram_tokens_updated = new_end
 
             # Progress
@@ -216,11 +259,15 @@ def eval_competition(
                 if use_ngram:
                     s = ngram.stats()
                     ngram_stats = f" ngram_ctx={s['total_unique_contexts']} ngram_mb={s['estimated_bytes']/1e6:.0f}"
+                match_stats = ""
+                if use_match:
+                    ms = match_model.stats()
+                    match_stats = f" match_rate={ms['match_rate']:.2%} avg_len={ms['avg_match_length']:.1f}"
                 print(
                     f"  {win_idx + 1}/{total_windows} "
                     f"bpb={cur_bpb:.4f} "
                     f"({elapsed:.0f}s, ~{eta:.0f}s left)"
-                    f"{ngram_stats}"
+                    f"{ngram_stats}{match_stats}"
                 )
 
     val_loss = total_loss_sum / total_scored_tokens
@@ -240,8 +287,12 @@ def main():
     ngram_lambda = float(os.environ.get("NGRAM_LAMBDA", 0.03))
     ngram_order = int(os.environ.get("NGRAM_ORDER", 6))
     ngram_alpha = float(os.environ.get("NGRAM_ALPHA", 0.5))
+    match_lambda = float(os.environ.get("MATCH_LAMBDA", 0.1))
+    match_min_order = int(os.environ.get("MATCH_MIN_ORDER", 4))
+    match_max_order = int(os.environ.get("MATCH_MAX_ORDER", 32))
     disable_ngram = os.environ.get("DISABLE_NGRAM", "0") == "1"
     disable_sliding = os.environ.get("DISABLE_SLIDING", "0") == "1"
+    disable_match = os.environ.get("DISABLE_MATCH", "0") == "1"
 
     if disable_sliding:
         stride = seq_len
@@ -253,6 +304,7 @@ def main():
     print(f"  seq_len:     {seq_len}")
     print(f"  stride:      {stride}")
     print(f"  ngram:       {'OFF' if disable_ngram else f'ON (order={ngram_order}, λ={ngram_lambda}, α={ngram_alpha})'}")
+    print(f"  match:       {'OFF' if disable_match else f'ON (order={match_min_order}-{match_max_order}, λ={match_lambda})'}")
     print(f"  device:      {device}")
     print()
 
@@ -276,8 +328,13 @@ def main():
     if not disable_ngram:
         ngram = SparseNgramPredictor(vocab_size=args.vocab_size, max_order=ngram_order)
 
+    # Setup match model
+    mm = None
+    if not disable_match:
+        mm = MatchModel(vocab_size=args.vocab_size, min_order=match_min_order, max_order=match_max_order)
+
     # --- Run 1: Baseline (no tricks) ---
-    print("--- Baseline (stride=seq_len, no ngram) ---")
+    print("--- Baseline (stride=seq_len, no ngram, no match) ---")
     bl_loss, bl_bpb = eval_competition(
         model, val_tokens, seq_len, stride=seq_len,
         base_bytes_lut=base_bytes_lut,
@@ -285,13 +342,14 @@ def main():
         is_boundary_token_lut=is_boundary_token_lut,
         device=device,
         ngram=None, ngram_lambda=0,
+        match_model=None, match_lambda=0,
     )
     print(f"  baseline: val_loss={bl_loss:.4f} val_bpb={bl_bpb:.4f}")
     print()
 
     # --- Run 2: Sliding window only ---
     if stride < seq_len:
-        print(f"--- Sliding window (stride={stride}, no ngram) ---")
+        print(f"--- Sliding window (stride={stride}) ---")
         sw_loss, sw_bpb = eval_competition(
             model, val_tokens, seq_len, stride=stride,
             base_bytes_lut=base_bytes_lut,
@@ -299,6 +357,7 @@ def main():
             is_boundary_token_lut=is_boundary_token_lut,
             device=device,
             ngram=None, ngram_lambda=0,
+            match_model=None, match_lambda=0,
         )
         print(f"  sliding:  val_loss={sw_loss:.4f} val_bpb={sw_bpb:.4f}")
         print(f"  delta:    {sw_bpb - bl_bpb:+.4f} ({(sw_bpb - bl_bpb) / bl_bpb * 100:+.2f}%)")
@@ -307,21 +366,59 @@ def main():
     # --- Run 3: Sliding window + n-gram ---
     if ngram is not None:
         print(f"--- Sliding window (stride={stride}) + n-gram (λ={ngram_lambda}) ---")
-        # Reset ngram for fresh run
         ngram = SparseNgramPredictor(vocab_size=args.vocab_size, max_order=ngram_order)
-        combined_loss, combined_bpb = eval_competition(
+        ng_loss, ng_bpb = eval_competition(
             model, val_tokens, seq_len, stride=stride,
             base_bytes_lut=base_bytes_lut,
             has_leading_space_lut=has_leading_space_lut,
             is_boundary_token_lut=is_boundary_token_lut,
             device=device,
             ngram=ngram, ngram_lambda=ngram_lambda,
+            match_model=None, match_lambda=0,
         )
-        print(f"  combined: val_loss={combined_loss:.4f} val_bpb={combined_bpb:.4f}")
-        print(f"  delta:    {combined_bpb - bl_bpb:+.4f} ({(combined_bpb - bl_bpb) / bl_bpb * 100:+.2f}%)")
+        print(f"  +ngram:   val_loss={ng_loss:.4f} val_bpb={ng_bpb:.4f}")
+        print(f"  delta:    {ng_bpb - bl_bpb:+.4f} ({(ng_bpb - bl_bpb) / bl_bpb * 100:+.2f}%)")
         ngram_s = ngram.stats()
         print(f"  n-gram stats: {ngram_s['total_unique_contexts']:,} contexts, "
               f"{ngram_s['estimated_bytes'] / 1e6:.0f}MB")
+        print()
+
+    # --- Run 4: Sliding window + match model ---
+    if mm is not None:
+        print(f"--- Sliding window (stride={stride}) + match (λ={match_lambda}) ---")
+        mm_fresh = MatchModel(vocab_size=args.vocab_size, min_order=match_min_order, max_order=match_max_order)
+        mm_loss, mm_bpb = eval_competition(
+            model, val_tokens, seq_len, stride=stride,
+            base_bytes_lut=base_bytes_lut,
+            has_leading_space_lut=has_leading_space_lut,
+            is_boundary_token_lut=is_boundary_token_lut,
+            device=device,
+            ngram=None, ngram_lambda=0,
+            match_model=mm_fresh, match_lambda=match_lambda,
+        )
+        print(f"  +match:   val_loss={mm_loss:.4f} val_bpb={mm_bpb:.4f}")
+        print(f"  delta:    {mm_bpb - bl_bpb:+.4f} ({(mm_bpb - bl_bpb) / bl_bpb * 100:+.2f}%)")
+        ms = mm_fresh.stats()
+        print(f"  match stats: rate={ms['match_rate']:.2%} avg_len={ms['avg_match_length']:.1f} "
+              f"max_len={ms['max_match_length']} mem={ms['estimated_memory_mb']:.0f}MB")
+        print()
+
+    # --- Run 5: Full combo (sliding + n-gram + match) ---
+    if ngram is not None and mm is not None:
+        print(f"--- FULL: sliding + ngram (λ={ngram_lambda}) + match (λ={match_lambda}) ---")
+        ngram_full = SparseNgramPredictor(vocab_size=args.vocab_size, max_order=ngram_order)
+        mm_full = MatchModel(vocab_size=args.vocab_size, min_order=match_min_order, max_order=match_max_order)
+        full_loss, full_bpb = eval_competition(
+            model, val_tokens, seq_len, stride=stride,
+            base_bytes_lut=base_bytes_lut,
+            has_leading_space_lut=has_leading_space_lut,
+            is_boundary_token_lut=is_boundary_token_lut,
+            device=device,
+            ngram=ngram_full, ngram_lambda=ngram_lambda,
+            match_model=mm_full, match_lambda=match_lambda,
+        )
+        print(f"  FULL:     val_loss={full_loss:.4f} val_bpb={full_bpb:.4f}")
+        print(f"  delta:    {full_bpb - bl_bpb:+.4f} ({(full_bpb - bl_bpb) / bl_bpb * 100:+.2f}%)")
         print()
 
     # --- Summary ---
@@ -332,7 +429,11 @@ def main():
     if stride < seq_len:
         print(f"  + Sliding window:        {sw_bpb:.6f} ({sw_bpb - bl_bpb:+.6f})")
     if ngram is not None:
-        print(f"  + Sliding + N-gram:      {combined_bpb:.6f} ({combined_bpb - bl_bpb:+.6f})")
+        print(f"  + Sliding + N-gram:      {ng_bpb:.6f} ({ng_bpb - bl_bpb:+.6f})")
+    if mm is not None:
+        print(f"  + Sliding + Match:       {mm_bpb:.6f} ({mm_bpb - bl_bpb:+.6f})")
+    if ngram is not None and mm is not None:
+        print(f"  + FULL (all combined):   {full_bpb:.6f} ({full_bpb - bl_bpb:+.6f})")
 
 
 if __name__ == "__main__":
