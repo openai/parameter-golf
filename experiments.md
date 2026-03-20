@@ -11,8 +11,8 @@
 | 5 | 03-19 | Mem(32) + MTP(2) + seq2048 + 9L | 1087 | 1.3263 | broken | 13.0 | Sliding window was overwriting, not prepending |
 | 6 | 03-19 | Mem(32) + MTP(2) + seq2048 + 10L | 1069 | 1.3220 | 1.3102 | 14.3 | 10 layers helped; sliding window fixed + batched |
 | 7 | 03-19 | Mem(32) + seq2048 + 10L (no MTP) | 1079 | 1.3227 | 1.3110 | 14.3 | MTP removal = wash on 1xH100 |
-| 8 | 03-19 | Mem(32) + seq2048 + 10L + init + WD (no MTP) | — | — | — | — | Pending: spectral init, grad resid_mix, WD, stride=64 |
-| 9 | — | Mem(32) + MTP(2) + seq2048 + 10L + init + WD | — | — | — | — | Next: full combo with all improvements |
+| 8 | 03-20 | Mem(32) + seq2048 + 10L + spectral init + WD (no MTP) | 1076 | 1.3369 | — | 12.5 | Init changes hurt — reverted |
+| 9 | 03-20 | Mem(64) + MTP(2) + seq2048 + 10L + WD (no init) | 1056 | 1.3173 | 1.3006 | 13.8 | Best yet! 64 mem tokens + WD + no WD on mem |
 
 ## 8xH100 SXM Runs (submission quality)
 
