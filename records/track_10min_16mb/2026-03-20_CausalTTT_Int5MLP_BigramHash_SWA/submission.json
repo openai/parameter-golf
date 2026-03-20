@@ -1,0 +1,9 @@
+{
+  "name": "10L Int5-MLP + BigramHash(16384) + Causal TTT + SWA(0.3/20) + WD=0.08",
+  "val_loss": 1.14020,
+  "bytes_total": 15800000,
+  "blurb": "10 layers with mixed int5/int6 quantization. BigramHash 16384 buckets (dim=64). Legal causal test-time training: chunk-based eval-then-train on validation data (32 chunks, 3 SGD epochs per chunk). SWA start_frac=0.3, every=20. Muon WD=0.08. Mean of 3 seeds (see README). SmearGate + OrthoInit + zstd-22.",
+  "author": "andrewgcodes",
+  "github_id": "andrewgcodes",
+  "date": "2026-03-20"
+}
