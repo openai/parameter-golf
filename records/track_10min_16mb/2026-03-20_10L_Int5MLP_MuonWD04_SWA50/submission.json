@@ -1,8 +1,8 @@
 {
-  "name": "10L Int5-MLP + MuonWD=0.04 + SWA/50 + SmearGate + BigramHash",
-  "val_loss": 1.14526,
-  "bytes_total": 15521020,
-  "blurb": "10 layers with mixed int5/int6 quantization (int5 for MLP, int6 for attention). Int5 MLP compression saves 1.86MB vs uniform int6, funding the extra layer. Weight decay=0.04 improves quantization friendliness. SWA every 50 steps (~29 checkpoint average). SmearGate + BigramHash + OrthoInit + zstd-22.",
+  "name": "10L Int5-MLP + BigramHash(10240) + SWA(frac=0.4) + WD=0.04",
+  "val_loss": 1.14276,
+  "bytes_total": 15900000,
+  "blurb": "10 layers with mixed int5/int6 quantization. BigramHash 10240 buckets (up from 4096). SWA start_frac=0.4 (24 converged checkpoints). WD=0.04 global, warmdown=3000. Mean of 3 seeds: 1.14276 (std 0.00016). SmearGate + OrthoInit + zstd-22.",
   "author": "thwu1",
   "github_id": "thwu1",
   "date": "2026-03-20"

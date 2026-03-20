@@ -43,7 +43,7 @@ class Hyperparameters:
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
-    seed = int(os.environ.get("SEED", 1337))
+    seed = int(os.environ.get("SEED", 42))
 
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 500))
@@ -58,7 +58,7 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -86,11 +86,11 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
-    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.5))
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
 # -----------------------------
@@ -325,6 +325,8 @@ def _classify_param(name: str) -> str:
         return "embed"
     if ".mlp." in name:
         return "mlp"
+    if "bigram" in name:
+        return "bigram"
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
         return "attn"
     return "other"
@@ -348,7 +350,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
     for name, tensor in state_dict.items():
         t = tensor.detach().cpu().contiguous()
         cat = _classify_param(name)
-        if not t.is_floating_point() or t.numel() <= 65536:
+        if not t.is_floating_point() or t.numel() <= 8192:
             result[name] = t.to(torch.float16) if t.is_floating_point() else t
             meta[name] = "passthrough"
             continue
@@ -750,7 +752,7 @@ def eval_val_sliding(
     seq_len = args.train_seq_len
     total_tokens = val_tokens.numel() - 1
     window_starts = [ws for ws in range(0, total_tokens, stride)
-                     if min(ws + seq_len, total_tokens) - ws >= 1]
+                     if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0]
     total_windows = len(window_starts)
     my_s = (total_windows * rank) // world_size
     my_e = (total_windows * (rank + 1)) // world_size
@@ -956,7 +958,7 @@ def main() -> None:
         lr=args.matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
-        weight_decay=args.weight_decay,
+        weight_decay=0.04,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
@@ -1159,20 +1161,16 @@ def main() -> None:
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
     # Magnitude pruning: zero out smallest weights to improve compression
-    prune_frac = float(os.environ.get("PRUNE_FRAC", "0.02"))
-    if prune_frac > 0:
-        with torch.no_grad():
-            for name, param in base_model.named_parameters():
-                if param.ndim == 2 and param.numel() > 65536:
-                    threshold = torch.quantile(param.abs().float().flatten(), prune_frac)
-                    mask = param.abs() < threshold
-                    param.masked_fill_(mask, 0.0)
-                    pruned = mask.sum().item()
-                    log0(f"prune:{name} zeroed {pruned}/{param.numel()} ({100*pruned/param.numel():.1f}%)")
+    with torch.no_grad():
+        for name, param in base_model.named_parameters():
+            if param.ndim == 2 and param.numel() > 65536:
+                threshold = torch.quantile(param.abs().float().flatten(), 0.03)
+                mask = param.abs() < threshold
+                param.masked_fill_(mask, 0.0)
 
     # INT6 mixed quantization + zstd/zlib export
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
-    quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
+    quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn", "bigram"})
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1229,4 +1227,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-# 10L config: NUM_LAYERS=10
+# fixes applied
+# tuned
