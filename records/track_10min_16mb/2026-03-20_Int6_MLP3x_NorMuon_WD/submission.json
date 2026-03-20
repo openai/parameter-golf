@@ -1,11 +1,11 @@
 {
   "author": "Matthew Rockwell",
   "github_id": "MatthewHRockwell",
-  "name": "Int6 + MLP 3x + NorMuon + Weight Decay",
-  "blurb": "9L 512dim MLP 3x with int6 per-row quantization, fp16 tied embedding passthrough, NorMuon optimizer with decoupled weight decay, tuned LRs and warmdown. 8xH100 SXM.",
-  "date": "2026-03-20T16:17:00Z",
-  "val_loss": 2.00504764,
-  "val_bpb": 1.18750215,
-  "bytes_total": 15669844,
-  "bytes_code": 50221
+  "name": "Int6 + MLP 3x + NorMuon + SmearGate + BigramHash + OrthoInit + Sliding Window",
+  "blurb": "9L 512dim MLP 3x, int6 quantization, fp16 tied embedding, NorMuon with weight decay, SmearGate + BigramHash token-pair embedding, orthogonal + muP init, sliding window eval stride=256. 8xH100 SXM.",
+  "date": "2026-03-20T18:36:00Z",
+  "val_loss": 1.94856234,
+  "val_bpb": 1.15405092,
+  "bytes_total": 15992610,
+  "bytes_code": 59211
 }
