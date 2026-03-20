@@ -333,7 +333,10 @@ def eval_val_sliding(
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 logits = base_model.forward_logits(x)
 
-            tail_logits = logits[0, score_offset:, :].float()
+            # forward_logits prepends K memory tokens, so logits are [1, K+seq_len, V].
+            # Offset into logits by K to align with the real token positions.
+            K = base_model.num_memory_tokens
+            tail_logits = logits[0, K + score_offset:, :].float()
             tail_targets = y[0, score_offset:]
             per_token_loss = F.cross_entropy(tail_logits, tail_targets, reduction="none")
             val_loss_sum += per_token_loss.to(torch.float64).sum()
@@ -867,7 +870,9 @@ class GPT(nn.Module):
         return primary_loss
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
-        """Return per-token logits [B, T, V] with softcap. Used for sliding window eval."""
+        """Return per-token logits [B, K+T, V] with softcap. Used for sliding window eval.
+        When memory tokens are active, they are prepended (not overwritten) so that
+        all real tokens retain their context and can attend to the learned scratchpad."""
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         K = self.num_memory_tokens
@@ -875,8 +880,7 @@ class GPT(nn.Module):
             bsz = input_ids.shape[0]
             mem = self.memory_tokens.expand(bsz, -1, -1).to(dtype=x.dtype)
             mem = F.rms_norm(mem, (mem.size(-1),))
-            x = x.clone()
-            x[:, :K, :] = mem
+            x = torch.cat([mem, x], dim=1)
         x0 = x
         skips: list[Tensor] = []
         for i in range(self.num_encoder_layers):
