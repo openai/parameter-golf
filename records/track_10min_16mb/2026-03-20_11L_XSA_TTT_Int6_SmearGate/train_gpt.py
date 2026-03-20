@@ -100,16 +100,20 @@ class Hyperparameters:
     mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 0))
     mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.2))
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
-    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
+    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))
     swa_every = int(os.environ.get("SWA_EVERY", 120))
-    muon_wd = float(os.environ.get("MUON_WD", 0.05))
-    adam_wd = float(os.environ.get("ADAM_WD", 0.05))
+    muon_wd = float(os.environ.get("MUON_WD", 0.042))
+    adam_wd = float(os.environ.get("ADAM_WD", 0.042))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
     # Efficient partial XSA: apply to last N layers only (deep layers have highest self-attention bias)
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 3))  # XSA on last 3 layers (0 = disabled)
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))  # XSA on last 4 layers (0 = disabled)
+
+    # EMA (exponential moving average) — replaces SWA for smoother weight averaging
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
     # TTT (test-time training) hyperparameters
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
@@ -1401,6 +1405,10 @@ def main() -> None:
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
 
+    ema_state: dict[str, Tensor] | None = None
+    if args.ema_enabled:
+        ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
+
     training_time_ms = 0.0
     stop_after_step: int | None = None
     torch.cuda.synchronize()
@@ -1473,7 +1481,13 @@ def main() -> None:
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
-        if args.swa_enabled and scale < 0.5 and step % args.swa_every == 0:
+        if ema_state is not None:
+            d = args.ema_decay
+            with torch.no_grad():
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(d).add_(t.detach().float(), alpha=1.0 - d)
+
+        if args.swa_enabled and not args.ema_enabled and scale < 0.5 and step % args.swa_every == 0:
             if swa_state is None:
                 swa_state = {name: t.detach().cpu().clone() for name, t in base_model.state_dict().items()}
                 swa_count = 1
@@ -1507,10 +1521,17 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
-    if args.swa_enabled and swa_state is not None and swa_count > 1:
+    if ema_state is not None:
+        log0(f"ema:applying EMA weights (decay={args.ema_decay})")
+        avg_state = {name: t.to(dtype=base_model.state_dict()[name].dtype)
+                     for name, t in ema_state.items()}
+        del ema_state
+        base_model.load_state_dict(avg_state, strict=True)
+    elif args.swa_enabled and swa_state is not None and swa_count > 1:
         log0(f"swa:applying averaged {swa_count} checkpoints")
         avg_state = {name: (t / swa_count).to(dtype=base_model.state_dict()[name].dtype)
                      for name, t in swa_state.items()}
+        del swa_state
         base_model.load_state_dict(avg_state, strict=True)
 
     # -----------------------------
