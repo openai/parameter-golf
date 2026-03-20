@@ -1,0 +1,16 @@
+{
+  "author": "DJLougen",
+  "github_id": "DJLougen",
+  "name": "MPK 8x384",
+  "blurb": "10-minute capped MPK-style multi-path causal LM with 8 layers, width 384, GQA KV4, tied embeddings, and tuned lower learning rates on 80 FineWeb SP-1024 shards; pre-quant reached 1.0132 BPB at wallclock stop and final int8+zlib roundtrip scored 1.0156 under the 16,000,000-byte cap.",
+  "date": "2026-03-20T00:50:00Z",
+  "val_loss": 2.28798722,
+  "val_bpb": 1.01558307,
+  "pre_quant_val_loss": 2.2827,
+  "pre_quant_val_bpb": 1.0132,
+  "step_stop": 4108,
+  "wallclock_seconds": 599.527,
+  "bytes_total": 14578273,
+  "bytes_model_int8_zlib": 14518775,
+  "bytes_code": 59498
+}

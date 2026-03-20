@@ -1,4 +1,4 @@
-"""
+﻿"""
 The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
 
 Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
@@ -202,7 +202,7 @@ def build_sentencepiece_luts(
             base_bytes_np[token_id] = 1
             continue
         piece = sp.id_to_piece(token_id)
-        if piece.startswith("▁"):
+        if piece.startswith("?"):
             has_leading_space_np[token_id] = True
             piece = piece[1:]
         base_bytes_np[token_id] = len(piece.encode("utf-8"))
@@ -1429,3 +1429,123 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.10.0+cu128
+Fri Mar 20 00:40:40 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:18:00.0 Off |                    0 |
+| N/A   28C    P0            118W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:2A:00.0 Off |                    0 |
+| N/A   28C    P0            120W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:3A:00.0 Off |                    0 |
+| N/A   28C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   25C    P0            113W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9A:00.0 Off |                    0 |
+| N/A   24C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:AB:00.0 Off |                    0 |
+| N/A   27C    P0            113W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:BA:00.0 Off |                    0 |
+| N/A   26C    P0            113W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   25C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            6628      C   /usr/local/bin/python                  1512MiB |
+|    1   N/A  N/A            6629      C   /usr/local/bin/python                  1512MiB |
+|    2   N/A  N/A            6630      C   /usr/local/bin/python                  1564MiB |
+|    3   N/A  N/A            6631      C   /usr/local/bin/python                  1512MiB |
+|    4   N/A  N/A            6632      C   /usr/local/bin/python                  1512MiB |
+|    5   N/A  N/A            6633      C   /usr/local/bin/python                  1534MiB |
+|    6   N/A  N/A            6634      C   /usr/local/bin/python                  1512MiB |
+|    7   N/A  N/A            6635      C   /usr/local/bin/python                  1562MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parGolfMPK/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/workspace/parGolfMPK/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:16923712
+model_family:mpk
+world_size:8 grad_accum_steps:1
+compile_model:False compile_fullgraph:True
+verbose_progress:True
+sdp_backend:flash
+attention_mode:gqa num_heads:8 num_kv_heads:4
+mpk_strides:k=2 m=4
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:0 max_wallclock_seconds:600.000
+seed:1337
+step:0/20000 val_loss:6.9315 val_bpb:3.0767 train_time:1ms step_avg:1.16ms
+step:1/20000 train_loss:6.9321 train_time:435ms step_avg:435.05ms
+step:2/20000 train_loss:6.2837 train_time:650ms step_avg:324.82ms
+step:3/20000 train_loss:6.2938 train_time:861ms step_avg:287.01ms
+step:4/20000 train_loss:6.2076 train_time:1078ms step_avg:269.52ms
+step:5/20000 train_loss:5.6959 train_time:1280ms step_avg:255.95ms
+step:6/20000 train_loss:5.4881 train_time:1464ms step_avg:243.95ms
+step:7/20000 train_loss:5.1147 train_time:1651ms step_avg:235.89ms
+step:8/20000 train_loss:5.0330 train_time:1852ms step_avg:231.48ms
+step:9/20000 train_loss:4.9019 train_time:2023ms step_avg:224.78ms
+step:10/20000 train_loss:4.7862 train_time:2220ms step_avg:221.97ms
+step:200/20000 train_loss:3.0438 train_time:29936ms step_avg:149.68ms
+step:400/20000 train_loss:2.5770 train_time:59136ms step_avg:147.84ms
+step:600/20000 train_loss:2.7539 train_time:88217ms step_avg:147.03ms
+step:800/20000 train_loss:2.4862 train_time:117493ms step_avg:146.87ms
+step:1000/20000 train_loss:2.5460 train_time:146614ms step_avg:146.61ms
+step:1000/20000 val_loss:2.5201 val_bpb:1.1186 train_time:146696ms step_avg:146.70ms
+step:1200/20000 train_loss:2.5676 train_time:175767ms step_avg:146.47ms
+step:1400/20000 train_loss:2.6002 train_time:204914ms step_avg:146.37ms
+step:1600/20000 train_loss:2.2721 train_time:234056ms step_avg:146.29ms
+step:1800/20000 train_loss:2.3771 train_time:263249ms step_avg:146.25ms
+step:2000/20000 train_loss:2.4209 train_time:292438ms step_avg:146.22ms
+step:2000/20000 val_loss:2.4097 val_bpb:1.0696 train_time:292489ms step_avg:146.24ms
+step:2200/20000 train_loss:2.2614 train_time:321576ms step_avg:146.17ms
+step:2400/20000 train_loss:2.3763 train_time:350680ms step_avg:146.12ms
+step:2600/20000 train_loss:2.5620 train_time:379723ms step_avg:146.05ms
+step:2800/20000 train_loss:2.4211 train_time:408886ms step_avg:146.03ms
+step:3000/20000 train_loss:2.4042 train_time:438030ms step_avg:146.01ms
+step:3000/20000 val_loss:2.3709 val_bpb:1.0524 train_time:438057ms step_avg:146.02ms
+step:3200/20000 train_loss:2.3541 train_time:467175ms step_avg:145.99ms
+step:3400/20000 train_loss:2.3093 train_time:496360ms step_avg:145.99ms
+step:3600/20000 train_loss:2.2630 train_time:525404ms step_avg:145.95ms
+step:3800/20000 train_loss:2.3483 train_time:554575ms step_avg:145.94ms
+step:4000/20000 train_loss:2.2789 train_time:583762ms step_avg:145.94ms
+step:4000/20000 val_loss:2.2868 val_bpb:1.0150 train_time:583826ms step_avg:145.96ms
+step:4108/20000 val_loss:2.2827 val_bpb:1.0132 train_time:599527ms step_avg:145.94ms
+stopping_early: wallclock_cap train_time:599527ms step:4108/20000
+peak memory allocated: 19867 MiB reserved: 20514 MiB
+Serialized model: 66952697 bytes
+Code size: 59498 bytes
+Total submission size: 67012195 bytes
+Serialized model int8+zlib: 14518775 bytes (payload:17039616 raw_torch:17098187 payload_ratio:3.93x)
+Total submission size int8+zlib: 14578273 bytes
+final_int8_zlib_roundtrip val_loss:2.2880 val_bpb:1.0156 eval_time:6088ms
+final_int8_zlib_roundtrip_exact val_loss:2.28798722 val_bpb:1.01558307
