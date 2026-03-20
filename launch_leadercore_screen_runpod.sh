@@ -73,6 +73,12 @@ case "$VARIANT" in
     export MUON_MOMENTUM=0.99
     OUT_DIR="$RECORD_ROOT/screen_${DATA_ROOT_MODE}_muon099"
     ;;
+  warmdown800_matrixlr006)
+    export RUN_ID=leadercore10l_screen_warmdown800_matrixlr006
+    export WARMDOWN_ITERS=800
+    export MATRIX_LR=0.06
+    OUT_DIR="$RECORD_ROOT/screen_${DATA_ROOT_MODE}_warmdown800_matrixlr006"
+    ;;
   muonwarm300)
     export RUN_ID=leadercore10l_screen_muonwarm300
     export MUON_MOMENTUM_WARMUP_STEPS=300
@@ -89,7 +95,7 @@ case "$VARIANT" in
     OUT_DIR="$RECORD_ROOT/screen_${DATA_ROOT_MODE}_width520"
     ;;
   *)
-    echo "Usage: $0 {base|embedlr08|matrixlr005|matrixlr006|warmdown1800|warmdown800|gradclip03|muon099|muonwarm300|qkgain17|width520}"
+    echo "Usage: $0 {base|embedlr08|matrixlr005|matrixlr006|warmdown1800|warmdown800|warmdown800_matrixlr006|gradclip03|muon099|muonwarm300|qkgain17|width520}"
     exit 1
     ;;
 esac
