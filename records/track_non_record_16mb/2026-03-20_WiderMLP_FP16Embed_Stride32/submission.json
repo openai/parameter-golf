@@ -1,0 +1,17 @@
+{
+  "author": "anshchoudhary",
+  "github_id": "anshchoudhary",
+  "name": "WiderMLP FP16Embed Stride32",
+  "blurb": "Non-record submission: 10-layer GPT with MLP_MULT=3, fp16 tied embedding, mixed int6/int8 quantization (layers 2-8 at int6), stride-32 sliding window eval. Artifact 18.97MB exceeds 16MB cap; eval took ~17min exceeds 10min limit. Reported for technique reference: val_bpb=1.1601.",
+  "date": "2026-03-20T15:04:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.95877527,
+  "val_bpb": 1.16010480,
+  "pre_quant_val_loss": 1.9720,
+  "pre_quant_val_bpb": 1.1679,
+  "step_stop": 8566,
+  "wallclock_seconds": 599.932,
+  "bytes_total": 18970656,
+  "bytes_model_int8_zlib": 18924404,
+  "bytes_code": 46252
+}
