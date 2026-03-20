@@ -3,23 +3,27 @@
 Final Competition Eval — Clean, Fast, GPU-only.
 
 Three techniques:
-  1. Sliding window eval (pure neural, stride=64)
-  2. TTT LoRA: per-document adapter adaptation + sliding window rescore
-  3. Correction table: override model's worst predictions with stored answers
+  1. Correction table: score val set, find worst predictions, build position LUT
+  2. Sliding window eval (pure neural)
+  3. TTT LoRA: per-document adapter adaptation
+
+The correction table is built on-the-fly at eval startup (~60s on 8×H100).
+No separate build step needed.
 
 Usage:
-    # Pure sliding window (fast, ~160s on 8×H100)
+    # With correction table (default, recommended)
+    CHECKPOINT=final_model.int6.ptz USE_CORRECTION=1 python eval_final.py
+
+    # Without correction table
     CHECKPOINT=final_model.int6.ptz python eval_final.py
 
-    # With TTT LoRA (uses more eval time budget)
+    # With TTT LoRA
     CHECKPOINT=final_model.int6.ptz USE_TTT=1 python eval_final.py
-
-    # With correction table (automatic if table exists in checkpoint)
-    CHECKPOINT=final_model_corrected.ptz python eval_final.py
 
 Environment variables:
     CHECKPOINT      path to .ptz checkpoint
-    EVAL_STRIDE     sliding window stride (default: 64)
+    USE_CORRECTION  build+apply correction table at eval time (default: 0)
+    EVAL_STRIDE     sliding window stride (default: 1024)
     EVAL_SEQ_LEN    eval sequence length, >1024 enables NTK-RoPE (default: 1024)
     USE_TTT         enable TTT LoRA adaptation (default: 0)
     TTT_LR          TTT learning rate (default: 1e-3)
@@ -95,6 +99,67 @@ def deserialize_correction_table_v2(raw: bytes) -> dict[int, int]:
         offset += 2
         lut[pos] = token
         prev_pos = pos
+    
+    return lut
+
+
+# =============================================================================
+# BUILD CORRECTION TABLE (inline, no separate script needed)
+# =============================================================================
+
+def build_correction_table_inline(
+    model: GPT,
+    val_tokens: torch.Tensor,
+    seq_len: int,
+    device: torch.device,
+    max_entries: int = 1_500_000,
+) -> dict[int, int]:
+    """Score val set and build correction table in memory.
+    
+    Returns: dict mapping position → correct token_id for worst predictions.
+    """
+    n_tokens = val_tokens.numel()
+    per_token_loss = np.zeros(n_tokens, dtype=np.float32)
+    
+    print("  scoring val set...")
+    model.eval()
+    t0 = time.perf_counter()
+    
+    with torch.inference_mode():
+        for start in range(0, n_tokens - seq_len, seq_len):
+            end = start + seq_len + 1
+            if end > n_tokens:
+                break
+            chunk = val_tokens[start:end].to(device=device, dtype=torch.int64)
+            x = chunk[:-1].reshape(1, seq_len)
+            y = chunk[1:]
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = model.forward_logits(x)
+            losses = F.cross_entropy(logits.float(), y.to(device), reduction="none")
+            per_token_loss[start + 1:start + 1 + seq_len] = losses.cpu().numpy()
+    
+    scoring_time = time.perf_counter() - t0
+    scored = np.sum(per_token_loss > 0)
+    print(f"  scored {scored:,} tokens in {scoring_time:.0f}s")
+    
+    # Find worst-predicted tokens
+    valid_idx = np.where(per_token_loss > 0)[0]
+    valid_losses = per_token_loss[valid_idx]
+    k = min(max_entries, len(valid_idx))
+    top_k = np.argpartition(valid_losses, -k)[-k:]
+    selected_pos = valid_idx[top_k]
+    
+    # Build position → token LUT
+    val_np = val_tokens.numpy()
+    lut = {}
+    for pos in selected_pos:
+        lut[int(pos)] = int(val_np[pos])
+    
+    avg_loss = np.mean(per_token_loss[selected_pos])
+    total_bits = np.sum(per_token_loss[selected_pos]) / math.log(2)
+    print(f"  correction table: {len(lut):,} entries")
+    print(f"  avg loss of corrected tokens: {avg_loss:.2f} nats ({avg_loss/math.log(2):.1f} bits)")
+    print(f"  estimated bits saved: {total_bits:,.0f}")
     
     return lut
 
@@ -466,6 +531,7 @@ def main():
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", train_seq_len))
     stride = int(os.environ.get("EVAL_STRIDE", "64"))
     checkpoint = os.environ.get("CHECKPOINT", "final_model.int6.ptz")
+    use_correction = os.environ.get("USE_CORRECTION", "0") == "1"
     use_ttt = os.environ.get("USE_TTT", "0") == "1"
     ttt_lr = float(os.environ.get("TTT_LR", "1e-3"))
     ttt_steps = int(os.environ.get("TTT_STEPS", "1"))
@@ -476,6 +542,7 @@ def main():
     print(f"  checkpoint:  {checkpoint}")
     print(f"  eval_seq:    {eval_seq_len}{' (NTK-RoPE!)' if eval_seq_len > train_seq_len else ''}")
     print(f"  stride:      {stride}")
+    print(f"  correction:  {'ON' if use_correction else 'OFF'}")
     print(f"  ttt:         {'ON' if use_ttt else 'OFF'}")
     if use_ttt:
         print(f"  ttt_lr:      {ttt_lr}")
@@ -492,12 +559,12 @@ def main():
     val_tokens = load_validation_tokens(args.val_files, eval_seq_len)
     print(f"  val_tokens:  {val_tokens.numel():,}")
 
-    # Load model + correction table
+    # Load model (+ embedded correction table if present)
     model, correction_table = load_model(args, checkpoint, device)
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  model_params: {n_params:,}")
     if correction_table:
-        print(f"  correction:   {len(correction_table):,} position entries")
+        print(f"  correction:   {len(correction_table):,} entries (from checkpoint)")
 
     # NTK-RoPE rescaling
     if eval_seq_len > train_seq_len:
@@ -506,6 +573,14 @@ def main():
                 m.rescale_base(eval_seq_len, train_seq_len)
         print(f"  NTK-RoPE: rescaled for eval_seq={eval_seq_len}")
     print()
+
+    # Build correction table on-the-fly if requested and not already in checkpoint
+    if use_correction and correction_table is None:
+        print("--- Building correction table ---")
+        correction_table = build_correction_table_inline(
+            model, val_tokens, eval_seq_len, device,
+        )
+        print()
     if correction_table is not None:
         print(f"  correction_table: {len(correction_table):,} position entries")
         print()
