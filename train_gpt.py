@@ -19,6 +19,12 @@ import uuid
 import zlib
 from pathlib import Path
 
+try:
+    import zstandard
+    _COMPRESSOR = "zstd"
+except ImportError:
+    _COMPRESSOR = "zlib"
+
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -533,7 +539,83 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 
 
 # -----------------------------
-# DATA LOADING 
+# INT6 MIXED QUANTIZATION
+# -----------------------------
+
+def _classify_param(name: str) -> str:
+    if "tok_emb" in name or "lm_head" in name:
+        return "embed"
+    if ".mlp." in name:
+        return "mlp"
+    if ".attn." in name:
+        return "attn"
+    return "other"
+
+def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    if t32.ndim == 2:
+        row_max = t32.abs().amax(dim=1)
+        scale = (row_max / 31.0).clamp_min(1e-12).to(torch.float16)
+        scale = scale.clamp_min(torch.finfo(torch.float16).tiny)
+        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -32, 31).to(torch.int8)
+        return q, scale
+    amax = t32.abs().max().item()
+    scale = torch.tensor(max(amax / 31.0, 1e-12), dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -32, 31).to(torch.int8)
+    return q, scale
+
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
+    result: dict[str, Tensor] = {}
+    meta: dict[str, object] = {}
+    for name, tensor in state_dict.items():
+        t = tensor.detach().cpu().contiguous()
+        cat = _classify_param(name)
+        if not t.is_floating_point() or t.numel() <= 65536:
+            result[name] = t.to(torch.float16) if t.is_floating_point() else t
+            meta[name] = "passthrough"
+            continue
+        if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
+            result[name] = t.float()
+            meta[name] = "passthrough_ctrl"
+            continue
+        if FP16_EMBED_EXPORT and "tok_emb" in name:
+            result[name] = t.to(dtype=torch.float16).contiguous()
+            meta[name] = "passthrough_fp16"
+            continue
+        if cat in int6_cats and t.ndim >= 1:
+            q, s = quantize_int6_per_row(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int6"}
+        else:
+            q, s = quantize_float_tensor(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int8"}
+    return result, meta
+
+def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
+                          template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    for name, orig in template_sd.items():
+        info = meta[name]
+        orig_dtype = orig.dtype
+        if info in ("passthrough", "passthrough_ctrl", "passthrough_fp16"):
+            t = result[name]
+            if t.dtype == torch.float16 and orig_dtype in (torch.float32, torch.bfloat16):
+                t = t.to(orig_dtype)
+            out[name] = t
+            continue
+        q, s = result[name + ".q"], result[name + ".scale"]
+        if s.ndim > 0:
+            out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
+        else:
+            out[name] = (q.float() * float(s.item())).to(orig_dtype)
+    return out
+
+
+# -----------------------------
+# DATA LOADING
 # -----------------------------
 
 def load_data_shard(file: Path) -> Tensor:
@@ -1415,6 +1497,47 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # --- INT6 MIXED QUANTIZATION + ZSTD EXPORT ---
+    sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+    quant_result6, quant_meta6 = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
+    quant_buf6 = io.BytesIO()
+    torch.save({"w": quant_result6, "m": quant_meta6}, quant_buf6)
+    quant_raw6 = quant_buf6.getvalue()
+    if _COMPRESSOR == "zstd":
+        quant_blob6 = zstandard.ZstdCompressor(level=22).compress(quant_raw6)
+    else:
+        quant_blob6 = zlib.compress(quant_raw6, 9)
+    if master_process:
+        with open("final_model.int6.ptz", "wb") as f:
+            f.write(quant_blob6)
+        quant_file_bytes6 = os.path.getsize("final_model.int6.ptz")
+        code_bytes = len(code.encode("utf-8"))
+        log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes6} bytes")
+        log0(f"Total submission size int6+{_COMPRESSOR}: {quant_file_bytes6 + code_bytes} bytes")
+    if distributed:
+        dist.barrier()
+    # Roundtrip int6 model for sliding window eval
+    with open("final_model.int6.ptz", "rb") as f:
+        quant_blob6_disk = f.read()
+    if _COMPRESSOR == "zstd":
+        decompressed6 = zstandard.ZstdDecompressor().decompress(quant_blob6_disk)
+    else:
+        decompressed6 = zlib.decompress(quant_blob6_disk)
+    quant_state6 = torch.load(io.BytesIO(decompressed6), map_location="cpu")
+    base_model.load_state_dict(dequantize_mixed_int6(quant_state6["w"], quant_state6["m"], sd_cpu), strict=True)
+    torch.cuda.synchronize()
+    t_q6eval = time.perf_counter()
+    q6_val_loss, q6_val_bpb = eval_val(
+        args, model, rank, world_size, device, grad_accum_steps,
+        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+    )
+    torch.cuda.synchronize()
+    log0(
+        f"final_int6_{_COMPRESSOR}_roundtrip val_loss:{q6_val_loss:.4f} val_bpb:{q6_val_bpb:.4f} "
+        f"eval_time:{1000.0 * (time.perf_counter() - t_q6eval):.0f}ms"
+    )
+    log0(f"final_int6_{_COMPRESSOR}_roundtrip_exact val_loss:{q6_val_loss:.8f} val_bpb:{q6_val_bpb:.8f}")
 
     if args.eval_stride > 0:
         eval_batch_seqs = 256
