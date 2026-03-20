@@ -1,6 +1,0 @@
-Branch: baseline-run
-Dataset: sp1024
-Train shards downloaded: 1
-Local dataset path: data/datasets/fineweb10B_sp1024
-Tokenizer path: data/tokenizers/fineweb_1024_bpe.model
-Next step: run baseline on remote CUDA machine
