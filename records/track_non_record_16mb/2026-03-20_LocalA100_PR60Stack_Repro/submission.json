@@ -1,0 +1,20 @@
+{
+  "author": "exouser",
+  "github_id": "exouser",
+  "name": "Local A100 PR60 Stack Repro",
+  "blurb": "Non-record 16MB track: local 1xA100 reproduction of the PR60-style stack (10L, FP16 tied embedding export, Muon WD, overtone init, residual mix, sliding eval). Reproducible under 600s train cap with final roundtrip val_bpb 1.41057617.",
+  "date": "2026-03-20T22:02:00Z",
+  "track": "non-record-16mb",
+  "objective_name": "final_int8_zlib_roundtrip_exact",
+  "val_loss": 2.38169878,
+  "val_bpb": 1.41057617,
+  "pre_quant_val_loss": 2.4139,
+  "pre_quant_val_bpb": 1.4297,
+  "step_stop": 716,
+  "wallclock_seconds": 600.393,
+  "roundtrip_eval_seconds": 568.060,
+  "bytes_total": 11124153,
+  "bytes_model_int8_zlib": 11068670,
+  "bytes_code": 55483,
+  "notes": "Single-GPU local throughput bottleneck compared with multi-GPU leaderboard environment."
+}
