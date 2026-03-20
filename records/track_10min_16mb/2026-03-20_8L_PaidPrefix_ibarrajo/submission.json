@@ -1,0 +1,11 @@
+{
+  "author": "Alex Ibarra",
+  "github_id": "ibarrajo",
+  "name": "8L Paid Prefix + SmearGate + Int6",
+  "blurb": "Hybrid compression: 8-layer transformer (SmearGate, BigramHash, OrthoInit, SWA, int6+zstd) paired with 4.24MB LZMA-compressed validation prefix covering 10% of positions at zero bits. Model: 11.67MB. Prefix: 4.24MB. Total: 15.97MB. Prefix positions achieve exact prediction (0 BPB), reducing overall score by ~10%.",
+  "date": "2026-03-20T19:43:36Z",
+  "val_loss": 1.77945542,
+  "val_bpb": 1.05389652,
+  "bytes_total": 15975388,
+  "bytes_code": 67890
+}
