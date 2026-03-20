@@ -809,14 +809,26 @@ def _find_docs(all_tokens: Tensor, include_next_bos: bool = True) -> list[tuple[
     eval token count exactly).
     """
     bos_positions = (all_tokens == BOS_ID).nonzero(as_tuple=True)[0].numpy()
+    if len(bos_positions) == 0:
+        if all_tokens.numel() < 2:
+            raise ValueError("Validation tokens must contain at least 2 tokens")
+        # Fallback for tokenizer/export variants that do not emit explicit BOS markers.
+        return [(0, int(all_tokens.numel()))]
+
     docs = []
     for i in range(len(bos_positions)):
         start = int(bos_positions[i])
         end = int(bos_positions[i + 1]) if i + 1 < len(bos_positions) else all_tokens.numel()
         if include_next_bos and i + 1 < len(bos_positions):
             end += 1
-        assert end - start >= 2
-        docs.append((start, end - start))
+        doc_len = end - start
+        if doc_len < 2:
+            # Can happen with trailing BOS-only shards; skip degenerate docs.
+            continue
+        docs.append((start, doc_len))
+
+    if not docs:
+        raise ValueError("No valid documents found in validation tokens")
     return docs
 
 def _compute_chunk_window(ci: int, pred_len: int, num_chunks: int, chunk_size: int, eval_seq_len: int):
