@@ -37,7 +37,7 @@
     "warmup_steps": 20,
     "warmdown_iters": 1200,
     "lr_schedule": "cosine_restarts",
-    "lr_restart_base_period": 5000,
+    "lr_restart_base_period": 250,
     "lr_restart_mult": 2.0,
     "lr_restart_decay": 0.7,
     "lr_min_ratio": 0.01,
