@@ -1,3 +1,6 @@
 name,train_wall_sec,file_size_bytes,model_size_bytes,other_artifacts_bytes,gpus,eval_wall_sec,val_bpb,commit_id,run_command
 smoke_test_1xh100_10min,600,14678293,14619784,58509,1,10.99,1.3448,45bbccf,"RUN_ID=smoke_test DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 MAX_WALLCLOCK_SECONDS=600 VAL_LOSS_EVERY=1000 torchrun --standalone --nproc_per_node=1 train_gpt.py"
 naive_baseline_1xh100_80min,4800,15871035,15812526,58509,1,10.93,1.2262,7de1e89,"RUN_ID=naive_baseline_1xh100_80min DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 MAX_WALLCLOCK_SECONDS=4800 VAL_LOSS_EVERY=200 torchrun --standalone --nproc_per_node=1 train_gpt.py"
+mamba_v1_loop_scan_10min,600,11054744,11030172,24572,1,39.13,1.5991,506e016,"MAX_WALLCLOCK_SECONDS=600 python -m mamba.train (sequential loop scan, 400 steps @ 1503ms)"
+mamba_v2_vectorized_scan_10min,600,14111443,14086871,24572,1,20.06,1.3914,c04b02a,"MAX_WALLCLOCK_SECONDS=600 python -m mamba.train (vectorized matmul scan, 1032 steps @ 581ms)"
+mamba_v3_dstate8_cs128_10min,600,13142909,13118337,24572,1,20.07,1.3921,c04b02a,"SSM_STATE_DIM=8 SSM_CHUNK_SIZE=128 MAX_WALLCLOCK_SECONDS=600 python -m mamba.train (1028 steps @ 583ms)"

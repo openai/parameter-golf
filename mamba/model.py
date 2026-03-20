@@ -182,14 +182,13 @@ def selective_scan(
     # Scalar decay per head: exp(A * dt), in (0, 1)
     decay = torch.exp(A * dt)  # [n_heads]
 
-    # Pad L to multiple of chunk_size
+    # Pad L to multiple of chunk_size (pad=0 is a no-op when already aligned)
     n_chunks = (L + chunk_size - 1) // chunk_size
     L_padded = n_chunks * chunk_size
-    if L_padded > L:
-        pad = L_padded - L
-        x = F.pad(x, (0, 0, 0, 0, 0, pad))
-        B = F.pad(B, (0, 0, 0, 0, 0, pad))
-        C = F.pad(C, (0, 0, 0, 0, 0, pad))
+    pad = L_padded - L
+    x = F.pad(x, (0, 0, 0, 0, 0, pad))
+    B = F.pad(B, (0, 0, 0, 0, 0, pad))
+    C = F.pad(C, (0, 0, 0, 0, 0, pad))
 
     # Reshape into chunks: [B, nc, cs, nh, ...]
     x_c = x.reshape(B_batch, n_chunks, chunk_size, n_heads, head_dim)
@@ -280,7 +279,7 @@ def selective_scan(
     # Reshape: [B, nc, nh, cs, hd] -> [B, nc, cs, nh, hd] -> [B, L, nh, hd]
     y = y.permute(0, 1, 3, 2, 4).reshape(B_batch, L_padded, n_heads, head_dim)
 
-    return y[:, :L] if L_padded > L else y
+    return y[:, :L]
 
 
 # ---------------------------------------------------------------------------
