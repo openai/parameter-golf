@@ -1,4 +1,6 @@
-This record brings the ideas from my last work (#87), which was high vocab size, NorMuon and mixed int6/int8 quantization, up to the frontier by copying a bunch of other people! Specifically, I take the STE and SWA ideas from @vmfunc (#89), the sliding window eval with seqlen=1024 and stride=64 from #50 @mattqlf (first), and #65 @aquariouseworkman, and the Momentum/LR tuning from #52 @spokane-way, #61 @saml212. I also use FA3, which decreases step time by about 10ms - a total free lunch!
+Update 3/20: Added two more 8xH100 runs with `SEED=41,102`; the 3-run mean is `final_w6e16_zstd22_roundtrip_exact val_bpb:1.17007988` and `final_sliding_window_exact val_bpb:1.16027254`.
+
+This record brings the ideas from my last work (#87), which was high vocab size, NorMuon and mixed int6/int8 quantization, up to the frontier by copying a bunch of other people! Specifically, I take the STE and SWA ideas from @vmfunc (#89), the sliding window eval with seqlen=1024 and stride=64 from #50 @mattqlf (first), and #65 @aquariouseworkman, and the Momentum/LR tuning from #52 @spokane-way, #61 @saml212. I also use FA3, which decreases step time by about 10ms - a total free lunch! N.b. I'm not sure if importing the FA3 library violates the 16MB code requirement, since it's been
 
 The tradeoffs are getting tough. I'm sticking to my guns in losing a layer for higher vocab size, and I think everyone else is right that keeping embeddings in fp16 reduces the quant gap, which means I had to take my vocab size down to compensate. It's really a question about whether we want more diversity in vocab or more resolution in representation, and I think there's a better optimum in between yet to find.
 
@@ -40,6 +42,10 @@ Key metrics (from `train.log`):
 - Serialized model w6e16+zstd22: `15289740 bytes`
 - Code size: `63530 bytes`
 - Total submission size w6e8+zlib: `15353270 bytes`
+
+Mean across the three exact verification runs (`SEED=41,102,1337`):
+- Post-quant roundtrip exact mean: `val_loss:2.40174204 val_bpb:1.17007988`
+- Post-quant sliding window exact mean: `val_loss:2.38160730 val_bpb:1.16027254`
 
 Training volume:
 - Global batch: `524288` tokens/step
