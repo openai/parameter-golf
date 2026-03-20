@@ -46,6 +46,7 @@ def load_env_local() -> dict[str, str]:
 
 ENV_LOCAL_VALUES = load_env_local()
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY") or ENV_LOCAL_VALUES.get("ANTHROPIC_API_KEY")
+HF_TOKEN = os.environ.get("HF_TOKEN") or ENV_LOCAL_VALUES.get("HF_TOKEN")
 anthropic_secret = modal.Secret.from_dict({"ANTHROPIC_API_KEY": ANTHROPIC_API_KEY}) if ANTHROPIC_API_KEY else None
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 auth_volume = modal.Volume.from_name(AUTH_VOLUME_NAME, create_if_missing=True)
@@ -73,6 +74,7 @@ image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("curl", "git", "nodejs", "npm")
     .pip_install("torch>=2.5", "numpy", "sentencepiece", "huggingface_hub")
+    .env({"HF_TOKEN": HF_TOKEN} if HF_TOKEN else {})
     .run_commands("npm install -g @anthropic-ai/claude-code")
     .add_local_file(ROOT / "train_gpt.py", remote_path=f"{WORKDIR}/train_gpt.py", copy=True)
     .add_local_file(ROOT / "autoresearch.py", remote_path=f"{WORKDIR}/autoresearch.py", copy=True)

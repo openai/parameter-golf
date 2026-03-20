@@ -7,6 +7,27 @@ import modal
 import os
 import subprocess
 import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+ENV_LOCAL = ROOT / ".env.local"
+
+
+def load_env_local() -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not ENV_LOCAL.exists():
+        return values
+    for line in ENV_LOCAL.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        values[k.strip()] = v.strip()
+    return values
+
+
+ENV_LOCAL_VALUES = load_env_local()
+HF_TOKEN = os.environ.get("HF_TOKEN") or ENV_LOCAL_VALUES.get("HF_TOKEN")
 
 # Build the container image — uses the STOCK train_gpt.py from repo root
 image = (
@@ -17,6 +38,7 @@ image = (
         "sentencepiece",
         "huggingface_hub",
     )
+    .env({"HF_TOKEN": HF_TOKEN} if HF_TOKEN else {})
     .add_local_file(
         "train_gpt.py",
         remote_path="/root/parameter-golf/train_gpt.py",

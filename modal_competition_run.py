@@ -8,6 +8,27 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+ENV_LOCAL = ROOT / ".env.local"
+
+
+def load_env_local() -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not ENV_LOCAL.exists():
+        return values
+    for line in ENV_LOCAL.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        values[k.strip()] = v.strip()
+    return values
+
+
+ENV_LOCAL_VALUES = load_env_local()
+HF_TOKEN = os.environ.get("HF_TOKEN") or ENV_LOCAL_VALUES.get("HF_TOKEN")
 
 # Build the container image with all dependencies
 image = (
@@ -18,6 +39,7 @@ image = (
         "sentencepiece",
         "huggingface_hub",
     )
+    .env({"HF_TOKEN": HF_TOKEN} if HF_TOKEN else {})
     # Add our training script and data download script
     .add_local_file(
         "autoresearch/core_promotion/train_gpt.best.py",

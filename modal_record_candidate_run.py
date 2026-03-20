@@ -24,11 +24,30 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+import argparse
 
 import modal
 
 
 ROOT = Path(__file__).resolve().parent
+ENV_LOCAL = ROOT / ".env.local"
+
+
+def load_env_local() -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not ENV_LOCAL.exists():
+        return values
+    for line in ENV_LOCAL.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        values[k.strip()] = v.strip()
+    return values
+
+
+ENV_LOCAL_VALUES = load_env_local()
+HF_TOKEN = os.environ.get("HF_TOKEN") or ENV_LOCAL_VALUES.get("HF_TOKEN")
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -38,6 +57,7 @@ image = (
         "sentencepiece",
         "huggingface_hub",
     )
+    .env({"HF_TOKEN": HF_TOKEN} if HF_TOKEN else {})
     .add_local_dir(
         str(ROOT / "data"),
         remote_path="/root/parameter-golf/data",
@@ -195,3 +215,22 @@ def main(
         json.dump(submission, f, indent=2)
 
     print(json.dumps(submission, indent=2))
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source", required=True)
+    parser.add_argument("--run-name", default="record_candidate")
+    parser.add_argument("--output-dir", default="records/track_10min_16mb/record_candidate")
+    parser.add_argument("--max-wallclock-seconds", type=int, default=600)
+    parser.add_argument("--val-loss-every", type=int, default=0)
+    parser.add_argument("--train-log-every", type=int, default=50)
+    args = parser.parse_args()
+    main(
+        source=args.source,
+        run_name=args.run_name,
+        output_dir=args.output_dir,
+        max_wallclock_seconds=args.max_wallclock_seconds,
+        val_loss_every=args.val_loss_every,
+        train_log_every=args.train_log_every,
+    )
