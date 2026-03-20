@@ -1,14 +1,14 @@
 {
-  "author": "Swapnil Patel",
+  "author": "Swapnil Sawant",
   "github_id": "swapp1990",
   "name": "Warmdown-Tuned Training on 1xRTX 5090",
-  "blurb": "Systematic experiment-driven optimization across 9+ experiments. Key discovery: warmdown_iters=3000 produces best results (2.6x per-step efficiency). Layer looping (6 unique layers, 608 dim, looped to 9 effective) + wider model in progress. Best result 1.2987 BPB on 1xRTX 5090 (1200s). Applying for H100 compute grant — expect ~1.22 BPB with tuned warmdown + full batch on 8xH100.",
+  "blurb": "Systematic experiment-driven optimization across 9+ experiments. Key discovery: warmdown_iters=3000 produces best results (2.6x per-step efficiency). Hard token analysis revealed juncture-point bottleneck guiding architecture experiments. Layer looping (6 unique layers, 608 dim, looped to 9 effective) + wider model in progress. Best result 1.2987 BPB on 1xRTX 5090 (1200s).",
   "date": "2026-03-20",
   "val_loss": 2.1928,
   "val_bpb": 1.2987,
   "bytes_total": 15795671,
   "bytes_code": 48344,
-  "hardware": "1xRTX 5090 (not 8xH100 — compute grant application)",
+  "hardware": "1xRTX 5090",
   "wallclock_seconds": 1200,
   "steps": 11603
 }

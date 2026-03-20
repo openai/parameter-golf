@@ -6,7 +6,7 @@ Systematic experiment-driven optimization of the baseline 9-layer, 512-dim GPT. 
 
 **Result: val_bpb 1.2987** on 1xRTX 5090 (1200s wallclock, 11,603 steps).
 
-This is a compute grant application — we expect ~1.22 BPB with tuned warmdown + full batch on 8xH100.
+Next steps: layer looping + wider model to eliminate dead middle layers and increase attention capacity.
 
 ## Configuration (Best Result — Exp 8a)
 
@@ -73,16 +73,15 @@ context_benefit stable at ~-1.20 across all experiments. The model degrades shar
 ### 6. Architecture changes need LR sweeps
 Exp 5a failed without one. Exp 9 (layer looping) includes a proper LR sweep.
 
-## Plan with H100 Compute
+## Next Steps
 
-With 8xH100, we would:
-1. **Restore batch=524288** — 8x more tokens per step, ~49ms/step, ~12K steps in 600s
+1. **Restore batch=524288** on multi-GPU — 8x more tokens per step, ~49ms/step, ~12K steps in 600s
 2. **Apply warmdown_iters=3000** — validated as optimal
 3. **Layer looping + wider model** — if Exp 9 confirms benefit
 4. **Implement int6 quantization + zstd** to fit MLP 3x (~21M params in 16MB)
 5. **Add sliding window evaluation** (stride=64) for ~0.03 BPB improvement
 
-Expected result: **~1.18-1.22 BPB** based on competition baselines + our findings.
+Expected result: **~1.18-1.22 BPB** based on competition baselines + my findings.
 
 ## Analysis & Evaluation
 
