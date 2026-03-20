@@ -2,12 +2,19 @@
   "track": "10min_16mb",
   "date": "2026-03-20",
   "name": "11L Int6 QAT + Per-Dim SmearGate + SWA + Decoupled WD 0.038",
-  "author": "baudrillardsgh0st",
+  "author": "Joshua Juneau",
+  "github_id": "baudrillardsgh0st",
+  "blurb": "11 layers with int6 per-row QAT (STE) on MLP+attention, int8 tok_emb, zstd-22. Muon WD 0.038 for quantization-friendly weights. SWA ~29-30 checkpoint average. Per-dim SmearGate. OrthoInit. Sliding window eval stride=64, seq=2048. 3-seed mean 1.1480.",
+  "val_loss": 1.93386993,
+  "val_bpb": 1.14534973,
   "seed_results": {
-    "1337": {"val_loss": 1.93386993, "val_bpb": 1.14534973, "steps": 8052, "ms_per_step": 74.49}
+    "1337": {"val_loss": 1.93386993, "val_bpb": 1.14534973, "steps": 8052, "ms_per_step": 74.49},
+    "7": {"val_loss": 1.93996931, "val_bpb": 1.14896214, "steps": 8040, "ms_per_step": 74.34},
+    "42": {"val_loss": 1.94131969, "val_bpb": 1.14976191, "steps": 7772, "ms_per_step": 77.17}
   },
-  "mean_val_loss": 1.93386993,
-  "mean_val_bpb": 1.14534973,
-  "artifact_bytes": 16076737,
-  "code_bytes": 84488
+  "mean_val_loss": 1.93838632,
+  "mean_val_bpb": 1.14802459,
+  "bytes_total": 16076737,
+  "bytes_model_int6_zstd": 15992249,
+  "bytes_code": 84488
 }

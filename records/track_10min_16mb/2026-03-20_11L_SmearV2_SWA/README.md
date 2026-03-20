@@ -1,6 +1,18 @@
 # 11L Int6 QAT + Per-Dim SmearGate + SWA + Decoupled WD 0.038
 
-**val_bpb: 1.1453** | **Artifact: 15.33 MiB**
+**Mean val_bpb: 1.1480** (3 seeds) | **Best: 1.1453** (seed 1337) | **Artifact: 15.33 MiB**
+
+## Reproducibility (3 seeds)
+
+| Seed | val_loss | val_bpb | Steps | ms/step | SWA checkpoints |
+|------|----------|---------|-------|---------|-----------------|
+| **1337** | 1.9339 | **1.1453** | 8052 | 74.49 | 30 |
+| 7 | 1.9400 | 1.1490 | 8040 | 74.34 | 29 |
+| 42 | 1.9413 | 1.1498 | 7772 | 77.17 | 27 |
+
+**Mean: 1.1480** | Std: 0.0024 | Submitted: seed 1337
+
+Note: Seed 42 ran on hot GPUs (no cooldown between runs), resulting in ~300 fewer training steps due to thermal throttling. Seeds 1337 and 7 ran on cold GPUs with 120s cooldowns.
 
 ## Key Techniques
 
@@ -12,7 +24,7 @@
 
 4. **Per-Dim SmearGate**: Learned per-dimension gate (`sigmoid(Parameter(dim))`) blending current and previous token embeddings, zero-initialized. More expressive than scalar gating while adding only 512 parameters.
 
-5. **Stochastic Weight Averaging (SWA)**: Checkpoint averaging every 50 steps over the last 50% of training (~80 checkpoints). Produces smoother weights that quantize better.
+5. **Stochastic Weight Averaging (SWA)**: Checkpoint averaging every 50 steps over the last 50% of training (~29-30 checkpoints). Produces smoother weights that quantize better.
 
 6. **Decoupled Muon weight decay (0.038)**: High WD keeps weights small for better int6 quantization and generalization.
 
@@ -26,6 +38,8 @@
 - 26.5M parameters, tied embeddings
 - Vocab size 1024 (sp1024 tokenizer)
 - Training sequence length 2048, batch 524288 tokens
+- U-Net skip connections, RMSNorm, GQA, RoPE
+- Logit softcap 30.0, orthogonal init
 
 ## Training Config
 
@@ -35,17 +49,14 @@
 | Scalar LR | 0.02 |
 | Tied Embed LR | 0.03 |
 | Muon Momentum | 0.99 |
+| Muon Momentum Warmup | 0.92 -> 0.99 over 1500 steps |
 | Muon Weight Decay | 0.038 |
 | Warmdown Steps | 3000 |
 | QAT Bits | 6 |
 | SWA Every | 50 steps |
 | SWA Start | 50% of training |
 
-## Results
-
-| Seed | val_loss | val_bpb | Steps | ms/step |
-|------|----------|---------|-------|---------|
-| 1337 | 1.9339 | 1.1453 | 8052 | 74.49 |
+## Artifact
 
 Serialized model int6+zstd22: 15,992,249 bytes
 Code size: 84,488 bytes
