@@ -92,6 +92,7 @@ git push origin main
 | 2026-03-20 | infra-003 | `main` | n/a | RunPod 1xH100 pod | `fineweb10B_sp1024` val + 1 train shard | first baseline launch after installing deps | baseline `torchrun --standalone --nproc_per_node=1 train_gpt.py` | failed | pod image has `torch 2.4.1+cu124`; this build does not support `enable_gqa` in SDPA, so baseline code needed compatibility fallback |
 | 2026-03-20 | infra-004 | `main` | n/a | RunPod 1xH100 pod | none | tried pulling experiment branch from fork over SSH | `git fetch origin` after `origin=git@github.com:Kevxn97/parameter-golf.git` | failed | pod had no GitHub SSH key loaded; for public forks use HTTPS remotes for fetch/pull |
 | 2026-03-20 | exp-002-attempt-001 | `codex/sliding-window-eval-v1` | unverified on pod | RunPod 1xH100 pod | `fineweb10B_sp1024` | attempted isolated sliding-window eval run | `RUN_ID=baseline_slide64_v1 ... EVAL_STRIDE=64 EVAL_BATCH_SEQS=128 torchrun --standalone --nproc_per_node=1 train_gpt.py` | ambiguous | run finished, but the expected `final_eval_mode:sliding_window` log line was missing and final eval time was only `11771ms`, so this result should not be treated as valid sliding-window evidence |
+| 2026-03-20 | exp-002-valid-001 | `codex/sliding-window-eval-v1` | `a3798b2` verified on pod | RunPod 1xH100 pod | `fineweb10B_sp1024` | verified sliding-window post-quant eval run | `RUN_ID=baseline_slide64_v1 ... EVAL_STRIDE=64 EVAL_BATCH_SEQS=128 torchrun --standalone --nproc_per_node=1 train_gpt.py` | success | startup marker and source checks matched; final stride-64 eval produced `final_int8_zlib_roundtrip_exact val_bpb:1.32756718` |
 
 ## Experiment Scoreboard
 
@@ -100,7 +101,7 @@ This is the fast comparison view. One row per experiment, updated as soon as a r
 | ID | Status | Branch | Commit | Main change | Final val_bpb | Size int8+zlib | Decision | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `exp-001` | complete | `codex/looped-shared-depth-v1` | `848f31f` | shared-depth looping (`NUM_LAYERS=6`, `NUM_LOOPS=2`) | `1.39779315` | `8567061` bytes | discard | very parameter-efficient, but quality and speed both poor |
-| `exp-002` | needs rerun | `codex/sliding-window-eval-v1` | `a5fe685` locally, unverified on pod | sliding-window post-quant eval (`EVAL_STRIDE=64`) | observed `1.35379936`, not accepted | `13510262` bytes observed | rerun | branch name matched, but expected sliding-window marker was absent, so attribution is not reliable |
+| `exp-002` | complete | `codex/sliding-window-eval-v1` | `a3798b2` | sliding-window post-quant eval (`EVAL_STRIDE=64`) | `1.32756718` | `13385763` bytes | keep | valid run; strong gain, but final eval cost is very high (`834917ms`) |
 
 ## Hypothesis Backlog
 
@@ -182,7 +183,7 @@ Copy this block when we start a new run:
 - Date: 2026-03-20
 - Owner: Kevin + Codex
 - Branch: `codex/sliding-window-eval-v1`
-- Commit: `a5fe685`
+- Commit: `a3798b2`
 - Goal: test the highest-confidence isolated improvement path after exp-001 failed
 - Hypothesis: sliding-window post-quant evaluation will improve reported `val_bpb` materially without changing training dynamics, because each scored validation token sees near-max context instead of the low-context chunk boundaries used by standard evaluation
 - Why this next: repo evidence shows `SlidingWindowEval` improved post-quant `val_bpb` by about `0.032` with training otherwise unchanged, while stronger 10-layer records combine multiple simultaneous changes and are harder to attribute cleanly
@@ -192,19 +193,21 @@ Copy this block when we start a new run:
 - Machine: RunPod 1xH100
 - Dataset/tokenizer: `fineweb10B_sp1024` + `fineweb_1024_bpe.model`
 - Metrics:
-  - observed on pod: `model_params:17059912 unique_layers:9 loops:1 effective_depth:9`
-  - observed on pod: `step:1200 val_bpb:1.3605`
-  - observed on pod: `step:1355 val_bpb:1.3525`
-  - observed on pod: `final_int8_zlib_roundtrip_exact val_bpb:1.35379936`
-  - observed on pod: `final_int8_ttt_lora val_bpb:1.3209`
-  - observed on pod: `step_avg:443.05ms`
-  - attribution warning: expected `final_eval_mode:sliding_window` startup marker was missing
-  - attribution warning: final quantized eval took only `11771ms`, which is not consistent with an active stride-64 sliding eval
+  - verified on pod: `sdpa_enable_gqa_supported:False`
+  - verified on pod: `final_eval_mode:sliding_window stride:64 batch_seqs:128`
+  - verified on pod: `model_params:17059912 unique_layers:9 loops:1 effective_depth:9`
+  - verified on pod: `step:1200 val_bpb:1.3615`
+  - verified on pod: `step:1265 val_bpb:1.3590`
+  - verified on pod: `final_int8_zlib_roundtrip_exact val_bpb:1.32756718`
+  - verified on pod: `final_int8_ttt_lora val_bpb:1.3276`
+  - verified on pod: `step_avg:474.34ms`
+  - verified on pod: `final eval_time:834917ms`
+  - comparison vs earlier baseline-like observed run: about `-0.0262 val_bpb` (`1.35379936 -> 1.32756718`)
 - Artifact size:
-  - observed on pod: serialized model int8+zlib `13449854` bytes
-  - observed on pod: total submission size int8+zlib `13510262` bytes
-- Outcome: run completed, but we should not count it as a valid sliding-window evaluation result because the log does not prove the sliding eval path was active
-- Next action: rerun `exp-002` only after explicit pod-side verification of both `git rev-parse --short HEAD` and a feature marker such as `grep -n "final_eval_mode" train_gpt.py`; only then compare the resulting `final_int8_zlib_roundtrip_exact val_bpb` against this observed baseline-like run
+  - verified on pod: serialized model int8+zlib `13320624` bytes
+  - verified on pod: total submission size int8+zlib `13385763` bytes
+- Outcome: valid and successful confirmation that sliding-window post-quant evaluation is a real win on this setup; the quality gain is strong enough to keep, but the eval-time cost is substantial
+- Next action: keep sliding eval in the measurement stack and move to the next high-probability training-side lever, most likely the tuned non-shared 10-layer family
 
 ## Decisions and Learnings
 
@@ -218,9 +221,10 @@ Copy this block when we start a new run:
 - 2026-03-20: Simple block reuse (`6` unique layers, `2` loops) is very parameter-efficient on disk, but the quality hit is too large for this challenge in its current form.
 - 2026-03-20: On 1xH100, the looped shared-depth variant ran at roughly `570ms/step`, far slower than the upstream 8xH100 baseline step budget, so it is not a good candidate for scale-up without further optimization.
 - 2026-03-20: After a failed speculative architecture change, the next experiment should maximize causal clarity; isolated evaluation changes are a better follow-up than stacking several new training tricks at once.
+- 2026-03-20: Verified sliding-window post-quant eval is a real gain on this setup, but it shifts a lot of wallclock into evaluation; we should keep it for scoring-quality experiments, while being deliberate about the slower turnaround time.
 
 ## Next Actions
 
 - Finish pod bootstrap with `pip install -r requirements.txt`.
-- Rerun experiment 002 with explicit pod-side commit and feature-marker verification before launch.
-- If the rerun proves the sliding eval path is active and improves `final_int8_zlib_roundtrip_exact val_bpb`, use it as the measurement base for the next training-side experiment.
+- Use `exp-002` as the new measurement baseline for future experiments.
+- Build `exp-003` around the strongest next training-side lever, likely a tuned non-shared 10-layer variant combined with the now-validated sliding eval.
