@@ -1,0 +1,11 @@
+{
+  "author": "kvmuk",
+  "github_id": "kvmuk",
+  "name": "Int6 3xMLP + Cosine Warmdown + OrthoInit",
+  "blurb": "Int6 STE quantization with 3x MLP width, cosine warmdown schedule, orthogonal init, sliding window eval (stride=64), fp16 embed passthrough, Muon WD, overtone init. Built on merged SOTA with novel cosine warmdown.",
+  "date": "2026-03-20T00:00:00Z",
+  "val_bpb": 1.17043480,
+  "val_loss": 1.97623014,
+  "bytes_total": 13520480,
+  "bytes_code": 56677
+}
