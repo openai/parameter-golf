@@ -320,12 +320,6 @@ INT8_FP32_SCALE_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_FP32_SCALE_NAME_PATTERNS", "").split(",")
     if pattern
 )
-INT8_CLIP_PERCENTILE_OVERRIDES = tuple(
-    (name_pattern, float(percentile))
-    for item in os.environ.get("INT8_CLIP_PERCENTILE_OVERRIDES", "").split(",")
-    if item
-    for name_pattern, percentile in [item.rsplit(":", 1)]
-)
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
@@ -353,26 +347,13 @@ def int8_scale_dtype_for_tensor(name: str, t: Tensor) -> torch.dtype:
         return torch.float32
     return INT8_PER_ROW_SCALE_DTYPE
 
-def clip_quantile_for_tensor(name: str) -> float:
-    for name_pattern, percentile in INT8_CLIP_PERCENTILE_OVERRIDES:
-        if name_pattern in name:
-            return percentile / 100.0
-    return INT8_CLIP_Q
-
-def quantize_float_tensor(
-    name: str,
-    t: Tensor,
-    scale_dtype: torch.dtype = INT8_PER_ROW_SCALE_DTYPE,
-    clip_q: float | None = None,
-) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(name: str, t: Tensor, scale_dtype: torch.dtype = INT8_PER_ROW_SCALE_DTYPE) -> tuple[Tensor, Tensor]:
     t32 = t.float()
-    if clip_q is None:
-        clip_q = clip_quantile_for_tensor(name)
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
         clip_abs = (
-            torch.quantile(t32.abs(), clip_q, dim=1)
+            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
             if t32.numel()
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
@@ -382,7 +363,7 @@ def quantize_float_tensor(
         return q, scale.to(dtype=scale_dtype).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
-    clip_abs = float(torch.quantile(t32.abs().flatten(), clip_q).item()) if t32.numel() else 0.0
+    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
@@ -409,7 +390,7 @@ def normalized_mae(reference: Tensor, reconstructed: Tensor) -> float:
 def score_keep_float_candidate(name: str, t: Tensor) -> dict[str, object]:
     # Keep selector scoring on the baseline fp16-scale quantized path so export
     # ablations on still-quantized tensors do not also change the selector.
-    q, s = quantize_float_tensor(name, t, scale_dtype=INT8_PER_ROW_SCALE_DTYPE, clip_q=INT8_CLIP_Q)
+    q, s = quantize_float_tensor(name, t, scale_dtype=INT8_PER_ROW_SCALE_DTYPE)
     quantized_recon = dequantize_quantized_tensor(q, s, dtype=t.dtype)
     candidate_orig_dtypes: dict[str, str] = {}
     kept = keep_float_tensor(name, t, candidate_orig_dtypes)
@@ -498,7 +479,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             "large_keep_payload_bytes",
             "auto_keep_tensor_count",
             "auto_keep_payload_bytes",
-            "clip_override_tensor_count",
             "fp32_scale_tensor_count",
             "fp32_scale_payload_bytes",
         ),
@@ -546,10 +526,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 
         stats["num_float_tensors"] += 1
         scale_dtype = int8_scale_dtype_for_tensor(name, t)
-        clip_q = clip_quantile_for_tensor(name)
-        q, s = quantize_float_tensor(name, t, scale_dtype=scale_dtype, clip_q=clip_q)
-        if clip_q != INT8_CLIP_Q:
-            stats["clip_override_tensor_count"] += 1
+        q, s = quantize_float_tensor(name, t, scale_dtype=scale_dtype)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
             if scale_dtype == torch.float32:
@@ -1308,8 +1285,6 @@ def main() -> None:
                 f"fp32_tensors:{quant_stats['fp32_scale_tensor_count']} "
                 f"fp32_bytes:{quant_stats['fp32_scale_payload_bytes']}"
             )
-        if INT8_CLIP_PERCENTILE_OVERRIDES:
-            log0(f"Int8 clip overrides: tensors:{quant_stats['clip_override_tensor_count']}")
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
