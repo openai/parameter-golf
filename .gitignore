@@ -10,3 +10,4 @@ data/docs_selected.jsonl
 .venv
 logs/
 .claude/settings.local.json
+.env
