@@ -94,7 +94,14 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))  # v6: 0.3 (was 0.0)
+    # v6: Weight decay (decoupled for Muon, standard for Adam)
+    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.04))
+    adam_weight_decay = float(os.environ.get("ADAM_WEIGHT_DECAY", 0.01))
+    # v6: Stochastic Weight Averaging — collect checkpoints every N steps during warmdown
+    # Set to 0 to disable. Averages all collected checkpoints at end of training.
+    swa_every = int(os.environ.get("SWA_EVERY", 50))
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))  # start at 40% of training
 
     # v1: Eval sequence length (can be longer than train for free BPB improvement)
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", os.environ.get("TRAIN_SEQ_LEN", 1024)))
@@ -128,10 +135,10 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True, weight_decay: float = 0.0):
         super().__init__(
             params,
-            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov),
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov, weight_decay=weight_decay),
         )
 
     @torch.no_grad()
@@ -178,7 +185,11 @@ class Muon(torch.optim.Optimizer):
                 dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
 
             curr = 0
+            wd = group.get("weight_decay", 0.0)
             for p in params:
+                # v6: Decoupled weight decay (applied before gradient update)
+                if wd > 0:
+                    p.data.mul_(1 - lr * wd)
                 g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
                 p.add_(g, alpha=-lr)
                 curr += p.numel()
@@ -1077,10 +1088,11 @@ def main() -> None:
         for ls in base_model.layer_scales:
             scalar_params.append(ls)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
-    optimizer_tok = torch.optim.Adam(
+    optimizer_tok = torch.optim.AdamW(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
+        weight_decay=args.adam_weight_decay,
         fused=True,
     )
     optimizer_muon = Muon(
@@ -1088,13 +1100,15 @@ def main() -> None:
         lr=args.matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
+        weight_decay=args.muon_weight_decay,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
-    optimizer_scalar = torch.optim.Adam(
+    optimizer_scalar = torch.optim.AdamW(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
+        weight_decay=args.adam_weight_decay,
         fused=True,
     )
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
@@ -1182,6 +1196,9 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    # v6: SWA state
+    swa_checkpoints: list[dict[str, Tensor]] = []
+    swa_active = args.swa_every > 0
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1251,6 +1268,13 @@ def main() -> None:
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+
+        # v6: SWA checkpoint collection during warmdown
+        if swa_active and args.swa_every > 0:
+            frac_done = approx_training_time_ms / max_wallclock_ms if max_wallclock_ms else step / args.iterations
+            if frac_done >= args.swa_start_frac and step % args.swa_every == 0:
+                swa_checkpoints.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
+
         should_log_train = (
             args.train_log_every > 0
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
@@ -1280,6 +1304,16 @@ def main() -> None:
     # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
+
+    # v6: Apply SWA — average all collected checkpoints
+    if swa_checkpoints:
+        log0(f"swa:applying {len(swa_checkpoints)} checkpoints")
+        avg_state = {}
+        for key in swa_checkpoints[0]:
+            stacked = torch.stack([ckpt[key].float() for ckpt in swa_checkpoints])
+            avg_state[key] = stacked.mean(dim=0).to(dtype=swa_checkpoints[0][key].dtype)
+        base_model.load_state_dict(avg_state, strict=True)
+        del swa_checkpoints  # free memory
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
