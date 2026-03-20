@@ -1,0 +1,2 @@
+name,train_wall_sec,file_size_bytes,model_size_bytes,other_artifacts_bytes,gpus,eval_wall_sec,val_bpb,commit_id,run_command
+smoke_test_1xh100_10min,600,14678293,14619784,58509,1,10.99,1.3448,45bbccf,"RUN_ID=smoke_test DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 MAX_WALLCLOCK_SECONDS=600 VAL_LOSS_EVERY=1000 torchrun --standalone --nproc_per_node=1 train_gpt.py"
