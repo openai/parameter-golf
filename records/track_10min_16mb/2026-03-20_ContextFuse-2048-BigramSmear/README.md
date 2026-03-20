@@ -1,64 +1,80 @@
 This records the submissions for `ContextFuse-2048-BigramSmear`.
 
-`val_bpb` is the primary target for this entry. This package builds directly on our earlier PR `#143` submission, `ContextFuse-2048`, and pushes the same baseline-derived path toward better compression-aware quality rather than changing the tokenizer or relying on evaluation quirks.
+`val_bpb` is the primary target for this entry. This package builds on our earlier PR `#143`, `ContextFuse-2048`, and keeps the same baseline-derived train@2048 path while adding compression-aware input features and a stronger mixed-int6 export.
 
-This is not presented as a new SOTA claim. It is a stronger, reproducible follow-up submission with three full `8x H100 SXM` runs.
+This is not presented as a new SOTA claim.
 
 ## Summary
 
 - Prior submission: PR `#143`, `ContextFuse-2048`, `val_bpb=1.17792945`
-- New canonical run: `val_bpb=1.15369190`
-- Improvement over PR `#143`: `-0.02423755` BPB
-- Three-seed mean: `1.15543586`
-- Three-seed median: `1.15369190`
+- Corrected canonical run: `val_bpb=1.15369565`
+- Improvement over PR `#143`: `-0.02423380` BPB
+- Canonical training log: `train.log`
+- Canonical corrected fixed-eval log: `train_fixed_eval_seed1337.log`
 
-## Three-Seed Results
+## Canonical Result
 
-| seed | run id | val_loss | val_bpb | steps | ms/step | train time | eval time | model bytes | standalone total bytes |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1337 | `attempt007_h100x8_pr162_safeeval_s1337` | `1.94795528` | `1.15369190` | `7113` | `82.94` | `589978ms` | `150351ms` | `15267279` | `15330779` |
-| 42 | `attempt007_h100x8_pr162_safeeval_s0042` | `1.95728867` | `1.15921967` | `6113` | `96.53` | `590062ms` | `151064ms` | `15295571` | `15359071` |
-| 7 | `attempt007_h100x8_pr162_safeeval_s0007` | `1.94745570` | `1.15339601` | `7083` | `83.30` | `590045ms` | `150441ms` | `15242469` | `15305969` |
+The canonical metric for this submission is the corrected reevaluation of the `SEED=1337` model:
 
-Notes:
-- All three runs satisfy the local hard limits: training `< 600000ms`, evaluation `< 600000ms`, artifact `< 16000000` bytes.
-- Seed `42` ran materially slower than seeds `1337` and `7`, so the three-run spread mixes seed variance and throughput variance.
-- The two normal-throughput runs (`1337`, `7`) are tightly clustered around `1.1535` BPB.
+- corrected `val_loss=1.94796677`
+- corrected `val_bpb=1.15369565`
+- original training time for this model: `589978ms`
+- corrected fixed-eval time: `150215ms`
+- compressed model bytes: `15267279`
+- standalone artifact bytes in this folder: `15331125`
+
+The corrected metric comes from re-running the saved raw checkpoint through the fixed sliding-window scorer in `train_fixed_eval_seed1337.log`.
+
+## Scoring Correction
+
+The original submission branch used a sliding-window evaluator that could emit multiple truncated tail windows and rescore the same final stride tokens more than once when `EVAL_STRIDE < TRAIN_SEQ_LEN`.
+
+This folder now fixes that bug in `train_gpt.py` by:
+
+1. generating only full windows plus at most one final tail-alignment window
+2. scoring only the globally new target span for each window instead of blindly scoring the last `stride` targets of every non-first window
+
+Because of that fix:
+
+- `train.log`, `train_seed42.log`, and `train_seed7.log` are retained as original automatically produced training logs from the pre-fix runs
+- their final `val_loss` / `val_bpb` lines should be treated as pre-fix numbers, not canonical corrected metrics
+- this package does **not** make a three-seed statistical claim after the scorer fix
+
+The submission metadata uses only the corrected canonical seed `1337` value.
 
 ## What Changed From PR #143
 
 PR `#143` (`ContextFuse-2048`) already had:
+
 - `TRAIN_SEQ_LEN=2048`
 - sliding-window final eval with `EVAL_STRIDE=64`
 - fp16 embedding preservation
 
-This follow-up adds the strongest compression-aware pieces we found that still transferred honestly:
-1. `BigramHashEmbedding` on the input path.
-2. `SmearGate` to blend each token representation with the previous token.
-3. Mixed `int6` export for large `mlp` and `attn` matrices.
-4. `MLP_HIDDEN=1536` so the int6 budget buys back a larger MLP.
-5. `MUON_WEIGHT_DECAY=0.02`.
-6. `SWA_ENABLED=1` with averaging over the late low-LR phase.
-7. Corrected control-tensor handling so only `bigram.scale` is exempted from normal quantization, not the entire bigram module.
-8. A narrower fp16 keep rule: `FP16_KEEP_NAME_PATTERNS=tok_emb,blocks.8.attn.c_k`.
+This follow-up adds the strongest compression-aware components we found that still transferred honestly:
 
-The result is a much better BPB-focused export/training stack while keeping the same challenge-valid evaluation framing.
+1. `BigramHashEmbedding` on the input path
+2. `SmearGate` to blend each token representation with the previous token
+3. mixed `int6` export for large `mlp` and `attn` matrices
+4. `MLP_HIDDEN=1536` so the int6 budget buys back a larger MLP
+5. `MUON_WEIGHT_DECAY=0.02`
+6. `SWA_ENABLED=1` over the late low-LR phase
+7. corrected control-tensor handling so only `bigram.scale` is exempted from normal quantization
+8. a narrower fp16 keep rule: `FP16_KEEP_NAME_PATTERNS=tok_emb,blocks.8.attn.c_k`
 
 ## Method Credit
 
 This submission intentionally credits the prior work it builds on:
 
-- PR `#143`: our original `ContextFuse-2048` submission.
-  - Base scaffold for train@2048, sliding eval, and fp16 embedding preservation.
-- PR `#135`:
-  - `BigramHash + SmearGate + mixed int6 + 3x MLP` as the first strong public architecture showing this family could compete near the frontier.
-- PR `#162`:
-  - `Muon WD + SWA + refined fp16 keep pattern` as the strongest method family we found after our later attempts plateaued.
-- Public record folders already in this repo:
-  - `2026-03-18_LongContextSeq2048` for long-context training.
-  - `2026-03-19_SlidingWindowEval` for richer-context evaluation.
-
-We did not blindly copy PR `#162`'s scoring path. We kept the safer local sliding-window evaluator and did not reproduce the Codex-reviewed tail-token double-count issue mentioned on that PR.
+- PR `#143`
+  - our original `ContextFuse-2048` submission
+  - base scaffold for train@2048, sliding eval, and fp16 embedding preservation
+- PR `#135`
+  - `BigramHash + SmearGate + mixed int6 + 3x MLP`
+- PR `#162`
+  - `Muon WD + SWA + refined fp16 keep pattern`
+- public record folders already in this repo
+  - `2026-03-18_LongContextSeq2048`
+  - `2026-03-19_SlidingWindowEval`
 
 ## Configuration
 
@@ -94,17 +110,15 @@ We did not blindly copy PR `#162`'s scoring path. We kept the safer local slidin
 
 ## Artifact Accounting
 
-- The included logs are the original automatically produced logs from the successful H100 runs.
-- Those logs were generated from the live Modal-launched execution snapshot, so the in-run `Code size` lines are larger than the standalone file in this folder.
-- The intended submission artifact is the standalone `train_gpt.py` in this record folder, not the Modal wrapper.
+The intended submission artifact is the standalone `train_gpt.py` in this record folder, not the Modal wrapper used during experimentation.
 
 Standalone artifact accounting for this folder:
-- `train_gpt.py`: `63500` bytes
-- canonical compressed model (`seed 1337`): `15267279` bytes
-- canonical standalone total: `15330779` bytes
-- worst standalone total across the three included runs: `15359071` bytes
 
-That leaves `640929` bytes of headroom under the `16000000` byte cap even on the largest of the three runs.
+- `train_gpt.py`: `63846` bytes
+- canonical compressed model (`seed 1337`): `15267279` bytes
+- canonical standalone total: `15331125` bytes
+
+That leaves `668875` bytes of headroom under the `16000000` byte cap.
 
 ## Reproduction Command
 
@@ -153,9 +167,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Included Files
 
-- `train_gpt.py` — standalone record-folder training/eval/export script for this recipe
-- `train.log` — canonical `SEED=1337` run
-- `train_seed42.log` — full `SEED=42` rerun
-- `train_seed7.log` — full `SEED=7` rerun
+- `train_gpt.py` — standalone record-folder training/eval/export script with the corrected sliding-window scorer
+- `train.log` — original `SEED=1337` training log from the pre-fix run
+- `train_fixed_eval_seed1337.log` — corrected exact reevaluation log for the canonical saved model
+- `train_seed42.log` — original `SEED=42` pre-fix training log, included for transparency only
+- `train_seed7.log` — original `SEED=7` pre-fix training log, included for transparency only
 - `submission.json` — metadata for the entry
 - `README.md` — this file

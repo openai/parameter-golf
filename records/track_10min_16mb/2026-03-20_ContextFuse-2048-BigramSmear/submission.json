@@ -5,43 +5,12 @@
   "author": "Julz19",
   "github_id": "Julz19",
   "canonical_seed": 1337,
-  "val_loss": 1.94795528,
-  "val_bpb": 1.15369190,
-  "seed_results": {
-    "1337": {
-      "val_loss": 1.94795528,
-      "val_bpb": 1.15369190,
-      "steps": 7113,
-      "ms_per_step": 82.94,
-      "train_time_ms": 589978,
-      "eval_time_ms": 150351,
-      "artifact_bytes": 15267279
-    },
-    "42": {
-      "val_loss": 1.95728867,
-      "val_bpb": 1.15921967,
-      "steps": 6113,
-      "ms_per_step": 96.53,
-      "train_time_ms": 590062,
-      "eval_time_ms": 151064,
-      "artifact_bytes": 15295571
-    },
-    "7": {
-      "val_loss": 1.94745570,
-      "val_bpb": 1.15339601,
-      "steps": 7083,
-      "ms_per_step": 83.30,
-      "train_time_ms": 590045,
-      "eval_time_ms": 150441,
-      "artifact_bytes": 15242469
-    }
-  },
-  "mean_val_loss": 1.95089988,
-  "mean_val_bpb": 1.15543586,
-  "median_val_bpb": 1.15369190,
-  "max_artifact_bytes": 15295571,
-  "code_bytes": 63500,
-  "bytes_total": 15330779,
-  "max_bytes_total": 15359071,
-  "blurb": "Builds on PR #143 ContextFuse-2048 with BigramHash, SmearGate, mixed int6 export, SWA, Muon weight decay, and corrected bigram control-tensor handling while keeping the safe sliding-window evaluator."
+  "val_loss": 1.94796677,
+  "val_bpb": 1.15369565,
+  "train_time_ms": 589978,
+  "eval_time_ms": 150215,
+  "artifact_bytes": 15267279,
+  "code_bytes": 63846,
+  "bytes_total": 15331125,
+  "blurb": "Builds on PR #143 ContextFuse-2048 with BigramHash, SmearGate, mixed int6 export, SWA, Muon weight decay, corrected bigram control-tensor handling, and a fixed sliding-window evaluator. The canonical metric is the corrected seed-1337 reevaluation recorded in train_fixed_eval_seed1337.log; the extra seed logs are retained for transparency only and are not used as a post-fix statistical claim."
 }

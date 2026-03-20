@@ -54,6 +54,8 @@ class Hyperparameters:
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", "32"))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    eval_only_artifact = os.environ.get("EVAL_ONLY_ARTIFACT", "")
+    load_state_dict_from = os.environ.get("LOAD_STATE_DICT_FROM", "")
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -1183,6 +1185,52 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+    if args.load_state_dict_from:
+        state_path = Path(args.load_state_dict_from)
+        if not state_path.exists():
+            raise FileNotFoundError(f"LOAD_STATE_DICT_FROM does not exist: {state_path}")
+        log0(f"load_state_dict_from:{state_path}")
+        base_model.load_state_dict(torch.load(state_path, map_location=device), strict=True)
+    if args.eval_only_artifact:
+        artifact_path = Path(args.eval_only_artifact)
+        if not artifact_path.exists():
+            raise FileNotFoundError(f"EVAL_ONLY_ARTIFACT does not exist: {artifact_path}")
+        if not artifact_path.name.endswith(".int6.ptz"):
+            raise ValueError(f"Unsupported EVAL_ONLY_ARTIFACT format: {artifact_path}")
+        log0(f"eval_only_artifact:{artifact_path}")
+        quant_blob_disk = artifact_path.read_bytes()
+        decompressed = zstd.ZstdDecompressor().decompress(quant_blob_disk) if zstd is not None else zlib.decompress(quant_blob_disk)
+        quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+        sd_template = base_model.state_dict()
+        sd_cpu = {k: v.detach().cpu() for k, v in sd_template.items()}
+        base_model.load_state_dict(dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu), strict=True)
+        torch.cuda.synchronize()
+        t_qeval = time.perf_counter()
+        if args.eval_stride <= 0:
+            raise ValueError("EVAL_ONLY_ARTIFACT requires EVAL_STRIDE > 0")
+        log0(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
+        q_val_loss, q_val_bpb = eval_val_sliding(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            stride=args.eval_stride,
+            batch_seqs=args.eval_batch_seqs,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_int6_zstd_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+        )
+        log0(f"final_int6_zstd_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+        if distributed:
+            dist.destroy_process_group()
+        return
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
@@ -1498,3 +1546,93 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.11.12 (main, May 21 2025, 23:34:13) [GCC 12.2.0]
+Running PyTorch 2.10.0+cu128
+Fri Mar 20 05:41:50 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.95.05              Driver Version: 580.95.05      CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:8D:00.0 Off |                    0 |
+| N/A   31C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:91:00.0 Off |                    0 |
+| N/A   29C    P0            118W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:95:00.0 Off |                    0 |
+| N/A   31C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:99:00.0 Off |                    0 |
+| N/A   30C    P0            117W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:AB:00.0 Off |                    0 |
+| N/A   29C    P0            116W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:AF:00.0 Off |                    0 |
+| N/A   29C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:B3:00.0 Off |                    0 |
+| N/A   30C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:B7:00.0 Off |                    0 |
+| N/A   29C    P0            116W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A               1      C   /bin/dumb-init                         1512MiB |
+|    1   N/A  N/A               1      C   /bin/dumb-init                         1512MiB |
+|    2   N/A  N/A               1      C   /bin/dumb-init                         1512MiB |
+|    3   N/A  N/A               1      C   /bin/dumb-init                         1512MiB |
+|    4   N/A  N/A               1      C   /bin/dumb-init                         1512MiB |
+|    5   N/A  N/A               1      C   /bin/dumb-init                         1512MiB |
+|    6   N/A  N/A               1      C   /bin/dumb-init                         1512MiB |
+|    7   N/A  N/A               1      C   /bin/dumb-init                         1512MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/vol/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/vol/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:22368841
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.02
+mlp_mult:2 mlp_hidden:1536
+adam_weight_decay:0.01
+muon_weight_decay:0.02
+ortho_init:True
+use_smear_gate:True bigram_vocab_size:4096 bigram_dim:128 mixed_int6_export:True int6_categories:mlp,attn
+swa_enabled:True swa_start_frac:0.500 swa_every:200
+fp16_embed_passthrough:True
+fp16_late_k_layers:0
+train_batch_tokens:786432 train_seq_len:2048 iterations:0 warmup_steps:0 max_wallclock_seconds:0.000
+seed:1337
+load_state_dict_from:/vol/runs/reeval_inputs/attempt007_h100x8_pr162_safeeval_s1337/final_model.pt
+step:0/0 val_loss:1.9768 val_bpb:1.1708 train_time:0ms step_avg:0.01ms
+peak memory allocated: 972 MiB reserved: 1436 MiB
+Serialized model: 87413467 bytes
+Code size: 66308 bytes
+Total submission size: 87479775 bytes
+Serialized model int6+zstd: 15267279 bytes
+Total submission size int6+zstd: 15333587 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32
+final_int6_zstd_roundtrip val_loss:1.9480 val_bpb:1.1537 eval_time:150215ms
+final_int6_zstd_roundtrip_exact val_loss:1.94796677 val_bpb:1.15369565
