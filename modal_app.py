@@ -14,7 +14,7 @@ import modal
 from huggingface_hub import hf_hub_download
 
 APP_NAME = "parameter-golf"
-PYTHON_VERSION = "3.12"
+PYTHON_VERSION = "3.14"
 REPO_ROOT = Path(__file__).resolve().parent
 REMOTE_PROJECT_ROOT = Path("/root/project")
 VOLUME_ROOT = Path("/vol")
@@ -184,10 +184,10 @@ def _extract_run_metrics(log_path: Path) -> dict:
             found = match
         return found.group(key) if found else None
 
-    val_loss = _last(r"final_int8_zlib_roundtrip\s+val_loss:(?P<val_loss>[-+0-9.]+)\s+val_bpb:(?P<val_bpb>[-+0-9.]+)", "val_loss")
-    val_bpb = _last(r"final_int8_zlib_roundtrip\s+val_loss:(?P<val_loss>[-+0-9.]+)\s+val_bpb:(?P<val_bpb>[-+0-9.]+)", "val_bpb")
-    submission_size = _last(r"Total submission size int8\+zlib:\s+(?P<bytes>\d+)\s+bytes", "bytes")
-    compressed_size = _last(r"Serialized model int8\+zlib:\s+(?P<bytes>\d+)\s+bytes", "bytes")
+    val_loss = _last(r"final_int8_(?:zlib|zstd)_roundtrip\s+val_loss:(?P<val_loss>[-+0-9.]+)\s+val_bpb:(?P<val_bpb>[-+0-9.]+)", "val_loss")
+    val_bpb = _last(r"final_int8_(?:zlib|zstd)_roundtrip\s+val_loss:(?P<val_loss>[-+0-9.]+)\s+val_bpb:(?P<val_bpb>[-+0-9.]+)", "val_bpb")
+    submission_size = _last(r"Total submission size int8\+(?:zlib|zstd):\s+(?P<bytes>\d+)\s+bytes", "bytes")
+    compressed_size = _last(r"Serialized model int8\+(?:zlib|zstd):\s+(?P<bytes>\d+)\s+bytes", "bytes")
     params = _last(r"model_params:(?P<params>\d+)", "params")
     submission_size_int = int(submission_size) if submission_size is not None else None
     return {
