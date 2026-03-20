@@ -291,23 +291,30 @@ def eval_val_sliding(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
-    """Sliding window evaluation: each token scored with near-maximum context."""
+    """Sliding window evaluation: each token scored with maximum context.
+
+    Windows of train_seq_len advance by eval_stride. Only the last stride tokens
+    per window contribute to the score (first window scores all). Every token
+    in the validation set is scored exactly once.
+    """
     seq_len = args.train_seq_len
     stride = args.eval_stride
     batch_seqs = args.eval_batch_seqs
     total_tokens = val_tokens.numel() - 1
 
-    # Build window starts so every token is scored exactly once
-    # Window i scores tokens [i*stride + (seq_len - stride) : i*stride + seq_len]
-    # i.e. the last `stride` tokens of each window
-    num_windows = (total_tokens - seq_len + stride) // stride
-    # Distribute windows across ranks
-    win_start = (num_windows * rank) // world_size
-    win_end = (num_windows * (rank + 1)) // world_size
+    # Build window starts; skip any too short to score a full stride
+    window_starts = [ws for ws in range(0, total_tokens, stride)
+                     if min(ws + seq_len, total_tokens) - ws >= stride]
+    total_windows = len(window_starts)
 
-    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
-    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
-    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    # Distribute across ranks
+    my_s = (total_windows * rank) // world_size
+    my_e = (total_windows * (rank + 1)) // world_size
+    my_windows = window_starts[my_s:my_e]
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     # Access the base model (unwrap DDP/compile if needed)
     base = model
@@ -316,49 +323,55 @@ def eval_val_sliding(
     while hasattr(base, "_orig_mod"):
         base = base._orig_mod
 
-    model.eval()
+    base.eval()
     with torch.inference_mode():
-        for batch_start in range(win_start, win_end, batch_seqs):
-            batch_end = min(batch_start + batch_seqs, win_end)
-            # Build input sequences for this batch of windows
-            inputs = []
-            for w in range(batch_start, batch_end):
-                tok_start = w * stride
-                tok_end = tok_start + seq_len + 1
-                if tok_end > val_tokens.numel():
-                    tok_end = val_tokens.numel()
-                    tok_start = tok_end - seq_len - 1
-                inputs.append(val_tokens[tok_start:tok_end])
-            batch = torch.stack(inputs).to(device=device, dtype=torch.int64)
-            x = batch[:, :-1]  # (B, seq_len)
-            y = batch[:, 1:]   # (B, seq_len)
+        for bi in range(0, len(my_windows), batch_seqs):
+            batch_ws = my_windows[bi:bi + batch_seqs]
+            bsz = len(batch_ws)
+
+            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            wlens: list[int] = []
+
+            for i, ws in enumerate(batch_ws):
+                end = min(ws + seq_len, total_tokens)
+                wlen = end - ws
+                wlens.append(wlen)
+                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                x_batch[i, :wlen] = chunk[:-1]
+                y_batch[i, :wlen] = chunk[1:]
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                logits = base.forward_logits(x)  # (B, seq_len, vocab)
+                logits = base.forward_logits(x_batch)
 
-            # Only score the last `stride` tokens of each window
-            score_logits = logits[:, -stride:, :].reshape(-1, logits.size(-1))
-            score_targets = y[:, -stride:].reshape(-1)
-            score_prev = x[:, -stride:].reshape(-1)
-            score_tgt = y[:, -stride:].reshape(-1)
+            nll = F.cross_entropy(
+                logits.reshape(-1, logits.size(-1)).float(),
+                y_batch.reshape(-1),
+                reduction="none",
+            ).reshape(bsz, seq_len)
 
-            per_token_loss = F.cross_entropy(score_logits.float(), score_targets, reduction="none")
-            val_loss_sum += per_token_loss.to(torch.float64).sum()
-            val_token_count += float(score_targets.numel())
-
-            token_bytes = base_bytes_lut[score_tgt].to(dtype=torch.int16)
-            token_bytes += (has_leading_space_lut[score_tgt] & ~is_boundary_token_lut[score_prev]).to(dtype=torch.int16)
-            val_byte_count += token_bytes.to(torch.float64).sum()
+            for i, ws in enumerate(batch_ws):
+                wlen = wlens[i]
+                # First window scores all tokens; others score last stride
+                s = 0 if ws == 0 else wlen - stride
+                scored_nll = nll[i, s:wlen].to(torch.float64)
+                loss_sum += scored_nll.sum()
+                token_count += float(wlen - s)
+                tgt = y_batch[i, s:wlen]
+                prev = x_batch[i, s:wlen]
+                tb = base_bytes_lut[tgt].to(torch.float64)
+                tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                byte_count += tb.sum()
 
     if dist.is_available() and dist.is_initialized():
-        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
-        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
-        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
 
-    val_loss = val_loss_sum / val_token_count
+    val_loss = loss_sum / token_count
     bits_per_token = val_loss.item() / math.log(2.0)
-    tokens_per_byte = val_token_count.item() / val_byte_count.item()
-    model.train()
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 
