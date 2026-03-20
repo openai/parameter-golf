@@ -294,13 +294,13 @@ CODE_MUTATIONS: dict[str, dict[str, list[tuple[str, str]]]] = {
     "mlx": {
         "gelu_mlp": [
             (
-                "        x = nn.relu(self.fc(x))\n        return self.proj(x * x)",
+                "        x = nn.relu(self.fc(x))\n        x = x * x\n        if self.topk_ratio >= 1.0:\n            return self.proj(x)\n\n        # Keep only top-k hidden activations per token to reduce FFN compute.\n        k = max(1, int(self.hidden_dim * self.topk_ratio))\n        flat = x.reshape(-1, self.hidden_dim)\n        # Use a per-row threshold mask to avoid non-compiled scatter paths.\n        row_sorted = mx.sort(flat, axis=-1)\n        threshold = row_sorted[:, self.hidden_dim - k][:, None]\n        keep_mask = (flat >= threshold).astype(flat.dtype)\n        sparse_flat = flat * keep_mask\n        proj_w_t = self.proj.weight.astype(sparse_flat.dtype).T\n        return (sparse_flat @ proj_w_t).reshape(*x.shape[:-1], self.proj.weight.shape[0])",
                 "        x = nn.gelu(self.fc(x))\n        return self.proj(x)",
             ),
         ],
         "silu_mlp": [
             (
-                "        x = nn.relu(self.fc(x))\n        return self.proj(x * x)",
+                "        x = nn.relu(self.fc(x))\n        x = x * x\n        if self.topk_ratio >= 1.0:\n            return self.proj(x)\n\n        # Keep only top-k hidden activations per token to reduce FFN compute.\n        k = max(1, int(self.hidden_dim * self.topk_ratio))\n        flat = x.reshape(-1, self.hidden_dim)\n        # Use a per-row threshold mask to avoid non-compiled scatter paths.\n        row_sorted = mx.sort(flat, axis=-1)\n        threshold = row_sorted[:, self.hidden_dim - k][:, None]\n        keep_mask = (flat >= threshold).astype(flat.dtype)\n        sparse_flat = flat * keep_mask\n        proj_w_t = self.proj.weight.astype(sparse_flat.dtype).T\n        return (sparse_flat @ proj_w_t).reshape(*x.shape[:-1], self.proj.weight.shape[0])",
                 "        x = nn.silu(self.fc(x))\n        return self.proj(x)",
             ),
         ],
@@ -316,7 +316,7 @@ CODE_MUTATIONS: dict[str, dict[str, list[tuple[str, str]]]] = {
         ],
         "identity_resid_mix": [
             (
-                "        mix = self.resid_mix.astype(x.dtype)\n        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0",
+                "        x = self.resid_lambda * x + self.x0_lambda * x0",
                 "        x = x",
             ),
         ],

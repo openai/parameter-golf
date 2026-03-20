@@ -174,6 +174,13 @@ class RunSearchPersistenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing mutation target"):
             run_search.apply_code_mutation("print('unchanged')\n", "cuda", "gelu_mlp")
 
+    def test_mlx_code_mutations_match_current_training_script(self) -> None:
+        script_text = Path("train_gpt_mlx.py").read_text(encoding="utf-8")
+        for mutation_name in run_search.CODE_MUTATIONS["mlx"]:
+            with self.subTest(mutation_name=mutation_name):
+                mutated = run_search.apply_code_mutation(script_text, "mlx", mutation_name)
+                self.assertNotEqual(script_text, mutated)
+
     def test_find_under_limit_candidate_retries_and_raises(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             script_path = Path(tmpdir) / "train_gpt.py"
