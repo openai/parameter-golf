@@ -1,15 +1,10 @@
 This record captures an MPK-style multi-path causal language model submission candidate for the 10-minute 16 MB track.
 
-Final submission score: `val_bpb:1.01558307` (`val_loss:2.28798722`) after the int8+zlib roundtrip.
+Correction: earlier reported BPB values in this record were invalid due to a SentencePiece leading-space accounting bug in `build_sentencepiece_luts`, where the leading-space marker check used `?` instead of `▁`.
 
-Additional supporting seeds now included:
-- `seed=1338`: `val_bpb:1.04330173` (`val_loss:2.35043404`)
-- `seed=1339`: `val_bpb:1.03281422` (`val_loss:2.32680692`)
-- `seed=1340` (clean rerun): `val_bpb:1.01452726` (`val_loss:2.28560860`)
-- `seed=1341` (clean rerun): `val_bpb:1.01359392` (`val_loss:2.28350588`)
-- 3-seed mean across `1337/1338/1339`: `val_bpb:1.03056634`
-- 2-seed mean across matched-environment clean runs `1337/1340`: `val_bpb:1.01505517`
-- 3-seed mean across matched-environment clean runs `1337/1340/1341`: `val_bpb:1.01456808`
+Corrected rerun score:
+- `seed=1341` (bug-fixed rerun): `val_bpb:1.35172182` (`val_loss:2.28232567`) after the int8+zlib roundtrip
+- Pre-quant at stop: `val_bpb:1.3495` (`val_loss:2.2785`)
 
 Trainer/model changes in this snapshot:
 - MPK model family enabled in `train_gpt.py`
@@ -53,34 +48,34 @@ TOKENIZER_PATH=/workspace/parGolfMPK/data/tokenizers/fineweb_1024_bpe.model \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
-Key metrics (from `train.log`):
-- Timed training stopped at `4108/20000` steps due to the wallclock cap.
-- Pre-quant eval at stop: `val_loss:2.2827`, `val_bpb:1.0132`
-- Post-quant roundtrip eval: `val_loss:2.28798722`, `val_bpb:1.01558307`
-- Rounded log line: `final_int8_zlib_roundtrip val_loss:2.2880 val_bpb:1.0156`
-- Timed training: `599527ms` (`step_avg:145.94ms`)
-- Final eval time after stop: `6088ms`
+Original submission log:
+- `train.log` is kept for audit/history, but its BPB values should be treated as invalid because of the marker bug above
+
+Corrected rerun metrics (from `mpk_seed_1341_bpbfix.txt`):
+- Timed training stopped at `4101/20000` steps due to the wallclock cap
+- Pre-quant eval at stop: `val_loss:2.2785`, `val_bpb:1.3495`
+- Post-quant roundtrip eval: `val_loss:2.28232567`, `val_bpb:1.35172182`
+- Timed training: `599986ms` (`step_avg:146.30ms`)
+- Final eval time after stop: `6173ms`
 - Peak memory: `19867 MiB allocated`, `20514 MiB reserved`
-- Serialized model int8+zlib: `14518775 bytes`
-- Code size: `59498 bytes`
-- Total submission size int8+zlib: `14578273 bytes`
+- Serialized model int8+zlib: `14529900 bytes`
+- Code size: `59500 bytes`
+- Total submission size int8+zlib: `14589400 bytes`
 
 Training volume:
 - Global batch: `524288` tokens/step
 - Total train tokens seen before cap: `2153775104`
 
-Supporting seeds:
-- `mpk_seed_1338.txt`: slower host / non-template rerun with a compatibility patch for hosts whose PyTorch lacked native `enable_gqa`; stopped at `2146` steps and finished at `val_bpb:1.04330173`
-- `mpk_seed_1339.txt`: same slower environment / compatibility setup; stopped at `2480` steps and finished at `val_bpb:1.03281422`
-- These runs were gathered after accidentally provisioning a fresh 8x H100 instance without the exact prior par-golf template environment, which reduced throughput versus the original `145.94ms` step average run
-- `mpk_seed_1340_clean.txt`: clean rerun on the correct native-GQA environment; stopped at `4094` steps with `step_avg:146.50ms` and finished at `val_bpb:1.01452726`, closely matching the original `1.01558307` run
-- `mpk_seed_1341_clean.txt`: second clean matched-environment rerun; stopped at `4093` steps with `step_avg:146.57ms` and finished at `val_bpb:1.01359392`
+Superseded logs:
+- `mpk_seed_1338.txt`, `mpk_seed_1339.txt`, `mpk_seed_1340_clean.txt`, and `mpk_seed_1341_clean.txt` were generated before the SentencePiece marker bug was corrected, so their BPB values are also invalid
+- They are retained only as audit artifacts showing the pre-correction evaluation history
 
 Included files:
-- `train_gpt.py` (MPK trainer snapshot used for the run)
-- `train.log` (remote training log for the timed run)
-- `mpk_seed_1338.txt` (supporting seed log)
-- `mpk_seed_1339.txt` (supporting seed log)
-- `mpk_seed_1340_clean.txt` (clean matched-environment supporting seed log)
-- `mpk_seed_1341_clean.txt` (clean matched-environment supporting seed log)
-- `submission.json` (leaderboard metadata)
+- `train_gpt.py` (corrected trainer snapshot with the `▁` marker fix)
+- `train.log` (original timed run log; BPB values invalid due to the bug)
+- `mpk_seed_1338.txt` (pre-correction audit log)
+- `mpk_seed_1339.txt` (pre-correction audit log)
+- `mpk_seed_1340_clean.txt` (pre-correction audit log)
+- `mpk_seed_1341_clean.txt` (pre-correction audit log)
+- `mpk_seed_1341_bpbfix.txt` (corrected bug-fixed rerun log)
+- `submission.json` (corrected leaderboard metadata)

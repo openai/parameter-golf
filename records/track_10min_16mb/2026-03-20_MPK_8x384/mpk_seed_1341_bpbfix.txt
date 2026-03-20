@@ -1,88 +1,64 @@
 """
-The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
-
-Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
-"""
-
-from __future__ import annotations
-
-import copy
-import glob
-import io
-import math
-import os
-import random
-import subprocess
-import sys
-import time
-import uuid
-import zlib
-from pathlib import Path
-
-import numpy as np
-import sentencepiece as spm
-import torch
-import torch.distributed as dist
-import torch.nn.functional as F
-from tqdm.auto import tqdm
-from torch import Tensor, nn
-from torch.nn.parallel import DistributedDataParallel as DDP
-
-# -----------------------------
-# HYPERPARAMETERS
-# -----------------------------
-# Default Simple Baseline run:
-# - 9 transformer blocks at width 512
-# - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
-# - vocab size 1024, sequence length 1024, tied embeddings
-# - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
-
-class Hyperparameters:
-    # Data paths are shard globs produced by the existing preprocessing pipeline.
-    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
-    train_files = os.path.join(data_path, "fineweb_train_*.bin")
-    val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
-    run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
-    seed = int(os.environ.get("SEED", 1337))
-
-    # Validation cadence and batch size. Validation always uses the full fineweb_val split.
-    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
-    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
-    max_val_tokens = int(os.environ.get("MAX_VAL_TOKENS", 0))
-    verbose_progress = bool(int(os.environ.get("VERBOSE_PROGRESS", "0")))
-
-    # Training length.
-    iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    compile_model = bool(int(os.environ.get("COMPILE_MODEL", "1")))
-    compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
-    sdp_backend = os.environ.get("SDP_BACKEND", "auto").strip().lower()
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
-
-    # Model shape.
-    model_family = os.environ.get("MODEL_FAMILY", "baseline").strip().lower()
-    vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 2))
-    mpk_k_stride = int(os.environ.get("MPK_K_STRIDE", 2))
-    mpk_m_stride = int(os.environ.get("MPK_M_STRIDE", 4))
-    tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
-    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-
-    # Optimizer hyperparameters.
-    embed_lr = float(os.environ.get("EMBED_LR", 0.6))
-    head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
+The `train_gpt.py` and `trval_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:16923712
+model_family:mpk
+world_size:8 grad_accum_steps:1
+compile_model:False compile_fullgraph:True
+verbose_progress:False
+sdp_backend:flash
+attention_mode:gqa num_heads:8 num_kv_heads:4
+mpk_strides:k=2 m=4
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:0 max_wallclock_seconds:600.000
+seed:1341
+step:0/20000 val_loss:6.9317 val_bpb:4.1054 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9321 train_time:641ms step_avg:641.42ms
+step:2/20000 train_loss:6.3044 train_time:849ms step_avg:424.28ms
+step:3/20000 train_loss:6.1952 train_time:1044ms step_avg:347.96ms
+step:4/20000 train_loss:6.0199 train_time:1212ms step_avg:303.04ms
+step:5/20000 train_loss:5.7523 train_time:1388ms step_avg:277.56ms
+step:6/20000 train_loss:5.5210 train_time:1544ms step_avg:257.38ms
+step:7/20000 train_loss:5.1530 train_time:1860ms step_avg:265.68ms
+step:8/20000 train_loss:4.9924 train_time:2028ms step_avg:253.56ms
+step:9/20000 train_loss:4.8735 train_time:2197ms step_avg:244.09ms
+step:10/20000 train_loss:4.7660 train_time:2358ms step_avg:235.81ms
+step:200/20000 train_loss:3.0579 train_time:30141ms step_avg:150.71ms
+step:400/20000 train_loss:2.5696 train_time:59298ms step_avg:148.25ms
+step:600/20000 train_loss:2.7550 train_time:88537ms step_avg:147.56ms
+step:800/20000 train_loss:2.4853 train_time:117728ms step_avg:147.16ms
+step:1000/20000 train_loss:2.5455 train_time:147072ms step_avg:147.07ms
+step:1000/20000 val_loss:2.5236 val_bpb:1.4946 train_time:147120ms step_avg:147.12ms
+step:1200/20000 train_loss:2.5674 train_time:176288ms step_avg:146.91ms
+step:1400/20000 train_loss:2.5991 train_time:205479ms step_avg:146.77ms
+step:1600/20000 train_loss:2.2692 train_time:234620ms step_avg:146.64ms
+step:1800/20000 train_loss:2.3745 train_time:263844ms step_avg:146.58ms
+step:2000/20000 train_loss:2.4190 train_time:293187ms step_avg:146.59ms
+step:2000/20000 val_loss:2.4075 val_bpb:1.4259 train_time:293210ms step_avg:146.61ms
+step:2200/20000 train_loss:2.2574 train_time:322319ms step_avg:146.51ms
+step:2400/20000 train_loss:2.3680 train_time:351619ms step_avg:146.51ms
+step:2600/20000 train_loss:2.5678 train_time:380833ms step_avg:146.47ms
+step:2800/20000 train_loss:2.4166 train_time:409987ms step_avg:146.42ms
+step:3000/20000 train_loss:2.3981 train_time:439166ms step_avg:146.39ms
+step:3000/20000 val_loss:2.3659 val_bpb:1.4012 train_time:439188ms step_avg:146.40ms
+step:3200/20000 train_loss:2.3483 train_time:468297ms step_avg:146.34ms
+step:3400/20000 train_loss:2.3036 train_time:497439ms step_avg:146.31ms
+step:3600/20000 train_loss:2.2558 train_time:526575ms step_avg:146.27ms
+step:3800/20000 train_loss:2.3439 train_time:555726ms step_avg:146.24ms
+step:4000/20000 train_loss:2.2717 train_time:584937ms step_avg:146.23ms
+step:4000/20000 val_loss:2.2823 val_bpb:1.3517 train_time:585201ms step_avg:146.30ms
+step:4101/20000 val_loss:2.2785 val_bpb:1.3495 train_time:599986ms step_avg:146.30ms
+stopping_early: wallclock_cap train_time:599986ms step:4101/20000
+peak memory allocated: 19867 MiB reserved: 20514 MiB
+Serialized model: 66952697 bytes
+Code size: 59500 bytes
+Total submission size: 67012197 bytes
+Serialized model int8+zlib: 14529900 bytes (payload:17039616 raw_torch:17098187 payload_ratio:3.93x)
+Total submission size int8+zlib: 14589400 bytes
+final_int8_zlib_roundtrip val_loss:2.2823 val_bpb:1.3517 eval_time:6173ms
+final_int8_zlib_roundtrip_exact val_loss:2.28232567 val_bpb:1.35172182
+"TIED_EMBED_LR", 0.05))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
@@ -1429,3 +1405,123 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Fri Mar 20 03:44:05 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:18:00.0 Off |                    0 |
+| N/A   29C    P0            117W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:2A:00.0 Off |                    0 |
+| N/A   30C    P0            122W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:3A:00.0 Off |                    0 |
+| N/A   30C    P0            117W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   26C    P0            113W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9A:00.0 Off |                    0 |
+| N/A   26C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:AB:00.0 Off |                    0 |
+| N/A   29C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:BA:00.0 Off |                    0 |
+| N/A   28C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   27C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            3913      C   /usr/local/bin/python                  1512MiB |
+|    1   N/A  N/A            3914      C   /usr/local/bin/python                  1512MiB |
+|    2   N/A  N/A            3915      C   /usr/local/bin/python                  1512MiB |
+|    3   N/A  N/A            3916      C   /usr/local/bin/python                  1512MiB |
+|    4   N/A  N/A            3917      C   /usr/local/bin/python                  1512MiB |
+|    5   N/A  N/A            3918      C   /usr/local/bin/python                  1512MiB |
+|    6   N/A  N/A            3919      C   /usr/local/bin/python                  1512MiB |
+|    7   N/A  N/A            3920      C   /usr/local/bin/python                  1512MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:16923712
+model_family:mpk
+world_size:8 grad_accum_steps:1
+compile_model:False compile_fullgraph:True
+verbose_progress:False
+sdp_backend:flash
+attention_mode:gqa num_heads:8 num_kv_heads:4
+mpk_strides:k=2 m=4
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:0 max_wallclock_seconds:600.000
+seed:1341
+step:0/20000 val_loss:6.9317 val_bpb:4.1054 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9321 train_time:641ms step_avg:641.42ms
+step:2/20000 train_loss:6.3044 train_time:849ms step_avg:424.28ms
+step:3/20000 train_loss:6.1952 train_time:1044ms step_avg:347.96ms
+step:4/20000 train_loss:6.0199 train_time:1212ms step_avg:303.04ms
+step:5/20000 train_loss:5.7523 train_time:1388ms step_avg:277.56ms
+step:6/20000 train_loss:5.5210 train_time:1544ms step_avg:257.38ms
+step:7/20000 train_loss:5.1530 train_time:1860ms step_avg:265.68ms
+step:8/20000 train_loss:4.9924 train_time:2028ms step_avg:253.56ms
+step:9/20000 train_loss:4.8735 train_time:2197ms step_avg:244.09ms
+step:10/20000 train_loss:4.7660 train_time:2358ms step_avg:235.81ms
+step:200/20000 train_loss:3.0579 train_time:30141ms step_avg:150.71ms
+step:400/20000 train_loss:2.5696 train_time:59298ms step_avg:148.25ms
+step:600/20000 train_loss:2.7550 train_time:88537ms step_avg:147.56ms
+step:800/20000 train_loss:2.4853 train_time:117728ms step_avg:147.16ms
+step:1000/20000 train_loss:2.5455 train_time:147072ms step_avg:147.07ms
+step:1000/20000 val_loss:2.5236 val_bpb:1.4946 train_time:147120ms step_avg:147.12ms
+step:1200/20000 train_loss:2.5674 train_time:176288ms step_avg:146.91ms
+step:1400/20000 train_loss:2.5991 train_time:205479ms step_avg:146.77ms
+step:1600/20000 train_loss:2.2692 train_time:234620ms step_avg:146.64ms
+step:1800/20000 train_loss:2.3745 train_time:263844ms step_avg:146.58ms
+step:2000/20000 train_loss:2.4190 train_time:293187ms step_avg:146.59ms
+step:2000/20000 val_loss:2.4075 val_bpb:1.4259 train_time:293210ms step_avg:146.61ms
+step:2200/20000 train_loss:2.2574 train_time:322319ms step_avg:146.51ms
+step:2400/20000 train_loss:2.3680 train_time:351619ms step_avg:146.51ms
+step:2600/20000 train_loss:2.5678 train_time:380833ms step_avg:146.47ms
+step:2800/20000 train_loss:2.4166 train_time:409987ms step_avg:146.42ms
+step:3000/20000 train_loss:2.3981 train_time:439166ms step_avg:146.39ms
+step:3000/20000 val_loss:2.3659 val_bpb:1.4012 train_time:439188ms step_avg:146.40ms
+step:3200/20000 train_loss:2.3483 train_time:468297ms step_avg:146.34ms
+step:3400/20000 train_loss:2.3036 train_time:497439ms step_avg:146.31ms
+step:3600/20000 train_loss:2.2558 train_time:526575ms step_avg:146.27ms
+step:3800/20000 train_loss:2.3439 train_time:555726ms step_avg:146.24ms
+step:4000/20000 train_loss:2.2717 train_time:584937ms step_avg:146.23ms
+step:4000/20000 val_loss:2.2823 val_bpb:1.3517 train_time:585201ms step_avg:146.30ms
+step:4101/20000 val_loss:2.2785 val_bpb:1.3495 train_time:599986ms step_avg:146.30ms
+stopping_early: wallclock_cap train_time:599986ms step:4101/20000
+peak memory allocated: 19867 MiB reserved: 20514 MiB
+Serialized model: 66952697 bytes
+Code size: 59500 bytes
+Total submission size: 67012197 bytes
+Serialized model int8+zlib: 14529900 bytes (payload:17039616 raw_torch:17098187 payload_ratio:3.93x)
+Total submission size int8+zlib: 14589400 bytes
+final_int8_zlib_roundtrip val_loss:2.2823 val_bpb:1.3517 eval_time:6173ms
+final_int8_zlib_roundtrip_exact val_loss:2.28232567 val_bpb:1.35172182
