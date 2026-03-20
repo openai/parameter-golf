@@ -1274,8 +1274,8 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
-        # SWA: accumulate weight average
-        if args.swa_every > 0 and (step + 1) % args.swa_every == 0:
+        # SWA: accumulate weight average (only after model has trained sufficiently)
+        if args.swa_every > 0 and step >= 200 and (step + 1) % args.swa_every == 0:
             sd = base_model.state_dict()
             if swa_state is None:
                 swa_state = {k: v.detach().clone().float() for k, v in sd.items() if "adapter" not in k}
