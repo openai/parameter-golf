@@ -17,7 +17,7 @@
   },
 
   "moe": {
-    "num_experts": 1,
+    "num_experts": 8,
     "activation": "relu2",
     "routing": "modulo",
     "mlp_mult": 2
