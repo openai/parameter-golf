@@ -842,11 +842,6 @@ class BatchedTTTLoRA(nn.Module):
         dim = model.tok_emb.embedding_dim
         vocab = model.tok_emb.num_embeddings
         self.lm_lora = BatchedLinearLoRA(bsz, dim, vocab, rank)
-        self.q_loras = nn.ModuleList()
-        self.v_loras = nn.ModuleList()
-        for blk in model.blocks:
-            self.q_loras.append(BatchedLinearLoRA(bsz, dim, blk.attn.c_q.weight.shape[0], rank))
-            self.v_loras.append(BatchedLinearLoRA(bsz, dim, blk.attn.c_v.weight.shape[0], rank))
     def reset(self) -> None:
         for m in self.modules():
             if isinstance(m, BatchedLinearLoRA):
@@ -919,26 +914,27 @@ def eval_val_ttt_lora(
                 chunk = all_tokens[ds + ws:ds + ws + wl + 1].to(dtype=torch.int64, device=device)
                 x[b, :wl] = chunk[:-1]; y[b, :wl] = chunk[1:]
                 dinfo.append((lco, lcl))
-            # Forward with LoRA
-            xemb = base_model.tok_emb(x)
-            if base_model.bigram is not None:
-                xemb = xemb + base_model.bigram(x)
-            xemb = F.rms_norm(xemb, (xemb.size(-1),))
-            xemb = base_model.smear(xemb)
-            h, x0 = xemb, xemb
-            skips = []
-            for i in range(base_model.num_encoder_layers):
-                h = base_model.blocks[i](h, x0); skips.append(h)
-            for i in range(base_model.num_decoder_layers):
-                if skips:
-                    h = h + base_model.skip_weights[i].to(dtype=h.dtype)[None, None, :] * skips.pop()
-                h = base_model.blocks[base_model.num_encoder_layers + i](h, x0)
-            h = base_model.final_norm(h)
-            if base_model.tie_embeddings:
-                logits = F.linear(h, base_model.tok_emb.weight.to(h.dtype))
-            else:
-                logits = base_model.lm_head(h)
-            logits = logits + lora.lm_lora(h)
+            # Forward with LoRA (eager mode, no compile)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                xemb = base_model.tok_emb(x)
+                if base_model.bigram is not None:
+                    xemb = xemb + base_model.bigram(x)
+                xemb = F.rms_norm(xemb, (xemb.size(-1),))
+                xemb = base_model.smear(xemb)
+                h, x0 = xemb, xemb
+                skips_l: list[Tensor] = []
+                for i in range(base_model.num_encoder_layers):
+                    h = base_model.blocks[i](h, x0); skips_l.append(h)
+                for i in range(base_model.num_decoder_layers):
+                    if skips_l:
+                        h = h + base_model.skip_weights[i].to(dtype=h.dtype)[None, None, :] * skips_l.pop()
+                    h = base_model.blocks[base_model.num_encoder_layers + i](h, x0)
+                h = base_model.final_norm(h)
+                if base_model.tie_embeddings:
+                    logits = F.linear(h, base_model.tok_emb.weight.to(h.dtype))
+                else:
+                    logits = base_model.lm_head(h)
+            logits = logits + lora.lm_lora(h.float())
             logits = base_model.logit_softcap * torch.tanh(logits / base_model.logit_softcap)
             ptl = F.cross_entropy(logits.float().transpose(1, 2), y, reduction="none")
             with torch.no_grad():
@@ -1374,6 +1370,8 @@ def main() -> None:
     torch.cuda.synchronize()
     t_ttt = time.perf_counter()
     log0("Starting LoRA TTT evaluation...")
+    # Reset dynamo so blocks run in eager mode for LoRA TTT
+    torch._dynamo.reset()
     ttt_loss, ttt_bpb = eval_val_ttt_lora(
         args, base_model, rank, world_size, device,
         base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
