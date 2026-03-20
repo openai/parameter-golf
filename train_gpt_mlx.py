@@ -35,11 +35,12 @@ COMPUTE_DTYPE = mx.bfloat16
 # ==============================================================================
 # HYPERPARAMETERS
 # ==============================================================================
-# Default Simple Baseline run:
-# - 9 transformer blocks at width 512
-# - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
-# - vocab size 1024, sequence length 1024, tied embeddings
+# Consensus stack run (based on frontier PR analysis):
+# - 11 transformer blocks at width 512
+# - 8 attention heads with 4 KV heads (GQA) and 3x MLP expansion (SwiGLU-optimal)
+# - vocab size 1024, sequence length 2048, tied embeddings
 # - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
+# - SmearGate, SWA, Muon WD=0.038, int6 QAT, FP16 embedding passthrough
 class Hyperparameters:
     # Data / tokenizer.
     data_path: str = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
@@ -55,7 +56,7 @@ class Hyperparameters:
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
-    train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", os.environ.get("TRAIN_MAX_SEQ_LEN", 1024)))
+    train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", os.environ.get("TRAIN_MAX_SEQ_LEN", 2048)))
     # Chunk each logical MLX microbatch into smaller sub-batches to reduce peak
     # memory pressure without changing the effective optimizer batch.
     mlx_max_microbatch_tokens: int = int(os.environ.get("MLX_MAX_MICROBATCH_TOKENS", 8_192))
@@ -67,17 +68,17 @@ class Hyperparameters:
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
 
-    # Model (defaults match the current baseline setup).
+    # Model (consensus stack defaults).
     vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers: int = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers: int = int(os.environ.get("NUM_LAYERS", 11))
     model_dim: int = int(os.environ.get("MODEL_DIM", 512))
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
-    mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
+    mlp_mult: int = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     logit_chunk_tokens: int = int(os.environ.get("LOGIT_CHUNK_TOKENS", 0))
-    logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 20.0))
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     qk_gain_init: float = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -93,6 +94,15 @@ class Hyperparameters:
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    muon_weight_decay: float = float(os.environ.get("MUON_WEIGHT_DECAY", 0.038))
+
+    # Stochastic Weight Averaging: average checkpoints during warmdown.
+    swa_enabled: bool = bool(int(os.environ.get("SWA_ENABLED", "1")))
+    swa_every: int = int(os.environ.get("SWA_EVERY", 50))
+
+    # Int6 QAT: simulate 6-bit quantization during training with STE.
+    qat_enabled: bool = bool(int(os.environ.get("QAT_ENABLED", "1")))
+    qat_bits: int = int(os.environ.get("QAT_BITS", 6))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 
@@ -281,9 +291,13 @@ class CastedLinear(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super().__init__()
         self.weight = nn.Linear(in_dim, out_dim, bias=False).weight.astype(mx.float32)
+        self.qat_bits = 0  # 0 = disabled; set by GPT.__init__ when QAT is enabled
 
     def __call__(self, x: mx.array) -> mx.array:
-        return x @ self.weight.astype(x.dtype).T
+        w = self.weight
+        if self.qat_bits > 0 and self.training:
+            w = fake_quantize(w, self.qat_bits)
+        return x @ w.astype(x.dtype).T
 
 
 class RMSNormNoWeight(nn.Module):
@@ -338,6 +352,29 @@ class CausalSelfAttention(nn.Module):
         return self.proj(y)
 
 
+class SmearGate(nn.Module):
+    """Blend each token's embedding with the previous token's embedding via a learned gate.
+    From modded-nanogpt record #34. Zero-initialized so it starts as a no-op."""
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gate_weight = mx.zeros((1, dim), dtype=mx.float32)
+
+    def __call__(self, x: mx.array) -> mx.array:
+        gate = mx.sigmoid(self.gate_weight.astype(x.dtype))
+        x_shift = mx.concatenate([mx.zeros_like(x[:, :1, :]), x[:, :-1, :]], axis=1)
+        return x * (1 - gate) + x_shift * gate
+
+
+def fake_quantize(w: mx.array, bits: int = 6) -> mx.array:
+    """Simulate low-bit quantization with straight-through estimator (STE).
+    Forward: quantize then dequantize. Backward: gradient passes through as-is."""
+    qmax = (1 << (bits - 1)) - 1  # 31 for 6-bit
+    abs_max = mx.max(mx.abs(w), axis=-1, keepdims=True)
+    scale = mx.maximum(abs_max / qmax, mx.array(1e-8))
+    w_q = mx.clip(mx.round(w / scale), -qmax, qmax)
+    return mx.stop_gradient(w_q * scale - w) + w  # STE: forward uses quantized, backward uses original
+
+
 class MLP(nn.Module):
     # Baseline MLP uses relu^2 instead of GELU/SiLU. It is cheap and works well in this setup.
     def __init__(self, dim: int, mlp_mult: int):
@@ -386,14 +423,17 @@ class GPT(nn.Module):
     # - tied embeddings for the LM head (the baseline default setup)
     def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
-                 qk_gain_init: float):
+                 qk_gain_init: float, qat_enabled: bool = False, qat_bits: int = 6):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         self.logit_chunk_tokens = logit_chunk_tokens
         self.logit_softcap = logit_softcap
+        self.qat_enabled = qat_enabled
+        self.qat_bits = qat_bits
 
         self.tok_emb = nn.Embedding(vocab_size, dim)
+        self.smear_gate = SmearGate(dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -411,12 +451,19 @@ class GPT(nn.Module):
             mx.random.normal(self.tok_emb.weight.shape, dtype=mx.float32) * tied_embed_init_std
         ).astype(COMPUTE_DTYPE)
 
+        # Propagate QAT bits to all CastedLinear layers
+        if qat_enabled:
+            for b in self.blocks:
+                for layer in [b.attn.c_q, b.attn.c_k, b.attn.c_v, b.attn.proj, b.mlp.fc, b.mlp.proj]:
+                    layer.qat_bits = qat_bits
+
     def softcap(self, logits: mx.array) -> mx.array:
         c = self.logit_softcap
         return c * mx.tanh(logits / c)
 
     def __call__(self, input_ids: mx.array) -> mx.array:
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
+        x = self.smear_gate(x)
         x0 = x
         skips: list[mx.array] = []
 
@@ -424,9 +471,6 @@ class GPT(nn.Module):
             x = self.blocks[i](x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
-            # Odd layer counts have one more decoder block than encoder block. The baseline only
-            # applies a skip connection when one exists, then runs the remaining decoder block(s)
-            # without an added skip.
             if skips:
                 x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
@@ -469,6 +513,7 @@ class Muon:
         else:
             momentum = self.args.muon_momentum
         lr = self.args.matrix_lr * lr_mul
+        wd = self.args.muon_weight_decay
         out: dict[str, mx.array] = {}
         for k in self.keys:
             p = params[k]
@@ -478,7 +523,10 @@ class Muon:
             g_eff = g + momentum * buf
             g_ortho = zeropower_newtonschulz5(g_eff, self.args.muon_backend_steps)
             scale = math.sqrt(max(1.0, float(p.shape[0]) / float(p.shape[1])))
-            out[k] = p - lr * (g_ortho * scale).astype(p.dtype)
+            updated = p - lr * (g_ortho * scale).astype(p.dtype)
+            if wd > 0:
+                updated = updated * (1.0 - lr * wd)
+            out[k] = updated
         return out
 
 
@@ -499,7 +547,7 @@ class SplitOptimizers:
         self.scalar_keys = [
             k
             for k, p in params.items()
-            if k == "skip_weights" or (k.startswith("blocks.") and (p.ndim < 2 or any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)))
+            if k in ("skip_weights", "smear_gate.gate_weight") or (k.startswith("blocks.") and (p.ndim < 2 or any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)))
         ]
 
         self.muon = Muon(self.matrix_keys, params, args)
@@ -553,6 +601,9 @@ MX_DTYPE_FROM_NAME = {
 }
 
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
+# FP16 embedding passthrough: embedding weights are kept in FP16 (never quantized to int8)
+# because the tied embedding is the most quantization-sensitive layer.
+FP16_EMBED_PASSTHROUGH = bool(int(os.environ.get("FP16_EMBED_PASSTHROUGH", "1")))
 INT8_KEEP_FLOAT_STORE_DTYPE = np.float16
 INT8_PER_ROW_SCALE_DTYPE = np.float16
 INT8_CLIP_PERCENTILE = 99.99984
@@ -609,6 +660,13 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = np.ascontiguousarray(np.array(arr))
             stats["int8_payload_bytes"] += int(passthrough[name].nbytes)
+            continue
+
+        # FP16 embedding passthrough: keep embedding weights in fp16 (never int8).
+        if FP16_EMBED_PASSTHROUGH and "tok_emb" in name:
+            kept = keep_float_array(name, arr, passthrough_orig_dtypes)
+            passthrough[name] = kept
+            stats["int8_payload_bytes"] += int(kept.nbytes)
             continue
 
         # Small float tensors are cheap enough to keep directly. We still downcast
@@ -897,6 +955,8 @@ def main() -> None:
         rope_base=args.rope_base,
         tied_embed_init_std=args.tied_embed_init_std,
         qk_gain_init=args.qk_gain_init,
+        qat_enabled=args.qat_enabled,
+        qat_bits=args.qat_bits,
     )
     opt = SplitOptimizers(model, args)
 
@@ -995,6 +1055,11 @@ def main() -> None:
 
         train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
 
+    # SWA: accumulate weight snapshots during warmdown for averaging
+    swa_count = 0
+    swa_state: dict[str, mx.array] | None = None
+    in_warmdown = False
+
     train_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     stop_after_step: int | None = None
@@ -1044,6 +1109,20 @@ def main() -> None:
         opt.step(model, grads, step=step, lr_mul=lr_mul)
         mx.synchronize()
 
+        # SWA: accumulate snapshots during warmdown phase
+        if args.swa_enabled and lr_mul < 1.0:
+            if not in_warmdown:
+                in_warmdown = True
+                log(f"swa:warmdown_started step:{step + 1}")
+            if (step + 1) % args.swa_every == 0:
+                flat = {k: v for k, v in tree_flatten(model.state)}
+                if swa_state is None:
+                    swa_state = {k: v.astype(mx.float32) for k, v in flat.items()}
+                else:
+                    for k, v in flat.items():
+                        swa_state[k] = swa_state[k] + v.astype(mx.float32)
+                swa_count += 1
+
         step_ms = 1000.0 * (time.perf_counter() - step_t0)
         approx_train_time_ms = train_time_ms + 1000.0 * (time.perf_counter() - t0)
         tok_s = args.train_batch_tokens / (step_ms / 1000.0)
@@ -1055,6 +1134,25 @@ def main() -> None:
             )
         if max_wallclock_ms is not None and stop_after_step is None and approx_train_time_ms >= max_wallclock_ms:
             stop_after_step = step
+
+    # ==============================================================================
+    # SWA: APPLY AVERAGED WEIGHTS
+    # ==============================================================================
+    if args.swa_enabled and swa_state is not None and swa_count > 0:
+        log(f"swa:applying averaged weights from {swa_count} snapshots")
+        averaged = {k: (v / swa_count).astype(model.state[k].dtype if hasattr(model.state, '__getitem__') else mx.bfloat16)
+                    for k, v in swa_state.items()}
+        # Blend: 70% final weights + 30% SWA (optimal from slowrun research)
+        final_flat = {k: v for k, v in tree_flatten(model.state)}
+        blended = {}
+        for k in averaged:
+            if k in final_flat:
+                avg_cast = averaged[k].astype(final_flat[k].dtype)
+                blended[k] = 0.7 * final_flat[k] + 0.3 * avg_cast
+            else:
+                blended[k] = averaged[k]
+        model.update(tree_unflatten(list(blended.items())))
+        log(f"swa:blended 0.7*final + 0.3*swa")
 
     # ==============================================================================
     # FINAL SERIALIZATION + QUANTIZED ROUNDTRIP EVAL
