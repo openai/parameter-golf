@@ -12,7 +12,7 @@
   },
   "mean_val_loss": 1.56582144,
   "mean_val_bpb": 0.92737011,
-  "artifact_bytes": 15772817,
-  "code_bytes": 58486,
-  "notes": "Val-only training (trains on fineweb_val_*.bin). Sliding window BPB with stride=64. Non-record submission — included as an aside to demonstrate val-only approach. artifact_bytes shown is from seed 1337; all seeds under 16MB (max: 15,772,817)."
+  "bytes_total": 15772817,
+  "bytes_code": 58486,
+  "notes": "Val-only training (trains on fineweb_val_*.bin). Sliding window BPB with stride=64. Non-record submission — included as an aside to demonstrate val-only approach. bytes_total shown is from seed 1337; all seeds under 16MB (max: 15,772,817)."
 }

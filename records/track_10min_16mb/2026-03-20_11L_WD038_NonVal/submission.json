@@ -13,7 +13,7 @@
   "mean_val_loss": 1.93705309,
   "mean_val_bpb": 1.14723498,
   "p_value": 0.0008,
-  "artifact_bytes": 15696856,
-  "code_bytes": 58486,
-  "notes": "Standard training (trains on fineweb_train_*.bin). Sliding window BPB with stride=64. artifact_bytes shown is from seed 1337; all seeds under 16MB (max: 15,905,331)."
+  "bytes_total": 15696856,
+  "bytes_code": 58486,
+  "notes": "Standard training (trains on fineweb_train_*.bin). Sliding window BPB with stride=64. bytes_total shown is from seed 1337; all seeds under 16MB (max: 15,905,331)."
 }
