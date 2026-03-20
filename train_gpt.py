@@ -70,16 +70,16 @@ class Hyperparameters:
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", str(_T.get("val_loss_every", 1000))))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
-    iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    iterations = int(os.environ.get("ITERATIONS", str(_T.get("iterations", 20000))))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", str(_T.get("warmdown_iters", 1200))))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", str(_T.get("warmup_steps", 20))))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", str(_T.get("train_batch_tokens", 524_288))))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", str(_T.get("train_seq_len", 1024))))
+    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", str(_T.get("max_wallclock_seconds", 600.0))))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
@@ -115,20 +115,20 @@ class Hyperparameters:
     lr_min_ratio = float(os.environ.get("LR_MIN_RATIO", str(_T.get("lr_min_ratio", 0.01))))
 
     # Optimizer hyperparameters.
-    embed_lr = float(os.environ.get("EMBED_LR", 0.6))
-    head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
-    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
-    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
-    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
-    beta1 = float(os.environ.get("BETA1", 0.9))
-    beta2 = float(os.environ.get("BETA2", 0.95))
-    adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    embed_lr = float(os.environ.get("EMBED_LR", str(_O.get("embed_lr", 0.6))))
+    head_lr = float(os.environ.get("HEAD_LR", str(_O.get("head_lr", 0.008))))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", str(_O.get("tied_embed_lr", 0.05))))
+    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", str(_M.get("tied_embed_init_std", 0.005))))
+    matrix_lr = float(os.environ.get("MATRIX_LR", str(_O.get("matrix_lr", 0.04))))
+    scalar_lr = float(os.environ.get("SCALAR_LR", str(_O.get("scalar_lr", 0.04))))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", str(_O.get("muon_momentum", 0.95))))
+    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", str(_O.get("muon_backend_steps", 5))))
+    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", str(_O.get("muon_momentum_warmup_start", 0.85))))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", str(_O.get("muon_momentum_warmup_steps", 500))))
+    beta1 = float(os.environ.get("BETA1", str(_O.get("beta1", 0.9))))
+    beta2 = float(os.environ.get("BETA2", str(_O.get("beta2", 0.95))))
+    adam_eps = float(os.environ.get("ADAM_EPS", str(_O.get("adam_eps", 1e-8))))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", str(_O.get("grad_clip_norm", 0.0))))
     weight_decay = float(os.environ.get("WEIGHT_DECAY", str(_O.get("weight_decay", 0.04))))
 
     # Test-time training (LoRA) hyperparameters.
@@ -664,19 +664,19 @@ class TokenRoutedMLP(nn.Module):
     def forward(self, x: Tensor, expert_ids: Tensor) -> Tensor:
         bsz, seq, _ = x.shape
         flat_x = x.reshape(-1, self.dim)
-        # Mask multiply: fullgraph=True safe, torch.compile unrolls the loop
         flat_ids = expert_ids.reshape(-1)
-        weights = F.one_hot(flat_ids, self.num_experts).to(flat_x.dtype)
-        out = torch.zeros_like(flat_x)
-        for e in range(self.num_experts):
-            w = weights[:, e].unsqueeze(-1)
-            if self.activation == "swiglu":
-                gu = flat_x @ self.gate_up_proj[e]
-                gate, up = gu.chunk(2, dim=-1)
-                out = out + (F.silu(gate) * up @ self.down_proj[e]) * w
-            else:
-                h = torch.relu(flat_x @ self.fc_weight[e])
-                out = out + (h.square() @ self.proj_weight[e]) * w
+        weights = F.one_hot(flat_ids, self.num_experts).to(flat_x.dtype)  # [N, E]
+        # Batched einsum: all experts in 1-2 fused kernels instead of E separate matmuls
+        if self.activation == "swiglu":
+            all_gu = torch.einsum('nd,edi->nei', flat_x, self.gate_up_proj)  # [N, E, 2*inter]
+            gate, up = all_gu.chunk(2, dim=-1)
+            inter = F.silu(gate) * up
+            all_out = torch.einsum('nei,eid->ned', inter, self.down_proj)  # [N, E, dim]
+        else:
+            h = torch.einsum('nd,edi->nei', flat_x, self.fc_weight)  # [N, E, inter]
+            h = torch.relu(h).square()
+            all_out = torch.einsum('nei,eid->ned', h, self.proj_weight)  # [N, E, dim]
+        out = (all_out * weights.unsqueeze(-1)).sum(dim=1)  # [N, dim]
         return out.reshape(bsz, seq, self.dim)
 
 class Block(nn.Module):
