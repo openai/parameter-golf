@@ -170,7 +170,7 @@ class Muon(torch.optim.Optimizer):
                     # NorMuon: adaptive column-wise normalization
                     vnorm = g.norm()
                     v_mean = (g * g).mean(dim=-1, keepdim=True)
-                    state["second_momentum"].lerp_(v_mean, 1.0 - beta2)
+                    state["second_momentum"].lerp_(v_mean.float(), 1.0 - beta2)
                     step_size = 1.0 / (state["second_momentum"].sqrt() + 1e-10)
                     g = g * step_size
                     g = g * (vnorm / (g.norm() + 1e-10))
