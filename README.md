@@ -71,24 +71,24 @@ just mlx-smoke
 
 Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
 
- A few useful shortcuts are included in `justfile`:
- 
- ```bash
- just setup
- just download-data 1
- just mlx-smoke
+A few useful shortcuts are included in `justfile`:
+
+```bash
+just setup
+just download-data 1
+just mlx-smoke
 just mlx-train mlx_run 2000 524288 0 524288
 just autoresearch-mlx 5 1337
 just autoresearch-preset-mlx 5 1337 small_fast
 just autoresearch-evolution-mlx 5 1337 6
 just autoresearch-code-mlx 5 1337 gelu_mlp
- just setup-cuda
- just torch-train baseline_sp1024 1
- just autoresearch-cuda 5 1 1337
- just autoresearch-preset-cuda 5 1 1337 depth_first
- just autoresearch-evolution-cuda 5 1 1337 6
- just autoresearch-code-cuda 5 1 1337 plain_logits
- ```
+just setup-cuda
+just torch-train baseline_sp1024 1
+just autoresearch-cuda 5 1 1337
+just autoresearch-preset-cuda 5 1 1337 depth_first
+just autoresearch-evolution-cuda 5 1 1337 6
+just autoresearch-code-cuda 5 1 1337 plain_logits
+```
 
 ### Autoresearch Modes
 

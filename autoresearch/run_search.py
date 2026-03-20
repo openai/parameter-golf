@@ -535,10 +535,73 @@ def append_result(result: TrialResult) -> None:
     (TRIALS_DIR / f"{result.run_id}.json").write_text(json.dumps(asdict(result), indent=2, sort_keys=True), encoding="utf-8")
 
 
+def coerce_trial_result(payload: dict[str, Any], source: Path | None = None) -> TrialResult:
+    backend = str(payload.get("backend", "mlx"))
+    if backend not in PRESETS:
+        raise ValueError(f"unsupported backend in trial artifact: {backend}")
+
+    config_payload = payload.get("config")
+    config = normalize_config(backend, config_payload if isinstance(config_payload, dict) else PRESETS[backend]["baseline"])
+
+    default_script_path = ROOT / ("train_gpt.py" if backend == "cuda" else "train_gpt_mlx.py")
+    train_script_path = str(payload.get("train_script_path") or default_script_path.relative_to(ROOT))
+    resolved_script_path = ROOT / train_script_path
+    if not resolved_script_path.exists():
+        resolved_script_path = default_script_path
+        train_script_path = str(resolved_script_path.relative_to(ROOT))
+
+    parents_payload = payload.get("parents", [])
+    if isinstance(parents_payload, str):
+        parents = [item for item in parents_payload.split(",") if item]
+    elif isinstance(parents_payload, list):
+        parents = [str(item) for item in parents_payload]
+    else:
+        parents = []
+
+    log_path = str(payload.get("log_path") or (LOG_DIR / f"{payload.get('run_id', 'legacy')}.log").relative_to(ROOT))
+    quantized_model_bytes = int(payload.get("quantized_model_bytes", 0))
+    train_script_bytes = int(payload.get("train_script_bytes", script_bytes(resolved_script_path)))
+    total_bytes = int(payload.get("total_bytes", quantized_model_bytes + train_script_bytes))
+
+    return TrialResult(
+        run_id=str(payload.get("run_id", source.stem if source is not None else "legacy")),
+        backend=backend,
+        mode=str(payload.get("mode", "")),
+        status=str(payload.get("status", "ok")),
+        val_bpb=float(payload.get("val_bpb", 0.0)),
+        val_loss=float(payload.get("val_loss", 0.0)),
+        total_bytes=total_bytes,
+        train_script_path=train_script_path,
+        train_script_bytes=train_script_bytes,
+        quantized_model_bytes=quantized_model_bytes,
+        model_params=int(payload.get("model_params", 0)),
+        elapsed_seconds=float(payload.get("elapsed_seconds", 0.0)),
+        log_path=log_path,
+        preset=str(payload.get("preset", "")),
+        code_mutation=str(payload.get("code_mutation", "")),
+        parents=parents,
+        config=config,
+        description=str(payload.get("description", "")),
+    )
+
+
+def load_trial_result(path: Path) -> TrialResult | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    try:
+        return coerce_trial_result(payload, source=path)
+    except (TypeError, ValueError):
+        return None
+
+
 def load_best() -> TrialResult | None:
     if not BEST_JSON.exists():
         return None
-    return TrialResult(**json.loads(BEST_JSON.read_text(encoding="utf-8")))
+    return load_trial_result(BEST_JSON)
 
 
 def save_best(best: TrialResult) -> None:
@@ -548,7 +611,9 @@ def save_best(best: TrialResult) -> None:
 def load_population(backend: str) -> list[TrialResult]:
     population: list[TrialResult] = []
     for path in sorted(TRIALS_DIR.glob("*.json")):
-        result = TrialResult(**json.loads(path.read_text(encoding="utf-8")))
+        result = load_trial_result(path)
+        if result is None:
+            continue
         if result.backend == backend and result.status == "ok":
             population.append(result)
     population.sort(key=lambda item: item.val_bpb)

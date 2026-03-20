@@ -100,6 +100,68 @@ class RunSearchPersistenceTests(unittest.TestCase):
             self.assertIn("logs/autoresearch/workbench/candidate.py", lines[1])
             self.assertTrue((trials_dir / "ar_test_002.json").exists())
 
+    def test_legacy_best_and_trial_artifacts_still_load(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            log_dir = root / "logs" / "autoresearch"
+            trials_dir = log_dir / "trials"
+            workbench_dir = log_dir / "workbench"
+            results_tsv = log_dir / "results.tsv"
+            best_json = log_dir / "best_config.json"
+            script_path = root / "train_gpt_mlx.py"
+
+            log_dir.mkdir(parents=True, exist_ok=True)
+            trials_dir.mkdir(parents=True, exist_ok=True)
+            workbench_dir.mkdir(parents=True, exist_ok=True)
+            script_path.write_text("print('legacy')\n", encoding="utf-8")
+
+            best_json.write_text(
+                """
+                {
+                  "run_id": "legacy_best",
+                  "backend": "mlx",
+                  "val_bpb": 1.23,
+                  "val_loss": 4.56
+                }
+                """.strip(),
+                encoding="utf-8",
+            )
+            (trials_dir / "legacy_trial.json").write_text(
+                """
+                {
+                  "run_id": "legacy_trial",
+                  "backend": "mlx",
+                  "status": "ok",
+                  "val_bpb": 1.11,
+                  "val_loss": 2.22
+                }
+                """.strip(),
+                encoding="utf-8",
+            )
+
+            patches = [
+                mock.patch.object(run_search, "ROOT", root),
+                mock.patch.object(run_search, "LOG_DIR", log_dir),
+                mock.patch.object(run_search, "TRIALS_DIR", trials_dir),
+                mock.patch.object(run_search, "WORKBENCH_DIR", workbench_dir),
+                mock.patch.object(run_search, "RESULTS_TSV", results_tsv),
+                mock.patch.object(run_search, "BEST_JSON", best_json),
+            ]
+
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+                best = run_search.load_best()
+                population = run_search.load_population("mlx")
+
+            self.assertIsNotNone(best)
+            assert best is not None
+            self.assertEqual("legacy_best", best.run_id)
+            self.assertEqual([], best.parents)
+            self.assertEqual("", best.description)
+            self.assertEqual(run_search.PRESETS["mlx"]["baseline"], best.config)
+            self.assertEqual(1, len(population))
+            self.assertEqual("legacy_trial", population[0].run_id)
+            self.assertEqual(run_search.PRESETS["mlx"]["baseline"], population[0].config)
+
     def test_mlx_search_stays_in_local_batch_token_range(self) -> None:
         mlx_batch_tokens = [
             int(token)
