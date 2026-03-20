@@ -497,7 +497,7 @@ def main():
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  model_params: {n_params:,}")
     if correction_table:
-        print(f"  correction:   {len(correction_table['hashes']):,} entries")
+        print(f"  correction:   {len(correction_table):,} position entries")
 
     # NTK-RoPE rescaling
     if eval_seq_len > train_seq_len:
