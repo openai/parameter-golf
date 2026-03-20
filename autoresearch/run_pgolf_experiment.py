@@ -2320,9 +2320,10 @@ class PgolfController:
             process.stdin.write(stdin_text)
             process.stdin.close()
         assert process.stdout is not None
-        with raw_log_path.open("w", encoding="utf-8") as raw_fh:
+        with raw_log_path.open("w", encoding="utf-8", buffering=1) as raw_fh:
             for line in process.stdout:
                 raw_fh.write(line)
+                raw_fh.flush()
                 self.logger.stream_line(prefix, line)
         return process.wait()
 
