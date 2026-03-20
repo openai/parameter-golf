@@ -1,0 +1,12 @@
+{
+  "author": "Eric Saiwak",
+  "github_id": "outsourc-e",
+  "name": "QK Gain Init 1.2 + Sliding Window Eval (stride=64)",
+  "blurb": "Two orthogonal improvements over baseline: (1) QK_GAIN_INIT=1.2 (down from 1.5) for better attention stability during training, and (2) sliding window evaluation with stride=64 giving each token 960+ tokens of context. Training changes are minimal (one hyperparameter); the sliding window is eval-only. Environment: QK_GAIN_INIT=1.2, EVAL_STRIDE=64, EVAL_BATCH_SEQS=32.",
+  "date": "2026-03-20T19:30:00Z",
+  "env_overrides": {
+    "QK_GAIN_INIT": "1.2",
+    "EVAL_STRIDE": "64",
+    "EVAL_BATCH_SEQS": "32"
+  }
+}
