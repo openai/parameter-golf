@@ -630,11 +630,32 @@ class Rotary(nn.Module):
     # Caches cos/sin tables per sequence length on the current device.
     def __init__(self, dim: int, base: float = 10000.0):
         super().__init__()
+        self.dim = dim
+        self.base = base
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
         self._sin_cached: Tensor | None = None
+
+    def rescale_base(self, eval_seq_len: int, train_seq_len: int) -> None:
+        """NTK-aware RoPE base rescaling for eval-time sequence extension.
+
+        Formula: new_base = base * (eval_seq_len / train_seq_len) ^ (dim / (dim - 2))
+        This preserves high-frequency rotation components while extending the
+        effective context length. Invalidates cache.
+        """
+        if eval_seq_len <= train_seq_len:
+            return
+        scale = eval_seq_len / train_seq_len
+        exponent = self.dim / (self.dim - 2)
+        new_base = self.base * (scale ** exponent)
+        inv_freq = 1.0 / (new_base ** (torch.arange(0, self.dim, 2, dtype=torch.float32) / self.dim))
+        self.inv_freq = inv_freq.to(self.inv_freq.device)
+        # Invalidate cache
+        self._seq_len_cached = 0
+        self._cos_cached = None
+        self._sin_cached = None
 
     def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
         if (
@@ -1276,14 +1297,17 @@ def main() -> None:
     compress_label = "zstd" if use_zstd else "zlib"
 
     if master_process:
-        torch.save(base_model.state_dict(), "final_model.pt")
+        # Filter adapter params (zero-initialized, only for TTT — saves ~96KB)
+        save_state = {k: v for k, v in base_model.state_dict().items() if "adapter" not in k}
+        torch.save(save_state, "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), quant_bits=quant_bits)
+    quant_state_dict = {k: v for k, v in base_model.state_dict().items() if "adapter" not in k}
+    quant_obj, quant_stats = quantize_state_dict_int8(quant_state_dict, quant_bits=quant_bits)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()

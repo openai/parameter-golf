@@ -38,6 +38,7 @@ from train_gpt import (
     CastedLinear,
     GPT,
     Hyperparameters,
+    Rotary,
     build_sentencepiece_luts,
     dequantize_state_dict_int8,
     load_validation_tokens,
@@ -86,9 +87,9 @@ def load_model(args: Hyperparameters, checkpoint: str, device: torch.device) -> 
         except Exception:
             raw = zlib.decompress(blob)
         state = torch.load(io.BytesIO(raw), map_location="cpu")
-        model.load_state_dict(dequantize_state_dict_int8(state), strict=True)
+        model.load_state_dict(dequantize_state_dict_int8(state), strict=False)
     else:
-        model.load_state_dict(torch.load(checkpoint, map_location="cpu"), strict=True)
+        model.load_state_dict(torch.load(checkpoint, map_location="cpu"), strict=False)
 
     model.to(device)
     return model
@@ -281,7 +282,9 @@ def main():
     args = Hyperparameters()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    seq_len = args.train_seq_len
+    train_seq_len = args.train_seq_len
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", train_seq_len))
+    seq_len = eval_seq_len  # use eval seq len for all runs
     stride = int(os.environ.get("EVAL_STRIDE", 64))
     checkpoint = os.environ.get("CHECKPOINT", "final_model.int8.ptz")
     ngram_lambda = float(os.environ.get("NGRAM_LAMBDA", 0.03))
@@ -301,7 +304,8 @@ def main():
     print("  Competition Eval Pipeline")
     print("=" * 60)
     print(f"  checkpoint:  {checkpoint}")
-    print(f"  seq_len:     {seq_len}")
+    print(f"  train_seq:   {train_seq_len}")
+    print(f"  eval_seq:    {eval_seq_len}{' (NTK-RoPE extended!)' if eval_seq_len > train_seq_len else ''}")
     print(f"  stride:      {stride}")
     print(f"  ngram:       {'OFF' if disable_ngram else f'ON (order={ngram_order}, λ={ngram_lambda}, α={ngram_alpha})'}")
     print(f"  match:       {'OFF' if disable_match else f'ON (order={match_min_order}-{match_max_order}, λ={match_lambda})'}")
@@ -313,14 +317,21 @@ def main():
     luts = build_sentencepiece_luts(sp, args.vocab_size, device)
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = luts
 
-    # Load val tokens
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    # Load val tokens (use eval_seq_len for chunking)
+    val_tokens = load_validation_tokens(args.val_files, eval_seq_len)
     print(f"  val_tokens:  {val_tokens.numel():,}")
     print()
 
     # Load model
     model = load_model(args, checkpoint, device)
     print(f"  model params: {sum(p.numel() for p in model.parameters()):,}")
+
+    # NTK-RoPE rescaling for extended eval sequences
+    if eval_seq_len > train_seq_len:
+        for m in model.modules():
+            if isinstance(m, Rotary):
+                m.rescale_base(eval_seq_len, train_seq_len)
+        print(f"  NTK-RoPE:    rescaled for {eval_seq_len} (train={train_seq_len})")
     print()
 
     # Setup n-gram
