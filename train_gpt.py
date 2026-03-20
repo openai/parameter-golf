@@ -277,6 +277,65 @@ def eval_val(
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int = 64,
+) -> tuple[float, float]:
+    seq_len = args.train_seq_len
+    total_tokens = val_tokens.numel()
+    windows: list[tuple[int, int]] = []
+    pos = 0
+    while pos + seq_len < total_tokens:
+        score_start = 0 if pos == 0 else seq_len - stride
+        windows.append((pos, score_start))
+        pos += stride if pos > 0 else seq_len
+    all_windows = windows
+    my_windows = all_windows[rank::world_size]
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.inference_mode():
+        for win_start, score_start in my_windows:
+            chunk = val_tokens[win_start:win_start + seq_len + 1].to(device=device, dtype=torch.int64)
+            x = chunk[:-1].unsqueeze(0)
+            y = chunk[1:].unsqueeze(0)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits_input = x[:, :seq_len]
+                targets_input = y[:, :seq_len]
+                loss_val = model(logits_input, targets_input).detach()
+            score_tokens = seq_len - score_start
+            val_loss_sum += loss_val.to(torch.float64) * float(seq_len)
+            val_token_count += float(seq_len)
+            scored_prev = x[0, score_start:seq_len]
+            scored_tgt = y[0, score_start:seq_len]
+            token_bytes = base_bytes_lut[scored_tgt].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[scored_tgt] & ~is_boundary_token_lut[scored_prev]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
 # -----------------------------
 # POST-TRAINING QUANTIZATION
 # -----------------------------
@@ -370,7 +429,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 
         # Small float tensors are cheap enough to keep directly. We still downcast
         # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or "tok_emb.weight" in name:
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
@@ -698,6 +757,10 @@ class GPT(nn.Module):
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
+            with torch.no_grad():
+                U, S, V = torch.linalg.svd(self.tok_emb.weight.data, full_matrices=False)
+                target_S = S[0] * (1.0 / torch.arange(1, S.shape[0] + 1, dtype=S.dtype)) ** 0.5
+                self.tok_emb.weight.data = (U * target_S[None, :]) @ V
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
@@ -708,10 +771,9 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
 
-        encoder_order = [range(self.num_encoder_layers), range(self.num_encoder_layers - 1, -1, -1)]
         for _pass in range(2):
             skips: list[Tensor] = []
-            for i in encoder_order[_pass]:
+            for i in range(self.num_encoder_layers):
                 x = self.blocks[i](x, x0)
                 skips.append(x)
             if _pass == 0:
@@ -1042,6 +1104,10 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
+        with torch.no_grad():
+            muon_lr = optimizer_muon.param_groups[0]["lr"]
+            for p in matrix_params:
+                p.mul_(1.0 - 0.02 * muon_lr)
         zero_grad_all()
 
         step += 1
@@ -1110,13 +1176,12 @@ def main() -> None:
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
+    q_val_loss, q_val_bpb = eval_val_sliding(
         args,
         model,
         rank,
         world_size,
         device,
-        grad_accum_steps,
         val_tokens,
         base_bytes_lut,
         has_leading_space_lut,
