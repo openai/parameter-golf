@@ -1,0 +1,10 @@
+{
+    "submitter": "mohosy",
+    "date": "2026-03-20",
+    "track": "10min_16mb",
+    "hardware": "8xH100 SXM",
+    "training_time_seconds": 600,
+    "val_bpb": null,
+    "artifact_size_bytes": null,
+    "notes": "11L Int6 + XSA (last 3 layers) + TTT + SmearGate + BigramHash + SWA. Pending compute validation."
+}
