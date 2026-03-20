@@ -658,8 +658,15 @@ class RMSNorm(nn.Module):
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        # QAT: simulate int8 per-row quantization during training (STE)
+        if self.training and w.ndim == 2:
+            with torch.no_grad():
+                scale = w.abs().amax(dim=1, keepdim=True).clamp(min=1e-8) / 127.0
+            q = torch.clamp(torch.round(w / scale), -127, 127)
+            w = w + (q * scale - w).detach()
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
