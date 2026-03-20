@@ -49,6 +49,8 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 4096))
+    sliding_window_stride = int(os.environ.get("SLIDING_WINDOW_STRIDE", 0))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
@@ -238,33 +240,83 @@ def eval_val(
             f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
             f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
         )
-    local_batch_seqs = local_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
-    seq_start = (total_seqs * rank) // world_size
-    seq_end = (total_seqs * (rank + 1)) // world_size
+    core = model.module if isinstance(model, DDP) else model
+    total_eval_tokens = val_tokens.numel() - 1
+    token_start = (total_eval_tokens * rank) // world_size
+    token_end = (total_eval_tokens * (rank + 1)) // world_size
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     model.eval()
     with torch.inference_mode():
-        for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
-            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-            raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
-            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, args.train_seq_len)
-            y = local[1:].reshape(-1, args.train_seq_len)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                batch_loss = model(x, y).detach()
-            batch_token_count = float(y.numel())
-            val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
-            val_token_count += batch_token_count
-            prev_ids = x.reshape(-1)
-            tgt_ids = y.reshape(-1)
-            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
-            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
-            val_byte_count += token_bytes.to(torch.float64).sum()
+        if args.sliding_window_stride > 0:
+            eval_seq_len = max(args.train_seq_len, args.eval_seq_len)
+            stride = min(args.sliding_window_stride, eval_seq_len)
+            for target_start in range(token_start, token_end, stride):
+                target_end = min(target_start + stride, token_end)
+                target_len = target_end - target_start
+                if target_len <= 0:
+                    continue
+                context_start = max(0, target_end - eval_seq_len)
+                local = val_tokens[context_start : target_end + 1].to(device=device, dtype=torch.int64, non_blocking=True)
+                x = local[:-1].unsqueeze(0)
+                y = local[1:].unsqueeze(0)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    hidden = core.tok_emb(x)
+                    hidden = F.rms_norm(hidden, (hidden.size(-1),))
+                    x0 = hidden
+                    skips: list[Tensor] = []
+                    for i in range(core.num_encoder_layers):
+                        hidden = core.blocks[i](hidden, x0)
+                        skips.append(hidden)
+                    for i in range(core.num_decoder_layers):
+                        if skips:
+                            hidden = hidden + core.skip_weights[i].to(dtype=hidden.dtype)[None, None, :] * skips.pop()
+                        hidden = core.blocks[core.num_encoder_layers + i](hidden, x0)
+                    hidden = core.final_norm(hidden)
+                    if core.tie_embeddings:
+                        logits_proj = F.linear(hidden, core.tok_emb.weight)
+                    else:
+                        if core.lm_head is None:
+                            raise RuntimeError("lm_head is required when tie_embeddings=False")
+                        logits_proj = core.lm_head(hidden)
+                    logits = core.logit_softcap * torch.tanh(logits_proj / core.logit_softcap)
+                    per_token_loss = F.cross_entropy(
+                        logits.reshape(-1, logits.size(-1)).float(),
+                        y.reshape(-1),
+                        reduction="none",
+                    ).reshape(-1)
+                batch_losses = per_token_loss[-target_len:]
+                val_loss_sum += batch_losses.to(torch.float64).sum()
+                val_token_count += float(target_len)
+                prev_ids = x.reshape(-1)[-target_len:]
+                tgt_ids = y.reshape(-1)[-target_len:]
+                token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+                token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+                val_byte_count += token_bytes.to(torch.float64).sum()
+        else:
+            local_batch_seqs = local_batch_tokens // args.train_seq_len
+            total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+            seq_start = (total_seqs * rank) // world_size
+            seq_end = (total_seqs * (rank + 1)) // world_size
+            for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+                batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+                raw_start = batch_seq_start * args.train_seq_len
+                raw_end = batch_seq_end * args.train_seq_len + 1
+                local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+                x = local[:-1].reshape(-1, args.train_seq_len)
+                y = local[1:].reshape(-1, args.train_seq_len)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    batch_loss = model(x, y).detach()
+                batch_token_count = float(y.numel())
+                val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
+                val_token_count += batch_token_count
+                prev_ids = x.reshape(-1)
+                tgt_ids = y.reshape(-1)
+                token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+                token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+                val_byte_count += token_bytes.to(torch.float64).sum()
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
@@ -995,6 +1047,10 @@ def main() -> None:
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log0(
+        f"eval_seq_len:{max(args.train_seq_len, args.eval_seq_len)} "
+        f"sliding_window_stride:{args.sliding_window_stride}"
     )
     log0(f"seed:{args.seed}")
 
