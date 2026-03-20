@@ -17,6 +17,15 @@ import sys
 import time
 import uuid
 import zlib
+try:
+    import zstandard as zstd
+    COMPRESS_FN = lambda data: zstd.ZstdCompressor(level=22).compress(data)
+    DECOMPRESS_FN = lambda data: zstd.ZstdDecompressor().decompress(data)
+    COMPRESS_LABEL = "zstd-22"
+except ImportError:
+    COMPRESS_FN = lambda data: zlib.compress(data, level=9)
+    DECOMPRESS_FN = lambda data: zlib.decompress(data)
+    COMPRESS_LABEL = "zlib-9"
 from pathlib import Path
 
 import numpy as np
@@ -81,10 +90,13 @@ class Hyperparameters:
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 7))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    muon_wd = float(os.environ.get("MUON_WD", 0.03))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    swa_every = int(os.environ.get("SWA_EVERY", 50))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -169,8 +181,12 @@ class Muon(torch.optim.Optimizer):
             if distributed:
                 dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
 
+            # Decoupled weight decay (MuonWD)
+            wd = float(os.environ.get("MUON_WD", "0.03"))
             curr = 0
             for p in params:
+                if wd > 0:
+                    p.mul_(1.0 - lr * wd)
                 g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
                 p.add_(g, alpha=-lr)
                 curr += p.numel()
@@ -674,10 +690,47 @@ class Block(nn.Module):
         return x
 
 
+class SmearGate(nn.Module):
+    """Blend each token embedding with previous token's. ~dim params."""
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gate = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        g = torch.sigmoid(self.gate.to(dtype=x.dtype))[None, None, :]
+        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
+        return (1 - g) * x + g * x_prev
+
+
+BIGRAM_VOCAB = int(os.environ.get("BIGRAM_VOCAB", 4096))
+BIGRAM_DIM = int(os.environ.get("BIGRAM_DIM", 128))
+
+
+class BigramHashEmbedding(nn.Module):
+    """Hash consecutive token pairs into learned embeddings. ~524K params."""
+    def __init__(self, model_dim: int, bigram_vocab: int = 4096, bigram_dim: int = 128):
+        super().__init__()
+        self.bigram_vocab = bigram_vocab
+        self.embed = nn.Embedding(bigram_vocab, bigram_dim)
+        nn.init.zeros_(self.embed.weight)
+        self.proj = CastedLinear(bigram_dim, model_dim, bias=False) if bigram_dim != model_dim else None
+        if self.proj is not None:
+            nn.init.zeros_(self.proj.weight)
+        self.scale = nn.Parameter(torch.tensor(0.05, dtype=torch.float32))
+
+    def forward(self, token_ids: Tensor) -> Tensor:
+        t = token_ids.to(torch.int32)
+        mod = self.bigram_vocab - 1
+        out = torch.full_like(t, mod)
+        out[:, 1:] = torch.bitwise_xor(36313 * t[:, 1:], 27191 * t[:, :-1]) % mod
+        h = self.embed(out.long())
+        if self.proj is not None:
+            h = self.proj(h)
+        return h * self.scale.to(dtype=h.dtype)
+
+
 class GPT(nn.Module):
-    """Recurrent GPT: a small set of unique blocks repeated multiple times.
-    No U-Net skip connections — iterative refinement of representations.
-    """
+    """Recurrent GPT with SmearGate + BigramHash input enrichment."""
     def __init__(
         self,
         vocab_size: int,
@@ -702,6 +755,8 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.smear_gate = SmearGate(model_dim)
+        self.bigram_hash = BigramHashEmbedding(model_dim, BIGRAM_VOCAB, BIGRAM_DIM)
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -731,6 +786,8 @@ class GPT(nn.Module):
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
+        x = self.smear_gate(x)
+        x = x + self.bigram_hash(input_ids)
         x0 = x
 
         for _repeat in range(self.num_repeats):
@@ -1103,7 +1160,7 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_blob = COMPRESS_FN(quant_raw)
     quant_raw_bytes = len(quant_raw)
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
@@ -1121,7 +1178,7 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(io.BytesIO(DECOMPRESS_FN(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
