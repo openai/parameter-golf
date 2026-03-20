@@ -102,8 +102,27 @@ Based on baseline scaling (1.2244 BPB → 1.13 with 11L+SmearGate+WD per PR #198
 | Base model (8×H100 10 min) | ~1.13 |
 | + Correction table (-0.08) | **~1.05** |
 
+## Future Optimization: Golomb-Rice Encoding
+
+The current v2 table uses **varint delta encoding** (3.16 bytes/entry). We implemented and benchmarked **Golomb-Rice coding** — the information-theoretically optimal code for geometric distributions (which model inter-error position gaps).
+
+### Benchmark (verified, see `build_correction_table_v3.py`)
+
+| Corrections | Varint (v2) | Golomb-Rice (v3) | Savings |
+|---|---|---|---|
+| 500K | 3.36 bytes/entry | 3.06 bytes/entry | 8.8% |
+| 900K | 3.16 bytes/entry | 2.96 bytes/entry | 6.3% |
+| 2.5M | 3.01 bytes/entry | 2.76 bytes/entry | 8.0% |
+
+Shannon entropy for 900K corrections in 62M tokens: H ≈ log₂(69) + 1.44 ≈ 7.5 bits/delta = 0.94 bytes/delta. Total: 0.94 + 2.0 (token_id) = **2.94 bytes/entry** — confirming Golomb-Rice achieves near-optimal compression.
+
+### Model/Table Budget Allocation
+
+The correction table creates an interesting artifact budget tradeoff: larger model → fewer errors → smaller table needed. For a heavy-tailed error distribution (α ≈ 0.7), the optimal split favors **larger model + smaller table**, because each additional MB of model capacity reduces errors faster than an additional MB of correction table can fix them.
+
 ## Files
 
 - `train_gpt.py` — training script with SmearGate, BigramHash, STE QAT, SWA
 - `eval_final.py` — evaluation with integrated correction table building
 - `build_correction_table.py` — standalone correction table builder (alternative to inline)
+- `build_correction_table_v3.py` — Golomb-Rice encoding benchmark
