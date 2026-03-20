@@ -66,6 +66,7 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    num_loops = int(os.environ.get("NUM_LOOPS", 1))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -672,16 +673,22 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        num_loops: int,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+        if num_loops <= 0:
+            raise ValueError(f"num_loops must be positive, got {num_loops}")
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_unique_layers = num_layers
+        self.num_loops = num_loops
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        effective_depth = num_layers * num_loops
+        self.num_encoder_layers = effective_depth // 2
+        self.num_decoder_layers = effective_depth - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList(
@@ -710,26 +717,32 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, lora=None) -> Tensor:
+    def _forward_backbone(self, input_ids: Tensor, lora=None) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            qd = lora.q_loras[i] if lora else None
-            vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, qd, vd)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            qd = lora.q_loras[bi] if lora else None
-            vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, qd, vd)
-        x = self.final_norm(x)
+        # Reuse the same unique blocks across multiple loops to buy effective depth
+        # without paying for a fully separate set of block weights each time.
+        eff_idx = 0
+        for _loop_idx in range(self.num_loops):
+            for block_idx in range(self.num_unique_layers):
+                qd = lora.q_loras[block_idx] if lora else None
+                vd = lora.v_loras[block_idx] if lora else None
+                if eff_idx < self.num_encoder_layers:
+                    x = self.blocks[block_idx](x, x0, qd, vd)
+                    skips.append(x)
+                else:
+                    dec_idx = eff_idx - self.num_encoder_layers
+                    if dec_idx < self.num_skip_weights and skips:
+                        x = x + self.skip_weights[dec_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                    x = self.blocks[block_idx](x, x0, qd, vd)
+                eff_idx += 1
+        return self.final_norm(x)
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor, lora=None) -> Tensor:
+        x = self._forward_backbone(input_ids, lora=lora)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
         else:
@@ -1065,6 +1078,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        num_loops=args.num_loops,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1125,7 +1139,10 @@ def main() -> None:
         optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
-    log0(f"model_params:{n_params}")
+    log0(
+        f"model_params:{n_params} unique_layers:{args.num_layers} "
+        f"loops:{args.num_loops} effective_depth:{args.num_layers * args.num_loops}"
+    )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
