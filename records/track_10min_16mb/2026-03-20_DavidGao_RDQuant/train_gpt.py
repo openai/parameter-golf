@@ -95,7 +95,7 @@ class Hyperparameters:
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.5))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
-    qat = bool(int(os.environ.get("QAT", "1")))
+    qat = bool(int(os.environ.get("QAT", "0")))
     quant_bits = int(os.environ.get("QUANT_BITS", 6))
 
 # -----------------------------
@@ -289,7 +289,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 )
 FP16_KEEP_NAME_PATTERNS = tuple(
     pattern
-    for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,blocks.8.attn.c_k").split(",")
+    for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,blocks.10.attn.c_k").split(",")
     if pattern
 )
 
