@@ -18,6 +18,7 @@
   "moe": {
     "num_experts": 4,
     "activation": "swiglu",
+    "routing": "hybrid",
     "_comment": "SwiGLU has 3 matrices vs relu^2 with 2, so mlp_mult=1 keeps same param budget",
     "mlp_mult": 1
   },

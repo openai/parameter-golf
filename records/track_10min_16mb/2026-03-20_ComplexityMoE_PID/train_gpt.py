@@ -81,6 +81,7 @@ class Hyperparameters:
     # Token-Routed MoE (Complexity Framework)
     num_experts = int(os.environ.get("NUM_EXPERTS", str(_MOE.get("num_experts", 4))))
     moe_activation = os.environ.get("MOE_ACTIVATION", _MOE.get("activation", "swiglu"))
+    moe_routing = os.environ.get("MOE_ROUTING", _MOE.get("routing", "hybrid"))
 
     # PID Dynamics (INL Lite)
     pid_alpha = float(os.environ.get("PID_ALPHA", str(_PID.get("alpha", 0.95))))
@@ -121,10 +122,7 @@ class Hyperparameters:
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
 
-# MUON OPTIMIZER 
-# 
-# As borrowed from modded-nanogpt
-# Background on Muon: https://kellerjordan.github.io/posts/muon/
+# MUON OPTIMIZER (from modded-nanogpt)
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
@@ -205,12 +203,7 @@ class Muon(torch.optim.Optimizer):
 
         return loss
 
-# TOKENIZER-AGNOSTIC EVALUATION SETUP 
-#
-# It's common for small models have a large fraction of their parameters be embeddings, since the 2 * d_model * d_vocab vectors can be gigantic.
-# Instead of locking the tokenizer, we let you bring your own and calculate our validation metrics on the average compression of the validation set.
-# We calculate BPB (bits-per-byte) instead of validation loss, so we need methods to count the number of bits per token in the tokenizer.
-# Note: Submissions that edit the tokenizer will be examined more carefully, since screwing this up might unjustly improve your score.
+# TOKENIZER-AGNOSTIC EVALUATION (BPB)
 
 def build_sentencepiece_luts(
     sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
@@ -310,11 +303,7 @@ def eval_val(
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
-# POST-TRAINING QUANTIZATION
-#
-# It's silly to export our model, which is trained in bf16 and fp32, at that same precision.
-# Instead, we get approximately the same model (with a small hit) by quantizing the model to int8 & zlib compressing.
-# We can then decompress the model and run in higher precision for evaluation, after closing in under the size limit.
+# POST-TRAINING QUANTIZATION (int8 + zlib)
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
@@ -642,11 +631,21 @@ class PIDDynamics(nn.Module):
         v_next = v_next.clamp(-self.velocity_max, self.velocity_max)
         return h + self.dt * self.gate.to(dtype=h.dtype) * v_next, v_next
 
-# Token-Routed MoE (Complexity Framework) — deterministic routing, mask multiply, fullgraph safe.
-class TokenRoutedMLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int, num_experts: int, activation: str = "swiglu"):
+# Learned Hash Router — Linear(H, E) micro-router, fullgraph safe.
+class LearnedHashRouter(nn.Module):
+    def __init__(self, dim: int, num_experts: int):
         super().__init__()
-        self.num_experts, self.dim, self.activation = num_experts, dim, activation
+        self.proj = nn.Linear(dim, num_experts, bias=False)
+        nn.init.normal_(self.proj.weight, std=0.01)
+    def forward(self, x: Tensor) -> Tensor:
+        return F.softmax(self.proj(x), dim=-1)
+
+# Token-Routed MoE — routing: "modulo" | "learned" | "hybrid" (modulo + learned override)
+class TokenRoutedMLP(nn.Module):
+    def __init__(self, dim: int, mlp_mult: int, num_experts: int,
+                 activation: str = "swiglu", routing: str = "hybrid"):
+        super().__init__()
+        self.num_experts, self.dim, self.activation, self.routing = num_experts, dim, activation, routing
         self.expert_inter = (mlp_mult * dim) // num_experts
         if activation == "swiglu":
             self.gate_up_proj = nn.Parameter(torch.empty(num_experts, dim, 2 * self.expert_inter))
@@ -654,6 +653,7 @@ class TokenRoutedMLP(nn.Module):
         else:
             self.fc_weight = nn.Parameter(torch.empty(num_experts, dim, self.expert_inter))
             self.proj_weight = nn.Parameter(torch.empty(num_experts, self.expert_inter, dim))
+        self.router = LearnedHashRouter(dim, num_experts) if routing in ("learned", "hybrid") else None
         self._init_weights()
 
     def _init_weights(self):
@@ -666,17 +666,27 @@ class TokenRoutedMLP(nn.Module):
 
     def forward(self, x: Tensor, expert_ids: Tensor) -> Tensor:
         bsz, seq, _ = x.shape
-        flat_x, flat_ids = x.reshape(-1, self.dim), expert_ids.reshape(-1)
+        flat_x = x.reshape(-1, self.dim)
+        if self.routing == "learned":
+            weights = self.router(flat_x)
+        elif self.routing == "hybrid":
+            flat_ids = expert_ids.reshape(-1)
+            base = F.one_hot(flat_ids, self.num_experts).to(flat_x.dtype)
+            learned = self.router(flat_x)
+            weights = F.softmax(base * 10.0 + torch.log(learned + 1e-8), dim=-1)
+        else:
+            flat_ids = expert_ids.reshape(-1)
+            weights = F.one_hot(flat_ids, self.num_experts).to(flat_x.dtype)
         out = torch.zeros_like(flat_x)
         for e in range(self.num_experts):  # unrolled by torch.compile
-            mask = (flat_ids == e).unsqueeze(-1)
+            w = weights[:, e].unsqueeze(-1)  # [N, 1]
             if self.activation == "swiglu":
                 gu = flat_x @ self.gate_up_proj[e]
                 gate, up = gu.chunk(2, dim=-1)
-                out = out + (F.silu(gate) * up @ self.down_proj[e]) * mask
+                out = out + (F.silu(gate) * up @ self.down_proj[e]) * w
             else:
                 h = torch.relu(flat_x @ self.fc_weight[e])
-                out = out + (h.square() @ self.proj_weight[e]) * mask
+                out = out + (h.square() @ self.proj_weight[e]) * w
         return out.reshape(bsz, seq, self.dim)
 
 class Block(nn.Module):
@@ -690,6 +700,7 @@ class Block(nn.Module):
         qk_gain_init: float,
         num_experts: int = 4,
         moe_activation: str = "swiglu",
+        moe_routing: str = "hybrid",
         pid_alpha: float = 0.95,
         pid_beta: float = 0.3,
         pid_gate: float = 0.1,
@@ -702,7 +713,7 @@ class Block(nn.Module):
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = TokenRoutedMLP(dim, mlp_mult, num_experts, moe_activation)
+        self.mlp = TokenRoutedMLP(dim, mlp_mult, num_experts, moe_activation, moe_routing)
         self.pid = PIDDynamics(dim, pid_alpha, pid_beta, pid_gate, pid_dt,
                                pid_mu_min, pid_mu_max, pid_velocity_max)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -740,6 +751,7 @@ class GPT(nn.Module):
         qk_gain_init: float,
         num_experts: int = 4,
         moe_activation: str = "swiglu",
+        moe_routing: str = "hybrid",
         pid_alpha: float = 0.95,
         pid_beta: float = 0.3,
         pid_gate: float = 0.1,
@@ -761,7 +773,7 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        # Token → expert mapping (deterministic, no params)
+        # Token → expert mapping (deterministic base for modulo/hybrid routing)
         self.register_buffer(
             "token_to_expert",
             torch.arange(vocab_size, dtype=torch.long) % num_experts,
@@ -770,7 +782,7 @@ class GPT(nn.Module):
             [
                 Block(
                     model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
-                    num_experts, moe_activation,
+                    num_experts, moe_activation, moe_routing,
                     pid_alpha, pid_beta, pid_gate, pid_dt,
                     pid_mu_min, pid_mu_max, pid_velocity_max,
                 )
@@ -826,10 +838,7 @@ class GPT(nn.Module):
                 logits.float().reshape(-1, V), target_ids.reshape(-1), reduction="none").reshape(bsz, sl)
         return F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), target_ids.reshape(-1), reduction="mean")
 
-# TEST-TIME TRAINING (LoRA)
-#
-# At evaluation time, we adapt per-document low-rank adapters on the validation data.
-# Each document gets its own adapter, so there is no inter-document dependency.
+# TEST-TIME TRAINING (LoRA) — per-document adaptation at eval time
 
 BOS_ID = 1
 
@@ -1140,6 +1149,7 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         num_experts=args.num_experts,
         moe_activation=args.moe_activation,
+        moe_routing=args.moe_routing,
         pid_alpha=args.pid_alpha,
         pid_beta=args.pid_beta,
         pid_gate=args.pid_gate,
