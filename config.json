@@ -30,7 +30,7 @@
 
   "training": {
     "iterations": 20000,
-    "train_batch_tokens": 524288,
+    "train_batch_tokens": 262144,
     "train_seq_len": 1024,
     "max_wallclock_seconds": 600.0,
     "warmup_steps": 15,
