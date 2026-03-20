@@ -16,6 +16,14 @@
 
 set -euo pipefail
 
+# Load .env if it exists
+ENV_FILE="${BASH_SOURCE[0]%/*}/../.env"
+if [[ -f "$ENV_FILE" ]]; then
+    set -a
+    source "$ENV_FILE"
+    set +a
+fi
+
 API_BASE="https://rest.runpod.io/v1"
 API_KEY="${RUNPOD_API_KEY:?Set RUNPOD_API_KEY in .env or environment}"
 
@@ -48,33 +56,34 @@ _pod_id() {
     fi
 }
 
-_ssh_cmd() {
+_get_ssh_info() {
     local pod_id
     pod_id=$(_pod_id)
     local pod_info
     pod_info=$(_api GET "/pods/${pod_id}")
     local ip port
-    ip=$(echo "$pod_info" | jq -r '.pod.runtime.ports[] | select(.privatePort == 22) | .ip // empty' 2>/dev/null || true)
-    port=$(echo "$pod_info" | jq -r '.pod.runtime.ports[] | select(.privatePort == 22) | .publicPort // empty' 2>/dev/null || true)
+    ip=$(echo "$pod_info" | jq -r '.publicIp // empty')
+    port=$(echo "$pod_info" | jq -r '.portMappings["22"] // empty')
     if [[ -z "$ip" || -z "$port" ]]; then
         echo "Pod SSH not ready yet. Check status." >&2
         exit 1
     fi
+    echo "${ip} ${port}"
+}
+
+_ssh_cmd() {
+    local info ip port
+    info=$(_get_ssh_info)
+    ip=$(echo "$info" | awk '{print $1}')
+    port=$(echo "$info" | awk '{print $2}')
     echo "ssh -o StrictHostKeyChecking=no -p ${port} root@${ip}"
 }
 
 _scp_cmd() {
-    local pod_id
-    pod_id=$(_pod_id)
-    local pod_info
-    pod_info=$(_api GET "/pods/${pod_id}")
-    local ip port
-    ip=$(echo "$pod_info" | jq -r '.pod.runtime.ports[] | select(.privatePort == 22) | .ip // empty' 2>/dev/null || true)
-    port=$(echo "$pod_info" | jq -r '.pod.runtime.ports[] | select(.privatePort == 22) | .publicPort // empty' 2>/dev/null || true)
-    if [[ -z "$ip" || -z "$port" ]]; then
-        echo "Pod SSH not ready yet." >&2
-        exit 1
-    fi
+    local info ip port
+    info=$(_get_ssh_info)
+    ip=$(echo "$info" | awk '{print $1}')
+    port=$(echo "$info" | awk '{print $2}')
     echo "scp -o StrictHostKeyChecking=no -P ${port} root@${ip}"
 }
 
@@ -95,12 +104,11 @@ cmd_create() {
         \"containerDiskInGb\": 50,
         \"volumeInGb\": 50,
         \"volumeMountPath\": \"/workspace\",
-        \"ports\": [\"22/tcp\", \"8888/http\"],
-        \"startSsh\": true
+        \"ports\": [\"22/tcp\", \"8888/http\"]
     }")
 
     local pod_id
-    pod_id=$(echo "$result" | jq -r '.pod.id // .id // empty')
+    pod_id=$(echo "$result" | jq -r '.id // .pod.id // empty')
     if [[ -z "$pod_id" ]]; then
         echo "Failed to create pod:" >&2
         echo "$result" | jq . 2>/dev/null || echo "$result"
@@ -115,7 +123,7 @@ cmd_create() {
 }
 
 cmd_list() {
-    _api GET "/pods" | jq -r '.pods[] | "\(.id)\t\(.name)\t\(.desiredStatus)\t\(.runtime.gpus[0].gpuUtilPercent // "n/a")% GPU"' 2>/dev/null || \
+    _api GET "/pods" | jq -r '.[] | "\(.id)\t\(.name)\t\(.desiredStatus)\t\(.costPerHr)$/hr"' 2>/dev/null || \
     _api GET "/pods" | jq .
 }
 
@@ -125,12 +133,14 @@ cmd_status() {
     local info
     info=$(_api GET "/pods/${pod_id}")
     echo "$info" | jq '{
-        id: .pod.id,
-        name: .pod.name,
-        status: .pod.desiredStatus,
-        gpu: .pod.machine.gpuDisplayName,
-        gpu_count: .pod.gpuCount,
-        ssh: (.pod.runtime.ports[] | select(.privatePort == 22) | "\(.ip):\(.publicPort)")
+        id: .id,
+        name: .name,
+        status: .desiredStatus,
+        gpu: .machine.gpuTypeId,
+        gpu_count: .gpuCount,
+        cost_per_hr: .costPerHr,
+        ssh: "\(.publicIp):\(.portMappings["22"])",
+        image: .imageName
     }' 2>/dev/null || echo "$info" | jq .
 }
 
@@ -166,7 +176,7 @@ cmd_run() {
     ssh_cmd=$(_ssh_cmd)
 
     local gpu_count
-    gpu_count=$(_api GET "/pods/$(_pod_id)" | jq -r '.pod.gpuCount // 1')
+    gpu_count=$(_api GET "/pods/$(_pod_id)" | jq -r '.gpuCount // 1')
 
     echo "Starting training: RUN_ID=${run_id} on ${gpu_count}x GPU..."
     eval "$ssh_cmd" << RUN_EOF

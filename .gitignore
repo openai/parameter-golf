@@ -11,3 +11,4 @@ data/docs_selected.jsonl
 logs/
 .claude/settings.local.json
 .env
+.runpod_pod_id
