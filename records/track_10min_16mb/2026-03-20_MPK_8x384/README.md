@@ -1,5 +1,7 @@
 This record captures an MPK-style multi-path causal language model submission candidate for the 10-minute 16 MB track.
 
+Final submission score: `val_bpb:1.01558307` (`val_loss:2.28798722`) after the int8+zlib roundtrip.
+
 Trainer/model changes in this snapshot:
 - MPK model family enabled in `train_gpt.py`
 - `8` layers at width `384` with `8` attention heads and `4` KV heads
@@ -45,8 +47,8 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 Key metrics (from `train.log`):
 - Timed training stopped at `4108/20000` steps due to the wallclock cap.
 - Pre-quant eval at stop: `val_loss:2.2827`, `val_bpb:1.0132`
-- Post-quant roundtrip eval: `val_loss:2.2880`, `val_bpb:1.0156`
-- Exact printed metric: `final_int8_zlib_roundtrip_exact val_bpb:1.01558307`
+- Post-quant roundtrip eval: `val_loss:2.28798722`, `val_bpb:1.01558307`
+- Rounded log line: `final_int8_zlib_roundtrip val_loss:2.2880 val_bpb:1.0156`
 - Timed training: `599527ms` (`step_avg:145.94ms`)
 - Final eval time after stop: `6088ms`
 - Peak memory: `19867 MiB allocated`, `20514 MiB reserved`
