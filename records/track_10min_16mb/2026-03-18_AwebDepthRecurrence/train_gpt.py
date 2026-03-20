@@ -731,12 +731,6 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(num_heads * self.half_head_dim, dim, bias=False)  # half_head_dim output
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        # DiffAttn: learnable lambda parameters per head
-        self.lambda_q1 = nn.Parameter(torch.randn(num_heads, self.half_head_dim) * 0.1)
-        self.lambda_k1 = nn.Parameter(torch.randn(num_heads, self.half_head_dim) * 0.1)
-        self.lambda_q2 = nn.Parameter(torch.randn(num_heads, self.half_head_dim) * 0.1)
-        self.lambda_k2 = nn.Parameter(torch.randn(num_heads, self.half_head_dim) * 0.1)
-        self.lambda_init = 0.8
         # Use half_head_dim for RoPE since DiffAttn splits heads in half
         self.rotary = Rotary(self.half_head_dim, base=rope_base)
 
