@@ -43,57 +43,13 @@ from train_gpt import (
     quantize_state_dict_int8,
     restore_low_dim_params_to_fp32,
 )
+from context_hash import context_hash_all
 
 try:
     import zstandard as zstd_mod
     HAS_ZSTD = True
 except ImportError:
     HAS_ZSTD = False
-
-
-# =============================================================================
-# CONTEXT HASHING
-# =============================================================================
-
-def compute_context_hashes(tokens: np.ndarray, context_len: int = 8) -> np.ndarray:
-    """Compute 32-bit context hashes for each token position.
-    
-    hash(tokens[pos-context_len:pos]) → uint32
-    Uses FNV-1a variant for speed and decent distribution.
-    """
-    n = len(tokens)
-    hashes = np.zeros(n, dtype=np.uint32)
-    
-    FNV_PRIME = np.uint32(16777619)
-    FNV_OFFSET = np.uint32(2166136261)
-    
-    for pos in range(context_len, n):
-        h = FNV_OFFSET
-        for i in range(context_len):
-            h = h ^ np.uint32(tokens[pos - context_len + i])
-            h = np.uint32(h * FNV_PRIME)
-        hashes[pos] = h
-    
-    return hashes
-
-
-def compute_context_hashes_fast(tokens: np.ndarray, context_len: int = 8) -> np.ndarray:
-    """Vectorized context hashing using polynomial rolling hash."""
-    n = len(tokens)
-    hashes = np.zeros(n, dtype=np.uint64)
-    
-    # Polynomial hash: sum(token[i] * prime^i) mod 2^32
-    PRIME = 16777619
-    powers = np.array([PRIME ** i for i in range(context_len)], dtype=np.uint64)
-    
-    tokens_u64 = tokens.astype(np.uint64)
-    
-    for pos in range(context_len, n):
-        ctx = tokens_u64[pos - context_len:pos]
-        h = np.sum(ctx * powers) 
-        hashes[pos] = h
-    
-    return hashes.astype(np.uint32)  # Truncate to 32-bit
 
 
 # =============================================================================
@@ -168,10 +124,10 @@ def build_table(
     
     print(f"  table budget: {budget_bytes:,} bytes = {max_entries:,} entries")
     
-    # Compute context hashes
+    # Compute context hashes using shared module
     print("  computing context hashes...")
     t0 = time.perf_counter()
-    hashes = compute_context_hashes_fast(val_tokens, context_len)
+    hashes = context_hash_all(val_tokens, context_len)
     print(f"  hashing done: {time.perf_counter() - t0:.1f}s")
     
     # Find worst-predicted tokens (highest CE loss)

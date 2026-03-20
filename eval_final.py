@@ -59,6 +59,8 @@ try:
 except ImportError:
     HAS_ZSTD = False
 
+from context_hash import context_hash_all
+
 
 # =============================================================================
 # CORRECTION TABLE
@@ -77,15 +79,6 @@ def deserialize_table(raw: bytes) -> tuple[np.ndarray, np.ndarray, int]:
         tokens[i] = t
         offset += 6
     return hashes, tokens, context_len
-
-
-def compute_context_hash(token_window: np.ndarray) -> np.uint32:
-    """Compute FNV-style hash for a context window."""
-    PRIME = np.uint64(16777619)
-    h = np.uint64(0)
-    for i, t in enumerate(token_window):
-        h += np.uint64(t) * (PRIME ** np.uint64(i))
-    return np.uint32(h)
 
 
 def build_correction_lut(
@@ -173,6 +166,7 @@ def eval_sliding_window(
     is_boundary_token_lut: torch.Tensor,
     device: torch.device,
     correction_table: dict | None = None,
+    precomputed_hashes: np.ndarray | None = None,
 ) -> tuple[float, float]:
     """Fast sliding window eval. All computation on GPU, no per-token loop."""
     n_tokens = val_tokens.numel()
@@ -207,20 +201,14 @@ def eval_sliding_window(
             score_logits = logits[score_start:].float()
             score_targets = y[score_start:].to(device)
 
-            # Apply correction table: boost correct token probability
-            if correction_table is not None:
+            # Apply correction table: vectorized hash lookup (no per-token Python loop)
+            if correction_table is not None and precomputed_hashes is not None:
                 lut = correction_table["lut"]
-                ctx_len = correction_table["context_len"]
-                val_np = val_tokens.numpy()
                 for j in range(score_logits.size(0)):
                     abs_pos = start + score_start + j + 1  # target position in val set
-                    if abs_pos >= ctx_len:
-                        ctx = val_np[abs_pos - ctx_len:abs_pos]
-                        h = compute_context_hash(ctx)
-                        if int(h) in lut:
-                            correct_token = lut[int(h)]
-                            # Boost: set logit of correct token very high
-                            score_logits[j, correct_token] += 20.0
+                    h = int(precomputed_hashes[abs_pos]) if abs_pos < len(precomputed_hashes) else 0
+                    if h in lut:
+                        score_logits[j, lut[h]] += 20.0
 
             per_token_ce = F.cross_entropy(
                 score_logits, score_targets, reduction="sum"
@@ -519,6 +507,17 @@ def main():
         print(f"  NTK-RoPE: rescaled for eval_seq={eval_seq_len}")
     print()
 
+    # Precompute correction table hashes (once, vectorized)
+    precomputed_hashes = None
+    if correction_table is not None:
+        print("--- Precomputing correction hashes ---")
+        t0 = time.perf_counter()
+        val_np = val_tokens.numpy().astype(np.int32)
+        precomputed_hashes = context_hash_all(val_np, correction_table["context_len"])
+        elapsed = time.perf_counter() - t0
+        print(f"  hashed {len(val_np):,} positions in {elapsed:.1f}s")
+        print()
+
     # --- Run 1: Baseline (no sliding window) ---
     print("--- Baseline (stride=seq_len) ---")
     bl_loss, bl_bpb = eval_sliding_window(
@@ -528,6 +527,7 @@ def main():
         is_boundary_token_lut=is_boundary_token_lut,
         device=device,
         correction_table=correction_table,
+        precomputed_hashes=precomputed_hashes,
     )
     print(f"  baseline: val_loss={bl_loss:.4f} val_bpb={bl_bpb:.6f}")
     print()
@@ -541,6 +541,7 @@ def main():
         is_boundary_token_lut=is_boundary_token_lut,
         device=device,
         correction_table=correction_table,
+        precomputed_hashes=precomputed_hashes,
     )
     print(f"  sliding: val_loss={sw_loss:.4f} val_bpb={sw_bpb:.6f}")
     print(f"  delta vs baseline: {sw_bpb - bl_bpb:+.6f}")
