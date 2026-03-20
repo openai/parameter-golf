@@ -611,16 +611,14 @@ class CausalSelfAttention(nn.Module):
 
 # Mu Dynamics — learnable equilibrium per layer, no velocity overhead.
 class MuDynamics(nn.Module):
-    def __init__(self, dim: int, mu_min: float = 0.5, mu_max: float = 1.5, strength: float = 0.01):
+    def __init__(self, dim: int, mu_min: float = 0.5, mu_max: float = 1.5):
         super().__init__()
         self.mu_min, self.mu_max = mu_min, mu_max
         self.mu = nn.Parameter(torch.full((dim,), (mu_min + mu_max) / 2.0))
-        self.strength = nn.Parameter(torch.tensor(strength))
 
     def forward(self, h: Tensor) -> Tensor:
         mu = self.mu.clamp(self.mu_min, self.mu_max).to(dtype=h.dtype)
-        s = self.strength.clamp(0.0, 0.1).to(dtype=h.dtype)
-        return h + s * (mu[None, None, :] - h)
+        return h + 0.01 * (mu[None, None, :] - h)
 
 # Learned Hash Router — Linear(H, E) micro-router, fullgraph safe.
 class LearnedHashRouter(nn.Module):
