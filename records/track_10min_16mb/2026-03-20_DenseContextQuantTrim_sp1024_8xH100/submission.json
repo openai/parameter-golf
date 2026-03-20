@@ -1,8 +1,8 @@
 {
   "author": "IvGolovach",
   "github_id": "IvGolovach",
-  "name": "DenseContextQuantTrim sp1024",
-  "blurb": "Dense long-context SP1024 run with sliding-window validation, clip-search PTQ, and a hybrid fp16/int8 token embedding export that fits the official 10-minute / 16,000,000-byte track caps on 8xH100.",
+  "name": "DenseContextQuantTrim 8xH100",
+  "blurb": "Dense SP1024 long-context run with sliding-window validation and a hybrid fp16/int8 token embedding export, fitting the official 10-minute / 16,000,000-byte 8xH100 track constraints.",
   "date": "2026-03-20T18:54:40Z",
   "track": "track_10min_16mb",
   "val_loss": 1.98878702,

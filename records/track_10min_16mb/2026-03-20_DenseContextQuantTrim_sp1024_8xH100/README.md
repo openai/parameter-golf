@@ -1,8 +1,8 @@
-This record captures `DenseContextQuantTrim sp1024`, a dense long-context
-`8xH100` run that fits the official `10 minute / 16,000,000 byte` track caps.
+This snapshot captures a valid under-cap `8xH100` run at
+`1.17787170 val_bpb` for the official `10 minute / 16,000,000 byte` track.
 
-Trainer changes in this snapshot:
-- dense baseline-family training path
+Model summary:
+- `9`-layer dense transformer with tied embeddings
 - `TRAIN_SEQ_LEN=2048`
 - sliding-window validation with `VAL_CONTEXT_LEN=2048` and `VAL_SLIDE_TOKENS=512`
 - clip-search PTQ with `INT8_CLIP_CANDIDATES=1.0,0.95,0.9,0.85`
@@ -10,6 +10,13 @@ Trainer changes in this snapshot:
   - top-scoring rows kept in `fp16`
   - remaining rows quantized in per-row `int8`
   - exact embedding matrix reconstructed before final roundtrip evaluation
+
+Key metrics:
+- Exact roundtrip metric: `final_int8_zlib_roundtrip_exact val_bpb:1.17787170`
+- Train wallclock: `594.025s`
+- Total submission size int8+zlib: `15,981,108 bytes`
+- Exact pre-quant metric: `final_pre_quant_exact val_bpb:1.17469015`
+- Peak memory: `10247 MiB allocated`, `10744 MiB reserved`
 
 Configuration:
 - Layout: `VOCAB_SIZE=1024 NUM_LAYERS=9 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=2`
@@ -53,16 +60,13 @@ python -m torch.distributed.run --standalone --nproc_per_node=8 \
   /workspace/parameter-golf/records/track_10min_16mb/2026-03-20_DenseContextQuantTrim_sp1024_8xH100/train_gpt.py
 ```
 
-Key metrics (from `train.log`):
+Additional details from `train.log`:
 - Timed training stopped at `11424/20000` steps due to the wallclock cap.
 - Pre-quant eval at stop: `val_loss:1.9834`, `val_bpb:1.1747`
 - Post-quant roundtrip eval: `val_loss:1.9888`, `val_bpb:1.1779`
-- Exact printed metric: `final_int8_zlib_roundtrip_exact val_bpb:1.17787170`
 - Train time: `594025ms` (`step_avg:52.00ms`)
-- Peak memory: `10247 MiB allocated`, `10744 MiB reserved`
 - Serialized model int8+zlib: `15919719 bytes`
 - Code size: `61389 bytes`
-- Total submission size int8+zlib: `15981108 bytes`
 
 Training volume:
 - Global batch: `524288` tokens/step
@@ -70,5 +74,5 @@ Training volume:
 
 Included files:
 - `train_gpt.py` (code snapshot used for the run)
-- `train.log` (exact remote training log)
+- `train.log` (exact remote distributed training log)
 - `submission.json` (submission metadata)
