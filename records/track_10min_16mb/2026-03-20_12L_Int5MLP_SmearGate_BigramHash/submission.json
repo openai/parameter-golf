@@ -1,0 +1,27 @@
+{
+  "author": "alertcat",
+  "github_id": "alertcat",
+  "name": "12L Int5-MLP + Int6-Attn + SmearGate + BigramHash + Muon WD=0.04 + SWA",
+  "blurb": "12-layer transformer with mixed int5/int6 quantization: int5 [-16,15] for MLP weights (better zstd compression), int6 for attention weights, FP16 for embeddings. The int5 savings (~1.8MB) fund the 12th transformer layer. SmearGate, BigramHash(2048), Muon WD=0.04, SWA every 200 steps, sliding window eval stride=64.",
+  "date": "2026-03-20T14:48:00Z",
+  "val_loss": 1.94831390,
+  "val_bpb": 1.15390429,
+  "pre_quant_val_bpb": 1.1579,
+  "step_stop": 5588,
+  "wallclock_seconds": 600.0,
+  "eval_time_seconds": 89.62,
+  "num_layers": 12,
+  "model_dim": 512,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "mlp_mult": 3,
+  "vocab_size": 1024,
+  "train_seq_len": 2048,
+  "seeds": {
+    "1337": {"val_bpb": 1.15401994, "steps": 5590},
+    "42": {"val_bpb": 1.15390429, "steps": 5588},
+    "2024": {"val_bpb": 1.15425222, "steps": 5589}
+  },
+  "mean_val_bpb": 1.15405882,
+  "std_val_bpb": 0.00017
+}
