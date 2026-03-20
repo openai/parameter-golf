@@ -9,9 +9,13 @@
     "42":   {"val_loss": 1.94331912, "val_bpb": 1.15094623, "steps": 10610, "ms_per_step": 56.53, "artifact_bytes": 14791593},
     "7":    {"val_loss": 1.94339390, "val_bpb": 1.15099052, "steps": 10610, "ms_per_step": 56.53, "artifact_bytes": 14562412}
   },
+  "val_loss": 1.94293263,
+  "val_bpb": 1.15071733,
   "mean_val_loss": 1.94293263,
   "mean_val_bpb": 1.15071733,
   "p_value": 0.0001,
+  "bytes_total": 14562412,
+  "bytes_code": 55785,
   "artifact_bytes": 14562412,
   "code_bytes": 55785,
   "blurb": "9-layer transformer with int6 STE quantization-aware training, NorMuon optimizer with decoupled weight decay, SmearGate embedding context, orthogonal initialization, seq_len=2048 with RoPE base 50K, stochastic weight averaging every 100 steps, sliding window evaluation."
