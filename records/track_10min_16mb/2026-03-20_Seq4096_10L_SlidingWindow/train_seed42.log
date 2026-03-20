@@ -1,0 +1,36 @@
+[STAGE 1/4] run=41c97225 | 8×H100 | hparams: {'num_layers': 10, 'train_seq_len': 4096, 'eval_stride': 64, 'warmdown_iters': 3600, 'seed': 42}
+[STAGE 2/4] run=41c97225 | Env built. DATA_PATH=/data/datasets/fineweb10B_sp1024
+[STAGE 3/4] run=41c97225 | Data: 81 shards | tokenizer=OK
+[STAGE 4/4] run=41c97225 | Launching torchrun 8×H100 ...
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=90 (> 89C)
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=90 (> 89C)
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=91 (> 89C)
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=90 (> 89C)
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=90 (> 89C)
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=90 (> 89C)
+[RESULT] run=41c97225 | score=1.1908 | size=15,128,724B | ✓ fits 16MB | OK | 1070s
+[STAGE 1/4] run=9b13b924 | 8×H100 | hparams: {'num_layers': 10, 'train_seq_len': 4096, 'eval_stride': 64, 'warmdown_iters': 3600, 'seed': 7}
+[STAGE 2/4] run=9b13b924 | Env built. DATA_PATH=/data/datasets/fineweb10B_sp1024
+[STAGE 3/4] run=9b13b924 | Data: 81 shards | tokenizer=OK
+[STAGE 4/4] run=9b13b924 | Launching torchrun 8×H100 ...
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=91 (> 89C)
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=91 (> 89C)
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=91 (> 89C)
+[gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=92 (> 89C)
+[RESULT] run=9b13b924 | score=1.1888 | size=15,154,068B | ✓ fits 16MB | OK | 1071s
+
+============================================================
+  SUBMISSION RESULTS
+============================================================
+Stopping app - uncaught exception raised locally: ValueError("Invalid format specifier '.4f if score else 'FAILED'' for object of type 'float'").
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/sahamed/Desktop/poridhi/ai_system/competition/src/modal/modal_app.py: │
+│ 531 in run_final_submission                                                  │
+│                                                                              │
+│   530 │   │   ok = r.get("success", False)                                   │
+│ ❱ 531 │   │   print(f"  seed={seed}: score={score:.4f if score else 'FAILED' │
+│   532 │   │   if score:                                                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+ValueError: Invalid format specifier '.4f if score else 'FAILED'' for object of 
+type 'float'
+make: *** [modal-submit] Error 1
