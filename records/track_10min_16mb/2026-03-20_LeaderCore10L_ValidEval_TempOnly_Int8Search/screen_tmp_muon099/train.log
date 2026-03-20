@@ -29,38 +29,34 @@ warmup_step:17/20
 warmup_step:18/20
 warmup_step:19/20
 warmup_step:20/20
-step:1/20000 train_loss:6.9337 train_time:492ms step_avg:491.81ms
-step:2/20000 train_loss:23.4389 train_time:943ms step_avg:471.30ms
-step:3/20000 train_loss:20.7538 train_time:1391ms step_avg:463.83ms
-step:4/20000 train_loss:17.4015 train_time:1886ms step_avg:471.40ms
-W0320 16:33:57.138000 10154 torch/distributed/elastic/agent/server/api.py:725] Received 15 death signal, shutting down workers
-W0320 16:33:57.145000 10154 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 10233 closing signal SIGTERM
-Traceback (most recent call last):
-  File "<frozen runpy>", line 198, in _run_module_as_main
-  File "<frozen runpy>", line 88, in _run_code
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 940, in <module>
-    main()
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
-    return f(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
-    run(args)
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
-    elastic_launch(
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
-    return launch_agent(self._config, self._entrypoint, list(args))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 284, in launch_agent
-    result = agent.run()
-             ^^^^^^^^^^^
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
-    result = f(*args, **kwargs)
-             ^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/agent/server/api.py", line 717, in run
-    result = self._invoke_run(role)
-             ^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/agent/server/api.py", line 881, in _invoke_run
-    time.sleep(monitor_interval)
-  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/api.py", line 85, in _terminate_process_handler
-    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
-torch.distributed.elastic.multiprocessing.api.SignalException: Process 10154 got signal: 15
+step:1/20000 train_loss:6.9337 train_time:397ms step_avg:396.87ms
+step:2/20000 train_loss:23.4389 train_time:830ms step_avg:415.14ms
+step:3/20000 train_loss:20.0768 train_time:1259ms step_avg:419.68ms
+step:4/20000 train_loss:16.3525 train_time:1699ms step_avg:424.71ms
+step:5/20000 train_loss:12.9355 train_time:2126ms step_avg:425.25ms
+step:6/20000 train_loss:10.2189 train_time:2577ms step_avg:429.43ms
+step:7/20000 train_loss:8.2637 train_time:2997ms step_avg:428.19ms
+step:8/20000 train_loss:7.1695 train_time:3433ms step_avg:429.11ms
+step:9/20000 train_loss:6.4713 train_time:3925ms step_avg:436.08ms
+step:10/20000 train_loss:6.1345 train_time:4392ms step_avg:439.24ms
+step:25/20000 train_loss:5.9491 train_time:10729ms step_avg:429.17ms
+step:50/20000 train_loss:5.1697 train_time:21237ms step_avg:424.74ms
+step:75/20000 train_loss:4.5915 train_time:31797ms step_avg:423.96ms
+step:100/20000 train_loss:4.2740 train_time:42283ms step_avg:422.83ms
+step:125/20000 train_loss:4.0908 train_time:52501ms step_avg:420.01ms
+step:150/20000 train_loss:3.8380 train_time:62891ms step_avg:419.27ms
+step:175/20000 train_loss:3.5410 train_time:73392ms step_avg:419.38ms
+step:200/20000 train_loss:3.3518 train_time:83897ms step_avg:419.48ms
+step:225/20000 train_loss:3.2722 train_time:94178ms step_avg:418.57ms
+step:250/20000 train_loss:3.1507 train_time:104281ms step_avg:417.12ms
+step:275/20000 train_loss:3.0154 train_time:114628ms step_avg:416.83ms
+step:300/20000 train_loss:2.9405 train_time:125078ms step_avg:416.93ms
+step:325/20000 train_loss:2.9236 train_time:135384ms step_avg:416.57ms
+step:350/20000 train_loss:2.8827 train_time:145895ms step_avg:416.84ms
+step:375/20000 train_loss:2.8869 train_time:156231ms step_avg:416.62ms
+step:400/20000 train_loss:2.6673 train_time:166680ms step_avg:416.70ms
+step:425/20000 train_loss:2.7960 train_time:177096ms step_avg:416.70ms
+step:432/20000 val_loss:2.7998 val_bpb:1.6582 train_time:180026ms step_avg:416.73ms
+stopping_early: wallclock_cap train_time:180026ms step:432/20000
+peak memory allocated: 11397 MiB reserved: 11760 MiB
+proxy_mode:skip_serialization_and_roundtrip_eval
