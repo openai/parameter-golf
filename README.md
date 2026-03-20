@@ -1,4 +1,3 @@
-```markdown
 <a id="content"></a>
 
 <div align="center">
