@@ -773,10 +773,14 @@ class CausalSelfAttention(nn.Module):
             k1 = k1.repeat_interleave(rep, dim=1)
             k2 = k2.repeat_interleave(rep, dim=1)
             v = v.repeat_interleave(rep, dim=1)
-        # Split V into halves to match Q/K half_head_dim for SDPA
-        v1, v2 = v[..., :self.half_head_dim], v[..., self.half_head_dim:]
-        attn1 = F.scaled_dot_product_attention(q1, k1, v1, is_causal=True)
-        attn2 = F.scaled_dot_product_attention(q2, k2, v2, is_causal=True)
+        # Manual attention to handle Q/K half_head_dim != V head_dim
+        scale = q1.size(-1) ** -0.5
+        # attn1: softmax(q1 @ k1^T / sqrt(d)) @ v
+        a1 = F.softmax(torch.matmul(q1 * scale, k1.transpose(-2, -1)), dim=-1)
+        attn1 = torch.matmul(a1, v)
+        # attn2: softmax(q2 @ k2^T / sqrt(d)) @ v
+        a2 = F.softmax(torch.matmul(q2 * scale, k2.transpose(-2, -1)), dim=-1)
+        attn2 = torch.matmul(a2, v)
 
         # Compute learnable lambda
         lambda_val = (torch.exp(self.lambda_q1.to(q1.dtype)) * torch.exp(self.lambda_k1.to(q1.dtype))).sum(-1)
@@ -785,9 +789,7 @@ class CausalSelfAttention(nn.Module):
         lambda_val = lambda_val[None, :, None, None]  # (1, H, 1, 1)
 
         # Differential attention: subtract noise attention, scaled by lambda
-        diff = attn1 - lambda_val * attn2
-        # Concat the two halves back to full head_dim
-        y = torch.cat([diff, diff], dim=-1)
+        y = attn1 - lambda_val * attn2
 
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
