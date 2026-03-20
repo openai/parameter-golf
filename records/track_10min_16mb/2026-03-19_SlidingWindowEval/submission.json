@@ -5,7 +5,7 @@
   "blurb": "Baseline 9x512 SP-1024 architecture with sliding window evaluation at stride=64. Each token is scored with 960+ tokens of context instead of the baseline's 0-1023. Training is identical to the naive baseline; the improvement comes entirely from the evaluation strategy. Post-quant int8+zlib roundtrip under the 16,000,000-byte cap.",
   "date": "2026-03-19T04:48:00Z",
   "val_loss": 2.01348383,
-  "val_bpb": 1.19250007,
+  "val_bpb": 1.1637,
   "pre_quant_val_loss": 2.0592,
   "pre_quant_val_bpb": 1.2196,
   "step_stop": 13450,
