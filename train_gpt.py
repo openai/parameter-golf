@@ -984,7 +984,21 @@ def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
     q = torch.clamp(torch.round(t32 / scale.float()), -32, 31).to(torch.int8)
     return q, scale
 
+def quantize_int5_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
+    """Int5 [-16,15] per-row quantization. 3 zero high bits = better zstd compression."""
+    t32 = t.float()
+    if t32.ndim == 2:
+        row_max = t32.abs().amax(dim=1)
+        scale = (row_max / 15.0).clamp_min(1.0 / 15.0).to(torch.float16)
+        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -16, 15).to(torch.int8)
+        return q, scale
+    amax = t32.abs().max().item()
+    scale = torch.tensor(amax / 15.0 if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -16, 15).to(torch.int8)
+    return q, scale
+
 def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
+    use_int5_mlp = bool(int(os.environ.get("INT5_MLP", "0")))
     num_layers_total = max(
         (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
         default=0,
@@ -1006,10 +1020,18 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             continue
         # tok_emb.weight falls through to int8 via "embed" category
         if cat in int6_cats and t.ndim >= 1:
-            q, s = quantize_int6_per_row(t)
-            result[name + ".q"] = q
-            result[name + ".scale"] = s
-            meta[name] = {"type": "int6"}
+            # Int5 for MLP weights (better compression), Int6 for attention
+            is_mlp = cat == "mlp"
+            if use_int5_mlp and is_mlp:
+                q, s = quantize_int5_per_row(t)
+                result[name + ".q"] = q
+                result[name + ".scale"] = s
+                meta[name] = {"type": "int5"}
+            else:
+                q, s = quantize_int6_per_row(t)
+                result[name + ".q"] = q
+                result[name + ".scale"] = s
+                meta[name] = {"type": "int6"}
         else:
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
