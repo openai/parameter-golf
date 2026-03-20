@@ -6,10 +6,9 @@
 
 set -e
 
-echo "=== Step 1: Clone fork and download dataset ==="
-cd /workspace
-git clone https://github.com/User123331/parameter-golf.git
-cd parameter-golf
+echo "=== Step 1: Download dataset ==="
+# Run from the repo root (already cloned)
+cd /workspace/parameter-golf
 
 # Download full dataset (~18 min)
 python3 data/cached_challenge_fineweb.py --variant sp1024
