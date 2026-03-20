@@ -1,10 +1,268 @@
-logs/299f7f1f-6f22-4ee8-83f2-f0970810ff56.txt
+
+
+
+
+ ______                 ______            _
+(_____ \               (_____ \          | |
+ _____) ) _   _  ____   _____) )___    __| |
+|  __  / | | | ||  _ \ |  ____// _ \  / _  |
+| |  \ \ | |_| || | | || |    | |_| |( (_| |
+|_|   |_||____/ |_| |_||_|     \___/  \____|
+
+For detailed documentation and guides, please visit:
+https://docs.runpod.io/ and https://blog.runpod.io/
+
+
+root@5e1e52109170:/workspace# cd /workspace && git clone https://github.com/openai/parameter-golf.git && cd parameter-golf && pip install --upgrade torch huggingface-hub sentencepiece hf-xet zstandard && python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
+Cloning into 'parameter-golf'...
+remote: Enumerating objects: 206, done.
+remote: Counting objects: 100% (34/34), done.
+remote: Compressing objects: 100% (13/13), done.
+remote: Total 206 (delta 29), reused 21 (delta 21), pack-reused 172 (from 2)
+Receiving objects: 100% (206/206), 527.08 KiB | 1.27 MiB/s, done.
+Resolving deltas: 100% (83/83), done.
+Updating files: 100% (66/66), done.
+Requirement already satisfied: torch in /usr/local/lib/python3.11/dist-packages (2.4.1+cu124)
+Collecting torch
+  Downloading torch-2.10.0-3-cp311-cp311-manylinux_2_28_x86_64.whl.metadata (31 kB)
+Collecting huggingface-hub
+  Downloading huggingface_hub-1.7.1-py3-none-any.whl.metadata (13 kB)
+Collecting sentencepiece
+  Downloading sentencepiece-0.2.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (10 kB)
+Collecting hf-xet
+  Downloading hf_xet-1.4.2-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Collecting zstandard
+  Downloading zstandard-0.25.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (3.3 kB)
+Requirement already satisfied: filelock in /usr/local/lib/python3.11/dist-packages (from torch) (3.13.1)
+Collecting typing-extensions>=4.10.0 (from torch)
+  Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting sympy>=1.13.3 (from torch)
+  Downloading sympy-1.14.0-py3-none-any.whl.metadata (12 kB)
+Requirement already satisfied: networkx>=2.5.1 in /usr/local/lib/python3.11/dist-packages (from torch) (3.2.1)
+Requirement already satisfied: jinja2 in /usr/local/lib/python3.11/dist-packages (from torch) (3.1.3)
+Requirement already satisfied: fsspec>=0.8.5 in /usr/local/lib/python3.11/dist-packages (from torch) (2024.2.0)
+Collecting cuda-bindings==12.9.4 (from torch)
+  Downloading cuda_bindings-12.9.4-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (2.6 kB)
+Collecting nvidia-cuda-nvrtc-cu12==12.8.93 (from torch)
+  Downloading nvidia_cuda_nvrtc_cu12-12.8.93-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl.metadata (1.7 kB)
+Collecting nvidia-cuda-runtime-cu12==12.8.90 (from torch)
+  Downloading nvidia_cuda_runtime_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (1.7 kB)
+Collecting nvidia-cuda-cupti-cu12==12.8.90 (from torch)
+  Downloading nvidia_cuda_cupti_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (1.7 kB)
+Collecting nvidia-cudnn-cu12==9.10.2.21 (from torch)
+  Downloading nvidia_cudnn_cu12-9.10.2.21-py3-none-manylinux_2_27_x86_64.whl.metadata (1.8 kB)
+Collecting nvidia-cublas-cu12==12.8.4.1 (from torch)
+  Downloading nvidia_cublas_cu12-12.8.4.1-py3-none-manylinux_2_27_x86_64.whl.metadata (1.7 kB)
+Collecting nvidia-cufft-cu12==11.3.3.83 (from torch)
+  Downloading nvidia_cufft_cu12-11.3.3.83-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (1.7 kB)
+Collecting nvidia-curand-cu12==10.3.9.90 (from torch)
+  Downloading nvidia_curand_cu12-10.3.9.90-py3-none-manylinux_2_27_x86_64.whl.metadata (1.7 kB)
+Collecting nvidia-cusolver-cu12==11.7.3.90 (from torch)
+  Downloading nvidia_cusolver_cu12-11.7.3.90-py3-none-manylinux_2_27_x86_64.whl.metadata (1.8 kB)
+Collecting nvidia-cusparse-cu12==12.5.8.93 (from torch)
+  Downloading nvidia_cusparse_cu12-12.5.8.93-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (1.8 kB)
+Collecting nvidia-cusparselt-cu12==0.7.1 (from torch)
+  Downloading nvidia_cusparselt_cu12-0.7.1-py3-none-manylinux2014_x86_64.whl.metadata (7.0 kB)
+Collecting nvidia-nccl-cu12==2.27.5 (from torch)
+  Downloading nvidia_nccl_cu12-2.27.5-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.0 kB)
+Collecting nvidia-nvshmem-cu12==3.4.5 (from torch)
+  Downloading nvidia_nvshmem_cu12-3.4.5-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.1 kB)
+Collecting nvidia-nvtx-cu12==12.8.90 (from torch)
+  Downloading nvidia_nvtx_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (1.8 kB)
+Collecting nvidia-nvjitlink-cu12==12.8.93 (from torch)
+  Downloading nvidia_nvjitlink_cu12-12.8.93-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl.metadata (1.7 kB)
+Collecting nvidia-cufile-cu12==1.13.1.3 (from torch)
+  Downloading nvidia_cufile_cu12-1.13.1.3-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (1.7 kB)
+Collecting triton==3.6.0 (from torch)
+  Downloading triton-3.6.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (1.7 kB)
+Collecting cuda-pathfinder~=1.1 (from cuda-bindings==12.9.4->torch)
+  Downloading cuda_pathfinder-1.4.3-py3-none-any.whl.metadata (1.9 kB)
+Requirement already satisfied: httpx<1,>=0.23.0 in /usr/local/lib/python3.11/dist-packages (from huggingface-hub) (0.27.2)
+Requirement already satisfied: packaging>=20.9 in /usr/local/lib/python3.11/dist-packages (from huggingface-hub) (24.1)
+Requirement already satisfied: pyyaml>=5.1 in /usr/local/lib/python3.11/dist-packages (from huggingface-hub) (6.0.2)
+Collecting tqdm>=4.42.1 (from huggingface-hub)
+  Downloading tqdm-4.67.3-py3-none-any.whl.metadata (57 kB)
+Collecting typer (from huggingface-hub)
+  Downloading typer-0.24.1-py3-none-any.whl.metadata (16 kB)
+Requirement already satisfied: anyio in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface-hub) (4.6.0)
+Requirement already satisfied: certifi in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface-hub) (2024.8.30)
+Requirement already satisfied: httpcore==1.* in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface-hub) (1.0.5)
+Requirement already satisfied: idna in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface-hub) (3.10)
+Requirement already satisfied: sniffio in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface-hub) (1.3.1)
+Requirement already satisfied: h11<0.15,>=0.13 in /usr/local/lib/python3.11/dist-packages (from httpcore==1.*->httpx<1,>=0.23.0->huggingface-hub) (0.14.0)
+Requirement already satisfied: mpmath<1.4,>=1.1.0 in /usr/local/lib/python3.11/dist-packages (from sympy>=1.13.3->torch) (1.3.0)
+Requirement already satisfied: MarkupSafe>=2.0 in /usr/local/lib/python3.11/dist-packages (from jinja2->torch) (2.1.5)
+Collecting click>=8.2.1 (from typer->huggingface-hub)
+  Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+Collecting shellingham>=1.3.0 (from typer->huggingface-hub)
+  Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+Collecting rich>=12.3.0 (from typer->huggingface-hub)
+  Downloading rich-14.3.3-py3-none-any.whl.metadata (18 kB)
+Collecting annotated-doc>=0.0.2 (from typer->huggingface-hub)
+  Downloading annotated_doc-0.0.4-py3-none-any.whl.metadata (6.6 kB)
+Collecting markdown-it-py>=2.2.0 (from rich>=12.3.0->typer->huggingface-hub)
+  Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /usr/local/lib/python3.11/dist-packages (from rich>=12.3.0->typer->huggingface-hub) (2.18.0)
+Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=12.3.0->typer->huggingface-hub)
+  Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+Downloading torch-2.10.0-3-cp311-cp311-manylinux_2_28_x86_64.whl (915.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 915.5/915.5 MB 45.2 MB/s eta 0:00:00
+Downloading cuda_bindings-12.9.4-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (12.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.2/12.2 MB 52.3 MB/s eta 0:00:00
+Downloading nvidia_cublas_cu12-12.8.4.1-py3-none-manylinux_2_27_x86_64.whl (594.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 594.3/594.3 MB 60.0 MB/s eta 0:00:00
+Downloading nvidia_cuda_cupti_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (10.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.2/10.2 MB 73.3 MB/s eta 0:00:00
+Downloading nvidia_cuda_nvrtc_cu12-12.8.93-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl (88.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 88.0/88.0 MB 69.2 MB/s eta 0:00:00
+Downloading nvidia_cuda_runtime_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (954 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 954.8/954.8 kB 45.4 MB/s eta 0:00:00
+Downloading nvidia_cudnn_cu12-9.10.2.21-py3-none-manylinux_2_27_x86_64.whl (706.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 706.8/706.8 MB 74.5 MB/s eta 0:00:00
+Downloading nvidia_cufft_cu12-11.3.3.83-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (193.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 193.1/193.1 MB 78.8 MB/s eta 0:00:00
+Downloading nvidia_cufile_cu12-1.13.1.3-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (1.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 63.1 MB/s eta 0:00:00
+Downloading nvidia_curand_cu12-10.3.9.90-py3-none-manylinux_2_27_x86_64.whl (63.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 63.6/63.6 MB 93.4 MB/s eta 0:00:00
+Downloading nvidia_cusolver_cu12-11.7.3.90-py3-none-manylinux_2_27_x86_64.whl (267.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 267.5/267.5 MB 100.1 MB/s eta 0:00:00
+Downloading nvidia_cusparse_cu12-12.5.8.93-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (288.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 288.2/288.2 MB 88.3 MB/s eta 0:00:00
+Downloading nvidia_cusparselt_cu12-0.7.1-py3-none-manylinux2014_x86_64.whl (287.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 287.2/287.2 MB 59.6 MB/s eta 0:00:00
+Downloading nvidia_nccl_cu12-2.27.5-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (322.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 322.3/322.3 MB 61.0 MB/s eta 0:00:00
+Downloading nvidia_nvjitlink_cu12-12.8.93-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl (39.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 39.3/39.3 MB 65.9 MB/s eta 0:00:00
+Downloading nvidia_nvshmem_cu12-3.4.5-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (139.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 139.1/139.1 MB 64.8 MB/s eta 0:00:00
+Downloading nvidia_nvtx_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (89 kB)
+Downloading triton-3.6.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (188.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 188.2/188.2 MB 53.7 MB/s eta 0:00:00
+Downloading huggingface_hub-1.7.1-py3-none-any.whl (616 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 616.3/616.3 kB 28.5 MB/s eta 0:00:00
+Downloading sentencepiece-0.2.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (1.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.4/1.4 MB 58.3 MB/s eta 0:00:00
+Downloading hf_xet-1.4.2-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.2/4.2 MB 53.3 MB/s eta 0:00:00
+Downloading zstandard-0.25.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (5.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.6/5.6 MB 55.5 MB/s eta 0:00:00
+Downloading sympy-1.14.0-py3-none-any.whl (6.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.3/6.3 MB 56.4 MB/s eta 0:00:00
+Downloading tqdm-4.67.3-py3-none-any.whl (78 kB)
+Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+Downloading typer-0.24.1-py3-none-any.whl (56 kB)
+Downloading annotated_doc-0.0.4-py3-none-any.whl (5.3 kB)
+Downloading click-8.3.1-py3-none-any.whl (108 kB)
+Downloading cuda_pathfinder-1.4.3-py3-none-any.whl (47 kB)
+Downloading rich-14.3.3-py3-none-any.whl (310 kB)
+Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+Installing collected packages: nvidia-cusparselt-cu12, zstandard, typing-extensions, triton, tqdm, sympy, shellingham, sentencepiece, nvidia-nvtx-cu12, nvidia-nvshmem-cu12, nvidia-nvjitlink-cu12, nvidia-nccl-cu12, nvidia-curand-cu12, nvidia-cufile-cu12, nvidia-cuda-runtime-cu12, nvidia-cuda-nvrtc-cu12, nvidia-cuda-cupti-cu12, nvidia-cublas-cu12, mdurl, hf-xet, cuda-pathfinder, click, annotated-doc, nvidia-cusparse-cu12, nvidia-cufft-cu12, nvidia-cudnn-cu12, markdown-it-py, cuda-bindings, rich, nvidia-cusolver-cu12, typer, torch, huggingface-hub
+  Attempting uninstall: typing-extensions
+    Found existing installation: typing_extensions 4.9.0
+    Uninstalling typing_extensions-4.9.0:
+      Successfully uninstalled typing_extensions-4.9.0
+  Attempting uninstall: triton
+    Found existing installation: triton 3.0.0
+    Uninstalling triton-3.0.0:
+      Successfully uninstalled triton-3.0.0
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.12
+    Uninstalling sympy-1.12:
+      Successfully uninstalled sympy-1.12
+  Attempting uninstall: nvidia-nvtx-cu12
+    Found existing installation: nvidia-nvtx-cu12 12.4.99
+    Uninstalling nvidia-nvtx-cu12-12.4.99:
+      Successfully uninstalled nvidia-nvtx-cu12-12.4.99
+  Attempting uninstall: nvidia-nvjitlink-cu12
+    Found existing installation: nvidia-nvjitlink-cu12 12.4.99
+    Uninstalling nvidia-nvjitlink-cu12-12.4.99:
+      Successfully uninstalled nvidia-nvjitlink-cu12-12.4.99
+  Attempting uninstall: nvidia-nccl-cu12
+    Found existing installation: nvidia-nccl-cu12 2.20.5
+    Uninstalling nvidia-nccl-cu12-2.20.5:
+      Successfully uninstalled nvidia-nccl-cu12-2.20.5
+  Attempting uninstall: nvidia-curand-cu12
+    Found existing installation: nvidia-curand-cu12 10.3.5.119
+    Uninstalling nvidia-curand-cu12-10.3.5.119:
+      Successfully uninstalled nvidia-curand-cu12-10.3.5.119
+  Attempting uninstall: nvidia-cuda-runtime-cu12
+    Found existing installation: nvidia-cuda-runtime-cu12 12.4.99
+    Uninstalling nvidia-cuda-runtime-cu12-12.4.99:
+      Successfully uninstalled nvidia-cuda-runtime-cu12-12.4.99
+  Attempting uninstall: nvidia-cuda-nvrtc-cu12
+    Found existing installation: nvidia-cuda-nvrtc-cu12 12.4.99
+    Uninstalling nvidia-cuda-nvrtc-cu12-12.4.99:
+      Successfully uninstalled nvidia-cuda-nvrtc-cu12-12.4.99
+  Attempting uninstall: nvidia-cuda-cupti-cu12
+    Found existing installation: nvidia-cuda-cupti-cu12 12.4.99
+    Uninstalling nvidia-cuda-cupti-cu12-12.4.99:
+      Successfully uninstalled nvidia-cuda-cupti-cu12-12.4.99
+  Attempting uninstall: nvidia-cublas-cu12
+    Found existing installation: nvidia-cublas-cu12 12.4.2.65
+    Uninstalling nvidia-cublas-cu12-12.4.2.65:
+      Successfully uninstalled nvidia-cublas-cu12-12.4.2.65
+  Attempting uninstall: nvidia-cusparse-cu12
+    Found existing installation: nvidia-cusparse-cu12 12.3.0.142
+    Uninstalling nvidia-cusparse-cu12-12.3.0.142:
+      Successfully uninstalled nvidia-cusparse-cu12-12.3.0.142
+  Attempting uninstall: nvidia-cufft-cu12
+    Found existing installation: nvidia-cufft-cu12 11.2.0.44
+    Uninstalling nvidia-cufft-cu12-11.2.0.44:
+      Successfully uninstalled nvidia-cufft-cu12-11.2.0.44
+  Attempting uninstall: nvidia-cudnn-cu12
+    Found existing installation: nvidia-cudnn-cu12 9.1.0.70
+    Uninstalling nvidia-cudnn-cu12-9.1.0.70:
+      Successfully uninstalled nvidia-cudnn-cu12-9.1.0.70
+  Attempting uninstall: nvidia-cusolver-cu12
+    Found existing installation: nvidia-cusolver-cu12 11.6.0.99
+    Uninstalling nvidia-cusolver-cu12-11.6.0.99:
+      Successfully uninstalled nvidia-cusolver-cu12-11.6.0.99
+  Attempting uninstall: torch
+    Found existing installation: torch 2.4.1+cu124
+    Uninstalling torch-2.4.1+cu124:
+      Successfully uninstalled torch-2.4.1+cu124
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+torchaudio 2.4.1+cu124 requires torch==2.4.1, but you have torch 2.10.0 which is incompatible.
+torchvision 0.19.1+cu124 requires torch==2.4.1, but you have torch 2.10.0 which is incompatible.
+Successfully installed annotated-doc-0.0.4 click-8.3.1 cuda-bindings-12.9.4 cuda-pathfinder-1.4.3 hf-xet-1.4.2 huggingface-hub-1.7.1 markdown-it-py-4.0.0 mdurl-0.1.2 nvidia-cublas-cu12-12.8.4.1 nvidia-cuda-cupti-cu12-12.8.90 nvidia-cuda-nvrtc-cu12-12.8.93 nvidia-cuda-runtime-cu12-12.8.90 nvidia-cudnn-cu12-9.10.2.21 nvidia-cufft-cu12-11.3.3.83 nvidia-cufile-cu12-1.13.1.3 nvidia-curand-cu12-10.3.9.90 nvidia-cusolver-cu12-11.7.3.90 nvidia-cusparse-cu12-12.5.8.93 nvidia-cusparselt-cu12-0.7.1 nvidia-nccl-cu12-2.27.5 nvidia-nvjitlink-cu12-12.8.93 nvidia-nvshmem-cu12-3.4.5 nvidia-nvtx-cu12-12.8.90 rich-14.3.3 sentencepiece-0.2.1 shellingham-1.5.4 sympy-1.14.0 torch-2.10.0 tqdm-4.67.3 triton-3.6.0 typer-0.24.1 typing-extensions-4.15.0 zstandard-0.25.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable.It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 24.2 -> 26.0.1
+[notice] To update, run: python -m pip install --upgrade pip
+manifest.json: 1.93kB [00:00, 3.58MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████████████████████████████| 124M/124M [00:02<00:00, 61.0MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|█████████████████████████████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|█████████████████████████████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████████████████████████████| 200M/200M [00:02<00:00, 99.1MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████████████████████████████| 200M/200M [00:02<00:00, 99.2MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|█████████████████████████████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|█████████████████████████████████████████████████████████████████████| 200M/200M [00:01<00:00, 124MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|█████████████████████████████████████████████████████████████████████| 200M/200M [00:01<00:00, 124MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|█████████████████████████████████████████████████████████████████████| 200M/200M [00:01<00:00, 124MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████████████████████████████| 200M/200M [00:02<00:00, 90.2MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|█████████████████████████████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/tokenizers/fineweb_1024_bpe.mod(…): 100%|█████████████████████████████████████████████████████████████████████| 254k/254k [00:00<00:00, 615kB/s]
+fineweb_1024_bpe.vocab: 9.86kB [00:00, 8.17MB/s]
+root@5e1e52109170:/workspace/parameter-golf# USE_SWIGLU=1 MLP_MULT=3 NUM_LAYERS=10 QUANT_BITS=6 torchrun --standalone --nproc_per_node=8 train_gpt.py
+W0320 04:23:11.831000 660 torch/distributed/run.py:852] 
+W0320 04:23:11.831000 660 torch/distributed/run.py:852] *****************************************
+W0320 04:23:11.831000 660 torch/distributed/run.py:852] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0320 04:23:11.831000 660 torch/distributed/run.py:852] *****************************************
+logs/58498d7d-f90f-4ddc-8277-0d07f101bb6d.txt
 val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
 train_loader:dataset:fineweb10B_sp1024 train_shards:10
 val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
-model_params:20354048 use_swiglu:True unique_blocks:4 passes:3 eff_depth:12
-world_size:4 grad_accum_steps:2
-train_batch_tokens:524288 train_seq_len:2048 iterations:20000
+model_params:24140368 dim:512 layers:10 mlp_mult:3 swiglu:True smear:False quant:6 qat:0.25
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
 seed:1337
 warmup_step:1/20
 warmup_step:2/20
@@ -26,40 +284,88 @@ warmup_step:17/20
 warmup_step:18/20
 warmup_step:19/20
 warmup_step:20/20
-step:0/20000 val_loss:6.9589 val_bpb:4.1215 train_time:0ms step_avg:0.01ms
-step:1/20000 train_loss:6.9601 train_time:237ms step_avg:236.99ms
-step:2/20000 train_loss:18.4739 train_time:525ms step_avg:262.25ms
-step:3/20000 train_loss:7.8165 train_time:779ms step_avg:259.58ms
-step:4/20000 train_loss:7.2669 train_time:1038ms step_avg:259.39ms
-step:5/20000 train_loss:7.0738 train_time:1288ms step_avg:257.55ms
-step:6/20000 train_loss:7.0678 train_time:1546ms step_avg:257.61ms
-step:7/20000 train_loss:6.4694 train_time:1830ms step_avg:261.42ms
-step:8/20000 train_loss:6.1834 train_time:2099ms step_avg:262.38ms
-step:9/20000 train_loss:5.9868 train_time:2355ms step_avg:261.66ms
-step:10/20000 train_loss:5.8495 train_time:2610ms step_avg:261.00ms
-step:200/20000 train_loss:2.6941 train_time:49923ms step_avg:249.62ms
-step:400/20000 train_loss:2.2756 train_time:99921ms step_avg:249.80ms
-step:600/20000 train_loss:2.4585 train_time:149877ms step_avg:249.79ms
-step:800/20000 train_loss:2.2459 train_time:199590ms step_avg:249.49ms
-step:1000/20000 train_loss:2.3143 train_time:249244ms step_avg:249.24ms
-step:1000/20000 val_loss:2.2706 val_bpb:1.3448 train_time:249300ms step_avg:249.30ms
-step:1200/20000 train_loss:2.3062 train_time:299016ms step_avg:249.18ms
-step:1400/20000 train_loss:2.2966 train_time:350039ms step_avg:250.03ms
-step:1600/20000 train_loss:2.0718 train_time:399729ms step_avg:249.83ms
-step:1800/20000 train_loss:2.1715 train_time:450302ms step_avg:250.17ms
-step:2000/20000 train_loss:2.1966 train_time:503830ms step_avg:251.92ms
-step:2000/20000 val_loss:2.1302 val_bpb:1.2616 train_time:503840ms step_avg:251.92ms
-step:2200/20000 train_loss:2.2512 train_time:558584ms step_avg:253.90ms
-step:2337/20000 val_loss:2.1010 val_bpb:1.2444 train_time:600112ms step_avg:256.79ms
-stopping_early: wallclock_cap train_time:600112ms step:2337/20000
-peak memory allocated: 21417 MiB reserved: 22134 MiB
-Serialized model: 79579049 bytes
-Code size: 46949 bytes
-Total submission size: 79625998 bytes
-Serialized model int8+zlib: 15624361 bytes (payload:20354048 raw_torch:20376706 payload_ratio:3.91x)
-Total submission size int8+zlib: 15671310 bytes
-sliding_window_eval stride:64 seq_len:2048
-sliding_eval_progress:1/7571
-sliding_eval_progress:7571/7571
-final_int8_zlib_roundtrip val_loss:2.0715 val_bpb:1.2269 eval_time:528399ms
-final_int8_zlib_roundtrip_exact val_loss:2.07154092 val_bpb:1.22688322
+qat_start_step:15000 qat_fraction:0.25 qat_lr_scale:0.5
+step:0/20000 val_loss:6.9384 val_bpb:4.1093 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9383 train_time:44ms step_avg:43.93ms
+step:2/20000 train_loss:17.1298 train_time:97ms step_avg:48.65ms
+step:3/20000 train_loss:9.0775 train_time:157ms step_avg:52.25ms
+step:4/20000 train_loss:6.5740 train_time:217ms step_avg:54.19ms
+step:5/20000 train_loss:6.5612 train_time:277ms step_avg:55.46ms
+step:6/20000 train_loss:7.3573 train_time:338ms step_avg:56.28ms
+step:7/20000 train_loss:6.3246 train_time:398ms step_avg:56.90ms
+step:8/20000 train_loss:6.1589 train_time:459ms step_avg:57.38ms
+step:9/20000 train_loss:6.0808 train_time:519ms step_avg:57.69ms
+step:10/20000 train_loss:6.0075 train_time:579ms step_avg:57.93ms
+step:200/20000 train_loss:2.7955 train_time:13525ms step_avg:67.62ms
+step:400/20000 train_loss:2.3146 train_time:27074ms step_avg:67.68ms
+step:600/20000 train_loss:2.5073 train_time:40534ms step_avg:67.56ms
+step:800/20000 train_loss:2.2595 train_time:54058ms step_avg:67.57ms
+step:1000/20000 train_loss:2.3417 train_time:67618ms step_avg:67.62ms
+step:1000/20000 val_loss:2.3002 val_bpb:1.3623 train_time:67644ms step_avg:67.64ms
+step:1200/20000 train_loss:2.3531 train_time:81220ms step_avg:67.68ms
+step:1400/20000 train_loss:2.3994 train_time:94820ms step_avg:67.73ms
+step:1600/20000 train_loss:2.0665 train_time:108461ms step_avg:67.79ms
+step:1800/20000 train_loss:2.1656 train_time:122168ms step_avg:67.87ms
+step:2000/20000 train_loss:2.2099 train_time:133326ms step_avg:66.66ms
+step:2000/20000 val_loss:2.2074 val_bpb:1.3074 train_time:133349ms step_avg:66.67ms
+step:2200/20000 train_loss:2.3149 train_time:144489ms step_avg:65.68ms
+step:2400/20000 train_loss:2.3275 train_time:155658ms step_avg:64.86ms
+step:2600/20000 train_loss:2.1873 train_time:166821ms step_avg:64.16ms
+step:2800/20000 train_loss:2.1420 train_time:178004ms step_avg:63.57ms
+step:3000/20000 train_loss:3.1571 train_time:189181ms step_avg:63.06ms
+step:3000/20000 val_loss:2.1773 val_bpb:1.2895 train_time:189207ms step_avg:63.07ms
+step:3200/20000 train_loss:2.2457 train_time:200349ms step_avg:62.61ms
+step:3400/20000 train_loss:2.0739 train_time:211528ms step_avg:62.21ms
+step:3600/20000 train_loss:2.1891 train_time:222689ms step_avg:61.86ms
+step:3800/20000 train_loss:2.1325 train_time:233856ms step_avg:61.54ms
+step:4000/20000 train_loss:2.2532 train_time:245022ms step_avg:61.26ms
+step:4000/20000 val_loss:2.1511 val_bpb:1.2740 train_time:245044ms step_avg:61.26ms
+step:4200/20000 train_loss:2.2040 train_time:256296ms step_avg:61.02ms
+step:4400/20000 train_loss:2.1505 train_time:267447ms step_avg:60.78ms
+step:4600/20000 train_loss:2.1830 train_time:278603ms step_avg:60.57ms
+step:4800/20000 train_loss:2.1264 train_time:289742ms step_avg:60.36ms
+step:5000/20000 train_loss:2.2072 train_time:300911ms step_avg:60.18ms
+step:5000/20000 val_loss:2.1414 val_bpb:1.2683 train_time:300936ms step_avg:60.19ms
+step:5200/20000 train_loss:2.2702 train_time:312071ms step_avg:60.01ms
+step:5400/20000 train_loss:2.2206 train_time:323232ms step_avg:59.86ms
+step:5600/20000 train_loss:2.1305 train_time:334390ms step_avg:59.71ms
+step:5800/20000 train_loss:2.1773 train_time:345534ms step_avg:59.57ms
+step:6000/20000 train_loss:2.0914 train_time:356692ms step_avg:59.45ms
+step:6000/20000 val_loss:2.1297 val_bpb:1.2613 train_time:356716ms step_avg:59.45ms
+step:6200/20000 train_loss:2.0753 train_time:367857ms step_avg:59.33ms
+step:6400/20000 train_loss:1.8597 train_time:379014ms step_avg:59.22ms
+step:6600/20000 train_loss:2.0779 train_time:390169ms step_avg:59.12ms
+step:6800/20000 train_loss:2.1301 train_time:401319ms step_avg:59.02ms
+step:7000/20000 train_loss:2.0786 train_time:412489ms step_avg:58.93ms
+step:7000/20000 val_loss:2.1233 val_bpb:1.2575 train_time:412516ms step_avg:58.93ms
+step:7200/20000 train_loss:1.9639 train_time:423673ms step_avg:58.84ms
+step:7400/20000 train_loss:1.9052 train_time:434843ms step_avg:58.76ms
+step:7600/20000 train_loss:2.1542 train_time:445991ms step_avg:58.68ms
+step:7800/20000 train_loss:2.1183 train_time:457146ms step_avg:58.61ms
+step:8000/20000 train_loss:2.0549 train_time:468312ms step_avg:58.54ms
+step:8000/20000 val_loss:2.1171 val_bpb:1.2539 train_time:468335ms step_avg:58.54ms
+step:8200/20000 train_loss:2.1922 train_time:479492ms step_avg:58.47ms
+step:8400/20000 train_loss:2.1805 train_time:490758ms step_avg:58.42ms
+step:8600/20000 train_loss:2.2064 train_time:501915ms step_avg:58.36ms
+step:8800/20000 train_loss:2.0715 train_time:513075ms step_avg:58.30ms
+step:9000/20000 train_loss:2.0956 train_time:524243ms step_avg:58.25ms
+step:9000/20000 val_loss:2.1120 val_bpb:1.2508 train_time:524267ms step_avg:58.25ms
+step:9200/20000 train_loss:2.1694 train_time:535421ms step_avg:58.20ms
+step:9400/20000 train_loss:1.9986 train_time:546629ms step_avg:58.15ms
+step:9600/20000 train_loss:1.9778 train_time:557824ms step_avg:58.11ms
+step:9800/20000 train_loss:2.0143 train_time:569027ms step_avg:58.06ms
+step:10000/20000 train_loss:1.9604 train_time:580229ms step_avg:58.02ms
+step:10000/20000 val_loss:2.0443 val_bpb:1.2108 train_time:580260ms step_avg:58.03ms
+step:10200/20000 train_loss:2.0422 train_time:591424ms step_avg:57.98ms
+step:10351/20000 val_loss:2.0193 val_bpb:1.1959 train_time:599924ms step_avg:57.96ms
+stopping_early: wallclock_cap train_time:599924ms step:10351/20000
+peak memory allocated: 12729 MiB reserved: 12922 MiB
+Serialized model: 95554103 bytes
+Code size: 64380 bytes
+Total submission size: 95618483 bytes
+Serialized model int6+zstd22: 15768025 bytes (quant_max:31 payload:24815936 raw_torch:24872019 payload_ratio:3.85x)
+Total submission size int6+zstd22: 15832405 bytes
+final_int8_zstd_roundtrip val_loss:2.0269 val_bpb:1.2004 eval_time:1781ms
+final_int8_zstd_roundtrip_exact val_loss:2.02685635 val_bpb:1.20041850
+final_int8_ttt_lora val_loss:1.9705 val_bpb:1.1670 eval_time:141291ms
+root@5e1e52109170:/workspace/parameter-golf# 
