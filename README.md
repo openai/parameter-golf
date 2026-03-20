@@ -135,6 +135,31 @@ For dataset export, tokenizer export, and docs-cache rebuild instructions, see [
 
 Evaluation will be in the RunPod environment with all packages installed. `requirements.txt` is provided as a reference if you want to self-setup.
 
+### Development Tooling
+
+For local development, this repo can also be managed with `uv`, `ruff`, and `ty`.
+
+Create and sync a project environment with:
+
+```bash
+uv sync
+```
+
+Run the linter and formatter with:
+
+```bash
+uv run ruff check .
+uv run ruff format .
+```
+
+Run the type checker with:
+
+```bash
+uv run ty check
+```
+
+The initial `ty` scope is intentionally narrow and currently targets `core/` and `tests/` first so the repo can adopt static checking incrementally without blocking experimentation in the large training scripts.
+
 ## FAQ
 
 **What exactly counts toward the 16MB artifact size?**

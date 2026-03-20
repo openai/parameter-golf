@@ -1,0 +1,61 @@
+[project]
+name = "parameter-golf"
+version = "0.1.0"
+description = "Parameter Golf experiments and tooling"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "tqdm",
+    "torch",
+    "huggingface-hub",
+    "kernels",
+    "setuptools",
+    "typing-extensions==4.15.0",
+    "datasets",
+    "tiktoken",
+    "sentencepiece",
+]
+
+[dependency-groups]
+lint = [
+    "ruff",
+]
+typecheck = [
+    "ty",
+]
+test = [
+    "pytest",
+    "hypothesis",
+]
+dev = [
+    { include-group = "lint" },
+    { include-group = "typecheck" },
+    { include-group = "test" },
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = [
+    "records",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.src]
+include = ["core", "tests"]
+exclude = ["records", "data"]
