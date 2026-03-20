@@ -1,0 +1,28 @@
+{
+  "name": "darroney",
+  "github_id": "dibdabo",
+  "track": "non_record",
+  "val_bpb": 1.2089,
+  "val_loss": 2.0412,
+  "artifact_bytes": 15190812,
+  "compute": "8xH100 10min (600s)",
+  "hardware": "Runpod 8xH100 80GB",
+  "num_layers": 11,
+  "model_dim": 512,
+  "mlp_hidden": 1024,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "train_seq_len": 4096,
+  "vocab_size": 1024,
+  "tokenizer": "sp1024",
+  "steps": 6619,
+  "techniques": [
+    "int6_quantisation",
+    "qat_ste",
+    "sliding_window_eval",
+    "seq_len_4096",
+    "muon_momentum_0.99",
+    "flat_tensor_int6_storage",
+    "gqa"
+  ]
+}
