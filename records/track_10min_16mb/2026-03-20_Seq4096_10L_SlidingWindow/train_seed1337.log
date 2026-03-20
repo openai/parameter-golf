@@ -32,18 +32,3 @@
 [gpu-health] [WARN] GPU-0d6b4ee5-c796-4e3c-3999-7a2452e2e88f: DCGM dmon: DCGM metrics unhealthy: temp_c=92 (> 89C)
 [RESULT] run=9b13b924 | score=1.1888 | size=15,154,068B | ✓ fits 16MB | OK | 1071s
 
-============================================================
-  SUBMISSION RESULTS
-============================================================
-Stopping app - uncaught exception raised locally: ValueError("Invalid format specifier '.4f if score else 'FAILED'' for object of type 'float'").
-╭───────────────────── Traceback (most recent call last) ──────────────────────╮
-│ /Users/sahamed/Desktop/poridhi/ai_system/competition/src/modal/modal_app.py: │
-│ 531 in run_final_submission                                                  │
-│                                                                              │
-│   530 │   │   ok = r.get("success", False)                                   │
-│ ❱ 531 │   │   print(f"  seed={seed}: score={score:.4f if score else 'FAILED' │
-│   532 │   │   if score:                                                      │
-╰──────────────────────────────────────────────────────────────────────────────╯
-ValueError: Invalid format specifier '.4f if score else 'FAILED'' for object of 
-type 'float'
-make: *** [modal-submit] Error 1
