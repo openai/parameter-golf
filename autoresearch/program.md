@@ -9,7 +9,22 @@ Autonomous research loop for the OpenAI Parameter Golf challenge.
 - **Hardware**: 1xH100 SXM 80GB (iteration); 8xH100 SXM (final)
 - **Dataset**: Fixed FineWeb with SentencePiece 1024-token vocab
 - **Metric**: val_bpb (bits per byte), lower is better
-- **Current SOTA**: 1.1748 val_bpb (10 layers, 512 dim, int8+zlib)
+- **Current SOTA on leaderboard**: 1.1748 val_bpb
+
+## What the leaderboard winners use
+
+The top submissions all share these techniques:
+- 10 layers, 512 dim, 8 heads, 4 KV heads (GQA)
+- Muon optimizer for matrix params, AdamW for scalars/embeddings
+- FP16 tied embeddings (eliminates quantization gap)
+- Sliding window eval with stride=64 (~0.03 bpb free improvement)
+- Spectral/overtone embedding init (SVD power-law spectrum shaping)
+- Residual mixing with sigmoid phase scheduling
+- relu^2 MLP activation
+- Logit softcap (30.0)
+- U-net skip connections (encoder-decoder style)
+- int8 per-row quantization + zlib compression
+- ~11-12MB artifact size (4-5MB headroom under 16MB cap)
 
 ## Setup
 
@@ -19,7 +34,7 @@ Autonomous research loop for the OpenAI Parameter Golf challenge.
    - This file (`program.md`) -- experiment instructions
    - `prepare.py` -- fixed constants, data loading, evaluation, quantization. **Do not modify.**
    - `train.py` -- the file you modify. Architecture, optimizer, hyperparameters.
-4. **Verify data exists**: Check that `./data/datasets/fineweb10B_sp1024/` contains data shards. If not, run `python data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1`.
+4. **Verify data exists**: Check that `./data/datasets/fineweb10B_sp1024/` contains data shards. If not, run `python ../data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1`.
 5. **Initialize results.tsv**: Create with header row only.
 6. **Confirm and go**.
 
@@ -46,31 +61,66 @@ code_bytes: XXXXXXX
 
 If artifact_bytes > 16,000,000, the run is INVALID regardless of val_bpb. You must reduce model size.
 
-## Research Directions to Explore
+## Research Strategy
 
-The primary research question: **What is the optimal point on the depth-vs-precision frontier?**
+### Primary thesis: "The Depth Frontier"
 
-Promising directions (roughly in order of expected impact):
+Everyone uses int8 (8 bits/param) = ~19M params in 16MB. But int8 wastes bits -- trained weights have ~3-5 bits of actual information. The key insight: **use fewer bits per weight to fit MORE unique layers.**
 
-1. **Quantization-Aware Training (QAT)**: Add straight-through estimator (STE) fake quantization during warmdown. Try int6, int5, int4 per-weight precision. This lets you fit more layers.
+| Bits/weight | Params in 16MB | Layers at dim=512 | Status |
+|---|---|---|---|
+| int8 | ~19M | 10 | Current SOTA |
+| int6 | ~25M | 13 | Partially explored |
+| **int4** | **~38M** | **~20** | **Unexplored -- highest priority** |
+| int3 | ~50M | ~26 | High risk |
 
-2. **More depth**: With better compression, fit 12, 15, or 20 layers instead of 10. Each additional layer consistently improves language modeling.
+**The sweet spot is likely int4-int5 with 15-20 layers.** Nobody on the leaderboard has explored this.
 
-3. **Mixed precision per layer**: Critical layers (first, last) at int8; middle layers at int4. Sensitivity varies by layer.
+### Experiment sequence (in priority order)
 
-4. **Sliding window eval**: stride=64 gives ~0.03 bpb improvement for free. Already in baseline.
+**Phase 1 -- Establish baseline and quick wins (experiments 1-5):**
+1. Run baseline as-is to establish val_bpb reference
+2. Try matrix_lr=0.03 (SOTA uses slightly lower than 0.04)
+3. Try 11 layers (we have ~5MB headroom)
+4. Try 12 layers
+5. Try warmdown_iters=3000 (longer LR decay)
 
-5. **Learning rate tuning**: The optimal LR depends on model size. Wider/deeper models typically need lower LRs.
+**Phase 2 -- Quantization-Aware Training (experiments 6-15):**
+6. Add STE fake quantization during last 20% of training (warmdown period)
+7. Try int6 QAT on all layers
+8. Try int6 QAT on middle layers only, int8 on first/last 2
+9. Try int5 QAT
+10. Try int4 QAT
+11. With best QAT: increase to 13 layers
+12. With best QAT: increase to 15 layers
+13. With best QAT: increase to 18 layers
+14. With best QAT: increase to 20 layers
+15. Find the optimal depth for the best QAT precision
 
-6. **Longer training sequences**: 2048 or 4096 seq length may help but costs more compute per step.
+**Phase 3 -- Architecture optimization at best depth (experiments 16-25):**
+16. Tune MLP expansion ratio (try 3x instead of 2x, or 1.5x)
+17. Try different GQA ratios (2 KV heads vs 4)
+18. Try head_dim=48 or head_dim=80 instead of 64
+19. Try SwiGLU MLP (may be worth it at higher depth)
+20. Tune learning rates for the deeper model
+21. Try longer sequences (2048) if step time allows
+22. Try different warmdown schedules
+23. Try different initialization strategies
+24. Combine best findings
+25. Final tuning pass
 
-7. **Architecture tweaks**: MLP expansion ratio, activation function (relu^2 vs swiglu), head dim, GQA ratio.
+**Phase 4 -- Advanced compression (experiments 26+):**
+26. NF4 quantization instead of uniform int4
+27. Mixed precision per layer (sensitivity analysis)
+28. Product quantization for embedding table
+29. Learned codebook quantization
 
-8. **Custom compression**: Product quantization, learned codebooks, NF4 instead of uniform int quantization.
+### Approaches that DON'T work (skip these)
 
-**Approaches that DON'T work at this scale:**
-- Weight sharing / ALBERT-style (tested, fails -- unique params matter more)
-- Hypernetworks (too complex to train in 10 min)
+- **Weight sharing / ALBERT-style**: Tested extensively. Fails because unique params matter more than recycled params at this scale (~19M params). Reusing weights does NOT create new information.
+- **Hypernetworks**: Too complex to train in 10 min.
+- **Byte-level tokenizer**: The evaluation uses the fixed SentencePiece tokenizer. Can't change it.
+- **Mamba/SSM**: Requires custom CUDA kernels not available in the environment.
 
 ## Output Format
 
@@ -108,11 +158,13 @@ commit	val_bpb	artifact_mb	status	description
 Example:
 ```
 commit	val_bpb	artifact_mb	status	description
-a1b2c3d	1.2244	15.9	keep	baseline 10L 512dim int8
-b2c3d4e	1.2180	14.2	keep	add QAT int6 middle layers
-c3d4e5f	1.2300	15.8	discard	increase depth to 12L without QAT (too slow)
-d4e5f6g	0.0000	0.0	crash	int4 QAT numerical instability
-e5f6g7h	1.2100	17.2	invalid	15L int8 exceeds 16MB limit
+a1b2c3d	1.4050	11.2	keep	baseline 10L 512dim int8
+b2c3d4e	1.3900	11.2	keep	matrix_lr=0.03
+c3d4e5f	1.3700	13.4	keep	12 layers
+d4e5f6g	1.3500	11.8	keep	12L + int6 QAT middle layers
+e5f6g7h	1.3200	12.5	keep	15L + int5 QAT
+f6g7h8i	0.0000	0.0	crash	int4 QAT numerical instability
+g7h8i9j	1.3100	17.2	invalid	20L int8 exceeds 16MB limit
 ```
 
 ## The Experiment Loop
@@ -120,7 +172,7 @@ e5f6g7h	1.2100	17.2	invalid	15L int8 exceeds 16MB limit
 LOOP FOREVER:
 
 1. Look at git state and results.tsv to understand current best and what's been tried.
-2. Decide what to try next. Prioritize high-impact changes.
+2. Decide what to try next. Follow the experiment sequence above, but adapt based on results.
 3. Modify `train.py` with the experimental change.
 4. `git add train.py && git commit -m "<short description>"`
 5. Run: `python train.py > run.log 2>&1`
@@ -130,8 +182,12 @@ LOOP FOREVER:
 9. If val_bpb improved AND artifact_bytes <= 16000000: keep (advance branch).
 10. If val_bpb worse or artifact invalid: `git reset --hard HEAD~1` (discard).
 
-**Timeout**: Each run should take ~5-6 minutes total. If >10 minutes, kill and treat as failure.
+**Timeout**: Each run should take ~5-7 minutes total (5 min training + eval overhead). If >10 minutes, kill and treat as failure.
 
-**NEVER STOP**: Once started, do NOT pause to ask the human. Run indefinitely until manually stopped. If stuck, think harder -- re-read the code, try combinations, try radical changes.
+**NEVER STOP**: Once started, do NOT pause to ask the human. Run indefinitely until manually stopped. If stuck, think harder -- re-read the code, try combinations, try radical changes. The human might be asleep.
 
 **Key principle**: Each experiment should test ONE hypothesis. Don't change 5 things at once -- you won't know what helped.
+
+**Before each experiment**: Before running, kill any stale GPU processes: `nvidia-smi --query-compute-apps=pid --format=csv,noheader | xargs -r kill -9 2>/dev/null || true`
+
+**If OOM**: Reduce TRAIN_BATCH_TOKENS or grad_accum_steps. Don't give up on the architecture -- just find a batch size that fits.
