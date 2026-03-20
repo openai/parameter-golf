@@ -330,6 +330,11 @@ INT8_KEEP_FLOAT_FP32_AUDIT_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_KEEP_FLOAT_FP32_AUDIT_NAME_PATTERNS", "").split(",")
     if pattern
 )
+INT8_CURRENT_KEEP_FLOAT_AUDIT_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get("INT8_CURRENT_KEEP_FLOAT_AUDIT_NAME_PATTERNS", "").split(",")
+    if pattern
+)
 INT8_KEEP_FLOAT_FP32_EXTRA_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get("INT8_KEEP_FLOAT_FP32_EXTRA_NAME_PATTERNS", "").split(",")
@@ -337,6 +342,7 @@ INT8_KEEP_FLOAT_FP32_EXTRA_NAME_PATTERNS = tuple(
 )
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
 INT8_KEEP_FLOAT_FP32_AUDIT_LOG_TOPK = int(os.environ.get("INT8_KEEP_FLOAT_FP32_AUDIT_LOG_TOPK", 9))
+INT8_CURRENT_KEEP_FLOAT_AUDIT_LOG_TOPK = int(os.environ.get("INT8_CURRENT_KEEP_FLOAT_AUDIT_LOG_TOPK", 8))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -355,6 +361,18 @@ INT8_KEEP_FLOAT_FP32_AUDIT_MIN_MEAN_GAIN = float(
 )
 INT8_KEEP_FLOAT_FP32_AUDIT_MIN_MEDIAN_GAIN = float(
     os.environ.get("INT8_KEEP_FLOAT_FP32_AUDIT_MIN_MEDIAN_GAIN", 0.0)
+)
+INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_TENSOR_GAIN = float(
+    os.environ.get("INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_TENSOR_GAIN", 0.0)
+)
+INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_IMPROVED_TENSORS = int(
+    os.environ.get("INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_IMPROVED_TENSORS", 1)
+)
+INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_MEAN_GAIN = float(
+    os.environ.get("INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_MEAN_GAIN", 0.0)
+)
+INT8_CURRENT_KEEP_FLOAT_AUDIT_MAX_GLOBAL_RANK = int(
+    os.environ.get("INT8_CURRENT_KEEP_FLOAT_AUDIT_MAX_GLOBAL_RANK", 0)
 )
 
 int8_min_clip_name_value_pairs: list[tuple[str, float]] = []
@@ -566,6 +584,118 @@ def score_keep_float_candidate(name: str, t: Tensor) -> dict[str, object]:
         "extra_payload_bytes": keep_payload_bytes - quantized_payload_bytes,
     }
 
+def score_current_keep_float_candidate(name: str, t: Tensor) -> dict[str, object]:
+    scale_dtype = int8_scale_dtype_for_tensor(name, t)
+    min_clip_value = int8_min_clip_value_for_tensor(name, t)
+    q, s = quantize_float_tensor(name, t, scale_dtype=scale_dtype, min_clip_value=min_clip_value)
+    quantized_recon = dequantize_quantized_tensor(q, s, dtype=t.dtype)
+    candidate_orig_dtypes: dict[str, str] = {}
+    kept = keep_float_tensor_for_export(name, t, candidate_orig_dtypes)
+    kept_recon = restore_passthrough_tensor(name, kept, candidate_orig_dtypes)
+    quantized_error = normalized_mae(t, quantized_recon)
+    keep_error = normalized_mae(t, kept_recon)
+    quantized_payload_bytes = tensor_nbytes(q) + tensor_nbytes(s)
+    keep_payload_bytes = tensor_nbytes(kept)
+    return {
+        "name": name,
+        "estimated_gain": quantized_error - keep_error,
+        "quantized_error": quantized_error,
+        "keep_error": keep_error,
+        "quantized_payload_bytes": quantized_payload_bytes,
+        "keep_payload_bytes": keep_payload_bytes,
+        "extra_payload_bytes": keep_payload_bytes - quantized_payload_bytes,
+    }
+
+def audit_current_keep_float_candidates(
+    state_dict: dict[str, Tensor], selected_auto_keep_name: str
+) -> dict[str, object] | None:
+    if not INT8_CURRENT_KEEP_FLOAT_AUDIT_NAME_PATTERNS:
+        return None
+    candidates: list[dict[str, object]] = []
+    focused: list[dict[str, object]] = []
+    for name, tensor in state_dict.items():
+        t = tensor.detach().to("cpu").contiguous()
+        if not t.is_floating_point():
+            continue
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+            continue
+        if matches_name_patterns(name, INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS):
+            continue
+        if name == selected_auto_keep_name:
+            continue
+        candidate = score_current_keep_float_candidate(name, t)
+        candidates.append(candidate)
+        if matches_name_patterns(name, INT8_CURRENT_KEEP_FLOAT_AUDIT_NAME_PATTERNS):
+            focused.append(candidate)
+    if not candidates:
+        return {
+            "total_candidate_count": 0,
+            "focused_tensor_count": 0,
+            "selected_name": "none",
+            "selected_rank": 0,
+            "focused_improved_tensor_count": 0,
+            "focused_mean_gain": 0.0,
+            "focused_best_gain": 0.0,
+            "global_top_summary": "",
+            "focused_summary": "",
+        }
+    ranked = sorted(
+        candidates,
+        key=lambda item: (float(item["estimated_gain"]), -int(item["extra_payload_bytes"]), str(item["name"])),
+        reverse=True,
+    )
+    focused_ranked = [
+        item for item in ranked if matches_name_patterns(str(item["name"]), INT8_CURRENT_KEEP_FLOAT_AUDIT_NAME_PATTERNS)
+    ]
+    focused_gains = [float(item["estimated_gain"]) for item in focused_ranked]
+    focused_improved_tensor_count = sum(
+        gain >= INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_TENSOR_GAIN for gain in focused_gains
+    )
+    focused_mean_gain = float(sum(focused_gains) / len(focused_gains)) if focused_gains else 0.0
+    selected_name = "none"
+    selected_rank = 0
+    focused_best_gain = 0.0
+    if focused_ranked:
+        focused_best = focused_ranked[0]
+        focused_best_gain = float(focused_best["estimated_gain"])
+        selected_rank = next(
+            idx for idx, item in enumerate(ranked, start=1) if str(item["name"]) == str(focused_best["name"])
+        )
+        selected_name = str(focused_best["name"])
+        if focused_best_gain < INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_TENSOR_GAIN:
+            selected_name = "none"
+        if focused_improved_tensor_count < INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_IMPROVED_TENSORS:
+            selected_name = "none"
+        if focused_mean_gain < INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_MEAN_GAIN:
+            selected_name = "none"
+        if INT8_CURRENT_KEEP_FLOAT_AUDIT_MAX_GLOBAL_RANK > 0 and selected_rank > INT8_CURRENT_KEEP_FLOAT_AUDIT_MAX_GLOBAL_RANK:
+            selected_name = "none"
+    global_top_summary = ",".join(
+        (
+            f"{str(item['name'])}|gain={float(item['estimated_gain']):.8f}|extra={int(item['extra_payload_bytes'])}"
+            for item in ranked[: max(INT8_CURRENT_KEEP_FLOAT_AUDIT_LOG_TOPK, 0)]
+        )
+    )
+    focused_ranks = {str(item["name"]): idx for idx, item in enumerate(ranked, start=1)}
+    focused_summary = ",".join(
+        (
+            f"{str(item['name'])}|rank={focused_ranks[str(item['name'])]}|"
+            f"gain={float(item['estimated_gain']):.8f}|extra={int(item['extra_payload_bytes'])}"
+            for item in focused_ranked[: max(INT8_CURRENT_KEEP_FLOAT_AUDIT_LOG_TOPK, 0)]
+        )
+    )
+    return {
+        "total_candidate_count": len(ranked),
+        "focused_tensor_count": len(focused),
+        "selected_name": selected_name,
+        "selected_rank": selected_rank,
+        "focused_improved_tensor_count": focused_improved_tensor_count,
+        "focused_mean_gain": focused_mean_gain,
+        "focused_best_gain": focused_best_gain,
+        "global_top_summary": global_top_summary,
+        "focused_summary": focused_summary,
+    }
+
 def select_auto_keep_float_tensor(state_dict: dict[str, Tensor]) -> dict[str, object] | None:
     if not INT8_AUTO_KEEP_FLOAT_NAME_PATTERNS:
         return None
@@ -625,6 +755,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     selected_auto_keep_name = ""
     if auto_keep is not None:
         selected_auto_keep_name = str(auto_keep["selected_name"])
+    current_keep_float_audit = audit_current_keep_float_candidates(state_dict, selected_auto_keep_name)
     stats = dict.fromkeys(
         (
             "param_count",
@@ -674,6 +805,33 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     )
     stats["keep_float_fp32_audit_candidate_summary"] = (
         str(keep_float_fp32_audit["candidate_summary"]) if keep_float_fp32_audit is not None else ""
+    )
+    stats["current_keep_float_audit_total_candidate_count"] = (
+        int(current_keep_float_audit["total_candidate_count"]) if current_keep_float_audit is not None else 0
+    )
+    stats["current_keep_float_audit_focused_tensor_count"] = (
+        int(current_keep_float_audit["focused_tensor_count"]) if current_keep_float_audit is not None else 0
+    )
+    stats["current_keep_float_audit_selected_name"] = (
+        str(current_keep_float_audit["selected_name"]) if current_keep_float_audit is not None else "none"
+    )
+    stats["current_keep_float_audit_selected_rank"] = (
+        int(current_keep_float_audit["selected_rank"]) if current_keep_float_audit is not None else 0
+    )
+    stats["current_keep_float_audit_focused_improved_tensor_count"] = (
+        int(current_keep_float_audit["focused_improved_tensor_count"]) if current_keep_float_audit is not None else 0
+    )
+    stats["current_keep_float_audit_focused_mean_gain"] = (
+        float(current_keep_float_audit["focused_mean_gain"]) if current_keep_float_audit is not None else 0.0
+    )
+    stats["current_keep_float_audit_focused_best_gain"] = (
+        float(current_keep_float_audit["focused_best_gain"]) if current_keep_float_audit is not None else 0.0
+    )
+    stats["current_keep_float_audit_global_top_summary"] = (
+        str(current_keep_float_audit["global_top_summary"]) if current_keep_float_audit is not None else ""
+    )
+    stats["current_keep_float_audit_focused_summary"] = (
+        str(current_keep_float_audit["focused_summary"]) if current_keep_float_audit is not None else ""
     )
 
     for name, tensor in state_dict.items():
@@ -1511,6 +1669,30 @@ def main() -> None:
             )
             if quant_stats["keep_float_fp32_audit_candidate_summary"]:
                 log0(f"Int8 kept-float fp32 candidates: {quant_stats['keep_float_fp32_audit_candidate_summary']}")
+        if INT8_CURRENT_KEEP_FLOAT_AUDIT_NAME_PATTERNS:
+            audit_summary = ",".join(INT8_CURRENT_KEEP_FLOAT_AUDIT_NAME_PATTERNS)
+            log0(
+                "Int8 current-path keep audit: "
+                f"candidates:{quant_stats['current_keep_float_audit_total_candidate_count']} "
+                f"focused_tensors:{quant_stats['current_keep_float_audit_focused_tensor_count']} "
+                f"selected:{quant_stats['current_keep_float_audit_selected_name']} "
+                f"patterns:{audit_summary} "
+                f"selected_rank:{quant_stats['current_keep_float_audit_selected_rank']}"
+            )
+            log0(
+                "Int8 current-path keep thresholds: "
+                f"min_tensor_gain:{INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_TENSOR_GAIN:.8f} "
+                f"min_improved_tensors:{INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_IMPROVED_TENSORS} "
+                f"min_mean_gain:{INT8_CURRENT_KEEP_FLOAT_AUDIT_MIN_MEAN_GAIN:.8f} "
+                f"max_global_rank:{INT8_CURRENT_KEEP_FLOAT_AUDIT_MAX_GLOBAL_RANK} "
+                f"focused_improved:{quant_stats['current_keep_float_audit_focused_improved_tensor_count']} "
+                f"focused_mean_gain:{quant_stats['current_keep_float_audit_focused_mean_gain']:.8f} "
+                f"focused_best_gain:{quant_stats['current_keep_float_audit_focused_best_gain']:.8f}"
+            )
+            if quant_stats["current_keep_float_audit_global_top_summary"]:
+                log0(f"Int8 current-path keep global top: {quant_stats['current_keep_float_audit_global_top_summary']}")
+            if quant_stats["current_keep_float_audit_focused_summary"]:
+                log0(f"Int8 current-path keep focused: {quant_stats['current_keep_float_audit_focused_summary']}")
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
