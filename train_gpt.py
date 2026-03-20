@@ -360,6 +360,29 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
 
+def quantize_float_tensor_int5(t: Tensor) -> tuple[Tensor, Tensor]:
+    """Quantize a tensor to 5-bit integers (range [-16, 15]) with per-row scales.
+    
+    Int5 stored as int8 has 3 zero high bits per byte, which zstd compresses
+    at ~1.88x vs int6's ~1.51x — saves ~1.86MB on MLP weights (PR #180).
+    """
+    t32 = t.float()
+    if t32.ndim == 2:
+        clip_abs = (
+            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+            if t32.numel()
+            else torch.empty((t32.shape[0],), dtype=torch.float32)
+        )
+        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / 15.0).clamp_min(1.0 / 15.0)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -16, 15).to(torch.int8).contiguous()
+        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+    
+    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+    scale = torch.tensor(clip_abs / 15.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -16, 15).to(torch.int8).contiguous()
+    return q, scale
+
 def quantize_float_tensor_int6(t: Tensor) -> tuple[Tensor, Tensor]:
     """Quantize a tensor to 6-bit integers (range [-32, 31]) with per-row scales.
     
@@ -433,6 +456,9 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_bits: int = 8)
     quant_range = 31 if quant_bits == 6 else 127
     # For int6, keep embedding in fp16 (it's dual-use: input embed + output projection)
     fp16_keep_patterns = ("tok_emb.weight",) if quant_bits == 6 else ()
+    # Mixed int5/int6: MLP weights use int5 for better zstd compression (PR #180)
+    # MLP tensor names contain 'fc' or 'proj' inside block modules but NOT attention tensors
+    mlp_patterns = ("mlp.",) if quant_bits == 6 else ()
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -473,12 +499,19 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_bits: int = 8)
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_fn(t)
+        # Mixed quantization: int5 for MLP, int6 for attention (when quant_bits=6)
+        is_mlp = any(pat in name for pat in mlp_patterns)
+        if is_mlp:
+            q, s = quantize_float_tensor_int5(t)
+            bits_used = 5
+        else:
+            q, s = quantize_fn(t)
+            bits_used = quant_bits
         if s.ndim > 0:
-            scheme = f"per_row_int{quant_bits}"
+            scheme = f"per_row_int{bits_used}"
             qmeta[name] = {"scheme": scheme, "axis": 0}
         else:
-            qmeta[name] = {"scheme": f"int{quant_bits}"}
+            qmeta[name] = {"scheme": f"int{bits_used}"}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
@@ -510,7 +543,9 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         meta = qmeta.get(name, {})
         scheme = meta.get("scheme", "")
         # Determine the quantization range based on scheme or global setting
-        if "int6" in str(scheme):
+        if "int5" in str(scheme):
+            qrange = 15.0
+        elif "int6" in str(scheme):
             qrange = 31.0
         elif "int8" in str(scheme):
             qrange = 127.0
