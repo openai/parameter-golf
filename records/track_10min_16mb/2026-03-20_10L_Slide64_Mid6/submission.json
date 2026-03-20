@@ -1,0 +1,11 @@
+{
+  "author": "GLDRoger",
+  "github_id": "GLDRoger",
+  "name": "10L Slide64 Mid6",
+  "blurb": "10-layer 1024-vocab tied-embedding run with sliding-window eval (1024/64), Muon 0.99 crossover schedule, fp16 tied embedding export, and int6 only on middle blocks 3-6. Final sliding-window exact score is from the quantized roundtrip artifact under the 16,000,000-byte cap.",
+  "date": "2026-03-20T05:33:00Z",
+  "val_loss": 1.98114039,
+  "val_bpb": 1.17334285,
+  "bytes_total": 15859700,
+  "bytes_code": 65668
+}
