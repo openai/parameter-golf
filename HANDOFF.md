@@ -16,19 +16,25 @@ This file is the **single place** that describes what is on GitHub vs what is on
 
 **Rule:** For a clean competition PR, reviewers mainly care about that **records/...** directory. Everything else in the repo is optional.
 
-## 2. What is only on your Mac (Cursor workspace)
+## 2. One folder on your Mac (no duplicate repo)
 
-Path: **`/Users/shivashish/Desktop/parameter-golf`** — this folder is **not** a git repository by default. Tools and doc edits here are **local** until you copy or commit them somewhere.
+Use **only this git clone** (your fork), e.g.:
 
-| File | Purpose |
+**`/Users/shivashish/Desktop/parameter-golf-fork`**
+
+Open **that** path in Cursor/VS Code. Do **not** keep a second `parameter-golf` copy on Desktop — it wastes space and drifts out of sync.
+
+| Path | Purpose |
 |------|---------|
-| `README.md` (root) | Extra sections: Mac workflow, `sample_fineweb_tokens`, prep checklist |
-| `scripts/check_submission_local.py` | Load `train_gpt.py` as a module; CPU/MPS forward + int6 roundtrip smoke test |
-| `scripts/sample_fineweb_tokens.py` | Decode random windows from `.bin` shards with SentencePiece |
-| `scripts/validate_submission.py` | Optional deeper checks (if present) |
-| `data/datasets/fineweb10B_sp1024/*.bin` | Downloaded data (large; do **not** commit to git) |
+| `HANDOFF.md` (this file) | Map of URLs, paths, commands |
+| `README.md` | Upstream readme + Mac / prep notes |
+| `scripts/check_submission_local.py` | CPU/MPS smoke test for a `train_gpt.py` |
+| `scripts/sample_fineweb_tokens.py` | Decode shard samples |
+| `scripts/validate_submission.py` | Optional extra checks |
+| `data/datasets/`, `data/tokenizers/` | Downloaded data (**gitignored**, stays local) |
+| `.venv/` | Python venv (**gitignored**, stays local) |
 
-Same `HANDOFF.md` should exist at the **fork root** after you pull/push — see section 4.
+Committed to git: code, `records/`, `HANDOFF.md`, `scripts/`. **Not** committed: `data/datasets`, `.venv` (see `.gitignore`).
 
 ## 3. Commands (copy-paste)
 
@@ -64,10 +70,15 @@ cd records/track_10min_16mb/2026-03-20_SOTA_TTT_RoPE50K_EMA_Curriculum
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
-## 4. Keeping GitHub in sync with this handoff
+## 4. Git workflow
 
-- **Fork** (`parameter-golf-fork`): should contain `HANDOFF.md` at repo root and `scripts/` with the two helper scripts so nothing is “only on one laptop” without a trace.
-- **Workspace** (`Desktop/parameter-golf`): keep editing here; periodically copy `HANDOFF.md` + `scripts/*` into the fork and `git commit && git push origin <branch>`.
+Work inside this repo only. Edit, then:
+
+```bash
+git add -A && git status
+git commit -m "your message"
+git push origin submission/allinone-smeargate-int6qat-slidingwindow
+```
 
 ## 5. After you get a real GPU run
 
