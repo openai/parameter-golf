@@ -1,0 +1,13 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "Int6 QAT + SmearGate + Muon WD",
+  "author": "baudrillardsgh0st",
+  "seed_results": {
+    "1337": {"val_loss": 1.97025414, "val_bpb": 1.16689857, "steps": 9706, "ms_per_step": 61.80}
+  },
+  "mean_val_loss": 1.97025414,
+  "mean_val_bpb": 1.16689857,
+  "artifact_bytes": 14767955,
+  "code_bytes": 71909
+}
