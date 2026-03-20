@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
-  echo "Usage: $0 {core_discovery|core_promotion|eval_time_discovery|storage_discovery|representation_discovery}"
+  echo "Usage: $0 {core_discovery|core_record_discovery|core_promotion|core_nonrecord_promotion|eval_time_discovery|eval_window_discovery|storage_discovery|storage_export_discovery|representation_discovery}"
   exit 1
 fi
 
@@ -24,37 +24,65 @@ COMMON_ENV=(
 case "$LANE_KEY" in
   core_discovery)
     ENV_VARS=(
-      "AUTORESEARCH_LANE=core"
-      "AUTORESEARCH_STAGE=discovery"
-      "AUTORESEARCH_NAMESPACE=core_discovery"
+      "AUTORESEARCH_LANE=${AUTORESEARCH_LANE:-core}"
+      "AUTORESEARCH_STAGE=${AUTORESEARCH_STAGE:-discovery}"
+      "AUTORESEARCH_NAMESPACE=${AUTORESEARCH_NAMESPACE:-core_discovery}"
       "EXPERIMENT_SECONDS=${EXPERIMENT_SECONDS:-180}"
       "MAX_EXPERIMENTS=${MAX_EXPERIMENTS:-100}"
     )
     ;;
+  core_record_discovery)
+    ENV_VARS=(
+      "AUTORESEARCH_LANE=${AUTORESEARCH_LANE:-core}"
+      "AUTORESEARCH_STAGE=${AUTORESEARCH_STAGE:-discovery}"
+      "AUTORESEARCH_NAMESPACE=${AUTORESEARCH_NAMESPACE:-core_record_discovery}"
+      "EXPERIMENT_SECONDS=${EXPERIMENT_SECONDS:-180}"
+      "MAX_EXPERIMENTS=${MAX_EXPERIMENTS:-20}"
+    )
+    ;;
   core_promotion)
     ENV_VARS=(
-      "AUTORESEARCH_LANE=core"
-      "AUTORESEARCH_STAGE=promotion"
-      "AUTORESEARCH_NAMESPACE=core_promotion"
+      "AUTORESEARCH_LANE=${AUTORESEARCH_LANE:-core}"
+      "AUTORESEARCH_STAGE=${AUTORESEARCH_STAGE:-promotion}"
+      "AUTORESEARCH_NAMESPACE=${AUTORESEARCH_NAMESPACE:-core_promotion}"
       "EXPERIMENT_SECONDS=${EXPERIMENT_SECONDS:-600}"
       "MAX_EXPERIMENTS=${MAX_EXPERIMENTS:-20}"
     )
     ;;
+  core_nonrecord_promotion)
+    ENV_VARS=(
+      "AUTORESEARCH_LANE=${AUTORESEARCH_LANE:-core}"
+      "AUTORESEARCH_STAGE=${AUTORESEARCH_STAGE:-promotion}"
+      "AUTORESEARCH_NAMESPACE=${AUTORESEARCH_NAMESPACE:-core_nonrecord_promotion}"
+      "EXPERIMENT_SECONDS=${EXPERIMENT_SECONDS:-600}"
+      "MAX_EXPERIMENTS=${MAX_EXPERIMENTS:-6}"
+    )
+    ;;
   eval_time_discovery)
     ENV_VARS=(
-      "AUTORESEARCH_LANE=eval_time"
-      "AUTORESEARCH_STAGE=discovery"
-      "AUTORESEARCH_NAMESPACE=eval_time_discovery"
+      "AUTORESEARCH_LANE=${AUTORESEARCH_LANE:-eval_time}"
+      "AUTORESEARCH_STAGE=${AUTORESEARCH_STAGE:-discovery}"
+      "AUTORESEARCH_NAMESPACE=${AUTORESEARCH_NAMESPACE:-eval_time_discovery}"
       "EXPERIMENT_SECONDS=${EXPERIMENT_SECONDS:-180}"
       "MAX_EXPERIMENTS=${MAX_EXPERIMENTS:-50}"
       "MAX_EVAL_TIME_MS=${MAX_EVAL_TIME_MS:-60000}"
     )
     ;;
+  eval_window_discovery)
+    ENV_VARS=(
+      "AUTORESEARCH_LANE=${AUTORESEARCH_LANE:-eval_time}"
+      "AUTORESEARCH_STAGE=${AUTORESEARCH_STAGE:-discovery}"
+      "AUTORESEARCH_NAMESPACE=${AUTORESEARCH_NAMESPACE:-eval_window_discovery}"
+      "EXPERIMENT_SECONDS=${EXPERIMENT_SECONDS:-180}"
+      "MAX_EXPERIMENTS=${MAX_EXPERIMENTS:-8}"
+      "MAX_EVAL_TIME_MS=${MAX_EVAL_TIME_MS:-90000}"
+    )
+    ;;
   storage_discovery)
     ENV_VARS=(
-      "AUTORESEARCH_LANE=storage"
-      "AUTORESEARCH_STAGE=discovery"
-      "AUTORESEARCH_NAMESPACE=storage_discovery"
+      "AUTORESEARCH_LANE=${AUTORESEARCH_LANE:-storage}"
+      "AUTORESEARCH_STAGE=${AUTORESEARCH_STAGE:-discovery}"
+      "AUTORESEARCH_NAMESPACE=${AUTORESEARCH_NAMESPACE:-storage_discovery}"
       "EXPERIMENT_SECONDS=${EXPERIMENT_SECONDS:-180}"
       "MAX_EXPERIMENTS=${MAX_EXPERIMENTS:-50}"
       "MAX_QUANTIZATION_GAP=${MAX_QUANTIZATION_GAP:-0.08}"
@@ -62,11 +90,23 @@ case "$LANE_KEY" in
       "STORAGE_MIN_SIZE_IMPROVEMENT=${STORAGE_MIN_SIZE_IMPROVEMENT:-250000}"
     )
     ;;
+  storage_export_discovery)
+    ENV_VARS=(
+      "AUTORESEARCH_LANE=${AUTORESEARCH_LANE:-storage}"
+      "AUTORESEARCH_STAGE=${AUTORESEARCH_STAGE:-discovery}"
+      "AUTORESEARCH_NAMESPACE=${AUTORESEARCH_NAMESPACE:-storage_export_discovery}"
+      "EXPERIMENT_SECONDS=${EXPERIMENT_SECONDS:-180}"
+      "MAX_EXPERIMENTS=${MAX_EXPERIMENTS:-8}"
+      "MAX_QUANTIZATION_GAP=${MAX_QUANTIZATION_GAP:-0.08}"
+      "STORAGE_MAX_REGRESSION=${STORAGE_MAX_REGRESSION:-0.004}"
+      "STORAGE_MIN_SIZE_IMPROVEMENT=${STORAGE_MIN_SIZE_IMPROVEMENT:-100000}"
+    )
+    ;;
   representation_discovery)
     ENV_VARS=(
-      "AUTORESEARCH_LANE=representation"
-      "AUTORESEARCH_STAGE=discovery"
-      "AUTORESEARCH_NAMESPACE=representation_discovery"
+      "AUTORESEARCH_LANE=${AUTORESEARCH_LANE:-representation}"
+      "AUTORESEARCH_STAGE=${AUTORESEARCH_STAGE:-discovery}"
+      "AUTORESEARCH_NAMESPACE=${AUTORESEARCH_NAMESPACE:-representation_discovery}"
       "EXPERIMENT_SECONDS=${EXPERIMENT_SECONDS:-180}"
       "MAX_EXPERIMENTS=${MAX_EXPERIMENTS:-30}"
       "REPRESENTATION_VERIFIED=${REPRESENTATION_VERIFIED:-0}"
@@ -126,9 +166,9 @@ printf '  %s\n' "${COMMON_ENV[@]}" "${ENV_VARS[@]}"
 if [ "$BACKGROUND" = "1" ]; then
   LOG_FILE="$ROOT_DIR/autoresearch/$NAMESPACE/autoresearch.out"
   env "${COMMON_ENV[@]}" "${ENV_VARS[@]}" \
-    nohup python3 autoresearch.py >"$LOG_FILE" 2>&1 &
+    nohup python3 -u autoresearch.py >"$LOG_FILE" 2>&1 &
   echo "Started in background: $!"
   echo "Log: $LOG_FILE"
 else
-  exec env "${COMMON_ENV[@]}" "${ENV_VARS[@]}" python3 autoresearch.py
+  exec env "${COMMON_ENV[@]}" "${ENV_VARS[@]}" python3 -u autoresearch.py
 fi

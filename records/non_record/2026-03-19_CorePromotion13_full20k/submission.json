@@ -1,0 +1,11 @@
+{
+  "author": "Simon Marcus",
+  "github_id": "simon",
+  "name": "CorePromotion Exp13 \u2014 12\u00d7448 Optimized",
+  "blurb": "12-layer 448-dim transformer with optimized matrix_lr=0.08, warmdown_iters=500. Full 20,000 step run on 8\u00d7H100 (non-record, no wallclock cap).",
+  "date": "2026-03-19T21:57:00Z",
+  "val_loss": 2.05136629,
+  "val_bpb": 1.21493467,
+  "bytes_total": null,
+  "bytes_code": null
+}

@@ -1,0 +1,37 @@
+# Parameter Golf Research Program — Eval Window Lane
+
+## Objective
+Find record-track-viable sliding-window evaluation improvements that materially lower post-quantization `val_bpb` while staying inside a realistic eval-time budget.
+
+## Primary Principle
+The leaderboard now shows that overlapping-window evaluation is a major lever. Treat evaluation as a compression system, not just a final readout.
+
+## What We Know
+- Plain post-quant calibration already helped.
+- Public leaders gained a large amount from sliding-window evaluation.
+- Cheap overlap is more useful than fancy calibration if it improves context coverage enough.
+
+## Priority Order
+1. Sliding-window evaluation with overlap and score-only-new-token logic
+2. Stride tuning and batching for efficient overlap
+3. Hybrid overlap + calibration combinations
+4. Cache reuse or block reuse that preserves eval speed
+
+## Preferred Directions
+- Add overlapping eval windows with stride values like 64, 128, or 256
+- Score only the fresh tokens rather than double-counting overlap
+- Use center-token or right-edge scoring if it improves stability
+- Reuse KV/cache state if it helps without changing semantics
+- Combine windowing with existing temperature/softcap calibration only when clearly orthogonal
+
+## Avoid
+- Core-model architecture changes
+- Tokenizer or dataset changes
+- Eval methods that explode runtime or memory
+- Pure calibration-only ideas unless they are directly supporting overlap
+
+## Guidance
+- Make one conceptual change at a time
+- Prefer concrete window/stride logic over abstract eval heuristics
+- Keep `eval_time_ms` visible and bounded
+- Optimize for something that could plausibly transfer to an 8xH100 record submission
