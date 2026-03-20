@@ -22,7 +22,7 @@ with modal_app.app.run():
         max_wallclock_seconds=180,
         val_loss_every=0,
         train_log_every=100,
-        base_env_overrides="",
+        base_env_overrides="LR_SCHEDULE=cosine_restarts,LR_RESTART_BASE_PERIOD=120,LR_RESTART_MULT=2.0,LR_RESTART_DECAY=0.8,LR_MIN_RATIO=0.05",
         num_layers_values="9,12",
         model_dim_values="512,640",
         num_heads_values="8",

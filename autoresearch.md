@@ -48,3 +48,4 @@ This gives 4 jobs per sweep and reports the best **constraint-satisfying** run's
 - Initial benchmark target uses architecture sweeps first because they map directly to the active queue in `IDEAS.md` and are easy to compare across changes.
 - Adaptive short-run schedule defaults improved proxy `val_bpb`, but only by allowing the sweep winner to exceed the 16,000,000-byte cap. The benchmark now filters ranking to constraint-satisfying runs only.
 - Still to explore: stronger sweep spaces, richer parsing/reporting, schedule sweeps that preserve the cap, and architecture ideas in `train_gpt.py` that improve the constrained sweep frontier.
+- External inspiration to test carefully: PR #250 ideas that might transfer without overcomplicating the baseline, especially cosine warm restarts / SGDR for faster loss reduction under fixed wallclock. Avoid copying speculative MoE/PID complexity into the proxy until simpler schedule wins are exhausted.

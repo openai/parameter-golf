@@ -3,6 +3,7 @@
 ## Autoresearch Sweep Queue
 - **Architecture grid sweeps (active)**: Sweep `NUM_LAYERS`, `MODEL_DIM`, `NUM_HEADS`, `NUM_KV_HEADS`, and `MLP_MULT` on small Modal runs, rank by best `val_bpb`, and only keep changes that still respect the 16,000,000-byte artifact cap.
 - **Training schedule sweeps (next)**: Sweep `WARMUP_STEPS`, `WARMDOWN_ITERS`, and the optimizer LRs once the architecture grid is stable.
+- **PR #250-inspired low-risk ideas**: Test SGDR/cosine restarts, then only if needed consider simple transferable pieces like lower-cost routing-inspired capacity changes or cheaper attention settings before attempting full MoE/PID complexity.
 - **Tokenizer family sweeps (later)**: Compare `sp1024` against larger vocabulary variants only after the sweep machinery is stable and size accounting is explicit.
 
 ## Quantization & Compression
