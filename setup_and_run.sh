@@ -10,6 +10,9 @@ echo "=== Step 1: Download dataset ==="
 # Run from the repo root (already cloned)
 cd /workspace/parameter-golf
 
+# HF token for faster downloads (avoids rate limiting)
+export HF_TOKEN="${HF_TOKEN:-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}"
+
 # Download full dataset (~18 min)
 python3 data/cached_challenge_fineweb.py --variant sp1024
 
