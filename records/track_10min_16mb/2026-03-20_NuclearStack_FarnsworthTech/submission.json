@@ -6,12 +6,13 @@
   "github_id": "timowhite88",
   "blurb": "Combines architectural improvements (int6 quant, 3x MLP, SmearGate, BigramHash, SWA, orthogonal init) with test-time training (full-model SGD adaptation during eval). Honest sliding-window eval with no double-counting. Fixed stride=32 scoring ensures each token is evaluated exactly once.",
   "seed_results": {
+    "1337":       {"val_loss": 1.96732761, "val_bpb": 1.16516352, "steps": 7248, "ms_per_step": 83.06, "ttt_lr": 0.002, "ttt_epochs": 2},
     "2884431328": {"val_loss": 1.96988417, "val_bpb": 1.16667766, "steps": 7009, "ms_per_step": 85.60, "ttt_lr": 0.004, "ttt_epochs": 2}
   },
-  "mean_val_loss": 1.96988417,
-  "mean_val_bpb": 1.16667766,
-  "best_val_loss": 1.96988417,
-  "best_val_bpb": 1.16667766,
-  "artifact_bytes": 15796527,
+  "mean_val_loss": 1.96860589,
+  "mean_val_bpb": 1.16592059,
+  "best_val_loss": 1.96732761,
+  "best_val_bpb": 1.16516352,
+  "artifact_bytes": 15801543,
   "code_bytes": 56156
 }
