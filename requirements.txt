@@ -1,0 +1,7 @@
+torch==2.10
+wandb
+tiktoken
+numpy
+datasets
+tqdm
+kernels
