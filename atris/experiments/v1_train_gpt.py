@@ -71,7 +71,7 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 3))  # v2: 3x MLP (was 2x), ~0.02 BPB improvement
+    mlp_mult = int(os.environ.get("MLP_MULT", 2))  # Keep 2x default (3x doesn't fit with 10 layers)
     # v3: Weight sharing. num_unique_blocks unique blocks repeated to fill num_layers.
     # Set to 0 to disable (each layer gets its own block, original behavior).
     # E.g., num_unique_blocks=4, num_layers=12 → 4 unique blocks × 3 repeats = 12 effective layers.
@@ -1072,6 +1072,10 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    # v4: Include layer_scales from weight sharing in optimizer
+    if base_model.layer_scales is not None:
+        for ls in base_model.layer_scales:
+            scalar_params.append(ls)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],

@@ -53,18 +53,23 @@ echo "  GPUs: $NPROC | Wallclock: ${WALLCLOCK}s"
 echo "  Sliding window: stride=64"
 echo "================================================"
 
+# NOTE: MLP_MULT=3 with 10 layers DOES NOT FIT in 16MB (~17MB artifact)
+# Use MLP_MULT=2 with 10 layers (safe) or MLP_MULT=3 with 9 layers
+MLP=${MLP_MULT:-2}
+LAYERS=${NUM_LAYERS:-10}
+
 NCCL_IB_DISABLE=1 \
 RUN_ID="atris_v3_${VARIANT}_$(date +%s)" \
 DATA_PATH="./data/datasets/fineweb10B_${VARIANT}/" \
 TOKENIZER_PATH="$TOK_PATH" \
 VOCAB_SIZE=$VOCAB \
-NUM_LAYERS=10 \
+NUM_LAYERS=$LAYERS \
 MATRIX_LR=0.02 \
 SCALAR_LR=0.02 \
 TIED_EMBED_LR=0.03 \
 MUON_MOMENTUM=0.99 \
 MUON_MOMENTUM_WARMUP_START=0.92 \
-MLP_MULT=3 \
+MLP_MULT=$MLP \
 EVAL_STRIDE=64 \
 MAX_WALLCLOCK_SECONDS=$WALLCLOCK \
 VAL_LOSS_EVERY=200 \
