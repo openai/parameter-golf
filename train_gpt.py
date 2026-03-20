@@ -335,7 +335,6 @@ INT8_KEEP_FLOAT_FP32_EXTRA_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("INT8_KEEP_FLOAT_FP32_EXTRA_NAME_PATTERNS", "").split(",")
     if pattern
 )
-INT8_AUTO_KEEP_SELECTED_FP32 = os.environ.get("INT8_AUTO_KEEP_SELECTED_FP32", "0") == "1"
 INT8_AUTO_KEEP_FLOAT_LOG_TOPK = int(os.environ.get("INT8_AUTO_KEEP_FLOAT_LOG_TOPK", 3))
 INT8_KEEP_FLOAT_FP32_AUDIT_LOG_TOPK = int(os.environ.get("INT8_KEEP_FLOAT_FP32_AUDIT_LOG_TOPK", 9))
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
@@ -400,11 +399,6 @@ def keep_float_tensor_for_export(name: str, t: Tensor, passthrough_orig_dtypes: 
         passthrough_orig_dtypes,
         INT8_KEEP_FLOAT_FP32_NAME_PATTERNS + INT8_KEEP_FLOAT_FP32_EXTRA_NAME_PATTERNS,
     )
-
-def keep_float_tensor_for_selected_export(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
-    if INT8_AUTO_KEEP_SELECTED_FP32:
-        return keep_float_tensor_with_fp32_patterns(name, t, passthrough_orig_dtypes, (name,))
-    return keep_float_tensor(name, t, passthrough_orig_dtypes)
 
 def int8_scale_dtype_for_tensor(name: str, t: Tensor) -> torch.dtype:
     if t.ndim == 2 and matches_name_patterns(name, INT8_FP32_SCALE_NAME_PATTERNS):
@@ -648,8 +642,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             "min_clip_override_tensor_count",
             "extra_fp32_keep_tensor_count",
             "extra_fp32_keep_extra_bytes",
-            "selected_fp32_tensor_count",
-            "selected_fp32_extra_bytes",
         ),
         0,
     )
@@ -702,7 +694,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         keep_auto = name == selected_auto_keep_name
         if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or keep_large or keep_auto:
             baseline_kept_bytes = tensor_nbytes(keep_float_tensor(name, t, {}))
-            kept = keep_float_tensor_for_selected_export(name, t, passthrough_orig_dtypes) if keep_auto else keep_float_tensor_for_export(name, t, passthrough_orig_dtypes)
+            kept = keep_float_tensor_for_export(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
             if matches_name_patterns(name, INT8_KEEP_FLOAT_FP32_EXTRA_NAME_PATTERNS):
@@ -714,9 +706,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             if keep_auto:
                 stats["auto_keep_tensor_count"] += 1
                 stats["auto_keep_payload_bytes"] += tensor_nbytes(kept)
-                if INT8_AUTO_KEEP_SELECTED_FP32 and kept.dtype == torch.float32:
-                    stats["selected_fp32_tensor_count"] += 1
-                    stats["selected_fp32_extra_bytes"] += tensor_nbytes(kept) - baseline_kept_bytes
             continue
 
         stats["num_float_tensors"] += 1
@@ -1499,20 +1488,7 @@ def main() -> None:
                 "Kept float storage: "
                 f"extra_fp32_tensors:{quant_stats['extra_fp32_keep_tensor_count']} "
                 f"extra_fp32_extra_bytes:{quant_stats['extra_fp32_keep_extra_bytes']} "
-                f"selected_fp32_tensors:{quant_stats['selected_fp32_tensor_count']} "
-                f"selected_fp32_extra_bytes:{quant_stats['selected_fp32_extra_bytes']} "
-                f"selected_name:{quant_stats['auto_keep_selected_name'] or 'none'} "
                 f"patterns:{override_summary}"
-            )
-        elif INT8_AUTO_KEEP_SELECTED_FP32:
-            log0(
-                "Kept float storage: "
-                f"extra_fp32_tensors:{quant_stats['extra_fp32_keep_tensor_count']} "
-                f"extra_fp32_extra_bytes:{quant_stats['extra_fp32_keep_extra_bytes']} "
-                f"selected_fp32_tensors:{quant_stats['selected_fp32_tensor_count']} "
-                f"selected_fp32_extra_bytes:{quant_stats['selected_fp32_extra_bytes']} "
-                f"selected_name:{quant_stats['auto_keep_selected_name'] or 'none'} "
-                "patterns:none"
             )
         if INT8_KEEP_FLOAT_FP32_AUDIT_NAME_PATTERNS:
             audit_summary = ",".join(INT8_KEEP_FLOAT_FP32_AUDIT_NAME_PATTERNS)
