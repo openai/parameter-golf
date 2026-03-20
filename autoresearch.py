@@ -52,6 +52,12 @@ CLAUDE_EFFORT = os.environ.get("CLAUDE_EFFORT", "high")
 LANE = os.environ.get("AUTORESEARCH_LANE", "core").strip().lower()
 STAGE = os.environ.get("AUTORESEARCH_STAGE", "discovery").strip().lower()
 NAMESPACE = os.environ.get("AUTORESEARCH_NAMESPACE", "").strip()
+PROPOSAL_TIMEOUT_SECONDS = int(
+    os.environ.get("PROPOSAL_TIMEOUT_SECONDS", "240" if STAGE == "discovery" else "420")
+)
+TRAIN_TIMEOUT_PADDING_SECONDS = int(
+    os.environ.get("TRAIN_TIMEOUT_PADDING_SECONDS", "300" if STAGE == "discovery" else "600")
+)
 
 # When iterating on fewer GPUs or shorter times, reduce iterations
 # so the model doesn't waste time in warmdown too early
@@ -482,7 +488,7 @@ def run_claude_proposal(prompt: str) -> str | None:
             ],
             capture_output=True,
             text=True,
-            timeout=600,
+            timeout=PROPOSAL_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
         return None
@@ -516,7 +522,7 @@ def run_training(experiment_id: int) -> tuple[str, int]:
         str(TRAIN_SCRIPT),
     ]
 
-    timeout = EXPERIMENT_SECONDS + 600
+    timeout = EXPERIMENT_SECONDS + TRAIN_TIMEOUT_PADDING_SECONDS
 
     print(f"  Command: {' '.join(cmd)}")
     print(f"  Time budget: {EXPERIMENT_SECONDS}s, timeout: {timeout}s")
@@ -801,7 +807,7 @@ def main():
             env["VAL_LOSS_EVERY"] = str(VAL_LOSS_EVERY)
 
         cmd = ["torchrun", "--standalone", f"--nproc_per_node={GPUS}", str(TRAIN_SCRIPT)]
-        train_timeout = EXPERIMENT_SECONDS + 600
+        train_timeout = EXPERIMENT_SECONDS + TRAIN_TIMEOUT_PADDING_SECONDS
         print(f"  Command: {' '.join(cmd)}")
         print(f"  Time budget: {EXPERIMENT_SECONDS}s, timeout: {train_timeout}s")
 
