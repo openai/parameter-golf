@@ -19,6 +19,8 @@ import time
 import uuid
 import zlib
 from pathlib import Path
+try: import zstandard as zstd; USE_ZSTD = True
+except ImportError: USE_ZSTD = False
 
 import numpy as np
 import sentencepiece as spm
@@ -203,8 +205,6 @@ class Muon(torch.optim.Optimizer):
 
         return loss
 
-# TOKENIZER-AGNOSTIC EVALUATION (BPB)
-
 def build_sentencepiece_luts(
     sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
 ) -> tuple[Tensor, Tensor, Tensor]:
@@ -324,6 +324,8 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
+QUANT_BITS = int(os.environ.get("QUANT_BITS", str(_M.get("quant_bits", 6))))
+QUANT_MAX = (1 << (QUANT_BITS - 1)) - 1  # 31 for int6, 127 for int8
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 
@@ -349,14 +351,14 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        scale = (clip_abs / QUANT_MAX).clamp_min(1.0 / QUANT_MAX)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -QUANT_MAX, QUANT_MAX).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / QUANT_MAX if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -QUANT_MAX, QUANT_MAX).to(torch.int8).contiguous()
     return q, scale
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
@@ -441,13 +443,10 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         out[name] = out_t
     return out
 
-# DATA LOADING 
-
 def load_data_shard(file: Path) -> Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
     token_bytes = np.dtype("<u2").itemsize
     header = np.fromfile(file, dtype="<i4", count=256)
-    # SHARD HEADER INTS & SHARD_MAGIC
     if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
         raise ValueError(f"Unexpected shard header for {file}")
     num_tokens = int(header[2])
@@ -507,8 +506,6 @@ class DistributedTokenLoader:
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
-
-# TRANSFORMER MODULES
 
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
@@ -1044,16 +1041,12 @@ def eval_val_ttt_lora(
     val_bpb = float((loss_sum.item() / math.log(2.0)) / byte_sum.item())
     return val_loss, val_bpb
 
-# TRAINING
-
 def main() -> None:
     global zeropower_via_newtonschulz5
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
-
-    # DISTRIBUTED + CUDA SETUP
 
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
@@ -1109,8 +1102,6 @@ def main() -> None:
     )
     log0("=" * 100, console=False)
 
-    # TOKENIZER + VALIDATION METRIC SETUP
-
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -1132,8 +1123,6 @@ def main() -> None:
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
     log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
-
-    # MODEL + OPTIMIZER SETUP
 
     base_model = GPT(
         vocab_size=args.vocab_size,
@@ -1243,8 +1232,6 @@ def main() -> None:
     )
     log0(f"seed:{args.seed}")
 
-    # DATA LOADER & MODEL WARMUP
-
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     def zero_grad_all() -> None:
@@ -1322,12 +1309,12 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
-    # MAIN TRAINING LOOP
-
     training_time_ms = 0.0
     stop_after_step: int | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
+
+    swa_every, swa_last_n = int(os.environ.get("SWA_EVERY", "50")), int(os.environ.get("SWA_LAST_N", "50"))
 
     step = 0
     while True:
@@ -1394,6 +1381,16 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
+        # SWA: accumulate checkpoint every swa_every steps in last swa_last_n region
+        if step % swa_every == 0 and (stop_after_step is None or step >= (stop_after_step - swa_last_n)):
+            if not hasattr(base_model, '_swa_state'):
+                base_model._swa_state = {n: p.data.float().clone() for n, p in base_model.named_parameters()}
+                base_model._swa_count = 1
+            else:
+                n = base_model._swa_count
+                for name, p in base_model.named_parameters():
+                    base_model._swa_state[name] = base_model._swa_state[name] * (n/(n+1)) + p.data.float() * (1/(n+1))
+                base_model._swa_count += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
             args.train_log_every > 0
@@ -1414,12 +1411,17 @@ def main() -> None:
         if stop_after_step is None and reached_cap:
             stop_after_step = step
 
+    # SWA: apply averaged weights
+    if hasattr(base_model, '_swa_state'):
+        for name, p in base_model.named_parameters():
+            p.data = base_model._swa_state[name].to(dtype=p.dtype)
+        log0(f"SWA applied: averaged {base_model._swa_count} checkpoints")
+
     log0(
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
-    # SERIALIZATION + ROUNDTRIP VALIDATION
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
@@ -1435,7 +1437,7 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_blob = zstd.ZstdCompressor(level=22).compress(quant_raw) if USE_ZSTD else zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
@@ -1453,7 +1455,8 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    raw = zstd.ZstdDecompressor().decompress(quant_blob_disk) if USE_ZSTD else zlib.decompress(quant_blob_disk)
+    quant_state = torch.load(io.BytesIO(raw), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
