@@ -587,12 +587,16 @@ class SplitOptimizers:
         model.update(tree_unflatten(list(updated.items())))
 
 # ==============================================================================
-# QUANTIZATION (INT8 + ZLIB)
+# QUANTIZATION (INT6/INT8 + ZLIB)
 # ==============================================================================
-# - per-row int8 for 2D float tensors
-# - per-tensor int8 for other float tensors
-# - fp16 passthrough for small float tensors
+# - per-row quantization for 2D float tensors (int6 or int8)
+# - per-tensor quantization for other float tensors
+# - fp16 passthrough for embeddings and small float tensors
 # - exact passthrough for non-floats
+#
+# Int6 mode uses "step=4 rounding": values are quantized to multiples of 4 in
+# an int8 container. This gives 64 levels (6-bit effective precision) and zlib
+# compresses the reduced entropy ~35% better than full int8.
 
 MX_DTYPE_FROM_NAME = {
     "float32": mx.float32,
@@ -601,9 +605,8 @@ MX_DTYPE_FROM_NAME = {
 }
 
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
-# FP16 embedding passthrough: embedding weights are kept in FP16 (never quantized to int8)
-# because the tied embedding is the most quantization-sensitive layer.
 FP16_EMBED_PASSTHROUGH = bool(int(os.environ.get("FP16_EMBED_PASSTHROUGH", "1")))
+QUANT_BITS = int(os.environ.get("QUANT_BITS", 6))  # 6 = int6 (step=4), 8 = standard int8
 INT8_KEEP_FLOAT_STORE_DTYPE = np.float16
 INT8_PER_ROW_SCALE_DTYPE = np.float16
 INT8_CLIP_PERCENTILE = 99.99984
@@ -623,21 +626,26 @@ def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str
     return np.ascontiguousarray(np.array(arr, copy=True))
 
 
-def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
+def quantize_float_array(arr: mx.array, bits: int = 8) -> tuple[np.ndarray, np.ndarray]:
+    # Int6 (bits=6): step=4 rounding. Quantize to qmax=31, then multiply by 4
+    # to store in int8 container. Only 64 distinct values → zlib compresses better.
+    # Int8 (bits=8): standard 256-level quantization.
+    step = 4 if bits <= 6 else 1
+    qmax = (1 << (bits - 1)) - 1  # 31 for int6, 127 for int8
+
     f32 = _np_float32(arr)
     if f32.ndim == 2:
-        # Matrices get one scale per row, which usually tracks output-channel
-        # ranges much better than a single tensor-wide scale.
         clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((f32.shape[0],), dtype=np.float32)
         clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
-        scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
-        q = np.clip(np.round(clipped / scale[:, None]), -127, 127).astype(np.int8, copy=False)
+        scale = np.maximum(clip_abs / qmax, 1.0 / qmax).astype(np.float32, copy=False)
+        q = np.clip(np.round(clipped / scale[:, None]), -qmax, qmax).astype(np.float32)
+        q = (q * step).astype(np.int8, copy=False)
         return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False))
 
-    # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(np.quantile(np.abs(f32).reshape(-1), INT8_CLIP_Q)) if f32.size else 0.0
-    scale = np.array(clip_abs / 127.0 if clip_abs > 0.0 else 1.0, dtype=np.float32)
-    q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -127, 127).astype(np.int8, copy=False)
+    scale = np.array(clip_abs / qmax if clip_abs > 0.0 else 1.0, dtype=np.float32)
+    q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -qmax, qmax).astype(np.float32)
+    q = (q * step).astype(np.int8, copy=False)
     return np.ascontiguousarray(q), scale
 
 
@@ -678,15 +686,17 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_array(arr)
+        q, s = quantize_float_array(arr, bits=QUANT_BITS)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(arr.dtype).split(".")[-1]
         stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
+    quant_step = 4 if QUANT_BITS <= 6 else 1
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
+        "__quant_format__": f"int{QUANT_BITS}_clean_per_row_v1",
+        "quant_step": quant_step,
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -702,16 +712,18 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
 def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.array]:
     out: dict[str, mx.array] = {}
     qmeta = quant_obj.get("qmeta", {})
+    quant_step = quant_obj.get("quant_step", 1)  # 4 for int6, 1 for int8
     passthrough_orig_dtypes = quant_obj.get("passthrough_orig_dtypes", {})
     for name, q in quant_obj["quantized"].items():
         q_np = np.asarray(q, dtype=np.int8)
         dtype_name = quant_obj["dtypes"][name]
         scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
+        # Undo step multiplication: int6 stores q*4, so divide by step to recover original q
+        q_float = q_np.astype(np.float32) / quant_step
         if qmeta.get(name, {}).get("scheme") == "per_row" or scale.ndim > 0:
-            # Broadcast the saved row scale back across trailing dimensions.
-            out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
+            out_arr = q_float * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
         else:
-            out_arr = q_np.astype(np.float32) * float(scale)
+            out_arr = q_float * float(scale)
         out[name] = mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[dtype_name])
     for name, arr in quant_obj["passthrough"].items():
         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
