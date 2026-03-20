@@ -132,9 +132,36 @@ def eval_competition(
     use_match = match_model is not None and match_lambda > 0
     use_blending = use_ngram or use_match
 
+    # --- Exponential Weights Mixer ---
+    # Models: 0 = neural, 1 = ngram, 2 = match
+    # Weights update multiplicatively: w_i *= p_i(actual_token) ^ learning_rate
+    # This gives O(log K) regret — converges to best model automatically.
+    n_models = 1 + int(use_ngram) + int(use_match)
+    model_names = ["neural"]
+    # Initialize weights: neural gets remainder, others get their lambda
+    mix_w = [1.0]
+    if use_ngram:
+        model_names.append("ngram")
+        mix_w.append(ngram_lambda)
+        mix_w[0] -= ngram_lambda
+    if use_match:
+        model_names.append("match")
+        mix_w.append(match_lambda)
+        mix_w[0] -= match_lambda
+    mix_w = [max(w, 0.01) for w in mix_w]  # clamp to avoid zero weights
+    w_sum = sum(mix_w)
+    mix_w = [w / w_sum for w in mix_w]  # normalize
+
+    # Learning rate for weight updates (higher = faster adaptation)
+    mix_lr = 1.0  # standard exponential weights
+    mix_update_count = 0
+    mix_weight_history: list[list[float]] = []  # for stats
+
     print(f"eval_competition: {total_windows} windows, seq_len={seq_len}, stride={stride}")
     print(f"eval_competition: ngram={'ON λ=' + str(ngram_lambda) if use_ngram else 'OFF'}")
     print(f"eval_competition: match={'ON λ=' + str(match_lambda) if use_match else 'OFF'}")
+    if use_blending:
+        print(f"eval_competition: exponential_weights init={dict(zip(model_names, [f'{w:.3f}' for w in mix_w]))}")
 
     model.eval()
     t0 = time.perf_counter()
@@ -162,47 +189,48 @@ def eval_competition(
             score_logits = logits[score_start:]  # [scored, vocab]
             score_targets = y[score_start:]  # [scored]
 
-            # Model blending (probability space)
+            # Model blending with exponential weights
             if use_blending:
                 # Get neural probs
                 neural_probs = F.softmax(score_logits.float(), dim=-1)  # [scored, vocab]
                 n_scored = seq_len - score_start
 
-                # Start with neural-only combination
+                # Per-token blending with current mix weights
                 combined_probs = neural_probs.clone()
-                neural_weight = 1.0
 
-                # N-gram contribution
-                if use_ngram:
-                    ngram_probs_t = torch.zeros_like(neural_probs)
-                    for j in range(n_scored):
-                        global_pos = start + score_start + j
+                for j in range(n_scored):
+                    global_pos = start + score_start + j
+
+                    # Collect per-model predictions for this token
+                    model_preds = [neural_probs[j]]  # neural always present
+
+                    if use_ngram:
                         ctx_start = max(0, global_pos - ngram.max_order + 1)
                         context = val_tokens[ctx_start:global_pos].tolist()
-                        probs = ngram.predict(context, alpha=ngram.max_order * 0.5)
-                        ngram_probs_t[j] = torch.from_numpy(probs).to(ngram_probs_t.device)
-                    neural_weight -= ngram_lambda
-                    combined_probs = neural_weight * neural_probs + ngram_lambda * ngram_probs_t
-                    neural_weight_after_ngram = neural_weight  # track for match model
+                        ng_probs = ngram.predict(context, alpha=ngram.max_order * 0.5)
+                        ng_probs_t = torch.from_numpy(ng_probs).to(
+                            device=neural_probs.device, dtype=neural_probs.dtype
+                        )
+                        model_preds.append(ng_probs_t)
 
-                # Match model contribution (per-token adaptive weight)
-                if use_match:
-                    for j in range(n_scored):
-                        global_pos = start + score_start + j
+                    if use_match:
                         ctx_start = max(0, global_pos - match_model.max_order)
                         context = val_tokens[ctx_start:global_pos].tolist()
-                        match_probs, match_len = match_model.predict(context)
-
-                        if match_probs is not None and match_len >= match_model.min_order:
-                            # Adaptive weight: longer matches get higher weight
-                            # Scale from match_lambda (at min_order) to min(match_lambda*3, 0.5) (at max_order)
-                            length_factor = min(3.0, match_len / match_model.min_order)
-                            w_match = min(match_lambda * length_factor, 0.5)
-                            match_probs_t = torch.from_numpy(match_probs).to(
-                                device=combined_probs.device, dtype=combined_probs.dtype
+                        m_probs, match_len = match_model.predict(context)
+                        if m_probs is not None and match_len >= match_model.min_order:
+                            m_probs_t = torch.from_numpy(m_probs).to(
+                                device=neural_probs.device, dtype=neural_probs.dtype
                             )
-                            # Blend: reduce current mixture by w_match, add match model
-                            combined_probs[j] = (1.0 - w_match) * combined_probs[j] + w_match * match_probs_t
+                            model_preds.append(m_probs_t)
+                        else:
+                            # No match — use neural as fallback for this slot
+                            model_preds.append(neural_probs[j])
+
+                    # Weighted mixture using current exponential weights
+                    mixed = torch.zeros_like(neural_probs[j])
+                    for m_idx, pred in enumerate(model_preds):
+                        mixed += mix_w[m_idx] * pred
+                    combined_probs[j] = mixed
 
                 combined_log_probs = torch.log(torch.clamp(combined_probs, min=1e-30))
 
@@ -230,15 +258,53 @@ def eval_competition(
             ).to(dtype=torch.int16)
             total_bytes += token_bytes.to(torch.float64).sum().item()
 
-            # Update n-gram and match model with newly revealed tokens
+            # Update n-gram, match model, AND exponential weights with revealed tokens
             if use_ngram or use_match:
-                # The scored region reveals tokens at positions [start+score_start+1, start+seq_len]
                 new_start = max(ngram_tokens_updated, start + score_start + 1)
                 new_end = start + seq_len + 1
                 if new_end > new_start:
                     new_tokens = val_tokens[new_start:new_end].tolist()
                     for i, tok in enumerate(new_tokens):
                         global_pos = new_start + i
+
+                        # --- Exponential weights update ---
+                        # Each model's probability for the actual token
+                        # determines how much its weight increases
+                        model_scores = []
+
+                        # Neural score (from cached logits if in scoring region, else skip)
+                        rel_pos = global_pos - start - 1  # position in the window
+                        if 0 <= rel_pos < seq_len:
+                            neural_p = F.softmax(logits[rel_pos:rel_pos+1].float(), dim=-1)
+                            neural_score = neural_p[0, tok].item()
+                        else:
+                            neural_score = 1.0 / 1024  # uniform fallback
+                        model_scores.append(max(neural_score, 1e-10))
+
+                        if use_ngram:
+                            ctx_s = max(0, global_pos - ngram.max_order + 1)
+                            ctx = val_tokens[ctx_s:global_pos].tolist()
+                            ng_p = ngram.predict(ctx, alpha=ngram.max_order * 0.5)
+                            model_scores.append(max(float(ng_p[tok]), 1e-10))
+
+                        if use_match:
+                            ctx_s = max(0, global_pos - match_model.max_order)
+                            ctx = val_tokens[ctx_s:global_pos].tolist()
+                            m_p, _ = match_model.predict(ctx)
+                            if m_p is not None:
+                                model_scores.append(max(float(m_p[tok]), 1e-10))
+                            else:
+                                model_scores.append(max(neural_score, 1e-10))
+
+                        # Multiplicative weight update: w_i *= p_i(actual)^lr
+                        for m_idx in range(len(mix_w)):
+                            mix_w[m_idx] *= model_scores[m_idx] ** mix_lr
+                        # Renormalize
+                        w_total = sum(mix_w)
+                        mix_w = [w / w_total for w in mix_w]
+                        mix_update_count += 1
+
+                        # Update sub-models
                         if use_ngram:
                             ctx_start = max(0, global_pos - ngram.max_order + 1)
                             history = val_tokens[ctx_start:global_pos + 1].tolist()
@@ -246,6 +312,10 @@ def eval_competition(
                         if use_match:
                             match_model.update(tok)
                     ngram_tokens_updated = new_end
+
+                    # Log weight snapshot periodically
+                    if mix_update_count > 0 and mix_update_count % 50000 == 0:
+                        mix_weight_history.append(list(mix_w))
 
             # Progress
             if (win_idx + 1) % 1000 == 0 or win_idx + 1 == total_windows:
@@ -264,16 +334,27 @@ def eval_competition(
                 if use_match:
                     ms = match_model.stats()
                     match_stats = f" match_rate={ms['match_rate']:.2%} avg_len={ms['avg_match_length']:.1f}"
+                mix_info = ""
+                if use_blending:
+                    mix_info = " w=[" + "/".join(f"{w:.3f}" for w in mix_w) + "]"
                 print(
                     f"  {win_idx + 1}/{total_windows} "
                     f"bpb={cur_bpb:.4f} "
                     f"({elapsed:.0f}s, ~{eta:.0f}s left)"
-                    f"{ngram_stats}{match_stats}"
+                    f"{ngram_stats}{match_stats}{mix_info}"
                 )
 
     val_loss = total_loss_sum / total_scored_tokens
     bits_per_token = val_loss / math.log(2.0)
     val_bpb = bits_per_token * (total_scored_tokens / total_bytes)
+
+    # Print final exponential weights
+    if use_blending:
+        print(f"  final_mix_weights: {dict(zip(model_names, [f'{w:.4f}' for w in mix_w]))}")
+        if mix_weight_history:
+            print(f"  weight_snapshots ({len(mix_weight_history)}):")
+            for snap in mix_weight_history[-3:]:
+                print(f"    {dict(zip(model_names, [f'{w:.4f}' for w in snap]))}")
 
     return val_loss, val_bpb
 
