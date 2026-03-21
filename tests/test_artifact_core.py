@@ -9,6 +9,7 @@ from core.quant_core import dequantize_state_dict_int8, quantize_state_dict_int8
 def build_state_dict() -> dict[str, torch.Tensor]:
     return {
         "tok_emb.weight": torch.linspace(-0.25, 0.25, 70000, dtype=torch.float32).reshape(280, 250),
+        "block.proj.weight": torch.linspace(-0.5, 0.5, 70000, dtype=torch.float32).reshape(280, 250),
         "block.attn_scale": torch.linspace(0.1, 1.0, 32, dtype=torch.float32),
         "counter": torch.arange(8, dtype=torch.int64),
     }

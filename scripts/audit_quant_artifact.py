@@ -32,18 +32,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--keep-large-patterns",
         type=str,
-        default="",
+        default=None,
         help="Comma-separated substrings for large tensors to keep in float passthrough form.",
+    )
+    parser.add_argument(
+        "--no-default-large-keeps",
+        action="store_true",
+        help="Disable the baked-in default large-float keep rules.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    if args.keep_large_patterns:
+    if args.no_default_large_keeps:
+        os.environ["INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS"] = ""
+    elif args.keep_large_patterns is not None:
         os.environ["INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS"] = args.keep_large_patterns
-    else:
-        os.environ.pop("INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS", None)
 
     import importlib
     import core.quant_core as quant_core
@@ -94,7 +99,8 @@ def main() -> None:
 
     summary = {
         "checkpoint": str(args.state_dict_path),
-        "keep_large_patterns": args.keep_large_patterns,
+        "keep_large_patterns": args.keep_large_patterns or "",
+        "no_default_large_keeps": args.no_default_large_keeps,
         "baseline_tensor_bytes": quant_stats["baseline_tensor_bytes"],
         "int8_payload_bytes": quant_stats["int8_payload_bytes"],
         "large_float_passthrough_bytes": quant_stats["large_float_passthrough_bytes"],

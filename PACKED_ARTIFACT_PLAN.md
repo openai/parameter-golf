@@ -298,6 +298,18 @@ Interpretation:
 - because embeddings are tied in the default model, `tok_emb.weight` is also the output-head-sensitive candidate
 - small logit-path tensors like norms are already kept in float by the existing passthrough rules, so the next large candidate set should stay tightly focused
 
+Stronger-checkpoint confirmation on a 2,000-step rerun of the same 9x512/seq256 recipe:
+
+- helper baseline with packed artifact: `1.9572997503 BPB`, `14,346,367` bytes
+- helper baseline + `tok_emb.weight` fp16: `1.9566958943 BPB`, `14,677,339` bytes
+
+That is still a win:
+
+- `Delta BPB = -0.00060386`
+- `Delta artifact bytes = +330,972`
+
+The gain is smaller than on the smoke checkpoint, but it survives on a more serious model state and still leaves the artifact under the `16 MB` cap.
+
 ## Updated Decision
 
 For the current branch:

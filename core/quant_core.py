@@ -27,9 +27,13 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+DEFAULT_INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS = "tok_emb.weight"
 INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS = tuple(
     pattern
-    for pattern in os.environ.get("INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS", "").split(",")
+    for pattern in os.environ.get(
+        "INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS",
+        DEFAULT_INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS,
+    ).split(",")
     if pattern
 )
 
