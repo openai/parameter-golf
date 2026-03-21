@@ -1,0 +1,15 @@
+{
+  "author": "Sungjoon Park",
+  "github_id": "sjp611",
+  "name": "PR315 1xH100 PCIe reproduction",
+  "blurb": "Reproduction of #315 recipe (XSA+EMA+PartialRoPE+LateQAT) on 1xH100 PCIe with FA2. Sliding-window val_bpb=1.8338 in 10 minutes.",
+  "date": "2026-03-21T17:00:00Z",
+  "track": "non-record-10min-16mb",
+  "val_bpb": 1.8338,
+  "pre_quant_val_bpb": 1.4192,
+  "step_stop": 492,
+  "wallclock_seconds": 600,
+  "bytes_total": 10064451,
+  "bytes_model_int6_zstd": 9996844,
+  "bytes_code": 67607
+}
