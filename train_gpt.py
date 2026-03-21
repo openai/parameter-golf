@@ -89,8 +89,8 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     # Eval settings.
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 512))
-    ttt_steps = int(os.environ.get("TTT_STEPS", 3))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 0))  # 0 = disabled, too slow on 1xH100
+    ttt_steps = int(os.environ.get("TTT_STEPS", 0))  # 0 = disabled, barely helps (0.001 BPB)
     ttt_lr = float(os.environ.get("TTT_LR", 1e-4))
 
 # -----------------------------
@@ -1291,7 +1291,7 @@ def main() -> None:
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     # Sliding window eval for better BPB
-    if args.eval_stride < args.train_seq_len:
+    if 0 < args.eval_stride < args.train_seq_len:
         torch.cuda.synchronize()
         t_slide = time.perf_counter()
         s_val_loss, s_val_bpb = eval_val_sliding(
