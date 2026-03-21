@@ -74,6 +74,7 @@ class Hyperparameters:
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
     mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
+    mlp_hidden: int = int(os.environ.get("MLP_HIDDEN", 0))
     tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     logit_chunk_tokens: int = int(os.environ.get("LOGIT_CHUNK_TOKENS", 0))
@@ -107,6 +108,10 @@ class Hyperparameters:
     @property
     def microbatch_tokens(self) -> int:
         return self.train_batch_tokens // self.grad_accum_steps
+
+    @property
+    def effective_mlp_hidden(self) -> int:
+        return self.mlp_hidden if self.mlp_hidden > 0 else self.model_dim * self.mlp_mult
 
     def lr_mul(self, step: int, elapsed_ms: float) -> float:
         if self.warmdown_iters <= 0:
@@ -340,9 +345,9 @@ class CausalSelfAttention(nn.Module):
 
 class MLP(nn.Module):
     # Baseline MLP uses relu^2 instead of GELU/SiLU. It is cheap and works well in this setup.
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0):
         super().__init__()
-        hidden = dim * mlp_mult
+        hidden = mlp_hidden if mlp_hidden > 0 else dim * mlp_mult
         self.fc = CastedLinear(dim, hidden)
         self.proj = CastedLinear(hidden, dim)
 
@@ -358,6 +363,7 @@ class Block(nn.Module):
         num_heads: int,
         num_kv_heads: int,
         mlp_mult: int,
+        mlp_hidden: int,
         rope_base: float,
         qk_gain_init: float,
     ):
@@ -365,7 +371,7 @@ class Block(nn.Module):
         self.attn_norm = RMSNormNoWeight()
         self.mlp_norm = RMSNormNoWeight()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, mlp_hidden)
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
@@ -385,6 +391,7 @@ class GPT(nn.Module):
     # - decoder half consumes reversed skips with learned skip_weights
     # - tied embeddings for the LM head (the baseline default setup)
     def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
+                 mlp_hidden: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
                  qk_gain_init: float):
         super().__init__()
@@ -399,7 +406,7 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
         self.blocks = [
-            Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+            Block(dim, num_heads, num_kv_heads, mlp_mult, mlp_hidden, rope_base, qk_gain_init)
             for i in range(num_layers)
         ]
         self.final_norm = RMSNormNoWeight()
@@ -563,6 +570,14 @@ def _np_float32(arr: mx.array) -> np.ndarray:
     return np.array(arr.astype(mx.float32), dtype=np.float32, copy=False)
 
 
+def keep_large_float_name_patterns() -> tuple[str, ...]:
+    return tuple(
+        pattern
+        for pattern in os.environ.get("INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS", "").split(",")
+        if pattern
+    )
+
+
 def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str, str]) -> np.ndarray:
     if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
         return np.ascontiguousarray(_np_float32(arr))
@@ -613,7 +628,9 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
 
         # Small float tensors are cheap enough to keep directly. We still downcast
         # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
-        if int(arr.size) <= INT8_KEEP_FLOAT_MAX_NUMEL:
+        if int(arr.size) <= INT8_KEEP_FLOAT_MAX_NUMEL or any(
+            pattern in name for pattern in keep_large_float_name_patterns()
+        ):
             kept = keep_float_array(name, arr, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += int(kept.nbytes)
@@ -892,6 +909,7 @@ def main() -> None:
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
         mlp_mult=args.mlp_mult,
+        mlp_hidden=args.effective_mlp_hidden,
         logit_chunk_tokens=args.logit_chunk_tokens,
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
@@ -934,7 +952,7 @@ def main() -> None:
     log(
         f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} "
         f"dim:{args.model_dim} heads:{args.num_heads} kv_heads:{args.num_kv_heads} "
-        f"seq_len:{args.train_seq_len} tie_embeddings:{args.tie_embeddings}"
+        f"mlp_hidden:{args.effective_mlp_hidden} seq_len:{args.train_seq_len} tie_embeddings:{args.tie_embeddings}"
     )
     log(
         f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} grad_accum_steps:{args.grad_accum_steps} "
