@@ -1,0 +1,213 @@
+parameter-golf % ssh root@64.247.201.38 -p 10720 -i ~/.ssh/id_ed25519
+The authenticity of host '[64.247.201.38]:10720 ([64.247.201.38]:10720)' can't be established.
+ED25519 key fingerprint is: SHA256:Ak0BGpThkeB8T7EF9q7/a+J1HW1HYT4aic5VXrjRZfw
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '[64.247.201.38]:10720' (ED25519) to the list of known hosts.
+Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.8.0-90-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+This system has been minimized by removing packages and content that are
+not required on a system that users do not log into.
+
+To restore this content, you can run the 'unminimize' command.
+
+The programs included with the Ubuntu system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Ubuntu comes with ABSOLUTELY NO WARRANTY, to the extent permitted by
+applicable law.
+
+ _____                             _ 
+|  __ \                           | |
+| |__) |   _ _ __  _ __   ___   __| |
+|  _  / | | | '_ \| '_ \ / _ \ / _` |
+| | \ \ |_| | | | | |_) | (_) | (_| |
+|_|  \_\__,_|_| |_| .__/ \___/ \__,_|
+                  | |                
+                  |_|                
+For detailed documentation and guides, please visit:
+https://docs.runpod.io/ and https://blog.runpod.io/
+
+
+root@4f217c8e8047:/workspace/parameter-golf# cd /workspace
+rm -rf parameter-golf
+git clone https://github.com/sp00mm/parameter-golf.git
+cd parameter-golf
+git checkout mtp-auxiliary-heads
+python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
+pip install zstandard
+Cloning into 'parameter-golf'...
+remote: Enumerating objects: 235, done.
+remote: Counting objects: 100% (98/98), done.
+remote: Compressing objects: 100% (44/44), done.
+remote: Total 235 (delta 71), reused 55 (delta 54), pack-reused 137 (from 2)
+Receiving objects: 100% (235/235), 187.64 KiB | 291.00 KiB/s, done.
+Resolving deltas: 100% (113/113), done.
+Updating files: 100% (40/40), done.
+branch 'mtp-auxiliary-heads' set up to track 'origin/mtp-auxiliary-heads'.
+Switched to a new branch 'mtp-auxiliary-heads'
+manifest.json: 1.93kB [00:00, 2.10MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 124M/124M [00:05<00:00, 23.7MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:06<00:00, 30.1MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:07<00:00, 27.6MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:06<00:00, 30.2MB/s]
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:04<00:00, 43.1MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:05<00:00, 35.5MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:07<00:00, 27.7MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:04<00:00, 43.2MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:07<00:00, 28.5MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:04<00:00, 49.5MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████████████████████████████████████████| 200M/200M [00:03<00:00, 62.0MB/s]
+datasets/tokenizers/fineweb_1024_bpe.mod(…): 100%|███████████████████████████████████████████████████████████████████████████████████| 254k/254k [00:00<00:00, 585kB/s]
+fineweb_1024_bpe.vocab: 9.86kB [00:00, 21.3MB/s]
+Collecting zstandard
+  Downloading zstandard-0.25.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (3.3 kB)
+Downloading zstandard-0.25.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (5.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.5/5.5 MB 11.3 MB/s  0:00:00
+Installing collected packages: zstandard
+Successfully installed zstandard-0.25.0
+root@4f217c8e8047:/workspace/parameter-golf# NUM_MEMORY_TOKENS=64 \
+NUM_LAYERS=10 \
+MTP_NUM_HEADS=2 \
+MTP_ALPHA=0.2 \
+MTP_ALPHA_DECAY=1 \
+MTP_HEAD_LR=0.008 \
+TRAIN_SEQ_LEN=2048 \
+EVAL_SEQ_LEN=1024 \
+EVAL_STRIDE=128 \
+FP16_EMBED_EXPORT=1 \
+RUN_ID=submission_8xh100 \
+DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
+VAL_LOSS_EVERY=1000 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py 2>&1 | tee submission.log
+W0320 06:30:44.186000 914 torch/distributed/run.py:803] 
+W0320 06:30:44.186000 914 torch/distributed/run.py:803] *****************************************
+W0320 06:30:44.186000 914 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0320 06:30:44.186000 914 torch/distributed/run.py:803] *****************************************
+logs/submission_8xh100.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:25812049
+memory_tokens:64 memory_params:32768
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9282 val_bpb:4.1033 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:8.3179 train_time:47ms step_avg:47.48ms
+step:2/20000 train_loss:11.4055 train_time:146ms step_avg:72.97ms
+step:3/20000 train_loss:9.0616 train_time:238ms step_avg:79.19ms
+step:4/20000 train_loss:9.2917 train_time:342ms step_avg:85.38ms
+step:5/20000 train_loss:8.9924 train_time:440ms step_avg:87.91ms
+step:6/20000 train_loss:9.9792 train_time:535ms step_avg:89.15ms
+step:7/20000 train_loss:8.3916 train_time:618ms step_avg:88.25ms
+step:8/20000 train_loss:7.9287 train_time:701ms step_avg:87.57ms
+step:9/20000 train_loss:7.5035 train_time:785ms step_avg:87.19ms
+step:10/20000 train_loss:7.3243 train_time:859ms step_avg:85.90ms
+step:200/20000 train_loss:3.8179 train_time:12948ms step_avg:64.74ms
+step:400/20000 train_loss:3.2156 train_time:25715ms step_avg:64.29ms
+step:600/20000 train_loss:3.4150 train_time:38405ms step_avg:64.01ms
+step:800/20000 train_loss:3.1102 train_time:51140ms step_avg:63.93ms
+step:1000/20000 train_loss:3.2298 train_time:63893ms step_avg:63.89ms
+step:1000/20000 val_loss:2.2857 val_bpb:1.3537 train_time:63968ms step_avg:63.97ms
+step:1200/20000 train_loss:3.2448 train_time:76723ms step_avg:63.94ms
+step:1400/20000 train_loss:3.2824 train_time:89456ms step_avg:63.90ms
+step:1600/20000 train_loss:2.8641 train_time:102175ms step_avg:63.86ms
+step:1800/20000 train_loss:3.0219 train_time:114967ms step_avg:63.87ms
+step:2000/20000 train_loss:3.0375 train_time:127724ms step_avg:63.86ms
+step:2000/20000 val_loss:2.1955 val_bpb:1.3003 train_time:127758ms step_avg:63.88ms
+step:2200/20000 train_loss:3.1671 train_time:140427ms step_avg:63.83ms
+step:2400/20000 train_loss:3.2003 train_time:153232ms step_avg:63.85ms
+step:2600/20000 train_loss:3.0292 train_time:165937ms step_avg:63.82ms
+step:2800/20000 train_loss:2.9894 train_time:178719ms step_avg:63.83ms
+step:3000/20000 train_loss:4.2030 train_time:191431ms step_avg:63.81ms
+step:3000/20000 val_loss:2.1693 val_bpb:1.2848 train_time:191524ms step_avg:63.84ms
+step:3200/20000 train_loss:3.1097 train_time:204157ms step_avg:63.80ms
+step:3400/20000 train_loss:2.9030 train_time:216857ms step_avg:63.78ms
+step:3600/20000 train_loss:3.0482 train_time:229631ms step_avg:63.79ms
+step:3800/20000 train_loss:2.9941 train_time:242329ms step_avg:63.77ms
+step:4000/20000 train_loss:3.1129 train_time:255072ms step_avg:63.77ms
+step:4000/20000 val_loss:2.1451 val_bpb:1.2704 train_time:255145ms step_avg:63.79ms
+step:4200/20000 train_loss:3.0632 train_time:267961ms step_avg:63.80ms
+step:4400/20000 train_loss:2.9877 train_time:280689ms step_avg:63.79ms
+step:4600/20000 train_loss:3.0398 train_time:293362ms step_avg:63.77ms
+step:4800/20000 train_loss:2.9693 train_time:306066ms step_avg:63.76ms
+step:5000/20000 train_loss:3.0702 train_time:318794ms step_avg:63.76ms
+step:5000/20000 val_loss:2.1364 val_bpb:1.2653 train_time:318837ms step_avg:63.77ms
+step:5200/20000 train_loss:3.1392 train_time:331497ms step_avg:63.75ms
+step:5400/20000 train_loss:3.0995 train_time:344249ms step_avg:63.75ms
+step:5600/20000 train_loss:2.9690 train_time:356937ms step_avg:63.74ms
+step:5800/20000 train_loss:3.0235 train_time:369699ms step_avg:63.74ms
+step:6000/20000 train_loss:2.9256 train_time:382427ms step_avg:63.74ms
+step:6000/20000 val_loss:2.1244 val_bpb:1.2582 train_time:382498ms step_avg:63.75ms
+step:6200/20000 train_loss:2.9080 train_time:395163ms step_avg:63.74ms
+step:6400/20000 train_loss:2.6246 train_time:407857ms step_avg:63.73ms
+step:6600/20000 train_loss:2.9252 train_time:420582ms step_avg:63.72ms
+step:6800/20000 train_loss:2.9723 train_time:433393ms step_avg:63.73ms
+step:7000/20000 train_loss:2.9269 train_time:446126ms step_avg:63.73ms
+step:7000/20000 val_loss:2.1224 val_bpb:1.2570 train_time:446227ms step_avg:63.75ms
+step:7200/20000 train_loss:2.7548 train_time:458940ms step_avg:63.74ms
+step:7400/20000 train_loss:2.6756 train_time:471772ms step_avg:63.75ms
+step:7600/20000 train_loss:3.0020 train_time:484489ms step_avg:63.75ms
+step:7800/20000 train_loss:2.9699 train_time:497231ms step_avg:63.75ms
+step:8000/20000 train_loss:2.8661 train_time:510030ms step_avg:63.75ms
+step:8000/20000 val_loss:2.1171 val_bpb:1.2539 train_time:510112ms step_avg:63.76ms
+step:8200/20000 train_loss:3.0732 train_time:522843ms step_avg:63.76ms
+step:8400/20000 train_loss:2.8913 train_time:535710ms step_avg:63.77ms
+step:8600/20000 train_loss:2.7483 train_time:548412ms step_avg:63.77ms
+step:8800/20000 train_loss:2.4214 train_time:561115ms step_avg:63.76ms
+step:9000/20000 train_loss:2.3198 train_time:573872ms step_avg:63.76ms
+step:9000/20000 val_loss:2.0325 val_bpb:1.2037 train_time:573917ms step_avg:63.77ms
+step:9200/20000 train_loss:2.2297 train_time:586561ms step_avg:63.76ms
+step:9400/20000 train_loss:1.9001 train_time:599398ms step_avg:63.77ms
+step:9403/20000 val_loss:1.9898 val_bpb:1.1785 train_time:599679ms step_avg:63.78ms
+stopping_early: wallclock_cap train_time:599679ms step:9403/20000
+peak memory allocated: 12981 MiB reserved: 13476 MiB
+Serialized model: 97978989 bytes
+Code size: 67609 bytes
+Total submission size: 98046598 bytes
+Serialized model int8+zlib: 19664220 bytes (payload:25667908 raw_torch:25719471 payload_ratio:3.82x)
+Total submission size int8+zlib: 19731829 bytes
+final_int8_zlib_roundtrip val_loss:1.9934 val_bpb:1.1806 eval_time:8671ms
+final_int8_zlib_roundtrip_exact val_loss:1.99340708 val_bpb:1.18060796
+Serialized model int6+zstd: 17246481 bytes
+Total submission size int6+zstd: 17314090 bytes
+final_int6_zstd_roundtrip val_loss:1.9978 val_bpb:1.1832 eval_time:1975ms
+final_int6_zstd_roundtrip_exact val_loss:1.99783681 val_bpb:1.18323149
+Compiling forward_logits for sliding window eval (stride=128, seq_len=1024)...
+Compilation done, starting sliding window eval...
+sliding_window_eval val_loss:1.9705 val_bpb:1.1670 stride:128 eval_time:29480ms
+sliding_window_eval_exact val_loss:1.97046738 val_bpb:1.16702273
+root@4f217c8e8047:/workspace/parameter-golf# Connection to 64.247.201.38 closed by remote host.
+Connection to 64.247.201.
