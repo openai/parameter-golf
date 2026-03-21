@@ -608,23 +608,13 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
-# Learned Hash Router — Linear(H, E) micro-router, fullgraph safe.
-class LearnedHashRouter(nn.Module):
-    def __init__(self, dim: int, num_experts: int):
-        super().__init__()
-        self.proj = nn.Linear(dim, num_experts, bias=False)
-        nn.init.normal_(self.proj.weight, std=0.01)
-    def forward(self, x: Tensor) -> Tensor:
-        """Returns expert_ids (long). fullgraph safe — argmax is a pure tensor op."""
-        logits = self.proj(x)
-        return logits.argmax(dim=-1)
-
-# Token-Routed MoE — gather/scatter dispatch, real routing
+# Token-Routed MoE — modulo routing (token_id % E), mask-multiply dispatch.
+# fullgraph=True safe: torch.compile unrolls the loop, all shapes static.
 class TokenRoutedMLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int, num_experts: int,
-                 activation: str = "swiglu", routing: str = "hybrid"):
+                 activation: str = "relu2"):
         super().__init__()
-        self.num_experts, self.dim, self.activation, self.routing = num_experts, dim, activation, routing
+        self.num_experts, self.dim, self.activation = num_experts, dim, activation
         self.expert_inter = (mlp_mult * dim) // num_experts
         if activation == "swiglu":
             self.gate_up_proj = nn.Parameter(torch.empty(num_experts, dim, 2 * self.expert_inter))
@@ -632,7 +622,6 @@ class TokenRoutedMLP(nn.Module):
         else:
             self.fc_weight = nn.Parameter(torch.empty(num_experts, dim, self.expert_inter))
             self.proj_weight = nn.Parameter(torch.empty(num_experts, self.expert_inter, dim))
-        self.router = LearnedHashRouter(dim, num_experts) if routing in ("learned", "hybrid") else None
         self._init_weights()
 
     def _init_weights(self):
@@ -647,19 +636,17 @@ class TokenRoutedMLP(nn.Module):
         bsz, seq, _ = x.shape
         flat_x = x.reshape(-1, self.dim)
         flat_ids = expert_ids.reshape(-1)
+        weights = F.one_hot(flat_ids, self.num_experts).to(flat_x.dtype)  # [N, E]
         out = torch.zeros_like(flat_x)
         for e in range(self.num_experts):
-            idx = (flat_ids == e).nonzero(as_tuple=True)[0]
-            if idx.numel() == 0:
-                continue
-            x_e = flat_x[idx]
+            w = weights[:, e].unsqueeze(-1)  # [N, 1]
             if self.activation == "swiglu":
-                gu = x_e @ self.gate_up_proj[e]
+                gu = flat_x @ self.gate_up_proj[e]
                 gate, up = gu.chunk(2, dim=-1)
-                out[idx] = F.silu(gate) * up @ self.down_proj[e]
+                out = out + (F.silu(gate) * up @ self.down_proj[e]) * w
             else:
-                h = torch.relu(x_e @ self.fc_weight[e])
-                out[idx] = h.square() @ self.proj_weight[e]
+                h = torch.relu(flat_x @ self.fc_weight[e])
+                out = out + (h.square() @ self.proj_weight[e]) * w
         return out.reshape(bsz, seq, self.dim)
 
 class Block(nn.Module):
@@ -671,9 +658,8 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
-        num_experts: int = 4,
-        moe_activation: str = "swiglu",
-        moe_routing: str = "hybrid",
+        num_experts: int = 2,
+        moe_activation: str = "relu2",
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -681,7 +667,7 @@ class Block(nn.Module):
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.use_moe = num_experts > 1
         if self.use_moe:
-            self.mlp = TokenRoutedMLP(dim, mlp_mult, num_experts, moe_activation, moe_routing)
+            self.mlp = TokenRoutedMLP(dim, mlp_mult, num_experts, moe_activation)
         else:
             hidden = mlp_mult * dim
             self.fc = CastedLinear(dim, hidden, bias=False)
@@ -691,7 +677,7 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor,
+    def forward(self, x: Tensor, x0: Tensor, expert_ids: Tensor,
                 q_delta_fn=None, v_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
@@ -701,9 +687,7 @@ class Block(nn.Module):
         attn_out = self.attn(n, qd, vd)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         if self.use_moe:
-            m = self.mlp_norm(x)
-            expert_ids = self.mlp.router(m)  # hard routing, gradients via backbone
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(m, expert_ids)
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), expert_ids)
         else:
             m = self.mlp_norm(x)
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.proj(torch.relu(self.fc(m)).square())
@@ -723,9 +707,8 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
-        num_experts: int = 4,
-        moe_activation: str = "swiglu",
-        moe_routing: str = "hybrid",
+        num_experts: int = 2,
+        moe_activation: str = "relu2",
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -740,11 +723,16 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        # Deterministic modulo routing: token_id % num_experts
+        self.register_buffer(
+            "token_to_expert",
+            torch.arange(vocab_size, dtype=torch.long) % num_experts,
+        )
         self.blocks = nn.ModuleList(
             [
                 Block(
                     model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
-                    num_experts, moe_activation, moe_routing,
+                    num_experts, moe_activation,
                 )
                 for i in range(num_layers)
             ]
@@ -767,11 +755,12 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
+        expert_ids = self.token_to_expert[input_ids.clamp(0, self.vocab_size - 1)]
 
         for i in range(self.num_encoder_layers):
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, qd, vd)
+            x = self.blocks[i](x, x0, expert_ids, qd, vd)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -779,7 +768,7 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, qd, vd)
+            x = self.blocks[bi](x, x0, expert_ids, qd, vd)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1102,7 +1091,6 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         num_experts=args.num_experts,
         moe_activation=args.moe_activation,
-        moe_routing=args.moe_routing,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1110,7 +1098,7 @@ def main() -> None:
         if isinstance(module, Rotary):
             module.inv_freq.data = module.inv_freq.data.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
