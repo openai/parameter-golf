@@ -716,17 +716,15 @@ class GPT(nn.Module):
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
-        # Use pre-allocated buffers for CUDA graph compatibility (no views, no allocs)
-        self._x0_buf.copy_(x)
-        x0 = self._x0_buf
+        x0 = x
+        skips: list[Tensor] = []
 
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
-            self._skip_buf[i].copy_(x)
+            skips.append(x)
         for i in range(self.num_decoder_layers):
-            skip_idx = self.num_encoder_layers - 1 - i
-            if skip_idx >= 0:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * self._skip_buf[skip_idx]
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x)
@@ -767,15 +765,14 @@ class GPT(nn.Module):
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
-        self._x0_buf.copy_(x)
-        x0 = self._x0_buf
+        x0 = x
+        skips: list[Tensor] = []
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
-            self._skip_buf[i].copy_(x)
+            skips.append(x)
         for i in range(self.num_decoder_layers):
-            skip_idx = self.num_encoder_layers - 1 - i
-            if skip_idx >= 0:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * self._skip_buf[skip_idx]
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
         x = self.final_norm(x)
         if self.tie_embeddings:
