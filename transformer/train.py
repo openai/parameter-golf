@@ -766,6 +766,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        num_loops: int = 1,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -773,9 +774,12 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_loops = num_loops
+        self.num_unique_layers = num_layers
+        effective_depth = num_layers * num_loops
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        self.num_encoder_layers = effective_depth // 2
+        self.num_decoder_layers = effective_depth - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList(
@@ -810,14 +814,18 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[bi](x, x0)
+        eff_idx = 0
+        for loop_idx in range(self.num_loops):
+            for block_idx in range(self.num_unique_layers):
+                if eff_idx < self.num_encoder_layers:
+                    x = self.blocks[block_idx](x, x0)
+                    skips.append(x)
+                else:
+                    dec_idx = eff_idx - self.num_encoder_layers
+                    if dec_idx < self.num_skip_weights and skips:
+                        x = x + self.skip_weights[dec_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                    x = self.blocks[block_idx](x, x0)
+                eff_idx += 1
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -835,19 +843,20 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            qd = lora.q_loras[i] if lora else None
-            vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, qd, vd)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            qd = lora.q_loras[bi] if lora else None
-            vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, qd, vd)
+        eff_idx = 0
+        for loop_idx in range(self.num_loops):
+            for block_idx in range(self.num_unique_layers):
+                qd = lora.q_loras[eff_idx] if lora else None
+                vd = lora.v_loras[eff_idx] if lora else None
+                if eff_idx < self.num_encoder_layers:
+                    x = self.blocks[block_idx](x, x0, qd, vd)
+                    skips.append(x)
+                else:
+                    dec_idx = eff_idx - self.num_encoder_layers
+                    if dec_idx < self.num_skip_weights and skips:
+                        x = x + self.skip_weights[dec_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                    x = self.blocks[block_idx](x, x0, qd, vd)
+                eff_idx += 1
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -891,7 +900,7 @@ class BatchedLinearLoRA(nn.Module):
             self.B.zero_()
 
 class BatchedTTTLoRA(nn.Module):
-    """All LoRA adapters for one batch: LM head and Q/V per block."""
+    """All LoRA adapters for one batch: LM head and Q/V per effective layer."""
     def __init__(self, bsz: int, model: GPT, rank: int):
         super().__init__()
         dim = model.tok_emb.embedding_dim
@@ -899,7 +908,9 @@ class BatchedTTTLoRA(nn.Module):
         self.lm_head_lora = BatchedLinearLoRA(bsz, dim, vocab, rank)
         self.q_loras = nn.ModuleList()
         self.v_loras = nn.ModuleList()
-        for block in model.blocks:
+        effective_depth = model.num_unique_layers * model.num_loops
+        for eff_idx in range(effective_depth):
+            block = model.blocks[eff_idx % model.num_unique_layers]
             self.q_loras.append(BatchedLinearLoRA(bsz, dim, block.attn.c_q.weight.shape[0], rank))
             self.v_loras.append(BatchedLinearLoRA(bsz, dim, block.attn.c_v.weight.shape[0], rank))
 
@@ -1184,6 +1195,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        num_loops=args.num_loops,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1245,7 +1257,8 @@ def main() -> None:
         optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
-    log0(f"model_params:{n_params}")
+    effective_depth = args.num_layers * args.num_loops
+    log0(f"model_params:{n_params} (unique_layers:{args.num_layers} loops:{args.num_loops} effective_depth:{effective_depth})")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
