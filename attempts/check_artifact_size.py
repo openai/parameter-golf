@@ -26,8 +26,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-# Add parent to path so we can import
-sys.path.insert(0, str(Path(__file__).parent))
+# Add hypernetwork subdir to path so we can import
+sys.path.insert(0, str(Path(__file__).parent / "hypernetwork"))
 from hypernetwork import HyperNetwork, HyperNetConfig, TargetGPTConfig
 
 
@@ -107,16 +107,11 @@ def estimate_artifact_size(
     # 2. Code size
     code_total = 0
     if code_files is None:
-        # Default: this file + hypernetwork.py
         here = Path(__file__).parent
+        hnet_dir = here / "hypernetwork"
         code_files_paths = [
-            here / "hypernetwork.py",
-            here / "check_artifact_size.py",
+            hnet_dir / "train_gpt_hypernet.py",  # single combined file is the artifact
         ]
-        # Also check if there's a train script
-        train_script = here / "train_gpt_baseline.py"
-        if train_script.exists():
-            code_files_paths.append(train_script)
     else:
         code_files_paths = [Path(f) for f in code_files]
 

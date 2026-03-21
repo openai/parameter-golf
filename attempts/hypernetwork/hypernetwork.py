@@ -35,17 +35,17 @@ from torch import Tensor
 
 
 # ---------------------------------------------------------------------------
-# Target GPT config (what we want to generate) — bigger than baseline
+# Target GPT config (what we want to generate) — matches baseline
 # ---------------------------------------------------------------------------
 
 @dataclass
 class TargetGPTConfig:
     vocab_size: int = 1024
-    num_layers: int = 11          # competitive: 11 layers
+    num_layers: int = 9           # baseline: 9 layers
     model_dim: int = 512
     num_heads: int = 8
     num_kv_heads: int = 4
-    mlp_mult: int = 3             # competitive: 3x MLP
+    mlp_mult: int = 2             # baseline: 2x MLP
     tie_embeddings: bool = True
     rope_base: float = 10000.0
     logit_softcap: float = 30.0
