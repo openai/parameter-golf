@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "Batch-Optimized 524K + Warmdown 4000",
+  "author": "sshiromani",
+  "github_id": "sshiromani",
+  "seed_results": {
+    "1337": {"val_loss": 1.94123297, "val_bpb": 1.14971055, "steps": 7361, "ms_per_step": 81.51},
+    "42": {"val_loss": 1.94043174, "val_bpb": 1.14923602, "steps": 7248, "ms_per_step": 82.98},
+    "7": {"val_loss": 1.94198904, "val_bpb": 1.15015834, "steps": 7269, "ms_per_step": 82.55}
+  },
+  "mean_val_loss": 1.94121792,
+  "mean_val_bpb": 1.14970164,
+  "artifact_bytes": 15927087,
+  "code_bytes": 50651
+}
