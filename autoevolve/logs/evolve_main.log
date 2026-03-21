@@ -18,3 +18,8 @@ Starting from iteration 19, best BPB: 1.1428
   Expected:   -0.0055 bpb. This is the highest-confidence path because the current SOTA script is already heavily compression-constrained, so recovering post-quantization loss is more plausible than adding capacity; late STE QAT commonly recovers roughly half of the PTQ gap on models this small, which should be in the ~0.004 to ~0.007 bpb range here.
   Risk:       Main risks are one extra torch.compile retrace when QAT is enabled and some throughput loss during the final warmdown segment. To mitigate that, QAT is activated only once, late in training, only for 
   Applied (55,110 bytes, 1280 lines)
+  Running training experiment...
+  Running: torchrun --standalone --nproc_per_node=1 /workspace/parameter-golf/autoevolve/train_gpt.py
+  Log saved to /workspace/parameter-golf/autoevolve/logs/exp_0019.log
+  CRASH (exit code 1)
+    TIMEOUT: Experiment exceeded 25-minute hard limit (10 train + 10 eval + 5 buffer)
