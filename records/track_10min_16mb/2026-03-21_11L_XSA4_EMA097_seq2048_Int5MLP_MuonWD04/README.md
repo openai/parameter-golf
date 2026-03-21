@@ -1,7 +1,7 @@
 # 11L + XSA4 + EMA(0.997) + seq2048 + Int5-MLP + MuonWD=0.04 + LateK-FP16
 
-**val_bpb: 1.1361** (seed=1337, sliding window stride=64, post int5/int6+zstd-22 quantization roundtrip)
-Hardware: 8×H100-80GB-SXM5 | Steps: ~8903 | Wallclock: 600s | Artifact: ~15.79MB
+**val_bpb: 1.1361** (avg over seeds 1337/42/123, sliding window stride=64, post int5/int6+zstd-22 quantization roundtrip)
+Hardware: 8×H100-80GB-SXM5 | Steps: ~9126 avg | Wallclock: 600s | Artifact: ~15.79MB
 
 ## Approach
 
