@@ -1,0 +1,11 @@
+{
+  "author": "Alex Ibarra",
+  "github_id": "ibarrajo",
+  "name": "XSA_TTT_BatchOpt",
+  "blurb": "11L SmearGate + Partial XSA (last 3 layers) + TTT (3-epoch SGD) + batch=524K + RoPE50K. Combines eval-time adaptation with efficient self-attention debiasing on the PR #198 base.",
+  "date": "2026-03-20T23:40:00Z",
+  "val_loss": 1.9171,
+  "val_bpb": 1.1354,
+  "bytes_total": 15851371,
+  "bytes_code": 76548
+}
