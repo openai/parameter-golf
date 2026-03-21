@@ -4,7 +4,7 @@
 
   "model": {
     "vocab_size": 1024,
-    "num_layers": 10,
+    "num_layers": 9,
     "model_dim": 512,
     "num_heads": 8,
     "num_kv_heads": 4,
