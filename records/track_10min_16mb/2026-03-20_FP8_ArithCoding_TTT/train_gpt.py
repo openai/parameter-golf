@@ -295,7 +295,10 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 )
 FP16_KEEP_NAME_PATTERNS = tuple(
     pattern
-    for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,blocks.8.attn.c_k").split(",")
+    for pattern in os.environ.get(
+        "FP16_KEEP_NAME_PATTERNS",
+        f"tok_emb,blocks.{Hyperparameters.num_layers - 2}.attn.c_k"
+    ).split(",")
     if pattern
 )
 INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
