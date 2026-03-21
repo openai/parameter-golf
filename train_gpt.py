@@ -394,7 +394,7 @@ def eval_val_doc_sliding(
                 y = torch.zeros(len(batch), max_win_len, dtype=torch.int64, device=device)
                 active_windows: list[ChunkWindow | None] = [None] * len(batch)
 
-                for doc_idx, (doc_start, doc_len) in enumerate(batch):
+                for doc_idx, (doc_start, _doc_len) in enumerate(batch):
                     if ci >= num_chunks[doc_idx]:
                         continue
                     window = compute_chunk_window(ci, pred_lens[doc_idx], num_chunks[doc_idx], stride, eval_seq_len)
