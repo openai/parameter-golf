@@ -641,9 +641,13 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
         if self.use_xsa:
+            # Expand KV heads to match Q heads for GQA
+            kv_rep = self.num_heads // self.num_kv_heads
+            k_exp = k.repeat_interleave(kv_rep, dim=2) if kv_rep > 1 else k
+            v_exp = v.repeat_interleave(kv_rep, dim=2) if kv_rep > 1 else v
             q2 = q.transpose(1, 2)
-            k2 = k.transpose(1, 2)
-            v2 = v.transpose(1, 2)
+            k2 = k_exp.transpose(1, 2)
+            v2 = v_exp.transpose(1, 2)
             scale = 1.0 / (self.head_dim ** 0.5)
             attn = (q2 @ k2.transpose(-2, -1)) * scale
             causal_mask = torch.triu(torch.ones(seqlen, seqlen, device=x.device, dtype=torch.bool), diagonal=1)
