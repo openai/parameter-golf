@@ -609,6 +609,8 @@ class CausalSelfAttention(nn.Module):
         return self.proj(y)
 
 # Token-Routed MoE — modulo routing, gather/scatter dispatch.
+# @torch.compiler.disable on forward: Inductor skips this module,
+# compiles everything else (attention, norms). Real routing, no waste.
 class TokenRoutedMLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int, num_experts: int,
                  activation: str = "relu2"):
@@ -631,6 +633,7 @@ class TokenRoutedMLP(nn.Module):
             nn.init.kaiming_uniform_(self.fc_weight, a=5**0.5)
             nn.init.zeros_(self.proj_weight)
 
+    @torch.compiler.disable
     def forward(self, x: Tensor, expert_ids: Tensor) -> Tensor:
         bsz, seq, _ = x.shape
         flat_x = x.reshape(-1, self.dim)
