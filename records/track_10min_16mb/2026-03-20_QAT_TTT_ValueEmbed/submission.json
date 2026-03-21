@@ -5,10 +5,10 @@
     "compressed_model_bytes": null,
     "code_bytes": null,
     "total_bytes": null,
-    "architecture": "10L 512dim 8heads 4KV 2xMLP sp1024 tied_embed + 3 value embedding tables",
+    "architecture": "11L 512dim 8heads 4KV 3xMLP sp1024 tied_embed SmearGate BigramHash2048",
     "tokenizer": "sp1024",
-    "eval_method": "sliding window stride=64 + TTT LoRA + temperature scaling",
+    "eval_method": "sliding window stride=64 + TTT LoRA rank-4 + temperature scaling",
+    "training": "NorMuon, int6 QAT STE, SWA, seq2048, OrthoInit+muP, WD=0.04, FA3",
     "training_time_minutes": 10,
-    "gpu_config": "8xH100",
-    "base": "notapplica SOTA (1.1748) + QAT + SWA + TTT + temperature + value embeddings"
+    "gpu_config": "8xH100"
 }

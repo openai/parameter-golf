@@ -1,0 +1,6 @@
+# Ralph Configuration for Parameter Golf
+RATE_LIMIT=200
+OUTPUT_FORMAT=json
+ALLOWED_TOOLS="Read,Write,Edit,Bash,Glob,Grep,WebSearch,WebFetch,Agent"
+MAX_LOOPS=50
+TIMEOUT=300

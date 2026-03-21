@@ -1,0 +1,10 @@
+{
+    "timestamp": "2026-03-21T07:52:16+00:00",
+    "loop_count": 588,
+    "calls_made_this_hour": 66,
+    "max_calls_per_hour": 200,
+    "last_action": "executing",
+    "status": "running",
+    "exit_reason": "",
+    "next_reset": "09:52:16"
+}

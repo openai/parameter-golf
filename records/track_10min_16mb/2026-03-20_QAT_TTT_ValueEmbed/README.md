@@ -1,47 +1,38 @@
-Adds QAT, value embeddings, test-time LoRA, SWA, and temperature search on top of established techniques (10L, sliding window, fp16 embed, Muon WD, spectral init). No GPU runs yet - submitting as non-record pending compute.
+PR #315 base (1.1248) + Online Logit Bias. Non-record pending compute.
 
-## what changed
+## what's new
 
-**QAT**: fake int8 per-row quantization baked into the forward pass with straight-through estimator. Kicks in at 15% of training. The model sees quantization noise during training instead of getting hit with it at export time.
+**online logit bias (OLB)** (`OLB_LR=0.1`): online learned bias vector added to logits during sliding window eval. Updated via exact CE gradient: `bias -= lr * (softmax(logits+bias) - onehot(target))`. Learns the optimal logit correction online as it processes the validation set. Zero model parameters, near-zero compute, doesn't modify model weights. Strictly better than frequency counting.
 
-**value embeddings**: 3 learned lookup tables (1024 x 256) shared across layers in a U-net pattern. Indexed by input tokens and added into attention values with sigmoid gates. Basically free - it's just an embedding lookup.
+## base (matching PR #315 SOTA)
 
-**test-time LoRA**: after quantization, rank-4 LoRA adapters go into all projections (Q/K/V/out + MLP). Model processes val data sequentially, one Adam step per chunk. Then re-eval with sliding window on the adapted model.
-
-**SWA**: average checkpoints during warmdown. Flatter minimum, compresses better.
-
-**temperature search**: sweep [0.92-1.08] on final logits after everything else.
-
-## configuration
-
-```
-VOCAB_SIZE=1024  NUM_LAYERS=10  MODEL_DIM=512  NUM_HEADS=8  NUM_KV_HEADS=4
-MLP_MULT=2  TIE_EMBEDDINGS=1  EVAL_STRIDE=64  NUM_VE_TABLES=3
-```
+11L, 512d, 3x MLP, int6+zstd, SmearGate, BigramHash(2048), OrthoInit+muP, FA3, seq2048+NTK RoPE, slide s64, Muon WD 0.04, XSA last 4 layers, EMA decay=0.997, Partial RoPE (16/64 dims), LN Scale, Late QAT.
 
 ## command
 
 ```bash
-RUN_ID=qat_ttt_ve \
-DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-VOCAB_SIZE=1024 \
-NUM_LAYERS=10 \
-EVAL_STRIDE=64 \
-QAT_ENABLED=1 \
-SWA_ENABLED=1 \
-TTT_ENABLED=1 \
-EVAL_TEMP_SEARCH=1 \
-NUM_VE_TABLES=3 \
-MAX_WALLCLOCK_SECONDS=600 \
+NUM_LAYERS=11 BIGRAM_VOCAB_SIZE=2048 XSA_LAST_N=4 \
+EMA_ENABLED=1 EMA_DECAY=0.997 SWA_ENABLED=0 \
+ROPE_DIMS=16 LN_SCALE=1 LATE_QAT=1 QAT_THRESHOLD=0.1 \
+MUON_WD=0.04 ADAM_WD=0.04 \
+MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \
+MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 \
+MUON_MOMENTUM_WARMUP_STEPS=1500 WARMDOWN_ITERS=3000 \
+TRAIN_BATCH_TOKENS=524288 \
+ITERATIONS=9000 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 \
+OLB_LR=0.1 OLB_MOMENTUM=0.9 \
+SEED=1337 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
-## results
+## run plan ($25 = 5 runs)
 
-Pending. Need compute to run + ablate.
+1. `OLB_LR=0 SEED=1337` -> reproduce PR #315 baseline, expect 1.1248
+2. `OLB_LR=0.1 SEED=1337` -> test OLB
+3. `OLB_LR=0.05 SEED=1337` -> test lower OLB if 0.1 is too aggressive
+4. Best config `SEED=42` -> second seed
+5. Best config `SEED=2025` -> third seed
 
-## files
+## toggle
 
-- `train_gpt.py`
-- `submission.json`
+`OLB_LR=0` disables OLB.

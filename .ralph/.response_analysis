@@ -1,0 +1,22 @@
+{
+  "loop_number": 587,
+  "timestamp": "2026-03-21T07:52:10+00:00",
+  "output_file": ".ralph/logs/claude_output_2026-03-21_08-48-38.log",
+  "output_format": "json",
+  "analysis": {
+    "has_completion_signal": false,
+    "is_test_only": false,
+    "is_stuck": false,
+    "has_progress": true,
+    "files_modified": 3,
+    "confidence_score": 70,
+    "exit_signal": false,
+    "work_summary": "## Loop Summary\n\n### Competition Status\n- **SOTA: PR #315 at 1.1248 bpb** — unchanged\n\n### What Changed\nCode was externally refactored (1588 lines) to cleanly integrate Partial RoPE, LN Scale, Late QAT, and OLB into the architecture. TTT was removed in refactor. Re-added compact TTT section (+73 lines) with all stabilization features: cosine LR, loss clipping, grad accumulation, L2 anchor, TTT EMA, skip unfreeze, temperature search, and final eval with OLB.\n\n**Final state: 1695/1700 lines, syntax valid, OLB + TTT + temp search all present.**\n\n```\n---RALPH_STATUS---\nSTATUS: IN_PROGRESS\nEXIT_SIGNAL: false\nRECOMMENDATION: Code refactored and TTT re-added. SOTA is #315 at 1.1248. Our approach: match #315 training + OLB eval-time + optional stabilized TTT. Awaiting compute. README updated externally to reflect #315 base + OLB run plan.\n---END_RALPH_STATUS---\n```",
+    "output_length": 1812,
+    "has_permission_denials": false,
+    "permission_denial_count": 0,
+    "denied_commands": [],
+    "asking_questions": false,
+    "question_count": 0
+  }
+}
