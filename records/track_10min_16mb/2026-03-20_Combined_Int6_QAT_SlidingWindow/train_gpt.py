@@ -117,6 +117,9 @@ class Hyperparameters:
     label_smoothing = float(os.environ.get("LABEL_SMOOTHING", 0.05))
     z_loss_coeff = float(os.environ.get("Z_LOSS_COEFF", 1e-4))
 
+    # Innovation: multi-token prediction (predict t+2 as auxiliary task)
+    mtp_weight = float(os.environ.get("MTP_WEIGHT", 0.15))
+
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -278,7 +281,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 )
 FP16_KEEP_NAME_PATTERNS = tuple(
     p for p in os.environ.get("FP16_KEEP_NAME_PATTERNS",
-        "tok_emb,blocks.8.attn.c_k").split(",") if p
+        "tok_emb,blocks.9.attn.c_k,blocks.8.attn.c_k").split(",") if p
 )
 
 def _classify_param(name: str) -> str:
@@ -611,12 +614,14 @@ class Block(nn.Module):
 class GPT(nn.Module):
     def __init__(self, vocab_size, num_layers, model_dim, num_heads, num_kv_heads, mlp_mult,
                  tie_embeddings, tied_embed_init_std, logit_softcap, rope_base, qk_gain_init,
-                 bigram_vocab_size=0, bigram_dim=128, label_smoothing=0.0, z_loss_coeff=0.0):
+                 bigram_vocab_size=0, bigram_dim=128, label_smoothing=0.0, z_loss_coeff=0.0,
+                 mtp_weight=0.0):
         super().__init__()
         self.tie_embeddings = tie_embeddings
         self.logit_softcap = logit_softcap
         self.label_smoothing = label_smoothing
         self.z_loss_coeff = z_loss_coeff
+        self.mtp_weight = mtp_weight
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.num_encoder_layers = num_layers // 2
@@ -632,6 +637,10 @@ class GPT(nn.Module):
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
+        # MTP: small projection for predicting t+2 (zero-init so it starts as no-op)
+        if mtp_weight > 0:
+            self.mtp_proj = CastedLinear(model_dim, model_dim, bias=False)
+            self.mtp_proj._zero_init = True  # prevent _init_weights from overwriting
         self._init_weights(num_layers, tied_embed_init_std)
 
     def _init_weights(self, num_layers: int, tied_embed_init_std: float) -> None:
@@ -671,9 +680,10 @@ class GPT(nn.Module):
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
         x = self._run_blocks(x)
-        x = x.reshape(-1, x.size(-1))
+        bsz, seqlen, dim = x.shape
+        x_flat = x.reshape(-1, dim)
         targets = target_ids.reshape(-1)
-        logits_proj = F.linear(x, self.tok_emb.weight) if self.tie_embeddings else self.lm_head(x)
+        logits_proj = F.linear(x_flat, self.tok_emb.weight) if self.tie_embeddings else self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         loss = F.cross_entropy(logits.float(), targets, reduction="mean",
                                label_smoothing=self.label_smoothing)
@@ -681,6 +691,15 @@ class GPT(nn.Module):
         if self.z_loss_coeff > 0:
             z_loss = self.z_loss_coeff * torch.logsumexp(logits.float(), dim=-1).square().mean()
             loss = loss + z_loss
+        # MTP: auxiliary loss predicting token t+2 from position t
+        if self.mtp_weight > 0 and seqlen > 2:
+            x_mtp = self.mtp_proj(x[:, :-2])  # predict t+2 from position t
+            mtp_flat = x_mtp.reshape(-1, dim)
+            mtp_logit_proj = F.linear(mtp_flat, self.tok_emb.weight) if self.tie_embeddings else self.lm_head(mtp_flat)
+            mtp_logits = self.logit_softcap * torch.tanh(mtp_logit_proj / self.logit_softcap)
+            mtp_targets = target_ids[:, 1:seqlen - 1].reshape(-1)  # tokens at position t+2
+            mtp_loss = F.cross_entropy(mtp_logits.float(), mtp_targets, reduction="mean")
+            loss = loss + self.mtp_weight * mtp_loss
         return loss
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
@@ -1077,6 +1096,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
         label_smoothing=args.label_smoothing, z_loss_coeff=args.z_loss_coeff,
+        mtp_weight=args.mtp_weight,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1095,6 +1115,9 @@ def main() -> None:
     scalar_params.append(base_model.smear.gate)
     if base_model.bigram is not None:
         scalar_params.append(base_model.bigram.scale)
+    # MTP projection goes to Muon (it's a 2D weight matrix)
+    if hasattr(base_model, 'mtp_proj'):
+        matrix_params.append(base_model.mtp_proj.weight)
 
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     tok_params = [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}]
@@ -1135,17 +1158,21 @@ def main() -> None:
 
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
+    lr_floor = 0.05  # Innovation: don't decay to 0 — keeps model alive at end
+
     def lr_mul(step: int, elapsed_ms: float) -> float:
         if args.warmdown_iters <= 0:
             return 1.0
         if max_wallclock_ms is None:
             warmdown_start = max(args.iterations - args.warmdown_iters, 0)
-            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) \
+            raw = max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) \
                 if warmdown_start <= step < args.iterations else 1.0
+            return max(raw, lr_floor)
         step_ms = elapsed_ms / max(step, 1)
         warmdown_ms = args.warmdown_iters * step_ms
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
-        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+        raw = remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+        return max(raw, lr_floor)
 
     # Warmup
     if args.warmup_steps > 0:
@@ -1281,7 +1308,9 @@ def main() -> None:
         log0(f"Serialized model: {os.path.getsize('final_model.pt')} bytes | Code: {len(code.encode('utf-8'))} bytes")
 
     # Mixed Int5/Int6 quantization + compression
-    sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+    # Strip training-only params (mtp_proj) to save ~200KB in artifact
+    sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()
+              if "mtp_proj" not in k}
     quant_result, quant_meta = mixed_quantize(sd_cpu, {"mlp", "attn", "bigram"})
 
     # Innovation: build eval-time bigram table and store in artifact
@@ -1324,7 +1353,7 @@ def main() -> None:
         bigram_table_loaded = bigram_table_loaded.to(device)
         log0(f"Loaded eval bigram table: {bigram_table_loaded.shape}")
     deq_state = dequantize_mixed(quant_state["w"], quant_state["m"], sd_cpu)
-    base_model.load_state_dict(deq_state, strict=True)
+    base_model.load_state_dict(deq_state, strict=False)  # mtp_proj stripped from artifact
 
     # Final eval: TTT LoRA (primary) or sliding window (fallback)
     torch.cuda.synchronize()
