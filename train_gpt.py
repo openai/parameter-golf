@@ -654,11 +654,26 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
+def _fake_quantize_int8(w: Tensor) -> Tensor:
+    """STE fake quantize: round to int8 range in forward, pass gradient through."""
+    scale = w.abs().amax(dim=-1, keepdim=True).clamp_min(1e-5) / 127.0
+    w_q = (w / scale).round().clamp(-127, 127) * scale
+    return w + (w_q - w).detach()  # STE: forward uses quantized, backward uses original
+
+
+# Global flag toggled by training loop
+_qat_enabled = False
+
+
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
+    # When QAT is enabled, adds fake-quantize noise so model learns to tolerate int8 rounding.
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if _qat_enabled:
+            w = _fake_quantize_int8(w)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -869,15 +884,7 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        # Entropy-weighted loss: upweight hard tokens, downweight easy ones
-        per_token_loss = F.cross_entropy(logits.float(), targets, reduction="none")
-        with torch.no_grad():
-            probs = F.softmax(logits.float(), dim=-1)
-            entropy = -(probs * (probs + 1e-8).log()).sum(dim=-1)
-            # Normalize entropy to [0.5, 1.5] range so easy tokens get 0.5x, hard get 1.5x
-            entropy_weight = 0.5 + entropy / (entropy.mean() + 1e-8)
-            entropy_weight = entropy_weight.clamp(0.5, 1.5)
-        return (per_token_loss * entropy_weight).mean()
+        return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
 # -----------------------------
@@ -1166,6 +1173,11 @@ def main() -> None:
             break
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+        # Enable QAT after 20% of training time
+        global _qat_enabled
+        if not _qat_enabled and max_wallclock_ms and elapsed_ms > 0.2 * max_wallclock_ms:
+            _qat_enabled = True
+            log0(f"qat:enabled step:{step} elapsed:{elapsed_ms:.0f}ms")
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
