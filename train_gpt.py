@@ -70,6 +70,7 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "1")))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
@@ -610,11 +611,27 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
+def fake_quantize_int6(w: Tensor) -> Tensor:
+    """STE fake-quantize to int6 [-32, 31] with per-row scaling. Gradients pass through."""
+    with torch.no_grad():
+        scale = w.abs().amax(dim=-1, keepdim=True) / 31.0
+        scale = scale.clamp_min(1.0 / 31.0)
+    q = (w / scale).round().clamp(-32, 31)
+    # Straight-through estimator: forward uses quantized, backward uses original
+    return (q * scale - w).detach() + w
+
+
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
+    # When QAT is enabled, applies fake int6 quantization noise during training.
+    qat: bool = False
+
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if self.qat and self.training and w.ndim == 2:
+            w = fake_quantize_int6(w)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -963,6 +980,10 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    if args.qat_enabled:
+        for module in base_model.modules():
+            if isinstance(module, CastedLinear):
+                module.qat = True
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
