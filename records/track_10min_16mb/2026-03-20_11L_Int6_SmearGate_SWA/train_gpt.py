@@ -106,6 +106,12 @@ class Hyperparameters:
     adam_weight_decay = float(os.environ.get("ADAM_WD", 0.0))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
+    # XSA (Exclusive Self Attention) and EMA
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))  # Apply XSA to last N layers (0=disabled)
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", 0)))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", 1)))
+
 # -----------------------------
 # MUON OPTIMIZER 
 # -----------------------------
@@ -625,9 +631,21 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
+        self.use_xsa = False  # Set externally by GPT.__init__
+
+    def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
+        """Subtract self-value projection via GQA-aware reshape (no repeat_interleave)."""
+        B, T, H, D = y.shape
+        Hkv = v.size(-2)
+        group = H // Hkv
+        y_g = y.reshape(B, T, Hkv, group, D)
+        vn = F.normalize(v, dim=-1).unsqueeze(-2)
+        proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
+        return (y_g - proj).reshape(B, T, H, D)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
+        # All shapes: (B, H, S, D) for rotary + q_gain, then transpose for flash_attn
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
@@ -638,22 +656,23 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         if _HAS_FLASH_ATTN:
-            # flash_attn expects (B, S, H, D) layout
-            q_fa = q.transpose(1, 2)  # (B, S, H, D)
+            # flash_attn needs (B, S, H, D)
+            q_fa = q.transpose(1, 2)
             k_fa = k.transpose(1, 2)
             v_fa = v.transpose(1, 2)
-            y = flash_attn_func(q_fa, k_fa, v_fa, causal=True)
-            y = y.reshape(bsz, seqlen, dim)
+            y = flash_attn_func(q_fa, k_fa, v_fa, causal=True)  # (B, S, H, D)
         else:
             y = F.scaled_dot_product_attention(
-                q,
-                k,
-                v,
+                q, k, v,
                 attn_mask=None,
                 is_causal=True,
                 enable_gqa=(self.num_kv_heads != self.num_heads),
             )
-            y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+            y = y.transpose(1, 2)  # (B, H, S, D) -> (B, S, H, D)
+        if self.use_xsa:
+            v_bshd = v.transpose(1, 2)  # XSA needs (B, S, Hkv, D)
+            y = self._xsa_efficient(y, v_bshd)
+        y = y.reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
@@ -755,6 +774,7 @@ class GPT(nn.Module):
         qk_gain_init: float,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
+        xsa_last_n: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -783,6 +803,10 @@ class GPT(nn.Module):
                 for i in range(num_layers)
             ]
         )
+        # Enable XSA on last N layers
+        if xsa_last_n > 0:
+            for i in range(max(0, num_layers - xsa_last_n), num_layers):
+                self.blocks[i].attn.use_xsa = True
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -1041,6 +1065,7 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
+        xsa_last_n=args.xsa_last_n,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1184,6 +1209,11 @@ def main() -> None:
     stop_after_step: int | None = None
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
+
+    # EMA state
+    ema_state: dict[str, Tensor] | None = None
+    if args.ema_enabled:
+        ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1251,10 +1281,16 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        # EMA update
+        if ema_state is not None:
+            d = args.ema_decay
+            for name, t in base_model.state_dict().items():
+                ema_state[name].mul_(d).add_(t.detach().float(), alpha=1.0 - d)
+
         # SWA: collect checkpoints during warmdown tail
         swa_frac = float(os.environ.get("SWA_FRAC", 0.5))
         swa_every = int(os.environ.get("SWA_EVERY", 50))
-        if scale < swa_frac and step % swa_every == 0:
+        if args.swa_enabled and not args.ema_enabled and scale < swa_frac and step % swa_every == 0:
             if swa_state is None:
                 swa_state = {name: t.detach().cpu().clone() for name, t in base_model.state_dict().items()}
                 swa_count = 1
@@ -1289,15 +1325,20 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
-    # Apply SWA if we collected checkpoints
-    if swa_state is not None and swa_count > 1:
+    # Apply EMA or SWA
+    if ema_state is not None:
+        log0(f"ema: loading EMA weights (decay={args.ema_decay})")
+        ema_loaded = {name: t.to(dtype=base_model.state_dict()[name].dtype) for name, t in ema_state.items()}
+        base_model.load_state_dict(ema_loaded, strict=True)
+        del ema_state
+    elif swa_state is not None and swa_count > 1:
         log0(f"swa: averaging {swa_count} checkpoints")
         avg_state = {name: (tensor / swa_count).to(dtype=base_model.state_dict()[name].dtype)
                      for name, tensor in swa_state.items()}
         base_model.load_state_dict(avg_state, strict=True)
         del swa_state
-    elif swa_count <= 1:
-        log0("swa: not enough checkpoints collected, skipping")
+    elif swa_count <= 1 and ema_state is None:
+        log0("swa/ema: no weight averaging applied")
 
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
