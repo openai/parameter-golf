@@ -111,7 +111,7 @@ class Hyperparameters:
 
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.004))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 15))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 20))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_freeze_layers = int(os.environ.get("TTT_FREEZE_LAYERS", 0))

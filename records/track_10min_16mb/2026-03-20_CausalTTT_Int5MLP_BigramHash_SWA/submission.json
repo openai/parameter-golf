@@ -1,8 +1,8 @@
 {
-  "name": "11L Int5-All + EMA + XSA5 + Causal TTT (15 epochs, 64 chunks)",
-  "val_loss": 1.91904,
-  "bytes_total": 15317653,
-  "blurb": "11 layers with int5 quantization for all weight categories. EMA (decay=0.997) for model averaging. Exclusive Self-Attention on last 5 layers. Legal causal test-time training: chunk-based eval-then-train on validation data (64 chunks, 15 SGD epochs per chunk). Muon WD=0.08. SmearGate + OrthoInit + zstd-22.",
+  "name": "11L Int5-All + EMA + XSA5 + Causal TTT (20 epochs, 64 chunks)",
+  "val_loss": 1.91883,
+  "bytes_total": 15147281,
+  "blurb": "11 layers with int5 quantization for all weight categories. EMA (decay=0.997) for model averaging. Exclusive Self-Attention on last 5 layers. Legal causal test-time training: chunk-based eval-then-train on validation data (64 chunks, 20 SGD epochs per chunk). Muon WD=0.08. SmearGate + OrthoInit + zstd-22.",
   "author": "devin-ai",
   "github_id": "andrewgcodes",
   "date": "2026-03-20"
