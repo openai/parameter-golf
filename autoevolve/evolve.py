@@ -346,7 +346,7 @@ def propose_modification(client, model: str, prompt: str) -> dict:
         model=model,
         reasoning={"effort": "high"},
         input=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
+        text_format={"type": "json_object"},
         max_output_tokens=32000,
     )
 
