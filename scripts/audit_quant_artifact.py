@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -12,7 +13,6 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from core.artifact_core import build_packed_quantized_state_dict, serialize_quant_artifact
-from core.quant_core import quantize_state_dict_int8, tensor_nbytes
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,12 +41,17 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     if args.keep_large_patterns:
-        import os
-
         os.environ["INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS"] = args.keep_large_patterns
+    else:
+        os.environ.pop("INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS", None)
+
+    import importlib
+    import core.quant_core as quant_core
+
+    quant_core = importlib.reload(quant_core)
 
     state_dict = torch.load(args.state_dict_path, map_location="cpu")
-    quant_obj, quant_stats = quantize_state_dict_int8(state_dict)
+    quant_obj, quant_stats = quant_core.quantize_state_dict_int8(state_dict)
 
     reports: list[dict[str, object]] = []
 
@@ -97,26 +102,26 @@ def main() -> None:
         "top_quantized_tensors": [
             {
                 "name": name,
-                "nbytes": tensor_nbytes(tensor),
+                "nbytes": quant_core.tensor_nbytes(tensor),
                 "shape": list(tensor.shape),
-                "scale_nbytes": tensor_nbytes(quant_obj["scales"][name]),
+                "scale_nbytes": quant_core.tensor_nbytes(quant_obj["scales"][name]),
             }
             for name, tensor in sorted(
                 quant_obj["quantized"].items(),
-                key=lambda item: tensor_nbytes(item[1]),
+                key=lambda item: quant_core.tensor_nbytes(item[1]),
                 reverse=True,
             )[:20]
         ],
         "top_passthrough_tensors": [
             {
                 "name": name,
-                "nbytes": tensor_nbytes(tensor),
+                "nbytes": quant_core.tensor_nbytes(tensor),
                 "shape": list(tensor.shape),
                 "dtype": str(tensor.dtype),
             }
             for name, tensor in sorted(
                 quant_obj["passthrough"].items(),
-                key=lambda item: tensor_nbytes(item[1]),
+                key=lambda item: quant_core.tensor_nbytes(item[1]),
                 reverse=True,
             )[:20]
         ],
