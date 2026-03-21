@@ -1,0 +1,11 @@
+{
+  "author": "Alex Ibarra",
+  "github_id": "ibarrajo",
+  "name": "Seq2048",
+  "blurb": "Longer training context (TRAIN_SEQ_LEN=2048, EVAL_SEQ_LEN=2048) improves val_bpb by learning real long-range dependencies instead of relying on RoPE extrapolation. No architecture changes — same 9-layer 512-dim baseline with relu^2 MLP, only training and eval at 2048 sequence length.",
+  "date": "2026-03-19T08:09:09Z",
+  "val_loss": 2.04312088,
+  "val_bpb": 1.21005127,
+  "bytes_total": 15869065,
+  "bytes_code": 58476
+}
