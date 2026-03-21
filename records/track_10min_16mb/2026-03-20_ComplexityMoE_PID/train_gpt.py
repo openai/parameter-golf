@@ -625,14 +625,11 @@ class TokenRoutedMLP(nn.Module):
         nn.init.kaiming_uniform_(self.fc_weight, a=5**0.5)
         nn.init.zeros_(self.proj_weight)
 
-    def forward(self, x: Tensor, expert_ids: Tensor) -> Tensor:
+    def forward(self, x: Tensor, sort_idx: Tensor) -> Tensor:
         bsz, seq, _ = x.shape
         N = bsz * seq
         chunk = N // self.num_experts
         flat_x = x.reshape(N, self.dim)             # [N, D]
-        flat_ids = expert_ids.reshape(N)             # [N]
-        # Sort by expert_id — all shapes static
-        sort_idx = flat_ids.argsort(stable=True)     # [N]
         sorted_x = flat_x[sort_idx]                  # [N, D]
         # Fixed split: each expert gets exactly N/E tokens
         # Overflow redirected to next expert — all experts always busy
@@ -677,7 +674,7 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor, expert_ids: Tensor,
+    def forward(self, x: Tensor, x0: Tensor, sort_idx: Tensor,
                 q_delta_fn=None, v_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
@@ -687,7 +684,7 @@ class Block(nn.Module):
         attn_out = self.attn(n, qd, vd)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         if self.use_moe:
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), expert_ids)
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), sort_idx)
         else:
             m = self.mlp_norm(x)
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.proj(torch.relu(self.fc(m)).square())
@@ -754,12 +751,14 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
+        # Argsort once — deterministic modulo routing, reused by all 9 layers
         expert_ids = self.token_to_expert[input_ids.clamp(0, self.vocab_size - 1)]
+        sort_idx = expert_ids.reshape(-1).argsort(stable=True)
 
         for i in range(self.num_encoder_layers):
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, expert_ids, qd, vd)
+            x = self.blocks[i](x, x0, sort_idx, qd, vd)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -767,7 +766,7 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, expert_ids, qd, vd)
+            x = self.blocks[bi](x, x0, sort_idx, qd, vd)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
