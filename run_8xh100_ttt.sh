@@ -2,17 +2,16 @@
 set -e
 cd /workspace/parameter-golf
 
-echo "=== Installing FlashAttention 3 ==="
-pip install flash-attn --no-build-isolation -q 2>/dev/null || echo "flash-attn pip install failed, trying from source..."
-# FA3 needs the flash_attn_interface module
-python3 -c "from flash_attn_interface import flash_attn_func; print('FA3 OK')" 2>/dev/null || {
-    echo "FA3 not available, will use SDPA fallback"
-}
+echo "=== Installing dependencies ==="
+pip install zstandard -q
+pip install flash-attn --no-build-isolation -q 2>/dev/null || echo "flash-attn pip failed"
+python3 -c "from flash_attn_interface import flash_attn_func; print('FA3: OK')" 2>/dev/null || echo "FA3: using SDPA fallback"
+python3 -c "import zstandard; print('zstd: OK')"
 
 echo "=== Downloading data ==="
 python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80
 
-echo "=== Checking PyTorch and GPU ==="
+echo "=== Environment ==="
 python3 -c "import torch; print(f'PyTorch {torch.__version__}, CUDA {torch.version.cuda}, GPUs: {torch.cuda.device_count()}')"
 
 for SEED in 1337 42 2024; do
@@ -38,6 +37,6 @@ echo "=== ALL SEEDS COMPLETE ==="
 echo "======================================================================"
 for f in run_seed*.txt; do
     echo "--- $f ---"
-    grep -E "final_int6.*exact|sliding.*exact|ttt:|Total submission" "$f" | tail -5
+    grep -E "final_int6.*exact|sliding.*exact|ttt:|Total submission|int6\+zstd|int6\+zlib" "$f" | tail -6
 done
 echo "End: $(date)"
