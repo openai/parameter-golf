@@ -470,6 +470,160 @@ class DistributedTokenLoader:
 # TRANSFORMER MODULES
 # -----------------------------
 
+# Optional Triton kernels for fused eval-mode operations.
+try:
+    import triton
+    import triton.language as tl
+    _HAS_TRITON = True
+except ImportError:
+    _HAS_TRITON = False
+
+if _HAS_TRITON:
+    @triton.autotune(
+        configs=[
+            triton.Config({'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3, num_warps=8),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3, num_warps=8),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3, num_warps=8),
+            triton.Config({'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 64,  'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=4, num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 64,  'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=4, num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64,  'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=4, num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 64,  'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=4, num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 128, 'GROUP_SIZE_M': 8}, num_stages=3, num_warps=8),
+        ],
+        key=['M', 'N', 'K'],
+    )
+    @triton.jit
+    def fused_relu_sq_gemm_kernel_persist_opt(
+        a_ptr, w_ptr, c_ptr,
+        M, N, K,
+        stride_am, stride_ak,
+        stride_wn, stride_wk,
+        stride_cm, stride_cn,
+        EVEN_M: tl.constexpr, EVEN_N: tl.constexpr, EVEN_K: tl.constexpr,
+        BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,
+        GROUP_SIZE_M: tl.constexpr,
+    ):
+        pid = tl.program_id(axis=0)
+        num_programs = tl.num_programs(axis=0)
+
+        num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
+        num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
+        num_pid_in_group = GROUP_SIZE_M * num_pid_n
+        total_tiles = num_pid_m * num_pid_n
+
+        for tile_id in range(pid, total_tiles, num_programs):
+            group_id = tile_id // num_pid_in_group
+            first_pid_m = group_id * GROUP_SIZE_M
+            group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)
+            pid_m = first_pid_m + (tile_id % group_size_m)
+            pid_n = (tile_id % num_pid_in_group) // group_size_m
+
+            offs_m = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+            offs_n = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
+            offs_k = tl.arange(0, BLOCK_SIZE_K)
+
+            a_ptrs = a_ptr + (offs_m[:, None] * stride_am + offs_k[None, :] * stride_ak)
+            w_ptrs = w_ptr + (offs_k[:, None] * stride_wk + offs_n[None, :] * stride_wn)
+
+            if not EVEN_M:
+                a_mask_m = offs_m[:, None] < M
+            if not EVEN_N:
+                w_mask_n = offs_n[None, :] < N
+
+            acc = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
+
+            for k_iter in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
+                if EVEN_K:
+                    if EVEN_M:
+                        a = tl.load(a_ptrs)
+                    else:
+                        a = tl.load(a_ptrs, mask=a_mask_m, other=0.0)
+                    if EVEN_N:
+                        w = tl.load(w_ptrs)
+                    else:
+                        w = tl.load(w_ptrs, mask=w_mask_n, other=0.0)
+                else:
+                    k_mask = (k_iter * BLOCK_SIZE_K + offs_k) < K
+                    if EVEN_M:
+                        a = tl.load(a_ptrs, mask=k_mask[None, :], other=0.0)
+                    else:
+                        a = tl.load(a_ptrs, mask=a_mask_m & k_mask[None, :], other=0.0)
+                    if EVEN_N:
+                        w = tl.load(w_ptrs, mask=k_mask[:, None], other=0.0)
+                    else:
+                        w = tl.load(w_ptrs, mask=k_mask[:, None] & w_mask_n, other=0.0)
+
+                a_f32 = a.to(tl.float32)
+                a_f32 = tl.maximum(a_f32, 0.0)
+                a_bf16 = (a_f32 * a_f32).to(tl.bfloat16)
+
+                acc += tl.dot(a_bf16, w)
+
+                a_ptrs += BLOCK_SIZE_K * stride_ak
+                w_ptrs += BLOCK_SIZE_K * stride_wk
+
+            c = acc.to(tl.bfloat16)
+
+            offs_cm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+            offs_cn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
+            c_ptrs = c_ptr + (offs_cm[:, None] * stride_cm + offs_cn[None, :] * stride_cn)
+
+            if EVEN_M and EVEN_N:
+                tl.store(c_ptrs, c)
+            elif EVEN_M:
+                tl.store(c_ptrs, c, mask=offs_cn[None, :] < N)
+            elif EVEN_N:
+                tl.store(c_ptrs, c, mask=offs_cm[:, None] < M)
+            else:
+                tl.store(c_ptrs, c, mask=(offs_cm[:, None] < M) & (offs_cn[None, :] < N))
+
+
+def fused_relu_sq_proj(h_pre: Tensor, proj_weight: Tensor) -> Tensor:
+    """Fused ReLU-squared activation + projection using a Triton kernel.
+
+    Args:
+        h_pre: Pre-activation hidden states, shape (*, K). Will be cast to bf16.
+        proj_weight: Projection weight matrix, shape (N, K). Must be bf16.
+
+    Returns:
+        Output tensor of shape (*, N) in bf16.
+    """
+    if not _HAS_TRITON:
+        # Fallback to eager PyTorch path.
+        h = torch.relu(h_pre).square()
+        return F.linear(h, proj_weight)
+
+    orig_shape = h_pre.shape
+    h_pre_2d = h_pre.reshape(-1, orig_shape[-1]).contiguous().to(torch.bfloat16)
+    w = proj_weight.contiguous().to(torch.bfloat16)
+
+    M, K = h_pre_2d.shape
+    N = w.shape[0]
+
+    out = torch.empty((M, N), device=h_pre.device, dtype=torch.bfloat16)
+
+    EVEN_M = (M % 256 == 0)
+    EVEN_N = (N % 256 == 0)
+    EVEN_K = (K % 128 == 0)
+
+    num_sms = torch.cuda.get_device_properties(h_pre.device).multi_processor_count
+
+    def grid(meta):
+        tiles = triton.cdiv(M, meta['BLOCK_SIZE_M']) * triton.cdiv(N, meta['BLOCK_SIZE_N'])
+        return (min(tiles, num_sms * 4),)
+
+    fused_relu_sq_gemm_kernel_persist_opt[grid](
+        h_pre_2d, w, out,
+        M, N, K,
+        h_pre_2d.stride(0), h_pre_2d.stride(1),
+        w.stride(0), w.stride(1),
+        out.stride(0), out.stride(1),
+        EVEN_M=EVEN_M, EVEN_N=EVEN_N, EVEN_K=EVEN_K,
+    )
+
+    return out.view(*orig_shape[:-1], N)
+
+
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
         super().__init__()
@@ -575,6 +729,10 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
+        if not self.training and _HAS_TRITON:
+            h_pre = self.fc(x)  # CastedLinear handles fp32->bf16 cast
+            return fused_relu_sq_proj(h_pre, self.proj.weight.to(h_pre.dtype))
+        # Original path for training (needs autograd graph).
         x = torch.relu(self.fc(x))
         return self.proj(x.square())
 
