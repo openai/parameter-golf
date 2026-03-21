@@ -1209,9 +1209,13 @@ def main() -> None:
                 log0(f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}")
             break
 
-        # Enable QAT after qat_start_frac of training
+        # Enable QAT after qat_start_frac of training (by step count or wallclock)
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-        if not qat_activated and max_wallclock_ms and elapsed_ms > args.qat_start_frac * max_wallclock_ms:
+        qat_trigger = (
+            (max_wallclock_ms and elapsed_ms > args.qat_start_frac * max_wallclock_ms) or
+            (not max_wallclock_ms and step >= int(args.qat_start_frac * args.iterations))
+        )
+        if not qat_activated and qat_trigger:
             for module in base_model.modules():
                 if isinstance(module, QATCastedLinear):
                     module.qat_enabled = True
