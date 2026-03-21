@@ -621,24 +621,17 @@ class TokenRoutedMLP(nn.Module):
         self.expert_inter = (mlp_mult * dim) // num_experts
         self.fc_weight = nn.Parameter(torch.empty(num_experts, dim, self.expert_inter))
         self.proj_weight = nn.Parameter(torch.empty(num_experts, self.expert_inter, dim))
-        # Error-based router: project hidden state → expert scores
-        self.router_mu = nn.Parameter(torch.zeros(num_experts, dim))
         self._init_weights()
 
     def _init_weights(self):
         nn.init.kaiming_uniform_(self.fc_weight, a=5**0.5)
         nn.init.zeros_(self.proj_weight)
 
-    def forward(self, x: Tensor, fallback_sort_idx: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, sort_idx: Tensor) -> Tensor:
         bsz, seq, _ = x.shape
         N = bsz * seq
         chunk = N // self.num_experts
         flat_x = x.reshape(N, self.dim)             # [N, D]
-        # Error-based routing: assign each token to nearest expert μ
-        # ||x - μ_e||² = ||x||² - 2·x·μ_e + ||μ_e||² → argmin = argmax(x·μ_e - 0.5·||μ_e||²)
-        scores = flat_x @ self.router_mu.T - 0.5 * (self.router_mu ** 2).sum(-1)  # [N, E]
-        expert_ids = scores.argmax(dim=-1)           # [N]
-        sort_idx = expert_ids.argsort(stable=True)   # [N]
         sorted_x = flat_x[sort_idx]                  # [N, D]
         # Fixed split: each expert gets exactly N/E tokens
         parts = []
@@ -687,7 +680,7 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor,
+    def forward(self, x: Tensor, x0: Tensor, sort_idx: Tensor,
                 attn_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
@@ -696,7 +689,7 @@ class Block(nn.Module):
         attn_out = self.attn(n, ad) if self.use_inl else self.attn(n, ad)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         if self.use_moe:
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), sort_idx)
         else:
             m = self.mlp_norm(x)
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.proj(torch.relu(self.fc(m)).square())
@@ -765,17 +758,20 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
+        # Argsort once — deterministic modulo routing, reused by all layers
+        expert_ids = self.token_to_expert[input_ids.clamp(0, self.vocab_size - 1)]
+        sort_idx = expert_ids.reshape(-1).argsort(stable=True)
 
         for i in range(self.num_encoder_layers):
             ad = lora.attn_loras[i] if lora else None
-            x = self.blocks[i](x, x0, ad)
+            x = self.blocks[i](x, x0, sort_idx, ad)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ad = lora.attn_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, ad)
+            x = self.blocks[bi](x, x0, sort_idx, ad)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1303,14 +1299,6 @@ def main() -> None:
                 for p in base_model.parameters():
                     if p.ndim >= 2:
                         p.mul_(1.0 - args.weight_decay * scale * args.matrix_lr)
-        # QAT: fake quantize (STE) — model learns to tolerate int8
-        if step > 200:  # let model stabilize first
-            with torch.no_grad():
-                for p in base_model.parameters():
-                    if p.ndim >= 2 and p.numel() > 256:
-                        amax = p.abs().amax(dim=-1, keepdim=True).clamp(min=1e-12)
-                        s = amax / QUANT_MAX
-                        p.copy_(torch.round(p / s).clamp(-QUANT_MAX, QUANT_MAX) * s)
         zero_grad_all()
 
         step += 1
