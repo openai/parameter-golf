@@ -35,6 +35,8 @@ try:
 except ImportError:
     _HAS_TE = False
 
+torch.set_float32_matmul_precision("high")
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -1618,6 +1620,8 @@ def main() -> None:
         if distributed:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+        del initial_model_state, initial_optimizer_states
+        import gc; gc.collect()
 
     # MAIN TRAINING LOOP
     training_time_ms = 0.0
