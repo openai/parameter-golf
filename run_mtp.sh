@@ -9,6 +9,7 @@ python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
 pip install zstandard
 
 # Memory tokens + MTP + 10L + bigram + smear + 3x MLP + WD + sliding window
+# Override aggressive defaults for 1xH100 testing (~1000 steps)
 NUM_MEMORY_TOKENS=64 \
 NUM_LAYERS=10 \
 MTP_NUM_HEADS=2 \
@@ -19,7 +20,9 @@ TRAIN_SEQ_LEN=2048 \
 EVAL_SEQ_LEN=1024 \
 EVAL_STRIDE=128 \
 FP16_EMBED_EXPORT=1 \
-RUN_ID=mem64_bigram_smear_3xmlp \
+TRAIN_BATCH_TOKENS=524288 \
+WARMDOWN_ITERS=300 \
+RUN_ID=mem64_full_combo \
 DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
 TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
