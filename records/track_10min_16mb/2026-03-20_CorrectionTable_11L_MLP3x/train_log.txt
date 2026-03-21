@@ -1,0 +1,46 @@
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27191897
+world_size:1 grad_accum_steps:8
+swa:enabled every=50 steps, min_step=6481
+step:0/20000 val_loss:6.9357 val_bpb:4.1077 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9360 train_time:650ms step_avg:650.22ms
+step:500/20000 train_loss:2.4505 train_time:356576ms step_avg:713.15ms
+step:1000/20000 train_loss:2.3170 train_time:713229ms step_avg:713.23ms
+step:1500/20000 train_loss:2.2440 train_time:1066877ms step_avg:711.25ms
+step:2000/20000 train_loss:2.1780 train_time:1422000ms step_avg:711.00ms
+step:2000/20000 val_loss:2.7199 val_bpb:1.6109 train_time:1422000ms step_avg:711.00ms
+step:4000/20000 val_loss:2.6603 val_bpb:1.5757 train_time:2844000ms step_avg:711.00ms
+step:6000/20000 val_loss:2.6381 val_bpb:1.5624 train_time:4266000ms step_avg:711.00ms
+step:8000/20000 val_loss:2.6177 val_bpb:1.5503 train_time:5611314ms step_avg:701.41ms
+ste_qat:enabled at step=8020 frac=0.75 quant_bits=6
+step:8500/20000 train_loss:2.0971 train_time:5980214ms step_avg:703.55ms
+step:9000/20000 train_loss:2.0380 train_time:6329998ms step_avg:703.33ms
+step:9500/20000 train_loss:2.0638 train_time:6680498ms step_avg:703.21ms
+step:10000/20000 train_loss:1.9182 train_time:7031208ms step_avg:703.12ms
+step:10000/20000 val_loss:2.6369 val_bpb:1.5617 train_time:7031211ms step_avg:703.12ms
+step:10500/20000 train_loss:1.9460 train_time:7381436ms step_avg:702.99ms
+step:10670/20000 val_loss:2.6232 val_bpb:1.5536 train_time:7500392ms step_avg:702.94ms
+stopping_early: wallclock_cap train_time:7500392ms step:10670/20000
+peak memory allocated: 15176 MiB reserved: 16002 MiB
+swa:applying average of 84 checkpoints
+Serialized model: 106183489 bytes
+Code size: 67933 bytes
+Total submission size: 106251422 bytes
+Serialized model int6+zstd: 12636796 bytes (payload:28367200 raw_torch:28424593 payload_ratio:3.74x)
+Total submission size int6+zstd: 12704729 bytes
+final_int6_zstd_roundtrip val_loss:2.5603 val_bpb:1.5164 eval_time:68069ms
+final_int6_zstd_roundtrip_exact val_loss:2.56032589 val_bpb:1.51636921
+
+--- Post-training: Error Correction Table ---
+scoring val set: 62,021,633 tokens in 408s
+correction_table: 907,927 entries (2,867,053 bytes = 2.73 MB)
+avg_loss_of_corrected_tokens: 9.16 nats (13.21 bits)
+total_bits_saved: 11,996,383
+artifact_with_table: 15,779,959 bytes (15.05 MB)
+total_submission_with_table: 15,886,378 bytes (15.15 MB) ✅
+
+--- Eval with correction table ---
+baseline_with_correction val_loss:2.4263 val_bpb:1.4370
+improvement: -0.0794 BPB
