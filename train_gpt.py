@@ -89,7 +89,7 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     # Eval settings.
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 512))
     ttt_steps = int(os.environ.get("TTT_STEPS", 3))
     ttt_lr = float(os.environ.get("TTT_LR", 1e-4))
 
