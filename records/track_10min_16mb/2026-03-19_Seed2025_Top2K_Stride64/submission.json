@@ -1,0 +1,11 @@
+{
+  "author": "takhir-iota",
+  "github_id": "takhir-iota",
+  "name": "Top2K + Sliding Window (Seed 2025)",
+  "blurb": "9x512 KV4 MLP3 run with fp16 tok_emb plus fp16 late-layer K on blocks 7-8, grouped-int8 remaining K, int6 MLP/Q/V/proj, zstd export, and stride-64 sliding-window eval.",
+  "date": "2026-03-19T16:05:00Z",
+  "val_loss": 1.95946000,
+  "val_bpb": 1.16050360,
+  "bytes_total": 15844924,
+  "bytes_code": 37988
+}
