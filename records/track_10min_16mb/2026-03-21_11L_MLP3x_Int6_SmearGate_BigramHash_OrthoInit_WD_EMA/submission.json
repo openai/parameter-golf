@@ -1,0 +1,14 @@
+{
+  "author": "mkenn",
+  "github_id": "mkenney2",
+  "name": "11L MLP3x Int6+Zstd SmearGate BigramHash OrthoInit MuonWD EMA",
+  "blurb": "11-layer 512d MLP3x with int6+zstd-22 compression, SmearGate, BigramHash(4096x128), OrthoInit, Muon WD=0.02, EMA(0.997), FP16 embed, seq2048, sliding window eval stride=256. Extensive ablation of novel techniques (AttnRes, depth recurrence, seq-len curriculum, TTT) documented in README.",
+  "date": "2026-03-21T19:26:00Z",
+  "val_loss": 1.94950115,
+  "val_bpb": 1.14950115,
+  "val_bpb_mean": 1.14971214,
+  "val_bpb_std": 0.00036195,
+  "seeds": [1337, 42, 7],
+  "bytes_total": 14857489,
+  "bytes_code": 64153
+}
