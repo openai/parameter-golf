@@ -1,0 +1,17 @@
+{
+  "author": "Idanr",
+  "github_id": "idan3011",
+  "name": "Pre-Enrichment + Encoder Recurrence + XSA + SmearGate + BigramHash",
+  "blurb": "GELU pre-enrichment (512-768-512) + 2x encoder recurrence + XSA last 4 layers + SmearGate + BigramHash + EMA + int6 QAT + lzma + MLP 3x + sliding window eval (stride=64), 10L 512d seq2048.",
+  "date": "2026-03-21T06:25:00Z",
+  "val_loss": 1.96347005,
+  "val_bpb": 1.16287756,
+  "pre_quant_val_loss": 1.9940,
+  "pre_quant_val_bpb": 1.1809,
+  "step_stop": 5636,
+  "wallclock_seconds": 599.886,
+  "eval_time_seconds": 246.128,
+  "bytes_total": 15051927,
+  "bytes_model_int6_lzma": 14992500,
+  "bytes_code": 59427
+}
