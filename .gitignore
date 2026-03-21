@@ -8,4 +8,4 @@ data/manifest.json
 data/docs_selected.jsonl
 .mypy_cache/
 .venv
-logs/
+logs/**/PRIVATE_NOTES.md
