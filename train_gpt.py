@@ -677,9 +677,9 @@ class Block(nn.Module):
             scores = flat.float().abs().mean(dim=-1)
             idx = torch.topk(scores, k, sorted=False).indices
             sel = core.mlp(flat.index_select(0, idx))
-            mlp_out = torch.zeros_like(flat)
+            mlp_out = torch.zeros(flat.shape, device=flat.device, dtype=sel.dtype)
             mlp_out.index_copy_(0, idx, sel)
-            mlp_out = mlp_out.view_as(mlp_x)
+            mlp_out = mlp_out.view_as(mlp_x).to(dtype=x.dtype)
         else:
             mlp_out = core.mlp(mlp_x)
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
