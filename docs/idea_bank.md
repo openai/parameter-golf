@@ -1,5 +1,22 @@
 # Idea Bank — Parameter Golf Competition
 
+## Leverage Table — Where Are the Outsized Returns?
+
+| Lever | Current | Max | Gap | Status |
+|-------|---------|-----|-----|--------|
+| **Training time** | 600s | 600s | 0 | Maxed out |
+| **Eval time** | ~200s | 600s | **400s idle** | Biggest untapped resource. Model ensemble? |
+| **Artifact bytes** | 15.5MB | 16.0MB | **500KB** | ~800K more params possible |
+| **Model architecture** | Transformer + XSA | Novel ops | **Open** | Partial RoPE, LN Scale being tested |
+| **Training data ordering** | Sequential shards | Curriculum/shuffle | **Fully untapped** | Nobody has tried this |
+| **Compression scheme** | Uniform int6 | Adaptive int5/6/7 | **Partially tested** | Gradient-guided quant (novel) |
+| **Weight averaging** | EMA (0.997) | — | Small | EMA seems near-optimal |
+| **Quantization timing** | Post-training | Late QAT (last 4%) | **Testing now** | 3x less quant degradation |
+| **Eval methodology** | Sliding stride=64 | — | Small | Near optimal for non-TTT |
+| **Optimizer config** | Muon + AdamW | — | Explored | WD/LR tuned |
+
+**Strategy**: Find outsized returns OUTSIDE the training loop. Training is near-maxed. The 400s of idle eval time and the compression scheme are the biggest opportunities for differentiation.
+
 ## NOVELTY CHECK — Before Every Novel Idea
 
 Before implementing ANY idea from "Novel" sections, verify:
