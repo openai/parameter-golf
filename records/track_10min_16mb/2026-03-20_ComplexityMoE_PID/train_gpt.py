@@ -619,27 +619,7 @@ class LearnedHashRouter(nn.Module):
         logits = self.proj(x)
         return logits.argmax(dim=-1)
 
-# Gather/scatter dispatch — each expert only computes its routed tokens.
-def _moe_gather_scatter(flat_x: Tensor, flat_ids: Tensor,
-                        weights_list: list[Tensor], num_experts: int,
-                        activation: str, expert_inter: int) -> Tensor:
-    """Dispatch tokens to experts via gather, compute, scatter back."""
-    out = torch.zeros_like(flat_x)
-    for e in range(num_experts):
-        idx = (flat_ids == e).nonzero(as_tuple=True)[0]
-        if idx.numel() == 0:
-            continue
-        x_e = flat_x[idx]
-        if activation == "swiglu":
-            gu = x_e @ weights_list[e * 2]      # gate_up_proj[e]
-            gate, up = gu.chunk(2, dim=-1)
-            out[idx] = F.silu(gate) * up @ weights_list[e * 2 + 1]  # down_proj[e]
-        else:
-            h = torch.relu(x_e @ weights_list[e * 2])    # fc_weight[e]
-            out[idx] = h.square() @ weights_list[e * 2 + 1]  # proj_weight[e]
-    return out
-
-# Token-Routed MoE — gather/scatter dispatch, fullgraph compatible
+# Token-Routed MoE — gather/scatter dispatch, real routing
 class TokenRoutedMLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int, num_experts: int,
                  activation: str = "swiglu", routing: str = "hybrid"):
@@ -667,19 +647,19 @@ class TokenRoutedMLP(nn.Module):
         bsz, seq, _ = x.shape
         flat_x = x.reshape(-1, self.dim)
         flat_ids = expert_ids.reshape(-1)
-        # Build weight list for the opaque dispatch function
-        if self.activation == "swiglu":
-            wl = []
-            for e in range(self.num_experts):
-                wl.append(self.gate_up_proj[e])
-                wl.append(self.down_proj[e])
-        else:
-            wl = []
-            for e in range(self.num_experts):
-                wl.append(self.fc_weight[e])
-                wl.append(self.proj_weight[e])
-        out = _moe_gather_scatter(flat_x, flat_ids, wl, self.num_experts,
-                                  self.activation, self.expert_inter)
+        out = torch.zeros_like(flat_x)
+        for e in range(self.num_experts):
+            idx = (flat_ids == e).nonzero(as_tuple=True)[0]
+            if idx.numel() == 0:
+                continue
+            x_e = flat_x[idx]
+            if self.activation == "swiglu":
+                gu = x_e @ self.gate_up_proj[e]
+                gate, up = gu.chunk(2, dim=-1)
+                out[idx] = F.silu(gate) * up @ self.down_proj[e]
+            else:
+                h = torch.relu(x_e @ self.fc_weight[e])
+                out[idx] = h.square() @ self.proj_weight[e]
         return out.reshape(bsz, seq, self.dim)
 
 class Block(nn.Module):
@@ -1130,8 +1110,7 @@ def main() -> None:
         if isinstance(module, Rotary):
             module.inv_freq.data = module.inv_freq.data.float()
     restore_low_dim_params_to_fp32(base_model)
-    torch._dynamo.config.capture_dynamic_output_shape_ops = True
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
