@@ -89,7 +89,7 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     # QAT config
-    qat_bits = int(os.environ.get("QAT_BITS", 6))
+    qat_bits = int(os.environ.get("QAT_BITS", 7))
     qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.1))  # Start QAT after 10% of training
 
     # Stride-OGD eval config
@@ -707,10 +707,12 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q, k, v, attn_mask=None, is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+        # Manual GQA: repeat KV heads to match Q heads (PyTorch 2.4 compat)
+        if self.num_kv_heads != self.num_heads:
+            rep = self.num_heads // self.num_kv_heads
+            k = k[:, :, None, :, :].expand(-1, -1, rep, -1, -1).reshape(bsz, self.num_heads, seqlen, self.head_dim)
+            v = v[:, :, None, :, :].expand(-1, -1, rep, -1, -1).reshape(bsz, self.num_heads, seqlen, self.head_dim)
+        y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -1291,10 +1293,10 @@ def main() -> None:
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
 
-    # Try multiple target_avg_bits to find the best that fits under 16MB
+    # Try from highest precision down to find what fits under 16MB
     code_bytes = len(code.encode("utf-8"))
-    best_bits = 5.5
-    for try_bits in [6.0, 5.5, 5.0, 4.5]:
+    best_bits = 5.0
+    for try_bits in [8.0, 7.5, 7.0, 6.5, 6.0, 5.5, 5.0]:
         quant_obj, quant_stats = quantize_state_dict_mixed(export_state, ftle_scores, target_avg_bits=try_bits)
         quant_buf = io.BytesIO()
         torch.save(quant_obj, quant_buf)
