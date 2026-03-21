@@ -60,34 +60,40 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
 
-    # Model shape — standard independent layers (no recurrence)
+    # Model shape
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
-    model_dim = int(os.environ.get("MODEL_DIM", 416))  # 416/8=52 head_dim; fits under 16MB
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))    # 9 layers with dim=512
+    model_dim = int(os.environ.get("MODEL_DIM", 512))   # 512/8=64 head_dim; same as baseline
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    mlp_mult = int(os.environ.get("MLP_MULT", 3))  # 3x expansion (1248 hidden for dim=416)
-    rope_base = float(os.environ.get("ROPE_BASE", 50000.0))  # extended RoPE
+    mlp_mult = int(os.environ.get("MLP_MULT", 2))       # 2x keeps param count within 16MB
+    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
 
-    # BigramHash: maps (prev_token, curr_token) → embedding
-    # buckets=4096, dim=64: hash_a (1024×64=65536) falls into passthrough (fp16, ~128KB),
-    # hash_b (4096×64=262144) is quantized to int8 (~256KB). Total bigram cost: ~384KB.
-    bigram_buckets = int(os.environ.get("BIGRAM_BUCKETS", 4096))
+    # XSA: Exclusive Self-Attention applied to top N layers (zero extra parameters).
+    # Removes self-value bias from attention, consistently improves BPB.
+    num_xsa_layers = int(os.environ.get("NUM_XSA_LAYERS", 3))
+
+    # BigramHash: small table mapping (prev, curr) token pairs → embedding.
+    # hash_a (1024×64=65536 elems) → passthrough fp16 ~128KB
+    # hash_b (2048×64=131072 elems) → int8 ~128KB.  Total cost: ~256KB.
+    bigram_buckets = int(os.environ.get("BIGRAM_BUCKETS", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
 
     # QAT — activates late (at 85% of wallclock) to avoid early training instability.
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "1")))
-    qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.85))  # fraction of wallclock
+    qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.80))  # fraction of wallclock
 
     # SWA: start averaging at swa_start_frac of training, every swa_interval steps.
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
-    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.3))
     swa_interval = int(os.environ.get("SWA_INTERVAL", 50))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.05))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
@@ -96,8 +102,8 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.04))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
 
 # -----------------------------
@@ -274,13 +280,12 @@ def eval_val(
 
 
 # -----------------------------
-# POST-TRAINING QUANTIZATION
+# POST-TRAINING QUANTIZATION (Int6)
 # -----------------------------
-# Full int8 range [-127, 127]: trained weights cluster near zero so zlib gets ~2-3x compression,
-# far better than restricting to a narrower range (which would limit compression to ~1.3x).
+# Full int8 range [-127, 127]: trained weights cluster near zero so zlib compresses well.
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
-    p for p in os.environ.get("CONTROL_TENSOR_NAME_PATTERNS", "attn_scale,mlp_scale,q_gain").split(",") if p
+    p for p in os.environ.get("CONTROL_TENSOR_NAME_PATTERNS", "attn_scale,mlp_scale,resid_mix,q_gain,skip_weight").split(",") if p
 )
 INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     p for p in os.environ.get("INT8_KEEP_FLOAT_FP32_NAME_PATTERNS", ",".join(CONTROL_TENSOR_NAME_PATTERNS)).split(",") if p
@@ -519,7 +524,7 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float = 1.5, use_xsa: bool = False):
         super().__init__()
         if dim % num_heads != 0:
             raise ValueError("model_dim must be divisible by num_heads")
@@ -528,13 +533,14 @@ class CausalSelfAttention(nn.Module):
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
+        self.use_xsa = use_xsa
         kv_dim = num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
         self.c_v = CastedLinear(dim, kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
-        self.q_gain = nn.Parameter(torch.ones(num_heads, dtype=torch.float32))
+        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -548,6 +554,13 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+        # XSA: project v onto the orthogonal complement of q to remove self-value bias.
+        # GQA-aware: average query heads within each kv-head group before computing direction.
+        if self.use_xsa:
+            groups = self.num_heads // self.num_kv_heads
+            q_for_xsa = q.reshape(bsz, self.num_kv_heads, groups, seqlen, self.head_dim).mean(dim=2)
+            q_n = F.normalize(q_for_xsa, dim=-1)
+            v = v - (v * q_n).sum(dim=-1, keepdim=True) * q_n
         y = F.scaled_dot_product_attention(
             q, k, v, attn_mask=None, is_causal=True,
             enable_gqa=(self.num_kv_heads != self.num_heads),
@@ -570,19 +583,21 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    """Standard transformer block — no shared weights, no resid_mix."""
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float):
+    """Transformer block with resid_mix (x0 blending) like the baseline."""
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float, qk_gain_init: float = 1.5, use_xsa: bool = False):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init=qk_gain_init, use_xsa=use_xsa)
         self.mlp = MLP(dim, mlp_mult)
-        # Learnable per-dim output scales, initialized to 1 (no-op).
-        # These stay in fp32 for numerical stability.
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        # resid_mix: learned per-dim blend of running state (x) and original embedding (x0)
+        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+        mix = self.resid_mix.to(dtype=x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
@@ -625,21 +640,32 @@ class GPT(nn.Module):
         logit_softcap: float,
         bigram_buckets: int,
         bigram_dim: int,
+        qk_gain_init: float = 1.5,
+        tied_embed_init_std: float = 0.005,
+        num_xsa_layers: int = 0,
     ):
         super().__init__()
         self.logit_softcap = logit_softcap
+        self.tied_embed_init_std = tied_embed_init_std
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHash(vocab_size, bigram_buckets, bigram_dim, model_dim)
+        # U-Net: encoder (first half) stores skips, decoder (second half) adds them back
+        self.num_encoder_layers = num_layers // 2
+        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        # XSA is applied to the top num_xsa_layers layers (the last N layers).
         self.blocks = nn.ModuleList([
-            Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base)
-            for _ in range(num_layers)
+            Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base,
+                  qk_gain_init=qk_gain_init,
+                  use_xsa=(i >= num_layers - num_xsa_layers))
+            for i in range(num_layers)
         ])
         self.final_norm = RMSNorm()
-        # Tied embedding: lm_head uses tok_emb.weight transposed (saves ~0.5M params)
         self._init_weights()
 
     def _init_weights(self) -> None:
-        nn.init.normal_(self.tok_emb.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
         nn.init.normal_(self.bigram.hash_a.weight, mean=0.0, std=0.02)
         nn.init.normal_(self.bigram.hash_b.weight, mean=0.0, std=0.02)
         nn.init.zeros_(self.bigram.proj.weight)
@@ -653,9 +679,18 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = x + self.bigram(prev_ids, input_ids)
         x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
 
-        for block in self.blocks:
-            x = block(x)
+        # Encoder: first half stores skips
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        # Decoder: second half adds skips back in reverse
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -748,6 +783,9 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         bigram_buckets=args.bigram_buckets,
         bigram_dim=args.bigram_dim,
+        qk_gain_init=args.qk_gain_init,
+        tied_embed_init_std=args.tied_embed_init_std,
+        num_xsa_layers=args.num_xsa_layers,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -768,6 +806,9 @@ def main() -> None:
         p for n, p in block_named
         if p.ndim < 2 or any(pat in n for pat in CONTROL_TENSOR_NAME_PATTERNS)
     ]
+    # skip_weights go into scalar optimizer (same as baseline)
+    if base_model.skip_weights.numel() > 0:
+        scalar_params.append(base_model.skip_weights)
     emb_params = list(base_model.tok_emb.parameters())
     bigram_params = list(base_model.bigram.parameters())
 
@@ -793,7 +834,8 @@ def main() -> None:
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"architecture: num_layers={args.num_layers} model_dim={args.model_dim} "
-         f"num_heads={args.num_heads} num_kv_heads={args.num_kv_heads} mlp_mult={args.mlp_mult}")
+         f"num_heads={args.num_heads} num_kv_heads={args.num_kv_heads} mlp_mult={args.mlp_mult} "
+         f"num_xsa_layers={args.num_xsa_layers}")
     log0(f"bigram_hash: buckets={args.bigram_buckets} dim={args.bigram_dim}")
     log0(f"qat_enabled:{args.qat_enabled} qat_start_frac:{args.qat_start_frac}")
     log0(f"swa_enabled:{args.swa_enabled} swa_start_frac:{args.swa_start_frac} swa_interval:{args.swa_interval}")
