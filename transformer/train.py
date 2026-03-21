@@ -67,11 +67,11 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    mlp_mult = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -80,6 +80,10 @@ class Hyperparameters:
     # Sliding window evaluation.
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
+
+    # Late QAT: activate int6 STE fake-quantization when lr_scale drops below this threshold.
+    # 0.0 = disabled, 0.1 = last ~10% of effective training (recommended).
+    qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.1))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -527,6 +531,45 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
             out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
         out[name] = out_t
     return out
+
+
+# -----------------------------
+# LATE QAT: STE INT6 FAKE-QUANTIZATION
+# -----------------------------
+
+def _ste_int6_fakequant(t: Tensor) -> Tensor:
+    """Straight-through estimator for int6 per-row quantization.
+
+    Forward: quantize to int6 and dequantize (simulates quantization noise).
+    Backward: gradient passes through unchanged (straight-through).
+    """
+    if t.ndim < 2 or not t.is_floating_point():
+        return t
+    with torch.no_grad():
+        row_max = t.abs().amax(dim=-1, keepdim=True)
+        scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+        q = torch.clamp(torch.round(t / scale), -32, 31)
+        t_dequant = q * scale
+    # STE: use dequantized value in forward, but gradient flows through t
+    return t + (t_dequant - t).detach()
+
+
+def apply_ste_int6(model: nn.Module) -> None:
+    """Apply STE int6 fake-quantization to all large weight matrices in-place.
+
+    Called during training when lr_scale drops below qat_threshold.
+    Only affects 2D float parameters > 65536 elements (same as int6 quantization targets).
+    """
+    with torch.no_grad():
+        for name, param in model.named_parameters():
+            cat = _classify_param(name)
+            if cat not in ("mlp", "attn"):
+                continue
+            if param.ndim < 2 or param.numel() <= 65536:
+                continue
+            row_max = param.data.abs().amax(dim=-1, keepdim=True)
+            scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+            param.data.copy_(torch.clamp(torch.round(param.data / scale), -32, 31) * scale)
 
 
 # -----------------------------
@@ -1464,6 +1507,11 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
+
+        # Late QAT: project weights to int6 grid after optimizer step
+        if args.qat_threshold > 0 and scale < args.qat_threshold:
+            apply_ste_int6(base_model)
+
         zero_grad_all()
 
         step += 1
