@@ -1,9 +1,4 @@
-"""
-The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
-
-Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
-"""
-
+"""Consensus stack for Parameter Golf. Hard cap: 1500 lines."""
 from __future__ import annotations
 
 import copy
@@ -30,14 +25,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
-# Consensus stack run (based on frontier PR analysis):
-# - 11 transformer blocks at width 512
-# - 8 attention heads with 4 KV heads (GQA) and 3x MLP expansion (SwiGLU-optimal)
-# - vocab size 1024, sequence length 2048, tied embeddings
-# - SmearGate, SWA, Muon WD=0.038, int6 QAT, FP16 embedding passthrough
-
 class Hyperparameters:
-    # Data paths are shard globs produced by the existing preprocessing pipeline.
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
@@ -45,12 +33,9 @@ class Hyperparameters:
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
 
-    # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
-
-    # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
@@ -59,7 +44,6 @@ class Hyperparameters:
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
-    # Model shape (consensus stack defaults).
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
@@ -70,7 +54,6 @@ class Hyperparameters:
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 20.0))
 
-    # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
@@ -87,19 +70,17 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
     muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.038))
 
-    # Stochastic Weight Averaging: average checkpoints during warmdown.
-    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
+    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
     swa_blend_final = float(os.environ.get("SWA_BLEND_FINAL", 0.7))
-
-    # Int6 QAT: simulate 6-bit quantization during training with STE.
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "1")))
     qat_bits = int(os.environ.get("QAT_BITS", 6))
-
-    # Mixed precision quantization: only apply int6 to middle layers (like reference).
-    # Format: comma-separated layer indices. Empty = apply QUANT_BITS to all layers.
-    int6_layers = os.environ.get("INT6_LAYERS", "3,4,5,6,7")  # middle layers of 11-layer model
-    int6_step = int(os.environ.get("INT6_STEP", 4))  # 4=int6, 8=int5, 16=int4
+    qat_late_frac = float(os.environ.get("QAT_LATE_FRAC", 0.85))
+    int6_layers = os.environ.get("INT6_LAYERS", "3,4,5,6,7")
+    int6_step = int(os.environ.get("INT6_STEP", 4))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 3))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
     # Test-time training (LoRA) hyperparameters.
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
@@ -108,12 +89,7 @@ class Hyperparameters:
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
 
-# -----------------------------
-# MUON OPTIMIZER 
-# -----------------------------
-# 
-# As borrowed from modded-nanogpt
-# Background on Muon: https://kellerjordan.github.io/posts/muon/
+# Muon optimizer (from modded-nanogpt, https://kellerjordan.github.io/posts/muon/)
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
@@ -192,15 +168,6 @@ class Muon(torch.optim.Optimizer):
 
         return loss
 
-
-# -----------------------------
-# TOKENIZER-AGNOSTIC EVALUATION SETUP 
-# -----------------------------
-#
-# It's common for small models have a large fraction of their parameters be embeddings, since the 2 * d_model * d_vocab vectors can be gigantic.
-# Instead of locking the tokenizer, we let you bring your own and calculate our validation metrics on the average compression of the validation set.
-# We calculate BPB (bits-per-byte) instead of validation loss, so we need methods to count the number of bits per token in the tokenizer.
-# Note: Submissions that edit the tokenizer will be examined more carefully, since screwing this up might unjustly improve your score.
 
 def build_sentencepiece_luts(
     sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
@@ -301,14 +268,6 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
-
-# -----------------------------
-# POST-TRAINING QUANTIZATION
-# -----------------------------
-#
-# It's silly to export our model, which is trained in bf16 and fp32, at that same precision.
-# Instead, we get approximately the same model (with a small hit) by quantizing the model to int8 & zlib compressing.
-# We can then decompress the model and run in higher precision for evaluation, after closing in under the size limit.
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
@@ -473,10 +432,6 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     return out
 
 
-# -----------------------------
-# DATA LOADING 
-# -----------------------------
-
 def load_data_shard(file: Path) -> Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
     token_bytes = np.dtype("<u2").itemsize
@@ -543,10 +498,6 @@ class DistributedTokenLoader:
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
-
-# -----------------------------
-# TRANSFORMER MODULES
-# -----------------------------
 
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
@@ -625,6 +576,7 @@ class CausalSelfAttention(nn.Module):
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
+        self.group_size = num_heads // num_kv_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
         kv_dim = self.num_kv_heads * self.head_dim
@@ -635,6 +587,7 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.use_xsa = False  # set per-layer by GPT.__init__
 
     def forward(self, x: Tensor, q_delta=None, v_delta=None) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -651,13 +604,16 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
+            q, k, v, attn_mask=None, is_causal=True,
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
+        # XSA: remove self-value bias via orthogonal projection (arXiv:2603.09078)
+        # Efficient GQA-aware: reshape into KV groups to avoid repeat_interleave
+        if self.use_xsa:
+            y_g = y.reshape(bsz, self.num_kv_heads, self.group_size, seqlen, self.head_dim)
+            vn = F.normalize(v, dim=-1).unsqueeze(2)  # (B, Hkv, 1, T, D)
+            y_g = y_g - (y_g * vn).sum(-1, keepdim=True) * vn
+            y = y_g.reshape(bsz, self.num_heads, seqlen, self.head_dim)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -745,6 +701,7 @@ class GPT(nn.Module):
         qk_gain_init: float,
         qat_enabled: bool = False,
         qat_bits: int = 6,
+        xsa_last_n: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -776,6 +733,10 @@ class GPT(nn.Module):
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         self._init_weights(qat_enabled=qat_enabled, qat_bits=qat_bits)
+        # XSA: enable on last N layers
+        if xsa_last_n > 0:
+            for i in range(max(0, num_layers - xsa_last_n), num_layers):
+                self.blocks[i].attn.use_xsa = True
 
     def _init_weights(self, qat_enabled: bool = False, qat_bits: int = 6) -> None:
         if self.tie_embeddings:
@@ -783,8 +744,8 @@ class GPT(nn.Module):
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
-            if qat_enabled and isinstance(module, CastedLinear):
-                module.qat_bits = qat_bits
+        # Late QAT: don't enable qat_bits at init — training loop activates it later.
+        # If qat_late_frac <= 0, it activates immediately in the loop.
 
     def forward(self, input_ids: Tensor, target_ids: Tensor, lora=None) -> Tensor:
         x = self.tok_emb(input_ids)
@@ -819,13 +780,6 @@ class GPT(nn.Module):
                 logits.float().reshape(-1, V), target_ids.reshape(-1), reduction="none").reshape(bsz, sl)
         return F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), target_ids.reshape(-1), reduction="mean")
 
-
-# -----------------------------
-# TEST-TIME TRAINING (LoRA)
-# -----------------------------
-#
-# At evaluation time, we adapt per-document low-rank adapters on the validation data.
-# Each document gets its own adapter, so there is no inter-document dependency.
 
 BOS_ID = 1
 
@@ -1031,10 +985,6 @@ def eval_val_ttt_lora(
     val_bpb = float((loss_sum.item() / math.log(2.0)) / byte_sum.item())
     return val_loss, val_bpb
 
-# -----------------------------
-# TRAINING
-# -----------------------------
-
 def main() -> None:
     global zeropower_via_newtonschulz5
 
@@ -1144,6 +1094,7 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         qat_enabled=args.qat_enabled,
         qat_bits=args.qat_bits,
+        xsa_last_n=args.xsa_last_n,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1277,9 +1228,11 @@ def main() -> None:
     # MAIN TRAINING LOOP
     # -----------------------------
 
-    # SWA state
+    # EMA / SWA state
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
+    ema_state: dict[str, Tensor] | None = None
+    qat_activated = not args.qat_enabled  # if QAT disabled, treat as always active
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
@@ -1350,8 +1303,30 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
-        # SWA: collect snapshots during warmdown
-        if args.swa_enabled and scale < 1.0 and (step + 1) % args.swa_every == 0:
+        # Late QAT: activate QAT at qat_late_frac of wallclock
+        if not qat_activated and args.qat_enabled:
+            elapsed_frac = approx_training_time_ms / max(max_wallclock_ms or 1e9, 1)
+            if elapsed_frac >= args.qat_late_frac:
+                qat_activated = True
+                for m in base_model.modules():
+                    if isinstance(m, CastedLinear):
+                        m.qat_bits = args.qat_bits
+                # Halve LR when QAT activates (per PR #297)
+                for opt in optimizers:
+                    for group in opt.param_groups:
+                        group["base_lr"] *= 0.5
+                log0(f"late_qat:activated at step {step + 1} ({elapsed_frac:.1%} wallclock)")
+
+        # EMA: update every step during warmdown (replaces SWA when enabled)
+        if args.ema_enabled and scale < 1.0:
+            with torch.no_grad():
+                if ema_state is None:
+                    ema_state = {k: v.detach().float().cpu() for k, v in base_model.state_dict().items()}
+                else:
+                    d = args.ema_decay
+                    for k, v in base_model.state_dict().items():
+                        ema_state[k] = d * ema_state[k] + (1 - d) * v.detach().float().cpu()
+        elif args.swa_enabled and not args.ema_enabled and scale < 1.0 and (step + 1) % args.swa_every == 0:
             with torch.no_grad():
                 sd = {k: v.detach().float().cpu() for k, v in base_model.state_dict().items()}
                 if swa_state is None:
@@ -1387,8 +1362,12 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
-    # SWA: blend averaged weights before serialization
-    if args.swa_enabled and swa_state is not None and swa_count > 0:
+    # EMA or SWA: blend averaged weights before serialization
+    if args.ema_enabled and ema_state is not None:
+        log0(f"ema:applying EMA weights (decay={args.ema_decay})")
+        base_model.load_state_dict(
+            {k: v.to(dtype=base_model.state_dict()[k].dtype) for k, v in ema_state.items()}, strict=True)
+    elif args.swa_enabled and swa_state is not None and swa_count > 0:
         log0(f"swa:applying averaged weights from {swa_count} snapshots (blend {args.swa_blend_final:.1f}/{1 - args.swa_blend_final:.1f})")
         final_sd = {k: v.detach().float().cpu() for k, v in base_model.state_dict().items()}
         blended = {}
