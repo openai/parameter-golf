@@ -1558,6 +1558,9 @@ def main() -> None:
         )
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
 
+    # Allow recompilation for variable batch sizes during post-training eval.
+    torch._dynamo.config.cache_size_limit = 64
+
     if distributed:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
