@@ -12,3 +12,4 @@ mamba_80min_v5_13layers,4800,15756898,15732466,24432,1,26.12,1.2529,c15cdd0,"NUM
 transformer_v1_10L_seq2048,4800,17021666,16963154,58512,1,13.90,1.1910,98bc404,"10L SEQ=2048 WD=20000 LR=0.02 Muon=0.99 (11056 steps @ 434ms, 17.0MB OVER LIMIT, beats baseline by 0.035)"
 transformer_v2_slide64,4800,17049344,16985432,63912,1,1187.10,1.1700,394c4dd,"v1 + sliding window stride=64 (free -0.021 bpb from eval, 17.0MB OVER LIMIT)"
 transformer_v3_9L,4800,15417209,15353297,63912,1,1077.53,1.1778,a75e9c8,"9L (single change from v2: drop 1 layer) + slide64 (12022 steps @ 399ms, 15.4MB VALID)"
+transformer_v4_10L_wd04,4800,14320844,14256648,64196,1,1193.36,1.1632,4ca0c2d,"10L + Muon WD=0.04 + slide64 (11042 steps @ 435ms, 14.3MB VALID, BEST)"
