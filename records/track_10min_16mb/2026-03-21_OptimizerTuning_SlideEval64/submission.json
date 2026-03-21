@@ -1,0 +1,17 @@
+{
+  "author": "RAC",
+  "github_id": "andreanjos",
+  "name": "Optimizer Tuning + Sliding Window Eval",
+  "blurb": "Baseline 9x512 SP-1024 architecture with optimizer improvements (warmdown=10000, muon_backend_steps=10, grad_clip=1.0, beta2=0.99, scalar_lr=0.02) and seq2048 training. Sliding window evaluation at stride=64 scores every token with near-maximum context. Post-quant int8+zlib roundtrip under the 16,000,000-byte cap.",
+  "date": "2026-03-21T06:00:00Z",
+  "val_loss": 2.00320987,
+  "val_bpb": 1.18641686,
+  "pre_quant_val_loss": 2.0313,
+  "pre_quant_val_bpb": 1.2031,
+  "step_stop": 11520,
+  "wallclock_seconds": 600.019,
+  "eval_time_seconds": 132.519,
+  "bytes_total": 15861337,
+  "bytes_model_int8_zlib": 15808653,
+  "bytes_code": 52684
+}
