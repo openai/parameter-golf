@@ -639,18 +639,33 @@ class TokenRoutedMLP(nn.Module):
         flat_x = x.reshape(-1, self.dim)
         flat_ids = expert_ids.reshape(-1)
         out = torch.zeros_like(flat_x)
+        # Gather tokens per expert
+        indices = []
+        inputs = []
         for e in range(self.num_experts):
             idx = (flat_ids == e).nonzero(as_tuple=True)[0]
-            if idx.numel() == 0:
+            indices.append(idx)
+            inputs.append(flat_x[idx] if idx.numel() > 0 else None)
+        # Launch all experts in parallel on separate CUDA streams
+        streams = [torch.cuda.Stream() for _ in range(self.num_experts)]
+        results = [None] * self.num_experts
+        for e in range(self.num_experts):
+            if inputs[e] is None:
                 continue
-            x_e = flat_x[idx]
-            if self.activation == "swiglu":
-                gu = x_e @ self.gate_up_proj[e]
-                gate, up = gu.chunk(2, dim=-1)
-                out[idx] = F.silu(gate) * up @ self.down_proj[e]
-            else:
-                h = torch.relu(x_e @ self.fc_weight[e])
-                out[idx] = h.square() @ self.proj_weight[e]
+            with torch.cuda.stream(streams[e]):
+                x_e = inputs[e]
+                if self.activation == "swiglu":
+                    gu = x_e @ self.gate_up_proj[e]
+                    gate, up = gu.chunk(2, dim=-1)
+                    results[e] = F.silu(gate) * up @ self.down_proj[e]
+                else:
+                    h = torch.relu(x_e @ self.fc_weight[e])
+                    results[e] = h.square() @ self.proj_weight[e]
+        # Sync all streams and scatter results back
+        for e in range(self.num_experts):
+            streams[e].synchronize()
+            if results[e] is not None:
+                out[indices[e]] = results[e]
         return out.reshape(bsz, seq, self.dim)
 
 class Block(nn.Module):
