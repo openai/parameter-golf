@@ -1,0 +1,33 @@
+{
+  "author": "mrdavtan",
+  "github_id": "mrdavtan",
+  "name": "Non-record: QAT ablation — int8 QAT overhead exceeds quantization gap recovery",
+  "blurb": "Clean ablation of per-row int8 QAT with exact INT8_CLIP_Q percentile matching. Finding: torch.quantile adds ~20% per-step overhead, costing ~2000 training steps. The lost training tokens hurt more than the ~0.007 BPB quantization gap recovery helps. QAT likely only pays off with int6 (larger gap) or with a faster approximate quantile.",
+  "date": "2026-03-20",
+  "val_loss": 2.03485247,
+  "val_bpb": 1.20515425,
+  "pre_quant_val_loss": 2.0814,
+  "pre_quant_val_bpb": 1.2327,
+  "step_stop": 8011,
+  "wallclock_seconds": 602.064,
+  "eval_time_seconds": 74.761,
+  "bytes_total": 15868103,
+  "bytes_model_int8_zlib": 15804522,
+  "bytes_code": 63581,
+  "hardware": "8xH100 SXM (RunPod), PyTorch 2.9.1+cu128",
+  "seed": 1337,
+  "track": "track_10min_16mb",
+  "model": {
+    "num_layers": 9,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 2,
+    "vocab_size": 1024,
+    "tie_embeddings": true
+  },
+  "changes_from_baseline": [
+    "QAT: fake_quantize_int8_per_row (STE, INT8_CLIP_Q percentile, activates at 30% of training)"
+  ],
+  "notes": "Non-record submission. Negative result: int8 QAT overhead exceeds recovery. See README for analysis."
+}
