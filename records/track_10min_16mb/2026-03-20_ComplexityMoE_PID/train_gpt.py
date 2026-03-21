@@ -96,6 +96,12 @@ class Hyperparameters:
     num_experts = int(os.environ.get("NUM_EXPERTS", str(_MOE.get("num_experts", 4))))
     moe_activation = os.environ.get("MOE_ACTIVATION", _MOE.get("activation", "swiglu"))
     moe_routing = os.environ.get("MOE_ROUTING", _MOE.get("routing", "hybrid"))
+    # Hybrid attention: which layers use INL vs classical QKV (e.g. "0,1,2" = first 3 layers classical)
+    classical_layers_str = os.environ.get("CLASSICAL_LAYERS", _M.get("classical_layers", "0,1,2"))
+    classical_layers = [int(x) for x in classical_layers_str.split(",") if x.strip()]
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", str(_M.get("num_kv_heads", 4))))
+    rope_base = float(os.environ.get("ROPE_BASE", str(_M.get("rope_base", 10000.0))))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
 
     # Cosine warm restarts (SGDR) scheduler
@@ -527,6 +533,48 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
             if (param.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)) and param.dtype != torch.float32:
                 param.data = param.data.float()
 
+class Rotary(nn.Module):
+    def __init__(self, dim: int, base: float = 10000.0):
+        super().__init__()
+        self.register_buffer("inv_freq", 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim)), persistent=False)
+        self._cache: tuple[Tensor, Tensor] | None = None; self._seq = 0
+    def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype):
+        if self._cache is None or self._seq != seq_len or self._cache[0].device != device:
+            t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
+            f = torch.outer(t, self.inv_freq.to(device))
+            self._cache = (f.cos()[None, None], f.sin()[None, None]); self._seq = seq_len
+        return self._cache[0].to(dtype=dtype), self._cache[1].to(dtype=dtype)
+
+def _rope(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    h = x.size(-1) // 2; x1, x2 = x[..., :h], x[..., h:]
+    return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+
+class CausalSelfAttention(nn.Module):
+    """Standard GQA with RoPE — used for hybrid layers."""
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float):
+        super().__init__()
+        self.num_heads, self.num_kv_heads = num_heads, num_kv_heads
+        self.head_dim = dim // num_heads
+        kv_dim = num_kv_heads * self.head_dim
+        self.c_q = CastedLinear(dim, dim, bias=False)
+        self.c_k = CastedLinear(dim, kv_dim, bias=False)
+        self.c_v = CastedLinear(dim, kv_dim, bias=False)
+        self.proj = CastedLinear(dim, dim, bias=False); self.proj._zero_init = True
+        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
+        self.rotary = Rotary(self.head_dim, base=rope_base)
+    def forward(self, x: Tensor, attn_delta=None) -> Tensor:
+        bsz, sl, dim = x.shape
+        q = self.c_q(x).reshape(bsz, sl, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.c_k(x).reshape(bsz, sl, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x).reshape(bsz, sl, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q, k = F.rms_norm(q, (q.size(-1),)), F.rms_norm(k, (k.size(-1),))
+        cos, sin = self.rotary(sl, x.device, q.dtype)
+        q, k = _rope(q, cos, sin), _rope(k, cos, sin)
+        q = q * self.q_gain.clamp(0.5, 3.0).to(q.dtype)[None, :, None, None]
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True, enable_gqa=(self.num_kv_heads != self.num_heads))
+        out = self.proj(y.transpose(1, 2).contiguous().reshape(bsz, sl, dim))
+        return out + (attn_delta if attn_delta is not None else 0)
+
 def _build_alibi_bias(num_heads: int, seq_len: int, device: torch.device) -> Tensor:
     """ALiBi positional bias + causal mask. Zero params."""
     slopes = 2.0 ** (-8.0 * torch.arange(1, num_heads + 1, device=device, dtype=torch.float32) / num_heads)
@@ -612,11 +660,19 @@ class Block(nn.Module):
         mlp_mult: int,
         num_experts: int = 2,
         moe_activation: str = "relu2",
+        use_inl: bool = True,
+        num_kv_heads: int = 4,
+        rope_base: float = 10000.0,
+        qk_gain_init: float = 1.5,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = BetaMuAttention(dim, num_heads)
+        self.use_inl = use_inl
+        if use_inl:
+            self.attn = BetaMuAttention(dim, num_heads)
+        else:
+            self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.use_moe = num_experts > 1
         if self.use_moe:
             self.mlp = TokenRoutedMLP(dim, mlp_mult, num_experts, moe_activation)
@@ -635,7 +691,7 @@ class Block(nn.Module):
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         n = self.attn_norm(x)
         ad = attn_delta_fn(n) if attn_delta_fn is not None else None
-        attn_out = self.attn(n, alibi, ad)
+        attn_out = self.attn(n, alibi, ad) if self.use_inl else self.attn(n, ad)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         if self.use_moe:
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), sort_idx)
@@ -658,6 +714,10 @@ class GPT(nn.Module):
         seq_len: int = 1024,
         num_experts: int = 2,
         moe_activation: str = "relu2",
+        classical_layers: list[int] | None = None,
+        num_kv_heads: int = 4,
+        rope_base: float = 10000.0,
+        qk_gain_init: float = 1.5,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -678,9 +738,12 @@ class GPT(nn.Module):
         )
         # Pre-compute ALiBi bias (fixed, no params)
         self.register_buffer("alibi", _build_alibi_bias(num_heads, seq_len, torch.device("cpu")))
+        _cl = set(classical_layers or [])
         self.blocks = nn.ModuleList(
             [
-                Block(model_dim, num_heads, mlp_mult, num_experts, moe_activation)
+                Block(model_dim, num_heads, mlp_mult, num_experts, moe_activation,
+                      use_inl=(i not in _cl), num_kv_heads=num_kv_heads,
+                      rope_base=rope_base, qk_gain_init=qk_gain_init)
                 for i in range(num_layers)
             ]
         )
@@ -1035,10 +1098,16 @@ def main() -> None:
         seq_len=args.train_seq_len,
         num_experts=args.num_experts,
         moe_activation=args.moe_activation,
+        classical_layers=args.classical_layers,
+        num_kv_heads=args.num_kv_heads,
+        rope_base=args.rope_base,
+        qk_gain_init=args.qk_gain_init,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
+        if isinstance(module, Rotary):
+            module.inv_freq.data = module.inv_freq.data.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
