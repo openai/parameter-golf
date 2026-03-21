@@ -86,7 +86,7 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
-    swa_every = int(os.environ.get("SWA_EVERY", 200))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -827,10 +827,11 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.encoder_recurrence = bool(int(os.environ.get("ENCODER_RECURRENCE", "1")))
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        pre_enrich_hidden = model_dim * 3 // 2
         self.pre_enrich = nn.Sequential(
-            CastedLinear(model_dim, model_dim, bias=False),
+            CastedLinear(model_dim, pre_enrich_hidden, bias=False),
             nn.GELU(),
-            CastedLinear(model_dim, model_dim, bias=False),
+            CastedLinear(pre_enrich_hidden, model_dim, bias=False),
         )
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -1170,7 +1171,7 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
-    swa_checkpoints: list[dict[str, Tensor]] = []
+    ema_state = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1243,8 +1244,9 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
-        if scale < 1.0 and args.swa_every > 0 and step % args.swa_every == 0:
-            swa_checkpoints.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
+        with torch.no_grad():
+            for k, v in base_model.state_dict().items():
+                ema_state[k].mul_(args.ema_decay).add_(v.detach().cpu().float(), alpha=1.0 - args.ema_decay)
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
             args.train_log_every > 0
@@ -1276,17 +1278,13 @@ def main() -> None:
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
-    if swa_checkpoints:
-        log0(f"swa: averaging {len(swa_checkpoints)} checkpoints")
-        avg_state = {}
-        for key in swa_checkpoints[0]:
-            avg_state[key] = torch.stack([ckpt[key].float() for ckpt in swa_checkpoints]).mean(dim=0)
-        base_model.load_state_dict(avg_state, strict=True)
-        for module in base_model.modules():
-            if isinstance(module, CastedLinear):
-                module.float()
-        restore_low_dim_params_to_fp32(base_model)
-        del swa_checkpoints
+    log0("ema: loading exponential moving average weights")
+    base_model.load_state_dict(ema_state, strict=True)
+    for module in base_model.modules():
+        if isinstance(module, CastedLinear):
+            module.float()
+    restore_low_dim_params_to_fp32(base_model)
+    del ema_state
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
