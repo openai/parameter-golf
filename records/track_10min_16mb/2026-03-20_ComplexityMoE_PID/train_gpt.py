@@ -608,13 +608,14 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
-# Token-Routed MoE — modulo hard routing + parallel einsum, fullgraph safe.
-# All experts compute all tokens in one einsum (GPU saturated),
-# then modulo one-hot selects 1 expert per token (hard routing).
+# Token-Routed MoE — sort-and-split dispatch, fullgraph safe.
+# argsort by expert_id → fixed split N/E per expert → both always busy.
+# Overflow tokens redirected to other expert. Zero waste, zero idle.
 class TokenRoutedMLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int, num_experts: int,
                  activation: str = "relu2"):
         super().__init__()
+        assert num_experts == 2, "Sort-and-split dispatch requires exactly 2 experts"
         self.num_experts, self.dim, self.activation = num_experts, dim, activation
         self.expert_inter = (mlp_mult * dim) // num_experts
         self.fc_weight = nn.Parameter(torch.empty(num_experts, dim, self.expert_inter))
@@ -627,16 +628,26 @@ class TokenRoutedMLP(nn.Module):
 
     def forward(self, x: Tensor, expert_ids: Tensor) -> Tensor:
         bsz, seq, _ = x.shape
-        flat_x = x.reshape(-1, self.dim)  # [N, D]
-        # All experts, all tokens, one batched einsum — GPU fully parallel
-        all_h = torch.einsum('nd,edi->nei', flat_x, self.fc_weight)   # [N, E, I]
-        all_h = torch.relu(all_h).square()
-        all_out = torch.einsum('nei,eid->ned', all_h, self.proj_weight)  # [N, E, D]
-        # Modulo routing: main expert = strong signal, others = recycled bonus
-        one_hot = F.one_hot(expert_ids.reshape(-1), self.num_experts).to(flat_x.dtype)  # [N, E]
-        # Main expert gets weight 1.0, others get 0.1 — zero compute wasted
-        weights = one_hot * 0.9 + 0.1 / self.num_experts  # [N, E]
-        out = (all_out * weights.unsqueeze(-1)).sum(dim=1)  # [N, D]
+        N = bsz * seq
+        half = N // 2
+        flat_x = x.reshape(N, self.dim)           # [N, D]
+        flat_ids = expert_ids.reshape(N)           # [N]
+        # Sort by expert_id — all shapes static
+        sort_idx = flat_ids.argsort(stable=True)   # [N]
+        sorted_x = flat_x[sort_idx]                # [N, D]
+        # Fixed split: expert 0 gets first half, expert 1 gets second half
+        # Overflow tokens from one expert are redirected to the other
+        x_0 = sorted_x[:half]                      # [N/2, D] — static
+        x_1 = sorted_x[half:]                      # [N/2, D] — static
+        # Both experts compute in parallel (torch.compile fuses these)
+        h_0 = torch.relu(x_0 @ self.fc_weight[0]).square()
+        out_0 = h_0 @ self.proj_weight[0]          # [N/2, D]
+        h_1 = torch.relu(x_1 @ self.fc_weight[1]).square()
+        out_1 = h_1 @ self.proj_weight[1]          # [N/2, D]
+        # Concatenate and unsort to restore original order
+        sorted_out = torch.cat([out_0, out_1], dim=0)  # [N, D]
+        out = torch.zeros_like(flat_x)
+        out[sort_idx] = sorted_out
         return out.reshape(bsz, seq, self.dim)
 
 class Block(nn.Module):
