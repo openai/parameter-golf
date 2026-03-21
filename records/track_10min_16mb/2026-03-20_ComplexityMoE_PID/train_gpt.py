@@ -616,17 +616,9 @@ class LearnedHashRouter(nn.Module):
         self.proj = nn.Linear(dim, num_experts, bias=False)
         nn.init.normal_(self.proj.weight, std=0.01)
     def forward(self, x: Tensor) -> Tensor:
-        """Returns STE one-hot (bsz, seq, E).
-        Straight-through: forward uses hard argmax, backward uses soft sigmoid/softmax."""
+        """Returns expert_ids (long). Router gets gradients via backbone."""
         logits = self.proj(x)
-        if self.proj.out_features == 2:
-            # 2 experts: sigmoid avoids softmax inductor warning
-            p = torch.sigmoid(logits[:, 0:1] - logits[:, 1:2]) if logits.ndim == 2 else torch.sigmoid(logits[..., 0:1] - logits[..., 1:2])
-            soft = torch.cat([p, 1.0 - p], dim=-1)
-        else:
-            soft = F.softmax(logits, dim=-1)
-        hard = F.one_hot(logits.argmax(dim=-1), self.proj.out_features).to(soft.dtype)
-        return (hard - soft).detach() + soft
+        return logits.argmax(dim=-1)
 
 # Token-Routed MoE — routing: "modulo" | "learned" | "hybrid" (modulo + learned override)
 class TokenRoutedMLP(nn.Module):
@@ -652,21 +644,21 @@ class TokenRoutedMLP(nn.Module):
             nn.init.kaiming_uniform_(self.fc_weight, a=5**0.5)
             nn.init.zeros_(self.proj_weight)
 
-    def forward(self, x: Tensor, router_onehot: Tensor) -> Tensor:
-        """router_onehot: (bsz, seq, num_experts) — STE one-hot from router."""
+    def forward(self, x: Tensor, expert_ids: Tensor) -> Tensor:
+        """expert_ids: (bsz, seq) long — hard routing from router."""
         bsz, seq, _ = x.shape
         flat_x = x.reshape(-1, self.dim)
-        flat_w = router_onehot.reshape(-1, self.num_experts)
+        flat_ids = expert_ids.reshape(-1)
         out = torch.zeros_like(flat_x)
         for e in range(self.num_experts):
-            w = flat_w[:, e].unsqueeze(-1)  # [N, 1] — hard 0/1 forward, soft backward
+            mask = (flat_ids == e).unsqueeze(-1)  # [N, 1]
             if self.activation == "swiglu":
                 gu = flat_x @ self.gate_up_proj[e]
                 gate, up = gu.chunk(2, dim=-1)
-                out = out + (F.silu(gate) * up @ self.down_proj[e]) * w
+                out = out + (F.silu(gate) * up @ self.down_proj[e]) * mask
             else:
                 h = torch.relu(flat_x @ self.fc_weight[e])
-                out = out + (h.square() @ self.proj_weight[e]) * w
+                out = out + (h.square() @ self.proj_weight[e]) * mask
         return out.reshape(bsz, seq, self.dim)
 
 class Block(nn.Module):
@@ -709,8 +701,8 @@ class Block(nn.Module):
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         if self.use_moe:
             m = self.mlp_norm(x)
-            router_onehot = self.mlp.router(m)  # STE: hard forward, soft backward
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(m, router_onehot)
+            expert_ids = self.mlp.router(m)  # hard routing, gradients via backbone
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(m, expert_ids)
         else:
             m = self.mlp_norm(x)
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.proj(torch.relu(self.fc(m)).square())
