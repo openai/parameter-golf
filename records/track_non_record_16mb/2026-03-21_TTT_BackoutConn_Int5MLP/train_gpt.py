@@ -89,9 +89,14 @@ class Hyperparameters:
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
-    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
+    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))  # disabled, using EMA instead
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
+
+    # EMA: exponential moving average of model weights
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+    ema_start_step = int(os.environ.get("EMA_START_STEP", 50))
 
     # Backout connection: learned residual subtraction from mid-layer
     backout_enabled = bool(int(os.environ.get("BACKOUT_ENABLED", "1")))
@@ -1149,6 +1154,7 @@ def main() -> None:
     stop_after_step: int | None = None
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
+    ema_state: dict[str, Tensor] | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1222,6 +1228,16 @@ def main() -> None:
                     swa_state[name] += t.detach().cpu()
                 swa_count += 1
 
+        # EMA: exponential moving average updated every step
+        if args.ema_enabled and step >= args.ema_start_step:
+            d = args.ema_decay
+            if ema_state is None:
+                ema_state = {name: t.detach().cpu().clone().float() for name, t in base_model.state_dict().items()}
+                log0(f"ema:start step:{step} decay:{d}")
+            else:
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(d).add_(t.detach().cpu().float(), alpha=1.0 - d)
+
         should_log_train = (
             args.train_log_every > 0
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
@@ -1245,8 +1261,17 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
-    # Apply SWA if collected
-    if args.swa_enabled and swa_state is not None and swa_count > 1:
+    # Apply EMA if collected (preferred over SWA)
+    if args.ema_enabled and ema_state is not None:
+        log0("ema:applying")
+        current_state = base_model.state_dict()
+        ema_applied = {
+            name: tensor.to(dtype=current_state[name].dtype)
+            for name, tensor in ema_state.items()
+        }
+        base_model.load_state_dict(ema_applied, strict=True)
+    # Apply SWA if collected (fallback if EMA disabled)
+    elif args.swa_enabled and swa_state is not None and swa_count > 1:
         log0(f"swa:applying averaged {swa_count} checkpoints")
         current_state = base_model.state_dict()
         avg_state = {
