@@ -761,7 +761,8 @@ class CausalSelfAttention(nn.Module):
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         if self.use_xsa:
-            vn = F.normalize(v, dim=-1)
+            v_expanded = v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
+            vn = F.normalize(v_expanded, dim=-1)
             y = y - (y * vn).sum(dim=-1, keepdim=True) * vn
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
