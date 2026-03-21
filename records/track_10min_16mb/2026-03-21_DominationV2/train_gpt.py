@@ -1,11 +1,9 @@
 """
-Domination V1: Full frontier technique stack for parameter golf.
+Domination V2: Full frontier technique stack for parameter golf.
 
-Integrates techniques from PR #198 (11L+FA3), PR #180 (int5-MLP), PR #194
-(per-dim SmearGate), PR #162 (OrthoInit+BigramHash+SWA), plus STE QAT
-calibrated per-category, mixed int5/int6 quantization, and zstd-22.
-
-Supports both standard and val-only training via DATA_PATH / env vars.
+Adds XSA (Exclusive Self Attention, arXiv:2603.09078) on last N layers,
+EMA weight averaging (replacing SWA), and TTT (test-time training) at eval.
+Built on V1: 11L MLP-3x, per-dim SmearGate, BigramHash, OrthoInit, Muon WD.
 """
 
 from __future__ import annotations
@@ -73,6 +71,12 @@ class Hyperparameters:
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.025))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_lr = float(os.environ.get("TTT_LR", 1e-4))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
@@ -434,6 +438,17 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.use_xsa = False
+
+    def _xsa_efficient(self, y, v):
+        B, T, H, D = y.shape
+        Hkv = v.size(2)
+        group = H // Hkv
+        y_g = y.reshape(B, T, Hkv, group, D)
+        vn = F.normalize(v, dim=-1).unsqueeze(-2)
+        proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
+        return (y_g - proj).reshape(B, T, H, D)
+
     def forward(self, x):
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
@@ -444,7 +459,11 @@ class CausalSelfAttention(nn.Module):
         q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True, enable_gqa=(self.num_kv_heads != self.num_heads))
-        return self.proj(y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim))
+        y = y.transpose(1, 2).contiguous()
+        if self.use_xsa:
+            v_bthd = v.transpose(1, 2).contiguous()
+            y = self._xsa_efficient(y, v_bthd)
+        return self.proj(y.reshape(bsz, seqlen, dim))
 
 class MLP(nn.Module):
     def __init__(self, dim, mlp_mult):
@@ -496,7 +515,7 @@ class Block(nn.Module):
 class GPT(nn.Module):
     def __init__(self, vocab_size, num_layers, model_dim, num_heads, num_kv_heads, mlp_mult,
                  tie_embeddings, tied_embed_init_std, logit_softcap, rope_base, qk_gain_init,
-                 bigram_vocab_size=0, bigram_dim=128):
+                 bigram_vocab_size=0, bigram_dim=128, xsa_last_n=0):
         super().__init__()
         self.tie_embeddings, self.tied_embed_init_std, self.logit_softcap = tie_embeddings, tied_embed_init_std, logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
@@ -510,6 +529,9 @@ class GPT(nn.Module):
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None: self.lm_head._zero_init = True
+        if xsa_last_n > 0:
+            for i in range(max(0, num_layers - xsa_last_n), num_layers):
+                self.blocks[i].attn.use_xsa = True
         self._init_weights()
 
     def _init_weights(self):
@@ -592,7 +614,8 @@ def main():
                      num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
                      tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
                      logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
-                     bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim).to(device).bfloat16()
+                     bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
+                     xsa_last_n=args.xsa_last_n).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear): module.float()
     restore_low_dim_params_to_fp32(base_model)
@@ -627,6 +650,7 @@ def main():
     log0(f"bigram_vocab:{args.bigram_vocab_size} bigram_dim:{args.bigram_dim} grad_clip:{args.grad_clip_norm} muon_wd:{args.muon_wd}")
     log0(f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} warmdown:{args.warmdown_iters} seed:{args.seed}")
     log0(f"ste_qat:{STE_QAT_ENABLED} ste_range:{STE_QAT_RANGE} int6_cats:{MIXED_QUANT_INT6_CATS}")
+    log0(f"xsa_last_n:{args.xsa_last_n} ema:{args.ema_enabled} ema_decay:{args.ema_decay} ttt:{args.ttt_enabled} ttt_epochs:{args.ttt_epochs}")
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     def zero_grad_all():
@@ -661,6 +685,9 @@ def main():
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     training_time_ms = 0.0; stop_after_step = None; swa_state = None; swa_count = 0
+    ema_state = None
+    if args.ema_enabled:
+        ema_state = {n: t.detach().float().clone() for n, t in base_model.state_dict().items()}
     torch.cuda.synchronize(); t0 = time.perf_counter(); step = 0
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
@@ -673,7 +700,7 @@ def main():
             if stop_after_step is not None and step < args.iterations: log0(f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}")
             break
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0); scale = lr_mul(step, elapsed_ms)
-        if args.swa_enabled and scale < args.swa_start_frac and step % args.swa_every == 0:
+        if args.swa_enabled and not args.ema_enabled and scale < args.swa_start_frac and step % args.swa_every == 0:
             current = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
             if swa_state is None:
                 swa_state = current; swa_count = 1
@@ -696,6 +723,11 @@ def main():
             for group in opt.param_groups: group["lr"] = group["base_lr"] * scale
         if args.grad_clip_norm > 0: torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers: opt.step()
+        if ema_state is not None:
+            d = args.ema_decay
+            with torch.no_grad():
+                for n, t in base_model.state_dict().items():
+                    ema_state[n].mul_(d).add_(t.detach().float(), alpha=1.0 - d)
         zero_grad_all(); step += 1
         approx_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         if args.train_log_every > 0 and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None):
@@ -706,7 +738,11 @@ def main():
         if stop_after_step is None and reached_cap: stop_after_step = step
 
     log0(f"peak memory: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB")
-    if swa_state is not None:
+    if ema_state is not None:
+        log0("ema: applying EMA weights")
+        avg_sd = {n: t.to(dtype=base_model.state_dict()[n].dtype) for n, t in ema_state.items()}
+        base_model.load_state_dict(avg_sd, strict=True); del ema_state, avg_sd
+    elif swa_state is not None:
         log0(f"swa: averaging {swa_count} checkpoints")
         base_model.load_state_dict(swa_state, strict=True); del swa_state
 
@@ -729,6 +765,37 @@ def main():
     rd = zstd.ZstdDecompressor().decompress(qbd) if HAS_ZSTD else zlib.decompress(qbd)
     qs = torch.load(io.BytesIO(rd), map_location="cpu")
     base_model.load_state_dict(dequantize_mixed(qs["w"], qs["m"], sd_cpu), strict=True)
+
+    if args.ttt_enabled and args.ttt_epochs > 0:
+        log0(f"ttt: starting {args.ttt_epochs} epochs of test-time training (lr={args.ttt_lr})")
+        torch.cuda.synchronize(); ttt_start = time.perf_counter()
+        base_model.train()
+        ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+        ttt_opt = torch.optim.SGD(ttt_params, lr=args.ttt_lr)
+        ttt_seq_len = args.train_seq_len
+        total_val = val_tokens.numel() - 1
+        total_seqs = total_val // ttt_seq_len
+        my_start = (total_seqs * rank) // world_size
+        my_end = (total_seqs * (rank + 1)) // world_size
+        for ttt_ep in range(args.ttt_epochs):
+            ttt_loss_sum = 0.0; ttt_count = 0
+            for si in range(my_start, my_end, 4):
+                se = min(si + 4, my_end); bsz = se - si
+                rs = si * ttt_seq_len; re = se * ttt_seq_len + 1
+                local = val_tokens[rs:re].to(device=device, dtype=torch.int64)
+                x = local[:-1].reshape(bsz, ttt_seq_len)
+                y = local[1:].reshape(bsz, ttt_seq_len)
+                ttt_opt.zero_grad()
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    loss = base_model(x, y)
+                loss.backward()
+                ttt_opt.step()
+                ttt_loss_sum += loss.item() * bsz; ttt_count += bsz
+            if rank == 0:
+                log0(f"  ttt_epoch:{ttt_ep+1}/{args.ttt_epochs} loss:{ttt_loss_sum/max(ttt_count,1):.4f}")
+        torch.cuda.synchronize()
+        log0(f"ttt: done in {time.perf_counter() - ttt_start:.1f}s")
+
     torch.cuda.synchronize(); tqe = time.perf_counter()
     if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
         log0(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")

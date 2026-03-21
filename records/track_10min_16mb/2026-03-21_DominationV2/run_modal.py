@@ -21,9 +21,8 @@ app = modal.App("parameter-golf")
 data_vol = modal.Volume.from_name("parameter-golf-data", create_if_missing=True)
 output_vol = modal.Volume.from_name("parameter-golf-output", create_if_missing=True)
 
-TRAIN_SCRIPT_STANDARD_LEGACY = "records/track_10min_16mb/2026-03-19_StandardOptimal/train_gpt.py"
-TRAIN_SCRIPT_VALONLY_LEGACY = "records/track_10min_16mb/2026-03-19_CombinedOptimal/train_gpt.py"
 TRAIN_SCRIPT_DOMV1 = "records/track_10min_16mb/2026-03-20_DominationV1/train_gpt.py"
+TRAIN_SCRIPT_DOMV2 = "records/track_10min_16mb/2026-03-21_DominationV2/train_gpt.py"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -39,9 +38,8 @@ image = (
         extra_options="--extra-index-url https://download.pytorch.org/whl/cu124",
     )
     .add_local_file("data/cached_challenge_fineweb.py", "/root/data/cached_challenge_fineweb.py")
-    .add_local_file(TRAIN_SCRIPT_STANDARD_LEGACY, "/root/train_gpt_standard.py")
-    .add_local_file(TRAIN_SCRIPT_VALONLY_LEGACY, "/root/train_gpt_valonly.py")
     .add_local_file(TRAIN_SCRIPT_DOMV1, "/root/train_gpt_domv1.py")
+    .add_local_file(TRAIN_SCRIPT_DOMV2, "/root/train_gpt_domv2.py")
 )
 
 
@@ -61,6 +59,37 @@ def _parse_extra_env(raw: str) -> dict[str, str]:
 
 
 def _profile_env(mode: str, profile: str) -> dict[str, str]:
+    if profile == "domv2":
+        return {
+            "VAL_LOSS_EVERY": "500",
+            "TRAIN_LOG_EVERY": "100",
+            "TRAIN_SEQ_LEN": "2048",
+            "TRAIN_BATCH_TOKENS": "524288",
+            "NUM_LAYERS": "11",
+            "SWA_ENABLED": "0",
+            "EMA_ENABLED": "1",
+            "EMA_DECAY": "0.997",
+            "XSA_LAST_N": "4",
+            "MIXED_QUANT_INT6_CATS": "mlp,attn",
+            "WEIGHT_DECAY": "0.04",
+            "MUON_WD": "0.04",
+            "MATRIX_LR": "0.025",
+            "SCALAR_LR": "0.025",
+            "TIED_EMBED_LR": "0.035",
+            "MUON_MOMENTUM": "0.99",
+            "MUON_MOMENTUM_WARMUP_START": "0.92",
+            "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+            "WARMDOWN_ITERS": "3000",
+            "BIGRAM_VOCAB_SIZE": "2048",
+            "BIGRAM_DIM": "128",
+            "EVAL_STRIDE": "64",
+            "EVAL_BATCH_SEQS": "32",
+            "STE_QAT_ENABLED": "0",
+            "TTT_ENABLED": "1",
+            "TTT_EPOCHS": "3",
+            "TTT_LR": "0.0001",
+        }
+
     if profile == "domv1":
         base = {
             "VAL_LOSS_EVERY": "500",
@@ -163,9 +192,9 @@ def _profile_env(mode: str, profile: str) -> dict[str, str]:
 
 
 def _select_train_script(profile: str, mode: str) -> str:
-    if profile == "domv1":
-        return "/root/train_gpt_domv1.py"
-    return "/root/train_gpt_standard.py" if mode == "standard" else "/root/train_gpt_valonly.py"
+    if profile == "domv2":
+        return "/root/train_gpt_domv2.py"
+    return "/root/train_gpt_domv1.py"
 
 
 @app.function(
