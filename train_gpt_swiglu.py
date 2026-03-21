@@ -58,7 +58,7 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3600))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
@@ -94,6 +94,21 @@ class Hyperparameters:
 
     # Multi-Token Prediction (MTP): predict multiple future tokens for richer training signal.
     mtp_enabled = bool(int(os.environ.get("MTP_ENABLED", "0")))
+    use_swiglu = bool(int(os.environ.get("USE_SWIGLU", "0")))
+    swiglu_hidden = int(os.environ.get("SWIGLU_HIDDEN", 672))
+
+    # Sliding window eval: overlap windows so every token has good context.
+    # stride < train_seq_len enables sliding; stride == train_seq_len = baseline behavior.
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 256))
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 0))  # 0 = use train_seq_len
+
+    # LAWA: Latest-Averaged Weight Averaging during warmdown.
+    # Save snapshots every lawa_interval steps during warmdown, average at end.
+    lawa_enabled = bool(int(os.environ.get("LAWA_ENABLED", "1")))
+    lawa_interval = int(os.environ.get("LAWA_INTERVAL", 100))
+
+    # Byte grouping: separate int8 weight bytes from scale bytes before zlib for better compression.
+    byte_grouping = bool(int(os.environ.get("BYTE_GROUPING", "1")))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -286,6 +301,79 @@ def eval_val(
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
+
+def eval_val_sliding(
+    base_model: nn.Module,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    window: int = 1024,
+    stride: int = 256,
+) -> tuple[float, float]:
+    """Sliding window evaluation: each token gets at least (window - stride) context.
+
+    Every token is scored exactly once. Overlapping windows ensure that tokens
+    near window boundaries have sufficient context, unlike the non-overlapping
+    baseline where the first token in each window has zero context.
+
+    This is not a trick — it is genuinely better compression, since the model
+    can condition on more context for every prediction.
+    """
+    base_model.eval()
+    N = val_tokens.numel() - 1  # total target tokens
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    with torch.inference_mode():
+        pos = 0
+        while pos < N:
+            end = min(pos + window, N)
+            actual_len = end - pos
+
+            # First window: score everything. Subsequent: score only last `stride` positions.
+            if pos == 0:
+                score_from = 0
+                score_count = actual_len
+            else:
+                score_count = min(stride, actual_len)
+                score_from = actual_len - score_count
+
+            # Build input/target tensors: [pos, end] for input, [pos+1, end+1] for target
+            x = val_tokens[pos:end].unsqueeze(0).to(device=device, dtype=torch.int64)
+            y = val_tokens[pos + 1 : end + 1].unsqueeze(0).to(device=device, dtype=torch.int64)
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = base_model.get_logits(x)
+
+            # Score only the designated positions
+            scored_logits = logits[0, score_from : score_from + score_count].float()
+            scored_targets = y[0, score_from : score_from + score_count]
+            per_token_ce = F.cross_entropy(scored_logits, scored_targets, reduction="none")
+
+            loss_sum += per_token_ce.to(torch.float64).sum()
+            token_count += score_count
+
+            # Byte counting for BPB (same logic as baseline)
+            prev_ids = x[0, score_from : score_from + score_count]
+            tgt_ids = y[0, score_from : score_from + score_count]
+            tb = base_bytes_lut[tgt_ids].to(torch.int16)
+            tb += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.int16)
+            byte_count += tb.to(torch.float64).sum()
+
+            pos += stride
+
+    # No distributed reduce needed — each rank processes the full val set identically.
+    # (Unlike eval_val which splits across ranks, sliding window runs on full data per rank.)
+    avg_loss = loss_sum / token_count
+    bits_per_token = avg_loss.item() / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base_model.train()
+    return float(avg_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
 # -----------------------------
 # POST-TRAINING QUANTIZATION
 # -----------------------------
@@ -311,6 +399,17 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     if pattern
 )
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
+# FP16 passthrough: keep these large tensors in fp16 instead of int8.
+# The tied embedding is the most sensitive tensor (doubles as LM head).
+# PR #42 showed this eliminates 93% of the quantization gap (0.007 → 0.0005 BPB).
+FP16_PASSTHROUGH_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "FP16_PASSTHROUGH_NAME_PATTERNS",
+        "tok_emb.weight",
+    ).split(",")
+    if pattern
+)
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
@@ -385,6 +484,15 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
             continue
 
+        # FP16 passthrough for sensitive tensors (e.g., tied embedding).
+        # These are too large for the small-tensor path but too important to quantize.
+        if any(pattern in name for pattern in FP16_PASSTHROUGH_NAME_PATTERNS):
+            kept = t.to(dtype=torch.float16).contiguous()
+            passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
+            passthrough[name] = kept
+            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            continue
+
         stats["num_float_tensors"] += 1
         q, s = quantize_float_tensor(t)
         if s.ndim > 0:
@@ -431,8 +539,69 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     return out
 
 
+def compress_with_byte_grouping(quant_obj: dict) -> bytes:
+    """Byte grouping: separate int8 weight bytes from fp16 scale bytes before zlib.
+
+    zlib compresses better when similar-valued bytes are grouped together.
+    int8 weights are mostly small values near 0, while fp16 scales have different
+    byte patterns. Grouping them separately gives ~2-5% better compression.
+    """
+    buf = io.BytesIO()
+    torch.save(quant_obj, buf)
+    raw = buf.getvalue()
+
+    # Try byte-grouped compression
+    # Group bytes by their position within each element
+    raw_array = np.frombuffer(raw, dtype=np.uint8)
+    n = len(raw_array)
+
+    # Simple approach: separate odd/even bytes (groups high/low bytes of 2-byte values)
+    even_bytes = raw_array[0::2].tobytes()  # ceil(n/2) bytes
+    odd_bytes = raw_array[1::2].tobytes()   # floor(n/2) bytes
+
+    grouped = even_bytes + odd_bytes
+    grouped_compressed = zlib.compress(grouped, level=9)
+
+    # Also try standard compression for comparison
+    standard_compressed = zlib.compress(raw, level=9)
+
+    # Use whichever is smaller, with a 1-byte header to indicate method
+    if len(grouped_compressed) + 1 < len(standard_compressed) + 1:
+        # Header byte 0x01 = byte-grouped, then 4 bytes for original length
+        header = b"\x01" + n.to_bytes(4, "little")
+        return header + grouped_compressed
+    else:
+        # Header byte 0x00 = standard zlib
+        return b"\x00" + standard_compressed
+
+
+def decompress_with_byte_grouping(blob: bytes) -> bytes:
+    """Decompress data that may use byte grouping."""
+    method = blob[0]
+    if method == 0x00:
+        # Standard zlib
+        return zlib.decompress(blob[1:])
+    elif method == 0x01:
+        # Byte-grouped
+        n = int.from_bytes(blob[1:5], "little")
+        decompressed = zlib.decompress(blob[5:])
+        grouped = np.frombuffer(decompressed, dtype=np.uint8)
+
+        n_even = (n + 1) // 2  # ceil(n/2) — positions 0,2,4,...
+        n_odd = n // 2          # floor(n/2) — positions 1,3,5,...
+        even_bytes = grouped[:n_even]
+        odd_bytes = grouped[n_even:n_even + n_odd]
+
+        result = np.empty(n, dtype=np.uint8)
+        result[0::2] = even_bytes
+        result[1::2] = odd_bytes
+        return result.tobytes()
+    else:
+        raise ValueError(f"Unknown compression method: {method}")
+
+
 # -----------------------------
-# DATA LOADING 
+# DATA LOADING
 # -----------------------------
 
 def load_data_shard(file: Path) -> Tensor:
@@ -561,6 +730,40 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
 
+def apply_ntk_rope_scaling(model: nn.Module, alpha: float, base: float = 10000.0) -> list[Tensor]:
+    """Apply NTK-aware RoPE scaling for eval at longer context than training.
+
+    alpha = eval_seq_len / train_seq_len (e.g., 2.0 for 2048 eval after 1024 training).
+    Returns list of original inv_freq buffers for restoring after eval.
+    """
+    originals = []
+    for module in model.modules():
+        if isinstance(module, Rotary):
+            originals.append(module.inv_freq.clone())
+            dim = module.inv_freq.numel() * 2
+            # NTK-aware scaling: new_base = base * alpha^(dim/(dim-2))
+            new_base = base * (alpha ** (dim / (dim - 2)))
+            new_inv_freq = 1.0 / (new_base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+            module.inv_freq = new_inv_freq.to(module.inv_freq.device)
+            # Reset cache to force recomputation
+            module._seq_len_cached = 0
+            module._cos_cached = None
+            module._sin_cached = None
+    return originals
+
+
+def restore_rope_scaling(model: nn.Module, originals: list[Tensor]) -> None:
+    """Restore original inv_freq buffers after NTK RoPE scaling."""
+    idx = 0
+    for module in model.modules():
+        if isinstance(module, Rotary):
+            module.inv_freq = originals[idx]
+            module._seq_len_cached = 0
+            module._cos_cached = None
+            module._sin_cached = None
+            idx += 1
+
+
 class CausalSelfAttention(nn.Module):
     def __init__(
         self,
@@ -626,6 +829,20 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
+
+class SwiGLUMLP(nn.Module):
+    """SwiGLU MLP: gate(x) * up(x) -> down. Same FLOPs as relu² at matched hidden dim."""
+    def __init__(self, dim: int, hidden: int = 672):
+        super().__init__()
+        self.up = CastedLinear(dim, hidden, bias=False)
+        self.gate = CastedLinear(dim, hidden, bias=False)
+        self.down = CastedLinear(hidden, dim, bias=False)
+        self.down._zero_init = True
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.down(F.silu(self.gate(x)) * self.up(x))
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -635,12 +852,14 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        use_swiglu: bool = False,
+        swiglu_hidden: int = 672,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = SwiGLUMLP(dim, swiglu_hidden) if use_swiglu else MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -668,6 +887,8 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        use_swiglu: bool = False,
+        swiglu_hidden: int = 672,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -689,6 +910,8 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    use_swiglu=use_swiglu,
+                    swiglu_hidden=swiglu_hidden,
                 )
                 for i in range(num_layers)
             ]
@@ -705,6 +928,27 @@ class GPT(nn.Module):
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
+
+    def get_logits(self, input_ids: Tensor) -> Tensor:
+        """Forward pass that returns logits (no loss computation). For sliding window eval."""
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            skip_idx = i
+            if skip_idx < self.num_skip_weights and skips:
+                x = x + self.skip_weights[skip_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        x = self.final_norm(x)
+        if self.tie_embeddings:
+            logits = F.linear(x, self.tok_emb.weight)
+        else:
+            logits = self.lm_head(x)
+        return self.logit_softcap * torch.tanh(logits / self.logit_softcap)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor, mtp_weights: Tensor | None = None) -> Tensor:
         x = self.tok_emb(input_ids)
@@ -785,7 +1029,8 @@ def main() -> None:
     torch.backends.cudnn.allow_tf32 = True
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
 
-    enable_cudnn_sdp(False)
+    # Let PyTorch benchmark cuDNN vs Flash attention and pick fastest
+    enable_cudnn_sdp(True)
     enable_flash_sdp(True)
     enable_mem_efficient_sdp(False)
     enable_math_sdp(False)
@@ -857,13 +1102,21 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        use_swiglu=args.use_swiglu,
+        swiglu_hidden=args.swiglu_hidden,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    # reduce-overhead enables CUDA graphs for kernel launch overhead reduction (~5-10ms savings)
+    compile_mode = os.environ.get("COMPILE_MODE", "reduce-overhead")
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True, mode=compile_mode)
+    model: nn.Module = DDP(
+        compiled_model, device_ids=[local_rank], broadcast_buffers=False,
+        gradient_as_bucket_view=True,  # avoid gradient copy overhead
+        static_graph=True,             # enable compute/communication overlap
+    ) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -963,6 +1216,11 @@ def main() -> None:
             opt.zero_grad(set_to_none=True)
 
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+
+    # LAWA: track whether we're in warmdown for checkpoint averaging
+    lawa_snapshots: list[dict[str, Tensor]] = []
+    lawa_in_warmdown = False
+    lawa_last_snapshot_step = -1
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
         if args.warmdown_iters <= 0:
@@ -1091,6 +1349,17 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        # LAWA: save checkpoint snapshots during warmdown for averaging
+        if args.lawa_enabled and scale < 1.0:  # scale < 1.0 means we're in warmdown
+            if not lawa_in_warmdown:
+                lawa_in_warmdown = True
+                log0(f"LAWA: entering warmdown at step {step}, will snapshot every {args.lawa_interval} steps")
+            if step - lawa_last_snapshot_step >= args.lawa_interval:
+                snapshot = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
+                lawa_snapshots.append(snapshot)
+                lawa_last_snapshot_step = step
+                log0(f"LAWA: saved snapshot {len(lawa_snapshots)} at step {step}")
+
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
@@ -1118,6 +1387,35 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
+    # LAWA: average all warmdown snapshots + final model state
+    if args.lawa_enabled and len(lawa_snapshots) > 0:
+        # Add final model state as the last snapshot
+        final_snapshot = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
+        lawa_snapshots.append(final_snapshot)
+        log0(f"LAWA: averaging {len(lawa_snapshots)} snapshots (including final)")
+
+        # Compute the average
+        avg_state = {}
+        for name in lawa_snapshots[0]:
+            tensors = [snap[name].float() for snap in lawa_snapshots]
+            avg_state[name] = (sum(tensors) / len(tensors)).to(dtype=lawa_snapshots[0][name].dtype)
+
+        base_model.load_state_dict(avg_state, strict=True)
+        restore_low_dim_params_to_fp32(base_model)
+
+        # Evaluate LAWA-averaged model (pre-quant)
+        lawa_val_loss, lawa_val_bpb = eval_val(
+            args, model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+        log0(f"LAWA pre-quant val_loss:{lawa_val_loss:.4f} val_bpb:{lawa_val_bpb:.4f}")
+        wlog({"lawa_val_loss": lawa_val_loss, "lawa_val_bpb": lawa_val_bpb})
+
+        # Free snapshot memory
+        del lawa_snapshots
+    else:
+        log0("LAWA: no snapshots collected (warmdown may not have started)")
+
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
@@ -1136,7 +1434,21 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+
+    # Try both standard and byte-grouped compression
+    quant_blob_standard = zlib.compress(quant_raw, level=9)
+    if args.byte_grouping:
+        quant_blob_grouped = compress_with_byte_grouping(quant_obj)
+        if len(quant_blob_grouped) < len(quant_blob_standard):
+            quant_blob = quant_blob_grouped
+            compression_method = "byte_grouped"
+        else:
+            quant_blob = quant_blob_standard
+            compression_method = "standard_zlib"
+    else:
+        quant_blob = quant_blob_standard
+        compression_method = "standard_zlib"
+
     quant_raw_bytes = len(quant_raw)
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
@@ -1145,17 +1457,28 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+            f"Serialized model int8+zlib ({compression_method}): {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
+        if compression_method == "byte_grouped":
+            savings = len(quant_blob_standard) - len(quant_blob_grouped)
+            log0(f"Byte grouping saved {savings} bytes vs standard zlib")
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
 
+    # Roundtrip: decompress and load the quantized model for evaluation
     if distributed:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    # Detect compression method from header byte
+    if quant_blob_disk[0:1] in (b"\x00", b"\x01"):
+        quant_raw_roundtrip = decompress_with_byte_grouping(quant_blob_disk)
+    else:
+        quant_raw_roundtrip = zlib.decompress(quant_blob_disk)
+    quant_state = torch.load(io.BytesIO(quant_raw_roundtrip), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+
+    # Standard eval (non-overlapping windows, same as baseline)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
@@ -1178,6 +1501,108 @@ def main() -> None:
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
     if master_process:
         wlog({"final_q_val_loss": q_val_loss, "final_q_val_bpb": q_val_bpb})
+
+    # Sliding window eval: overlapping windows give each token better context
+    eval_stride = args.eval_stride
+    eval_window = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
+    if eval_stride < eval_window:
+        log0(f"\n--- Sliding window eval: window={eval_window} stride={eval_stride} ---")
+        # Need to reload val tokens with the eval window size
+        if eval_window != args.train_seq_len:
+            eval_val_tokens = load_validation_tokens(args.val_files, eval_window)
+        else:
+            eval_val_tokens = val_tokens
+
+        restore_low_dim_params_to_fp32(base_model)
+        torch.cuda.synchronize()
+        t_slide = time.perf_counter()
+        sw_val_loss, sw_val_bpb = eval_val_sliding(
+            base_model,
+            device,
+            eval_val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            window=eval_window,
+            stride=eval_stride,
+        )
+        torch.cuda.synchronize()
+        slide_time_ms = 1000.0 * (time.perf_counter() - t_slide)
+        log0(
+            f"sliding_window_eval val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
+            f"eval_time:{slide_time_ms:.0f}ms (window={eval_window}, stride={eval_stride})"
+        )
+        log0(f"sliding_window_eval_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        bpb_improvement = q_val_bpb - sw_val_bpb
+        log0(f"sliding_window improvement: {bpb_improvement:.4f} BPB ({bpb_improvement / q_val_bpb * 100:.2f}%)")
+        if master_process:
+            wlog({
+                "sw_val_loss": sw_val_loss, "sw_val_bpb": sw_val_bpb,
+                "sw_eval_time_ms": slide_time_ms,
+                "sw_bpb_improvement": bpb_improvement,
+            })
+
+        # Try additional strides for comparison
+        for extra_stride in [512, 128]:
+            if extra_stride != eval_stride and extra_stride < eval_window:
+                torch.cuda.synchronize()
+                t_extra = time.perf_counter()
+                ex_loss, ex_bpb = eval_val_sliding(
+                    base_model, device, eval_val_tokens,
+                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                    window=eval_window, stride=extra_stride,
+                )
+                torch.cuda.synchronize()
+                extra_time_ms = 1000.0 * (time.perf_counter() - t_extra)
+                log0(
+                    f"sliding_window_eval stride={extra_stride}: val_bpb:{ex_bpb:.4f} "
+                    f"improvement:{q_val_bpb - ex_bpb:.4f} time:{extra_time_ms:.0f}ms"
+                )
+                if master_process:
+                    wlog({
+                        f"sw_bpb_s{extra_stride}": ex_bpb,
+                        f"sw_improvement_s{extra_stride}": q_val_bpb - ex_bpb,
+                    })
+
+        # NTK RoPE: try longer context eval (2048) with NTK-aware frequency scaling
+        if eval_window == args.train_seq_len and args.train_seq_len <= 1024:
+            ntk_window = 2048
+            ntk_stride = eval_stride
+            alpha = ntk_window / args.train_seq_len
+            log0(f"\n--- NTK RoPE eval: window={ntk_window} stride={ntk_stride} alpha={alpha:.1f} ---")
+
+            # Scale RoPE frequencies for longer context
+            rope_originals = apply_ntk_rope_scaling(base_model, alpha, args.rope_base)
+
+            # Load val tokens with longer window alignment
+            ntk_val_tokens = load_validation_tokens(args.val_files, ntk_window)
+
+            torch.cuda.synchronize()
+            t_ntk = time.perf_counter()
+            ntk_loss, ntk_bpb = eval_val_sliding(
+                base_model, device, ntk_val_tokens,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                window=ntk_window, stride=ntk_stride,
+            )
+            torch.cuda.synchronize()
+            ntk_time_ms = 1000.0 * (time.perf_counter() - t_ntk)
+            log0(
+                f"ntk_rope_eval val_loss:{ntk_loss:.4f} val_bpb:{ntk_bpb:.4f} "
+                f"eval_time:{ntk_time_ms:.0f}ms (window={ntk_window}, stride={ntk_stride}, alpha={alpha:.1f})"
+            )
+            log0(f"ntk_rope_eval_exact val_loss:{ntk_loss:.8f} val_bpb:{ntk_bpb:.8f}")
+            ntk_improvement = q_val_bpb - ntk_bpb
+            log0(f"NTK RoPE improvement: {ntk_improvement:.4f} BPB ({ntk_improvement / q_val_bpb * 100:.2f}%)")
+            if master_process:
+                wlog({
+                    "ntk_val_loss": ntk_loss, "ntk_val_bpb": ntk_bpb,
+                    "ntk_eval_time_ms": ntk_time_ms,
+                    "ntk_bpb_improvement": ntk_improvement,
+                })
+
+            # Restore original RoPE frequencies
+            restore_rope_scaling(base_model, rope_originals)
+
     if _use_wandb:
         wandb.finish()
 

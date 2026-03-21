@@ -94,6 +94,8 @@ class Hyperparameters:
 
     # Multi-Token Prediction (MTP): predict multiple future tokens for richer training signal.
     mtp_enabled = bool(int(os.environ.get("MTP_ENABLED", "0")))
+    use_swiglu = bool(int(os.environ.get("USE_SWIGLU", "0")))
+    swiglu_hidden = int(os.environ.get("SWIGLU_HIDDEN", 672))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -626,6 +628,20 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
+
+class SwiGLUMLP(nn.Module):
+    """SwiGLU MLP: gate(x) * up(x) -> down. Same FLOPs as relu² at matched hidden dim."""
+    def __init__(self, dim: int, hidden: int = 672):
+        super().__init__()
+        self.up = CastedLinear(dim, hidden, bias=False)
+        self.gate = CastedLinear(dim, hidden, bias=False)
+        self.down = CastedLinear(hidden, dim, bias=False)
+        self.down._zero_init = True
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.down(F.silu(self.gate(x)) * self.up(x))
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -635,12 +651,14 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        use_swiglu: bool = False,
+        swiglu_hidden: int = 672,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = SwiGLUMLP(dim, swiglu_hidden) if use_swiglu else MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -668,6 +686,8 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        use_swiglu: bool = False,
+        swiglu_hidden: int = 672,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -689,6 +709,8 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    use_swiglu=use_swiglu,
+                    swiglu_hidden=swiglu_hidden,
                 )
                 for i in range(num_layers)
             ]
@@ -857,6 +879,8 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        use_swiglu=args.use_swiglu,
+        swiglu_hidden=args.swiglu_hidden,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):

@@ -94,6 +94,7 @@ class Hyperparameters:
 
     # Multi-Token Prediction (MTP): predict multiple future tokens for richer training signal.
     mtp_enabled = bool(int(os.environ.get("MTP_ENABLED", "0")))
+    use_moe = bool(int(os.environ.get("USE_MOE", "0")))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -626,6 +627,33 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
+class MoEMLP(nn.Module):
+    """2-expert MoE with top-2 routing. Each expert is 1x expansion (half baseline).
+    Total params = 2 * (dim*dim + dim*dim) = same as single 2x MLP.
+    But routing provides token-specific specialization."""
+    def __init__(self, dim: int, num_experts: int = 2):
+        super().__init__()
+        self.num_experts = num_experts
+        # Each expert: 1x expansion (dim -> dim -> dim) with relu^2
+        self.experts = nn.ModuleList([MLP(dim, 1) for _ in range(num_experts)])
+        # Router: simple linear -> softmax
+        self.router = CastedLinear(dim, num_experts, bias=False)
+
+    def forward(self, x: Tensor) -> Tensor:
+        # x: (batch, seq, dim)
+        orig_shape = x.shape
+        x_flat = x.reshape(-1, orig_shape[-1])  # (B*T, dim)
+        # Compute router weights (both experts always active with top-2)
+        router_logits = self.router(x_flat)  # (B*T, num_experts)
+        router_weights = F.softmax(router_logits.float(), dim=-1).to(x.dtype)  # (B*T, E)
+        # Compute all expert outputs and combine
+        out = torch.zeros_like(x_flat)
+        for i, expert in enumerate(self.experts):
+            expert_out = expert(x_flat)  # (B*T, dim)
+            out = out + router_weights[:, i:i+1] * expert_out
+        return out.reshape(orig_shape)
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -635,12 +663,13 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        use_moe: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MoEMLP(dim, num_experts=2) if use_moe else MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -668,6 +697,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        use_moe: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -689,6 +719,7 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    use_moe=use_moe,
                 )
                 for i in range(num_layers)
             ]
@@ -857,6 +888,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        use_moe=args.use_moe,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
