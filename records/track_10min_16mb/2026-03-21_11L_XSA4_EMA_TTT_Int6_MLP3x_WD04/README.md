@@ -1,6 +1,6 @@
 # 11L XSA4 + EMA + Int6 MLP3x + Full-Model SGD TTT
 
-**Best val_bpb: 1.1419** (seed 1337 on 8xH100 SXM, seeds 1338/1339 pending)
+**Best val_bpb: 1.1419** (seed 1337), mean so far: 1.1442 (2 seeds on 8xH100 SXM, seed 1339 pending)
 
 This is the highest-EV convergence branch. It keeps the strongest public training stack intact:
 - 11 layers, 512 dim, 8 heads / 4 KV heads
@@ -99,11 +99,13 @@ done
 | Seed | Pre-quant val_bpb | Post-int6 val_bpb | Post-TTT val_bpb | Steps | ms/step | Artifact bytes |
 |------|-------------------|-------------------|-------------------|-------|---------|----------------|
 | 1337 | 1.1581 | 1.1655 | **1.1419** | 5,344 | 109.2 | 15,578,775 |
-| 1338 | — | — | — | — | — | — |
+| 1338 | 1.1616 | 1.1701 | **1.1464** | 4,559 | 131.6 | 15,661,221 |
 | 1339 | — | — | — | — | — | — |
+| **Mean (2 seeds)** | | | **1.1442** | | | |
 
-Hardware: 8xH100 SXM (community cloud). SDPA fallback (no FA3), ~109ms/step.
-TTT: 3 epochs, 50.4s. Eval: stride-64 sliding window, 117.0s.
+Hardware: 8xH100 SXM (community cloud). SDPA fallback (no FA3).
+Seed 1337: ~109ms/step. Seeds 1338+1339: ~132ms/step (different node).
+TTT: 3 epochs SGD. Eval: stride-64 sliding window.
 All artifacts under 16MB (zstd-22 compression).
 
 ## vs. Prior SOTA
@@ -111,8 +113,10 @@ All artifacts under 16MB (zstd-22 compression).
 | Run | val_bpb |
 |-----|---------|
 | Compression-Funded MLP3x (best seed) | 1.1598 |
-| **This run (seed 1337)** | **1.1419** |
-| Delta | **-0.0179** |
+| **This run (best seed 1337)** | **1.1419** |
+| **This run (2-seed mean)** | **1.1442** |
+| Delta (best) | **-0.0179** |
+| Delta (mean vs prior mean 1.1647) | **-0.0205** |
 
 ## Compatibility fixes applied
 
