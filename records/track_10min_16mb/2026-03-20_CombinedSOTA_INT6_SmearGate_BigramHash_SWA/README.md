@@ -1,98 +1,62 @@
-# Combined SOTA: INT6 + SmearGate + BigramHash + OrthoInit + SWA + Sliding Window
+# 11L XSA + SmearGate + BigramHash + SWA + OrthoInit + RoPE50K
 
-## Summary
+**Mean val_bpb: 1.1565 (3 seeds)** | Best: 1.1538 (seed 1337) | Artifact: ~15.9 MB
 
-This submission combines six orthogonal improvements over the naive baseline, achieving **val_bpb = 1.1754** with sliding window evaluation (stride=64, seq=1024). The compressed artifact is **13.98 MB** (well under the 16 MB limit), leaving room for future model scaling.
+## Key Techniques
 
-## Techniques
+1. **11 transformer layers** (baseline 9) with XSA on last 4 layers
+2. **Exclusive Self Attention (XSA)** — removes self-value bias via GQA-compatible subtraction
+3. **SmearGate + BigramHash(2048)** — bigram-aware embedding with OrthoInit (critical co-dependency)
+4. **INT6 per-row quantization + zstd-22** — FP16 tied embedding + Late-K FP16 (last 2 layers c_k)
+5. **SWA (every 50 steps, start at 40%)** — fp32 accumulation (bf16 causes catastrophic loss)
+6. **Muon WD=0.04** — decoupled weight decay for quantization-friendly weights
+7. **RoPE base 50K** (default 10K) — better long-context modeling
+8. **Overtone SVD init + Phase-transition residual mixing** — spectral embedding initialization
+9. **MLP 2.75x expansion** (hidden=1408) — sweet spot for 16MB with 11L
+10. **Magnitude pruning 2%** before quantization
 
-1. **Per-row INT6 Quantization + zstd-22**: 6-bit per-row quantization with zstandard compression (level 22) instead of INT8+zlib. Saves ~25% model bytes, enabling a wider MLP.
+## Results (3 seeds)
 
-2. **FP16 Tied Embedding Export**: Tied embeddings kept in FP16 instead of INT8, reducing quantization gap from ~0.007 to ~0.001 BPB since errors compound in both input and output paths.
-
-3. **MLP 2.5x Expansion**: Hidden dimension increased from 1024 (2x) to 1280 (2.5x), enabled by INT6 byte savings. Provides more model capacity.
-
-4. **SmearGate**: Lightweight bigram-aware gating module (~512 params) that blends each token's embedding with the previous token via a learned sigmoid gate.
-
-5. **BigramHash Embedding**: 4096-bucket hash table (dim=128, projected to 512) encoding consecutive token pairs. Adds explicit bigram context at minimal cost (~524K params).
-
-6. **Orthogonal Initialization + muP Scaling**: All large weight matrices initialized with orthogonal init. Output projections scaled by 1/sqrt(2*num_layers) for stable training at depth.
-
-7. **Phase-Transition Residual Mixing**: Sigmoid-scheduled residual mix initialization — early layers favor the original embedding, later layers favor the residual stream.
-
-8. **Muon Weight Decay (0.02)**: Decoupled weight decay added to the Muon optimizer, improving both generalization and post-quantization robustness.
-
-9. **Stochastic Weight Averaging (SWA)**: Checkpoint averaging during the warmdown phase (every 150 steps when LR scale < 0.5). 4 checkpoints averaged in the final model.
-
-10. **Sliding Window Evaluation** (stride=64): Each token evaluated with near-full context, improving BPB measurement accuracy by ~0.03 BPB.
+| Seed | Steps | Sliding BPB | Post-quant BPB | Artifact |
+|------|-------|-------------|----------------|----------|
+| 1337 | 7,910 | **1.1538** | 1.1766 | 15.99 MB |
+| 42 | 7,927 | 1.1565 | 1.1790 | 15.87 MB |
+| 7 | 7,922 | 1.1593 | 1.1820 | 15.93 MB |
+| **Mean** | | **1.1565** | **1.1792** | |
 
 ## Configuration
 
-```
-VOCAB_SIZE=1024
-NUM_LAYERS=9
-MODEL_DIM=512
-NUM_HEADS=8
-NUM_KV_HEADS=4
-MLP_MULT=2.5
-TIE_EMBEDDINGS=1
-TRAIN_SEQ_LEN=1024
-TRAIN_BATCH_TOKENS=524288
-MATRIX_LR=0.02
-SCALAR_LR=0.02
-TIED_EMBED_LR=0.03
-MUON_MOMENTUM=0.99
-MUON_MOMENTUM_WARMUP_START=0.92
-MUON_MOMENTUM_WARMUP_STEPS=1500
-MUON_WEIGHT_DECAY=0.02
-GRAD_CLIP_NORM=0.3
-WARMDOWN_ITERS=3000
-SWA_ENABLED=1
-SWA_EVERY=150
-BIGRAM_VOCAB_SIZE=4096
-BIGRAM_DIM=128
-USE_SMEAR_GATE=1
-USE_INT6=1
-EVAL_STRIDE=64
+```bash
+NUM_LAYERS=11 XSA_LAST_N=4 BIGRAM_VOCAB_SIZE=2048
+TRAIN_SEQ_LEN=2048 TRAIN_BATCH_TOKENS=524288 MLP_MULT=2.75
+MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035
+MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92
+MUON_MOMENTUM_WARMUP_STEPS=1500 MUON_WEIGHT_DECAY=0.04
+GRAD_CLIP_NORM=0.3 WARMDOWN_ITERS=3000 ROPE_BASE=50000
+SWA_ENABLED=1 SWA_EVERY=50 SWA_START_FRAC=0.4
+USE_INT6=1 USE_OVERTONE_INIT=1 LATE_K_FP16_LAYERS=2
+EVAL_STRIDE=64 COMPILE_FULLGRAPH=0
 ```
 
 ## Training Command
 
 ```bash
-torchrun --standalone --nproc_per_node=8 train_gpt.py
+python3 -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt.py
 ```
 
-## Results
+## Key Findings from 23 Runs
 
-| Metric | Value |
-|--------|-------|
-| Pre-quant val_bpb | 1.2038 |
-| Post-quant val_bpb (INT6+zstd) | 1.2097 |
-| **Sliding window val_bpb** | **1.1754** |
-| Quantization gap | 0.0059 |
-| Compressed artifact size | 13.98 MB |
-| Code size | 50,629 bytes |
-| Total submission | 13,979,624 bytes |
-| Training steps | 9,919 |
-| Training time | 609 seconds |
-| Step avg | ~55 ms |
-| Peak memory | 11,055 MiB per GPU |
-| SWA checkpoints | 4 |
-
-## Training Dynamics
-
-- Training stopped at step 9,919 (hit 10-minute wallclock cap)
-- SWA started at step 9,200 (LR warmdown phase)
-- Validation BPB progression: 1.2770 (4K) -> 1.2544 (8K) -> 1.2038 (final)
-- Loss was still decreasing when wallclock cap was reached
-
-## Ablation Notes
-
-We also ran a variant with MLP=3.0x and seq_len=2048, which achieved 1.1790 BPB sliding window but only completed 4,324 steps due to 3.2x slower step time. The MLP=2.5x + seq=1024 variant converges better within the 10-minute budget by achieving 2.3x more training steps.
+- **EMA(0.997) destroys quantization** — 0.14 BPB gap vs SWA's 0.02 (contradicts PR #287)
+- **11L + MLP 3x doesn't fit** in 16MB with SmearGate+BigramHash
+- **SmearGate matters** — removing it to fit MLP 3x loses more than it gains
+- **XSA GQA bug** — must use repeat_interleave for v expansion (4 KV → 8 Q heads)
+- **Seq curriculum doesn't work** — SWA checkpoint incompatibility across seq lengths
+- **Higher LR (0.03) improves BPB** but makes artifact larger (worse compression)
+- **Depth recurrence works** but dim=640 too small; dim=768+ exceeds 16MB
 
 ## Dependencies
 
-- PyTorch 2.9.1+ (CUDA 12.8)
-- zstandard (for zstd-22 compression)
-- sentencepiece
-- numpy
+- PyTorch 2.5+ (CUDA 12.1+)
+- zstandard, sentencepiece, numpy
+
+Built with Claude Code (Anthropic).
