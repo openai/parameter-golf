@@ -1,0 +1,15 @@
+{
+    "author": "bopmite",
+    "github_id": "bopmite",
+    "val_bpb": 1.16088376,
+    "val_loss": 1.96009842,
+    "bytes_model": 13908297,
+    "bytes_code": 69336,
+    "bytes_total": 13977633,
+    "architecture": "11L 512d 3xMLP int6 XSA4 EMA PartialRoPE LNScale LateQAT + Online Logit Bias",
+    "tokenizer": "sp1024",
+    "training_time_minutes": 10,
+    "gpu_config": "8xH100 SXM",
+    "steps": 7620,
+    "seed": 1337
+}
