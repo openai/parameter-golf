@@ -60,11 +60,11 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 12 if _RUN_CONFIG == "C" else 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 3))
+    mlp_mult = int(os.environ.get("MLP_MULT", 2 if _RUN_CONFIG == "C" else 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -86,7 +86,7 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
-    swa_every = int(os.environ.get("SWA_EVERY", 200))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -804,6 +804,31 @@ class Block(nn.Module):
         return x
 
 
+class SmearGate(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gate = nn.Parameter(torch.full((dim,), 3.0, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        g = torch.sigmoid(self.gate).to(dtype=x.dtype)
+        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
+        return g * x + (1.0 - g) * x_prev
+
+
+class BigramHash(nn.Module):
+    def __init__(self, num_buckets: int, hash_dim: int, model_dim: int):
+        super().__init__()
+        self.num_buckets = num_buckets
+        self.table = nn.Embedding(num_buckets, hash_dim)
+        self.proj = CastedLinear(hash_dim, model_dim, bias=False)
+        nn.init.normal_(self.table.weight, std=0.01)
+
+    def forward(self, input_ids: Tensor) -> Tensor:
+        prev_ids = torch.cat([torch.zeros_like(input_ids[:, :1]), input_ids[:, :-1]], dim=1)
+        h = ((prev_ids.long() * 92821 + input_ids.long()) % self.num_buckets).long()
+        return self.proj(self.table(h))
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -827,10 +852,13 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.encoder_recurrence = bool(int(os.environ.get("ENCODER_RECURRENCE", "1")))
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.bigram_hash = BigramHash(4096, 64, model_dim)
+        self.smear_gate = SmearGate(model_dim)
+        pre_enrich_hidden = model_dim * 3 // 2
         self.pre_enrich = nn.Sequential(
-            CastedLinear(model_dim, model_dim, bias=False),
+            CastedLinear(model_dim, pre_enrich_hidden, bias=False),
             nn.GELU(),
-            CastedLinear(model_dim, model_dim, bias=False),
+            CastedLinear(pre_enrich_hidden, model_dim, bias=False),
         )
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -901,7 +929,8 @@ class GPT(nn.Module):
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        x = self.tok_emb(input_ids)
+        x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
+        x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -912,7 +941,8 @@ class GPT(nn.Module):
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
-        x = self.tok_emb(input_ids)
+        x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
+        x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -1055,6 +1085,7 @@ def main() -> None:
         if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
     matrix_params.extend(p for p in base_model.pre_enrich.parameters() if p.ndim == 2)
+    matrix_params.extend(p for p in base_model.bigram_hash.parameters() if p.ndim == 2)
     scalar_params = [
         p
         for name, p in block_named_params
@@ -1062,6 +1093,7 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    scalar_params.append(base_model.smear_gate.gate)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.AdamW(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -1170,7 +1202,7 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
-    swa_checkpoints: list[dict[str, Tensor]] = []
+    ema_state = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1243,8 +1275,9 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
-        if scale < 1.0 and args.swa_every > 0 and step % args.swa_every == 0:
-            swa_checkpoints.append({k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()})
+        with torch.no_grad():
+            for k, v in base_model.state_dict().items():
+                ema_state[k].mul_(args.ema_decay).add_(v.detach().cpu().float(), alpha=1.0 - args.ema_decay)
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
             args.train_log_every > 0
@@ -1276,17 +1309,13 @@ def main() -> None:
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
-    if swa_checkpoints:
-        log0(f"swa: averaging {len(swa_checkpoints)} checkpoints")
-        avg_state = {}
-        for key in swa_checkpoints[0]:
-            avg_state[key] = torch.stack([ckpt[key].float() for ckpt in swa_checkpoints]).mean(dim=0)
-        base_model.load_state_dict(avg_state, strict=True)
-        for module in base_model.modules():
-            if isinstance(module, CastedLinear):
-                module.float()
-        restore_low_dim_params_to_fp32(base_model)
-        del swa_checkpoints
+    log0("ema: loading exponential moving average weights")
+    base_model.load_state_dict(ema_state, strict=True)
+    for module in base_model.modules():
+        if isinstance(module, CastedLinear):
+            module.float()
+    restore_low_dim_params_to_fp32(base_model)
+    del ema_state
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
