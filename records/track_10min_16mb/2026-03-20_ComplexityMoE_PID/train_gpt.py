@@ -619,8 +619,7 @@ class LearnedHashRouter(nn.Module):
         logits = self.proj(x)
         return logits.argmax(dim=-1)
 
-# Gather/scatter dispatch — opaque to torch.compile, enables fullgraph.
-@torch.compiler.allow_in_graph
+# Gather/scatter dispatch — each expert only computes its routed tokens.
 def _moe_gather_scatter(flat_x: Tensor, flat_ids: Tensor,
                         weights_list: list[Tensor], num_experts: int,
                         activation: str, expert_inter: int) -> Tensor:
@@ -1131,7 +1130,7 @@ def main() -> None:
         if isinstance(module, Rotary):
             module.inv_freq.data = module.inv_freq.data.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
