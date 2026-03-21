@@ -63,9 +63,41 @@ Combine 4 novel techniques that nobody has combined in the competition yet:
 - Note: QAT did NOT activate (bug with wallclock=0, now fixed)
 - Note: OGD was disabled for this test
 
-### Key observations:
+### Key observations from 2000-step test:
 - 1.2517 bpb at only 2000 steps already beats baseline (1.2244)!
 - FTLE tracked 98 tensors over 20 gradient samples
 - 12L is learning well even at reduced step count
 - Quant gap of 0.0203 is large — QAT should reduce this significantly
-- OGD eval should give additional free improvement
+
+### 2026-03-21 04:10 UTC — Full 7900-step run started (1xH100, QAT + OGD)
+- Simulating 8xH100 10min (7900 steps at est. ~76ms/step on 8xH100)
+- QAT enabled at step 790 (10% of training), int7 fake quantization
+- OGD eval enabled (stride=64, lr=0.1)
+- WARMDOWN_ITERS=2000
+
+### 2026-03-21 05:30 UTC — 7900-step training COMPLETE, eval killed (1xH100)
+- **Pre-quant val_bpb: 1.2035** at step 7900!
+
+Training curve:
+| Step | val_bpb | Note |
+|------|---------|------|
+| 1000 | 1.3799 | QAT just enabled at 790 |
+| 2000 | 1.3285 | |
+| 3000 | 1.3106 | |
+| 4000 | 1.2980 | |
+| 5000 | 1.2935 | |
+| 6000 | 1.2852 | Warmdown started at 5900 |
+| 7000 | 1.2447 | |
+| 7900 | **1.2035** | Final |
+
+- Step time: ~616ms/step (est. ~77ms on 8xH100 → ~7800 steps in 10min)
+- QAT overhead: ~6% step time increase (615→654ms at activation)
+- FTLE: 98 tensors over 79 gradient samples
+- Compression: int6.0 avg bits → **15.5MB** (under 16MB cap)
+- Quant gap TBD — OGD eval was killed due to extreme slowness
+
+### Issue: OGD eval too slow
+- OGD requires gradient tracking through [256, 1024, 1024] logits tensor
+- Memory jumps from 17GB to 28GB during OGD eval
+- Estimated 30-60 min for full eval — unacceptable
+- Need to either disable OGD or make it batch-efficient
