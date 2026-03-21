@@ -342,21 +342,23 @@ def propose_modification(client, model: str, prompt: str) -> dict:
     print(f"  Calling {model} for proposal...")
     t0 = time.time()
 
-    response = client.chat.completions.create(
+    response = client.responses.create(
         model=model,
         reasoning={"effort": "high"},
-        messages=[{"role": "user", "content": prompt}],
+        input=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
-        max_completion_tokens=32000,  # Full script is ~13k tokens; give headroom
+        max_output_tokens=32000,
     )
 
     elapsed = time.time() - t0
-    text = response.choices[0].message.content
-    usage = response.usage
-    print(
-        f"  LLM responded in {elapsed:.1f}s "
-        f"(input={usage.prompt_tokens}, output={usage.completion_tokens} tokens)"
-    )
+    text = response.output_text
+    usage = getattr(response, "usage", None)
+    if usage:
+        in_toks = getattr(usage, "input_tokens", getattr(usage, "prompt_tokens", 0))
+        out_toks = getattr(usage, "output_tokens", getattr(usage, "completion_tokens", 0))
+        print(f"  LLM responded in {elapsed:.1f}s (input={in_toks}, output={out_toks} tokens)")
+    else:
+        print(f"  LLM responded in {elapsed:.1f}s")
 
     try:
         return json.loads(text)
