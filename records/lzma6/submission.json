@@ -1,0 +1,17 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "best_record_lzma6",
+  "author": "lee101",
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.97916121,
+      "val_bpb": 1.17217075,
+      "steps": 12196
+    }
+  },
+  "mean_val_loss": 1.97916121,
+  "mean_val_bpb": 1.17217075,
+  "artifact_bytes": 15310330,
+  "code_bytes": 58414
+}
