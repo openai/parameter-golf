@@ -101,9 +101,19 @@ class Hyperparameters:
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
-    # Stochastic Weight Averaging: average checkpoints from late warmdown for smoother weights.
-    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
-    swa_every = int(os.environ.get("SWA_EVERY", 50))
+    # EMA: exponential moving average of weights for smoother final model.
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+
+    # Partial RoPE: apply rotary embeddings to only a fraction of head dims.
+    rope_dims = int(os.environ.get("ROPE_DIMS", 16))  # out of head_dim (64)
+
+    # LN Scale: damp deeper layers by 1/sqrt(layer_idx+1).
+    ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
+
+    # Late QAT: enable fake int6 quantization (STE) in the final phase of training.
+    late_qat = bool(int(os.environ.get("LATE_QAT", "1")))
+    qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.1))  # lr_scale below this triggers QAT
 
     # Sliding window evaluation.
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", train_seq_len))
@@ -707,11 +717,30 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
+class _FakeQuantInt6STE(torch.autograd.Function):
+    """Fake int6 quantization with straight-through estimator for Late QAT."""
+    @staticmethod
+    def forward(ctx, w: Tensor) -> Tensor:
+        w32 = w.float()
+        abs_max = w32.abs().amax(dim=1, keepdim=True).clamp_min(1e-12)
+        scale = abs_max / 31.0
+        q = torch.clamp(torch.round(w32 / scale), -32, 31)
+        return (q * scale).to(w.dtype)
+    @staticmethod
+    def backward(ctx, grad_output: Tensor) -> Tensor:
+        return grad_output
+
+_fake_quant_int6 = _FakeQuantInt6STE.apply
+
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
+    qat: bool = False
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if self.qat and self.training and w.ndim == 2:
+            w = _fake_quant_int6(w)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -761,6 +790,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        rope_dims: int = 0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -772,6 +802,9 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
+        # Partial RoPE: only apply rotary to first rope_dims of each head.
+        # Remaining dims use position-free attention (content-only).
+        self.rope_dims = rope_dims if rope_dims > 0 else self.head_dim
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
@@ -779,7 +812,7 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(self.rope_dims, base=rope_base)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -789,15 +822,19 @@ class CausalSelfAttention(nn.Module):
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
+        rd = self.rope_dims
+        if rd < self.head_dim:
+            # Apply RoPE only to first rd dims, leave the rest position-free.
+            q_rope = apply_rotary_emb(q[..., :rd], cos, sin)
+            k_rope = apply_rotary_emb(k[..., :rd], cos, sin)
+            q = torch.cat([q_rope, q[..., rd:]], dim=-1)
+            k = torch.cat([k_rope, k[..., rd:]], dim=-1)
+        else:
+            q = apply_rotary_emb(q, cos, sin)
+            k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
+            q, k, v, attn_mask=None, is_causal=True,
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
@@ -867,11 +904,14 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        rope_dims: int = 0,
+        ln_scale: float = 1.0,
     ):
         super().__init__()
+        self.ln_scale = ln_scale
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims=rope_dims)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -880,9 +920,10 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        s = self.ln_scale
+        attn_out = self.attn(self.attn_norm(x) * s)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * s)
         return x
 
 
@@ -922,6 +963,8 @@ class GPT(nn.Module):
         num_memory_tokens: int = 0,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
+        rope_dims: int = 0,
+        ln_scale: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -949,6 +992,8 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    rope_dims=rope_dims,
+                    ln_scale=1.0 / math.sqrt(i + 1) if ln_scale else 1.0,
                 )
                 for i in range(num_layers)
             ]
@@ -1173,6 +1218,8 @@ def main() -> None:
         num_memory_tokens=args.num_memory_tokens,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
+        rope_dims=args.rope_dims,
+        ln_scale=args.ln_scale,
     ).to(device).bfloat16()
     if args.mtp_num_heads > 0:
         base_model.mtp_heads = MTPHeads(
@@ -1344,9 +1391,10 @@ def main() -> None:
     training_time_ms = 0.0
     stop_after_step: int | None = None
 
-    # SWA: accumulate weight snapshots during late warmdown for a smoother final model.
-    swa_sum: dict[str, Tensor] | None = None
-    swa_count = 0
+    # EMA: keep an exponential moving average of weights for a smoother final model.
+    ema_sd: dict[str, Tensor] | None = None
+    if args.ema_enabled:
+        ema_sd = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
 
     torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -1424,16 +1472,18 @@ def main() -> None:
 
         step += 1
 
-        # SWA: collect snapshots during the last swa_start_frac of warmdown.
-        # We use lr_mul < swa_start_frac as proxy for "in late warmdown".
-        if scale < args.swa_start_frac and step % args.swa_every == 0:
-            sd = base_model.state_dict()
-            if swa_sum is None:
-                swa_sum = {k: v.detach().cpu().clone().float() for k, v in sd.items()}
-            else:
-                for k, v in sd.items():
-                    swa_sum[k] += v.detach().cpu().float()
-            swa_count += 1
+        # EMA: update running average every step.
+        if ema_sd is not None:
+            d = args.ema_decay
+            with torch.no_grad():
+                for k, v in base_model.state_dict().items():
+                    ema_sd[k].mul_(d).add_(v.detach().cpu().float(), alpha=1.0 - d)
+
+        # Late QAT: enable fake int6 quantization when LR is low enough.
+        if args.late_qat and scale < args.qat_threshold:
+            for m in base_model.modules():
+                if isinstance(m, CastedLinear):
+                    m.qat = True
 
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
@@ -1466,14 +1516,16 @@ def main() -> None:
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
-    # Apply SWA averaged weights if we collected any snapshots.
-    if swa_sum is not None and swa_count > 1:
-        log0(f"swa: averaging {swa_count} checkpoints")
-        avg_sd = {k: (v / swa_count).to(base_model.state_dict()[k].dtype)
-                  for k, v in swa_sum.items()}
+    # Apply EMA weights for export — smoother than final training weights.
+    if ema_sd is not None:
+        log0("ema: loading averaged weights for export")
+        avg_sd = {k: v.to(base_model.state_dict()[k].dtype) for k, v in ema_sd.items()}
         base_model.load_state_dict(avg_sd, strict=True)
-    else:
-        log0("swa: no checkpoints collected, using final weights")
+
+    # Disable QAT for eval.
+    for m in base_model.modules():
+        if isinstance(m, CastedLinear):
+            m.qat = False
 
     # Strip MTP auxiliary heads before export — training only.
     if base_model.mtp_heads is not None:
