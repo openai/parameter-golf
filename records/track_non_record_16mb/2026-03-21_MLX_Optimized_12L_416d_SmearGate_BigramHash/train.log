@@ -1,0 +1,10 @@
+=== OPTIMIZED MLX Training ===
+Model: 12L, dim=416, mlp=3x
+Train: 500 iters, batch=32768
+Features: SmearGate=True, BigramHash=4096, FP16_embed=True
+Optimizer: LR=0.02, WD=0.02, Muon WD
+Val tokens: 49153, Train shards: 1
+Model params: 19,716,545
+Step 1/500 | train_loss: 6.9283 | tok/s: 9419 | elapsed: 3.5s
+Step 2/500 | train_loss: 6.9272 | tok/s: 5586 | elapsed: 11.7s
+Step 3/500 | train_loss: 6.9328 | tok/s: 4886 | elapsed: 20.1s
