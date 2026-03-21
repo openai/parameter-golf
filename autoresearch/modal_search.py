@@ -110,13 +110,41 @@ def upload_data():
 
 
 # ---------------------------------------------------------------------------
+# Submission-grade H100x8 trial (matches challenge hardware)
+# ---------------------------------------------------------------------------
+
+@app.function(
+    image=cuda_image,
+    volumes={VOLUME_PATH: volume, RESULTS_PATH: results_volume},
+    gpu="H100:8",
+    timeout=1 * HOURS,
+    retries=modal.Retries(max_retries=1, initial_delay=0.0),
+)
+def run_h100x8_trial(
+    run_id: str,
+    config: dict[str, str],
+    nproc: int = 8,
+    mode: str = "preset",
+    preset: str = "",
+    code_mutation: str = "",
+    parents: list[str] | None = None,
+    description: str = "",
+) -> dict[str, Any]:
+    """Run a trial on 8xH100 — matches the challenge submission hardware."""
+    # Reuse the same logic as run_gpu_trial
+    return _run_trial_impl(
+        run_id, config, nproc, mode, preset, code_mutation, parents, description,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Single training trial on GPU
 # ---------------------------------------------------------------------------
 
 @app.function(
     image=cuda_image,
     volumes={VOLUME_PATH: volume, RESULTS_PATH: results_volume},
-    gpu="A10G",
+    gpu=["H100", "A100-80GB", "A100-40GB", "A10G"],
     timeout=1 * HOURS,
     retries=modal.Retries(max_retries=1, initial_delay=0.0),
 )
@@ -130,11 +158,21 @@ def run_gpu_trial(
     parents: list[str] | None = None,
     description: str = "",
 ) -> dict[str, Any]:
-    """Run a single training trial on a Modal GPU container.
+    """Run a single training trial on a Modal GPU container."""
+    return _run_trial_impl(run_id, config, nproc, mode, preset, code_mutation, parents, description)
 
-    Returns a dict with trial results (val_bpb, val_loss, total_bytes, etc.)
-    compatible with the local autoresearch TrialResult format.
-    """
+
+def _run_trial_impl(
+    run_id: str,
+    config: dict[str, str],
+    nproc: int = 1,
+    mode: str = "preset",
+    preset: str = "",
+    code_mutation: str = "",
+    parents: list[str] | None = None,
+    description: str = "",
+) -> dict[str, Any]:
+    """Shared trial implementation for all GPU tiers."""
     import re
     import subprocess
     import sys
@@ -326,9 +364,12 @@ def main(
 
     print(f"\nDispatching {len(trial_inputs)} trials to Modal ({gpu})...\n")
 
+    # Select the right function based on GPU tier
+    trial_fn = run_h100x8_trial if gpu.lower() == "h100x8" else run_gpu_trial
+
     # Launch all trials in parallel via starmap
     results = []
-    for result in run_gpu_trial.starmap(trial_inputs, order_outputs=False):
+    for result in trial_fn.starmap(trial_inputs, order_outputs=False):
         results.append(result)
         status = result["status"]
         bpb = result["val_bpb"]

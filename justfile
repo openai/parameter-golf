@@ -81,19 +81,19 @@ modal-upload-data:
 
 modal-sweep-preset trials="8" gpu="A10G" seed="1337" preset="":
     @if [ -n "{{preset}}" ]; then \
-        modal run autoresearch/modal_search.py --mode preset --trials {{trials}} --gpu {{gpu}} --seed {{seed}} --preset {{preset}}; \
+        modal run autoresearch/modal_search.py::main --mode preset --trials {{trials}} --gpu {{gpu}} --seed {{seed}} --preset {{preset}}; \
     else \
-        modal run autoresearch/modal_search.py --mode preset --trials {{trials}} --gpu {{gpu}} --seed {{seed}}; \
+        modal run autoresearch/modal_search.py::main --mode preset --trials {{trials}} --gpu {{gpu}} --seed {{seed}}; \
     fi
 
 modal-sweep-random trials="10" gpu="A10G" seed="1337":
-    modal run autoresearch/modal_search.py --mode random --trials {{trials}} --gpu {{gpu}} --seed {{seed}}
+    modal run autoresearch/modal_search.py::main --mode random --trials {{trials}} --gpu {{gpu}} --seed {{seed}}
 
 modal-sweep-evolution trials="6" gpu="A10G" seed="1337" population="6":
-    modal run autoresearch/modal_search.py --mode evolution --trials {{trials}} --gpu {{gpu}} --seed {{seed}} --population {{population}}
+    modal run autoresearch/modal_search.py::main --mode evolution --trials {{trials}} --gpu {{gpu}} --seed {{seed}} --population {{population}}
 
-modal-sweep-h100 trials="8" seed="1337":
-    modal run autoresearch/modal_search.py --mode preset --trials {{trials}} --gpu h100 --seed {{seed}} --baseline-first
+modal-sweep-h100x8 trials="8" seed="1337":
+    modal run autoresearch/modal_search.py::main --mode preset --trials {{trials}} --gpu h100x8 --nproc 8 --seed {{seed}} --baseline-first
 
 autoresearch-code-cuda trials="5" nproc="1" seed="1337" mutation="":
     @if [ -n "{{mutation}}" ]; then \
