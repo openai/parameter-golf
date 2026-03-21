@@ -41,6 +41,7 @@ class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
+    tokenizer_backend = os.environ.get("TOKENIZER_BACKEND", "sp1024").strip().lower()
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
@@ -60,7 +61,8 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
-    vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
+    _default_vocab_size = 1024 if tokenizer_backend == "sp1024" else 256
+    vocab_size = int(os.environ.get("VOCAB_SIZE", _default_vocab_size))
     num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
@@ -203,13 +205,30 @@ def build_sentencepiece_luts(
         torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
     )
 
+def build_byte_token_luts(vocab_size: int, device: torch.device) -> tuple[Tensor, Tensor, Tensor]:
+    if vocab_size != 256:
+        raise ValueError(f"Byte tokenizer backend requires VOCAB_SIZE=256, got {vocab_size}")
+    return (
+        torch.ones((vocab_size,), dtype=torch.int16, device=device),
+        torch.zeros((vocab_size,), dtype=torch.bool, device=device),
+        torch.zeros((vocab_size,), dtype=torch.bool, device=device),
+    )
 
-def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
+
+def token_dtype_bytes_for_backend(tokenizer_backend: str) -> int:
+    if tokenizer_backend == "sp1024":
+        return 2
+    if tokenizer_backend == "bytes":
+        return 1
+    raise ValueError(f"Unknown TOKENIZER_BACKEND={tokenizer_backend!r}. Expected one of: sp1024, bytes")
+
+
+def load_validation_tokens(pattern: str, seq_len: int, token_dtype_bytes: int) -> Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
     # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
-    tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+    tokens = torch.cat([load_data_shard(file, token_dtype_bytes=token_dtype_bytes) for file in files]).contiguous()
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
     if usable <= 0:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
@@ -426,18 +445,23 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 # DATA LOADING 
 # -----------------------------
 
-def load_data_shard(file: Path) -> Tensor:
+def load_data_shard(file: Path, token_dtype_bytes: int) -> Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
-    token_bytes = np.dtype("<u2").itemsize
     header = np.fromfile(file, dtype="<i4", count=256)
     # SHARD HEADER INTS & SHARD_MAGIC
     if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
         raise ValueError(f"Unexpected shard header for {file}")
     num_tokens = int(header[2])
-    expected_size = header_bytes + num_tokens * token_bytes
+    if token_dtype_bytes == 1:
+        token_dtype = np.dtype("u1")
+    elif token_dtype_bytes == 2:
+        token_dtype = np.dtype("<u2")
+    else:
+        raise ValueError(f"Unsupported token_dtype_bytes={token_dtype_bytes}; expected 1 or 2")
+    expected_size = header_bytes + num_tokens * token_dtype.itemsize
     if file.stat().st_size != expected_size:
         raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
-    tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
+    tokens_np = np.fromfile(file, dtype=token_dtype, count=num_tokens, offset=header_bytes)
     if tokens_np.size != num_tokens:
         raise ValueError(f"Short read for {file}")
     return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
@@ -446,17 +470,18 @@ def load_data_shard(file: Path) -> Tensor:
 class TokenStream:
     # Reads shards sequentially and wraps around forever. The training loop therefore
     # has deterministic, simple streaming behavior with no sampling or workers.
-    def __init__(self, pattern: str):
+    def __init__(self, pattern: str, token_dtype_bytes: int):
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
         if not self.files:
             raise FileNotFoundError(f"No files found for pattern: {pattern}")
+        self.token_dtype_bytes = token_dtype_bytes
         self.file_idx = 0
-        self.tokens = load_data_shard(self.files[0])
+        self.tokens = load_data_shard(self.files[0], token_dtype_bytes=self.token_dtype_bytes)
         self.pos = 0
 
     def _advance_file(self) -> None:
         self.file_idx = (self.file_idx + 1) % len(self.files)
-        self.tokens = load_data_shard(self.files[self.file_idx])
+        self.tokens = load_data_shard(self.files[self.file_idx], token_dtype_bytes=self.token_dtype_bytes)
         self.pos = 0
 
     def take(self, n: int) -> Tensor:
@@ -477,11 +502,11 @@ class TokenStream:
 class DistributedTokenLoader:
     # Each call consumes a contiguous chunk from the shared token stream, then slices out
     # one disjoint span per rank. The extra "+1" token lets us build (x, y) by shifting.
-    def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
+    def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device, token_dtype_bytes: int):
         self.rank = rank
         self.world_size = world_size
         self.device = device
-        self.stream = TokenStream(pattern)
+        self.stream = TokenStream(pattern, token_dtype_bytes=token_dtype_bytes)
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
         local_tokens = global_tokens // (self.world_size * grad_accum_steps)
@@ -802,22 +827,34 @@ def main() -> None:
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    if not args.tokenizer_path.endswith(".model"):
-        raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
-    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
-    if int(sp.vocab_size()) != args.vocab_size:
+    token_dtype_bytes = token_dtype_bytes_for_backend(args.tokenizer_backend)
+    if args.tokenizer_backend == "sp1024":
+        if not args.tokenizer_path.endswith(".model"):
+            raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
+        sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+        if int(sp.vocab_size()) != args.vocab_size:
+            raise ValueError(
+                f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+            )
+        base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+            sp, args.vocab_size, device
+        )
+        log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    elif args.tokenizer_backend == "bytes":
+        base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_byte_token_luts(args.vocab_size, device)
+        log0("val_bpb:enabled tokenizer_kind=bytes token_id_range=0..255")
+    else:
         raise ValueError(
-            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+            f"Unknown TOKENIZER_BACKEND={args.tokenizer_backend!r}. Expected one of: sp1024, bytes"
         )
     dataset_dir = Path(args.data_path).resolve()
     actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
-    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
-        sp, args.vocab_size, device
-    )
-    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len, token_dtype_bytes=token_dtype_bytes)
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
-    log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+    log0(
+        f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1} "
+        f"token_dtype_bytes:{token_dtype_bytes}"
+    )
 
     # -----------------------------
     # MODEL + OPTIMIZER SETUP
@@ -913,7 +950,9 @@ def main() -> None:
     # DATA LOADER & MODEL WARMUP
     # -----------------------------
 
-    train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    train_loader = DistributedTokenLoader(
+        args.train_files, rank, world_size, device, token_dtype_bytes=token_dtype_bytes
+    )
 
     def zero_grad_all() -> None:
         for opt in optimizers:
@@ -958,7 +997,9 @@ def main() -> None:
         zero_grad_all()
         if distributed:
             model.require_backward_grad_sync = True
-        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+        train_loader = DistributedTokenLoader(
+            args.train_files, rank, world_size, device, token_dtype_bytes=token_dtype_bytes
+        )
 
     # -----------------------------
     # MAIN TRAINING LOOP
