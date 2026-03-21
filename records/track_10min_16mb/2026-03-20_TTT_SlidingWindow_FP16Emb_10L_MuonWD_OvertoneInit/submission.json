@@ -1,0 +1,14 @@
+{
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "val_bpb": null,
+    "track": "10min_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "compressed_model_bytes": null,
+    "code_bytes": null,
+    "total_artifact_bytes": null,
+    "description": "Combines current SOTA training recipe (10L, Muon WD, FP16 tied embed, overtone spectral init, phase-transition resid_mix, sliding window eval stride=64) with LoRA test-time training (per-document adaptation at eval time). First submission to stack both orthogonal improvements.",
+    "date": "2026-03-20"
+}
