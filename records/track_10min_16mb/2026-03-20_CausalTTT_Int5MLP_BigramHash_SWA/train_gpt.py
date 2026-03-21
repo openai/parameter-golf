@@ -107,11 +107,11 @@ class Hyperparameters:
     int5_mlp = bool(int(os.environ.get("INT5_MLP", "1")))
     int5_all = bool(int(os.environ.get("INT5_ALL", "1")))  # int5 for ALL weight categories
     quant_other = bool(int(os.environ.get("QUANT_OTHER", "1")))  # include 'other' in quantized set
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 3))  # XSA on last N layers (0=disabled)
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 5))  # XSA on last N layers (0=disabled)
 
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.004))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 12))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 15))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_freeze_layers = int(os.environ.get("TTT_FREEZE_LAYERS", 0))
