@@ -872,13 +872,15 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
+        mlp_mult_enc = int(os.environ.get("MLP_MULT_ENCODER", 2))
+        mlp_mult_dec = int(os.environ.get("MLP_MULT_DECODER", mlp_mult))
         self.blocks = nn.ModuleList(
             [
                 Block(
                     model_dim,
                     num_heads,
                     num_kv_heads,
-                    mlp_mult,
+                    mlp_mult_enc if i < self.num_encoder_layers else mlp_mult_dec,
                     rope_base,
                     qk_gain_init,
                     use_xsa=(i >= num_layers - xsa_last_n),
