@@ -1,26 +1,24 @@
 # Parameter Golf Autoresearch Program
 
 ## Mission
-Improve the current `train_gpt.py` in this repository using disciplined, reversible experiments.
+Improve the current root `train_gpt.py` in this repository using disciplined, reversible experiments.
 
 Primary objective:
-- Minimize `final_int8_ttt_lora` `val_bpb` when test-time training is enabled.
+- Minimize `final_int8_zlib_roundtrip_exact` `val_bpb`.
 
-Secondary objectives:
-- Keep `final_int8_zlib_roundtrip_exact` competitive.
+Constraints:
 - Keep total submission size under `16_000_000` bytes.
-- Keep evaluation cost reasonable enough that improvements are not purely bought with excessive eval time.
+- Keep training within the intended wallclock budget for the run mode.
+- Prefer changes that are likely to transfer from search hardware to stronger reproduction hardware.
 
 ## Current State
-- The active trainer is the current root `train_gpt.py`, not the naive baseline copy under `records/`.
-- The current trainer already includes LoRA-based test-time training.
-- A smoke test on a Runpod `RTX 5090` worked end to end:
+- The active trainer is the current root `train_gpt.py`, not the frozen copies under `records/`.
+- The repo is currently back on the simpler baseline-style trainer, without the TTT-specific focus.
+- A smoke test on a Runpod `RTX 5090` proved the remote setup path works:
+  - repo clone and venv setup worked
+  - FineWeb shard download worked
   - training completed under a short wallclock cap
-  - static quantized eval completed
-  - TTT eval completed
-- Main observation from the smoke test:
-  - training and static eval are cheap
-  - TTT eval is the dominant cost
+  - static quantized evaluation completed successfully
 
 ## Operating Model
 Use a two-role workflow:
@@ -38,24 +36,24 @@ Use a two-role workflow:
 - Can be stopped between sessions to save money.
 
 ## Cloud Session Strategy
-For now, use one long-lived worker with a persistent volume.
+For now, prefer one persistent-volume worker over many short-lived workers.
 
 Why:
-- dataset downloads are non-trivial to repeat
-- Python dependency setup is slow enough to be annoying
-- a persistent worker keeps the feedback loop tight
+- dataset downloads are annoying to repeat
+- Python dependency setup takes time
+- keeping one warm worker makes the experiment loop much tighter
 
 Recommended pod shape:
 - `1x RTX 5090`
 - SSH enabled
 - no Jupyter
 - no volume encryption unless specifically needed
-- persistent volume attached at `/workspace`
+- persistent volume mounted at `/workspace`
 
 Use a fresh pod only when:
 - the current worker is broken
-- we want a clean environment reproduction
-- we want a second worker for parallel experiments
+- we need a clean reproduction
+- we intentionally want a second worker for parallel search
 
 ## Experiment Discipline
 Each experiment must have:
@@ -66,50 +64,51 @@ Each experiment must have:
 - one judgment
 
 Do not make large stack changes without intermediate evidence.
+Do not mix unrelated ideas in a single run unless we are explicitly testing an interaction.
 
 Preferred experiment families:
-- `ttt_scope`
-- `ttt_budget`
-- `ttt_optimizer`
-- `base_model_tradeoff`
-- `quantization`
 - `batch_size`
 - `schedule`
+- `optimizer`
+- `architecture`
+- `quantization`
+- `precision_budget`
+- `context_length`
 
 ## Current Best Hypothesis Direction
-The best next search direction is likely:
+The most practical next search directions are:
 
-- preserve most of TTT's gain
-- while cutting TTT evaluation cost significantly
+- improve convergence within fixed wallclock
+- improve byte efficiency after quantization
+- improve parameter allocation inside the same size budget
 
 Concrete sub-hypotheses:
-- adapt fewer layers
-- adapt only `lm_head`
-- adapt only late blocks
-- reduce LoRA rank
-- increase chunk size or reduce update frequency
-- adapt selectively instead of uniformly
+- smaller or larger `TRAIN_BATCH_TOKENS` may improve the update-vs-noise tradeoff
+- longer warmdown or tuned Muon momentum may improve the final compressed model
+- a slightly different depth/width/MLP allocation may beat the default `9x512` layout
+- selective precision or export changes may reduce post-quant degradation
+- sequence length changes may improve quality enough to justify any throughput hit
 
 ## First Experiment Queue
 Start with these, in order:
 
-1. `ttt_scope/lm_head_only`
-- Hypothesis: most TTT gain comes from local output correction, not full Q/V adaptation.
+1. `batch_size/smaller_batch`
+- Hypothesis: fewer tokens per step may allow a better optimization tradeoff on single-GPU search hardware.
 
-2. `ttt_scope/late_blocks_only`
-- Hypothesis: adapting only late layers keeps most of the gain at lower eval cost.
+2. `batch_size/larger_batch`
+- Hypothesis: the current baseline may still be underusing stable large-batch training in the search regime.
 
-3. `ttt_budget/rank_4`
-- Hypothesis: LoRA rank `4` preserves enough adaptation quality while reducing compute.
+3. `schedule/longer_warmdown`
+- Hypothesis: a longer warmdown improves the final post-quant score more than it costs in earlier-step learning rate.
 
-4. `ttt_budget/chunk_512`
-- Hypothesis: larger chunk size lowers TTT update overhead with acceptable quality loss.
+4. `optimizer/muon_momentum`
+- Hypothesis: a slightly higher Muon momentum or longer momentum warmup will improve late-stage convergence.
 
-5. `ttt_budget/batch_tuning`
-- Hypothesis: TTT batch sizing can improve throughput on the 5090 without changing model quality.
+5. `architecture/mlp_mult_3`
+- Hypothesis: a wider MLP may improve parameter efficiency enough to outweigh the extra size after quantization.
 
-6. `base_model_tradeoff/smaller_base_more_ttt`
-- Hypothesis: a slightly weaker base model may win overall if it allows stronger or cheaper TTT.
+6. `architecture/depth_width_trade`
+- Hypothesis: a small change in `NUM_LAYERS` and `MODEL_DIM` can improve final `val_bpb` at roughly similar artifact size.
 
 ## Standard Run Modes
 Use three run modes:
@@ -118,20 +117,21 @@ Use three run modes:
 Purpose:
 - verify code path
 - catch crashes
-- confirm logging / parsing
+- confirm logging and parsing
 
 Suggested shape:
 - `MAX_WALLCLOCK_SECONDS=30-60`
 - reduced `TRAIN_BATCH_TOKENS`
 - `VAL_LOSS_EVERY=0`
+- `--train-shards 1`
 
 ### Search
 Purpose:
-- compare candidate hypotheses
+- compare candidate hypotheses cheaply
 
 Suggested shape:
 - `MAX_WALLCLOCK_SECONDS=300`
-- enough data shards to avoid obviously degenerate training
+- enough train shards to avoid obviously misleading results
 
 ### Confirm
 Purpose:
@@ -150,31 +150,36 @@ For every run, capture:
 - GPU type
 - wallclock budget
 - `final_int8_zlib_roundtrip_exact val_bpb`
-- `final_int8_ttt_lora val_bpb`
-- TTT eval time
 - static eval time
 - total submission size
+- train shard count
 - success / failure / invalid
+
+Optional but useful:
+- steps reached before wallclock stop
+- peak GPU memory
+- post-quant size margin to cap
 
 ## Keep / Reject Policy
 Promote a run only if:
 - it completes successfully
 - artifact size stays under the cap
 - target metric improves
-- eval-time growth is acceptable relative to the gain
+- the gain is meaningful relative to the added complexity
 
 Archive but do not promote if:
-- the result is interesting but too slow
-- it improves one metric while regressing another
+- the result is interesting but inconclusive
+- it improves one secondary metric while regressing the main one
+- it likely needs hardware-specific confirmation
 
 Reject if:
 - crash
 - missing final metrics
 - invalid size
-- improvement too small to justify complexity
+- no meaningful gain
 
 ## Notes For Future Sessions
 - Always inspect the current root `train_gpt.py` before starting a new branch of experiments.
 - Prefer modifying one mechanism at a time.
 - Treat the remote worker as disposable unless a persistent volume is attached.
-- Avoid mixing rule-sensitive ideas with ordinary model-improvement experiments in the same branch.
+- Keep the first phase focused on static-model improvements before returning to more complex eval-time tricks.
