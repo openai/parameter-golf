@@ -93,6 +93,10 @@ class Hyperparameters:
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
+    # SmearGate mode: "static" (original), "content" (ours), "multi" (look back 2 tokens)
+    smear_mode = os.environ.get("SMEAR_MODE", "content")
+    content_scale_init = float(os.environ.get("CONTENT_SCALE_INIT", 0.1))
+
 # -----------------------------
 # MUON OPTIMIZER
 # -----------------------------
@@ -573,26 +577,44 @@ class MLP(nn.Module):
 
 
 class SmearGate(nn.Module):
-    """Content-dependent blending of each token with its predecessor.
+    """Token blending with configurable gating modes.
 
-    Unlike the original static SmearGate (fixed gate per dimension), this
-    version modulates the gate using the similarity between adjacent tokens.
-    Similar tokens blend more (e.g. "New York"), dissimilar tokens blend less
-    (e.g. "cat ."). Zero extra parameters — uses dot-product similarity.
+    Modes:
+      - "static": Original fixed gate per dimension (baseline)
+      - "content": Gate modulated by dot-product similarity between adjacent tokens
+      - "multi": Content-dependent + second lookback (blends token t-2 as well)
     """
-    def __init__(self, dim: int):
+    def __init__(self, dim: int, mode: str = "content", content_scale_init: float = 0.5):
         super().__init__()
+        self.mode = mode
         self.gate = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
-        self.content_scale = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
-        self.inv_sqrt_dim = 1.0 / math.sqrt(dim)
+        if mode in ("content", "multi"):
+            self.content_scale = nn.Parameter(torch.tensor(content_scale_init, dtype=torch.float32))
+            self.inv_sqrt_dim = 1.0 / math.sqrt(dim)
+        if mode == "multi":
+            self.gate2 = nn.Parameter(torch.full((dim,), -2.0, dtype=torch.float32))  # weaker default for t-2
 
     def forward(self, x: Tensor) -> Tensor:
         x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
-        # Content-dependent modulation: similar adjacent tokens blend more
+
+        if self.mode == "static":
+            g = torch.sigmoid(self.gate.to(dtype=x.dtype))[None, None, :]
+            return (1 - g) * x + g * x_prev
+
+        # Content-dependent: similar adjacent tokens blend more
         similarity = (x * x_prev).sum(dim=-1, keepdim=True) * self.inv_sqrt_dim
         content_mod = self.content_scale.to(dtype=x.dtype) * similarity
         g = torch.sigmoid(self.gate.to(dtype=x.dtype)[None, None, :] + content_mod)
-        return (1 - g) * x + g * x_prev
+        out = (1 - g) * x + g * x_prev
+
+        if self.mode == "multi":
+            # Also blend with t-2 using a separate, weaker gate
+            x_prev2 = torch.cat([torch.zeros_like(x[:, :2]), x[:, :-2]], dim=1)
+            sim2 = (x * x_prev2).sum(dim=-1, keepdim=True) * self.inv_sqrt_dim
+            g2 = torch.sigmoid(self.gate2.to(dtype=x.dtype)[None, None, :] + self.content_scale.to(dtype=x.dtype) * sim2)
+            out = (1 - g2) * out + g2 * x_prev2
+
+        return out
 
 
 class BigramHashEmbedding(nn.Module):
@@ -658,6 +680,8 @@ class GPT(nn.Module):
         qk_gain_init: float,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
+        smear_mode: str = "content",
+        content_scale_init: float = 0.5,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -671,7 +695,7 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.smear = SmearGate(model_dim)
+        self.smear = SmearGate(model_dim, mode=smear_mode, content_scale_init=content_scale_init)
         self.blocks = nn.ModuleList(
             [
                 Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
@@ -927,6 +951,8 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
+        smear_mode=args.smear_mode,
+        content_scale_init=args.content_scale_init,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):

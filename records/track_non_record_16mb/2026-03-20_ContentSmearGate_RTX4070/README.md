@@ -33,7 +33,20 @@ Cost: 1 extra scalar parameter (`content_scale`), 1 dot product per position. Ze
 
 ## Results
 
-Local A/B on RTX 4070, identical settings (seed=42, 500 steps, batch=131072 tokens, no SWA, standard eval):
+### content_scale initialization sweep (200 steps, standard eval)
+
+| content_scale init | val_bpb | vs Static |
+|---|---|---|
+| **0.1** | **1.8962** | **-0.0825** |
+| 0.3 | 1.9133 | -0.0654 |
+| 0.5 | 1.9346 | -0.0441 |
+| Static (control) | 1.9787 | baseline |
+| 1.0 | 1.9910 | +0.0123 |
+| 2.0 | 2.1425 | +0.1638 |
+
+**Key finding: the content signal should be subtle (scale=0.1), not dominant.** Too much content modulation (≥1.0) hurts — the gate becomes too reactive and destabilizes early training. A light touch lets the model learn when blending helps without overwhelming the base gate.
+
+### Full run (500 steps, standard eval, content_scale=0.5)
 
 | Variant | val_bpb | ms/step | Artifact |
 |---------|---------|---------|----------|
@@ -41,12 +54,13 @@ Local A/B on RTX 4070, identical settings (seed=42, 500 steps, batch=131072 toke
 | **Content SmearGate** | **1.6795** | **958** | 15.80MB |
 | Delta | **-0.0285** | **-17.5%** | +0.23MB |
 
-The improvement is a combination of the architectural change and faster step time (content SmearGate compiles more efficiently, enabling more training in the same wall clock).
+Note: the 500-step run used content_scale=0.5 (before the sweep). The optimal init of 0.1 found in the sweep should yield further improvement at 500 steps.
 
 ## Run Command
 
 ```bash
 SEED=42 \
+CONTENT_SCALE_INIT=0.1 \
 TRAIN_BATCH_TOKENS=131072 \
 ITERATIONS=500 \
 VAL_LOSS_EVERY=100 \
@@ -63,6 +77,6 @@ python3 train_gpt.py
 
 ## Next Steps
 
+- Full 500-step run with content_scale=0.1 (expected to beat 1.6795)
 - Validate on 8xH100 at full 20K steps (compute grant pending)
-- Ablate content_scale initialization
-- Explore trigram hash and data-dependent BigramHash gating
+- Explore trigram hash and multi-step lookback extensions
