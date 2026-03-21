@@ -1,38 +1,41 @@
-# Combined Int6 + QAT + Sliding Window
+# V4: BigramHash + SWA + Int5-MLP + SmearGate
 
 ## Strategy
-Combine the best techniques from the top two submissions plus novel QAT.
+Full rewrite based on thwu1's winning 1.1428 bpb architecture, plus novel dual-bigram innovation.
 
-## Techniques from WarmdownQuantization (#1, 1.1574 bpb)
-- **Int6 quantization** ([-31,31] range, better zlib compression than int8)
-- **FP16 tied embeddings** (avoid int8 compounding on shared input/output matrix)
-- **Late-K passthrough** (last 2 layers' key weights in fp16)
-- **Aggressive warmdown** (WARMDOWN_ITERS=20000, entire training is LR decay)
-- **Higher LRs** (MATRIX_LR=0.06, SCALAR_LR=0.06)
-- **Grad clipping** (GRAD_CLIP_NORM=1.0)
-- **9 layers, 3x MLP** (hidden=1536)
+## Architecture (from thwu1)
+- **10 transformer layers**, GQA (8 heads, 4 KV heads), model_dim=512
+- **3x MLP** (hidden=1536), SiLU activation
+- **Learned BigramHashEmbedding** (10240 entries, 128-dim, XOR hash → project to model_dim)
+- **SmearGate**: learned gate blending each token with previous token's embedding
+- **Tied embeddings** (FP16 passthrough for tok_emb + last layer c_k)
+- **Train at seq_len=2048**, batch=786,432 tokens
 
-## Techniques from SlidingWindow (#2, 1.1748 bpb)
-- **Batched sliding window eval** (stride=64, compiled forward_logits, batch_size=256)
-- **Overtone spectral embedding init** (SVD power-law spectrum shaping)
-- **Phase-transition resid_mix init** (sigmoid-scheduled)
-- **Muon decoupled weight decay** (0.02 * lr after each step)
-- **AdamW** for embeddings and scalar params (weight_decay=0.01)
-- **Higher tied embed LR** (0.10 vs 0.07)
+## Training (from thwu1)
+- **Muon optimizer**: momentum=0.99, weight_decay=0.04, Newton-Schulz orthogonalization
+- **AdamW** for embeddings + scalar params (weight_decay=0.01)
+- **Linear warmdown** (wallclock-aware, 3000 iters)
+- **Low LRs**: matrix=0.02, scalar=0.02, tied_embed=0.03
+- **Grad clipping**: norm=0.3
+- **SWA** (Stochastic Weight Averaging): last 40% of training, every 50 steps, accumulated on CPU
+
+## Quantization & Compression (from thwu1)
+- **Mixed Int5/Int6**: Int5 (clip=15) for MLP weights, Int6 (clip=31) for attention weights
+- **Magnitude pruning**: zero out smallest 3% of weights (zeros compress well)
+- **zstd level 22** compression (with zlib fallback)
+- **FP16 passthrough**: tok_emb + last layer key weights
 
 ## Novel Contributions
-1. **Quantization-Aware Training (QAT)** with straight-through estimator (STE):
-   - In the last 30% of training, inject int6 quantization simulation in forward pass
-   - Model learns to be robust to int6 quantization, reducing post-quant penalty to near-zero
-   - Only applied to large weight matrices (>65K params), not small control tensors
-2. **Cosine warmdown** instead of linear (smoother LR decay, better final weights)
-3. **Higher Muon momentum warmup** (700 steps vs 500) for stability with higher LRs
+1. **Dual bigram**: Learned BigramHash during training + post-hoc full [1024,1024] statistical bigram residual table at eval time (scale=0.3)
+2. **Compiled forward_logits**: `torch.compile` on eval forward pass for faster sliding window
+3. **PyTorch 2.4 GQA fallback**: `repeat_interleave` when `enable_gqa` not available
 
 ## Reproduction
 ```bash
-torchrun --standalone --nproc_per_node=8 train_gpt.py
+pip install zstandard
+cd /workspace/parameter-golf
+torchrun --standalone --nproc_per_node=8 records/track_10min_16mb/2026-03-20_Combined_Int6_QAT_SlidingWindow/train_gpt.py
 ```
-All hyperparameters are set as defaults in the script. Override via environment variables if needed.
 
 ## Expected Results
-Target: ~1.150-1.155 bpb (improvement over 1.1574 baseline)
+Target: < 1.1428 bpb (beat thwu1's #1 score)

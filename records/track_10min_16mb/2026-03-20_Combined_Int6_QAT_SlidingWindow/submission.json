@@ -1,25 +1,33 @@
 {
-    "name": "Combined_Int6_QAT_SlidingWindow",
+    "name": "V4_BigramHash_SWA_Int5MLP_SmearGate",
     "author": "DizSi",
-    "date": "2026-03-20",
+    "date": "2026-03-21",
     "track": "10min_16mb",
-    "description": "Combines Int6 quantization + FP16 tied embeddings + Late-K passthrough from WarmdownQuantization with batched sliding window eval + overtone init + phase-transition resid_mix + Muon weight decay + AdamW from SlidingWindow. Novel addition: QAT (quantization-aware training) with STE in last 30% of steps + cosine warmdown schedule.",
+    "description": "V4 rewrite based on thwu1's winning 1.1428 architecture. 10L GQA (8h/4kv) + 3xMLP + Learned BigramHashEmbedding(10240,128) + SmearGate + Mixed Int5-MLP/Int6-Attn quantization + Magnitude pruning (3%) + SWA(0.4) + zstd compression + Linear warmdown. Novel: Dual bigram (learned hash + post-hoc statistical table at eval) + compiled forward_logits + PyTorch 2.4 GQA fallback.",
     "base_submissions": [
-        "2026-03-19_WarmdownQuantization",
-        "2026-03-19_SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit"
+        "thwu1_10L_Int5MLP_BigramHash_SWA"
     ],
     "env": {
-        "WARMDOWN_ITERS": 20000,
-        "MATRIX_LR": 0.06,
-        "TIED_EMBED_LR": 0.10,
-        "SCALAR_LR": 0.06,
-        "GRAD_CLIP_NORM": 1.0,
-        "MUON_BACKEND_STEPS": 5,
-        "MUON_MOMENTUM_WARMUP_STEPS": 700,
-        "NUM_LAYERS": 9,
-        "MLP_HIDDEN": 1536,
-        "EVAL_SEQ_LEN": 1024,
+        "WARMDOWN_ITERS": 3000,
+        "MATRIX_LR": 0.02,
+        "TIED_EMBED_LR": 0.03,
+        "SCALAR_LR": 0.02,
+        "GRAD_CLIP_NORM": 0.3,
+        "WEIGHT_DECAY": 0.04,
+        "MUON_MOMENTUM": 0.99,
+        "MUON_MOMENTUM_WARMUP_STEPS": 1500,
+        "NUM_LAYERS": 10,
+        "MODEL_DIM": 512,
+        "MLP_MULT": 3.0,
+        "NUM_HEADS": 8,
+        "NUM_KV_HEADS": 4,
+        "BIGRAM_VOCAB_SIZE": 10240,
+        "BIGRAM_DIM": 128,
+        "TRAIN_SEQ_LEN": 2048,
         "EVAL_STRIDE": 64,
-        "QAT_START_FRAC": 0.70
+        "SWA_START_FRAC": 0.4,
+        "PRUNE_FRAC": 0.03,
+        "EVAL_BIGRAM_TABLE": true,
+        "EVAL_BIGRAM_SCALE": 0.3
     }
 }
