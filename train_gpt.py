@@ -26,7 +26,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from core.metric_core import compute_loss_byte_deltas, compute_token_bytes, compute_val_bpb
 from core.quant_core import CONTROL_TENSOR_NAME_PATTERNS, dequantize_state_dict_int8, quantize_state_dict_int8
-from core.schedule_core import compute_chunk_window, find_docs
+from core.schedule_core import ChunkWindow, compute_chunk_window, find_docs
 from torch import Tensor, nn
 from torch.backends.cuda import (
     enable_cudnn_sdp,
@@ -58,6 +58,10 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    eval_mode = os.environ.get("EVAL_MODE", "flat")
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", os.environ.get("TRAIN_SEQ_LEN", "1024")))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", os.environ.get("TRAIN_SEQ_LEN", "1024")))
+    eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
@@ -244,6 +248,46 @@ def eval_val(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
+    if args.eval_mode == "flat":
+        return eval_val_flat(
+            args,
+            model,
+            rank,
+            world_size,
+            device,
+            grad_accum_steps,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
+    if args.eval_mode == "doc_sliding":
+        return eval_val_doc_sliding(
+            args,
+            model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
+    raise ValueError(f"Unknown EVAL_MODE={args.eval_mode!r}")
+
+
+def eval_val_flat(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
@@ -295,6 +339,104 @@ def eval_val(
     val_loss = val_loss_sum / val_token_count
     model.train()
     return float(val_loss.item()), compute_val_bpb(val_loss_sum.item(), val_byte_count.item())
+
+
+def eval_val_doc_sliding(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    """Score each document independently with sliding windows and no boundary leakage."""
+    eval_seq_len = args.eval_seq_len
+    stride = args.eval_stride
+    batch_seqs = args.eval_batch_seqs
+    if eval_seq_len <= 0:
+        raise ValueError(f"EVAL_SEQ_LEN must be positive, got {eval_seq_len}")
+    if stride <= 0:
+        raise ValueError(f"EVAL_STRIDE must be positive, got {stride}")
+    if batch_seqs <= 0:
+        raise ValueError(f"EVAL_BATCH_SEQS must be positive, got {batch_seqs}")
+    if eval_seq_len < min(stride, val_tokens.numel() - 1):
+        raise ValueError(
+            f"EVAL_SEQ_LEN must be >= EVAL_STRIDE for exact sliding coverage; "
+            f"got EVAL_SEQ_LEN={eval_seq_len}, EVAL_STRIDE={stride}"
+        )
+
+    docs = find_docs(val_tokens, bos_id=BOS_ID, include_next_bos=False)
+    rank_docs = docs[(len(docs) * rank) // world_size : (len(docs) * (rank + 1)) // world_size]
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.inference_mode():
+        for doc_batch_start in range(0, len(rank_docs), batch_seqs):
+            batch = rank_docs[doc_batch_start : doc_batch_start + batch_seqs]
+            pred_lens = [doc_len - 1 for _, doc_len in batch]
+            num_chunks = [(pred_len + stride - 1) // stride for pred_len in pred_lens]
+            max_chunks = max(num_chunks, default=0)
+
+            for ci in range(max_chunks):
+                windows = [
+                    compute_chunk_window(ci, pred_lens[doc_idx], num_chunks[doc_idx], stride, eval_seq_len)
+                    for doc_idx in range(len(batch))
+                    if ci < num_chunks[doc_idx]
+                ]
+                max_win_len = max(window.win_len for window in windows)
+                x = torch.zeros(len(batch), max_win_len, dtype=torch.int64, device=device)
+                y = torch.zeros(len(batch), max_win_len, dtype=torch.int64, device=device)
+                active_windows: list[ChunkWindow | None] = [None] * len(batch)
+
+                for doc_idx, (doc_start, doc_len) in enumerate(batch):
+                    if ci >= num_chunks[doc_idx]:
+                        continue
+                    window = compute_chunk_window(ci, pred_lens[doc_idx], num_chunks[doc_idx], stride, eval_seq_len)
+                    tokens = val_tokens[doc_start + window.win_start : doc_start + window.win_start + window.win_len + 1]
+                    local = tokens.to(dtype=torch.int64, device=device)
+                    x[doc_idx, : window.win_len] = local[:-1]
+                    y[doc_idx, : window.win_len] = local[1:]
+                    active_windows[doc_idx] = window
+
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    logits = model.forward_logits(x)
+                per_token_loss = F.cross_entropy(
+                    logits.reshape(-1, logits.size(-1)).float(),
+                    y.reshape(-1),
+                    reduction="none",
+                ).reshape_as(y)
+
+                for doc_idx, window in enumerate(active_windows):
+                    if window is None:
+                        continue
+                    start = window.chunk_offset
+                    end = start + window.chunk_len
+                    loss_delta, byte_delta, token_delta = compute_loss_byte_deltas(
+                        per_token_loss[doc_idx, start:end].to(torch.float64),
+                        x[doc_idx, start:end],
+                        y[doc_idx, start:end],
+                        base_bytes_lut,
+                        has_leading_space_lut,
+                        is_boundary_token_lut,
+                    )
+                    loss_sum += loss_delta
+                    byte_count += byte_delta
+                    token_count += token_delta
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = loss_sum / token_count
+    model.train()
+    return float(val_loss.item()), compute_val_bpb(loss_sum.item(), byte_count.item())
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -585,7 +727,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, lora=None) -> Tensor:
+    def forward_logits(self, input_ids: Tensor, lora=None) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -610,7 +752,10 @@ class GPT(nn.Module):
         else:
             logits = self.lm_head(x)
         logits = logits + (lora.lm_head_lora(x) if lora else 0)
-        logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+        return self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor, lora=None) -> Tensor:
+        logits = self.forward_logits(input_ids, lora=lora)
         if lora:
             bsz, sl, V = logits.shape
             return F.cross_entropy(
@@ -997,6 +1142,10 @@ def main() -> None:
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log0(
+        f"eval_mode:{args.eval_mode} eval_seq_len:{args.eval_seq_len} "
+        f"eval_stride:{args.eval_stride} eval_batch_seqs:{args.eval_batch_seqs}"
     )
     log0(f"seed:{args.seed}")
 
