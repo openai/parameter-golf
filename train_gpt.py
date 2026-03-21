@@ -60,7 +60,7 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
@@ -1392,9 +1392,10 @@ def main() -> None:
     stop_after_step: int | None = None
 
     # EMA: keep an exponential moving average of weights for a smoother final model.
+    # Stored on-device to avoid CPU copy overhead; updated every 10 steps.
     ema_sd: dict[str, Tensor] | None = None
     if args.ema_enabled:
-        ema_sd = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
+        ema_sd = {k: v.detach().clone().float() for k, v in base_model.state_dict().items()}
 
     torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -1472,12 +1473,12 @@ def main() -> None:
 
         step += 1
 
-        # EMA: update running average every step.
-        if ema_sd is not None:
-            d = args.ema_decay
+        # EMA: update running average every 10 steps (on-device, no CPU copy).
+        if ema_sd is not None and step % 10 == 0:
+            d = args.ema_decay ** 10
             with torch.no_grad():
                 for k, v in base_model.state_dict().items():
-                    ema_sd[k].mul_(d).add_(v.detach().cpu().float(), alpha=1.0 - d)
+                    ema_sd[k].mul_(d).add_(v.detach().float(), alpha=1.0 - d)
 
         # Late QAT: enable fake int6 quantization when LR is low enough.
         if args.late_qat and scale < args.qat_threshold:
@@ -1519,7 +1520,8 @@ def main() -> None:
     # Apply EMA weights for export — smoother than final training weights.
     if ema_sd is not None:
         log0("ema: loading averaged weights for export")
-        avg_sd = {k: v.to(base_model.state_dict()[k].dtype) for k, v in ema_sd.items()}
+        avg_sd = {k: v.to(dtype=base_model.state_dict()[k].dtype, device=base_model.state_dict()[k].device)
+                  for k, v in ema_sd.items()}
         base_model.load_state_dict(avg_sd, strict=True)
 
     # Disable QAT for eval.
