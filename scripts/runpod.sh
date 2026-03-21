@@ -237,6 +237,37 @@ cmd_terminate() {
 
 # ---- main ----
 
+cmd_deploy() {
+    # All-in-one: create pod, clean, setup, run
+    local gpu_count="${1:-1}"
+    local run_id="${2:-consensus_v1}"
+    shift 2 || true
+    local extra_env="${*:-}"
+    cmd_create "$gpu_count"
+    echo "Waiting 30s for pod to boot..."
+    sleep 30
+    local ssh_cmd
+    ssh_cmd=$(_ssh_cmd)
+    eval "$ssh_cmd" "rm -rf /workspace/parameter-golf" 2>/dev/null || true
+    cmd_setup
+    cmd_run "$run_id" "$extra_env"
+}
+
+cmd_tail() {
+    # Quick tail of latest log on pod
+    local run_id="${1:-consensus_v1}"
+    local ssh_cmd
+    ssh_cmd=$(_ssh_cmd)
+    eval "$ssh_cmd" "tail -10 /workspace/parameter-golf/logs/${run_id}.txt" 2>/dev/null
+}
+
+cmd_done() {
+    # Fetch results and terminate
+    local run_id="${1:-consensus_v1}"
+    cmd_fetch "$run_id"
+    cmd_terminate
+}
+
 case "${1:-help}" in
     create)    cmd_create "${2:-1}" ;;
     list)      cmd_list ;;
@@ -244,20 +275,29 @@ case "${1:-help}" in
     ssh)       cmd_ssh ;;
     setup)     cmd_setup ;;
     run)       shift; cmd_run "$@" ;;
+    deploy)    shift; cmd_deploy "$@" ;;
+    tail)      cmd_tail "${2:-consensus_v1}" ;;
     logs)      cmd_logs "${2:-consensus_v1}" ;;
     fetch)     cmd_fetch "${2:-consensus_v1}" ;;
+    done)      cmd_done "${2:-consensus_v1}" ;;
     stop)      cmd_stop ;;
     terminate) cmd_terminate ;;
     *)
-        echo "Usage: $0 {create|list|status|ssh|setup|run|logs|fetch|stop|terminate}"
+        echo "Usage: $0 <command> [args]"
         echo ""
-        echo "Workflow:"
-        echo "  source .env"
-        echo "  $0 create 1          # 1x H100 (~\$3/hr)"
-        echo "  $0 setup              # clone repo + download data"
-        echo "  $0 run consensus_v1   # start training"
-        echo "  $0 fetch consensus_v1 # get results locally"
-        echo "  $0 stop               # stop (keep volume)"
-        echo "  $0 terminate          # delete everything"
+        echo "Quick workflow:"
+        echo "  $0 deploy 1 my_run          # create+setup+run (all-in-one)"
+        echo "  $0 tail my_run              # quick check progress"
+        echo "  $0 done my_run              # fetch results + terminate"
+        echo ""
+        echo "Individual commands:"
+        echo "  create [1|8]    — create pod"
+        echo "  setup           — clone repo + download data"
+        echo "  run ID [ENVS]   — start training"
+        echo "  tail ID         — quick log check"
+        echo "  logs ID         — full log tail"
+        echo "  fetch ID        — download artifacts"
+        echo "  done ID         — fetch + terminate"
+        echo "  status/list/ssh/stop/terminate"
         ;;
 esac
