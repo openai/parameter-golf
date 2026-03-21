@@ -17,6 +17,11 @@ import sys
 import time
 import uuid
 import zlib
+try:
+    import zstandard as zstd
+    HAS_ZSTD = True
+except ImportError:
+    HAS_ZSTD = False
 from pathlib import Path
 
 import numpy as np
@@ -61,7 +66,7 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 2))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -86,7 +91,7 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     smeargate = bool(int(os.environ.get("SMEARGATE", "1")))
-    bigram_hash_buckets = int(os.environ.get("BIGRAM_HASH_BUCKETS", 4096))
+    bigram_hash_buckets = int(os.environ.get("BIGRAM_HASH_BUCKETS", 10240))
     bigram_hash_dim = int(os.environ.get("BIGRAM_HASH_DIM", 128))
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.5))
@@ -392,9 +397,11 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        # Int5 for MLP weights (range [-16,15]), Int6 for everything else (range [-32,31])
+        clip = 15 if (".mlp." in name or ".fc." in name or ".proj." in name and "c_" not in name and "attn" not in name) and ".mlp." in name else 31
+        q, s = quantize_float_tensor(t, clip_range=clip)
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
+            qmeta[name] = {"scheme": "per_row", "axis": 0, "bits": 5 if clip == 15 else 6}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
@@ -1161,7 +1168,11 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    if HAS_ZSTD:
+        cctx = zstd.ZstdCompressor(level=22)
+        quant_blob = cctx.compress(quant_raw)
+    else:
+        quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
@@ -1179,7 +1190,12 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    if HAS_ZSTD:
+        dctx = zstd.ZstdDecompressor()
+        quant_decompressed = dctx.decompress(quant_blob_disk, max_output_size=200_000_000)
+    else:
+        quant_decompressed = zlib.decompress(quant_blob_disk)
+    quant_state = torch.load(io.BytesIO(quant_decompressed), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
