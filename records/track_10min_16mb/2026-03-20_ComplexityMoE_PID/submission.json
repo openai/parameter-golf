@@ -1,0 +1,8 @@
+{
+  "author": "Boris Peyriguere",
+  "github_id": "Complexity-ML",
+  "date": "2026-03-20",
+  "val_bpb": "pending",
+  "description": "Token-Routed MoE (4 experts, deterministic routing) + PID Dynamics + SwiGLU + Cosine Warm Restarts",
+  "framework": "https://github.com/Complexity-ML/complexity-framework"
+}
