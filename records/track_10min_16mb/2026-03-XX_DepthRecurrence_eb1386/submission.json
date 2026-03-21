@@ -1,8 +1,8 @@
 {
   "author": "Evan Borodow",
   "github_id": "eb1386",
-  "name": "8x2 Depth Recurrence + Full Stack",
-  "blurb": "8 unique blocks x2 recurrence = 16 effective layers at d=512 with SwiGLU 3x MLP, SmearGate, BigramHash, int6 QAT, SWA, Muon WD=0.04, sliding window eval stride=64. 20M params, int6+zstd under 16MB.",
+  "name": "11L Gated XSA + Cosine LN + BigramHash4K",
+  "blurb": "11-layer int6 model with gated exclusive self-attention (learned per-layer strength), cosine LN scale decay, 4096-bucket BigramHash, SmearGate, EMA, late QAT, partial RoPE (16 dims), and stride-64 sliding window eval. 27M params, zstd-22 compressed under 16MB.",
   "date": "pending",
   "val_loss": "pending",
   "val_bpb": "pending",

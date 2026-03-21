@@ -1,18 +1,23 @@
-Depth recurrence submission for the 10-minute 16MB track.
+11-layer int6 submission with gated XSA and cosine LN scale for the 10-minute 16MB track.
 
-The central observation is that the baseline is wildly over-trained at 420 tokens per parameter, and the 10-minute wallclock means you hit diminishing returns on training steps fast. So instead of spending parameters on 11 unique layers that each get used once, I use 8 unique blocks and loop them twice, getting 16 effective layers of processing from 8 blocks worth of stored weights. The model refines its representations iteratively through the same learned transformations, with a per-block residual mix gate maintaining a highway back to the original embeddings for gradient flow.
+The foundation is an 11-layer transformer at d=512 with 3x relu-squared MLP, GQA 8/4, and tied embeddings. I started from the observation that the standard XSA approach (hard on/off per layer) leaves information on the table. Instead of binary activation, each layer that uses XSA has a learned sigmoid gate that controls how much of the self-value projection gets subtracted. The gate initializes at 0 (sigmoid=0.5), letting the model discover the right blend during training. This is applied to the last 4 layers.
 
-I went with int6 quantization and zstd-22 to fit 20M parameters into the budget. The wider MLP (3x SwiGLU) uses the headroom well. I train at seqlen 2048 and evaluate with a sliding window at stride 64 so every token gets scored with nearly full context. Weight decay at 0.04 on the Muon optimizer keeps the weight magnitudes low, which makes quantization cleaner. QAT kicks in at 70% through training via straight-through estimation so the model adapts to the int6 rounding before export. SWA averages checkpoints during the warmdown phase for smoother final weights.
+For the layer norm scaling, I found that the standard inverse-sqrt schedule drops too aggressively for middle layers. I use a cosine decay instead: `cos(pi * i / (2 * L))`, which gives a smoother transition from full scale at layer 0 down to ~0.14 at layer 10. The cosine curve keeps middle layers more active while still dampening the deepest layers where representations tend to saturate.
 
-I also added a SmearGate at the embedding layer (learned per-dimension blend with the previous token's embedding) and a BigramHash table (XOR-hashed token pair lookup, 4096 buckets) to give the model cheap access to local bigram context without burning attention compute. Both are initialized to near-zero so they learn gradually. Orthogonal initialization on all weight matrices, which I found matters for the gating components to work properly.
+Bigram context comes from two sources. SmearGate blends each token embedding with the previous token's embedding through a learned per-dimension gate. BigramHash maps consecutive token pairs through an XOR hash into a 4096-bucket embedding table (dim 128, projected up to 512). I went with 4096 buckets instead of the more common 2048 to reduce hash collisions for the 1024-token vocabulary (1024^2 possible bigrams). Both are zero-initialized and scale up gradually.
 
-The compute tradeoff: 16 effective layers at d=512 with 3x MLP runs about 1.45x slower per step than a standard 11-layer model, landing around 5000 steps in 10 minutes. That is still 2.6B tokens, well above Chinchilla-optimal for 20M parameters.
+Quantization uses per-row int6 (range [-32, 31]) for all large weight matrices, fp16 for the tied embedding (quantization errors compound on both input and output sides), and fp32 for control parameters. Compressed with zstd at level 22. Weight decay at 0.04 on both Muon and Adam keeps magnitudes low for clean quantization. Late QAT activates in the final ~4% of training (when lr_scale drops below 0.1) using straight-through estimation, which lets the model adapt to int6 rounding without disrupting early training dynamics. EMA with decay 0.997 replaces SWA for smoother final weights.
 
-Configuration: `NUM_LAYERS=8 RECURRENCE=2 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=3 VOCAB_SIZE=1024 TIE_EMBEDDINGS=1 TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 EVAL_STRIDE=64 MUON_WEIGHT_DECAY=0.04 GRAD_CLIP_NORM=0.3 SWA_ENABLED=1 SWA_EVERY=50 QAT_START_FRAC=0.7`
+Other details: partial RoPE applies rotary embeddings to only 16 of 64 head dimensions, letting the remaining 48 dimensions attend position-free. Orthogonal initialization on all weight matrices with 1/sqrt(2L) scaling on output projections. Muon momentum 0.99 (warmup 0.92 over 1500 steps), matrix LR 0.025, grad clip 0.3, batch 524K tokens, training at seqlen 2048.
+
+Evaluation uses sliding window at stride 64 with seqlen 2048. Each token gets scored with nearly full context. Batched 32 windows at a time across 8 GPUs.
+
+Configuration: `NUM_LAYERS=11 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=3 ROPE_DIMS=16 XSA_LAST_N=4 LN_SCALE=1 BIGRAM_VOCAB_SIZE=4096 EMA_DECAY=0.997 LATE_QAT=1 MUON_WEIGHT_DECAY=0.04 MATRIX_LR=0.025 GRAD_CLIP_NORM=0.3`
 
 ```bash
-RUN_ID=depth_rec_8x2 \
+RUN_ID=gated_xsa_cosln \
 DATA_PATH=../../../data/datasets/fineweb10B_sp1024/ \
 TOKENIZER_PATH=../../../data/tokenizers/fineweb_1024_bpe.model \
+VAL_LOSS_EVERY=0 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
