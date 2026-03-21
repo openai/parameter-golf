@@ -1,6 +1,19 @@
-## Pre-Enrichment + Encoder Recurrence + SmearGate + BigramHash
+## Pre-Enrichment + Encoder Recurrence + XSA + SmearGate + BigramHash
 
-Architectural modifications to the baseline transformer achieving **val_bpb 1.1668** in a 15.02MB artifact trained in 10 minutes on 8xH100. Key techniques: GELU pre-enrichment (512→768→512), 2x encoder recurrence with RMS norm stabilization, SmearGate for lightweight bigram context, BigramHash for explicit bigram embeddings, and EMA weight averaging for quantization-friendly weights.
+**val_bpb: 1.1629** (sliding window, stride=64) | 15.05 MB | 8xH100 SXM, 600s
+
+---
+
+### Progress
+
+| | v1 | v2 | v3 | v4 (this) |
+|---|---|---|---|---|
+| val_bpb (sliding) | 1.1855 | 1.1709 | 1.1668 | **1.1629** |
+| Params | 19.4M | 24.7M | 25.2M | 25.2M |
+| Artifact | 15.75 MB | 15.57 MB | 15.02 MB | 15.05 MB |
+| Steps (600s) | 8,004 | 6,423 | 5,373 | 5,636 |
+| Step time | 75ms | 93ms | 112ms | 106ms |
+| Quant gap | 0.020 | 0.020 | 0.004 | 0.004 |
 
 ---
 
@@ -8,93 +21,115 @@ Architectural modifications to the baseline transformer achieving **val_bpb 1.16
 
 #### GELU Pre-Enrichment (512→768→512)
 
-Two `CastedLinear` projections with a GELU activation between them, applied after the embedding lookup and before the first transformer block. The wider hidden dimension (768 vs baseline 512) gives the model a richer nonlinear transformation before the residual stream begins.
-
-```
+Raw token embeddings carry no relational structure. I add a wider nonlinear transformation before the residual stream:
 embedding → BigramHash add → SmearGate → Linear(512→768) → GELU → Linear(768→512) → RMS Norm → transformer blocks
-```
+
+The wider bottleneck (768) gives the embedding transformation more capacity than the original 512→512. Cost: ~0.8M params, negligible step time.
 
 #### 2x Encoder Recurrence
 
-I reuse the encoder blocks for a second pass before running the decoder, with RMS norm stabilization between passes. With 10 layers (5 encoder + 5 decoder), this produces **15 effective layers from 10 physical blocks** with zero extra parameters.
+Depth recurrence is a known technique (ALBERT, Universal Transformers). My contribution is applying it to only the encoder half of a U-Net transformer architecture, with RMS norm stabilization between passes.
 
-**A/B Comparison — MLP 3x, seq 2048, int6 QAT (8xH100, 10 minutes):**
+With 10 layers (5 encoder + 5 decoder), the forward pass becomes:
+1. Run encoder blocks 0-4 (first pass)
+2. RMS norm (stabilize between passes)
+3. Run encoder blocks 0-4 again (second pass, refine)
+4. Run decoder blocks 5-9 with skip connections from second encoder pass
 
-| Metric              | With recurrence    | Without recurrence |
-|---------------------|--------------------|-----------------------|
-| Steps completed     | 6,423              | 8,950                 |
-| Step time           | 93ms               | 67ms                  |
-| Sliding window BPB  | **1.1709**         | 1.1740                |
+**15 effective layers from 10 physical blocks**, zero extra parameters.
 
-Encoder recurrence consistently wins — deeper processing per step beats more gradient updates.
+**A/B Comparison — MLP 3x + seq 2048 config (8xH100, 10 minutes):**
 
-#### SmearGate
+| Metric | With recurrence | Without recurrence |
+|---|---|---|
+| Steps completed | 6,423 | 8,950 |
+| Step time | 93ms | 67ms |
+| Sliding window BPB | **1.1709** | 1.1740 |
 
-Learned per-dimension gate (512 params) that blends each token's embedding with the previous token's embedding. Provides lightweight bigram context at the embedding layer. Initialized with gate bias 3.0 (sigmoid(3.0)≈0.95, near-identity at init).
+**A/B Comparison — MLP 2x + seq 1024 config (8xH100, 10 minutes):**
 
-#### BigramHash
+| Metric | With recurrence | Without recurrence |
+|---|---|---|
+| Steps completed | 8,004 | 11,955 |
+| Step time | 75ms | 50ms |
+| Sliding window BPB | **1.1855** | 1.1947 |
 
-Hash-table embedding mapping token bigrams to learned vectors. Hash formula: `(prev_token * 92821 + curr_token) % 4096`. Lookup table 4096×64, projected to model_dim via Linear(64, 512). Adds explicit bigram context to the token embedding.
+Recurrence wins across both configs despite 28-40% fewer gradient updates.
 
-#### EMA Weight Averaging
+#### XSA (Exclusive Self Attention) on Last 4 Layers
 
-Exponential moving average (decay=0.997) updated every step, replacing SWA. EMA weights are loaded before quantization. Produces smoother weights that quantize significantly better — quant gap dropped from 0.020 (SWA) to **0.004** (EMA).
+Removes self-value bias from attention output via orthogonal projection (arXiv:2603.09078). After computing attention output Y, XSA subtracts the component aligned with each token's own value vector:
+
+```
+Vn = normalize(V, dim=-1)
+Y = Y - (Y · Vn).sum(dim=-1, keepdim=True) * Vn
+```
+
+Forces attention layers to capture purely contextual information from other tokens. Zero new parameters. Applied to last 4 layers only — early layers retain self-attention for basic feature building. Requires GQA-aware expansion of V to match Q head count before projection.
+
+v3 → v4 improvement: 1.1668 → 1.1629 (-0.004 BPB).
 
 ---
 
 ### Additional Techniques
 
-Int6 quantization-aware training (fake quant with STE in CastedLinear), lzma compression, MLP 3x expansion, overtone embedding init, decoupled Muon weight decay (0.04), AdamW weight decay (0.04), batched sliding window eval (stride=64), fp16 embedding passthrough in quantization.
+- **SmearGate**: Per-dim learnable gate blending each token with previous token's embedding. 512 params.
+- **BigramHash** (4096×64): Hash-table embedding for token bigrams, projected to model dim. ~590K params.
+- **EMA** (decay=0.997): Exponential moving average replacing SWA. Quant gap reduced from 0.020 to 0.004 across versions.
+- **Int6 QAT**: Fake quantization with straight-through estimator during training. Model learns int6-friendly weights.
+- **lzma compression**: Stdlib replacement for zlib. Zero dependency risk.
 
-Hyperparameters: NUM_LAYERS=10, TRAIN_SEQ_LEN=2048, TRAIN_BATCH_TOKENS=393216, MATRIX_LR=0.028, SCALAR_LR=0.025, TIED_EMBED_LR=0.035, MUON_MOMENTUM=0.99, WARMDOWN_ITERS=3300.
+Also: MLP 3x, seq 2048, overtone init, Muon+AdamW WD=0.04, sliding window eval stride=64.
+
+Overtone init, Muon weight decay, and sliding window eval adapted from notapplica and Matthew Li's work.
 
 ---
 
 ### What Didn't Work
 
-- **Phase-transition resid_mix init**: Sigmoid-scheduled initialization of resid_mix. Slowed convergence at our step count, hurt final score.
-
-- **Late-K passthrough**: Keeping last 2 layers' c_k.weight in fp16 during quantization. Added artifact size without enough BPB improvement.
-
-- **Gradient clipping (GRAD_CLIP_NORM=1.0)**: Constrained the optimizer, slower per-step learning.
-
-- **12 layers + MLP 2x**: 18 effective layers with recurrence but MLP 2x bottleneck was too narrow. 10L MLP 3x wins.
-
-- **Full dataset (80 shards) with WD=0.04**: More diverse data didn't improve pre-quant BPB. Only helped quant gap when combined with higher WD.
-
-- **3x encoder recurrence**: Exceeded Triton's per-SM shared memory limit. Compiler limitation.
-
-- Also tried: full U-Net recurrence (too slow), reverse encoder pass order (worse), auxiliary encoder prediction loss (hurt performance), 6+3 encoder/decoder split (worse than 5+5).
+- **FP16 embedding passthrough**: Reduced quant error by ~0.006 BPB but added ~520KB, pushing artifact over 16MB.
+- **3x encoder recurrence**: Exceeded Triton's per-SM shared memory limit on A100 and RTX 4050.
+- **Reverse encoder recurrence** (second pass in reverse order): Worse than forward-only (1.4140 vs 1.4077 on A100).
+- **Auxiliary encoder loss**: Hurt performance. Encoder works better optimized purely for decoder consumption.
+- **Phase-transition resid_mix + gradient clipping**: Borrowed from top submissions, hurt our config. Techniques tuned for non-recurrence setups don't always transfer.
+- **12L MLP 2x with recurrence (18 effective layers)**: Numbers were significantly worse than 10L MLP 3x. Width beats depth at this scale.
+- **Warmdown scheduler on A100**: Wallclock-aware warmdown decayed LR from step 0 on A100 (~1100ms/step). Override to WARMDOWN_ITERS=120 required for local development.
 
 ---
 
 ### Configuration
+TRAIN_BATCH_TOKENS=393216 MATRIX_LR=0.028 MUON_WD=0.04 ADAM_WD=0.04
+WARMDOWN_ITERS=3300 NUM_LAYERS=10 MLP_MULT=3 TRAIN_SEQ_LEN=2048
+ENCODER_RECURRENCE=1 EMA_DECAY=0.997 XSA_LAST_N=4
 
-```
-RUN_CONFIG=A
-VOCAB_SIZE=1024 NUM_LAYERS=10 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=3
-TIE_EMBEDDINGS=1 TIED_EMBED_LR=0.035 MATRIX_LR=0.028 SCALAR_LR=0.025
-MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 MUON_MOMENTUM_WARMUP_STEPS=1500
-WARMDOWN_ITERS=3300 WARMUP_STEPS=20 TRAIN_BATCH_TOKENS=393216 TRAIN_SEQ_LEN=2048
-ENCODER_RECURRENCE=1 MUON_WD=0.04 ADAM_WD=0.04 EMA_DECAY=0.997
-```
+Model parameters: 25,222,224
+Submission size (int6+lzma): 15,051,927 bytes (code: 59,427 bytes)
 
 ### Reproduction
 
-All defaults are baked into the script:
+All defaults are baked into the script — no env vars needed.
+
 ```bash
-RUN_CONFIG=A torchrun --standalone --nproc_per_node=8 train_gpt.py
+python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80
+torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 ### Key Metrics
 
 | Metric | Value |
 |---|---|
-| Pre-quant val_bpb | 1.1848 |
-| Post-quant val_bpb (standard) | 1.1889 |
-| Post-quant val_bpb (sliding window) | **1.1668** |
+| Pre-quant val_bpb | 1.1809 |
+| Post-quant val_bpb (standard) | 1.1848 |
+| Post-quant val_bpb (sliding window) | **1.1629** |
 | Quant gap (standard - pre-quant) | 0.004 |
-| Training time | 600,011ms (5,373 steps at ~112ms) |
-| Peak memory | 14,124 MiB |
-| Submission size (int6+lzma) | 15,022,232 bytes |
+| Training time | 599,886ms (5,636 steps at ~106ms) |
+| Peak memory | 14,147 MiB |
+| Submission size (int6+lzma) | 15,051,927 bytes |
 | Model parameters | 25,222,224 |
+
+### Included Files
+
+- `train_gpt.py` — standalone training script with all modifications
+- `train.log` — full 8xH100 training log (seed 1337)
+- `submission.json` — leaderboard metadata
+- `README.md` — this file
