@@ -16,5 +16,5 @@
   "ttt_time_seconds": 50.4,
   "bytes_total": 15578775,
   "bytes_code": 70565,
-  "notes": "Best of 2 seeds on 8xH100 SXM (community cloud). SDPA fallback (no FA3). Seed 1337: val_bpb=1.1419, 5344 steps, ~109ms/step. Seed 1338: val_bpb=1.1464, 4559 steps, ~132ms/step. Seed 1339 pending. Mean val_bpb=1.1442. TTT: 3 epochs SGD, lr=0.002, momentum=0.9, freeze first 2 blocks."
+  "notes": "3 seeds on 8xH100 SXM (community cloud). SDPA fallback (no FA3). Seed 1337: val_bpb=1.1419, 5344 steps, ~109ms/step. Seed 1338: val_bpb=1.1464, 4559 steps, ~132ms/step. Seed 1339: val_bpb=1.1543, 4086 steps, ~147ms/step (artifact 16.2MB, over limit). Mean val_bpb=1.1475. TTT: 3 epochs SGD, lr=0.002, momentum=0.9, freeze first 2 blocks."
 }

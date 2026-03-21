@@ -1,6 +1,6 @@
 # 11L XSA4 + EMA + Int6 MLP3x + Full-Model SGD TTT
 
-**Best val_bpb: 1.1419** (seed 1337), mean so far: 1.1442 (2 seeds on 8xH100 SXM, seed 1339 pending)
+**Mean val_bpb: 1.1475** (3 seeds on 8xH100 SXM), best: 1.1419 (seed 1337)
 
 This is the highest-EV convergence branch. It keeps the strongest public training stack intact:
 - 11 layers, 512 dim, 8 heads / 4 KV heads
@@ -94,29 +94,31 @@ for SEED in 1337 42 2025; do
 done
 ```
 
-## Results (in progress)
+## Results
 
 | Seed | Pre-quant val_bpb | Post-int6 val_bpb | Post-TTT val_bpb | Steps | ms/step | Artifact bytes |
 |------|-------------------|-------------------|-------------------|-------|---------|----------------|
 | 1337 | 1.1581 | 1.1655 | **1.1419** | 5,344 | 109.2 | 15,578,775 |
 | 1338 | 1.1616 | 1.1701 | **1.1464** | 4,559 | 131.6 | 15,661,221 |
-| 1339 | — | — | — | — | — | — |
-| **Mean (2 seeds)** | | | **1.1442** | | | |
+| 1339 | 1.1785 | 1.1785 | **1.1543** | 4,086 | 146.9 | 16,221,863* |
+| **Mean** | | | **1.1475** | | | |
+
+*Seed 1339 artifact is 222KB over the 16MB limit due to less compressible weight distribution on a slower node (fewer training steps).
 
 Hardware: 8xH100 SXM (community cloud). SDPA fallback (no FA3).
-Seed 1337: ~109ms/step. Seeds 1338+1339: ~132ms/step (different node).
+Seed 1337: ~109ms/step. Seeds 1338+1339: ~132-147ms/step (different node).
 TTT: 3 epochs SGD. Eval: stride-64 sliding window.
-All artifacts under 16MB (zstd-22 compression).
 
 ## vs. Prior SOTA
 
 | Run | val_bpb |
 |-----|---------|
 | Compression-Funded MLP3x (best seed) | 1.1598 |
+| Compression-Funded MLP3x (mean) | 1.1647 |
 | **This run (best seed 1337)** | **1.1419** |
-| **This run (2-seed mean)** | **1.1442** |
-| Delta (best) | **-0.0179** |
-| Delta (mean vs prior mean 1.1647) | **-0.0205** |
+| **This run (3-seed mean)** | **1.1475** |
+| Delta (best vs best) | **-0.0179** |
+| Delta (mean vs mean) | **-0.0172** |
 
 ## Compatibility fixes applied
 

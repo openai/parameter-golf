@@ -87,3 +87,19 @@ Total submission size int6+zstd: 15661221 bytes
 final_int6_roundtrip_exact val_loss:1.97563807 val_bpb:1.17008415
 final_int6_ttt_sliding_window val_loss:1.9356 val_bpb:1.1464 stride:64 eval_time:106682ms
 final_int6_ttt_sliding_window_exact val_loss:1.93563545 val_bpb:1.14639537
+
+=== Seed 1339 (8xH100 SXM, community cloud, SDPA fallback) ===
+logs/2026-03-21_11L_XSA4_EMA_TTT_Int6_MLP3x_WD04_seed1339.txt
+seed:1339
+step:0/9000 val_loss:6.9293 val_bpb:4.1039 train_time:0ms step_avg:0.02ms
+step:4086/9000 val_loss:1.9898 val_bpb:1.1785 train_time:600074ms step_avg:146.88ms
+stopping_early: wallclock_cap train_time:600074ms step:4086/9000
+Total submission size int6+zstd: 16221863 bytes
+final_int6_roundtrip_exact val_loss:1.98980163 val_bpb:1.17847260
+ttt_epoch:1/3 loss:1.9867 time:27.0s
+ttt_epoch:2/3 loss:1.9867 time:54.0s
+ttt_epoch:3/3 loss:1.9867 time:81.0s
+ttt:done elapsed:81.0s
+ttt_elapsed:81054ms
+final_int6_ttt_sliding_window val_loss:1.9491 val_bpb:1.1543 stride:64 eval_time:104118ms
+final_int6_ttt_sliding_window_exact val_loss:1.94905675 val_bpb:1.15434425
