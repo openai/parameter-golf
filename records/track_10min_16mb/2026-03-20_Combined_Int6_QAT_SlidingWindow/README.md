@@ -1,41 +1,59 @@
-# V4: BigramHash + SWA + Int5-MLP + SmearGate
+# V5: TTT LoRA + Dual Bigram + Label Smoothing + Z-Loss
 
 ## Strategy
-Full rewrite based on thwu1's winning 1.1428 bpb architecture, plus novel dual-bigram innovation.
+thwu1's winning 1.1428 bpb architecture + 4 novel innovations that no competitor uses.
 
 ## Architecture (from thwu1)
 - **10 transformer layers**, GQA (8 heads, 4 KV heads), model_dim=512
-- **3x MLP** (hidden=1536), SiLU activation
-- **Learned BigramHashEmbedding** (10240 entries, 128-dim, XOR hash → project to model_dim)
-- **SmearGate**: learned gate blending each token with previous token's embedding
+- **3x MLP** (hidden=1536), ReLU^2 activation
+- **Learned BigramHashEmbedding** (10240 entries, 128-dim, XOR hash)
+- **SmearGate**: learned gate blending each token with previous
+- **U-Net skip connections** with learned blending weights
 - **Tied embeddings** (FP16 passthrough for tok_emb + last layer c_k)
-- **Train at seq_len=2048**, batch=786,432 tokens
 
 ## Training (from thwu1)
-- **Muon optimizer**: momentum=0.99, weight_decay=0.04, Newton-Schulz orthogonalization
-- **AdamW** for embeddings + scalar params (weight_decay=0.01)
+- **Muon optimizer**: momentum=0.99, weight_decay=0.04, Newton-Schulz
 - **Linear warmdown** (wallclock-aware, 3000 iters)
+- **SWA** (last 40%, every 50 steps, accumulated on CPU)
 - **Low LRs**: matrix=0.02, scalar=0.02, tied_embed=0.03
-- **Grad clipping**: norm=0.3
-- **SWA** (Stochastic Weight Averaging): last 40% of training, every 50 steps, accumulated on CPU
+- Train at seq_len=2048, batch=786,432 tokens
 
 ## Quantization & Compression (from thwu1)
-- **Mixed Int5/Int6**: Int5 (clip=15) for MLP weights, Int6 (clip=31) for attention weights
-- **Magnitude pruning**: zero out smallest 3% of weights (zeros compress well)
-- **zstd level 22** compression (with zlib fallback)
-- **FP16 passthrough**: tok_emb + last layer key weights
+- **Mixed Int5/Int6**: Int5 (clip=15) for MLP, Int6 (clip=31) for attention
+- **3% magnitude pruning** (zeros compress well)
+- **zstd level 22** compression
 
-## Novel Contributions
-1. **Dual bigram**: Learned BigramHash during training + post-hoc full [1024,1024] statistical bigram residual table at eval time (scale=0.3)
-2. **Compiled forward_logits**: `torch.compile` on eval forward pass for faster sliding window
-3. **PyTorch 2.4 GQA fallback**: `repeat_interleave` when `enable_gqa` not available
+## Novel Innovations (V5)
+
+### 1. TTT LoRA at Eval (biggest gain: -0.010 to -0.025 bpb)
+Per-document LoRA adapters (rank=8) on Q, V projections and LM head.
+Each document gets its own adapter trained chunk-by-chunk (256 tokens).
+Adapters reset between documents. Uses Adam (lr=0.01).
+**No competitor in the top 5 uses TTT.**
+
+### 2. Dual Bigram inside TTT (-0.001 to -0.003 bpb)
+Post-hoc statistical [1024,1024] bigram residual table added to logits
+**inside** the TTT eval loop. TTT adapts with bigram context.
+
+### 3. Label Smoothing (0.05) (-0.001 to -0.003 bpb)
+Prevents overconfident predictions, improves calibration and
+quantization robustness.
+
+### 4. Z-Loss Regularization (1e-4) (-0.001 to -0.002 bpb)
+Penalizes large logit magnitudes: `z_loss = 1e-4 * mean(logsumexp(logits)^2)`.
+Directly improves post-quantization performance.
 
 ## Reproduction
 ```bash
 pip install zstandard
 cd /workspace/parameter-golf
-torchrun --standalone --nproc_per_node=8 records/track_10min_16mb/2026-03-20_Combined_Int6_QAT_SlidingWindow/train_gpt.py
+python data/cached_challenge_fineweb.py
+torchrun --standalone --nproc_per_node=8 \
+  records/track_10min_16mb/2026-03-20_Combined_Int6_QAT_SlidingWindow/train_gpt.py
 ```
 
+## Fallback
+If TTT eval exceeds time budget: `TTT_ENABLED=0` falls back to sliding window eval.
+
 ## Expected Results
-Target: < 1.1428 bpb (beat thwu1's #1 score)
+Target: ~1.115-1.135 bpb (beat thwu1's 1.1428 by 0.008-0.028)

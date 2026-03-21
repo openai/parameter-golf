@@ -1,9 +1,9 @@
 {
-    "name": "V4_BigramHash_SWA_Int5MLP_SmearGate",
+    "name": "V5_TTT_LoRA_DualBigram_LabelSmoothing",
     "author": "DizSi",
     "date": "2026-03-21",
     "track": "10min_16mb",
-    "description": "V4 rewrite based on thwu1's winning 1.1428 architecture. 10L GQA (8h/4kv) + 3xMLP + Learned BigramHashEmbedding(10240,128) + SmearGate + Mixed Int5-MLP/Int6-Attn quantization + Magnitude pruning (3%) + SWA(0.4) + zstd compression + Linear warmdown. Novel: Dual bigram (learned hash + post-hoc statistical table at eval) + compiled forward_logits + PyTorch 2.4 GQA fallback.",
+    "description": "V5: thwu1's 1.1428 architecture + 4 novel innovations. TTT LoRA eval (per-document rank-8 Q/V/LM-head adapters), dual bigram (learned BigramHash + post-hoc statistical table inside TTT), label smoothing (0.05), z-loss (1e-4). Core: 10L GQA (8h/4kv), 3xMLP, SmearGate, Mixed Int5/Int6, SWA, magnitude pruning, zstd-22, linear warmdown, Muon 0.99.",
     "base_submissions": [
         "thwu1_10L_Int5MLP_BigramHash_SWA"
     ],
@@ -27,6 +27,14 @@
         "EVAL_STRIDE": 64,
         "SWA_START_FRAC": 0.4,
         "PRUNE_FRAC": 0.03,
+        "TTT_ENABLED": true,
+        "TTT_LORA_RANK": 8,
+        "TTT_LORA_LR": 0.01,
+        "TTT_CHUNK_SIZE": 256,
+        "TTT_EVAL_SEQ_LEN": 1024,
+        "TTT_BATCH_SIZE": 64,
+        "LABEL_SMOOTHING": 0.05,
+        "Z_LOSS_COEFF": 0.0001,
         "EVAL_BIGRAM_TABLE": true,
         "EVAL_BIGRAM_SCALE": 0.3
     }
