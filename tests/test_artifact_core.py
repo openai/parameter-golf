@@ -65,3 +65,34 @@ def test_packed_artifact_bytes_are_deterministic():
 
     assert raw_a == raw_b
     assert blob_a == blob_b
+
+
+def test_packed_artifact_log_u8_scales_preserve_structure_and_positive_scales():
+    state_dict = build_state_dict()
+    quant_obj, _ = quantize_state_dict_int8(state_dict)
+
+    blob, _ = serialize_quant_artifact(quant_obj, "packed_zlib", scale_codec="log_u8")
+    restored_quant_obj = deserialize_quant_artifact(blob, "packed_zlib")
+    restored_state_dict = dequantize_state_dict_int8(restored_quant_obj)
+
+    assert restored_quant_obj["quantized"].keys() == quant_obj["quantized"].keys()
+    assert restored_quant_obj["passthrough"].keys() == quant_obj["passthrough"].keys()
+    assert restored_quant_obj["scales"].keys() == quant_obj["scales"].keys()
+
+    for name, tensor in quant_obj["quantized"].items():
+        assert torch.equal(restored_quant_obj["quantized"][name], tensor)
+    for name, tensor in quant_obj["passthrough"].items():
+        assert torch.equal(restored_quant_obj["passthrough"][name], tensor)
+    for name, original in quant_obj["scales"].items():
+        restored = restored_quant_obj["scales"][name]
+        assert restored.shape == original.shape
+        assert restored.dtype == original.dtype
+        assert torch.all(restored > 0)
+        rel_error = ((restored.float() - original.float()).abs() / original.float().clamp_min(1e-12)).max().item()
+        assert rel_error < 0.10
+
+    for name, original in state_dict.items():
+        restored = restored_state_dict[name]
+        assert restored.shape == original.shape
+        assert restored.dtype == original.dtype
+        assert torch.isfinite(restored).all()

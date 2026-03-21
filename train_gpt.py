@@ -33,6 +33,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from core.artifact_core import (
     DEFAULT_QUANT_ARTIFACT_FORMAT,
+    DEFAULT_PACKED_SCALE_CODEC,
     deserialize_quant_artifact,
     serialize_quant_artifact,
 )
@@ -120,6 +121,7 @@ class Hyperparameters:
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
     quant_artifact_format = os.environ.get("QUANT_ARTIFACT_FORMAT", DEFAULT_QUANT_ARTIFACT_FORMAT)
+    packed_scale_codec = os.environ.get("PACKED_SCALE_CODEC", DEFAULT_PACKED_SCALE_CODEC)
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -1350,6 +1352,7 @@ def main() -> None:
         quant_obj,
         args.quant_artifact_format,
         compression_level=9,
+        scale_codec=args.packed_scale_codec,
     )
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
@@ -1359,7 +1362,8 @@ def main() -> None:
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
             f"Serialized model int8+zlib: {quant_file_bytes} bytes "
-            f"(format:{args.quant_artifact_format} payload:{quant_stats['int8_payload_bytes']} "
+            f"(format:{args.quant_artifact_format} scale_codec:{args.packed_scale_codec} "
+            f"payload:{quant_stats['int8_payload_bytes']} "
             f"raw_serialized:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")

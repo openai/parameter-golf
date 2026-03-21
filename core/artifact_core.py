@@ -14,6 +14,8 @@ PACKED_ARTIFACT_MAGIC = b"PGQ1"
 PACKED_ARTIFACT_VERSION = 1
 DEFAULT_QUANT_ARTIFACT_FORMAT = "torchsave_zlib"
 SUPPORTED_QUANT_ARTIFACT_FORMATS = ("torchsave_zlib", "packed_zlib")
+DEFAULT_PACKED_SCALE_CODEC = "raw"
+SUPPORTED_PACKED_SCALE_CODECS = ("raw", "log_u8")
 
 
 class PackedTensorEntry(TypedDict, total=False):
@@ -24,15 +26,34 @@ class PackedTensorEntry(TypedDict, total=False):
     offset: int
     nbytes: int
     logical_dtype: str
+    codec: str
+    orig_dtype: str
+    log_min: float
+    log_max: float
 
 
 class PackedArtifactMeta(TypedDict, total=False):
     artifact_format: str
     version: int
     quant_format: str
+    scale_codec: str
     entries: list[PackedTensorEntry]
     qmeta: dict[str, QuantMetaEntry]
     passthrough_orig_dtypes: dict[str, str]
+
+
+class ArtifactSectionStats(TypedDict):
+    num_tensors: int
+    payload_bytes: int
+    standalone_zlib_bytes: int
+
+
+class PackedArtifactBuildStats(TypedDict):
+    raw_bytes: int
+    meta_bytes: int
+    payload_bytes: int
+    scale_codec: str
+    section_stats: dict[str, ArtifactSectionStats]
 
 
 DTYPE_BY_NAME = {
@@ -72,26 +93,92 @@ def tensor_from_buffer(buffer: memoryview, dtype_name_str: str, shape: list[int]
     return tensor.clone().contiguous()
 
 
-def pack_quantized_state_dict(quant_obj: QuantizedStateDict) -> bytes:
+def encode_scale_tensor(tensor: Tensor, scale_codec: str) -> tuple[Tensor, PackedTensorEntry]:
+    if scale_codec == "raw":
+        return tensor.detach().to("cpu").contiguous(), {"codec": "raw"}
+    if scale_codec == "log_u8":
+        t32 = tensor.detach().to("cpu", dtype=torch.float32).contiguous()
+        tiny = torch.finfo(torch.float32).tiny
+        log_scales = torch.log2(t32.clamp_min(tiny))
+        if log_scales.numel() == 0:
+            return torch.empty_like(t32, dtype=torch.uint8), {
+                "codec": "log_u8",
+                "orig_dtype": dtype_name(tensor.dtype),
+                "log_min": 0.0,
+                "log_max": 0.0,
+            }
+        log_min = float(log_scales.min().item())
+        log_max = float(log_scales.max().item())
+        if log_max <= log_min:
+            q = torch.zeros_like(t32, dtype=torch.uint8)
+        else:
+            q = torch.round((log_scales - log_min) * (255.0 / (log_max - log_min))).clamp(0, 255).to(torch.uint8)
+        return q.contiguous(), {
+            "codec": "log_u8",
+            "orig_dtype": dtype_name(tensor.dtype),
+            "log_min": log_min,
+            "log_max": log_max,
+        }
+    raise ValueError(
+        f"Unsupported PACKED_SCALE_CODEC={scale_codec!r}; "
+        f"expected one of {SUPPORTED_PACKED_SCALE_CODECS}"
+    )
+
+
+def decode_scale_tensor(entry: PackedTensorEntry, buffer: memoryview) -> Tensor:
+    codec = entry.get("codec", "raw")
+    stored = tensor_from_buffer(buffer, entry["dtype"], entry["shape"])
+    if codec == "raw":
+        return stored
+    if codec == "log_u8":
+        log_min = float(entry["log_min"])
+        log_max = float(entry["log_max"])
+        q = stored.to(dtype=torch.float32)
+        if log_max <= log_min:
+            log_scales = torch.full_like(q, log_min, dtype=torch.float32)
+        else:
+            log_scales = log_min + q * ((log_max - log_min) / 255.0)
+        return torch.exp2(log_scales).to(dtype=DTYPE_BY_NAME[entry["orig_dtype"]]).contiguous()
+    raise ValueError(f"Unsupported packed scale codec: {codec}")
+
+
+def build_packed_quantized_state_dict(
+    quant_obj: QuantizedStateDict,
+    scale_codec: str = DEFAULT_PACKED_SCALE_CODEC,
+) -> tuple[bytes, PackedArtifactBuildStats]:
+    if scale_codec not in SUPPORTED_PACKED_SCALE_CODECS:
+        raise ValueError(
+            f"Unsupported PACKED_SCALE_CODEC={scale_codec!r}; "
+            f"expected one of {SUPPORTED_PACKED_SCALE_CODECS}"
+        )
     entries: list[PackedTensorEntry] = []
     payload_chunks: list[bytes] = []
+    section_chunks: dict[str, list[bytes]] = {"quantized": [], "scales": [], "passthrough": []}
+    section_counts: dict[str, int] = {"quantized": 0, "scales": 0, "passthrough": 0}
     offset = 0
 
     def add_entry(section: Literal["quantized", "scales", "passthrough"], name: str, tensor: Tensor) -> None:
         nonlocal offset
-        chunk = tensor_to_bytes(tensor)
+        stored = tensor.detach().to("cpu").contiguous()
+        extra_entry: PackedTensorEntry = {}
+        if section == "scales":
+            stored, extra_entry = encode_scale_tensor(stored, scale_codec)
+        chunk = tensor_to_bytes(stored)
         entry: PackedTensorEntry = {
             "name": name,
             "section": section,
-            "dtype": dtype_name(tensor.dtype),
-            "shape": list(tensor.shape),
+            "dtype": dtype_name(stored.dtype),
+            "shape": list(stored.shape),
             "offset": offset,
             "nbytes": len(chunk),
         }
         if section == "quantized":
             entry["logical_dtype"] = quant_obj["dtypes"][name]
+        entry.update(extra_entry)
         entries.append(entry)
         payload_chunks.append(chunk)
+        section_chunks[section].append(chunk)
+        section_counts[section] += 1
         offset += len(chunk)
 
     quantized_tensors = quant_obj["quantized"]
@@ -108,6 +195,7 @@ def pack_quantized_state_dict(quant_obj: QuantizedStateDict) -> bytes:
         "artifact_format": "packed_quantized_state_dict",
         "version": PACKED_ARTIFACT_VERSION,
         "quant_format": quant_obj["__quant_format__"],
+        "scale_codec": scale_codec,
         "entries": entries,
     }
     qmeta = quant_obj.get("qmeta")
@@ -119,7 +207,31 @@ def pack_quantized_state_dict(quant_obj: QuantizedStateDict) -> bytes:
 
     meta_bytes = json.dumps(meta, sort_keys=True, separators=(",", ":")).encode("utf-8")
     header = PACKED_ARTIFACT_MAGIC + struct.pack("<II", PACKED_ARTIFACT_VERSION, len(meta_bytes))
-    return header + meta_bytes + b"".join(payload_chunks)
+    raw_blob = header + meta_bytes + b"".join(payload_chunks)
+    section_stats: dict[str, ArtifactSectionStats] = {}
+    for section, chunks in section_chunks.items():
+        payload = b"".join(chunks)
+        section_stats[section] = {
+            "num_tensors": section_counts[section],
+            "payload_bytes": len(payload),
+            "standalone_zlib_bytes": len(zlib.compress(payload, level=9)),
+        }
+    stats: PackedArtifactBuildStats = {
+        "raw_bytes": len(raw_blob),
+        "meta_bytes": len(header) + len(meta_bytes),
+        "payload_bytes": offset,
+        "scale_codec": scale_codec,
+        "section_stats": section_stats,
+    }
+    return raw_blob, stats
+
+
+def pack_quantized_state_dict(
+    quant_obj: QuantizedStateDict,
+    scale_codec: str = DEFAULT_PACKED_SCALE_CODEC,
+) -> bytes:
+    raw_blob, _ = build_packed_quantized_state_dict(quant_obj, scale_codec=scale_codec)
+    return raw_blob
 
 
 def unpack_quantized_state_dict(blob: bytes) -> QuantizedStateDict:
@@ -146,15 +258,16 @@ def unpack_quantized_state_dict(blob: bytes) -> QuantizedStateDict:
         offset = int(entry["offset"])
         nbytes = int(entry["nbytes"])
         view = payload[offset : offset + nbytes]
-        tensor = tensor_from_buffer(view, entry["dtype"], entry["shape"])
         section = entry["section"]
         name = entry["name"]
         if section == "quantized":
+            tensor = tensor_from_buffer(view, entry["dtype"], entry["shape"])
             quantized[name] = tensor
             dtypes[name] = entry["logical_dtype"]
         elif section == "scales":
-            scales[name] = tensor
+            scales[name] = decode_scale_tensor(entry, view)
         elif section == "passthrough":
+            tensor = tensor_from_buffer(view, entry["dtype"], entry["shape"])
             passthrough[name] = tensor
         else:
             raise ValueError(f"Unknown packed artifact section: {section}")
@@ -173,7 +286,12 @@ def unpack_quantized_state_dict(blob: bytes) -> QuantizedStateDict:
     return obj
 
 
-def serialize_quant_artifact(quant_obj: QuantizedStateDict, artifact_format: str, compression_level: int = 9) -> tuple[bytes, int]:
+def serialize_quant_artifact(
+    quant_obj: QuantizedStateDict,
+    artifact_format: str,
+    compression_level: int = 9,
+    scale_codec: str = DEFAULT_PACKED_SCALE_CODEC,
+) -> tuple[bytes, int]:
     if artifact_format == "torchsave_zlib":
         import io
 
@@ -182,7 +300,7 @@ def serialize_quant_artifact(quant_obj: QuantizedStateDict, artifact_format: str
         raw = buf.getvalue()
         return zlib.compress(raw, level=compression_level), len(raw)
     if artifact_format == "packed_zlib":
-        raw = pack_quantized_state_dict(quant_obj)
+        raw = pack_quantized_state_dict(quant_obj, scale_codec=scale_codec)
         return zlib.compress(raw, level=compression_level), len(raw)
     raise ValueError(
         f"Unsupported QUANT_ARTIFACT_FORMAT={artifact_format!r}; "
