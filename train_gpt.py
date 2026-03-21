@@ -87,6 +87,8 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+    recurrence_start_step = int(os.environ.get("RECURRENCE_START_STEP", 0))
+    recurrence_encoder_start = int(os.environ.get("RECURRENCE_ENCODER_START", 0))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -741,16 +743,21 @@ class CausalSelfAttention(nn.Module):
         self.rotary = Rotary(self.head_dim, base=rope_base)
         self.use_xsa = use_xsa
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, cached_kv: tuple[Tensor, Tensor] | None = None) -> tuple[Tensor, tuple[Tensor, Tensor] | None]:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        if cached_kv is not None:
+            k, v = cached_kv
+        else:
+            k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+            v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
+        if cached_kv is None:
+            k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
+        if cached_kv is None:
+            k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
             q,
@@ -765,7 +772,8 @@ class CausalSelfAttention(nn.Module):
             vn = F.normalize(v_expanded, dim=-1)
             y = y - (y * vn).sum(dim=-1, keepdim=True) * vn
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        kv_out = (k.detach(), v.detach()) if cached_kv is None else None
+        return self.proj(y), kv_out
 
 
 class MLP(nn.Module):
@@ -802,13 +810,13 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, cached_kv: tuple[Tensor, Tensor] | None = None) -> tuple[Tensor, tuple[Tensor, Tensor] | None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        attn_out, kv_out = self.attn(self.attn_norm(x), cached_kv=cached_kv)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
-        return x
+        return x, kv_out
 
 
 class SmearGate(nn.Module):
@@ -858,6 +866,8 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.encoder_recurrence = bool(int(os.environ.get("ENCODER_RECURRENCE", "1")))
+        self._kv_cache_reuse = bool(int(os.environ.get("KV_CACHE_REUSE", "0")))
+        self._recurrence_encoder_start = int(os.environ.get("RECURRENCE_ENCODER_START", 0))
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram_hash = BigramHash(4096, 64, model_dim)
         self.smear_gate = SmearGate(model_dim)
@@ -867,7 +877,7 @@ class GPT(nn.Module):
             nn.GELU(),
             CastedLinear(pre_enrich_hidden, model_dim, bias=False),
         )
-        self.num_encoder_layers = num_layers // 2
+        self.num_encoder_layers = (num_layers + 1) // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
@@ -905,29 +915,38 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def _run_blocks(self, x: Tensor, x0: Tensor) -> Tensor:
-        if self.encoder_recurrence:
-            for _pass in range(2):
-                skips: list[Tensor] = []
-                for i in range(self.num_encoder_layers):
-                    x = self.blocks[i](x, x0)
-                    skips.append(x)
-                if _pass == 0:
-                    x = F.rms_norm(x, (x.size(-1),))
-                    continue
-                for i in range(self.num_decoder_layers):
-                    if skips:
-                        x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                    x = self.blocks[self.num_encoder_layers + i](x, x0)
+    def _run_blocks(self, x: Tensor, x0: Tensor, use_recurrence: bool = True) -> Tensor:
+        rec_start = self._recurrence_encoder_start
+        if use_recurrence:
+            kv_caches: list[tuple[Tensor, Tensor]] = []
+            skips: list[Tensor] = []
+            for i in range(self.num_encoder_layers):
+                x, kv_out = self.blocks[i](x, x0)
+                skips.append(x)
+                if self._kv_cache_reuse and kv_out is not None and i >= rec_start:
+                    kv_caches.append(kv_out)
+            x = F.rms_norm(x, (x.size(-1),))
+            skips2: list[Tensor] = []
+            kv_idx = 0
+            for i in range(self.num_encoder_layers):
+                if i >= rec_start:
+                    cached = kv_caches[kv_idx] if self._kv_cache_reuse and kv_idx < len(kv_caches) else None
+                    x, _ = self.blocks[i](x, x0, cached_kv=cached)
+                    if cached is not None:
+                        kv_idx += 1
+                else:
+                    x, _ = self.blocks[i](x, x0)
+                skips2.append(x)
+            skips = skips2
         else:
             skips: list[Tensor] = []
             for i in range(self.num_encoder_layers):
-                x = self.blocks[i](x, x0)
+                x, _ = self.blocks[i](x, x0)
                 skips.append(x)
-            for i in range(self.num_decoder_layers):
-                if skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                x = self.blocks[self.num_encoder_layers + i](x, x0)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x, _ = self.blocks[self.num_encoder_layers + i](x, x0)
         return x
 
     def _compute_logits(self, x: Tensor) -> Tensor:
@@ -939,13 +958,13 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor, recurrence_enabled: bool = True) -> Tensor:
         x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
         x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        x = self._run_blocks(x, x0)
+        x = self._run_blocks(x, x0, use_recurrence=recurrence_enabled and self.encoder_recurrence)
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         logits = self._compute_logits(x)
@@ -1254,6 +1273,7 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        recurrence_on = step >= args.recurrence_start_step
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1261,7 +1281,7 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                loss = model(x, y, recurrence_enabled=recurrence_on)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
