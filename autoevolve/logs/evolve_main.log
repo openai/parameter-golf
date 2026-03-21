@@ -23,3 +23,16 @@ Starting from iteration 19, best BPB: 1.1428
   Log saved to /workspace/parameter-golf/autoevolve/logs/exp_0019.log
   CRASH (exit code 1)
     TIMEOUT: Experiment exceeded 25-minute hard limit (10 train + 10 eval + 5 buffer)
+  Pushed to origin.
+
+======================================================================
+  ITERATION 20  |  Best BPB: 1.1428
+======================================================================
+  Calling gpt-5.4 for proposal...
+  LLM responded in 280.6s (input=18292, output=19280 tokens)
+  Proposed:   Add late exact-path STE QAT for the mixed int5/int6 export scheme.
+  Diagnosis:  All 19 prior iterations provide no model-side negative evidence: 18 died at the API layer and the last one crashed before a completed benchmark. In this script, the most likely bottleneck is train/export mismatch: optimization happens in float, but the scored artifact is after 3% pruning plus exact 
+  Hypothesis: Add late quantization-aware training that matches the exact export path: per-row int5 for MLP weights, per-row int6 for attention and bigram weights, while respecting the existing FP16-kept exceptions. Ramping this in over the last half of warmdown should let weights migrate onto quantization-friend
+  Expected:   -0.006 bpb; exact-path late QAT on an aggressive mixed int5/int6 export usually recovers roughly 0.003-0.008 bpb on models of this scale, and this script currently evaluates the dequantized export rather than the float model.
+  Risk:       Main risks are modest training slowdown and destabilization if quantization turns on too early. This implementation mitigates both by using STE fake quantization controlled via buffers (avoiding graph
+  Applied (55,156 bytes, 1282 lines)
