@@ -1,0 +1,9 @@
+{
+  "name": "11L SmearGate + BigramHash(10240) + Causal TTT + Mixed Int5/Int6 + SWA",
+  "val_loss": "pending",
+  "bytes_total": "pending",
+  "blurb": "11-layer GPT with SmearGate, BigramHash(10240), Z-loss, mixed int5/int6 quantization, 3% magnitude pruning, SWA(frac=0.4), and causal Test-Time Training. Built on PR #162 (SmearGate/BigramHash) and PR #180 (mixed quant). Requesting RunPod credits to run 3-seed validation on 8xH100.",
+  "author": "romainsantoli-web",
+  "github_id": "romainsantoli-web",
+  "date": "2026-03-21"
+}
