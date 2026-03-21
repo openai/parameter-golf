@@ -9,9 +9,11 @@ from __future__ import annotations
 import copy
 import glob
 import io
+import inspect
 import math
 import os
 import random
+import shutil
 import subprocess
 import sys
 import time
@@ -85,6 +87,9 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    enable_compile = bool(int(os.environ.get("ENABLE_COMPILE", "1")))
+    compile_mode = os.environ.get("COMPILE_MODE", "default")
+    compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "0")))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -255,7 +260,7 @@ def eval_val(
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            with torch.autocast(**autocast_kwargs()):
                 batch_loss = model(x, y).detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
@@ -582,9 +587,9 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2).contiguous()
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2).contiguous()
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -724,6 +729,104 @@ class GPT(nn.Module):
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
+def is_rocm_build() -> bool:
+    return getattr(torch.version, "hip", None) is not None
+
+
+def accelerator_name() -> str:
+    return "rocm" if is_rocm_build() else "cuda"
+
+
+def gpu_diagnostics_output() -> str:
+    commands = [["amd-smi"], ["rocm-smi"]] if is_rocm_build() else [["nvidia-smi"]]
+    for command in commands:
+        executable = shutil.which(command[0])
+        if executable is None:
+            continue
+        result = subprocess.run(
+            [executable, *command[1:]],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        output = result.stdout.strip()
+        error = result.stderr.strip()
+        if output:
+            return output
+        if error:
+            return f"{command[0]} stderr:\n{error}"
+        return f"{command[0]} exited with code {result.returncode} and produced no output."
+    if is_rocm_build():
+        return "ROCm GPU diagnostics unavailable: neither amd-smi nor rocm-smi was found in PATH."
+    return "CUDA GPU diagnostics unavailable: nvidia-smi was not found in PATH."
+
+
+def autocast_kwargs() -> dict[str, object]:
+    # ROCm uses the CUDA device type in PyTorch autocast APIs.
+    return {"device_type": "cuda", "dtype": torch.bfloat16, "enabled": True}
+
+
+def maybe_enable_sdp_backends(log0) -> str:
+    from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+
+    cudnn_enabled = False
+    flash_enabled = False
+    mem_efficient_enabled = False
+    math_enabled = False
+
+    enable_cudnn_sdp(False)
+    enable_mem_efficient_sdp(False)
+
+    flash_available_fn = getattr(torch.backends.cuda, "is_flash_attention_available", None)
+    flash_available = bool(flash_available_fn()) if callable(flash_available_fn) else False
+    if flash_available:
+        enable_flash_sdp(True)
+        enable_math_sdp(False)
+        flash_enabled = True
+        math_enabled = False
+    else:
+        enable_flash_sdp(False)
+        enable_math_sdp(True)
+        flash_enabled = False
+        math_enabled = True
+
+    msg = (
+        f"sdp_backends:cudnn={cudnn_enabled} flash={flash_enabled} "
+        f"mem_efficient={mem_efficient_enabled} math={math_enabled}"
+    )
+    log0(msg)
+    return msg
+
+
+def make_adam(params, lr: float, beta1: float, beta2: float, eps: float) -> torch.optim.Optimizer:
+    kwargs = {"betas": (beta1, beta2), "eps": eps}
+    if "fused" in inspect.signature(torch.optim.Adam).parameters and torch.cuda.is_available():
+        kwargs["fused"] = True
+    return torch.optim.Adam([{"params": params, "lr": lr, "base_lr": lr}], **kwargs)
+
+
+def maybe_compile_module(module: nn.Module, args: Hyperparameters, log0) -> nn.Module:
+    if not args.enable_compile:
+        log0("torch_compile:disabled")
+        return module
+    try:
+        compiled = torch.compile(
+            module,
+            dynamic=False,
+            fullgraph=args.compile_fullgraph,
+            mode=args.compile_mode,
+        )
+    except Exception as exc:
+        log0(f"torch_compile:failed fallback=eager reason={type(exc).__name__}:{exc}")
+        return module
+    log0(
+        f"torch_compile:enabled accelerator={accelerator_name()} "
+        f"mode={args.compile_mode} fullgraph={args.compile_fullgraph}"
+    )
+    return compiled
+
+
 # -----------------------------
 # TRAINING
 # -----------------------------
@@ -733,10 +836,10 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+#    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
-    # DISTRIBUTED + CUDA SETUP
+    # DISTRIBUTED + ACCELERATOR SETUP
     # -----------------------------
 
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
@@ -750,7 +853,7 @@ def main() -> None:
     grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
-        raise RuntimeError("CUDA is required")
+        raise RuntimeError("A CUDA-compatible accelerator is required; ROCm builds also appear via torch.cuda")
     device = torch.device("cuda", local_rank)
     torch.cuda.set_device(device)
     if distributed:
@@ -761,12 +864,6 @@ def main() -> None:
     # Fast math knobs
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-    from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
-
-    enable_cudnn_sdp(False)
-    enable_flash_sdp(True)
-    enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
 
     logfile = None
     if master_process:
@@ -787,11 +884,10 @@ def main() -> None:
     log0("=" * 100, console=False)
     log0(f"Running Python {sys.version}", console=False)
     log0(f"Running PyTorch {torch.__version__}", console=False)
-    log0(
-        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
-        console=False,
-    )
+    log0(f"Accelerator backend: {accelerator_name()}", console=False)
+    log0(gpu_diagnostics_output(), console=False)
     log0("=" * 100, console=False)
+    maybe_enable_sdp_backends(log0)
 
     # -----------------------------
     # TOKENIZER + VALIDATION METRIC SETUP
@@ -840,7 +936,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = maybe_compile_module(base_model, args, log0)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
@@ -862,12 +958,7 @@ def main() -> None:
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
-    optimizer_tok = torch.optim.Adam(
-        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        fused=True,
-    )
+    optimizer_tok = make_adam([base_model.tok_emb.weight], token_lr, args.beta1, args.beta2, args.adam_eps)
     optimizer_muon = Muon(
         matrix_params,
         lr=args.matrix_lr,
@@ -876,26 +967,15 @@ def main() -> None:
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
-    optimizer_scalar = torch.optim.Adam(
-        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        fused=True,
-    )
+    optimizer_scalar = make_adam(scalar_params, args.scalar_lr, args.beta1, args.beta2, args.adam_eps)
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
     if base_model.lm_head is not None:
-        optimizer_head = torch.optim.Adam(
-            [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.adam_eps,
-            fused=True,
-        )
+        optimizer_head = make_adam([base_model.lm_head.weight], args.head_lr, args.beta1, args.beta2, args.adam_eps)
         optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -944,7 +1024,7 @@ def main() -> None:
                 if distributed:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                with torch.autocast(**autocast_kwargs()):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
@@ -1012,7 +1092,7 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            with torch.autocast(**autocast_kwargs()):
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
