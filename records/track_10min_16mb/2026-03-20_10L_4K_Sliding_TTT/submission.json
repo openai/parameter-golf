@@ -1,0 +1,11 @@
+{
+  "author": "takoyakisoft",
+  "github_id": "takoyakisoft",
+  "name": "10L + 4K Context Negative Result",
+  "blurb": "A non-record negative result combining 10 layers, 4K training context, QAT, sliding-window evaluation, and LoRA TTT under the 10-minute budget.",
+  "date": "2026-03-20",
+  "val_loss": 3.1049,
+  "val_bpb": 1.8389,
+  "bytes_total": 13361078,
+  "bytes_code": 62383
+}
