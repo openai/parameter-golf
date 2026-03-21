@@ -33,6 +33,12 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+    _HAS_FA3 = True
+except ImportError:
+    _HAS_FA3 = False
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -58,7 +64,7 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -87,24 +93,29 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 16384))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 0))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 0))
 
     int6_ste = bool(int(os.environ.get("INT6_STE", "0")))
 
-    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
+    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))  # default off when EMA available
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.3))
     swa_every = int(os.environ.get("SWA_EVERY", 20))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))  # EMA on by default
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
     prune_frac = float(os.environ.get("PRUNE_FRAC", 0.03))
     int5_mlp = bool(int(os.environ.get("INT5_MLP", "1")))
+    int5_all = bool(int(os.environ.get("INT5_ALL", "1")))  # int5 for ALL weight categories
+    quant_other = bool(int(os.environ.get("QUANT_OTHER", "1")))  # include 'other' in quantized set
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 3))  # XSA on last N layers (0=disabled)
 
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.004))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 12))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_freeze_layers = int(os.environ.get("TTT_FREEZE_LAYERS", 0))
-    ttt_num_chunks = int(os.environ.get("TTT_NUM_CHUNKS", 32))
+    ttt_num_chunks = int(os.environ.get("TTT_NUM_CHUNKS", 64))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -295,7 +306,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 )
 FP16_KEEP_NAME_PATTERNS = tuple(
     pattern
-    for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,blocks.8.attn.c_k").split(",")
+    for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,blocks.9.attn.c_k").split(",")
     if pattern
 )
 INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
@@ -355,7 +366,7 @@ def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
     q = torch.clamp(torch.round(t32 / scale.float()), -(clip_range+1), clip_range).to(torch.int8)
     return q, scale
 
-def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], use_int5_mlp: bool = True, use_int5_all: bool = False):
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     for name, tensor in state_dict.items():
@@ -374,11 +385,19 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             meta[name] = "passthrough_fp16"
             continue
         if cat in int6_cats and t.ndim >= 1:
-            clip = 15 if cat == "mlp" else 31  # int5 for MLP, int6 for attention
+            if use_int5_all:
+                clip = 15  # int5 for ALL categories
+                bit_label = "int5"
+            elif use_int5_mlp and cat == "mlp":
+                clip = 15  # int5 for MLP only
+                bit_label = "int5"
+            else:
+                clip = 31  # int6 for attention and MLP when int5 disabled
+                bit_label = "int6"
             q, s = quantize_intN_per_row(t, clip_range=clip)
             result[name + ".q"] = q
             result[name + ".scale"] = s
-            meta[name] = {"type": f"int{5 if cat == 'mlp' else 6}"}
+            meta[name] = {"type": bit_label}
         else:
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
@@ -567,6 +586,17 @@ class CausalSelfAttention(nn.Module):
         self.attn_gate = CastedLinear(min(12, dim), num_heads, bias=False) if attn_gate_enabled else None
         if self.attn_gate is not None:
             nn.init.zeros_(self.attn_gate.weight)
+        self.use_xsa = False  # set by GPT.__init__ for deep layers only
+
+    def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
+        """Efficient XSA: subtract self-value projection via GQA-aware reshape.
+        y: [B, T, H, D], v: [B, T, Hkv, D]. H must be divisible by Hkv."""
+        B, T, H, D = y.shape
+        Hkv = v.size(-2)
+        y_g = y.reshape(B, T, Hkv, H // Hkv, D)
+        vn = F.normalize(v, dim=-1).unsqueeze(-2)
+        proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
+        return (y_g - proj).reshape(B, T, H, D)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -579,16 +609,31 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q, k, v, attn_mask=None, is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+        if _HAS_FA3:
+            # FA3: expects [B, T, H, D] layout
+            q_fa = q.transpose(1, 2)  # [B, T, H, D]
+            k_fa = k.transpose(1, 2)  # [B, T, Hkv, D]
+            v_fa = v.transpose(1, 2)  # [B, T, Hkv, D]
+            y, _ = flash_attn_3_func(q_fa, k_fa, v_fa, causal=True)
+            y = y.transpose(1, 2)  # back to [B, H, T, D]
+        else:
+            y = F.scaled_dot_product_attention(
+                q, k, v, attn_mask=None, is_causal=True,
+                enable_gqa=(self.num_kv_heads != self.num_heads),
+            )
         # Apply per-head attention gate
         if self.attn_gate is not None:
             gate_input = x[..., :self.attn_gate.weight.size(-1)]  # first 12 dims
             gate = torch.sigmoid(self.attn_gate(gate_input))  # [B, T, num_heads]
             y = y * gate.unsqueeze(-1).transpose(1, 2)  # [B, H, T, D] * [B, H, T, 1]
-        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        # XSA: subtract self-value projection (deep layers only)
+        if self.use_xsa:
+            y_xsa = y.transpose(1, 2)  # [B, T, H, D]
+            v_xsa = v.transpose(1, 2)  # [B, T, Hkv, D]
+            y_xsa = self._xsa_efficient(y_xsa, v_xsa)
+            y = y_xsa.reshape(bsz, seqlen, dim)
+        else:
+            y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
@@ -680,6 +725,7 @@ class GPT(nn.Module):
         qk_gain_init: float,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
+        xsa_last_n: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -704,6 +750,10 @@ class GPT(nn.Module):
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
+        # Enable XSA on deepest layers (highest self-attention bias)
+        if xsa_last_n > 0:
+            for i in range(max(0, num_layers - xsa_last_n), num_layers):
+                self.blocks[i].attn.use_xsa = True
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -991,7 +1041,11 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
+        xsa_last_n=args.xsa_last_n,
     ).to(device).bfloat16()
+    xsa_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_xsa]
+    if xsa_layers:
+        log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
@@ -1120,6 +1174,13 @@ def main() -> None:
     stop_after_step: int | None = None
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
+
+    # EMA shadow model (on GPU for speed)
+    ema_state: dict[str, Tensor] | None = None
+    if args.ema_enabled:
+        ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
+        log0(f"ema:initialized decay={args.ema_decay}")
+
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1182,8 +1243,15 @@ def main() -> None:
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
-        # SWA: collect checkpoints during warmdown
-        if args.swa_enabled and scale < args.swa_start_frac and step % args.swa_every == 0:
+        # EMA: update shadow model every step
+        if ema_state is not None:
+            d = args.ema_decay
+            with torch.no_grad():
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(d).add_(t.detach().float(), alpha=1.0 - d)
+
+        # SWA: collect checkpoints during warmdown (disabled when EMA active)
+        if args.swa_enabled and not args.ema_enabled and scale < args.swa_start_frac and step % args.swa_every == 0:
             if swa_state is None:
                 swa_state = {name: t.detach().cpu().clone() for name, t in base_model.state_dict().items()}
                 swa_count = 1
@@ -1216,8 +1284,14 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
-    # Apply SWA if collected
-    if args.swa_enabled and swa_state is not None and swa_count > 1:
+    # Apply EMA or SWA weights
+    if ema_state is not None:
+        log0("ema:applying EMA weights")
+        avg_state = {name: t.to(dtype=base_model.state_dict()[name].dtype)
+                     for name, t in ema_state.items()}
+        del ema_state
+        base_model.load_state_dict(avg_state, strict=True)
+    elif args.swa_enabled and swa_state is not None and swa_count > 1:
         log0(f"swa:applying averaged {swa_count} checkpoints")
         current_state = base_model.state_dict()
         avg_state = {
@@ -1249,7 +1323,10 @@ def main() -> None:
 
     # INT6 mixed quantization + zstd/zlib export
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
-    quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn", "other"})
+    int6_cats = {"mlp", "attn"}  # int6 for mlp+attn only, int8 for other/embed
+    if args.quant_other:
+        int6_cats.add("other")  # Include "other" in quantized set when explicitly requested
+    quant_result, quant_meta = mixed_quantize_int6(sd_cpu, int6_cats, use_int5_mlp=args.int5_mlp, use_int5_all=args.int5_all)
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
