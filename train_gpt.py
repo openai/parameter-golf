@@ -56,6 +56,8 @@ class Hyperparameters:
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    val_seq_len = int(os.environ.get("VAL_SEQ_LEN", os.environ.get("TRAIN_SEQ_LEN", 1024)))
+    val_stride = int(os.environ.get("VAL_STRIDE", 0))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -69,6 +71,13 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    depth_share_mode = os.environ.get("DEPTH_SHARE_MODE", "none")
+    depth_unique_layers = int(os.environ.get("DEPTH_UNIQUE_LAYERS", 3))
+    depth_share_heavy_only = bool(int(os.environ.get("DEPTH_SHARE_HEAVY_ONLY", "0")))
+    mod_keep = float(os.environ.get("MOD_KEEP", "1.0"))
+    mod_core = int(os.environ.get("MOD_CORE", "1"))
+    smeargate = bool(int(os.environ.get("SMEARGATE", "0")))
+    smeargate_init = float(os.environ.get("SMEARGATE_INIT", "-2.0"))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -85,6 +94,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.0))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -110,10 +120,18 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
+    def __init__(
+        self,
+        params,
+        lr: float,
+        momentum: float,
+        backend_steps: int,
+        weight_decay: float = 0.0,
+        nesterov: bool = True,
+    ):
         super().__init__(
             params,
-            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov),
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, weight_decay=weight_decay, nesterov=nesterov),
         )
 
     @torch.no_grad()
@@ -134,6 +152,7 @@ class Muon(torch.optim.Optimizer):
             lr = group["lr"]
             momentum = group["momentum"]
             backend_steps = group["backend_steps"]
+            weight_decay = group["weight_decay"]
             nesterov = group["nesterov"]
 
             total_params = sum(int(p.numel()) for p in params)
@@ -162,6 +181,8 @@ class Muon(torch.optim.Optimizer):
             curr = 0
             for p in params:
                 g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
+                if weight_decay > 0:
+                    p.mul_(1.0 - lr * weight_decay)
                 p.add_(g, alpha=-lr)
                 curr += p.numel()
 
@@ -617,7 +638,7 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
-class Block(nn.Module):
+class BlockCore(nn.Module):
     def __init__(
         self,
         dim: int,
@@ -628,20 +649,37 @@ class Block(nn.Module):
         qk_gain_init: float,
     ):
         super().__init__()
-        self.attn_norm = RMSNorm()
-        self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.mlp = MLP(dim, mlp_mult)
+
+
+class Block(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.attn_norm = RMSNorm()
+        self.mlp_norm = RMSNorm()
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, core: BlockCore, mod_keep: float = 1.0) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        attn_out = core.attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        mlp_x = self.mlp_norm(x)
+        if mod_keep < 1.0:
+            flat = mlp_x.reshape(-1, mlp_x.size(-1))
+            k = max(1, int(round(mod_keep * float(flat.size(0)))))
+            scores = flat.float().abs().mean(dim=-1)
+            idx = torch.topk(scores, k, sorted=False).indices
+            sel = core.mlp(flat.index_select(0, idx))
+            mlp_out = torch.zeros_like(flat)
+            mlp_out.index_copy_(0, idx, sel)
+            mlp_out = mlp_out.view_as(mlp_x)
+        else:
+            mlp_out = core.mlp(mlp_x)
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
         return x
 
 
@@ -659,31 +697,44 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        depth_share_mode: str,
+        depth_unique_layers: int,
+        depth_share_heavy_only: bool,
+        mod_keep: float,
+        mod_core: int,
+        smeargate: bool,
+        smeargate_init: float,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+        if depth_share_mode not in {"none", "cycle"}:
+            raise ValueError(f"DEPTH_SHARE_MODE must be one of none, cycle; got {depth_share_mode!r}")
+        if depth_unique_layers <= 0:
+            raise ValueError(f"DEPTH_UNIQUE_LAYERS must be positive, got {depth_unique_layers}")
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.depth_share_mode = depth_share_mode
+        self.depth_share_heavy_only = depth_share_heavy_only
+        self.mod_keep = mod_keep
+        self.mod_core = mod_core
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.smeargate_gate = nn.Parameter(torch.full((model_dim,), smeargate_init, dtype=torch.float32)) if smeargate else None
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.blocks = nn.ModuleList(
-            [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-                for i in range(num_layers)
-            ]
+        if depth_share_mode == "cycle" and depth_share_heavy_only:
+            self.layer_block_indices = [i % depth_unique_layers for i in range(num_layers)]
+            num_unique_cores = depth_unique_layers
+        else:
+            self.layer_block_indices = list(range(num_layers))
+            num_unique_cores = num_layers
+        self.block_cores = nn.ModuleList(
+            [BlockCore(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init) for _ in range(num_unique_cores)]
         )
+        self.blocks = nn.ModuleList([Block(model_dim) for _ in range(num_layers)])
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -699,18 +750,23 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
+        if self.smeargate_gate is not None:
+            prev = torch.cat((x[:, :1, :], x[:, :-1, :]), dim=1)
+            gate = torch.sigmoid(self.smeargate_gate.to(dtype=x.dtype))[None, None, :]
+            x = x + gate * (prev - x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
 
         # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[i](x, x0, self.block_cores[self.layer_block_indices[i]], mod_keep=self.mod_keep if self.layer_block_indices[i] == self.mod_core else 1.0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            layer_idx = self.num_encoder_layers + i
+            x = self.blocks[layer_idx](x, x0, self.block_cores[self.layer_block_indices[layer_idx]], mod_keep=self.mod_keep if self.layer_block_indices[layer_idx] == self.mod_core else 1.0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -835,6 +891,13 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        depth_share_mode=args.depth_share_mode,
+        depth_unique_layers=args.depth_unique_layers,
+        depth_share_heavy_only=args.depth_share_heavy_only,
+        mod_keep=args.mod_keep,
+        mod_core=args.mod_core,
+        smeargate=args.smeargate,
+        smeargate_init=args.smeargate_init,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -848,19 +911,20 @@ def main() -> None:
     # - untied lm_head (Adam) uses HEAD_LR
     # - matrix params in transformer blocks use MATRIX_LR via Muon
     # - vectors/scalars use SCALAR_LR via Adam
-    block_named_params = list(base_model.blocks.named_parameters())
+    model_named_params = list(base_model.named_parameters())
     matrix_params = [
         p
-        for name, p in block_named_params
-        if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        for name, p in model_named_params
+        if name not in {"tok_emb.weight", "lm_head.weight"}
+        and p.ndim == 2
+        and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
     scalar_params = [
         p
-        for name, p in block_named_params
-        if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        for name, p in model_named_params
+        if name not in {"tok_emb.weight", "lm_head.weight"}
+        and (p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS))
     ]
-    if base_model.skip_weights.numel() > 0:
-        scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -873,6 +937,7 @@ def main() -> None:
         lr=args.matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
+        weight_decay=args.muon_weight_decay,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
@@ -897,6 +962,15 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(
+        f"depth_share_mode:{args.depth_share_mode} depth_unique_layers:{args.depth_unique_layers} "
+        f"depth_share_heavy_only:{int(args.depth_share_heavy_only)} unique_cores:{len(base_model.block_cores)}"
+    )
+    log0(
+        f"mod_keep:{args.mod_keep} mod_core:{args.mod_core} "
+        f"smeargate:{int(args.smeargate)} smeargate_init:{args.smeargate_init} "
+        f"muon_weight_decay:{args.muon_weight_decay}"
+    )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
