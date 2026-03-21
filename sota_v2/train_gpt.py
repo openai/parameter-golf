@@ -35,6 +35,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
 
+torch._dynamo.config.optimize_ddp = False  # required for DDP + compile
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -765,7 +767,7 @@ class CausalSelfAttention(nn.Module):
             attn = F.softmax(attn, dim=-1)
             y = (attn @ v2).transpose(1, 2)
         else:
-            y = flash_attn_3_func(q, k, v, causal=True)
+            y = flash_attn_3_func(q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16), causal=True)
         y = y.reshape(bsz, seqlen, dim)
         return self.proj(y)
 
