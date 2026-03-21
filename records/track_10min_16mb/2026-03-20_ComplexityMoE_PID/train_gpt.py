@@ -608,67 +608,7 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
-# Custom op: gather/scatter MoE dispatch — fullgraph compatible.
-# torch.compile sees one opaque node; implementation does real routing.
-@torch.library.custom_op("moe::relu2_dispatch", mutates_args=())
-def _moe_relu2_dispatch(x: Tensor, expert_ids: Tensor,
-                        fc_weight: Tensor, proj_weight: Tensor) -> Tensor:
-    """Gather/scatter dispatch for relu² MoE. Each expert computes only its tokens."""
-    N, dim = x.shape
-    E = fc_weight.shape[0]
-    out = torch.zeros_like(x)
-    flat_ids = expert_ids.reshape(-1)
-    for e in range(E):
-        idx = (flat_ids == e).nonzero(as_tuple=True)[0]
-        if idx.numel() == 0:
-            continue
-        x_e = x[idx]
-        h = torch.relu(x_e @ fc_weight[e])
-        out[idx] = h.square() @ proj_weight[e]
-    return out
-
-@_moe_relu2_dispatch.register_fake
-def _moe_relu2_dispatch_fake(x, expert_ids, fc_weight, proj_weight):
-    return torch.empty_like(x)
-
-def _moe_relu2_dispatch_setup(ctx, inputs, output):
-    x, expert_ids, fc_weight, proj_weight = inputs
-    ctx.save_for_backward(x, expert_ids, fc_weight, proj_weight)
-
-def _moe_relu2_dispatch_backward(ctx, grad_output):
-    x, expert_ids, fc_weight, proj_weight = ctx.saved_tensors
-    E = fc_weight.shape[0]
-    flat_ids = expert_ids.reshape(-1)
-    grad_x = torch.zeros_like(x)
-    grad_fc = torch.zeros_like(fc_weight)
-    grad_proj = torch.zeros_like(proj_weight)
-    for e in range(E):
-        idx = (flat_ids == e).nonzero(as_tuple=True)[0]
-        if idx.numel() == 0:
-            continue
-        x_e = x[idx]
-        g_e = grad_output[idx]
-        # Forward replay: h = relu(x_e @ fc[e]), out = h² @ proj[e]
-        pre_act = x_e @ fc_weight[e]
-        h = torch.relu(pre_act)
-        h2 = h.square()
-        # Backward through proj: grad_h2 = g_e @ proj[e].T, grad_proj[e] = h2.T @ g_e
-        grad_h2 = g_e @ proj_weight[e].T
-        grad_proj[e] = h2.T @ g_e
-        # Backward through h²: grad_h = grad_h2 * 2h
-        grad_h = grad_h2 * (2.0 * h)
-        # Backward through relu: grad_pre = grad_h * (pre_act > 0)
-        grad_pre = grad_h * (pre_act > 0).to(grad_h.dtype)
-        # Backward through fc: grad_x[idx] = grad_pre @ fc[e].T, grad_fc[e] = x_e.T @ grad_pre
-        grad_x[idx] = grad_pre @ fc_weight[e].T
-        grad_fc[e] = x_e.T @ grad_pre
-    return grad_x, None, grad_fc, grad_proj
-
-_moe_relu2_dispatch.register_autograd(
-    _moe_relu2_dispatch_backward, setup_context=_moe_relu2_dispatch_setup
-)
-
-# Token-Routed MoE — modulo routing, custom op dispatch (fullgraph + real routing).
+# Token-Routed MoE — modulo routing, gather/scatter dispatch.
 class TokenRoutedMLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int, num_experts: int,
                  activation: str = "relu2"):
@@ -695,21 +635,19 @@ class TokenRoutedMLP(nn.Module):
         bsz, seq, _ = x.shape
         flat_x = x.reshape(-1, self.dim)
         flat_ids = expert_ids.reshape(-1)
-        if self.activation == "swiglu":
-            # Fallback for swiglu (no custom op yet)
-            out = torch.zeros_like(flat_x)
-            for e in range(self.num_experts):
-                idx = (flat_ids == e).nonzero(as_tuple=True)[0]
-                if idx.numel() == 0:
-                    continue
-                x_e = flat_x[idx]
+        out = torch.zeros_like(flat_x)
+        for e in range(self.num_experts):
+            idx = (flat_ids == e).nonzero(as_tuple=True)[0]
+            if idx.numel() == 0:
+                continue
+            x_e = flat_x[idx]
+            if self.activation == "swiglu":
                 gu = x_e @ self.gate_up_proj[e]
                 gate, up = gu.chunk(2, dim=-1)
                 out[idx] = F.silu(gate) * up @ self.down_proj[e]
-            return out.reshape(bsz, seq, self.dim)
-        # relu² — custom op: fullgraph + real gather/scatter routing
-        out = torch.ops.moe.relu2_dispatch(flat_x, flat_ids,
-                                           self.fc_weight, self.proj_weight)
+            else:
+                h = torch.relu(x_e @ self.fc_weight[e])
+                out[idx] = h.square() @ self.proj_weight[e]
         return out.reshape(bsz, seq, self.dim)
 
 class Block(nn.Module):
@@ -1161,7 +1099,7 @@ def main() -> None:
         if isinstance(module, Rotary):
             module.inv_freq.data = module.inv_freq.data.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
