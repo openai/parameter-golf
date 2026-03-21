@@ -1,0 +1,10 @@
+{
+  "name": "Local Baseline Reproduction",
+  "github_id": "bjbjbjbjbjbj",
+  "author": "bjbjbjbjbjbj",
+  "track": "track_non_record_16mb",
+  "category": "non-record",
+  "val_bpb": 1.3529,
+  "best_step": 4200,
+  "description": "Local single-GPU reproduction of the OpenAI Parameter Golf NaiveBaseline."
+}
