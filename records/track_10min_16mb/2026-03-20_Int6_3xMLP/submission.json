@@ -1,0 +1,61 @@
+{
+  "author": "mrdavtan",
+  "github_id": "mrdavtan",
+  "name": "Int6 + 3x MLP + FP16 Embed + Sliding Window (mean val_bpb=1.1724, 5 seeds, p<0.01)",
+  "blurb": "Independent int6 implementation with 3x MLP expansion (hidden=1536), FP16 tied embedding, aggressive warmdown (WD=20000), and sliding window eval (stride=64). 5-seed validation: mean 1.1724, std 0.0026, p<0.01 vs baseline. Accompanied by 9 controlled ablations with 6 negative findings.",
+  "date": "2026-03-20",
+  "val_loss": 1.97676768,
+  "val_bpb": 1.17075317,
+  "pre_quant_val_loss": 2.0176,
+  "pre_quant_val_bpb": 1.1949,
+  "step_stop": 12507,
+  "wallclock_seconds": 599.980,
+  "eval_time_seconds": 80.311,
+  "bytes_total": 15175136,
+  "bytes_model_int8_zstd": 15103871,
+  "bytes_code": 71265,
+  "hardware": "8xH100 SXM (RunPod Parameter Golf template), PyTorch 2.9.1+cu128",
+  "seed": 1337,
+  "num_seeds": 5,
+  "seed_results": {
+    "31337": 1.17031614,
+    "1337": 1.17075317,
+    "2024": 1.17124182,
+    "42": 1.17320677,
+    "7": 1.17670448
+  },
+  "mean_val_bpb": 1.17244448,
+  "std_val_bpb": 0.00262498,
+  "gap_vs_baseline_nats": 0.0360,
+  "p_value": "<0.01 (t=44.2, df=4)",
+  "track": "track_10min_16mb",
+  "model": {
+    "num_layers": 9,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_hidden": 1536,
+    "vocab_size": 1024,
+    "tie_embeddings": true,
+    "total_params": 21778504
+  },
+  "changes_from_baseline": [
+    "Int6 per-row quantization (max_val=31) + zstd-22 compression",
+    "3x MLP expansion (MLP_HIDDEN=1536, enabled by int6 savings)",
+    "FP16 tied embedding export",
+    "WARMDOWN_ITERS=20000, MATRIX_LR=0.06, SCALAR_LR=0.06, TIED_EMBED_LR=0.07",
+    "GRAD_CLIP_NORM=1.0, MUON_BACKEND_STEPS=5, MUON_MOMENTUM=0.99",
+    "Sliding window eval stride=64"
+  ],
+  "ablations": {
+    "SWA": "+0.0004 BPB (no effect, tested at WD=1200)",
+    "doc_isolated_eval": "+0.0086 BPB (hurts at stride=64)",
+    "curriculum_learning": "+0.0013 BPB (no effect)",
+    "multi_token_prediction": "+0.0018 BPB (no effect)",
+    "smeargate_bigramhash": "+0.003 BPB (hurts with int6)",
+    "int8_QAT": "+0.012 BPB (overhead exceeds recovery)",
+    "depth_recurrence_huginn": "4.34-5.58 BPB (catastrophic at 7.6M scale)",
+    "torch_compile_graph_priming": "causes 50% slowdown on non-QAT path",
+    "swa_bf16_accumulation": "causes catastrophic precision loss (val_bpb=2.62)"
+  }
+}
