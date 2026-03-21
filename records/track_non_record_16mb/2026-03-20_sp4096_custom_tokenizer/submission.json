@@ -1,8 +1,8 @@
 {
   "name": "Custom sp4096 BPE Tokenizer",
   "github_id": "Nishu2000-hub",
-  "val_bpb": 1.27956357,
-  "val_loss": 2.93617169,
+  "val_bpb": 1.28265211,
+  "val_loss": 2.94325886,
   "track": "non_record_16mb",
   "date": "2026-03-20",
   "hardware": "1x H100 80GB HBM3",
