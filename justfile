@@ -74,6 +74,25 @@ autoresearch-code-mlx trials="5" seed="1337" mutation="":
         uv run python3 autoresearch/run_search.py --backend mlx --mode code --trials {{trials}} --seed {{seed}} --resume; \
     fi
 
+modal-upload-data:
+    modal run autoresearch/modal_search.py::upload_data
+
+modal-sweep-preset trials="8" gpu="A10G" seed="1337" preset="":
+    @if [ -n "{{preset}}" ]; then \
+        modal run autoresearch/modal_search.py --mode preset --trials {{trials}} --gpu {{gpu}} --seed {{seed}} --preset {{preset}}; \
+    else \
+        modal run autoresearch/modal_search.py --mode preset --trials {{trials}} --gpu {{gpu}} --seed {{seed}}; \
+    fi
+
+modal-sweep-random trials="10" gpu="A10G" seed="1337":
+    modal run autoresearch/modal_search.py --mode random --trials {{trials}} --gpu {{gpu}} --seed {{seed}}
+
+modal-sweep-evolution trials="6" gpu="A10G" seed="1337" population="6":
+    modal run autoresearch/modal_search.py --mode evolution --trials {{trials}} --gpu {{gpu}} --seed {{seed}} --population {{population}}
+
+modal-sweep-h100 trials="8" seed="1337":
+    modal run autoresearch/modal_search.py --mode preset --trials {{trials}} --gpu h100 --seed {{seed}} --baseline-first
+
 autoresearch-code-cuda trials="5" nproc="1" seed="1337" mutation="":
     @if [ -n "{{mutation}}" ]; then \
         uv run python3 autoresearch/run_search.py --backend cuda --mode code --trials {{trials}} --nproc {{nproc}} --seed {{seed}} --code-mutation {{mutation}} --resume; \
