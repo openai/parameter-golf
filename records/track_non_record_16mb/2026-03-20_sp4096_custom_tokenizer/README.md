@@ -8,7 +8,7 @@ directly on FineWeb documents, replacing the provided 1024-vocab tokenizer.
 The larger vocabulary encodes more bytes per token, directly improving the
 BPB metric independent of model quality.
 
-This is a **non-record submission** — our result (1.2827 BPB on 1×H100)
+This is a **non-record submission** — our result (1.2826 BPB on 1×H100)
 does not beat the official baseline (1.2244 BPB on 8×H100). We expect
 8×H100 compute to push our score to ~1.18-1.20 BPB based on loss curve
 trajectory.
@@ -48,11 +48,11 @@ Our 4096-vocab tokenizer achieves **2.75 bytes/token** vs the baseline's
 | Hardware | 8×H100, 10min | 1×H100, 10min |
 | Steps | 13,780 | 1,927 |
 | Bytes/token | 2.00 | **2.75** |
-| val_bpb (standard) | **1.2244** | 1.28276 |
+| val_bpb (standard) | **1.2244** | 1.2826 |
 | Model size int8+zlib | 15.86 MB | 14.78 MB |
 | Under 16MB | ✅ | ✅ |
 
-Our score of 1.2827 does not beat the baseline 1.2244. The gap is primarily
+Our score of 1.2826 does not beat the baseline 1.2244. The gap is primarily
 due to compute — we ran on 1×H100 (1,927 steps) vs 8×H100 (13,780 steps).
 On equivalent hardware we project ~1.18-1.20 BPB.
 
