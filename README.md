@@ -79,6 +79,12 @@ python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
 This populates `./data/datasets/fineweb10B_sp1024/` and `./data/tokenizers/`.
 By default this downloads the full validation split plus 80 training shards (8B tokens). For a smaller local smoke subset, pass `--train-shards 1`, for example `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1`.
 
+After downloading, you can **inspect raw text** (decoded BPE) from a shard:
+
+```bash
+python3 scripts/sample_fineweb_tokens.py --shard val --num-samples 5 --length 96
+```
+
 Then run a small MLX training job:
 
 ```bash
@@ -90,7 +96,24 @@ VAL_BATCH_SIZE=8192 \
 python3 train_gpt_mlx.py
 ```
 
-Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
+Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end (that final full-val pass can still take a while if `VAL_BATCH_SIZE` is very small; use the default `VAL_BATCH_SIZE` unless you are debugging memory).
+
+#### Your `records/.../train_gpt.py` submission on a Mac
+
+Leaderboard submissions target **CUDA + 8 GPUs** (`torchrun`). That path will not run end-to-end on Apple Silicon. You can still de-risk locally:
+
+1. **MLX** (`train_gpt_mlx.py`) — same FineWeb shards and the same **BPB idea** (next-token loss converted with the tokenizer byte tables), but a **different** training stack than your CUDA submission. Use it to learn the data pipeline and see loss/BPB trends.
+2. **Smoke test** — load your submission file as a module and run a tiny forward pass + int6 export roundtrip on **CPU or MPS** (no official score):
+
+```bash
+python3 scripts/check_submission_local.py records/track_10min_16mb/<your_run>/train_gpt.py
+```
+
+Optional: `LOCAL_SMOKE_LAYERS=2 LOCAL_SMOKE_DIM=128` for an even smaller model. A real **competition BPB** (sliding window, 10-minute train, quantized artifact) still requires a CUDA machine (e.g. Runpod).
+
+**Prep checklist (in order):** (1) download data + run `sample_fineweb_tokens.py` so you’ve seen the corpus, (2) MLX smoke `train_gpt_mlx.py`, (3) `scripts/check_submission_local.py` on your `records/.../train_gpt.py`, (4) full `torchrun` on **8×H100 SXM** and log `val_bpb`, (5) multiple seeds if you claim a record.
+
+**Use one clone on your machine:** keep a single repo folder (this fork), with `data/` and `.venv` local only — see `HANDOFF.md` at repo root.
 
 ### Scaling Up to a Remote Machine
 
