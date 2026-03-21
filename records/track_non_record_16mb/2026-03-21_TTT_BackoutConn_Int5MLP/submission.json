@@ -1,0 +1,20 @@
+{
+    "author": "shivnarain",
+    "github_id": "shivnarainms22",
+    "val_bpb": 1.4463,
+    "val_bpb_note": "1xH100 result (869 steps). 8xH100 run pending for record submission.",
+    "date": "2026-03-21",
+    "description": "10L Int5-MLP + BigramHash(10240) + TTT + Backout Connection",
+    "base": "thwu1/2026-03-20_10L_Int5MLP_MuonWD04_SWA50",
+    "techniques": [
+        "Mixed int5/int6 quantization",
+        "BigramHash(10240)",
+        "SmearGate",
+        "SWA(0.4)",
+        "U-Net skip connections",
+        "Backout connection (learned residual subtraction)",
+        "Test-time training (SGD on val tokens)",
+        "Magnitude pruning 3%",
+        "Sliding window eval stride=64"
+    ]
+}
