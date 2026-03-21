@@ -61,7 +61,7 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 12))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -707,8 +707,8 @@ class MLP(nn.Module):
     # SwiGLU MLP — gated linear unit with SiLU activation
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
-        # Scale hidden to keep ~same param count as 2-matrix ReLU^2 MLP
-        hidden = int(mlp_mult * dim * 2 / 3)
+        # Scale hidden for 12-layer 16MB budget: 0.55 factor fits under artifact limit
+        hidden = int(mlp_mult * dim * 11 / 20)
         self.gate = CastedLinear(dim, hidden, bias=False)
         self.up = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
