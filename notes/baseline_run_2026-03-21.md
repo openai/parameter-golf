@@ -2,6 +2,7 @@
 
 ## Summary
 
+###best val_bpb = 1.3529 @ step 4200###
 Ran the parameter-golf NaiveBaseline on a single local GPU and observed stable training with convergence.
 
 ## Environment
