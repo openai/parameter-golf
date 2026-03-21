@@ -674,6 +674,30 @@ class SmearGate(nn.Module):
         return (1 - g) * x + g * x_prev
 
 
+class LocalContextConv(nn.Module):
+    """Causal depthwise conv over token embeddings for local context injection.
+    Gives each token awareness of its k previous neighbors before attention.
+    Uses depthwise separable conv: per-channel 1D conv (very few params).
+    """
+    def __init__(self, dim: int, kernel_size: int = 4):
+        super().__init__()
+        self.kernel_size = kernel_size
+        # Depthwise conv: each channel independently, causal padding
+        self.conv = nn.Conv1d(dim, dim, kernel_size, padding=0, groups=dim, bias=False)
+        nn.init.zeros_(self.conv.weight)
+        # Learnable mix ratio (start at 0 = identity)
+        self.mix = nn.Parameter(torch.tensor(0.0, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        # x: (batch, seq, dim) -> conv needs (batch, dim, seq)
+        # Causal: pad left only
+        x_t = x.transpose(1, 2)
+        x_padded = F.pad(x_t, (self.kernel_size - 1, 0))
+        conv_out = self.conv(x_padded).transpose(1, 2)
+        alpha = torch.sigmoid(self.mix)
+        return (1 - alpha) * x + alpha * conv_out
+
+
 class BigramHashEmbedding(nn.Module):
     """Hash consecutive token pairs into a learned embedding table."""
     def __init__(self, bigram_vocab_size: int, bigram_dim: int, model_dim: int):
@@ -752,6 +776,7 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.smear = SmearGate(model_dim)
+        self.local_conv = LocalContextConv(model_dim, kernel_size=4)
         self.blocks = nn.ModuleList(
             [
                 Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
@@ -784,6 +809,7 @@ class GPT(nn.Module):
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
+        x = self.local_conv(x)
         x0 = x
         skips: list[Tensor] = []
         for i in range(self.num_encoder_layers):
@@ -811,6 +837,7 @@ class GPT(nn.Module):
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
+        x = self.local_conv(x)
         x0 = x
         skips: list[Tensor] = []
         for i in range(self.num_encoder_layers):
