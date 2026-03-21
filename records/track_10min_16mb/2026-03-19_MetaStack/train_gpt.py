@@ -234,6 +234,16 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     return tokens[: usable + 1]
 
 
+def load_validation_tokens_full(pattern: str) -> Tensor:
+    files = [Path(p) for p in sorted(glob.glob(pattern))]
+    if not files:
+        raise FileNotFoundError(f"No files found for pattern: {pattern}")
+    tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+    if tokens.numel() < 2:
+        raise ValueError("Validation split must contain at least 2 tokens")
+    return tokens
+
+
 def eval_val(
     args: Hyperparameters,
     model: nn.Module,
@@ -332,8 +342,8 @@ LOWBIT_KEEP_FLOAT_NAME_PATTERNS = tuple(
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
-INT8_CLIP_PERCENTILE = 99.99984
-INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+LOWBIT_CLIP_PERCENTILE = float(os.environ.get("LOWBIT_CLIP_PERCENTILE", 99.99984))
+LOWBIT_CLIP_Q = LOWBIT_CLIP_PERCENTILE / 100.0
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -359,7 +369,7 @@ def quantize_float_tensor(t: Tensor, quant_bits: int = 8) -> tuple[Tensor, Tenso
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
         clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+            torch.quantile(t32.abs(), LOWBIT_CLIP_Q, dim=1)
             if t32.numel()
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
@@ -369,7 +379,7 @@ def quantize_float_tensor(t: Tensor, quant_bits: int = 8) -> tuple[Tensor, Tenso
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
-    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+    clip_abs = float(torch.quantile(t32.abs().flatten(), LOWBIT_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / float(qmax) if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -qmax, qmax).to(torch.int8).contiguous()
     return q, scale
@@ -895,16 +905,35 @@ def eval_val_sliding(
     stride: int,
     eval_batch_seqs: int = 256,
 ) -> tuple[float, float]:
-    """Sliding window evaluation: each token scored with near-full context."""
-    total = val_tokens.numel() - 1
+    """Sliding window evaluation that scores every validation token exactly once."""
+    total_preds = val_tokens.numel() - 1
+    if total_preds <= 0:
+        raise ValueError("Validation split must contain at least 1 prediction target")
+    if seq_len <= 0:
+        raise ValueError(f"EVAL_SEQ_LEN must be positive, got {seq_len}")
+    if stride <= 0:
+        raise ValueError(f"EVAL_STRIDE must be positive for sliding eval, got {stride}")
+    if eval_batch_seqs <= 0:
+        raise ValueError(f"eval_batch_seqs must be positive, got {eval_batch_seqs}")
 
-    # Build windows: (start_pos, score_offset)
-    windows: list[tuple[int, int]] = []
-    p = 0
-    while p + seq_len <= total:
-        s = 0 if p == 0 else (seq_len - stride)
-        windows.append((p, s))
-        p += stride
+    # Build windows: (window_start, score_offset, score_len)
+    windows: list[tuple[int, int, int]] = []
+    if total_preds <= seq_len:
+        windows.append((0, 0, total_preds))
+    else:
+        starts = list(range(0, total_preds - seq_len + 1, stride))
+        tail_start = total_preds - seq_len
+        if starts[-1] != tail_start:
+            starts.append(tail_start)
+        prev_scored_end = 0
+        for window_start in starts:
+            score_global_start = max(prev_scored_end, window_start)
+            score_global_end = window_start + seq_len
+            if score_global_start < score_global_end:
+                windows.append(
+                    (window_start, score_global_start - window_start, score_global_end - score_global_start)
+                )
+                prev_scored_end = score_global_end
 
     # Distribute across ranks
     n = len(windows)
@@ -923,8 +952,8 @@ def eval_val_sliding(
             bs = len(batch)
 
             # Pad to eval_batch_seqs to avoid recompilation
-            x_list = [val_tokens[w : w + seq_len] for w, _ in batch]
-            y_list = [val_tokens[w + 1 : w + seq_len + 1] for w, _ in batch]
+            x_list = [val_tokens[window_start : window_start + seq_len] for window_start, _, _ in batch]
+            y_list = [val_tokens[window_start + 1 : window_start + seq_len + 1] for window_start, _, _ in batch]
             pad = eval_batch_seqs - bs
             if pad > 0:
                 x_list.extend([x_list[-1]] * pad)
@@ -937,16 +966,18 @@ def eval_val_sliding(
                 logits = logits_fn(x)
 
             for b in range(bs):
-                s = batch[b][1]
-                scored_logits = logits[b, s:]
-                scored_targets = y[b, s:]
+                score_start = batch[b][1]
+                score_len = batch[b][2]
+                score_end = score_start + score_len
+                scored_logits = logits[b, score_start:score_end]
+                scored_targets = y[b, score_start:score_end]
 
                 loss = F.cross_entropy(scored_logits.float(), scored_targets, reduction="sum")
                 loss_sum += loss.to(torch.float64)
                 ns = scored_targets.numel()
                 tok_count += ns
 
-                prev = x[b, s : s + ns]
+                prev = x[b, score_start:score_end]
                 tgt = scored_targets
                 tb = base_bytes_lut[tgt].to(torch.int16)
                 tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.int16)
@@ -976,6 +1007,8 @@ def main() -> None:
         raise ValueError(f"COMPRESSOR must be 'zlib' or 'zstd', got {args.compressor!r}")
     if args.zstd_level <= 0:
         raise ValueError(f"ZSTD_LEVEL must be positive, got {args.zstd_level}")
+    if not (0.0 < LOWBIT_CLIP_PERCENTILE <= 100.0):
+        raise ValueError(f"LOWBIT_CLIP_PERCENTILE must be in (0, 100], got {LOWBIT_CLIP_PERCENTILE}")
     if not (0.0 < args.ema_decay < 1.0):
         raise ValueError(f"EMA_DECAY must be in (0, 1), got {args.ema_decay}")
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
@@ -1147,6 +1180,7 @@ def main() -> None:
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"artifact_export:quant_bits:{args.quant_bits} compressor:{args.compressor} zstd_level:{args.zstd_level} "
+        f"clip_percentile:{LOWBIT_CLIP_PERCENTILE} "
         f"fp16_passthrough:{','.join(LOWBIT_KEEP_FLOAT_NAME_PATTERNS) or 'none'}"
     )
     log0(
@@ -1396,7 +1430,13 @@ def main() -> None:
     # Determine eval configuration
     eval_sl = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
     eval_stride = args.eval_stride
-    if eval_sl != args.train_seq_len:
+    if eval_stride > 0:
+        val_tokens_eval = load_validation_tokens_full(args.val_files)
+        if eval_sl != args.train_seq_len:
+            log0(f"eval_seq_len:{eval_sl} (NTK-scaled RoPE, full_tokens:{val_tokens_eval.numel()})")
+        else:
+            log0(f"eval_seq_len:{eval_sl} (full_tokens:{val_tokens_eval.numel()})")
+    elif eval_sl != args.train_seq_len:
         val_tokens_eval = load_validation_tokens(args.val_files, eval_sl)
         log0(f"eval_seq_len:{eval_sl} (NTK-scaled RoPE, {val_tokens_eval.numel()} tokens)")
     else:
@@ -1431,12 +1471,13 @@ def main() -> None:
         )
 
     torch.cuda.synchronize()
+    eval_label = "sliding_window" if eval_stride > 0 else "roundtrip"
     log0(
-        f"final_{artifact_label.replace('+', '_')}_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_{artifact_label.replace('+', '_')}_{eval_label} val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(
-        f"final_{artifact_label.replace('+', '_')}_roundtrip_exact "
+        f"final_{artifact_label.replace('+', '_')}_{eval_label}_exact "
         f"val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}"
     )
 
