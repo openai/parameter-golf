@@ -93,6 +93,9 @@ class Hyperparameters:
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
+    qat_start_scale = float(os.environ.get("QAT_START_SCALE", 0.25))
+    qat_max_strength = float(os.environ.get("QAT_MAX_STRENGTH", 1.0))
+
 # -----------------------------
 # MUON OPTIMIZER
 # -----------------------------
@@ -395,6 +398,44 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
     return out
 
 
+def fake_quantize_intN_per_row_ste(t: Tensor, clip_range: int, strength: Tensor | float) -> Tensor:
+    if clip_range <= 0 or t.ndim != 2:
+        return t
+    s = strength.to(device=t.device, dtype=torch.float32) if isinstance(strength, Tensor) else torch.tensor(float(strength), device=t.device, dtype=torch.float32)
+    s = s.clamp(0.0, 1.0)
+    t32 = t.float()
+    row_max = t32.abs().amax(dim=1)
+    scale = (row_max / clip_range).clamp_min(1e-12).to(torch.float16)
+    scale = scale.clamp_min(torch.finfo(torch.float16).tiny)
+    q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -(clip_range + 1), clip_range)
+    deq = (q * scale.float()[:, None]).to(dtype=t.dtype)
+    return t + (deq - t).detach() * s.to(dtype=t.dtype)
+
+
+def configure_qat_modules(module: nn.Module) -> None:
+    for name, submodule in module.named_modules():
+        if isinstance(submodule, CastedLinear):
+            clip = 0
+            if any(pattern in name for pattern in FP16_KEEP_NAME_PATTERNS):
+                clip = 0
+            elif ".mlp." in name:
+                clip = 15
+            elif ".attn." in name or "bigram.proj" in name:
+                clip = 31
+            submodule.qat_clip_range = clip
+        elif isinstance(submodule, BigramHashEmbedding):
+            submodule.qat_clip_range = 31
+
+
+def set_qat_strength(module: nn.Module, strength: float) -> None:
+    s = float(max(0.0, min(1.0, strength)))
+    for submodule in module.modules():
+        if isinstance(submodule, CastedLinear):
+            submodule.qat_strength.fill_(s)
+        elif isinstance(submodule, BigramHashEmbedding):
+            submodule.qat_strength.fill_(s)
+
+
 # -----------------------------
 # DATA LOADING
 # -----------------------------
@@ -476,8 +517,16 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
+    def __init__(self, in_features: int, out_features: int, bias: bool = True):
+        super().__init__(in_features, out_features, bias=bias)
+        self.qat_clip_range = 0
+        self.register_buffer("qat_strength", torch.tensor(0.0, dtype=torch.float32), persistent=False)
+
     def forward(self, x: Tensor) -> Tensor:
-        w = self.weight.to(x.dtype)
+        w = self.weight
+        if self.training and self.qat_clip_range > 0:
+            w = fake_quantize_intN_per_row_ste(w, self.qat_clip_range, self.qat_strength)
+        w = w.to(x.dtype)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
 
@@ -595,6 +644,8 @@ class BigramHashEmbedding(nn.Module):
         if self.proj is not None:
             nn.init.zeros_(self.proj.weight)
         self.scale = nn.Parameter(torch.tensor(0.05, dtype=torch.float32))
+        self.qat_clip_range = 31
+        self.register_buffer("qat_strength", torch.tensor(0.0, dtype=torch.float32), persistent=False)
 
     def bigram_hash(self, tokens: Tensor) -> Tensor:
         t = tokens.to(torch.int32)
@@ -605,7 +656,10 @@ class BigramHashEmbedding(nn.Module):
         return out.long()
 
     def forward(self, token_ids: Tensor) -> Tensor:
-        h = self.embed(self.bigram_hash(token_ids))
+        weight = self.embed.weight
+        if self.training and self.qat_clip_range > 0:
+            weight = fake_quantize_intN_per_row_ste(weight, self.qat_clip_range, self.qat_strength)
+        h = F.embedding(self.bigram_hash(token_ids), weight)
         if self.proj is not None:
             h = self.proj(h)
         return h * self.scale.to(dtype=h.dtype)
@@ -921,6 +975,8 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    configure_qat_modules(base_model)
+    set_qat_strength(base_model, 0.0)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -1045,6 +1101,7 @@ def main() -> None:
     stop_after_step: int | None = None
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
+    qat_was_on = False
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1077,6 +1134,14 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        qat_strength = 0.0
+        if args.qat_start_scale > 0.0 and scale < args.qat_start_scale:
+            qat_strength = args.qat_max_strength * (args.qat_start_scale - scale) / max(args.qat_start_scale, 1e-8)
+        qat_strength = float(max(0.0, min(1.0, qat_strength)))
+        set_qat_strength(base_model, qat_strength)
+        if qat_strength > 0.0 and not qat_was_on:
+            log0(f"qat:start step:{step} scale:{scale:.4f}")
+            qat_was_on = True
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1125,7 +1190,8 @@ def main() -> None:
         if should_log_train:
             log0(
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
-                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms "
+                f"lr_scale:{scale:.4f} qat:{qat_strength:.3f}"
             )
 
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms

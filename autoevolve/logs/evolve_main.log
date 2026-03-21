@@ -61,3 +61,16 @@ Starting from iteration 19, best BPB: 1.1428
   Log saved to /workspace/parameter-golf/autoevolve/logs/exp_0021.log
   CRASH (exit code 1)
     TIMEOUT: Experiment exceeded 25-minute hard limit (10 train + 10 eval + 5 buffer)
+  Pushed to origin.
+
+======================================================================
+  ITERATION 22  |  Best BPB: 1.1428
+======================================================================
+  Calling gpt-5.4 for proposal...
+  LLM responded in 218.2s (input=18456, output=15987 tokens)
+  Proposed:   Add late exact-path STE QAT for the mixed int5/int6 export scheme, implemented safely in the forward pass only.
+  Diagnosis:  The architecture/optimizer/compression stack is already near the size and throughput frontier, so the most likely remaining loss is train/eval mismatch: the model is optimized in float, then pruned and evaluated after exact mixed int5/int6 dequantization. The recent QAT-themed attempts (#19-#21) nev
+  Hypothesis: Add a very simple late-tail, exact-path STE fake-quantization pass for only the weights that are actually exported as int5/int6: MLP matrices at int5, attention/bigram matrices at int6, with the same per-row max scaling and float16 scale rounding used by export. This keeps artifact size unchanged, a
+  Expected:   -0.006 bpb expected (roughly -0.003 to -0.008 plausible). This is one of the only remaining zero-size-cost changes with literature and competition-specific support, and it directly targets the float-to-int5/int6 gap in the final scored model.
+  Risk:       Main risks are (1) some late-training slowdown from per-row fake quantization, and (2) torch.compile sensitivity to new forward-path ops. I mitigate this by using pure tensor ops only, no custom autog
+  Applied (56,125 bytes, 1297 lines)
