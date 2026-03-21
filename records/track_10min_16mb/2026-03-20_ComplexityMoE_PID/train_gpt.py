@@ -621,20 +621,26 @@ class TokenRoutedMLP(nn.Module):
         self.expert_inter = (mlp_mult * dim) // num_experts
         self.fc_weight = nn.Parameter(torch.empty(num_experts, dim, self.expert_inter))
         self.proj_weight = nn.Parameter(torch.empty(num_experts, self.expert_inter, dim))
+        # Error-based router: project hidden state → expert scores
+        self.router_mu = nn.Parameter(torch.zeros(num_experts, dim))
         self._init_weights()
 
     def _init_weights(self):
         nn.init.kaiming_uniform_(self.fc_weight, a=5**0.5)
         nn.init.zeros_(self.proj_weight)
 
-    def forward(self, x: Tensor, sort_idx: Tensor) -> Tensor:
+    def forward(self, x: Tensor, fallback_sort_idx: Tensor | None = None) -> Tensor:
         bsz, seq, _ = x.shape
         N = bsz * seq
         chunk = N // self.num_experts
         flat_x = x.reshape(N, self.dim)             # [N, D]
+        # Error-based routing: assign each token to nearest expert μ
+        # ||x - μ_e||² = ||x||² - 2·x·μ_e + ||μ_e||² → argmin = argmax(x·μ_e - 0.5·||μ_e||²)
+        scores = flat_x @ self.router_mu.T - 0.5 * (self.router_mu ** 2).sum(-1)  # [N, E]
+        expert_ids = scores.argmax(dim=-1)           # [N]
+        sort_idx = expert_ids.argsort(stable=True)   # [N]
         sorted_x = flat_x[sort_idx]                  # [N, D]
         # Fixed split: each expert gets exactly N/E tokens
-        # Overflow redirected to next expert — all experts always busy
         parts = []
         for e in range(self.num_experts):
             start = e * chunk
@@ -681,7 +687,7 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor, _alibi, sort_idx: Tensor,
+    def forward(self, x: Tensor, x0: Tensor,
                 attn_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
@@ -690,7 +696,7 @@ class Block(nn.Module):
         attn_out = self.attn(n, ad) if self.use_inl else self.attn(n, ad)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         if self.use_moe:
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), sort_idx)
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         else:
             m = self.mlp_norm(x)
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.proj(torch.relu(self.fc(m)).square())
@@ -759,20 +765,17 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
-        # Argsort once — deterministic modulo routing, reused by all 9 layers (MLP only)
-        expert_ids = self.token_to_expert[input_ids.clamp(0, self.vocab_size - 1)]
-        sort_idx = expert_ids.reshape(-1).argsort(stable=True)
 
         for i in range(self.num_encoder_layers):
             ad = lora.attn_loras[i] if lora else None
-            x = self.blocks[i](x, x0, None, sort_idx, ad)
+            x = self.blocks[i](x, x0, ad)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ad = lora.attn_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, None, sort_idx, ad)
+            x = self.blocks[bi](x, x0, ad)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
