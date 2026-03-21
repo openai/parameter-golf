@@ -48,7 +48,7 @@
     "matrix_lr": 0.02,
     "scalar_lr": 0.02,
     "muon_momentum": 0.95,
-    "muon_backend_steps": 5,
+    "muon_backend_steps": 3,
     "muon_momentum_warmup_start": 0.85,
     "muon_momentum_warmup_steps": 500,
     "beta1": 0.9,
