@@ -17,3 +17,5 @@ transformer_v5b_gradclip_10min,600,,,64196,1,,1.3240,739cdd4,"10L WD=3000 grad_c
 transformer_v5c_noclip_10min,600,,,64196,1,,1.3256,739cdd4,"10L WD=3000 no grad_clip (1385 steps, CONTROL)"
 transformer_v6_wd3000_gradclip_80min,4800,15657516,15593320,64196,1,1190.21,1.1647,dabdcb6,"10L WD=3000 clip=0.3 slide64 (10950 steps @ 439ms, 15.7MB, worse than v4!)"
 transformer_v7_depth_recurrence_10min,600,,,65039,1,,1.5362,706c462,"5L×2loops=10eff_depth 9.7M params (1433 steps, MUCH WORSE than 10L unique)"
+transformer_v8c_int6_10min,600,3321684,,69666,1,,1.4944,9acdb97,"10L int6+zstd (quant roundtrip destroys model at 10min, needs full 80min warmdown)"
+transformer_v8d_int6_shortwd_10min,600,5897143,,69666,1,,1.6971,3f01f6f,"10L int6+zstd WD=1500 (quant damage=0.15 bpb in 10min, should be ~0.01 in 80min)"
