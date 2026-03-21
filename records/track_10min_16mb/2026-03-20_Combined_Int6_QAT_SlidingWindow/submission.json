@@ -1,0 +1,41 @@
+{
+    "name": "V5_TTT_LoRA_DualBigram_LabelSmoothing",
+    "author": "DizSi",
+    "date": "2026-03-21",
+    "track": "10min_16mb",
+    "description": "V5: thwu1's 1.1428 architecture + 4 novel innovations. TTT LoRA eval (per-document rank-8 Q/V/LM-head adapters), dual bigram (learned BigramHash + post-hoc statistical table inside TTT), label smoothing (0.05), z-loss (1e-4). Core: 10L GQA (8h/4kv), 3xMLP, SmearGate, Mixed Int5/Int6, SWA, magnitude pruning, zstd-22, linear warmdown, Muon 0.99.",
+    "base_submissions": [
+        "thwu1_10L_Int5MLP_BigramHash_SWA"
+    ],
+    "env": {
+        "WARMDOWN_ITERS": 3000,
+        "MATRIX_LR": 0.02,
+        "TIED_EMBED_LR": 0.03,
+        "SCALAR_LR": 0.02,
+        "GRAD_CLIP_NORM": 0.3,
+        "WEIGHT_DECAY": 0.04,
+        "MUON_MOMENTUM": 0.99,
+        "MUON_MOMENTUM_WARMUP_STEPS": 1500,
+        "NUM_LAYERS": 10,
+        "MODEL_DIM": 512,
+        "MLP_MULT": 3.0,
+        "NUM_HEADS": 8,
+        "NUM_KV_HEADS": 4,
+        "BIGRAM_VOCAB_SIZE": 10240,
+        "BIGRAM_DIM": 128,
+        "TRAIN_SEQ_LEN": 2048,
+        "EVAL_STRIDE": 64,
+        "SWA_START_FRAC": 0.4,
+        "PRUNE_FRAC": 0.03,
+        "TTT_ENABLED": true,
+        "TTT_LORA_RANK": 8,
+        "TTT_LORA_LR": 0.01,
+        "TTT_CHUNK_SIZE": 256,
+        "TTT_EVAL_SEQ_LEN": 1024,
+        "TTT_BATCH_SIZE": 64,
+        "LABEL_SMOOTHING": 0.05,
+        "Z_LOSS_COEFF": 0.0001,
+        "EVAL_BIGRAM_TABLE": true,
+        "EVAL_BIGRAM_SCALE": 0.3
+    }
+}
