@@ -1,0 +1,11 @@
+{
+  "author": "Mato (LightSpeedUp)",
+  "github_id": "MatoTeziTanka",
+  "name": "PROTEUS v4",
+  "blurb": "10L, mixed INT5/INT6 quantization, SmearGate+BigramHash+OrthoInit, Muon WD, EMA, sliding window eval, 3% magnitude pruning. Built with PROTEUS by LightSpeedUp — lightspeedup.com",
+  "date": "2026-03-21T19:53:00Z",
+  "val_loss": 2.03237918,
+  "val_bpb": 1.20368943,
+  "bytes_total": 12499612,
+  "bytes_code": 59515
+}
