@@ -155,12 +155,16 @@ cmd_setup() {
     local ssh_cmd
     ssh_cmd=$(_ssh_cmd)
     echo "Setting up pod..."
-    eval "$ssh_cmd" << 'SETUP_EOF'
+    eval "$ssh_cmd" << SETUP_EOF
+set -ex
 cd /workspace
+if [ -d parameter-golf ] && [ ! -d parameter-golf/.git ]; then
+    rm -rf parameter-golf  # template creates empty dir
+fi
 if [ ! -d parameter-golf ]; then
-    git clone -b sota-review https://github.com/rarce/parameter-golf.git
+    git clone -b ${GITHUB_BRANCH} ${GITHUB_REPO}
 else
-    cd parameter-golf && git fetch origin && git checkout sota-review && git pull origin sota-review && cd ..
+    cd parameter-golf && git fetch origin && git checkout ${GITHUB_BRANCH} && git pull origin ${GITHUB_BRANCH} && cd ..
 fi
 cd parameter-golf
 python3 data/cached_challenge_fineweb.py --variant sp1024
