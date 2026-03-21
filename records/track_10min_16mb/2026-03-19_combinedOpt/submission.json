@@ -1,0 +1,11 @@
+{
+  "author": "Billy1900",
+  "github_id": "Billy1900",
+  "name": "Combined Optimization",
+  "blurb": "This submission combines multiple optimizations including SwiGLU MLP, cosine learning rate schedule, sliding window evaluation, and adaptive training configuration.",
+  "date": "2026-03-19T00:00:00Z",
+  "val_loss": 2.07269931,
+  "val_bpb": 1.2243657,
+  "bytes_total": 15417500,
+  "bytes_code": 11240
+}
