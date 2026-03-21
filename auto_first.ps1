@@ -65,6 +65,17 @@ function Get-Launcher {
     }
 }
 
+function Test-CudaAvailable {
+    param([string]$PythonCmd)
+    if (-not $PythonCmd) {
+        return $false
+    }
+    & $PythonCmd -c "import torch; print('1' if torch.cuda.is_available() else '0')" 2>$null | Out-String | ForEach-Object { $_.Trim() } | ForEach-Object {
+        return ($_ -eq "1")
+    }
+    return $false
+}
+
 function Parse-RunLog {
     param([string]$LogFile)
     $lines = Get-Content -Path $LogFile -ErrorAction Stop
@@ -178,6 +189,13 @@ try {
         throw "Python is required for dataset download. Install Python or pass -SkipDataDownload."
     }
 
+    if (-not $DryRun) {
+        $hasCuda = Test-CudaAvailable -PythonCmd $pythonCmd
+        if (-not $hasCuda) {
+            throw "CUDA is not available in the active Python environment. This challenge requires GPU execution; run this script on an NVIDIA CUDA machine (e.g., RunPod H100)."
+        }
+    }
+
     $dataRoot = Join-Path $RepoRoot "data/datasets/fineweb10B_sp1024"
     $tokenizerPath = Join-Path $RepoRoot "data/tokenizers/fineweb_1024_bpe.model"
     if ((-not (Test-Path $dataRoot)) -or (-not (Test-Path $tokenizerPath))) {
@@ -253,7 +271,15 @@ try {
                     & torchrun --standalone "--nproc_per_node=$NProc" $scriptPath 2>&1 | Tee-Object -FilePath $logFile
                 }
                 else {
-                    & $launcher.command -m torch.distributed.run --standalone "--nproc_per_node=$NProc" $scriptPath 2>&1 | Tee-Object -FilePath $logFile
+                    $oldLibuv = $env:USE_LIBUV
+                    try {
+                        # Windows wheels may lack libuv support; forcing 0 avoids rendezvous failure.
+                        $env:USE_LIBUV = "0"
+                        & $launcher.command -m torch.distributed.run --standalone "--nproc_per_node=$NProc" $scriptPath 2>&1 | Tee-Object -FilePath $logFile
+                    }
+                    finally {
+                        $env:USE_LIBUV = $oldLibuv
+                    }
                 }
             }
             finally {
