@@ -575,18 +575,8 @@ class CausalSelfAttention(nn.Module):
         out = self.proj(y.transpose(1, 2).contiguous().reshape(bsz, sl, dim))
         return out + (attn_delta if attn_delta is not None else 0)
 
-def _build_alibi_bias(num_heads: int, seq_len: int, device: torch.device) -> Tensor:
-    """ALiBi positional bias + causal mask. Zero params."""
-    slopes = 2.0 ** (-8.0 * torch.arange(1, num_heads + 1, device=device, dtype=torch.float32) / num_heads)
-    pos = torch.arange(seq_len, device=device, dtype=torch.float32)
-    bias = -(pos.unsqueeze(0) - pos.unsqueeze(1)).abs()  # [seq, seq]
-    bias = bias.unsqueeze(0) * slopes.unsqueeze(1).unsqueeze(2)  # [H, seq, seq]
-    causal = torch.triu(torch.ones(seq_len, seq_len, device=device, dtype=torch.bool), diagonal=1)
-    bias = bias.masked_fill(causal.unsqueeze(0), float('-inf'))
-    return bias.unsqueeze(0)  # [1, H, seq, seq]
-
 class BetaMuAttention(nn.Module):
-    """INL error-driven attention — replaces QKV. ALiBi for position."""
+    """INL error-driven attention — O(n) causal cumsum, no attention matrix."""
     def __init__(self, dim: int, num_heads: int):
         super().__init__()
         self.dim, self.num_heads = dim, num_heads
@@ -596,21 +586,29 @@ class BetaMuAttention(nn.Module):
             CastedLinear(dim, 64, bias=False), nn.SiLU(),
             CastedLinear(64, num_heads, bias=False), nn.Softplus(),
         )
+        # ALiBi decay per head — learned slope for positional weighting
+        self.alibi_slope = nn.Parameter(torch.zeros(num_heads))
         self.out_proj = CastedLinear(dim, dim, bias=False)
         self.out_proj._zero_init = True
 
-    def forward(self, x: Tensor, alibi: Tensor, attn_delta=None) -> Tensor:
+    def forward(self, x: Tensor, attn_delta=None) -> Tensor:
         bsz, seq_len, _ = x.shape
         beta = self.beta_proj(x).clamp(0, 2.0)  # [bsz, seq, H]
         x_heads = x.view(bsz, seq_len, self.num_heads, self.head_dim)
         error_mag = (x_heads - self.mu).norm(dim=-1).clamp(0, 100.0)  # [bsz, seq, H]
-        # Attention: stable tokens (small error) get higher weight
-        scores = (-beta * error_mag).permute(0, 2, 1)  # [bsz, H, seq]
-        scores = scores.unsqueeze(2).expand(-1, -1, seq_len, -1)  # [bsz, H, seq, seq]
-        scores = scores + alibi  # ALiBi positional + causal mask
-        attn = F.softmax(scores, dim=-1)
-        v = x_heads.permute(0, 2, 1, 3)  # [bsz, H, seq, hd]
-        out = (attn @ v).transpose(1, 2).contiguous().reshape(bsz, seq_len, self.dim)
+        # Per-token weight: stable tokens (small error) get higher weight
+        log_w = -beta * error_mag  # [bsz, seq, H]
+        # ALiBi positional decay: recent tokens weighted more
+        pos = torch.arange(seq_len, device=x.device, dtype=x.dtype)
+        decay = -F.softplus(self.alibi_slope).unsqueeze(-1) * pos.unsqueeze(0)  # [H, seq]
+        log_w = log_w + decay.unsqueeze(0)  # [bsz, seq, H]
+        # Causal weighted average via cumsum — O(n) memory, O(n) compute
+        w = log_w.softmax(dim=1)  # [bsz, seq, H] — normalize across seq
+        w_v = w.unsqueeze(-1) * x_heads  # [bsz, seq, H, hd]
+        # Causal: each position sees cumulative sum up to itself
+        cum_wv = torch.cumsum(w_v, dim=1)  # [bsz, seq, H, hd]
+        cum_w = torch.cumsum(w, dim=1).unsqueeze(-1).clamp(min=1e-8)  # [bsz, seq, H, 1]
+        out = (cum_wv / cum_w).reshape(bsz, seq_len, self.dim)  # normalized
         out = self.out_proj(out)
         return out + (attn_delta if attn_delta is not None else 0)
 
@@ -685,13 +683,13 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor, alibi: Tensor, sort_idx: Tensor,
+    def forward(self, x: Tensor, x0: Tensor, _alibi, sort_idx: Tensor,
                 attn_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         n = self.attn_norm(x)
         ad = attn_delta_fn(n) if attn_delta_fn is not None else None
-        attn_out = self.attn(n, alibi, ad) if self.use_inl else self.attn(n, ad)
+        attn_out = self.attn(n, ad) if self.use_inl else self.attn(n, ad)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         if self.use_moe:
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), sort_idx)
@@ -736,8 +734,6 @@ class GPT(nn.Module):
             "token_to_expert",
             torch.arange(vocab_size, dtype=torch.long) % num_experts,
         )
-        # Pre-compute ALiBi bias (fixed, no params)
-        self.register_buffer("alibi", _build_alibi_bias(num_heads, seq_len, torch.device("cpu")))
         _cl = set(classical_layers or [])
         self.blocks = nn.ModuleList(
             [
@@ -768,18 +764,17 @@ class GPT(nn.Module):
         # Argsort once — deterministic modulo routing, reused by all 9 layers (MLP only)
         expert_ids = self.token_to_expert[input_ids.clamp(0, self.vocab_size - 1)]
         sort_idx = expert_ids.reshape(-1).argsort(stable=True)
-        alibi = self.alibi
 
         for i in range(self.num_encoder_layers):
             ad = lora.attn_loras[i] if lora else None
-            x = self.blocks[i](x, x0, alibi, sort_idx, ad)
+            x = self.blocks[i](x, x0, None, sort_idx, ad)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ad = lora.attn_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, alibi, sort_idx, ad)
+            x = self.blocks[bi](x, x0, None, sort_idx, ad)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
