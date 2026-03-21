@@ -14,11 +14,19 @@ Everything we've tested, what we learned, and what remains untested.
 - **Result:** NEGATIVE. `torch.quantile` adds ~20% per-step overhead (64ms → 77ms), costing ~2,000 training steps. Post-quant val_bpb: 1.2052 vs control's 1.1929. The lost training tokens hurt more than the quant gap recovery.
 - **Lesson:** Int8 QAT with exact percentile matching is too expensive under a 10-minute wallclock cap. QAT only pays off with int6 (larger gap) or a faster approximate quantile (amax).
 - **Hardware note:** Confirmed on both slow (65ms/step) and fast (44ms/step) RunPod H100 nodes.
+- **Update:** See Finding #2b — Late QAT is also dead code under torch.compile, making the entire QAT approach moot regardless of overhead.
 
 ### 2. QAT Graph Priming
 - **Hypothesis:** Pre-compiling both QAT and non-QAT torch.compile graphs during warmup avoids a 30-90s mid-training recompile.
 - **Result:** NEGATIVE. Graph priming caused torch.compile to use a slower compilation path for the NON-QAT forward pass. step_avg was 65ms from step 1 (vs 44ms baseline), even before QAT activated.
 - **Lesson:** Don't pre-prime conditional code paths under `torch.compile(dynamic=False, fullgraph=True)`. Accept the one-time recompile cost instead.
+
+### 2b. Late QAT is dead code under torch.compile
+- **Discovery:** `torch.compile(dynamic=False, fullgraph=True)` constant-folds `CastedLinear._qat` at first trace (when `_qat=False`). The STE branch in `forward()` is dead-code-eliminated. Setting `_qat=True` later triggers a recompile but does not restore the STE path.
+- **Effect:** Late QAT activation does nothing except cause a recompile spike (~100 lost steps). No quantization-aware gradients are produced.
+- **Evidence:** Explains why (a) QAT activation always caused a step_avg spike, (b) QAT never visibly improved roundtrip scores, (c) PR #332 found "Late QAT is counterproductive at 12L."
+- **Credit:** @152334H identified the constant-folding mechanism; documented in PR #315.
+- **Fix:** Set `QAT=0` to avoid the recompile cost entirely. A proper fix would require passing the QAT flag as a function argument rather than a class attribute, but at this point the simplest path is to disable it.
 
 ### 3. Sliding Window Evaluation (stride=64)
 - **Result:** POSITIVE (reproduced). val_bpb 1.1929 vs baseline 1.2244. Improvement: -0.032 BPB.
@@ -116,27 +124,24 @@ Everything we've tested, what we learned, and what remains untested.
 - **Lesson:** Worth including for the step time savings. No quality effect — it's a mathematically equivalent kernel.
 
 ### 19. XSA — Exclusive Self Attention (arXiv:2603.09078)
-- **Status:** Implemented in 11L_XSA_EMA_TTT, result pending.
+- **Result:** POSITIVE (part of combined 1.1401 run, not isolated). Zero parameters, minimal compute overhead with GQA-aware implementation.
 - **Mechanism:** Subtract self-value projection from attention output: `y = y - (y·v̂)v̂`. Forces each head to draw from other tokens rather than looping back to its own value.
-- **Expected gain:** ~0.003–0.005 BPB, zero parameters.
 - **Applied to last 4 layers only** — early layers benefit from self-loops for feature extraction.
 
 ### 20. EMA (Exponential Moving Average, decay=0.997)
-- **Status:** Implemented in 11L_XSA_EMA_TTT, result pending.
+- **Result:** POSITIVE (part of combined 1.1401 run, not isolated). Replaces SWA for smoother weight averaging.
 - **Mechanism:** Shadow copy of weights updated every step: `ema = 0.997*ema + 0.003*weights`. Loaded before quantization, replacing last-step weights.
 - **vs SWA:** EMA is always-on, smoother, no snapshot schedule needed. Float32 accumulation avoids the bf16 precision bug that killed SWA v1.
 
 ### 21. TTT — Test-Time Training
-- **Status:** Implemented in 11L_XSA_EMA_TTT, result pending.
+- **Result:** POSITIVE (part of combined 1.1401 run, not isolated).
 - **Mechanism:** 3-epoch SGD (lr=0.002, momentum=0.9) on validation data after EMA applied, before final eval. First 2 blocks frozen for stability.
-- **Expected gain:** ~0.02 BPB (from LoRA TTT PR #77, full-weight SGD version).
-- **Runtime:** ~40–60s. Worth it given the expected gain.
+- **Runtime:** ~40–60s.
 
 ### 22. NTK-aware RoPE (train_seq_len=1024, eval_seq_len=2048)
-- **Status:** Implemented in 11L_XSA_EMA_TTT, result pending.
-- **Mechanism:** Train at seq_len=1024 (~12k steps vs ~7k at 2048). At eval, scale RoPE base by `(2048/1024)^(64/62) ≈ 2.14×` so positions 1024–2047 are within the trained frequency range.
-- **Expected gain:** More gradient updates in same wallclock → better training signal.
-- **Formula:** `ntk_base = rope_base * (eval_seq_len / train_seq_len) ** (head_dim / (head_dim - 2))`
+- **Result:** INCONCLUSIVE. Used in the 1.1401 run but superseded by training at seq_len=2048 directly (no NTK scaling needed). The NTK mechanism works correctly but training at native seq_len=2048 is simpler and avoids extrapolation risk.
+- **Mechanism:** Scale RoPE base at eval: `ntk_base = rope_base * (eval_seq_len / train_seq_len) ** (head_dim / (head_dim - 2))`.
+- **Note:** Top leaderboard entries train at seq_len=2048 with rope_base=10000 rather than using NTK scaling.
 
 ---
 
@@ -177,7 +182,7 @@ Everything we've tested, what we learned, and what remains untested.
 ### LoRA Test-Time Training (TTT)
 - **Source:** PR #77 (@samacquaviva)
 - **Effect:** Per-document LoRA adaptation during eval. +0.003 BPB from TTT itself, +0.011 from doc isolation, +0.034 from striding.
-- **Our status:** ✅ Implemented as full-weight SGD TTT (not LoRA) in 11L_XSA_EMA_TTT. Result pending.
+- **Our status:** ✅ Implemented as full-weight SGD TTT (not LoRA). Part of combined 1.1401 run.
 
 ### Paid Prefix
 - **Source:** PR #168
@@ -191,7 +196,7 @@ Everything we've tested, what we learned, and what remains untested.
 
 ### Hyperparameter tuning (community findings)
 - **Source:** Top leaderboard entries
-- **Key values:** muon_momentum=0.99, warmup 0.92→0.99 over 1500 steps, rope_base=50000, grad_clip=0.3, tied_embed_lr=0.035
+- **Key values:** muon_momentum=0.99, warmup 0.92→0.99 over 1500 steps, rope_base=10000, grad_clip=0.3, tied_embed_lr=0.035
 - **Our status:** ✅ All applied as defaults in 11L_XSA_EMA_TTT.
 
 ### Reptile Meta-Learning for TTT (community finding)

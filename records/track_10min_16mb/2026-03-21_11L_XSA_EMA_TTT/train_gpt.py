@@ -152,6 +152,7 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 0))  # 0 = full RoPE; >0 = apply RoPE to only first N dims per head
     ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))  # scale block output by 1/sqrt(layer_idx+1)
     unet_skips = bool(int(os.environ.get("UNET_SKIPS", "0")))  # U-Net style skip connections
+    prune_pct = float(os.environ.get("PRUNE_PCT", 0.0))  # magnitude pruning: zero smallest N% of weights before compression
 
     # Disable schedule-dependent features in TIER2_MODE unless explicitly overridden
     if _tier2:
@@ -402,12 +403,46 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
+def _quantize_2d_with_clip(t32: Tensor, clip_abs: Tensor, max_val: int) -> tuple[Tensor, Tensor, Tensor]:
+    """Quantize a 2D tensor with given per-row clip values. Returns (q, scale, reconstruction_error)."""
+    clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+    scale = (clip_abs / float(max_val)).clamp_min(1.0 / float(max_val))
+    q = torch.clamp(torch.round(clipped / scale[:, None]), -max_val, max_val).to(torch.int8)
+    # Reconstruction error: MSE between original and dequantized
+    deq = q.float() * scale[:, None]
+    err = (t32 - deq).square().mean(dim=1)
+    return q, scale, err
+
+
+# GPTQ-lite clip ratios: search these percentiles per weight matrix to find optimal clipping.
+_GPTQ_CLIP_RATIOS = [0.9, 0.95, 0.99, 0.999, 0.99999]
+_gptq_lite: bool = False  # set at runtime from GPTQ_LITE env var
+
+
 def quantize_float_tensor(t: Tensor, bits: int = 8) -> tuple[Tensor, Tensor]:
     max_val = 127 if bits == 8 else (2 ** (bits - 1)) - 1  # int6: 31, int8: 127
     t32 = t.float()
     if t32.ndim == 2:
-        # Matrices get one scale per row, which usually tracks output-channel
-        # ranges much better than a single tensor-wide scale.
+        if _gptq_lite and t32.numel() > 0:
+            # GPTQ-lite: try multiple clip percentiles per row, pick lowest reconstruction error.
+            abs_vals = t32.abs()
+            best_q: Tensor | None = None
+            best_scale: Tensor | None = None
+            best_err: Tensor | None = None
+            for ratio in _GPTQ_CLIP_RATIOS:
+                clip_abs = torch.quantile(abs_vals, ratio, dim=1)
+                q, scale, err = _quantize_2d_with_clip(t32, clip_abs, max_val)
+                if best_err is None:
+                    best_q, best_scale, best_err = q, scale, err
+                else:
+                    # Per-row: keep whichever clip ratio gave lower error for each row
+                    better = err < best_err
+                    best_q[better] = q[better]
+                    best_scale[better] = scale[better]
+                    best_err[better] = err[better]
+            return best_q.contiguous(), best_scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+
+        # Standard: single clip percentile
         clip_abs = (
             torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
             if t32.numel()
@@ -1797,6 +1832,21 @@ def main() -> None:
     if args.ttt_enabled:
         log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs} freeze_blocks={args.ttt_freeze_blocks}")
         ttt_adapt(args, base_model, device, val_tokens, rank=rank, world_size=world_size)
+
+    # Magnitude pruning: zero the smallest weights for better zstd compression.
+    # Zeroed weights compress to nearly nothing. Applied after TTT, before serialization.
+    if args.prune_pct > 0.0:
+        pruned_count = 0
+        total_count = 0
+        with torch.no_grad():
+            for name, p in base_model.named_parameters():
+                if p.ndim >= 2 and p.numel() >= 65536:
+                    threshold = torch.quantile(p.abs().float().flatten(), args.prune_pct / 100.0)
+                    mask = p.abs() > threshold
+                    pruned_count += (~mask).sum().item()
+                    total_count += p.numel()
+                    p.mul_(mask)
+        log0(f"prune:{args.prune_pct:.1f}% zeroed {pruned_count}/{total_count} weights ({100*pruned_count/max(total_count,1):.1f}%)")
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
