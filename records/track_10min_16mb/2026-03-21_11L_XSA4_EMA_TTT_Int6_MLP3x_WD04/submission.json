@@ -1,0 +1,20 @@
+{
+  "author": "Christopher Buckley",
+  "github_id": "chris-buckley",
+  "name": "11L XSA4 + EMA + Int6 MLP3x + Full-Model SGD TTT",
+  "blurb": "Best public training stack (11L, MLP3x, SmearGate, BigramHash, XSA4, EMA, int6+zstd-22) plus full-model SGD TTT at eval time. SDPA fallback for PyTorch <2.5 compatibility.",
+  "date": "2026-03-21",
+  "val_loss": 1.92805096,
+  "val_bpb": 1.14190341,
+  "pre_quant_val_loss": 1.9553,
+  "pre_quant_val_bpb": 1.1581,
+  "post_int6_val_loss": 1.95003356,
+  "post_int6_val_bpb": 1.16546619,
+  "step_stop": 5344,
+  "wallclock_seconds": 600.084,
+  "eval_time_seconds": 116.978,
+  "ttt_time_seconds": 50.4,
+  "bytes_total": 15578775,
+  "bytes_code": 70565,
+  "notes": "Seed 1337 on 8xH100 SXM (community cloud). SDPA fallback (no FA3), ~109ms/step. Seeds 1338/1339 pending. TTT: 3 epochs SGD, lr=0.002, momentum=0.9, freeze first 2 blocks."
+}
