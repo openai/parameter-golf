@@ -1045,7 +1045,7 @@ def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
 # Our finding: attention weights tolerate int4 better than MLP weights,
 # contrary to conventional int5-MLP/int6-attn used by prior SOTA.
 QUANT_BITS = {
-    "mlp": int(os.environ.get("QUANT_MLP_BITS", "6")),
+    "mlp": int(os.environ.get("QUANT_MLP_BITS", "5")),
     "attn": int(os.environ.get("QUANT_ATTN_BITS", "6")),
 }
 QUANT_CLIP = {4: 7, 5: 15, 6: 31, 8: 127}
@@ -1505,6 +1505,16 @@ def main() -> None:
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
+
+    # Magnitude pruning: zero out smallest weights to improve compression
+    prune_pct = float(os.environ.get("PRUNE_PCT", "0.03"))
+    with torch.no_grad():
+        for name, param in base_model.named_parameters():
+            if param.ndim == 2 and param.numel() > 65536:
+                threshold = torch.quantile(param.abs().float(), prune_pct)
+                mask = param.abs() < threshold
+                param.masked_fill_(mask, 0.0)
+    log0(f"magnitude_pruning: {prune_pct*100:.1f}% of large weights zeroed")
 
     full_state_dict = base_model.state_dict()
     export_sd = {k: v for k, v in full_state_dict.items() if "mtp_heads" not in k}
