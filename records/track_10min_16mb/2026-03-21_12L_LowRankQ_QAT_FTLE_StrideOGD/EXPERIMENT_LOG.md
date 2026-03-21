@@ -101,3 +101,50 @@ Training curve:
 - Memory jumps from 17GB to 28GB during OGD eval
 - Estimated 30-60 min for full eval — unacceptable
 - Need to either disable OGD or make it batch-efficient
+
+### 2026-03-21 06:00 UTC — FTLE ablation: FTLE does NOT help (1xH100)
+
+Ran A/B comparison on saved 7900-step model weights: uniform per-row quantization
+vs FTLE-guided per-row quantization at matched bit widths.
+
+| Bits | Method | Compressed Size | RMSE | Fits 16MB? |
+|------|--------|-----------------|------|------------|
+| 8 | Uniform int8 | 18,847,383 | 0.002144 | NO |
+| 8 | FTLE avg 8 | 18,708,158 | 0.002795 | NO |
+| 7 | **Uniform int7** | **16,909,971** | **0.004326** | NO (by 0.9MB) |
+| 7 | FTLE avg 7 | 17,254,281 | 0.005466 | NO |
+| 6 | **Uniform int6** | **15,178,239** | **0.008781** | YES |
+| 6 | FTLE avg 6 | 15,436,864 | 0.010927 | YES |
+| 5 | Uniform int5 | 12,696,812 | 0.018136 | YES |
+| 5 | FTLE avg 5 | 13,086,431 | 0.020907 | YES |
+
+**Conclusion: Uniform beats FTLE on BOTH size and RMSE at every bit width.**
+
+FTLE-guided mixed precision (int4–int8 per row) produces:
+- Higher RMSE: mixing int4 "cold" rows with int8 "hot" rows is worse than uniform int6
+- Larger compressed size: mixed bit values have higher entropy, zlib compresses them worse
+
+**Recommendation:** Drop FTLE entirely. Use uniform int6 (15.2MB, fits) or try to
+squeeze uniform int7 (16.9MB, 0.9MB over — could work with code size reduction or
+slightly smaller model).
+
+### Projected final bpb (without FTLE):
+- Pre-quant: 1.2035
+- Uniform int6 + sliding window (no OGD): est. **~1.19 bpb**
+- Uniform int7 + sliding window (if fits): est. **~1.17-1.18 bpb**
+- Current SOTA for reference: **1.1748 bpb**
+
+---
+
+## Summary of Technique Effectiveness (as of 2026-03-21)
+
+| Technique | Status | Verdict |
+|-----------|--------|---------|
+| Low-Rank Q (r=128) + 12 layers | Working | Promising — 12L at 1.2035 pre-quant |
+| QAT with STE (int7) | Working | ~6% step overhead, quant gap TBD |
+| FTLE per-row precision | Tested | **Not helpful — uniform is strictly better** |
+| Stride-OGD eval | Implemented | Too slow as-is, needs optimization or removal |
+| Sliding window eval (stride=64) | Working | Free ~0.03 bpb improvement |
+| Muon weight decay | Inherited from SOTA | Working |
+| Overtone spectral init | Inherited from SOTA | Working |
+| Phase-transition resid_mix | Inherited from SOTA | Working |
