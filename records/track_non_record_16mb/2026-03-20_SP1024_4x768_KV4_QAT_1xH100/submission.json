@@ -1,0 +1,19 @@
+{
+  "author": "Deyan Todorov",
+  "github_id": "dttdrv",
+  "name": "Wider-Shallower QAT 4x768 1xH100",
+  "blurb": "Non-record 1xH100 submission: 4-layer 768-dim architecture with GQA (12h/4kv), QK gain 2.5, gradient clipping 0.5, QAT via STE, Muon optimizer at lr=0.06. Beats equivalent-time baseline by 0.032+ bpb. Architecture validated across 51 experiments on A40 and H100.",
+  "date": "2026-03-20T00:00:00Z",
+  "track": "non-record-1gpu-16mb",
+  "val_loss": 2.2050,
+  "val_bpb": 1.3043,
+  "pre_quant_val_bpb": 1.3027,
+  "step_stop": 4661,
+  "wallclock_seconds": 600,
+  "bytes_total": 15100000,
+  "bytes_code": 50265,
+  "gpu_config": "1xH100 SXM 80GB",
+  "architecture": "4 layers, 768 dim, 12 heads, 4 KV heads, MLP mult 2, tied embeddings",
+  "batch_tokens": 262144,
+  "notes": "Single-GPU result. Extrapolated 8xH100 performance at 20K steps: ~1.19 bpb (pending compute grant for official submission)."
+}
