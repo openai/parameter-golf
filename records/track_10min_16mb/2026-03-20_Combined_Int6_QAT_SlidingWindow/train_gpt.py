@@ -27,14 +27,21 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+# Detect PyTorch 2.5+ for native GQA support in SDPA
+try:
+    torch.nn.functional.scaled_dot_product_attention(
+        torch.zeros(1, 1, 1, 1), torch.zeros(1, 1, 1, 1), torch.zeros(1, 1, 1, 1), enable_gqa=False)
+    _HAS_GQA = True
+except TypeError:
+    _HAS_GQA = False
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
-# Combined: Int6 quant + QAT + Sliding Window + Overtone Init + Muon WD
-# - 9 transformer blocks at width 512, 3x MLP (hidden=1536)
+# Combined V2: Int6 quant + Sliding Window + Overtone Init + Muon WD
+# - 10 transformer blocks at width 512, 2x MLP
 # - Int6 quantization with FP16 tied embeddings and Late-K passthrough
-# - QAT (quantization-aware training) in last 30% of steps
-# - Batched sliding window eval (stride=64)
+# - Batched sliding window eval (stride=128, seq_len=2048)
 
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
@@ -53,18 +60,18 @@ class Hyperparameters:
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
-    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 1024))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 128))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
-    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 1536))
+    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -83,7 +90,6 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
-    qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.70))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -490,25 +496,10 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
-# Global QAT flag — set during training to enable quantization simulation
-_qat_enabled = False
-
-def simulate_int6_quant(w: Tensor) -> Tensor:
-    """STE: quantize in forward, pass gradients through."""
-    with torch.no_grad():
-        scale = w.abs().amax(dim=-1, keepdim=True) / 31.0
-        scale = scale.clamp_min(1.0 / 31.0)
-        w_q = (w / scale).round().clamp(-31, 31) * scale
-    return w + (w_q - w).detach()  # STE trick
-
-
 class CastedLinear(nn.Linear):
     def forward(self, x: Tensor) -> Tensor:
-        w = self.weight.to(x.dtype)
-        if _qat_enabled and self.weight.ndim == 2 and self.weight.numel() > INT8_KEEP_FLOAT_MAX_NUMEL:
-            w = simulate_int6_quant(w)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, w, bias)
+        return F.linear(x, self.weight.to(x.dtype), bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -596,10 +587,16 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        if self.num_kv_heads != self.num_heads:
-            k = k.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-            v = v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-        y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
+        if _HAS_GQA:
+            y = F.scaled_dot_product_attention(
+                q, k, v, attn_mask=None, is_causal=True,
+                enable_gqa=(self.num_kv_heads != self.num_heads),
+            )
+        else:
+            if self.num_kv_heads != self.num_heads:
+                k = k.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
+                v = v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
+            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -833,7 +830,7 @@ def eval_val_sliding(
 # -----------------------------
 
 def main() -> None:
-    global zeropower_via_newtonschulz5, _qat_enabled
+    global zeropower_via_newtonschulz5
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
@@ -1011,7 +1008,7 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
-    log0(f"seed:{args.seed} qat_start_frac:{args.qat_start_frac}")
+    log0(f"seed:{args.seed} has_gqa:{_HAS_GQA}")
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
@@ -1108,15 +1105,6 @@ def main() -> None:
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
 
-        # Enable QAT in the last portion of training
-        if max_wallclock_ms is not None:
-            qat_should_enable = elapsed_ms >= max_wallclock_ms * args.qat_start_frac
-        else:
-            qat_should_enable = step >= int(args.iterations * args.qat_start_frac)
-        if qat_should_enable and not _qat_enabled:
-            _qat_enabled = True
-            log0(f"QAT enabled at step {step} (elapsed {elapsed_ms:.0f}ms)")
-
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1158,7 +1146,6 @@ def main() -> None:
             log0(
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
-                f"{' [QAT]' if _qat_enabled else ''}"
             )
 
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
@@ -1168,9 +1155,6 @@ def main() -> None:
             reached_cap = bool(reached_cap_tensor.item())
         if stop_after_step is None and reached_cap:
             stop_after_step = step
-
-    # Disable QAT for eval
-    _qat_enabled = False
 
     log0(
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
@@ -1223,7 +1207,7 @@ def main() -> None:
     if eval_stride > 0:
         log0(f"Compiling forward_logits for sliding window eval (stride={eval_stride}, seq_len={eval_sl})...")
         compiled_logits = torch.compile(base_model.forward_logits, dynamic=False)
-        eval_batch_seqs = 256
+        eval_batch_seqs = 64 if eval_sl > 1024 else 256
         warmup_x = torch.zeros(eval_batch_seqs, eval_sl, dtype=torch.int64, device=device)
         base_model.eval()
         with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
