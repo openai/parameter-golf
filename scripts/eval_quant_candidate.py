@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-dict-path", type=Path, default=Path("final_model.pt"))
     parser.add_argument("--keep-large-patterns", type=str, default=None)
     parser.add_argument("--no-default-large-keeps", action="store_true")
-    parser.add_argument("--quant-artifact-format", type=str, default="packed_zlib")
+    parser.add_argument("--quant-artifact-format", type=str, default="packed_zstd")
     parser.add_argument("--packed-scale-codec", type=str, default="raw")
     parser.add_argument("--train-seq-len", type=int, default=256)
     parser.add_argument("--val-batch-size", type=int, default=4096)

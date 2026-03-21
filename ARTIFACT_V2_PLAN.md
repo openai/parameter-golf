@@ -111,7 +111,7 @@ The key repo-specific inference is:
 Baseline for V2 experiments:
 
 - custom packed artifact container
-- `packed_zlib` as current default baseline
+- `packed_zstd` as current default baseline
 - `tok_emb.weight` kept in float passthrough
 - no more large MLP float-keep sweeps by default
 
@@ -233,7 +233,7 @@ Artifact V2 must keep the same strict shell as V1.
 
 Baseline:
 
-- `packed_zlib`
+- `packed_zstd`
 - `tok_emb.weight` float passthrough
 - current stronger checkpoint helper workflow
 
@@ -255,9 +255,16 @@ Pass gate:
 
 - `zstd` improves bytes enough to matter, with acceptable load/eval cost
 
-Fail gate:
+Measured result on the stronger checkpoint:
 
-- tiny byte win or runtime regression
+- `packed_zlib`: `14,677,339` bytes, `~794 ms` serialize, `~57 ms` deserialize
+- `packed_zstd`: `14,566,076` bytes, `~455 ms` serialize, `~18 ms` deserialize
+- dequantized state after load matched exactly
+
+Decision:
+
+- promote `packed_zstd` to the default baseline
+- do not spend more time on codec-only work unless a later branch changes the payload statistics materially
 
 ### Phase 2. Prefilter sanity pass
 
