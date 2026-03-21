@@ -804,6 +804,31 @@ class Block(nn.Module):
         return x
 
 
+class SmearGate(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gate = nn.Parameter(torch.full((dim,), 3.0, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        g = torch.sigmoid(self.gate).to(dtype=x.dtype)
+        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
+        return g * x + (1.0 - g) * x_prev
+
+
+class BigramHash(nn.Module):
+    def __init__(self, num_buckets: int, hash_dim: int, model_dim: int):
+        super().__init__()
+        self.num_buckets = num_buckets
+        self.table = nn.Embedding(num_buckets, hash_dim)
+        self.proj = CastedLinear(hash_dim, model_dim, bias=False)
+        nn.init.normal_(self.table.weight, std=0.01)
+
+    def forward(self, input_ids: Tensor) -> Tensor:
+        prev_ids = torch.cat([torch.zeros_like(input_ids[:, :1]), input_ids[:, :-1]], dim=1)
+        h = ((prev_ids.long() * 92821 + input_ids.long()) % self.num_buckets).long()
+        return self.proj(self.table(h))
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -827,6 +852,8 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.encoder_recurrence = bool(int(os.environ.get("ENCODER_RECURRENCE", "1")))
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.bigram_hash = BigramHash(4096, 64, model_dim)
+        self.smear_gate = SmearGate(model_dim)
         pre_enrich_hidden = model_dim * 3 // 2
         self.pre_enrich = nn.Sequential(
             CastedLinear(model_dim, pre_enrich_hidden, bias=False),
@@ -902,7 +929,8 @@ class GPT(nn.Module):
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        x = self.tok_emb(input_ids)
+        x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
+        x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -913,7 +941,8 @@ class GPT(nn.Module):
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
-        x = self.tok_emb(input_ids)
+        x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
+        x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -1056,6 +1085,7 @@ def main() -> None:
         if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
     matrix_params.extend(p for p in base_model.pre_enrich.parameters() if p.ndim == 2)
+    matrix_params.extend(p for p in base_model.bigram_hash.parameters() if p.ndim == 2)
     scalar_params = [
         p
         for name, p in block_named_params
@@ -1063,6 +1093,7 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    scalar_params.append(base_model.smear_gate.gate)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.AdamW(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
