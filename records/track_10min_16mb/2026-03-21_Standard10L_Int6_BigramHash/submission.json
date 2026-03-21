@@ -1,0 +1,11 @@
+{
+  "author": "sumaiyanaazim",
+  "github_id": "naazimsnh02",
+  "name": "9L BigramHash XSA SWA LateQAT UNet ResidMix",
+  "blurb": "Standard 9-layer transformer (dim=512, MLP 2x, GQA 8q/4kv) with U-Net skip connections + resid_mix (x0 blending) + BigramHash(2048) + XSA on top-3 layers + SWA (last 30%) + late QAT at 80% wallclock + qk_gain=1.5 + tied_embed_init_std=0.005.",
+  "date": "2026-03-21T00:00:00Z",
+  "val_loss": 2.0920,
+  "val_bpb": 1.2390,
+  "bytes_total": 16099282,
+  "bytes_code": 48288
+}
