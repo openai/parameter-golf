@@ -36,3 +36,8 @@ Starting from iteration 19, best BPB: 1.1428
   Expected:   -0.006 bpb; exact-path late QAT on an aggressive mixed int5/int6 export usually recovers roughly 0.003-0.008 bpb on models of this scale, and this script currently evaluates the dequantized export rather than the float model.
   Risk:       Main risks are modest training slowdown and destabilization if quantization turns on too early. This implementation mitigates both by using STE fake quantization controlled via buffers (avoiding graph
   Applied (55,156 bytes, 1282 lines)
+  Running training experiment...
+  Running: torchrun --standalone --nproc_per_node=1 /workspace/parameter-golf/autoevolve/train_gpt.py
+  Log saved to /workspace/parameter-golf/autoevolve/logs/exp_0020.log
+  CRASH (exit code 1)
+    TIMEOUT: Experiment exceeded 25-minute hard limit (10 train + 10 eval + 5 buffer)

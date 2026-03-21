@@ -93,9 +93,6 @@ class Hyperparameters:
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
-    qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "1")))
-    qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.5))
-
 # -----------------------------
 # MUON OPTIMIZER
 # -----------------------------
@@ -479,16 +476,8 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._qat_clip: int | None = None
-        self.register_buffer("_qat_alpha", torch.tensor(0.0), persistent=False)
-
     def forward(self, x: Tensor) -> Tensor:
-        w = self.weight
-        if self._qat_clip is not None:
-            w = ste_quantize_intN_per_row_exact(w, self._qat_clip, self._qat_alpha)
-        w = w.to(x.dtype)
+        w = self.weight.to(x.dtype)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
 
@@ -498,26 +487,6 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
         for name, param in module.named_parameters():
             if (param.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)) and param.dtype != torch.float32:
                 param.data = param.data.float()
-
-
-def ste_quantize_intN_per_row_exact(t: Tensor, clip_range: int, alpha: Tensor) -> Tensor:
-    if t.ndim != 2:
-        return t
-    t32 = t.float()
-    row_max = t32.detach().abs().amax(dim=1)
-    scale = (row_max / clip_range).clamp_min(1e-12).to(torch.float16)
-    scale = scale.clamp_min(torch.finfo(torch.float16).tiny)
-    q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -(clip_range + 1), clip_range)
-    dq = (q * scale.float()[:, None]).to(dtype=t.dtype)
-    return t + alpha.to(dtype=t.dtype) * (dq - t).detach()
-
-
-@torch.no_grad()
-def set_qat_alpha(module: nn.Module, alpha: float) -> None:
-    for submodule in module.modules():
-        qalpha = getattr(submodule, "_qat_alpha", None)
-        if isinstance(qalpha, torch.Tensor):
-            qalpha.fill_(alpha)
 
 
 class Rotary(nn.Module):
@@ -567,10 +536,6 @@ class CausalSelfAttention(nn.Module):
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
         self.c_v = CastedLinear(dim, kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
-        self.c_q._qat_clip = 31
-        self.c_k._qat_clip = 31
-        self.c_v._qat_clip = 31
-        self.proj._qat_clip = 31
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
@@ -600,8 +565,6 @@ class MLP(nn.Module):
         hidden = int(mlp_mult * dim)
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
-        self.fc._qat_clip = 15
-        self.proj._qat_clip = 15
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
@@ -627,11 +590,9 @@ class BigramHashEmbedding(nn.Module):
         super().__init__()
         self.bigram_vocab_size = bigram_vocab_size
         self.embed = nn.Embedding(bigram_vocab_size, bigram_dim)
-        self.register_buffer("_qat_alpha", torch.tensor(0.0), persistent=False)
         nn.init.zeros_(self.embed.weight)
         self.proj = CastedLinear(bigram_dim, model_dim, bias=False) if bigram_dim != model_dim else None
         if self.proj is not None:
-            self.proj._qat_clip = 31
             nn.init.zeros_(self.proj.weight)
         self.scale = nn.Parameter(torch.tensor(0.05, dtype=torch.float32))
 
@@ -644,9 +605,7 @@ class BigramHashEmbedding(nn.Module):
         return out.long()
 
     def forward(self, token_ids: Tensor) -> Tensor:
-        bigram_ids = self.bigram_hash(token_ids)
-        embed_weight = ste_quantize_intN_per_row_exact(self.embed.weight, 31, self._qat_alpha)
-        h = F.embedding(bigram_ids, embed_weight)
+        h = self.embed(self.bigram_hash(token_ids))
         if self.proj is not None:
             h = self.proj(h)
         return h * self.scale.to(dtype=h.dtype)
@@ -961,10 +920,6 @@ def main() -> None:
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
-    for name, module in base_model.named_modules():
-        if isinstance(module, CastedLinear) and any(pattern in name for pattern in FP16_KEEP_NAME_PATTERNS):
-            module._qat_clip = None
-    set_qat_alpha(base_model, 0.0)
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
@@ -1122,10 +1077,6 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        qat_alpha = 0.0
-        if args.qat_enabled and args.qat_start_frac > 0.0 and scale < args.qat_start_frac:
-            qat_alpha = (args.qat_start_frac - scale) / max(args.qat_start_frac, 1e-8)
-        set_qat_alpha(base_model, qat_alpha)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1199,8 +1150,6 @@ def main() -> None:
             for name, tensor in swa_state.items()
         }
         base_model.load_state_dict(avg_state, strict=True)
-
-    set_qat_alpha(base_model, 0.0)
 
     # SERIALIZATION + ROUNDTRIP VALIDATION
     if master_process:
