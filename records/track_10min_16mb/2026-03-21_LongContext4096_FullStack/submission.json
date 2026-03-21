@@ -1,0 +1,11 @@
+{
+  "author": "Ethan",
+  "github_id": "FlashyFlash3011",
+  "name": "LongContext 4096 + Full SOTA Stack",
+  "blurb": "Combines 4096-token training context with the complete modern SOTA stack (sliding window eval stride=256, FP16 tied embeddings, 10L + Muon WD=0.02, Overtone spectral init, phase-transition resid_mix). The 4k context record (1.2014 BPB) was submitted before any of these techniques existed. Each eval token sees 3,840 tokens of context vs 960 in SOTA, at identical eval cost (64 seqs × 4096 = 256 seqs × 1024). NTK-aware RoPE base=40000. Pending H100 run results.",
+  "date": "2026-03-21",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
