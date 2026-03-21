@@ -1,11 +1,11 @@
 {
   "author": "Pionion Lab",
   "github_id": "lookin-zz",
-  "name": "Int6 QAT MLP1472 SlidingWindow",
-  "blurb": "9-layer 512-dim GPT with int6 STE quantization-aware training, MLP hidden=1472, aggressive warmdown (20K iters), FP16 tied embeddings, and batched sliding window eval (stride=64). Achieves near-zero quantization gap (-0.0007 BPB).",
-  "date": "2026-03-21T01:30:00Z",
-  "val_loss": 2.01908303,
-  "val_bpb": 1.19581470,
-  "bytes_total": 15747508,
-  "bytes_code": 67029
+  "name": "Int6 QAT MLP1472 SlidingWindow + TTT",
+  "blurb": "9L 512d GPT with int6 STE QAT, MLP 1472, sliding window eval, and full-weight TTT (3 epochs SGD). Post-quant 1.1991, after TTT 1.1807.",
+  "date": "2026-03-21T12:00:00Z",
+  "val_loss": 1.99358097,
+  "val_bpb": 1.18071094,
+  "bytes_total": 15781354,
+  "bytes_code": 69450
 }

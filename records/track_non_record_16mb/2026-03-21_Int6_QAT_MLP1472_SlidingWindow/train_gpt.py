@@ -53,8 +53,12 @@ class Hyperparameters:
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", "0"))  # 0 = non-overlapping (original); >0 = sliding window
+    eval_stride = int(os.environ.get("EVAL_STRIDE", "0"))  # 0 = non-overlapping; >0 = sliding window
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", "0"))  # 0 = use train_seq_len
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", "0"))  # 0=disabled; >0 = full-weight SGD TTT
+    ttt_lr = float(os.environ.get("TTT_LR", "0.002"))
+    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", "0.9"))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", "2"))  # freeze first N blocks
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
@@ -70,7 +74,7 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 9))
     depth_recurrence = int(os.environ.get("DEPTH_RECURRENCE", "1"))  # loop blocks this many times (1=standard)
-    qat_start_frac = float(os.environ.get("QAT_START_FRAC", "0.8"))  # start QAT at this fraction of training (0.8 = last 20%)
+    qat_start_frac = float(os.environ.get("QAT_START_FRAC", "1.0"))  # 1.0=disabled; <1.0=enable QAT at this fraction
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -85,7 +89,8 @@ class Hyperparameters:
     bigram_hash_dim = int(os.environ.get("BIGRAM_HASH_DIM", "128"))
     # SWA (Stochastic Weight Averaging)
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", "0.5"))
-    swa_every = int(os.environ.get("SWA_EVERY", "0"))  # 0=disabled by default until proven
+    swa_every = int(os.environ.get("SWA_EVERY", "0"))  # 0=disabled
+    ema_decay = float(os.environ.get("EMA_DECAY", "0.997"))  # 0=disabled, >0=EMA every step
     # Orthogonal init
     ortho_init = bool(int(os.environ.get("ORTHO_INIT", "0")))  # 0=disabled by default until proven
 
@@ -394,6 +399,44 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def run_ttt(args, base_model, val_tokens, device, rank, world_size):
+    """Test-Time Training: full-weight SGD on validation data, freezing first N blocks."""
+    raw = base_model.module if hasattr(base_model, 'module') else base_model
+    # Freeze first N blocks
+    for i in range(min(args.ttt_freeze_blocks, len(raw.blocks))):
+        for p in raw.blocks[i].parameters():
+            p.requires_grad_(False)
+    raw.tok_emb.weight.requires_grad_(False)
+    # SGD on trainable params
+    ttt_params = [p for p in raw.parameters() if p.requires_grad]
+    opt = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    seq_len = args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // seq_len
+    rank_start = (total_seqs * rank) // world_size
+    rank_end = (total_seqs * (rank + 1)) // world_size
+    raw.train()
+    for epoch in range(args.ttt_epochs):
+        for s in range(rank_start, rank_end, 8):  # batch of 8 seqs
+            e = min(s + 8, rank_end)
+            start = s * seq_len
+            end = e * seq_len + 1
+            chunk = val_tokens[start:end].to(device=device, dtype=torch.int64)
+            x = chunk[:-1].reshape(-1, seq_len)
+            y = chunk[1:].reshape(-1, seq_len)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                loss = raw(x, y)
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+    # Unfreeze all
+    for p in raw.parameters():
+        p.requires_grad_(True)
+    if dist.is_available() and dist.is_initialized():
+        for p in raw.parameters():
+            dist.broadcast(p.data, src=0)
+
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -1365,17 +1408,14 @@ def main() -> None:
 
         step += 1
 
-        # SWA: accumulate weight averages for smoother quantization
-        if args.swa_every > 0 and step % args.swa_every == 0:
-            approx_frac = (training_time_ms + 1000.0 * (time.perf_counter() - t0)) / (args.max_wallclock_seconds * 1000)
-            if approx_frac >= args.swa_start_frac:
-                if not hasattr(base_model, '_swa_state'):
-                    base_model._swa_state = {n: p.data.clone() for n, p in base_model.named_parameters()}
-                    base_model._swa_count = 1
-                else:
-                    base_model._swa_count += 1
+        # EMA: continuous weight averaging for smoother quantization
+        if args.ema_decay > 0:
+            if not hasattr(base_model, '_ema_state'):
+                base_model._ema_state = {n: p.data.clone() for n, p in base_model.named_parameters()}
+            else:
+                with torch.no_grad():
                     for n, p in base_model.named_parameters():
-                        base_model._swa_state[n].lerp_(p.data, 1.0 / base_model._swa_count)
+                        base_model._ema_state[n].lerp_(p.data, 1.0 - args.ema_decay)
 
         # Enable QAT (fake quantization) in the last phase of training
         if QUANT_BITS < 8 and args.qat_start_frac < 1.0:
@@ -1426,13 +1466,13 @@ def main() -> None:
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
     # Apply SWA averaged weights before serialization
-    if hasattr(base_model, '_swa_state'):
-        log0(f"Applying SWA weights ({base_model._swa_count} checkpoints averaged)")
+    if hasattr(base_model, '_ema_state'):
+        log0(f"Applying EMA weights (decay={args.ema_decay})")
         with torch.no_grad():
             for n, p in base_model.named_parameters():
-                if n in base_model._swa_state:
-                    p.data.copy_(base_model._swa_state[n])
-        del base_model._swa_state, base_model._swa_count
+                if n in base_model._ema_state:
+                    p.data.copy_(base_model._ema_state[n])
+        del base_model._ema_state
 
     # Remove QAT hooks before serialization
     if hasattr(base_model, '_qat_hooks'):
@@ -1491,6 +1531,19 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # TTT: fine-tune on val data then re-evaluate
+    if args.ttt_epochs > 0:
+        log0(f"Starting TTT: {args.ttt_epochs} epochs, lr={args.ttt_lr}, freeze_blocks={args.ttt_freeze_blocks}")
+        t_ttt = time.perf_counter()
+        run_ttt(args, base_model, val_tokens, device, rank, world_size)
+        ttt_val_loss, ttt_val_bpb = eval_val(
+            args, base_model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+        ttt_ms = 1000.0 * (time.perf_counter() - t_ttt)
+        log0(f"ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} ttt_time:{ttt_ms:.0f}ms")
+        log0(f"ttt_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
