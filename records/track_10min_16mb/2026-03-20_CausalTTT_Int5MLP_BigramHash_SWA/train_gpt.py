@@ -1431,11 +1431,20 @@ def main() -> None:
                     for i, ws in enumerate(batch_ws):
                         wlen = wlens[i]
                         s = 0 if ws == 0 else max(wlen - stride, 0)
-                        scored_nll = nll[i, s:wlen].to(torch.float64)
+                        # Clamp scored region to chunk boundaries to avoid double-counting
+                        abs_score_start = ws + s
+                        abs_score_end = ws + wlen
+                        clamped_start = max(abs_score_start, chunk_start_tok)
+                        clamped_end = min(abs_score_end, chunk_end_tok)
+                        if clamped_start >= clamped_end:
+                            continue
+                        rel_start = clamped_start - ws
+                        rel_end = clamped_end - ws
+                        scored_nll = nll[i, rel_start:rel_end].to(torch.float64)
                         chunk_loss += scored_nll.sum()
-                        chunk_tokens += float(wlen - s)
-                        tgt = y_batch[i, s:wlen]
-                        prev = x_batch[i, s:wlen]
+                        chunk_tokens += float(rel_end - rel_start)
+                        tgt = y_batch[i, rel_start:rel_end]
+                        prev = x_batch[i, rel_start:rel_end]
                         tb = base_bytes_lut[tgt].to(torch.float64)
                         tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                         chunk_bytes += tb.sum()
