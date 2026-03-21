@@ -1,0 +1,11 @@
+{
+  "author": "Ananddna",
+  "github_id": "Ananddna",
+  "val_bpb": 1.1450,
+  "val_bpb_seeds": {
+    "42": 1.1449,
+    "1337": 1.1451
+  },
+  "description": "TrigramHash + PartialRoPE + Per-Head Temperature + stride32, built on 10L Int5-MLP + BigramHash + SWA foundation",
+  "date": "2026-03-21"
+}
