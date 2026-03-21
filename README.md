@@ -92,6 +92,45 @@ python3 train_gpt_mlx.py
 
 Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
 
+### Local NVIDIA GPU workflow (consumer / workstation Linux)
+
+If you have a local NVIDIA GPU and Docker with the NVIDIA container runtime, you can use the repo-local helper image to validate the trainer on a consumer GPU before moving to cloud runs.
+
+Build the image:
+
+```bash
+docker build -f Dockerfile.local-gpu -t parameter-golf-local:torch2.10-cu128-gcc .
+```
+
+This image intentionally:
+- starts from a CUDA-capable PyTorch runtime,
+- upgrades to `torch==2.10.0` (needed for current trainer features such as GQA support in `scaled_dot_product_attention`), and
+- installs `build-essential` so Triton/Inductor can compile local kernels.
+
+Then run a local one-GPU smoke:
+
+```bash
+docker run --rm --gpus all \
+  -v "$PWD":/workspace/parameter-golf \
+  -w /workspace/parameter-golf \
+  parameter-golf-local:torch2.10-cu128-gcc \
+  bash -lc '
+    python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1 &&
+    RUN_ID=local_cuda_smoke \
+    DATA_PATH=./data/datasets/fineweb10B_sp1024 \
+    TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
+    VOCAB_SIZE=1024 \
+    ITERATIONS=80 \
+    WARMUP_STEPS=4 \
+    TRAIN_LOG_EVERY=10 \
+    VAL_LOSS_EVERY=0 \
+    MAX_WALLCLOCK_SECONDS=240 \
+    torchrun --standalone --nproc_per_node=1 train_gpt.py
+  '
+```
+
+This local path is for iteration and compatibility checking only; official leaderboard submissions still need to satisfy the published artifact and runtime rules.
+
 ### Scaling Up to a Remote Machine
 
 Once you're happy with your local tests, or you want more compute, switch to a remote CUDA machine.
