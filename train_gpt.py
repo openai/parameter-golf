@@ -206,10 +206,16 @@ def build_sentencepiece_luts(
     )
 
 def build_byte_token_luts(vocab_size: int, device: torch.device) -> tuple[Tensor, Tensor, Tensor]:
-    if vocab_size != 256:
-        raise ValueError(f"Byte tokenizer backend requires VOCAB_SIZE=256, got {vocab_size}")
+    if vocab_size not in (256, 260):
+        raise ValueError(f"Byte tokenizer backend requires VOCAB_SIZE=256 or 260, got {vocab_size}")
+    base_bytes = torch.zeros((vocab_size,), dtype=torch.int16, device=device)
+    if vocab_size == 256:
+        base_bytes.fill_(1)
+    else:
+        # The built-in pure-byte tokenizer reserves 0..3 for pad/bos/eos/unk and maps bytes at 4..259.
+        base_bytes[4:260] = 1
     return (
-        torch.ones((vocab_size,), dtype=torch.int16, device=device),
+        base_bytes,
         torch.zeros((vocab_size,), dtype=torch.bool, device=device),
         torch.zeros((vocab_size,), dtype=torch.bool, device=device),
     )
@@ -219,7 +225,8 @@ def token_dtype_bytes_for_backend(tokenizer_backend: str) -> int:
     if tokenizer_backend == "sp1024":
         return 2
     if tokenizer_backend == "bytes":
-        return 1
+        # Dataset shards are stored as uint16 across tokenizer variants.
+        return 2
     raise ValueError(f"Unknown TOKENIZER_BACKEND={tokenizer_backend!r}. Expected one of: sp1024, bytes")
 
 
