@@ -64,7 +64,7 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 11))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -93,8 +93,8 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 0))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 0))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 16384))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
 
     int6_ste = bool(int(os.environ.get("INT6_STE", "0")))
 
@@ -105,17 +105,21 @@ class Hyperparameters:
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
     prune_frac = float(os.environ.get("PRUNE_FRAC", 0.03))
     int5_mlp = bool(int(os.environ.get("INT5_MLP", "1")))
-    int5_all = bool(int(os.environ.get("INT5_ALL", "1")))  # int5 for ALL weight categories
-    quant_other = bool(int(os.environ.get("QUANT_OTHER", "1")))  # include 'other' in quantized set
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 6))  # XSA on last N layers (0=disabled)
+    int5_all = bool(int(os.environ.get("INT5_ALL", "0")))  # int5 for ALL weight categories
+    quant_other = bool(int(os.environ.get("QUANT_OTHER", "0")))  # include 'other' in quantized set
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))  # XSA on last N layers (0=disabled)
+    rope_dims = int(os.environ.get("ROPE_DIMS", 0))  # partial RoPE: apply to first N dims (0=all)
+    ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))  # scale RMSNorm by 1/sqrt(layer+1)
+    late_qat = bool(int(os.environ.get("LATE_QAT", "0")))  # enable STE QAT late in training
+    qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.1))  # lr_scale threshold for late QAT
 
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.004))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 30))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_freeze_layers = int(os.environ.get("TTT_FREEZE_LAYERS", 0))
-    ttt_num_chunks = int(os.environ.get("TTT_NUM_CHUNKS", 64))
+    ttt_num_chunks = int(os.environ.get("TTT_NUM_CHUNKS", 32))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -306,7 +310,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 )
 FP16_KEEP_NAME_PATTERNS = tuple(
     pattern
-    for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,blocks.9.attn.c_k").split(",")
+    for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,blocks.8.attn.c_k").split(",")
     if pattern
 )
 INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
@@ -532,9 +536,12 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 
 class Rotary(nn.Module):
-    def __init__(self, dim: int, base: float = 10000.0):
+    def __init__(self, dim: int, base: float = 10000.0, rope_dims: int = 0):
         super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        self.rope_dims = rope_dims if rope_dims > 0 else dim
+        self.dim = dim
+        rd = self.rope_dims
+        inv_freq = 1.0 / (base ** (torch.arange(0, rd, 2, dtype=torch.float32) / rd))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
@@ -547,10 +554,18 @@ class Rotary(nn.Module):
             or self._seq_len_cached != seq_len
             or self._cos_cached.device != device
         ):
+            rd = self.rope_dims
             t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
             freqs = torch.outer(t, self.inv_freq.to(device))
-            self._cos_cached = freqs.cos()[None, None, :, :]
-            self._sin_cached = freqs.sin()[None, None, :, :]
+            cos_rope = freqs.cos()[None, None, :, :]
+            sin_rope = freqs.sin()[None, None, :, :]
+            if rd < self.dim:
+                # Partial RoPE: pad with identity (cos=1, sin=0) for non-rotated dims
+                pad_size = (self.dim - rd) // 2
+                cos_rope = torch.cat([cos_rope, torch.ones(1, 1, seq_len, pad_size, device=device, dtype=cos_rope.dtype)], dim=-1)
+                sin_rope = torch.cat([sin_rope, torch.zeros(1, 1, seq_len, pad_size, device=device, dtype=sin_rope.dtype)], dim=-1)
+            self._cos_cached = cos_rope
+            self._sin_cached = sin_rope
             self._seq_len_cached = seq_len
         return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
 
@@ -562,7 +577,7 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float, rope_dims: int = 0):
         super().__init__()
         if dim % num_heads != 0:
             raise ValueError("model_dim must be divisible by num_heads")
@@ -580,7 +595,8 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rope_dims = rope_dims
+        self.rotary = Rotary(self.head_dim, base=rope_base, rope_dims=rope_dims)
         # Attention gate: per-head sigmoid gate fed by first 12 dims of residual
         attn_gate_enabled = bool(int(os.environ.get("ATTN_GATE_ENABLED", "1")))
         self.attn_gate = CastedLinear(min(12, dim), num_heads, bias=False) if attn_gate_enabled else None
@@ -690,22 +706,24 @@ class BigramHashEmbedding(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float, rope_dims: int = 0, layer_idx: int = 0, ln_scale: bool = False):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims=rope_dims)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        s = self.ln_scale_factor
+        attn_out = self.attn(self.attn_norm(x) * s)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * s)
         return x
 
 
@@ -726,6 +744,8 @@ class GPT(nn.Module):
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
         xsa_last_n: int = 0,
+        rope_dims: int = 0,
+        ln_scale: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -742,8 +762,8 @@ class GPT(nn.Module):
         self.smear = SmearGate(model_dim)
         self.blocks = nn.ModuleList(
             [
-                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
-                for _ in range(num_layers)
+                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, rope_dims=rope_dims, layer_idx=i, ln_scale=ln_scale)
+                for i in range(num_layers)
             ]
         )
         self.final_norm = RMSNorm()
@@ -1042,6 +1062,8 @@ def main() -> None:
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
         xsa_last_n=args.xsa_last_n,
+        rope_dims=args.rope_dims,
+        ln_scale=args.ln_scale,
     ).to(device).bfloat16()
     xsa_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_xsa]
     if xsa_layers:
@@ -1213,6 +1235,12 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+
+        # Late QAT: enable STE quantization-aware training when lr_scale drops below threshold
+        if args.late_qat and scale < args.qat_threshold and not _INT6_STE_ENABLED:
+            globals()['_INT6_STE_ENABLED'] = True
+            log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
