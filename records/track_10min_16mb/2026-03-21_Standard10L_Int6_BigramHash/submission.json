@@ -1,0 +1,11 @@
+{
+  "author": "sumaiyanaazim",
+  "github_id": "naazimsnh02",
+  "name": "10L MLP3x BigramHash SWA LateQAT WD",
+  "blurb": "Standard 10-layer transformer (dim=416, MLP 3x, GQA 8q/4kv) + BigramHash(4096) for bigram context + SWA from 40% of training + late QAT at 85% wallclock + weight decay 0.04. No depth-recurrence — clean independent layers for stable training.",
+  "date": "2026-03-21T00:00:00Z",
+  "val_loss": 3.1566,
+  "val_bpb": 1.8695,
+  "bytes_total": 14770024,
+  "bytes_code": 45728
+}
