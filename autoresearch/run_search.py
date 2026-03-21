@@ -319,8 +319,8 @@ PRESETS: dict[str, dict[str, dict[str, str]]] = {
             "NUM_KV_HEADS": "4",
             "MLP_MULT": "3",
             "TRAIN_SEQ_LEN": "2048",
-            "TRAIN_BATCH_TOKENS": "393216",
-            "VAL_BATCH_SIZE": "393216",
+            "TRAIN_BATCH_TOKENS": "131072",
+            "VAL_BATCH_SIZE": "131072",
             "ITERATIONS": "20000",
             "MAX_WALLCLOCK_SECONDS": "600",
             "TIED_EMBED_LR": "0.03",
@@ -334,7 +334,7 @@ PRESETS: dict[str, dict[str, dict[str, str]]] = {
             "TIED_EMBED_INIT_STD": "0.005",
             "GRAD_CLIP_NORM": "0.3",
         },
-        # Strategy: aggressive — seq4096, 3/4 batch, long warmdown
+        # Strategy: aggressive — seq4096, reduced batch for A10G, long warmdown
         "sota_aggressive": {
             "VOCAB_SIZE": "1024",
             "NUM_LAYERS": "9",
@@ -343,8 +343,8 @@ PRESETS: dict[str, dict[str, dict[str, str]]] = {
             "NUM_KV_HEADS": "4",
             "MLP_MULT": "3",
             "TRAIN_SEQ_LEN": "4096",
-            "TRAIN_BATCH_TOKENS": "393216",
-            "VAL_BATCH_SIZE": "393216",
+            "TRAIN_BATCH_TOKENS": "131072",
+            "VAL_BATCH_SIZE": "131072",
             "ITERATIONS": "25000",
             "MAX_WALLCLOCK_SECONDS": "600",
             "TIED_EMBED_LR": "0.03",
