@@ -1089,10 +1089,11 @@ def main() -> None:
     device = torch.device("cuda", local_rank)
     torch.cuda.set_device(device)
     if distributed:
-        if _PT_VERSION >= (2, 5):
+        _backend = os.environ.get("DIST_BACKEND", "nccl")
+        if _PT_VERSION >= (2, 5) and _backend == "nccl":
             dist.init_process_group(backend="nccl", device_id=device)
         else:
-            dist.init_process_group(backend="nccl")
+            dist.init_process_group(backend=_backend)
         dist.barrier()
     master_process = rank == 0
 
