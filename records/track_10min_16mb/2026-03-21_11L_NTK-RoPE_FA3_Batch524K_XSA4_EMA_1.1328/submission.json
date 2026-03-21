@@ -1,5 +1,5 @@
 {
-  "author": "Tianhao Wu",
+  "author": "Signal Rush",
   "github_id": "signalrush",
   "name": "Submission: 11L NTK-RoPE + FA3 + Batch524K + XSA4 + EMA + Adaptive Pruning",
   "blurb": "11 layers with NTK-aware RoPE (auto-scales at seq>1024), FlashAttention 3, batch=524K for more training steps, Exclusive Self Attention on last 4 layers, EMA weight averaging (decay=0.997), adaptive magnitude pruning to guarantee artifact under 16MB. int5 MLP / int6 attention, zstd-22.",
