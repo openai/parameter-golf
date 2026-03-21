@@ -1507,16 +1507,17 @@ def main() -> None:
         for p in base_model.parameters():
             p.requires_grad_(False)
 
-        if eval_stride > 0:
+        if args.eval_stride > 0:
             compiled_logits_ttt = torch.compile(base_model.forward_logits, dynamic=False) if use_compile else base_model.forward_logits
             # Warmup
-            warmup_x = torch.zeros(args.eval_batch_seqs, eval_sl, dtype=torch.int64, device=device)
+            ttt_eval_sl = args.train_seq_len
+            warmup_x = torch.zeros(args.eval_batch_seqs, ttt_eval_sl, dtype=torch.int64, device=device)
             with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 _ = compiled_logits_ttt(warmup_x)
             ttt_val_loss, ttt_val_bpb = eval_val_sliding(
                 compiled_logits_ttt, rank, world_size, device,
                 val_tokens_eval, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                eval_sl, eval_stride, eval_batch_seqs=args.eval_batch_seqs,
+                ttt_eval_sl, args.eval_stride, eval_batch_seqs=args.eval_batch_seqs,
             )
         else:
             ttt_val_loss, ttt_val_bpb = eval_val(
