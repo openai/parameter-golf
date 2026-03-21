@@ -1,0 +1,9 @@
+{
+  "name": "10L Seq2048 WarmdownQuant + TTT LoRA",
+  "val_loss": 1.1787,
+  "bytes_total": 15624941,
+  "blurb": "10 layers, seq_len 2048, Muon momentum 0.98, LR 0.03, always-decaying warmdown (WD=15000) for reduced int8 quant penalty, TTT LoRA eval (rank 8). Seed 1337: val_bpb=1.1787 pre-quant.",
+  "author": "vishesh9131",
+  "github_id": "vishesh9131",
+  "date": "2026-03-21"
+}
