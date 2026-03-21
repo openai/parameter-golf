@@ -1196,9 +1196,19 @@ def main() -> None:
         for group in optimizer_muon.param_groups:
             group["momentum"] = muon_momentum
 
+        # Ramping weight decay: increases during warmdown for cleaner quantization
+        wd_base = 0.02
+        wd_max = 0.08
+        wd = wd_base + (wd_max - wd_base) * max(0.0, 1.0 - scale)
         for opt in optimizers:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * scale
+        # Apply weight decay directly to matrix params (decoupled WD)
+        if wd > 0:
+            effective_lr = args.matrix_lr * scale
+            with torch.no_grad():
+                for p in matrix_params:
+                    p.mul_(1.0 - wd * effective_lr)
 
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
