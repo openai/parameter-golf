@@ -1,0 +1,11 @@
+{
+  "author": "Mihir Srivastava",
+  "github_id": "mihir-s-05",
+  "name": "Linearized Neural Memory + TTT",
+  "blurb": "Titans-style linearized neural memory (causal linear attention via cumsum, zero loops) in each block, combined with LoRA TTT eval, overtone init, phase-transition resid_mix, Muon WD, AdamW, FP16 embedding bypass, int6 mixed precision, and 10 layers.",
+  "date": "2026-03-20T00:00:00Z",
+  "val_loss": 1.9998,
+  "val_bpb": 1.1844,
+  "bytes_total": 14458360,
+  "bytes_code": 64356
+}
