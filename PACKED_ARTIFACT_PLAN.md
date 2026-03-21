@@ -255,12 +255,76 @@ Pass gate:
    - eval/load time
 3. If packed parity holds, start with scale-format experiments before any architecture work.
 
+## Current Measured Status
+
+The first artifact phase is complete enough to narrow the search surface.
+
+Measured on the current smoke-scale checkpoint:
+
+- `torchsave_zlib`: `4,925,143` bytes
+- `packed_zlib` with raw scales: `4,914,172` bytes
+- `packed_zlib` with `log_u8` scales: `4,914,034` bytes
+
+Implications:
+
+- the submission-specific packer is a real improvement, but only a small one
+- scale compression is effectively irrelevant on this checkpoint
+- the dominant bottleneck is the quantized payload itself, not metadata or scale storage
+
+Section audit:
+
+- `quantized`: `17,039,360` raw payload bytes, `4,899,741` standalone zlib bytes
+- `passthrough`: `82,208` raw payload bytes, `9,392` standalone zlib bytes
+- `scales`: `57,344` raw payload bytes, `81` standalone zlib bytes
+
+That section breakdown is decisive: do not spend more time on generic save-format tweaks or scale codecs unless a later checkpoint proves otherwise.
+
+## Mixed-Precision Findings
+
+Single-tensor fp16 passthrough measurements on the same checkpoint:
+
+| Candidate | Post-quant `val_bpb` | Artifact bytes | Verdict |
+| --- | ---: | ---: | --- |
+| baseline packed artifact | `4.1081269968` | `4,914,172` | reference |
+| `tok_emb.weight` | `4.1064685447` | `5,598,496` | clear win |
+| `blocks.0.mlp.proj.weight` | `4.1081241614` | `5,401,326` | noise |
+| `blocks.0.mlp.fc.weight` | `4.1081269968` | `5,428,443` | no gain |
+| `blocks.8.mlp.fc.weight` | `4.1081269968` | `5,429,969` | no gain |
+
+Interpretation:
+
+- `tok_emb.weight` is the only mixed-precision knob with a meaningful score improvement so far
+- the checked MLP tensors are not worth more artifact budget
+- because embeddings are tied in the default model, `tok_emb.weight` is also the output-head-sensitive candidate
+- small logit-path tensors like norms are already kept in float by the existing passthrough rules, so the next large candidate set should stay tightly focused
+
+## Updated Decision
+
+For the current branch:
+
+1. keep `packed_zlib` as the default artifact format
+2. keep `PACKED_SCALE_CODEC=raw`
+3. promote `tok_emb.weight` as the current best mixed-precision candidate
+4. rerun `tok_emb.weight` on a stronger checkpoint before baking it into the main quantization path
+5. stop testing large MLP weights unless a later checkpoint changes the ranking
+6. if another artifact-side idea is needed after that, move to quantization preconditioning or rotations on the dominant payload tensors
+
+## Next Candidate Surface
+
+After the stronger-checkpoint rerun, only continue artifact-side candidate testing for tensors that are plausibly embedding-adjacent or logits-sensitive.
+
+In practice that means:
+
+- keep testing `tok_emb.weight`
+- do not expand the search to bulk MLP tensors again
+- prefer preconditioning/rotation experiments over more generic mixed-precision sweeps once the embedding result is confirmed
+
 ## Recommendation
 
 For the current record-track branch:
 
 1. packed artifact
-2. quantization-oriented random linear maps
+2. quantization-oriented random linear maps / rotations
 3. Universal Transformer branch
 4. distillation
 

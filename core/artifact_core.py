@@ -12,7 +12,7 @@ from core.quant_core import QuantizedStateDict, QuantMetaEntry
 
 PACKED_ARTIFACT_MAGIC = b"PGQ1"
 PACKED_ARTIFACT_VERSION = 1
-DEFAULT_QUANT_ARTIFACT_FORMAT = "torchsave_zlib"
+DEFAULT_QUANT_ARTIFACT_FORMAT = "packed_zlib"
 SUPPORTED_QUANT_ARTIFACT_FORMATS = ("torchsave_zlib", "packed_zlib")
 DEFAULT_PACKED_SCALE_CODEC = "raw"
 SUPPORTED_PACKED_SCALE_CODECS = ("raw", "log_u8")
