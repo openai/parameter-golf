@@ -1,0 +1,63 @@
+{
+  "_comment": "INL BetaMu attention + Sort-Split MoE — zero QKV, ALiBi position",
+  "_version": "8.0.0",
+
+  "model": {
+    "vocab_size": 1024,
+    "num_layers": 9,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "tie_embeddings": true,
+    "tied_embed_init_std": 0.005,
+    "logit_softcap": 30.0,
+    "rope_base": 10000.0,
+    "classical_layers": "0,1,2,3,4",
+    "quant_bits": 8
+  },
+
+  "moe": {
+    "num_experts": 4,
+    "activation": "relu2",
+    "routing": "sort_split",
+    "mlp_mult": 4
+  },
+
+  "training": {
+    "iterations": 20000,
+    "train_batch_tokens": 524288,
+    "train_seq_len": 1024,
+    "max_wallclock_seconds": 600.0,
+    "warmup_steps": 20,
+    "warmdown_iters": 1200,
+    "seed": 1337,
+    "val_loss_every": 1000,
+    "val_batch_size": 524288,
+    "train_log_every": 200
+  },
+
+  "optimizer": {
+    "embed_lr": 0.6,
+    "head_lr": 0.008,
+    "tied_embed_lr": 0.05,
+    "matrix_lr": 0.04,
+    "scalar_lr": 0.04,
+    "muon_momentum": 0.95,
+    "muon_backend_steps": 5,
+    "muon_momentum_warmup_start": 0.85,
+    "muon_momentum_warmup_steps": 500,
+    "beta1": 0.9,
+    "beta2": 0.95,
+    "adam_eps": 1e-8,
+    "grad_clip_norm": 0.3,
+    "weight_decay": 0.02
+  },
+
+  "ttt": {
+    "lora_rank": 8,
+    "lora_lr": 0.01,
+    "chunk_size": 256,
+    "eval_seq_len": 1024,
+    "batch_size": 64
+  }
+}
