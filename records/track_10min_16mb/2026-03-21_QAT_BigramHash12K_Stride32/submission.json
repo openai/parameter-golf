@@ -1,7 +1,7 @@
 {
   "name": "QAT + BigramHash(12288) + Stride 32",
-  "val_loss": null,
-  "bytes_total": 15889000,
+  "val_loss": 1.14443,
+  "bytes_total": 15902583,
   "blurb": "10 layers, QAT with STE (int5 MLP / int6 attn), BigramHash 12288, eval stride 32, magnitude pruning 5%, SWA every 25 steps, zstd-22. Based on 10L_Int5MLP_MuonWD04_SWA50.",
   "author": "fbedev",
   "github_id": "fbedev",
