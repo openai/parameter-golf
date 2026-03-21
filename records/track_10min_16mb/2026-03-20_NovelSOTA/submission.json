@@ -1,0 +1,11 @@
+{
+    "author": "Jack Young",
+    "github_id": "JWLBOYCE",
+    "name": "11L int5/int6 + XSA + online TTT w/ decay prior",
+    "blurb": "Standard SOTA stack plus pre-Q/K RMSNorm, online causal TTT with Krause decay prior, and Reptile meta-learning",
+    "date": "2026-03-21",
+    "val_loss": 1.9452,
+    "val_bpb": 1.1520,
+    "bytes_total": 15164971,
+    "bytes_code": 61581
+}
