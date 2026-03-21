@@ -41,3 +41,18 @@ Starting from iteration 19, best BPB: 1.1428
   Log saved to /workspace/parameter-golf/autoevolve/logs/exp_0020.log
   CRASH (exit code 1)
     TIMEOUT: Experiment exceeded 25-minute hard limit (10 train + 10 eval + 5 buffer)
+  Pushed to origin.
+
+======================================================================
+  ITERATION 21  |  Best BPB: 1.1428
+======================================================================
+  Checking upstream for new records...
+  No new upstream changes.
+  Calling gpt-5.4 for proposal...
+  LLM responded in 208.3s (input=18370, output=13909 tokens)
+  Proposed:   Late exact-grid quantization finetune: after each low-LR tail step, snap exported int5/int6 matrices onto their final quantization grid so training matches the scored model.
+  Diagnosis:  The parameter/compression budget is already essentially saturated, so the most likely remaining loss is train-to-eval mismatch: the model is optimized in float, but the scorer evaluates the dequantized mixed int5/int6 export. Prior QAT attempts appear to have crashed at the implementation level, not
+  Hypothesis: Add a late exact-path quantization finetune: in the low-LR tail, after each optimizer step, project every matrix that will be exported as int5/int6 back onto that exact per-row quantization grid. This makes the model train on the same dequantized weights used at final eval, directly attacking the fl
+  Expected:   -0.0040 bpb. The current script only adapts to quantization once at the very end, so recovering even a fraction of the quantization gap on the dominant MLP/attention/bigram matrices should be worth a few millibits; I expect roughly 25-40% recovery of the export-path degradation.
+  Risk:       Main risks are a mild late-stage optimization shock and a small slowdown from projecting large matrices each step. I mitigate both by activating only in the last 35% of warmdown, using the already-tes
+  Applied (54,868 bytes, 1274 lines)
