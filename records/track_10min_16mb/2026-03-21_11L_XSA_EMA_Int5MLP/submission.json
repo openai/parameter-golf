@@ -1,0 +1,14 @@
+{
+  "name": "11L XSA + Continuous EMA + Int5-MLP + 8% Pruning",
+  "val_loss": 1.1399,
+  "bytes_total": 15919150,
+  "blurb": "11 layers with XSA (Exclusive Self-Attention) on last 4 layers, continuous GPU EMA (decay=0.997), mixed int5/int6 quantization, 8% magnitude pruning, zstd-22. Mean of 3 seeds: 1.1399 (std 0.0009). Seeds: 42, 1337, 7.",
+  "author": "Mark Marosi",
+  "github_id": "Mapika",
+  "date": "2026-03-21",
+  "seed_results": {
+    "42": {"val_bpb": 1.14005109, "bytes_total": 15919150},
+    "1337": {"val_bpb": 1.13874113, "bytes_total": 15999808},
+    "7": {"val_bpb": 1.14080411, "bytes_total": 15882678}
+  }
+}
