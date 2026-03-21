@@ -1,0 +1,11 @@
+{
+  "author": "Evan Borodow",
+  "github_id": "eb1386",
+  "name": "11L Gated XSA + Cosine LN + BigramHash4K",
+  "blurb": "11-layer int6 model with gated exclusive self-attention (learned per-layer strength), cosine LN scale decay, 4096-bucket BigramHash, SmearGate, EMA, late QAT, partial RoPE (16 dims), and stride-64 sliding window eval. 27M params, zstd-22 compressed under 16MB.",
+  "date": "pending",
+  "val_loss": "pending",
+  "val_bpb": "pending",
+  "bytes_total": "pending",
+  "bytes_code": "pending"
+}
