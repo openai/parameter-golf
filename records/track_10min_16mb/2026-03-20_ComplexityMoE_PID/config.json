@@ -1,25 +1,22 @@
 {
-  "_comment": "Complexity Framework — back to basics + quant fixes only",
-  "_version": "7.0.0",
+  "_comment": "INL BetaMu attention + Sort-Split MoE — zero QKV, ALiBi position",
+  "_version": "8.0.0",
 
   "model": {
     "vocab_size": 1024,
     "num_layers": 9,
-    "model_dim": 384,
+    "model_dim": 512,
     "num_heads": 8,
-    "num_kv_heads": 4,
     "tie_embeddings": true,
     "tied_embed_init_std": 0.005,
     "logit_softcap": 30.0,
-    "rope_base": 10000.0,
-    "qk_gain_init": 1.5,
     "quant_bits": 8
   },
 
   "moe": {
     "num_experts": 4,
     "activation": "relu2",
-    "routing": "soft",
+    "routing": "sort_split",
     "mlp_mult": 4
   },
 
@@ -30,11 +27,6 @@
     "max_wallclock_seconds": 600.0,
     "warmup_steps": 20,
     "warmdown_iters": 3000,
-    "lr_schedule": "cosine_restarts",
-    "lr_restart_base_period": 250,
-    "lr_restart_mult": 2.0,
-    "lr_restart_decay": 0.7,
-    "lr_min_ratio": 0.01,
     "seed": 1337,
     "val_loss_every": 1000,
     "val_batch_size": 524288,
