@@ -58,7 +58,7 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 11))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -1446,7 +1446,7 @@ def main() -> None:
 
     # Full-weight SGD TTT: adapt entire model to val distribution before scoring
     # (FarnsworthEngine approach: SGD with momentum, 3 epochs, freeze first 2 blocks)
-    if bool(int(os.environ.get("TTT_ENABLED", "1"))):
+    if bool(int(os.environ.get("TTT_ENABLED", "0"))):
         log0("Starting full-weight SGD TTT adaptation...")
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()

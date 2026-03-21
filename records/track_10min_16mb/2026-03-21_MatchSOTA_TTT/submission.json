@@ -1,0 +1,14 @@
+{
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "val_bpb": 1.1401,
+    "track": "10min_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "compressed_model_bytes": null,
+    "code_bytes": null,
+    "total_artifact_bytes": null,
+    "description": "9L MLP3x + SmearGate + BigramHash 2048 + int6+zstd + SWA + Muon WD=0.04 + NTK-RoPE 50k + OrthoInit + sliding window eval stride=64. Custom Triton/CUDA kernel pipeline in development.",
+    "date": "2026-03-21"
+}
