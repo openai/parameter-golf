@@ -1,6 +1,6 @@
 # 11L + XSA4 + EMA(0.997) + seq2048 + Int5-MLP + MuonWD=0.04 + LateK-FP16
 
-**val_bpb: 1.1357** (seed=1337, sliding window stride=64, post int5/int6+zstd-22 quantization roundtrip)
+**val_bpb: 1.1361** (seed=1337, sliding window stride=64, post int5/int6+zstd-22 quantization roundtrip)
 Hardware: 8×H100-80GB-SXM5 | Steps: ~8903 | Wallclock: 600s | Artifact: ~15.79MB
 
 ## Approach
@@ -76,10 +76,11 @@ PR #162 introduced decoupled weight decay for Muon. We tune the decay from the P
 
 | Seed | val_bpb | steps | wallclock |
 |---|---|---|---|
-| 1337 | **1.1357** | 8903 | 600s |
+| 42 | 1.1370 | 9122 | 600s |
+| 123 | 1.1354 | 9136 | 600s |
+| 1337 | **1.1358** | 9120 | 600s |
 
-Single-seed result. Multi-seed validation pending.
-
+**Average val_bpb: 1.1361** (3 seeds)
 ## Technique Attribution
 
 | Technique | Source |

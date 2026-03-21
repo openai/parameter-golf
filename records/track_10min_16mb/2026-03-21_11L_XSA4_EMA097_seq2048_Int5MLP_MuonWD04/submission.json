@@ -4,12 +4,30 @@
   "name": "11L + XSA4 + EMA(0.997) + seq2048 + Int5-MLP + MuonWD=0.04 + LateK-FP16 + BigramHash(2048)",
   "blurb": "11-layer transformer with Exclusive Self-Attention (XSA) on last 4 layers, EMA (decay=0.997) replacing SWA for post-training weight averaging, seq_len=2048, Int5 quantization for MLP weights (freeing budget for 11th layer), Int6 for attention, Late-K FP16 on final layer c_k, BigramHash(2048 buckets, dim=64), SmearGate, OrthoInit (PR #135), Muon weight decay=0.04 (tuned from PR #162 default of 0.02), warmdown=2000 steps (tuned for seq2048), RoPE base=500K. Sliding window evaluation with stride=64. Single-seed result (seed=1337), ~8903 steps in 600s.",
   "date": "2026-03-21T02:00:00Z",
-  "val_bpb": 1.1357,
-  "seeds": [1337],
+  "val_bpb": 1.1361,
+  "seeds": [
+    42,
+    123,
+    1337
+  ],
   "seed_results": {
-    "1337": {"val_bpb": 1.1357, "steps": 8903, "wallclock_seconds": 600}
+    "1337": {
+      "val_bpb": 1.135778,
+      "steps": 9120,
+      "wallclock_seconds": 600
+    },
+    "42": {
+      "val_bpb": 1.13702666,
+      "steps": 9122,
+      "wallclock_seconds": 600
+    },
+    "123": {
+      "val_bpb": 1.13537826,
+      "steps": 9136,
+      "wallclock_seconds": 600
+    }
   },
-  "step_stop": 8903,
+  "step_stop": 9120,
   "wallclock_seconds": 600,
   "bytes_total": 15826438,
   "bytes_model_int8_zstd": 15789000,
