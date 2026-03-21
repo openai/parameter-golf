@@ -346,8 +346,9 @@ def propose_modification(client, model: str, prompt: str) -> dict:
         model=model,
         reasoning={"effort": "high"},
         input=[{"role": "user", "content": prompt}],
-        text_format={"type": "json_object"},
+        text={"format": {"type": "json_object"}},
         max_output_tokens=32000,
+        truncation="auto",
     )
 
     elapsed = time.time() - t0
