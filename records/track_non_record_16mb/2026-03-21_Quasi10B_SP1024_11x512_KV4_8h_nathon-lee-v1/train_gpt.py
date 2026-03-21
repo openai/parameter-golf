@@ -7,7 +7,7 @@ Architecture:
   - Partial RoPE: rotary on 16 of 64 head dims for position-free generalization
   - LN Scale: RMSNorm damped by 1/sqrt(layer+1) for deep gradient stability
   - SmearGate: per-dim gate blending current + previous token embeddings
-  - BigramHash(4096, dim=128->512): hash-based bigram context embeddings
+  - BigramHash(2048, dim=64->512): hash-based bigram context embeddings
 
 Training:
   - Muon optimizer (Newton-Schulz) for 2D weights, momentum warmup 0.85->0.99
@@ -17,7 +17,7 @@ Training:
   - EMA (decay=0.997) of all parameters; EMA weights used for export
 
 Compression:
-  - Mixed int5/int6 per-row quantization + int8 fallback
+  - Uniform int5 per-row quantization + int8 fallback
   - zstd-22 compression (zlib-9 fallback)
   - Target artifact ≤ 15.8 MB
 
@@ -25,7 +25,7 @@ Evaluation:
   - Sliding window with stride=64 for near-max context scoring
   - Full-model SGD TTT: 3 epochs over val, first 2 blocks frozen
 
-Hardware target: 8×H100 SXM, 600s training + ≤180s eval+TTT
+Hardware target: 1×H100 PCIe, 6400s training + ≤240s eval+TTT
 """
 
 from __future__ import annotations
@@ -87,8 +87,9 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", 1)))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
+    # CHANGED: 4096->2048, 128->64
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
 
     ema_enabled = bool(int(os.environ.get("EMA_ENABLED", 1)))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
@@ -341,10 +342,11 @@ def quantize_state_dict_mixed(state_dict: dict[str, Tensor]):
             meta[name] = {"type": "int5"}
             stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
         elif cat == "attn" and t.ndim >= 2:
-            q, s = quantize_intN_per_row(t, clip_range=31)
+            # CHANGED: int6 (clip_range=31) -> int5 (clip_range=15)
+            q, s = quantize_intN_per_row(t, clip_range=15)
             result[name + ".q"] = q
             result[name + ".scale"] = s
-            meta[name] = {"type": "int6"}
+            meta[name] = {"type": "int5"}
             stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
         else:
             q, s = quantize_float_tensor(t)
@@ -601,8 +603,6 @@ class BigramHashEmbedding(nn.Module):
         B = self.bigram_vocab_size
         out = torch.zeros_like(t)
         if t.size(-1) > 1:
-            # Token ids are non-negative, p1/p2 > 0, so sum is always >= 0
-            # % B is safe and always returns [0, B-1]
             out[..., 1:] = (self._p1 * t[..., 1:] + self._p2 * t[..., :-1]) % B
         return out
 
@@ -949,7 +949,7 @@ def main() -> None:
         if not isinstance(opt, Muon):
             for pg in opt.param_groups:
                 pg["_base_lr"] = pg["lr"]
-    
+
     total_seqs_per_step = args.train_batch_tokens // args.train_seq_len  # 512
     seqs_per_rank = total_seqs_per_step // world_size
     max_micro_seqs = int(os.environ.get("MICRO_BATCH_SEQS", 0))

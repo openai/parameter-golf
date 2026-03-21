@@ -1,60 +1,53 @@
-nohup: ignoring input
 === Parameter Golf: 11L PartialRoPE+LNScale+EMA+SWA+TTT ===
-run_id:full_1gpu seed:1337
-model_params:27092057
+run_id:full_1gpu_pcie seed:1337
+model_params:26666073
 grad_accum_steps:8 micro_batch_seqs:64 tokens_per_step:524288
 step:0/20000 val_loss:6.9295 val_bpb:4.1040 train_time:0ms
 step:0/20000 train_loss:6.9311 lr_scale:1.0000
-step:100/20000 train_loss:3.3038 lr_scale:1.0000
-step:200/20000 train_loss:2.7736 lr_scale:1.0000
-step:300/20000 train_loss:2.6778 lr_scale:1.0000
-step:400/20000 train_loss:2.4214 lr_scale:1.0000
-step:500/20000 val_loss:2.5115 val_bpb:1.4875 train_time:628258ms
-step:500/20000 train_loss:2.5224 lr_scale:1.0000
-step:600/20000 train_loss:2.4408 lr_scale:1.0000
-step:700/20000 train_loss:2.4200 lr_scale:1.0000
-step:800/20000 train_loss:2.3428 lr_scale:1.0000
-step:900/20000 train_loss:2.3579 lr_scale:0.9735
-step:1000/20000 val_loss:2.3275 val_bpb:1.3785 train_time:1256360ms
-step:1000/20000 train_loss:2.3237 lr_scale:0.9402
-step:1100/20000 train_loss:2.3020 lr_scale:0.9070
-step:1200/20000 train_loss:2.2814 lr_scale:0.8736
-step:1300/20000 train_loss:2.2677 lr_scale:0.8403
-step:1400/20000 train_loss:2.4425 lr_scale:0.8069
-step:1500/20000 val_loss:2.2500 val_bpb:1.3326 train_time:1884486ms
-step:1500/20000 train_loss:2.2539 lr_scale:0.7736
-step:1600/20000 train_loss:2.2191 lr_scale:0.7401
-step:1700/20000 train_loss:2.2830 lr_scale:0.7068
-step:1800/20000 train_loss:2.2194 lr_scale:0.6734
-step:1900/20000 train_loss:2.1856 lr_scale:0.6401
-step:2000/20000 val_loss:2.2003 val_bpb:1.3032 train_time:2512805ms
-step:2000/20000 train_loss:2.1864 lr_scale:0.6068
-step:2100/20000 train_loss:2.2361 lr_scale:0.5735
-step:2200/20000 train_loss:2.1870 lr_scale:0.5401
-step:2300/20000 train_loss:2.2209 lr_scale:0.5068
-step:2400/20000 train_loss:2.1636 lr_scale:0.4734
-step:2500/20000 val_loss:2.1575 val_bpb:1.2778 train_time:3141164ms
-step:2500/20000 train_loss:2.1347 lr_scale:0.4401
-step:2600/20000 train_loss:2.1537 lr_scale:0.4068
-step:2700/20000 train_loss:2.1429 lr_scale:0.3734
-step:2800/20000 train_loss:2.1564 lr_scale:0.3401
-step:2900/20000 train_loss:2.0995 lr_scale:0.3044
-step:3000/20000 val_loss:2.1152 val_bpb:1.2527 train_time:3776017ms
-step:3000/20000 train_loss:2.1172 lr_scale:0.2712
-step:3100/20000 train_loss:2.0672 lr_scale:0.2363
-step:3200/20000 train_loss:2.1272 lr_scale:0.2031
-step:3300/20000 train_loss:2.1186 lr_scale:0.1694
-step:3400/20000 train_loss:2.1094 lr_scale:0.1362
-step:3500/20000 val_loss:2.0683 val_bpb:1.2249 train_time:4413838ms
-step:3500/20000 train_loss:2.1653 lr_scale:0.1021
-step:3600/20000 train_loss:2.0361 lr_scale:0.0688
-step:3700/20000 train_loss:2.0641 lr_scale:0.0349
-step:3800/20000 train_loss:2.0877 lr_scale:0.0018
-step:3806/20000 val_loss:2.0444 val_bpb:1.2108 train_time:4800906ms
-wallclock_stop at step:3806 train_time:4800906ms
-loading_swa_weights count=1185
-raw_model_bytes:108403583
-artifact_bytes:17347056 code_bytes:49495 total:17396551
+step:100/20000 train_loss:3.3448 lr_scale:1.0000
+step:200/20000 train_loss:2.7898 lr_scale:1.0000
+step:300/20000 train_loss:2.6807 lr_scale:1.0000
+step:400/20000 train_loss:2.4209 lr_scale:0.9889
+step:500/20000 val_loss:2.5017 val_bpb:1.4816 train_time:950423ms
+step:500/20000 train_loss:2.5169 lr_scale:0.9556
+step:600/20000 train_loss:2.4320 lr_scale:0.9223
+step:700/20000 train_loss:2.4107 lr_scale:0.8890
+step:800/20000 train_loss:2.3299 lr_scale:0.8554
+step:900/20000 train_loss:2.3378 lr_scale:0.8229
+step:1000/20000 val_loss:2.3133 val_bpb:1.3701 train_time:1898746ms
+step:1000/20000 train_loss:2.3094 lr_scale:0.7902
+step:1100/20000 train_loss:2.2891 lr_scale:0.7574
+step:1200/20000 train_loss:2.2714 lr_scale:0.7243
+step:1300/20000 train_loss:2.2558 lr_scale:0.6916
+step:1400/20000 train_loss:2.4329 lr_scale:0.6586
+step:1500/20000 val_loss:2.2391 val_bpb:1.3261 train_time:2843310ms
+step:1500/20000 train_loss:2.2423 lr_scale:0.6254
+step:1600/20000 train_loss:2.2074 lr_scale:0.5922
+step:1700/20000 train_loss:2.2735 lr_scale:0.5590
+step:1800/20000 train_loss:2.2070 lr_scale:0.5257
+step:1900/20000 train_loss:2.1703 lr_scale:0.4925
+step:2000/20000 val_loss:2.1885 val_bpb:1.2961 train_time:3790296ms
+step:2000/20000 train_loss:2.1734 lr_scale:0.4590
+step:2100/20000 train_loss:2.2228 lr_scale:0.4255
+step:2200/20000 train_loss:2.1740 lr_scale:0.3922
+step:2300/20000 train_loss:2.2066 lr_scale:0.3586
+step:2400/20000 train_loss:2.1487 lr_scale:0.3254
+step:2500/20000 val_loss:2.1402 val_bpb:1.2675 train_time:4740539ms
+step:2500/20000 train_loss:2.1174 lr_scale:0.2917
+step:2600/20000 train_loss:2.1344 lr_scale:0.2583
+step:2700/20000 train_loss:2.1252 lr_scale:0.2247
+step:2800/20000 train_loss:2.1342 lr_scale:0.1916
+step:2900/20000 train_loss:2.0774 lr_scale:0.1581
+step:3000/20000 val_loss:2.0923 val_bpb:1.2392 train_time:5689637ms
+step:3000/20000 train_loss:2.0956 lr_scale:0.1249
+step:3100/20000 train_loss:2.0435 lr_scale:0.0913
+step:3200/20000 train_loss:2.1025 lr_scale:0.0580
+step:3300/20000 train_loss:2.0939 lr_scale:0.0246
+step:3374/20000 val_loss:2.0611 val_bpb:1.2207 train_time:6400210ms
+wallclock_stop at step:3374 train_time:6400210ms
+loading_swa_weights count=1197
+raw_model_bytes:106699647
+artifact_bytes:16132620 code_bytes:49461 total:16182081
 /usr/local/lib/python3.12/dist-packages/torch/distributed/distributed_c10d.py:4876: UserWarning: barrier(): using the device under current context. You can specify `device_id` in `init_process_group` to mute this warning.
   warnings.warn(  # warn only once
 starting_ttt
