@@ -1,0 +1,16 @@
+{
+  "author": "Aryan Bhosale",
+  "github_id": "aryanbhosale",
+  "name": "Autoresearch: Heads4 + Step-based LR + Sliding Window",
+  "blurb": "Built on the SOTA (10L, int5/int6, BigramHash, SmearGate, SWA) with automated experiment loop (50+ experiments across Mac MLX and CUDA). Key improvements: NUM_HEADS=4 with head_dim=128 (-0.095 BPB relative improvement), step-based LR schedule, MATRIX_LR=0.03, BigramHash(16384), sliding window eval stride=256. Tested on 1xH100 only — requesting compute grant for 8xH100 validation.",
+  "date": "2026-03-21T00:00:00Z",
+  "val_bpb": 1.2756,
+  "pre_quant_val_bpb": 1.2913,
+  "note": "1xH100 result (800 steps, sliding window eval stride=256). Artifact is 17.4MB (over 16MB limit due to head_dim=128 increasing params). Needs int4/int5 MLP compression to fit. Non-record submission — requesting compute grant for 8xH100 validation.",
+  "step_stop": 800,
+  "wallclock_seconds": 541,
+  "eval_time_seconds": 317,
+  "bytes_total": 17398686,
+  "bytes_model_int6_zlib": 17341842,
+  "bytes_code": 56844
+}
