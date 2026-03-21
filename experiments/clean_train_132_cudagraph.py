@@ -1102,30 +1102,54 @@ def run_ttt(
     CastedLinear._qat_enabled = prev_qat
 
 
-@torch.no_grad()
+class AsyncGradientSync:
+    """Async gradient sync — launches all-reduce in background, waits before optimizer step.
+    Pre-allocates the flat buffer once to avoid repeated allocation."""
+
+    def __init__(self):
+        self._flat_buf = None
+        self._grads = None
+        self._handle = None
+
+    @torch.no_grad()
+    def launch(self, model: nn.Module, world_size: int):
+        """Launch async all-reduce. Call this right after backward()."""
+        if world_size <= 1:
+            return
+        grads = [p.grad for p in model.parameters() if p.grad is not None]
+        if not grads:
+            return
+        self._grads = grads
+        total_numel = sum(g.numel() for g in grads)
+        # Pre-allocate flat buffer once, reuse across steps
+        if self._flat_buf is None or self._flat_buf.numel() != total_numel:
+            self._flat_buf = torch.zeros(total_numel, device=grads[0].device, dtype=torch.bfloat16)
+        offset = 0
+        for g in grads:
+            self._flat_buf[offset:offset + g.numel()] = g.reshape(-1).to(torch.bfloat16)
+            offset += g.numel()
+        # Launch async all-reduce — returns immediately, NCCL runs in background
+        self._handle = dist.all_reduce(self._flat_buf, op=dist.ReduceOp.AVG, async_op=True)
+
+    @torch.no_grad()
+    def wait(self):
+        """Wait for all-reduce to finish and copy gradients back. Call before optimizer.step()."""
+        if self._handle is None:
+            return
+        self._handle.wait()
+        self._handle = None
+        offset = 0
+        for g in self._grads:
+            g.copy_(self._flat_buf[offset:offset + g.numel()].reshape_as(g))
+            offset += g.numel()
+        self._grads = None
+
+_async_grad_sync = AsyncGradientSync()
+
 def manual_gradient_sync(model: nn.Module, world_size: int):
-    """Replace DDP's automatic gradient sync with explicit all-reduce.
-    This is CUDA graph compatible because it runs outside the compiled graph."""
-    if world_size <= 1:
-        return
-    # Collect all gradients that need syncing
-    grads = [p.grad for p in model.parameters() if p.grad is not None]
-    if not grads:
-        return
-    # Flatten all gradients into one buffer for efficient all-reduce
-    total_numel = sum(g.numel() for g in grads)
-    flat_grads = torch.zeros(total_numel, device=grads[0].device, dtype=torch.bfloat16)
-    offset = 0
-    for g in grads:
-        flat_grads[offset:offset + g.numel()] = g.reshape(-1).to(torch.bfloat16)
-        offset += g.numel()
-    # Single all-reduce for all gradients (much more efficient than per-param)
-    dist.all_reduce(flat_grads, op=dist.ReduceOp.AVG)
-    # Copy back
-    offset = 0
-    for g in grads:
-        g.copy_(flat_grads[offset:offset + g.numel()].reshape_as(g))
-        offset += g.numel()
+    """Backward-compatible sync wrapper — launch + immediate wait."""
+    _async_grad_sync.launch(model, world_size)
+    _async_grad_sync.wait()
 
 
 # -----------------------------
@@ -1506,11 +1530,12 @@ def main() -> None:
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
-        # Manual gradient sync (replaces DDP's automatic sync)
+        # Async gradient sync: launch all-reduce in background
         if distributed:
-            manual_gradient_sync(base_model, world_size)
+            _async_grad_sync.launch(base_model, world_size)
         train_loss /= grad_accum_steps
 
+        # These run on CPU while NCCL all-reduce runs on GPU in background
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
         for group in optimizer_muon.param_groups:
@@ -1520,6 +1545,9 @@ def main() -> None:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * scale
 
+        # Wait for gradient sync before clipping and stepping
+        if distributed:
+            _async_grad_sync.wait()
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
