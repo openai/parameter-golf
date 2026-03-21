@@ -896,18 +896,29 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
-        eff_idx = 0
-        for loop_idx in range(self.num_loops):
-            for block_idx in range(self.num_unique_layers):
-                if eff_idx < self.num_encoder_layers:
-                    x = self.blocks[block_idx](x, x0)
-                    skips.append(x)
-                else:
-                    dec_idx = eff_idx - self.num_encoder_layers
-                    if dec_idx < self.num_skip_weights and skips:
-                        x = x + self.skip_weights[dec_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                    x = self.blocks[block_idx](x, x0)
-                eff_idx += 1
+        # Simple loop for num_loops=1 (compile-friendly); nested loop for recurrence
+        if self.num_loops == 1:
+            for i in range(self.num_encoder_layers):
+                x = self.blocks[i](x, x0)
+                skips.append(x)
+            for i in range(self.num_decoder_layers):
+                bi = self.num_encoder_layers + i
+                if skips:
+                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                x = self.blocks[bi](x, x0)
+        else:
+            eff_idx = 0
+            for loop_idx in range(self.num_loops):
+                for block_idx in range(self.num_unique_layers):
+                    if eff_idx < self.num_encoder_layers:
+                        x = self.blocks[block_idx](x, x0)
+                        skips.append(x)
+                    else:
+                        dec_idx = eff_idx - self.num_encoder_layers
+                        if dec_idx < self.num_skip_weights and skips:
+                            x = x + self.skip_weights[dec_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                        x = self.blocks[block_idx](x, x0)
+                    eff_idx += 1
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -925,20 +936,34 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        eff_idx = 0
-        for loop_idx in range(self.num_loops):
-            for block_idx in range(self.num_unique_layers):
-                qd = lora.q_loras[eff_idx] if lora else None
-                vd = lora.v_loras[eff_idx] if lora else None
-                if eff_idx < self.num_encoder_layers:
-                    x = self.blocks[block_idx](x, x0, qd, vd)
-                    skips.append(x)
-                else:
-                    dec_idx = eff_idx - self.num_encoder_layers
-                    if dec_idx < self.num_skip_weights and skips:
-                        x = x + self.skip_weights[dec_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                    x = self.blocks[block_idx](x, x0, qd, vd)
-                eff_idx += 1
+        if self.num_loops == 1:
+            for i in range(self.num_encoder_layers):
+                qd = lora.q_loras[i] if lora else None
+                vd = lora.v_loras[i] if lora else None
+                x = self.blocks[i](x, x0, qd, vd)
+                skips.append(x)
+            for i in range(self.num_decoder_layers):
+                bi = self.num_encoder_layers + i
+                if skips:
+                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                qd = lora.q_loras[bi] if lora else None
+                vd = lora.v_loras[bi] if lora else None
+                x = self.blocks[bi](x, x0, qd, vd)
+        else:
+            eff_idx = 0
+            for loop_idx in range(self.num_loops):
+                for block_idx in range(self.num_unique_layers):
+                    qd = lora.q_loras[eff_idx] if lora else None
+                    vd = lora.v_loras[eff_idx] if lora else None
+                    if eff_idx < self.num_encoder_layers:
+                        x = self.blocks[block_idx](x, x0, qd, vd)
+                        skips.append(x)
+                    else:
+                        dec_idx = eff_idx - self.num_encoder_layers
+                        if dec_idx < self.num_skip_weights and skips:
+                            x = x + self.skip_weights[dec_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                        x = self.blocks[block_idx](x, x0, qd, vd)
+                    eff_idx += 1
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
