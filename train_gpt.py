@@ -1303,20 +1303,6 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
-        # Late QAT: activate QAT at qat_late_frac of wallclock
-        if not qat_activated and args.qat_enabled:
-            elapsed_frac = approx_training_time_ms / max(max_wallclock_ms or 1e9, 1)
-            if elapsed_frac >= args.qat_late_frac:
-                qat_activated = True
-                for m in base_model.modules():
-                    if isinstance(m, CastedLinear):
-                        m.qat_bits = args.qat_bits
-                # Halve LR when QAT activates (per PR #297)
-                for opt in optimizers:
-                    for group in opt.param_groups:
-                        group["base_lr"] *= 0.5
-                log0(f"late_qat:activated at step {step + 1} ({elapsed_frac:.1%} wallclock)")
-
         # EMA: update every step during warmdown (replaces SWA when enabled)
         if args.ema_enabled and scale < 1.0:
             with torch.no_grad():
@@ -1338,6 +1324,19 @@ def main() -> None:
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+
+        # Late QAT: activate QAT at qat_late_frac of wallclock
+        if not qat_activated and args.qat_enabled and max_wallclock_ms:
+            if approx_training_time_ms / max_wallclock_ms >= args.qat_late_frac:
+                qat_activated = True
+                for m in base_model.modules():
+                    if isinstance(m, CastedLinear):
+                        m.qat_bits = args.qat_bits
+                for opt in optimizers:
+                    for group in opt.param_groups:
+                        group["base_lr"] *= 0.5
+                log0(f"late_qat:activated at step {step} ({approx_training_time_ms / max_wallclock_ms:.1%} wallclock)")
+
         should_log_train = (
             args.train_log_every > 0
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
