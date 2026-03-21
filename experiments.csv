@@ -15,3 +15,4 @@ transformer_v3_9L,4800,15417209,15353297,63912,1,1077.53,1.1778,a75e9c8,"9L (sin
 transformer_v4_10L_wd04,4800,14320844,14256648,64196,1,1193.36,1.1632,4ca0c2d,"10L + Muon WD=0.04 + slide64 (11042 steps @ 435ms, 14.3MB VALID, BEST)"
 transformer_v5b_gradclip_10min,600,,,64196,1,,1.3240,739cdd4,"10L WD=3000 grad_clip=0.3 (1379 steps, -0.002 vs no clip)"
 transformer_v5c_noclip_10min,600,,,64196,1,,1.3256,739cdd4,"10L WD=3000 no grad_clip (1385 steps, CONTROL)"
+transformer_v6_wd3000_gradclip_80min,4800,15657516,15593320,64196,1,1190.21,1.1647,dabdcb6,"10L WD=3000 clip=0.3 slide64 (10950 steps @ 439ms, 15.7MB, worse than v4!)"
