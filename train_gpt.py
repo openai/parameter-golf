@@ -61,7 +61,7 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 12))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -470,7 +470,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
         # The tied embedding is kept in fp16 — it serves as both input and output head
         # and is extremely sensitive to quantization error.
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or "tok_emb" in name:
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
@@ -704,18 +704,17 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    # SwiGLU MLP — gated linear unit with SiLU activation
+    # relu^2 MLP from the original modded-nanogpt setup
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
-        # Scale hidden for 12-layer 16MB budget: 0.55 factor fits under artifact limit
-        hidden = int(mlp_mult * dim * 11 / 20)
-        self.gate = CastedLinear(dim, hidden, bias=False)
-        self.up = CastedLinear(dim, hidden, bias=False)
+        hidden = mlp_mult * dim
+        self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.proj(F.silu(self.gate(x)) * self.up(x))
+        x = torch.relu(self.fc(x))
+        return self.proj(x.square())
 
 
 class Block(nn.Module):
