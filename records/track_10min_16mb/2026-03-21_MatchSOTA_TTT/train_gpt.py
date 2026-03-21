@@ -58,21 +58,21 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    rope_base = float(os.environ.get("ROPE_BASE", 50000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.03))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.035))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.025))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
@@ -81,7 +81,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
-    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.01))
+    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.04))
 
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
@@ -93,7 +93,7 @@ class Hyperparameters:
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
@@ -1444,17 +1444,92 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
-    # LoRA test-time training evaluation
-    log0("Starting TTT LoRA evaluation on quantized model...")
-    torch.cuda.synchronize()
-    t_ttt = time.perf_counter()
-    ttt_val_loss, ttt_val_bpb = eval_val_ttt_lora(
-        args, base_model, rank, world_size, device,
-        base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-    )
-    torch.cuda.synchronize()
-    log0(f"final_ttt_lora val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} ttt_eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
-    log0(f"final_ttt_lora_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
+    # Full-weight SGD TTT: adapt entire model to val distribution before scoring
+    # (FarnsworthEngine approach: SGD with momentum, 3 epochs, freeze first 2 blocks)
+    if bool(int(os.environ.get("TTT_ENABLED", "1"))):
+        log0("Starting full-weight SGD TTT adaptation...")
+        torch.cuda.synchronize()
+        t_ttt = time.perf_counter()
+        ttt_lr = float(os.environ.get("TTT_LR", 0.002))
+        ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+        ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
+        ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
+
+        # Save pre-TTT weights for restoration if needed
+        pre_ttt_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+
+        # Freeze first N blocks for stability
+        for i in range(min(ttt_freeze_blocks, len(base_model.blocks))):
+            for p in base_model.blocks[i].parameters():
+                p.requires_grad_(False)
+
+        # Enable grad for the rest
+        for i in range(ttt_freeze_blocks, len(base_model.blocks)):
+            for p in base_model.blocks[i].parameters():
+                p.requires_grad_(True)
+        # Also adapt embedding, final norm, skip weights
+        for p in base_model.tok_emb.parameters():
+            p.requires_grad_(True)
+        base_model.final_norm.requires_grad_(True)
+        if hasattr(base_model, 'skip_weights'):
+            base_model.skip_weights.requires_grad_(True)
+
+        ttt_optimizer = torch.optim.SGD(
+            [p for p in base_model.parameters() if p.requires_grad],
+            lr=ttt_lr, momentum=ttt_momentum,
+        )
+
+        # TTT training loop over val data
+        base_model.train()
+        ttt_seq_len = args.train_seq_len
+        for epoch in range(ttt_epochs):
+            epoch_loss = 0.0
+            epoch_tokens = 0
+            for batch_start in range(0, val_tokens.numel() - 1 - ttt_seq_len, ttt_seq_len * world_size):
+                offset = batch_start + rank * ttt_seq_len
+                if offset + ttt_seq_len + 1 > val_tokens.numel():
+                    break
+                chunk = val_tokens[offset:offset + ttt_seq_len + 1].to(device=device, dtype=torch.int64)
+                x_ttt = chunk[:-1].unsqueeze(0)
+                y_ttt = chunk[1:].unsqueeze(0)
+                ttt_optimizer.zero_grad()
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    loss = base_model(x_ttt, y_ttt)
+                loss.backward()
+                ttt_optimizer.step()
+                epoch_loss += loss.item() * ttt_seq_len
+                epoch_tokens += ttt_seq_len
+            if master_process and epoch_tokens > 0:
+                log0(f"ttt_epoch:{epoch+1}/{ttt_epochs} loss:{epoch_loss/epoch_tokens:.4f}")
+
+        # Now eval with TTT-adapted weights using sliding window
+        base_model.eval()
+        for p in base_model.parameters():
+            p.requires_grad_(False)
+
+        if eval_stride > 0:
+            compiled_logits_ttt = torch.compile(base_model.forward_logits, dynamic=False) if use_compile else base_model.forward_logits
+            # Warmup
+            warmup_x = torch.zeros(args.eval_batch_seqs, eval_sl, dtype=torch.int64, device=device)
+            with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                _ = compiled_logits_ttt(warmup_x)
+            ttt_val_loss, ttt_val_bpb = eval_val_sliding(
+                compiled_logits_ttt, rank, world_size, device,
+                val_tokens_eval, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                eval_sl, eval_stride, eval_batch_seqs=args.eval_batch_seqs,
+            )
+        else:
+            ttt_val_loss, ttt_val_bpb = eval_val(
+                args, base_model, rank, world_size, device, grad_accum_steps,
+                val_tokens_eval, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            )
+
+        torch.cuda.synchronize()
+        log0(
+            f"final_ttt_sgd val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
+            f"ttt_eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
+        )
+        log0(f"final_ttt_sgd_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
