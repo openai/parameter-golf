@@ -79,3 +79,16 @@ Starting from iteration 19, best BPB: 1.1428
   Log saved to /workspace/parameter-golf/autoevolve/logs/exp_0022.log
   CRASH (exit code 1)
     TIMEOUT: Experiment exceeded 25-minute hard limit (10 train + 10 eval + 5 buffer)
+  Pushed to origin.
+
+======================================================================
+  ITERATION 23  |  Best BPB: 1.1428
+======================================================================
+  Calling gpt-5.4 for proposal...
+  LLM responded in 223.6s (input=18539, output=15482 tokens)
+  Proposed:   Add late export-aware proximal quantization alignment and export-aligned SWA to reduce the exact mixed int5/int6 round-trip gap without changing model size or forward compute.
+  Diagnosis:  The architecture/size frontier is already saturated: there is essentially no artifact headroom for more capacity, and proven-negative recurrence/throughput trades make bigger structural changes risky. The most likely remaining loss is train/eval mismatch: the model is optimized in float, but the sco
+  Hypothesis: Make warmdown export-aware with a safer ProxQuant-style update instead of forward-graph STE: after each optimizer step in the tail, softly pull only the eventually int5/int6 matrices toward their exact final per-row quantization grid. Also collect SWA snapshots from the export-aligned weights once t
+  Expected:   -0.0055 bpb expected: roughly -0.004 from reducing float→int5/int6 mismatch on the large MLP/attention/bigram matrices, plus another ~-0.001 to -0.002 from making SWA average export-aligned weights instead of pure-float checkpoints.
+  Risk:       Main risks are (1) slight step-count loss from extra tail-side quantize/dequant work and (2) over-constraining weights if the projection is too strong. This implementation mitigates both by touching o
+  Applied (55,675 bytes, 1306 lines)

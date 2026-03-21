@@ -93,6 +93,12 @@ class Hyperparameters:
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
+    export_align_enabled = bool(int(os.environ.get("EXPORT_ALIGN_ENABLED", "1")))
+    export_align_start_frac = float(os.environ.get("EXPORT_ALIGN_START_FRAC", 0.4))
+    export_align_max_alpha = float(os.environ.get("EXPORT_ALIGN_MAX_ALPHA", 0.30))
+    export_align_every = int(os.environ.get("EXPORT_ALIGN_EVERY", 1))
+    export_align_swa = bool(int(os.environ.get("EXPORT_ALIGN_SWA", "1")))
+
 # -----------------------------
 # MUON OPTIMIZER
 # -----------------------------
@@ -392,6 +398,56 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
             out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
         else:
             out[name] = (q.float() * float(s.item())).to(orig_dtype)
+    return out
+
+
+EXPORT_ALIGN_CATS = frozenset(("mlp", "attn", "bigram"))
+
+
+def _should_export_align_param(name: str, t: Tensor) -> bool:
+    if not t.is_floating_point() or t.ndim != 2 or t.numel() <= 8192:
+        return False
+    if any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS):
+        return False
+    if any(pattern in name for pattern in FP16_KEEP_NAME_PATTERNS):
+        return False
+    return _classify_param(name) in EXPORT_ALIGN_CATS
+
+
+def export_aligned_tensor(name: str, t: Tensor) -> Tensor:
+    if not _should_export_align_param(name, t):
+        return t.detach()
+    cat = _classify_param(name)
+    clip = 15 if cat == "mlp" else 31
+    q, s = quantize_intN_per_row(t.detach(), clip_range=clip)
+    if s.ndim > 0:
+        deq = q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))
+    else:
+        deq = q.float() * float(s.item())
+    return deq.to(dtype=t.dtype)
+
+
+@torch.no_grad()
+def apply_export_alignment_(module: nn.Module, alpha: float) -> None:
+    if alpha <= 0.0:
+        return
+    keep = 1.0 - float(alpha)
+    mix = float(alpha)
+    for name, param in module.named_parameters():
+        if not _should_export_align_param(name, param):
+            continue
+        target = export_aligned_tensor(name, param)
+        param.data.mul_(keep).add_(target, alpha=mix)
+
+
+@torch.no_grad()
+def snapshot_state_dict(module: nn.Module, export_aligned: bool = False) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    for name, tensor in module.state_dict().items():
+        t = tensor.detach()
+        if export_aligned and _should_export_align_param(name, t):
+            t = export_aligned_tensor(name, t)
+        out[name] = t.cpu().clone()
     return out
 
 
@@ -1104,18 +1160,37 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        if (
+            args.export_align_enabled
+            and args.export_align_every > 0
+            and scale < args.export_align_start_frac
+            and ((step + 1) % args.export_align_every == 0)
+        ):
+            alpha = args.export_align_max_alpha * (args.export_align_start_frac - scale) / max(
+                args.export_align_start_frac, 1e-12
+            )
+            apply_export_alignment_(base_model, float(alpha))
+
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
         # SWA: collect checkpoints during warmdown
         if args.swa_enabled and scale < args.swa_start_frac and step % args.swa_every == 0:
+            swa_snapshot = snapshot_state_dict(
+                base_model,
+                export_aligned=bool(
+                    args.export_align_enabled
+                    and args.export_align_swa
+                    and scale < args.export_align_start_frac
+                ),
+            )
             if swa_state is None:
-                swa_state = {name: t.detach().cpu().clone() for name, t in base_model.state_dict().items()}
+                swa_state = swa_snapshot
                 swa_count = 1
                 log0(f"swa:start step:{step}")
             else:
-                for name, t in base_model.state_dict().items():
-                    swa_state[name] += t.detach().cpu()
+                for name, t in swa_snapshot.items():
+                    swa_state[name] += t
                 swa_count += 1
 
         should_log_train = (
