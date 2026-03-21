@@ -75,7 +75,9 @@ autoresearch-code-mlx trials="5" seed="1337" mutation="":
     fi
 
 modal-upload-data:
-    modal run autoresearch/modal_search.py::upload_data
+    modal volume create parameter-golf-data 2>/dev/null || true
+    modal volume put parameter-golf-data data/datasets/fineweb10B_sp1024/ datasets/fineweb10B_sp1024/
+    modal volume put parameter-golf-data data/tokenizers/ tokenizers/
 
 modal-sweep-preset trials="8" gpu="A10G" seed="1337" preset="":
     @if [ -n "{{preset}}" ]; then \

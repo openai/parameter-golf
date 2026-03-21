@@ -75,31 +75,37 @@ cuda_image = (
 # Data upload (one-time setup)
 # ---------------------------------------------------------------------------
 
-@app.function(
-    volumes={VOLUME_PATH: volume},
-    timeout=30 * MINUTES,
-)
+@app.local_entrypoint(name="upload_data")
 def upload_data():
-    """Download FineWeb data into the Modal Volume (run once)."""
+    """Upload local FineWeb data to Modal Volume via CLI.
+
+    Run after downloading data locally with: just download-data 10
+    """
     import subprocess
-    import sys
 
-    data_dir = VOLUME_PATH / "datasets" / "fineweb10B_sp1024"
-    tok_dir = VOLUME_PATH / "tokenizers"
+    local_root = Path(__file__).resolve().parents[1]
+    local_data = local_root / "data" / "datasets" / "fineweb10B_sp1024"
+    local_tok = local_root / "data" / "tokenizers"
 
-    if (data_dir / "fineweb_val_000000.bin").exists():
-        print(f"Data already exists at {data_dir}")
-        volume.commit()
+    if not local_data.exists():
+        print(f"Local data not found at {local_data}")
+        print("Run 'just download-data 10' first")
         return
 
-    # Download using the project's script
+    vol_name = "parameter-golf-data"
+
+    print("Uploading dataset to Modal Volume...")
     subprocess.run(
-        [sys.executable, "/root/data/cached_challenge_fineweb.py",
-         "--variant", "sp1024", "--train-shards", "10"],
+        ["modal", "volume", "put", vol_name, str(local_data), "datasets/fineweb10B_sp1024/"],
         check=True,
-        env={**os.environ, "DATA_DIR": str(VOLUME_PATH)},
     )
-    volume.commit()
+
+    print("Uploading tokenizer to Modal Volume...")
+    subprocess.run(
+        ["modal", "volume", "put", vol_name, str(local_tok), "tokenizers/"],
+        check=True,
+    )
+
     print("Data uploaded successfully")
 
 
@@ -110,7 +116,7 @@ def upload_data():
 @app.function(
     image=cuda_image,
     volumes={VOLUME_PATH: volume, RESULTS_PATH: results_volume},
-    gpu="A10G",  # overridden at call site via .with_options()
+    gpu="A10G",
     timeout=1 * HOURS,
     retries=modal.Retries(max_retries=1, initial_delay=0.0),
 )
@@ -320,12 +326,9 @@ def main(
 
     print(f"\nDispatching {len(trial_inputs)} trials to Modal ({gpu})...\n")
 
-    # Configure GPU at call site
-    gpu_fn = run_gpu_trial.with_options(gpu=gpu)
-
     # Launch all trials in parallel via starmap
     results = []
-    for result in gpu_fn.starmap(trial_inputs, order_outputs=False):
+    for result in run_gpu_trial.starmap(trial_inputs, order_outputs=False):
         results.append(result)
         status = result["status"]
         bpb = result["val_bpb"]
