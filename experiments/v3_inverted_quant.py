@@ -32,7 +32,16 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+    _HAS_FA3 = True
+except ImportError:
+    try:
+        from flash_attn import flash_attn_func as flash_attn_3_func
+        _HAS_FA3 = True
+    except ImportError:
+        _HAS_FA3 = False
+        flash_attn_3_func = None
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -660,7 +669,17 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        if _HAS_FA3:
+            y = flash_attn_3_func(q, k, v, causal=True)
+        else:
+            # SDPA fallback (q,k,v are [B,T,H,D], need [B,H,T,D])
+            qt, kt, vt = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
+            if self.num_heads != self.num_kv_heads:
+                g = self.num_heads // self.num_kv_heads
+                kt = kt.repeat_interleave(g, dim=1)
+                vt = vt.repeat_interleave(g, dim=1)
+            y = F.scaled_dot_product_attention(qt, kt, vt, is_causal=True)
+            y = y.transpose(1, 2).contiguous()
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         y = y.reshape(bsz, seqlen, dim)
