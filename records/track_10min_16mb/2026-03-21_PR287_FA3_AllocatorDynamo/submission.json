@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "11L MLP3x + Int6 QAT + XSA + EMA + BigramHash + FA3",
+  "author": "Thomas Mustier",
+  "github": "tmustier",
+  "seed_results": {
+    "2025": {"val_loss": 1.91561190, "val_bpb": 1.13453627, "steps": 6810, "ms_per_step": 88.10},
+    "42":   {"val_loss": 1.91948414, "val_bpb": 1.13682964, "steps": 6136, "ms_per_step": 97.78},
+    "1337": {"val_loss": 1.91900000, "val_bpb": 1.13791203, "steps": 6366, "ms_per_step": 94.24}
+  },
+  "mean_val_loss": 1.91836535,
+  "mean_val_bpb": 1.13642598,
+  "artifact_bytes": 15369315,
+  "code_bytes": 66133
+}
