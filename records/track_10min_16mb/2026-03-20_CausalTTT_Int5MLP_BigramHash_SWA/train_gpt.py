@@ -1337,36 +1337,68 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    # Magnitude pruning: zero out smallest weights to improve compression
-    prune_frac = args.prune_frac
-    if prune_frac > 0:
-        with torch.no_grad():
-            for name, param in base_model.named_parameters():
-                if param.ndim == 2 and param.numel() > 65536:
-                    threshold = torch.quantile(param.abs().float().flatten(), prune_frac)
-                    mask = param.abs() < threshold
-                    param.masked_fill_(mask, 0.0)
-                    pruned = mask.sum().item()
-                    log0(f"prune:{name} zeroed {pruned}/{param.numel()} ({100*pruned/param.numel():.1f}%)")
+    # Adaptive pruning + quantization: iteratively increase pruning until artifact fits under 16MB
+    MAX_ARTIFACT_BYTES = 16_000_000  # decimal 16MB limit
+    code_bytes = len(code.encode("utf-8"))
+    max_model_bytes = MAX_ARTIFACT_BYTES - code_bytes
+    log0(f"adaptive_prune: max_model_bytes={max_model_bytes} (16MB - {code_bytes} code bytes)")
 
-    # INT6 mixed quantization + zstd/zlib export
-    sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
-    int6_cats = {"mlp", "attn"}  # int6 for mlp+attn only, int8 for other/embed
+    # Save original state dict before pruning (so we can retry with higher pruning)
+    original_sd = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+
+    int6_cats = {"mlp", "attn"}
     if args.quant_other:
-        int6_cats.add("other")  # Include "other" in quantized set when explicitly requested
-    quant_result, quant_meta = mixed_quantize_int6(sd_cpu, int6_cats, use_int5_mlp=args.int5_mlp, use_int5_all=args.int5_all)
-    quant_buf = io.BytesIO()
-    torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
-    quant_raw = quant_buf.getvalue()
-    if _COMPRESSOR == "zstd":
-        quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw)
-    else:
-        quant_blob = zlib.compress(quant_raw, 9)
+        int6_cats.add("other")
+
+    prune_frac = args.prune_frac
+    max_prune_frac = 0.30  # safety cap
+    prune_step = 0.01  # increase by 1% each iteration
+    quant_file_bytes = None
+
+    while prune_frac <= max_prune_frac:
+        # Restore original weights
+        base_model.load_state_dict({k: v.clone().to(base_model.state_dict()[k].device) for k, v in original_sd.items()}, strict=True)
+
+        # Apply magnitude pruning
+        if prune_frac > 0:
+            with torch.no_grad():
+                for name, param in base_model.named_parameters():
+                    if param.ndim == 2 and param.numel() > 65536:
+                        threshold = torch.quantile(param.abs().float().flatten(), prune_frac)
+                        mask = param.abs() < threshold
+                        param.masked_fill_(mask, 0.0)
+                        pruned = mask.sum().item()
+                        log0(f"prune:{name} zeroed {pruned}/{param.numel()} ({100*pruned/param.numel():.1f}%)")
+
+        # Quantize
+        sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+        quant_result, quant_meta = mixed_quantize_int6(sd_cpu, int6_cats, use_int5_mlp=args.int5_mlp, use_int5_all=args.int5_all)
+        quant_buf = io.BytesIO()
+        torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
+        quant_raw = quant_buf.getvalue()
+        if _COMPRESSOR == "zstd":
+            quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw)
+        else:
+            quant_blob = zlib.compress(quant_raw, 9)
+
+        quant_file_bytes = len(quant_blob)
+        log0(f"adaptive_prune: prune_frac={prune_frac:.3f} artifact_bytes={quant_file_bytes} limit={max_model_bytes}")
+
+        if quant_file_bytes <= max_model_bytes:
+            log0(f"adaptive_prune: SUCCESS at prune_frac={prune_frac:.3f} ({quant_file_bytes} <= {max_model_bytes})")
+            break
+        else:
+            log0(f"adaptive_prune: OVER by {quant_file_bytes - max_model_bytes} bytes, increasing pruning...")
+            prune_frac += prune_step
+
+    if quant_file_bytes is not None and quant_file_bytes > max_model_bytes:
+        log0(f"adaptive_prune: WARNING - could not fit under {max_model_bytes} even at prune_frac={prune_frac:.3f}")
+
+    # Write final artifact
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = os.path.getsize("final_model.int8.ptz")
-        code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
 
