@@ -17,6 +17,7 @@ import sys
 import time
 import uuid
 import zlib
+import zstandard
 from pathlib import Path
 
 import numpy as np
@@ -551,9 +552,22 @@ class RMSNorm(nn.Module):
 
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
+    # We also implement QAT (Quantization Aware Training) here using STE.
     def forward(self, x: Tensor) -> Tensor:
+        weight = self.weight
+        if self.training:
+            # Concept: Straight-Through Estimator (STE)
+            # We want to simulate Int8 quantization during training.
+            # 1. Scale weight to [-127, 127]
+            # 2. Round to nearest integer
+            # 3. Scale back
+            # The .detach() trick implements STE: the forward pass uses the rounded values,
+            # but the backward pass treats it as an identity function (ignores the rounding).
+            scale = weight.abs().max().detach().clamp(min=1e-9) / 127.0
+            weight = weight + ((weight / scale).round() * scale - weight).detach()
+        
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, weight.to(x.dtype), bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -1301,40 +1315,54 @@ def main() -> None:
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
-    # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
-    # the compressed int8+zlib artifact and validate the round-tripped weights.
+    # Final Optimizations:
+    # 1. Magnitude Pruning: Zero out smallest 3% of weights to help Zstd.
+    # 2. Zstd-22: Maximum compression for the 16MB limit.
 
     if master_process:
+        # Magnitude Pruning
+        log0("Applying 3% magnitude pruning to linear layers...")
+        with torch.no_grad():
+            for module in base_model.modules():
+                if isinstance(module, nn.Linear):
+                    w = module.weight.data
+                    limit = torch.quantile(w.abs().view(-1), 0.03)
+                    module.weight.data *= (w.abs() >= limit).float()
+
         torch.save(base_model.state_dict(), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
-        log0(f"Total submission size: {model_bytes + code_bytes} bytes")
+        log0(f"Total submission size (uncompressed): {model_bytes + code_bytes} bytes")
 
+    # Quantize and compress with Zstd
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
-    quant_raw_bytes = len(quant_raw)
+    
+    # Use Zstd level 22 (Extreme compression)
+    cctx = zstandard.ZstdCompressor(level=22)
+    quant_blob = cctx.compress(quant_raw)
+    
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = os.path.getsize("final_model.int8.ptz")
         code_bytes = len(code.encode("utf-8"))
-        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
-        log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
-        )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Serialized model int8+zstd: {quant_file_bytes} bytes")
+        log0(f"Total submission size int8+zstd: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
+    
+    # Validation Roundtrip
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    dctx = zstandard.ZstdDecompressor()
+    decompressed = dctx.decompress(quant_blob_disk)
+    quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
@@ -1355,10 +1383,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_int8_zstd_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_int8_zstd_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
