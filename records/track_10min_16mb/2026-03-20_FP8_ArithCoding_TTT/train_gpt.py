@@ -1154,7 +1154,7 @@ def ac_decompress_model(blob: bytes, template_sd: dict) -> dict:
             decoded = pool.map(_decode_tensor_spec, decode_specs)
     else:
         decoded = []
-    quant_result = {name: torch.from_numpy(arr) for name, arr in decoded}
+    quant_result = {name + ".q": torch.from_numpy(arr) for name, arr in decoded}
 
     # Read passthrough tensors
     for _ in range(num_passthrough):
