@@ -24,7 +24,8 @@
 | # | Date | Config | Steps | val_bpb (std) | val_bpb (slide) | Size (MB) | Notes |
 |---|------|--------|-------|---------------|-----------------|-----------|-------|
 | 1 | 03-21 | Mem(64) + MTP(2) + 10L + bigram + smear + 3xMLP + WD + int6+zstd | 9403 | 1.1832 | 1.1670 | 17.3* | *Over 16MB w/ int6, need int5 MLP |
-| 2 | 03-21 | Full stack + int5 MLP + EMA + partial RoPE + LN scale + late QAT | 4440 | 1.1895 | 1.1735 | 15.0 | Under 16MB! EMA+batch=786K cut steps in half |
+| 2 | 03-21 | Full stack + int5 MLP + EMA + partial RoPE + LN scale + late QAT | 4440 | 1.1895 | 1.1735 | 15.0 | EMA+batch=786K cut steps in half |
+| 3 | 03-21 | Run 2 + EMA fix (on-device, every 10 steps) + batch=524K | 9030 | 1.1820 | 1.1659 | 15.0 | Best 8xH100 result |
 
 ## Key Findings
 

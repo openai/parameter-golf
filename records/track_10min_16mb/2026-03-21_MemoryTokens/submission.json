@@ -1,0 +1,11 @@
+{
+  "author": "Austin Tarango",
+  "github_id": "sp00mm",
+  "name": "Memory Tokens + Mixed Quantization",
+  "blurb": "64 learnable memory tokens as global context scratchpad, combined with 10-layer 3x MLP, BigramHashEmbedding, SmearGate, partial RoPE, LN scale, EMA, late QAT, mixed int5/int6+zstd quantization, and sliding window eval (stride=128). Memory tokens provide a -0.014 BPB improvement over the same stack without them (A/B tested).",
+  "date": "2026-03-21T17:32:00Z",
+  "val_loss": 1.96862490,
+  "val_bpb": 1.16593150,
+  "bytes_total": 15070662,
+  "bytes_code": 72123
+}
