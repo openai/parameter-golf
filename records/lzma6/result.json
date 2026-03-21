@@ -1,0 +1,47 @@
+{
+  "artifact_size_bytes": 15310330,
+  "attempt_number": 24,
+  "code_bytes": 58414,
+  "compressed_model_bytes": 15251916,
+  "error": null,
+  "eval_time_ms": 44554,
+  "experiment_name": "best_record_lzma6",
+  "finished_at": "2026-03-20T08:49:42+00:00",
+  "local_attempt_dir": "/nvme0n1-disk/code/cutellm/experiments/parameter_golf/0024_best-record-lzma6",
+  "local_log_path": "/nvme0n1-disk/code/cutellm/experiments/parameter_golf/0024_best-record-lzma6/train.log",
+  "metric_label": "final_int8_lzma_roundtrip_exact",
+  "ms_per_step": 49.2,
+  "phase_timings": {
+    "bootstrap": 56.24173922202317,
+    "bundle_sync": 6.165633124997839,
+    "pod_creation": 43.59892335400218,
+    "repo_sync": 7.863170480995905,
+    "result_sync": 11.496657678973861,
+    "training": 789.2995392989833
+  },
+  "pod_id": "xjn2pfksy8sgeu",
+  "pod_name": "pgolf-h100lz6b-1",
+  "r2_uri": "s3://netwrckstatic/models/parameter-golf/h100-priority/0024_best-record-lzma6/",
+  "seed": 1337,
+  "slot_name": "h100lz6b-1",
+  "started_at": "2026-03-20T08:34:17+00:00",
+  "status": "completed",
+  "steps": 12196,
+  "sync_stats": {
+    "bundle_sync": {
+      "bytes": 59747,
+      "duration_s": 3.641352297971025
+    },
+    "repo_sync": {
+      "bytes": 2210816,
+      "duration_s": 5.329064636025578
+    },
+    "result_sync": {
+      "bytes": 89892889,
+      "duration_s": 11.496566163026728
+    }
+  },
+  "track": "10min_16mb",
+  "val_bpb": 1.17217075,
+  "val_loss": 1.97916121
+}
