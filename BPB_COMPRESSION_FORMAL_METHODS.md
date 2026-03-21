@@ -808,3 +808,123 @@ Search-backed references used for the reasoning in this note:
 
 - Z3 Guide:
   https://microsoft.github.io/z3guide/
+
+ Try the distillation approach, try Universal Transformer, write your own torch.save, try random linear maps
+
+  - Staying custom is the right direction.
+      - PyTorch’s own docs say torch.save is an uncompressed ZIP64
+        archive with pickled metadata and separate storage files, which
+        matches why our wins over it were small.
+      - safetensors is the cleaner precedent: tiny header, contiguous
+        byte buffer, no holes, packed tensors. Its docs explicitly say
+        header space is tiny compared with tensor data.
+      - So: do not go back to real torch.save. Keep parameter-golf/core/
+        artifact_core.py-style packed artifacts.
+  - The next quick artifact benchmark should be packed + zstd, not more
+    header work.
+      - The official zstd repo says it targets zlib-like use cases with
+        better compression ratios.
+      - Since packages are allowed, zstandard is fair game if listed in
+        requirements.
+      - I would benchmark:
+          - packed + zlib
+          - packed + zstd
+      - I would not spend time on zstd dictionaries: the official docs
+        say dictionary gains are mostly effective in the first few KB,
+        while our artifact is multi-MB.
+  - The most plausible serializer-side prefilter is bitshuffle, not more
+    scale coding.
+      - The official Bitshuffle repo says it is specifically for typed
+        binary data and can improve compression when adjacent values are
+        correlated or only a subset of bits are exercised.
+      - This is tailored to our case:
+          - scales are too small to matter
+          - payload is numeric arrays
+          - int8/fp16 sections dominate
+      - Important nuance:
+          - byte-shuffle is useless for 1-byte int8
+          - bitshuffle is the relevant filter for int8
+          - fp16 sections can use byte-shuffle or bitshuffle
+      - So the right experiment is blockwise bitshuffle + zstd on the
+        quantized payload section, not global metadata tweaks.
+  - The bigger lever is still payload quality, not payload packaging.
+      - QuaRot shows rotations can remove outliers without changing
+        full-precision outputs, making quantization easier.
+      - SpinQuant says not all rotations are equal, and learned
+        rotations can beat random ones.
+      - Tailored to this challenge, my inference is:
+          - prefer structured or implicit rotations first, like
+            Hadamard/sign/permutation-style transforms
+          - avoid storing dense learned rotation matrices unless they
+            clearly pay for themselves, because artifact bytes matter
+            here
+      - This fits your current results: once the container is “good
+        enough,” the next real gain should come from making the
+        quantized payload easier to compress accurately, not from
+        shrinking JSON or scales.
+  - If artifact-side work goes beyond rotations, the next real family is
+    codebook/vector quantization.
+      - VPTQ explicitly frames extreme compression as vectors compressed
+        into indices plus lookup tables.
+      - That is a real artifact-compression direction, but it is much
+        more invasive than the current path.
+      - I would treat it as a later branch, not the next step.
+
+      What I would do next, in order:
+
+  1. Keep packed_zlib as the current default baseline.
+  2. Add a codec backend and benchmark packed + zstd on the current
+     stronger checkpoint.
+  3. Add an optional prefilter backend:
+      - none
+      - bitshuffle for int8 payload
+      - maybe byte_shuffle/bitshuffle for fp16 passthrough blocks
+  4. Keep invariants strict:
+      - deterministic bytes
+      - exact roundtrip
+      - no overlapping offsets / no holes
+      - strict load_state_dict
+      - same eval helper comparison on the same checkpoint
+  5. After that, move to structured rotation experiments on the dominant
+     payload tensors.
+  6. Only if that stalls, consider a more invasive codebook/VQ branch.
+
+  - keep the custom artifact path
+  - keep packed_zlib as the baseline container
+  - stop spending time on scale codecs and generic save-format tweaks
+  - keep tok_emb.weight as the current mixed-precision exception
+  - treat the next real frontier as low-byte quantization
+    preconditioning on the remaining dominant quantized tensors
+
+  The search-backed conclusion is:
+
+  - the only remaining packaging experiments worth a short pass are
+    packed + zstd and maybe packed + bitshuffle + zstd
+  - after that, the next serious branch should be structured rotations/
+    preconditioning, starting with Hadamard/sign/permutation-style
+    transforms
+  - do not start with dense learned rotations, because their metadata
+    cost fights the artifact budget directly
+
+  The plan also gives:
+
+  - exact experiment phases
+  - pass/fail gates
+  - transform and artifact invariants
+  - what not to do next
+
+  Main sources used:
+
+  - PyTorch serialization docs:
+    https://docs.pytorch.org/docs/stable/notes/serialization.html
+  - torch.save docs:
+    https://docs.pytorch.org/docs/stable/generated/torch.save.html
+  - Safetensors docs: https://huggingface.co/docs/safetensors/en/index
+  - Zstandard repo/docs: https://github.com/facebook/zstd
+  - Bitshuffle repo: https://github.com/kiyo-masui/bitshuffle
+  - QuaRot: https://arxiv.org/abs/2404.00456
+  - SpinQuant: https://arxiv.org/abs/2405.16406
+  - QuIP#: https://arxiv.org/abs/2402.04396
+  - QTIP repo: https://github.com/Cornell-RelaxML/qtip
+  - fast-hadamard-transform:
+    https://github.com/Dao-AILab/fast-hadamard-transform
