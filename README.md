@@ -53,6 +53,8 @@ Happy training!
 
 ## Getting Started
 
+For a preset-driven local/remote workflow with preflight checks, per-run output directories, and structured run comparison, see [WORKSPACE.md](WORKSPACE.md).
+
 ### Training Your First Model (Mac with Apple Silicon)
 
 If you have an Apple laptop or desktop with Apple Silicon, we've set up a simple MLX training script to help you start iterating locally.
