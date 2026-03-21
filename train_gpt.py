@@ -782,10 +782,13 @@ def maybe_enable_sdp_backends(log0) -> str:
     flash_available = bool(flash_available_fn()) if callable(flash_available_fn) else False
     if flash_available:
         enable_flash_sdp(True)
+        enable_math_sdp(False)
         flash_enabled = True
+        math_enabled = False
     else:
         enable_flash_sdp(False)
         enable_math_sdp(True)
+        flash_enabled = False
         math_enabled = True
 
     msg = (
