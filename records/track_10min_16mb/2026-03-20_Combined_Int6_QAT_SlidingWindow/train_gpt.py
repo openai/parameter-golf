@@ -28,12 +28,8 @@ from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 # Detect PyTorch 2.5+ for native GQA support in SDPA
-try:
-    torch.nn.functional.scaled_dot_product_attention(
-        torch.zeros(1, 1, 1, 1), torch.zeros(1, 1, 1, 1), torch.zeros(1, 1, 1, 1), enable_gqa=False)
-    _HAS_GQA = True
-except TypeError:
-    _HAS_GQA = False
+_PT_VERSION = tuple(int(x) for x in torch.__version__.split('+')[0].split('.')[:2])
+_HAS_GQA = _PT_VERSION >= (2, 5)
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -1195,7 +1191,7 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu", weights_only=False)
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
 
     eval_sl = effective_eval_seq_len
