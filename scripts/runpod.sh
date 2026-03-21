@@ -185,6 +185,7 @@ cmd_run() {
     echo "Starting training: RUN_ID=${run_id} on ${gpu_count}x GPU..."
     eval "$ssh_cmd" << RUN_EOF
 cd /workspace/parameter-golf
+mkdir -p logs
 RUN_ID=${run_id} \\
 DATA_PATH=./data/datasets/fineweb10B_sp1024/ \\
 TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \\
