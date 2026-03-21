@@ -96,6 +96,11 @@ class Hyperparameters:
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "1")))
     qat_bits = int(os.environ.get("QAT_BITS", 6))
 
+    # Mixed precision quantization: only apply int6 to middle layers (like reference).
+    # Format: comma-separated layer indices. Empty = apply QUANT_BITS to all layers.
+    int6_layers = os.environ.get("INT6_LAYERS", "3,4,5,6,7")  # middle layers of 11-layer model
+    int6_step = int(os.environ.get("INT6_STEP", 4))  # 4=int6, 8=int5, 16=int4
+
     # Test-time training (LoRA) hyperparameters.
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
@@ -413,17 +418,25 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
-    # Post-hoc int6 step rounding: round int8 values to nearest multiple of step.
-    # This reduces to 64 distinct values, which zlib compresses much better.
-    # Dequantization is identical to int8 — no special handling needed.
-    if QUANT_BITS < 8:
-        step = 1 << (8 - QUANT_BITS)  # 4 for int6, 8 for int5
+    # Post-hoc mixed-precision step rounding (like reference 10L_MixedPrecision record).
+    # Only round middle layers to int6 — first/last layers keep full int8.
+    args = Hyperparameters()
+    if args.int6_layers:
+        int6_set = set(int(x) for x in args.int6_layers.split(",") if x.strip())
+        step = args.int6_step
         for name in list(quantized.keys()):
-            t = quantized[name]
-            quantized[name] = ((t.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
+            if "blocks." not in name:
+                continue
+            try:
+                layer_num = int(name.split("blocks.")[1].split(".")[0])
+            except (ValueError, IndexError):
+                continue
+            if layer_num in int6_set:
+                t = quantized[name]
+                quantized[name] = ((t.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
 
     obj: dict[str, object] = {
-        "__quant_format__": f"int{QUANT_BITS}_clean_per_row_v1",
+        "__quant_format__": "int8_mixed_per_row_v1",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,

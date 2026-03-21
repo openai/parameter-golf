@@ -104,6 +104,10 @@ class Hyperparameters:
     qat_enabled: bool = bool(int(os.environ.get("QAT_ENABLED", "1")))
     qat_bits: int = int(os.environ.get("QAT_BITS", 6))
 
+    # Mixed precision quantization: only apply int6 to middle layers.
+    int6_layers: str = os.environ.get("INT6_LAYERS", "3,4,5,6,7")
+    int6_step: int = int(os.environ.get("INT6_STEP", 4))
+
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 
     @property
@@ -686,17 +690,24 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
         scales[name] = s
         dtypes[name] = str(arr.dtype).split(".")[-1]
         stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
-    # Post-hoc int6 step rounding (like the reference implementation).
-    # Round int8 values to nearest multiple of step — reduces to 64 distinct values.
-    # Dequantization is identical to int8 (no special handling needed).
-    if QUANT_BITS < 8:
-        step = 1 << (8 - QUANT_BITS)  # 4 for int6
+    # Post-hoc mixed-precision step rounding: only round middle layers to int6.
+    args = Hyperparameters()
+    if args.int6_layers:
+        int6_set = set(int(x) for x in args.int6_layers.split(",") if x.strip())
+        step = args.int6_step
         for name in list(quantized.keys()):
-            t = quantized[name].astype(np.float32)
-            quantized[name] = np.clip(np.round(t / step) * step, -127, 127).astype(np.int8)
+            if "blocks." not in name:
+                continue
+            try:
+                layer_num = int(name.split("blocks.")[1].split(".")[0])
+            except (ValueError, IndexError):
+                continue
+            if layer_num in int6_set:
+                t = quantized[name].astype(np.float32)
+                quantized[name] = np.clip(np.round(t / step) * step, -127, 127).astype(np.int8)
 
     obj: dict[str, object] = {
-        "__quant_format__": f"int{QUANT_BITS}_clean_per_row_v1",
+        "__quant_format__": "int8_mixed_per_row_v1",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
