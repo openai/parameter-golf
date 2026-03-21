@@ -1,9 +1,9 @@
 """
-train_gpt_mla.py
+train_gpt.py
 ================
 All techniques stacked. Run with:
-  torchrun --nproc_per_node=8 train_gpt_mla.py          (H100 submission)
-  USE_COMPILE=0 MAX_VAL_TOKENS=65536 python train_gpt_mla.py  (laptop test)
+  torchrun --nproc_per_node=8 train_gpt.py          (H100 submission)
+  USE_COMPILE=0 MAX_VAL_TOKENS=65536 python train_gpt.py  (laptop test)
 
 Requires: pip install zstandard
 
