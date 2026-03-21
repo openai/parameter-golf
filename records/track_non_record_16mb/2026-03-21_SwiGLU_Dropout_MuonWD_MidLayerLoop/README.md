@@ -1,6 +1,6 @@
 # V2 Prototype Config for scaling to H100
 
-This submission is a PoC of highly-optimized architecture intended for the competitive 10-minute track. Due to hardware constrains (a single `RTX 2080 Ti sm75`), rendering native FlashAttention impossible and the 10-minute token budget unattainable. 
+This submission is a PoC of optimized architecture intended for the competitive 10-minute track. Due to hardware constrains (a single `RTX 2080 Ti sm75`), rendering native FlashAttention impossible and the 10-minute token budget unattainable. 
 
 ## 🚀 Architectural Justification 
 The script submitted here (`train_gpt.py`) integrates several cutting-edge data efficiency techniques tailored exactly the constraints of this challenge:
