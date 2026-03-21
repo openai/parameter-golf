@@ -31,6 +31,15 @@ This file is a placeholder for artifact-size accounting before formal measuremen
 - No baseline artifact has been generated locally yet.
 - This note exists so later branches keep size accounting explicit from the first experiment onward.
 
+## TPI-001 provisional observation
+
+- Baseline `train_gpt.py` bytes at `baseline/frozen`: `58509`
+- Candidate `train_gpt.py` bytes at `exp/eval-first-001` feature commit `4f6a31e`: `63839`
+- Provisional code delta: `+5330` bytes
+- Interpretation: the code increase is noticeable but still confined to one eval-policy branch and one logits-return path.
+- Model bytes and total artifact bytes remain unmeasured because no local training artifact was produced in this workspace.
+- This remains provisional until a real run emits `final_model.int8.ptz` and the printed submission-size lines can be checked.
+
 ## Follow-up
 
 - Convert the measurement steps into a small reproducible script once the first non-record candidate produces actual artifacts.

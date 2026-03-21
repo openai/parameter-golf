@@ -3,3 +3,8 @@
 !baseline/
 baseline/*
 !baseline/.gitkeep
+!TPI-001/
+TPI-001/*
+!TPI-001/baseline_ref.txt
+!TPI-001/candidate_ref.txt
+!TPI-001/run_notes.md

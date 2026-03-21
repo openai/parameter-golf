@@ -1,0 +1,4 @@
+experiment_id: TPI-001
+role: candidate
+branch: exp/eval-first-001
+commit: 4f6a31ecb45597370cbd4848052ed0f24ca17d0e
