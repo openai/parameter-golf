@@ -49,6 +49,7 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    val_max_seqs = int(os.environ.get("VAL_MAX_SEQS", 0))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
@@ -204,13 +205,15 @@ def build_sentencepiece_luts(
     )
 
 
-def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
+def load_validation_tokens(pattern: str, seq_len: int, max_seqs: int = 0) -> Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
     # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
+    if max_seqs > 0:
+        usable = min(usable, max_seqs * seq_len)
     if usable <= 0:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
     return tokens[: usable + 1]
@@ -301,10 +304,38 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
-INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
-INT8_PER_ROW_SCALE_DTYPE = torch.float16
-INT8_CLIP_PERCENTILE = 99.99984
+TORCH_DTYPE_BY_NAME = {
+    "float16": torch.float16,
+    "bfloat16": torch.bfloat16,
+    "float32": torch.float32,
+}
+
+
+def env_torch_dtype(name: str, default: str, allowed: tuple[torch.dtype, ...]) -> torch.dtype:
+    raw = os.environ.get(name, default).strip().lower()
+    dtype = TORCH_DTYPE_BY_NAME.get(raw)
+    if dtype is None or dtype not in allowed:
+        allowed_names = ", ".join(sorted(k for k, v in TORCH_DTYPE_BY_NAME.items() if v in allowed))
+        raise ValueError(f"{name} must be one of {allowed_names}; got {raw!r}")
+    return dtype
+
+
+def dtype_name(dtype: torch.dtype) -> str:
+    return str(dtype).removeprefix("torch.")
+
+
+INT8_KEEP_FLOAT_MAX_NUMEL = int(os.environ.get("INT8_KEEP_FLOAT_MAX_NUMEL", 65_536))
+INT8_KEEP_FLOAT_STORE_DTYPE = env_torch_dtype(
+    "INT8_KEEP_FLOAT_STORE_DTYPE",
+    "float16",
+    (torch.float16, torch.bfloat16, torch.float32),
+)
+INT8_PER_ROW_SCALE_DTYPE = env_torch_dtype(
+    "INT8_PER_ROW_SCALE_DTYPE",
+    "float16",
+    (torch.float16, torch.bfloat16, torch.float32),
+)
+INT8_CLIP_PERCENTILE = float(os.environ.get("INT8_CLIP_PERCENTILE", 99.99984))
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 
 def tensor_nbytes(t: Tensor) -> int:
@@ -352,7 +383,20 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
     stats = dict.fromkeys(
-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        (
+            "param_count",
+            "num_tensors",
+            "num_float_tensors",
+            "num_nonfloat_tensors",
+            "num_passthrough_float_tensors",
+            "num_per_row_tensors",
+            "num_per_tensor_tensors",
+            "baseline_tensor_bytes",
+            "int8_payload_bytes",
+            "passthrough_bytes",
+            "quantized_value_bytes",
+            "scale_bytes",
+        ),
         0,
     )
 
@@ -373,17 +417,24 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
+            stats["num_passthrough_float_tensors"] += 1
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            stats["passthrough_bytes"] += tensor_nbytes(kept)
             continue
 
         stats["num_float_tensors"] += 1
         q, s = quantize_float_tensor(t)
         if s.ndim > 0:
+            stats["num_per_row_tensors"] += 1
             qmeta[name] = {"scheme": "per_row", "axis": 0}
+        else:
+            stats["num_per_tensor_tensors"] += 1
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
+        stats["quantized_value_bytes"] += tensor_nbytes(q)
+        stats["scale_bytes"] += tensor_nbytes(s)
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_clean_per_row_v1",
@@ -811,13 +862,15 @@ def main() -> None:
         )
     dataset_dir = Path(args.data_path).resolve()
     actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len, args.val_max_seqs)
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size, device
     )
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
     log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+    if args.val_max_seqs > 0:
+        log0(f"val_loader:subset max_seqs:{args.val_max_seqs} actual_seqs:{(val_tokens.numel() - 1) // args.train_seq_len}")
 
     # -----------------------------
     # MODEL + OPTIMIZER SETUP
@@ -1058,6 +1111,14 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+    log0(
+        "quantization_config "
+        f"clip_percentile:{INT8_CLIP_PERCENTILE:.5f} "
+        f"keep_float_max_numel:{INT8_KEEP_FLOAT_MAX_NUMEL} "
+        f"keep_float_store_dtype:{dtype_name(INT8_KEEP_FLOAT_STORE_DTYPE)} "
+        f"per_row_scale_dtype:{dtype_name(INT8_PER_ROW_SCALE_DTYPE)} "
+        f"keep_float_fp32_patterns:{','.join(INT8_KEEP_FLOAT_FP32_NAME_PATTERNS) or '<none>'}"
+    )
 
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
@@ -1090,6 +1151,20 @@ def main() -> None:
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(
+            "quantization_stats "
+            f"num_tensors:{quant_stats['num_tensors']} "
+            f"float_tensors:{quant_stats['num_float_tensors']} "
+            f"nonfloat_tensors:{quant_stats['num_nonfloat_tensors']} "
+            f"passthrough_float_tensors:{quant_stats['num_passthrough_float_tensors']} "
+            f"per_row_tensors:{quant_stats['num_per_row_tensors']} "
+            f"per_tensor_tensors:{quant_stats['num_per_tensor_tensors']} "
+            f"baseline_tensor_bytes:{quant_stats['baseline_tensor_bytes']} "
+            f"payload_bytes:{quant_stats['int8_payload_bytes']} "
+            f"passthrough_bytes:{quant_stats['passthrough_bytes']} "
+            f"quantized_value_bytes:{quant_stats['quantized_value_bytes']} "
+            f"scale_bytes:{quant_stats['scale_bytes']}"
+        )
 
     if distributed:
         dist.barrier()
@@ -1117,6 +1192,14 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(
+        f"final_int8_zlib_delta val_loss:{q_val_loss - val_loss:.4f} "
+        f"val_bpb:{q_val_bpb - val_bpb:.4f}"
+    )
+    log0(
+        f"final_int8_zlib_delta_exact val_loss:{q_val_loss - val_loss:.8f} "
+        f"val_bpb:{q_val_bpb - val_bpb:.8f}"
+    )
 
     if distributed:
         dist.destroy_process_group()
