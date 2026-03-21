@@ -13,7 +13,7 @@ from core.quant_core import QuantizedStateDict, QuantMetaEntry
 PACKED_ARTIFACT_MAGIC = b"PGQ1"
 PACKED_ARTIFACT_VERSION = 1
 DEFAULT_QUANT_ARTIFACT_FORMAT = "packed_zlib"
-SUPPORTED_QUANT_ARTIFACT_FORMATS = ("torchsave_zlib", "packed_zlib")
+SUPPORTED_QUANT_ARTIFACT_FORMATS = ("torchsave_zlib", "packed_zlib", "torchsave_zstd", "packed_zstd")
 DEFAULT_PACKED_SCALE_CODEC = "raw"
 SUPPORTED_PACKED_SCALE_CODECS = ("raw", "log_u8")
 
@@ -286,22 +286,48 @@ def unpack_quantized_state_dict(blob: bytes) -> QuantizedStateDict:
     return obj
 
 
+def compress_blob(raw: bytes, artifact_format: str, compression_level: int) -> bytes:
+    if artifact_format.endswith("_zlib"):
+        return zlib.compress(raw, level=compression_level)
+    if artifact_format.endswith("_zstd"):
+        import zstandard as zstd
+
+        return zstd.ZstdCompressor(level=compression_level).compress(raw)
+    raise ValueError(
+        f"Unsupported QUANT_ARTIFACT_FORMAT={artifact_format!r}; "
+        f"expected one of {SUPPORTED_QUANT_ARTIFACT_FORMATS}"
+    )
+
+
+def decompress_blob(blob: bytes, artifact_format: str) -> bytes:
+    if artifact_format.endswith("_zlib"):
+        return zlib.decompress(blob)
+    if artifact_format.endswith("_zstd"):
+        import zstandard as zstd
+
+        return zstd.ZstdDecompressor().decompress(blob)
+    raise ValueError(
+        f"Unsupported QUANT_ARTIFACT_FORMAT={artifact_format!r}; "
+        f"expected one of {SUPPORTED_QUANT_ARTIFACT_FORMATS}"
+    )
+
+
 def serialize_quant_artifact(
     quant_obj: QuantizedStateDict,
     artifact_format: str,
     compression_level: int = 9,
     scale_codec: str = DEFAULT_PACKED_SCALE_CODEC,
 ) -> tuple[bytes, int]:
-    if artifact_format == "torchsave_zlib":
+    if artifact_format in {"torchsave_zlib", "torchsave_zstd"}:
         import io
 
         buf = io.BytesIO()
         torch.save(quant_obj, buf)
         raw = buf.getvalue()
-        return zlib.compress(raw, level=compression_level), len(raw)
-    if artifact_format == "packed_zlib":
+        return compress_blob(raw, artifact_format, compression_level), len(raw)
+    if artifact_format in {"packed_zlib", "packed_zstd"}:
         raw = pack_quantized_state_dict(quant_obj, scale_codec=scale_codec)
-        return zlib.compress(raw, level=compression_level), len(raw)
+        return compress_blob(raw, artifact_format, compression_level), len(raw)
     raise ValueError(
         f"Unsupported QUANT_ARTIFACT_FORMAT={artifact_format!r}; "
         f"expected one of {SUPPORTED_QUANT_ARTIFACT_FORMATS}"
@@ -309,12 +335,12 @@ def serialize_quant_artifact(
 
 
 def deserialize_quant_artifact(blob: bytes, artifact_format: str) -> QuantizedStateDict:
-    raw = zlib.decompress(blob)
-    if artifact_format == "torchsave_zlib":
+    raw = decompress_blob(blob, artifact_format)
+    if artifact_format in {"torchsave_zlib", "torchsave_zstd"}:
         import io
 
         return torch.load(io.BytesIO(raw), map_location="cpu")
-    if artifact_format == "packed_zlib":
+    if artifact_format in {"packed_zlib", "packed_zstd"}:
         return unpack_quantized_state_dict(raw)
     raise ValueError(
         f"Unsupported QUANT_ARTIFACT_FORMAT={artifact_format!r}; "

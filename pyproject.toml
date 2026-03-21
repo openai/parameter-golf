@@ -15,6 +15,7 @@ dependencies = [
     "datasets",
     "tiktoken",
     "sentencepiece",
+    "zstandard",
 ]
 
 [dependency-groups]

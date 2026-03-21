@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
         "--compression-level",
         type=int,
         default=9,
-        help="zlib compression level used for the final artifact.",
+        help="Compression level used for the final artifact codec.",
     )
     parser.add_argument(
         "--keep-large-patterns",
@@ -60,42 +60,44 @@ def main() -> None:
 
     reports: list[dict[str, object]] = []
 
-    torch_blob, torch_raw_len = serialize_quant_artifact(
-        quant_obj,
-        "torchsave_zlib",
-        compression_level=args.compression_level,
-    )
-    reports.append(
-        {
-            "format": "torchsave_zlib",
-            "scale_codec": "raw",
-            "raw_serialized_bytes": torch_raw_len,
-            "compressed_bytes": len(torch_blob),
-            "payload_bytes": quant_stats["int8_payload_bytes"],
-        }
-    )
-
-    for scale_codec in ("raw", "log_u8"):
-        raw_blob, packed_stats = build_packed_quantized_state_dict(quant_obj, scale_codec=scale_codec)
-        packed_blob, packed_raw_len = serialize_quant_artifact(
+    for artifact_format in ("torchsave_zlib", "torchsave_zstd"):
+        torch_blob, torch_raw_len = serialize_quant_artifact(
             quant_obj,
-            "packed_zlib",
+            artifact_format,
             compression_level=args.compression_level,
-            scale_codec=scale_codec,
         )
         reports.append(
             {
-                "format": "packed_zlib",
-                "scale_codec": scale_codec,
-                "raw_serialized_bytes": packed_raw_len,
-                "compressed_bytes": len(packed_blob),
+                "format": artifact_format,
+                "scale_codec": "raw",
+                "raw_serialized_bytes": torch_raw_len,
+                "compressed_bytes": len(torch_blob),
                 "payload_bytes": quant_stats["int8_payload_bytes"],
-                "meta_bytes": packed_stats["meta_bytes"],
-                "packed_payload_bytes": packed_stats["payload_bytes"],
-                "section_stats": packed_stats["section_stats"],
-                "raw_blob_matches": len(raw_blob) == packed_raw_len,
             }
         )
+
+    for scale_codec in ("raw", "log_u8"):
+        raw_blob, packed_stats = build_packed_quantized_state_dict(quant_obj, scale_codec=scale_codec)
+        for artifact_format in ("packed_zlib", "packed_zstd"):
+            packed_blob, packed_raw_len = serialize_quant_artifact(
+                quant_obj,
+                artifact_format,
+                compression_level=args.compression_level,
+                scale_codec=scale_codec,
+            )
+            reports.append(
+                {
+                    "format": artifact_format,
+                    "scale_codec": scale_codec,
+                    "raw_serialized_bytes": packed_raw_len,
+                    "compressed_bytes": len(packed_blob),
+                    "payload_bytes": quant_stats["int8_payload_bytes"],
+                    "meta_bytes": packed_stats["meta_bytes"],
+                    "packed_payload_bytes": packed_stats["payload_bytes"],
+                    "section_stats": packed_stats["section_stats"],
+                    "raw_blob_matches": len(raw_blob) == packed_raw_len,
+                }
+            )
 
     summary = {
         "checkpoint": str(args.state_dict_path),

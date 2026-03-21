@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 import torch
 
 from core.artifact_core import deserialize_quant_artifact, serialize_quant_artifact
@@ -15,13 +16,14 @@ def build_state_dict() -> dict[str, torch.Tensor]:
     }
 
 
-def test_packed_artifact_roundtrip_preserves_quantized_object_and_dequantized_state():
+@pytest.mark.parametrize("artifact_format", ["packed_zlib", "packed_zstd"])
+def test_packed_artifact_roundtrip_preserves_quantized_object_and_dequantized_state(artifact_format):
     state_dict = build_state_dict()
     quant_obj, _ = quantize_state_dict_int8(state_dict)
     baseline_restored = dequantize_state_dict_int8(quant_obj)
 
-    artifact_blob, raw_len = serialize_quant_artifact(quant_obj, "packed_zlib")
-    restored_quant_obj = deserialize_quant_artifact(artifact_blob, "packed_zlib")
+    artifact_blob, raw_len = serialize_quant_artifact(quant_obj, artifact_format)
+    restored_quant_obj = deserialize_quant_artifact(artifact_blob, artifact_format)
     restored_state_dict = dequantize_state_dict_int8(restored_quant_obj)
 
     assert raw_len > 0
@@ -59,10 +61,11 @@ def test_packed_artifact_roundtrip_preserves_quantized_object_and_dequantized_st
             assert torch.equal(restored, original)
 
 
-def test_packed_artifact_bytes_are_deterministic():
+@pytest.mark.parametrize("artifact_format", ["packed_zlib", "packed_zstd"])
+def test_packed_artifact_bytes_are_deterministic(artifact_format):
     quant_obj, _ = quantize_state_dict_int8(build_state_dict())
-    blob_a, raw_a = serialize_quant_artifact(quant_obj, "packed_zlib")
-    blob_b, raw_b = serialize_quant_artifact(quant_obj, "packed_zlib")
+    blob_a, raw_a = serialize_quant_artifact(quant_obj, artifact_format)
+    blob_b, raw_b = serialize_quant_artifact(quant_obj, artifact_format)
 
     assert raw_a == raw_b
     assert blob_a == blob_b
