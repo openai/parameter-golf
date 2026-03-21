@@ -1,6 +1,4 @@
-# Content-Dependent SmearGate (Non-Record: RTX 4070)
-
-**val_bpb: 1.6795** (post int6+zstd quantization roundtrip, standard eval, 500 steps on 1xRTX 4070 12GB)
+# Content-Dependent SmearGate (Non-Record: Negative Result)
 
 ## Motivation
 
@@ -23,7 +21,7 @@ g = sigmoid(self.gate + content_scale * similarity)  # modulate gate by similari
 output = (1 - g) * x + g * x_prev
 ```
 
-Cost: 1 extra scalar parameter (`content_scale`), 1 dot product per position. Zero impact on model size. The dot product reuses embeddings already computed.
+Cost: 1 extra scalar parameter (`content_scale`), 1 dot product per position.
 
 ## Linguistic Intuition
 
@@ -31,63 +29,50 @@ Cost: 1 extra scalar parameter (`content_scale`), 1 dot product per position. Ze
 - **Low similarity (boundaries)**: "cat" and "." are very different → gate closes → tokens stay independent
 - **Gradual, not binary**: sigmoid smoothly interpolates, learned `content_scale` controls sensitivity
 
-## Results
+## H100 SXM Results (1xH100, 10-min wallclock)
 
-### content_scale initialization sweep (200 steps, standard eval)
+| Variant | Steps | val_bpb (post int6+zstd) | ms/step | Eval |
+|---------|-------|--------------------------|---------|------|
+| Static SmearGate | 869 | **1.5209** | 691 | sliding stride=64 |
+| Content SmearGate (scale=0.1) | 803 | 1.5524 | 748 | standard |
 
-| content_scale init | val_bpb | vs Static |
-|---|---|---|
-| **0.1** | **1.8962** | **-0.0825** |
-| 0.3 | 1.9133 | -0.0654 |
-| 0.5 | 1.9346 | -0.0441 |
-| Static (control) | 1.9787 | baseline |
-| 1.0 | 1.9910 | +0.0123 |
-| 2.0 | 2.1425 | +0.1638 |
+**Negative result.** The content dot-product adds ~8% per-step overhead, reducing total training steps from 869 to 803 in the fixed 10-minute window. The quality improvement from content-dependent gating does not compensate for the lost training steps.
 
-**Key finding: the content signal should be subtle (scale=0.1), not dominant.** Too much content modulation (≥1.0) hurts — the gate becomes too reactive and destabilizes early training. A light touch lets the model learn when blending helps without overwhelming the base gate.
+Note: eval methods differ (sliding vs standard), which accounts for ~0.02-0.03 BPB in favor of static. Even adjusting for this, content SmearGate is at best a wash — and it trains fewer steps.
 
-### Full run (500 steps, standard eval, content_scale=0.5)
+## Why It Doesn't Work (Analysis)
 
-| Variant | val_bpb | ms/step | Artifact |
-|---------|---------|---------|----------|
-| Static SmearGate (SOTA arch) | 1.7080 | 1162 | 15.57MB |
-| **Content SmearGate** | **1.6795** | **958** | 15.80MB |
-| Delta | **-0.0285** | **-17.5%** | +0.23MB |
+In the parameter golf setting, **wall-clock efficiency dominates architecture quality**. The 10-minute training cap means every millisecond of per-step overhead directly costs training iterations. The content dot-product:
 
-Note: the 500-step run used content_scale=0.5 (before the sweep). The optimal init of 0.1 found in the sweep should yield further improvement at 500 steps.
+1. Adds a `(x * x_prev).sum(dim=-1)` per position — cheap in isolation
+2. But breaks torch.compile optimization patterns, adding ~57ms/step on H100
+3. Over 10 minutes, this costs 66 training steps (869 → 803)
+4. The content-dependent gating would need to improve per-step learning by >8% to break even — it doesn't
 
-### H100 SXM validation (1xH100, 10-min wallclock)
+**The static gate works well enough** because the transformer's self-attention layers already learn token-pair relationships. SmearGate only needs to provide a rough prior; making it content-dependent adds complexity where the model doesn't need it.
 
-| Variant | Steps | val_bpb (post-quant) | ms/step |
-|---------|-------|---------------------|---------|
-| Static SmearGate | 869 | 1.5209 (sliding) | 691 |
-| Content SmearGate (scale=0.1) | 803 | 1.5524 (standard) | 748 |
+## Potential Fixes (Untested)
 
-**Negative result at scale:** the content dot-product adds ~8% per-step overhead, reducing total training steps from 869 to 803 in the fixed 10-minute window. The quality improvement from content-dependent gating does not compensate for the lost training steps at H100 speed. The local RTX 4070 improvement was partly an artifact of different compile-time behavior.
-
-This suggests the content-dependent mechanism may need to be made cheaper (e.g., pre-computed once at embedding time rather than recomputed in the gate) or the benefit only materializes with more training steps than the 10-minute window allows.
+- **Pre-compute similarity at embedding time** and cache it, avoiding recomputation in the compiled forward pass
+- **Use a cheaper proxy** than full dot-product (e.g., XOR hash of token IDs mapped to a small learned table)
+- **Only apply content gating to a subset of dimensions** to reduce compute while keeping some benefit
 
 ## Run Command
 
 ```bash
-SEED=42 \
+# On RunPod 1xH100 SXM:
+SMEAR_MODE=content \
 CONTENT_SCALE_INIT=0.1 \
-TRAIN_BATCH_TOKENS=131072 \
-ITERATIONS=500 \
-VAL_LOSS_EVERY=100 \
-SWA_ENABLED=0 \
-EVAL_STRIDE=0 \
+RUN_ID=content_smeargate \
+SEED=42 \
+DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
 python3 train_gpt.py
 ```
 
 ## Hardware
 
-- 1x NVIDIA GeForce RTX 4070 12GB
-- ~960ms/step, 500 steps in ~8 minutes
-- Peak VRAM: ~3.7GB
-
-## Next Steps
-
-- Full 500-step run with content_scale=0.1 (expected to beat 1.6795)
-- Validate on 8xH100 at full 20K steps (compute grant pending)
-- Explore trigram hash and multi-step lookback extensions
+- H100 SXM 80GB (RunPod, 1 GPU)
+- Static: 691ms/step, 869 steps in 10 min
+- Content: 748ms/step, 803 steps in 10 min
