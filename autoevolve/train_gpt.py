@@ -92,6 +92,7 @@ class Hyperparameters:
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
+    qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.45))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -475,9 +476,28 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
+def fake_quantize_ste_per_row(t: Tensor, clip_range: int) -> Tensor:
+    t_det = t.detach().float()
+    if t_det.ndim == 2:
+        scale = (t_det.abs().amax(dim=1, keepdim=True) / clip_range).clamp_min(1e-12)
+    else:
+        scale = (t_det.abs().amax() / clip_range).clamp_min(1e-12)
+    q = torch.clamp(torch.round(t_det / scale), -(clip_range + 1), clip_range)
+    deq = (q * scale).to(dtype=t.dtype)
+    return t + (deq - t).detach()
+
+
 class CastedLinear(nn.Linear):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.qat_clip_range = 0
+        self.qat_enabled = False
+
     def forward(self, x: Tensor) -> Tensor:
-        w = self.weight.to(x.dtype)
+        w = self.weight
+        if self.qat_enabled and self.qat_clip_range > 0:
+            w = fake_quantize_ste_per_row(w, self.qat_clip_range)
+        w = w.to(x.dtype)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
 
@@ -595,6 +615,7 @@ class BigramHashEmbedding(nn.Module):
         if self.proj is not None:
             nn.init.zeros_(self.proj.weight)
         self.scale = nn.Parameter(torch.tensor(0.05, dtype=torch.float32))
+        self.qat_enabled = False
 
     def bigram_hash(self, tokens: Tensor) -> Tensor:
         t = tokens.to(torch.int32)
@@ -605,7 +626,11 @@ class BigramHashEmbedding(nn.Module):
         return out.long()
 
     def forward(self, token_ids: Tensor) -> Tensor:
-        h = self.embed(self.bigram_hash(token_ids))
+        ids = self.bigram_hash(token_ids)
+        if self.qat_enabled:
+            h = F.embedding(ids, fake_quantize_ste_per_row(self.embed.weight, 31))
+        else:
+            h = self.embed(ids)
         if self.proj is not None:
             h = self.proj(h)
         return h * self.scale.to(dtype=h.dtype)
@@ -734,6 +759,20 @@ class GPT(nn.Module):
         else:
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+
+
+def configure_qat_modules(model: nn.Module) -> None:
+    for name, module in model.named_modules():
+        if isinstance(module, CastedLinear):
+            param_name = f"{name}.weight" if name else "weight"
+            module.qat_enabled = False
+            if any(pattern in param_name for pattern in FP16_KEEP_NAME_PATTERNS):
+                module.qat_clip_range = 0
+                continue
+            cat = _classify_param(param_name)
+            module.qat_clip_range = 15 if cat == "mlp" else 31 if cat in ("attn", "bigram") else 0
+        elif isinstance(module, BigramHashEmbedding):
+            module.qat_enabled = False
 
 
 def eval_val_sliding(
@@ -921,6 +960,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    configure_qat_modules(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -1045,6 +1085,7 @@ def main() -> None:
     stop_after_step: int | None = None
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
+    qat_activated = False
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1077,6 +1118,14 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        if (not qat_activated) and args.qat_start_frac > 0.0 and scale <= args.qat_start_frac:
+            for module in base_model.modules():
+                if isinstance(module, CastedLinear):
+                    module.qat_enabled = module.qat_clip_range > 0
+                elif isinstance(module, BigramHashEmbedding):
+                    module.qat_enabled = True
+            qat_activated = True
+            log0(f"qat:enabled start_frac:{args.qat_start_frac} step:{step} lr_scale:{scale:.4f}")
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):

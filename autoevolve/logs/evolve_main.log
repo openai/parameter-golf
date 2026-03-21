@@ -1,0 +1,20 @@
+======================================================================
+  Parameter Golf Auto-Evolve Agent
+  Model: gpt-5.4 | GPUs: 1 | Dry-run: False
+  Constraints: 600s wallclock, 16,000,000 byte artifact
+======================================================================
+Git branch: autoevolve/run
+Starting from iteration 19, best BPB: 1.1428
+
+
+======================================================================
+  ITERATION 19  |  Best BPB: 1.1428
+======================================================================
+  Calling gpt-5.4 for proposal...
+  LLM responded in 237.8s (input=18203, output=15009 tokens)
+  Proposed:   Add late warmdown STE QAT for the exact mixed int5/int6 export path (MLP int5; attention/bigram int6).
+  Diagnosis:  All 18 prior iterations crashed at the API layer, so there is no model-side evidence against a substantive change. In the current script, the most likely remaining bottleneck is train/eval mismatch: optimization happens in float/bf16, but the final score is taken after 3% pruning plus aggressive mix
+  Hypothesis: Add late-stage quantization-aware training with a straight-through estimator on exactly the tensors that are exported as int5/int6: MLP weights at int5, attention/bigram weights at int6, while leaving fp16-kept tensors alone. Enabling it only once during warmdown should let the model adapt to rowwis
+  Expected:   -0.0055 bpb. This is the highest-confidence path because the current SOTA script is already heavily compression-constrained, so recovering post-quantization loss is more plausible than adding capacity; late STE QAT commonly recovers roughly half of the PTQ gap on models this small, which should be in the ~0.004 to ~0.007 bpb range here.
+  Risk:       Main risks are one extra torch.compile retrace when QAT is enabled and some throughput loss during the final warmdown segment. To mitigate that, QAT is activated only once, late in training, only for 
+  Applied (55,110 bytes, 1280 lines)
