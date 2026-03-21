@@ -92,7 +92,6 @@ class Hyperparameters:
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
-    qat_projection_start_frac = float(os.environ.get("QAT_PROJECTION_START_FRAC", 0.35))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -394,31 +393,6 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
         else:
             out[name] = (q.float() * float(s.item())).to(orig_dtype)
     return out
-
-
-def build_exact_qat_projection_specs(module: nn.Module) -> list[tuple[str, Tensor, int]]:
-    specs: list[tuple[str, Tensor, int]] = []
-    for name, param in module.named_parameters():
-        if not param.requires_grad or param.ndim != 2:
-            continue
-        if any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS):
-            continue
-        if any(pattern in name for pattern in FP16_KEEP_NAME_PATTERNS):
-            continue
-        cat = _classify_param(name)
-        if cat == "mlp":
-            specs.append((name, param, 15))
-        elif cat in ("attn", "bigram"):
-            specs.append((name, param, 31))
-    return specs
-
-
-@torch.no_grad()
-def apply_exact_qat_projection_(specs: list[tuple[str, Tensor, int]]) -> None:
-    for _, param, clip in specs:
-        q, s = quantize_intN_per_row(param, clip_range=clip)
-        deq = q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))
-        param.copy_(deq.to(dtype=param.dtype))
 
 
 # -----------------------------
@@ -1005,15 +979,8 @@ def main() -> None:
         )
         optimizers.insert(1, optimizer_head)
 
-    qat_projection_specs = build_exact_qat_projection_specs(base_model)
-    qat_projection_numel = sum(p.numel() for _, p, _ in qat_projection_specs)
-
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
-    log0(
-        f"exact_qat_projection:tensors:{len(qat_projection_specs)} params:{qat_projection_numel} "
-        f"start_frac:{args.qat_projection_start_frac}"
-    )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
@@ -1078,7 +1045,6 @@ def main() -> None:
     stop_after_step: int | None = None
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
-    qat_projection_live = False
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1136,11 +1102,6 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
-        if args.qat_projection_start_frac > 0 and qat_projection_specs and scale < args.qat_projection_start_frac:
-            if not qat_projection_live:
-                qat_projection_live = True
-                log0(f"exact_qat_projection:active step:{step + 1} scale:{scale:.4f}")
-            apply_exact_qat_projection_(qat_projection_specs)
         zero_grad_all()
 
         step += 1
@@ -1189,10 +1150,6 @@ def main() -> None:
             for name, tensor in swa_state.items()
         }
         base_model.load_state_dict(avg_state, strict=True)
-
-    if args.qat_projection_start_frac > 0 and qat_projection_specs:
-        log0("exact_qat_projection:finalize")
-        apply_exact_qat_projection_(qat_projection_specs)
 
     # SERIALIZATION + ROUNDTRIP VALIDATION
     if master_process:

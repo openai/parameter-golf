@@ -56,3 +56,8 @@ Starting from iteration 19, best BPB: 1.1428
   Expected:   -0.0040 bpb. The current script only adapts to quantization once at the very end, so recovering even a fraction of the quantization gap on the dominant MLP/attention/bigram matrices should be worth a few millibits; I expect roughly 25-40% recovery of the export-path degradation.
   Risk:       Main risks are a mild late-stage optimization shock and a small slowdown from projecting large matrices each step. I mitigate both by activating only in the last 35% of warmdown, using the already-tes
   Applied (54,868 bytes, 1274 lines)
+  Running training experiment...
+  Running: torchrun --standalone --nproc_per_node=1 /workspace/parameter-golf/autoevolve/train_gpt.py
+  Log saved to /workspace/parameter-golf/autoevolve/logs/exp_0021.log
+  CRASH (exit code 1)
+    TIMEOUT: Experiment exceeded 25-minute hard limit (10 train + 10 eval + 5 buffer)
