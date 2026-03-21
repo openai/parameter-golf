@@ -6,7 +6,6 @@ from typing import TypedDict
 import torch
 from torch import Tensor
 
-
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(

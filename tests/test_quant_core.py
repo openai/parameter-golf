@@ -4,7 +4,11 @@ import torch
 from hypothesis import given
 from hypothesis import strategies as st
 
-from core.quant_core import dequantize_state_dict_int8, quantize_float_tensor, quantize_state_dict_int8
+from core.quant_core import (
+    dequantize_state_dict_int8,
+    quantize_float_tensor,
+    quantize_state_dict_int8,
+)
 
 
 @st.composite

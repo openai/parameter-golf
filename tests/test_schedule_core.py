@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import torch
-from hypothesis import given
-from hypothesis import assume
+from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from core.schedule_core import compute_chunk_window, find_docs
