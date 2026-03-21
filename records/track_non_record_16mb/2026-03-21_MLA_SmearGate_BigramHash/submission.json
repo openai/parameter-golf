@@ -1,0 +1,11 @@
+{
+  "name": "skrisps",
+  "github_id": "skrisps26",
+  "val_bpb": 1.3559,
+  "val_bpb_pre_quant": 1.2838,
+  "model_bytes": 14403125,
+  "code_bytes": 46291,
+  "total_bytes": 14449416,
+  "run_id": "mla_13layer",
+  "notes": "Non-record submission. Pre-quantization bpb 1.2838 shows architecture ceiling. MLA attention overhead (83ms/step vs baseline 43ms/step) limited token throughput to 3.7B vs baseline 7.2B. With standard GQA at 10 layers, throughput matches competitive submissions."
+}
