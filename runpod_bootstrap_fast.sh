@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/openai/parameter-golf.git}"
 REPO_DIR="${REPO_DIR:-/workspace/parameter-golf}"
+BRANCH="${BRANCH:-}"
 
 if [[ ! -d "${REPO_DIR}" ]]; then
   git clone "${REPO_URL}" "${REPO_DIR}"
@@ -10,6 +11,12 @@ fi
 
 cd "${REPO_DIR}"
 git pull --ff-only
+
+if [[ -n "${BRANCH}" ]]; then
+  git fetch --all
+  git checkout "${BRANCH}"
+  git pull --ff-only
+fi
 
 # Sweep stage
 bash run_remote_fast.sh
