@@ -32,35 +32,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-# FA3 (Hopper) > FA2 > torch SDPA fallback chain
-_ATTN_BACKEND = "sdpa"
-try:
-    from flash_attn_interface import flash_attn_func as _flash_attn_func
-    _ATTN_BACKEND = "fa3"
-except ImportError:
-    try:
-        from flash_attn import flash_attn_func as _flash_attn_func
-        _ATTN_BACKEND = "fa2"
-    except ImportError:
-        _flash_attn_func = None
-        _ATTN_BACKEND = "sdpa"
-
-
-def _attn_forward(q, k, v, causal=True):
-    if _flash_attn_func is not None:
-        return _flash_attn_func(q, k, v, causal=causal)
-    num_kv_heads = k.shape[2]
-    num_heads = q.shape[2]
-    kv_rep = num_heads // num_kv_heads
-    if kv_rep > 1:
-        k = k.repeat_interleave(kv_rep, dim=2)
-        v = v.repeat_interleave(kv_rep, dim=2)
-    q2 = q.transpose(1, 2)
-    k2 = k.transpose(1, 2)
-    v2 = v.transpose(1, 2)
-    import torch.nn.functional as _F
-    y = _F.scaled_dot_product_attention(q2, k2, v2, is_causal=causal)
-    return y.transpose(1, 2)
+from flash_attn_interface import flash_attn_func as flash_attn_3_func
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -684,7 +656,7 @@ class CausalSelfAttention(nn.Module):
             attn = F.softmax(attn, dim=-1)
             y = (attn @ v2).transpose(1, 2)
         else:
-            y = _attn_forward(q, k, v, causal=True)
+            y = flash_attn_3_func(q, k, v, causal=True)
         y = y.reshape(bsz, seqlen, dim)
         return self.proj(y)
 

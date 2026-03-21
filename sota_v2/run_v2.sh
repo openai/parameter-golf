@@ -1,19 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure flash-attn is available (FA3 Hopper preferred, FA2 fallback)
-if ! python -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; then
-    echo "FA3 not found, attempting install..."
-    pip install flash-attn --no-build-isolation 2>&1 | tail -3 || true
-    if python -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; then
-        echo "FA3 installed successfully."
-    elif python -c "from flash_attn import flash_attn_func" 2>/dev/null; then
-        echo "WARNING: Only FA2 available (not FA3 Hopper). Will use FA2 fallback."
-    else
-        echo "WARNING: No flash-attn available. Will use torch SDPA fallback (slower)."
-    fi
-fi
-
 # FarnsworthEngine v2: Full improvement stack on top of PR #254 SOTA (1.1313 BPB)
 #
 # Changes from v1:

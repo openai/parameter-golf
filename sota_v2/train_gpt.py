@@ -33,36 +33,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-# FA3 (Hopper) > FA2 > torch SDPA fallback chain
-_ATTN_BACKEND = "sdpa"
-try:
-    from flash_attn_interface import flash_attn_func as _flash_attn_func
-    _ATTN_BACKEND = "fa3"
-except ImportError:
-    try:
-        from flash_attn import flash_attn_func as _flash_attn_func
-        _ATTN_BACKEND = "fa2"
-    except ImportError:
-        _flash_attn_func = None
-        _ATTN_BACKEND = "sdpa"
-
-
-def _attn_forward(q: Tensor, k: Tensor, v: Tensor, causal: bool = True) -> Tensor:
-    """Dispatch to best available attention backend."""
-    if _flash_attn_func is not None:
-        return _flash_attn_func(q, k, v, causal=causal)
-    # Torch SDPA fallback — needs (B, H, S, D) layout
-    num_kv_heads = k.shape[2]
-    num_heads = q.shape[2]
-    kv_rep = num_heads // num_kv_heads
-    if kv_rep > 1:
-        k = k.repeat_interleave(kv_rep, dim=2)
-        v = v.repeat_interleave(kv_rep, dim=2)
-    q2 = q.transpose(1, 2)
-    k2 = k.transpose(1, 2)
-    v2 = v.transpose(1, 2)
-    y = F.scaled_dot_product_attention(q2, k2, v2, is_causal=causal)
-    return y.transpose(1, 2)
+from flash_attn_interface import flash_attn_func as flash_attn_3_func
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -794,7 +765,7 @@ class CausalSelfAttention(nn.Module):
             attn = F.softmax(attn, dim=-1)
             y = (attn @ v2).transpose(1, 2)
         else:
-            y = _attn_forward(q, k, v, causal=True)
+            y = flash_attn_3_func(q, k, v, causal=True)
         y = y.reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -1557,7 +1528,6 @@ def main() -> None:
     log0(f"model_params:{n_params}")
     log0(f"mtp_num_heads:{args.mtp_num_heads} mtp_loss_weight:{args.mtp_loss_weight} mtp_params:{mtp_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0(f"attention_backend:{_ATTN_BACKEND}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(

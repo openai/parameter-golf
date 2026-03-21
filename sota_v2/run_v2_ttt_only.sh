@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure flash-attn is available
-if ! python -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; then
-    echo "FA3 not found, attempting install..."
-    pip install flash-attn --no-build-isolation 2>&1 | tail -3 || true
-fi
-
 # FarnsworthEngine v2 CONSERVATIVE: Only TTT v2 + XSA improvements
 # Keeps original training schedule (warmdown, fixed seq len, fixed batch)
 # For isolating TTT v2 gains vs full stack
