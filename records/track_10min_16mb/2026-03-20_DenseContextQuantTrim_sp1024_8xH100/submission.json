@@ -1,0 +1,17 @@
+{
+  "author": "IvGolovach",
+  "github_id": "IvGolovach",
+  "name": "DenseContextQuantTrim 8xH100",
+  "blurb": "Dense SP1024 long-context run with sliding-window validation and a hybrid fp16/int8 token embedding export, fitting the official 10-minute / 16,000,000-byte 8xH100 track constraints.",
+  "date": "2026-03-20T18:54:40Z",
+  "track": "track_10min_16mb",
+  "val_loss": 1.98878702,
+  "val_bpb": 1.1778717,
+  "pre_quant_val_loss": 1.98341511,
+  "pre_quant_val_bpb": 1.17469015,
+  "step_stop": 11424,
+  "wallclock_seconds": 594.0,
+  "bytes_model_int8_zlib": 15919719,
+  "bytes_total": 15981108,
+  "bytes_code": 61389
+}
