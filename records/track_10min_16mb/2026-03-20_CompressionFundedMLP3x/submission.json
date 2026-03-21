@@ -1,0 +1,18 @@
+{
+  "author": "Christopher Buckley",
+  "github_id": "chris-buckley",
+  "name": "Compression-Funded MLP3x",
+  "blurb": "Int6-style block-weight export plus fp16 embedding protection funds a 3x ReLU^2 MLP at the same 16MB artifact cap. Uses seq2048 long-context training and stride256 sliding-window eval.",
+  "date": "2026-03-20",
+  "val_loss": 1.95830027,
+  "val_bpb": 1.15981566,
+  "pre_quant_val_loss": 1.9827,
+  "pre_quant_val_bpb": 1.1743,
+  "step_stop": 7170,
+  "wallclock_seconds": 600.036,
+  "eval_time_seconds": 36.517,
+  "bytes_total": 15958024,
+  "bytes_model_int6_zlib": 15906889,
+  "bytes_code": 51135,
+  "notes": "Best of 3 seeds on 8xH100 SXM (community cloud). Seed 1339: val_bpb=1.15982, Seed 1338: val_bpb=1.16143, Seed 1337: val_bpb=1.17283 (slower step_avg due to first-run CUDA compilation). Mean val_bpb=1.16469."
+}
