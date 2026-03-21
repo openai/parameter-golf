@@ -51,5 +51,5 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 ## Files
 
 - `train_gpt.py` — training script
-- `train.log` — full training log
+- `*.log` — full training log for this run (UUID-named in this directory)
 - `submission.json` — metadata
