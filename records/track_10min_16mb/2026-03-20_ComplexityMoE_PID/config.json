@@ -12,7 +12,7 @@
     "tied_embed_init_std": 0.005,
     "logit_softcap": 30.0,
     "rope_base": 10000.0,
-    "classical_layers": "0,1,2,3,4,5",
+    "classical_layers": "0,1,2,3,4",
     "quant_bits": 8
   },
 
