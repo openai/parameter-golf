@@ -1,0 +1,11 @@
+{
+  "author": "vmfunc",
+  "github_id": "vmfunc",
+  "name": "NorMuon + Int6 STE + SWA + Sliding Window",
+  "blurb": "int6 fake quant w/ STE, fp16 embed passthrough, MLP 3x (1536 hidden), NorMuon optimizer, SWA during warmdown, sliding window eval stride=64. mean val_bpb=1.1622 across 3 seeds.",
+  "date": "2026-03-19T14:23:00Z",
+  "val_loss": 1.96230,
+  "val_bpb": 1.16219,
+  "bytes_total": 15518560,
+  "bytes_code": 54361
+}
