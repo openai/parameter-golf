@@ -27,6 +27,12 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+try:
+    import zstandard
+    _COMPRESSOR = "zstd"
+except ImportError:
+    _COMPRESSOR = "zlib"
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -524,7 +530,83 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 
 
 # -----------------------------
-# DATA LOADING 
+# INT6 MIXED QUANTIZATION
+# -----------------------------
+
+def _classify_param(name: str) -> str:
+    if "tok_emb" in name or "lm_head" in name:
+        return "embed"
+    if ".mlp." in name:
+        return "mlp"
+    if ".attn." in name or (".proj." in name and ".mlp." not in name):
+        return "attn"
+    return "other"
+
+
+def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    if t32.ndim == 2:
+        row_max = t32.abs().amax(dim=1)
+        scale = (row_max / 31.0).clamp_min(1.0 / 31.0).to(torch.float16)
+        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -32, 31).to(torch.int8)
+        return q, scale
+    amax = t32.abs().max().item()
+    scale = torch.tensor(amax / 31.0 if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -32, 31).to(torch.int8)
+    return q, scale
+
+
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
+    result: dict[str, Tensor] = {}
+    meta: dict[str, object] = {}
+    for name, tensor in state_dict.items():
+        t = tensor.detach().cpu().contiguous()
+        cat = _classify_param(name)
+        if not t.is_floating_point() or t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+            result[name] = t.to(torch.float16) if t.is_floating_point() else t
+            meta[name] = "passthrough"
+            continue
+        if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
+            result[name] = t.float()
+            meta[name] = "passthrough_ctrl"
+            continue
+        if cat in int6_cats and t.ndim >= 1:
+            q, s = quantize_int6_per_row(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int6"}
+        else:
+            q, s = quantize_float_tensor(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int8"}
+    return result, meta
+
+
+def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
+                          template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    for name, orig in template_sd.items():
+        info = meta.get(name)
+        if info is None:
+            continue
+        orig_dtype = orig.dtype
+        if info in ("passthrough", "passthrough_ctrl"):
+            t = result[name]
+            if t.dtype == torch.float16 and orig_dtype in (torch.float32, torch.bfloat16):
+                t = t.to(orig_dtype)
+            out[name] = t
+            continue
+        q, s = result[name + ".q"], result[name + ".scale"]
+        if s.ndim > 0:
+            out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
+        else:
+            out[name] = (q.float() * float(s.item())).to(orig_dtype)
+    return out
+
+
+# -----------------------------
+# DATA LOADING
 # -----------------------------
 
 def load_data_shard(file: Path) -> Tensor:
@@ -1438,30 +1520,38 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    # Int6 mixed quantization (int6 for MLP+attention, int8 for embeddings) + zstd/zlib
+    sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+    quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
+    quant_save = {"result": quant_result, "meta": quant_meta}
     quant_buf = io.BytesIO()
-    torch.save(quant_obj, quant_buf)
+    torch.save(quant_save, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
+    if _COMPRESSOR == "zstd":
+        quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw)
+    else:
+        quant_blob = zlib.compress(quant_raw, level=9)
     if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
+        with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        quant_file_bytes = os.path.getsize("final_model.int6.ptz")
         code_bytes = len(code.encode("utf-8"))
-        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
-        log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
-        )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes (raw_torch:{quant_raw_bytes})")
+        log0(f"Total submission size int6+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
+    with open("final_model.int6.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    if _COMPRESSOR == "zstd":
+        quant_raw_disk = zstandard.ZstdDecompressor().decompress(quant_blob_disk)
+    else:
+        quant_raw_disk = zlib.decompress(quant_blob_disk)
+    quant_loaded = torch.load(io.BytesIO(quant_raw_disk), map_location="cpu")
+    base_model.load_state_dict(
+        dequantize_mixed_int6(quant_loaded["result"], quant_loaded["meta"], sd_cpu), strict=True
+    )
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
@@ -1478,10 +1568,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_quant_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_quant_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     # Sliding window evaluation (the main competition metric)
     if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
