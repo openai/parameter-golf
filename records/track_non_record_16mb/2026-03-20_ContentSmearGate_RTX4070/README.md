@@ -56,6 +56,17 @@ Cost: 1 extra scalar parameter (`content_scale`), 1 dot product per position. Ze
 
 Note: the 500-step run used content_scale=0.5 (before the sweep). The optimal init of 0.1 found in the sweep should yield further improvement at 500 steps.
 
+### H100 SXM validation (1xH100, 10-min wallclock)
+
+| Variant | Steps | val_bpb (post-quant) | ms/step |
+|---------|-------|---------------------|---------|
+| Static SmearGate | 869 | 1.5209 (sliding) | 691 |
+| Content SmearGate (scale=0.1) | 803 | 1.5524 (standard) | 748 |
+
+**Negative result at scale:** the content dot-product adds ~8% per-step overhead, reducing total training steps from 869 to 803 in the fixed 10-minute window. The quality improvement from content-dependent gating does not compensate for the lost training steps at H100 speed. The local RTX 4070 improvement was partly an artifact of different compile-time behavior.
+
+This suggests the content-dependent mechanism may need to be made cheaper (e.g., pre-computed once at embedding time rather than recomputed in the gate) or the benefit only materializes with more training steps than the 10-minute window allows.
+
 ## Run Command
 
 ```bash
