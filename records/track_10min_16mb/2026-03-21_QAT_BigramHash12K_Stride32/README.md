@@ -8,7 +8,7 @@ Built on the current SOTA (`10L_Int5MLP_MuonWD04_SWA50`) with the following impr
 - **BigramHash 12288:** Increased from 10240 to 12288 buckets for better bigram coverage.
 - **Eval stride 32:** Reduced from 64 to 32 for more overlapping context windows during evaluation.
 - **Magnitude pruning 5%:** Increased from 3% to improve compression ratio.
-- **SWA every 25 steps:** More frequent checkpoint averaging during warmdown.
+- **SWA every 50 steps:** Checkpoint averaging during warmdown.
 
 ## Architecture
 
