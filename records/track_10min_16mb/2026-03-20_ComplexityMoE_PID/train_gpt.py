@@ -600,8 +600,9 @@ class BetaMuAttention(nn.Module):
         log_w = -beta * error_mag  # [bsz, seq, H]
         # ALiBi positional decay: recent tokens weighted more
         pos = torch.arange(seq_len, device=x.device, dtype=x.dtype)
-        decay = -F.softplus(self.alibi_slope).unsqueeze(-1) * pos.unsqueeze(0)  # [H, seq]
-        log_w = log_w + decay.unsqueeze(0)  # [bsz, seq, H]
+        slopes = F.softplus(self.alibi_slope)  # [H]
+        decay = -slopes.unsqueeze(-1) * pos.unsqueeze(0)  # [H, seq]
+        log_w = log_w + decay.permute(1, 0).unsqueeze(0)  # [1, seq, H] → broadcast with [bsz, seq, H]
         # Causal weighted average via cumsum — O(n) memory, O(n) compute
         w = log_w.softmax(dim=1)  # [bsz, seq, H] — normalize across seq
         w_v = w.unsqueeze(-1) * x_heads  # [bsz, seq, H, hd]
