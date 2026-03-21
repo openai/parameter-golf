@@ -1,6 +1,0 @@
-provider	run_id	seed	val_loss	val_bpb	total_bytes	note
-modal	20260320-074904-candidate-pr135-qscale-mlp1376-bigram128-nofp16-stride16-full	1337	1.96921078	1.16628107	15966576	Exact same config on Modal H100!
-runpod	runpod-verify-20260320b	1337	1.96093972	1.16138246	15870382	First clean RunPod H100 SXM rerun
-runpod	runpod-verify-20260320b-seed1338	1338	1.96263331	1.16238551	15892156	Second clean RunPod H100 SXM rerun
-runpod	runpod-verify-20260320b-seed1339	1339	1.97169689	1.16775348	15888849	Third clean RunPod H100 SXM rerun
-runpod	runpod-verify-20260320b-seed1337r1	1337	1.96087605	1.16134475	15879855	Repeat rerun of the strongest seed

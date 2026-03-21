@@ -1,0 +1,4 @@
+provider	run_id	seed	exact_val_bpb	total_bytes
+RunPod H100 SXM	runpod-verify-pr114-20260320-seed1337	1337	1.15862019	15956272
+RunPod H100 SXM	runpod-verify-pr114-20260320-seed1338	1338	1.15536852	15963195
+RunPod H100 SXM	runpod-verify-pr114-20260320-seed1339	1339	1.15563461	15959710
