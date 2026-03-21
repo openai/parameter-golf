@@ -169,10 +169,10 @@ class RunSearchPersistenceTests(unittest.TestCase):
         ]
 
         self.assertTrue(all(token <= 65_536 for token in mlx_batch_tokens))
-        self.assertEqual("32768", run_search.PRESETS["mlx"]["baseline"]["TRAIN_BATCH_TOKENS"])
+        self.assertEqual("8192", run_search.PRESETS["mlx"]["baseline"]["TRAIN_BATCH_TOKENS"])
         self.assertEqual("384", run_search.PRESETS["mlx"]["small_fast"]["MODEL_DIM"])
         self.assertEqual("512", run_search.PRESETS["mlx"]["small_fast"]["TRAIN_SEQ_LEN"])
-        self.assertEqual("65536", run_search.PRESETS["mlx"]["small_fast"]["TRAIN_BATCH_TOKENS"])
+        self.assertEqual("4096", run_search.PRESETS["mlx"]["small_fast"]["TRAIN_BATCH_TOKENS"])
         self.assertEqual("120", run_search.PRESETS["mlx"]["small_fast"]["MAX_WALLCLOCK_SECONDS"])
         self.assertEqual("2", run_search.PRESETS["mlx"]["micro_smoke"]["WARMUP_STEPS"])
         self.assertEqual("256", run_search.PRESETS["mlx"]["micro_smoke"]["VAL_EVAL_MAX_SEQS"])
