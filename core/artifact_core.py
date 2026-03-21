@@ -66,7 +66,7 @@ def tensor_from_buffer(buffer: memoryview, dtype_name_str: str, shape: list[int]
         dtype = DTYPE_BY_NAME[dtype_name_str]
     except KeyError as exc:
         raise ValueError(f"Unsupported packed dtype: {dtype_name_str}") from exc
-    tensor = torch.frombuffer(buffer, dtype=dtype)
+    tensor = torch.frombuffer(bytearray(buffer), dtype=dtype)
     if shape:
         tensor = tensor.reshape(shape)
     return tensor.clone().contiguous()
