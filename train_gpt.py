@@ -56,6 +56,7 @@ class Hyperparameters:
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", str(train_seq_len)))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -235,6 +236,45 @@ def eval_val(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
+    if 0 < args.eval_stride < args.train_seq_len:
+        return eval_val_sliding(
+            args,
+            model,
+            rank,
+            world_size,
+            device,
+            grad_accum_steps,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
+    return eval_val_non_overlapping(
+        args,
+        model,
+        rank,
+        world_size,
+        device,
+        grad_accum_steps,
+        val_tokens,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+    )
+
+
+def eval_val_non_overlapping(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
@@ -272,6 +312,86 @@ def eval_val(
             token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
             token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
             val_byte_count += token_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    # Sliding evaluation reuses the same validation tokens, but scores each token
+    # with as much recent context as fits inside TRAIN_SEQ_LEN.
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    if local_batch_tokens < args.train_seq_len:
+        raise ValueError(
+            "VAL_BATCH_SIZE must provide at least one sequence per rank; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    batch_seqs = max(local_batch_tokens // args.train_seq_len, 1)
+    total_tokens = val_tokens.numel() - 1
+    window_starts = list(range(0, total_tokens, args.eval_stride))
+    my_start = (len(window_starts) * rank) // world_size
+    my_end = (len(window_starts) * (rank + 1)) // world_size
+    my_windows = window_starts[my_start:my_end]
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.inference_mode():
+        for batch_start in range(0, len(my_windows), batch_seqs):
+            batch_windows = my_windows[batch_start:batch_start + batch_seqs]
+            bsz = len(batch_windows)
+            x = torch.zeros((bsz, args.train_seq_len), dtype=torch.int64, device=device)
+            y = torch.zeros((bsz, args.train_seq_len), dtype=torch.int64, device=device)
+            lengths: list[int] = []
+
+            for i, window_start in enumerate(batch_windows):
+                window_end = min(window_start + args.train_seq_len, total_tokens)
+                window_len = window_end - window_start
+                lengths.append(window_len)
+                local = val_tokens[window_start:window_end + 1].to(device=device, dtype=torch.int64, non_blocking=True)
+                x[i, :window_len] = local[:-1]
+                y[i, :window_len] = local[1:]
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = model(x).detach()
+            nll = F.cross_entropy(
+                logits.reshape(-1, logits.size(-1)).float(),
+                y.reshape(-1),
+                reduction="none",
+            ).reshape(bsz, args.train_seq_len)
+
+            for i, window_start in enumerate(batch_windows):
+                window_len = lengths[i]
+                score_start = 0 if window_start == 0 else max(window_len - args.eval_stride, 0)
+                scored_nll = nll[i, score_start:window_len].to(torch.float64)
+                val_loss_sum += scored_nll.sum()
+                val_token_count += float(window_len - score_start)
+                prev_ids = x[i, score_start:window_len]
+                tgt_ids = y[i, score_start:window_len]
+                token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+                token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+                val_byte_count += token_bytes.to(torch.float64).sum()
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
@@ -710,7 +830,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, lora=None) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor | None = None, lora=None) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -736,6 +856,10 @@ class GPT(nn.Module):
             logits = self.lm_head(x)
         logits = logits + (lora.lm_head_lora(x) if lora else 0)
         logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+        if target_ids is None:
+            if lora is not None:
+                raise ValueError("target_ids is required when LoRA adapters are active")
+            return logits
         if lora:
             bsz, sl, V = logits.shape
             return F.cross_entropy(
@@ -1140,6 +1264,10 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+    if 0 < args.eval_stride < args.train_seq_len:
+        log0(f"eval_policy:sliding_window eval_stride:{args.eval_stride}")
+    else:
+        log0(f"eval_policy:non_overlapping eval_stride:{args.eval_stride}")
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
