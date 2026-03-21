@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import importlib
+import os
+
 import torch
 from hypothesis import given
 from hypothesis import strategies as st
@@ -69,3 +72,23 @@ def test_quantize_state_dict_roundtrip_preserves_keys_shapes_and_dtypes():
     max_error = float((restored["large.weight"] - state_dict["large.weight"]).abs().max().item())
     assert q.dtype == torch.int8
     assert max_error <= max_scale + 1e-6
+
+
+def test_large_float_passthrough_override_keeps_selected_large_tensor(monkeypatch):
+    monkeypatch.setenv("INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS", "large.weight")
+    import core.quant_core as quant_core
+
+    quant_core = importlib.reload(quant_core)
+    state_dict = {
+        "large.weight": torch.linspace(-0.25, 0.25, 70000, dtype=torch.float32).reshape(280, 250),
+        "other.weight": torch.linspace(-0.25, 0.25, 70000, dtype=torch.float32).reshape(280, 250),
+    }
+
+    quant_obj, stats = quant_core.quantize_state_dict_int8(state_dict)
+
+    assert "large.weight" in quant_obj["passthrough"]
+    assert "large.weight" not in quant_obj["quantized"]
+    assert "other.weight" in quant_obj["quantized"]
+    assert stats["num_large_float_passthrough_tensors"] == 1
+    assert stats["large_float_passthrough_bytes"] == quant_core.tensor_nbytes(quant_obj["passthrough"]["large.weight"])
+    assert quant_obj["passthrough"]["large.weight"].dtype == torch.float16

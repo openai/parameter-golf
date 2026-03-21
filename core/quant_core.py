@@ -27,6 +27,11 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get("INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS", "").split(",")
+    if pattern
+)
 
 
 class QuantMetaEntry(TypedDict):
@@ -57,6 +62,10 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
     return t
 
 
+def should_keep_large_float_tensor(name: str) -> bool:
+    return any(pattern in name for pattern in INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS)
+
+
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
@@ -85,7 +94,16 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]) -> tuple[QuantizedSt
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, QuantMetaEntry] = {}
     stats = dict.fromkeys(
-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        (
+            "param_count",
+            "num_tensors",
+            "num_float_tensors",
+            "num_nonfloat_tensors",
+            "num_large_float_passthrough_tensors",
+            "large_float_passthrough_bytes",
+            "baseline_tensor_bytes",
+            "int8_payload_bytes",
+        ),
         0,
     )
 
@@ -104,6 +122,14 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]) -> tuple[QuantizedSt
         if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
+            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            continue
+
+        if should_keep_large_float_tensor(name):
+            kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
+            passthrough[name] = kept
+            stats["num_large_float_passthrough_tensors"] += 1
+            stats["large_float_passthrough_bytes"] += tensor_nbytes(kept)
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
             continue
 

@@ -29,11 +29,22 @@ def parse_args() -> argparse.Namespace:
         default=9,
         help="zlib compression level used for the final artifact.",
     )
+    parser.add_argument(
+        "--keep-large-patterns",
+        type=str,
+        default="",
+        help="Comma-separated substrings for large tensors to keep in float passthrough form.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.keep_large_patterns:
+        import os
+
+        os.environ["INT8_KEEP_LARGE_FLOAT_NAME_PATTERNS"] = args.keep_large_patterns
+
     state_dict = torch.load(args.state_dict_path, map_location="cpu")
     quant_obj, quant_stats = quantize_state_dict_int8(state_dict)
 
@@ -78,8 +89,11 @@ def main() -> None:
 
     summary = {
         "checkpoint": str(args.state_dict_path),
+        "keep_large_patterns": args.keep_large_patterns,
         "baseline_tensor_bytes": quant_stats["baseline_tensor_bytes"],
         "int8_payload_bytes": quant_stats["int8_payload_bytes"],
+        "large_float_passthrough_bytes": quant_stats["large_float_passthrough_bytes"],
+        "num_large_float_passthrough_tensors": quant_stats["num_large_float_passthrough_tensors"],
         "top_quantized_tensors": [
             {
                 "name": name,
