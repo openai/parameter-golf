@@ -92,3 +92,8 @@ Starting from iteration 19, best BPB: 1.1428
   Expected:   -0.0055 bpb expected: roughly -0.004 from reducing float→int5/int6 mismatch on the large MLP/attention/bigram matrices, plus another ~-0.001 to -0.002 from making SWA average export-aligned weights instead of pure-float checkpoints.
   Risk:       Main risks are (1) slight step-count loss from extra tail-side quantize/dequant work and (2) over-constraining weights if the projection is too strong. This implementation mitigates both by touching o
   Applied (55,675 bytes, 1306 lines)
+  Running training experiment...
+  Running: torchrun --standalone --nproc_per_node=1 /workspace/parameter-golf/autoevolve/train_gpt.py
+  Log saved to /workspace/parameter-golf/autoevolve/logs/exp_0023.log
+  CRASH (exit code 1)
+    TIMEOUT: Experiment exceeded 25-minute hard limit (10 train + 10 eval + 5 buffer)
