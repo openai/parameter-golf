@@ -1,0 +1,28 @@
+{
+  "author": "alertcat",
+  "github_id": "alertcat",
+  "name": "11L XSA4 + EMA + TTT + Int6 MLP3x + SmearGate + BigramHash",
+  "blurb": "PR #315 baseline (XSA on last 4 layers, EMA decay=0.997) combined with Test-Time Training (3-epoch SGD, lr=0.002, freeze first 2 blocks). TTT adapts model weights to validation distribution at eval time (~47s). First submission combining XSA+EMA+TTT.",
+  "date": "2026-03-21T10:45:00Z",
+  "val_loss": 1.90014878,
+  "val_bpb": 1.12537812,
+  "pre_quant_val_bpb": 1.1430,
+  "step_stop": 7068,
+  "wallclock_seconds": 600.0,
+  "eval_time_seconds": 120.0,
+  "ttt_time_seconds": 47.4,
+  "num_layers": 11,
+  "model_dim": 512,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "mlp_mult": 3,
+  "vocab_size": 1024,
+  "train_seq_len": 2048,
+  "seeds": {
+    "1337": {"val_bpb": 1.12583985, "steps": 7070},
+    "42": {"val_bpb": 1.12537812, "steps": 7068},
+    "2024": {"val_bpb": 1.12558842, "steps": 7069}
+  },
+  "mean_val_bpb": 1.12560213,
+  "std_val_bpb": 0.00023
+}
