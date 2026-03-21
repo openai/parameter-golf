@@ -102,6 +102,10 @@ class Hyperparameters:
     attn_variant = os.environ.get("ATTN_VARIANT", "standard")
     latent_kv_dim = int(os.environ.get("LATENT_KV_DIM", 64))
 
+    # Block type: "standard" (attn+MLP), "light" (conv+gate only), "hybrid" (attn + light blocks)
+    block_type = os.environ.get("BLOCK_TYPE", "standard")
+    num_light_blocks = int(os.environ.get("NUM_LIGHT_BLOCKS", 3))
+
 # -----------------------------
 # MUON OPTIMIZER
 # -----------------------------
@@ -773,6 +777,77 @@ class SingleKVAttention(nn.Module):
         return self.proj(y)
 
 
+class LightBlock(nn.Module):
+    """Radical alternative to attention+MLP. No QKV, no softmax, no sqrt(d).
+
+    Instead of the standard:
+      attention: Q=Wq@x, K=Wk@x, V=Wv@x, out=softmax(QK^T/sqrt(d))V  (~1.6M params)
+      mlp: out=proj(relu²(fc(x)))  (~1.6M params)
+      total: ~3.2M params per layer
+
+    This block does:
+      1. Causal conv (local pattern capture, ~2K params)
+      2. Gated channel mixing (feature interactions, ~524K params)
+      total: ~526K params per layer = 6x cheaper
+
+    You can afford 30+ of these in 16MB instead of 11 attention blocks.
+    """
+    def __init__(self, dim: int, conv_kernel: int = 8, gate_expansion: float = 1.0):
+        super().__init__()
+        self.norm = RMSNorm()
+        # 1. Causal depthwise conv — captures local sequential patterns
+        self.conv = nn.Conv1d(dim, dim, conv_kernel, padding=0, groups=dim, bias=False)
+        # 2. Gated channel mixing — replaces both attention and MLP
+        gate_dim = int(dim * gate_expansion)
+        self.gate_proj = CastedLinear(dim, gate_dim, bias=False)
+        self.up_proj = CastedLinear(dim, gate_dim, bias=False)
+        self.down_proj = CastedLinear(gate_dim, dim, bias=False)
+        self.down_proj._zero_init = True
+        self.conv_kernel = conv_kernel
+        self.scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+
+    def forward(self, x: Tensor, x0: Tensor = None) -> Tensor:
+        residual = x
+        x = self.norm(x)
+        # Causal conv: each token sees its previous conv_kernel-1 neighbors
+        x_t = x.transpose(1, 2)
+        x_padded = F.pad(x_t, (self.conv_kernel - 1, 0))
+        x_conv = self.conv(x_padded).transpose(1, 2)
+        # Gated mixing: gate * up, then project down (SwiGLU-like)
+        gate = torch.sigmoid(self.gate_proj(x_conv))
+        up = self.up_proj(x_conv)
+        mixed = gate * up
+        out = self.down_proj(mixed)
+        return residual + self.scale.to(dtype=out.dtype)[None, None, :] * out
+
+
+class HybridBlock(nn.Module):
+    """One attention layer for global context + multiple LightBlocks for local processing.
+    Idea: you don't need attention at EVERY layer. Use it sparingly for global context,
+    then let cheap conv+gate blocks do the local feature processing."""
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float,
+                 rope_base: float, qk_gain_init: float, num_light_blocks: int = 3,
+                 attn_variant: str = "standard", latent_kv_dim: int = 64):
+        super().__init__()
+        self.attn_norm = RMSNorm()
+        self.attn = build_attention(attn_variant, dim, num_heads, num_kv_heads, rope_base, qk_gain_init, latent_kv_dim)
+        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        # Multiple cheap blocks instead of one expensive MLP
+        self.light_blocks = nn.ModuleList([LightBlock(dim) for _ in range(num_light_blocks)])
+
+    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+        mix = self.resid_mix.to(dtype=x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        # One attention pass for global context
+        attn_out = self.attn(self.attn_norm(x))
+        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        # Then multiple cheap local processing blocks
+        for lb in self.light_blocks:
+            x = lb(x)
+        return x
+
+
 class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: float):
         super().__init__()
@@ -902,6 +977,8 @@ class GPT(nn.Module):
         bigram_dim: int = 128,
         attn_variant: str = "standard",
         latent_kv_dim: int = 64,
+        block_type: str = "standard",
+        num_light_blocks: int = 3,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -917,13 +994,20 @@ class GPT(nn.Module):
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.smear = SmearGate(model_dim)
         self.local_conv = LocalContextConv(model_dim, kernel_size=4)
-        self.blocks = nn.ModuleList(
-            [
+        if block_type == "light":
+            self.blocks = nn.ModuleList([LightBlock(model_dim) for _ in range(num_layers)])
+        elif block_type == "hybrid":
+            self.blocks = nn.ModuleList([
+                HybridBlock(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
+                            num_light_blocks=num_light_blocks, attn_variant=attn_variant, latent_kv_dim=latent_kv_dim)
+                for _ in range(num_layers)
+            ])
+        else:
+            self.blocks = nn.ModuleList([
                 Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
                       attn_variant=attn_variant, latent_kv_dim=latent_kv_dim)
                 for _ in range(num_layers)
-            ]
-        )
+            ])
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -1178,6 +1262,8 @@ def main() -> None:
         bigram_dim=args.bigram_dim,
         attn_variant=args.attn_variant,
         latent_kv_dim=args.latent_kv_dim,
+        block_type=args.block_type,
+        num_light_blocks=args.num_light_blocks,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
