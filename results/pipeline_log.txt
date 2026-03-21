@@ -1,0 +1,82 @@
+[20:56:03] =========================================
+[20:56:03] PARAMETER GOLF PIPELINE START
+[20:56:03] =========================================
+[20:56:03] 
+[20:56:03] === PHASE 1: Architecture Sweep ===
+[20:56:03] Starting: recur_2x4_d768_h12 (script=train_gpt_mlx_recurrent.py)
+[21:23:01] Finished: recur_2x4_d768_h12 | BPB=2.33633184 | Best so far=2.27144657
+[21:23:01] Starting: recur_2x5_d768_h12 (script=train_gpt_mlx_recurrent.py)
+[21:59:01] Finished: recur_2x5_d768_h12 | BPB=2.31679810 | Best so far=2.27144657
+[21:59:01] Starting: recur_3x4_d768_h12 (script=train_gpt_mlx_recurrent.py)
+[22:13:02] 
+[22:13:02] =========================================
+[22:13:02] PIPELINE V2: BUDGET-MAXIMIZING SWEEP
+[22:13:02] =========================================
+[22:13:02] Current best: recurrent_768 at BPB=2.27144657
+[22:13:02] 
+[22:13:02] === PHASE 1: Architecture Sweep (budget-maximizing) ===
+[22:13:02] Starting: max_3x3_d1152_h12 (script=train_gpt_mlx_recurrent.py)
+[22:16:34] 
+[22:16:34] =========================================
+[22:16:34] ADAPTIVE EXPERIMENT RUNNER
+[22:16:34] =========================================
+[22:16:34] 
+[22:16:34] Current Leaderboard:
+[22:16:34]   Rank  Experiment                                    BPB          Dim    Config     Size      
+[22:16:34]   ----------------------------------------------------------------------------------------
+[22:16:34]   1     recurrent_768                                 2.271447     768    3x3        6.9MB     
+[22:16:34]   2     baseline_512_rerun                            2.303251     512    3x3        9.3MB     
+[22:16:34]   3     recur_2x5_d768_h12                            2.316798     768    2x5        5.2MB     
+[22:16:34]   4     recur_2x4_d768_h12                            2.336332     768    2x4        5.4MB     
+[22:16:34] 
+[22:16:34] --- Proposing experiment #1 ---
+[22:16:34]   Analysis: 4 experiments done, best=recurrent_768 BPB=2.2714
+[22:16:34]   Best config: unique=3 recur=3 dim=768 heads=12
+[22:16:34]   Dim trends: {768: 2.3081921700000003}
+[22:16:34]   Layer trends: {2: 2.32656497, 3: 2.27144657}
+[22:16:34]   Recur trends: {3: 2.27144657, 4: 2.33633184, 5: 2.3167981}
+[22:16:34]   Proposed: adaptive_enhanced_3x3_d768 — Enhanced version of current best (smear gate + backout)
+[22:16:34]   (19 other candidates in queue)
+[22:16:34] Running: adaptive_enhanced_3x3_d768
+[22:20:24] 
+[22:20:24] =========================================
+[22:20:24] ADAPTIVE EXPERIMENT RUNNER
+[22:20:24] =========================================
+[22:20:24] 
+[22:20:24] Current Leaderboard:
+[22:20:24]   Rank  Experiment                                    BPB          Dim    Config     Size      
+[22:20:24]   ----------------------------------------------------------------------------------------
+[22:20:24]   1     recurrent_768                                 2.271447     768    3x3        6.9MB     
+[22:20:24]   2     baseline_512_rerun                            2.303251     512    3x3        9.3MB     
+[22:20:24]   3     recur_2x5_d768_h12                            2.316798     768    2x5        5.2MB     
+[22:20:24]   4     recur_2x4_d768_h12                            2.336332     768    2x4        5.4MB     
+[22:20:24] 
+[22:20:24] --- Proposing experiment #1 ---
+[22:20:24]   Analysis: 4 experiments done, best=recurrent_768 BPB=2.2714
+[22:20:24]   Best config: unique=3 recur=3 dim=768 heads=12
+[22:20:24]   Dim trends: {768: 2.3081921700000003}
+[22:20:24]   Layer trends: {2: 2.32656497, 3: 2.27144657}
+[22:20:24]   Recur trends: {3: 2.27144657, 4: 2.33633184, 5: 2.3167981}
+[22:20:24]   Proposed: adaptive_enhanced_3x3_d768 — Enhanced version of current best (smear gate + backout)
+[22:20:24]   (19 other candidates in queue)
+[22:20:24] Running: adaptive_enhanced_3x3_d768
+[23:01:33] Result: BPB=2.516432
+[23:01:33] 
+[23:01:33] Current Leaderboard:
+[23:01:33]   Rank  Experiment                                    BPB          Dim    Config     Size      
+[23:01:33]   ----------------------------------------------------------------------------------------
+[23:01:33]   1     recurrent_768                                 2.271447     768    3x3        6.9MB     
+[23:01:33]   2     baseline_512_rerun                            2.303251     512    3x3        9.3MB     
+[23:01:33]   3     recur_2x5_d768_h12                            2.316798     768    2x5        5.2MB     
+[23:01:33]   4     recur_2x4_d768_h12                            2.336332     768    2x4        5.4MB     
+[23:01:33]   5     adaptive_enhanced_3x3_d768                    2.516432     768    3x3        6.3MB     
+[23:01:33] 
+[23:01:33] --- Proposing experiment #2 ---
+[23:01:33]   Analysis: 5 experiments done, best=recurrent_768 BPB=2.2714
+[23:01:33]   Best config: unique=3 recur=3 dim=768 heads=12
+[23:01:33]   Dim trends: {768: 2.360252145}
+[23:01:33]   Layer trends: {2: 2.32656497, 3: 2.3939393200000003}
+[23:01:33]   Recur trends: {3: 2.3939393200000003, 4: 2.33633184, 5: 2.3167981}
+[23:01:33]   Proposed: adaptive_3x3_d1024_h8 — Wider than best (+256), 12.7MB
+[23:01:33]   (19 other candidates in queue)
+[23:01:33] Running: adaptive_3x3_d1024_h8
