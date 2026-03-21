@@ -58,9 +58,9 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
@@ -90,16 +90,20 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.01))
-    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.02))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
+    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.04))
+    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.04))
 
     # Memory tokens: learnable tokens prepended to every sequence.
     num_memory_tokens = int(os.environ.get("NUM_MEMORY_TOKENS", 0))
 
     # Bigram hash embedding: inject token-pair info into the residual stream.
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
+
+    # Stochastic Weight Averaging: average checkpoints from late warmdown for smoother weights.
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
+    swa_every = int(os.environ.get("SWA_EVERY", 50))
 
     # Sliding window evaluation.
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", train_seq_len))
@@ -539,8 +543,14 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 
 
 # -----------------------------
-# INT6 MIXED QUANTIZATION
+# MIXED-PRECISION QUANTIZATION (int5/int6/int8 per layer category)
 # -----------------------------
+# MLP weights are most compressible → int5 [-16,15] saves ~1.8MB vs int6.
+# Attention weights need more precision → int6 [-32,31].
+# Embeddings/small tensors stay fp16.
+
+# Per-category bit width: maps category → (clip_max, label).
+QUANT_BITS = {"int5": (15, "int5"), "int6": (31, "int6"), "int8": (127, "int8")}
 
 def _classify_param(name: str) -> str:
     if "tok_emb" in name or "lm_head" in name:
@@ -551,20 +561,23 @@ def _classify_param(name: str) -> str:
         return "attn"
     return "other"
 
-def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
+def _quantize_per_row(t: Tensor, clip_max: int) -> tuple[Tensor, Tensor]:
+    """Symmetric per-row quantization to [-clip_max, clip_max]."""
     t32 = t.float()
     if t32.ndim == 2:
         row_max = t32.abs().amax(dim=1)
-        scale = (row_max / 31.0).clamp_min(1e-12).to(torch.float16)
+        scale = (row_max / clip_max).clamp_min(1e-12).to(torch.float16)
         scale = scale.clamp_min(torch.finfo(torch.float16).tiny)
-        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -32, 31).to(torch.int8)
+        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -clip_max, clip_max).to(torch.int8)
         return q, scale
     amax = t32.abs().max().item()
-    scale = torch.tensor(max(amax / 31.0, 1e-12), dtype=torch.float16)
-    q = torch.clamp(torch.round(t32 / scale.float()), -32, 31).to(torch.int8)
+    scale = torch.tensor(max(amax / clip_max, 1e-12), dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -clip_max, clip_max).to(torch.int8)
     return q, scale
 
-def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
+def mixed_quantize(state_dict: dict[str, Tensor], cat_bits: dict[str, str]):
+    """Quantize state dict with per-category bit widths.
+    cat_bits maps category ('mlp','attn','other') to bit label ('int5','int6','int8')."""
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     for name, tensor in state_dict.items():
@@ -582,20 +595,16 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             result[name] = t.to(dtype=torch.float16).contiguous()
             meta[name] = "passthrough_fp16"
             continue
-        if cat in int6_cats and t.ndim >= 1:
-            q, s = quantize_int6_per_row(t)
-            result[name + ".q"] = q
-            result[name + ".scale"] = s
-            meta[name] = {"type": "int6"}
-        else:
-            q, s = quantize_float_tensor(t)
-            result[name + ".q"] = q
-            result[name + ".scale"] = s
-            meta[name] = {"type": "int8"}
+        bit_label = cat_bits.get(cat, "int8")
+        clip_max = QUANT_BITS[bit_label][0]
+        q, s = _quantize_per_row(t, clip_max)
+        result[name + ".q"] = q
+        result[name + ".scale"] = s
+        meta[name] = {"type": bit_label}
     return result, meta
 
-def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
-                          template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
+def dequantize_mixed(result: dict[str, Tensor], meta: dict[str, object],
+                     template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     for name, orig in template_sd.items():
         info = meta[name]
@@ -1334,6 +1343,11 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
+
+    # SWA: accumulate weight snapshots during late warmdown for a smoother final model.
+    swa_sum: dict[str, Tensor] | None = None
+    swa_count = 0
+
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1409,6 +1423,18 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
+
+        # SWA: collect snapshots during the last swa_start_frac of warmdown.
+        # We use lr_mul < swa_start_frac as proxy for "in late warmdown".
+        if scale < args.swa_start_frac and step % args.swa_every == 0:
+            sd = base_model.state_dict()
+            if swa_sum is None:
+                swa_sum = {k: v.detach().cpu().clone().float() for k, v in sd.items()}
+            else:
+                for k, v in sd.items():
+                    swa_sum[k] += v.detach().cpu().float()
+            swa_count += 1
+
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
             args.train_log_every > 0
@@ -1439,6 +1465,15 @@ def main() -> None:
     # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
+
+    # Apply SWA averaged weights if we collected any snapshots.
+    if swa_sum is not None and swa_count > 1:
+        log0(f"swa: averaging {swa_count} checkpoints")
+        avg_sd = {k: (v / swa_count).to(base_model.state_dict()[k].dtype)
+                  for k, v in swa_sum.items()}
+        base_model.load_state_dict(avg_sd, strict=True)
+    else:
+        log0("swa: no checkpoints collected, using final weights")
 
     # Strip MTP auxiliary heads before export — training only.
     if base_model.mtp_heads is not None:
@@ -1498,9 +1533,12 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
-    # --- INT6 MIXED QUANTIZATION + ZSTD EXPORT ---
+    # --- MIXED INT5/INT6 QUANTIZATION + ZSTD EXPORT ---
+    # MLP → int5 (most compressible), attention → int6 (needs precision)
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
-    quant_result6, quant_meta6 = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
+    quant_result6, quant_meta6 = mixed_quantize(
+        sd_cpu, {"mlp": "int5", "attn": "int6", "other": "int8"}
+    )
     quant_buf6 = io.BytesIO()
     torch.save({"w": quant_result6, "m": quant_meta6}, quant_buf6)
     quant_raw6 = quant_buf6.getvalue()
@@ -1525,7 +1563,7 @@ def main() -> None:
     else:
         decompressed6 = zlib.decompress(quant_blob6_disk)
     quant_state6 = torch.load(io.BytesIO(decompressed6), map_location="cpu")
-    base_model.load_state_dict(dequantize_mixed_int6(quant_state6["w"], quant_state6["m"], sd_cpu), strict=True)
+    base_model.load_state_dict(dequantize_mixed(quant_state6["w"], quant_state6["m"], sd_cpu), strict=True)
     torch.cuda.synchronize()
     t_q6eval = time.perf_counter()
     q6_val_loss, q6_val_bpb = eval_val(
