@@ -104,7 +104,7 @@ class Hyperparameters:
 
     # SWA hyperparameters
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
-    swa_every = int(os.environ.get("SWA_EVERY", 200))
+    swa_every = int(os.environ.get("SWA_EVERY", 50))
 
     # BigramHash
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
@@ -1265,7 +1265,7 @@ def main() -> None:
     # -----------------------------
 
     global _QAT_ENABLED
-    _QAT_ENABLED = USE_INT6  # Enable QAT during training if using int6
+    _QAT_ENABLED = False  # No QAT — rely on WD=0.04 + SWA for quant robustness
     log0(f"qat_enabled:{_QAT_ENABLED}")
 
     training_time_ms = 0.0
@@ -1500,7 +1500,7 @@ if __name__ == "__main__":
 ====================================================================================================
 Running Python 3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]
 Running PyTorch 2.8.0+cu128
-Sat Mar 21 00:25:48 2026       
+Sat Mar 21 03:46:32 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 590.48.01              Driver Version: 590.48.01      CUDA Version: 13.1     |
 +-----------------------------------------+------------------------+----------------------+
@@ -1509,35 +1509,35 @@ Sat Mar 21 00:25:48 2026
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA H100 80GB HBM3          On  |   00000000:53:00.0 Off |                    0 |
-| N/A   47C    P0            112W /  700W |    1542MiB /  81559MiB |      0%      Default |
+| N/A   32C    P0            104W /  700W |    1542MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   1  NVIDIA H100 80GB HBM3          On  |   00000000:64:00.0 Off |                    0 |
-| N/A   53C    P0            113W /  700W |    2145MiB /  81559MiB |      0%      Default |
+| N/A   34C    P0            104W /  700W |    1618MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   2  NVIDIA H100 80GB HBM3          On  |   00000000:75:00.0 Off |                    0 |
-| N/A   49C    P0            112W /  700W |    1644MiB /  81559MiB |      0%      Default |
+| N/A   33C    P0            104W /  700W |    1642MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   3  NVIDIA H100 80GB HBM3          On  |   00000000:86:00.0 Off |                    0 |
-| N/A   57C    P0            117W /  700W |    1532MiB /  81559MiB |      0%      Default |
+| N/A   37C    P0            106W /  700W |    1530MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   4  NVIDIA H100 80GB HBM3          On  |   00000000:97:00.0 Off |                    0 |
-| N/A   56C    P0            117W /  700W |    2339MiB /  81559MiB |      0%      Default |
+| N/A   36C    P0            103W /  700W |    1616MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   5  NVIDIA H100 80GB HBM3          On  |   00000000:A8:00.0 Off |                    0 |
-| N/A   46C    P0            112W /  700W |    2067MiB /  81559MiB |      0%      Default |
+| N/A   31C    P0            103W /  700W |    1538MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   6  NVIDIA H100 80GB HBM3          On  |   00000000:B9:00.0 Off |                    0 |
-| N/A   53C    P0            114W /  700W |    1560MiB /  81559MiB |      0%      Default |
+| N/A   35C    P0            104W /  700W |    1560MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   7  NVIDIA H100 80GB HBM3          On  |   00000000:CA:00.0 Off |                    0 |
-| N/A   48C    P0            112W /  700W |    1528MiB /  81559MiB |      0%      Default |
+| N/A   33C    P0            104W /  700W |    1528MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 
@@ -1546,17 +1546,14 @@ Sat Mar 21 00:25:48 2026
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
 |        ID   ID                                                               Usage      |
 |=========================================================================================|
-|    0   N/A  N/A         1028110      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    1   N/A  N/A          960859      C   /opt/venv/bin/python                    522MiB |
-|    1   N/A  N/A         1028111      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    2   N/A  N/A         1028112      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    3   N/A  N/A         1028113      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    4   N/A  N/A         1004724      C   /opt/venv/bin/python                    716MiB |
-|    4   N/A  N/A         1028114      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    5   N/A  N/A         1024295      C   /opt/venv/bin/python                    522MiB |
-|    5   N/A  N/A         1028115      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    6   N/A  N/A         1028116      C   .../envs/fi-bench/bin/python3.12       1516MiB |
-|    7   N/A  N/A         1028117      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    0   N/A  N/A         1082273      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    1   N/A  N/A         1082274      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    2   N/A  N/A         1082275      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    3   N/A  N/A         1082276      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    4   N/A  N/A         1082277      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    5   N/A  N/A         1082278      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    6   N/A  N/A         1082279      C   .../envs/fi-bench/bin/python3.12       1516MiB |
+|    7   N/A  N/A         1082280      C   .../envs/fi-bench/bin/python3.12       1516MiB |
 +-----------------------------------------------------------------------------------------+
 
 ====================================================================================================
@@ -1591,54 +1588,57 @@ warmup_step:17/20
 warmup_step:18/20
 warmup_step:19/20
 warmup_step:20/20
-qat_enabled:True
-step:1/20000 train_loss:6.9326 train_time:13514ms step_avg:13514.05ms
-step:2/20000 train_loss:8.6033 train_time:13609ms step_avg:6804.32ms
-step:3/20000 train_loss:8.6369 train_time:13713ms step_avg:4570.92ms
-step:4/20000 train_loss:8.5499 train_time:13818ms step_avg:3454.40ms
-step:5/20000 train_loss:8.3893 train_time:13923ms step_avg:2784.53ms
-step:6/20000 train_loss:8.1809 train_time:14028ms step_avg:2337.94ms
-step:7/20000 train_loss:7.8589 train_time:14132ms step_avg:2018.90ms
-step:8/20000 train_loss:7.5847 train_time:14237ms step_avg:1779.65ms
-step:9/20000 train_loss:7.1570 train_time:14342ms step_avg:1593.56ms
-step:10/20000 train_loss:6.8756 train_time:14447ms step_avg:1444.69ms
-step:200/20000 train_loss:2.5118 train_time:34531ms step_avg:172.65ms
-step:400/20000 train_loss:2.4565 train_time:55828ms step_avg:139.57ms
-step:600/20000 train_loss:2.3528 train_time:76952ms step_avg:128.25ms
-step:800/20000 train_loss:2.2474 train_time:98243ms step_avg:122.80ms
-step:1000/20000 train_loss:2.2818 train_time:119375ms step_avg:119.38ms
-step:1200/20000 train_loss:2.3527 train_time:140667ms step_avg:117.22ms
-step:1400/20000 train_loss:2.1851 train_time:161945ms step_avg:115.67ms
-step:1600/20000 train_loss:2.0765 train_time:183082ms step_avg:114.43ms
-step:1800/20000 train_loss:2.1562 train_time:204369ms step_avg:113.54ms
-step:2000/20000 train_loss:2.0653 train_time:225703ms step_avg:112.85ms
-step:2200/20000 train_loss:2.1386 train_time:249579ms step_avg:113.44ms
-step:2400/20000 train_loss:2.0597 train_time:270697ms step_avg:112.79ms
-step:2600/20000 train_loss:2.0987 train_time:291963ms step_avg:112.29ms
-step:2800/20000 train_loss:2.1427 train_time:313228ms step_avg:111.87ms
-step:3000/20000 train_loss:2.1419 train_time:334348ms step_avg:111.45ms
-step:3200/20000 train_loss:2.1491 train_time:355617ms step_avg:111.13ms
-step:3400/20000 train_loss:1.9953 train_time:376735ms step_avg:110.80ms
-step:3600/20000 train_loss:2.0631 train_time:398003ms step_avg:110.56ms
-step:3800/20000 train_loss:2.0408 train_time:419116ms step_avg:110.29ms
-step:4000/20000 train_loss:1.9419 train_time:440390ms step_avg:110.10ms
-step:4200/20000 train_loss:2.1135 train_time:461651ms step_avg:109.92ms
-step:4400/20000 train_loss:1.9950 train_time:482770ms step_avg:109.72ms
-step:4600/20000 train_loss:1.8042 train_time:504050ms step_avg:109.58ms
-step:4800/20000 train_loss:2.3890 train_time:525167ms step_avg:109.41ms
-step:5000/20000 train_loss:2.0536 train_time:546437ms step_avg:109.29ms
-step:5200/20000 train_loss:1.9934 train_time:567547ms step_avg:109.14ms
-step:5400/20000 train_loss:1.9981 train_time:588811ms step_avg:109.04ms
-step:5506/20000 val_loss:1.9541 val_bpb:1.1573 train_time:600088ms step_avg:108.99ms
-stopping_early: wallclock_cap train_time:600088ms step:5506/20000
+qat_enabled:False
+step:1/20000 train_loss:6.9326 train_time:170ms step_avg:169.83ms
+step:2/20000 train_loss:8.6021 train_time:255ms step_avg:127.39ms
+step:3/20000 train_loss:7.9376 train_time:360ms step_avg:120.09ms
+step:4/20000 train_loss:7.2024 train_time:465ms step_avg:116.29ms
+step:5/20000 train_loss:6.9961 train_time:571ms step_avg:114.13ms
+step:6/20000 train_loss:6.9038 train_time:676ms step_avg:112.61ms
+step:7/20000 train_loss:6.8318 train_time:781ms step_avg:111.56ms
+step:8/20000 train_loss:6.8413 train_time:886ms step_avg:110.72ms
+step:9/20000 train_loss:6.4718 train_time:991ms step_avg:110.16ms
+step:10/20000 train_loss:6.1559 train_time:1097ms step_avg:109.69ms
+step:200/20000 train_loss:2.4245 train_time:21208ms step_avg:106.04ms
+step:400/20000 train_loss:2.4334 train_time:42510ms step_avg:106.28ms
+step:600/20000 train_loss:2.3426 train_time:63650ms step_avg:106.08ms
+step:800/20000 train_loss:2.2434 train_time:84940ms step_avg:106.17ms
+step:1000/20000 train_loss:2.2746 train_time:106073ms step_avg:106.07ms
+step:1200/20000 train_loss:2.3580 train_time:127344ms step_avg:106.12ms
+step:1400/20000 train_loss:2.1859 train_time:148620ms step_avg:106.16ms
+step:1600/20000 train_loss:2.0749 train_time:169744ms step_avg:106.09ms
+step:1800/20000 train_loss:2.1527 train_time:191023ms step_avg:106.12ms
+step:2000/20000 train_loss:2.0632 train_time:212156ms step_avg:106.08ms
+step:2200/20000 train_loss:2.1360 train_time:233423ms step_avg:106.10ms
+step:2400/20000 train_loss:2.0599 train_time:254564ms step_avg:106.07ms
+step:2600/20000 train_loss:2.1036 train_time:275839ms step_avg:106.09ms
+step:2800/20000 train_loss:2.1446 train_time:297103ms step_avg:106.11ms
+step:3000/20000 train_loss:2.1451 train_time:318225ms step_avg:106.08ms
+step:3200/20000 train_loss:2.1550 train_time:339488ms step_avg:106.09ms
+step:3400/20000 train_loss:1.9943 train_time:360604ms step_avg:106.06ms
+step:3600/20000 train_loss:2.0686 train_time:381877ms step_avg:106.08ms
+step:3800/20000 train_loss:2.0381 train_time:402999ms step_avg:106.05ms
+step:4000/20000 train_loss:1.9414 train_time:424283ms step_avg:106.07ms
+step:4200/20000 train_loss:2.1161 train_time:445562ms step_avg:106.09ms
+swa:start step:4200
+step:4400/20000 train_loss:1.9948 train_time:467197ms step_avg:106.18ms
+step:4600/20000 train_loss:1.8008 train_time:488881ms step_avg:106.28ms
+step:4800/20000 train_loss:2.3865 train_time:510459ms step_avg:106.35ms
+step:5000/20000 train_loss:2.0569 train_time:532181ms step_avg:106.44ms
+step:5200/20000 train_loss:1.9932 train_time:553745ms step_avg:106.49ms
+step:5400/20000 train_loss:2.0003 train_time:575453ms step_avg:106.57ms
+step:5600/20000 train_loss:1.9028 train_time:597167ms step_avg:106.64ms
+step:5626/20000 val_loss:1.9472 val_bpb:1.1532 train_time:600022ms step_avg:106.65ms
+stopping_early: wallclock_cap train_time:600022ms step:5626/20000
+swa: averaging 29 snapshots
 peak memory allocated: 20770 MiB reserved: 20982 MiB
 Serialized model: 105789375 bytes
-Code size: 64327 bytes
-Total submission size: 105853702 bytes
-Serialized model int6+zstd-22: 15515250 bytes (payload:27579746 raw_torch:27635985 payload_ratio:3.83x)
-Total submission size int6+zstd-22: 15579577 bytes
-final_int8_zlib_roundtrip val_loss:1.9681 val_bpb:1.1656 eval_time:11677ms
-final_int8_zlib_roundtrip_exact val_loss:1.96814693 val_bpb:1.16564747
-ttt_adapt_time:70990ms
-final_sliding_window val_loss:1.9272 val_bpb:1.1414 stride:64 eval_seq_len:2048 eval_time:437061ms
-final_sliding_window_exact val_loss:1.92724513 val_bpb:1.14142166
+Code size: 64336 bytes
+Total submission size: 105853711 bytes
+Serialized model int6+zstd-22: 15710178 bytes (payload:27579746 raw_torch:27635985 payload_ratio:3.83x)
+Total submission size int6+zstd-22: 15774514 bytes
+final_int8_zlib_roundtrip val_loss:1.9657 val_bpb:1.1642 eval_time:2338ms
+final_int8_zlib_roundtrip_exact val_loss:1.96566124 val_bpb:1.16417531
+ttt_adapt_time:70848ms
+final_sliding_window val_loss:1.9236 val_bpb:1.1393 stride:64 eval_seq_len:2048 eval_time:441475ms
+final_sliding_window_exact val_loss:1.92358805 val_bpb:1.13925574

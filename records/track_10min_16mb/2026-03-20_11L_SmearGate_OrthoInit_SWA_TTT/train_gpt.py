@@ -104,7 +104,7 @@ class Hyperparameters:
 
     # SWA hyperparameters
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
-    swa_every = int(os.environ.get("SWA_EVERY", 200))
+    swa_every = int(os.environ.get("SWA_EVERY", 50))
 
     # BigramHash
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
@@ -1265,7 +1265,7 @@ def main() -> None:
     # -----------------------------
 
     global _QAT_ENABLED
-    _QAT_ENABLED = USE_INT6  # Enable QAT during training if using int6
+    _QAT_ENABLED = False  # No QAT — rely on WD=0.04 + SWA for quant robustness
     log0(f"qat_enabled:{_QAT_ENABLED}")
 
     training_time_ms = 0.0
