@@ -834,8 +834,10 @@ class BatchedTTTLoRA(nn.Module):
         self.q_loras = nn.ModuleList()
         self.v_loras = nn.ModuleList()
         for block in model.blocks:
-            self.q_loras.append(BatchedLinearLoRA(bsz, dim, block.attn.c_q.weight.shape[0], rank))
-            self.v_loras.append(BatchedLinearLoRA(bsz, dim, block.attn.c_v.weight.shape[0], rank))
+            q_out = block.attn.c_q_w.shape[-1] if hasattr(block.attn, 'c_q_w') else block.attn.c_q.weight.shape[0]
+            v_out = block.attn.c_v.weight.shape[0]
+            self.q_loras.append(BatchedLinearLoRA(bsz, dim, q_out, rank))
+            self.v_loras.append(BatchedLinearLoRA(bsz, dim, v_out, rank))
 
     def reset(self) -> None:
         for m in self.modules():
