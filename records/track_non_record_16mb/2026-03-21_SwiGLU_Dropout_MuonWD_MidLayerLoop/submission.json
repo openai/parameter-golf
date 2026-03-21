@@ -1,0 +1,19 @@
+{
+    "author": "starfly-web",
+    "github_id": "starfly-web",
+    "email": "",
+    "name": "Compute Request: SwiGLU + Dropout + MuonWD + MidLayerLoop (2080 Ti)",
+    "blurb": "Formal Request for Compute (H100). Verified 16MB constraint compliance (4.8MB) via 1-iteration smoke test on 2080 Ti. Architecture features SwiGLU, 10% Dropout, extreme MuonWD, and Mid-layer Recurrence.",
+    "date": "2026-03-21T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 13.6422,
+    "val_bpb": 8.0797,
+    "pre_quant_val_loss": null,
+    "pre_quant_val_bpb": null,
+    "step_stop": 1,
+    "wallclock_seconds": 65,
+    "bytes_total": 4805799,
+    "bytes_model_int8_zlib": 4739887,
+    "bytes_code": 65912,
+    "gpu": "1xRTX2080Ti"
+}
