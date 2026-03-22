@@ -1685,12 +1685,13 @@ def main() -> None:
         if args.qat_threshold > 0 and scale < args.qat_threshold:
             apply_ste_int6(base_model)
 
-        # EMA: update running average every step (on GPU)
-        if ema_state is not None:
-            decay = args.ema_decay
+        # EMA: update running average periodically (every 10 steps to reduce overhead)
+        if ema_state is not None and step % 10 == 0:
+            # Use decay^10 to account for skipped steps
+            ema_decay_eff = args.ema_decay ** 10
             with torch.no_grad():
                 for k, v in base_model.state_dict().items():
-                    ema_state[k].mul_(decay).add_(v.detach().to(ema_state[k].dtype), alpha=1 - decay)
+                    ema_state[k].mul_(ema_decay_eff).add_(v.detach().to(ema_state[k].dtype), alpha=1 - ema_decay_eff)
 
         # SWA: collect checkpoint during warmdown phase
         if args.swa_every > 0 and scale < args.swa_start_frac and step % args.swa_every == 0:
