@@ -1196,8 +1196,7 @@ def main() -> None:
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
-    # CUDA graph tree mode: needed for reduce-overhead to manage graph segments
-    torch._inductor.config.triton.cudagraph_trees = True
+    torch._inductor.config.triton.cudagraph_trees = False
 
     # Set MLP activation before model creation
     MLP._activation = args.mlp_activation
@@ -1310,7 +1309,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, mode='reduce-overhead', dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     # Use DDP or manual grad sync based on env var
     use_manual_sync = bool(int(os.environ.get("USE_MANUAL_SYNC", "0")))
     if use_manual_sync:
@@ -1798,7 +1797,7 @@ def main() -> None:
         torch.cuda.synchronize()
         log0(f"ttt:completed in {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
-    compiled_eval = torch.compile(eval_model, mode='reduce-overhead', dynamic=False, fullgraph=True)
+    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
 
     # Standard non-overlapping eval (sanity check)
     torch.cuda.synchronize()
