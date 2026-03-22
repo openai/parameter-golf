@@ -53,6 +53,18 @@ Both converged to: `[0.127, 0.127, 0.699]`
 - The model essentially learned to "turn off" early gravity — confirming that at
   300 steps, direct early-loop supervision is noise rather than signal
 
+## SOTA254 Improvement Experiments (8×H100, 2026-03-21)
+
+Baseline: SOTA254 = **1.1303 BPB** (sliding window, seed 1337, zstd)
+
+| Exp | Change | Roundtrip BPB | Sliding BPB | Artifact | Notes |
+|-----|--------|-------------:|------------:|---------:|-------|
+| A | MTP (2 heads, weight=0.15) | 1.1619 | — | 17.11 MB | zlib fallback; worse than baseline |
+| B | SwiGLU MLP (hidden=1024) | 1.1570 | 1.1348 | 17.49 MB | zlib fallback; +0.0045 vs baseline |
+| C | Vocab 1536 | — | — | — | pending |
+
+**Bug found:** Training machine missing `zstandard` → fell back to zlib (+~1.5 MB). All artifacts over 16 MB limit. Fix: `pip install zstandard` and re-run.
+
 ## Next Steps
 
 1. Try gravity with warmup: zero gravity for first 100 steps, then ramp up
