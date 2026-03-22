@@ -373,8 +373,8 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             meta[name] = "passthrough_fp16"
             continue
         if cat in int6_cats and t.ndim >= 1:
-            # Use int5 for MLP weights (biggest tensors), int6 for attention
-            bits = 5 if ".mlp." in name else 6
+            # Use int5 for ALL large weights to fit 11L under 16MB
+            bits = 5
             q, s = quantize_intN_per_row(t, bits=bits)
             result[name + ".q"] = q
             result[name + ".scale"] = s
