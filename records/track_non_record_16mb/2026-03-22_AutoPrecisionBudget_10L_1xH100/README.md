@@ -1,56 +1,54 @@
-# Auto Precision Budget 10L (1xH100 Exploratory)
+# Auto Precision Budget 10L (1xH100 exploratory)
 
-This folder records a non-record exploratory submission built on top of the public `2026-03-20_10L_Int5MLP_MuonWD04_SWA50` recipe.
+This folder is a small non-record experiment built on top of the `2026-03-20_10L_Int5MLP_MuonWD04_SWA50` recipe.
 
-The main idea is to replace the base recipe's hand-authored mixed-precision export exceptions with a calibration-driven precision allocator:
-- start from the same default export policy
-- run a short post-training calibration pass after SWA and pruning
-- evaluate candidate tensor promotions under the real compressed artifact size
-- greedily spend bytes on the promotions that improve calibration `val_bpb` the most per added byte
+The motivation is simple: the current best compressed models already rely on a hand-designed precision budget, with a few tensors kept at higher precision and the rest quantized more aggressively. That works, but it is still mostly heuristic. I wanted to try a more systematic version of the same idea by measuring which tensors are actually most sensitive to quantization and then spending bytes there.
 
-This is aligned with a compression-first research direction: if the challenge is byte-limited, the next step after architecture tuning is to spend the precision budget where quantization hurts the most rather than relying only on fixed heuristics.
+The core change in `train_gpt.py` is a calibration-driven precision allocator. After training, SWA, and pruning, the script:
+- starts from the default mixed-precision export policy,
+- evaluates a small set of candidate tensor promotions,
+- measures the calibration impact after roundtripping through the compressed export path, and
+- greedily accepts promotions that give the best improvement per added byte while staying under the 16,000,000-byte limit.
 
-## What Changed
+The current candidate set includes:
+- `tok_emb.weight`
+- `bigram.proj.weight`
+- `bigram.embed.weight`
+- late-layer attention `c_k`, `c_v`, and `c_proj` weights
 
-The submitted `train_gpt.py` keeps the underlying 10-layer recipe intact and changes the export path:
-- adds `AUTO_PRECISION_POLICY`
-- adds short calibration on exported roundtrip weights
-- evaluates candidate promotions such as `tok_emb.weight`, `bigram.*`, and late-layer attention projections
-- uses a greedy byte allocator to choose promotions under the 16,000,000-byte cap
+I also added a rank-0-only calibration path for distributed runs so the same method can be reused in future 8xH100 experiments without repeatedly doing distributed calibration collectives.
 
-For distributed runs, calibration can be done rank-0-only with file-based policy sync. This keeps the idea compatible with future 8xH100 runs without requiring repeated distributed calibration collectives.
+## Submitted run
 
-## Submitted Run
+This submission is intentionally modest. It is a cheap 1xH100 Modal smoke run, not a leaderboard attempt.
 
-This is not intended to satisfy the main 10-minute leaderboard requirements. It is a cheap 1xH100 Modal smoke run submitted as an in-progress non-record experiment.
-
-Run configuration:
+Configuration:
 - GPU: `1xH100`
-- Train data: `--train-shards 1`
+- Training data: `--train-shards 1`
 - `MAX_WALLCLOCK_SECONDS=60`
 - `ITERATIONS=150`
 - `AUTO_CALIBRATION_WINDOWS=16`
 - `FINAL_EVAL_MAX_WINDOWS=16`
 
-Because the final eval is intentionally capped to 16 sliding windows for cost, the reported metric is a smoke metric rather than a full-validation leaderboard metric. The point of this submission is to document the method and show that it runs successfully under the byte cap with a concrete sensitivity-driven policy search.
+Because the final evaluation is capped to 16 sliding windows, the reported number is a smoke metric rather than a full-validation metric. I am submitting it as a concrete, working non-record experiment that motivates further runs, not as a strong score claim.
 
-## Results
+## Result
 
 From `train.log`:
-- training stopped at `87/150` steps due to the 60-second wallclock cap
+- training stopped at `87/150` steps because of the 60-second wallclock cap
 - final exact metric: `val_loss:5.53668879`, `val_bpb:3.08435975`
 - compressed model bytes: `15,771,560`
 - total submission bytes: `15,836,818`
 - selected promotions: `blocks.9.attn.c_k.weight`, `blocks.9.attn.c_v.weight`
 
-During earlier paired smoke testing on the same idea family, the auto-precision allocator also showed a small improvement over a fixed export policy, which is why this branch is worth keeping alive for longer 8xH100 experiments.
+In earlier paired smoke testing on the same idea, the allocator also showed a small improvement over a fixed export policy, which is why I think this direction is still worth pursuing.
 
-## Why This Is Worth Exploring
+## Why I think this is worth exploring
 
-Even if the gains remain small, this is a useful long-term direction:
-- the current strongest recipes already depend on hand-tuned mixed precision
-- a sensitivity-driven allocator can generalize across future architecture changes
-- negative results still tell us which tensors are and are not the real quantization bottlenecks
+Even if the gain here is small, I think the idea is useful for longer-term work:
+- strong current recipes already depend on manual mixed-precision choices,
+- a sensitivity-driven allocator should transfer better across future architecture changes,
+- and even negative results help identify which tensors are real quantization bottlenecks versus harmless heuristics.
 
 Included files:
 - `train_gpt.py`
