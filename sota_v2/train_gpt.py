@@ -119,6 +119,8 @@ class Hyperparameters:
     ttt_cosine_decay = bool(int(os.environ.get("TTT_COSINE_DECAY", "1")))
     ttt_discriminative_lr = bool(int(os.environ.get("TTT_DISCRIMINATIVE_LR", "1")))
     ttt_wd = float(os.environ.get("TTT_WD", 0.01))
+    ttt_sam = bool(int(os.environ.get("TTT_SAM", "0")))
+    ttt_sam_rho = float(os.environ.get("TTT_SAM_RHO", 0.05))
 
     # Sequence length curriculum
     seq_curriculum_enabled = bool(int(os.environ.get("SEQ_CURRICULUM", "1")))
@@ -1309,6 +1311,31 @@ def ttt_adapt(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn
                     if p.grad is not None:
                         dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
 
+            if args.ttt_sam:
+                # SAM: perturb weights in gradient direction, recompute gradient there
+                with torch.no_grad():
+                    grad_norm = torch.sqrt(sum(
+                        p.grad.norm() ** 2 for p in all_params if p.grad is not None
+                    ))
+                    for p in all_params:
+                        if p.grad is not None:
+                            p._sam_backup = p.data.clone()
+                            eps = args.ttt_sam_rho * p.grad / (grad_norm + 1e-12)
+                            p.data.add_(eps)
+                optimizer.zero_grad(set_to_none=True)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    loss2 = base_model(x, y)
+                loss2.backward()
+                if world_size > 1:
+                    for p in all_params:
+                        if p.grad is not None:
+                            dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+                with torch.no_grad():
+                    for p in all_params:
+                        if hasattr(p, '_sam_backup'):
+                            p.data.copy_(p._sam_backup)
+                            del p._sam_backup
+
             torch.nn.utils.clip_grad_norm_(all_params, 1.0)
             optimizer.step()
 
@@ -1822,7 +1849,8 @@ def main() -> None:
             dist.barrier()
         if master_process:
             log0(f"ttt_v2:start lr={args.ttt_lr} momentum={args.ttt_momentum} epochs={args.ttt_epochs} "
-                 f"cosine_decay={args.ttt_cosine_decay} discriminative_lr={args.ttt_discriminative_lr} wd={args.ttt_wd}")
+                 f"cosine_decay={args.ttt_cosine_decay} discriminative_lr={args.ttt_discriminative_lr} wd={args.ttt_wd}"
+                 f"{f' sam=True rho={args.ttt_sam_rho}' if args.ttt_sam else ''}")
         t_ttt = time.perf_counter()
         ttt_adapt(args, eval_model, device, val_tokens, rank=rank, world_size=world_size, log_fn=log0)
         if master_process:
