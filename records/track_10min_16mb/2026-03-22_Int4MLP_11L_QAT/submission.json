@@ -1,6 +1,6 @@
 {
   "name": "Bharath",
-  "github": "",
+  "github": "Bharath-970",
   "val_bpb": null,
   "notes": "Int4 nibble-packed MLP + 11 layers + QAT (STE). Pending training run on 8xH100.",
   "techniques": [
