@@ -135,6 +135,11 @@ class Hyperparameters:
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
 
+    # Even/odd head differential: zero-cost DiffAttn variant applied post-attention.
+    # Splits heads into even/odd pairs, subtracts odd from even to cancel noise.
+    # Replaces XSA on enabled layers. Set to last N layers (0 = disabled).
+    eodiff_last_n = int(os.environ.get("EODIFF_LAST_N", "0"))
+
     # Self-distillation TTT: post-training KL-divergence adaptation on val data.
     # Preserves XSA patterns (unlike hard-label TTT which conflicts with XSA).
     sdttt_enabled = bool(int(os.environ.get("SDTTT_ENABLED", "0")))
@@ -669,6 +674,7 @@ class CausalSelfAttention(nn.Module):
         self.rope_dims = 0  # set by GPT.__init__ for partial RoPE
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
         self.use_xsa = False  # set by GPT.__init__ for deep layers only
+        self.use_eodiff = False  # set by GPT.__init__ for even/odd differential
 
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
         """Efficient XSA: subtract self-value projection via GQA-aware reshape (no repeat_interleave).
@@ -676,12 +682,22 @@ class CausalSelfAttention(nn.Module):
         B, T, H, D = y.shape
         Hkv = v.size(-2)
         group = H // Hkv
-        # Reshape y into KV head groups — free view, no memory alloc
-        y_g = y.reshape(B, T, Hkv, group, D)        # [B, T, Hkv, group, D]
-        vn = F.normalize(v, dim=-1).unsqueeze(-2)    # [B, T, Hkv, 1, D] — broadcast ready
-        # Project out self-value component per KV head group
+        y_g = y.reshape(B, T, Hkv, group, D)
+        vn = F.normalize(v, dim=-1).unsqueeze(-2)
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
+
+    def _eodiff(self, y: Tensor) -> Tensor:
+        """Head-half differential: zero-cost noise cancellation.
+        Splits heads into first/second halves, subtracts to cancel shared noise.
+        Uses simple dim-2 slicing only (no view/stack) for torch.compile safety."""
+        B, T, H, D = y.shape
+        h = H // 2
+        y1 = y[:, :, :h, :]  # first 4 heads
+        y2 = y[:, :, h:, :]  # last 4 heads
+        lam = self.eodiff_lambda.to(dtype=y.dtype)
+        diff = y1 - lam * y2
+        return torch.cat([diff, y1 + y2], dim=2)
 
     def forward(self, x: Tensor, v_embed: Tensor | None = None) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -699,7 +715,9 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
         y = flash_attn_3_func(q, k, v, causal=True)
-        if self.use_xsa:
+        if self.use_eodiff:
+            y = self._eodiff(y)
+        elif self.use_xsa:
             y = self._xsa_efficient(y, v)
         y = y.reshape(bsz, seqlen, dim)
         return self.proj(y)
@@ -834,6 +852,7 @@ class GPT(nn.Module):
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
         xsa_last_n: int = 0,
+        eodiff_last_n: int = 0,
         rope_dims: int = 0,
         ln_scale: bool = False,
         dtg: bool = False,
@@ -904,6 +923,12 @@ class GPT(nn.Module):
         if xsa_last_n > 0:
             for i in range(max(0, num_layers - xsa_last_n), num_layers):
                 self.blocks[i].attn.use_xsa = True
+        # Enable head-half differential (replaces XSA on those layers)
+        if eodiff_last_n > 0:
+            for i in range(max(0, num_layers - eodiff_last_n), num_layers):
+                self.blocks[i].attn.use_eodiff = True
+                self.blocks[i].attn.use_xsa = False
+                self.blocks[i].attn.eodiff_lambda = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -1400,6 +1425,7 @@ def main() -> None:
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
         xsa_last_n=args.xsa_last_n,
+        eodiff_last_n=args.eodiff_last_n,
         rope_dims=args.rope_dims,
         ln_scale=args.ln_scale,
         dtg=args.dtg_enabled,
@@ -1758,7 +1784,8 @@ def main() -> None:
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         mtp_num_heads=0, mtp_loss_weight=0.0,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
-        xsa_last_n=args.xsa_last_n,  # must match training model
+        xsa_last_n=args.xsa_last_n,
+        eodiff_last_n=args.eodiff_last_n,  # must match training model
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
     ).to(device).bfloat16()
