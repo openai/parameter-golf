@@ -663,6 +663,157 @@ class CausalSelfAttention(nn.Module):
         return self.proj(y)
 
 
+class PolyAttention(nn.Module):
+    """Replace softmax with polynomial: attn = (1 + QK^T/d)^2.
+    O(n) via kernel trick for degree-2 polynomials. No softmax, no sqrt(d)."""
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float):
+        super().__init__()
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = dim // num_heads
+        kv_dim = self.num_kv_heads * self.head_dim
+        self.c_q = CastedLinear(dim, dim, bias=False)
+        self.c_k = CastedLinear(dim, kv_dim, bias=False)
+        self.c_v = CastedLinear(dim, kv_dim, bias=False)
+        self.proj = CastedLinear(dim, dim, bias=False)
+        self.proj._zero_init = True
+        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
+        self.rotary = Rotary(self.head_dim, base=rope_base)
+
+    def forward(self, x: Tensor) -> Tensor:
+        bsz, seqlen, dim = x.shape
+        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = F.rms_norm(q, (q.size(-1),))
+        k = F.rms_norm(k, (k.size(-1),))
+        cos, sin = self.rotary(seqlen, x.device, q.dtype)
+        q = apply_rotary_emb(q, cos, sin)
+        k = apply_rotary_emb(k, cos, sin)
+        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+        n_rep = self.num_heads // self.num_kv_heads
+        if n_rep > 1:
+            k = k.unsqueeze(2).expand(-1, -1, n_rep, -1, -1).reshape(bsz, -1, seqlen, self.head_dim)
+            v = v.unsqueeze(2).expand(-1, -1, n_rep, -1, -1).reshape(bsz, -1, seqlen, self.head_dim)
+        # Polynomial attention: (1 + QK^T/d)^2 with causal mask
+        scale = 1.0 / self.head_dim
+        scores = torch.matmul(q, k.transpose(-2, -1)) * scale
+        # Causal mask
+        mask = torch.triu(torch.ones(seqlen, seqlen, device=x.device, dtype=torch.bool), diagonal=1)
+        scores = scores.masked_fill(mask[None, None, :, :], -1.0)
+        # Polynomial: (1 + score)^2 — no softmax
+        attn = (1.0 + scores).square()
+        attn = attn.masked_fill(mask[None, None, :, :], 0.0)
+        # Normalize rows so they sum to 1
+        attn = attn / (attn.sum(dim=-1, keepdim=True) + 1e-6)
+        y = torch.matmul(attn, v)
+        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        return self.proj(y)
+
+
+class DiffAttention(nn.Module):
+    """Microsoft Differential Attention: compute two attention patterns and subtract.
+    The subtraction cancels noise. Needs 65% params for same quality."""
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float):
+        super().__init__()
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = dim // num_heads
+        kv_dim = self.num_kv_heads * self.head_dim
+        # Two sets of Q/K for differential
+        self.c_q1 = CastedLinear(dim, dim, bias=False)
+        self.c_q2 = CastedLinear(dim, dim, bias=False)
+        self.c_k1 = CastedLinear(dim, kv_dim, bias=False)
+        self.c_k2 = CastedLinear(dim, kv_dim, bias=False)
+        self.c_v = CastedLinear(dim, kv_dim, bias=False)
+        self.proj = CastedLinear(dim, dim, bias=False)
+        self.proj._zero_init = True
+        self.lambda_param = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
+        self.rotary = Rotary(self.head_dim, base=rope_base)
+
+    def forward(self, x: Tensor) -> Tensor:
+        bsz, seqlen, dim = x.shape
+        hd = self.head_dim
+        q1 = self.c_q1(x).reshape(bsz, seqlen, self.num_heads, hd).transpose(1, 2)
+        q2 = self.c_q2(x).reshape(bsz, seqlen, self.num_heads, hd).transpose(1, 2)
+        k1 = self.c_k1(x).reshape(bsz, seqlen, self.num_kv_heads, hd).transpose(1, 2)
+        k2 = self.c_k2(x).reshape(bsz, seqlen, self.num_kv_heads, hd).transpose(1, 2)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, hd).transpose(1, 2)
+        for q in [q1, q2]:
+            q = F.rms_norm(q, (q.size(-1),))
+        for k in [k1, k2]:
+            k = F.rms_norm(k, (k.size(-1),))
+        cos, sin = self.rotary(seqlen, x.device, q1.dtype)
+        q1, q2 = apply_rotary_emb(q1, cos, sin), apply_rotary_emb(q2, cos, sin)
+        k1, k2 = apply_rotary_emb(k1, cos, sin), apply_rotary_emb(k2, cos, sin)
+        n_rep = self.num_heads // self.num_kv_heads
+        if n_rep > 1:
+            for t in [k1, k2, v]:
+                t = t.unsqueeze(2).expand(-1, -1, n_rep, -1, -1).reshape(bsz, -1, seqlen, hd)
+        # Two attention patterns
+        a1 = F.scaled_dot_product_attention(q1, k1, v, attn_mask=None, is_causal=True)
+        a2 = F.scaled_dot_product_attention(q2, k2, v, attn_mask=None, is_causal=True)
+        # Differential: subtract with learned lambda
+        lam = torch.sigmoid(self.lambda_param)
+        y = lam * a1 + (1 - lam) * a1 - lam * a2
+        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        return self.proj(y)
+
+
+class DGAttention(nn.Module):
+    """David's D/G concept: replace QKV with Designator/Gradient projections.
+
+    D (Designator): compressed token fingerprint for matching. Instead of
+    full Q/K dot product, tokens match via element-wise comparison of small
+    designator vectors. Much cheaper than matrix multiply.
+
+    G (Gradient): tracks token-to-token differences. Instead of V passing
+    raw content, G passes the delta between tokens — what's NEW about this
+    token relative to context. Like differential coding for attention.
+
+    The math: score = sum(D_i * D_j) for matching (like attention but smaller),
+    output = sum(score * G_j) where G_j = x_j - running_mean(x).
+    """
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        # D: designator — compressed fingerprint (half the dim of standard Q/K)
+        d_dim = dim // 2
+        self.d_head_dim = d_dim // num_heads
+        self.c_d = CastedLinear(dim, d_dim, bias=False)
+        # G: gradient — what's new about this token
+        self.c_g = CastedLinear(dim, dim, bias=False)
+        self.proj = CastedLinear(dim, dim, bias=False)
+        self.proj._zero_init = True
+        self.scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.rotary = Rotary(self.d_head_dim, base=rope_base)
+
+    def forward(self, x: Tensor) -> Tensor:
+        bsz, seqlen, dim = x.shape
+        # D: compressed designator for matching
+        d = self.c_d(x).reshape(bsz, seqlen, self.num_heads, self.d_head_dim).transpose(1, 2)
+        d = F.rms_norm(d, (d.size(-1),))
+        cos, sin = self.rotary(seqlen, x.device, d.dtype)
+        d = apply_rotary_emb(d, cos, sin)
+        # G: gradient — token's unique contribution (x minus causal running mean)
+        cumsum = torch.cumsum(x, dim=1)
+        counts = torch.arange(1, seqlen + 1, device=x.device, dtype=x.dtype)[None, :, None]
+        running_mean = cumsum / counts
+        g = self.c_g(x - running_mean)
+        g = g.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        # Matching via D (cheaper than full QK — half dim)
+        scores = torch.matmul(d, d.transpose(-2, -1)) / (self.d_head_dim ** 0.5)
+        # Causal mask
+        mask = torch.triu(torch.ones(seqlen, seqlen, device=x.device, dtype=torch.bool), diagonal=1)
+        scores = scores.masked_fill(mask[None, None, :, :], float('-inf'))
+        attn = torch.softmax(scores, dim=-1)
+        # Aggregate gradients weighted by designator match
+        y = torch.matmul(attn, g)
+        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        return self.proj(y) * self.scale.to(dtype=y.dtype)[None, None, :]
+
+
 class SharedKVAttention(nn.Module):
     """K and V share the same projection — halves KV params.
     V = linear_transform(K) so they're related but not identical."""
@@ -933,6 +1084,12 @@ def build_attention(variant: str, dim: int, num_heads: int, num_kv_heads: int,
         return LatentKVAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, latent_kv_dim)
     elif variant == "single_kv":
         return SingleKVAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+    elif variant == "poly":
+        return PolyAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+    elif variant == "diff":
+        return DiffAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+    elif variant == "dg":
+        return DGAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
     else:
         return CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
 
