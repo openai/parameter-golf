@@ -1420,15 +1420,17 @@ def main() -> None:
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 25))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_lr = float(os.environ.get("TTT_LR", 0.008))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
-    ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
+    ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 64))
     if ttt_enabled:
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         log0(f"ttt:start epochs:{ttt_epochs} lr:{ttt_lr} batch_seqs:{ttt_batch_seqs}")
         eval_model.train()
+        ttt_compiled = torch.compile(eval_model, dynamic=False, fullgraph=True)
+        ttt_ddp = DDP(ttt_compiled, device_ids=[local_rank], broadcast_buffers=False) if distributed else ttt_compiled
         ttt_opt = torch.optim.SGD(eval_model.parameters(), lr=ttt_lr, momentum=ttt_momentum)
         seq_len = effective_eval_seq_len
         n_val = val_tokens.numel() - 1
@@ -1436,21 +1438,27 @@ def main() -> None:
         for ttt_ep in range(ttt_epochs):
             perm = torch.randperm(n_seqs)
             ep_loss, ep_count = 0.0, 0
-            for bs in range(0, n_seqs, ttt_batch_seqs):
-                be = min(bs + ttt_batch_seqs, n_seqs)
-                idx = perm[bs:be]
+            for bs in range(0, n_seqs, ttt_batch_seqs * world_size):
+                be = min(bs + ttt_batch_seqs * world_size, n_seqs)
+                local_bs = bs + rank * ttt_batch_seqs
+                local_be = min(local_bs + ttt_batch_seqs, be)
+                if local_bs >= be:
+                    continue
+                idx = perm[local_bs:local_be]
                 bx = torch.stack([val_tokens[i * seq_len : i * seq_len + seq_len] for i in idx]).to(device=device, dtype=torch.int64)
                 by = torch.stack([val_tokens[i * seq_len + 1 : i * seq_len + seq_len + 1] for i in idx]).to(device=device, dtype=torch.int64)
                 ttt_opt.zero_grad(set_to_none=True)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    loss = eval_model(bx, by)
+                    loss = ttt_ddp(bx, by)
                 loss.backward()
                 ttt_opt.step()
-                ep_loss += loss.item() * (be - bs)
-                ep_count += be - bs
-            if ttt_ep == 0 or (ttt_ep + 1) % 5 == 0 or ttt_ep == ttt_epochs - 1:
-                log0(f"ttt:epoch:{ttt_ep + 1}/{ttt_epochs} loss:{ep_loss / max(ep_count, 1):.4f}")
+                ep_loss += loss.item() * (local_be - local_bs)
+                ep_count += local_be - local_bs
+            log0(f"ttt:epoch:{ttt_ep + 1}/{ttt_epochs} loss:{ep_loss / max(ep_count, 1):.4f}")
         eval_model.eval()
+        if distributed:
+            for p in eval_model.parameters():
+                dist.broadcast(p.data, src=0)
         torch.cuda.synchronize()
         log0(f"ttt:done time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
     sw_seq_len = effective_eval_seq_len
