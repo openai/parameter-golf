@@ -96,6 +96,7 @@ class Hyperparameters:
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
+    swa_start_step = int(os.environ.get("SWA_START_STEP", 4500))
 
     # FP8 training via TransformerEngine
     use_fp8 = bool(int(os.environ.get("USE_FP8", "1"))) and _HAS_TE
@@ -1691,7 +1692,8 @@ def main() -> None:
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
         # SWA: collect checkpoints during warmdown (exclude TE internal state)
-        if args.swa_enabled and scale < args.swa_start_frac and step % args.swa_every == 0:
+        swa_should_start = scale < args.swa_start_frac or (args.swa_start_step > 0 and step >= args.swa_start_step)
+        if args.swa_enabled and swa_should_start and step % args.swa_every == 0:
             if swa_state is None:
                 swa_state = {name: t.detach().cpu().clone() for name, t in base_model.state_dict().items()
                              if not _is_te_internal(name)}
