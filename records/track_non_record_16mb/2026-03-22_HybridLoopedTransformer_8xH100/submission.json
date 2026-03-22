@@ -1,0 +1,16 @@
+{
+  "name": "Thomas",
+  "github_id": "trasnake87",
+  "val_bpb": 1.2334,
+  "val_loss": 2.0826,
+  "hardware": "8xH100 SXM 80GB",
+  "steps": 2169,
+  "step_avg_ms": 276.72,
+  "training_time_s": 600,
+  "artifact_bytes": 14156560,
+  "model_params": 20041794,
+  "date": "2026-03-22",
+  "seed": 42,
+  "track": "non_record",
+  "summary": "Hybrid Depth-Recurrent Transformer: 8 physical layers x 2 loops = 16 effective depth from 20M stored params. Unique entry/exit layers + shared middle with int8 quantization prevents error compounding. Per-loop learnable scale parameters. Input features: word-position, copy flags, unigram frequency."
+}
