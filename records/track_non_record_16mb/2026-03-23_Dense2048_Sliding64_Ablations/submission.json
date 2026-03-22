@@ -1,0 +1,18 @@
+{
+  "author": "Abhishek Raj Dhardubey",
+  "github_id": "abhishekrajdhardubey",
+  "name": "Dense 2048 + Sliding64 Ablations",
+  "blurb": "In-progress non-record submission built around the best dense long-context branch found so far. The 2048-token train/eval + sliding-window stride-64 recipe reached 1.29280874 BPB under the 16MB artifact cap, while several neighboring ablations and a first LoRA-TTT attempt regressed.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-10min-16mb",
+  "val_loss": 2.18285341,
+  "val_bpb": 1.29280874,
+  "bytes_total": 13039699,
+  "bytes_model_int8_zlib": 12984216,
+  "bytes_code": 55483,
+  "notes": {
+    "best_branch": "dense_2048_stride64",
+    "ttt_default": false,
+    "eight_gpu_run": "in_progress"
+  }
+}
