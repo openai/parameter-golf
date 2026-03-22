@@ -1,0 +1,5 @@
+numpy
+torch
+sentencepiece
+zstandard
+flash-attn
