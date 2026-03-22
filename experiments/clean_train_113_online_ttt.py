@@ -1,9 +1,5 @@
 """
-clean_train_132_cudagraph.py — CUDA graph optimized version.
-Based on PR198 with minimal proven additions:
-  Added: Pre-allocated skip buffers for CUDA graph compatibility
-  Added: torch.compile mode='reduce-overhead' for CUDA graphs
-  Added: BENCHMARK_ONLY mode for quick step-time measurement
+clean_train.py — Based on PR198 with minimal proven additions:
   - leaky_relu(0.5)^2 activation option (MLP_ACTIVATION=leaky2)
   - Int5 MLP post-quant (INT5_MLP=1)
   - Magnitude pruning (PRUNE_FRAC=0.02)
@@ -125,14 +121,7 @@ class Hyperparameters:
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
     ttt_freeze_layers = int(os.environ.get("TTT_FREEZE_LAYERS", 2))  # PR254 freezes first 2
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
-    # CUDA graph settings
-    max_batch_seqs = int(os.environ.get("MAX_BATCH_SEQS", 48))  # max sequences per GPU for buffer pre-alloc
-    max_seq_len_buf = int(os.environ.get("MAX_SEQ_LEN_BUF", 2048))  # max seq len for buffer pre-alloc
-    # Quality improvements from modded-nanogpt
-    partial_key_offset = bool(int(os.environ.get("PARTIAL_KEY_OFFSET", "1")))  # PR#169
 
-BENCHMARK_ONLY = bool(int(os.environ.get("BENCHMARK_ONLY", "0")))
-BENCHMARK_STEPS = int(os.environ.get("BENCHMARK_STEPS", "50"))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -524,7 +513,6 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
-        self.use_partial_key_offset = False  # Set by GPT.__init__
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -536,14 +524,6 @@ class CausalSelfAttention(nn.Module):
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
-        # Partial Key Offset: shift keys forward by 1 for stationary head dims
-        # Enables single-layer induction heads (from modded-nanogpt PR#169)
-        # clone() is needed for correctness (overlapping src/dst) and is fine under
-        # torch.compile since the allocation size is static and gets reused.
-        hd = self.head_dim
-        if seqlen > 1 and self.use_partial_key_offset:
-            k[:, 1:, :, hd//4:hd//2] = k[:, :-1, :, hd//4:hd//2].clone()
-            k[:, 1:, :, hd//4+hd//2:] = k[:, :-1, :, hd//4+hd//2:].clone()
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
         if _HAS_FA3:
             y = flash_attn_3_func(q, k, v, causal=True)
@@ -660,7 +640,6 @@ class GPT(nn.Module):
         mtp_loss_weight: float = 0.1,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
-        partial_key_offset: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -700,10 +679,6 @@ class GPT(nn.Module):
         for head in self.mtp_heads:
             head._zero_init = True
         self._init_weights()
-        # Enable partial key offset on all attention layers
-        if partial_key_offset:
-            for block in self.blocks:
-                block.attn.use_partial_key_offset = True
 
     def _init_weights(self) -> None:
         if self.tie_embeddings:
@@ -1040,10 +1015,8 @@ def magnitude_prune(state_dict: dict[str, Tensor], frac: float) -> None:
 
 
 # -----------------------------
-# ONLINE TEST-TIME TRAINING (TTT)
+# TEST-TIME TRAINING (TTT)
 # -----------------------------
-# Valid causal TTT: score chunk FIRST, then adapt on it, then score next chunk.
-# The model never sees future tokens before scoring them.
 
 def eval_val_sliding_online_ttt(
     args: Hyperparameters,
@@ -1060,14 +1033,14 @@ def eval_val_sliding_online_ttt(
     eval_seq_len: int | None = None,
     log_fn=None,
 ) -> tuple[float, float]:
-    """Sliding window eval with online TTT: score each chunk, then adapt on it.
+    """Sliding window eval with valid online TTT (per issue #402).
 
     For each batch of windows:
-      1. Score tokens (forward only, no grad) — these scores count
-      2. Adapt model on the same tokens (forward + backward + step)
-      3. Move to the next batch with updated weights
+      1. Score tokens (inference, no grad) — these scores are final
+      2. Adapt weights on the scored tokens (forward + backward + step)
+      3. Next batch uses updated weights
 
-    This is causal: the model only adapts on tokens it has already scored.
+    Causal: model never trains on tokens it hasn't scored yet.
     """
     seq_len = eval_seq_len or args.train_seq_len
     total_tokens = val_tokens.numel() - 1
@@ -1076,8 +1049,6 @@ def eval_val_sliding_online_ttt(
                      if min(ws + seq_len, total_tokens) - ws >= 1]
     total_windows = len(window_starts)
 
-    # All ranks process the same windows (TTT must keep weights in sync)
-    # For scoring, each rank handles its shard; for TTT, all ranks do the same work
     my_s = (total_windows * rank) // world_size
     my_e = (total_windows * (rank + 1)) // world_size
     my_windows = window_starts[my_s:my_e]
@@ -1098,10 +1069,7 @@ def eval_val_sliding_online_ttt(
     ttt_params = [p for p in base_model.parameters() if p.requires_grad]
     ttt_optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
 
-    # We need a non-compiled model for TTT (backward through compiled model is fine,
-    # but we alternate train/eval mode)
     compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
-
     ttt_adapt_count = 0
 
     for bi in range(0, len(my_windows), batch_seqs):
@@ -1120,7 +1088,7 @@ def eval_val_sliding_online_ttt(
             x_batch[i, :wlen] = chunk[:-1]
             y_batch[i, :wlen] = chunk[1:]
 
-        # --- STEP 1: SCORE (no grad) --- model has NOT been trained on these tokens yet
+        # STEP 1: SCORE (no grad) — model has NOT trained on these tokens yet
         base_model.eval()
         with torch.inference_mode():
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
@@ -1144,7 +1112,7 @@ def eval_val_sliding_online_ttt(
                 tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                 byte_count += tb.sum()
 
-        # --- STEP 2: ADAPT on the tokens we just scored ---
+        # STEP 2: ADAPT on the tokens we just scored
         if ttt_params:
             base_model.train()
             ttt_optimizer.zero_grad()
@@ -1178,71 +1146,6 @@ def eval_val_sliding_online_ttt(
         log_fn(f"online_ttt: {ttt_adapt_count} adapt steps during eval")
 
     return val_loss, bits_per_token * tokens_per_byte
-
-
-def run_ttt(
-    args: Hyperparameters,
-    model: nn.Module,
-    val_tokens: Tensor,
-    device: torch.device,
-    rank: int,
-    world_size: int,
-    log_fn,
-) -> None:
-    """DEPRECATED: Bulk TTT — trains on all eval tokens before scoring (invalid).
-    Kept for reference. Use eval_val_sliding_online_ttt instead."""
-    log_fn("WARNING: run_ttt is invalid — trains on tokens before scoring them. Use online TTT.")
-    return
-
-
-class AsyncGradientSync:
-    """Async flattened gradient sync — single all-reduce for max NCCL efficiency.
-    Pre-allocates flat buffer once, reuses across steps."""
-
-    def __init__(self):
-        self._flat_buf = None
-        self._grads = None
-        self._handle = None
-
-    @torch.no_grad()
-    def launch(self, model: nn.Module, world_size: int):
-        """Launch async all-reduce. Call right after backward()."""
-        if world_size <= 1:
-            return
-        grads = [p.grad for p in model.parameters() if p.grad is not None]
-        if not grads:
-            return
-        self._grads = grads
-        total_numel = sum(g.numel() for g in grads)
-        # Pre-allocate flat buffer once, reuse across steps
-        if self._flat_buf is None or self._flat_buf.numel() != total_numel:
-            self._flat_buf = torch.zeros(total_numel, device=grads[0].device, dtype=torch.bfloat16)
-        offset = 0
-        for g in grads:
-            self._flat_buf[offset:offset + g.numel()] = g.reshape(-1).to(torch.bfloat16)
-            offset += g.numel()
-        # Single all-reduce for all gradients
-        self._handle = dist.all_reduce(self._flat_buf, op=dist.ReduceOp.AVG, async_op=True)
-
-    @torch.no_grad()
-    def wait(self):
-        """Wait for all-reduce to finish and copy gradients back."""
-        if self._handle is None:
-            return
-        self._handle.wait()
-        self._handle = None
-        offset = 0
-        for g in self._grads:
-            g.copy_(self._flat_buf[offset:offset + g.numel()].reshape_as(g))
-            offset += g.numel()
-        self._grads = None
-
-_async_grad_sync = AsyncGradientSync()
-
-def manual_gradient_sync(model: nn.Module, world_size: int):
-    """Backward-compatible sync wrapper — launch + immediate wait."""
-    _async_grad_sync.launch(model, world_size)
-    _async_grad_sync.wait()
 
 
 # -----------------------------
@@ -1359,27 +1262,13 @@ def main() -> None:
         mtp_loss_weight=args.mtp_loss_weight,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
-        partial_key_offset=args.partial_key_offset,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    # Use DDP or manual grad sync based on env var
-    use_manual_sync = bool(int(os.environ.get("USE_MANUAL_SYNC", "0")))
-    if use_manual_sync:
-        # Without DDP, we must broadcast params from rank 0 so all GPUs start identical.
-        # DDP does this automatically in __init__; we need to do it manually.
-        if distributed:
-            for param in base_model.parameters():
-                dist.broadcast(param.data, src=0)
-            for buf in base_model.buffers():
-                dist.broadcast(buf, src=0)
-            log0("manual_sync: broadcasted parameters from rank 0")
-        model = compiled_model
-    else:
-        model = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split
     block_named_params = list(base_model.blocks.named_parameters())
@@ -1460,7 +1349,6 @@ def main() -> None:
     )
     log0(f"seed:{args.seed}")
     log0(f"int5_mlp:{args.int5_mlp} prune_frac:{args.prune_frac} ttt_enabled:{args.ttt_enabled}")
-    log0(f"no_ddp:{use_manual_sync} manual_grad_sync:{use_manual_sync} partial_key_offset:{args.partial_key_offset}")
 
     # --- WANDB ---
     _use_wandb = master_process and _WANDB_OK and os.environ.get("WANDB_MODE") != "disabled"
@@ -1510,12 +1398,12 @@ def main() -> None:
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
+                if distributed:
+                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
-            if distributed:
-                manual_gradient_sync(base_model, world_size)
             for opt in optimizers:
                 opt.step()
             zero_grad_all()
@@ -1525,53 +1413,9 @@ def main() -> None:
         for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
             opt.load_state_dict(state)
         zero_grad_all()
-        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
-
-    # --- BENCHMARK MODE ---
-    if BENCHMARK_ONLY:
-        log0(f"BENCHMARK MODE: running {BENCHMARK_STEPS} training steps")
-        model.train()
-        warmup_bench = min(5, BENCHMARK_STEPS)
-        for _ in range(warmup_bench):
-            if hasattr(torch.compiler, 'cudagraph_mark_step_begin'):
-                torch.compiler.cudagraph_mark_step_begin()
-            for opt in optimizers:
-                opt.zero_grad(set_to_none=True)
-            for micro_step in range(grad_accum_steps):
-                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    loss = model(x, y)
-                (loss * grad_scale).backward()
-            if distributed:
-                manual_gradient_sync(base_model, world_size)
-            for opt in optimizers:
-                opt.step()
-        torch.cuda.synchronize()
-        t_bench_start = time.perf_counter()
-        bench_steps = BENCHMARK_STEPS - warmup_bench
-        for bench_step in range(bench_steps):
-            if hasattr(torch.compiler, 'cudagraph_mark_step_begin'):
-                torch.compiler.cudagraph_mark_step_begin()
-            for opt in optimizers:
-                opt.zero_grad(set_to_none=True)
-            for micro_step in range(grad_accum_steps):
-                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    loss = model(x, y)
-                (loss * grad_scale).backward()
-            if distributed:
-                manual_gradient_sync(base_model, world_size)
-            for opt in optimizers:
-                opt.step()
-        torch.cuda.synchronize()
-        t_bench_end = time.perf_counter()
-        bench_elapsed_ms = 1000.0 * (t_bench_end - t_bench_start)
-        avg_step_ms = bench_elapsed_ms / bench_steps
-        log0(f"BENCHMARK RESULT: {bench_steps} steps in {bench_elapsed_ms:.1f}ms, avg {avg_step_ms:.2f}ms/step")
-        log0(f"BENCHMARK: Estimated steps in 600s: {int(600_000 / avg_step_ms)}")
         if distributed:
-            dist.destroy_process_group()
-        return
+            model.require_backward_grad_sync = True
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     # --- MAIN TRAINING LOOP ---
 
@@ -1621,21 +1465,16 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        if hasattr(torch.compiler, 'cudagraph_mark_step_begin'):
-            torch.compiler.cudagraph_mark_step_begin()
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
-            if distributed and not use_manual_sync:
+            if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
-        # Gradient sync
-        if distributed and use_manual_sync:
-            _async_grad_sync.launch(base_model, world_size)
         train_loss /= grad_accum_steps
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
@@ -1647,8 +1486,6 @@ def main() -> None:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * scale
 
-        if distributed and use_manual_sync:
-            _async_grad_sync.wait()
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
@@ -1836,7 +1673,6 @@ def main() -> None:
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         mtp_num_heads=0, mtp_loss_weight=0.0,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
-        partial_key_offset=args.partial_key_offset,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
@@ -1866,8 +1702,7 @@ def main() -> None:
     sw_seq_len = effective_eval_seq_len
     if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
         if args.ttt_enabled:
-            # Online TTT: score each chunk, then adapt on it (causal/valid)
-            # Reload fresh weights so TTT starts from the quantized baseline
+            # Online TTT: score each chunk, then adapt on it (causal/valid per issue #402)
             eval_model.load_state_dict(deq_state, strict=True)
             torch.cuda.synchronize()
             t_slide = time.perf_counter()
@@ -1900,6 +1735,23 @@ def main() -> None:
                 f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
             )
             log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+
+    # Second sliding window eval at stride=64 for comparison
+    if args.eval_stride != 64 and 64 < sw_seq_len:
+        torch.cuda.synchronize()
+        t_slide64 = time.perf_counter()
+        sw64_val_loss, sw64_val_bpb = eval_val_sliding(
+            args, eval_model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            stride=64,
+            eval_seq_len=sw_seq_len,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_int6_sliding_window_s64 val_loss:{sw64_val_loss:.4f} val_bpb:{sw64_val_bpb:.4f} "
+            f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
+        )
+        log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
 
     wlog({"final_sw_val_bpb": sw_val_bpb if args.eval_stride > 0 and args.eval_stride < sw_seq_len else q_val_bpb})
 
