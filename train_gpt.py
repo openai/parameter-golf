@@ -40,7 +40,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # Derived from CGGRLoss.forward() in CGGR/cggr.py — no Triton required.
 
 _CGGR_RATIO = float(os.environ.get("CGGR_RATIO", "0.5"))
-_CGGR_WARMUP = int(os.environ.get("CGGR_WARMUP", "500"))  # shorter warmup for bigger model
+_CGGR_RATIO_FINAL = float(os.environ.get("CGGR_RATIO_FINAL", str(_CGGR_RATIO)))
+_CGGR_WARMUP = int(os.environ.get("CGGR_WARMUP", "500"))
+_CGGR_DECAY_END = int(os.environ.get("CGGR_DECAY_END", "0"))  # step at which ratio reaches CGGR_RATIO_FINAL; 0 = no decay period
 
 
 @torch._dynamo.disable  # avoids graph-break recompilations from the data-dependent step branch
@@ -48,10 +50,15 @@ def cggr_loss(logits: Tensor, targets: Tensor, step_tensor: Tensor) -> Tensor:
     step = int(step_tensor.item())
     if step < _CGGR_WARMUP or _CGGR_RATIO >= 1.0:
         return F.cross_entropy(logits, targets)
+    if _CGGR_DECAY_END > _CGGR_WARMUP and step < _CGGR_DECAY_END:
+        t = (step - _CGGR_WARMUP) / (_CGGR_DECAY_END - _CGGR_WARMUP)
+        ratio = _CGGR_RATIO + t * (_CGGR_RATIO_FINAL - _CGGR_RATIO)
+    else:
+        ratio = _CGGR_RATIO_FINAL
     with torch.no_grad():
         probs = F.softmax(logits.detach(), dim=-1)
         entropy = -(probs * probs.clamp(min=1e-9).log()).sum(-1)
-        k = max(1, int(round(entropy.numel() * _CGGR_RATIO)))
+        k = max(1, int(round(entropy.numel() * ratio)))
         hard_idx = torch.topk(entropy, k, largest=True).indices
     return F.cross_entropy(logits[hard_idx], targets[hard_idx])
 
