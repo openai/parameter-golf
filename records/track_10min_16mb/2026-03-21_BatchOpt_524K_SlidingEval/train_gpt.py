@@ -92,6 +92,11 @@ class Hyperparameters:
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
+    # Novel training improvements
+    label_smoothing = float(os.environ.get("LABEL_SMOOTHING", 0.1))
+    multi_token_k = int(os.environ.get("MULTI_TOKEN_K", 4))  # predict k tokens ahead
+    multi_token_weights = os.environ.get("MULTI_TOKEN_WEIGHTS", "1.0,0.3,0.15,0.05")
+    deep_supervision = float(os.environ.get("DEEP_SUPERVISION", 0.1))  # aux loss weight at mid-layer
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -688,6 +693,11 @@ class GPT(nn.Module):
                             module.weight.mul_(1.0 / math.sqrt(2 * num_layers))
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        B, T = input_ids.shape
+        label_smoothing = getattr(self, '_label_smoothing', 0.0)
+        multi_token_k = getattr(self, '_multi_token_k', 1)
+        multi_token_weights = getattr(self, '_multi_token_weights', None)
+        deep_supervision = getattr(self, '_deep_supervision', 0.0)
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
@@ -695,23 +705,44 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
+        aux_loss = 0.0
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
             skips.append(x)
+        # Deep supervision: auxiliary loss at encoder/decoder boundary
+        if deep_supervision > 0.0 and self.training:
+            x_mid = self.final_norm(x).reshape(-1, x.size(-1))
+            if self.tie_embeddings:
+                mid_logits = self.logit_softcap * torch.tanh(F.linear(x_mid, self.tok_emb.weight) / self.logit_softcap)
+            else:
+                mid_logits = self.logit_softcap * torch.tanh(self.lm_head(x_mid) / self.logit_softcap)
+            aux_loss = deep_supervision * F.cross_entropy(mid_logits.float(), target_ids.reshape(-1), label_smoothing=label_smoothing)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
-        x = self.final_norm(x).reshape(-1, x.size(-1))
-        targets = target_ids.reshape(-1)
+        x_final = self.final_norm(x)
+        x_flat = x_final.reshape(-1, x_final.size(-1))
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(x_flat, self.tok_emb.weight)
         else:
-            if self.lm_head is None:
-                raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
+            logits_proj = self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        # Multi-token prediction: logits at position t predict target at position t+k
+        if multi_token_k > 1 and self.training and multi_token_weights is not None:
+            total_loss = 0.0
+            logits_2d = logits.view(B, T, -1)
+            for k in range(multi_token_k):
+                valid = T - k
+                if valid <= 0:
+                    break
+                k_logits = logits_2d[:, :valid].reshape(-1, logits_2d.size(-1))
+                k_targets = target_ids[:, k:k + valid].reshape(-1)
+                w = multi_token_weights[k] if k < len(multi_token_weights) else 0.0
+                if w > 0:
+                    total_loss = total_loss + w * F.cross_entropy(k_logits.float(), k_targets, label_smoothing=label_smoothing)
+            return total_loss + aux_loss
+        return F.cross_entropy(logits.float(), target_ids.reshape(-1), label_smoothing=label_smoothing) + aux_loss
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
@@ -921,6 +952,12 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    # Set novel training params as model attributes (constant for torch.compile)
+    base_model._label_smoothing = args.label_smoothing
+    base_model._multi_token_k = args.multi_token_k
+    base_model._multi_token_weights = [float(w) for w in args.multi_token_weights.split(",")]
+    base_model._deep_supervision = args.deep_supervision
+    log0(f"novel: label_smoothing={args.label_smoothing} multi_token_k={args.multi_token_k} deep_supervision={args.deep_supervision}")
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -1197,6 +1234,48 @@ def main() -> None:
     quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
     deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
     base_model.load_state_dict(deq_state, strict=True)
+
+    # TTT: Full-weight SGD adaptation on val data before scoring
+    ttt_on = bool(int(os.environ.get("TTT_ENABLED", "0")))
+    if ttt_on:
+        ttt_lr = float(os.environ.get("TTT_LR", 0.002))
+        ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+        ttt_mom = float(os.environ.get("TTT_MOMENTUM", 0.9))
+        ttt_bs = int(os.environ.get("TTT_BATCH_SEQS", 16))
+        ttt_freeze = int(os.environ.get("TTT_FREEZE_BLOCKS", 3))
+        sl = args.train_seq_len
+        total_seqs = (val_tokens.numel() - 1) // sl
+        for i, blk in enumerate(base_model.blocks):
+            if i < ttt_freeze:
+                for p in blk.parameters():
+                    p.requires_grad_(False)
+        ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+        ttt_opt = torch.optim.SGD(ttt_params, lr=ttt_lr, momentum=ttt_mom)
+        ms, me = (total_seqs * rank) // world_size, (total_seqs * (rank + 1)) // world_size
+        base_model.train()
+        log0(f"ttt:start lr={ttt_lr} mom={ttt_mom} epochs={ttt_epochs} freeze={ttt_freeze} seqs={me-ms}")
+        for ep in range(ttt_epochs):
+            lsum, ntok = 0.0, 0
+            for bs_i in range(ms, me, ttt_bs):
+                be_i = min(bs_i + ttt_bs, me)
+                loc = val_tokens[bs_i*sl:be_i*sl+1].to(device=device, dtype=torch.int64)
+                xb, yb = loc[:-1].reshape(-1, sl), loc[1:].reshape(-1, sl)
+                ttt_opt.zero_grad(set_to_none=True)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    tl = base_model(xb, yb)
+                tl.backward()
+                if distributed:
+                    for p in ttt_params:
+                        if p.grad is not None:
+                            dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+                torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
+                ttt_opt.step()
+                lsum += tl.item() * yb.numel()
+                ntok += yb.numel()
+            log0(f"ttt_epoch:{ep+1}/{ttt_epochs} loss:{lsum/max(ntok,1):.4f}")
+        for p in base_model.parameters():
+            p.requires_grad_(False)
+        base_model.eval()
 
     # Sliding window eval on int6-roundtripped weights
     torch.cuda.synchronize()
