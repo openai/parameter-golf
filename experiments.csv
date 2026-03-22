@@ -32,4 +32,5 @@ transformer_v23_tightSWA,4800,15169602,,77466,1,1565.75,1.1428,0d6806e,"v18 + ti
 8xh100_v18_test2,600,14900391,14822795,77515,8,286.38,1.1654,af66dda,"8xH100 10min: same config (4549 steps @ 132ms, train+eval within limits!)"
 transformer_v23_tightSWA,4800,15169602,,77466,1,1565.75,1.1428,393d474,"v18 + tight SWA(0.2): worse than v18's SWA(0.4). SWA(0.4) is better."
 8xh100v2_final_test,600,15376369,,78493,8,240.63,1.1676,8c2a0c6,"8xH100v2 torch2.8 SDPA: 3909 steps@153ms (EMA slows from 110->154ms, costs 1500 steps)"
+8xh100v2_ema10,600,,,78493,8,240.78,1.1689,6c93d49,"EMA/10steps: 4052 steps@148ms — EMA not helping on 8xH100, disable it"
 transformer_v9b_int6_80min,4800,9506368,9438929,67439,1,1190.41,1.2017,e2d0e45,"10L int6+zstd (9.5MB artifact, but 0.034 quant damage — need QAT to fix)"
