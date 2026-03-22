@@ -41,6 +41,8 @@ if os.environ.get("DISABLE_FA3", "0") != "1":
     except ImportError:
         pass
 
+_HAS_NATIVE_GQA = torch.__version__ >= "2.5"
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -96,7 +98,7 @@ class Hyperparameters:
     # SWA: collect checkpoints every N steps during warmdown, average at end.
     # 0 = disabled.
     swa_every = int(os.environ.get("SWA_EVERY", 50))
-    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.2))
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
 
     # EMA: exponential moving average of weights (decay per step).
     # 0.0 = disabled, 0.997 = recommended. Applied before quantization.
@@ -877,11 +879,13 @@ class CausalSelfAttention(nn.Module):
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
 
-    def forward(self, x: Tensor, q_delta=None, v_delta=None) -> Tensor:
+    def forward(self, x: Tensor, q_delta=None, v_delta=None, v_residual=None) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x) + (q_delta if q_delta is not None else 0)
         k = self.c_k(x)
         v = self.c_v(x) + (v_delta if v_delta is not None else 0)
+        if v_residual is not None:
+            v = v + v_residual
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
@@ -897,20 +901,17 @@ class CausalSelfAttention(nn.Module):
             kt = k.transpose(1, 2).to(torch.bfloat16)
             vt = v.transpose(1, 2).to(torch.bfloat16)
             y = _flash_attn_func(qt, kt, vt, causal=True).transpose(1, 2).to(q.dtype)
+        elif _HAS_NATIVE_GQA:
+            y = F.scaled_dot_product_attention(
+                q, k, v, attn_mask=None, is_causal=True,
+                enable_gqa=(self.num_kv_heads != self.num_heads),
+            )
         else:
-            # SDPA with native GQA (torch >= 2.5) or fallback
-            try:
-                y = F.scaled_dot_product_attention(
-                    q, k, v, attn_mask=None, is_causal=True,
-                    enable_gqa=(self.num_kv_heads != self.num_heads),
-                )
-            except TypeError:
-                # Fallback for torch < 2.5
-                if self.num_kv_heads != self.num_heads:
-                    rep = self.num_heads // self.num_kv_heads
-                    k = k.repeat_interleave(rep, dim=1)
-                    v = v.repeat_interleave(rep, dim=1)
-                y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
+            if self.num_kv_heads != self.num_heads:
+                rep = self.num_heads // self.num_kv_heads
+                k = k.repeat_interleave(rep, dim=1)
+                v = v.repeat_interleave(rep, dim=1)
+            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y.transpose(1, 2), v.transpose(1, 2))
             y = y.reshape(bsz, seqlen, dim)
@@ -995,13 +996,13 @@ class Block(nn.Module):
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
-    def forward(self, x: Tensor, x0: Tensor, q_delta_fn=None, v_delta_fn=None) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, q_delta_fn=None, v_delta_fn=None, v_residual=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         n = self.attn_norm(x) * self.ln_scale_factor
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
-        attn_out = self.attn(n, qd, vd)
+        attn_out = self.attn(n, qd, vd, v_residual=v_residual)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * self.ln_scale_factor)
         return x
@@ -1083,14 +1084,17 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
+        # Value Residual (ResFormer): layer 0's v mixed into all subsequent layers
+        n0 = self.blocks[0].attn_norm(x0) * self.blocks[0].ln_scale_factor
+        v_res = self.blocks[0].attn.c_v(n0)
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[i](x, x0, v_residual=v_res if i > 0 else None)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[bi](x, x0)
+            x = self.blocks[bi](x, x0, v_residual=v_res)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1111,10 +1115,13 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
+        # Value Residual
+        n0 = self.blocks[0].attn_norm(x0) * self.blocks[0].ln_scale_factor
+        v_res = self.blocks[0].attn.c_v(n0)
         for i in range(self.num_encoder_layers):
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, qd, vd)
+            x = self.blocks[i](x, x0, qd, vd, v_residual=v_res if i > 0 else None)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -1122,7 +1129,7 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, qd, vd)
+            x = self.blocks[bi](x, x0, qd, vd, v_residual=v_res)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
