@@ -33,6 +33,7 @@ try:
 except ImportError:
     _COMPRESSOR = "zlib"
 
+# FA3 support (auto-detect, disable with DISABLE_FA3=1)
 _HAS_FA3 = False
 if os.environ.get("DISABLE_FA3", "0") != "1":
     try:
@@ -41,6 +42,7 @@ if os.environ.get("DISABLE_FA3", "0") != "1":
     except ImportError:
         pass
 
+# Native GQA support (torch >= 2.5)
 _HAS_NATIVE_GQA = torch.__version__ >= "2.5"
 
 # -----------------------------
@@ -112,10 +114,6 @@ class Hyperparameters:
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
-
-    # Value Embedding: shared embedding table added to V in specified layers
-    ve_dim = int(os.environ.get("VE_DIM", 128))
-    ve_layers = os.environ.get("VE_LAYERS", "9,10")  # comma-separated layer indices
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -432,7 +430,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,bigram.scale,v_res_scale",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,bigram.scale",
     ).split(",")
     if pattern
 )
@@ -871,7 +869,6 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base, rope_dims=rope_dims)
-        self.v_res_scale = nn.Parameter(torch.tensor(0.1, dtype=torch.float32))
         self.use_xsa = False  # set by GPT.__init__ for deep layers
 
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
@@ -884,13 +881,11 @@ class CausalSelfAttention(nn.Module):
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
 
-    def forward(self, x: Tensor, q_delta=None, v_delta=None, v_residual=None) -> Tensor:
+    def forward(self, x: Tensor, q_delta=None, v_delta=None) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x) + (q_delta if q_delta is not None else 0)
         k = self.c_k(x)
         v = self.c_v(x) + (v_delta if v_delta is not None else 0)
-        if v_residual is not None:
-            v = v + self.v_res_scale * v_residual
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
@@ -901,11 +896,12 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         if _HAS_FA3:
-            # FA3: [B, T, H, D] layout, bf16/fp16, handles GQA natively
-            qt = q.transpose(1, 2).to(torch.bfloat16)
-            kt = k.transpose(1, 2).to(torch.bfloat16)
-            vt = v.transpose(1, 2).to(torch.bfloat16)
-            y = _flash_attn_func(qt, kt, vt, causal=True).transpose(1, 2).to(q.dtype)
+            y = _flash_attn_func(
+                q.transpose(1, 2).to(torch.bfloat16),
+                k.transpose(1, 2).to(torch.bfloat16),
+                v.transpose(1, 2).to(torch.bfloat16),
+                causal=True,
+            ).transpose(1, 2).to(q.dtype)
         elif _HAS_NATIVE_GQA:
             y = F.scaled_dot_product_attention(
                 q, k, v, attn_mask=None, is_causal=True,
@@ -964,19 +960,6 @@ class BigramHashEmbedding(nn.Module):
         return h * self.scale.to(dtype=h.dtype)
 
 
-class ValueEmbedding(nn.Module):
-    """Shared value embedding table — projects token IDs to a value offset added to V."""
-    def __init__(self, vocab_size: int, ve_dim: int, kv_dim: int):
-        super().__init__()
-        self.embed = nn.Embedding(vocab_size, ve_dim)
-        nn.init.zeros_(self.embed.weight)
-        self.proj = CastedLinear(ve_dim, kv_dim, bias=False)
-        nn.init.zeros_(self.proj.weight)
-
-    def forward(self, token_ids: Tensor) -> Tensor:
-        return self.proj(self.embed(token_ids))
-
-
 class MLP(nn.Module):
     # relu^2 MLP from the original modded-nanogpt setup
     def __init__(self, dim: int, mlp_mult: int):
@@ -1014,15 +997,13 @@ class Block(nn.Module):
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
-    def forward(self, x: Tensor, x0: Tensor, q_delta_fn=None, v_delta_fn=None, v_residual=None, v_embed=None) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, q_delta_fn=None, v_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         n = self.attn_norm(x) * self.ln_scale_factor
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
-        # Use v_embed if provided (Value Embedding from shared table)
-        vr = v_embed if v_embed is not None else v_residual
-        attn_out = self.attn(n, qd, vd, v_residual=vr)
+        attn_out = self.attn(n, qd, vd)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * self.ln_scale_factor)
         return x
@@ -1047,8 +1028,6 @@ class GPT(nn.Module):
         xsa_last_n: int = 0,
         rope_dims: int = 0,
         ln_scale: bool = False,
-        ve_dim: int = 0,
-        ve_layers: str = "",
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1059,13 +1038,6 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
-        # Value Embedding
-        kv_dim = num_kv_heads * (model_dim // num_heads)
-        self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_layers else []
-        self.ve = ValueEmbedding(vocab_size, ve_dim, kv_dim) if ve_dim > 0 and self.ve_layer_indices else None
-        self.ve_layer_scales = nn.ParameterList(
-            [nn.Parameter(torch.tensor(0.1, dtype=torch.float32)) for _ in self.ve_layer_indices]
-        ) if self.ve else None
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -1099,19 +1071,9 @@ class GPT(nn.Module):
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        num_layers = len(self.blocks)
-        for name, module in self.named_modules():
+        for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
-
-    def _get_ve(self, layer_idx: int, input_ids: Tensor, ve_cache: dict) -> Tensor | None:
-        """Get value embedding for a layer, using cached base embedding."""
-        if self.ve is None or layer_idx not in self.ve_layer_indices:
-            return None
-        if "ve" not in ve_cache:
-            ve_cache["ve"] = self.ve(input_ids)
-        ve_idx = self.ve_layer_indices.index(layer_idx)
-        return ve_cache["ve"] * self.ve_layer_scales[ve_idx].to(dtype=ve_cache["ve"].dtype)
 
     def _forward_body(self, input_ids: Tensor) -> Tensor:
         """Shared forward pass up to logits (before loss)."""
@@ -1122,24 +1084,14 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
-        # Compute value embedding once if enabled
-        ve_base = self.ve(input_ids) if self.ve is not None else None
         for i in range(self.num_encoder_layers):
-            ve_i = None
-            if ve_base is not None and i in self.ve_layer_indices:
-                idx = self.ve_layer_indices.index(i)
-                ve_i = ve_base * self.ve_layer_scales[idx].to(dtype=ve_base.dtype)
-            x = self.blocks[i](x, x0, v_embed=ve_i)
+            x = self.blocks[i](x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve_i = None
-            if ve_base is not None and bi in self.ve_layer_indices:
-                idx = self.ve_layer_indices.index(bi)
-                ve_i = ve_base * self.ve_layer_scales[idx].to(dtype=ve_base.dtype)
-            x = self.blocks[bi](x, x0, v_embed=ve_i)
+            x = self.blocks[bi](x, x0)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1160,16 +1112,10 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        # Compute value embedding once if enabled
-        ve_base = self.ve(input_ids) if self.ve is not None else None
         for i in range(self.num_encoder_layers):
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            ve_i = None
-            if ve_base is not None and i in self.ve_layer_indices:
-                idx = self.ve_layer_indices.index(i)
-                ve_i = ve_base * self.ve_layer_scales[idx].to(dtype=ve_base.dtype)
-            x = self.blocks[i](x, x0, qd, vd, v_embed=ve_i)
+            x = self.blocks[i](x, x0, qd, vd)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -1177,11 +1123,7 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            ve_i = None
-            if ve_base is not None and bi in self.ve_layer_indices:
-                idx = self.ve_layer_indices.index(bi)
-                ve_i = ve_base * self.ve_layer_scales[idx].to(dtype=ve_base.dtype)
-            x = self.blocks[bi](x, x0, qd, vd, v_embed=ve_i)
+            x = self.blocks[bi](x, x0, qd, vd)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1523,8 +1465,6 @@ def main() -> None:
         xsa_last_n=args.xsa_last_n,
         rope_dims=args.rope_dims,
         ln_scale=args.ln_scale,
-        ve_dim=args.ve_dim,
-        ve_layers=args.ve_layers,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1536,7 +1476,7 @@ def main() -> None:
         compiled_model = base_model
     else:
         compiled_model = torch.compile(base_model, dynamic=False)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True) if distributed else compiled_model
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -1559,9 +1499,6 @@ def main() -> None:
     scalar_params.append(base_model.smear.gate)
     if base_model.bigram is not None:
         scalar_params.append(base_model.bigram.scale)
-    if base_model.ve_layer_scales is not None:
-        for s in base_model.ve_layer_scales:
-            scalar_params.append(s)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -1673,7 +1610,7 @@ def main() -> None:
     # EMA state (kept on GPU for speed)
     ema_state: dict[str, Tensor] | None = None
     if args.ema_decay > 0:
-        ema_state = {k: v.detach().clone() for k, v in base_model.state_dict().items()}
+        ema_state = {k: v.detach().clone().float() for k, v in base_model.state_dict().items()}
     stop_after_step: int | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -1745,13 +1682,12 @@ def main() -> None:
         if args.qat_threshold > 0 and scale < args.qat_threshold:
             apply_ste_int6(base_model)
 
-        # EMA: update running average periodically (every 10 steps to reduce overhead)
-        if ema_state is not None and step % 10 == 0:
-            # Use decay^10 to account for skipped steps
-            ema_decay_eff = args.ema_decay ** 10
+        # EMA: update running average every step (on GPU)
+        if ema_state is not None:
+            decay = args.ema_decay
             with torch.no_grad():
                 for k, v in base_model.state_dict().items():
-                    ema_state[k].mul_(ema_decay_eff).add_(v.detach().to(ema_state[k].dtype), alpha=1 - ema_decay_eff)
+                    ema_state[k].mul_(decay).add_(v.detach().float(), alpha=1 - decay)
 
         # SWA: collect checkpoint during warmdown phase
         if args.swa_every > 0 and scale < args.swa_start_frac and step % args.swa_every == 0:
