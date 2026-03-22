@@ -1382,7 +1382,13 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = base_model  # no compile for looped arch
+    # Compile individual blocks (not the whole model) to avoid triton register OOM
+    # on the fused looped forward. Blocks contain the expensive attention+MLP kernels.
+    base_model.entry_block = torch.compile(base_model.entry_block, dynamic=False)
+    for i in range(len(base_model.shared_blocks)):
+        base_model.shared_blocks[i] = torch.compile(base_model.shared_blocks[i], dynamic=False)
+    base_model.exit_block = torch.compile(base_model.exit_block, dynamic=False)
+    compiled_model = base_model
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True) if distributed else compiled_model
 
     # Optimizer split:
@@ -1682,7 +1688,12 @@ def main() -> None:
     log0(f"magnitude_pruning: {prune_pct*100:.1f}% of large weights zeroed")
 
     full_state_dict = base_model.state_dict()
-    export_sd = {k: v for k, v in full_state_dict.items() if "mtp_heads" not in k}
+    # Strip _orig_mod. prefix added by torch.compile so state dict is portable
+    clean_sd = {}
+    for k, v in full_state_dict.items():
+        clean_k = k.replace("_orig_mod.", "")
+        clean_sd[clean_k] = v
+    export_sd = {k: v for k, v in clean_sd.items() if "mtp_heads" not in k}
     excluded_mtp = sum(int(t.numel()) for k, t in full_state_dict.items() if "mtp_heads" in k)
     if excluded_mtp > 0:
         log0(f"export_excluding_mtp_params:{excluded_mtp}")
@@ -1737,7 +1748,12 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    compiled_eval = eval_model  # torch.compile disabled
+    # Compile individual blocks AFTER loading state dict (compile changes key names)
+    eval_model.entry_block = torch.compile(eval_model.entry_block, dynamic=False)
+    for idx in range(len(eval_model.shared_blocks)):
+        eval_model.shared_blocks[idx] = torch.compile(eval_model.shared_blocks[idx], dynamic=False)
+    eval_model.exit_block = torch.compile(eval_model.exit_block, dynamic=False)
+    compiled_eval = eval_model
 
     # Standard non-overlapping eval (sanity check)
     torch.cuda.synchronize()
