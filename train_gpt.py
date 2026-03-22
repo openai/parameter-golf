@@ -1453,8 +1453,7 @@ def main() -> None:
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=False)
-    base_model.set_rope_scaling(args.roundtrip_rope_scaling, args.roundtrip_rope_scale)
+    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     eval_seq_len = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
     val_tokens_eval = load_validation_tokens(args.val_files, eval_seq_len) if eval_seq_len != args.train_seq_len else val_tokens
     torch.cuda.synchronize()
@@ -1478,7 +1477,6 @@ def main() -> None:
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     torch._dynamo.reset()
-    base_model.set_rope_scaling(args.ttt_rope_scaling, args.ttt_rope_scale)
     torch.cuda.synchronize()
     t_ttt = time.perf_counter()
     ttt_val_loss, ttt_val_bpb = eval_val_ttt_lora(
