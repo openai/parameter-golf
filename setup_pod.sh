@@ -22,7 +22,11 @@ else
     fi
     cd flash-attention/hopper
 
-    # Disable everything we don't need — builds ~2 kernels instead of 451
+    # Build output dir must exist or compile fails with 'could not create flash_attn_3/_C.abi3.so'
+    mkdir -p flash_attn_3
+
+    # CRITICAL: must export these — inline VAR=val pip install does NOT work,
+    # pip spawns subprocesses that don't inherit inline vars
     export FLASH_ATTENTION_DISABLE_FP16=TRUE
     export FLASH_ATTENTION_DISABLE_FP8=TRUE
     export FLASH_ATTENTION_DISABLE_HDIM96=TRUE
@@ -42,7 +46,8 @@ else
     export FLASH_ATTENTION_DISABLE_HDIMDIFF192=TRUE
 
     echo "Building FA3 (selective, ~5 min)..."
-    pip install -e . 2>&1 | tail -5
+    # --no-build-isolation: without this, pip creates a temp venv that can't find torch
+    python3 -m pip install --no-build-isolation -e . 2>&1 | tail -5
     cd ../..
     echo "FA3 build complete"
 fi
@@ -61,7 +66,9 @@ ls -lh data/tokenizers/fineweb_1024_bpe.model
 echo ""
 
 echo "=== [5/6] Preflight — CUDA + imports + parse all variants ==="
-PYTHONPATH=flash-attention/hopper:${PYTHONPATH:-} python3 -c "
+# PYTHONPATH is the reliable path — editable install sometimes doesn't register
+export PYTHONPATH="$(pwd)/flash-attention/hopper:${PYTHONPATH:-}"
+python3 -c "
 import torch, sys
 assert torch.cuda.is_available(), 'No CUDA'
 cap = torch.cuda.get_device_capability()
@@ -79,21 +86,27 @@ for v in ['train_gpt_v1.py', 'train_gpt_v2.py', 'train_gpt_v3.py']:
 echo ""
 
 echo "=== [6/6] Export PYTHONPATH ==="
-export PYTHONPATH=flash-attention/hopper:${PYTHONPATH:-}
 echo "PYTHONPATH=$PYTHONPATH"
+echo ""
+echo "NOTE: PYTHONPATH is already exported. If you open a new shell, re-run:"
+echo "  export PYTHONPATH=$(pwd)/flash-attention/hopper:\$PYTHONPATH"
 echo ""
 
 echo "=== READY ==="
 echo ""
+echo "IMPORTANT: Always run from repo root ($(pwd)). Data paths are relative."
+echo ""
 echo "Run variants (one at a time, or on separate pods):"
 echo ""
 echo "  # v3 — Control (unmodified PR#414 baseline)"
-echo "  PYTHONPATH=flash-attention/hopper:\$PYTHONPATH SEED=1337 torchrun --nproc_per_node=8 train_gpt_v3.py"
+echo "  SEED=1337 torchrun --nproc_per_node=8 train_gpt_v3.py"
 echo ""
 echo "  # v1 — TTT Burst (2 epochs on last 100 batches at 10% LR)"
-echo "  PYTHONPATH=flash-attention/hopper:\$PYTHONPATH SEED=1337 torchrun --nproc_per_node=8 train_gpt_v1.py"
+echo "  SEED=1337 torchrun --nproc_per_node=8 train_gpt_v1.py"
 echo ""
 echo "  # v2 — Self-Distillation (50 steps KL+CE against EMA teacher)"
-echo "  PYTHONPATH=flash-attention/hopper:\$PYTHONPATH SEED=1337 torchrun --nproc_per_node=8 train_gpt_v2.py"
+echo "  SEED=1337 torchrun --nproc_per_node=8 train_gpt_v2.py"
 echo ""
 echo "Compare: grep 'final_int6_sliding_window_s64_exact' on each log"
+echo ""
+echo "Debug (if torchrun hides traceback): python3 train_gpt_v1.py 2>&1 | head -50"
