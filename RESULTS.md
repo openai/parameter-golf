@@ -64,9 +64,12 @@ Both converged to: `[0.127, 0.127, 0.699]`
 | v1 (2 blocks, 1024d) | 2×4, MLP 3.0 | 1.2715 | 1.2800 | 7,625 | 79ms | 11.3 MB |
 | v1 (3 blocks, 896d) | 3×4, MLP 3.0 | 1.2111 | 1.2257 | 5,933 | 101ms | 12.8 MB |
 | **v2 (3 blocks, 960d)** | **3×4, MLP 3.0** | **1.2113** | **1.2217** | **5,738** | **105ms** | **14.2 MB** |
-| v3 (3 blocks, 960d) | 3×4, MLP 3.3 | pending | 1.2210 | 5,590 | 107ms | 14.3 MB |
+| v3 (3 blocks, 960d) | 3×4, MLP 3.3 | 1.2118 | 1.2210 | 5,590 | 107ms | 14.3 MB |
+| v3+TTT (960d) | 3×4, MLP 3.3, TTT | **~1.1901** peak | 1.2210 | 5,590 | 107ms | 14.3 MB |
+| v4 (960d, 1.5x batch) | 3×4, MLP 3.3, 1.18M tok | 1.2186 | 1.2257 | 3,764 | 159ms | 14.5 MB |
 
-### Frugendorff Baseline: **1.2113 BPB** (v2, sliding window)
+### Frugendorff Best: **1.1901 BPB** (v3+TTT peak at window 1400)
+### Frugendorff Stable: **1.2113 BPB** (v2, standard sliding window)
 
 ### Key Innovations
 1. **Fractal weight sharing:** 3 unique blocks looped 4 times = 12 effective layers with only 3 blocks of parameters
