@@ -235,10 +235,30 @@ The top 2 PRs (1.1248 and 1.1254) combine:
 - Sliding window eval stride=64
 - Plus either: Partial RoPE + LN Scale + Late QAT (#315) or TTT (#338)
 
-The next frontier likely requires combining BOTH Partial RoPE/LN Scale/Late QAT AND TTT, plus potentially gradient-guided quantization to fund a 12th layer.
+### Update 2026-03-22: New PRs and Critical Findings
+
+**New SOTA**: PR #374 (1.1246) adds Tight SWA + Shared VE128 on top of PR #315 stack.
+**Best with TTT**: PR #390 (1.1295) — pure eval-time: TTT 8 epochs + stride 32.
+**GPTQ-lite**: PR #379 (1.1260) — per-layer clip search at quant time, zero training cost.
+
+**Critical negative results** (PR #375, $500 of 8×H100 compute):
+- MTP: +0.028 BPB worse (throughput penalty)
+- INT4: 0.06 BPB quant gap (destroys advantage)
+- Canon layers, gradient-guided quant, cautious WD, L1, label smoothing: all negative
+- Meta-insight: **each 1ms overhead per step costs ~0.006 BPB**
+- 786K batch > 524K by 0.004 BPB (total tokens > gradient steps)
+
+**TTT + XSA interaction** (PR #303): TTT hurts XSA+EMA models by +0.016 BPB. They are redundant. PR #338 resolves this by freezing first 2 blocks during TTT.
+
+**Depth recurrence killed** (PRs #363, #386): Quantization error amplifies 900× through recurrence. Our own RingGolf experiment confirms: per-step better but per-wallclock worse.
+
+**Unexplored opportunities**:
+- PPM-C context mixer (PR #283): ~0.015 BPB, zero artifact cost, never combined with SOTA
+- Neural Cache / KV cross-window (PR #318): untested due to torch.compile bug
+- Eval stacking: cache + OGD + TTT (PR #384): +0.003 BPB additive
 
 ### Reproducibility Assessment
-- **Strong (3+ seeds, low variance)**: PRs #315, #338, #332, #236, #274, #331
-- **Moderate (2 seeds or 3 seeds with higher variance)**: PRs #287, #317, #327, #333
+- **Strong (3+ seeds, low variance)**: PRs #315, #338, #332, #236, #274, #331, #374
+- **Moderate (2 seeds or higher variance)**: PRs #287, #317, #327, #333, #390
 - **Weak (single seed or pending compute)**: PRs #254, #265, #290, #307, #339, #264, #295, #289, #230
-- **Pending compute (no actual results)**: PRs #268, #322, #314
+- **Pending compute (no actual results)**: PRs #268, #318, #347

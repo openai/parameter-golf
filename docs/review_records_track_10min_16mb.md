@@ -1,5 +1,8 @@
 # Parameter Golf: Track 10min/16MB Submission Analysis
 
+*Last verified: 2026-03-22 — 17 merged records, no changes since initial analysis.*
+*The real frontier is in open PRs (see review_pr_records_track_10min_16mb.md).*
+
 ## Summary Leaderboard (sorted by val_bpb, best first)
 
 | Rank | Folder | Name | Author | val_bpb | val_loss | Quant | Compression | Artifact Size | Steps | ms/step |
