@@ -5,7 +5,7 @@ Verified on 8xH100 80GB, 10-minute wall-clock budget.
 
 ## Approach
 
-Novel architecture discovered through GEPA (Gemini-driven Evolutionary Parameter Architecture search) combined with community-proven techniques. Built over 5 days, 6 waves of experiments, ~$250 total compute on Modal H100s.
+Novel architecture discovered through GEPA (Gemini-driven Evolutionary Parameter Architecture search) combined with community-proven techniques. Built over 5 days across 6 waves of experiments on Modal H100s.
 
 ### Architecture (discovered by GEPA)
 - **SwiGLU FFN** with Star-ReLU activation
