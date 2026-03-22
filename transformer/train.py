@@ -1088,9 +1088,16 @@ class GPT(nn.Module):
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        for module in self.modules():
-            if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
-                nn.init.zeros_(module.weight)
+        num_layers = len(self.blocks)
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Linear):
+                if getattr(module, "_zero_init", False):
+                    nn.init.zeros_(module.weight)
+                elif module.weight.ndim == 2 and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
+                    nn.init.orthogonal_(module.weight, gain=1.0)
+                    if ".proj." in name or name.endswith(".proj"):
+                        with torch.no_grad():
+                            module.weight.mul_(1.0 / math.sqrt(2 * num_layers))
 
     def _get_ve(self, layer_idx: int, input_ids: Tensor, ve_cache: dict | None = None) -> Tensor | None:
         """Get value embedding for a specific layer using shared table + per-layer scale."""
