@@ -782,6 +782,7 @@ class InputFeatures(nn.Module):
             flags[:, 16:, 4] = (token_ids[:, 16:] == token_ids[:, :-16]).float()
         return flags
 
+    @torch.compiler.disable
     def forward(self, token_ids: Tensor) -> Tensor:
         # Word position features [B, T, 32]
         word_pos = self._compute_word_position(token_ids)
