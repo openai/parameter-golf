@@ -851,7 +851,8 @@ class GPT(nn.Module):
         if lora or not self.training or not self.mtp_heads or self.mtp_loss_weight <= 0:
             return loss
         aux = 0.0
-        for depth, head in enumerate(self.mtp_heads, start=1):
+        depth = 1
+        for head in self.mtp_heads:
             if target_ids.size(1) <= depth:
                 break
             aux = aux + lm_loss(
@@ -860,6 +861,7 @@ class GPT(nn.Module):
                 0.0,
                 reduction="mean",
             )
+            depth += 1
         return loss + self.mtp_loss_weight * aux / max(len(self.mtp_heads), 1)
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
