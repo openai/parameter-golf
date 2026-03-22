@@ -1,8 +1,10 @@
 # Non-record submission: 11L mixed int5/int6 + working QAT + TTT + 8 additions
 
-**val_bpb = 1.1466** (sliding window, stride=32, post-TTT) | **14.7 MB** artifact | 8xH100 SXM, 605s train + 340s eval
+**Historical run:** `1.1466 val_bpb` (sliding window, stride=32, original post-TTT flow) | **14.7 MB** artifact | 8xH100 SXM, 605s train + 340s eval
 
 Built on PR #315 (1.1248). Ran with PyTorch SDPA instead of FA3, so throughput was 110ms/step instead of 85ms. Got 5,129 steps instead of ~7,000. Score should drop with FA3.
+
+Note: the historical `1.1466` number above came from the original pre-eval TTT flow in this run. The current script has been updated to report plain no-TTT metrics and causal TTT metrics separately so future runs do not adapt on unseen eval tokens before scoring them. That means the checked-in script should be rerun before using it for a fresh official score claim.
 
 ## What we added to PR #315
 
@@ -10,7 +12,7 @@ Built on PR #315 (1.1248). Ran with PyTorch SDPA instead of FA3, so throughput w
 
 **2. Mixed int5/int6 quantization + magnitude pruning.** MLP weights get int5 ([-16, 15]), attention gets int6 ([-32, 31]), embeddings stay int8. 3% magnitude pruning before quantization. Result: 14.7MB with 1.3MB headroom.
 
-**3. Test-time training.** 3 epochs of SGD on validation tokens post-quantization. lr=0.002, momentum=0.9, first 2 blocks frozen. Gradients synced via all_reduce(AVG). Took 83s on 8xH100. Moved BPB from 1.1697 to 1.1466.
+**3. Test-time training.** This run originally used post-quantization SGD on validation tokens before final scoring. The script now also includes a causal TTT path that scores each eval chunk first and only then adapts on that chunk, which is the safer version for future experiments.
 
 **4. BigramHash 10240.** Up from 2048 in PR #315.
 
@@ -34,7 +36,8 @@ Built on PR #315 (1.1248). Ran with PyTorch SDPA instead of FA3, so throughput w
 | Pre-quant val_bpb | 1.1597 |
 | Post-quant val_bpb | 1.1697 |
 | Quant gap | +0.0100 |
-| Post-TTT sliding s32 | **1.1466** |
+| Historical post-TTT sliding s32 | **1.1466** |
+| Historical no-TTT roundtrip | 1.1697 |
 | Artifact | 14,706,424 bytes |
 | TTT time | 83s |
 | Peak memory | 25,777 MiB/GPU |
