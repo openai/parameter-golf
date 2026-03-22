@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "runpodctl": {
+      "source": "runpod/skills",
+      "sourceType": "github",
+      "computedHash": "1bd76da567ea12ab1d1fc851d99b602c8106cdc5a92a484911f2d263db7008f6"
+    },
+    "triton-kernels": {
+      "source": "anthony-maio/triton-skills",
+      "sourceType": "github",
+      "computedHash": "bafe5155d61e2bf604bcf6f4d97aaad605fcc4785450022ba35adf14c810d479"
+    }
+  }
+}
