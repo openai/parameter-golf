@@ -39,8 +39,10 @@ echo "  [INFO] CUDA $CUDA_VER"
 GPU_COUNT=$(python3 -c "import torch; print(torch.cuda.device_count())" 2>/dev/null || echo "0")
 if [ "$GPU_COUNT" -eq 8 ]; then
     echo "  [OK] GPUs: $GPU_COUNT"
+elif [ "$GPU_COUNT" -ge 1 ]; then
+    echo "  [WARN] GPUs: $GPU_COUNT (competition runs need 8, but setup will continue)"
 else
-    echo "  [FAIL] GPUs: $GPU_COUNT — need 8"
+    echo "  [FAIL] No GPUs detected"
     ENV_OK=false
 fi
 
@@ -186,10 +188,9 @@ echo "=== All checks passed. Ready to run. ==="
 echo ""
 echo "Environment: Python $PY_VER | PyTorch $TORCH_VER | CUDA $CUDA_VER | $GPU_COUNT x $GPU_NAME"
 echo ""
-echo "Run scripts available (each handles git checkout + exports + launch):"
+echo "Run scripts:"
 echo ""
-echo "  bash run_aggressive_ttt.sh 1337   # Two-phase DDP TTT — targets 1.12x"
-echo "  bash run_moonshot.sh 1337         # + Reptile + VE — targets 1.11x"
-echo "  bash run_baseline.sh              # Proven 1.133 config — safe fallback"
+echo "  bash run_competition.sh 1337   # Per-layer cosine TTT — targets sub-1.10"
+echo "  bash run_baseline.sh           # Proven 1.133 — safe fallback"
 echo ""
 echo "Kill if step_avg@200 > 85ms (bad pod)"
