@@ -47,9 +47,14 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    model_dim = int(os.environ.get("MODEL_DIM", 576))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 3))
+    # Depth recurrence: prelude(unique) + core(shared, looped) + coda(unique)
+    recurrence_loops = int(os.environ.get("RECURRENCE_LOOPS", 3))
+    prelude_layers = int(os.environ.get("PRELUDE_LAYERS", 2))
+    core_layers = int(os.environ.get("CORE_LAYERS", 4))
+    coda_layers = int(os.environ.get("CODA_LAYERS", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 20.0))
@@ -76,7 +81,7 @@ class Hyperparameters:
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "1")))
     qat_bits = int(os.environ.get("QAT_BITS", 6))
     qat_late_frac = float(os.environ.get("QAT_LATE_FRAC", 0.85))
-    int6_layers = os.environ.get("INT6_LAYERS", "3,4,5,6,7")
+    int6_layers = os.environ.get("INT6_LAYERS", "2,3,4,5")  # core blocks (prelude=0,1 core=2,3,4,5 coda=6,7)
     int6_step = int(os.environ.get("INT6_STEP", 4))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 3))
     ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
@@ -683,7 +688,6 @@ class GPT(nn.Module):
     def __init__(
         self,
         vocab_size: int,
-        num_layers: int,
         model_dim: int,
         num_heads: int,
         num_kv_heads: int,
@@ -696,6 +700,10 @@ class GPT(nn.Module):
         qat_enabled: bool = False,
         qat_bits: int = 6,
         xsa_last_n: int = 0,
+        prelude_layers: int = 2,
+        core_layers: int = 4,
+        coda_layers: int = 2,
+        recurrence_loops: int = 3,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -703,67 +711,73 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.prelude_layers = prelude_layers
+        self.core_layers = core_layers
+        self.coda_layers = coda_layers
+        self.recurrence_loops = recurrence_loops
+        # Effective depth = prelude + core*loops + coda
+        self.effective_depth = prelude_layers + core_layers * recurrence_loops + coda_layers
+        # Unique blocks = prelude + core + coda (core blocks are shared across loops)
+        num_unique = prelude_layers + core_layers + coda_layers
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.smear_gate = SmearGate(model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        # U-Net skips only on prelude/coda (not core loops)
+        self.num_skip_weights = min(prelude_layers, coda_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.blocks = nn.ModuleList(
-            [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-                for i in range(num_layers)
-            ]
-        )
+        block_args = (model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+        self.prelude = nn.ModuleList([Block(*block_args) for _ in range(prelude_layers)])
+        self.core = nn.ModuleList([Block(*block_args) for _ in range(core_layers)])
+        self.coda = nn.ModuleList([Block(*block_args) for _ in range(coda_layers)])
+        # All blocks as flat list for optimizer/TTT compatibility
+        self.blocks = nn.ModuleList(list(self.prelude) + list(self.core) + list(self.coda))
+        # Loop iteration embeddings: tell core blocks which loop they're in
+        self.loop_embeds = nn.Parameter(torch.zeros(recurrence_loops, 1, 1, model_dim))
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
-        self._init_weights(qat_enabled=qat_enabled, qat_bits=qat_bits)
-        # XSA: enable on last N layers
+        self._init_weights()
+        # XSA: enable on last N effective layers (coda + last loop of core)
         if xsa_last_n > 0:
-            for i in range(max(0, num_layers - xsa_last_n), num_layers):
-                self.blocks[i].attn.use_xsa = True
+            for block in list(self.coda):
+                block.attn.use_xsa = True
+            remaining = xsa_last_n - coda_layers
+            if remaining > 0:
+                for block in list(self.core)[-remaining:]:
+                    block.attn.use_xsa = True
 
-    def _init_weights(self, qat_enabled: bool = False, qat_bits: int = 6) -> None:
+    def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
-        # Late QAT: don't enable qat_bits at init — training loop activates it later.
-        # If qat_late_frac <= 0, it activates immediately in the loop.
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear_gate(x)
         x0 = x
-        skips: list[Tensor] = []
-
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
-
+        prelude_skips: list[Tensor] = []
+        # Prelude: unique blocks, store skips
+        for block in self.prelude:
+            x = block(x, x0)
+            prelude_skips.append(x)
+        # Core: shared blocks, looped recurrence_loops times
+        for loop_idx in range(self.recurrence_loops):
+            x = x + self.loop_embeds[loop_idx].to(dtype=x.dtype)
+            for block in self.core:
+                x = block(x, x0)
+        # Coda: unique blocks, consume prelude skips (U-Net)
+        for i, block in enumerate(self.coda):
+            if i < len(prelude_skips):
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * prelude_skips.pop()
+            x = block(x, x0)
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
-            if self.lm_head is None:
-                raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
@@ -1070,7 +1084,6 @@ def main() -> None:
 
     base_model = GPT(
         vocab_size=args.vocab_size,
-        num_layers=args.num_layers,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
@@ -1083,6 +1096,10 @@ def main() -> None:
         qat_enabled=args.qat_enabled,
         qat_bits=args.qat_bits,
         xsa_last_n=args.xsa_last_n,
+        prelude_layers=args.prelude_layers,
+        core_layers=args.core_layers,
+        coda_layers=args.coda_layers,
+        recurrence_loops=args.recurrence_loops,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
