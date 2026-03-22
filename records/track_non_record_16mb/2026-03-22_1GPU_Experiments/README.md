@@ -50,3 +50,25 @@ bash records/track_non_record_16mb/2026-03-22_1GPU_Experiments/run_experiment.sh
 | moonshot | TBD | | | |
 
 Winners go into the 8×H100 10-min competition run.
+
+## What translates from 1 GPU → 8 GPU
+
+**Translates directly (same result on both):**
+- Whether a feature improves val_bpb (relative gain is the same)
+- Quantization roundtrip quality (same weight distribution → same compression)
+- Artifact size (same model, same quantization, same zstd)
+- Post-training techniques (TTT, Reptile, GPTQ-lite — identical on 1 or 8 GPUs)
+
+**Doesn't translate exactly:**
+- Absolute val_bpb numbers — 1 GPU sees fewer tokens in 30 min. Scores will be worse. Compare RELATIVE to baseline, not absolute.
+- Step timing — 1 GPU step_avg tells us nothing about 8 GPU throughput
+- Gradient noise at small batch — mitigated by using same effective batch (524K tokens with grad_accum=8)
+
+**How to compare:**
+Use val_bpb at the SAME STEP COUNT across experiments, not the same wallclock. If BACKOUT improves val_bpb by 0.007 at step 3000 on 1 GPU, it'll improve by ~0.007 at step 3000 on 8 GPUs. The relative gains transfer.
+
+**Workflow:**
+1. Run 1 GPU experiments ($1.50 each, 30 min)
+2. Identify which features improve relative to baseline
+3. Stack only the winners into an 8×H100 competition run
+4. Submit the 8×H100 result to PR #212
