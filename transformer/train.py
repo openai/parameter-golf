@@ -85,6 +85,11 @@ class Hyperparameters:
     # 0.0 = disabled, 0.1 = last ~10% of effective training (recommended).
     qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.1))
 
+    # SWA: collect checkpoints every N steps during warmdown, average at end.
+    # 0 = disabled.
+    swa_every = int(os.environ.get("SWA_EVERY", 50))
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
+
     # BigramHash + SmearGate
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
@@ -1499,6 +1504,8 @@ def main() -> None:
     # -----------------------------
 
     training_time_ms = 0.0
+    swa_state: dict[str, Tensor] | None = None
+    swa_count = 0
     stop_after_step: int | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -1570,6 +1577,16 @@ def main() -> None:
         if args.qat_threshold > 0 and scale < args.qat_threshold:
             apply_ste_int6(base_model)
 
+        # SWA: collect checkpoint during warmdown phase
+        if args.swa_every > 0 and scale < args.swa_start_frac and step % args.swa_every == 0:
+            if not swa_state:
+                swa_state = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
+                swa_count = 1
+            else:
+                for k, v in base_model.state_dict().items():
+                    swa_state[k].add_(v.detach().cpu().float())
+                swa_count += 1
+
         zero_grad_all()
 
         step += 1
@@ -1597,6 +1614,17 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+
+    # Apply SWA if we collected checkpoints
+    if swa_state is not None and swa_count > 1:
+        log0(f"swa: averaging {swa_count} checkpoints")
+        avg_sd = {k: (v / swa_count) for k, v in swa_state.items()}
+        # Convert back to original dtypes
+        orig_sd = base_model.state_dict()
+        for k in avg_sd:
+            avg_sd[k] = avg_sd[k].to(dtype=orig_sd[k].dtype, device=orig_sd[k].device)
+        base_model.load_state_dict(avg_sd, strict=True)
+        del swa_state
 
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
