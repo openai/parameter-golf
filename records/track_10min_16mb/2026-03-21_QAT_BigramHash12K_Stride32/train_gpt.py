@@ -33,11 +33,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-try:
-    from flash_attn.flash_attn_interface import flash_attn_func as _flash_attn_func
-    _HAS_FA3 = True
-except ImportError:
-    _HAS_FA3 = False
+_HAS_FA3 = False  # SDPA is faster than FA3 for GQA on PyTorch 2.9+
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -92,7 +88,7 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("EVAL_STRIDE", 32))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 8192))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))  # disabled, using EMA instead
@@ -601,39 +597,22 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-        # (B, T, H, D) -> (B, H, T, D) for norm/rope
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
+        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        if _HAS_FA3:
-            # FA3 expects (B, T, H, D)
-            q_fa = q.transpose(1, 2)
-            k_fa = k.transpose(1, 2)
-            v_fa = v.transpose(1, 2)
-            y = _flash_attn_func(q_fa, k_fa, v_fa, causal=True)
-            # y is (B, T, H, D), convert to (B, H, T, D) for XSA
-            if self.use_xsa:
-                y = self._xsa_efficient(y.transpose(1, 2), v)
-                y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-            else:
-                y = y.contiguous().reshape(bsz, seqlen, dim)
-        else:
-            y = F.scaled_dot_product_attention(
-                q, k, v, attn_mask=None, is_causal=True,
-                enable_gqa=(self.num_kv_heads != self.num_heads),
-            )
-            if self.use_xsa:
-                y = self._xsa_efficient(y, v)
-            y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        y = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=None, is_causal=True,
+            enable_gqa=(self.num_kv_heads != self.num_heads),
+        )
+        if self.use_xsa:
+            y = self._xsa_efficient(y, v)
+        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
@@ -1225,8 +1204,9 @@ def main() -> None:
                 log0(f"qat:enabled at step:{step} progress:{progress:.3f}")
 
         # EMA: update exponential moving average every step
-        if args.ema_enabled and ema_state is not None:
-            decay = args.ema_decay
+        if args.ema_enabled and ema_state is not None and step % 10 == 0:
+            # EMA with adjusted decay for every-10-steps update: decay^10
+            decay = args.ema_decay ** 10
             for name, t in base_model.state_dict().items():
                 ema_state[name].mul_(decay).add_(t.detach().cpu(), alpha=1.0 - decay)
 
