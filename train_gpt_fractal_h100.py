@@ -307,25 +307,27 @@ class GPT(nn.Module):
    x=x+s.loop_pos[lp][None,None,:];x=s._run_blocks(x,x0,ids,vc)
   x=s.final_norm(x);lp=F.linear(x,s.tok_emb.weight) if s.te else s.lm_head(x)
   return s.lsc*torch.tanh(lp/s.lsc)
- def forward_ttt_step(s,ids,tgt,ttt_opt):
-  """One fractal forward with inner TTT: update weights between loops, score on final loop."""
+ def ttt_params(s):
+  """Only fractal-layer params: shared blocks + loop_pos + skip_weights. Mainline stays frozen."""
+  pp=list(s.blocks.parameters())+[s.loop_pos,s.skip_weights]
+  return [p for p in pp if p.requires_grad]
+ def forward_ttt_step(s,ids,tgt,ttt_opt,ttt_pp):
+  """Inner TTT on fractal layers only. Embeddings/bigram/smear frozen."""
   x=s.tok_emb(ids)
   if s.bigram:x=x+s.bigram(ids)
   x=F.rms_norm(x,(x.size(-1),));x=s.smear(x);x0=x;vc={}
   for lp in range(s.num_loops):
    x=x+s.loop_pos[lp][None,None,:];x=s._run_blocks(x,x0,ids,vc)
    if lp<s.num_loops-1:
-    # Inner TTT: compute loss at this loop, update shared weights
     xn=s.final_norm(x);xf=xn.reshape(-1,xn.size(-1));tg=tgt.reshape(-1)
     lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
     lg=s.lsc*torch.tanh(lp_/s.lsc)
     ttt_loss=F.cross_entropy(lg.float(),tg,reduction="mean")
     ttt_opt.zero_grad(set_to_none=True)
     ttt_loss.backward()
-    torch.nn.utils.clip_grad_norm_(s.parameters(),1.0)
+    torch.nn.utils.clip_grad_norm_(ttt_pp,1.0)
     ttt_opt.step()
-    x=x.detach()  # detach to avoid stale graph references
-  # Final loop logits (for scoring)
+    x=x.detach()
   xn=s.final_norm(x);xf=xn.reshape(-1,xn.size(-1))
   lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
   return s.lsc*torch.tanh(lp_/s.lsc)
@@ -358,15 +360,16 @@ def eval_slide_ttt(a,bm,rk,ws,dev,vt,bl,hl,il,stride,ttt_epochs,ttt_lr,esl=None)
  ww=[w for w in range(0,tt,stride) if min(w+sl,tt)-w>=1];tw=len(ww)
  ms=(tw*rk)//ws;me=(tw*(rk+1))//ws;mw=ww[ms:me]
  ls=torch.zeros((),device=dev,dtype=torch.float64);tc=torch.zeros((),device=dev,dtype=torch.float64);bc=torch.zeros((),device=dev,dtype=torch.float64)
- bm.train()  # need gradients for TTT
- ttt_opt=torch.optim.Adam(bm.parameters(),lr=ttt_lr)
+ bm.train()
+ ttt_pp=bm.ttt_params()
+ ttt_opt=torch.optim.Adam(ttt_pp,lr=ttt_lr)
  for wi,ws_ in enumerate(mw):
   end=min(ws_+sl,tt);wlen=end-ws_
   chunk=vt[ws_:end+1].to(dtype=torch.int64,device=dev)
   x=chunk[:-1].unsqueeze(0);y=chunk[1:].unsqueeze(0)
   # Inner-TTT fractal forward: TTT between loops, score on final loop
   with torch.autocast(device_type="cuda",dtype=torch.bfloat16):
-   logits=bm.forward_ttt_step(x,y,ttt_opt)
+   logits=bm.forward_ttt_step(x,y,ttt_opt,ttt_pp)
   # Score new tokens (stride region only)
   with torch.no_grad():
    nll=F.cross_entropy(logits.reshape(-1,logits.size(-1)).float(),y.reshape(-1),reduction="none")
@@ -380,7 +383,7 @@ def eval_slide_ttt(a,bm,rk,ws,dev,vt,bl,hl,il,stride,ttt_epochs,ttt_lr,esl=None)
    ttt_opt.zero_grad(set_to_none=True)
    with torch.autocast(device_type="cuda",dtype=torch.bfloat16):
     ttt_loss=bm(x,y)
-   ttt_loss.backward();torch.nn.utils.clip_grad_norm_(bm.parameters(),1.0);ttt_opt.step()
+   ttt_loss.backward();torch.nn.utils.clip_grad_norm_(ttt_pp,1.0);ttt_opt.step()
   if wi%200==0 and rk==0:
    rb=(ls/tc).item()/math.log(2.0)*(tc.item()/bc.item()) if tc.item()>0 else 0
    print(f"  ttt_slide: {wi}/{len(mw)} running_bpb:{rb:.4f}")
