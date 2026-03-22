@@ -1,0 +1,11 @@
+{
+  "author": "Robby Sneiderman",
+  "github_id": "Robby955",
+  "name": "EBLS Learned Sharing",
+  "blurb": "Empirical Bayes Layer Sharing: 3 shared blocks × 3 virtual layers with per-virtual-layer LoRA deviations gated by learned shrinkage gammas. Model discovers MLP weights should be fully shared (gamma→0) while attention needs minimal specialization. 1024-dim, int6+zstd-22, Muon+Adam.",
+  "date": "2026-03-22T00:00:00Z",
+  "val_loss": 2.2694,
+  "val_bpb": 1.3441,
+  "bytes_total": 16224826,
+  "bytes_code": 62684
+}
