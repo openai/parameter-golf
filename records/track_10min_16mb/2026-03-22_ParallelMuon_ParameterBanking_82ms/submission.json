@@ -1,8 +1,8 @@
 {
-  "name": "Parallel Muon + Parameter Banking + Polar Express (82.13ms/step)",
-  "val_loss": 1.1238,
+  "name": "Parallel Muon + Parameter Banking + Polar Express (82.08ms/step)",
+  "val_loss": 1.1239,
   "bytes_total": 16139536,
-  "blurb": "Systems optimization: 3.1% faster training (82.13ms vs 84.76ms) via Parameter Banking, Polar Express (arXiv:2505.16932), and Parallel Muon (no DDP, post-backward reduce-scatter + local PE + async all-gather). 7,306 steps in 600s. Int6 sliding window val_bpb 1.1238. Built on PR #315 by @jfprincz.",
+  "blurb": "Systems optimization: 3.1% faster training (82.08ms vs 84.76ms, mean of 3 seeds) via Parameter Banking, Polar Express (arXiv:2505.16932), and Parallel Muon (no DDP, post-backward reduce-scatter + local PE + async all-gather). 7,311 steps vs 7,079 in 600s. Mean int6 sliding window val_bpb 1.1239 (std 0.0001). Built on PR #315 by @jfprincz.",
   "author": "abaybektursun",
   "github_id": "abaybektursun",
   "date": "2026-03-22"
