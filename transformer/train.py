@@ -33,6 +33,12 @@ try:
 except ImportError:
     _COMPRESSOR = "zlib"
 
+try:
+    from flash_attn import flash_attn_func as _flash_attn_func
+    _HAS_FA3 = True
+except ImportError:
+    _HAS_FA3 = False
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -883,12 +889,18 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        # Expand KV heads for GQA compatibility with older torch
-        if self.num_kv_heads != self.num_heads:
-            rep = self.num_heads // self.num_kv_heads
-            k = k.repeat_interleave(rep, dim=1)
-            v = v.repeat_interleave(rep, dim=1)
-        y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
+        if _HAS_FA3:
+            # FA3 expects [B, T, H, D] layout and handles GQA natively
+            y = _flash_attn_func(
+                q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2), causal=True
+            ).transpose(1, 2)
+        else:
+            # Expand KV heads for GQA compatibility with older torch SDPA
+            if self.num_kv_heads != self.num_heads:
+                rep = self.num_heads // self.num_kv_heads
+                k = k.repeat_interleave(rep, dim=1)
+                v = v.repeat_interleave(rep, dim=1)
+            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y.transpose(1, 2), v.transpose(1, 2))
             y = y.reshape(bsz, seqlen, dim)
