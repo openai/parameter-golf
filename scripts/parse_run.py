@@ -16,15 +16,30 @@ PATTERNS = {
 }
 
 
+def maybe_float(value: str) -> float | None:
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
 def parse_log(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {"log": str(path), "missing": True}
     text = path.read_text(encoding="utf-8", errors="replace")
     out: dict[str, object] = {"log": str(path)}
     if m := PATTERNS["roundtrip"].search(text):
-        out["roundtrip_val_loss"] = float(m.group(1))
-        out["roundtrip_val_bpb"] = float(m.group(2))
+        val_loss = maybe_float(m.group(1))
+        val_bpb = maybe_float(m.group(2))
+        if val_loss is not None and val_bpb is not None:
+            out["roundtrip_val_loss"] = val_loss
+            out["roundtrip_val_bpb"] = val_bpb
     if m := PATTERNS["ttt"].search(text):
-        out["ttt_val_loss"] = float(m.group(1))
-        out["ttt_val_bpb"] = float(m.group(2))
+        val_loss = maybe_float(m.group(1))
+        val_bpb = maybe_float(m.group(2))
+        if val_loss is not None and val_bpb is not None:
+            out["ttt_val_loss"] = val_loss
+            out["ttt_val_bpb"] = val_bpb
     if m := PATTERNS["artifact"].search(text):
         out["artifact_bytes"] = int(m.group(1))
     if m := PATTERNS["peak_mem"].search(text):
@@ -33,11 +48,15 @@ def parse_log(path: Path) -> dict[str, object]:
     step_matches = PATTERNS["step_avg"].findall(text)
     if step_matches:
         step, val_loss, val_bpb, train_time_ms, step_avg = step_matches[-1]
-        out["last_val_step"] = int(step)
-        out["last_val_loss"] = float(val_loss)
-        out["last_val_bpb"] = float(val_bpb)
-        out["train_time_ms"] = int(train_time_ms)
-        out["step_avg_ms"] = float(step_avg)
+        parsed_val_loss = maybe_float(val_loss)
+        parsed_val_bpb = maybe_float(val_bpb)
+        parsed_step_avg = maybe_float(step_avg)
+        if parsed_val_loss is not None and parsed_val_bpb is not None and parsed_step_avg is not None:
+            out["last_val_step"] = int(step)
+            out["last_val_loss"] = parsed_val_loss
+            out["last_val_bpb"] = parsed_val_bpb
+            out["train_time_ms"] = int(train_time_ms)
+            out["step_avg_ms"] = parsed_step_avg
     return out
 
 

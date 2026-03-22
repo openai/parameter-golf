@@ -14,7 +14,10 @@ ARTIFACT_CAP = 16_000_000
 
 
 def parse_logs(paths: list[str]) -> list[dict[str, object]]:
-    out = subprocess.check_output([sys.executable, "scripts/parse_run.py", *paths], text=True)
+    existing = [path for path in paths if Path(path).exists()]
+    if not existing:
+        return []
+    out = subprocess.check_output([sys.executable, "scripts/parse_run.py", *existing], text=True)
     return json.loads(out)
 
 
