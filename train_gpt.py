@@ -66,7 +66,7 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -76,7 +76,7 @@ class Hyperparameters:
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # BigramHash embedding table
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
     # SmearGate: blend curr embedding with prev token embedding
@@ -84,7 +84,7 @@ class Hyperparameters:
 
     # Stochastic Weight Averaging
     swa_every = int(os.environ.get("SWA_EVERY", 50))
-    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.5))
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
 
     # Int6 Quantization-Aware Training
     use_qat = bool(int(os.environ.get("USE_QAT", "1")))
@@ -365,8 +365,10 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
     return t
 
 
-def quantize_float_tensor_int6(t: Tensor) -> tuple[Tensor, Tensor]:
-    """Per-row int6 quantization: values in [-32, 31], packed 2 per byte."""
+def quantize_float_tensor_int(t: Tensor, bits: int = 6) -> tuple[Tensor, Tensor]:
+    """Per-row quantization."""
+    max_val = (1 << (bits - 1)) - 1
+    min_val = -(1 << (bits - 1))
     t32 = t.float()
     if t32.ndim == 2:
         clip_abs = (
@@ -375,13 +377,13 @@ def quantize_float_tensor_int6(t: Tensor) -> tuple[Tensor, Tensor]:
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / float(INT6_MAX)).clamp_min(1.0 / float(INT6_MAX))
-        q = torch.clamp(torch.round(clipped / scale[:, None]), INT6_MIN, INT6_MAX).to(torch.int8).contiguous()
+        scale = (clip_abs / float(max_val)).clamp_min(1.0 / float(max_val))
+        q = torch.clamp(torch.round(clipped / scale[:, None]), min_val, max_val).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
     # Vectors
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / float(INT6_MAX) if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), INT6_MIN, INT6_MAX).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / float(max_val) if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), min_val, max_val).to(torch.int8).contiguous()
     return q, scale
 
 
@@ -471,9 +473,17 @@ def quantize_state_dict_int6(state_dict: dict[str, Tensor]):
             stats["int6_payload_bytes"] += tensor_nbytes(kept)
             continue
 
+        # 3% parameter magnitude pruning before quantization
+        t32 = t.float()
+        if "mlp" in name or "attn" in name:
+            threshold = torch.quantile(t32.abs().flatten(), 0.03)
+            t32[t32.abs() < threshold] = 0.0
+
+        bits = 5 if "mlp.fc" in name or "mlp.proj" in name else 6
+
         stats["num_float_tensors"] += 1
         shapes[name] = tuple(t.shape)
-        q, s = quantize_float_tensor_int6(t)
+        q, s = quantize_float_tensor_int(t32, bits=bits)
         packed = pack_int6_to_bytes(q)
         quantized[name] = packed
         scales[name] = s
@@ -613,26 +623,29 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 # INT6 QUANTIZATION-AWARE TRAINING (QAT)
 # -----------------------------
 
-class StraightThroughInt6(torch.autograd.Function):
-    """Straight-through estimator for int6 quantization noise injection."""
+class StraightThroughIntQAT(torch.autograd.Function):
+    """Straight-through estimator for int quantization noise injection."""
     @staticmethod
-    def forward(ctx, x: Tensor, scale: Tensor) -> Tensor:
-        q = torch.clamp(torch.round(x / scale[:, None]), INT6_MIN, INT6_MAX)
+    def forward(ctx, x: Tensor, scale: Tensor, bits: int) -> Tensor:
+        max_val = (1 << (bits - 1)) - 1
+        min_val = -(1 << (bits - 1))
+        q = torch.clamp(torch.round(x / scale[:, None]), min_val, max_val)
         return q * scale[:, None]
 
     @staticmethod
-    def backward(ctx, grad_output: Tensor) -> tuple[Tensor, None]:
-        return grad_output, None
+    def backward(ctx, grad_output: Tensor) -> tuple[Tensor, None, None]:
+        return grad_output, None, None
 
 
-def apply_qat_noise(weight: Tensor, skip_patterns: tuple[str, ...] = ()) -> Tensor:
-    """Apply int6 QAT noise to a 2D weight matrix."""
+def apply_qat_noise(weight: Tensor, skip_patterns: tuple[str, ...] = (), bits: int = 6) -> Tensor:
+    """Apply int QAT noise to a 2D weight matrix."""
     if weight.ndim != 2 or weight.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
         return weight
     w = weight.float()
     clip_abs = torch.quantile(w.abs(), INT8_CLIP_Q, dim=1).clamp_min(1e-8)
-    scale = (clip_abs / float(INT6_MAX)).clamp_min(1.0 / float(INT6_MAX))
-    return StraightThroughInt6.apply(w, scale).to(dtype=weight.dtype)
+    max_val = (1 << (bits - 1)) - 1
+    scale = (clip_abs / float(max_val)).clamp_min(1.0 / float(max_val))
+    return StraightThroughIntQAT.apply(w, scale, bits).to(dtype=weight.dtype)
 
 # -----------------------------
 # DATA LOADING
@@ -720,15 +733,16 @@ class CastedLinear(nn.Linear):
 
 
 class CastedLinearQAT(nn.Linear):
-    """Linear layer with optional int6 QAT noise injection."""
-    def __init__(self, *args, use_qat: bool = False, **kwargs):
+    """Linear layer with optional int QAT noise injection."""
+    def __init__(self, *args, use_qat: bool = False, qat_bits: int = 6, **kwargs):
         super().__init__(*args, **kwargs)
         self.use_qat = use_qat
+        self.qat_bits = qat_bits
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight
         if self.use_qat and self.training and w.ndim == 2 and w.numel() > INT8_KEEP_FLOAT_MAX_NUMEL:
-            w = apply_qat_noise(w)
+            w = apply_qat_noise(w, bits=self.qat_bits)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w.to(x.dtype), bias)
 
@@ -825,8 +839,8 @@ class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: float, use_qat: bool = False):
         super().__init__()
         hidden = int(mlp_mult * dim)
-        self.fc = CastedLinearQAT(dim, hidden, bias=False, use_qat=use_qat)
-        self.proj = CastedLinearQAT(hidden, dim, bias=False, use_qat=use_qat)
+        self.fc = CastedLinearQAT(dim, hidden, bias=False, use_qat=use_qat, qat_bits=5)
+        self.proj = CastedLinearQAT(hidden, dim, bias=False, use_qat=use_qat, qat_bits=5)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
