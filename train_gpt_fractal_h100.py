@@ -43,6 +43,8 @@ class H:
  ve_enabled=bool(int(E("VE_ENABLED","1")));ve_dim=int(E("VE_DIM","128"))
  ve_layers=E("VE_LAYERS","1");ema_decay=float(E("EMA_DECAY","0.997"))
  ema_enabled=bool(int(E("EMA_ENABLED","0")))
+ ttt_enabled=bool(int(E("TTT_ENABLED","1")));ttt_epochs=int(E("TTT_EPOCHS","3"))
+ ttt_lr=float(E("TTT_LR","1e-4"));ttt_stride=int(E("TTT_STRIDE","64"))
 _CP=tuple(p for p in E("CONTROL_TENSOR_NAME_PATTERNS","attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,ve_layer_scales,ve_shared.scale").split(",") if p)
 def _ns5(G,steps=10,eps=1e-7):
  a,b,c=3.4445,-4.7750,2.0315;X=G.bfloat16();X/=X.norm()+eps
@@ -305,6 +307,28 @@ class GPT(nn.Module):
    x=x+s.loop_pos[lp][None,None,:];x=s._run_blocks(x,x0,ids,vc)
   x=s.final_norm(x);lp=F.linear(x,s.tok_emb.weight) if s.te else s.lm_head(x)
   return s.lsc*torch.tanh(lp/s.lsc)
+ def forward_ttt_step(s,ids,tgt,ttt_opt):
+  """One fractal forward with inner TTT: update weights between loops, score on final loop."""
+  x=s.tok_emb(ids)
+  if s.bigram:x=x+s.bigram(ids)
+  x=F.rms_norm(x,(x.size(-1),));x=s.smear(x);x0=x;vc={}
+  for lp in range(s.num_loops):
+   x=x+s.loop_pos[lp][None,None,:];x=s._run_blocks(x,x0,ids,vc)
+   if lp<s.num_loops-1:
+    # Inner TTT: compute loss at this loop, update shared weights
+    xn=s.final_norm(x);xf=xn.reshape(-1,xn.size(-1));tg=tgt.reshape(-1)
+    lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
+    lg=s.lsc*torch.tanh(lp_/s.lsc)
+    ttt_loss=F.cross_entropy(lg.float(),tg,reduction="mean")
+    ttt_opt.zero_grad(set_to_none=True)
+    ttt_loss.backward()
+    torch.nn.utils.clip_grad_norm_(s.parameters(),1.0)
+    ttt_opt.step()
+    x=x.detach()  # detach to avoid stale graph references
+  # Final loop logits (for scoring)
+  xn=s.final_norm(x);xf=xn.reshape(-1,xn.size(-1))
+  lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
+  return s.lsc*torch.tanh(lp_/s.lsc)
 def eval_slide(a,bm,rk,ws,dev,vt,bl,hl,il,stride,bseqs=32,esl=None):
  sl=esl or a.train_seq_len;tt=vt.numel()-1
  ww=[w for w in range(0,tt,stride) if min(w+sl,tt)-w>=1];tw=len(ww)
@@ -327,6 +351,42 @@ def eval_slide(a,bm,rk,ws,dev,vt,bl,hl,il,stride,bseqs=32,esl=None):
  if dist.is_available() and dist.is_initialized():
   dist.all_reduce(ls,op=dist.ReduceOp.SUM);dist.all_reduce(tc,op=dist.ReduceOp.SUM);dist.all_reduce(bc,op=dist.ReduceOp.SUM)
  vl=(ls/tc).item();bpt=vl/math.log(2.0);tpb=tc.item()/bc.item();bm.train()
+ return vl,bpt*tpb
+def eval_slide_ttt(a,bm,rk,ws,dev,vt,bl,hl,il,stride,ttt_epochs,ttt_lr,esl=None):
+ """Sliding window eval with inner-TTT: each fractal loop TTT-updates shared weights before next loop."""
+ sl=esl or a.train_seq_len;tt=vt.numel()-1
+ ww=[w for w in range(0,tt,stride) if min(w+sl,tt)-w>=1];tw=len(ww)
+ ms=(tw*rk)//ws;me=(tw*(rk+1))//ws;mw=ww[ms:me]
+ ls=torch.zeros((),device=dev,dtype=torch.float64);tc=torch.zeros((),device=dev,dtype=torch.float64);bc=torch.zeros((),device=dev,dtype=torch.float64)
+ bm.train()  # need gradients for TTT
+ ttt_opt=torch.optim.Adam(bm.parameters(),lr=ttt_lr)
+ for wi,ws_ in enumerate(mw):
+  end=min(ws_+sl,tt);wlen=end-ws_
+  chunk=vt[ws_:end+1].to(dtype=torch.int64,device=dev)
+  x=chunk[:-1].unsqueeze(0);y=chunk[1:].unsqueeze(0)
+  # Inner-TTT fractal forward: TTT between loops, score on final loop
+  with torch.autocast(device_type="cuda",dtype=torch.bfloat16):
+   logits=bm.forward_ttt_step(x,y,ttt_opt)
+  # Score new tokens (stride region only)
+  with torch.no_grad():
+   nll=F.cross_entropy(logits.reshape(-1,logits.size(-1)).float(),y.reshape(-1),reduction="none")
+  s=0 if ws_==0 else max(wlen-stride,0)
+  scored=nll[s:wlen].to(torch.float64)
+  ls+=scored.sum();tc+=float(wlen-s)
+  tg=y.reshape(-1);pv=x.reshape(-1)
+  tb=bl[tg[s:wlen]].to(torch.float64);tb+=(hl[tg[s:wlen]]&~il[pv[s:wlen]]).to(torch.float64);bc+=tb.sum()
+  # Between-window TTT: extra epochs on the full window (tokens now graded)
+  for ep in range(ttt_epochs-1):
+   ttt_opt.zero_grad(set_to_none=True)
+   with torch.autocast(device_type="cuda",dtype=torch.bfloat16):
+    ttt_loss=bm(x,y)
+   ttt_loss.backward();torch.nn.utils.clip_grad_norm_(bm.parameters(),1.0);ttt_opt.step()
+  if wi%200==0 and rk==0:
+   rb=(ls/tc).item()/math.log(2.0)*(tc.item()/bc.item()) if tc.item()>0 else 0
+   print(f"  ttt_slide: {wi}/{len(mw)} running_bpb:{rb:.4f}")
+ if dist.is_available() and dist.is_initialized():
+  dist.all_reduce(ls,op=dist.ReduceOp.SUM);dist.all_reduce(tc,op=dist.ReduceOp.SUM);dist.all_reduce(bc,op=dist.ReduceOp.SUM)
+ vl=(ls/tc).item();bpt=vl/math.log(2.0);tpb=tc.item()/bc.item()
  return vl,bpt*tpb
 def _clp(n):
  if "tok_emb" in n or "lm_head" in n:return "embed"
@@ -547,5 +607,16 @@ def main():
   torch.cuda.synchronize()
   log0(f"final_int6_sliding_window val_loss:{svl:.4f} val_bpb:{svb:.4f} stride:{a.eval_stride} eval_time:{1000.0*(time.perf_counter()-ts):.0f}ms")
   log0(f"final_int6_sliding_window_exact val_loss:{svl:.8f} val_bpb:{svb:.8f}")
+ if a.ttt_enabled and a.ttt_stride>0 and a.ttt_stride<swsl:
+  log0(f"ttt_eval:starting epochs={a.ttt_epochs} lr={a.ttt_lr} stride={a.ttt_stride}")
+  em2=GPT(vs=a.vocab_size,nul=a.num_unique_layers,nlp=a.num_loops,md=a.model_dim,nh=a.num_heads,nkv=a.num_kv_heads,mm=a.mlp_mult,te=a.tie_embeddings,teis=a.tied_embed_init_std,lsc=a.logit_softcap,rb=a.rope_base,qkg=a.qk_gain_init,bvs=a.bigram_vocab_size,bd=a.bigram_dim,xln=a.xsa_last_n,rd=a.rope_dims,lns=a.ln_scale,ve_on=a.ve_enabled,ve_d=a.ve_dim,ve_l=a.ve_layers).to(dev).bfloat16()
+  for m in em2.modules():
+   if isinstance(m,CastedLinear):m.float()
+  restore_fp32(em2);em2.load_state_dict(dqs,strict=True)
+  torch.cuda.synchronize();tt0=time.perf_counter()
+  tvl,tvb=eval_slide_ttt(a,em2,rk,ws,dev,vt,bl,hl,il,stride=a.ttt_stride,ttt_epochs=a.ttt_epochs,ttt_lr=a.ttt_lr,esl=swsl)
+  torch.cuda.synchronize()
+  log0(f"final_ttt_sliding val_loss:{tvl:.4f} val_bpb:{tvb:.4f} stride:{a.ttt_stride} ttt_epochs:{a.ttt_epochs} eval_time:{1000.0*(time.perf_counter()-tt0):.0f}ms")
+  log0(f"final_ttt_sliding_exact val_loss:{tvl:.8f} val_bpb:{tvb:.8f}")
  if dd:dist.destroy_process_group()
 if __name__=="__main__":main()
