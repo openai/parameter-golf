@@ -1,34 +1,12 @@
 {
-  "name": "XSA + EMA + Partial RoPE + LN Scale + TTT",
+  "name": "10L XSA + EMA + Partial RoPE + LN Scale",
   "author": "ofirkris",
   "github_id": "ofirkris",
   "date": "2026-03-22",
   "val_bpb": 1.13647704,
   "val_loss": 1.91888879,
   "artifact_bytes": 15759319,
-  "code_bytes": 55693,
-  "total_bytes": 15815012,
   "training_time_seconds": 600,
   "gpu_config": "8xH100_SXM",
-  "steps_completed": 6491,
-  "step_avg_ms": 92.4,
-  "seeds": [42],
-  "techniques": [
-    "10L 512d 3x MLP (1536 hidden)",
-    "XSA on last 4 layers",
-    "EMA (decay=0.997)",
-    "Partial RoPE (16/64 dims)",
-    "LN Scale (1/sqrt(layer_idx+1))",
-    "SmearGate + BigramHash(10240, dim=128)",
-    "Int5 MLP / Int6 attention mixed quantization",
-    "FP16 embedding passthrough",
-    "Magnitude pruning 3.2%",
-    "zstd-22 compression",
-    "Sliding window eval (stride=64)",
-    "TTT (3 epochs SGD post-quant)",
-    "Backout (mid-layer residual subtraction)",
-    "LeakyReLU(0.5)^2",
-    "Cautious weight decay",
-    "Pinned memory data loader"
-  ]
+  "seeds": {"42": 1.13647704, "1337": 1.13662891}
 }

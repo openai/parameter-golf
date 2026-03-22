@@ -1,33 +1,27 @@
-# XSA + EMA + Partial RoPE + LN Scale + TTT
+# 10L XSA + EMA + Partial RoPE + LN Scale
 
-**val_bpb: 1.1365** (seed 42, 8xH100 SXM, 600s)
+**val_bpb: 1.1365** (mean of seeds 42, 1337)
+
+## Results
+| Seed | val_bpb | Artifact | Steps |
+|------|---------|----------|-------|
+| 42 | 1.1365 | 15,759,319 | 6491 |
+| 1337 | 1.1366 | 15,820,386 | 6520 |
 
 ## Architecture
-- 10 transformer layers, 512d, 8 heads / 4 KV heads (GQA), 3x MLP (1536 hidden)
-- Exclusive Self-Attention (XSA) on last 4 layers
-- EMA (decay=0.997)
-- Partial RoPE (16/64 dims)
-- LN Scale (1/sqrt(layer_idx+1))
-- SmearGate + BigramHash(10240, dim=128)
-- U-Net skip connections, orthogonal init, logit softcap=30
+- 10 layers, 512d, 8/4 GQA, 3x MLP (1536), ReLU^2
+- XSA last 4 layers, EMA 0.997, Partial RoPE 16/64, LN Scale
+- SmearGate + BigramHash(10240, 128), U-Net skips, softcap=30
 
 ## Training
-- Muon optimizer (WD=0.04, momentum 0.99) + AdamW for embeddings/scalars
-- Batch tokens: 786,432, seq len: 2048
-- Warmdown: 3000 iters
-- 6491 steps in 600s (92.4ms/step)
+- BF16, Muon (WD=0.04, momentum=0.99) + AdamW
+- 786K batch tokens, seq 2048, warmdown 3000
 
 ## Quantization
-- Int5 MLP / Int6 attention per-row quantization
-- FP16 embedding passthrough
-- 3.2% magnitude pruning
-- zstd level 22 compression
-- Artifact: 15,759,319 bytes
+- Int5 MLP / Int6 attention, FP16 embeds, 3.2% pruning, zstd-22
 
-## Evaluation
-- Sliding window (stride=64, seq_len=2048)
-- TTT: 3 epochs SGD post-quantization
+## Eval
+- Sliding window stride=64
 
 ## Environment
-- PyTorch 2.7.0 + FlashAttention 2.8.3
-- 8xH100 SXM 80GB
+- PyTorch 2.7.0+cu128, FlashAttention 2.8.3, 8xH100 SXM

@@ -449,6 +449,73 @@ class DistributedTokenLoader:
 
 
 # -----------------------------
+# FP8 TRAINING (from nanochat — tensorwise dynamic scaling)
+# -----------------------------
+
+FP8_ENABLED = bool(int(os.environ.get("FP8_ENABLED", "0")))
+_FP8_EPS = 1e-12
+
+@torch.no_grad()
+def _to_fp8(x, fp8_dtype):
+    fp8_max = torch.finfo(fp8_dtype).max
+    amax = x.float().abs().max()
+    scale = fp8_max / amax.double().clamp(min=_FP8_EPS)
+    scale = scale.float()
+    x_fp8 = (x.float() * scale).clamp(-fp8_max, fp8_max).to(fp8_dtype)
+    return x_fp8, scale.reciprocal()
+
+def _to_col_major(x):
+    return x.t().contiguous().t()
+
+@torch._dynamo.allow_in_graph
+class _Float8Matmul(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input_2d, weight):
+        in_fp8, in_inv = _to_fp8(input_2d, torch.float8_e4m3fn)
+        w_fp8, w_inv = _to_fp8(weight, torch.float8_e4m3fn)
+        ctx.save_for_backward(in_fp8, in_inv, w_fp8, w_inv)
+        return torch._scaled_mm(in_fp8, w_fp8.t(), scale_a=in_inv, scale_b=w_inv,
+                                out_dtype=input_2d.dtype, use_fast_accum=True)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        in_fp8, in_inv, w_fp8, w_inv = ctx.saved_tensors
+        go_fp8, go_inv = _to_fp8(grad_output, torch.float8_e5m2)
+        grad_input = torch._scaled_mm(go_fp8, _to_col_major(w_fp8),
+                                       scale_a=go_inv, scale_b=w_inv,
+                                       out_dtype=grad_output.dtype, use_fast_accum=False)
+        grad_weight = torch._scaled_mm(go_fp8.t().contiguous(), _to_col_major(in_fp8),
+                                        scale_a=go_inv, scale_b=in_inv,
+                                        out_dtype=grad_output.dtype, use_fast_accum=False)
+        return grad_input, grad_weight
+
+class Float8Linear(nn.Linear):
+    def forward(self, input):
+        input = input.to(torch.bfloat16)
+        orig_shape = input.shape
+        input_2d = input.reshape(-1, orig_shape[-1])
+        output = _Float8Matmul.apply(input_2d, self.weight)
+        output = output.reshape(*orig_shape[:-1], output.shape[-1])
+        if self.bias is not None:
+            output = output + self.bias.to(output.dtype)
+        return output
+
+    @classmethod
+    def from_float(cls, mod):
+        with torch.device("meta"):
+            new_mod = cls(mod.in_features, mod.out_features, bias=mod.bias is not None)
+        new_mod.weight = mod.weight
+        new_mod.bias = mod.bias
+        return new_mod
+
+def convert_to_float8_training(module):
+    for name, child in list(module.named_children()):
+        convert_to_float8_training(child)
+        if isinstance(child, nn.Linear) and not isinstance(child, Float8Linear):
+            if child.weight.shape[0] % 16 == 0 and child.weight.shape[1] % 16 == 0 and min(child.weight.shape) >= 128:
+                setattr(module, name, Float8Linear.from_float(child))
+
+# -----------------------------
 # TRANSFORMER MODULES
 # -----------------------------
 
@@ -771,7 +838,7 @@ def eval_val_sliding(
     seq_len = args.train_seq_len
     total_tokens = val_tokens.numel() - 1
     window_starts = [ws for ws in range(0, total_tokens, stride)
-                     if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0]
+                     if min(ws + seq_len, total_tokens) - ws >= 1]
     total_windows = len(window_starts)
     my_s = (total_windows * rank) // world_size
     my_e = (total_windows * (rank + 1)) // world_size
@@ -944,6 +1011,10 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    if FP8_ENABLED:
+        convert_to_float8_training(base_model)
+        n_fp8 = sum(1 for m in base_model.modules() if isinstance(m, Float8Linear))
+        log0(f"fp8:enabled converted {n_fp8} layers to Float8Linear")
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True) if os.environ.get("TORCH_COMPILE", "1") != "0" else base_model
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -1189,6 +1260,19 @@ def main() -> None:
             for name, tensor in swa_state.items()
         }
         base_model.load_state_dict(avg_state, strict=True)
+
+    # Revert FP8 to standard Linear for serialization and eval
+    if FP8_ENABLED:
+        for name, child in list(base_model.named_modules()):
+            if isinstance(child, Float8Linear):
+                parent_name, attr_name = name.rsplit('.', 1) if '.' in name else ('', name)
+                parent = base_model.get_submodule(parent_name) if parent_name else base_model
+                linear = nn.Linear(child.in_features, child.out_features, bias=child.bias is not None, device=child.weight.device, dtype=child.weight.dtype)
+                linear.weight = child.weight
+                if child.bias is not None:
+                    linear.bias = child.bias
+                setattr(parent, attr_name, linear)
+        log0("fp8:reverted to standard Linear for export/eval")
 
     # SERIALIZATION + ROUNDTRIP VALIDATION
     if master_process:
