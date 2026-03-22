@@ -34,7 +34,10 @@ except ImportError:
     _COMPRESSOR = "zlib"
 
 # FA3 (Hopper) — direct kernel, no SDPA wrapper
-from flash_attn.flash_attn_interface import flash_attn_func as _flash_attn_func
+try:
+    from flash_attn_interface import flash_attn_func as _flash_attn_func  # FA3 Hopper package
+except ImportError:
+    from flash_attn.flash_attn_interface import flash_attn_func as _flash_attn_func  # FA2 fallback
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -819,8 +822,8 @@ class Rotary(nn.Module):
         ):
             t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
             freqs = torch.outer(t, self.inv_freq.to(device))
-            self._cos_cached = freqs.cos()[None, None, :, :]
-            self._sin_cached = freqs.sin()[None, None, :, :]
+            self._cos_cached = freqs.cos()[None, :, None, :]  # [1, T, 1, D/2] for [B, T, H, D]
+            self._sin_cached = freqs.sin()[None, :, None, :]
             self._seq_len_cached = seq_len
         return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
 
@@ -1491,7 +1494,7 @@ def main() -> None:
         compiled_model = base_model
     else:
         compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
