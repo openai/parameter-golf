@@ -12,6 +12,7 @@ PATTERNS = {
     "ttt": re.compile(r"final_int8_ttt_lora val_loss:(\S+) val_bpb:(\S+)"),
     "artifact": re.compile(r"Total submission size int8\+zlib: (\d+) bytes"),
     "step_avg": re.compile(r"step:(\d+)/\d+ val_loss:(\S+) val_bpb:(\S+) train_time:(\d+)ms step_avg:(\S+)ms"),
+    "peak_mem": re.compile(r"peak memory allocated: (\d+) MiB reserved: (\d+) MiB"),
 }
 
 
@@ -26,6 +27,9 @@ def parse_log(path: Path) -> dict[str, object]:
         out["ttt_val_bpb"] = float(m.group(2))
     if m := PATTERNS["artifact"].search(text):
         out["artifact_bytes"] = int(m.group(1))
+    if m := PATTERNS["peak_mem"].search(text):
+        out["peak_alloc_mib"] = int(m.group(1))
+        out["peak_reserved_mib"] = int(m.group(2))
     step_matches = PATTERNS["step_avg"].findall(text)
     if step_matches:
         step, val_loss, val_bpb, train_time_ms, step_avg = step_matches[-1]
