@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "Batch-Opt 524K + WD4000 + Full-Weight TTT (15 epochs)",
+  "author": "sshiromani",
+  "github_id": "shikhar1729",
+  "seed_results": {
+    "42": {"val_loss": 1.92950060, "val_bpb": 1.14276196, "steps": 7473, "ms_per_step": 80.29},
+    "7": {"val_loss": 1.93232602, "val_bpb": 1.14443534, "steps": 7439, "ms_per_step": 80.76},
+    "2024": {"val_loss": 1.92944959, "val_bpb": 1.14273175, "steps": 7439, "ms_per_step": 80.76}
+  },
+  "mean_val_loss": 1.93042540,
+  "mean_val_bpb": 1.14330968,
+  "artifact_bytes": 15781381,
+  "code_bytes": 65187
+}
