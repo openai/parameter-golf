@@ -1,0 +1,38 @@
+{
+  "team": "pcloadloveletter",
+  "organization": "Artie AI",
+  "version": "v5",
+  "date": "2026-03-22",
+  "description": "v5: Partial RoPE + LN Scale + XSA4 + Late QAT + Tight SWA + Novel Compression (per-tensor codebook + Huffman)",
+  "architecture": {
+    "layers": 11,
+    "d_model": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_hidden": 1500,
+    "bigram_vocab": 2048,
+    "bigram_dim": 128,
+    "rope_base": 50000,
+    "rope_dims": 16,
+    "xsa_layers": 4,
+    "ln_scale": true,
+    "late_qat": true
+  },
+  "training": {
+    "optimizer": "NorMuon (lr=0.025, WD=0.04) + AdamW",
+    "batch_tokens": 786432,
+    "seq_len": 2048,
+    "warmdown": 3000,
+    "tight_swa": "scale<0.2, every 50 steps"
+  },
+  "compression": {
+    "method": "per-tensor k-means codebook + Huffman entropy coding + zstd-22",
+    "codebook_mlp": 48,
+    "codebook_attn_qkv": 80,
+    "codebook_attn_proj": 64,
+    "format": "custom binary (PCLL)",
+    "novel": true,
+    "estimated_savings_mb": 3.82
+  },
+  "status": "built, not yet validated on GPU"
+}
