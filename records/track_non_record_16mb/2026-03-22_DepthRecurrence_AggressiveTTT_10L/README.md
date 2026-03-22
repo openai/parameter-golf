@@ -1,13 +1,33 @@
-# Depth Recurrence + Aggressive TTT (10L, 1.1395 BPB)
+# Legal Score-First TTT (10L, 1.1532 BPB)
 
-A 10-layer GPT trained with depth-recurrence infrastructure, competition-legal
-score-first test-time training, and mixed int5/int6 quantization.
+A 10-layer GPT with competition-legal score-first test-time training,
+mixed int5/int6 quantization, and community-standard architecture components.
 Achieves **1.15321 BPB** on FineWeb validation (4×A100, legal TTT).
+
+## What's Novel Here
+
+**The main contribution is competition-legal full-model TTT integrated into
+sliding-window evaluation.** Prior legal TTT work in this competition (PR #77)
+used per-document LoRA adapters with resets. This submission replaces that
+with a chunked score-first loop over the **full model weights** — no LoRA,
+no adapter resets between documents — giving the model persistent memory
+across the entire validation set.
+
+Concretely, `eval_val_sliding_ttt()` divides validation into 32k-token
+chunks, scores each chunk first (satisfying the "already graded" rule),
+then trains the full 25.5M parameters with one AdamW step per chunk.
+Cosine LR decay across chunks prevents catastrophic forgetting.
+Improvement: **1.1600 → 1.1532 BPB** (−0.0068).
+
+Everything else — BigramHash, SmearGate, XSA, U-Net skips, mixed int5/int6,
+SWA, Late QAT, Muon — is adopted from community prior art and cited in
+Attribution below. Depth recurrence was explored during development but is
+**not active** in the final config (`unique_layers=10=num_layers`).
 
 ## Run Command
 
 ```bash
-# Training (~8700s on 1×A100-40GB)
+# Training (~2283s on 4×A100-40GB for this submitted run)
 python train_gpt.py
 
 # Evaluation only (loads quantized checkpoint)
@@ -39,7 +59,7 @@ python train_gpt.py --inference_only
 ## Architecture
 
 - **Layers**: 10 unique `BlockCore` modules (no weight sharing in final config)
-- **Dimensions**: d_model=512, 12 attention heads, 4 KV heads (GQA 3:1)
+- **Dimensions**: d_model=512, 8 attention heads, 4 KV heads (GQA 2:1)
 - **MLP**: 3× expansion with relu² activation
 - **Embeddings**: BigramHash(10240) — hashes consecutive token pairs into 10,240
   buckets, providing cheap bigram context without a full 50257² embedding table
@@ -54,13 +74,13 @@ python train_gpt.py --inference_only
 
 | Hyperparameter | Value |
 |----------------|-------|
-| Optimizer | Muon (momentum=0.95) + Adam (embeddings/head) |
-| Learning rate | 0.0036 (Muon) / 0.011 (Adam) |
-| Batch size | 64 × 8192 tokens = 524,288 tokens/step |
-| Warmup | 250 steps |
+| Optimizer | Muon (matrices) + AdamW (tied token embeddings, scalars) |
+| Learning rate | 0.025 (Muon matrices) / 0.035 (tied token embeddings) / 0.025 (scalars) |
+| Batch size | 786,432 tokens/step at seq_len=2048 |
+| Warmup | 20 steps |
 | Warmdown | last 3,000 of 5,200 steps |
 | Weight decay | 0.04 |
-| SWA | start=0.2, interval=50 steps |
+| SWA | begin averaging once LR scale drops below 0.2; every 50 steps thereafter |
 | Late QAT | threshold=0.1 (begins when warmdown fraction > 0.1) |
 
 ### Quantization
@@ -90,41 +110,13 @@ compliant with competition rules (you can only train on tokens already scored):
 
 ## Key Techniques
 
-### Depth Recurrence
+### Depth Recurrence (Infrastructure Only)
 
-The architecture separates *weight-holding* modules (`BlockCore`: attention +
-MLP + gate) from *per-layer* modules (`Block`: norms, scales, residual mixing).
-A core index list maps each logical layer to its `BlockCore`. When
-`unique_layers < num_layers`, multiple logical layers share the same core
-weights — effectively depth recurrence (ALBERT-style weight tying).
-
-In the final submission `unique_layers=10=num_layers`, so no sharing occurs.
-The infrastructure was developed to explore the depth/parameter tradeoff under
-the 16MB budget: more layers improve representation but cost parameters. Early
-experiments on V100 confirmed that moderate sharing (e.g., 8 unique cores
-across 12 layers) preserves most of the quality at reduced parameter count.
-
-### BigramHash Embeddings and ECFP Analogy
-
-BigramHashEmbedding hashes consecutive token pairs (bigrams) into a fixed
-number of buckets (10,240) and learns an embedding per bucket. This is
-structurally analogous to **Extended Connectivity Fingerprints (ECFP)** from
-cheminformatics:
-
-| Concept | ECFP | BigramHash |
-|---------|------|------------|
-| Input | Atom neighborhoods | Token pairs |
-| Operation | Hash substructure → fold to fixed bits | Hash bigram → mod to fixed buckets |
-| Output | Fixed-length binary fingerprint | Fixed-length embedding table |
-| Key property | Captures local structure cheaply | Captures local co-occurrence cheaply |
-
-Both techniques solve the same fundamental problem: representing combinatorial
-local context in a fixed-size learned (or binary) vector without materializing
-the full cross-product. In ECFP, the universe of possible molecular
-substructures is astronomical; in language modeling, the 50,257² possible
-bigrams are prohibitive. Hash-and-fold compresses both to a tractable table
-with graceful collision handling — ECFP relies on sparse binary collisions,
-while BigramHash relies on learned embeddings that blend colliding bigrams.
+The code separates `BlockCore` (weights) from `Block` (norms/scales) so that
+multiple logical layers can share one core. With `unique_layers < num_layers`
+this gives ALBERT-style weight tying. **In this submission
+`unique_layers=10=num_layers`, so no sharing occurs.** The infrastructure
+remains for future exploration under tighter budgets.
 
 ### SmearGate
 
@@ -134,9 +126,10 @@ the residual connection. Adds minimal parameters but improves gradient flow.
 
 ### Stochastic Weight Averaging (SWA)
 
-Maintains a running average of model weights, updated every 50 steps starting
-at 20% of training. The averaged model is used for final quantization and
-evaluation, providing a flatter loss basin and better quantization robustness.
+Maintains a running average of model weights, updated every 50 steps once the
+learning-rate multiplier drops below 0.2 (first triggered at step 4650 in this
+run). The averaged model is used for final quantization and evaluation,
+providing a flatter loss basin and better quantization robustness.
 
 ## Evolution
 
@@ -163,9 +156,20 @@ This submission is the result of 13 experimental iterations:
   8×H100 within the 10-minute record-track constraint, but the approach and
   techniques are fully compatible with that setting.
 
-## Attribution
+## Credits
 
-Built on the [parameter-golf](https://github.com/openai/parameter-golf)
-starter code by Beren Millidge & Keller Jordan. Key community techniques
-adopted: Muon optimizer, BigramHash embeddings, SmearGate, mixed int5/int6
-quantization, XSA, SWA, and the TTT evaluation framework.
+This submission builds on work from many contributors to the parameter-golf competition:
+
+- **Muon optimizer** — Baseline (`modded-nanogpt`); Newton-Schulz orthogonal preconditioning
+- **BigramHash embeddings** — PR #65 (aquariouseworkman): hash consecutive token pairs for cheap bigram context
+- **SmearGate** — PR #65 (aquariouseworkman): per-dim sigmoid gate blending adjacent token embeddings
+- **XSA (Exclusive Self Attention)** — PR #187 (Idan3011): removes self-value bias via orthogonal projection; GQA-aware variant in PR #265 (unnir)
+- **U-Net skip connections** — PR #65 (aquariouseworkman), PR #69 (TevBenji): encoder-decoder layer pairing with learned skip weights
+- **Mixed int5/int6 quantization** — PR #76 (unixmadtoonslab / Will DePue): int5 for MLP, int6 for attention
+- **SWA (Stochastic Weight Averaging)** — PR #69 (TevBenji): checkpoint averaging during warmdown
+- **Late QAT** — PR #315 (jfprincz), working implementation in PR #374 (unnir): STE fake-quantization in final training phase
+- **Sliding window evaluation** — PR #50 (mattqlf / Matthew Li): stride-64 overlapping windows
+- **Legal TTT framework** — PR #77 (samacqua): first legal score-first TTT (LoRA); full-model variant is our novel contribution
+- **ReLU² activation, GQA** — Baseline (`modded-nanogpt`)
+
+Built on the [parameter-golf](https://github.com/openai/parameter-golf) starter code by Beren Millidge & Keller Jordan.
