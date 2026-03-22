@@ -428,7 +428,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,bigram.scale",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,bigram.scale,v_res_scale",
     ).split(",")
     if pattern
 )
@@ -867,6 +867,7 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base, rope_dims=rope_dims)
+        self.v_res_scale = nn.Parameter(torch.tensor(0.1, dtype=torch.float32))
         self.use_xsa = False  # set by GPT.__init__ for deep layers
 
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
@@ -885,7 +886,7 @@ class CausalSelfAttention(nn.Module):
         k = self.c_k(x)
         v = self.c_v(x) + (v_delta if v_delta is not None else 0)
         if v_residual is not None:
-            v = v + v_residual
+            v = v + self.v_res_scale * v_residual
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
@@ -1084,14 +1085,16 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
+        # Value Residual: layer 0's v projection mixed into deeper layers (scaled)
+        v_res = self.blocks[0].attn.c_v(self.blocks[0].attn_norm(x0) * self.blocks[0].ln_scale_factor)
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[i](x, x0, v_residual=v_res if i > 0 else None)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[bi](x, x0)
+            x = self.blocks[bi](x, x0, v_residual=v_res)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1112,10 +1115,12 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
+        # Value Residual: layer 0's v projection mixed into deeper layers (learned scale)
+        v_res = self.blocks[0].attn.c_v(self.blocks[0].attn_norm(x0) * self.blocks[0].ln_scale_factor)
         for i in range(self.num_encoder_layers):
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, qd, vd)
+            x = self.blocks[i](x, x0, qd, vd, v_residual=v_res if i > 0 else None)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -1123,7 +1128,7 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, qd, vd)
+            x = self.blocks[bi](x, x0, qd, vd, v_residual=v_res)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
