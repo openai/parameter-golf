@@ -1084,17 +1084,14 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
-        # Value Residual (ResFormer): layer 0's v mixed into all subsequent layers
-        n0 = self.blocks[0].attn_norm(x0) * self.blocks[0].ln_scale_factor
-        v_res = self.blocks[0].attn.c_v(n0)
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0, v_residual=v_res if i > 0 else None)
+            x = self.blocks[i](x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[bi](x, x0, v_residual=v_res)
+            x = self.blocks[bi](x, x0)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1115,13 +1112,10 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        # Value Residual
-        n0 = self.blocks[0].attn_norm(x0) * self.blocks[0].ln_scale_factor
-        v_res = self.blocks[0].attn.c_v(n0)
         for i in range(self.num_encoder_layers):
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, qd, vd, v_residual=v_res if i > 0 else None)
+            x = self.blocks[i](x, x0, qd, vd)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -1129,7 +1123,7 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, qd, vd, v_residual=v_res)
+            x = self.blocks[bi](x, x0, qd, vd)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
