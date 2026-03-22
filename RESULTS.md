@@ -79,6 +79,19 @@ Seeds 7 and 137 both bust 16 MB limit — compression is seed-dependent. Seeds 1
 |-----|--------|------------|----------|-------|
 | **D+SAM+PR315tricks** | TTT 8ep SAM + Partial RoPE + LN Scale | **1.1274** | 15.81 MB | new best on sota254 base, seed 1337 |
 
+## PR#315 + TTT Experiments (8×H100, 2026-03-22)
+
+PR#315 base (no TTT): **1.1248 BPB**. Added TTT 8ep SAM on top.
+
+**NOTE: TTT is now banned by competition rules. These results are historical only.**
+
+| Seed | Sliding BPB | Artifact | Status |
+|------|------------|----------|--------|
+| 1337 | **1.1240** | 15.54 MB | pass |
+| 42 | running... | — | — |
+
+Best result: **1.1240 BPB** (seed 1337) — beat PR#315 by 0.0008. Invalidated by TTT rule change.
+
 **Note (A/B):** A/B used zlib despite zstandard being installed — likely transient env issue. Resolved; all D runs used zstd correctly.
 
 ## Next Steps
