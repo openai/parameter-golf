@@ -11,9 +11,9 @@
 
 | Date | File | Key Config | val_bpb | Iterations | Status | Notes |
 |------|------|-----------|---------|------------|--------|-------|
-| 2026-03-21 | train_gpt_rank1_int5mlp_swa.py | TRIGRAM_HASH_BUCKETS=4096 | ~2.16 | 100 | smoke | trigram works, high bpb expected at 100 iters |
-| | train_gpt_recurrent.py | NUM_LOOPS=1 NUM_LAYERS=10 | TBD | 100 | planned | baseline parity check |
-| | train_gpt_recurrent.py | NUM_LOOPS=3 NUM_LAYERS=4 | TBD | 100 | planned | 3-loop recurrence smoke test |
+| 2026-03-21 | train_gpt_rank1_int5mlp_swa.py | TRIGRAM_HASH_BUCKETS=4096 | 2.1541 | 100 | smoke | trigram works, high bpb expected at 100 iters |
+| 2026-03-21 | train_gpt_recurrent.py | NUM_LOOPS=1 NUM_LAYERS=10 | 3.1511 | 100 | smoke | baseline parity — model_params=25517137, step_avg=696ms, submission_size=16.49MB (slightly over 16MB limit, needs attention) |
+| | train_gpt_recurrent.py | NUM_LOOPS=3 NUM_LAYERS=4 | TBD | 100 | planned | 3-loop recurrence smoke test — compare model_params and step_avg vs baseline |
 
 ---
 
