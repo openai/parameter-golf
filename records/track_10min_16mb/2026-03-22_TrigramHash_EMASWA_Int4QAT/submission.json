@@ -1,0 +1,12 @@
+{
+  "author": "Ashutosh",
+  "github_id": "Ashutosh3142857",
+  "name": "TrigramHash + EMA-SWA + Int4 QAT (11 layers)",
+  "blurb": "Three orthogonal improvements over the SOTA: (1) TrigramHash(2048,48) extends BigramHash to 3-token context windows; (2) EMA-SWA replaces uniform checkpoint averaging with exponential weighting (alpha=0.9) so converged late-warmdown checkpoints dominate; (3) Int4 QAT on MLP weights via Straight-Through Estimator adapts weights to the coarser grid during warmdown, compressing MLP ~2.4x vs int5's 1.88x and freeing ~800 KB to fund an 11th transformer layer. All three innovations are orthogonal — TrigramHash improves input representation, EMA-SWA improves weight averaging, Int4+depth improves capacity-quality tradeoff. Compressor: zstd-22.",
+  "date": "2026-03-22T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null,
+  "_note": "Fill in val_loss, val_bpb, bytes_total, bytes_code after running on 8xH100 (3 seeds)."
+}
