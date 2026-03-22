@@ -45,6 +45,7 @@ class H:
  ema_enabled=bool(int(E("EMA_ENABLED","0")))
  ttt_enabled=bool(int(E("TTT_ENABLED","1")));ttt_epochs=int(E("TTT_EPOCHS","3"))
  ttt_lr=float(E("TTT_LR","1e-4"));ttt_stride=int(E("TTT_STRIDE","64"))
+ ttt_drift=float(E("TTT_DRIFT","0.1"))
 _CP=tuple(p for p in E("CONTROL_TENSOR_NAME_PATTERNS","attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,ve_layer_scales,ve_shared.scale").split(",") if p)
 def _ns5(G,steps=10,eps=1e-7):
  a,b,c=3.4445,-4.7750,2.0315;X=G.bfloat16();X/=X.norm()+eps
@@ -311,8 +312,8 @@ class GPT(nn.Module):
   """Only fractal-layer params: shared blocks + loop_pos + skip_weights. Mainline stays frozen."""
   pp=list(s.blocks.parameters())+[s.loop_pos,s.skip_weights]
   return [p for p in pp if p.requires_grad]
- def forward_ttt_step(s,ids,tgt,ttt_opt,ttt_pp):
-  """Inner TTT on fractal layers only. Embeddings/bigram/smear frozen."""
+ def forward_ttt_step(s,ids,tgt,ttt_opt,ttt_pp,ttt_orig,drift):
+  """Inner TTT on fractal layers only with drift gate. Snap back toward originals."""
   x=s.tok_emb(ids)
   if s.bigram:x=x+s.bigram(ids)
   x=F.rms_norm(x,(x.size(-1),));x=s.smear(x);x0=x;vc={}
@@ -327,6 +328,9 @@ class GPT(nn.Module):
     ttt_loss.backward()
     torch.nn.utils.clip_grad_norm_(ttt_pp,1.0)
     ttt_opt.step()
+    # Drift gate: snap back toward original weights
+    with torch.no_grad():
+     for p,po in zip(ttt_pp,ttt_orig):p.data.lerp_(po,1.0-drift)
     x=x.detach()
   xn=s.final_norm(x);xf=xn.reshape(-1,xn.size(-1))
   lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
@@ -362,6 +366,8 @@ def eval_slide_ttt(a,bm,rk,ws,dev,vt,bl,hl,il,stride,ttt_epochs,ttt_lr,esl=None)
  ls=torch.zeros((),device=dev,dtype=torch.float64);tc=torch.zeros((),device=dev,dtype=torch.float64);bc=torch.zeros((),device=dev,dtype=torch.float64)
  bm.train()
  ttt_pp=bm.ttt_params()
+ ttt_orig=[p.data.clone() for p in ttt_pp]
+ drift=a.ttt_drift
  ttt_opt=torch.optim.Adam(ttt_pp,lr=ttt_lr)
  for wi,ws_ in enumerate(mw):
   end=min(ws_+sl,tt);wlen=end-ws_
@@ -369,7 +375,7 @@ def eval_slide_ttt(a,bm,rk,ws,dev,vt,bl,hl,il,stride,ttt_epochs,ttt_lr,esl=None)
   x=chunk[:-1].unsqueeze(0);y=chunk[1:].unsqueeze(0)
   # Inner-TTT fractal forward: TTT between loops, score on final loop
   with torch.autocast(device_type="cuda",dtype=torch.bfloat16):
-   logits=bm.forward_ttt_step(x,y,ttt_opt,ttt_pp)
+   logits=bm.forward_ttt_step(x,y,ttt_opt,ttt_pp,ttt_orig,drift)
   # Score new tokens (stride region only)
   with torch.no_grad():
    nll=F.cross_entropy(logits.reshape(-1,logits.size(-1)).float(),y.reshape(-1),reduction="none")
@@ -384,6 +390,8 @@ def eval_slide_ttt(a,bm,rk,ws,dev,vt,bl,hl,il,stride,ttt_epochs,ttt_lr,esl=None)
    with torch.autocast(device_type="cuda",dtype=torch.bfloat16):
     ttt_loss=bm(x,y)
    ttt_loss.backward();torch.nn.utils.clip_grad_norm_(ttt_pp,1.0);ttt_opt.step()
+   with torch.no_grad():
+    for p,po in zip(ttt_pp,ttt_orig):p.data.lerp_(po,1.0-drift)
   if wi%200==0 and rk==0:
    rb=(ls/tc).item()/math.log(2.0)*(tc.item()/bc.item()) if tc.item()>0 else 0
    print(f"  ttt_slide: {wi}/{len(mw)} running_bpb:{rb:.4f}")
