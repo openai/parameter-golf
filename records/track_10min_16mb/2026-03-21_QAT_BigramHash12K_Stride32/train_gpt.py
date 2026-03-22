@@ -88,7 +88,7 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("EVAL_STRIDE", 32))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 8192))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))  # disabled, using EMA instead
@@ -1277,7 +1277,7 @@ def main() -> None:
     with torch.no_grad():
         for name, param in base_model.named_parameters():
             if param.ndim == 2 and param.numel() > 65536:
-                threshold = torch.quantile(param.abs().float().flatten(), 0.05)
+                threshold = torch.quantile(param.abs().float().flatten(), 0.10)
                 mask = param.abs() < threshold
                 param.masked_fill_(mask, 0.0)
 
