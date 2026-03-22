@@ -1,0 +1,19 @@
+{
+  "author": "Chris McClendon",
+  "github_id": "Christopher-Lee-McClendon",
+  "name": "Depth Recurrence + Legal Score-First TTT (10L int5/int6)",
+  "blurb": "10-layer GPT with depth-recurrence infrastructure, BigramHash(10240), SmearGate, XSA, U-Net skips, mixed int5/int6 quantization, SWA, Late QAT, and competition-legal score-first TTT (AdamW, chunked score-then-train). Trained on 4xA100.",
+  "date": "2026-03-22",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.94715268,
+  "val_bpb": 1.15321496,
+  "pre_ttt_val_loss": 1.9587,
+  "pre_ttt_val_bpb": 1.1600,
+  "step_stop": 5200,
+  "wallclock_seconds": 2283,
+  "eval_time_seconds": 458,
+  "bytes_total": 15980085,
+  "bytes_model_int5int6_zstd": 15913211,
+  "bytes_code": 66874,
+  "gpu": "4xA100-40GB"
+}
