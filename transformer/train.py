@@ -58,7 +58,7 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 20000))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
@@ -83,12 +83,16 @@ class Hyperparameters:
 
     # Late QAT: activate int6 STE fake-quantization when lr_scale drops below this threshold.
     # 0.0 = disabled, 0.1 = last ~10% of effective training (recommended).
-    qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.1))
+    qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.15))
 
     # SWA: collect checkpoints every N steps during warmdown, average at end.
     # 0 = disabled.
     swa_every = int(os.environ.get("SWA_EVERY", 50))
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
+
+    # EMA: exponential moving average of weights (decay per step).
+    # 0.0 = disabled, 0.997 = recommended. Applied before quantization.
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
     # BigramHash + SmearGate
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
@@ -595,13 +599,38 @@ def _classify_param(name: str) -> str:
     return "other"
 
 
+_GPTQ_LITE_PERCENTILES = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
+
+
 def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
+    """Int6 per-row quantization with GPTQ-lite: search 5 clip percentiles per row."""
     t32 = t.float()
     if t32.ndim == 2:
-        row_max = t32.abs().amax(dim=1)
-        scale = (row_max / 31.0).clamp_min(1.0 / 31.0).to(torch.float16)
-        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -32, 31).to(torch.int8)
-        return q, scale
+        # GPTQ-lite: try multiple clip percentiles, pick min MSE per row
+        abs_t = t32.abs()
+        best_q = None
+        best_scale = None
+        best_mse = None
+        for pct in _GPTQ_LITE_PERCENTILES:
+            if pct >= 1.0:
+                clip_abs = abs_t.amax(dim=1)
+            else:
+                clip_abs = torch.quantile(abs_t, pct, dim=1)
+            scale = (clip_abs / 31.0).clamp_min(1.0 / 31.0)
+            clipped = torch.clamp(t32, -clip_abs[:, None], clip_abs[:, None])
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -32, 31)
+            recon = q * scale[:, None]
+            mse = ((t32 - recon) ** 2).mean(dim=1)
+            if best_mse is None:
+                best_mse = mse
+                best_q = q
+                best_scale = scale
+            else:
+                improved = mse < best_mse
+                best_mse = torch.where(improved, mse, best_mse)
+                best_q = torch.where(improved[:, None], q, best_q)
+                best_scale = torch.where(improved, scale, best_scale)
+        return best_q.to(torch.int8), best_scale.to(torch.float16)
     amax = t32.abs().max().item()
     scale = torch.tensor(amax / 31.0 if amax > 0 else 1.0, dtype=torch.float16)
     q = torch.clamp(torch.round(t32 / scale.float()), -32, 31).to(torch.int8)
@@ -1506,6 +1535,11 @@ def main() -> None:
     training_time_ms = 0.0
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
+
+    # EMA state
+    ema_state: dict[str, Tensor] | None = None
+    if args.ema_decay > 0:
+        ema_state = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
     stop_after_step: int | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -1577,6 +1611,13 @@ def main() -> None:
         if args.qat_threshold > 0 and scale < args.qat_threshold:
             apply_ste_int6(base_model)
 
+        # EMA: update running average every step
+        if ema_state is not None:
+            decay = args.ema_decay
+            with torch.no_grad():
+                for k, v in base_model.state_dict().items():
+                    ema_state[k].mul_(decay).add_(v.detach().cpu().float(), alpha=1 - decay)
+
         # SWA: collect checkpoint during warmdown phase
         if args.swa_every > 0 and scale < args.swa_start_frac and step % args.swa_every == 0:
             if not swa_state:
@@ -1614,6 +1655,14 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+
+    # Apply EMA weights (smoother than last checkpoint)
+    if ema_state is not None:
+        log0("ema: loading EMA weights")
+        orig_sd = base_model.state_dict()
+        ema_sd = {k: ema_state[k].to(dtype=orig_sd[k].dtype, device=orig_sd[k].device) for k in orig_sd}
+        base_model.load_state_dict(ema_sd, strict=True)
+        del ema_state
 
     # Apply SWA if we collected checkpoints
     if swa_state is not None and swa_count > 1:
