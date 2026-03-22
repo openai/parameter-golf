@@ -62,8 +62,8 @@ LOG_PATH="${LOG_DIR}/${RUN_ID}.log"
 [ -f "${TRAIN_SCRIPT}" ] || { echo "ERROR: ${TRAIN_SCRIPT} not found"; exit 1; }
 
 # Ensure deps
-python3 -c "import huggingface_hub, zstandard" 2>/dev/null || \
-    pip install --quiet huggingface_hub zstandard
+python3 -c "import huggingface_hub, zstandard, sentencepiece, numpy" 2>/dev/null || \
+    pip install --quiet huggingface_hub zstandard sentencepiece numpy
 
 # Build FA3 (selective, ~5 min) if not already installed
 if ! python3 -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; then
