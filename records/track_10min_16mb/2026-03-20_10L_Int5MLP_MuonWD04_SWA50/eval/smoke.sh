@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Tiny run to verify CUDA, data paths, and script wiring (not a score attempt).
+set -euo pipefail
+RECORD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$RECORD_DIR/../../.." && pwd)"
+cd "$ROOT"
+export DATA_PATH="${DATA_PATH:-$ROOT/data/datasets/fineweb10B_sp1024}"
+export TOKENIZER_PATH="${TOKENIZER_PATH:-$ROOT/data/tokenizers/fineweb_1024_bpe.model}"
+export VOCAB_SIZE="${VOCAB_SIZE:-1024}"
+export RUN_ID="${RUN_ID:-smoke_10L_int5}"
+export SEED="${SEED:-42}"
+export ITERATIONS="${ITERATIONS:-8}"
+export WARMUP_STEPS="${WARMUP_STEPS:-2}"
+export WARMDOWN_ITERS="${WARMDOWN_ITERS:-4}"
+export TRAIN_BATCH_TOKENS="${TRAIN_BATCH_TOKENS:-65536}"
+export MAX_WALLCLOCK_SECONDS="${MAX_WALLCLOCK_SECONDS:-0}"
+export VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-0}"
+export TRAIN_LOG_EVERY="${TRAIN_LOG_EVERY:-1}"
+export SWA_ENABLED="${SWA_ENABLED:-0}"
+NPROC="${NPROC:-1}"
+exec torchrun --standalone --nproc_per_node="${NPROC}" "${RECORD_DIR}/train_gpt.py"
