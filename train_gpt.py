@@ -7,6 +7,8 @@ Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `t
 ### nbefore, install zstandard and causal_conv1d
 # pip install zstandard
 # pip install --no-cache-dir "https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.6.1.post4/causal_conv1d-1.6.1%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl"
+# pip install --no-cache-dir "https://download.pytorch.org/whl/cu128/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl"
+
 
 from __future__ import annotations
 
@@ -23,11 +25,30 @@ import uuid
 import zlib
 from pathlib import Path
 
-import zstandard as zstd
+try:
+    import zstandard as zstd
+except Exception:
+    zstd = None
+    print("zstandard not found, please install it with `pip install zstandard`")
 
 
-from causal_conv1d import causal_conv1d_fn
+try:
+    from causal_conv1d import causal_conv1d_fn
+except Exception:
+    causal_conv1d_fn = None
+    print("causal_conv1d not found, please install it with `pip install causal_conv1d`")
 
+try:
+    from flash_attn.cute import flash_attn_func as flash_attn_4_func
+except Exception:
+    flash_attn_4_func = None
+    print("flash_attn.cute not found, please install it with `pip install flash-attn-4`")
+
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+except Exception:
+    flash_attn_3_func = None
+    print("flash_attn_interface not found, please install it with `pip install flash-attn`")
 
 import numpy as np
 import sentencepiece as spm
@@ -88,9 +109,21 @@ class Hyperparameters:
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     canon_set = os.environ.get("CANON_SET", "ABCD")
     canon_kernel = int(os.environ.get("CANON_KERNEL", 4))
+    canon_first_n = int(os.environ.get("CANON_FIRST_N", 0))
+    canon_last_n = int(os.environ.get("CANON_LAST_N", 0))
+    canon_layers = tuple(
+        int(part.strip())
+        for part in os.environ.get("CANON_LAYERS", os.environ.get("CANON_LAYER_LIST", ""))
+        .replace("[", "")
+        .replace("]", "")
+        .split(",")
+        if part.strip()
+    )
     canon_residual = bool(int(os.environ.get("CANON_RESIDUAL", "1")))
     canon_activation = bool(int(os.environ.get("CANON_ACTIVATION", "0")))
     canon_bias = bool(int(os.environ.get("CANON_BIAS", "0")))
+    canon_delta_gate = bool(int(os.environ.get("CANON_DELTA_GATE", "0")))
+    canon_delta_gate_init = float(os.environ.get("CANON_DELTA_GATE_INIT", -4.0))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -112,6 +145,24 @@ class Hyperparameters:
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_every = int(os.environ.get("SWA_EVERY", 200))
     swa_start_lrmul = float(os.environ.get("SWA_START_LRMUL", 0.5))
+    tight_swa = bool(int(os.environ.get("TIGHT_SWA", "0")))
+    tight_swa_every = int(os.environ.get("TIGHT_SWA_EVERY", 50))
+    tight_swa_start_lrmul = float(os.environ.get("TIGHT_SWA_START_LRMUL", 0.2))
+    tight_swa_max_checkpoints = int(os.environ.get("TIGHT_SWA_MAX_CHECKPOINTS", 0))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))
+    xsa_learnable_gate = bool(int(os.environ.get("XSA_LEARNABLE_GATE", "0")))
+    xsa_gate_init = float(os.environ.get("XSA_GATE_INIT", 2.0))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "0")))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+    rope_dims = int(os.environ.get("ROPE_DIMS", 0))
+    ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))
+    boundary_delta_enabled = bool(int(os.environ.get("BOUNDARY_DELTA_ENABLED", "0")))
+    boundary_delta_first_n = int(os.environ.get("BOUNDARY_DELTA_FIRST_N", 4))
+    boundary_delta_gate_vector = bool(int(os.environ.get("BOUNDARY_DELTA_GATE_VECTOR", "0")))
+    boundary_delta_gate_init = float(os.environ.get("BOUNDARY_DELTA_GATE_INIT", -4.0))
+    qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
+    late_qat = bool(int(os.environ.get("LATE_QAT", "0")))
+    qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.1))
     int6_categories = tuple(
         part.strip().lower()
         for part in os.environ.get("INT6_CATEGORIES", "mlp,attn").split(",")
@@ -417,7 +468,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,bigram.scale",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,xsa_gate,boundary_delta_gate,skip_weight,skip_weights,smear,bigram.scale",
     ).split(",")
     if pattern
 )
@@ -751,9 +802,20 @@ class RMSNorm(nn.Module):
 
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
+    _qat_enabled: bool = False
+
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if CastedLinear._qat_enabled and self.training and self.weight.ndim == 2:
+            with torch.no_grad():
+                w32 = self.weight.float()
+                row_max = w32.abs().amax(dim=1)
+                scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+                w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -32, 31) * scale[:, None]).to(x.dtype)
+            # STE: forward on fake-quantized weights, gradients through full-precision weights.
+            w = w + (w_q - w).detach()
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -766,9 +828,16 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 class Rotary(nn.Module):
     # Caches cos/sin tables per sequence length on the current device.
-    def __init__(self, dim: int, base: float = 10000.0):
+    # Supports optional partial RoPE and NTK-aware base scaling above train_seq_len.
+    def __init__(self, dim: int, base: float = 10000.0, train_seq_len: int = 1024, rope_dims: int = 0):
         super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        self.dim = dim
+        self.base = base
+        self.train_seq_len = train_seq_len
+        self.rope_dims = rope_dims if rope_dims > 0 else dim
+        if self.rope_dims > dim or self.rope_dims <= 0 or self.rope_dims % 2 != 0:
+            raise ValueError(f"rope_dims must be even and in [2, {dim}], got {self.rope_dims}")
+        inv_freq = 1.0 / (base ** (torch.arange(0, self.rope_dims, 2, dtype=torch.float32) / self.rope_dims))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
@@ -781,8 +850,15 @@ class Rotary(nn.Module):
             or self._seq_len_cached != seq_len
             or self._cos_cached.device != device
         ):
-            t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
-            freqs = torch.outer(t, self.inv_freq.to(device))
+            rd = self.rope_dims
+            if seq_len > self.train_seq_len:
+                scale = seq_len / self.train_seq_len
+                new_base = self.base * (scale ** (rd / (rd - 2)))
+                inv_freq = 1.0 / (new_base ** (torch.arange(0, rd, 2, dtype=torch.float32, device=device) / rd))
+            else:
+                inv_freq = self.inv_freq.to(device)
+            t = torch.arange(seq_len, device=device, dtype=inv_freq.dtype)
+            freqs = torch.outer(t, inv_freq)
             self._cos_cached = freqs.cos()[None, None, :, :]
             self._sin_cached = freqs.sin()[None, None, :, :]
             self._seq_len_cached = seq_len
@@ -790,6 +866,14 @@ class Rotary(nn.Module):
 
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    rd = cos.size(-1) * 2
+    if rd < x.size(-1):
+        x_rope = x[..., :rd]
+        x_pass = x[..., rd:]
+        half = rd // 2
+        x1, x2 = x_rope[..., :half], x_rope[..., half:]
+        x_rot = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+        return torch.cat((x_rot, x_pass), dim=-1)
     half = x.size(-1) // 2
     x1, x2 = x[..., :half], x[..., half:]
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
@@ -805,6 +889,8 @@ class CanonLayer(nn.Module):
         bias: bool = False,
         activation: bool = False,
         residual: bool = True,
+        delta_gate: bool = False,
+        delta_gate_init: float = -4.0,
     ):
         super().__init__()
         if kernel <= 0:
@@ -812,6 +898,11 @@ class CanonLayer(nn.Module):
         self.kernel = kernel
         self.residual = residual
         self.activation = activation
+        self.delta_gate = delta_gate
+        if self.delta_gate:
+            self.delta_gate_logit = nn.Parameter(torch.tensor(float(delta_gate_init), dtype=torch.float32))
+        else:
+            self.register_parameter("delta_gate_logit", None)
         # Use built-in Conv1d padding and crop to keep strict causality while avoiding
         # an explicit F.pad allocation every forward.
         self.conv = nn.Conv1d(dim, dim, kernel_size=kernel, groups=dim, bias=bias, padding=kernel - 1)
@@ -836,6 +927,9 @@ class CanonLayer(nn.Module):
             y = y[..., : x.size(1)].transpose(1, 2)
             if self.activation:
                 y = F.silu(y)
+        if self.delta_gate:
+            gate = torch.sigmoid(self.delta_gate_logit.to(dtype=x.dtype))
+            return x + gate * y if self.residual else gate * y
         return x + y if self.residual else y
 
 
@@ -847,11 +941,17 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        rope_dims: int,
         canon_set: str,
         canon_kernel: int,
         canon_bias: bool,
         canon_activation: bool,
         canon_residual: bool,
+        canon_delta_gate: bool,
+        canon_delta_gate_init: float,
+        use_xsa: bool,
+        xsa_learnable_gate: bool,
+        xsa_gate_init: float,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -870,7 +970,15 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024, rope_dims=rope_dims)
+        self.use_xsa = use_xsa
+        self.xsa_gate = (
+            nn.Parameter(torch.tensor(float(xsa_gate_init), dtype=torch.float32))
+            if xsa_learnable_gate and use_xsa
+            else None
+        )
+        self._fa4_failed = False
+        self._fa3_failed = False
         total_qkv = dim + kv_dim + kv_dim
         self.canon_b = (
             CanonLayer(
@@ -879,10 +987,22 @@ class CausalSelfAttention(nn.Module):
                 bias=canon_bias,
                 activation=canon_activation,
                 residual=canon_residual,
+                delta_gate=canon_delta_gate,
+                delta_gate_init=canon_delta_gate_init,
             )
             if "B" in canon_set
             else None
         )
+
+    def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
+        # y: [B, H, T, D], v: [B, Hkv, T, D]
+        bsz, heads, seqlen, head_dim = y.shape
+        kv_heads = v.size(1)
+        group = heads // kv_heads
+        y_grouped = y.reshape(bsz, kv_heads, group, seqlen, head_dim)
+        v_norm = F.normalize(v, dim=-1).unsqueeze(2)
+        proj = (y_grouped * v_norm).sum(dim=-1, keepdim=True) * v_norm
+        return (y_grouped - proj).reshape(bsz, heads, seqlen, head_dim)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -901,14 +1021,39 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+        y: Tensor | None = None
+        if q.is_cuda and k.is_cuda and v.is_cuda:
+            q_t = q.transpose(1, 2)
+            k_t = k.transpose(1, 2)
+            v_t = v.transpose(1, 2)
+            if flash_attn_4_func is not None and not self._fa4_failed:
+                try:
+                    y = flash_attn_4_func(q_t, k_t, v_t, causal=True).transpose(1, 2)
+                except Exception as e:
+                    self._fa4_failed = True
+                    print(f"flash_attn_4 failed, falling back to flash_attn_interface/SDPA: {e}")
+            if y is None and flash_attn_3_func is not None and not self._fa3_failed:
+                try:
+                    y = flash_attn_3_func(q_t, k_t, v_t, causal=True).transpose(1, 2)
+                except Exception as e:
+                    self._fa3_failed = True
+                    print(f"flash_attn_interface failed, falling back to SDPA: {e}")
+        if y is None:
+            y = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=None,
+                is_causal=True,
+                enable_gqa=(self.num_kv_heads != self.num_heads),
+            )
+        if self.use_xsa:
+            y_xsa = self._xsa_efficient(y, v)
+            if self.xsa_gate is None:
+                y = y_xsa
+            else:
+                alpha = torch.sigmoid(self.xsa_gate.to(dtype=y.dtype))
+                y = y + alpha * (y_xsa - y)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -961,6 +1106,8 @@ class MLP(nn.Module):
         canon_bias: bool,
         canon_activation: bool,
         canon_residual: bool,
+        canon_delta_gate: bool,
+        canon_delta_gate_init: float,
     ):
         super().__init__()
         hidden = int(mlp_mult * dim)
@@ -974,6 +1121,8 @@ class MLP(nn.Module):
                 bias=canon_bias,
                 activation=canon_activation,
                 residual=canon_residual,
+                delta_gate=canon_delta_gate,
+                delta_gate_init=canon_delta_gate_init,
             )
             if "D" in canon_set
             else None
@@ -995,11 +1144,22 @@ class Block(nn.Module):
         mlp_mult: float,
         rope_base: float,
         qk_gain_init: float,
+        rope_dims: int,
+        layer_idx: int,
+        ln_scale: bool,
         canon_set: str,
         canon_kernel: int,
         canon_bias: bool,
         canon_activation: bool,
         canon_residual: bool,
+        canon_delta_gate: bool,
+        canon_delta_gate_init: float,
+        use_xsa: bool,
+        xsa_learnable_gate: bool,
+        xsa_gate_init: float,
+        boundary_delta_enabled: bool,
+        boundary_delta_gate_vector: bool,
+        boundary_delta_gate_init: float,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -1010,11 +1170,17 @@ class Block(nn.Module):
             num_kv_heads,
             rope_base,
             qk_gain_init,
+            rope_dims,
             canon_set,
             canon_kernel,
             canon_bias,
             canon_activation,
             canon_residual,
+            canon_delta_gate,
+            canon_delta_gate_init,
+            use_xsa,
+            xsa_learnable_gate,
+            xsa_gate_init,
         )
         self.mlp = MLP(
             dim,
@@ -1024,10 +1190,19 @@ class Block(nn.Module):
             canon_bias,
             canon_activation,
             canon_residual,
+            canon_delta_gate,
+            canon_delta_gate_init,
         )
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
+        self.boundary_delta_gate = None
+        if boundary_delta_enabled:
+            gate_shape = (dim,) if boundary_delta_gate_vector else (1,)
+            self.boundary_delta_gate = nn.Parameter(
+                torch.full(gate_shape, float(boundary_delta_gate_init), dtype=torch.float32)
+            )
         self.canon_a = (
             CanonLayer(
                 dim,
@@ -1035,6 +1210,8 @@ class Block(nn.Module):
                 bias=canon_bias,
                 activation=canon_activation,
                 residual=canon_residual,
+                delta_gate=canon_delta_gate,
+                delta_gate_init=canon_delta_gate_init,
             )
             if "A" in canon_set
             else None
@@ -1046,6 +1223,8 @@ class Block(nn.Module):
                 bias=canon_bias,
                 activation=canon_activation,
                 residual=canon_residual,
+                delta_gate=canon_delta_gate,
+                delta_gate_init=canon_delta_gate_init,
             )
             if "C" in canon_set
             else None
@@ -1054,12 +1233,18 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_in = self.attn_norm(x)
+        s = self.ln_scale_factor
+        attn_in = self.attn_norm(x) * s
+        if self.boundary_delta_gate is not None:
+            x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
+            dx = x - x_prev
+            g = torch.sigmoid(self.boundary_delta_gate.to(dtype=x.dtype))
+            attn_in = attn_in + dx * g[None, None, :]
         if self.canon_a is not None:
             attn_in = self.canon_a(attn_in)
         attn_out = self.attn(attn_in)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        mlp_in = self.mlp_norm(x)
+        mlp_in = self.mlp_norm(x) * s
         if self.canon_c is not None:
             mlp_in = self.canon_c(mlp_in)
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(mlp_in)
@@ -1082,11 +1267,25 @@ class GPT(nn.Module):
         qk_gain_init: float,
         bigram_vocab_size: int,
         bigram_dim: int,
+        xsa_last_n: int,
+        xsa_learnable_gate: bool,
+        xsa_gate_init: float,
+        rope_dims: int,
+        ln_scale: bool,
         canon_set: str,
         canon_kernel: int,
+        canon_first_n: int,
+        canon_last_n: int,
+        canon_layers: tuple[int, ...],
         canon_bias: bool,
         canon_activation: bool,
         canon_residual: bool,
+        canon_delta_gate: bool,
+        canon_delta_gate_init: float,
+        boundary_delta_enabled: bool,
+        boundary_delta_first_n: int,
+        boundary_delta_gate_vector: bool,
+        boundary_delta_gate_init: float,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1101,8 +1300,39 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.blocks = nn.ModuleList(
-            [
+        if canon_first_n < 0 or canon_last_n < 0:
+            raise ValueError(
+                f"canon layer scopes must be non-negative, got CANON_FIRST_N={canon_first_n}, CANON_LAST_N={canon_last_n}"
+            )
+        if canon_first_n > num_layers or canon_last_n > num_layers:
+            raise ValueError(
+                f"canon layer scopes exceed num_layers={num_layers}: CANON_FIRST_N={canon_first_n}, CANON_LAST_N={canon_last_n}"
+            )
+        if boundary_delta_first_n < 0 or boundary_delta_first_n > num_layers:
+            raise ValueError(
+                f"BOUNDARY_DELTA_FIRST_N must be in [0, {num_layers}], got {boundary_delta_first_n}"
+            )
+        canon_layers_uniq = tuple(dict.fromkeys(canon_layers))
+        if any(layer < 1 or layer > num_layers for layer in canon_layers_uniq):
+            raise ValueError(
+                f"CANON_LAYERS values must be in [1, {num_layers}], got {canon_layers_uniq}"
+            )
+        explicit_canon_layers = {layer - 1 for layer in canon_layers_uniq} if canon_layers_uniq else None
+        use_scoped_canon = explicit_canon_layers is not None or canon_first_n > 0 or canon_last_n > 0
+        blocks: list[Block] = []
+        for i in range(num_layers):
+            if explicit_canon_layers is not None:
+                use_layer_canon = i in explicit_canon_layers
+            else:
+                use_layer_canon = (
+                    not use_scoped_canon
+                    or i < canon_first_n
+                    or i >= num_layers - canon_last_n
+                )
+            layer_canon_set = canon_set if use_layer_canon else ""
+            use_boundary_delta = boundary_delta_enabled and i < boundary_delta_first_n
+            use_xsa = i >= max(0, num_layers - xsa_last_n)
+            blocks.append(
                 Block(
                     model_dim,
                     num_heads,
@@ -1110,15 +1340,25 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
-                    canon_set,
+                    rope_dims,
+                    i,
+                    ln_scale,
+                    layer_canon_set,
                     canon_kernel,
                     canon_bias,
                     canon_activation,
                     canon_residual,
+                    canon_delta_gate,
+                    canon_delta_gate_init,
+                    use_xsa,
+                    xsa_learnable_gate,
+                    xsa_gate_init,
+                    use_boundary_delta,
+                    boundary_delta_gate_vector,
+                    boundary_delta_gate_init,
                 )
-                for i in range(num_layers)
-            ]
-        )
+            )
+        self.blocks = nn.ModuleList(blocks)
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -1202,6 +1442,7 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
+    CastedLinear._qat_enabled = args.qat_enabled
     compile_newton = bool(int(os.environ.get("COMPILE_NEWTONSCHULZ", "1")))
     compile_model = bool(int(os.environ.get("COMPILE_MODEL", "1")))
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
@@ -1312,11 +1553,25 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
+        xsa_last_n=args.xsa_last_n,
+        xsa_learnable_gate=args.xsa_learnable_gate,
+        xsa_gate_init=args.xsa_gate_init,
+        rope_dims=args.rope_dims,
+        ln_scale=args.ln_scale,
         canon_set=args.canon_set,
         canon_kernel=args.canon_kernel,
+        canon_first_n=args.canon_first_n,
+        canon_last_n=args.canon_last_n,
+        canon_layers=args.canon_layers,
         canon_bias=args.canon_bias,
         canon_activation=args.canon_activation,
         canon_residual=args.canon_residual,
+        canon_delta_gate=args.canon_delta_gate,
+        canon_delta_gate_init=args.canon_delta_gate_init,
+        boundary_delta_enabled=args.boundary_delta_enabled,
+        boundary_delta_first_n=args.boundary_delta_first_n,
+        boundary_delta_gate_vector=args.boundary_delta_gate_vector,
+        boundary_delta_gate_init=args.boundary_delta_gate_init,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1380,6 +1635,14 @@ def main() -> None:
         )
         optimizers.insert(1, optimizer_head)
 
+    active_swa_every = args.tight_swa_every if args.tight_swa else args.swa_every
+    active_swa_start_lrmul = args.tight_swa_start_lrmul if args.tight_swa else args.swa_start_lrmul
+    active_swa_max_checkpoints = args.tight_swa_max_checkpoints if args.tight_swa else 0
+    if active_swa_every < 0:
+        raise ValueError(f"swa_every must be >= 0, got {active_swa_every}")
+    if active_swa_max_checkpoints < 0:
+        raise ValueError(f"swa_max_checkpoints must be >= 0, got {active_swa_max_checkpoints}")
+
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
@@ -1389,9 +1652,12 @@ def main() -> None:
         f"arch:num_layers:{args.num_layers} model_dim:{args.model_dim} mlp_mult:{args.mlp_mult} "
         f"bigram_vocab_size:{args.bigram_vocab_size} bigram_dim:{args.bigram_dim}"
     )
+    canon_layers_str = ",".join(str(layer) for layer in args.canon_layers) if args.canon_layers else "-"
     log0(
         f"canon:set:{args.canon_set} kernel:{args.canon_kernel} residual:{args.canon_residual} "
         f"activation:{args.canon_activation} bias:{args.canon_bias} "
+        f"delta_gate:{args.canon_delta_gate} delta_gate_init:{args.canon_delta_gate_init} "
+        f"first_n:{args.canon_first_n} last_n:{args.canon_last_n} layers:{canon_layers_str} "
         f"fast_conv1d:{bool(int(os.environ.get('CANON_FAST_CONV1D', '1'))) and causal_conv1d_fn is not None and args.canon_kernel in (2, 3, 4)}"
     )
     log0(f"compile:model:{compile_model} fullgraph:{compile_fullgraph} newton:{compile_newton}")
@@ -1402,7 +1668,17 @@ def main() -> None:
     )
     log0(
         f"weight_decay:muon:{args.muon_weight_decay} adam:{args.adam_weight_decay} "
-        f"swa_enabled:{args.swa_enabled} swa_every:{args.swa_every} swa_start_lrmul:{args.swa_start_lrmul}"
+        f"swa_enabled:{args.swa_enabled} swa_every:{active_swa_every} swa_start_lrmul:{active_swa_start_lrmul} "
+        f"tight_swa:{args.tight_swa} swa_max_checkpoints:{active_swa_max_checkpoints}"
+    )
+    log0(
+        f"frontier:xsa_last_n:{args.xsa_last_n} xsa_learnable_gate:{args.xsa_learnable_gate} xsa_gate_init:{args.xsa_gate_init} "
+        f"boundary_delta_enabled:{args.boundary_delta_enabled} boundary_delta_first_n:{args.boundary_delta_first_n} "
+        f"boundary_delta_gate_vector:{args.boundary_delta_gate_vector} boundary_delta_gate_init:{args.boundary_delta_gate_init} "
+        f"ema_enabled:{args.ema_enabled} ema_decay:{args.ema_decay} "
+        f"rope_dims:{args.rope_dims} ln_scale:{args.ln_scale} "
+        f"qat_enabled:{args.qat_enabled} late_qat:{args.late_qat} qat_threshold:{args.qat_threshold} "
+        f"fa4_available:{flash_attn_4_func is not None} fa3_available:{flash_attn_3_func is not None}"
     )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
@@ -1468,6 +1744,9 @@ def main() -> None:
 
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
+    ema_state: dict[str, Tensor] | None = None
+    if args.ema_enabled:
+        ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
     training_time_ms = 0.0
     data_loading_time_ms = 0.0
     stop_after_step: int | None = None
@@ -1515,6 +1794,9 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        if args.late_qat and scale < args.qat_threshold and not CastedLinear._qat_enabled:
+            CastedLinear._qat_enabled = True
+            log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1545,7 +1827,19 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
-        if args.swa_enabled and args.swa_every > 0 and scale < args.swa_start_lrmul and step % args.swa_every == 0:
+        if ema_state is not None:
+            decay = args.ema_decay
+            with torch.no_grad():
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(decay).add_(t.detach().float(), alpha=1.0 - decay)
+        if (
+            args.swa_enabled
+            and ema_state is None
+            and active_swa_every > 0
+            and scale < active_swa_start_lrmul
+            and step % active_swa_every == 0
+            and (active_swa_max_checkpoints <= 0 or swa_count < active_swa_max_checkpoints)
+        ):
             if swa_state is None:
                 swa_state = {name: t.detach().cpu().clone() for name, t in base_model.state_dict().items()}
                 swa_count = 1
@@ -1602,7 +1896,14 @@ def main() -> None:
         f"data_loading_total:{data_loading_time_ms:.0f}ms "
         f"data_loading_step_avg:{data_loading_time_ms / max(step, 1):.2f}ms"
     )
-    if args.swa_enabled and swa_state is not None and swa_count > 1:
+    if ema_state is not None:
+        log0("ema:applying EMA weights")
+        ema_weights = {
+            name: t.to(dtype=base_model.state_dict()[name].dtype)
+            for name, t in ema_state.items()
+        }
+        base_model.load_state_dict(ema_weights, strict=True)
+    elif args.swa_enabled and swa_state is not None and swa_count > 1:
         log0(f"swa:applying averaged {swa_count} checkpoints")
         avg_state = {name: (t / swa_count).to(dtype=base_model.state_dict()[name].dtype) for name, t in swa_state.items()}
         base_model.load_state_dict(avg_state, strict=True)
