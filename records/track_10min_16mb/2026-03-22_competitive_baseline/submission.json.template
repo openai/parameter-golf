@@ -1,0 +1,41 @@
+{
+  "model_architecture": "Transformer with GQA",
+  "model_size_bytes": 0,
+  "vocab_size": 1024,
+  "seq_len": 4096,
+  "num_layers": 10,
+  "model_dim": 512,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "mlp_mult": 3,
+  "mlp_dim": 1536,
+  "tie_embeddings": true,
+  "quantization": "mixed int6/int8 + zstandard",
+  "training_hyperparameters": {
+    "optimizer": "Muon (matrices) + AdamW (scalars/embeddings)",
+    "weight_decay": 0.04,
+    "swa_ratio": 0.4,
+    "learning_rates": {
+      "embed_lr": 0.6,
+      "matrix_lr": 0.04,
+      "scalar_lr": 0.04,
+      "head_lr": 0.008
+    },
+    "batch_size_tokens": 131072,
+    "num_gpus": 8,
+    "max_wallclock_seconds": 600
+  },
+  "validation_metrics": {
+    "run_1_seed_1337_val_bpb": 0.0,
+    "run_2_seed_42_val_bpb": 0.0,
+    "run_3_seed_7_val_bpb": 0.0,
+    "mean_val_bpb": 0.0,
+    "std_val_bpb": 0.0
+  },
+  "performance": {
+    "mean_wallclock_seconds": 0.0,
+    "compression_ratio": 0.0,
+    "final_artifact_bytes": 0
+  },
+  "notes": "Competitive baseline with mixed quantization and SWA"
+}

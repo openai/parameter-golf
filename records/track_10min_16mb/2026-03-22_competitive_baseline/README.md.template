@@ -1,0 +1,57 @@
+# 2026-03-22 Competitive Baseline
+
+## Model Architecture
+- **Type**: Transformer with Group Query Attention (GQA)
+- **Layers**: 10
+- **Model Dim**: 512
+- **Heads**: 8 (Query), 4 KV heads (GQA)
+- **MLP**: 3x expansion (1536 dim)
+- **Vocab Size**: 1024
+- **Seq Length**: 4096
+- **Tied Embeddings**: Yes
+
+## Training Configuration
+- **Optimizer**: 
+  - Muon for 2D matrix parameters (0.04 lr)
+  - AdamW for scalars and embeddings
+- **Weight Decay**: 0.04
+- **Stochastic Weight Averaging (SWA)**: SWA ratio 0.4
+- **Batch Size**: 131,072 tokens
+- **Max Wallclock**: 600 seconds per run
+- **GPUs**: 8 × NVIDIA GPUs
+- **Dataset**: FineWeb 10B (sp1024 tokenizer)
+
+## Training Runs
+
+### Run 1 (SEED=1337)
+- **Final val_bpb**: [INSERT]
+- **Wallclock**: [INSERT] seconds
+- **Log**: train_1.log
+
+### Run 2 (SEED=42)
+- **Final val_bpb**: [INSERT]
+- **Wallclock**: [INSERT] seconds
+- **Log**: train_2.log
+
+### Run 3 (SEED=7)
+- **Final val_bpb**: [INSERT]
+- **Wallclock**: [INSERT] seconds
+- **Log**: train_3.log
+
+## Results Summary
+- **Mean val_bpb**: [INSERT]
+- **Std Dev val_bpb**: [INSERT]
+- **Model artifact size (int6+zstd)**: [INSERT] bytes
+- **Total submission size**: [INSERT] bytes
+
+## Quantization Scheme
+- **Primary**: 6-bit integer quantization (per-row) for most tensors
+- **Embeddings**: 8-bit quantization for token embeddings (tok_emb.weight)
+- **Compression**: zstandard (zstd) compression applied to serialized model
+- **Control tensors**: Kept in FP16 (scales, gains, residual mixing weights)
+
+## Key Features
+- Mixed-precision quantization optimizes for compression while maintaining quality
+- Stochastic Weight Averaging helps convergence stability
+- GQA reduces KV cache memory requirements
+- Muon optimizer provides efficient matrix updates

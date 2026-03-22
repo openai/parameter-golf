@@ -17,20 +17,35 @@ import uuid
 import zlib
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import sentencepiece as spm
 
-import mlx.core as mx
-import mlx.nn as nn
-import mlx.optimizers as optim
-from mlx.utils import tree_flatten, tree_unflatten
+try:
+    import mlx.core as mx
+    import mlx.nn as nn
+    import mlx.optimizers as optim
+    from mlx.utils import tree_flatten, tree_unflatten
+
+    HAS_MLX = True
+except ModuleNotFoundError:
+    HAS_MLX = False
+    mx = SimpleNamespace(array=object, bfloat16="mlx.bfloat16", float32="mlx.float32", int32="mlx.int32")
+    nn = SimpleNamespace(Module=object)
+    optim = SimpleNamespace()
+
+    def tree_flatten(*_args, **_kwargs):
+        raise RuntimeError("MLX is not available in this environment")
+
+    def tree_unflatten(*_args, **_kwargs):
+        raise RuntimeError("MLX is not available in this environment")
 
 # ==============================================================================
 # SHARD FORMAT + COMPUTE DTYPE
 # ==============================================================================
 
-COMPUTE_DTYPE = mx.bfloat16
+COMPUTE_DTYPE = mx.bfloat16 if HAS_MLX else "torch.float32"
 
 # ==============================================================================
 # HYPERPARAMETERS
@@ -833,7 +848,338 @@ def clip_grad_tree(grads_tree: dict, max_norm: float) -> dict:
     return tree_unflatten([(k, g * scale) for k, g in flat.items()])
 
 
+def _torch_autocast_context(torch_mod, device):
+    import contextlib
+
+    if device.type != "cuda":
+        return contextlib.nullcontext()
+    return torch_mod.autocast(device_type="cuda", dtype=torch_mod.bfloat16, enabled=True)
+
+
+def eval_val_torch(
+    args: Hyperparameters,
+    torch_mod,
+    model,
+    device,
+    val_tokens,
+    base_bytes_lut,
+    has_leading_space_lut,
+    is_boundary_token_lut,
+    log_fn: Callable[[str], None] | None = None,
+) -> tuple[float, float]:
+    val_batch_tokens = args.val_batch_size // args.grad_accum_steps
+    if val_batch_tokens < args.train_seq_len:
+        raise ValueError(
+            "VAL_BATCH_SIZE must provide at least one sequence; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, GRAD_ACCUM_STEPS={args.grad_accum_steps}, "
+            f"TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    val_batch_seqs = val_batch_tokens // args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    total_batches = max((total_seqs + val_batch_seqs - 1) // val_batch_seqs, 1)
+    total_loss_sum = 0.0
+    total_tokens = 0.0
+    total_bytes = 0.0
+
+    model.eval()
+    with torch_mod.inference_mode():
+        for batch_idx, batch_seq_start in enumerate(range(0, total_seqs, val_batch_seqs), start=1):
+            batch_seq_end = min(batch_seq_start + val_batch_seqs, total_seqs)
+            raw_start = batch_seq_start * args.train_seq_len
+            raw_end = batch_seq_end * args.train_seq_len + 1
+            chunk = val_tokens[raw_start:raw_end].to(device=device, dtype=torch_mod.int64, non_blocking=True)
+            x = chunk[:-1].reshape(-1, args.train_seq_len)
+            y = chunk[1:].reshape(-1, args.train_seq_len)
+            with _torch_autocast_context(torch_mod, device):
+                batch_loss = model(x, y).detach()
+            chunk_token_count = float(y.numel())
+            total_loss_sum += float(batch_loss.float().item()) * chunk_token_count
+            prev_ids = x.reshape(-1)
+            tgt_ids = y.reshape(-1)
+            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch_mod.int16)
+            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch_mod.int16)
+            total_tokens += chunk_token_count
+            total_bytes += float(token_bytes.to(torch_mod.float64).sum().item())
+            if log_fn is not None and total_batches > 1 and (
+                batch_idx == 1 or batch_idx == total_batches or batch_idx % 25 == 0
+            ):
+                log_fn(f"val_progress:{batch_idx}/{total_batches}")
+    model.train()
+    val_loss = total_loss_sum / total_tokens
+    bits_per_token = val_loss / math.log(2.0)
+    val_bpb = bits_per_token * (total_tokens / total_bytes)
+    return val_loss, val_bpb
+
+
+def main_torch_fallback() -> None:
+    import io
+    import random
+
+    import torch
+    import train_gpt as torch_impl
+
+    args = Hyperparameters()
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logfile = out_dir / f"{args.run_id}.txt"
+    print(logfile)
+
+    def log(msg: str, console: bool = True) -> None:
+        if console:
+            print(msg)
+        with logfile.open("a", encoding="utf-8") as f:
+            print(msg, file=f)
+
+    code = Path(__file__).read_text(encoding="utf-8")
+    log(code, console=False)
+    log("=" * 100, console=False)
+    log(f"Running Python {sys.version}", console=False)
+    log(f"Running PyTorch {torch.__version__}", console=False)
+    log("backend:torch_fallback reason:mlx_not_installed", console=False)
+    log("=" * 100, console=False)
+
+    if not args.tie_embeddings:
+        raise NotImplementedError("torch fallback only supports tied embeddings")
+    if not args.tokenizer_path.endswith(".model"):
+        raise ValueError(f"TOKENIZER_PATH must point to a SentencePiece .model file: {args.tokenizer_path}")
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    compute_dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        )
+    dataset_name, actual_train_files, expected_train_files = validate_dataset_tokenizer_pair(
+        args.data_path,
+        args.tokenizer_path,
+    )
+    val_tokens = torch_impl.load_validation_tokens(args.val_files, args.train_seq_len)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = torch_impl.build_sentencepiece_luts(
+        sp, args.vocab_size, device
+    )
+    train_loader = torch_impl.DistributedTokenLoader(args.train_files, 0, 1, device)
+
+    model = torch_impl.GPT(
+        vocab_size=args.vocab_size,
+        num_layers=args.num_layers,
+        model_dim=args.model_dim,
+        num_heads=args.num_heads,
+        num_kv_heads=args.num_kv_heads,
+        mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings,
+        tied_embed_init_std=args.tied_embed_init_std,
+        logit_softcap=args.logit_softcap,
+        rope_base=args.rope_base,
+        qk_gain_init=args.qk_gain_init,
+    ).to(device)
+    if device.type == "cuda":
+        model = model.bfloat16()
+        for module in model.modules():
+            if isinstance(module, torch_impl.CastedLinear):
+                module.float()
+        torch_impl.restore_low_dim_params_to_fp32(model)
+
+    block_named_params = list(model.blocks.named_parameters())
+    matrix_params = [
+        p
+        for name, p in block_named_params
+        if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+    ]
+    scalar_params = [
+        p
+        for name, p in block_named_params
+        if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+    ]
+    if model.skip_weights.numel() > 0:
+        scalar_params.append(model.skip_weights)
+
+    adam_kwargs = {"betas": (args.beta1, args.beta2), "eps": args.adam_eps}
+    if device.type == "cuda":
+        adam_kwargs["fused"] = True
+    optimizer_tok = torch.optim.Adam(
+        [{"params": [model.tok_emb.weight], "lr": args.tied_embed_lr, "base_lr": args.tied_embed_lr}],
+        **adam_kwargs,
+    )
+    optimizer_muon = torch_impl.Muon(
+        matrix_params,
+        lr=args.matrix_lr,
+        momentum=args.muon_momentum,
+        backend_steps=args.muon_backend_steps,
+    )
+    for group in optimizer_muon.param_groups:
+        group["base_lr"] = args.matrix_lr
+    optimizer_scalar = torch.optim.Adam(
+        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+        **adam_kwargs,
+    )
+    optimizers = [optimizer_tok, optimizer_muon, optimizer_scalar]
+
+    def zero_grad_all() -> None:
+        for opt in optimizers:
+            opt.zero_grad(set_to_none=True)
+
+    n_params = sum(int(param.numel()) for param in model.parameters())
+    log(f"run_id:{args.run_id}")
+    log("mlx_version:unavailable")
+    log(f"train_loader:shards pattern={args.train_files}")
+    log(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+    if expected_train_files is None:
+        log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}")
+    elif actual_train_files < expected_train_files:
+        log(
+            f"WARNING: train_loader:subset dataset:{dataset_name} "
+            f"train_shards:{actual_train_files}/{expected_train_files} "
+            f"new epochs will arrive sooner than the full dataset"
+        )
+    else:
+        log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}/{expected_train_files}")
+    log(f"tokenizer_path:{args.tokenizer_path}")
+    log(
+        f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} "
+        f"dim:{args.model_dim} heads:{args.num_heads} kv_heads:{args.num_kv_heads} "
+        f"seq_len:{args.train_seq_len} tie_embeddings:{args.tie_embeddings}"
+    )
+    log(
+        f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} grad_accum_steps:{args.grad_accum_steps} "
+        f"microbatch_tokens:{args.microbatch_tokens} microbatch_batch_size:{args.microbatch_tokens // args.train_seq_len} "
+        f"val_batch_size:{args.val_batch_size} "
+        f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log(f"mlx_max_microbatch_tokens:unused backend:torch_fallback")
+    log(
+        f"optimizer:muon+adam muon_matrix_params:{len(matrix_params)} scalar_params:{len(scalar_params)} "
+        f"embed_lr:{args.tied_embed_lr} "
+        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
+        f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
+    )
+    log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    log(f"compute_dtype:{compute_dtype} compile:False device:{device.type}")
+
+    if args.warmup_steps > 0:
+        log(f"warmup_skipped:{args.warmup_steps} backend:torch_fallback")
+
+    train_time_ms = 0.0
+    max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+    stop_after_step: int | None = None
+    t0 = time.perf_counter()
+    step = 0
+    model.train()
+    while True:
+        last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
+        if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
+            train_time_ms += 1000.0 * (time.perf_counter() - t0)
+            val_loss, val_bpb = eval_val_torch(
+                args,
+                torch,
+                model,
+                device,
+                val_tokens,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+                log_fn=log,
+            )
+            if step % 25 == 0 or last_step:
+                log(
+                    f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                    f"train_time:{train_time_ms:.0f}ms step_avg:{train_time_ms / max(step, 1):.2f}ms"
+                )
+            t0 = time.perf_counter()
+        if last_step:
+            if stop_after_step is not None and step < args.iterations:
+                log(f"stopping_early: wallclock_cap train_time:{train_time_ms:.0f}ms step:{step}/{args.iterations}")
+            break
+
+        lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        step_t0 = time.perf_counter()
+        zero_grad_all()
+        train_loss_value = 0.0
+        grad_scale = 1.0 / args.grad_accum_steps
+        for _ in range(args.grad_accum_steps):
+            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, args.grad_accum_steps)
+            with _torch_autocast_context(torch, device):
+                loss = model(x, y)
+            train_loss_value += float(loss.detach().float().item()) * grad_scale
+            (loss * grad_scale).backward()
+
+        frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+        for group in optimizer_muon.param_groups:
+            group["momentum"] = muon_momentum
+        for opt in optimizers:
+            for group in opt.param_groups:
+                group["lr"] = group["base_lr"] * lr_mul
+        if args.grad_clip_norm > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip_norm)
+        for opt in optimizers:
+            opt.step()
+        zero_grad_all()
+
+        step_ms = 1000.0 * (time.perf_counter() - step_t0)
+        approx_train_time_ms = train_time_ms + 1000.0 * (time.perf_counter() - t0)
+        tok_s = args.train_batch_tokens / max(step_ms / 1000.0, 1e-9)
+        step += 1
+        if args.train_log_every > 0 and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None):
+            log(
+                f"step:{step}/{args.iterations} train_loss:{train_loss_value:.4f} "
+                f"train_time:{approx_train_time_ms:.0f}ms step_avg:{approx_train_time_ms / step:.2f}ms tok_s:{tok_s:.0f}"
+            )
+        if max_wallclock_ms is not None and stop_after_step is None and approx_train_time_ms >= max_wallclock_ms:
+            stop_after_step = step
+
+    out_path = out_dir / f"{args.run_id}_torch_model.pt"
+    torch.save(model.state_dict(), out_path)
+    log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
+
+    quant_obj, quant_stats = torch_impl.quantize_state_dict_int8(model.state_dict())
+    quant_buf = io.BytesIO()
+    torch.save(quant_obj, quant_buf)
+    quant_raw = quant_buf.getvalue()
+    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_serialized_bytes = len(quant_raw)
+    quant_path = out_dir / f"{args.run_id}_torch_model.int8.ptz"
+    with quant_path.open("wb") as f:
+        f.write(quant_blob)
+    quant_file_bytes = quant_path.stat().st_size
+    ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+    log(
+        f"serialized_model_int8_zlib:{quant_file_bytes} bytes "
+        f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
+    )
+
+    with quant_path.open("rb") as f:
+        quant_blob_disk = f.read()
+    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    model.load_state_dict(torch_impl.dequantize_state_dict_int8(quant_state), strict=True)
+    q_t0 = time.perf_counter()
+    q_val_loss, q_val_bpb = eval_val_torch(
+        args,
+        torch,
+        model,
+        device,
+        val_tokens,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+        log_fn=log,
+    )
+    q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
+    log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
+    log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+
 def main() -> None:
+    if not HAS_MLX:
+        main_torch_fallback()
+        return
+
     # ==============================================================================
     # TOKENIZER + VALIDATION METRIC SETUP
     # ==============================================================================
