@@ -450,7 +450,15 @@ def load_data_shard(file: Path) -> Tensor:
 
 
 def build_ngram_dict(train_files, vocab_size, max_tokens=5_000_000):
-    """Count unigram, bigram, trigram frequencies from training data."""
+    """Load pre-built n-gram dictionary if available, otherwise build from training data."""
+    cache_path = Path(__file__).resolve().parent / "ngram_dict.npz"
+    if cache_path.exists():
+        data = np.load(cache_path)
+        unigram = torch.from_numpy(data["unigram"])
+        bigram = torch.from_numpy(data["bigram"])
+        trigram = torch.from_numpy(data["trigram"])
+        return unigram, bigram, trigram
+
     tokens = load_data_shard(train_files[0])[:max_tokens]
 
     # Unigram: P(token)
@@ -463,11 +471,9 @@ def build_ngram_dict(train_files, vocab_size, max_tokens=5_000_000):
     bigram = torch.zeros(vocab_size, vocab_size)  # [prev, curr]
     for i in range(1, len(tokens)):
         bigram[tokens[i-1], tokens[i]] += 1
-    # Normalize each row
     bigram = bigram / bigram.sum(dim=1, keepdim=True).clamp(min=1)
 
-    # Trigram: too large for full table. Use hash table.
-    # Hash: (t-2 * 1024 + t-1) % 8192 -> distribution over vocab
+    # Trigram hash table
     trigram_buckets = 8192
     trigram = torch.zeros(trigram_buckets, vocab_size)
     for i in range(2, len(tokens)):
