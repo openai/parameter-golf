@@ -27,7 +27,6 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -48,6 +47,7 @@ class Hyperparameters:
     eval_seq_len = int(os.environ.get("ROUNDTRIP_EVAL_SEQ_LEN", os.environ.get("EVAL_SEQ_LEN", "0")))
     eval_stride = int(os.environ.get("ROUNDTRIP_EVAL_STRIDE", os.environ.get("EVAL_STRIDE", "0")))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    skip_final_eval = bool(int(os.environ.get("SKIP_FINAL_EVAL", "0")))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -96,7 +96,6 @@ class Hyperparameters:
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", os.environ.get("TRAIN_SEQ_LEN", "1024")))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
-
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -173,8 +172,6 @@ class Muon(torch.optim.Optimizer):
                 curr += p.numel()
 
         return loss
-
-
 
 def build_sentencepiece_luts(
     sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
@@ -454,8 +451,6 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         out[name] = out_t
     return out
 
-
-
 def load_data_shard(file: Path) -> Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
     token_bytes = np.dtype("<u2").itemsize
@@ -667,8 +662,6 @@ class MLP(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         x = torch.relu(self.fc(x))
         return self.proj(x.square())
-
-
 class DeltaMixer(nn.Module):
     def __init__(self, dim: int):
         super().__init__()
@@ -684,8 +677,6 @@ class DeltaMixer(nn.Module):
             state = g[:, t] * state + (1 - g[:, t]) * u[:, t]
             outs.append(state)
         return self.proj(torch.stack(outs, dim=1))
-
-
 class Block(nn.Module):
     def __init__(
         self,
@@ -1456,6 +1447,11 @@ def main() -> None:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    if args.skip_final_eval:
+        log0("smoke_test: quantized reload ok; skipping final roundtrip and TTT eval")
+        if distributed:
+            dist.destroy_process_group()
+        return
     eval_seq_len = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
     val_tokens_eval = load_validation_tokens(args.val_files, eval_seq_len) if eval_seq_len != args.train_seq_len else val_tokens
     torch.cuda.synchronize()
