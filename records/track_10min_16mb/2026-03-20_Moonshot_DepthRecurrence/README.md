@@ -1,6 +1,6 @@
 # 2026-03-20_Moonshot_DepthRecurrence
 
-**Verdict: ❌ Catastrophic failure — do not retry at this scale**
+**Verdict: ❌ Did not produce usable results at this scale**
 
 Depth recurrence with Huginn-style eval-time loop scaling. Trained 3 unique blocks × 3 loops
 (effective depth 9), then doubled loops to 6 at eval time. Both variants (U-Net skips and flat)
@@ -110,7 +110,7 @@ git checkout int6-3xMLP-pr  # script lives on this branch (uses same base)
 # v2 (flat):
 NUM_LAYERS=3 NUM_LOOPS=3 FLAT_LOOPS=1 torchrun --standalone --nproc_per_node=8 \
   records/track_10min_16mb/2026-03-20_Int6_3xMLP/train_gpt.py
-# At eval, set NUM_LOOPS=6 — results will be catastrophic
+# At eval, set NUM_LOOPS=6 — results will not be usable
 ```
 
 ## Author

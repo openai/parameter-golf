@@ -52,7 +52,7 @@ Everything we've tested, what we learned, and what remains untested.
 
 ### 8. SWA (Stochastic Weight Averaging)
 - **Hypothesis:** Weight averaging during warmdown finds flatter minima that quantize better.
-- **Result (v1):** CATASTROPHIC BUG. Accumulated in bf16 for 3,596 steps → precision overflow → val_bpb 2.62.
+- **Result (v1):** SEVERE BUG. Accumulated in bf16 for 3,596 steps → precision overflow → val_bpb 2.62.
 - **Bug fix:** Accumulate in float32, sample every 50 steps, cast back to model dtype.
 - **Result (v2, from ablation table):** +0.0004 BPB vs control — effectively no effect at WD=1200.
 - **Lesson:** SWA gains reported by other entries likely require very long warmdown (WD=20000+) to accumulate enough diverse snapshots. Superseded by EMA which is smoother and always-on.
@@ -78,9 +78,9 @@ Everything we've tested, what we learned, and what remains untested.
 - **Details:** 21.8M params, 15.2MB artifact (824KB headroom), 48ms/step, 12,507 steps.
 - **Lesson:** Int6 + wider MLP is the single biggest lever. The freed artifact budget enables 27% more parameters in 4.5% less space.
 
-### 13. Depth Recurrence + Huginn Eval-Time Scaling (Moonshot)
+### 13. Depth Recurrence + Huginn Eval-Time Scaling (Depth Sharing)
 - **Hypothesis:** 3 shared blocks × 3 loops = 9 effective layers with 1/3 unique params. At eval, increase to 6 loops for free depth.
-- **Result v1 (with U-Net skips):** CATASTROPHIC. Pre-quant val_bpb 1.2934, post-quant 6-loop eval: val_bpb **4.34** (near-random noise).
+- **Result v1 (with U-Net skips):** NOT VIABLE. Pre-quant val_bpb 1.2934, post-quant 6-loop eval: val_bpb **4.34** (near-random noise).
 - **Result v2 (flat loops, no skips):** WORSE. val_bpb **5.58** — flat loops amplify errors rather than refine.
 - **Root cause:** Blocks learn a position-specific function for their depth in the 3-loop stack, not a general iterative refinement operator. Extra loops compound distribution mismatch, not refinement.
 - **Scale argument:** Huginn validated at 3.5B params (~100M+ per unique layer). Our unique layers are ~2.5M params — insufficient capacity to simultaneously be a good LM and a general refiner.
@@ -95,7 +95,7 @@ Everything we've tested, what we learned, and what remains untested.
 
 ### 15. Int5 Quantization (QUANT_BITS=5, MLP_HIDDEN=1920)
 - **Hypothesis:** 5-bit quantization frees even more artifact budget than int6, enabling MLP_HIDDEN=1920.
-- **Result:** CATASTROPHIC. Pre-quant val_bpb 1.1885 (better than int6!), post-quant val_bpb **1.5458**. Quantization gap: +0.357 BPB — 15× larger than int6's +0.024.
+- **Result:** NOT VIABLE. Pre-quant val_bpb 1.1885 (better than int6!), post-quant val_bpb **1.5458**. Quantization gap: +0.357 BPB — 15× larger than int6's +0.024.
 - **Root cause:** Int5 has only 31 representable levels (vs int6's 63). Per-row quantization error at 31 levels is large enough to destroy language modeling entirely.
 - **Note:** Pre-quant result was actually better (more params fit in budget), but quantization erases all gains.
 - **Lesson:** Int5 is not viable with post-training quantization. Would require int5-aware QAT (simulating 5-bit during training), which is not worth building given int8 QAT was already a negative finding.
@@ -131,7 +131,7 @@ Everything we've tested, what we learned, and what remains untested.
 ### 20. EMA (Exponential Moving Average, decay=0.997)
 - **Result:** POSITIVE (part of combined 1.1401 run, not isolated). Replaces SWA for smoother weight averaging.
 - **Mechanism:** Shadow copy of weights updated every step: `ema = 0.997*ema + 0.003*weights`. Loaded before quantization, replacing last-step weights.
-- **vs SWA:** EMA is always-on, smoother, no snapshot schedule needed. Float32 accumulation avoids the bf16 precision bug that killed SWA v1.
+- **vs SWA:** EMA is always-on, smoother, no snapshot schedule needed. Float32 accumulation avoids the bf16 precision bug that caused SWA v1 to fail.
 
 ### 21. TTT — Test-Time Training
 - **Result:** POSITIVE (part of combined 1.1401 run, not isolated).
@@ -142,6 +142,23 @@ Everything we've tested, what we learned, and what remains untested.
 - **Result:** INCONCLUSIVE. Used in the 1.1401 run but superseded by training at seq_len=2048 directly (no NTK scaling needed). The NTK mechanism works correctly but training at native seq_len=2048 is simpler and avoids extrapolation risk.
 - **Mechanism:** Scale RoPE base at eval: `ntk_base = rope_base * (eval_seq_len / train_seq_len) ** (head_dim / (head_dim - 2))`.
 - **Note:** Top leaderboard entries train at seq_len=2048 with rope_base=10000 rather than using NTK scaling.
+
+### 23. Magnitude Pruning + zstd Interaction
+- **Hypothesis:** Zeroing the smallest N% of weights before zstd compression improves compression ratio.
+- **Result:** NON-MONOTONIC. 1% pruning: neutral. 3% pruning: artifact 728KB **larger**. 5% pruning: neutral. Tested on real checkpoint with re-export (no retraining).
+- **Root cause:** zstd-22 compression interacts non-trivially with the distribution of zero values. At 3%, the pattern of zeroed weights creates byte sequences that zstd handles less efficiently than the original near-zero values. At 5%, enough contiguous zeros appear for run-length encoding to dominate.
+- **Lesson:** Always measure full compressed artifact size, not just payload size. Pruning percentage should be validated empirically for each model, not assumed monotonic.
+
+### 24. Learned Codebook Quantization (K-means, K=256)
+- **Hypothesis:** K-means codebook places 256 levels at actual weight cluster centers rather than a uniform grid. Should achieve lower reconstruction error at same storage cost.
+- **Result:** MIXED. Reconstruction MSE 87% lower than int6 uniform. But compressed artifact 25% **larger** (585KB vs 466KB per MLP tensor under zstd-22).
+- **Root cause:** Codebook indices (uint8, 256 possible values) have higher byte entropy than int6 values (int8 clamped to [-31,31], 63 effective values). zstd-22 compresses the low-entropy int6 stream more efficiently.
+- **Lesson:** Reconstruction accuracy and compressed artifact size measure different things. The downstream codec must be considered jointly with the quantization scheme.
+
+### 25. Embedding Low-Rank Structure (SVD Analysis)
+- **Hypothesis:** If the embedding weight matrix is low-rank, a compact generator (codes + projection) could replace full storage.
+- **Result:** NOT LOW-RANK. Rank-64 explains 41.9% of variance. Rank-256 explains 83.3%. With 1024 BPE tokens × 512 dimensions, each token embedding is distinct.
+- **Lesson:** Low-rank factorization of the tied embedding is not viable at vocab_size=1024. The vocabulary is small enough that each token carries unique information.
 
 ---
 
@@ -177,7 +194,7 @@ Everything we've tested, what we learned, and what remains untested.
 ### Depth Recurrence / Layer Sharing
 - **Source:** PR #167, Subformer (arxiv 2101.00234), Huginn (arxiv 2502.05171)
 - **Effect:** 3 shared blocks → 9 effective layers = 1/3 params. Frees ~10MB artifact budget.
-- **Our status:** ❌ Tested — catastrophic failure (see Finding #13). Do not retry without fundamentally different approach.
+- **Our status:** ❌ Tested — did not produce usable results (see Finding #13). Do not retry without fundamentally different approach.
 
 ### LoRA Test-Time Training (TTT)
 - **Source:** PR #77 (@samacquaviva)
@@ -192,7 +209,7 @@ Everything we've tested, what we learned, and what remains untested.
 ### Int5 Quantization (community)
 - **Source:** PR #180
 - **Effect:** 5-bit quantization enabling larger models.
-- **Our status:** ❌ Tested — catastrophic (see Finding #15). Post-quant gap 15× worse than int6. Not viable.
+- **Our status:** ❌ Tested — not viable (see Finding #15). Post-quant gap 15× worse than int6. Not viable.
 
 ### Hyperparameter tuning (community findings)
 - **Source:** Top leaderboard entries
