@@ -1642,7 +1642,28 @@ def main() -> None:
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
 
-    sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
+    # Unbank: split 3D banks into individual 2D tensors with baseline-compatible names
+    # so the int6 quantization code produces identical results to PR #315.
+    sd_cpu = {}
+    n = args.num_layers
+    for k, v in export_sd.items():
+        t = v.detach().cpu()
+        if k == "qo_bank":
+            for i in range(n):
+                sd_cpu[f"blocks.{i}.attn.c_q.weight"] = t[i]
+                sd_cpu[f"blocks.{i}.attn.proj.weight"] = t[n + i]
+        elif k == "kv_bank":
+            for i in range(n):
+                sd_cpu[f"blocks.{i}.attn.c_k.weight"] = t[i]
+                sd_cpu[f"blocks.{i}.attn.c_v.weight"] = t[n + i]
+        elif k == "mlp_up_bank":
+            for i in range(n):
+                sd_cpu[f"blocks.{i}.mlp.fc.weight"] = t[i]
+        elif k == "mlp_down_bank":
+            for i in range(n):
+                sd_cpu[f"blocks.{i}.mlp.proj.weight"] = t[i]
+        else:
+            sd_cpu[k] = t
     quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
@@ -1665,7 +1686,29 @@ def main() -> None:
         io.BytesIO(zstandard.ZstdDecompressor().decompress(quant_blob_disk) if _COMPRESSOR == "zstd" else zlib.decompress(quant_blob_disk)),
         map_location="cpu",
     )
-    deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
+    deq_state_flat = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
+    # Rebank: convert individual 2D tensors back to 3D banks for our model
+    deq_state = {}
+    for k, v in deq_state_flat.items():
+        if k.startswith("blocks.") and ".attn.c_q.weight" in k:
+            continue  # handled below
+        if k.startswith("blocks.") and any(p in k for p in [".attn.c_k.", ".attn.c_v.", ".attn.proj.", ".mlp.fc.", ".mlp.proj."]):
+            continue  # handled below
+        deq_state[k] = v
+    # Reconstruct banks from individual weights
+    kv_dim = (args.model_dim // args.num_heads) * args.num_kv_heads
+    mlp_dim = int(args.mlp_mult * args.model_dim)
+    deq_state["qo_bank"] = torch.zeros(2 * n, args.model_dim, args.model_dim)
+    deq_state["kv_bank"] = torch.zeros(2 * n, kv_dim, args.model_dim)
+    deq_state["mlp_up_bank"] = torch.zeros(n, mlp_dim, args.model_dim)
+    deq_state["mlp_down_bank"] = torch.zeros(n, args.model_dim, mlp_dim)
+    for i in range(n):
+        deq_state["qo_bank"][i] = deq_state_flat[f"blocks.{i}.attn.c_q.weight"]
+        deq_state["qo_bank"][n + i] = deq_state_flat[f"blocks.{i}.attn.proj.weight"]
+        deq_state["kv_bank"][i] = deq_state_flat[f"blocks.{i}.attn.c_k.weight"]
+        deq_state["kv_bank"][n + i] = deq_state_flat[f"blocks.{i}.attn.c_v.weight"]
+        deq_state["mlp_up_bank"][i] = deq_state_flat[f"blocks.{i}.mlp.fc.weight"]
+        deq_state["mlp_down_bank"][i] = deq_state_flat[f"blocks.{i}.mlp.proj.weight"]
 
     eval_model = GPT(
         vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
