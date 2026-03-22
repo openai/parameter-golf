@@ -59,6 +59,9 @@ class Hyperparameters:
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    # Submission budget checks.
+    artifact_max_bytes = int(os.environ.get("ARTIFACT_MAX_BYTES", 16_000_000))
+    max_final_eval_seconds = float(os.environ.get("MAX_FINAL_EVAL_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
@@ -1021,6 +1024,10 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(
+        f"artifact_max_bytes:{args.artifact_max_bytes} "
+        f"max_final_eval_seconds:{args.max_final_eval_seconds:.3f}"
+    )
+    log0(
         f"val_stride:{args.val_stride if args.val_stride > 0 else args.train_seq_len} "
         f"adam_weight_decay:{args.adam_weight_decay} muon_weight_decay:{args.muon_weight_decay}"
     )
@@ -1259,6 +1266,11 @@ def main() -> None:
 
     if distributed:
         dist.barrier()
+    total_submission_bytes = os.path.getsize("final_model.int8.ptz") + len(code.encode("utf-8"))
+    if total_submission_bytes > args.artifact_max_bytes:
+        raise RuntimeError(
+            f"Submission size exceeds budget: {total_submission_bytes} > {args.artifact_max_bytes}"
+        )
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
@@ -1278,9 +1290,14 @@ def main() -> None:
         is_boundary_token_lut,
     )
     torch.cuda.synchronize()
+    q_eval_ms = 1000.0 * (time.perf_counter() - t_qeval)
+    if args.max_final_eval_seconds > 0 and q_eval_ms > 1000.0 * args.max_final_eval_seconds:
+        raise RuntimeError(
+            f"Final eval exceeded budget: {q_eval_ms/1000.0:.3f}s > {args.max_final_eval_seconds:.3f}s"
+        )
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+        f"eval_time:{q_eval_ms:.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
