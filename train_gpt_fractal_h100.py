@@ -473,8 +473,8 @@ def main():
   if ls:
    if sas is not None and step<a.iterations:log0(f"stopping_early: wallclock_cap train_time:{ttms:.0f}ms step:{step}/{a.iterations}")
    break
-  ems=ttms+1000.0*(time.perf_counter()-t0);sc=lrm(step,ems)
-  if a.late_qat_threshold>0 and sc<a.late_qat_threshold and not CastedLinear._qat:
+  ems=ttms+1000.0*(time.perf_counter()-t0);sc=lrm(step,ems) if step>=100 else 1.0
+  if a.late_qat_threshold>0 and sc<a.late_qat_threshold and not CastedLinear._qat and step>=100:
    CastedLinear._qat=True;log0(f"late_qat:enabled step:{step} scale:{sc:.4f}")
   is_f=True
   if a.fractal_cadence==0:is_f=False
