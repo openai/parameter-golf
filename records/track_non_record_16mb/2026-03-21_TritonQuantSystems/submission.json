@@ -1,0 +1,8 @@
+{
+  "author": "Dan",
+  "github_id": "turbo-indubitable",
+  "val_bpb": null,
+  "status": "wip",
+  "track": "non_record_16mb",
+  "summary": "Triton-based quantization systems approach with custom fused kernels"
+}
