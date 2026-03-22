@@ -86,8 +86,8 @@ class Hyperparameters:
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
     # Late-stage TTT burst: sharp adaptation on recent training data before finalizing
     ttt_burst_enabled = bool(int(os.environ.get("TTT_BURST_ENABLED", "1")))
-    ttt_burst_epochs = int(os.environ.get("TTT_BURST_EPOCHS", 2))  # epochs over recent data
-    ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.1))  # fraction of base LR
+    ttt_burst_epochs = int(os.environ.get("TTT_BURST_EPOCHS", 1))  # epochs over recent data
+    ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.05))  # fraction of base LR
     ttt_burst_steps = int(os.environ.get("TTT_BURST_STEPS", 100))  # how many recent batches to replay
     ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.05))  # trigger at scale < this
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
@@ -1296,19 +1296,28 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
-    # === TTT BURST: Late-stage sharpening on recent training data ===
+    # Apply EMA weights FIRST — this is the proven smooth baseline
+    log0("ema:applying EMA weights")
+    current_state = base_model.state_dict()
+    avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
+    base_model.load_state_dict(avg_state, strict=True)
+    # === TTT BURST: QAT-aware sharpening on the EMA-smoothed model ===
+    # Key changes from v1a: (1) burst runs AFTER EMA apply, not before
+    # (2) QAT forced on so weights stay quantization-friendly
+    # (3) no EMA updates — we're refining the final model directly
     if args.ttt_burst_enabled and hasattr(train_loader, '_ttt_buffer') and len(train_loader._ttt_buffer) > 0:
         ttt_buffer = train_loader._ttt_buffer
-        log0(f"ttt_burst:start epochs:{args.ttt_burst_epochs} buffer_size:{len(ttt_buffer)} lr_factor:{args.ttt_burst_lr_factor}")
-        # Use a small fraction of base LR for fine-grained adaptation
-        ttt_lr_scale = args.ttt_burst_lr_factor
+        CastedLinear._qat_enabled = True  # force QAT during burst
+        log0(f"ttt_burst:start epochs:{args.ttt_burst_epochs} buffer_size:{len(ttt_buffer)} "
+             f"lr_factor:{args.ttt_burst_lr_factor} qat:forced")
+        model.train()
         for ttt_epoch in range(args.ttt_burst_epochs):
             ttt_epoch_loss = 0.0
             for ttt_i, (bx, by) in enumerate(ttt_buffer):
                 zero_grad_all()
                 for opt in optimizers:
                     for group in opt.param_groups:
-                        group["lr"] = group["base_lr"] * ttt_lr_scale
+                        group["lr"] = group["base_lr"] * args.ttt_burst_lr_factor
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     ttt_loss = model(bx, by)
                 (ttt_loss * grad_scale).backward()
@@ -1318,17 +1327,8 @@ def main() -> None:
                     opt.step()
                 zero_grad_all()
                 ttt_epoch_loss += ttt_loss.item()
-                # Update EMA during burst too
-                with torch.no_grad():
-                    for name, t in base_model.state_dict().items():
-                        ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
             log0(f"ttt_burst:epoch:{ttt_epoch + 1}/{args.ttt_burst_epochs} avg_loss:{ttt_epoch_loss / len(ttt_buffer):.4f}")
         log0("ttt_burst:done")
-    # Apply EMA weights (better than SWA alone per PR#401)
-    log0("ema:applying EMA weights")
-    current_state = base_model.state_dict()
-    avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
-    base_model.load_state_dict(avg_state, strict=True)
     torch.cuda.synchronize()
     t_diag = time.perf_counter()
     diag_val_loss, diag_val_bpb = eval_val(
