@@ -1,8 +1,10 @@
-## Record: 11L EMA + GPTQ-lite + warmdown3500 + QAT@0.15 (val_bpb: 1.1231)
+## Non-record: 11L EMA + GPTQ-lite + warmdown3500 + QAT@0.15 (val_bpb: 1.1231)
 
 **val_bpb = 1.1231** (sliding window, stride=64) | **15.68 MB** artifact | 8xH100 SXM, 600s
 
 This folder captures a stronger validated `seed=1337` run of the patched `#414`-class control stack on real `8x H100 SXM` hardware. It improves on the earlier validated control run while staying under the `16,000,000` byte cap.
+
+This is a **non-record submission**, not a current SOTA claim. It is behind the currently checked public two-phase TTT line, but it is a clean validated control run that materially improves the earlier `#414`-class result.
 
 ### Comparisons
 

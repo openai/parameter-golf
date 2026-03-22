@@ -1,8 +1,8 @@
 {
   "author": "AbhisekBasu1",
   "github_id": "AbhisekBasu1",
-  "name": "Record: 11L EMA + GPTQ-lite + warmdown3500 + QAT@0.15",
-  "blurb": "Validated 8xH100 SXM run of the patched #414-class control: EMA every step, GPTQ-lite post-training quantization, warmdown=3500, late QAT threshold=0.15, XSA-last-4, VE128, LN scale, SmearGate, BigramHash, int6+zstd-22, sliding-window eval stride=64.",
+  "name": "Non-record: 11L EMA + GPTQ-lite + warmdown3500 + QAT@0.15",
+  "blurb": "Validated 8xH100 SXM control run of the patched #414-class stack: EMA every step, GPTQ-lite post-training quantization, warmdown=3500, late QAT threshold=0.15, XSA-last-4, VE128, LN scale, SmearGate, BigramHash, int6+zstd-22, sliding-window eval stride=64. Stronger than the earlier #414-class control, but not a current SOTA claim.",
   "date": "2026-03-22T00:00:00Z",
   "val_loss": 1.89633433,
   "val_bpb": 1.12311898,
