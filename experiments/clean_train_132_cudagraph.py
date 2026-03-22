@@ -182,11 +182,7 @@ class Muon(torch.optim.Optimizer):
             nesterov = group["nesterov"]
 
             total_params = sum(int(p.numel()) for p in params)
-            # Reuse pre-allocated buffer to avoid allocation every step
-            if "_updates_flat" not in group or group["_updates_flat"].numel() != total_params:
-                group["_updates_flat"] = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
-            updates_flat = group["_updates_flat"]
-            updates_flat.zero_()
+            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
 
             curr = 0
             for i, p in enumerate(params):
@@ -569,9 +565,7 @@ class SmearGate(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         g = torch.sigmoid(self.gate.to(dtype=x.dtype))[None, None, :]
-        # Use roll + zero-mask instead of cat+zeros_like (avoids dynamic allocs for CUDA graphs)
-        x_prev = torch.roll(x, shifts=1, dims=1)
-        x_prev[:, 0, :] = 0.0
+        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
         return (1 - g) * x + g * x_prev
 
 
@@ -1177,8 +1171,6 @@ def main() -> None:
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
-
-    torch._inductor.config.triton.cudagraph_trees = False
 
     # Set MLP activation before model creation
     MLP._activation = args.mlp_activation
