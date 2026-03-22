@@ -49,12 +49,19 @@ def train_8gpu(run_id: str = "atris_v8_8gpu", wallclock: int = 600):
     cmd = ["torchrun", "--standalone", "--nproc_per_node=8", "train_gpt.py"]
     print(f"\nRUNNING: {' '.join(cmd)}\nRUN_ID: {run_id}, WALLCLOCK: {wallclock}s, 8xH100\n", flush=True)
 
-    result = subprocess.run(cmd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    print(result.stdout, flush=True)
-    for line in result.stdout.split("\n"):
+    # Stream stdout directly (no buffering) so Modal logs show live progress
+    proc = subprocess.Popen(cmd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1)
+    output_lines = []
+    for line in proc.stdout:
+        line = line.rstrip()
+        print(line, flush=True)
+        output_lines.append(line)
+    proc.wait()
+    output = "\n".join(output_lines)
+    for line in output_lines:
         if "final_int8_zlib_roundtrip" in line or "submission size" in line.lower():
             print(f"\n{'='*60}\n{line}\n{'='*60}", flush=True)
-    return result.stdout
+    return output
 
 @app.local_entrypoint()
 def main():
