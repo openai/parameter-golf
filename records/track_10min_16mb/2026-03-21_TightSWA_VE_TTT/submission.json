@@ -1,0 +1,14 @@
+{
+  "author": "Elliot Slusky",
+  "github_id": "ElliotSlusky",
+  "name": "11L + Tight SWA + Shared VE128 + Partial RoPE + LN Scale + TTT",
+  "blurb": "11-layer transformer with Tight SWA (scale<0.2, every 50 steps), Shared Value Embeddings (layers 9,10), Partial RoPE (16/64 dims), LN Scale, cuDNN SDPA, and Test-Time Training (25-epoch full-weight SGD on val data). Int6+zstd quantization.",
+  "date": "2026-03-21T23:00:00Z",
+  "val_loss": 1.89631499,
+  "val_bpb": 1.12310753,
+  "bytes_total": 15426078,
+  "bytes_model_int6_zstd": 15350112,
+  "bytes_code": 75966,
+  "track": "10min_16mb",
+  "seed": 1337
+}
