@@ -39,6 +39,12 @@ try:
 except ImportError:
     _HAS_FA3 = False
 
+try:
+    from flash_attn import flash_attn_func as _flash_attn_func
+    _HAS_FA3 = True
+except ImportError:
+    _HAS_FA3 = False
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -890,10 +896,11 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         if _HAS_FA3:
-            # FA3 expects [B, T, H, D] layout and handles GQA natively
-            y = _flash_attn_func(
-                q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2), causal=True
-            ).transpose(1, 2)
+            # FA3 expects [B, T, H, D] layout, bf16/fp16, and handles GQA natively
+            qt = q.transpose(1, 2).to(torch.bfloat16)
+            kt = k.transpose(1, 2).to(torch.bfloat16)
+            vt = v.transpose(1, 2).to(torch.bfloat16)
+            y = _flash_attn_func(qt, kt, vt, causal=True).transpose(1, 2).to(q.dtype)
         else:
             # Expand KV heads for GQA compatibility with older torch SDPA
             if self.num_kv_heads != self.num_heads:
