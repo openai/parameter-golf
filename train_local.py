@@ -42,6 +42,7 @@ from torch import Tensor, nn
 def get_args():
     p = argparse.ArgumentParser()
     p.add_argument("--mode", choices=["baseline", "fractal"], default="baseline")
+    p.add_argument("--num-layers", type=int, default=9, help="Number of layers for baseline mode")
     p.add_argument("--num-unique-layers", type=int, default=3)
     p.add_argument("--num-loops", type=int, default=3)
     p.add_argument("--model-dim", type=int, default=0, help="0 = auto-size to match baseline param count")
@@ -486,7 +487,7 @@ def main():
     if args.mode == "baseline":
         dim = args.model_dim if args.model_dim > 0 else 512
         model = BaselineGPT(
-            vocab_size=args.vocab_size, num_layers=9, dim=dim,
+            vocab_size=args.vocab_size, num_layers=args.num_layers, dim=dim,
             n_heads=args.num_heads, n_kv_heads=args.num_kv_heads,
             mlp_mult=args.mlp_mult,
         ).to(device).bfloat16()
@@ -520,7 +521,7 @@ def main():
         print(f"  gravity={args.gravity} attnres={args.attnres}")
         print(f"  effective_depth={args.num_unique_layers * args.num_loops}")
     else:
-        print(f"  layers=9 dim={dim}")
+        print(f"  layers={args.num_layers} dim={dim}")
     print(f"  baseline_params={BASELINE_PARAMS:,}")
 
     optimizer = make_optimizer(model, args.lr)
