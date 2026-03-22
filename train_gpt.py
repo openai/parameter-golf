@@ -97,6 +97,8 @@ class Hyperparameters:
     mlp_hidden = int(os.environ.get("MLP_HIDDEN", 0))
     num_shared_blocks = int(os.environ.get("NUM_SHARED_BLOCKS", 0))
     num_untied_tail_blocks = int(os.environ.get("NUM_UNTIED_TAIL_BLOCKS", 0))
+    local_mixer_prefix_layers = int(os.environ.get("LOCAL_MIXER_PREFIX_LAYERS", 0))
+    local_mixer_kernel_size = int(os.environ.get("LOCAL_MIXER_KERNEL_SIZE", 5))
     xsa_tail_layers = int(os.environ.get("XSA_TAIL_LAYERS", 0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
@@ -596,6 +598,50 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
 
+def expand_gqa_heads(x: Tensor, num_heads: int, num_kv_heads: int) -> Tensor:
+    if num_kv_heads == num_heads:
+        return x
+    return x.repeat_interleave(num_heads // num_kv_heads, dim=1)
+
+
+def apply_xsa_transform(
+    attn_out: Tensor,
+    value_heads: Tensor,
+    num_heads: int,
+    num_kv_heads: int,
+    gate_logits: Tensor,
+) -> Tensor:
+    v_self = expand_gqa_heads(value_heads, num_heads, num_kv_heads).to(dtype=attn_out.dtype)
+    exclusive = attn_out - v_self
+    v_self_unit = F.normalize(v_self, dim=-1)
+    exclusive_ortho = exclusive - (exclusive * v_self_unit).sum(dim=-1, keepdim=True) * v_self_unit
+    gate = torch.sigmoid(gate_logits.to(dtype=attn_out.dtype))[None, :, None, None]
+    return attn_out + gate * (exclusive_ortho - attn_out)
+
+
+class CheapLocalMixer(nn.Module):
+    def __init__(self, dim: int, kernel_size: int):
+        super().__init__()
+        if kernel_size <= 0 or kernel_size % 2 == 0:
+            raise ValueError(f"local mixer kernel_size must be a positive odd integer, got {kernel_size}")
+        self.kernel_size = kernel_size
+        self.use_xsa = False
+        self.use_local_mixer = True
+        self.mix_logits = nn.Parameter(torch.zeros(kernel_size, dim, dtype=torch.float32))
+        self.proj = CastedLinear(dim, dim, bias=False)
+        self.proj._zero_init = True
+
+    def forward(self, x: Tensor, q_delta=None, v_delta=None) -> Tensor:
+        del q_delta, v_delta
+        bsz, seqlen, dim = x.shape
+        padded = F.pad(x, (0, 0, self.kernel_size - 1, 0))
+        mix_weights = torch.softmax(self.mix_logits.to(dtype=x.dtype), dim=0)
+        mixed = x.new_zeros((bsz, seqlen, dim))
+        for offset in range(self.kernel_size):
+            mixed = mixed + padded[:, offset : offset + seqlen, :] * mix_weights[offset][None, None, :]
+        return self.proj(mixed)
+
+
 class CausalSelfAttention(nn.Module):
     def __init__(
         self,
@@ -625,6 +671,10 @@ class CausalSelfAttention(nn.Module):
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
         self.use_xsa = use_xsa
+        self.use_local_mixer = False
+        if use_xsa:
+            # Start close to standard attention, then let training learn how much exclusivity each head wants.
+            self.xsa_gate = nn.Parameter(torch.full((num_heads,), -2.0, dtype=torch.float32))
 
     def forward(self, x: Tensor, q_delta=None, v_delta=None) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -649,11 +699,7 @@ class CausalSelfAttention(nn.Module):
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         if self.use_xsa:
-            v_xsa = v
-            if self.num_kv_heads != self.num_heads:
-                v_xsa = v_xsa.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-            v_xsa = F.normalize(v_xsa, dim=-1)
-            y = y - (y * v_xsa).sum(dim=-1, keepdim=True) * v_xsa
+            y = apply_xsa_transform(y, v, self.num_heads, self.num_kv_heads, self.xsa_gate)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -682,12 +728,17 @@ class Block(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         mlp_hidden: int = 0,
+        local_mixer_kernel_size: int = 0,
         use_xsa: bool = False,
+        use_local_mixer: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, use_xsa=use_xsa)
+        if use_local_mixer:
+            self.attn = CheapLocalMixer(dim, local_mixer_kernel_size)
+        else:
+            self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, use_xsa=use_xsa)
         self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -717,6 +768,8 @@ class GPT(nn.Module):
         mlp_hidden: int,
         num_shared_blocks: int,
         num_untied_tail_blocks: int,
+        local_mixer_prefix_layers: int,
+        local_mixer_kernel_size: int,
         xsa_tail_layers: int,
         tie_embeddings: bool,
         tied_embed_init_std: float,
@@ -737,14 +790,25 @@ class GPT(nn.Module):
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         if num_shared_blocks < 0 or num_untied_tail_blocks < 0:
             raise ValueError("num_shared_blocks and num_untied_tail_blocks must be non-negative")
+        if local_mixer_prefix_layers < 0 or local_mixer_prefix_layers > num_layers:
+            raise ValueError(
+                f"local_mixer_prefix_layers must be in [0, {num_layers}], got {local_mixer_prefix_layers}"
+            )
         if xsa_tail_layers < 0 or xsa_tail_layers > num_layers:
             raise ValueError(f"xsa_tail_layers must be in [0, {num_layers}], got {xsa_tail_layers}")
+        if local_mixer_prefix_layers + xsa_tail_layers > num_layers:
+            raise ValueError(
+                "local_mixer_prefix_layers and xsa_tail_layers must not overlap "
+                f"(got {local_mixer_prefix_layers} + {xsa_tail_layers} > {num_layers})"
+            )
         if num_untied_tail_blocks > num_layers:
             raise ValueError(
                 f"num_untied_tail_blocks must be <= num_layers, got {num_untied_tail_blocks} > {num_layers}"
             )
         self.num_shared_blocks = num_shared_blocks
         self.num_untied_tail_blocks = num_untied_tail_blocks
+        self.local_mixer_prefix_layers = local_mixer_prefix_layers
+        self.local_mixer_kernel_size = local_mixer_kernel_size
         self.xsa_tail_layers = xsa_tail_layers
         self.num_shared_prefix_layers = num_layers - num_untied_tail_blocks if num_shared_blocks > 0 else 0
         if num_shared_blocks > 0 and self.num_shared_prefix_layers <= 0:
@@ -759,8 +823,10 @@ class GPT(nn.Module):
                 "xsa_tail_layers must be <= num_untied_tail_blocks when using shared blocks "
                 f"(got {xsa_tail_layers} > {num_untied_tail_blocks})"
             )
+        if num_shared_blocks > 0 and local_mixer_prefix_layers > 0:
+            raise ValueError("local_mixer_prefix_layers is not supported with shared blocks yet")
 
-        def make_block(*, use_xsa: bool) -> Block:
+        def make_block(*, use_xsa: bool, use_local_mixer: bool) -> Block:
             return Block(
                 model_dim,
                 num_heads,
@@ -769,13 +835,18 @@ class GPT(nn.Module):
                 rope_base,
                 qk_gain_init,
                 mlp_hidden=mlp_hidden,
+                local_mixer_kernel_size=local_mixer_kernel_size,
                 use_xsa=use_xsa,
+                use_local_mixer=use_local_mixer,
             )
 
         if num_shared_blocks > 0:
-            shared_blocks = [make_block(use_xsa=False) for _ in range(num_shared_blocks)]
+            shared_blocks = [make_block(use_xsa=False, use_local_mixer=False) for _ in range(num_shared_blocks)]
             tail_blocks = [
-                make_block(use_xsa=(i >= num_untied_tail_blocks - xsa_tail_layers))
+                make_block(
+                    use_xsa=(i >= num_untied_tail_blocks - xsa_tail_layers),
+                    use_local_mixer=False,
+                )
                 for i in range(num_untied_tail_blocks)
             ]
             self.blocks = nn.ModuleList(shared_blocks + tail_blocks)
@@ -785,7 +856,13 @@ class GPT(nn.Module):
             )
         else:
             self.blocks = nn.ModuleList(
-                [make_block(use_xsa=(i >= num_layers - xsa_tail_layers)) for i in range(num_layers)]
+                [
+                    make_block(
+                        use_xsa=(i >= num_layers - xsa_tail_layers),
+                        use_local_mixer=(i < local_mixer_prefix_layers),
+                    )
+                    for i in range(num_layers)
+                ]
             )
             self.logical_blocks = list(self.blocks)
         if len(self.logical_blocks) != num_layers:
@@ -1160,6 +1237,8 @@ def main() -> None:
         mlp_hidden=args.mlp_hidden,
         num_shared_blocks=args.num_shared_blocks,
         num_untied_tail_blocks=args.num_untied_tail_blocks,
+        local_mixer_prefix_layers=args.local_mixer_prefix_layers,
+        local_mixer_kernel_size=args.local_mixer_kernel_size,
         xsa_tail_layers=args.xsa_tail_layers,
         tie_embeddings=args.tie_embeddings,
         tied_embed_init_std=args.tied_embed_init_std,
@@ -1233,6 +1312,10 @@ def main() -> None:
     log0(
         f"mlp_hidden:{args.mlp_hidden if args.mlp_hidden > 0 else args.mlp_mult * args.model_dim} "
         f"(mlp_mult:{args.mlp_mult})"
+    )
+    log0(
+        f"local_mixer_prefix_layers:{args.local_mixer_prefix_layers} "
+        f"local_mixer_kernel_size:{args.local_mixer_kernel_size}"
     )
     log0(
         f"shared_blocks:{args.num_shared_blocks} untied_tail_blocks:{args.num_untied_tail_blocks} "
