@@ -58,7 +58,7 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -97,7 +97,7 @@ class Hyperparameters:
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
-    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.5))
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.2))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
 # -----------------------------
@@ -354,6 +354,29 @@ def quantize_intN_per_row(t: Tensor, bits: int = 6) -> tuple[Tensor, Tensor]:
 def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
     return quantize_intN_per_row(t, bits=6)
 
+def gptq_lite_clip_search(t: Tensor, bits: int = 6) -> tuple[Tensor, Tensor]:
+    """Find optimal clipping ratio for intN quantization."""
+    max_val = (1 << (bits - 1)) - 1
+    t32 = t.float()
+    best_q = None
+    best_err = float('inf')
+    for ratio in [1.0, 0.999, 0.995, 0.99, 0.98]:
+        if t32.ndim == 2:
+            row_max = t32.abs().amax(dim=1) * ratio
+            scale = (row_max / max_val).clamp_min(1e-12)
+            q = torch.clamp(torch.round(t32 / scale[:, None]), -max_val - 1, max_val)
+            recon = q * scale[:, None]
+        else:
+            amax = t32.abs().max() * ratio
+            scale = (amax / max_val).clamp_min(1e-12)
+            q = torch.clamp(torch.round(t32 / scale), -max_val - 1, max_val)
+            recon = q * scale
+        err = (t32 - recon).pow(2).sum().item()
+        if err < best_err:
+            best_err = err
+            best_q = (q.to(torch.int8), scale.to(torch.float16) if t32.ndim == 2 else scale.to(torch.float16))
+    return best_q
+
 def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
@@ -375,7 +398,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
         if cat in int6_cats and t.ndim >= 1:
             # Int6 by default; set QUANT_BITS=5 for tighter compression (11L)
             bits = int(os.environ.get("QUANT_BITS", "6"))
-            q, s = quantize_intN_per_row(t, bits=bits)
+            q, s = gptq_lite_clip_search(t, bits=bits)
             result[name + ".q"] = q
             result[name + ".scale"] = s
             meta[name] = {"type": f"int{bits}"}
@@ -646,9 +669,25 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
+_QAT_ENABLED = False
+
 class CastedLinear(nn.Linear):
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.to(x.dtype)
+        if _QAT_ENABLED and self.weight.ndim == 2 and self.weight.numel() > 65536:
+            # STE fake-quantize: forward uses quantized weights, backward sees original
+            bits = int(os.environ.get("QUANT_BITS", "6"))
+            max_val = (1 << (bits - 1)) - 1
+            w_float = w.float()
+            if w_float.ndim == 2:
+                row_max = w_float.abs().amax(dim=1, keepdim=True)
+                scale = (row_max / max_val).clamp_min(1e-12)
+                w_q = (torch.clamp(torch.round(w_float / scale), -max_val - 1, max_val) * scale).to(w.dtype)
+            else:
+                amax = w_float.abs().max()
+                scale = (amax / max_val).clamp_min(1e-12)
+                w_q = (torch.clamp(torch.round(w_float / scale), -max_val - 1, max_val) * scale).to(w.dtype)
+            w = w + (w_q - w).detach()  # STE: forward=quantized, backward=identity
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
 
@@ -691,7 +730,7 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float, use_xsa: bool = False):
         super().__init__()
         if dim % num_heads != 0:
             raise ValueError("model_dim must be divisible by num_heads")
@@ -700,6 +739,7 @@ class CausalSelfAttention(nn.Module):
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
+        self.use_xsa = use_xsa
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
         kv_dim = self.num_kv_heads * self.head_dim
@@ -709,7 +749,7 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(16, base=rope_base)  # Partial RoPE: 16 of 64 dims
 
     def forward(self, x: Tensor, q_delta=None, v_delta=None) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -721,23 +761,47 @@ class CausalSelfAttention(nn.Module):
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
+        ROPE_DIMS = 16  # Only rotate first 16 of 64 dims
+        q_rot, q_pass = q[..., :ROPE_DIMS], q[..., ROPE_DIMS:]
+        k_rot, k_pass = k[..., :ROPE_DIMS], k[..., ROPE_DIMS:]
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
+        q_rot = apply_rotary_emb(q_rot, cos, sin)
+        k_rot = apply_rotary_emb(k_rot, cos, sin)
+        q = torch.cat([q_rot, q_pass], dim=-1)
+        k = torch.cat([k_rot, k_pass], dim=-1)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         if _HAS_FA3:
-            # FA3 expects [batch, seqlen, heads, head_dim]
             q_fa = q.transpose(1, 2)
             k_fa = k.transpose(1, 2)
             v_fa = v.transpose(1, 2)
             y = flash_attn_func(q_fa, k_fa, v_fa, causal=True)
+            # y is [bsz, seqlen, heads, head_dim]
+            if self.use_xsa:
+                # XSA: project out self-value component (arXiv:2603.09078)
+                H = self.num_heads
+                Hkv = self.num_kv_heads
+                group = H // Hkv
+                y_g = y.reshape(bsz, seqlen, Hkv, group, self.head_dim)
+                vn = F.normalize(v_fa.reshape(bsz, seqlen, Hkv, self.head_dim), dim=-1).unsqueeze(-2)
+                proj_val = (y_g * vn).sum(dim=-1, keepdim=True) * vn
+                y = (y_g - proj_val).reshape(bsz, seqlen, H, self.head_dim)
             y = y.contiguous().reshape(bsz, seqlen, dim)
         else:
             y = F.scaled_dot_product_attention(
                 q, k, v, attn_mask=None, is_causal=True,
                 enable_gqa=(self.num_kv_heads != self.num_heads),
             )
-            y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+            y = y.transpose(1, 2)
+            if self.use_xsa:
+                H = self.num_heads
+                Hkv = self.num_kv_heads
+                group = H // Hkv
+                y_g = y.reshape(bsz, seqlen, Hkv, group, self.head_dim)
+                v_for_xsa = v.transpose(1, 2).reshape(bsz, seqlen, Hkv, self.head_dim)
+                vn = F.normalize(v_for_xsa, dim=-1).unsqueeze(-2)
+                proj_val = (y_g * vn).sum(dim=-1, keepdim=True) * vn
+                y = (y_g - proj_val).reshape(bsz, seqlen, H, self.head_dim)
+            y = y.contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
@@ -798,11 +862,14 @@ class BigramHashEmbedding(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float, layer_idx: int = 0, num_layers: int = 11):
         super().__init__()
+        self.ln_scale = 1.0 / math.sqrt(layer_idx + 1)
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        # XSA on last 4 layers (arXiv:2603.09078)
+        use_xsa = (layer_idx >= num_layers - 4)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, use_xsa=use_xsa)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -815,8 +882,8 @@ class Block(nn.Module):
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
         attn_out = self.attn(n, qd, vd)
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.ln_scale * self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        x = x + self.ln_scale * self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
 
@@ -852,8 +919,8 @@ class GPT(nn.Module):
         self.smear = SmearGate(model_dim)
         self.blocks = nn.ModuleList(
             [
-                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
-                for _ in range(num_layers)
+                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, layer_idx=i, num_layers=num_layers)
+                for i in range(num_layers)
             ]
         )
         self.final_norm = RMSNorm()
@@ -1507,6 +1574,10 @@ def main() -> None:
         for opt in optimizers:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * scale
+
+        # Late QAT: enable STE fake-quantization when LR drops below 10%
+        global _QAT_ENABLED
+        _QAT_ENABLED = scale < 0.1
 
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
