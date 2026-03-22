@@ -75,6 +75,10 @@ Baseline: SOTA254 = **1.1303 BPB** (sliding window, seed 1337, zstd)
 
 Seeds 7 and 137 both bust 16 MB limit — compression is seed-dependent. Seeds 1337+42 pass. Need a passing 3rd seed.
 
+| Exp | Change | Sliding BPB | Artifact | Notes |
+|-----|--------|------------|----------|-------|
+| **D+SAM+PR315tricks** | TTT 8ep SAM + Partial RoPE + LN Scale | **1.1274** | 15.81 MB | new best on sota254 base, seed 1337 |
+
 **Note (A/B):** A/B used zlib despite zstandard being installed — likely transient env issue. Resolved; all D runs used zstd correctly.
 
 ## Next Steps
