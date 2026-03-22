@@ -61,14 +61,17 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
+    # 11 layers for 8xH100. Use NUM_LAYERS=5 for local 1xGPU testing.
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 5))
+    model_dim = int(os.environ.get("MODEL_DIM", 640))
+    num_heads = int(os.environ.get("NUM_HEADS", 10))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    copy_net = bool(int(os.environ.get("COPY_NET", "1")))
+    dict_residual = bool(int(os.environ.get("DICT_RESIDUAL", "1")))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -446,6 +449,35 @@ def load_data_shard(file: Path) -> Tensor:
     return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
 
 
+def build_ngram_dict(train_files, vocab_size, max_tokens=5_000_000):
+    """Count unigram, bigram, trigram frequencies from training data."""
+    tokens = load_data_shard(train_files[0])[:max_tokens]
+
+    # Unigram: P(token)
+    unigram = torch.zeros(vocab_size)
+    for t in tokens:
+        unigram[t] += 1
+    unigram = unigram / unigram.sum()
+
+    # Bigram: P(token | prev_token)
+    bigram = torch.zeros(vocab_size, vocab_size)  # [prev, curr]
+    for i in range(1, len(tokens)):
+        bigram[tokens[i-1], tokens[i]] += 1
+    # Normalize each row
+    bigram = bigram / bigram.sum(dim=1, keepdim=True).clamp(min=1)
+
+    # Trigram: too large for full table. Use hash table.
+    # Hash: (t-2 * 1024 + t-1) % 8192 -> distribution over vocab
+    trigram_buckets = 8192
+    trigram = torch.zeros(trigram_buckets, vocab_size)
+    for i in range(2, len(tokens)):
+        key = (int(tokens[i-2]) * 1024 + int(tokens[i-1])) % trigram_buckets
+        trigram[key, tokens[i]] += 1
+    trigram = trigram / trigram.sum(dim=1, keepdim=True).clamp(min=1)
+
+    return unigram, bigram, trigram
+
+
 class TokenStream:
     # Reads shards sequentially and wraps around forever. The training loop therefore
     # has deterministic, simple streaming behavior with no sampling or workers.
@@ -727,6 +759,154 @@ class GPT(nn.Module):
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
+class DictResidualModel(nn.Module):
+    """Dictionary + Residual + Copy Network model (Brotli-style).
+    A frozen n-gram dictionary provides base predictions, a small transformer
+    learns corrections, and a copy mechanism attends over the input to copy tokens."""
+
+    def __init__(
+        self,
+        vocab_size: int,
+        num_layers: int,
+        model_dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        mlp_mult: int,
+        tie_embeddings: bool,
+        tied_embed_init_std: float,
+        logit_softcap: float,
+        rope_base: float,
+        qk_gain_init: float,
+        unigram: Tensor,
+        bigram: Tensor,
+        trigram: Tensor,
+        copy_net: bool = False,
+    ):
+        super().__init__()
+        if logit_softcap <= 0.0:
+            raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+        self.vocab_size = vocab_size
+        self.model_dim = model_dim
+        self.tie_embeddings = tie_embeddings
+        self.tied_embed_init_std = tied_embed_init_std
+        self.logit_softcap = logit_softcap
+        self.copy_net = copy_net
+
+        # Frozen dictionary (registered as buffers, NOT parameters)
+        self.register_buffer('log_unigram', torch.log(unigram + 1e-10))
+        self.register_buffer('log_bigram', torch.log(bigram + 1e-10))
+        self.register_buffer('log_trigram', torch.log(trigram + 1e-10))
+        self.trigram_buckets = trigram.shape[0]
+
+        # Small transformer for residual correction
+        self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.num_encoder_layers = num_layers // 2
+        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    model_dim,
+                    num_heads,
+                    num_kv_heads,
+                    mlp_mult,
+                    rope_base,
+                    qk_gain_init,
+                )
+                for _ in range(num_layers)
+            ]
+        )
+        self.final_norm = RMSNorm()
+        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
+        if self.lm_head is not None:
+            self.lm_head._zero_init = True
+
+        # Mixing weight (learned): how much to trust dictionary vs neural correction
+        self.dict_weight = nn.Parameter(torch.tensor(0.3, dtype=torch.float32))
+
+        # Copy mechanism
+        if copy_net:
+            self.copy_gate = CastedLinear(model_dim, 1, bias=True)
+            self.copy_attn = CastedLinear(model_dim, model_dim, bias=False)
+
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        if self.tie_embeddings:
+            nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
+        for module in self.modules():
+            if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
+                nn.init.zeros_(module.weight)
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        B, T = input_ids.shape
+        V = self.vocab_size
+        D = self.model_dim
+
+        # Dictionary predictions (frozen, no gradients)
+        with torch.no_grad():
+            prev_ids = F.pad(input_ids[:, :-1], (1, 0), value=0)
+            dict_logits = self.log_bigram[prev_ids]  # (B, T, V)
+
+        # Neural correction via small transformer
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+
+        x = self.final_norm(x)  # (B, T, D)
+
+        if self.tie_embeddings:
+            correction_logits = F.linear(x, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            correction_logits = self.lm_head(x)
+        correction_logits = self.logit_softcap * torch.tanh(correction_logits / self.logit_softcap)
+
+        # Mix: dictionary base + neural correction
+        w = torch.sigmoid(self.dict_weight)
+        combined_logits = w * dict_logits + (1 - w) * correction_logits
+        gen_probs = F.softmax(combined_logits.float(), dim=-1)  # (B, T, V)
+
+        if self.copy_net:
+            # Copy attention: each position attends to all PREVIOUS positions
+            copy_query = self.copy_attn(x)  # (B, T, D)
+            copy_scores = torch.bmm(copy_query, x.transpose(1, 2)) / math.sqrt(D)  # (B, T, T)
+            # Causal mask: can only copy from past
+            causal_mask = torch.triu(torch.ones(T, T, device=x.device, dtype=x.dtype) * -1e9, diagonal=1)
+            copy_scores = copy_scores + causal_mask
+            copy_attn_weights = F.softmax(copy_scores.float(), dim=-1)  # (B, T, T)
+
+            # Convert copy attention to vocab distribution
+            input_onehot = F.one_hot(input_ids, num_classes=V).float()  # (B, T, V)
+            copy_probs = torch.bmm(copy_attn_weights, input_onehot)  # (B, T, V)
+
+            # Gate: probability of copying vs generating
+            gate = torch.sigmoid(self.copy_gate(x))  # (B, T, 1)
+
+            # Final blend: three sources -- dict logits, neural correction, and copy
+            final_probs = (1 - gate) * gen_probs + gate * copy_probs  # (B, T, V)
+
+            # Loss from mixed probs
+            targets_flat = target_ids.reshape(-1)
+            probs_flat = final_probs.reshape(-1, V)
+            return F.nll_loss(torch.log(probs_flat + 1e-10), targets_flat)
+        else:
+            # No copy: use combined dict+correction logits directly
+            targets = target_ids.reshape(-1)
+            return F.cross_entropy(combined_logits.float().reshape(-1, V), targets, reduction="mean")
+
+
 # -----------------------------
 # TRAINING
 # -----------------------------
@@ -826,19 +1006,42 @@ def main() -> None:
     # MODEL + OPTIMIZER SETUP
     # -----------------------------
 
-    base_model = GPT(
-        vocab_size=args.vocab_size,
-        num_layers=args.num_layers,
-        model_dim=args.model_dim,
-        num_heads=args.num_heads,
-        num_kv_heads=args.num_kv_heads,
-        mlp_mult=args.mlp_mult,
-        tie_embeddings=args.tie_embeddings,
-        tied_embed_init_std=args.tied_embed_init_std,
-        logit_softcap=args.logit_softcap,
-        rope_base=args.rope_base,
-        qk_gain_init=args.qk_gain_init,
-    ).to(device).bfloat16()
+    if args.dict_residual:
+        log0("DICT_RESIDUAL=1: building n-gram dictionary from training data...")
+        train_file_list = [Path(p) for p in sorted(glob.glob(args.train_files))]
+        unigram, bigram, trigram = build_ngram_dict(train_file_list, args.vocab_size)
+        log0(f"dict_residual: unigram={unigram.shape} bigram={bigram.shape} trigram={trigram.shape}")
+        base_model = DictResidualModel(
+            vocab_size=args.vocab_size,
+            num_layers=args.num_layers,
+            model_dim=args.model_dim,
+            num_heads=args.num_heads,
+            num_kv_heads=args.num_kv_heads,
+            mlp_mult=args.mlp_mult,
+            tie_embeddings=args.tie_embeddings,
+            tied_embed_init_std=args.tied_embed_init_std,
+            logit_softcap=args.logit_softcap,
+            rope_base=args.rope_base,
+            qk_gain_init=args.qk_gain_init,
+            unigram=unigram,
+            bigram=bigram,
+            trigram=trigram,
+            copy_net=args.copy_net,
+        ).to(device).bfloat16()
+    else:
+        base_model = GPT(
+            vocab_size=args.vocab_size,
+            num_layers=args.num_layers,
+            model_dim=args.model_dim,
+            num_heads=args.num_heads,
+            num_kv_heads=args.num_kv_heads,
+            mlp_mult=args.mlp_mult,
+            tie_embeddings=args.tie_embeddings,
+            tied_embed_init_std=args.tied_embed_init_std,
+            logit_softcap=args.logit_softcap,
+            rope_base=args.rope_base,
+            qk_gain_init=args.qk_gain_init,
+        ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
@@ -864,6 +1067,8 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    if args.dict_residual:
+        scalar_params.append(base_model.dict_weight)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -894,6 +1099,15 @@ def main() -> None:
             fused=True,
         )
         optimizers.insert(1, optimizer_head)
+    if args.copy_net and args.dict_residual:
+        copy_params = list(base_model.copy_gate.parameters()) + list(base_model.copy_attn.parameters())
+        optimizer_copy = torch.optim.Adam(
+            [{"params": copy_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.adam_eps,
+            fused=True,
+        )
+        optimizers.append(optimizer_copy)
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
@@ -1068,15 +1282,22 @@ def main() -> None:
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
+    # For DictResidualModel, strip frozen dictionary buffers before saving
+    # (they are recomputed from training data at load time, not part of 16MB budget).
+    _dict_buffer_names = {"log_unigram", "log_bigram", "log_trigram"}
+    save_state = base_model.state_dict()
+    if args.dict_residual:
+        save_state = {k: v for k, v in save_state.items() if k not in _dict_buffer_names}
+
     if master_process:
-        torch.save(base_model.state_dict(), "final_model.pt")
+        torch.save(save_state, "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    quant_obj, quant_stats = quantize_state_dict_int8(save_state)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1099,7 +1320,12 @@ def main() -> None:
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    dequant_sd = dequantize_state_dict_int8(quant_state)
+    if args.dict_residual:
+        # Dictionary buffers are already in the model (recomputed at startup); load neural weights only
+        base_model.load_state_dict(dequant_sd, strict=False)
+    else:
+        base_model.load_state_dict(dequant_sd, strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
