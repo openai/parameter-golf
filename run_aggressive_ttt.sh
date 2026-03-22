@@ -2,13 +2,15 @@
 # RUN_AGGRESSIVE_TTT: Matches PR #398 (1.1213) strategy
 # Key insight: aggressive TTT with all blocks unfrozen closes the gap
 # Changes from baseline:
-#   TTT_EPOCHS=20: 20 epochs vs our 3 (the breakthrough)
+#   TTT_EPOCHS=7: vs our 3 (PR #398 uses 20 but their TTT is DDP-parallel at 14.8s/epoch)
 #   TTT_LR=0.008: 4x higher TTT learning rate
 #   TTT_FREEZE_BLOCKS=0: all blocks unfrozen (freezing causes internal inconsistency)
 #   TTT_MAX_STEPS=9999: no step cap
 #   XSA_LAST_N=0: remove XSA (saves ~1.4ms/step = ~130 more steps)
+#   EVAL_STRIDE=64: 2x faster eval (matches #398), leaves time for TTT
 #   FP16_EMBED_EXPORT=0: artifact fits under 16MB
 #   LATE_K_FP16=0: smaller artifact
+# Timing budget: training 600s + TTT 7*73=511s + eval stride=64 ~200s = ~1311s total
 # Expected: ~1.12x on a fast pod (sub-75ms)
 # Kill if: step_avg@200 > 85ms
 
@@ -18,16 +20,12 @@ git fetch origin && git checkout int6-3xMLP-pr && git reset --hard origin/int6-3
 
 export TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 UNET_SKIPS=1
 export ROPE_DIMS=16 LN_SCALE=1 ROPE_BASE=10000
-export EVAL_STRIDE=32 DOC_ISOLATED_EVAL=0
+export EVAL_STRIDE=64 DOC_ISOLATED_EVAL=0
 export QAT=0
 export LATE_K_FP16=0 FP16_EMBED_EXPORT=0
 export XSA_LAST_N=0
 
 # Aggressive TTT — the key change
-# PR #398 uses 20 epochs but their TTT runs DDP (14.8s/epoch vs our 73s/epoch)
-# At 73s/epoch: 8 epochs = 584s + 200s eval = 784s (over 10min eval budget)
-# Cap at 7 epochs for now (7*73=511s + 200s = 711s, safe)
-# TODO: parallelize TTT with DDP to match #398's 20 epochs
 export TTT_EPOCHS=7 TTT_LR=0.008
 export TTT_FREEZE_BLOCKS=0 TTT_MAX_STEPS=9999
 
@@ -39,7 +37,7 @@ unset MLP_HIDDEN QUANT_BITS RUN_ID TIER2_MODE BIGRAM_HASH_BUCKETS \
   MLP_QUANT_BITS USE_FA3 TRAIN_BATCH_TOKENS EMA_ENABLED SWA PRUNE_PCT
 
 echo "=== AGGRESSIVE TTT RUN ==="
-echo "SEED=$SEED TTT_EPOCHS=20 TTT_LR=0.008 TTT_FREEZE_BLOCKS=0 XSA_LAST_N=0"
+echo "SEED=$SEED TTT_EPOCHS=7 TTT_LR=0.008 TTT_FREEZE_BLOCKS=0 XSA_LAST_N=0 EVAL_STRIDE=64"
 echo "=========================="
 
 torchrun --standalone --nproc_per_node=8 \
