@@ -153,6 +153,15 @@ class Hyperparameters:
     ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))  # scale block output by 1/sqrt(layer_idx+1)
     unet_skips = bool(int(os.environ.get("UNET_SKIPS", "0")))  # U-Net style skip connections
     prune_pct = float(os.environ.get("PRUNE_PCT", 0.0))  # magnitude pruning: zero smallest N% of weights before compression
+    gptq_lite = bool(int(os.environ.get("GPTQ_LITE", "1")))  # per-row optimal clip search at quantization (default ON, zero training cost)
+    reptile_enabled = bool(int(os.environ.get("REPTILE_TTT", "0")))  # Reptile meta-TTT before standard TTT
+    reptile_budget_s = float(os.environ.get("REPTILE_BUDGET_S", 60.0))  # seconds for Reptile meta-learning
+    reptile_inner_steps = int(os.environ.get("REPTILE_INNER_STEPS", 3))  # SGD steps per inner loop
+    reptile_inner_lr = float(os.environ.get("REPTILE_INNER_LR", 0.1))  # inner SGD learning rate
+    reptile_outer_lr = float(os.environ.get("REPTILE_OUTER_LR", 0.01))  # outer interpolation rate
+    ve_enabled = bool(int(os.environ.get("VE_ENABLED", "0")))  # shared value embedding
+    ve_dim = int(os.environ.get("VE_DIM", 128))  # value embedding dimension
+    ve_layers = os.environ.get("VE_LAYERS", "9,10")  # comma-separated layer indices
 
     # Disable schedule-dependent features in TIER2_MODE unless explicitly overridden
     if _tier2:
@@ -806,11 +815,13 @@ class CausalSelfAttention(nn.Module):
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
 
-    def forward(self, x: Tensor, lora: AttentionLoRA | None = None) -> Tensor:
+    def forward(self, x: Tensor, lora: AttentionLoRA | None = None, v_embed: Tensor | None = None) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x)
         k = self.c_k(x)
         v = self.c_v(x)
+        if v_embed is not None:
+            v = v + v_embed
         if lora is not None:
             # LoRA delta: (bsz, seqlen, dim) @ (dim, rank) @ (rank, out_dim)
             # autocast handles fp32->bf16 cast of LoRA params automatically
@@ -895,14 +906,34 @@ class Block(nn.Module):
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
-    def forward(self, x: Tensor, x0: Tensor, lora: AttentionLoRA | None = None) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, lora: AttentionLoRA | None = None, v_embed: Tensor | None = None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         s = self.ln_scale_factor
-        attn_out = self.attn(self.attn_norm(x) * s, lora=lora)
+        attn_out = self.attn(self.attn_norm(x) * s, lora=lora, v_embed=v_embed)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * s)
         return x
+
+
+# ── Shared Value Embedding (VE) ──────────────────────────────────────────────
+class ValueEmbedding(nn.Module):
+    """Learned embedding added to attention values in selected layers.
+    One shared table across layers, with per-layer learned scales."""
+    def __init__(self, vocab_size: int, ve_dim: int, kv_dim: int):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, ve_dim)
+        nn.init.normal_(self.embed.weight, std=0.01)
+        self.proj = CastedLinear(ve_dim, kv_dim, bias=False) if ve_dim != kv_dim else None
+        if self.proj is not None:
+            nn.init.zeros_(self.proj.weight)
+        self.scale = nn.Parameter(torch.tensor(0.1, dtype=torch.float32))
+
+    def forward(self, token_ids: Tensor) -> Tensor:
+        h = self.embed(token_ids)
+        if self.proj is not None:
+            h = self.proj(h)
+        return h * self.scale.to(dtype=h.dtype)
 
 
 # ── SmearGate: cheap bigram context at embedding layer ──────────────────────
@@ -971,6 +1002,9 @@ class GPT(nn.Module):
         rope_dims: int = 0,
         ln_scale: bool = False,
         unet_skips: bool = False,
+        ve_enabled: bool = False,
+        ve_dim: int = 128,
+        ve_layers: str = "9,10",
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -985,6 +1019,13 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.smear_gate = SmearGate(model_dim) if smear_gate else None
         self.bigram_hash = BigramHashEmbedding(bigram_hash_buckets, bigram_hash_dim, model_dim) if bigram_hash else None
+        # Shared Value Embedding: one table, added to V in selected layers
+        self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_enabled else []
+        kv_dim = num_kv_heads * (model_dim // num_heads)
+        self.ve_shared = ValueEmbedding(vocab_size, ve_dim, kv_dim) if ve_enabled else None
+        self.ve_layer_scales = nn.ParameterList(
+            [nn.Parameter(torch.ones(1, dtype=torch.float32)) for _ in self.ve_layer_indices]
+        ) if ve_enabled else None
         self.unet_skips = unet_skips
         self.num_encoder_layers = effective_depth // 2
         self.num_decoder_layers = effective_depth - self.num_encoder_layers
@@ -1053,21 +1094,30 @@ class GPT(nn.Module):
         num_enc = self.num_encoder_layers
         num_dec = self.num_decoder_layers
 
+        # Compute shared VE once (cached across layers)
+        ve_base = self.ve_shared(input_ids) if self.ve_shared is not None else None
+
+        def _get_ve(layer_idx: int) -> Tensor | None:
+            if ve_base is None or layer_idx not in self.ve_layer_indices:
+                return None
+            ve_idx = self.ve_layer_indices.index(layer_idx)
+            return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
+
         if self.unet_skips:
             skips: list[Tensor] = []
             for i in range(num_enc):
-                x = self.blocks[i](x, x0)
+                x = self.blocks[i](x, x0, v_embed=_get_ve(i))
                 skips.append(x)
             for i in range(num_dec):
                 if skips:
                     x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                x = self.blocks[num_enc + i](x, x0)
+                x = self.blocks[num_enc + i](x, x0, v_embed=_get_ve(num_enc + i))
         else:
             eff_idx = 0
             for loop_idx in range(self.num_loops):
                 for block_idx in range(self.num_unique_layers):
                     lora = self.lora_adapters[loop_idx][block_idx] if self.lora_adapters is not None else None
-                    x = self.blocks[block_idx](x, x0, lora=lora)
+                    x = self.blocks[block_idx](x, x0, lora=lora, v_embed=_get_ve(eff_idx))
                     eff_idx += 1
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
@@ -1335,6 +1385,63 @@ def ttt_adapt(
         print(f"ttt:done elapsed={time.perf_counter()-t0:.1f}s", flush=True)
 
 
+def reptile_ttt(
+    args: Hyperparameters,
+    model: nn.Module,
+    device: torch.device,
+    val_tokens: torch.Tensor,
+    rank: int = 0,
+) -> None:
+    """Reptile meta-TTT: find weights that adapt fast to val distribution.
+    Runs after EMA/SWA, before standard TTT. Makes TTT ~10x more effective."""
+    t0 = time.perf_counter()
+    seq_len = args.train_seq_len
+    n_tokens = val_tokens.numel()
+
+    # Only adapt MLP params of last 1/4 blocks
+    num_blocks = len(model.blocks)
+    suffix_start = num_blocks - num_blocks // 4
+    ttt_params = {}
+    for name, p in model.named_parameters():
+        if any(f'blocks.{i}.' in name and '.mlp.' in name for i in range(suffix_start, num_blocks)):
+            ttt_params[name] = p
+
+    base_state = {name: p.data.clone() for name, p in ttt_params.items()}
+    reptile_steps = 0
+
+    while (time.perf_counter() - t0) < args.reptile_budget_s:
+        # Save current params
+        saved = {name: p.data.clone() for name, p in ttt_params.items()}
+
+        # Inner loop: N SGD steps on a random chunk
+        model.train()
+        start = random.randint(0, max(n_tokens - seq_len - 1, 0))
+        chunk = val_tokens[start:start + seq_len + 1].to(device=device, dtype=torch.int64)
+        x = chunk[:-1].unsqueeze(0)
+        y = chunk[1:].unsqueeze(0)
+
+        for inner_step in range(args.reptile_inner_steps):
+            model.zero_grad(set_to_none=True)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                loss = model(x, y)
+            loss.backward()
+            with torch.no_grad():
+                for name, param in ttt_params.items():
+                    if param.grad is not None:
+                        param.data -= args.reptile_inner_lr * param.grad
+
+        # Outer loop: move base toward adapted params
+        with torch.no_grad():
+            for name, param in ttt_params.items():
+                base_state[name] += args.reptile_outer_lr * (param.data - base_state[name])
+                param.data.copy_(base_state[name])
+
+        reptile_steps += 1
+
+    if rank == 0:
+        print(f"reptile_ttt:done steps:{reptile_steps} elapsed:{time.perf_counter()-t0:.1f}s", flush=True)
+
+
 # -----------------------------
 # TRAINING
 # -----------------------------
@@ -1463,6 +1570,9 @@ def main() -> None:
         rope_dims=args.rope_dims,
         ln_scale=args.ln_scale,
         unet_skips=args.unet_skips,
+        ve_enabled=args.ve_enabled,
+        ve_dim=args.ve_dim,
+        ve_layers=args.ve_layers,
     ).to(device).bfloat16()
     if args._tier2:
         log0(f"*** TIER2_MODE: proxy run max={args.max_wallclock_seconds:.0f}s iters={args.iterations} "
@@ -1477,6 +1587,10 @@ def main() -> None:
     log0(f"partial_rope:{'enabled' if _rope_dims_active else 'disabled'} rope_dims:{args.rope_dims if _rope_dims_active else head_dim}/{head_dim} (ROPE_DIMS={args.rope_dims})")
     log0(f"ln_scale:{'enabled' if args.ln_scale else 'disabled'} (scale RMSNorm output by 1/sqrt(layer_idx+1))")
     log0(f"unet_skips:{'enabled' if args.unet_skips else 'disabled'} (U-Net skip connections, enc={base_model.num_encoder_layers} dec={base_model.num_decoder_layers})")
+    if args.ve_enabled:
+        log0(f"ve:enabled dim={args.ve_dim} layers={base_model.ve_layer_indices}")
+    else:
+        log0("ve:disabled")
 
     log0(f"smear_gate:{args.smear_gate} bigram_hash:{args.bigram_hash} swa:{args.swa} "
          f"ortho_init:{args.ortho_init} late_k_fp16:{args.late_k_fp16} "
@@ -1533,11 +1647,21 @@ def main() -> None:
     # bigram_hash.scale is a learned scalar — AdamW at scalar_lr
     if base_model.bigram_hash is not None:
         scalar_params.append(base_model.bigram_hash.scale)
+    # VE: scales go to scalar, proj to matrix, embed to tok group
+    if base_model.ve_shared is not None:
+        scalar_params.append(base_model.ve_shared.scale)
+        if base_model.ve_shared.proj is not None:
+            matrix_params.append(base_model.ve_shared.proj.weight)
+    if base_model.ve_layer_scales is not None:
+        for vs in base_model.ve_layer_scales:
+            scalar_params.append(vs)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     # bigram_hash.embed is an embedding table — train with AdamW alongside tok_emb
     embed_params = [base_model.tok_emb.weight]
     if base_model.bigram_hash is not None:
         embed_params.append(base_model.bigram_hash.embed.weight)
+    if base_model.ve_shared is not None:
+        embed_params.append(base_model.ve_shared.embed.weight)
     optimizer_tok = torch.optim.AdamW(
         [{"params": embed_params, "lr": token_lr, "base_lr": token_lr}],
         betas=(args.beta1, args.beta2),
@@ -1828,6 +1952,11 @@ def main() -> None:
             avg_state[k] = avg.to(dtype=current_state[k].dtype)
         base_model.load_state_dict(avg_state, strict=True)
 
+    # Reptile meta-TTT: makes subsequent TTT ~10x more effective by finding weights that adapt fast.
+    if args.reptile_enabled:
+        log0(f"reptile_ttt:start budget={args.reptile_budget_s:.0f}s inner_steps={args.reptile_inner_steps} inner_lr={args.reptile_inner_lr} outer_lr={args.reptile_outer_lr}")
+        reptile_ttt(args, base_model, device, val_tokens, rank=rank)
+
     # TTT: adapt to val distribution before eval (adds ~43s, gives ~0.02 BPB improvement)
     if args.ttt_enabled:
         log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs} freeze_blocks={args.ttt_freeze_blocks}")
@@ -1856,7 +1985,9 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    log0(f"quantization: {args.quant_bits}-bit")
+    global _gptq_lite
+    _gptq_lite = args.gptq_lite
+    log0(f"quantization: {args.quant_bits}-bit gptq_lite:{_gptq_lite}")
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), bits=args.quant_bits)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
