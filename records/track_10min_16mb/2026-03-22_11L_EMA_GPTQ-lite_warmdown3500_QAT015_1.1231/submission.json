@@ -1,0 +1,16 @@
+{
+  "author": "AbhisekBasu1",
+  "github_id": "AbhisekBasu1",
+  "name": "Record: 11L EMA + GPTQ-lite + warmdown3500 + QAT@0.15",
+  "blurb": "Validated 8xH100 SXM run of the patched #414-class control: EMA every step, GPTQ-lite post-training quantization, warmdown=3500, late QAT threshold=0.15, XSA-last-4, VE128, LN scale, SmearGate, BigramHash, int6+zstd-22, sliding-window eval stride=64.",
+  "date": "2026-03-22T00:00:00Z",
+  "val_loss": 1.89633433,
+  "val_bpb": 1.12311898,
+  "pre_quant_val_loss": 1.9220,
+  "pre_quant_val_bpb": 1.1383,
+  "int6_zstd_val_loss": 1.93635749,
+  "int6_zstd_val_bpb": 1.14681998,
+  "bytes_total": 15683276,
+  "bytes_model_int6_zstd": 15610171,
+  "bytes_code": 73105
+}
