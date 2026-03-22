@@ -950,8 +950,7 @@ def main() -> None:
     else:
         device = torch.device("cpu")
     if distributed:
-        dist.init_process_group(backend="nccl" if device.type == "cuda" else "gloo",
-                                device_id=device if device.type == "cuda" else None)
+        dist.init_process_group(backend="nccl" if device.type == "cuda" else "gloo")
         dist.barrier()
     master_process = rank == 0
 
