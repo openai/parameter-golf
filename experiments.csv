@@ -20,5 +20,6 @@ transformer_v7_depth_recurrence_10min,600,,,65039,1,,1.5362,706c462,"5L×2loops=
 transformer_v8c_int6_10min,600,3321684,,69666,1,,1.4944,9acdb97,"10L int6+zstd (quant roundtrip destroys model at 10min, needs full 80min warmdown)"
 transformer_v8d_int6_shortwd_10min,600,5897143,,69666,1,,1.6971,3f01f6f,"10L int6+zstd WD=1500 (quant damage=0.15 bpb in 10min, should be ~0.01 in 80min)"
 transformer_v11_bigram_smear,4800,,,71871,1,,pending,728c7ae,"v4+BigramHash+SmearGate (killed — tracking ~0.006 worse than v4, not helping)"
-transformer_v12_3xMLP_int6_QAT,4800,14136975,14065104,71871,1,1318.88,1.1525,0720a71,"10L 3xMLP int6+zstd lateQAT WD=3000 (10146 steps @ 473ms, 14.1MB, NEW BEST!)"
+transformer_v12_3xMLP_int6_QAT,4800,14136975,14065104,71871,1,1318.88,1.1525,0720a71,"10L 3xMLP int6+zstd lateQAT WD=3000 (10146 steps @ 473ms, 14.1MB)"
+transformer_v13_11L_3xMLP_int6_QAT,4800,15648880,15577009,71871,1,1435.95,1.1440,0720a71,"11L 3xMLP int6+zstd lateQAT WD=3000 (9223 steps @ 520ms, 15.6MB, gap to #1: 0.001!)"
 transformer_v9b_int6_80min,4800,9506368,9438929,67439,1,1190.41,1.2017,e2d0e45,"10L int6+zstd (9.5MB artifact, but 0.034 quant damage — need QAT to fix)"
