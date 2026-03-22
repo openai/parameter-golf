@@ -61,9 +61,12 @@ Baseline: SOTA254 = **1.1303 BPB** (sliding window, seed 1337, zstd)
 |-----|--------|-------------:|------------:|---------:|-------|
 | A | MTP (2 heads, weight=0.15) | 1.1619 | — | 17.11 MB | zlib fallback; worse than baseline |
 | B | SwiGLU MLP (hidden=1024) | 1.1570 | 1.1348 | 17.49 MB | zlib fallback; +0.0045 vs baseline |
-| C | Vocab 1536 | — | — | — | pending |
+| C | Vocab 1536 | — | — | — | can't run (48 GB docs, 36 GB free) |
+| **D** | **TTT 8ep + stride 32** | **1.1519** | **1.1295** | **15.74 MB** | **new best! -0.0008 vs baseline** |
 
-**Bug found:** Training machine missing `zstandard` → fell back to zlib (+~1.5 MB). All artifacts over 16 MB limit. Fix: `pip install zstandard` and re-run.
+**Exp D details (seed 1337):** Same model/artifact as baseline. TTT 8 epochs (vs 3), stride 32 (vs 64). Stride made no difference (s32=1.12948, s64=1.12946) — all improvement from extra TTT. Eval time 253s (114s TTT + 137s sliding), well under 600s. Seed 42 pending.
+
+**Bug found (A/B):** zstandard was installed but A/B used zlib anyway — investigate. zstd worked for D.
 
 ## Next Steps
 
