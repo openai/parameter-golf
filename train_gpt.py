@@ -90,6 +90,8 @@ class Hyperparameters:
     mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.25))
     muon_update_balance = float(os.environ.get("MUON_UPDATE_BALANCE", 0.0))
     hybrid_delta_every = int(os.environ.get("HYBRID_DELTA_EVERY", 0))
+    shared_depth_n = int(os.environ.get("SHARED_DEPTH_N", 0))
+    shared_depth_gain = float(os.environ.get("SHARED_DEPTH_GAIN", 0.0))
 
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
@@ -749,6 +751,8 @@ class GPT(nn.Module):
         mtp_depth: int,
         mtp_loss_weight: float,
         hybrid_delta_every: int,
+        shared_depth_n: int,
+        shared_depth_gain: float,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -761,10 +765,14 @@ class GPT(nn.Module):
         self.mtp_loss_weight = mtp_loss_weight
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.logical_num_layers = num_layers
+        shared_blocks = min(shared_depth_n, num_layers) if shared_depth_n > 0 else num_layers
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        self.block_map = [i % shared_blocks for i in range(num_layers)]
+        self.pass_scales = nn.Parameter((1.0 + shared_depth_gain * torch.linspace(-1, 1, num_layers)[:, None]).expand(-1, model_dim).contiguous()) if shared_depth_n > 0 else None
         self.mtp_heads = nn.ModuleList([CastedLinear(model_dim, vocab_size, bias=False) for _ in range(mtp_depth)])
         self.blocks = nn.ModuleList(
             [
@@ -781,7 +789,7 @@ class GPT(nn.Module):
                     rope_scale,
                     hybrid_delta_every > 0 and (i + 1) % hybrid_delta_every == 0,
                 )
-                for i in range(num_layers)
+                for i in range(max(self.block_map) + 1)
             ]
         )
         self.final_norm = RMSNorm()
@@ -805,7 +813,6 @@ class GPT(nn.Module):
                 phase = torch.sigmoid(torch.tensor(self.resid_mix_init_scale * (i / max(len(self.blocks) - 1, 1) - 0.5)))
                 block.resid_mix.data[0].fill_(float(phase))
                 block.resid_mix.data[1].fill_(float(1.0 - phase))
-
     def set_rope_scaling(self, scaling: str, scale: float) -> None:
         for block in self.blocks:
             if not block.use_delta:
@@ -818,17 +825,23 @@ class GPT(nn.Module):
         skips: list[Tensor] = []
 
         for i in range(self.num_encoder_layers):
+            block = self.blocks[self.block_map[i]]
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, qd, vd)
+            x = block(x, x0, qd, vd)
+            if self.pass_scales is not None:
+                x = self.pass_scales[i].to(dtype=x.dtype)[None, None, :] * x
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            block = self.blocks[self.block_map[bi]]
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, qd, vd)
+            x = block(x, x0, qd, vd)
+            if self.pass_scales is not None:
+                x = self.pass_scales[bi].to(dtype=x.dtype)[None, None, :] * x
         return self.final_norm(x)
 
     def _hidden_to_logits(self, x: Tensor, lora=None) -> Tensor:
@@ -862,9 +875,6 @@ class GPT(nn.Module):
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         x = self._forward_hidden(input_ids)
         return self._hidden_to_logits(x)
-
-
-
 BOS_ID = 1
 
 class BatchedLinearLoRA(nn.Module):
@@ -890,7 +900,6 @@ class BatchedLinearLoRA(nn.Module):
 class NullLoRA(nn.Module):
     def forward(self, x: Tensor) -> int:
         return 0
-
 class BatchedTTTLoRA(nn.Module):
     """All LoRA adapters for one batch: LM head and Q/V per block."""
     def __init__(self, bsz: int, model: GPT, rank: int):
@@ -900,7 +909,8 @@ class BatchedTTTLoRA(nn.Module):
         self.lm_head_lora = BatchedLinearLoRA(bsz, dim, vocab, rank)
         self.q_loras = nn.ModuleList()
         self.v_loras = nn.ModuleList()
-        for block in model.blocks:
+        for i in range(model.logical_num_layers):
+            block = model.blocks[model.block_map[i]]
             if getattr(block, "use_delta", False):
                 self.q_loras.append(NullLoRA())
                 self.v_loras.append(NullLoRA())
@@ -912,7 +922,6 @@ class BatchedTTTLoRA(nn.Module):
         for m in self.modules():
             if isinstance(m, BatchedLinearLoRA):
                 m.reset()
-
 def _reset_ttt_optimizer(opt):
     for group in opt.param_groups:
         for p in group['params']:
@@ -922,10 +931,8 @@ def _reset_ttt_optimizer(opt):
             s['exp_avg'].zero_()
             s['exp_avg_sq'].zero_()
             s['step'].fill_(0)
-
 def _build_ttt_optimizer(lora, args: Hyperparameters):
     return torch.optim.Adam(lora.parameters(), lr=args.ttt_lora_lr, betas=(args.beta1, args.beta2), eps=1e-10)
-
 def _find_docs(all_tokens: Tensor, include_next_bos: bool = True) -> list[tuple[int, int]]:
     """Return (start_offset, length) for each document, identified by BOS boundaries.
 
@@ -942,7 +949,6 @@ def _find_docs(all_tokens: Tensor, include_next_bos: bool = True) -> list[tuple[
         assert end - start >= 2
         docs.append((start, end - start))
     return docs
-
 def _compute_chunk_window(ci: int, pred_len: int, num_chunks: int, chunk_size: int, eval_seq_len: int):
     """Return (win_start, win_len, chunk_offset, chunk_len) for chunk `ci` of a doc."""
     chunk_start = ci * chunk_size
@@ -952,7 +958,6 @@ def _compute_chunk_window(ci: int, pred_len: int, num_chunks: int, chunk_size: i
     chunk_offset = chunk_start - win_start
     chunk_len = chunk_end - chunk_start
     return win_start, win_len, chunk_offset, chunk_len
-
 def _accumulate_bpb(
     ptl: Tensor, x: Tensor, y: Tensor,
     batch_i: int, chunk_offset: int, chunk_len: int,
@@ -968,7 +973,6 @@ def _accumulate_bpb(
     loss_sum += lbl.sum()
     byte_sum += tok_bytes.sum()
     token_count += chunk_len
-
 def eval_val_ttt_lora(
     args: Hyperparameters,
     base_model: GPT,
@@ -1072,16 +1076,12 @@ def eval_val_ttt_lora(
     val_loss = float(loss_sum.item() / token_count.item())
     val_bpb = float((loss_sum.item() / math.log(2.0)) / byte_sum.item())
     return val_loss, val_bpb
-
-
 def main() -> None:
     global zeropower_via_newtonschulz5
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
-
-
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -1124,7 +1124,6 @@ def main() -> None:
         if logfile is not None:
             with open(logfile, "a", encoding="utf-8") as f:
                 print(msg, file=f)
-
     log0(code, console=False)
     log0("=" * 100, console=False)
     log0(f"Running Python {sys.version}", console=False)
@@ -1182,6 +1181,8 @@ def main() -> None:
         mtp_depth=args.mtp_depth,
         mtp_loss_weight=args.mtp_loss_weight,
         hybrid_delta_every=args.hybrid_delta_every,
+        shared_depth_n=args.shared_depth_n,
+        shared_depth_gain=args.shared_depth_gain,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1205,6 +1206,8 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    if base_model.pass_scales is not None:
+        scalar_params.append(base_model.pass_scales)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -1263,7 +1266,8 @@ def main() -> None:
         f"ttt_rope_scaling:{args.ttt_rope_scaling} muon_weight_decay:{args.muon_weight_decay} "
         f"muon_update_balance:{args.muon_update_balance} z_loss_coef:{args.z_loss_coef} "
         f"attn_twice_alpha:{args.attn_twice_alpha} attn_twice_alpha_slope:{args.attn_twice_alpha_slope} "
-        f"mtp_depth:{args.mtp_depth} hybrid_delta_every:{args.hybrid_delta_every} overtone_init_power:{args.overtone_init_power}"
+        f"mtp_depth:{args.mtp_depth} hybrid_delta_every:{args.hybrid_delta_every} shared_depth_n:{args.shared_depth_n} "
+        f"shared_depth_gain:{args.shared_depth_gain} overtone_init_power:{args.overtone_init_power}"
     )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
@@ -1271,8 +1275,6 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
-
-
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     def zero_grad_all() -> None:
@@ -1490,10 +1492,7 @@ def main() -> None:
         f"final_int8_ttt_lora val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
     )
-
     if distributed:
         dist.destroy_process_group()
-
-
 if __name__ == "__main__":
     main()

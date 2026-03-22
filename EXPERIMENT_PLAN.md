@@ -47,6 +47,18 @@ Next-step rules:
 - If `muon_balance` wins, sweep `MUON_UPDATE_BALANCE` in `0.25`, `0.5`, `0.75`.
 - If `hybrid_delta` wins even slightly, open a dedicated hybrid branch next.
 
+## Next Moonshot
+
+New architecture branch:
+
+1. `shared_depth`
+
+Idea:
+
+- reuse `4` unique blocks across `10` logical layers
+- keep tiny per-pass learned output scales so reused blocks can still specialize
+- preserve the existing optimizer, export, and TTT paths
+
 ## Dataset And Tokenizer Work
 
 The challenge allows tokenizer or dataset changes, but the repo says they will be examined carefully and you must prove the `val_bpb` calculation is correct. See [README.md](/Users/deividasmataciunas/Desktop/research/openai_golf/README.md#L168).
