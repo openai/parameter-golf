@@ -1,14 +1,16 @@
 """
-Fractal Auto-Research: Overnight Autonomous Optimization
-=========================================================
-Runs continuously on DGX Spark. Phases:
-  1. EXPLORE: diverse initial configs to map the landscape
-  2. EXPLOIT: hill-climb from best config, perturbing one axis at a time
-  3. REFINE: fine-tune the best region with smaller steps
-  4. COMBO: test best values from each axis together
+Fractal Auto-Research: LLM-Guided Overnight Optimization
+==========================================================
+Uses local Qwen (via Ollama) to analyze experiment results and
+propose the next configuration. The LLM sees the full history
+and reasons about what to try next.
 
-Logs everything to autoresearch_results.csv with live leaderboard.
-Designed to run unattended for 8+ hours.
+Loop:
+  1. Run experiment with current config
+  2. Send results + history to Qwen
+  3. Qwen proposes next config with reasoning
+  4. Parse config, run it
+  5. Repeat forever
 
 Usage:
   source .venv/bin/activate
@@ -18,46 +20,27 @@ Usage:
 
 import csv
 import json
-import math
 import os
 import random
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 
 SCRIPT = "train_fractal_cadence.py"
 RESULTS_FILE = "autoresearch_results.csv"
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3-coder:30b")
+
 FIELDS = [
-    "timestamp", "run_id", "phase", "generation", "val_bpb",
+    "timestamp", "run_id", "val_bpb",
     "cadence", "cadence_offset", "num_unique_layers", "num_loops",
     "lr", "grad_clip", "mlp_mult", "model_dim",
-    "steps", "f_steps", "n_steps", "avg_ms", "time_s", "params", "notes"
+    "steps", "f_steps", "n_steps", "avg_ms", "time_s", "params",
+    "reasoning", "notes"
 ]
-
-# ─── CONFIG SPACE ─────────────────────────────────────────────────────────────
-
-BASE = {
-    "cadence": 2,
-    "cadence_offset": 0,
-    "num_unique_layers": 3,
-    "num_loops": 3,
-    "lr": 3e-4,
-    "grad_clip": 1.0,
-    "mlp_mult": 2,
-    "model_dim": 0,  # auto-size
-}
-
-# Axes to search and their candidate values
-AXES = {
-    "num_unique_layers": [2, 3, 4, 5, 6],
-    "num_loops":         [1, 2, 3, 4],
-    "cadence":           [0, 1, 2, 3, 4],
-    "lr":                [1e-4, 2e-4, 3e-4, 5e-4, 8e-4, 1e-3],
-    "grad_clip":         [0.3, 0.5, 1.0, 1.5, 2.0],
-    "mlp_mult":          [2, 3],
-}
 
 RUN_DEFAULTS = {
     "iterations": 300,
@@ -68,171 +51,188 @@ RUN_DEFAULTS = {
     "seed": 1337,
 }
 
-# ─── PHASE 1: EXPLORE ────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """You are an ML research assistant optimizing a fractal transformer architecture for a language modeling competition.
 
-def gen_explore_configs():
-    """Diverse initial configs to map the landscape."""
-    configs = [
-        # Controls
-        {"cadence": 1, "notes": "ctrl: always fractal 3x3"},
-        {"cadence": 0, "notes": "ctrl: never fractal (single pass)"},
-        {"cadence": 2, "notes": "ctrl: cadence2 baseline 3x3"},
+GOAL: Find the configuration that minimizes val_bpb (bits per byte) on a validation set.
 
-        # Architecture extremes
-        {"num_unique_layers": 2, "num_loops": 4, "cadence": 2, "notes": "deep: 2L x4 loops"},
-        {"num_unique_layers": 6, "num_loops": 2, "cadence": 2, "notes": "wide: 6L x2 loops"},
-        {"num_unique_layers": 4, "num_loops": 3, "cadence": 2, "notes": "balanced: 4L x3 loops"},
-        {"num_unique_layers": 3, "num_loops": 2, "cadence": 2, "notes": "minimal: 3L x2 loops"},
-        {"num_unique_layers": 5, "num_loops": 3, "cadence": 1, "notes": "deep always: 5L x3"},
+ARCHITECTURE: Fractal weight-shared transformer. A small number of unique transformer blocks are looped multiple times to create effective depth.
 
-        # LR extremes
-        {"lr": 1e-4, "notes": "lr: low"},
-        {"lr": 1e-3, "notes": "lr: high"},
+TRAINING PATTERN: "Cadence" alternates between fractal steps (all loops fire, deep computation) and normalize steps (single clean pass, fast). cadence=2 means F/N/F/N, cadence=3 means one fractal every 3 steps, cadence=1 means always fractal, cadence=0 means never fractal.
 
-        # Grad clip
-        {"grad_clip": 0.3, "notes": "clip: tight"},
-        {"grad_clip": 2.0, "notes": "clip: loose"},
+CONFIGURABLE PARAMETERS:
+- num_unique_layers: number of unique transformer blocks (2-8). More layers = more unique capacity but narrower model (auto-sized to match param budget)
+- num_loops: how many times to loop through the blocks (1-5). More loops = deeper effective network but slower fractal steps
+- cadence: how often fractal fires (0=never, 1=always, 2=every other, 3=every 3rd, etc.)
+- cadence_offset: which position in the cadence cycle is fractal (0 to cadence-1)
+- lr: learning rate (1e-4 to 2e-3). Higher = faster learning but risk instability
+- grad_clip: gradient clipping norm (0.1 to 5.0). Fractal accumulates gradients from multiple loops — may need higher clip than standard
+- mlp_mult: MLP expansion factor (2 or 3). 3x = more params per block but fewer blocks fit in budget
 
-        # Cadence patterns
-        {"cadence": 3, "cadence_offset": 2, "notes": "cadence: N/N/F"},
-        {"cadence": 4, "cadence_offset": 0, "notes": "cadence: F/N/N/N"},
+CONSTRAINTS:
+- Total unique params are auto-sized to match ~17M parameter budget
+- More unique layers with same budget = narrower dim (less expressive per layer)
+- More loops = proportionally slower fractal steps (2 loops = 2x, 3 loops = 3x)
+- Normalize steps are always fast (~10ms), fractal steps scale with loops (~100ms per loop)
+- 300 training steps per experiment, each ~2-3 minutes
 
-        # MLP
-        {"mlp_mult": 3, "notes": "mlp: 3x"},
-    ]
-    return configs
+KEY INSIGHTS FROM PRIOR WORK:
+- Orthogonal loop position embeddings help (each loop and normalize operate in non-interfering subspaces)
+- Cadence 2 (F/N) works well — normalize steps become beneficial after ~500 steps
+- Weight sharing lets wider layers compensate for fewer unique blocks
+- Gradient clipping may need to be looser for fractal (3 loops = ~3x gradient accumulation)
 
+Respond with ONLY a JSON object (no markdown, no code fences):
+{
+  "reasoning": "Brief explanation of why this config (2-3 sentences)",
+  "config": {
+    "num_unique_layers": <int>,
+    "num_loops": <int>,
+    "cadence": <int>,
+    "cadence_offset": <int>,
+    "lr": <float>,
+    "grad_clip": <float>,
+    "mlp_mult": <int>
+  }
+}"""
 
-# ─── PHASE 2: EXPLOIT (hill climb) ───────────────────────────────────────────
+# ─── OLLAMA ───────────────────────────────────────────────────────────────────
 
-def gen_exploit_configs(best_config, results):
-    """Perturb the best config one axis at a time."""
-    configs = []
-    for axis, values in AXES.items():
-        current = best_config.get(axis, BASE[axis])
-        for v in values:
-            if v == current:
-                continue
-            cfg = {**best_config, axis: v}
-            # Fix cadence_offset if cadence changed
-            if axis == "cadence" and v > 0:
-                cfg["cadence_offset"] = 0
-            # Skip if cadence=0 with loops>1 (meaningless)
-            if cfg.get("cadence", 2) == 0 and cfg.get("num_loops", 3) > 1:
-                cfg["num_loops"] = 1
-            cfg["notes"] = f"exploit: {axis}={v}"
-            # Skip if already tested
-            if not already_tested(cfg, results):
-                configs.append(cfg)
-    return configs
+def ask_qwen(history_text, last_result_text):
+    prompt = f"""Here are ALL experiment results so far (sorted by val_bpb, best first):
 
+{history_text}
 
-# ─── PHASE 3: REFINE ─────────────────────────────────────────────────────────
+The most recent experiment result:
+{last_result_text}
 
-def gen_refine_configs(best_config, results):
-    """Fine-grained search around the best config."""
-    configs = []
-    # LR refinement: ±20%, ±40% of best
-    best_lr = best_config.get("lr", 3e-4)
-    for mult in [0.6, 0.8, 1.2, 1.4, 1.6]:
-        lr = round(best_lr * mult, 6)
-        cfg = {**best_config, "lr": lr, "notes": f"refine: lr={lr:.1e}"}
-        if not already_tested(cfg, results):
-            configs.append(cfg)
+Based on the patterns in these results, propose the NEXT experiment configuration to try. Look for:
+1. Which axes (layers, loops, cadence, lr, clip) have the most impact
+2. What promising regions haven't been explored yet
+3. Whether to exploit (refine near the best) or explore (try something different)
 
-    # Grad clip refinement
-    best_clip = best_config.get("grad_clip", 1.0)
-    for mult in [0.7, 0.85, 1.15, 1.3]:
-        clip = round(best_clip * mult, 2)
-        cfg = {**best_config, "grad_clip": clip, "notes": f"refine: clip={clip}"}
-        if not already_tested(cfg, results):
-            configs.append(cfg)
+Do NOT repeat a configuration that has already been tested. Try something new."""
 
-    # Try different cadence offsets
-    cad = best_config.get("cadence", 2)
-    if cad > 1:
-        for off in range(cad):
-            if off == best_config.get("cadence_offset", 0):
-                continue
-            cfg = {**best_config, "cadence_offset": off, "notes": f"refine: offset={off}"}
-            if not already_tested(cfg, results):
-                configs.append(cfg)
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ],
+        "stream": False,
+        "options": {"temperature": 0.7, "num_predict": 512}
+    }
 
-    return configs
+    req = urllib.request.Request(
+        f"{OLLAMA_URL}/api/chat",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode())
+            content = data.get("message", {}).get("content", "")
+            return content
+    except Exception as e:
+        print(f"  Qwen error: {e}")
+        return None
 
 
-# ─── PHASE 4: COMBO ──────────────────────────────────────────────────────────
+def parse_qwen_response(text):
+    """Extract JSON config from Qwen's response."""
+    if not text:
+        return None, "no response"
 
-def gen_combo_configs(results):
-    """Combine the best value from each axis."""
-    if len(results) < 10:
-        return []
+    # Try to find JSON in the response
+    # Handle potential markdown code fences
+    clean = text.strip()
+    if "```" in clean:
+        parts = clean.split("```")
+        for p in parts:
+            p = p.strip()
+            if p.startswith("json"):
+                p = p[4:].strip()
+            if p.startswith("{"):
+                clean = p
+                break
 
-    # Find best value per axis
-    best_per_axis = {}
-    for axis in AXES:
-        axis_results = {}
-        for r in results:
-            val = r.get(axis)
-            if val is not None:
-                bpb = r.get("val_bpb", 999)
-                if val not in axis_results or bpb < axis_results[val]:
-                    axis_results[val] = bpb
-        if axis_results:
-            best_val = min(axis_results, key=axis_results.get)
-            best_per_axis[axis] = best_val
+    # Find the JSON object
+    start = clean.find("{")
+    end = clean.rfind("}") + 1
+    if start < 0 or end <= start:
+        return None, f"no JSON found in: {text[:100]}"
 
-    configs = []
-    # Full combo
-    combo = {**BASE, **best_per_axis, "notes": "combo: best-of-each-axis"}
-    if not already_tested(combo, results):
-        configs.append(combo)
-
-    # Combo with variations
-    for axis in ["lr", "grad_clip"]:
-        if axis in best_per_axis:
-            for mult in [0.8, 1.2]:
-                val = best_per_axis[axis] * mult
-                if axis == "grad_clip":
-                    val = round(val, 2)
-                else:
-                    val = round(val, 6)
-                cfg = {**BASE, **best_per_axis, axis: val,
-                       "notes": f"combo+tweak: {axis}={val}"}
-                if not already_tested(cfg, results):
-                    configs.append(cfg)
-
-    return configs
+    try:
+        obj = json.loads(clean[start:end])
+        reasoning = obj.get("reasoning", "")
+        config = obj.get("config", obj)
+        # Validate
+        validated = {}
+        if "num_unique_layers" in config:
+            validated["num_unique_layers"] = max(1, min(8, int(config["num_unique_layers"])))
+        if "num_loops" in config:
+            validated["num_loops"] = max(1, min(5, int(config["num_loops"])))
+        if "cadence" in config:
+            validated["cadence"] = max(0, min(10, int(config["cadence"])))
+        if "cadence_offset" in config:
+            cad = validated.get("cadence", 2)
+            validated["cadence_offset"] = max(0, min(cad - 1, int(config["cadence_offset"]))) if cad > 0 else 0
+        if "lr" in config:
+            validated["lr"] = max(1e-5, min(0.01, float(config["lr"])))
+        if "grad_clip" in config:
+            validated["grad_clip"] = max(0.05, min(10.0, float(config["grad_clip"])))
+        if "mlp_mult" in config:
+            validated["mlp_mult"] = int(config["mlp_mult"])
+            if validated["mlp_mult"] not in [2, 3, 4]:
+                validated["mlp_mult"] = 2
+        return validated, reasoning
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        return None, f"parse error: {e} | {text[:200]}"
 
 
 # ─── RUNNER ───────────────────────────────────────────────────────────────────
 
-def config_key(cfg):
-    """Hashable key for dedup."""
+def format_history(results):
+    if not results:
+        return "No experiments run yet. Start with a diverse exploration."
+    valid = [r for r in results if r.get("val_bpb") and float(r.get("val_bpb", 999)) < 100]
+    valid.sort(key=lambda r: float(r["val_bpb"]))
+    lines = []
+    for r in valid[:30]:  # top 30
+        lines.append(
+            f"bpb={float(r['val_bpb']):.4f} | "
+            f"layers={r.get('num_unique_layers','?')} loops={r.get('num_loops','?')} "
+            f"cadence={r.get('cadence','?')} offset={r.get('cadence_offset','?')} "
+            f"lr={float(r.get('lr',0)):.1e} clip={float(r.get('grad_clip',0)):.1f} "
+            f"mlp={r.get('mlp_mult','?')} | {r.get('notes','')}"
+        )
+    return "\n".join(lines)
+
+
+def format_last_result(result):
+    if not result:
+        return "First run — no previous result."
     return (
-        cfg.get("cadence", 2), cfg.get("cadence_offset", 0),
-        cfg.get("num_unique_layers", 3), cfg.get("num_loops", 3),
-        round(cfg.get("lr", 3e-4), 6), round(cfg.get("grad_clip", 1.0), 2),
-        cfg.get("mlp_mult", 2), cfg.get("model_dim", 0),
+        f"val_bpb={result.get('val_bpb','?')} | "
+        f"layers={result.get('num_unique_layers','?')} loops={result.get('num_loops','?')} "
+        f"cadence={result.get('cadence','?')} lr={result.get('lr','?')} "
+        f"clip={result.get('grad_clip','?')} mlp={result.get('mlp_mult','?')} "
+        f"steps={result.get('steps','?')} avg_ms={result.get('avg_ms','?')}"
     )
 
 
-def already_tested(cfg, results):
-    key = config_key(cfg)
-    for r in results:
-        rkey = (
-            int(r.get("cadence", 2)), int(r.get("cadence_offset", 0)),
-            int(r.get("num_unique_layers", 3)), int(r.get("num_loops", 3)),
-            round(float(r.get("lr", 3e-4)), 6), round(float(r.get("grad_clip", 1.0)), 2),
-            int(r.get("mlp_mult", 2)), int(r.get("model_dim", 0)),
-        )
-        if rkey == key:
-            return True
-    return False
+def run_experiment(config, run_id):
+    cfg = {**RUN_DEFAULTS, **config}
+    # Fill defaults for missing keys
+    cfg.setdefault("cadence", 2)
+    cfg.setdefault("cadence_offset", 0)
+    cfg.setdefault("num_unique_layers", 3)
+    cfg.setdefault("num_loops", 3)
+    cfg.setdefault("lr", 3e-4)
+    cfg.setdefault("grad_clip", 1.0)
+    cfg.setdefault("mlp_mult", 2)
 
-
-def run_one(config, run_id, phase, generation):
-    cfg = {**BASE, **RUN_DEFAULTS, **config}
     cmd = [
         sys.executable, SCRIPT,
         "--cadence", str(cfg["cadence"]),
@@ -255,11 +255,6 @@ def run_one(config, run_id, phase, generation):
     if cfg.get("gravity", False):
         cmd.append("--gravity")
 
-    notes = cfg.get("notes", "")
-    print(f"\n[{phase} gen:{generation}] {run_id}: {notes}")
-    print(f"  layers={cfg['num_unique_layers']} loops={cfg['num_loops']} "
-          f"cadence={cfg['cadence']} lr={cfg['lr']:.1e} clip={cfg['grad_clip']}")
-
     t0 = time.time()
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
@@ -272,18 +267,16 @@ def run_one(config, run_id, phase, generation):
         print(f"  FAILED (exit {result.returncode})")
         stderr = result.stderr
         if stderr:
-            print(f"  {stderr[-200:]}")
+            print(f"  {stderr[-300:]}")
         return None
 
-    # Parse
     parsed = {
         "timestamp": datetime.now().isoformat(),
-        "run_id": run_id, "phase": phase, "generation": generation,
+        "run_id": run_id,
         "cadence": cfg["cadence"], "cadence_offset": cfg["cadence_offset"],
         "num_unique_layers": cfg["num_unique_layers"], "num_loops": cfg["num_loops"],
         "lr": cfg["lr"], "grad_clip": cfg["grad_clip"],
         "mlp_mult": cfg["mlp_mult"], "model_dim": cfg.get("model_dim", 0),
-        "notes": notes,
     }
     stdout = result.stdout
     for line in stdout.split("\n"):
@@ -327,8 +320,6 @@ def run_one(config, run_id, phase, generation):
             except (ValueError, IndexError):
                 pass
 
-    bpb = parsed.get("val_bpb", "?")
-    print(f"  >>> val_bpb={bpb} ({elapsed:.0f}s)")
     return parsed
 
 
@@ -350,159 +341,152 @@ def save_result(result):
         w.writerow(result)
 
 
-def get_best(results):
-    valid = [r for r in results if r.get("val_bpb") and float(r.get("val_bpb", 999)) < 100]
-    if not valid:
-        return BASE, 999.0
-    best = min(valid, key=lambda r: float(r["val_bpb"]))
-    cfg = {}
-    for k in ["cadence", "cadence_offset", "num_unique_layers", "num_loops", "mlp_mult", "model_dim"]:
-        if k in best and best[k]:
-            cfg[k] = int(best[k])
-    for k in ["lr", "grad_clip"]:
-        if k in best and best[k]:
-            cfg[k] = float(best[k])
-    if "notes" in best:
-        cfg["notes"] = best["notes"]
-    return cfg, float(best["val_bpb"])
+def fallback_config(results):
+    """If Qwen fails, generate a random config."""
+    return {
+        "num_unique_layers": random.choice([2, 3, 4, 5, 6]),
+        "num_loops": random.choice([1, 2, 3, 4]),
+        "cadence": random.choice([0, 1, 2, 3]),
+        "cadence_offset": 0,
+        "lr": random.choice([1e-4, 2e-4, 3e-4, 5e-4, 8e-4, 1e-3]),
+        "grad_clip": random.choice([0.3, 0.5, 1.0, 1.5, 2.0]),
+        "mlp_mult": random.choice([2, 3]),
+    }
 
 
-def print_leaderboard(results):
-    valid = [r for r in results if r.get("val_bpb") and float(r.get("val_bpb", 999)) < 100]
-    valid.sort(key=lambda r: float(r["val_bpb"]))
-    print(f"\n{'='*90}")
-    print(f"LEADERBOARD ({len(valid)} runs)")
-    print(f"{'='*90}")
-    print(f"{'#':>3} {'bpb':>8} {'phase':>8} {'L':>2}x{'lp':>2} {'cad':>3} {'lr':>9} {'clip':>5} {'notes'}")
-    for i, r in enumerate(valid[:15]):
-        print(f"{i+1:>3} {float(r['val_bpb']):>8.4f} {r.get('phase','?'):>8} "
-              f"{r.get('num_unique_layers','?'):>2}x{r.get('num_loops','?'):>2} "
-              f"{r.get('cadence','?'):>3} {float(r.get('lr',0)):>9.1e} "
-              f"{float(r.get('grad_clip',0)):>5.1f} {r.get('notes','')[:35]}")
-    print()
+# ─── SEED RUNS ────────────────────────────────────────────────────────────────
+
+SEED_CONFIGS = [
+    {"num_unique_layers": 3, "num_loops": 3, "cadence": 2, "lr": 3e-4, "grad_clip": 1.0, "mlp_mult": 2,
+     "notes": "seed: 3x3 cadence2 (our baseline)"},
+    {"num_unique_layers": 3, "num_loops": 3, "cadence": 1, "lr": 3e-4, "grad_clip": 1.0, "mlp_mult": 2,
+     "notes": "seed: always fractal control"},
+    {"num_unique_layers": 3, "num_loops": 3, "cadence": 0, "lr": 3e-4, "grad_clip": 1.0, "mlp_mult": 2,
+     "notes": "seed: never fractal control"},
+    {"num_unique_layers": 4, "num_loops": 3, "cadence": 2, "lr": 3e-4, "grad_clip": 0.5, "mlp_mult": 2,
+     "notes": "seed: 4x3 loose clip"},
+    {"num_unique_layers": 3, "num_loops": 2, "cadence": 2, "lr": 5e-4, "grad_clip": 1.0, "mlp_mult": 2,
+     "notes": "seed: 3x2 high lr"},
+]
 
 
-# ─── MAIN LOOP ────────────────────────────────────────────────────────────────
+# ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 def main():
-    print("=" * 60)
-    print("FRACTAL AUTO-RESEARCH — Overnight Optimization")
+    print("=" * 70)
+    print("FRACTAL AUTO-RESEARCH — Qwen-Guided Overnight Optimization")
+    print(f"Model: {OLLAMA_MODEL} @ {OLLAMA_URL}")
     print(f"Started: {datetime.now().isoformat()}")
     print(f"Results: {RESULTS_FILE}")
-    print("=" * 60)
+    print("=" * 70)
+
+    # Verify Qwen is reachable
+    try:
+        test = urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=5)
+        print("Ollama: connected")
+    except Exception as e:
+        print(f"WARNING: Ollama not reachable ({e}). Will use fallback random search.")
 
     results = load_results()
-    generation = 0
     run_count = len(results)
+    last_result = None
 
-    # Phase 1: EXPLORE
-    if run_count < 15:
-        print("\n>>> PHASE 1: EXPLORE")
-        explore = gen_explore_configs()
-        for cfg in explore:
-            if already_tested(cfg, results):
+    # Run seed configs first (if not already done)
+    if run_count < len(SEED_CONFIGS):
+        print(f"\n>>> SEED PHASE: {len(SEED_CONFIGS)} initial configs")
+        for i, cfg in enumerate(SEED_CONFIGS):
+            if i < run_count:
                 continue
             run_count += 1
-            generation += 1
-            rid = f"auto_{run_count:03d}_explore"
-            r = run_one(cfg, rid, "explore", generation)
+            rid = f"seed_{run_count:03d}"
+            print(f"\n[seed {run_count}] {cfg.get('notes', '')}")
+            print(f"  L={cfg['num_unique_layers']} lp={cfg['num_loops']} "
+                  f"cad={cfg['cadence']} lr={cfg['lr']:.1e} clip={cfg['grad_clip']}")
+            r = run_experiment(cfg, rid)
             if r:
+                r["notes"] = cfg.get("notes", "")
+                r["reasoning"] = "seed config"
                 save_result(r)
                 results.append(r)
-            print_leaderboard(results)
+                last_result = r
+                bpb = r.get("val_bpb", "?")
+                print(f"  >>> val_bpb={bpb}")
 
-    # Phase 2: EXPLOIT (hill climb from best)
-    best_cfg, best_bpb = get_best(results)
-    print(f"\n>>> PHASE 2: EXPLOIT (best so far: {best_bpb:.4f})")
-    exploit = gen_exploit_configs(best_cfg, results)
-    for cfg in exploit:
-        run_count += 1
-        generation += 1
-        rid = f"auto_{run_count:03d}_exploit"
-        r = run_one(cfg, rid, "exploit", generation)
-        if r:
-            save_result(r)
-            results.append(r)
-        print_leaderboard(results)
-        # Update best after each run
-        new_best, new_bpb = get_best(results)
-        if new_bpb < best_bpb:
-            best_cfg, best_bpb = new_best, new_bpb
-            print(f"  *** NEW BEST: {best_bpb:.4f} ***")
-
-    # Phase 3: REFINE
-    best_cfg, best_bpb = get_best(results)
-    print(f"\n>>> PHASE 3: REFINE (best: {best_bpb:.4f})")
-    refine = gen_refine_configs(best_cfg, results)
-    for cfg in refine:
-        run_count += 1
-        generation += 1
-        rid = f"auto_{run_count:03d}_refine"
-        r = run_one(cfg, rid, "refine", generation)
-        if r:
-            save_result(r)
-            results.append(r)
-        print_leaderboard(results)
-        new_best, new_bpb = get_best(results)
-        if new_bpb < best_bpb:
-            best_cfg, best_bpb = new_best, new_bpb
-            print(f"  *** NEW BEST: {best_bpb:.4f} ***")
-
-    # Phase 4: COMBO
-    print(f"\n>>> PHASE 4: COMBO")
-    combos = gen_combo_configs(results)
-    for cfg in combos:
-        run_count += 1
-        generation += 1
-        rid = f"auto_{run_count:03d}_combo"
-        r = run_one(cfg, rid, "combo", generation)
-        if r:
-            save_result(r)
-            results.append(r)
-        print_leaderboard(results)
-
-    # Phase 5: REPEAT exploit/refine loop until stopped
-    cycle = 0
+    # Main LLM-guided loop
+    qwen_failures = 0
     while True:
-        cycle += 1
-        best_cfg, best_bpb = get_best(results)
-        print(f"\n>>> CYCLE {cycle}: EXPLOIT+REFINE (best: {best_bpb:.4f})")
+        run_count += 1
+        print(f"\n{'='*70}")
+        print(f"RUN {run_count} | {datetime.now().strftime('%H:%M:%S')} | "
+              f"best={min((float(r.get('val_bpb',999)) for r in results if r.get('val_bpb')), default=999):.4f}")
+        print(f"{'='*70}")
 
-        # Random perturbation of best (exploration)
-        for _ in range(5):
-            cfg = {**best_cfg}
-            axis = random.choice(list(AXES.keys()))
-            cfg[axis] = random.choice(AXES[axis])
-            cfg["notes"] = f"cycle{cycle}: random {axis}={cfg[axis]}"
-            if cfg["cadence"] > 0:
-                cfg["cadence_offset"] = random.randint(0, max(cfg["cadence"] - 1, 0))
-            if not already_tested(cfg, results):
-                run_count += 1
-                generation += 1
-                rid = f"auto_{run_count:03d}_c{cycle}"
-                r = run_one(cfg, rid, f"cycle{cycle}", generation)
-                if r:
-                    save_result(r)
-                    results.append(r)
+        # Ask Qwen for next config
+        history_text = format_history(results)
+        last_text = format_last_result(last_result)
 
-        # Targeted refinement of current best
-        best_cfg, best_bpb = get_best(results)
-        refine = gen_refine_configs(best_cfg, results)
-        for cfg in refine[:5]:  # limit per cycle
-            run_count += 1
-            generation += 1
-            rid = f"auto_{run_count:03d}_c{cycle}r"
-            r = run_one(cfg, rid, f"cycle{cycle}", generation)
-            if r:
-                save_result(r)
-                results.append(r)
+        print("  Asking Qwen...")
+        response = ask_qwen(history_text, last_text)
 
-        print_leaderboard(results)
-        new_best, new_bpb = get_best(results)
-        if new_bpb < best_bpb:
-            print(f"  *** CYCLE {cycle} NEW BEST: {new_bpb:.4f} ***")
+        config = None
+        reasoning = ""
+        if response:
+            config, reasoning = parse_qwen_response(response)
+            if config:
+                print(f"  Qwen says: {reasoning[:100]}")
+                print(f"  Config: {json.dumps(config)}")
+                qwen_failures = 0
+            else:
+                print(f"  Parse failed: {reasoning[:100]}")
+                qwen_failures += 1
+        else:
+            print("  Qwen unavailable")
+            qwen_failures += 1
 
-        print(f"\nTotal runs: {run_count} | Best: {new_bpb:.4f} | Time: {datetime.now().isoformat()}")
+        # Fallback if Qwen fails
+        if config is None:
+            config = fallback_config(results)
+            reasoning = f"fallback random (qwen failures: {qwen_failures})"
+            print(f"  Fallback: {json.dumps(config)}")
+
+        # Fix cadence_offset
+        cad = config.get("cadence", 2)
+        if cad > 0:
+            config["cadence_offset"] = min(config.get("cadence_offset", 0), cad - 1)
+        else:
+            config["cadence_offset"] = 0
+
+        # Run it
+        rid = f"qwen_{run_count:03d}"
+        print(f"\n  Running: L={config.get('num_unique_layers',3)} "
+              f"lp={config.get('num_loops',3)} cad={config.get('cadence',2)} "
+              f"lr={config.get('lr',3e-4):.1e} clip={config.get('grad_clip',1.0)}")
+
+        r = run_experiment(config, rid)
+        if r:
+            r["reasoning"] = reasoning[:200]
+            r["notes"] = reasoning[:100]
+            save_result(r)
+            results.append(r)
+            last_result = r
+            bpb = r.get("val_bpb", "?")
+            print(f"\n  >>> val_bpb={bpb}")
+        else:
+            print("  Run failed")
+            last_result = None
+
+        # Print leaderboard every 5 runs
+        if run_count % 5 == 0:
+            valid = [r for r in results if r.get("val_bpb") and float(r.get("val_bpb", 999)) < 100]
+            valid.sort(key=lambda r: float(r["val_bpb"]))
+            print(f"\n{'='*80}")
+            print(f"LEADERBOARD (top 10 of {len(valid)} runs)")
+            print(f"{'='*80}")
+            for i, r in enumerate(valid[:10]):
+                print(f"  {i+1:>2}. bpb={float(r['val_bpb']):>7.4f} | "
+                      f"L={r.get('num_unique_layers','?')}x{r.get('num_loops','?')} "
+                      f"cad={r.get('cadence','?')} lr={float(r.get('lr',0)):.1e} "
+                      f"clip={float(r.get('grad_clip',0)):.1f}")
 
 
 if __name__ == "__main__":
