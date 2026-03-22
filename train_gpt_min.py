@@ -245,7 +245,7 @@ class GPT(nn.Module):
   s.bigram=BigramHash(bvs,bd,md) if bvs>0 else None;s.smear=SmearGate(md)
   s.ne=nl//2;s.nd=nl-s.ne;s.ns=min(s.ne,s.nd)
   s.skip_weights=nn.Parameter(torch.ones(s.ns,md,dtype=torch.float32))
-  s.blocks=nn.ModuleList([Block(md,nh,nkv,mm,rb,qkg,layer_idx=i,lns=lns) for i in range(nl)])
+  s.blocks=nn.ModuleList([Block(md,nh,nkv,mm,rb,qkg,li=i,lns=lns) for i in range(nl)])
   if rd>0:
    hd=md//nh
    for b in s.blocks:b.attn.rope_dims=rd;b.attn.rotary=Rotary(hd,base=rb,tsl=1024,rd=rd)
