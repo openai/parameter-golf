@@ -1,8 +1,8 @@
 {
-  "name": "11L Int5-All + LN Scale + Partial RoPE + XSA6 + Adaptive Prune + Causal TTT (40 epochs, 64 chunks, LR=0.008)",
-  "val_loss": 1.90399,
-  "bytes_total": 15996697,
-  "blurb": "11 layers with int5 quantization for all weight categories + other. LN Scale (1/sqrt(layer+1)). Partial RoPE (12 of 64 dims). EMA (decay=0.997) for model averaging. Adaptive magnitude pruning (3%) to guarantee under-16MB. Exclusive Self-Attention on last 6 layers. Legal causal test-time training: chunk-based eval-then-train on validation data (64 chunks, 40 SGD epochs per chunk, LR=0.008). Muon WD=0.08. SmearGate + OrthoInit + zstd-22.",
+  "name": "11L Int5-All + LN Scale + Partial RoPE + XSA6 + Adaptive Prune + Causal TTT (60 epochs, 64 chunks, LR=0.010)",
+  "val_loss": 1.90303,
+  "bytes_total": 15915778,
+  "blurb": "11 layers with int5 quantization for all weight categories + other. LN Scale (1/sqrt(layer+1)). Partial RoPE (12 of 64 dims). EMA (decay=0.997) for model averaging. Adaptive magnitude pruning to guarantee under-16MB. Exclusive Self-Attention on last 6 layers. Legal causal test-time training: chunk-based eval-then-train on validation data (64 chunks, 60 SGD epochs per chunk, LR=0.010). Muon WD=0.08. SmearGate + OrthoInit + zstd-22.",
   "author": "devin-ai",
   "github_id": "andrewgcodes",
   "date": "2026-03-20"
