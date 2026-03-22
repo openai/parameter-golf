@@ -21,9 +21,9 @@ class H:
  train_batch_tokens=int(E("TRAIN_BATCH_TOKENS","786432"));train_seq_len=int(E("TRAIN_SEQ_LEN","2048"))
  eval_seq_len=int(E("EVAL_SEQ_LEN","2048"));max_wallclock_seconds=float(E("MAX_WALLCLOCK_SECONDS","600.0"))
  qk_gain_init=float(E("QK_GAIN_INIT","1.5"));vocab_size=int(E("VOCAB_SIZE","1024"))
- num_unique_layers=int(E("NUM_UNIQUE_LAYERS","2"));num_loops=int(E("NUM_LOOPS","4"))
- num_kv_heads=int(E("NUM_KV_HEADS","8"))
- model_dim=int(E("MODEL_DIM","1024"));num_heads=int(E("NUM_HEADS","16"))
+ num_unique_layers=int(E("NUM_UNIQUE_LAYERS","3"));num_loops=int(E("NUM_LOOPS","4"))
+ num_kv_heads=int(E("NUM_KV_HEADS","7"))
+ model_dim=int(E("MODEL_DIM","896"));num_heads=int(E("NUM_HEADS","14"))
  fractal_cadence=int(E("FRACTAL_CADENCE","3"));fractal_offset=int(E("FRACTAL_OFFSET","0"))
  mlp_mult=float(E("MLP_MULT","3.0"));tie_embeddings=bool(int(E("TIE_EMBEDDINGS","1")))
  rope_base=float(E("ROPE_BASE","10000.0"));logit_softcap=float(E("LOGIT_SOFTCAP","30.0"))
@@ -38,10 +38,10 @@ class H:
  muon_wd=float(E("MUON_WD","0.04"));adam_wd=float(E("ADAM_WD","0.04"))
  swa_enabled=bool(int(E("SWA_ENABLED","1")));swa_every=int(E("SWA_EVERY","50"))
  bigram_vocab_size=int(E("BIGRAM_VOCAB_SIZE","2048"));bigram_dim=int(E("BIGRAM_DIM","128"))
- xsa_last_n=int(E("XSA_LAST_N","1"));rope_dims=int(E("ROPE_DIMS","16"))
+ xsa_last_n=int(E("XSA_LAST_N","2"));rope_dims=int(E("ROPE_DIMS","16"))
  ln_scale=bool(int(E("LN_SCALE","1")));late_qat_threshold=float(E("LATE_QAT_THRESHOLD","0.15"))
  ve_enabled=bool(int(E("VE_ENABLED","1")));ve_dim=int(E("VE_DIM","128"))
- ve_layers=E("VE_LAYERS","1");ema_decay=float(E("EMA_DECAY","0.997"))
+ ve_layers=E("VE_LAYERS","1,2");ema_decay=float(E("EMA_DECAY","0.997"))
  ema_enabled=bool(int(E("EMA_ENABLED","0")))
  ttt_enabled=bool(int(E("TTT_ENABLED","1")));ttt_epochs=int(E("TTT_EPOCHS","3"))
  ttt_lr=float(E("TTT_LR","1e-4"));ttt_stride=int(E("TTT_STRIDE","64"))
@@ -313,14 +313,18 @@ class GPT(nn.Module):
   pp=list(s.blocks.parameters())+[s.loop_pos,s.skip_weights]
   return [p for p in pp if p.requires_grad]
  def forward_ttt_step(s,ids,tgt,ttt_opt,ttt_pp,ttt_orig,drift):
-  """Inner TTT on fractal layers only with drift gate. Snap back toward originals."""
-  x=s.tok_emb(ids)
-  if s.bigram:x=x+s.bigram(ids)
-  x=F.rms_norm(x,(x.size(-1),));x=s.smear(x);x0=x;vc={}
+  """Inner TTT on fractal layers only with drift gate."""
+  with torch.no_grad():
+   x=s.tok_emb(ids)
+   if s.bigram:x=x+s.bigram(ids)
+   x=F.rms_norm(x,(x.size(-1),));x=s.smear(x)
+  x0=x.detach();vc={}
   for lp in range(s.num_loops):
-   x=x+s.loop_pos[lp][None,None,:];x=s._run_blocks(x,x0,ids,vc)
    if lp<s.num_loops-1:
-    xn=s.final_norm(x);xf=xn.reshape(-1,xn.size(-1));tg=tgt.reshape(-1)
+    # Inner TTT: fresh forward for each loop, backward, update, detach
+    x_in=x.detach()+s.loop_pos[lp][None,None,:]
+    x_out=s._run_blocks(x_in,x0,ids,vc)
+    xn=s.final_norm(x_out);xf=xn.reshape(-1,xn.size(-1));tg=tgt.reshape(-1)
     lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
     lg=s.lsc*torch.tanh(lp_/s.lsc)
     ttt_loss=F.cross_entropy(lg.float(),tg,reduction="mean")
@@ -328,13 +332,17 @@ class GPT(nn.Module):
     ttt_loss.backward()
     torch.nn.utils.clip_grad_norm_(ttt_pp,1.0)
     ttt_opt.step()
-    # Drift gate: snap back toward original weights
     with torch.no_grad():
      for p,po in zip(ttt_pp,ttt_orig):p.data.lerp_(po,1.0-drift)
-    x=x.detach()
-  xn=s.final_norm(x);xf=xn.reshape(-1,xn.size(-1))
-  lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
-  return s.lsc*torch.tanh(lp_/s.lsc)
+    x=x_out.detach()
+   else:
+    # Final loop: just forward for scoring (no backward needed)
+    with torch.no_grad():
+     x=x+s.loop_pos[lp][None,None,:];x=s._run_blocks(x,x0,ids,vc)
+  with torch.no_grad():
+   xn=s.final_norm(x);xf=xn.reshape(-1,xn.size(-1))
+   lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
+   return s.lsc*torch.tanh(lp_/s.lsc)
 def eval_slide(a,bm,rk,ws,dev,vt,bl,hl,il,stride,bseqs=32,esl=None):
  sl=esl or a.train_seq_len;tt=vt.numel()-1
  ww=[w for w in range(0,tt,stride) if min(w+sl,tt)-w>=1];tw=len(ww)
