@@ -1582,10 +1582,10 @@ def main() -> None:
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
 
-    # EMA state
+    # EMA state (kept on GPU for speed)
     ema_state: dict[str, Tensor] | None = None
     if args.ema_decay > 0:
-        ema_state = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
+        ema_state = {k: v.detach().clone().float() for k, v in base_model.state_dict().items()}
     stop_after_step: int | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -1657,12 +1657,12 @@ def main() -> None:
         if args.qat_threshold > 0 and scale < args.qat_threshold:
             apply_ste_int6(base_model)
 
-        # EMA: update running average every step
+        # EMA: update running average every step (on GPU)
         if ema_state is not None:
             decay = args.ema_decay
             with torch.no_grad():
                 for k, v in base_model.state_dict().items():
-                    ema_state[k].mul_(decay).add_(v.detach().cpu().float(), alpha=1 - decay)
+                    ema_state[k].mul_(decay).add_(v.detach().float(), alpha=1 - decay)
 
         # SWA: collect checkpoint during warmdown phase
         if args.swa_every > 0 and scale < args.swa_start_frac and step % args.swa_every == 0:
