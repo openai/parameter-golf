@@ -26,7 +26,7 @@
   "training": {
     "iterations": 20000,
     "train_batch_tokens": 524288,
-    "train_seq_len": 1024,
+    "train_seq_len": 2048,
     "max_wallclock_seconds": 600.0,
     "warmup_steps": 20,
     "warmdown_iters": 1200,
@@ -57,7 +57,7 @@
     "lora_rank": 8,
     "lora_lr": 0.01,
     "chunk_size": 256,
-    "eval_seq_len": 1024,
+    "eval_seq_len": 2048,
     "batch_size": 64
   }
 }
