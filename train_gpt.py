@@ -27,6 +27,8 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+SKIP_FINAL_TTT=1
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -69,6 +71,10 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+
+    # Eval hyperparameters.
+    eval_stride = int(os.environ.get("EVAL_STRIDE", "0"))
+    eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", "256"))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -283,6 +289,196 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    base_model: GPT,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    stride = args.eval_stride
+    if stride <= 0:
+        raise ValueError(f"eval_val_sliding requires EVAL_STRIDE > 0, got {stride}")
+    if stride > args.train_seq_len:
+        raise ValueError(
+            f"EVAL_STRIDE must be <= TRAIN_SEQ_LEN, got stride={stride} seq_len={args.train_seq_len}"
+        )
+
+    batch_seqs = max(1, args.eval_batch_seqs)
+    total_targets = val_tokens.numel() - 1
+    pos_start = (total_targets * rank) // world_size
+    pos_end = (total_targets * (rank + 1)) // world_size
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    base_model.eval()
+
+    def score_single_window(score_start: int, score_end: int) -> None:
+        nonlocal val_loss_sum, val_token_count, val_byte_count
+        window_end = score_end
+        window_start = max(0, window_end - args.train_seq_len)
+        local = val_tokens[window_start : window_end + 1].to(
+            device=device, dtype=torch.int64, non_blocking=True
+        )
+        x = local[:-1].unsqueeze(0)
+        y = local[1:].unsqueeze(0)
+
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            logits = base_model.forward_logits(x)
+
+        losses = F.cross_entropy(
+            logits.float().reshape(-1, logits.size(-1)),
+            y.reshape(-1),
+            reduction="none",
+        ).reshape_as(y)
+
+        lo = score_start - window_start
+        hi = score_end - window_start
+
+        lbl = losses[0, lo:hi].to(torch.float64)
+        prev_ids = x[0, lo:hi]
+        tgt_ids = y[0, lo:hi]
+
+        token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+        token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+
+        val_loss_sum += lbl.sum()
+        val_token_count += float(hi - lo)
+        val_byte_count += token_bytes.to(torch.float64).sum()
+
+    def flush_batch(batch_x: list[Tensor], batch_y: list[Tensor], batch_meta: list[tuple[int, int, int]]) -> None:
+        nonlocal val_loss_sum, val_token_count, val_byte_count
+        if not batch_x:
+            return
+
+        x = torch.stack(batch_x, dim=0)
+        y = torch.stack(batch_y, dim=0)
+
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            logits = base_model.forward_logits(x)
+
+        losses = F.cross_entropy(
+            logits.float().reshape(-1, logits.size(-1)),
+            y.reshape(-1),
+            reduction="none",
+        ).reshape_as(y)
+
+        for bi, (score_start, score_end, window_start) in enumerate(batch_meta):
+            lo = score_start - window_start
+            hi = score_end - window_start
+
+            lbl = losses[bi, lo:hi].to(torch.float64)
+            prev_ids = x[bi, lo:hi]
+            tgt_ids = y[bi, lo:hi]
+
+            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+
+            val_loss_sum += lbl.sum()
+            val_token_count += float(hi - lo)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    with torch.inference_mode():
+        p = pos_start
+
+        # Handle prefix once. These early tokens cannot have full context anyway.
+        if p < pos_end and p < args.train_seq_len:
+            q = min(pos_end, args.train_seq_len)
+            score_single_window(p, q)
+            p = q
+
+        batch_x: list[Tensor] = []
+        batch_y: list[Tensor] = []
+        batch_meta: list[tuple[int, int, int]] = []
+
+        while p < pos_end:
+            q = min(p + stride, pos_end)
+            window_end = q
+            window_start = max(0, window_end - args.train_seq_len)
+
+            local = val_tokens[window_start : window_end + 1].to(
+                device=device, dtype=torch.int64, non_blocking=True
+            )
+
+            # For p >= train_seq_len this should be exactly train_seq_len long.
+            if local.numel() != args.train_seq_len + 1:
+                flush_batch(batch_x, batch_y, batch_meta)
+                batch_x.clear()
+                batch_y.clear()
+                batch_meta.clear()
+                score_single_window(p, q)
+                p = q
+                continue
+
+            batch_x.append(local[:-1])
+            batch_y.append(local[1:])
+            batch_meta.append((p, q, window_start))
+
+            if len(batch_x) >= batch_seqs:
+                flush_batch(batch_x, batch_y, batch_meta)
+                batch_x.clear()
+                batch_y.clear()
+                batch_meta.clear()
+
+            p = q
+
+        flush_batch(batch_x, batch_y, batch_meta)
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    base_model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+def run_eval(
+    args: Hyperparameters,
+    model: nn.Module,
+    base_model: GPT,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    if args.eval_stride > 0:
+        return eval_val_sliding(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
+    return eval_val(
+        args,
+        model,
+        rank,
+        world_size,
+        device,
+        grad_accum_steps,
+        val_tokens,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+    )
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -710,18 +906,18 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, lora=None) -> Tensor:
+    def _forward_hidden(self, input_ids: Tensor, lora=None) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
             x = self.blocks[i](x, x0, qd, vd)
             skips.append(x)
+
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
@@ -729,18 +925,35 @@ class GPT(nn.Module):
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
             x = self.blocks[bi](x, x0, qd, vd)
-        x = self.final_norm(x)
+
+        return self.final_norm(x)
+
+    def forward_logits(self, input_ids: Tensor, lora=None) -> Tensor:
+        x = self._forward_hidden(input_ids, lora=lora)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
         else:
             logits = self.lm_head(x)
         logits = logits + (lora.lm_head_lora(x) if lora else 0)
         logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+        return logits
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor, lora=None) -> Tensor:
+        logits = self.forward_logits(input_ids, lora=lora)
         if lora:
             bsz, sl, V = logits.shape
             return F.cross_entropy(
-                logits.float().reshape(-1, V), target_ids.reshape(-1), reduction="none").reshape(bsz, sl)
-        return F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), target_ids.reshape(-1), reduction="mean")
+                logits.float().reshape(-1, V),
+                target_ids.reshape(-1),
+                reduction="none",
+            ).reshape(bsz, sl)
+        return F.cross_entropy(
+            logits.float().reshape(-1, logits.size(-1)),
+            target_ids.reshape(-1),
+            reduction="mean",
+        )
+
+
 
 
 # -----------------------------
@@ -1140,6 +1353,7 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+    log0(f"eval_mode:{'sliding' if args.eval_stride > 0 else 'flat'} eval_stride:{args.eval_stride} eval_batch_seqs:{args.eval_batch_seqs}")
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
@@ -1209,9 +1423,10 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = eval_val(
+            val_loss, val_bpb = run_eval(
                 args,
                 model,
+                base_model,
                 rank,
                 world_size,
                 device,
@@ -1331,9 +1546,10 @@ def main() -> None:
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
+    q_val_loss, q_val_bpb = run_eval(
         args,
         model,
+        base_model,
         rank,
         world_size,
         device,
@@ -1351,18 +1567,21 @@ def main() -> None:
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     # LoRA test-time training evaluation (the competition score)
-    torch._dynamo.reset()
-    torch.cuda.synchronize()
-    t_ttt = time.perf_counter()
-    ttt_val_loss, ttt_val_bpb = eval_val_ttt_lora(
-        args, base_model, rank, world_size, device,
-        base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-    )
-    torch.cuda.synchronize()
-    log0(
-        f"final_int8_ttt_lora val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
-    )
+    skip_final_ttt = bool(int(os.environ.get("SKIP_FINAL_TTT", "0")))
+
+    if not skip_final_ttt:
+        torch._dynamo.reset()
+        torch.cuda.synchronize()
+        t_ttt = time.perf_counter()
+        ttt_val_loss, ttt_val_bpb = eval_val_ttt_lora(
+            args, base_model, rank, world_size, device,
+            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_int8_ttt_lora val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
+        )
 
     if distributed:
         dist.destroy_process_group()
