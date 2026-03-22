@@ -1,0 +1,9 @@
+{
+  "name": "10L XSA + LeakyReLU² + Partial RoPE + Higher LR",
+  "val_loss": 1.1370,
+  "bytes_total": 15983322,
+  "blurb": "10 layers with XSA on last 4 layers (arxiv:2603.09078), leaky_relu(0.5)² activation, Partial RoPE (16/64 dims), higher LR (0.025). Mixed int5/int6 quantization, BigramHash(10240), SWA, SmearGate, OrthoInit, zstd-22.",
+  "author": "Parinthapat Pengpun",
+  "github_id": "parinzee",
+  "date": "2026-03-22"
+}
