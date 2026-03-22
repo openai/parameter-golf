@@ -435,7 +435,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             continue
         if cat in int6_cats and t.ndim >= 1:
             # Int6 with packed binary (3 bytes per 4 values) fits 11L under 16MB
-            bits = int(os.environ.get("QUANT_BITS", "6"))
+            bits = int(os.environ.get("QUANT_BITS", "5"))
             q, s = gptq_lite_clip_search(t, bits=bits)
             result[name + ".q"] = q
             result[name + ".scale"] = s
@@ -853,7 +853,7 @@ class CastedLinear(nn.Linear):
         w = self.weight.to(x.dtype)
         if _QAT_ENABLED and self.weight.ndim == 2 and self.weight.numel() > 65536:
             # STE fake-quantize: forward uses quantized weights, backward sees original
-            bits = int(os.environ.get("QUANT_BITS", "6"))
+            bits = int(os.environ.get("QUANT_BITS", "5"))
             max_val = (1 << (bits - 1)) - 1
             w_float = w.float()
             if w_float.ndim == 2:
@@ -1826,7 +1826,7 @@ def main() -> None:
 
     # INT6 mixed quantization + packed binary + zstd/zlib export
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
-    quant_bits = int(os.environ.get("QUANT_BITS", "6"))
+    quant_bits = int(os.environ.get("QUANT_BITS", "5"))
     quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
 
     # Custom packed serialization: pack intN values at bit-level for smaller artifacts
