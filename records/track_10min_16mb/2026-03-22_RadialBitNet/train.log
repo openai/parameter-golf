@@ -1,0 +1,39 @@
+✨ Initializing Radial-BitNet for Parameter Golf (Constraint: 16MB)
+
+📦 Artifact Size Audit:
+- Parameters: 15.7 M
+- Compressed Size: 12.55 MB
+✅ QUALIFIED FOR PARAMETER GOLF! (<16MB)
+⏳ Loading training tokens into memory...
+Loading single dataset shard to protect Kaggle RAM: /kaggle/working/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_000000.bin
+
+🚀 Starting 10-Minute Rapid Convergence Cycle on real dataset...
+Step 0000 | Time 1s | Train Loss: 148.7086 | Val BPB: 28.1633 ⛳
+Step 0050 | Time 23s | Train Loss: 9.2294 | Val BPB: 3.9549 ⛳
+Step 0100 | Time 46s | Train Loss: 6.5566 | Val BPB: 2.8735 ⛳
+Step 0150 | Time 69s | Train Loss: 6.2854 | Val BPB: 2.7771 ⛳
+Step 0200 | Time 91s | Train Loss: 6.6208 | Val BPB: 2.7590 ⛳
+Step 0250 | Time 114s | Train Loss: 6.1678 | Val BPB: 2.6836 ⛳
+Step 0300 | Time 136s | Train Loss: 6.2128 | Val BPB: 2.6946 ⛳
+Step 0350 | Time 159s | Train Loss: 6.1435 | Val BPB: 2.6694 ⛳
+Step 0400 | Time 181s | Train Loss: 6.0490 | Val BPB: 2.7252 ⛳
+Step 0450 | Time 204s | Train Loss: 6.2580 | Val BPB: 2.6844 ⛳
+Step 0500 | Time 226s | Train Loss: 6.7366 | Val BPB: 2.6667 ⛳
+Step 0550 | Time 249s | Train Loss: 6.1070 | Val BPB: 2.6770 ⛳
+Step 0600 | Time 271s | Train Loss: 6.1023 | Val BPB: 2.6680 ⛳
+Step 0650 | Time 294s | Train Loss: 7.1158 | Val BPB: 2.6698 ⛳
+Step 0700 | Time 316s | Train Loss: 6.1919 | Val BPB: 2.6919 ⛳
+Step 0750 | Time 338s | Train Loss: 6.2160 | Val BPB: 2.6585 ⛳
+Step 0800 | Time 361s | Train Loss: 6.1988 | Val BPB: 2.6854 ⛳
+Step 0850 | Time 383s | Train Loss: 6.2080 | Val BPB: 2.6751 ⛳
+Step 0900 | Time 406s | Train Loss: 6.1793 | Val BPB: 2.6787 ⛳
+Step 0950 | Time 428s | Train Loss: 6.1073 | Val BPB: 2.6438 ⛳
+Step 1000 | Time 450s | Train Loss: 6.0260 | Val BPB: 2.6274 ⛳
+Step 1050 | Time 473s | Train Loss: 6.0984 | Val BPB: 2.6307 ⛳
+Step 1100 | Time 495s | Train Loss: 6.1011 | Val BPB: 2.6244 ⛳
+Step 1150 | Time 518s | Train Loss: 5.9497 | Val BPB: 2.5936 ⛳
+Step 1200 | Time 540s | Train Loss: 6.0033 | Val BPB: 2.6363 ⛳
+Step 1250 | Time 562s | Train Loss: 5.8162 | Val BPB: 2.5498 ⛳
+
+⏰ 10-Minute training time budget exhausted. Validating final model...
+FINAL RESULT | Val BPB: 2.6034 🏆
