@@ -1295,8 +1295,13 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
-        # SWA: accumulate checkpoint every swa_every steps in last swa_last_n region
-        if step % swa_every == 0 and (stop_after_step is None or step >= (stop_after_step - swa_last_n)):
+        # SWA: accumulate checkpoint every swa_every steps in last swa_last_n steps
+        # Estimate remaining steps from wallclock to only average near the end
+        _swa_remaining = int((max_wallclock_ms - training_time_ms) / max(training_time_ms / max(step, 1), 1)) if max_wallclock_ms else (args.iterations - step)
+        _swa_active = step % swa_every == 0 and _swa_remaining <= swa_last_n
+        if stop_after_step is not None:
+            _swa_active = step % swa_every == 0 and step >= (stop_after_step - swa_last_n)
+        if _swa_active:
             if not hasattr(base_model, '_swa_state'):
                 base_model._swa_state = {n: p.data.float().clone() for n, p in base_model.named_parameters()}
                 base_model._swa_count = 1
