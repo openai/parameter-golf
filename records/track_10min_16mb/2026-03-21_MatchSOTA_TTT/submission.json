@@ -1,4 +1,5 @@
 {
+    "name": "11L Next-Gen Stack + Custom Kernels",
     "author": "Anthony Maio",
     "github_id": "anthony-maio",
     "val_bpb": 1.1399,
@@ -6,9 +7,8 @@
     "num_gpus": 8,
     "gpu_type": "H100 SXM",
     "training_time_seconds": 600,
-    "compressed_model_bytes": 15785364,
-    "code_bytes": null,
-    "total_artifact_bytes": 15785364,
-    "description": "11L + XSA (Exclusive Self Attention) + Partial RoPE 16/64 + Late QAT STE + Tight SWA + GPTQ-lite + LN Scale 1/sqrt(i+1) + FA3 + MLP3x + SmearGate + BigramHash 2048 + int5+zstd + Muon WD=0.04 + NTK-RoPE 50k + OrthoInit + sliding window eval stride=64. 5,660 steps at 101ms/step.",
+    "bytes_total": 15785364,
+    "bytes_code": null,
+    "blurb": "11L + XSA + Partial RoPE 16/64 + Late QAT STE + Tight SWA + GPTQ-lite + LN Scale + FA3 + MLP3x + SmearGate + BigramHash 2048 + int5+zstd + Muon WD=0.04 + NTK-RoPE 50k + OrthoInit + sliding window stride=64.",
     "date": "2026-03-22"
 }
