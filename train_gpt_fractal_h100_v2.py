@@ -43,7 +43,7 @@ class H:
  ve_enabled=bool(int(E("VE_ENABLED","1")));ve_dim=int(E("VE_DIM","128"))
  ve_layers=E("VE_LAYERS","1,2");ema_decay=float(E("EMA_DECAY","0.997"))
  ema_enabled=bool(int(E("EMA_ENABLED","0")))
- ttt_enabled=bool(int(E("TTT_ENABLED","1")));ttt_epochs=int(E("TTT_EPOCHS","3"))
+ ttt_enabled=bool(int(E("TTT_ENABLED","0")));ttt_epochs=int(E("TTT_EPOCHS","3"))
  ttt_lr=float(E("TTT_LR","1e-4"));ttt_stride=int(E("TTT_STRIDE","64"))
  ttt_drift=float(E("TTT_DRIFT","0.1"))
 _CP=tuple(p for p in E("CONTROL_TENSOR_NAME_PATTERNS","attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,ve_layer_scales,ve_shared.scale").split(",") if p)
