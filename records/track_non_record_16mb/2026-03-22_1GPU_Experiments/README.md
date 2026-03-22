@@ -41,13 +41,16 @@ bash records/track_non_record_16mb/2026-03-22_1GPU_Experiments/run_experiment.sh
 
 | Experiment | val_bpb | Steps | Artifact | Notes |
 |-----------|---------|-------|----------|-------|
-| baseline | TBD | | | |
-| backout | TBD | | | |
-| wd20k | TBD | | | |
-| swa | TBD | | | |
-| backout_wd20k | TBD | | | |
-| full_stack | TBD | | | |
-| moonshot | TBD | | | |
+| baseline | TBD | | | Reference — proven 1.133 config |
+| two_phase_ttt | TBD | | | **PRIORITY** — the 1.12x technique |
+| reptile_ttt | TBD | | | Reptile + two-phase TTT |
+| ve | TBD | | | Shared Value Embedding |
+| backout | TBD | | | BACKOUT=1 isolation |
+| wd20k | TBD | | | WD=20000 isolation |
+| swa | TBD | | | Tight SWA vs EMA |
+| backout_wd20k | TBD | | | Stack test |
+| full_stack | TBD | | | All proven improvements |
+| moonshot | TBD | | | Everything stacked |
 
 Winners go into the 8×H100 10-min competition run.
 

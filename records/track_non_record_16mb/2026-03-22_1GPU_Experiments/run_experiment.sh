@@ -76,19 +76,54 @@ case $EXPERIMENT in
     export PRUNE_PCT=3.0
     ;;
 
+  two_phase_ttt)
+    echo "Two-phase TTT (norm-only + selective blocks) — the 1.12x technique"
+    git checkout next-gen && git reset --hard origin/next-gen
+    export TTT_TWO_PHASE=1
+    export TTT_P1_EPOCHS=50 TTT_P1_LR=0.01
+    export TTT_P2_EPOCHS=10 TTT_P2_LR=0.005 TTT_P2_UNFREEZE_BLOCKS=3
+    export TTT_BATCH_SEQS=64
+    export TTT_MAX_STEPS=9999
+    export XSA_LAST_N=0
+    export LATE_K_FP16=0 FP16_EMBED_EXPORT=0
+    ;;
+
+  reptile_ttt)
+    echo "Reptile + two-phase TTT — targeting 1.11x"
+    git checkout next-gen && git reset --hard origin/next-gen
+    export TTT_TWO_PHASE=1
+    export TTT_P1_EPOCHS=50 TTT_P1_LR=0.01
+    export TTT_P2_EPOCHS=10 TTT_P2_LR=0.005 TTT_P2_UNFREEZE_BLOCKS=3
+    export TTT_BATCH_SEQS=64
+    export TTT_MAX_STEPS=9999
+    export REPTILE_TTT=1
+    export XSA_LAST_N=0
+    export LATE_K_FP16=0 FP16_EMBED_EXPORT=0
+    ;;
+
+  ve)
+    echo "Shared Value Embedding (layers 9,10) — only #374 has this"
+    git checkout next-gen && git reset --hard origin/next-gen
+    export VE_ENABLED=1
+    ;;
+
   moonshot)
-    echo "Reptile TTT + Shared VE + GPTQ-lite — 2 hours"
+    echo "Everything: Reptile + VE + two-phase TTT + GPTQ-lite — 2 hours"
     git checkout next-gen && git reset --hard origin/next-gen
     export MAX_WALLCLOCK_SECONDS=7200
-    export BACKOUT=1 WARMDOWN_ITERS=20000
-    export EMA_ENABLED=0 SWA=1
-    export PRUNE_PCT=3.0
-    export GPTQ_LITE=1 REPTILE_TTT=1 VE_ENABLED=1
+    export TTT_TWO_PHASE=1
+    export TTT_P1_EPOCHS=50 TTT_P1_LR=0.01
+    export TTT_P2_EPOCHS=10 TTT_P2_LR=0.005 TTT_P2_UNFREEZE_BLOCKS=3
+    export TTT_BATCH_SEQS=64
+    export TTT_MAX_STEPS=9999
+    export REPTILE_TTT=1 VE_ENABLED=1 GPTQ_LITE=1
+    export XSA_LAST_N=0
+    export LATE_K_FP16=0 FP16_EMBED_EXPORT=0
     ;;
 
   *)
     echo "Unknown experiment: $EXPERIMENT"
-    echo "Options: baseline, backout, wd20k, swa, backout_wd20k, full_stack, moonshot"
+    echo "Options: baseline, backout, wd20k, swa, backout_wd20k, two_phase_ttt, reptile_ttt, ve, full_stack, moonshot"
     exit 1
     ;;
 esac
