@@ -33,7 +33,7 @@
 - First 2 blocks frozen during TTT
 
 ## Base
-Built on thwu1's merged #1 (1.1428) with zero-parameter improvements from PR #315 and techniques from nanochat.
+Built on thwu1's 10L Int5-MLP submission (1.1428 BPB) with zero-parameter architectural improvements (XSA, EMA, Partial RoPE, LN Scale) and techniques from nanochat.
 
 ## Environment
 - PyTorch 2.7.0 + FlashAttention 2.8.3
