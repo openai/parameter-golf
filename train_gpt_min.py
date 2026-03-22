@@ -377,7 +377,7 @@ def main():
   if c:print(m)
   if lf:
    with open(lf,"a",encoding="utf-8") as f:print(m,file=f)
- log0(code,console=False);log0("="*100,console=False)
+ log0(code,False);log0("="*100,False)
  random.seed(a.seed);np.random.seed(a.seed);torch.manual_seed(a.seed);torch.cuda.manual_seed_all(a.seed)
  sp=spm.SentencePieceProcessor(model_file=a.tokenizer_path)
  esl=a.eval_seq_len if a.eval_seq_len>0 else a.train_seq_len;vsl=max(a.train_seq_len,esl)
