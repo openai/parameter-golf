@@ -763,14 +763,14 @@ class GPT(nn.Module):
         sort_idx = expert_ids.reshape(-1).argsort(stable=True)
 
         for i in range(self.num_encoder_layers):
-            ad = lora.attn_loras[i] if lora else None
+            ad = (lora.attn_loras[i] if lora.attn_loras[i] is not None else None) if lora else None
             x = self.blocks[i](x, x0, sort_idx, ad)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ad = lora.attn_loras[bi] if lora else None
+            ad = (lora.attn_loras[bi] if lora.attn_loras[bi] is not None else None) if lora else None
             x = self.blocks[bi](x, x0, sort_idx, ad)
         x = self.final_norm(x)
         if self.tie_embeddings:
@@ -815,9 +815,17 @@ class BatchedTTTLoRA(nn.Module):
         dim = model.tok_emb.embedding_dim
         vocab = model.tok_emb.num_embeddings
         self.lm_head_lora = BatchedLinearLoRA(bsz, dim, vocab, rank)
-        self.attn_loras = nn.ModuleList()
+        # Only apply LoRA to classical attention layers, not INL
+        self._attn_lora_list = []
+        self._attn_lora_modules = nn.ModuleList()
         for block in model.blocks:
-            self.attn_loras.append(BatchedLinearLoRA(bsz, dim, dim, rank))
+            if block.use_inl:
+                self._attn_lora_list.append(None)
+            else:
+                lora_mod = BatchedLinearLoRA(bsz, dim, dim, rank)
+                self._attn_lora_list.append(lora_mod)
+                self._attn_lora_modules.append(lora_mod)
+        self.attn_loras = self._attn_lora_list
 
     def reset(self) -> None:
         for m in self.modules():
