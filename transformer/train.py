@@ -100,6 +100,13 @@ class Hyperparameters:
     # 0.0 = disabled, 0.997 = recommended. Applied before quantization.
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
+    # TTT Burst: replay recent training batches at low LR before EMA finalization.
+    ttt_burst_enabled = bool(int(os.environ.get("TTT_BURST_ENABLED", "1")))
+    ttt_burst_epochs = int(os.environ.get("TTT_BURST_EPOCHS", 2))
+    ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.1))
+    ttt_burst_steps = int(os.environ.get("TTT_BURST_STEPS", 100))
+    ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.2))
+
     # BigramHash + SmearGate
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
@@ -1691,6 +1698,13 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            # Stash recent batches for TTT burst replay
+            if args.ttt_burst_enabled and scale < args.ttt_burst_trigger:
+                if not hasattr(train_loader, '_ttt_buffer'):
+                    train_loader._ttt_buffer = []
+                train_loader._ttt_buffer.append((x.detach().clone(), y.detach().clone()))
+                if len(train_loader._ttt_buffer) > args.ttt_burst_steps:
+                    train_loader._ttt_buffer.pop(0)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
@@ -1759,6 +1773,35 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+
+    # === TTT BURST: Late-stage sharpening on recent training data ===
+    if args.ttt_burst_enabled and hasattr(train_loader, '_ttt_buffer') and len(train_loader._ttt_buffer) > 0:
+        ttt_buffer = train_loader._ttt_buffer
+        log0(f"ttt_burst:start epochs:{args.ttt_burst_epochs} buffer_size:{len(ttt_buffer)} lr_factor:{args.ttt_burst_lr_factor}")
+        ttt_lr_scale = args.ttt_burst_lr_factor
+        for ttt_epoch in range(args.ttt_burst_epochs):
+            ttt_epoch_loss = 0.0
+            for ttt_i, (bx, by) in enumerate(ttt_buffer):
+                zero_grad_all()
+                for opt in optimizers:
+                    for group in opt.param_groups:
+                        group["lr"] = group["base_lr"] * ttt_lr_scale
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    ttt_loss = model(bx, by)
+                (ttt_loss * grad_scale).backward()
+                if args.grad_clip_norm > 0:
+                    torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+                for opt in optimizers:
+                    opt.step()
+                zero_grad_all()
+                ttt_epoch_loss += ttt_loss.item()
+                # Update EMA during burst too
+                if ema_state is not None:
+                    with torch.no_grad():
+                        for name, t in base_model.state_dict().items():
+                            ema_state[name].mul_(args.ema_decay).add_(t.detach().float(), alpha=1.0 - args.ema_decay)
+            log0(f"ttt_burst:epoch:{ttt_epoch + 1}/{args.ttt_burst_epochs} avg_loss:{ttt_epoch_loss / len(ttt_buffer):.4f}")
+        log0("ttt_burst:done")
 
     # Apply EMA weights (smoother than last checkpoint)
     if ema_state is not None:
