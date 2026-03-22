@@ -94,6 +94,43 @@ Best result: **1.1240 BPB** (seed 1337) — beat PR#315 by 0.0008. Invalidated b
 
 **Note (A/B):** A/B used zlib despite zstandard being installed — likely transient env issue. Resolved; all D runs used zstd correctly.
 
+## Fractal Cadence Experiments (DGX Spark GB10, 2026-03-21)
+
+Hypothesis: Fractal weight sharing causes sawtooth loss — shared weights serve
+conflicting roles across loop positions, so 2/3 of gradient updates are destructive.
+**Cadence** alternates fractal steps (all loops, depth benefit) with normalize steps
+(single clean pass, no loop_pos, no gradient conflict).
+
+| Run | Cadence | val_bpb | Steps | F:N | avg ms/step | notes |
+|-----|---------|--------:|------:|----:|------------:|-------|
+| Fractal only (baseline) | always F | 2.5953 | 300 | 300:0 | 333 | Mar 18 result |
+| **Cadence 2 (F/N)** | **F,N,F,N...** | **2.6276** | **300** | **150:150** | **462** | clean, no gravity |
+
+### Cadence 2 BPB Progression
+| Step | val_bpb |
+|------|--------:|
+| 0 | 4.2284 |
+| 50 | 3.4705 |
+| 100 | 2.9059 |
+| 150 | 2.7429 |
+| 200 | 2.6715 |
+| 250 | 2.6401 |
+| 300 | 2.6276 |
+
+### Key Observations
+1. **N steps are ~10ms vs F steps ~96ms** — 10× speed difference
+2. **Early pattern (steps 1-10):** F steps always improve, N steps slightly regress
+   - Step 5 [F]: 6.8459 → Step 6 [N]: 6.8933 (N undid some of F's gain)
+   - Step 7 [F]: 6.6664 → Step 8 [N]: 6.7586 (same pattern)
+3. **Cadence 2 landed at 2.6276 vs fractal-only 2.5953** — cadence slightly worse
+4. But cadence 2 used only 150 fractal steps (half the compute). Per-fractal-step
+   efficiency may be comparable.
+
+### TODO
+- [ ] Run clean_always_fractal control (no gravity, same eval-tokens)
+- [ ] Run cadence 3 (N/N/F pattern)
+- [ ] Run never-fractal control (pure single-pass)
+
 ## Next Steps
 
 1. Try gravity with warmup: zero gravity for first 100 steps, then ramp up
