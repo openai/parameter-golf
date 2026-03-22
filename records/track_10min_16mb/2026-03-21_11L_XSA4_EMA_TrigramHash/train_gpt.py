@@ -1034,11 +1034,10 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    # DDP first, then compile — recommended order for PyTorch 2.4+
-    ddp_model: nn.Module = DDP(base_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else base_model
-    compiled_model = (torch.compile(ddp_model, dynamic=False, fullgraph=True)
-                      if device.type == "cuda" else ddp_model)
-    model: nn.Module = compiled_model
+    # compile base_model first, then wrap with DDP (fullgraph=True incompatible with DDP backward hooks)
+    compiled_model = (torch.compile(base_model, dynamic=False, fullgraph=True)
+                      if device.type == "cuda" else base_model)
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [
