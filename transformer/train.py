@@ -68,6 +68,8 @@ class Hyperparameters:
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
+    curriculum_seq_len = int(os.environ.get("CURRICULUM_SEQ_LEN", 0))  # 0=disabled, e.g. 1024
+    curriculum_switch_frac = float(os.environ.get("CURRICULUM_SWITCH_FRAC", 0.3))  # switch at 30% of training
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -437,7 +439,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,bigram.scale,ve_layer_scales,ve_shared.scale",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,bigram.scale,ve_layer_scales,ve_shared.scale,act_scale,act_bias",
     ).split(",")
     if pattern
 )
@@ -972,17 +974,20 @@ class ValueEmbedding(nn.Module):
 
 
 class MLP(nn.Module):
-    # relu^2 MLP from the original modded-nanogpt setup
+    # Star-ReLU: relu^2 with learned per-channel scale + bias (from PR#462/MetaFormer)
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
+        self.act_scale = nn.Parameter(torch.ones(hidden, dtype=torch.float32))
+        self.act_bias = nn.Parameter(torch.zeros(hidden, dtype=torch.float32))
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
-        return self.proj(x.square())
+        x = torch.relu(self.fc(x)).square()
+        x = x * self.act_scale.to(dtype=x.dtype) + self.act_bias.to(dtype=x.dtype)
+        return self.proj(x)
 
 
 class Block(nn.Module):
@@ -1711,12 +1716,18 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        # Curriculum: use shorter sequences early for more steps
+        if args.curriculum_seq_len > 0 and max_wallclock_ms is not None:
+            frac_done = elapsed_ms / max_wallclock_ms
+            cur_seq_len = args.curriculum_seq_len if frac_done < args.curriculum_switch_frac else args.train_seq_len
+        else:
+            cur_seq_len = args.train_seq_len
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
-            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            x, y = train_loader.next_batch(args.train_batch_tokens, cur_seq_len, grad_accum_steps)
             # Stash recent batches for TTT burst replay
             if args.ttt_burst_enabled and scale < args.ttt_burst_trigger:
                 if not hasattr(train_loader, '_ttt_buffer'):
