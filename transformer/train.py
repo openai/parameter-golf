@@ -896,18 +896,25 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         if _HAS_FA3:
-            # FA3 expects [B, T, H, D] layout, bf16/fp16, and handles GQA natively
+            # FA3: [B, T, H, D] layout, bf16/fp16, handles GQA natively
             qt = q.transpose(1, 2).to(torch.bfloat16)
             kt = k.transpose(1, 2).to(torch.bfloat16)
             vt = v.transpose(1, 2).to(torch.bfloat16)
             y = _flash_attn_func(qt, kt, vt, causal=True).transpose(1, 2).to(q.dtype)
         else:
-            # Expand KV heads for GQA compatibility with older torch SDPA
-            if self.num_kv_heads != self.num_heads:
-                rep = self.num_heads // self.num_kv_heads
-                k = k.repeat_interleave(rep, dim=1)
-                v = v.repeat_interleave(rep, dim=1)
-            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
+            # SDPA with native GQA (torch >= 2.5) or fallback
+            try:
+                y = F.scaled_dot_product_attention(
+                    q, k, v, attn_mask=None, is_causal=True,
+                    enable_gqa=(self.num_kv_heads != self.num_heads),
+                )
+            except TypeError:
+                # Fallback for torch < 2.5
+                if self.num_kv_heads != self.num_heads:
+                    rep = self.num_heads // self.num_kv_heads
+                    k = k.repeat_interleave(rep, dim=1)
+                    v = v.repeat_interleave(rep, dim=1)
+                y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y.transpose(1, 2), v.transpose(1, 2))
             y = y.reshape(bsz, seqlen, dim)
