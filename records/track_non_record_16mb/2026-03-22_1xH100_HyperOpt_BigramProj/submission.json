@@ -1,0 +1,9 @@
+{
+  "name": "7L + BigramHash Projection + Batch Scaling + Systematic HyperOpt (1xH100)",
+  "val_loss": 1.2417,
+  "bytes_total": 15502420,
+  "blurb": "7 layers, 4x MLP (relu^2), BigramHash 8192 with dim=128 projection. Key insight: batch size scaling (131K tokens) on H100 trades steps for quality per step. Systematic LR/WD scaling with step count across 111 experiments. 1x H100 SXM, 10min. Artifact: 15.5MB.",
+  "author": "CrimsonSithira",
+  "github_id": "CrimsonSithria",
+  "date": "2026-03-22"
+}
