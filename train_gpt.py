@@ -1189,7 +1189,7 @@ def main() -> None:
         if isinstance(module, Rotary):
             module.inv_freq.data = module.inv_freq.data.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True) if args.hybrid_delta_every <= 0 else base_model
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     block_named_params = list(base_model.blocks.named_parameters())
@@ -1462,7 +1462,7 @@ def main() -> None:
     t_qeval = time.perf_counter()
     if args.eval_stride > 0:
         eval_batch_seqs = min(256, max(1, args.val_batch_size // eval_seq_len // max(world_size, 1)))
-        compiled_logits = torch.compile(base_model.forward_logits, dynamic=False)
+        compiled_logits = torch.compile(base_model.forward_logits, dynamic=False) if args.hybrid_delta_every <= 0 else base_model.forward_logits
         warmup_x = torch.zeros(eval_batch_seqs, eval_seq_len, dtype=torch.int64, device=device)
         base_model.eval()
         with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
