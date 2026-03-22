@@ -1,0 +1,24 @@
+{
+  "experiment": "depth_10L",
+  "config": {
+    "TRAIN_BATCH_TOKENS": "262144",
+    "VAL_BATCH_SIZE": "262144",
+    "TRAIN_SEQ_LEN": "1024",
+    "NUM_LAYERS": "10",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "ITERATIONS": "5000",
+    "WARMDOWN_ITERS": "600",
+    "MAX_WALLCLOCK_SECONDS": "1800",
+    "VAL_LOSS_EVERY": "500",
+    "TRAIN_LOG_EVERY": "100"
+  },
+  "elapsed_seconds": 2206.1,
+  "tier": 1,
+  "val_loss": 2.1595,
+  "val_bpb": 1.279,
+  "artifact_bytes": 17521692,
+  "peak_memory_mib": 6154,
+  "total_steps": 4249
+}

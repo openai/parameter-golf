@@ -1,0 +1,41 @@
+{
+  "experiment": "s2_full_stack",
+  "config": {
+    "NUM_LAYERS": "10",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "TRAIN_SEQ_LEN": "2048",
+    "MATRIX_LR": "0.02",
+    "SCALAR_LR": "0.02",
+    "TIED_EMBED_LR": "0.03",
+    "WARMDOWN_ITERS": "400",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "500",
+    "GRAD_CLIP_NORM": "0.3",
+    "TRAIN_BATCH_TOKENS": "262144",
+    "VAL_BATCH_SIZE": "262144",
+    "ITERATIONS": "2000",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "VAL_LOSS_EVERY": "500",
+    "TRAIN_LOG_EVERY": "100"
+  },
+  "elapsed_seconds": 972.6,
+  "step": 2,
+  "patches": [
+    "patch_xsa",
+    "patch_ema",
+    "patch_partial_rope",
+    "patch_ln_scale",
+    "patch_smeargate",
+    "patch_bigram_hash",
+    "patch_ortho_init"
+  ],
+  "val_loss": 3.3655,
+  "val_bpb": 1.9932,
+  "artifact_bytes": 14954960,
+  "peak_memory_mib": 9573,
+  "total_steps": 532
+}

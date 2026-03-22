@@ -1,0 +1,33 @@
+{
+  "experiment": "ortho_init",
+  "config": {
+    "TRAIN_BATCH_TOKENS": "262144",
+    "VAL_BATCH_SIZE": "262144",
+    "TRAIN_SEQ_LEN": "2048",
+    "NUM_LAYERS": "12",
+    "MODEL_DIM": "640",
+    "NUM_HEADS": "10",
+    "NUM_KV_HEADS": "5",
+    "ITERATIONS": "5000",
+    "WARMDOWN_ITERS": "3000",
+    "MAX_WALLCLOCK_SECONDS": "1800",
+    "VAL_LOSS_EVERY": "500",
+    "TRAIN_LOG_EVERY": "100",
+    "MLP_MULT": "3",
+    "MATRIX_LR": "0.08",
+    "SCALAR_LR": "0.08",
+    "TIED_EMBED_LR": "0.03",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "GRAD_CLIP_NORM": "0.3",
+    "EMBED_LR": "1.0"
+  },
+  "elapsed_seconds": 2321.0,
+  "tier": 2,
+  "val_loss": 2.1224,
+  "val_bpb": 1.257,
+  "artifact_bytes": 39170872,
+  "peak_memory_mib": 10232,
+  "total_steps": 2086
+}

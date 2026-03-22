@@ -1,0 +1,24 @@
+{
+  "experiment": "depth_recurrent",
+  "config": {
+    "TRAIN_BATCH_TOKENS": "262144",
+    "VAL_BATCH_SIZE": "262144",
+    "TRAIN_SEQ_LEN": "1024",
+    "NUM_LAYERS": "9",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "ITERATIONS": "5000",
+    "WARMDOWN_ITERS": "600",
+    "MAX_WALLCLOCK_SECONDS": "1800",
+    "VAL_LOSS_EVERY": "500",
+    "TRAIN_LOG_EVERY": "100"
+  },
+  "elapsed_seconds": 2113.9,
+  "tier": 2,
+  "val_loss": 2.3253,
+  "val_bpb": 1.3772,
+  "artifact_bytes": 5633184,
+  "peak_memory_mib": 5582,
+  "total_steps": 5000
+}
