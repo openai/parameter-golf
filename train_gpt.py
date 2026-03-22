@@ -80,6 +80,10 @@ class Hyperparameters:
     # sliding window eval
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
 
+    # test-time training (TTT)
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 5))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
+
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
@@ -1292,6 +1296,51 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # test-time training: adapt model to validation distribution
+    if args.ttt_epochs > 0:
+        # free training memory before TTT
+        for opt in optimizers:
+            opt.state.clear()
+        del optimizers
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        t_ttt = time.perf_counter()
+        log0(f"ttt: starting {args.ttt_epochs} epochs, lr={args.ttt_lr}")
+        # use all parameters for TTT (unfreezing all, per vault: freeze_blocks=0 is critical)
+        ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+        ttt_optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
+        total_val_tokens = val_tokens.numel() - 1
+        # shard validation tokens across ranks like training
+        ttt_batch_seqs = 4
+        rank_tokens = total_val_tokens // world_size
+        rank_start = rank * rank_tokens
+        rank_end = rank_start + rank_tokens
+        model.train()
+        for ttt_epoch in range(args.ttt_epochs):
+            ttt_loss_sum = 0.0
+            ttt_steps = 0
+            for batch_start in range(rank_start, rank_end - args.train_seq_len, ttt_batch_seqs * args.train_seq_len):
+                batch_end = min(batch_start + ttt_batch_seqs * args.train_seq_len + 1, rank_end + 1)
+                local = val_tokens[batch_start:batch_end].to(device=device, dtype=torch.int64)
+                n_seqs = (local.numel() - 1) // args.train_seq_len
+                if n_seqs == 0:
+                    continue
+                x = local[:n_seqs * args.train_seq_len].reshape(n_seqs, args.train_seq_len)
+                y = local[1:n_seqs * args.train_seq_len + 1].reshape(n_seqs, args.train_seq_len)
+                ttt_optimizer.zero_grad()
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    loss = model(x, y)
+                loss.backward()
+                ttt_optimizer.step()
+                ttt_loss_sum += loss.item()
+                ttt_steps += 1
+            if master_process:
+                log0(f"ttt_epoch:{ttt_epoch + 1}/{args.ttt_epochs} avg_loss:{ttt_loss_sum / max(ttt_steps, 1):.4f}")
+        del ttt_optimizer, ttt_params
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        log0(f"ttt: completed in {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
     # sliding window evaluation for better BPB scoring
     if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
