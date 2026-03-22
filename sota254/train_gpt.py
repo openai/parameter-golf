@@ -652,6 +652,7 @@ class CausalSelfAttention(nn.Module):
             attn = (q2 @ k2.transpose(-2, -1)) * scale
             causal_mask = torch.triu(torch.ones(seqlen, seqlen, device=x.device, dtype=torch.bool), diagonal=1)
             self_mask = torch.eye(seqlen, device=x.device, dtype=torch.bool)
+            self_mask[0, 0] = False  # position 0 has no other causal targets
             attn = attn.masked_fill((causal_mask | self_mask)[None, None], float('-inf'))
             attn = F.softmax(attn, dim=-1)
             y = (attn @ v2).transpose(1, 2)
