@@ -86,9 +86,21 @@ def train(run_id: str = "modal_dev", wallclock: int = 600, nproc: int = 1, train
     env.update({
         "RUN_ID": run_id,
         "MAX_WALLCLOCK_SECONDS": str(wallclock),
-        "VAL_LOSS_EVERY": "200",
+        "VAL_LOSS_EVERY": "0",  # skip periodic val (save time)
         "TRAIN_LOG_EVERY": "50",
         "NCCL_IB_DISABLE": "1",
+        # Dev-friendly: override heavy defaults for 1-GPU
+        "MLP_MULT": "2",           # 2x not 3x (faster, fits easily)
+        "TRAIN_SEQ_LEN": "1024",   # 1024 not 2048 (halves memory)
+        "TRAIN_BATCH_TOKENS": "524288",  # smaller batch
+        "EVAL_STRIDE": "0",       # disable sliding window (fast standard eval)
+        "SWA_EVERY": "0",         # disable SWA (save time)
+        "BIGRAM_BUCKETS": "0",    # disable BigramHash (save params)
+        "SMEAR_GATE": "0",        # disable SmearGate
+        "QAT_BITS": "0",          # disable QAT
+        "PRUNE_PERCENT": "0",     # disable pruning
+        "USE_ZSTD": "0",          # use zlib (no extra dep needed)
+        "WARMUP_STEPS": "5",      # fewer warmup steps
     })
 
     cmd = [
@@ -124,10 +136,11 @@ def train(run_id: str = "modal_dev", wallclock: int = 600, nproc: int = 1, train
 
 @app.local_entrypoint()
 def main():
-    # Dev run on 1xH100 — 10 min training, 3 train shards
+    # Lean dev run: 1xH100, baseline-like config, 5 min training
+    # Goal: get a BPB score FAST, then iterate
     output = train.remote(
-        run_id="atris_v8_dev",
-        wallclock=600,
+        run_id="atris_v8_lean",
+        wallclock=300,  # 5 min training (enough for ~500 steps on 1 GPU)
         nproc=1,
         train_shards=3,
     )
