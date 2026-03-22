@@ -62,6 +62,7 @@ def get_args():
     p.add_argument("--batch-tokens", type=int, default=32768)
     p.add_argument("--max-seconds", type=float, default=300.0)
     p.add_argument("--lr", type=float, default=3e-4)
+    p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--warmup-steps", type=int, default=20)
     p.add_argument("--data-path", type=str, default="./data/datasets/fineweb10B_sp1024")
     p.add_argument("--tokenizer-path", type=str, default="./data/tokenizers/fineweb_1024_bpe.model")
@@ -267,8 +268,15 @@ class FractalCadenceGPT(nn.Module):
         self.lm_head = nn.Linear(dim, vocab_size, bias=False)
         self.lm_head.weight = self.tok_emb.weight  # tie embeddings
 
-        # Loop position embeddings — only used on fractal steps
-        self.loop_pos = nn.Parameter(torch.randn(num_loops, dim) * 0.01)
+        # Orthogonal loop positions: num_loops for fractal + 1 for normalize
+        # QR gives orthonormal vectors — each loop and normalize operate in
+        # non-interfering subspaces so gradients don't destructively collide
+        raw = torch.randn(num_loops + 1, dim)
+        Q, _ = torch.linalg.qr(raw.T)  # [dim, num_loops+1]
+        ortho = Q.T[:num_loops + 1]     # [num_loops+1, dim]
+        self.loop_pos = nn.Parameter(ortho * 0.01)
+        # loop_pos[0:num_loops] = fractal loop positions
+        # loop_pos[num_loops]   = normalize position
 
         # Gravity: learned per-loop auxiliary loss weights
         if use_gravity:
@@ -321,7 +329,8 @@ class FractalCadenceGPT(nn.Module):
                 return total / total_w
             return final_loss
         else:
-            # Normalize: single clean pass, no loop_pos, no gravity
+            # Normalize: single pass with its own orthogonal position
+            x = x + self.loop_pos[self.num_loops]
             for block in self.blocks:
                 x = block(x)
             logits = self._compute_logits(x)
@@ -483,7 +492,7 @@ def main():
         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             loss = model(x, y, fractal=is_fractal)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
         step_ms = (time.time() - t_step) * 1000
 
