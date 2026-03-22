@@ -382,22 +382,15 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
-    # Post-hoc mixed-precision step rounding (like reference 10L_MixedPrecision record).
-    # Only round middle layers to int6 — first/last layers keep full int8.
+    # Post-hoc mixed-precision: int6 step rounding on core (shared) blocks.
+    # Prelude/coda keep full int8 for input/output quality.
     args = Hyperparameters()
-    if args.int6_layers:
-        int6_set = set(int(x) for x in args.int6_layers.split(",") if x.strip())
-        step = args.int6_step
-        for name in list(quantized.keys()):
-            if "blocks." not in name:
-                continue
-            try:
-                layer_num = int(name.split("blocks.")[1].split(".")[0])
-            except (ValueError, IndexError):
-                continue
-            if layer_num in int6_set:
-                t = quantized[name]
-                quantized[name] = ((t.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
+    step = args.int6_step
+    for name in list(quantized.keys()):
+        # Apply int6 to core blocks (shared/recurrent) — they're the bulk of params
+        if "core." in name:
+            t = quantized[name]
+            quantized[name] = ((t.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_mixed_per_row_v1",
@@ -728,8 +721,6 @@ class GPT(nn.Module):
         self.prelude = nn.ModuleList([Block(*block_args) for _ in range(prelude_layers)])
         self.core = nn.ModuleList([Block(*block_args) for _ in range(core_layers)])
         self.coda = nn.ModuleList([Block(*block_args) for _ in range(coda_layers)])
-        # All blocks as flat list for optimizer/TTT compatibility
-        self.blocks = nn.ModuleList(list(self.prelude) + list(self.core) + list(self.coda))
         # Loop iteration embeddings: tell core blocks which loop they're in
         self.loop_embeds = nn.Parameter(torch.zeros(recurrence_loops, 1, 1, model_dim))
         self.final_norm = RMSNorm()
@@ -746,6 +737,11 @@ class GPT(nn.Module):
                 for block in list(self.core)[-remaining:]:
                     block.attn.use_xsa = True
 
+    @property
+    def blocks(self):
+        """Flat list of unique blocks for optimizer/TTT compatibility."""
+        return list(self.prelude) + list(self.core) + list(self.coda)
+
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
@@ -753,22 +749,30 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
+    def _run_core(self, x: Tensor, x0: Tensor) -> Tensor:
+        """Run core blocks once. Called multiple times for recurrence."""
+        for block in self.core:
+            x = block(x, x0)
+        return x
+
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear_gate(x)
         x0 = x
         prelude_skips: list[Tensor] = []
-        # Prelude: unique blocks, store skips
         for block in self.prelude:
             x = block(x, x0)
             prelude_skips.append(x)
-        # Core: shared blocks, looped recurrence_loops times
-        for loop_idx in range(self.recurrence_loops):
-            x = x + self.loop_embeds[loop_idx].to(dtype=x.dtype)
-            for block in self.core:
-                x = block(x, x0)
-        # Coda: unique blocks, consume prelude skips (U-Net)
+        # Core: shared blocks, unrolled statically for torch.compile
+        x = x + self.loop_embeds[0].to(dtype=x.dtype)
+        x = self._run_core(x, x0)
+        if self.recurrence_loops >= 2:
+            x = x + self.loop_embeds[1].to(dtype=x.dtype)
+            x = self._run_core(x, x0)
+        if self.recurrence_loops >= 3:
+            x = x + self.loop_embeds[2].to(dtype=x.dtype)
+            x = self._run_core(x, x0)
         for i, block in enumerate(self.coda):
             if i < len(prelude_skips):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * prelude_skips.pop()
@@ -1113,7 +1117,11 @@ def main() -> None:
     # - untied lm_head (Adam) uses HEAD_LR
     # - matrix params in transformer blocks use MATRIX_LR via Muon
     # - vectors/scalars use SCALAR_LR via Adam
-    block_named_params = list(base_model.blocks.named_parameters())
+    block_named_params = (
+        list(base_model.prelude.named_parameters())
+        + list(base_model.core.named_parameters())
+        + list(base_model.coda.named_parameters())
+    )
     matrix_params = [
         p
         for name, p in block_named_params
@@ -1127,6 +1135,7 @@ def main() -> None:
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     scalar_params.append(base_model.smear_gate.gate_weight)
+    scalar_params.append(base_model.loop_embeds)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
