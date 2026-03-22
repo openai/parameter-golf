@@ -395,7 +395,7 @@ def main():
  if bm.skip_weights.numel()>0:scp.append(bm.skip_weights)
  scp.append(bm.smear.gate)
  if bm.bigram:scp.append(bm.bigram.scale)
- tlr=a.tied_embed_lr if a.te else a.embed_lr
+ tlr=a.tied_embed_lr if a.tie_embeddings else a.embed_lr
  tkp=[{"params":[bm.tok_emb.weight],"lr":tlr,"base_lr":tlr}]
  if bm.bigram:
   tkp.append({"params":[bm.bigram.embed.weight],"lr":tlr,"base_lr":tlr})
@@ -416,7 +416,7 @@ def main():
  np_=sum(p.numel() for p in bm.parameters());log0(f"model_params:{np_}")
  xl=[i for i,b in enumerate(bm.blocks) if b.attn.use_xsa];log0(f"XSA:last_{a.xsa_last_n} active_layers:{xl}")
  log0(f"world_size:{ws} grad_accum_steps:{ga}")
- log0(f"tie_embeddings:{a.te} embed_lr:{tlr} matrix_lr:{a.matrix_lr} scalar_lr:{a.scalar_lr}")
+ log0(f"tie_embeddings:{a.tie_embeddings} embed_lr:{tlr} matrix_lr:{a.matrix_lr} scalar_lr:{a.scalar_lr}")
  log0(f"train_batch_tokens:{a.train_batch_tokens} train_seq_len:{a.train_seq_len} iterations:{a.iterations} warmup_steps:{a.warmup_steps} max_wallclock_seconds:{a.max_wallclock_seconds:.3f}")
  log0(f"seed:{a.seed}")
  tl=DTL(a.train_files,rk,ws,dev)
@@ -518,7 +518,7 @@ def main():
  with open("final_model.int6.ptz","rb") as f:qbd=f.read()
  qs=torch.load(io.BytesIO(zstandard.ZstdDecompressor().decompress(qbd) if _Z=="zstd" else zlib.decompress(qbd)),map_location="cpu")
  dqs=dq6(qs["w"],qs["m"],sdc)
- em=GPT(vs=a.vocab_size,nl=a.num_layers,md=a.model_dim,nh=a.num_heads,nkv=a.num_kv_heads,mm=a.mlp_mult,te=a.te,teis=a.tied_embed_init_std,lsc=a.logit_softcap,rb=a.rope_base,qkg=a.qk_gain_init,bvs=a.bigram_vocab_size,bd=a.bigram_dim,xln=a.xsa_last_n,rd=a.rope_dims,lns=a.ln_scale,ve_on=a.ve_enabled,ve_d=a.ve_dim,ve_l=a.ve_layers).to(dev).bfloat16()
+ em=GPT(vs=a.vocab_size,nl=a.num_layers,md=a.model_dim,nh=a.num_heads,nkv=a.num_kv_heads,mm=a.mlp_mult,te=a.tie_embeddings,teis=a.tied_embed_init_std,lsc=a.logit_softcap,rb=a.rope_base,qkg=a.qk_gain_init,bvs=a.bigram_vocab_size,bd=a.bigram_dim,xln=a.xsa_last_n,rd=a.rope_dims,lns=a.ln_scale,ve_on=a.ve_enabled,ve_d=a.ve_dim,ve_l=a.ve_layers).to(dev).bfloat16()
  for m in em.modules():
   if isinstance(m,CastedLinear):m.float()
  restore_fp32(em);em.load_state_dict(dqs,strict=True);ce=torch.compile(em,dynamic=False,fullgraph=True)
