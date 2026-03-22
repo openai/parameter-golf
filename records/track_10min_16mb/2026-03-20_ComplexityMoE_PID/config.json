@@ -29,7 +29,7 @@
     "train_seq_len": 2048,
     "max_wallclock_seconds": 600.0,
     "warmup_steps": 20,
-    "warmdown_iters": 5000,
+    "warmdown_iters": 3000,
     "seed": 1337,
     "val_loss_every": 1000,
     "val_batch_size": 524288,
