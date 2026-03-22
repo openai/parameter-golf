@@ -88,7 +88,7 @@ class Hyperparameters:
     # SWA: collect checkpoints every N steps during warmdown, average at end.
     # 0 = disabled.
     swa_every = int(os.environ.get("SWA_EVERY", 50))
-    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.2))
 
     # EMA: exponential moving average of weights (decay per step).
     # 0.0 = disabled, 0.997 = recommended. Applied before quantization.
@@ -1351,7 +1351,7 @@ def main() -> None:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
     if 8 % world_size != 0:
         raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-    grad_accum_steps = 8 // world_size
+    grad_accum_steps = max(1, int(os.environ.get("GRAD_ACCUM_STEPS", 8 // world_size)))
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
