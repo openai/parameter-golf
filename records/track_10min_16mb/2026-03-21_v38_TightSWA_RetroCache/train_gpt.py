@@ -31,7 +31,23 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+except ImportError:
+    def flash_attn_3_func(q: Tensor, k: Tensor, v: Tensor, causal: bool = True) -> Tensor:
+        """CPU/test fallback matching flash-attn's [B, T, H, D] interface."""
+        q_t = q.transpose(1, 2)
+        k_t = k.transpose(1, 2)
+        v_t = v.transpose(1, 2)
+        y = F.scaled_dot_product_attention(
+            q_t,
+            k_t,
+            v_t,
+            attn_mask=None,
+            is_causal=causal,
+            enable_gqa=(q_t.size(1) != k_t.size(1)),
+        )
+        return y.transpose(1, 2).contiguous()
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -115,6 +131,18 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
+
+    # RetroCache: eval-only retrieval over already-scored validation tokens.
+    cache_enabled = bool(int(os.environ.get("CACHE_ENABLED", "0")))
+    cache_max_tokens = int(os.environ.get("CACHE_MAX_TOKENS", 32768))
+    cache_recent_tokens = int(os.environ.get("CACHE_RECENT_TOKENS", 4096))
+    cache_old_stride = int(os.environ.get("CACHE_OLD_STRIDE", 4))
+    cache_topk = int(os.environ.get("CACHE_TOPK", 32))
+    cache_beta = float(os.environ.get("CACHE_BETA", 24.0))
+    cache_lambda_max = float(os.environ.get("CACHE_LAMBDA_MAX", 0.35))
+    cache_warmup_tokens = int(os.environ.get("CACHE_WARMUP_TOKENS", 2048))
+    cache_key_source = os.environ.get("CACHE_KEY_SOURCE", "final_norm")
+    cache_reset_on_bos = bool(int(os.environ.get("CACHE_RESET_ON_BOS", "0")))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -900,7 +928,7 @@ class GPT(nn.Module):
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def _forward_hidden(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
@@ -921,7 +949,10 @@ class GPT(nn.Module):
             ve = self._get_ve(bi, input_ids, ve_cache)
             x = self.blocks[bi](x, x0, v_embed=ve)
 
-        x = self.final_norm(x)
+        return self.final_norm(x)
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        x = self._forward_hidden(input_ids)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
@@ -954,37 +985,210 @@ class GPT(nn.Module):
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         """Return logits (bsz, seq_len, vocab) without computing loss."""
-        x = self.tok_emb(input_ids)
-        if self.bigram is not None:
-            x = x + self.bigram(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
-        x = self.smear(x)
-        x0 = x
-        skips: list[Tensor] = []
-        ve_cache: dict = {}
-        for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve)
-        x = self.final_norm(x)
+        x = self._forward_hidden(input_ids)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
+    def forward_eval_features(self, input_ids: Tensor) -> tuple[Tensor, Tensor]:
+        """Return logits and normalized cache keys for eval-only retrieval."""
+        x = self._forward_hidden(input_ids)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            logits_proj = self.lm_head(x)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        keys = F.normalize(x.float(), dim=-1).to(dtype=torch.bfloat16)
+        return logits, keys
+
 
 # -----------------------------
 # SLIDING WINDOW EVALUATION
 # -----------------------------
 
-def eval_val_sliding(
+BOS_ID = 1
+_RETROCACHE_QUERY_ENTROPY_FLOOR = 0.35
+_RETROCACHE_MAX_QUERIES = 256
+
+
+def _normalize_entropy(probs: Tensor) -> Tensor:
+    probs = probs.clamp_min(1e-9)
+    return (-(probs * probs.log()).sum(dim=-1) / math.log(probs.size(-1))).clamp_(0.0, 1.0)
+
+
+class RetroCacheMemory:
+    """Two-tier GPU memory: dense recent tokens plus strided older tokens."""
+
+    def __init__(
+        self,
+        key_dim: int,
+        device: torch.device,
+        max_tokens: int,
+        recent_tokens: int,
+        old_stride: int,
+        key_dtype: torch.dtype = torch.bfloat16,
+    ) -> None:
+        self.key_dim = key_dim
+        self.device = device
+        self.key_dtype = key_dtype
+        self.max_tokens = max(max_tokens, 0)
+        self.recent_capacity = min(max(recent_tokens, 0), self.max_tokens)
+        self.long_capacity = max(self.max_tokens - self.recent_capacity, 0)
+        self.old_stride = max(old_stride, 1)
+
+        self.recent_keys = torch.empty(self.recent_capacity, key_dim, device=device, dtype=key_dtype)
+        self.recent_vals = torch.empty(self.recent_capacity, device=device, dtype=torch.int64)
+        self.long_keys = torch.empty(self.long_capacity, key_dim, device=device, dtype=key_dtype)
+        self.long_vals = torch.empty(self.long_capacity, device=device, dtype=torch.int64)
+        self.reset()
+
+    def reset(self) -> None:
+        self.recent_count = 0
+        self.recent_ptr = 0
+        self.long_count = 0
+        self.long_ptr = 0
+        self.total_seen = 0
+
+    @property
+    def size(self) -> int:
+        return self.recent_count + self.long_count
+
+    def _append_long(self, key: Tensor, val: Tensor) -> None:
+        if self.long_capacity <= 0:
+            return
+        self.long_keys[self.long_ptr].copy_(key)
+        self.long_vals[self.long_ptr] = val
+        self.long_ptr = (self.long_ptr + 1) % self.long_capacity
+        self.long_count = min(self.long_count + 1, self.long_capacity)
+
+    def append(self, keys: Tensor, vals: Tensor) -> None:
+        if self.max_tokens <= 0 or keys.numel() == 0:
+            return
+        flat_keys = keys.reshape(-1, self.key_dim).to(device=self.device, dtype=self.key_dtype)
+        flat_vals = vals.reshape(-1).to(device=self.device, dtype=torch.int64)
+        for i in range(flat_keys.size(0)):
+            key = flat_keys[i]
+            val = flat_vals[i]
+            if self.recent_capacity > 0:
+                if self.recent_count == self.recent_capacity:
+                    evicted_idx = self.total_seen - self.recent_capacity
+                    if self.long_capacity > 0 and evicted_idx % self.old_stride == 0:
+                        self._append_long(self.recent_keys[self.recent_ptr], self.recent_vals[self.recent_ptr])
+                else:
+                    self.recent_count += 1
+                self.recent_keys[self.recent_ptr].copy_(key)
+                self.recent_vals[self.recent_ptr] = val
+                self.recent_ptr = (self.recent_ptr + 1) % self.recent_capacity
+            elif self.long_capacity > 0 and self.total_seen % self.old_stride == 0:
+                self._append_long(key, val)
+            self.total_seen += 1
+
+    def candidate_tensors(self) -> tuple[Tensor, Tensor]:
+        key_parts: list[Tensor] = []
+        val_parts: list[Tensor] = []
+        if self.long_count > 0:
+            key_parts.append(self.long_keys if self.long_count == self.long_capacity else self.long_keys[:self.long_count])
+            val_parts.append(self.long_vals if self.long_count == self.long_capacity else self.long_vals[:self.long_count])
+        if self.recent_count > 0:
+            key_parts.append(
+                self.recent_keys if self.recent_count == self.recent_capacity else self.recent_keys[:self.recent_count]
+            )
+            val_parts.append(
+                self.recent_vals if self.recent_count == self.recent_capacity else self.recent_vals[:self.recent_count]
+            )
+        if not key_parts:
+            return (
+                torch.empty(0, self.key_dim, device=self.device, dtype=self.key_dtype),
+                torch.empty(0, device=self.device, dtype=torch.int64),
+            )
+        if len(key_parts) == 1:
+            return key_parts[0], val_parts[0]
+        return torch.cat(key_parts, dim=0), torch.cat(val_parts, dim=0)
+
+    def retrieve(self, query_keys: Tensor, topk: int, beta: float, vocab_size: int) -> tuple[Tensor, Tensor] | tuple[None, None]:
+        if query_keys.numel() == 0 or self.size == 0:
+            return None, None
+        memory_keys, memory_vals = self.candidate_tensors()
+        eff_topk = min(max(topk, 1), int(memory_vals.numel()))
+        if eff_topk <= 0:
+            return None, None
+        sim = (query_keys.to(dtype=memory_keys.dtype) @ memory_keys.T).float()
+        scores, idx = sim.topk(eff_topk, dim=-1)
+        weights = F.softmax(scores * beta, dim=-1)
+        gathered_vals = memory_vals[idx]
+        cache_probs = torch.zeros(query_keys.size(0), vocab_size, device=query_keys.device, dtype=torch.float32)
+        cache_probs.scatter_add_(1, gathered_vals, weights)
+        return cache_probs, weights.max(dim=-1).values
+
+
+def _append_retrocache_entries(memory: RetroCacheMemory, keys: Tensor, vals: Tensor, reset_on_bos: bool) -> None:
+    if keys.numel() == 0:
+        return
+    if not reset_on_bos:
+        memory.append(keys, vals)
+        return
+    start = 0
+    bos_ix = (vals == BOS_ID).nonzero(as_tuple=False).flatten()
+    for bos in bos_ix:
+        end = int(bos.item()) + 1
+        if end > start:
+            memory.append(keys[start:end], vals[start:end])
+        memory.reset()
+        start = end
+    if start < vals.numel():
+        memory.append(keys[start:], vals[start:])
+
+
+def _retrocached_nll(
+    logits: Tensor,
+    targets: Tensor,
+    query_keys: Tensor,
+    memory: RetroCacheMemory,
+    args: Hyperparameters,
+) -> Tensor:
+    lm_probs = F.softmax(logits.float(), dim=-1)
+    base_nll = -torch.log(lm_probs.gather(1, targets[:, None]).squeeze(1).clamp_min(1e-9))
+    if (
+        memory.total_seen < args.cache_warmup_tokens
+        or args.cache_lambda_max <= 0.0
+        or args.cache_topk <= 0
+        or memory.size == 0
+    ):
+        return base_nll
+
+    entropy = _normalize_entropy(lm_probs)
+    query_ix = torch.nonzero(entropy > _RETROCACHE_QUERY_ENTROPY_FLOOR, as_tuple=False).flatten()
+    if query_ix.numel() == 0:
+        return base_nll
+    if query_ix.numel() > _RETROCACHE_MAX_QUERIES:
+        query_ix = query_ix[torch.topk(entropy[query_ix], _RETROCACHE_MAX_QUERIES).indices]
+
+    cache_probs, sharpness = memory.retrieve(
+        query_keys[query_ix],
+        topk=args.cache_topk,
+        beta=args.cache_beta,
+        vocab_size=logits.size(-1),
+    )
+    if cache_probs is None or sharpness is None:
+        return base_nll
+
+    eff_topk = min(max(args.cache_topk, 1), memory.size)
+    if eff_topk == 1:
+        sharp_norm = torch.ones_like(sharpness)
+    else:
+        sharp_floor = 1.0 / eff_topk
+        sharp_norm = ((sharpness - sharp_floor) / max(1.0 - sharp_floor, 1e-6)).clamp(0.0, 1.0)
+    lambda_t = args.cache_lambda_max * entropy[query_ix] * sharp_norm
+    mixed_probs = (1.0 - lambda_t[:, None]) * lm_probs[query_ix] + lambda_t[:, None] * cache_probs
+    base_nll[query_ix] = -torch.log(
+        mixed_probs.gather(1, targets[query_ix, None]).squeeze(1).clamp_min(1e-9)
+    )
+    return base_nll
+
+
+def _eval_val_sliding_base(
     args: Hyperparameters,
     base_model: nn.Module,
     rank: int,
@@ -1065,6 +1269,149 @@ def eval_val_sliding(
     tokens_per_byte = token_count.item() / byte_count.item()
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
+
+
+def eval_val_sliding_retrocache(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+    batch_seqs: int = 8,
+    eval_seq_len: int | None = None,
+) -> tuple[float, float]:
+    if args.cache_key_source != "final_norm":
+        raise ValueError(f"Unsupported CACHE_KEY_SOURCE={args.cache_key_source}; expected final_norm")
+
+    seq_len = eval_seq_len or args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+    window_starts = [
+        ws for ws in range(0, total_tokens, stride)
+        if min(ws + seq_len, total_tokens) - ws >= 1
+    ]
+    total_windows = len(window_starts)
+    my_s = (total_windows * rank) // world_size
+    my_e = (total_windows * (rank + 1)) // world_size
+    my_windows = window_starts[my_s:my_e]
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    key_dim = getattr(base_model, "tok_emb").embedding_dim
+    memory = RetroCacheMemory(
+        key_dim=key_dim,
+        device=device,
+        max_tokens=args.cache_max_tokens,
+        recent_tokens=args.cache_recent_tokens,
+        old_stride=args.cache_old_stride,
+    )
+
+    base_model.eval()
+    compiled_eval_features = torch.compile(base_model.forward_eval_features, dynamic=False, fullgraph=True)
+
+    with torch.inference_mode():
+        for bi in range(0, len(my_windows), batch_seqs):
+            batch_ws = my_windows[bi:bi + batch_seqs]
+            bsz = len(batch_ws)
+
+            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            wlens: list[int] = []
+
+            for i, ws in enumerate(batch_ws):
+                end = min(ws + seq_len, total_tokens)
+                wlen = end - ws
+                wlens.append(wlen)
+                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                x_batch[i, :wlen] = chunk[:-1]
+                y_batch[i, :wlen] = chunk[1:]
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits, cache_keys = compiled_eval_features(x_batch)
+
+            for i, ws in enumerate(batch_ws):
+                wlen = wlens[i]
+                s = 0 if ws == 0 else max(wlen - stride, 0)
+                scored_logits = logits[i, s:wlen]
+                scored_targets = y_batch[i, s:wlen]
+                scored_prev = x_batch[i, s:wlen]
+                scored_keys = cache_keys[i, s:wlen]
+
+                scored_nll = _retrocached_nll(scored_logits, scored_targets, scored_keys, memory, args).to(torch.float64)
+                loss_sum += scored_nll.sum()
+                token_count += float(wlen - s)
+                tb = base_bytes_lut[scored_targets].to(torch.float64)
+                tb += (has_leading_space_lut[scored_targets] & ~is_boundary_token_lut[scored_prev]).to(torch.float64)
+                byte_count += tb.sum()
+
+                _append_retrocache_entries(
+                    memory,
+                    scored_keys,
+                    scored_targets,
+                    reset_on_bos=args.cache_reset_on_bos,
+                )
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base_model.train()
+    return val_loss, bits_per_token * tokens_per_byte
+
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+    batch_seqs: int = 32,
+    eval_seq_len: int | None = None,
+) -> tuple[float, float]:
+    if args.cache_enabled:
+        return eval_val_sliding_retrocache(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            stride=stride,
+            batch_seqs=min(batch_seqs, 8),
+            eval_seq_len=eval_seq_len,
+        )
+    return _eval_val_sliding_base(
+        args,
+        base_model,
+        rank,
+        world_size,
+        device,
+        val_tokens,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+        stride=stride,
+        batch_seqs=batch_seqs,
+        eval_seq_len=eval_seq_len,
+    )
 
 
 # -----------------------------
@@ -1360,6 +1707,13 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(
+        f"retrocache:enabled={args.cache_enabled} key_source:{args.cache_key_source} "
+        f"max_tokens:{args.cache_max_tokens} recent:{args.cache_recent_tokens} "
+        f"old_stride:{args.cache_old_stride} topk:{args.cache_topk} beta:{args.cache_beta} "
+        f"lambda_max:{args.cache_lambda_max} warmup:{args.cache_warmup_tokens} "
+        f"reset_on_bos:{args.cache_reset_on_bos}"
+    )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
