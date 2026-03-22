@@ -128,6 +128,8 @@ class Hyperparameters:
     # CUDA graph settings
     max_batch_seqs = int(os.environ.get("MAX_BATCH_SEQS", 48))  # max sequences per GPU for buffer pre-alloc
     max_seq_len_buf = int(os.environ.get("MAX_SEQ_LEN_BUF", 2048))  # max seq len for buffer pre-alloc
+    # Quality improvements from modded-nanogpt
+    partial_key_offset = bool(int(os.environ.get("PARTIAL_KEY_OFFSET", "1")))  # PR#169
 
 BENCHMARK_ONLY = bool(int(os.environ.get("BENCHMARK_ONLY", "0")))
 BENCHMARK_STEPS = int(os.environ.get("BENCHMARK_STEPS", "50"))
@@ -180,7 +182,11 @@ class Muon(torch.optim.Optimizer):
             nesterov = group["nesterov"]
 
             total_params = sum(int(p.numel()) for p in params)
-            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
+            # Reuse pre-allocated buffer to avoid allocation every step
+            if "_updates_flat" not in group or group["_updates_flat"].numel() != total_params:
+                group["_updates_flat"] = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
+            updates_flat = group["_updates_flat"]
+            updates_flat.zero_()
 
             curr = 0
             for i, p in enumerate(params):
@@ -417,6 +423,9 @@ class DistributedTokenLoader:
         local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
+        # Pin memory so non_blocking=True actually enables async CPU→GPU transfer
+        x = x.pin_memory()
+        y = y.pin_memory()
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
 
 
@@ -522,6 +531,7 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
+        self.use_partial_key_offset = False  # Set by GPT.__init__
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -533,6 +543,14 @@ class CausalSelfAttention(nn.Module):
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
+        # Partial Key Offset: shift keys forward by 1 for stationary head dims
+        # Enables single-layer induction heads (from modded-nanogpt PR#169)
+        # clone() is needed for correctness (overlapping src/dst) and is fine under
+        # torch.compile since the allocation size is static and gets reused.
+        hd = self.head_dim
+        if seqlen > 1 and self.use_partial_key_offset:
+            k[:, 1:, :, hd//4:hd//2] = k[:, :-1, :, hd//4:hd//2].clone()
+            k[:, 1:, :, hd//4+hd//2:] = k[:, :-1, :, hd//4+hd//2:].clone()
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
         if _HAS_FA3:
             y = flash_attn_3_func(q, k, v, causal=True)
@@ -554,7 +572,9 @@ class SmearGate(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         g = torch.sigmoid(self.gate.to(dtype=x.dtype))[None, None, :]
-        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
+        # Use roll + zero-mask instead of cat+zeros_like (avoids dynamic allocs for CUDA graphs)
+        x_prev = torch.roll(x, shifts=1, dims=1)
+        x_prev[:, 0, :] = 0.0
         return (1 - g) * x + g * x_prev
 
 
@@ -651,6 +671,7 @@ class GPT(nn.Module):
         bigram_dim: int = 128,
         max_batch_seqs: int = 48,
         max_seq_len: int = 2048,
+        partial_key_offset: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -690,11 +711,14 @@ class GPT(nn.Module):
         for head in self.mtp_heads:
             head._zero_init = True
         self._init_weights()
-        # Pre-allocate buffers for CUDA graph compatibility (no allocations in forward)
+        # Enable partial key offset on all attention layers
+        if partial_key_offset:
+            for block in self.blocks:
+                block.attn.use_partial_key_offset = True
+        # Pre-allocate skip buffer for CUDA graph compatibility (no dynamic list ops in forward)
         self._max_batch_seqs = max_batch_seqs
         self._max_seq_len = max_seq_len
         self.register_buffer('_skip_buf', torch.zeros(self.num_encoder_layers, max_batch_seqs, max_seq_len, model_dim), persistent=False)
-        self.register_buffer('_x0_buf', torch.zeros(max_batch_seqs, max_seq_len, model_dim), persistent=False)
 
     def _init_weights(self) -> None:
         if self.tie_embeddings:
@@ -717,14 +741,17 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
         x0 = x
-        skips: list[Tensor] = []
 
+        # Use pre-allocated skip buffers (CUDA graph safe — no dynamic list ops)
+        bsz, seqlen, dim = x.shape
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
-            skips.append(x)
+            self._skip_buf[i, :bsz, :seqlen, :] = x
         for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            skip_idx = self.num_encoder_layers - 1 - i
+            if skip_idx >= 0:
+                skip = self._skip_buf[skip_idx, :bsz, :seqlen, :]
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x)
@@ -766,13 +793,15 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
         x0 = x
-        skips: list[Tensor] = []
+        bsz, seqlen, dim = x.shape
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
-            skips.append(x)
+            self._skip_buf[i, :bsz, :seqlen, :] = x
         for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            skip_idx = self.num_encoder_layers - 1 - i
+            if skip_idx >= 0:
+                skip = self._skip_buf[skip_idx, :bsz, :seqlen, :]
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip
             x = self.blocks[self.num_encoder_layers + i](x, x0)
         x = self.final_norm(x)
         if self.tie_embeddings:
@@ -817,17 +846,21 @@ def eval_val_sliding(
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    # Compile once outside loop; caller can pass pre-compiled model to avoid recompilation
+    compiled_logits = torch.compile(base_model.forward_logits, mode='reduce-overhead', dynamic=False, fullgraph=True)
+
+    # Pre-allocate fixed-size batches to avoid CUDA graph recapture on varying bsz
+    x_batch = torch.zeros(batch_seqs, seq_len, dtype=torch.int64, device=device)
+    y_batch = torch.zeros(batch_seqs, seq_len, dtype=torch.int64, device=device)
 
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
-            bsz = len(batch_ws)
-
-            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            actual_bsz = len(batch_ws)
             wlens: list[int] = []
 
+            x_batch.zero_()
+            y_batch.zero_()
             for i, ws in enumerate(batch_ws):
                 end = min(ws + seq_len, total_tokens)
                 wlen = end - ws
@@ -843,8 +876,9 @@ def eval_val_sliding(
                 logits.reshape(-1, logits.size(-1)).float(),
                 y_batch.reshape(-1),
                 reduction="none",
-            ).reshape(bsz, seq_len)
+            ).reshape(batch_seqs, seq_len)
 
+            # Only score actual (non-padding) rows
             for i, ws in enumerate(batch_ws):
                 wlen = wlens[i]
                 s = 0 if ws == 0 else max(wlen - stride, 0)
@@ -1103,8 +1137,8 @@ def run_ttt(
 
 
 class AsyncGradientSync:
-    """Async gradient sync — launches all-reduce in background, waits before optimizer step.
-    Pre-allocates the flat buffer once to avoid repeated allocation."""
+    """Async flattened gradient sync — single all-reduce for max NCCL efficiency.
+    Pre-allocates flat buffer once, reuses across steps."""
 
     def __init__(self):
         self._flat_buf = None
@@ -1113,7 +1147,7 @@ class AsyncGradientSync:
 
     @torch.no_grad()
     def launch(self, model: nn.Module, world_size: int):
-        """Launch async all-reduce. Call this right after backward()."""
+        """Launch async all-reduce. Call right after backward()."""
         if world_size <= 1:
             return
         grads = [p.grad for p in model.parameters() if p.grad is not None]
@@ -1128,12 +1162,12 @@ class AsyncGradientSync:
         for g in grads:
             self._flat_buf[offset:offset + g.numel()] = g.reshape(-1).to(torch.bfloat16)
             offset += g.numel()
-        # Launch async all-reduce — returns immediately, NCCL runs in background
+        # Single all-reduce for all gradients
         self._handle = dist.all_reduce(self._flat_buf, op=dist.ReduceOp.AVG, async_op=True)
 
     @torch.no_grad()
     def wait(self):
-        """Wait for all-reduce to finish and copy gradients back. Call before optimizer.step()."""
+        """Wait for all-reduce to finish and copy gradients back."""
         if self._handle is None:
             return
         self._handle.wait()
@@ -1163,8 +1197,8 @@ def main() -> None:
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
-    # CUDA graph config: disable tree mode to avoid tensor reuse conflicts
-    torch._inductor.config.triton.cudagraph_trees = False
+    # CUDA graph config: enable tree mode for reduce-overhead CUDA graph capture
+    torch._inductor.config.triton.cudagraph_trees = True
 
     # Set MLP activation before model creation
     MLP._activation = args.mlp_activation
@@ -1192,10 +1226,16 @@ def main() -> None:
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # Use deterministic algorithms to ensure reproducible results across runs
+    # CUBLAS_WORKSPACE_CONFIG is required for deterministic CUBLAS matmul on CUDA >=10.2
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    torch.use_deterministic_algorithms(True, warn_only=True)
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
-    enable_mem_efficient_sdp(False)
+    enable_mem_efficient_sdp(True)  # keep as fallback when flash can't handle head dims
     enable_math_sdp(False)
 
     logfile = None
@@ -1271,14 +1311,27 @@ def main() -> None:
         bigram_dim=args.bigram_dim,
         max_batch_seqs=args.max_batch_seqs,
         max_seq_len=args.max_seq_len_buf,
+        partial_key_offset=args.partial_key_offset,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    # No DDP wrapping — manual gradient sync eliminates DDP hook overhead
-    model = compiled_model
+    compiled_model = torch.compile(base_model, mode='reduce-overhead', dynamic=False, fullgraph=True)
+    # Use DDP or manual grad sync based on env var
+    use_manual_sync = bool(int(os.environ.get("USE_MANUAL_SYNC", "0")))
+    if use_manual_sync:
+        # Without DDP, we must broadcast params from rank 0 so all GPUs start identical.
+        # DDP does this automatically in __init__; we need to do it manually.
+        if distributed:
+            for param in base_model.parameters():
+                dist.broadcast(param.data, src=0)
+            for buf in base_model.buffers():
+                dist.broadcast(buf, src=0)
+            log0("manual_sync: broadcasted parameters from rank 0")
+        model = compiled_model
+    else:
+        model = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split
     block_named_params = list(base_model.blocks.named_parameters())
@@ -1345,7 +1398,7 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(f"mlp_activation:{args.mlp_activation}")
     log0(f"flash_attention_3:{_HAS_FA3}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=True math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -1359,7 +1412,7 @@ def main() -> None:
     )
     log0(f"seed:{args.seed}")
     log0(f"int5_mlp:{args.int5_mlp} prune_frac:{args.prune_frac} ttt_enabled:{args.ttt_enabled}")
-    log0(f"no_ddp:True manual_grad_sync:True")
+    log0(f"no_ddp:{use_manual_sync} manual_grad_sync:{use_manual_sync} partial_key_offset:{args.partial_key_offset}")
 
     # --- WANDB ---
     _use_wandb = master_process and _WANDB_OK and os.environ.get("WANDB_MODE") != "disabled"
@@ -1525,17 +1578,18 @@ def main() -> None:
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
+            if distributed and not use_manual_sync:
+                model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
-        # Async gradient sync: launch all-reduce in background
-        if distributed:
+        # Gradient sync
+        if distributed and use_manual_sync:
             _async_grad_sync.launch(base_model, world_size)
         train_loss /= grad_accum_steps
 
-        # These run on CPU while NCCL all-reduce runs on GPU in background
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
         for group in optimizer_muon.param_groups:
@@ -1545,8 +1599,7 @@ def main() -> None:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * scale
 
-        # Wait for gradient sync before clipping and stepping
-        if distributed:
+        if distributed and use_manual_sync:
             _async_grad_sync.wait()
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
@@ -1736,6 +1789,7 @@ def main() -> None:
         mtp_num_heads=0, mtp_loss_weight=0.0,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
         max_batch_seqs=args.max_batch_seqs, max_seq_len=args.max_seq_len_buf,
+        partial_key_offset=args.partial_key_offset,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
@@ -1751,7 +1805,7 @@ def main() -> None:
         torch.cuda.synchronize()
         log0(f"ttt:completed in {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    compiled_eval = torch.compile(eval_model, mode='reduce-overhead', dynamic=False, fullgraph=True)
 
     # Standard non-overlapping eval (sanity check)
     torch.cuda.synchronize()
