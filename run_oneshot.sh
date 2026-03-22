@@ -1,0 +1,33 @@
+#!/bin/bash
+# RUN_ONESHOT: Best shot at 1.12x — all proven + untested safe improvements
+# Branch: int6-3xMLP-pr (proven, no experimental features)
+# Changes from baseline:
+#   786K batch: 50% more tokens (leaders all use this)
+#   Tight SWA: saves ~3ms/step vs EMA (~180 more steps)
+#   WD=20000: smoother weights → better score + compression
+#   PRUNE_PCT=3: magnitude pruning for artifact size
+#   GPTQ_LITE=1: optimal per-row clip search (default ON)
+# Expected: ~1.123-1.130 on a decent pod (sub-90ms)
+# Kill if: step_avg@200 > 100ms
+
+set -e
+cd /workspace/parameter-golf
+# Save this script before checkout (it doesn't exist on int6-3xMLP-pr)
+cp -f run_oneshot.sh /tmp/run_oneshot.sh 2>/dev/null || true
+git fetch origin && git checkout int6-3xMLP-pr && git reset --hard origin/int6-3xMLP-pr
+
+export TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 UNET_SKIPS=1
+export ROPE_DIMS=16 LN_SCALE=1 ROPE_BASE=10000
+export EVAL_STRIDE=32 DOC_ISOLATED_EVAL=0 SEED=1337
+export QAT=0 TTT_MAX_STEPS=500 TTT_FREEZE_BLOCKS=1
+export TRAIN_BATCH_TOKENS=786432
+export EMA_ENABLED=0 SWA=1
+export WARMDOWN_ITERS=20000
+export PRUNE_PCT=3.0
+
+unset MLP_HIDDEN QUANT_BITS RUN_ID TIER2_MODE BIGRAM_HASH_BUCKETS \
+  BACKOUT LAYER_DROP HEAD_DROP EVAL_TEMPERATURE MLP_QUANT_BITS \
+  USE_FA3 LATE_K_FP16 REPTILE_TTT VE_ENABLED
+
+torchrun --standalone --nproc_per_node=8 \
+  records/track_10min_16mb/2026-03-21_11L_XSA_EMA_TTT/train_gpt.py
