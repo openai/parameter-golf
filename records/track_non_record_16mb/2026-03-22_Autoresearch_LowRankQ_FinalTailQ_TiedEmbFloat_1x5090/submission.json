@@ -2,7 +2,7 @@
   "author": "Jim Eric Skogman",
   "github_id": "jadechip",
   "name": "Autoresearch Low-Rank-Q + Final-Tail-Q + Tied-Embedding Float (1x5090)",
-  "blurb": "Non-record 1xRTX5090 autoresearch submission from jadechip/autoresearch-parameter-golf. Best accepted line uses a compact low-rank-Q carrier, selective attention-QAT-off, delayed MLP fake quant, full-rank final-tail Q, and fp16 tied-embedding export; post-quant val_bpb 1.5295 under the 16MB cap.",
+  "blurb": "Non-record 1xRTX5090 autoresearch submission from jadechip/autoresearch-parameter-golf. The README documents a two-campaign search arc from 1.733958794 to 1.535119154 across 188 measured runs; the packaged runnable snapshot is the accepted best commit 905cc4d at post-quant val_bpb 1.529478563, using a compact low-rank-Q carrier, selective attention-QAT-off, delayed MLP fake quant, final-tail full-rank Q, and fp16 tied-embedding export.",
   "date": "2026-03-22T00:00:00Z",
   "track": "non-record-16mb",
   "val_loss": null,

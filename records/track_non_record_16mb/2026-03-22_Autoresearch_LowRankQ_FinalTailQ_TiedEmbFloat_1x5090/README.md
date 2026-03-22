@@ -1,78 +1,112 @@
-# Non-Record Submission: Autoresearch Low-Rank-Q + Final-Tail-Q + Tied-Embedding Float (1xRTX 5090)
+# Non-Record Submission: Two 5090 Autoresearch Campaigns
 
-This is a non-record submission documenting the best accepted line from my search repo, [jadechip/autoresearch-parameter-golf](https://github.com/jadechip/autoresearch-parameter-golf).
+This submission documents a git-native autoresearch loop on a single RTX 5090. The repo runs one fixed-budget experiment, commits the code change, keeps real wins, reverts losers, and uses the git history itself as search memory.
 
-The repo is built around a Codex/autoresearch loop on a single RTX 5090: run one fixed-budget experiment, commit the code change, keep meaningful wins, revert losers, and use git history plus a structured results table as the search memory. This submission snapshots the best accepted line from that search rather than the later March 22 exploratory tip runs.
+Across two sweep tables and 188 measured runs with `val_bpb`, the search moved from **1.733958794** on the first baseline to **1.535119154** at the end of the second campaign, with a best numeric excursion to **1.528664372**.
 
-## Best Accepted Result
+The packaged `train_gpt.py` snapshot is the stable accepted-best branch point from commit `905cc4d` / run `ar5090-20260321-231130`:
 
-- Run: `ar5090-20260321-231130`
-- Commit: `905cc4d`
-- Post-quant `val_bpb`: **1.529478563**
-- Artifact size: **9,190,936 bytes**
-- Total wallclock: **427.855572 s**
-- Steps: **1088**
-- Tokens processed: **66.846720M**
-- Params: **17.500192M**
-- GPU: **1x RTX 5090**
+- `val_bpb`: **1.529478563**
+- artifact size: **9,190,936 bytes**
+- params: **17.500192M**
+- wallclock: **427.855572 s**
 
-Baseline comparison from the same 5090 sweep:
+The README focuses on the larger search story because that is the real contribution here: many committed ideas, many reverted ideas, and a clear model-design trajectory rather than a single isolated run.
 
-| Run | val_bpb | Artifact bytes | Delta vs baseline |
-|-----|---------|----------------|-------------------|
-| `baseline_5090_5min_rerun` | 1.570137665 | 7,174,403 | — |
-| `ar5090-20260321-231130` | **1.529478563** | 9,190,936 | **-0.040659102** |
+## Campaign At A Glance
 
-## What The Search Actually Found
+| Campaign | Start | Best | End | Main shifts |
+|----------|-------|------|-----|-------------|
+| Campaign 1 | `1.733958794` | `1.563742695` | `1.572203327` | rebalance recurrence, move capacity into unique tail blocks, compact the model, spend bytes on wider tail MLPs |
+| Campaign 2 | `1.570137665` | `1.528664372` | `1.535119154` | low-rank `q_proj`, short-to-full context warmup, attention-QAT-off, smaller update batches, targeted precision spends |
 
-This repo did not win by making the recurrent baseline deeper or globally wider. The winning path was:
+Overall headline:
 
-1. Start from a recurrent/shared-block compact transformer.
-2. Reduce repeated/shared recurrence and spend more capacity on unique late blocks.
-3. Use low-rank `q_proj` as a compute/byte reallocation tool.
-4. Move to a compact carrier plus stronger unique tail.
-5. Shrink the global update size to fit many more optimizer steps in the same wallclock.
-6. Delay MLP fake quant until the `640 -> 768` curriculum reaches full context.
-7. Restore full-rank `q_proj` only on the final tail block.
-8. Keep the tied embedding in fp16 export.
+- start to end: `1.733958794 -> 1.535119154` (`-0.198839640`)
+- start to best numeric run: `1.733958794 -> 1.528664372` (`-0.205294422`)
+- model size arc: `8.485920M params / 5.679745 MB artifact -> 17.467168M params / 12.007446 MB artifact`
+- search envelope: up to `22.351912M` params and `17.560314 MB` artifacts, which was useful to explore but not the final answer
 
-The best accepted line is roughly:
+## Visual Summary
 
-- compact carrier: `stem=0`, `shared_layers=1`, `recurrence_loops=1`, `tail_layers=3`
-- low-rank `q_proj` baseline on most blocks (`q_low_rank=128`)
-- full-rank `q_proj` only on the final tail block
-- selective attention fake quant disabled during training
-- delayed MLP fake quant at the full-context boundary
-- smaller update shape: `2 x 30720`
-- fp16 tied-embedding export
+Full score trajectory across both campaigns:
 
-## Why This Is A Non-Record Submission
+![Campaign val_bpb progression](campaign_val_bpb.svg)
 
-This is a search-tier result from a single RTX 5090 repo, not a leaderboard attempt packaged around the official 8xH100 record process. The contribution here is the search method and the resulting model family:
+Where the search wandered in size/score space:
 
-- git-native autoresearch loop
-- recurrent/shared-block model that converged toward a stronger compact carrier
-- low-rank-Q reallocation plus selective precision as the main late-stage win
-- a full sweep table showing both the wins and the negative results
+![Model size versus score](size_vs_score.svg)
 
-## Later Follow-Ups
+## What The Git History Actually Tried
 
-The later March 22 runs in `results.tsv` pushed closer to the hard cap with coarser float/precision bundles, but they did not beat the accepted best. Representative follow-ups:
+The interesting part of this repo is not “make the model bigger.” The committed search history shows a more specific progression.
 
-| Run | val_bpb | Artifact bytes | Note |
-|-----|---------|----------------|------|
-| `ar5090-20260322-061953` | 1.535039374 | 15,261,334 | shared-Q reallocation + final-tail MLP float regressed |
-| `ar5090-20260322-090834` | 1.537538912 | 15,267,914 | shared full-rank Q + final-tail float regressed |
-| `ar5090-20260322-094022` | 1.535119154 | 12,007,446 | likely current tip experiment; still worse than accepted best |
+### 1. Stop Repeating The Carrier
 
-Those follow-ups are included because the negative results are part of the method: broad shared-carrier float bundles and near-cap precision stacks were usually worse than smaller, more targeted precision spends.
+The early wins came from reducing repeated/shared compute and spending that budget on unique late blocks. The search moved from the starting recurrent layout toward a compact carrier plus deeper unique tail, and that alone pulled the score from `1.733958794` down into the low `1.67x` range.
 
-## Files Included
+### 2. Spend Bytes On Unique Tail Capacity
 
-- `train_gpt.py` — snapshot of the accepted-best training script from commit `905cc4d`, adjusted only so it resolves the upstream repo's `data/` paths and counts `train_gpt.py` in artifact bytes
-- `results.tsv` — full later 5090 sweep table used as the structured experiment log for this repo
-- `submission.json` — metadata for the best accepted line
+The next wave of wins came from turning the model into a stemless or nearly stemless compact line and using MLP-only int6 export to reclaim artifact budget. That reclaimed room was repeatedly spent on stronger tail MLPs. The winning direction was not more depth forever. It was fewer repeated blocks and fatter useful tail blocks.
 
-The full development history and current codebase live in the source repo:
+### 3. Use Low-Rank Q To Buy Compute
+
+Campaign 2 is where the repo started acting less like architecture roulette and more like a disciplined compute allocator. The biggest improvements came from:
+
+- low-rank `q_proj` on most blocks
+- short-to-full context warmup
+- disabling attention fake quant during training
+- shrinking the global update shape from `4 x 30720` to `3 x 30720` and then `2 x 30720`
+- delaying MLP fake quant until the full-context boundary
+
+That sequence is what drove the second campaign from `1.570137665` down through the `1.53x` band.
+
+### 4. Spend Precision Like It Hurts
+
+The late-stage precision lesson was very consistent: broad float bundles usually lost, but narrow targeted precision spends could help.
+
+What worked:
+
+- restore full-rank `q_proj` only on the final tail block
+- keep tied embeddings in fp16 export on that line
+
+What usually lost:
+
+- shared full-rank Q
+- broad attention float bundles
+- shared plus final-tail float bundles
+- near-cap precision stacks that looked expensive but did not move the score enough
+
+## Things That Mostly Lost Anyway
+
+The git history is full of committed negative results, which is part of why this repo is useful to read. The recurring losers were:
+
+- blunt `d_model` increases
+- removing recurrence entirely
+- clean global `mlp_mult=3` conversions
+- `seq_len=960` or `1024` on this fixed 5090 budget
+- `num_kv_heads=8`
+- broad precision relaxations instead of targeted ones
+
+In other words, the search kept rediscovering the same lesson: under a tight wallclock budget, compute allocation mattered more than making every component richer.
+
+## What Is Included
+
+- `train_gpt.py`
+  the packaged accepted-best training script from commit `905cc4d`, adjusted only so it runs from this records folder and counts `train_gpt.py` in artifact bytes
+- `submission.json`
+  metadata for that packaged accepted-best snapshot
+- `results_stage1.tsv`
+  the first sweep table, including the baseline at `1.733958794`
+- `results_stage2.tsv`
+  the second sweep table, ending at `1.535119154`
+- `campaign_val_bpb.svg`
+  chart generated from both sweep tables
+- `size_vs_score.svg`
+  size/score chart generated from both sweep tables
+
+Raw per-run stdout logs were not preserved in this clone. The reliable search record here is the pair of structured sweep tables plus the commit history and notes in the source repo.
+
+Source repo:
 
 - <https://github.com/jadechip/autoresearch-parameter-golf>
