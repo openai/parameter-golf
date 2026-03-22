@@ -751,27 +751,36 @@ class InputFeatures(nn.Module):
         self._freq_initialized = False
 
     def _compute_word_position(self, token_ids: Tensor) -> Tensor:
-        """Distance from last space-like token, clamped to [0, 31], one-hot encoded."""
-        bsz, seq_len = token_ids.shape
-        # Token 0 is often space/BOS in SentencePiece - tokens starting with ▁ indicate word boundary
-        # Use a simple heuristic: position resets at token 0 or any token < 4 (special tokens)
-        is_boundary = (token_ids < 4).float()
-        # Compute cumulative distance from last boundary
-        pos = torch.zeros_like(token_ids, dtype=torch.float32)
-        for t in range(1, seq_len):
-            pos[:, t] = (pos[:, t-1] + 1) * (1 - is_boundary[:, t])
-        pos = pos.clamp(max=31).long()
+        """Distance from last space-like token, clamped to [0, 31], one-hot encoded.
+        Vectorized: no Python loops, torch.compile friendly."""
+        # Tokens < 4 are boundaries (BOS, space-prefixed tokens in SentencePiece)
+        is_boundary = (token_ids < 4)  # [B, T]
+        # Create position indices [0, 1, 2, ..., T-1]
+        indices = torch.arange(token_ids.size(1), device=token_ids.device).unsqueeze(0)  # [1, T]
+        # At each boundary, record the index. Between boundaries, distance = current_idx - last_boundary_idx
+        # Use cummax trick: set non-boundary positions to -1, then cummax gives the last boundary index
+        boundary_idx = torch.where(is_boundary, indices, torch.tensor(-1, device=token_ids.device))
+        last_boundary, _ = boundary_idx.cummax(dim=1)  # [B, T]
+        # Distance from last boundary
+        pos = (indices - last_boundary).clamp(0, 31).long()
         return F.one_hot(pos, num_classes=32).float()  # [B, T, 32]
 
     def _compute_copy_flags(self, token_ids: Tensor) -> Tensor:
-        """Binary flags: did this exact token appear 1/2/4/8/16 positions ago?"""
+        """Binary flags: did this exact token appear 1/2/4/8/16 positions ago?
+        Unrolled (no Python loop over offsets), torch.compile friendly."""
         bsz, seq_len = token_ids.shape
-        flags = torch.zeros(bsz, seq_len, 5, device=token_ids.device)
-        for i, offset in enumerate([1, 2, 4, 8, 16]):
-            if offset < seq_len:
-                match = (token_ids[:, offset:] == token_ids[:, :-offset]).float()
-                flags[:, offset:, i] = match
-        return flags  # [B, T, 5]
+        flags = torch.zeros(bsz, seq_len, 5, device=token_ids.device, dtype=torch.float32)
+        if seq_len > 1:
+            flags[:, 1:, 0] = (token_ids[:, 1:] == token_ids[:, :-1]).float()
+        if seq_len > 2:
+            flags[:, 2:, 1] = (token_ids[:, 2:] == token_ids[:, :-2]).float()
+        if seq_len > 4:
+            flags[:, 4:, 2] = (token_ids[:, 4:] == token_ids[:, :-4]).float()
+        if seq_len > 8:
+            flags[:, 8:, 3] = (token_ids[:, 8:] == token_ids[:, :-8]).float()
+        if seq_len > 16:
+            flags[:, 16:, 4] = (token_ids[:, 16:] == token_ids[:, :-16]).float()
+        return flags
 
     def forward(self, token_ids: Tensor) -> Tensor:
         # Word position features [B, T, 32]
