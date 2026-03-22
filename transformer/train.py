@@ -1160,12 +1160,16 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        # Value Residual: layer 0's v projection mixed into deeper layers (learned scale)
-        v_res = self.blocks[0].attn.c_v(self.blocks[0].attn_norm(x0) * self.blocks[0].ln_scale_factor)
+        # Compute value embedding once if enabled
+        ve_base = self.ve(input_ids) if self.ve is not None else None
         for i in range(self.num_encoder_layers):
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, qd, vd, v_residual=v_res if i > 0 else None)
+            ve_i = None
+            if ve_base is not None and i in self.ve_layer_indices:
+                idx = self.ve_layer_indices.index(i)
+                ve_i = ve_base * self.ve_layer_scales[idx].to(dtype=ve_base.dtype)
+            x = self.blocks[i](x, x0, qd, vd, v_embed=ve_i)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -1173,7 +1177,11 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, qd, vd, v_residual=v_res)
+            ve_i = None
+            if ve_base is not None and bi in self.ve_layer_indices:
+                idx = self.ve_layer_indices.index(bi)
+                ve_i = ve_base * self.ve_layer_scales[idx].to(dtype=ve_base.dtype)
+            x = self.blocks[bi](x, x0, qd, vd, v_embed=ve_i)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
