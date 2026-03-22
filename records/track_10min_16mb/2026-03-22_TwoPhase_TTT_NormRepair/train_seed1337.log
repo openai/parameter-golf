@@ -1,0 +1,136 @@
+W0322 09:37:17.382000 88206 torch/distributed/run.py:803] 
+W0322 09:37:17.382000 88206 torch/distributed/run.py:803] *****************************************
+W0322 09:37:17.382000 88206 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0322 09:37:17.382000 88206 torch/distributed/run.py:803] *****************************************
+logs/47692689-964e-41a8-ac76-2c48ff64ae8c.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+XSA:[7, 8, 9, 10] ws:8 gqa:8/4
+lr:embed=0.035 matrix=0.025 scalar=0.025 batch:786432 wall:600s seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9279 val_bpb:4.1031 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9299 train_time:135ms step_avg:135.26ms
+step:2/20000 train_loss:8.5642 train_time:206ms step_avg:103.19ms
+step:3/20000 train_loss:7.8180 train_time:291ms step_avg:97.04ms
+step:4/20000 train_loss:7.2359 train_time:377ms step_avg:94.14ms
+step:5/20000 train_loss:7.0664 train_time:461ms step_avg:92.25ms
+step:6/20000 train_loss:6.8296 train_time:545ms step_avg:90.90ms
+step:7/20000 train_loss:6.7201 train_time:630ms step_avg:90.00ms
+step:8/20000 train_loss:6.7474 train_time:715ms step_avg:89.37ms
+step:9/20000 train_loss:6.4049 train_time:800ms step_avg:88.87ms
+step:10/20000 train_loss:6.0801 train_time:884ms step_avg:88.45ms
+step:500/20000 train_loss:2.3988 train_time:42259ms step_avg:84.52ms
+step:1000/20000 train_loss:2.2676 train_time:84642ms step_avg:84.64ms
+step:1500/20000 train_loss:2.2171 train_time:127042ms step_avg:84.69ms
+step:2000/20000 train_loss:2.0573 train_time:169335ms step_avg:84.67ms
+step:2500/20000 train_loss:2.1599 train_time:211615ms step_avg:84.65ms
+step:3000/20000 train_loss:2.1531 train_time:253909ms step_avg:84.64ms
+step:3500/20000 train_loss:2.1730 train_time:296202ms step_avg:84.63ms
+step:4000/20000 train_loss:1.9771 train_time:338462ms step_avg:84.62ms
+step:4000/20000 val_loss:2.0697 val_bpb:1.2258 train_time:338480ms step_avg:84.62ms
+step:4500/20000 train_loss:2.1306 train_time:380739ms step_avg:84.61ms
+step:5000/20000 train_loss:2.1088 train_time:423002ms step_avg:84.60ms
+step:5500/20000 train_loss:2.0204 train_time:465255ms step_avg:84.59ms
+step:6000/20000 train_loss:1.9460 train_time:507526ms step_avg:84.59ms
+swa:start step:6500
+step:6500/20000 train_loss:2.0863 train_time:549823ms step_avg:84.59ms
+late_qat:enabled step:6791 scale:0.0997
+step:7000/20000 train_loss:1.7890 train_time:592523ms step_avg:84.65ms
+step:7089/20000 val_loss:1.9257 val_bpb:1.1405 train_time:600078ms step_avg:84.65ms
+stopping_early: wallclock_cap train_time:600078ms step:7089/20000
+peak memory allocated: 20566 MiB reserved: 20688 MiB
+swa:applying averaged 12 checkpoints
+DIAGNOSTIC post_swa val_loss:1.9256 val_bpb:1.1404 eval_time:1954ms
+Serialized model: 106184265 bytes
+Code size: 68423 bytes
+pruning:2.0% magnitude pruning applied
+Serialized model int6+zstd: 15690530 bytes
+Total submission size int6+zstd: 15758953 bytes
+ttt:phase1_norm:start epochs:50 lr:0.01 unfrozen:22528 frozen:26971228
+ttt:phase1_norm:epoch:1/50 lr:0.010000 loss:1.9423
+ttt:phase1_norm:epoch:2/50 lr:0.009990 loss:1.9313
+ttt:phase1_norm:epoch:3/50 lr:0.009961 loss:1.9420
+ttt:phase1_norm:epoch:4/50 lr:0.009911 loss:1.9360
+ttt:phase1_norm:epoch:5/50 lr:0.009843 loss:1.9413
+ttt:phase1_norm:epoch:6/50 lr:0.009755 loss:1.9413
+ttt:phase1_norm:epoch:7/50 lr:0.009649 loss:1.9388
+ttt:phase1_norm:epoch:8/50 lr:0.009524 loss:1.9375
+ttt:phase1_norm:epoch:9/50 lr:0.009382 loss:1.9378
+ttt:phase1_norm:epoch:10/50 lr:0.009222 loss:1.9360
+ttt:phase1_norm:epoch:11/50 lr:0.009045 loss:1.9347
+ttt:phase1_norm:epoch:12/50 lr:0.008853 loss:1.9369
+ttt:phase1_norm:epoch:13/50 lr:0.008645 loss:1.9459
+ttt:phase1_norm:epoch:14/50 lr:0.008423 loss:1.9366
+ttt:phase1_norm:epoch:15/50 lr:0.008187 loss:1.9400
+ttt:phase1_norm:epoch:16/50 lr:0.007939 loss:1.9351
+ttt:phase1_norm:epoch:17/50 lr:0.007679 loss:1.9374
+ttt:phase1_norm:epoch:18/50 lr:0.007409 loss:1.9393
+ttt:phase1_norm:epoch:19/50 lr:0.007129 loss:1.9350
+ttt:phase1_norm:epoch:20/50 lr:0.006841 loss:1.9339
+ttt:phase1_norm:epoch:21/50 lr:0.006545 loss:1.9326
+ttt:phase1_norm:epoch:22/50 lr:0.006243 loss:1.9344
+ttt:phase1_norm:epoch:23/50 lr:0.005937 loss:1.9331
+ttt:phase1_norm:epoch:24/50 lr:0.005627 loss:1.9325
+ttt:phase1_norm:epoch:25/50 lr:0.005314 loss:1.9408
+ttt:phase1_norm:epoch:26/50 lr:0.005000 loss:1.9345
+ttt:phase1_norm:epoch:27/50 lr:0.004686 loss:1.9373
+ttt:phase1_norm:epoch:28/50 lr:0.004373 loss:1.9315
+ttt:phase1_norm:epoch:29/50 lr:0.004063 loss:1.9367
+ttt:phase1_norm:epoch:30/50 lr:0.003757 loss:1.9389
+ttt:phase1_norm:epoch:31/50 lr:0.003455 loss:1.9372
+ttt:phase1_norm:epoch:32/50 lr:0.003159 loss:1.9320
+ttt:phase1_norm:epoch:33/50 lr:0.002871 loss:1.9341
+ttt:phase1_norm:epoch:34/50 lr:0.002591 loss:1.9301
+ttt:phase1_norm:epoch:35/50 lr:0.002321 loss:1.9425
+ttt:phase1_norm:epoch:36/50 lr:0.002061 loss:1.9407
+ttt:phase1_norm:epoch:37/50 lr:0.001813 loss:1.9333
+ttt:phase1_norm:epoch:38/50 lr:0.001577 loss:1.9368
+ttt:phase1_norm:epoch:39/50 lr:0.001355 loss:1.9371
+ttt:phase1_norm:epoch:40/50 lr:0.001147 loss:1.9351
+ttt:phase1_norm:epoch:41/50 lr:0.000955 loss:1.9335
+ttt:phase1_norm:epoch:42/50 lr:0.000778 loss:1.9367
+ttt:phase1_norm:epoch:43/50 lr:0.000618 loss:1.9282
+ttt:phase1_norm:epoch:44/50 lr:0.000476 loss:1.9332
+ttt:phase1_norm:epoch:45/50 lr:0.000351 loss:1.9300
+ttt:phase1_norm:epoch:46/50 lr:0.000245 loss:1.9309
+ttt:phase1_norm:epoch:47/50 lr:0.000157 loss:1.9398
+ttt:phase1_norm:epoch:48/50 lr:0.000089 loss:1.9387
+ttt:phase1_norm:epoch:49/50 lr:0.000039 loss:1.9344
+ttt:phase1_norm:epoch:50/50 lr:0.000010 loss:1.9317
+ttt:phase1_norm:done
+ttt:phase2_block:start epochs:10 lr:0.005 unfrozen:7624728 frozen:19369028
+ttt:phase2_block:epoch:1/10 lr:0.005000 loss:1.9373
+ttt:phase2_block:epoch:2/10 lr:0.004878 loss:1.9330
+ttt:phase2_block:epoch:3/10 lr:0.004523 loss:1.9338
+ttt:phase2_block:epoch:4/10 lr:0.003969 loss:1.9315
+ttt:phase2_block:epoch:5/10 lr:0.003273 loss:1.9340
+ttt:phase2_block:epoch:6/10 lr:0.002500 loss:1.9373
+ttt:phase2_block:epoch:7/10 lr:0.001727 loss:1.9430
+ttt:phase2_block:epoch:8/10 lr:0.001031 loss:1.9341
+ttt:phase2_block:epoch:9/10 lr:0.000477 loss:1.9332
+ttt:phase2_block:epoch:10/10 lr:0.000122 loss:1.9370
+ttt:phase2_block:done
+ttt:all_done time:354781ms
+final_int6_sliding_window val_loss:1.8947 val_bpb:1.1222 stride:32 eval_time:144594ms
+final_int6_sliding_window_exact val_loss:1.89474231 val_bpb:1.12217684

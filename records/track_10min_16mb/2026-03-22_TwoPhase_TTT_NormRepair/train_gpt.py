@@ -93,7 +93,7 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
-    prune_pct = float(os.environ.get("PRUNE_PCT", 0.01))
+    prune_pct = float(os.environ.get("PRUNE_PCT", 0.02))
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -1365,10 +1365,10 @@ def main() -> None:
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 64))
     # Phase 1: norm-only (quant repair)
-    ttt_p1_epochs = int(os.environ.get("TTT_P1_EPOCHS", 100))
+    ttt_p1_epochs = int(os.environ.get("TTT_P1_EPOCHS", 50))
     ttt_p1_lr = float(os.environ.get("TTT_P1_LR", 0.01))
     # Phase 2: selective-freeze (block adaptation)
-    ttt_p2_epochs = int(os.environ.get("TTT_P2_EPOCHS", 25))
+    ttt_p2_epochs = int(os.environ.get("TTT_P2_EPOCHS", 10))
     ttt_p2_lr = float(os.environ.get("TTT_P2_LR", 0.005))
     ttt_p2_unfreeze_last = int(os.environ.get("TTT_P2_UNFREEZE_LAST", 3))
     ttt_p2_momentum = float(os.environ.get("TTT_P2_MOMENTUM", 0.9))

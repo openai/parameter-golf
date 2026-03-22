@@ -1,8 +1,8 @@
 {
   "name": "11L XSA4 + Tight SWA + FA3 + Two-Phase TTT",
-  "val_loss": 1.1216,
-  "bytes_total": 15704756,
-  "blurb": "11 layers, XSA on last 4, Partial RoPE 16/64, LN Scale, Tight SWA, BigramHash 2048, FA3 Hopper (84.65ms/step), two-phase TTT: phase 1 norm-only recalibration (100ep Adam), phase 2 selective-freeze last 3 blocks (25ep SGD). Based on PR #374.",
+  "val_loss": 1.1227,
+  "bytes_total": 15758953,
+  "blurb": "11 layers, XSA on last 4, Partial RoPE 16/64, LN Scale, Tight SWA, BigramHash 2048, FA3 Hopper (84.65ms/step), two-phase TTT: phase 1 norm-only recalibration (50ep Adam), phase 2 selective-freeze last 3 blocks (10ep SGD). 3-seed mean 1.1227. Based on PR #374.",
   "author": "fbedev",
   "github_id": "fbedev",
   "date": "2026-03-22"
