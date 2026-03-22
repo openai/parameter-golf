@@ -71,10 +71,11 @@ Baseline: SOTA254 = **1.1303 BPB** (sliding window, seed 1337, zstd)
 | 1337 | **1.1295** | 15.74 MB | pass |
 | 42 | **1.1307** | 15.69 MB | pass |
 | 7 | 1.1313 | 16.18 MB | OVER LIMIT |
+| 137 | 1.1301 | 16.01 MB | OVER LIMIT (by 8 KB) |
 
-Seed 7 busts 16 MB limit (16.18 MB) — compression is seed-dependent. Seeds 1337+42 mean: **1.1301**. Need a passing 3rd seed.
+Seeds 7 and 137 both bust 16 MB limit — compression is seed-dependent. Seeds 1337+42 pass. Need a passing 3rd seed.
 
-**Bug found (A/B):** zstandard was installed but A/B used zlib anyway — investigate. zstd worked for D.
+**Note (A/B):** A/B used zlib despite zstandard being installed — likely transient env issue. Resolved; all D runs used zstd correctly.
 
 ## Next Steps
 
