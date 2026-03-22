@@ -250,26 +250,24 @@ def run_experiment(config, run_id):
     for line in stdout.split("\n"):
         if "val_bpb:" in line and "val_bpb:enabled" not in line:
             try:
-                for p in line.split():
-                    if p.startswith("val_bpb:"):
-                        parsed["val_bpb"] = float(p.split(":")[1])
+                # Handle both "val_bpb:1.234" and "val_bpb:  1.234" formats
+                bpb_str = line.split("val_bpb:")[1].strip().split()[0]
+                parsed["val_bpb"] = float(bpb_str)
             except (ValueError, IndexError):
                 pass
         if line.startswith("params:"):
             try:
-                parsed["params"] = line.split()[0].split(":")[1].replace(",", "")
+                parsed["params"] = line.split("params:")[1].strip().split()[0].replace(",", "")
             except (ValueError, IndexError):
                 pass
         if "step_avg:" in line:
             try:
-                for p in line.split():
-                    if p.startswith("step_avg:"):
-                        parsed["avg_ms"] = float(p.split(":")[1].rstrip("ms"))
+                parsed["avg_ms"] = float(line.split("step_avg:")[1].strip().split()[0].rstrip("ms"))
             except (ValueError, IndexError):
                 pass
         if line.startswith("time:"):
             try:
-                parsed["time_s"] = float(line.split()[0].split(":")[1].rstrip("ms")) / 1000
+                parsed["time_s"] = float(line.split("time:")[1].strip().split()[0].rstrip("ms")) / 1000
             except (ValueError, IndexError):
                 pass
         if line.startswith("steps:"):
