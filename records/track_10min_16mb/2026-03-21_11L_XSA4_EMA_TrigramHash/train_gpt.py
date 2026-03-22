@@ -590,15 +590,14 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         use_gqa = self.num_kv_heads != self.num_heads
-        if use_gqa and q.device.type != "cuda":
-            # MPS/CPU: manual GQA expansion (enable_gqa not supported on all backends)
+        if use_gqa:
+            # Manual GQA expansion: enable_gqa requires PyTorch 2.5+, use repeat_interleave for 2.4.x compat
             gs = self.num_heads // self.num_kv_heads
             k = k.repeat_interleave(gs, dim=1)
             v_sdpa = v.repeat_interleave(gs, dim=1)
             y = F.scaled_dot_product_attention(q, k, v_sdpa, attn_mask=None, is_causal=True)
         else:
-            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True,
-                                               enable_gqa=use_gqa)
+            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         # XSA: Exclusive Self Attention (arXiv:2603.09078)
         # Removes the component of each output y_i that lies along its own value v_i.
         # GQA-aware: groups query heads by KV head to avoid repeat_interleave allocation.
@@ -1035,9 +1034,11 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = (torch.compile(base_model, dynamic=False, fullgraph=True)
-                      if device.type == "cuda" else base_model)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    # DDP first, then compile — recommended order for PyTorch 2.4+
+    ddp_model: nn.Module = DDP(base_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else base_model
+    compiled_model = (torch.compile(ddp_model, dynamic=False, fullgraph=True)
+                      if device.type == "cuda" else ddp_model)
+    model: nn.Module = compiled_model
 
     block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [
