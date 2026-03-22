@@ -1225,14 +1225,6 @@ def main() -> None:
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-    # Optional determinism (enable via DETERMINISTIC=1 env var — changes algorithm selection,
-    # so losses will differ from non-deterministic runs but be reproducible across runs)
-    _deterministic = bool(int(os.environ.get("DETERMINISTIC", "0")))
-    if _deterministic:
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-        torch.use_deterministic_algorithms(True, warn_only=True)
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
