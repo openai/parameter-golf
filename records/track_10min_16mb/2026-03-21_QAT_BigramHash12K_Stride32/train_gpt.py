@@ -33,6 +33,12 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+try:
+    from flash_attn.flash_attn_interface import flash_attn_func as _flash_attn_func
+    _HAS_FA3 = True
+except ImportError:
+    _HAS_FA3 = False
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -58,7 +64,7 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -86,12 +92,32 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("EVAL_STRIDE", 32))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 12288))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
-    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
+    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))  # disabled, using EMA instead
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 25))
+
+    # EMA (replaces SWA for #315-style training)
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+
+    # TTT: Test-Time Training on validation data after quantization
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 25))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.008))
+    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
+    ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
+
+    # XSA: Exclusive Self-Attention on last N layers
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
+
+    # Partial RoPE: only apply RoPE to first N dims of each head
+    rope_dims = int(os.environ.get("ROPE_DIMS", 16))
+
+    # LN Scale: scale norm output by 1/sqrt(layer+1)
+    ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -503,9 +529,10 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 
 class Rotary(nn.Module):
-    def __init__(self, dim: int, base: float = 10000.0):
+    def __init__(self, dim: int, base: float = 10000.0, rope_dims: int = 0):
         super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        self.rope_dims = rope_dims if rope_dims > 0 else dim
+        inv_freq = 1.0 / (base ** (torch.arange(0, self.rope_dims, 2, dtype=torch.float32) / self.rope_dims))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
@@ -527,13 +554,20 @@ class Rotary(nn.Module):
 
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    rd = cos.size(-1) * 2  # number of RoPE dims
+    if rd < x.size(-1):
+        x_rope, x_pass = x[..., :rd], x[..., rd:]
+        half = rd // 2
+        x1, x2 = x_rope[..., :half], x_rope[..., half:]
+        x_rot = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+        return torch.cat((x_rot, x_pass), dim=-1)
     half = x.size(-1) // 2
     x1, x2 = x[..., :half], x[..., half:]
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float, rope_dims: int = 0, use_xsa: bool = False):
         super().__init__()
         if dim % num_heads != 0:
             raise ValueError("model_dim must be divisible by num_heads")
@@ -542,6 +576,7 @@ class CausalSelfAttention(nn.Module):
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
+        self.use_xsa = use_xsa
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
         kv_dim = self.num_kv_heads * self.head_dim
@@ -551,24 +586,54 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(self.head_dim, base=rope_base, rope_dims=rope_dims)
+
+    def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
+        """Remove self-value component from attention output via orthogonal projection."""
+        # y: (B, H, T, D), v: (B, Hkv, T, D)
+        B, H, T, D = y.shape
+        Hkv = v.size(1)
+        group = H // Hkv
+        y_g = y.reshape(B, Hkv, group, T, D)
+        vn = F.normalize(v, dim=-1).unsqueeze(2)  # (B, Hkv, 1, T, D)
+        proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
+        return (y_g - proj).reshape(B, H, T, D)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        # (B, T, H, D) -> (B, H, T, D) for norm/rope
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q, k, v, attn_mask=None, is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
-        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        if _HAS_FA3:
+            # FA3 expects (B, T, H, D)
+            q_fa = q.transpose(1, 2)
+            k_fa = k.transpose(1, 2)
+            v_fa = v.transpose(1, 2)
+            y = _flash_attn_func(q_fa, k_fa, v_fa, causal=True)
+            # y is (B, T, H, D), convert to (B, H, T, D) for XSA
+            if self.use_xsa:
+                y = self._xsa_efficient(y.transpose(1, 2), v)
+                y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+            else:
+                y = y.contiguous().reshape(bsz, seqlen, dim)
+        else:
+            y = F.scaled_dot_product_attention(
+                q, k, v, attn_mask=None, is_causal=True,
+                enable_gqa=(self.num_kv_heads != self.num_heads),
+            )
+            if self.use_xsa:
+                y = self._xsa_efficient(y, v)
+            y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
@@ -625,11 +690,12 @@ class BigramHashEmbedding(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float, layer_idx: int = 0, ln_scale: bool = False, rope_dims: int = 0, use_xsa: bool = False):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims=rope_dims, use_xsa=use_xsa)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -638,9 +704,10 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        s = self.ln_scale_factor
+        attn_out = self.attn(self.attn_norm(x) * s)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * s)
         return x
 
 
@@ -660,6 +727,9 @@ class GPT(nn.Module):
         qk_gain_init: float,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
+        xsa_last_n: int = 0,
+        rope_dims: int = 0,
+        ln_scale: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -676,8 +746,10 @@ class GPT(nn.Module):
         self.smear = SmearGate(model_dim)
         self.blocks = nn.ModuleList(
             [
-                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
-                for _ in range(num_layers)
+                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
+                      layer_idx=i, ln_scale=ln_scale, rope_dims=rope_dims,
+                      use_xsa=(i >= num_layers - xsa_last_n) if xsa_last_n > 0 else False)
+                for i in range(num_layers)
             ]
         )
         self.final_norm = RMSNorm()
@@ -929,17 +1001,23 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
+        xsa_last_n=args.xsa_last_n,
+        rope_dims=args.rope_dims,
+        ln_scale=args.ln_scale,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     # QAT: fake-quantize during training so weights learn to be quantization-friendly
+    # Late-stage QAT: only enable in the last 20% of training to avoid hurting convergence
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "1")))
+    qat_start_frac = float(os.environ.get("QAT_START_FRAC", "0.96"))  # enable QAT after this fraction of steps (final 4%)
+    qat_activated = False
     if qat_enabled:
         for name, module in base_model.named_modules():
             if isinstance(module, CastedLinear):
-                module._qat = True
+                module._qat = False  # start with QAT disabled
                 module._qat_int5 = ".mlp." in name
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
@@ -1060,6 +1138,11 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
+    # EMA state
+    ema_state: dict[str, Tensor] | None = None
+    if args.ema_enabled:
+        ema_state = {name: t.detach().cpu().clone() for name, t in base_model.state_dict().items()}
+
     # MAIN TRAINING LOOP
     training_time_ms = 0.0
     stop_after_step: int | None = None
@@ -1127,6 +1210,26 @@ def main() -> None:
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
+        # Late-stage QAT: enable fake-quantize after qat_start_frac of training
+        if qat_enabled and not qat_activated:
+            # Estimate progress: use wallclock fraction if available, else step fraction
+            if max_wallclock_ms is not None:
+                progress = approx_training_time_ms / max_wallclock_ms
+            else:
+                progress = step / args.iterations
+            if progress >= qat_start_frac:
+                for module in base_model.modules():
+                    if isinstance(module, CastedLinear):
+                        module._qat = True
+                qat_activated = True
+                log0(f"qat:enabled at step:{step} progress:{progress:.3f}")
+
+        # EMA: update exponential moving average every step
+        if args.ema_enabled and ema_state is not None:
+            decay = args.ema_decay
+            for name, t in base_model.state_dict().items():
+                ema_state[name].mul_(decay).add_(t.detach().cpu(), alpha=1.0 - decay)
+
         # SWA: collect checkpoints during warmdown
         if args.swa_enabled and scale < args.swa_start_frac and step % args.swa_every == 0:
             if swa_state is None:
@@ -1160,6 +1263,16 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+
+    # Apply EMA if enabled
+    if args.ema_enabled and ema_state is not None:
+        log0(f"ema:applying decay={args.ema_decay}")
+        current_state = base_model.state_dict()
+        ema_applied = {
+            name: tensor.to(dtype=current_state[name].dtype)
+            for name, tensor in ema_state.items()
+        }
+        base_model.load_state_dict(ema_applied, strict=True)
 
     # Apply SWA if collected
     if args.swa_enabled and swa_state is not None and swa_count > 1:
@@ -1217,6 +1330,40 @@ def main() -> None:
     quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
     deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
     base_model.load_state_dict(deq_state, strict=True)
+
+    # TTT: Test-Time Training — adapt quantized model on val data before final eval
+    if args.ttt_enabled:
+        torch.cuda.synchronize()
+        t_ttt = time.perf_counter()
+        log0(f"ttt:start epochs:{args.ttt_epochs} lr:{args.ttt_lr} batch_seqs:{args.ttt_batch_seqs}")
+        base_model.train()
+        ttt_optimizer = torch.optim.SGD(
+            base_model.parameters(), lr=args.ttt_lr, momentum=args.ttt_momentum,
+        )
+        seq_len = args.train_seq_len
+        n_val = val_tokens.numel() - 1
+        n_seqs = n_val // seq_len
+        for ttt_ep in range(args.ttt_epochs):
+            perm = torch.randperm(n_seqs)
+            ttt_loss_sum = 0.0
+            ttt_loss_count = 0
+            for batch_start in range(0, n_seqs, args.ttt_batch_seqs):
+                batch_end = min(batch_start + args.ttt_batch_seqs, n_seqs)
+                indices = perm[batch_start:batch_end]
+                batch_x = torch.stack([val_tokens[i * seq_len : i * seq_len + seq_len] for i in indices]).to(device=device, dtype=torch.int64)
+                batch_y = torch.stack([val_tokens[i * seq_len + 1 : i * seq_len + seq_len + 1] for i in indices]).to(device=device, dtype=torch.int64)
+                ttt_optimizer.zero_grad(set_to_none=True)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    loss = base_model(batch_x, batch_y)
+                loss.backward()
+                ttt_optimizer.step()
+                ttt_loss_sum += loss.item() * (batch_end - batch_start)
+                ttt_loss_count += batch_end - batch_start
+            if ttt_ep == 0 or (ttt_ep + 1) % 5 == 0 or ttt_ep == args.ttt_epochs - 1:
+                log0(f"ttt:epoch:{ttt_ep + 1}/{args.ttt_epochs} loss:{ttt_loss_sum / max(ttt_loss_count, 1):.4f}")
+        base_model.eval()
+        torch.cuda.synchronize()
+        log0(f"ttt:done time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
     # Sliding window eval on int6-roundtripped weights
     torch.cuda.synchronize()
