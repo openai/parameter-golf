@@ -1,0 +1,11 @@
+{
+    "author": "Vytautas Bunevicius",
+    "github_id": "vytautas-bunevicius",
+    "name": "11L mixed int5/int6 + working QAT + TTT",
+    "blurb": "Non-record submission stacking 8 techniques on PR #315: working QAT (fixed dead code), mixed int5/int6 quantization, test-time training, BigramHash(10240), memory tokens, backout connection, per-head temperature, eval stride 32. Ran with PyTorch SDPA (no FA3), 5129 steps at 110ms/step.",
+    "date": "2026-03-22T12:20:51Z",
+    "val_loss": 1.93594245,
+    "val_bpb": 1.14657797,
+    "bytes_total": 14706424,
+    "bytes_code": 75257
+}
