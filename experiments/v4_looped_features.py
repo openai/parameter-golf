@@ -1108,7 +1108,7 @@ def eval_val_sliding(
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     base_model.eval()
-    compiled_logits = torch.compile(base_model, disable=True.forward_logits, dynamic=False, fullgraph=False)
+    compiled_logits = base_model.forward_logits
 
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
@@ -1382,7 +1382,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, disable=True, dynamic=False, fullgraph=False)
+    compiled_model = base_model  # no compile for looped arch
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
