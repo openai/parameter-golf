@@ -956,10 +956,9 @@ class MLP(nn.Module):
         if not self.training and _HAS_TRITON:
             h_pre = self.fc(x)  # CastedLinear handles fp32->bf16 cast
             return fused_relu_sq_proj(h_pre, self.proj.weight.to(h_pre.dtype))
-        if self.training and _HAS_TRITON and x.is_cuda:
+        if False and self.training and _HAS_TRITON and x.is_cuda:  # Disabled: torch.compile beats custom kernels
             B, S, D = x.shape
             x2d = x.reshape(-1, D)
-            # Pass raw fp32 params — Function casts internally, autograd reaches actual params
             out2d = _FusedReLU2MLPFunction.apply(x2d, self.fc.weight, self.proj.weight)
             return out2d.view(B, S, -1)
         # Fallback
@@ -1023,20 +1022,12 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor, q_delta_fn=None, v_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        if _HAS_TRITON and x.is_cuda:
-            bsz_seq = x.shape[0] * x.shape[1]
-            dim = x.shape[-1]
-            n = _FusedRMSNormFunction.apply(x.reshape(bsz_seq, dim), 1e-6).reshape(x.shape)
-        else:
-            n = self.attn_norm(x)
+        n = self.attn_norm(x)
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
         attn_out = self.attn(n, qd, vd)
         x = x + self.ln_scale * self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        if _HAS_TRITON and x.is_cuda:
-            mlp_in = _FusedRMSNormFunction.apply(x.reshape(bsz_seq, dim), 1e-6).reshape(x.shape)
-        else:
-            mlp_in = self.mlp_norm(x)
+        mlp_in = self.mlp_norm(x)
         x = x + self.ln_scale * self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(mlp_in)
         return x
 
