@@ -52,7 +52,7 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1600))      # ~24% of ~6,700 steps at 90ms/step
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 800))       # ~12% of ~6,700 steps at 90ms/step
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 262_144))  # 8 seqs × 8 GPUs × 4096
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 4096))
@@ -69,7 +69,7 @@ class Hyperparameters:
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 40000.0))           # 10000 × (4096/1024); same freq resolution at 4096
+    rope_base = float(os.environ.get("ROPE_BASE", 41832.0))           # NTK: 10000 × (4096/1024)^(head_dim/(head_dim-2)) = 10000 × 4^(64/62)
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Optimizer hyperparameters.
