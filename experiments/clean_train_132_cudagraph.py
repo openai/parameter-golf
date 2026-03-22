@@ -423,9 +423,6 @@ class DistributedTokenLoader:
         local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
-        # Pin memory so non_blocking=True actually enables async CPU→GPU transfer
-        x = x.pin_memory()
-        y = y.pin_memory()
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
 
 
@@ -669,8 +666,6 @@ class GPT(nn.Module):
         mtp_loss_weight: float = 0.1,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
-        max_batch_seqs: int = 48,
-        max_seq_len: int = 2048,
         partial_key_offset: bool = False,
     ):
         super().__init__()
@@ -715,10 +710,6 @@ class GPT(nn.Module):
         if partial_key_offset:
             for block in self.blocks:
                 block.attn.use_partial_key_offset = True
-        # Pre-allocate skip buffer for CUDA graph compatibility (no dynamic list ops in forward)
-        self._max_batch_seqs = max_batch_seqs
-        self._max_seq_len = max_seq_len
-        self.register_buffer('_skip_buf', torch.zeros(self.num_encoder_layers, max_batch_seqs, max_seq_len, model_dim), persistent=False)
 
     def _init_weights(self) -> None:
         if self.tie_embeddings:
@@ -741,17 +732,14 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
         x0 = x
+        skips: list[Tensor] = []
 
-        # Use pre-allocated skip buffers (CUDA graph safe — no dynamic list ops)
-        bsz, seqlen, dim = x.shape
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
-            self._skip_buf[i, :bsz, :seqlen, :] = x
+            skips.append(x)
         for i in range(self.num_decoder_layers):
-            skip_idx = self.num_encoder_layers - 1 - i
-            if skip_idx >= 0:
-                skip = self._skip_buf[skip_idx, :bsz, :seqlen, :]
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x)
@@ -793,15 +781,13 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
         x0 = x
-        bsz, seqlen, dim = x.shape
+        skips: list[Tensor] = []
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
-            self._skip_buf[i, :bsz, :seqlen, :] = x
+            skips.append(x)
         for i in range(self.num_decoder_layers):
-            skip_idx = self.num_encoder_layers - 1 - i
-            if skip_idx >= 0:
-                skip = self._skip_buf[skip_idx, :bsz, :seqlen, :]
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
         x = self.final_norm(x)
         if self.tie_embeddings:
@@ -848,18 +834,15 @@ def eval_val_sliding(
     base_model.eval()
     compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
 
-    # Pre-allocate fixed-size batches to avoid CUDA graph recapture on varying bsz
-    x_batch = torch.zeros(batch_seqs, seq_len, dtype=torch.int64, device=device)
-    y_batch = torch.zeros(batch_seqs, seq_len, dtype=torch.int64, device=device)
-
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
-            actual_bsz = len(batch_ws)
+            bsz = len(batch_ws)
+
+            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
             wlens: list[int] = []
 
-            x_batch.zero_()
-            y_batch.zero_()
             for i, ws in enumerate(batch_ws):
                 end = min(ws + seq_len, total_tokens)
                 wlen = end - ws
@@ -875,9 +858,8 @@ def eval_val_sliding(
                 logits.reshape(-1, logits.size(-1)).float(),
                 y_batch.reshape(-1),
                 reduction="none",
-            ).reshape(batch_seqs, seq_len)
+            ).reshape(bsz, seq_len)
 
-            # Only score actual (non-padding) rows
             for i, ws in enumerate(batch_ws):
                 wlen = wlens[i]
                 s = 0 if ws == 0 else max(wlen - stride, 0)
@@ -1196,7 +1178,7 @@ def main() -> None:
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
-    torch._inductor.config.triton.cudagraph_trees = True
+    torch._inductor.config.triton.cudagraph_trees = False
 
     # Set MLP activation before model creation
     MLP._activation = args.mlp_activation
@@ -1301,15 +1283,13 @@ def main() -> None:
         mtp_loss_weight=args.mtp_loss_weight,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
-        max_batch_seqs=args.max_batch_seqs,
-        max_seq_len=args.max_seq_len_buf,
         partial_key_offset=args.partial_key_offset,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, mode='reduce-overhead', dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     # Use DDP or manual grad sync based on env var
     use_manual_sync = bool(int(os.environ.get("USE_MANUAL_SYNC", "0")))
     if use_manual_sync:
@@ -1780,7 +1760,6 @@ def main() -> None:
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         mtp_num_heads=0, mtp_loss_weight=0.0,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
-        max_batch_seqs=args.max_batch_seqs, max_seq_len=args.max_seq_len_buf,
         partial_key_offset=args.partial_key_offset,
     ).to(device).bfloat16()
     for m in eval_model.modules():
@@ -1797,7 +1776,7 @@ def main() -> None:
         torch.cuda.synchronize()
         log0(f"ttt:completed in {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
-    compiled_eval = torch.compile(eval_model, mode='reduce-overhead', dynamic=False, fullgraph=True)
+    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
 
     # Standard non-overlapping eval (sanity check)
     torch.cuda.synchronize()
