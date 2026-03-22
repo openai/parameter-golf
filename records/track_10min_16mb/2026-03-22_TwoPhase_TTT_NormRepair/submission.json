@@ -1,0 +1,9 @@
+{
+  "name": "11L XSA4 + Tight SWA + Two-Phase TTT",
+  "val_loss": 1.1258,
+  "bytes_total": 15762005,
+  "blurb": "11 layers, XSA on last 4, Partial RoPE 16/64, LN Scale, Tight SWA, BigramHash 2048, two-phase TTT: phase 1 norm-only recalibration (100ep Adam), phase 2 selective-freeze last 2 blocks (15ep SGD). Based on PR #374.",
+  "author": "fbedev",
+  "github_id": "fbedev",
+  "date": "2026-03-22"
+}
