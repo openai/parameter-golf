@@ -789,7 +789,6 @@ class DGAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         # Learned mixing: how much differential vs raw per head
-        self.alpha = nn.Parameter(torch.tensor(0.9, dtype=torch.float32))  # EMA decay
         self.beta = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))   # raw vs diff mix
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.d_head_dim, base=rope_base)
@@ -805,17 +804,15 @@ class DGAttention(nn.Module):
         dq = apply_rotary_emb(dq, cos, sin)
         dk = apply_rotary_emb(dk, cos, sin)
         dq = dq * self.q_gain.to(dtype=dq.dtype)[None, :, None, None]
-        # EMA baseline (exponential moving average, not global mean)
-        alpha = torch.sigmoid(self.alpha).to(dtype=x.dtype)
-        ema = torch.zeros_like(x[:, :1, :])
-        ema_list = [ema]
-        for t in range(1, seqlen):
-            ema = alpha * ema + (1 - alpha) * x[:, t-1:t, :]
-            ema_list.append(ema)
-        ema_baseline = torch.cat(ema_list, dim=1)
+        # Causal mean baseline via parallel cumsum (no sequential loop)
+        prefix = x.cumsum(dim=1)
+        counts = torch.arange(1, seqlen + 1, device=x.device, dtype=x.dtype).view(1, -1, 1)
+        mean_inclusive = prefix / counts
+        # Shift right: baseline at position t = mean of positions 0..t-1
+        baseline = torch.cat([torch.zeros_like(mean_inclusive[:, :1]), mean_inclusive[:, :-1]], dim=1)
         # Hybrid payload: mix differential novelty with raw content
         mix = torch.sigmoid(self.beta)
-        diff_signal = self.c_g(x - ema_baseline)
+        diff_signal = self.c_g(x - baseline)
         raw_signal = self.c_v(x)
         payload = (1 - mix) * diff_signal + mix * raw_signal
         payload = payload.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
