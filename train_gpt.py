@@ -24,8 +24,6 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
-import triton
-import triton.language as tl
 from attention_playground import apply_attention_playground, maybe_init_ema, maybe_load_init_ckpt, maybe_swap_to_ema, maybe_update_ema
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -47,23 +45,9 @@ _CGGR_WARMUP = int(os.environ.get("CGGR_WARMUP", "500"))
 _CGGR_DECAY_END = int(os.environ.get("CGGR_DECAY_END", "0"))  # step at which ratio reaches CGGR_RATIO_FINAL; 0 = no decay period
 
 
-@triton.jit
-def _token_entropy_kernel(logits_ptr, entropy_ptr, V: tl.constexpr, BLOCK_V: tl.constexpr):
-    """Fused softmax+entropy in one pass — avoids materialising the full (N,V) prob tensor."""
-    row = tl.program_id(0)
-    cols = tl.arange(0, BLOCK_V)
-    x = tl.load(logits_ptr + row * V + cols, mask=cols < V, other=-float("inf")).to(tl.float32)
-    x -= tl.max(x, axis=0)          # numerically stable
-    exp_x = tl.exp(x)
-    p = exp_x / tl.sum(exp_x, axis=0)
-    tl.store(entropy_ptr + row, -tl.sum(p * tl.log(p + 1e-9), axis=0))
-
-
 def _token_entropy(logits: Tensor) -> Tensor:
-    N, V = logits.shape
-    entropy = torch.empty(N, device=logits.device, dtype=torch.float32)
-    _token_entropy_kernel[(N,)](logits.contiguous(), entropy, V=V, BLOCK_V=triton.next_power_of_2(V))
-    return entropy
+    log_p = F.log_softmax(logits.float(), dim=-1)
+    return -(log_p.exp() * log_p).sum(dim=-1)
 
 
 @torch._dynamo.disable  # avoids graph-break recompilations from the data-dependent step branch
