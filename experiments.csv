@@ -25,4 +25,5 @@ transformer_v13_11L_3xMLP_int6_QAT,4800,15648880,15577009,71871,1,1435.95,1.1440
 transformer_v15_SWA_seed42,4800,15137840,15064700,73140,1,1438.21,1.1403,8d52f5d,"11L 3xMLP int6+zstd lateQAT SWA(24ckpt) WD=3000 seed=42 (9205 steps, 15.1MB, BEATS #1!!!)"
 transformer_v16_batch786k,4800,15131462,15058322,73140,1,1437.15,1.1398,8d52f5d,"v15 + batch=786K seed=1337 (6378 steps @ 753ms, marginally better)"
 transformer_v18_full_stack,4800,15028926,,77416,1,1566.23,1.1386,f509b27,"11L 3xMLP XSA4 PartialRoPE16 LNScale EMA GPTQ SWA QAT@0.15 batch=786K (6329 steps, 15.0MB)"
+8xh100_v18_test2,600,14900391,14822795,77515,8,286.38,1.1654,af66dda,"8xH100 10min: same config (4549 steps @ 132ms, train+eval within limits!)"
 transformer_v9b_int6_80min,4800,9506368,9438929,67439,1,1190.41,1.2017,e2d0e45,"10L int6+zstd (9.5MB artifact, but 0.034 quant damage — need QAT to fix)"
