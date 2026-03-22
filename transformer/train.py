@@ -1818,7 +1818,6 @@ def main() -> None:
 
     # Sliding window evaluation (the main competition metric)
     if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
-        torch._dynamo.reset()
         torch.cuda.synchronize()
         t_slide = time.perf_counter()
         slide_val_loss, slide_val_bpb = eval_val_sliding(
