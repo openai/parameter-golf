@@ -17,7 +17,7 @@ cd "$REPO"
 mkdir -p logs artifacts
 
 NPROC="${NPROC_PER_NODE:-8}"
-EXPERIMENTS=("${@:-A B C}")
+if [ $# -eq 0 ]; then EXPERIMENTS=(A B C); else EXPERIMENTS=("$@"); fi
 
 # ---------------------------------------------------------------------------
 # Data setup — download if not present
