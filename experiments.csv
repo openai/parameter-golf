@@ -28,4 +28,5 @@ transformer_v18_full_stack,4800,15028926,,77416,1,1566.23,1.1386,f509b27,"11L 3x
 8xh100_v18_test2,600,14900391,14822795,77515,8,286.38,1.1654,af66dda,"8xH100 10min: same config (4549 steps @ 132ms, 14.9MB, need faster step for competition)"
 8xh100_v18_FA3_ddpfix,600,14945352,14867047,78305,8,273.90,1.1573,a7a3d2d,"8xH100 10min FA3+DDPfix (5320 steps @ 109ms, 14.9MB, +17% steps from FA3)"
 8xh100_v18_test2,600,14900391,14822795,77515,8,286.38,1.1654,af66dda,"8xH100 10min: same config (4549 steps @ 132ms, train+eval within limits!)"
+transformer_v23_tightSWA,4800,15169602,,77466,1,1565.75,1.1428,393d474,"v18 + tight SWA(0.2): worse than v18's SWA(0.4). SWA(0.4) is better."
 transformer_v9b_int6_80min,4800,9506368,9438929,67439,1,1190.41,1.2017,e2d0e45,"10L int6+zstd (9.5MB artifact, but 0.034 quant damage — need QAT to fix)"
