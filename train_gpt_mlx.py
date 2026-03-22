@@ -78,9 +78,25 @@ class Hyperparameters:
     tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     logit_chunk_tokens: int = int(os.environ.get("LOGIT_CHUNK_TOKENS", 0))
-    logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 20.0))
+    logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     qk_gain_init: float = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    # Partial RoPE: only rotate this many dims (rest are position-free)
+    rope_dims: int = int(os.environ.get("ROPE_DIMS", 16))
+    # LN Scale: damp deeper layers by 1/sqrt(layer_idx+1)
+    ln_scale: bool = bool(int(os.environ.get("LN_SCALE", "1")))
+    # XSA: Exclusive Self Attention on last N layers
+    xsa_last_n: int = int(os.environ.get("XSA_LAST_N", 4))
+    # Shared Value Embedding
+    ve_enabled: bool = bool(int(os.environ.get("VE_ENABLED", "1")))
+    ve_dim: int = int(os.environ.get("VE_DIM", 128))
+    ve_layers: str = os.environ.get("VE_LAYERS", "9,10")
+    # GPTQ-lite: per-tensor clip ratio search at quantization time
+    gptq_lite: bool = bool(int(os.environ.get("GPTQ_LITE", "1")))
+    # PPM-C eval-time context mixer
+    ppm_enabled: bool = bool(int(os.environ.get("PPM_ENABLED", "1")))
+    ppm_order: int = int(os.environ.get("PPM_ORDER", 2))
+    ppm_alpha: float = float(os.environ.get("PPM_ALPHA", 0.95))
 
     # Optimizer. We keep the same per-group defaults as train_gpt.py.
     beta1: float = float(os.environ.get("BETA1", 0.9))
@@ -96,9 +112,10 @@ class Hyperparameters:
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
     muon_weight_decay: float = float(os.environ.get("MUON_WEIGHT_DECAY", 0.038))
 
-    # Stochastic Weight Averaging: average checkpoints during warmdown.
+    # Tight SWA: only average checkpoints from last part of warmdown (scale<0.2)
     swa_enabled: bool = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_every: int = int(os.environ.get("SWA_EVERY", 50))
+    swa_threshold: float = float(os.environ.get("SWA_THRESHOLD", 0.2))  # only collect when lr_scale < this
 
     # Int6 QAT: simulate 6-bit quantization during training with STE.
     qat_enabled: bool = bool(int(os.environ.get("QAT_ENABLED", "1")))
@@ -310,19 +327,23 @@ class RMSNormNoWeight(nn.Module):
         return rms_norm(x)
 
 
+class PartialRoPE(nn.Module):
+    """RoPE applied only to the first `rope_dims` of each head. Rest are position-free."""
+    def __init__(self, head_dim: int, rope_dims: int, base: float = 10000.0):
+        super().__init__()
+        self.rope_dims = min(rope_dims, head_dim)
+        self.rope = nn.RoPE(self.rope_dims, traditional=False, base=base) if self.rope_dims > 0 else None
+
+    def __call__(self, x: mx.array) -> mx.array:
+        if self.rope is None or self.rope_dims >= x.shape[-1]:
+            return self.rope(x) if self.rope else x
+        rotated = self.rope(x[..., :self.rope_dims])
+        return mx.concatenate([rotated, x[..., self.rope_dims:]], axis=-1)
+
+
 class CausalSelfAttention(nn.Module):
-    # - separate q/k/v projections
-    # - RMSNorm on q and k before attention
-    # - RoPE on q and k
-    # - causal masked SDPA
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        rope_base: float,
-        qk_gain_init: float,
-    ):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float,
+                 qk_gain_init: float, rope_dims: int = 64):
         super().__init__()
         if dim % num_heads != 0:
             raise ValueError("model_dim must be divisible by num_heads")
@@ -331,27 +352,35 @@ class CausalSelfAttention(nn.Module):
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
-        if self.head_dim % 2 != 0:
-            raise ValueError("head_dim must be even for RoPE")
+        self.group_size = num_heads // num_kv_heads
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim)
         self.c_k = CastedLinear(dim, kv_dim)
         self.c_v = CastedLinear(dim, kv_dim)
         self.proj = CastedLinear(dim, dim)
         self.q_gain = mx.ones((num_heads,), dtype=mx.float32) * qk_gain_init
-        self.rope = nn.RoPE(self.head_dim, traditional=False, base=rope_base)
+        self.rope = PartialRoPE(self.head_dim, rope_dims, base=rope_base)
         self.scale = self.head_dim ** -0.5
+        self.use_xsa = False  # set per-layer by GPT
 
-    def __call__(self, x: mx.array) -> mx.array:
+    def __call__(self, x: mx.array, ve: mx.array | None = None) -> mx.array:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
-
+        if ve is not None:
+            v = v + ve.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
         q = self.rope(rms_norm(q).astype(COMPUTE_DTYPE))
         k = self.rope(rms_norm(k).astype(COMPUTE_DTYPE))
         q = q * self.q_gain.astype(q.dtype)[None, :, None, None]
         y = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask="causal")
+        # XSA: remove self-value bias (arXiv:2603.09078), GQA-aware
+        if self.use_xsa:
+            y_g = y.reshape(bsz, self.num_kv_heads, self.group_size, seqlen, self.head_dim)
+            vn = v / (mx.sqrt((v * v).sum(-1, keepdims=True)) + 1e-6)
+            vn = mx.expand_dims(vn, 2)
+            y_g = y_g - (y_g * vn).sum(-1, keepdims=True) * vn
+            y = y_g.reshape(bsz, self.num_heads, seqlen, self.head_dim)
         y = y.transpose(0, 2, 1, 3).reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -393,41 +422,53 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        rope_base: float,
-        qk_gain_init: float,
-    ):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
+                 rope_base: float, qk_gain_init: float, rope_dims: int = 64,
+                 layer_idx: int = 0, ln_scale: bool = False):
         super().__init__()
         self.attn_norm = RMSNormNoWeight()
         self.mlp_norm = RMSNormNoWeight()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
+        self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
-    def __call__(self, x: mx.array, x0: mx.array) -> mx.array:
+    def __call__(self, x: mx.array, x0: mx.array, ve: mx.array | None = None) -> mx.array:
         mix = self.resid_mix.astype(x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        n = self.attn_norm(x)
+        if self.ln_scale_factor != 1.0:
+            n = n * self.ln_scale_factor
+        attn_out = self.attn(n, ve)
         x = x + self.attn_scale.astype(x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        n2 = self.mlp_norm(x)
+        if self.ln_scale_factor != 1.0:
+            n2 = n2 * self.ln_scale_factor
+        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(n2)
         return x
 
 
+class SharedValueEmbedding(nn.Module):
+    """Shared value embedding table projected to KV dim. Added to V in selected layers."""
+    def __init__(self, vocab_size: int, ve_dim: int, kv_dim: int):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, ve_dim)
+        self.proj = CastedLinear(ve_dim, kv_dim)
+        # Per-layer learned scale (initialized small)
+        self.layer_scales = {}
+
+    def __call__(self, token_ids: mx.array) -> mx.array:
+        return self.proj(self.embed(token_ids))
+
+
 class GPT(nn.Module):
-    # - token embedding + RMSNorm
-    # - encoder half accumulates skip tensors
-    # - decoder half consumes reversed skips with learned skip_weights
-    # - tied embeddings for the LM head (the baseline default setup)
     def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
-                 qk_gain_init: float, qat_enabled: bool = False, qat_bits: int = 6):
+                 qk_gain_init: float, qat_enabled: bool = False, qat_bits: int = 6,
+                 rope_dims: int = 16, ln_scale: bool = True, xsa_last_n: int = 4,
+                 ve_enabled: bool = False, ve_dim: int = 128, ve_layers: str = ""):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
@@ -435,6 +476,7 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.qat_enabled = qat_enabled
         self.qat_bits = qat_bits
+        self.ve_layer_set = set(int(x) for x in ve_layers.split(",") if x.strip()) if ve_layers else set()
 
         self.tok_emb = nn.Embedding(vocab_size, dim)
         self.smear_gate = SmearGate(dim)
@@ -442,8 +484,12 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
+        kv_dim = (num_kv_heads * dim) // num_heads
+        self.ve = SharedValueEmbedding(vocab_size, ve_dim, kv_dim) if ve_enabled and self.ve_layer_set else None
+        self.ve_scales = [mx.array(0.1, dtype=mx.float32) for _ in range(num_layers)]  # per-layer VE scale
         self.blocks = [
-            Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+            Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
+                  rope_dims=rope_dims, layer_idx=i, ln_scale=ln_scale)
             for i in range(num_layers)
         ]
         self.final_norm = RMSNormNoWeight()
@@ -455,11 +501,10 @@ class GPT(nn.Module):
             mx.random.normal(self.tok_emb.weight.shape, dtype=mx.float32) * tied_embed_init_std
         ).astype(COMPUTE_DTYPE)
 
-        # Propagate QAT bits to all CastedLinear layers
-        if qat_enabled:
-            for b in self.blocks:
-                for layer in [b.attn.c_q, b.attn.c_k, b.attn.c_v, b.attn.proj, b.mlp.fc, b.mlp.proj]:
-                    layer.qat_bits = qat_bits
+        # XSA on last N layers
+        if xsa_last_n > 0:
+            for i in range(max(0, num_layers - xsa_last_n), num_layers):
+                self.blocks[i].attn.use_xsa = True
 
     def softcap(self, logits: mx.array) -> mx.array:
         c = self.logit_softcap
@@ -469,15 +514,19 @@ class GPT(nn.Module):
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
         x = self.smear_gate(x)
         x0 = x
+        ve_base = self.ve(input_ids) if self.ve is not None else None
         skips: list[mx.array] = []
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            ve_i = (ve_base * self.ve_scales[i]) if (ve_base is not None and i in self.ve_layer_set) else None
+            x = self.blocks[i](x, x0, ve_i)
             skips.append(x)
         for i in range(self.num_decoder_layers):
+            bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            ve_i = (ve_base * self.ve_scales[bi]) if (ve_base is not None and bi in self.ve_layer_set) else None
+            x = self.blocks[bi](x, x0, ve_i)
         return self.final_norm(x)
 
     def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
@@ -630,16 +679,33 @@ def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str
     return np.ascontiguousarray(np.array(arr, copy=True))
 
 
-def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
-    # Standard int8 per-row quantization. Int6 step-rounding is applied post-hoc.
+def _quant_int8_row(f32: np.ndarray, clip_q: float) -> tuple[np.ndarray, np.ndarray, float]:
+    """Quantize 2D array with given clip percentile. Returns (q, scale, recon_error)."""
+    clip_abs = np.quantile(np.abs(f32), clip_q, axis=1) if f32.size else np.empty((f32.shape[0],), dtype=np.float32)
+    clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
+    scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32)
+    q = np.clip(np.round(clipped / scale[:, None]), -127, 127).astype(np.int8)
+    recon = q.astype(np.float32) * scale[:, None]
+    err = float(np.mean((f32 - recon) ** 2))
+    return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE)), err
+
+
+def quantize_float_array(arr: mx.array, gptq_lite: bool = False) -> tuple[np.ndarray, np.ndarray]:
     f32 = _np_float32(arr)
     if f32.ndim == 2:
+        if gptq_lite:
+            # GPTQ-lite: try multiple clip ratios, pick lowest reconstruction error
+            best_q, best_s, best_err = None, None, float('inf')
+            for clip_q in [0.9999, 0.99999, 0.999999, 0.9999984, 1.0]:
+                q, s, err = _quant_int8_row(f32, clip_q)
+                if err < best_err:
+                    best_q, best_s, best_err = q, s, err
+            return best_q, best_s
         clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((f32.shape[0],), dtype=np.float32)
         clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
         scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
         q = np.clip(np.round(clipped / scale[:, None]), -127, 127).astype(np.int8, copy=False)
         return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False))
-
     clip_abs = float(np.quantile(np.abs(f32).reshape(-1), INT8_CLIP_Q)) if f32.size else 0.0
     scale = np.array(clip_abs / 127.0 if clip_abs > 0.0 else 1.0, dtype=np.float32)
     q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -127, 127).astype(np.int8, copy=False)
@@ -683,7 +749,7 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_array(arr)
+        q, s = quantize_float_array(arr, gptq_lite=Hyperparameters().gptq_lite)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -836,6 +902,37 @@ def loss_and_grad_chunked(
     return loss_value, tree_unflatten(list(grad_accum.items()))
 
 
+class PPMC:
+    """PPM-C (Prediction by Partial Matching, Method C) context mixer.
+    Builds a per-document n-gram model from already-seen tokens and returns
+    per-token log-probabilities that can be mixed with neural model probs."""
+    def __init__(self, order: int, vocab_size: int):
+        self.order = order
+        self.vocab_size = vocab_size
+
+    def log_probs_for_sequence(self, tokens: np.ndarray) -> np.ndarray:
+        """Return log-prob for each token (first `order` tokens get uniform)."""
+        from collections import defaultdict
+        n = len(tokens)
+        log_probs = np.full(n, -math.log(self.vocab_size), dtype=np.float64)
+        counts: dict[tuple, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+        for i in range(n):
+            # Predict token[i] from context
+            for o in range(min(self.order, i), -1, -1):
+                ctx = tuple(tokens[i - o:i]) if o > 0 else ()
+                if ctx in counts:
+                    total = sum(counts[ctx].values())
+                    if tokens[i] in counts[ctx]:
+                        log_probs[i] = math.log(counts[ctx][tokens[i]] / total)
+                        break
+                    # Escape: try shorter context (Method C)
+            # Update counts with all contexts up to order
+            for o in range(min(self.order, i) + 1):
+                ctx = tuple(tokens[i - o:i]) if o > 0 else ()
+                counts[ctx][tokens[i]] += 1
+        return log_probs
+
+
 def eval_val(
     args: Hyperparameters,
     compiled_loss,
@@ -977,6 +1074,12 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         qat_enabled=args.qat_enabled,
         qat_bits=args.qat_bits,
+        rope_dims=args.rope_dims,
+        ln_scale=args.ln_scale,
+        xsa_last_n=args.xsa_last_n,
+        ve_enabled=args.ve_enabled,
+        ve_dim=args.ve_dim,
+        ve_layers=args.ve_layers,
     )
     opt = SplitOptimizers(model, args)
 
@@ -1130,7 +1233,7 @@ def main() -> None:
         mx.synchronize()
 
         # SWA: accumulate snapshots during warmdown phase
-        if args.swa_enabled and lr_mul < 1.0:
+        if args.swa_enabled and lr_mul < args.swa_threshold:
             if not in_warmdown:
                 in_warmdown = True
                 log(f"swa:warmdown_started step:{step + 1}")
