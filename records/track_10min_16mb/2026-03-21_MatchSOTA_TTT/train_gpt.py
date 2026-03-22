@@ -613,6 +613,141 @@ if _HAS_TRITON:
             else:
                 tl.store(c_ptrs, c, mask=(offs_cm[:, None] < M) & (offs_cn[None, :] < N))
 
+    # ---- Fused RMSNorm forward/backward Triton kernels ----
+    @triton.jit
+    def _rmsnorm_fwd_kernel(x_ptr, out_ptr, rstd_ptr, M, D: tl.constexpr, eps: tl.constexpr, BLOCK_M: tl.constexpr):
+        pid = tl.program_id(0)
+        rows = pid * BLOCK_M + tl.arange(0, BLOCK_M)
+        cols = tl.arange(0, D)
+        row_mask = rows < M
+        x = tl.load(x_ptr + rows[:, None] * D + cols[None, :], mask=row_mask[:, None], other=0.0).to(tl.float32)
+        ss = tl.sum(x * x, axis=1) / D
+        rstd = tl.math.rsqrt(ss + eps)
+        out = x * rstd[:, None]
+        tl.store(out_ptr + rows[:, None] * D + cols[None, :], out.to(tl.bfloat16), mask=row_mask[:, None])
+        tl.store(rstd_ptr + rows, rstd, mask=row_mask)
+
+    @triton.jit
+    def _rmsnorm_bwd_kernel(grad_out_ptr, x_ptr, rstd_ptr, grad_x_ptr, M, D: tl.constexpr, BLOCK_M: tl.constexpr):
+        pid = tl.program_id(0)
+        rows = pid * BLOCK_M + tl.arange(0, BLOCK_M)
+        cols = tl.arange(0, D)
+        row_mask = rows < M
+        grad_out = tl.load(grad_out_ptr + rows[:, None] * D + cols[None, :], mask=row_mask[:, None], other=0.0).to(tl.float32)
+        x = tl.load(x_ptr + rows[:, None] * D + cols[None, :], mask=row_mask[:, None], other=0.0).to(tl.float32)
+        rstd = tl.load(rstd_ptr + rows, mask=row_mask, other=1.0)
+        n = x * rstd[:, None]
+        inner = tl.sum(grad_out * n, axis=1) / D
+        grad_x = rstd[:, None] * (grad_out - n * inner[:, None])
+        tl.store(grad_x_ptr + rows[:, None] * D + cols[None, :], grad_x.to(tl.bfloat16), mask=row_mask[:, None])
+
+    class _FusedRMSNormFunction(torch.autograd.Function):
+        @staticmethod
+        def forward(ctx, x, eps=1e-6):
+            M, D = x.shape
+            out = torch.empty_like(x)
+            rstd = torch.empty(M, dtype=torch.float32, device=x.device)
+            BLOCK_M = 128
+            grid = (triton.cdiv(M, BLOCK_M),)
+            _rmsnorm_fwd_kernel[grid](x, out, rstd, M, D, eps, BLOCK_M=BLOCK_M)
+            ctx.save_for_backward(x, rstd)
+            return out
+
+        @staticmethod
+        def backward(ctx, grad_output):
+            x, rstd = ctx.saved_tensors
+            M, D = x.shape
+            grad_x = torch.empty_like(x)
+            BLOCK_M = 128
+            grid = (triton.cdiv(M, BLOCK_M),)
+            _rmsnorm_bwd_kernel[grid](grad_output.contiguous(), x, rstd, grad_x, M, D, BLOCK_M=BLOCK_M)
+            return grad_x, None
+
+    # ---- Fused ReLU² MLP backward Triton kernel ----
+    @triton.autotune(
+        configs=[
+            triton.Config({'BLOCK_M': 128, 'BLOCK_K': 128, 'BLOCK_N': 64, 'GROUP_M': 8}, num_warps=4, num_stages=3),
+            triton.Config({'BLOCK_M': 128, 'BLOCK_K': 256, 'BLOCK_N': 64, 'GROUP_M': 8}, num_warps=8, num_stages=3),
+            triton.Config({'BLOCK_M': 64, 'BLOCK_K': 128, 'BLOCK_N': 64, 'GROUP_M': 8}, num_warps=4, num_stages=3),
+        ],
+        key=['M', 'N', 'K'],
+    )
+    @triton.jit
+    def _relu2_bwd_kernel(
+        grad_out_ptr, proj_w_ptr, h_pre_ptr, grad_h_ptr,
+        M, N, K,
+        stride_gm, stride_gn, stride_wn, stride_wk, stride_hm, stride_hk,
+        BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr, GROUP_M: tl.constexpr,
+    ):
+        pid = tl.program_id(0)
+        grid_m = tl.cdiv(M, BLOCK_M)
+        grid_k = tl.cdiv(K, BLOCK_K)
+        num_pid_in_group = GROUP_M * grid_k
+        group_id = pid // num_pid_in_group
+        first_pid_m = group_id * GROUP_M
+        group_size_m = tl.minimum(grid_m - first_pid_m, GROUP_M)
+        pid_m = first_pid_m + (pid % group_size_m)
+        pid_k = (pid % num_pid_in_group) // group_size_m
+        offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
+        offs_k = pid_k * BLOCK_K + tl.arange(0, BLOCK_K)
+        offs_n = tl.arange(0, BLOCK_N)
+        m_mask = offs_m < M
+        k_mask = offs_k < K
+        acc = tl.zeros((BLOCK_M, BLOCK_K), dtype=tl.float32)
+        grad_ptrs = grad_out_ptr + offs_m[:, None] * stride_gm + offs_n[None, :] * stride_gn
+        w_ptrs = proj_w_ptr + offs_n[:, None] * stride_wn + offs_k[None, :] * stride_wk
+        for n_iter in range(0, tl.cdiv(N, BLOCK_N)):
+            n_offs = n_iter * BLOCK_N + offs_n
+            n_mask = n_offs < N
+            g = tl.load(grad_ptrs, mask=m_mask[:, None] & n_mask[None, :], other=0.0)
+            w = tl.load(w_ptrs, mask=n_mask[:, None] & k_mask[None, :], other=0.0)
+            acc = tl.dot(g, w, acc, out_dtype=tl.float32)
+            grad_ptrs += BLOCK_N * stride_gn
+            w_ptrs += BLOCK_N * stride_wn
+        h_tile = tl.load(h_pre_ptr + offs_m[:, None] * stride_hm + offs_k[None, :] * stride_hk,
+                         mask=m_mask[:, None] & k_mask[None, :], other=0.0).to(tl.float32)
+        h_relu = tl.maximum(h_tile, 0.0)
+        grad_h = acc * 2.0 * h_relu * (h_tile > 0.0).to(tl.float32)
+        tl.store(grad_h_ptr + offs_m[:, None] * K + offs_k[None, :],
+                 grad_h.to(tl.bfloat16), mask=m_mask[:, None] & k_mask[None, :])
+
+    class _FusedReLU2MLPFunction(torch.autograd.Function):
+        @staticmethod
+        def forward(ctx, x, fc_weight, proj_weight):
+            h_pre = F.linear(x, fc_weight)
+            h_relu = torch.relu(h_pre)
+            h_sq = h_relu * h_relu
+            out = F.linear(h_sq, proj_weight)
+            ctx.save_for_backward(x, h_pre, fc_weight, proj_weight)
+            return out
+
+        @staticmethod
+        def backward(ctx, grad_out):
+            x, h_pre, fc_weight, proj_weight = ctx.saved_tensors
+            grad_out = grad_out.contiguous()
+            M, N = grad_out.shape
+            K = h_pre.shape[1]
+            # Fused: grad_h_pre = (grad_out @ proj_weight) * relu_deriv
+            grad_h = torch.empty_like(h_pre)
+            num_sms = torch.cuda.get_device_properties(grad_out.device).multi_processor_count
+            def grid(meta):
+                tiles = triton.cdiv(M, meta['BLOCK_M']) * triton.cdiv(K, meta['BLOCK_K'])
+                return (min(tiles, num_sms * 4),)
+            _relu2_bwd_kernel[grid](
+                grad_out, proj_weight, h_pre, grad_h,
+                M, N, K,
+                grad_out.stride(0), grad_out.stride(1),
+                proj_weight.stride(0), proj_weight.stride(1),
+                h_pre.stride(0), h_pre.stride(1),
+            )
+            # Weight gradients via cuBLAS
+            h_relu = torch.relu(h_pre.float())
+            h_sq = (h_relu * h_relu).to(h_pre.dtype)
+            grad_proj = grad_out.t().mm(h_sq)
+            grad_fc = grad_h.t().mm(x)
+            grad_x = grad_h.mm(fc_weight)
+            return grad_x, grad_fc, grad_proj
+
 
 def fused_relu_sq_proj(h_pre: Tensor, proj_weight: Tensor) -> Tensor:
     """Fused ReLU-squared activation + projection using a Triton kernel.
@@ -817,7 +952,13 @@ class MLP(nn.Module):
         if not self.training and _HAS_TRITON:
             h_pre = self.fc(x)  # CastedLinear handles fp32->bf16 cast
             return fused_relu_sq_proj(h_pre, self.proj.weight.to(h_pre.dtype))
-        # Original path for training (needs autograd graph).
+        if self.training and _HAS_TRITON and x.is_cuda:
+            # Training with fused backward
+            B, S, D = x.shape
+            x2d = x.reshape(-1, D)
+            out2d = _FusedReLU2MLPFunction.apply(x2d, self.fc.weight.to(x.dtype), self.proj.weight.to(x.dtype))
+            return out2d.view(B, S, -1)
+        # Fallback
         x = torch.relu(self.fc(x))
         return self.proj(x.square())
 
@@ -878,12 +1019,23 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor, q_delta_fn=None, v_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        n = self.attn_norm(x)
+        if _HAS_TRITON and x.is_cuda:
+            bsz_seq = x.shape[0] * x.shape[1]
+            dim = x.shape[-1]
+            n = _FusedRMSNormFunction.apply(x.reshape(bsz_seq, dim), 1e-6).reshape(x.shape)
+        else:
+            n = self.attn_norm(x)
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
         attn_out = self.attn(n, qd, vd)
         x = x + self.ln_scale * self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.ln_scale * self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        if _HAS_TRITON and x.is_cuda:
+            bsz_seq = x.shape[0] * x.shape[1]
+            dim = x.shape[-1]
+            mlp_in = _FusedRMSNormFunction.apply(x.reshape(bsz_seq, dim), 1e-6).reshape(x.shape)
+        else:
+            mlp_in = self.mlp_norm(x)
+        x = x + self.ln_scale * self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(mlp_in)
         return x
 
 
