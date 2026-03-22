@@ -846,8 +846,7 @@ def eval_val_sliding(
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     base_model.eval()
-    # Compile once outside loop; caller can pass pre-compiled model to avoid recompilation
-    compiled_logits = torch.compile(base_model.forward_logits, mode='reduce-overhead', dynamic=False, fullgraph=True)
+    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
 
     # Pre-allocate fixed-size batches to avoid CUDA graph recapture on varying bsz
     x_batch = torch.zeros(batch_seqs, seq_len, dtype=torch.int64, device=device)
@@ -1197,8 +1196,9 @@ def main() -> None:
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
-    # CUDA graph config: enable tree mode for reduce-overhead CUDA graph capture
-    torch._inductor.config.triton.cudagraph_trees = True
+    # CUDA graph tree mode: only needed with reduce-overhead, skip for default mode
+    if os.environ.get("COMPILE_MODE", "default") == "reduce-overhead":
+        torch._inductor.config.triton.cudagraph_trees = True
 
     # Set MLP activation before model creation
     MLP._activation = args.mlp_activation
@@ -1226,16 +1226,18 @@ def main() -> None:
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    # Use deterministic algorithms to ensure reproducible results across runs
-    # CUBLAS_WORKSPACE_CONFIG is required for deterministic CUBLAS matmul on CUDA >=10.2
-    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    # Optional determinism (enable via DETERMINISTIC=1 env var — changes algorithm selection,
+    # so losses will differ from non-deterministic runs but be reproducible across runs)
+    _deterministic = bool(int(os.environ.get("DETERMINISTIC", "0")))
+    if _deterministic:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+        torch.use_deterministic_algorithms(True, warn_only=True)
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
-    enable_mem_efficient_sdp(True)  # keep as fallback when flash can't handle head dims
+    enable_mem_efficient_sdp(False)
     enable_math_sdp(False)
 
     logfile = None
@@ -1317,7 +1319,8 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, mode='reduce-overhead', dynamic=False, fullgraph=True)
+    _compile_mode = os.environ.get("COMPILE_MODE", "default")  # "reduce-overhead" for CUDA graphs
+    compiled_model = torch.compile(base_model, mode=_compile_mode, dynamic=False, fullgraph=True)
     # Use DDP or manual grad sync based on env var
     use_manual_sync = bool(int(os.environ.get("USE_MANUAL_SYNC", "0")))
     if use_manual_sync:
@@ -1398,7 +1401,7 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(f"mlp_activation:{args.mlp_activation}")
     log0(f"flash_attention_3:{_HAS_FA3}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=True math=False")
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -1805,7 +1808,7 @@ def main() -> None:
         torch.cuda.synchronize()
         log0(f"ttt:completed in {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
-    compiled_eval = torch.compile(eval_model, mode='reduce-overhead', dynamic=False, fullgraph=True)
+    compiled_eval = torch.compile(eval_model, mode=_compile_mode, dynamic=False, fullgraph=True)
 
     # Standard non-overlapping eval (sanity check)
     torch.cuda.synchronize()
