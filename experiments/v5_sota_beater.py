@@ -127,6 +127,14 @@ class Hyperparameters:
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
+    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "sgd")  # "sgd" or "adamw"
+    ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 0.0))
+
+    # Novel experiments
+    gptq_lite = bool(int(os.environ.get("GPTQ_LITE", "0")))
+    value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))
+    gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "0")))
+    qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.1))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -655,6 +663,7 @@ class CausalSelfAttention(nn.Module):
         self.rope_dims = rope_dims
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024, rope_dims=rope_dims)
         self.use_xsa = False
+        self.v_res_alpha = None  # Set by GPT if value_residual is enabled
 
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
         """Subtract self-value projection via GQA-aware reshape (no repeat_interleave)."""
@@ -666,11 +675,15 @@ class CausalSelfAttention(nn.Module):
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, v_residual: Tensor = None) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        # Value Residual: blend in cached V from layer 0
+        if v_residual is not None and hasattr(self, 'v_res_alpha'):
+            alpha = torch.sigmoid(self.v_res_alpha).to(dtype=v.dtype)
+            v = (1 - alpha) * v + alpha * v_residual
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -690,6 +703,10 @@ class CausalSelfAttention(nn.Module):
             y = y.transpose(1, 2).contiguous()
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
+        # Gated attention: per-head sigmoid gate
+        if hasattr(self, 'gate') and self.gate is not None:
+            gate = torch.sigmoid(self.gate.to(dtype=y.dtype))[None, None, :, None]
+            y = y * gate
         y = y.reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -767,11 +784,11 @@ class Block(nn.Module):
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, v_residual: Tensor = None) -> tuple[Tensor, Tensor]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         s = self.ln_scale_factor
-        attn_out = self.attn(self.attn_norm(x) * s)
+        attn_out = self.attn(self.attn_norm(x) * s, v_residual=v_residual)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * s)
         return x
@@ -798,6 +815,8 @@ class GPT(nn.Module):
         xsa_last_n: int = 0,
         rope_dims: int = 0,
         ln_scale: bool = False,
+        value_residual: bool = False,
+        gated_attention: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -807,6 +826,7 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.mtp_num_heads = mtp_num_heads
         self.mtp_loss_weight = mtp_loss_weight
+        self.use_value_residual = value_residual
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
@@ -842,6 +862,15 @@ class GPT(nn.Module):
         if xsa_last_n > 0:
             for i in range(max(0, num_layers - xsa_last_n), num_layers):
                 self.blocks[i].attn.use_xsa = True
+        # Value Residual: learnable alpha per layer (skip layer 0)
+        if value_residual:
+            for i in range(1, num_layers):
+                self.blocks[i].attn.v_res_alpha = nn.Parameter(torch.tensor(-2.0))  # sigmoid(-2)≈0.12
+        # Gated Attention: per-head sigmoid gate after attention
+        if gated_attention:
+            head_dim = model_dim // num_heads
+            for block in self.blocks:
+                block.attn.gate = nn.Parameter(torch.zeros(num_heads, dtype=torch.float32))
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -872,14 +901,20 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
+        v_residual = None  # For value residual
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[i](x, x0, v_residual=v_residual)
+            # Cache V from layer 0 for value residual
+            if i == 0 and self.use_value_residual:
+                with torch.no_grad():
+                    v_residual = self.blocks[0].attn.c_v(self.blocks[0].attn_norm(x) * self.blocks[0].ln_scale_factor)
+                    v_residual = v_residual.reshape(x.shape[0], x.shape[1], self.blocks[0].attn.num_kv_heads, self.blocks[0].attn.head_dim)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self.blocks[self.num_encoder_layers + i](x, x0, v_residual=v_residual)
 
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
@@ -921,13 +956,18 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
+        v_residual = None
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[i](x, x0, v_residual=v_residual)
+            if i == 0 and self.use_value_residual:
+                with torch.no_grad():
+                    v_residual = self.blocks[0].attn.c_v(self.blocks[0].attn_norm(x) * self.blocks[0].ln_scale_factor)
+                    v_residual = v_residual.reshape(x.shape[0], x.shape[1], self.blocks[0].attn.num_kv_heads, self.blocks[0].attn.head_dim)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self.blocks[self.num_encoder_layers + i](x, x0, v_residual=v_residual)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -1036,14 +1076,41 @@ def _classify_param(name: str) -> str:
         return "attn"
     return "other"
 
-def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
-    """Per-row quantization to intN. clip_range: 7=int4, 31=int6, 127=int8."""
+def quantize_intN_per_row(t: Tensor, clip_range: int = 31, gptq_lite: bool = False) -> tuple[Tensor, Tensor]:
+    """Per-row quantization to intN. clip_range: 7=int4, 31=int6, 127=int8.
+    gptq_lite: try multiple clip percentiles per row and pick the one minimizing MSE."""
     t32 = t.float()
     if t32.ndim == 2:
-        row_max = t32.abs().amax(dim=1)
-        scale = (row_max / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
-        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -(clip_range + 1), clip_range).to(torch.int8)
-        return q, scale
+        if gptq_lite:
+            # GPTQ-lite: try multiple percentiles, pick best per row
+            percentiles = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
+            sorted_abs = t32.abs().sort(dim=1).values
+            n_cols = sorted_abs.shape[1]
+            best_q = None
+            best_scale = None
+            best_mse = torch.full((t32.shape[0],), float('inf'), device=t32.device)
+            for pct in percentiles:
+                idx = min(int(n_cols * pct), n_cols - 1)
+                row_max = sorted_abs[:, idx]
+                scale = (row_max / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+                q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -(clip_range + 1), clip_range).to(torch.int8)
+                recon = q.float() * scale.float()[:, None]
+                mse = (t32 - recon).pow(2).mean(dim=1)
+                improved = mse < best_mse
+                if best_q is None:
+                    best_q = q
+                    best_scale = scale
+                    best_mse = mse
+                else:
+                    best_q[improved] = q[improved]
+                    best_scale[improved] = scale[improved]
+                    best_mse[improved] = mse[improved]
+            return best_q, best_scale
+        else:
+            row_max = t32.abs().amax(dim=1)
+            scale = (row_max / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+            q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -(clip_range + 1), clip_range).to(torch.int8)
+            return q, scale
     amax = t32.abs().max().item()
     scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float16)
     q = torch.clamp(torch.round(t32 / scale.float()), -(clip_range + 1), clip_range).to(torch.int8)
@@ -1058,7 +1125,7 @@ QUANT_BITS = {
 }
 QUANT_CLIP = {4: 7, 5: 15, 6: 31, 8: 127}
 
-def mixed_quantize(state_dict: dict[str, Tensor], cat_bits: dict[str, int]):
+def mixed_quantize(state_dict: dict[str, Tensor], cat_bits: dict[str, int], gptq_lite: bool = False):
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     for name, tensor in state_dict.items():
@@ -1075,7 +1142,7 @@ def mixed_quantize(state_dict: dict[str, Tensor], cat_bits: dict[str, int]):
         bits = cat_bits.get(cat, 8)
         clip = QUANT_CLIP.get(bits, 127)
         if t.ndim >= 1:
-            q, s = quantize_intN_per_row(t, clip_range=clip)
+            q, s = quantize_intN_per_row(t, clip_range=clip, gptq_lite=gptq_lite)
             result[name + ".q"] = q
             result[name + ".scale"] = s
             meta[name] = {"type": f"int{bits}"}
@@ -1129,7 +1196,10 @@ def ttt_adapt(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn
                     frozen_params.add(id(p))
 
     ttt_params = [p for p in base_model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    if args.ttt_optimizer == "adamw":
+        optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=args.ttt_weight_decay)
+    else:
+        optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
 
     my_start = (total_seqs * rank) // world_size
     my_end = (total_seqs * (rank + 1)) // world_size
@@ -1302,6 +1372,8 @@ def main() -> None:
         xsa_last_n=args.xsa_last_n,
         rope_dims=args.rope_dims,
         ln_scale=args.ln_scale,
+        value_residual=args.value_residual,
+        gated_attention=args.gated_attention,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1610,7 +1682,7 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
 
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
-    quant_result, quant_meta = mixed_quantize(sd_cpu, QUANT_BITS)
+    quant_result, quant_meta = mixed_quantize(sd_cpu, QUANT_BITS, gptq_lite=args.gptq_lite)
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1644,6 +1716,8 @@ def main() -> None:
         xsa_last_n=args.xsa_last_n,
         rope_dims=args.rope_dims,
         ln_scale=args.ln_scale,
+        value_residual=args.value_residual,
+        gated_attention=args.gated_attention,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
