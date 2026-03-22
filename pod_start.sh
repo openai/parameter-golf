@@ -57,10 +57,12 @@ fi
 echo ""
 echo "=== Installing Dependencies ==="
 
-# Install deps — flash-attn in background
-echo "Installing flash-attn (takes ~10 min)..."
+# Install FA3 Hopper (prebuilt wheels, fast) — gives ~15-20% faster attention
+echo "Installing FA3 Hopper + FA2 fallback..."
+pip install flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291 -q 2>/dev/null &
+FA3_PID=$!
 pip install flash-attn --no-cache-dir --no-build-isolation &
-FA_PID=$!
+FA2_PID=$!
 pip install zstandard huggingface_hub sentencepiece -q
 
 # Clone repo if needed
@@ -87,9 +89,11 @@ else
     echo "Dataset and tokenizer exist."
 fi
 
-# Wait for flash-attn and check it succeeded
-echo "Waiting for flash-attn to finish compiling..."
-if ! wait $FA_PID; then
+# Wait for flash-attn installs
+echo "Waiting for FA3 Hopper wheels..."
+wait $FA3_PID 2>/dev/null || echo "  [WARN] FA3 wheels not available — will use FA2"
+echo "Waiting for FA2 to finish compiling..."
+if ! wait $FA2_PID; then
     echo "  [FAIL] flash-attn install failed. Retrying..."
     pip install flash-attn --no-cache-dir --no-build-isolation
 fi
@@ -99,11 +103,13 @@ echo ""
 echo "=== Preflight Checks ==="
 PASS=true
 
-# Check flash-attn
-if python3 -c "from flash_attn import flash_attn_func; print('  [OK] flash-attn')" 2>/dev/null; then
+# Check FA3 Hopper (preferred) and FA2 (fallback)
+if python3 -c "from flash_attn_interface import flash_attn_func; print('  [OK] FA3 Hopper (flash_attn_interface)')" 2>/dev/null; then
+    :
+elif python3 -c "from flash_attn import flash_attn_func; print('  [OK] FA2 (flash_attn — FA3 not available)')" 2>/dev/null; then
     :
 else
-    echo "  [FAIL] flash-attn not installed"
+    echo "  [FAIL] neither FA3 nor FA2 installed"
     PASS=false
 fi
 
@@ -182,8 +188,8 @@ echo "Environment: Python $PY_VER | PyTorch $TORCH_VER | CUDA $CUDA_VER | $GPU_C
 echo ""
 echo "Run scripts available (each handles git checkout + exports + launch):"
 echo ""
-echo "  bash run_baseline.sh    # Reproduce 1.1375 — proven, safe"
-echo "  bash run_oneshot.sh     # Target 1.12x — 786K batch + SWA + WD20K"
-echo "  bash run_moonshot.sh    # Target 1.11x — + GPTQ-lite + Reptile TTT + Shared VE"
+echo "  bash run_aggressive_ttt.sh 1337   # Two-phase DDP TTT — targets 1.12x"
+echo "  bash run_moonshot.sh 1337         # + Reptile + VE — targets 1.11x"
+echo "  bash run_baseline.sh              # Proven 1.133 config — safe fallback"
 echo ""
-echo "Kill if step_avg@200 > 100ms (bad pod)"
+echo "Kill if step_avg@200 > 85ms (bad pod)"
