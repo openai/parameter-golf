@@ -29,6 +29,21 @@ Target: Beat PR #414 (1.1233 BPB, 15.55 MB)
 
 7. **zlib vs zstd matters for size, not BPB** — same quantization, different compression. zstd-22 saves ~1.3MB.
 
+| v5 seed 1337 | QAT percentile fix + TrigramHash + EMA-SWA blend | 1.12439 | 15.43 MB | Worse — all 3 changes hurt |
+| v6 seed 1337 | Fractal 6L×2 loops, 512d/16H/8KV/4xMLP | 1.17566 | 10.65 MB | BUST — too few params, too slow |
+
+## Key Findings (continued)
+
+8. **QAT percentile clip mismatch fix = no gain** — changing QAT STE from row_max to 0.9995 percentile didn't improve quant tax.
+
+9. **TrigramHash = marginal at best** — 3-token n-gram embeddings from PR #440 added params and overhead without measurable BPB gain on our stronger baseline.
+
+10. **EMA-SWA blend (80/20) = slightly worse than pure EMA** — SWA dilutes EMA signal.
+
+11. **Fractal weight sharing is a dead end at this scale** — 6L×2 loops (12 effective) at 512d/16H/4xMLP: 18.3M params (vs 27M for 11L), 126ms/step (vs 86ms), only 4757 steps. The double forward pass costs more compute than it saves in params. Final sliding window 1.1757 — nowhere near 1.1232.
+
+12. **12L/480d/16H/4xMLP is strong on DGX Spark** — 2% relative improvement over baseline in local test (3.005 vs 3.071). But 29.5M params and 480d gives head_dim=30 (invalid for FA3). 512d/16H works (head_dim=32) but different tradeoffs.
+
 ## Submitted
 
 PR #445: v1 seed 1337, 1.12319 BPB, 15.68 MB
