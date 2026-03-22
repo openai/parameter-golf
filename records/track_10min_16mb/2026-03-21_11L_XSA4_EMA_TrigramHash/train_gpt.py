@@ -951,7 +951,8 @@ def main() -> None:
         device = torch.device("cpu")
     if distributed:
         dist.init_process_group(backend="nccl" if device.type == "cuda" else "gloo")
-        dist.barrier()
+        if device.type != "cuda":
+            dist.barrier()  # skip on CUDA: early barrier can fail on some NCCL/driver configs
     master_process = rank == 0
 
     if device.type == "cuda":
