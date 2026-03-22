@@ -64,7 +64,15 @@ Baseline: SOTA254 = **1.1303 BPB** (sliding window, seed 1337, zstd)
 | C | Vocab 1536 | — | — | — | can't run (48 GB docs, 36 GB free) |
 | **D** | **TTT 8ep + stride 32** | **1.1519** | **1.1295** | **15.74 MB** | **new best! -0.0008 vs baseline** |
 
-**Exp D details:** Same model/artifact as baseline. TTT 8 epochs (vs 3), stride 32 (vs 64). Stride made no difference — all improvement from extra TTT. Seed 1337: 1.1295, Seed 42: 1.1307. Mean: **1.1301** (baseline mean was 1.1308). Confirmed across 2 seeds.
+**Exp D details:** Same model/artifact as baseline. TTT 8 epochs (vs 3), stride 32 (vs 64). Stride made no difference — all improvement from extra TTT.
+
+| Seed | Sliding BPB | Artifact | Status |
+|------|------------|----------|--------|
+| 1337 | **1.1295** | 15.74 MB | pass |
+| 42 | **1.1307** | 15.69 MB | pass |
+| 7 | 1.1313 | 16.18 MB | OVER LIMIT |
+
+Seed 7 busts 16 MB limit (16.18 MB) — compression is seed-dependent. Seeds 1337+42 mean: **1.1301**. Need a passing 3rd seed.
 
 **Bug found (A/B):** zstandard was installed but A/B used zlib anyway — investigate. zstd worked for D.
 
