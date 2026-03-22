@@ -10,3 +10,8 @@ data/docs_selected.jsonl
 .venv
 logs/
 artifacts/
+*_results.txt
+*_pid.txt
+*_master.log
+*.pt
+*.ptz
