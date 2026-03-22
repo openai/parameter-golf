@@ -33,17 +33,13 @@ try:
 except ImportError:
     _COMPRESSOR = "zlib"
 
-try:
-    from flash_attn import flash_attn_func as _flash_attn_func
-    _HAS_FA3 = True
-except ImportError:
-    _HAS_FA3 = False
-
-try:
-    from flash_attn import flash_attn_func as _flash_attn_func
-    _HAS_FA3 = True
-except ImportError:
-    _HAS_FA3 = False
+_HAS_FA3 = False
+if os.environ.get("DISABLE_FA3", "0") != "1":
+    try:
+        from flash_attn import flash_attn_func as _flash_attn_func
+        _HAS_FA3 = True
+    except ImportError:
+        pass
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -1612,7 +1608,7 @@ def main() -> None:
     # EMA state (kept on GPU for speed)
     ema_state: dict[str, Tensor] | None = None
     if args.ema_decay > 0:
-        ema_state = {k: v.detach().clone().float() for k, v in base_model.state_dict().items()}
+        ema_state = {k: v.detach().clone() for k, v in base_model.state_dict().items()}
     stop_after_step: int | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -1689,7 +1685,7 @@ def main() -> None:
             decay = args.ema_decay
             with torch.no_grad():
                 for k, v in base_model.state_dict().items():
-                    ema_state[k].mul_(decay).add_(v.detach().float(), alpha=1 - decay)
+                    ema_state[k].mul_(decay).add_(v.detach().to(ema_state[k].dtype), alpha=1 - decay)
 
         # SWA: collect checkpoint during warmdown phase
         if args.swa_every > 0 and scale < args.swa_start_frac and step % args.swa_every == 0:
