@@ -377,6 +377,44 @@ def gptq_lite_clip_search(t: Tensor, bits: int = 6) -> tuple[Tensor, Tensor]:
             best_q = (q.to(torch.int8), scale.to(torch.float16) if t32.ndim == 2 else scale.to(torch.float16))
     return best_q
 
+def pack_int6(q: Tensor) -> bytes:
+    """Pack int6 values (range [-32, 31]) into 6 bits each. 4 values = 3 bytes."""
+    flat = q.reshape(-1).to(torch.int8).numpy().astype(np.int8)
+    # Shift from [-32, 31] to [0, 63] for unsigned packing
+    unsigned = (flat.astype(np.int16) + 32).astype(np.uint8)
+    # Pad to multiple of 4
+    pad_len = (4 - len(unsigned) % 4) % 4
+    if pad_len:
+        unsigned = np.concatenate([unsigned, np.zeros(pad_len, dtype=np.uint8)])
+    # Pack 4 values into 3 bytes: [a(6) b(6) c(6) d(6)] -> [a5..a0 b5..b0] [c5..c0 d5..d4] [d3..d0 0000]
+    # Actually simpler: pack sequentially into a bitstream
+    n = len(unsigned)
+    out = bytearray(n * 6 // 8)
+    for i in range(0, n, 4):
+        a, b, c, d = unsigned[i], unsigned[i+1], unsigned[i+2], unsigned[i+3]
+        # 4 * 6 bits = 24 bits = 3 bytes
+        out[i*3//4]     = (a << 2) | (b >> 4)
+        out[i*3//4 + 1] = ((b & 0xF) << 4) | (c >> 2)
+        out[i*3//4 + 2] = ((c & 0x3) << 6) | d
+    return bytes(out)
+
+def unpack_int6(data: bytes, numel: int) -> Tensor:
+    """Unpack 6-bit packed bytes back to int8 tensor with values in [-32, 31]."""
+    buf = np.frombuffer(data, dtype=np.uint8)
+    # Pad numel to multiple of 4
+    n = numel + (4 - numel % 4) % 4
+    unsigned = np.empty(n, dtype=np.uint8)
+    for i in range(0, n, 4):
+        j = i * 3 // 4
+        b0, b1, b2 = buf[j], buf[j+1], buf[j+2]
+        unsigned[i]   = (b0 >> 2) & 0x3F
+        unsigned[i+1] = ((b0 & 0x3) << 4) | (b1 >> 4)
+        unsigned[i+2] = ((b1 & 0xF) << 2) | (b2 >> 6)
+        unsigned[i+3] = b2 & 0x3F
+    # Shift back to signed [-32, 31]
+    signed = unsigned[:numel].astype(np.int8) - 32
+    return torch.from_numpy(signed.copy())
+
 def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
@@ -396,8 +434,8 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             meta[name] = "passthrough_fp16"
             continue
         if cat in int6_cats and t.ndim >= 1:
-            # Int6 by default; set QUANT_BITS=5 for tighter compression (11L)
-            bits = int(os.environ.get("QUANT_BITS", "5"))
+            # Int6 with packed binary (3 bytes per 4 values) fits 11L under 16MB
+            bits = int(os.environ.get("QUANT_BITS", "6"))
             q, s = gptq_lite_clip_search(t, bits=bits)
             result[name + ".q"] = q
             result[name + ".scale"] = s
@@ -815,7 +853,7 @@ class CastedLinear(nn.Linear):
         w = self.weight.to(x.dtype)
         if _QAT_ENABLED and self.weight.ndim == 2 and self.weight.numel() > 65536:
             # STE fake-quantize: forward uses quantized weights, backward sees original
-            bits = int(os.environ.get("QUANT_BITS", "5"))
+            bits = int(os.environ.get("QUANT_BITS", "6"))
             max_val = (1 << (bits - 1)) - 1
             w_float = w.float()
             if w_float.ndim == 2:
@@ -1786,12 +1824,34 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    # INT6 mixed quantization + zstd/zlib export
+    # INT6 mixed quantization + packed binary + zstd/zlib export
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+    quant_bits = int(os.environ.get("QUANT_BITS", "6"))
     quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
-    quant_buf = io.BytesIO()
-    torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
-    quant_raw = quant_buf.getvalue()
+
+    # Custom packed serialization: pack intN values at bit-level for smaller artifacts
+    use_packed = quant_bits == 6 and int(os.environ.get("PACKED_INT6", "1"))
+    if use_packed:
+        # Custom binary format: header + packed int6 data
+        # Format: pickle(meta_dict) where meta_dict stores packed bytes + shapes
+        packed_data = {}
+        for name in list(quant_result.keys()):
+            if name.endswith(".q"):
+                q_tensor = quant_result[name]
+                packed_data[name] = {
+                    "packed": pack_int6(q_tensor),
+                    "shape": list(q_tensor.shape),
+                    "numel": q_tensor.numel(),
+                }
+            else:
+                packed_data[name] = quant_result[name]
+        import pickle
+        quant_raw = pickle.dumps({"p": packed_data, "m": quant_meta})
+    else:
+        quant_buf = io.BytesIO()
+        torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
+        quant_raw = quant_buf.getvalue()
+
     if _COMPRESSOR == "zstd":
         quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw)
     else:
@@ -1801,8 +1861,8 @@ def main() -> None:
             f.write(quant_blob)
         quant_file_bytes = os.path.getsize("final_model.ptz")
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
-        log0(f"Total submission size int5+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Serialized model int{quant_bits}+{_COMPRESSOR}: {quant_file_bytes} bytes (packed={use_packed})")
+        log0(f"Total submission size int{quant_bits}+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
@@ -1812,8 +1872,21 @@ def main() -> None:
         decompressed = zstandard.ZstdDecompressor().decompress(quant_blob_disk)
     else:
         decompressed = zlib.decompress(quant_blob_disk)
-    quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
-    deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
+
+    if use_packed:
+        import pickle
+        packed_state = pickle.loads(decompressed)
+        # Reconstruct quant_result from packed data
+        quant_result_loaded = {}
+        for name, val in packed_state["p"].items():
+            if isinstance(val, dict) and "packed" in val:
+                quant_result_loaded[name] = unpack_int6(val["packed"], val["numel"]).reshape(val["shape"])
+            else:
+                quant_result_loaded[name] = val
+        deq_state = dequantize_mixed_int6(quant_result_loaded, packed_state["m"], sd_cpu)
+    else:
+        quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+        deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
     base_model.load_state_dict(deq_state, strict=True)
 
     # Sliding window eval on int6-roundtripped weights
