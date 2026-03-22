@@ -26,10 +26,11 @@ export QAT=0
 export LATE_K_FP16=0 FP16_EMBED_EXPORT=0
 export XSA_LAST_N=0
 
-# Two-phase DDP TTT
-export TTT_TWO_PHASE=1
-export TTT_P1_EPOCHS=50 TTT_P1_LR=0.01
-export TTT_P2_EPOCHS=10 TTT_P2_LR=0.005 TTT_P2_UNFREEZE_BLOCKS=3
+# AdamW TTT (PR #442: -0.019 BPB over SGD with fewer epochs)
+export TTT_OPTIMIZER=adamw
+export TTT_LR=0.0005
+export TTT_EPOCHS=10
+export TTT_FREEZE_BLOCKS=0
 export TTT_BATCH_SEQS=64
 export TTT_MAX_STEPS=9999
 

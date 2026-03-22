@@ -116,10 +116,11 @@ class Hyperparameters:
     ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))  # exponential moving average (replaces SWA)
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))  # EMA decay per step
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))  # test-time training on val data
-    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
-    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))  # freeze first N blocks for stability
+    ttt_lr = float(os.environ.get("TTT_LR", 0.0005))  # AdamW lr (PR #442: AdamW beats SGD by 0.019 BPB)
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 10))
+    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))  # only used if TTT_OPTIMIZER=sgd
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))  # 0 = all blocks unfrozen (PR #398)
+    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adamw")  # "adamw" or "sgd"
     ttt_max_steps = int(os.environ.get("TTT_MAX_STEPS", 300))  # cap steps per epoch (~10s per epoch)
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 64))  # seqs per GPU per step (64*8=512 total)
     # Two-phase TTT (matches PR #415/#417 approach)
@@ -1484,7 +1485,10 @@ def ttt_adapt(
         if rank == 0:
             print(f"ttt_phase2:start params:{n_p2} epochs:{args.ttt_p2_epochs} lr:{args.ttt_p2_lr}", flush=True)
 
-        optimizer_p2 = torch.optim.SGD(phase2_params, lr=args.ttt_p2_lr, momentum=args.ttt_momentum)
+        if args.ttt_optimizer == "adamw":
+            optimizer_p2 = torch.optim.AdamW(phase2_params, lr=args.ttt_p2_lr, weight_decay=0.0)
+        else:
+            optimizer_p2 = torch.optim.SGD(phase2_params, lr=args.ttt_p2_lr, momentum=args.ttt_momentum)
         _ttt_run_phase(
             model, phase2_params, optimizer_p2, val_tokens, seq_len, batch_seqs,
             epochs=args.ttt_p2_epochs, max_steps=args.ttt_max_steps,
@@ -1502,9 +1506,13 @@ def ttt_adapt(
         ttt_params = [p for p in model.parameters() if p.requires_grad and id(p) not in frozen]
         if rank == 0:
             n_ttt = sum(p.numel() for p in ttt_params)
-            print(f"ttt:start params:{n_ttt} epochs:{args.ttt_epochs} lr:{args.ttt_lr} freeze:{args.ttt_freeze_blocks}", flush=True)
+            print(f"ttt:start params:{n_ttt} epochs:{args.ttt_epochs} lr:{args.ttt_lr} "
+                  f"freeze:{args.ttt_freeze_blocks} optimizer:{args.ttt_optimizer}", flush=True)
 
-        optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+        if args.ttt_optimizer == "adamw":
+            optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
+        else:
+            optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
         _ttt_run_phase(
             model, ttt_params, optimizer, val_tokens, seq_len, batch_seqs,
             epochs=args.ttt_epochs, max_steps=args.ttt_max_steps,
