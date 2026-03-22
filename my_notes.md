@@ -4,6 +4,14 @@
 Going from recent to first
 ---
 
+### SWA (Stochastic Weight Averaging) - experiment
+  - Averages model checkpoints from the last 40% of training (when LR is warming down)
+  - Collects a snapshot every 50 steps once `scale < swa_start_frac (0.4)`
+  - After training, averages all collected checkpoints and loads as final weights
+  - Proven ~0.0006 bpb improvement in SOTA submission
+  - Costs nothing during training — just CPU copies every 50 steps
+  - Config: SWA_ENABLED=1, SWA_START_FRAC=0.4, SWA_EVERY=50
+
 ### Depth Recurrence — FAILED
   - Tested NUM_LAYERS=8 RECURRENCE=2 (16 effective layers) on 1xH100
   - BPB 1.3976 vs 1.3477 for 11L unique — worse
