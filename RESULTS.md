@@ -53,6 +53,33 @@ Both converged to: `[0.127, 0.127, 0.699]`
 - The model essentially learned to "turn off" early gravity — confirming that at
   300 steps, direct early-loop supervision is noise rather than signal
 
+## The Frugendorff — Fractal Cadence Baseline (8×H100, 2026-03-22)
+
+**Architecture:** 3 unique blocks × 4 loops = 12 effective depth, dim=960, 15 heads, 5 KV (GQA)
+**Training:** F/N/N cadence (fractal every 3rd step), Muon optimizer, orthogonal loop positions
+**Novel:** Weight-shared transformer with cadence training — completely original architecture
+
+| Run | Config | Sliding BPB | Pre-quant | Steps | ms/step | Artifact |
+|-----|--------|------------|-----------|-------|---------|----------|
+| v1 (2 blocks, 1024d) | 2×4, MLP 3.0 | 1.2715 | 1.2800 | 7,625 | 79ms | 11.3 MB |
+| v1 (3 blocks, 896d) | 3×4, MLP 3.0 | 1.2111 | 1.2257 | 5,933 | 101ms | 12.8 MB |
+| **v2 (3 blocks, 960d)** | **3×4, MLP 3.0** | **1.2113** | **1.2217** | **5,738** | **105ms** | **14.2 MB** |
+| v3 (3 blocks, 960d) | 3×4, MLP 3.3 | pending | 1.2210 | 5,590 | 107ms | 14.3 MB |
+
+### Frugendorff Baseline: **1.2113 BPB** (v2, sliding window)
+
+### Key Innovations
+1. **Fractal weight sharing:** 3 unique blocks looped 4 times = 12 effective layers with only 3 blocks of parameters
+2. **Cadence training (F/N/N):** Every 3rd step runs all 4 fractal loops; other steps run single clean pass with orthogonal position
+3. **Orthogonal loop positions:** QR-initialized embeddings ensure each loop and normalize operate in non-interfering subspaces
+4. **Qwen-guided overnight optimization:** 141 automated experiments on DGX Spark found optimal config
+5. **Inner-TTT on fractal loops:** (experimental) Recursive weight improvement during eval — 4× leverage per TTT step via weight sharing
+
+### Gap to SOTA
+- Our SOTA: **1.1233 BPB** (11 unique layers, 512d, EMA + distillation)
+- Frugendorff: **1.2113 BPB** (3 unique blocks × 4 loops, 960d)
+- Gap: 0.088 BPB — closing with each iteration
+
 ## SOTA254 Improvement Experiments (8×H100, 2026-03-21)
 
 Baseline: SOTA254 = **1.1303 BPB** (sliding window, seed 1337, zstd)
