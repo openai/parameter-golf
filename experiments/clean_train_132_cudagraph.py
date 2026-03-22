@@ -595,23 +595,6 @@ class BigramHashEmbedding(nn.Module):
         return h * self.scale.to(dtype=h.dtype)
 
 
-@torch.compile
-def _relu2(x: Tensor) -> Tensor:
-    return torch.relu(x).square()
-
-
-@torch.compile
-def _leaky2(x: Tensor) -> Tensor:
-    return F.leaky_relu(x, negative_slope=0.5).square()
-
-
-@torch.compile
-def _softcap_ce(logits_proj: Tensor, targets: Tensor, softcap: float) -> Tensor:
-    """Fused softcap + cross_entropy — avoids materializing full capped logits."""
-    logits = softcap * torch.tanh(logits_proj / softcap)
-    return F.cross_entropy(logits.float(), targets, reduction="mean")
-
-
 class MLP(nn.Module):
     _activation: str = "relu2"  # Set before model creation: "relu2" or "leaky2"
 
@@ -625,8 +608,10 @@ class MLP(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         x = self.fc(x)
         if MLP._activation == "leaky2":
-            return self.proj(_leaky2(x))
-        return self.proj(_relu2(x))
+            x = F.leaky_relu(x, negative_slope=0.5)
+        else:
+            x = torch.relu(x)
+        return self.proj(x.square())
 
 
 class Block(nn.Module):
@@ -760,7 +745,8 @@ class GPT(nn.Module):
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x_flat)
-        main_loss = _softcap_ce(logits_proj, targets, self.logit_softcap)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
 
         if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
             _, seqlen, dim = x.shape
@@ -773,7 +759,8 @@ class GPT(nn.Module):
                 mtp_hidden = x[:, :valid_t, :].reshape(-1, dim)
                 mtp_targets = target_ids[:, k + 1 :].reshape(-1)
                 mtp_logits_proj = mtp_head(mtp_hidden)
-                mtp_loss_sum = mtp_loss_sum + _softcap_ce(mtp_logits_proj, mtp_targets, self.logit_softcap)
+                mtp_logits = self.logit_softcap * torch.tanh(mtp_logits_proj / self.logit_softcap)
+                mtp_loss_sum = mtp_loss_sum + F.cross_entropy(mtp_logits.float(), mtp_targets, reduction="mean")
                 mtp_loss_count += 1
             if mtp_loss_count > 0:
                 main_loss = main_loss + self.mtp_loss_weight * (mtp_loss_sum / mtp_loss_count)
@@ -1294,7 +1281,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, mode='max-autotune', dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     # Use DDP or manual grad sync based on env var
     use_manual_sync = bool(int(os.environ.get("USE_MANUAL_SYNC", "0")))
     if use_manual_sync:
@@ -1781,7 +1768,7 @@ def main() -> None:
         torch.cuda.synchronize()
         log0(f"ttt:completed in {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
-    compiled_eval = torch.compile(eval_model, mode='max-autotune', dynamic=False, fullgraph=True)
+    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
 
     # Standard non-overlapping eval (sanity check)
     torch.cuda.synchronize()
