@@ -7,8 +7,9 @@
   "total_bytes": 15679283,
   "hardware": "8xH100 SXM",
   "train_time_seconds": 600,
-  "seeds": [1337, 42, 2024],
+  "seeds": [1337, 42],
   "seed_results": {
-    "1337": 1.1232
+    "1337": 1.12319,
+    "42": 1.12397
   }
 }
