@@ -797,7 +797,6 @@ class GPT(nn.Module):
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         self._init_weights()
-
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
@@ -823,7 +822,6 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
-
         for i in range(self.num_encoder_layers):
             block = self.blocks[self.block_map[i]]
             qd = lora.q_loras[i] if lora else None
@@ -1419,8 +1417,6 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
-
-
     if master_process:
         torch.save(export_state_dict(base_model), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
