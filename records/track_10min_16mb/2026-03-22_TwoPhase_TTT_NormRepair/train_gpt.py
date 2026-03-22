@@ -1368,10 +1368,10 @@ def main() -> None:
     ttt_p1_epochs = int(os.environ.get("TTT_P1_EPOCHS", 100))
     ttt_p1_lr = float(os.environ.get("TTT_P1_LR", 0.01))
     # Phase 2: selective-freeze (block adaptation)
-    ttt_p2_epochs = int(os.environ.get("TTT_P2_EPOCHS", 15))
-    ttt_p2_lr = float(os.environ.get("TTT_P2_LR", 0.003))
-    ttt_p2_unfreeze_last = int(os.environ.get("TTT_P2_UNFREEZE_LAST", 2))
-    ttt_p2_momentum = float(os.environ.get("TTT_P2_MOMENTUM", 0.95))
+    ttt_p2_epochs = int(os.environ.get("TTT_P2_EPOCHS", 25))
+    ttt_p2_lr = float(os.environ.get("TTT_P2_LR", 0.005))
+    ttt_p2_unfreeze_last = int(os.environ.get("TTT_P2_UNFREEZE_LAST", 3))
+    ttt_p2_momentum = float(os.environ.get("TTT_P2_MOMENTUM", 0.9))
 
     if ttt_enabled:
         torch.cuda.synchronize()
