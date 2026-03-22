@@ -45,8 +45,8 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 6))  # unique layers (×2 loops = 12 effective)
     num_loops = int(os.environ.get("NUM_LOOPS", 2))  # fractal loops over shared blocks
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 16))
-    model_dim = int(os.environ.get("MODEL_DIM", 480))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 16))
     mlp_mult = float(os.environ.get("MLP_MULT", 4.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
