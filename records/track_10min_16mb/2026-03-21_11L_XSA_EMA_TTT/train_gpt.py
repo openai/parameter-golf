@@ -1368,13 +1368,14 @@ def _ttt_run_phase(
     total_seqs = (n_tokens - 1) // seq_len
     my_start_seq = (total_seqs * rank) // world_size
     my_end_seq = (total_seqs * (rank + 1)) // world_size
-    my_seqs = my_end_seq - my_start_seq
 
     # Store initial lr for cosine/warmup scheduling
     if cosine or warmup_frac > 0:
         for g in optimizer.param_groups:
             g["initial_lr"] = g["lr"]
-    total_steps = epochs * max_steps
+    # Estimate actual steps per epoch for cosine schedule
+    steps_per_epoch = min((my_end_seq - my_start_seq) // max(batch_seqs, 1), max_steps)
+    total_steps = epochs * steps_per_epoch
     global_step = 0
 
     model.train()
