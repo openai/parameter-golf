@@ -33,15 +33,29 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-try:
-    from flash_attn_interface import flash_attn_func as _fa3_func
-    _ATTN_BACKEND = "fa3"
-except ImportError:
+_REQUESTED_ATTN_BACKEND = os.environ.get("ATTN_BACKEND", "auto").strip().lower()
+if _REQUESTED_ATTN_BACKEND not in {"auto", "fa3", "fa2", "sdpa"}:
+    raise ValueError("ATTN_BACKEND must be one of: auto, fa3, fa2, sdpa")
+
+_fa3_func = None
+_fa2_func = None
+_ATTN_BACKEND = "sdpa"
+if _REQUESTED_ATTN_BACKEND in {"auto", "fa3"}:
+    try:
+        from flash_attn_interface import flash_attn_func as _fa3_func
+
+        _ATTN_BACKEND = "fa3"
+    except ImportError:
+        if _REQUESTED_ATTN_BACKEND == "fa3":
+            raise
+if _ATTN_BACKEND == "sdpa" and _REQUESTED_ATTN_BACKEND in {"auto", "fa2"}:
     try:
         from flash_attn import flash_attn_func as _fa2_func
+
         _ATTN_BACKEND = "fa2"
     except ImportError:
-        _ATTN_BACKEND = "sdpa"
+        if _REQUESTED_ATTN_BACKEND == "fa2":
+            raise
 
 # HYPERPARAMETERS
 # Default Simple Baseline run:
@@ -114,6 +128,9 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     late_qat = bool(int(os.environ.get("LATE_QAT", "1")))
+    qat_start_step = int(os.environ.get("QAT_START_STEP", "0"))
+    qat_start_frac = float(os.environ.get("QAT_START_FRAC", "0.8"))
+    qat_threshold = float(os.environ.get("QAT_THRESHOLD", "0.1"))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
@@ -553,6 +570,16 @@ def _enable_qat(module: nn.Module) -> None:
             else:
                 m._qat_clip_range = 31  # int6 for attention
             m.forward = m.forward_qat  # type: ignore[assignment]
+
+
+def _resolve_qat_start_step(args: Hyperparameters) -> int | None:
+    if args.qat_enabled:
+        return 0
+    if args.qat_start_step > 0:
+        return args.qat_start_step
+    if args.qat_start_frac > 0:
+        return min(max(int(args.iterations * args.qat_start_frac), 0), args.iterations)
+    return None
 
 class CastedLinear(nn.Linear):
     def forward(self, x: Tensor) -> Tensor:
@@ -1337,10 +1364,13 @@ def main() -> None:
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
+    if args.qat_enabled:
+        _enable_qat(base_model)
     restore_low_dim_params_to_fp32(base_model)
     torch._dynamo.config.optimize_ddp = False
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    qat_start_step = _resolve_qat_start_step(args)
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -1413,8 +1443,13 @@ def main() -> None:
     log0(f"model_params:{n_params}")
     log0(f"mtp_num_heads:{args.mtp_num_heads} mtp_loss_weight:{args.mtp_loss_weight} mtp_params:{mtp_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0(f"attn_backend:requested={_REQUESTED_ATTN_BACKEND} active={_ATTN_BACKEND}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(
+        f"qat:active={_QAT_ACTIVE} late_qat:{args.late_qat} "
+        f"start_step:{qat_start_step} start_frac:{args.qat_start_frac:.3f} threshold:{args.qat_threshold:.4f}"
+    )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
@@ -1527,13 +1562,23 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        qat_threshold = float(os.environ.get("QAT_THRESHOLD", "0.1"))
-        if args.late_qat and scale < qat_threshold and not _QAT_ACTIVE:
+        should_enable_late_qat = (
+            args.late_qat
+            and not _QAT_ACTIVE
+            and (
+                (qat_start_step is not None and step >= qat_start_step)
+                or scale < args.qat_threshold
+            )
+        )
+        if should_enable_late_qat:
             _enable_qat(base_model)
             # Recompile with QAT forward paths
             compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
             model = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
-            log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+            log0(
+                f"late_qat:enabled step:{step} scale:{scale:.4f} "
+                f"start_step:{qat_start_step} threshold:{args.qat_threshold:.4f}"
+            )
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):

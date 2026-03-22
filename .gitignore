@@ -9,3 +9,11 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+
+# Local agent/editor artifacts
+.claude/
+.codex/
+.cursor/
+.roo/
+.windsurf/
+.augment/
