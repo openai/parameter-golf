@@ -86,8 +86,8 @@ class Hyperparameters:
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
     # Late-stage TTT burst: sharp adaptation on recent training data before finalizing
     ttt_burst_enabled = bool(int(os.environ.get("TTT_BURST_ENABLED", "1")))
-    ttt_burst_epochs = int(os.environ.get("TTT_BURST_EPOCHS", 1))  # epochs over recent data
-    ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.05))  # fraction of base LR
+    ttt_burst_epochs = int(os.environ.get("TTT_BURST_EPOCHS", 2))  # epochs over recent data
+    ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.1))  # fraction of base LR
     ttt_burst_steps = int(os.environ.get("TTT_BURST_STEPS", 100))  # how many recent batches to replay
     ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.05))  # trigger at scale < this
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
@@ -892,7 +892,7 @@ def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
     t32 = t.float()
     if t32.ndim == 2:
         best_q, best_s, best_err = None, None, float('inf')
-        for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+        for pct in [0.9980, 0.9985, 0.9990, 0.9992, 0.9995, 0.9997, 0.9999, 0.99993, 0.99995, 0.99997, 0.99999, 0.999993, 0.999997, 0.999999, 1.0]:
             if pct < 1.0:
                 row_clip = torch.quantile(t32.abs(), pct, dim=1)
             else:
@@ -1296,15 +1296,9 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
-    # Apply EMA weights FIRST — this is the proven smooth baseline
-    log0("ema:applying EMA weights")
-    current_state = base_model.state_dict()
-    avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
-    base_model.load_state_dict(avg_state, strict=True)
-    # === TTT BURST: QAT-aware sharpening on the EMA-smoothed model ===
-    # Key changes from v1a: (1) burst runs AFTER EMA apply, not before
-    # (2) QAT forced on so weights stay quantization-friendly
-    # (3) no EMA updates — we're refining the final model directly
+    # === TTT BURST: QAT-aware sharpening BEFORE EMA (burst→EMA proven better) ===
+    # QAT forced on so burst-sharpened weights are quantization-friendly
+    # EMA updated during burst so it absorbs the sharpened signal
     if args.ttt_burst_enabled and hasattr(train_loader, '_ttt_buffer') and len(train_loader._ttt_buffer) > 0:
         ttt_buffer = train_loader._ttt_buffer
         CastedLinear._qat_enabled = True  # force QAT during burst
@@ -1327,8 +1321,17 @@ def main() -> None:
                     opt.step()
                 zero_grad_all()
                 ttt_epoch_loss += ttt_loss.item()
+                # Update EMA during burst so it absorbs sharpened weights
+                with torch.no_grad():
+                    for name, t in base_model.state_dict().items():
+                        ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
             log0(f"ttt_burst:epoch:{ttt_epoch + 1}/{args.ttt_burst_epochs} avg_loss:{ttt_epoch_loss / len(ttt_buffer):.4f}")
         log0("ttt_burst:done")
+    # Apply EMA weights
+    log0("ema:applying EMA weights")
+    current_state = base_model.state_dict()
+    avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
+    base_model.load_state_dict(avg_state, strict=True)
     torch.cuda.synchronize()
     t_diag = time.perf_counter()
     diag_val_loss, diag_val_bpb = eval_val(
