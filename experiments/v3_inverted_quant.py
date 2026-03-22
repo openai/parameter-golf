@@ -1046,7 +1046,7 @@ def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
 # contrary to conventional int5-MLP/int6-attn used by prior SOTA.
 QUANT_BITS = {
     "mlp": int(os.environ.get("QUANT_MLP_BITS", "5")),
-    "attn": int(os.environ.get("QUANT_ATTN_BITS", "6")),
+    "attn": int(os.environ.get("QUANT_ATTN_BITS", "5")),
 }
 QUANT_CLIP = {4: 7, 5: 15, 6: 31, 8: 127}
 
@@ -1507,7 +1507,7 @@ def main() -> None:
     # -----------------------------
 
     # Magnitude pruning: zero out smallest weights to improve compression
-    prune_pct = float(os.environ.get("PRUNE_PCT", "0.03"))
+    prune_pct = float(os.environ.get("PRUNE_PCT", "0.10"))
     with torch.no_grad():
         for name, param in base_model.named_parameters():
             if param.ndim == 2 and param.numel() > 65536:
