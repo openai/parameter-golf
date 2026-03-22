@@ -1,11 +1,11 @@
 {
-  "author": "sumaiyanaazim",
+  "author": "naazimsnh02",
   "github_id": "naazimsnh02",
-  "name": "12L Group-INT4 MLP + INT6 Attn + BigramHash(10240)",
-  "blurb": "12-layer transformer (dim=512, MLP 3x, GQA 8q/4kv) with SmearGate, BigramHash(10240, dim=128), orthogonal init, U-Net skip connections, group INT4 quantization (gs=64) for MLP, INT6 for attention, zstd-22, 8% magnitude pruning, SWA(frac=0.4), WD=0.04, batch=786432, warmdown=3000, sliding-window eval stride=64.",
-  "date": "2026-03-21T00:00:00Z",
-  "val_loss": 1.9353,
-  "val_bpb": 1.1462,
-  "bytes_total": 17497295,
-  "bytes_code": 62777
+  "name": "12L Full-INT4 (MLP+Attn) + BigramHash(4096)",
+  "blurb": "12-layer transformer (dim=512, MLP 3x, GQA 8q/4kv) with SmearGate, BigramHash(4096, dim=64), orthogonal init, U-Net skip connections, group INT4 quantization (gs=64) for both MLP and attention, 10% magnitude pruning, zstd-22, SWA(frac=0.4), WD=0.04, batch=786432, warmdown=3000, sliding-window eval stride=64.",
+  "date": "2026-03-22T00:00:00Z",
+  "val_loss": 1.9708,
+  "val_bpb": 1.1672,
+  "bytes_total": 14479730,
+  "bytes_code": 62785
 }

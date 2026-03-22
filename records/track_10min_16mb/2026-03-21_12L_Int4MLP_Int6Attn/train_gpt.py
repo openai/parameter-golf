@@ -96,8 +96,8 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
     int4_group_size = int(os.environ.get("INT4_GROUP_SIZE", 64))
 
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
@@ -438,7 +438,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], int4
             result[name] = t.to(dtype=torch.float16).contiguous()
             meta[name] = "passthrough_fp16"
             continue
-        if cat == "mlp" and t.ndim == 2 and t.shape[1] % int4_group_size == 0 and t.shape[1] % 2 == 0:
+        if cat in {"mlp", "attn"} and t.ndim == 2 and t.shape[1] % int4_group_size == 0 and t.shape[1] % 2 == 0:
             packed, s = quantize_int4_grouped(t, group_size=int4_group_size)
             result[name + ".q"] = packed
             result[name + ".scale"] = s
@@ -1401,7 +1401,7 @@ def main() -> None:
     with torch.no_grad():
         for name, param in base_model.named_parameters():
             if param.ndim == 2 and param.numel() > 65536:
-                threshold = torch.quantile(param.abs().float().flatten(), 0.03)
+                threshold = torch.quantile(param.abs().float().flatten(), 0.10)
                 mask = param.abs() < threshold
                 param.masked_fill_(mask, 0.0)
 
