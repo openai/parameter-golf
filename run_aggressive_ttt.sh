@@ -24,7 +24,11 @@ export LATE_K_FP16=0 FP16_EMBED_EXPORT=0
 export XSA_LAST_N=0
 
 # Aggressive TTT — the key change
-export TTT_EPOCHS=20 TTT_LR=0.008
+# PR #398 uses 20 epochs but their TTT runs DDP (14.8s/epoch vs our 73s/epoch)
+# At 73s/epoch: 8 epochs = 584s + 200s eval = 784s (over 10min eval budget)
+# Cap at 7 epochs for now (7*73=511s + 200s = 711s, safe)
+# TODO: parallelize TTT with DDP to match #398's 20 epochs
+export TTT_EPOCHS=7 TTT_LR=0.008
 export TTT_FREEZE_BLOCKS=0 TTT_MAX_STEPS=9999
 
 # Seed from argument or default 1337
