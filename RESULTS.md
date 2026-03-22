@@ -64,7 +64,7 @@ Baseline: SOTA254 = **1.1303 BPB** (sliding window, seed 1337, zstd)
 | C | Vocab 1536 | — | — | — | can't run (48 GB docs, 36 GB free) |
 | **D** | **TTT 8ep + stride 32** | **1.1519** | **1.1295** | **15.74 MB** | **new best! -0.0008 vs baseline** |
 
-**Exp D details (seed 1337):** Same model/artifact as baseline. TTT 8 epochs (vs 3), stride 32 (vs 64). Stride made no difference (s32=1.12948, s64=1.12946) — all improvement from extra TTT. Eval time 253s (114s TTT + 137s sliding), well under 600s. Seed 42 pending.
+**Exp D details:** Same model/artifact as baseline. TTT 8 epochs (vs 3), stride 32 (vs 64). Stride made no difference — all improvement from extra TTT. Seed 1337: 1.1295, Seed 42: 1.1307. Mean: **1.1301** (baseline mean was 1.1308). Confirmed across 2 seeds.
 
 **Bug found (A/B):** zstandard was installed but A/B used zlib anyway — investigate. zstd worked for D.
 
