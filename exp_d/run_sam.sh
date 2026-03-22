@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# EXP D + SAM: TTT 8 epochs + stride 32 + SAM sharpness-aware TTT
-# Same as exp_d/run.sh but with TTT_SAM=1
+# EXP D + SAM + Partial RoPE + LN Scale
+# TTT 8ep + stride 32 + SAM + PR#315 tricks (ROPE_DIMS=16, LN_SCALE=1)
 
 LOGDIR="logs/exp_d_sam_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOGDIR"
 
 echo "============================================"
-echo "  EXP D + SAM (rho=${TTT_SAM_RHO:-0.05})"
-echo "  TTT 8ep + stride 32 + SAM"
+echo "  EXP D + SAM + PartialRoPE + LNScale"
+echo "  TTT 8ep + stride 32 + SAM + ROPE_DIMS=16 + LN_SCALE=1"
 echo "  Logs: $LOGDIR"
 echo "============================================"
 
@@ -34,6 +34,8 @@ TTT_EPOCHS=8 \
 TTT_MOMENTUM=0.9 \
 TTT_SAM=1 \
 TTT_SAM_RHO="${TTT_SAM_RHO:-0.05}" \
+ROPE_DIMS=16 \
+LN_SCALE=1 \
 NCCL_IB_DISABLE=1 \
 RUN_ID="exp_d_sam_s${SEED:-1337}" \
 torchrun --standalone --nproc_per_node="${NPROC:-8}" \
