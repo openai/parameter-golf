@@ -1,0 +1,25 @@
+{
+  "author": "Sungjoon Park",
+  "github_id": "sjp611",
+  "name": "11L EMA + AdamW TTT (10ep, lr=0.0005)",
+  "blurb": "Replaces SGD with AdamW for test-time training. AdamW(lr=0.0005, wd=0.0) for 10 epochs reduces TTT time from ~260s to ~157s while improving mean BPB by -0.019 vs prior SOTA. All other settings identical to PR #398 (11L, EMA 0.997, SmearGate, BigramHash 2048, int6+zstd).",
+  "date": "2026-03-23",
+  "val_loss": 1.85598944,
+  "val_bpb": 1.09922440,
+  "val_bpb_mean": 1.1027,
+  "val_bpb_std": 0.0034,
+  "num_seeds": 3,
+  "seeds": {
+    "1337": {"val_loss": 1.86748617, "val_bpb": 1.10603343, "steps": 4372, "artifact_bytes": 15576850},
+    "42": {"val_loss": 1.85598944, "val_bpb": 1.09922440, "steps": 4578, "artifact_bytes": 15747677},
+    "7": {"val_loss": 1.86232628, "val_bpb": 1.10297744, "steps": 4612, "artifact_bytes": 15661947}
+  },
+  "bytes_total": 15747677,
+  "bytes_code": 71763,
+  "bytes_model_int6_zstd": 15675914,
+  "track": "10min_16mb",
+  "seed": 42,
+  "training_time_seconds": 600,
+  "step_avg_ms": 131,
+  "gpu": "8xH100 SXM"
+}
