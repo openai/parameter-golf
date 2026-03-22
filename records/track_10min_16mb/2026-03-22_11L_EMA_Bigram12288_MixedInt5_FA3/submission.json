@@ -1,0 +1,10 @@
+{
+  "author": "Simon Bissonnette",
+  "github_id": "simonbissonnette",
+  "name": "11L EMA + BigramHash(12288) + Mixed Int5 + FA3",
+  "val_loss": 1.91701311,
+  "val_bpb": 1.13536615,
+  "bytes_total": 15967704,
+  "blurb": "11 layers, 3x MLP, EMA(0.997), BigramHash(12288), mixed int5 quantization, and stride-64 sliding evaluation. Three clean seeds average 1.13536615 val_bpb, all under the 16,000,000-byte cap. Uses FlashAttention-3 via kernels-community/flash-attn3; README explicitly discloses runtime FA3 kernel fetching.",
+  "date": "2026-03-22"
+}
