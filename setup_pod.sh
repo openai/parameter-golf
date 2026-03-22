@@ -11,7 +11,7 @@ else
   cd parameter-golf
 fi
 
-pip install huggingface-hub
+pip3 install -r requirements.txt
 python data/cached_challenge_fineweb.py
 
 echo "Setup complete. Run: bash /workspace/parameter-golf/run.sh"
