@@ -117,12 +117,15 @@ class Hyperparameters:
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))  # EMA decay per step
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))  # test-time training on val data
     ttt_lr = float(os.environ.get("TTT_LR", 0.0005))  # AdamW lr (PR #442: AdamW beats SGD by 0.019 BPB)
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 10))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 30))  # 30ep cosine beats 10ep flat by 16%
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))  # only used if TTT_OPTIMIZER=sgd
     ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))  # 0 = all blocks unfrozen (PR #398)
     ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adamw")  # "adamw" or "sgd"
     ttt_max_steps = int(os.environ.get("TTT_MAX_STEPS", 300))  # cap steps per epoch (~10s per epoch)
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 64))  # seqs per GPU per step (64*8=512 total)
+    ttt_cosine = bool(int(os.environ.get("TTT_COSINE", "1")))  # cosine lr decay during TTT (+16% over flat)
+    ttt_warmup_frac = float(os.environ.get("TTT_WARMUP_FRAC", 0.0))  # linear warmup fraction (0.1 = 10%)
+    ttt_perlayer = bool(int(os.environ.get("TTT_PERLAYER", "0")))  # per-layer lr (3x proj, 0.5x fc)
     # Two-phase TTT (matches PR #415/#417 approach)
     ttt_two_phase = bool(int(os.environ.get("TTT_TWO_PHASE", "0")))  # enable two-phase TTT
     ttt_p1_epochs = int(os.environ.get("TTT_P1_EPOCHS", 50))  # phase 1: norm-only recalibration
@@ -1354,20 +1357,28 @@ def _ttt_run_phase(
     world_size: int,
     phase_name: str,
     t0: float,
+    cosine: bool = False,
+    warmup_frac: float = 0.0,
 ) -> None:
     """Run one TTT phase with DDP gradient sharding across GPUs.
-    Each GPU processes batch_seqs sequences, gradients are manually all_reduced."""
+    Each GPU processes batch_seqs sequences, gradients are manually all_reduced.
+    Supports cosine lr decay and linear warmup."""
     distributed = world_size > 1
     n_tokens = val_tokens.numel()
     total_seqs = (n_tokens - 1) // seq_len
-    # Shard sequences across GPUs
     my_start_seq = (total_seqs * rank) // world_size
     my_end_seq = (total_seqs * (rank + 1)) // world_size
     my_seqs = my_end_seq - my_start_seq
 
+    # Store initial lr for cosine/warmup scheduling
+    if cosine or warmup_frac > 0:
+        for g in optimizer.param_groups:
+            g["initial_lr"] = g["lr"]
+    total_steps = epochs * max_steps
+    global_step = 0
+
     model.train()
     for epoch in range(epochs):
-        # Random permutation of local sequences (broadcast from rank 0 for consistency)
         perm = torch.randperm(my_seqs, device=device)
         if distributed:
             dist.broadcast(perm, src=0)
@@ -1377,9 +1388,22 @@ def _ttt_run_phase(
         for bi in range(0, my_seqs - batch_seqs + 1, batch_seqs):
             if step_i >= max_steps:
                 break
-            # Gather batch_seqs sequences for this GPU
+
+            # LR schedule: warmup then cosine decay
+            if (cosine or warmup_frac > 0) and total_steps > 0:
+                progress = global_step / total_steps
+                if warmup_frac > 0 and progress < warmup_frac:
+                    mul = progress / warmup_frac
+                elif cosine:
+                    cos_start = warmup_frac if warmup_frac > 0 else 0.0
+                    cos_progress = (progress - cos_start) / (1.0 - cos_start) if cos_start < 1.0 else 0.0
+                    mul = 0.5 * (1.0 + math.cos(math.pi * min(cos_progress, 1.0)))
+                else:
+                    mul = 1.0
+                for g in optimizer.param_groups:
+                    g["lr"] = g["initial_lr"] * mul
+
             seq_indices = perm[bi:bi + batch_seqs] + my_start_seq
-            # Build (batch_seqs, seq_len) input and target
             x_list = []
             y_list = []
             for si in seq_indices:
@@ -1400,7 +1424,6 @@ def _ttt_run_phase(
                 loss = model(x, y)
             loss.backward()
 
-            # Manual DDP: all_reduce gradients across GPUs
             if distributed:
                 for p in ttt_params:
                     if p.grad is not None:
@@ -1412,11 +1435,13 @@ def _ttt_run_phase(
             epoch_loss += loss.detach().to(torch.float64) * x.numel()
             epoch_tokens += x.numel()
             step_i += 1
+            global_step += 1
 
         if rank == 0:
             avg_loss = epoch_loss.item() / max(epoch_tokens.item(), 1)
+            cur_lr = optimizer.param_groups[0]["lr"]
             print(f"ttt_{phase_name} epoch:{epoch+1}/{epochs} loss:{avg_loss:.4f} "
-                  f"steps:{step_i} time:{time.perf_counter()-t0:.1f}s", flush=True)
+                  f"lr:{cur_lr:.6f} steps:{step_i} time:{time.perf_counter()-t0:.1f}s", flush=True)
 
 
 def ttt_adapt(
@@ -1461,6 +1486,7 @@ def ttt_adapt(
             epochs=args.ttt_p1_epochs, max_steps=args.ttt_max_steps,
             device=device, rank=rank, world_size=world_size,
             phase_name="phase1", t0=t0,
+            cosine=args.ttt_cosine, warmup_frac=args.ttt_warmup_frac,
         )
         del optimizer_p1
 
@@ -1494,30 +1520,53 @@ def ttt_adapt(
             epochs=args.ttt_p2_epochs, max_steps=args.ttt_max_steps,
             device=device, rank=rank, world_size=world_size,
             phase_name="phase2", t0=t0,
+            cosine=args.ttt_cosine, warmup_frac=args.ttt_warmup_frac,
         )
         del optimizer_p2
     else:
-        # ── Single-phase TTT (original behavior) ───────────────────────
+        # ── Single-phase TTT with cosine + per-layer lr ───────────────
         frozen = set()
         for i, block in enumerate(model.blocks):  # type: ignore[attr-defined]
             if i < args.ttt_freeze_blocks:
                 for p in block.parameters():
                     frozen.add(id(p))
-        ttt_params = [p for p in model.parameters() if p.requires_grad and id(p) not in frozen]
+
+        if args.ttt_perlayer:
+            # Per-layer lr: higher for more quant-damaged MLP proj, lower for fc
+            proj_params = [p for n, p in model.named_parameters()
+                          if "mlp.proj" in n and p.requires_grad and id(p) not in frozen]
+            fc_params = [p for n, p in model.named_parameters()
+                        if "mlp.fc" in n and p.requires_grad and id(p) not in frozen]
+            other_params = [p for p in model.parameters()
+                          if p.requires_grad and id(p) not in frozen
+                          and id(p) not in {id(q) for q in proj_params + fc_params}]
+            param_groups = [
+                {"params": proj_params, "lr": args.ttt_lr * 3.0},
+                {"params": fc_params, "lr": args.ttt_lr * 0.5},
+                {"params": other_params, "lr": args.ttt_lr},
+            ]
+            param_groups = [g for g in param_groups if g["params"]]
+            ttt_params = proj_params + fc_params + other_params
+        else:
+            ttt_params = [p for p in model.parameters() if p.requires_grad and id(p) not in frozen]
+            param_groups = [{"params": ttt_params, "lr": args.ttt_lr}]
+
         if rank == 0:
             n_ttt = sum(p.numel() for p in ttt_params)
             print(f"ttt:start params:{n_ttt} epochs:{args.ttt_epochs} lr:{args.ttt_lr} "
-                  f"freeze:{args.ttt_freeze_blocks} optimizer:{args.ttt_optimizer}", flush=True)
+                  f"freeze:{args.ttt_freeze_blocks} optimizer:{args.ttt_optimizer} "
+                  f"cosine:{args.ttt_cosine} warmup:{args.ttt_warmup_frac} perlayer:{args.ttt_perlayer}", flush=True)
 
         if args.ttt_optimizer == "adamw":
-            optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
+            optimizer = torch.optim.AdamW(param_groups, weight_decay=0.0)
         else:
-            optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+            optimizer = torch.optim.SGD(param_groups, momentum=args.ttt_momentum)
         _ttt_run_phase(
             model, ttt_params, optimizer, val_tokens, seq_len, batch_seqs,
             epochs=args.ttt_epochs, max_steps=args.ttt_max_steps,
             device=device, rank=rank, world_size=world_size,
             phase_name="single", t0=t0,
+            cosine=args.ttt_cosine, warmup_frac=args.ttt_warmup_frac,
         )
         del optimizer
 
