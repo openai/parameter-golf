@@ -49,6 +49,7 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    checkpoint_every = int(os.environ.get("CHECKPOINT_EVERY", 0))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
@@ -1450,6 +1451,11 @@ def main() -> None:
             )
             torch.cuda.synchronize()
             t0 = time.perf_counter()
+
+        if master_process and args.checkpoint_every > 0 and step > 0 and step % args.checkpoint_every == 0:
+            ckpt_path = f"checkpoint_step{step}.pt"
+            torch.save(base_model.state_dict(), ckpt_path)
+            log0(f"checkpoint_saved: {ckpt_path}")
 
         if last_step:
             if stop_after_step is not None and step < args.iterations:
