@@ -1,0 +1,46 @@
+{
+    "name": "Parameter Golf Solution",
+    "github_id": "YOUR_GITHUB_USERNAME",
+    "repository": "https://github.com/YOUR_GITHUB_USERNAME/parameter-golf-submission",
+    "description": "Optimized GPT with SwiGLU, SmearGate, BigramHash, SENT-lite, Muon optimizer, and TTT LoRA evaluation",
+    "val_bpb": null,
+    "training_time_seconds": null,
+    "model_size_mb": null,
+    "innovations": [
+        "SwiGLU MLP (replaces relu^2)",
+        "SmearGate (token blending)",
+        "BigramHash (bigram context)",
+        "SENT-lite (entropy-weighted loss)",
+        "Batched TTT LoRA evaluation",
+        "Grouped Query Attention (4 KV heads)",
+        "Skip connections (encoder-decoder U-Net style)"
+    ],
+    "architecture": {
+        "num_layers": 9,
+        "num_encoder_layers": 4,
+        "num_decoder_layers": 5,
+        "model_dim": 512,
+        "num_heads": 8,
+        "num_kv_heads": 4,
+        "mlp_mult": 3,
+        "vocab_size": 1024,
+        "seq_len": 1024,
+        "tie_embeddings": true,
+        "logit_softcap": 30.0,
+        "rope_base": 10000.0,
+        "estimated_params": "~21M"
+    },
+    "training_config": {
+        "train_batch_tokens": 524288,
+        "warmdown_iters": 1200,
+        "max_wallclock_seconds": 600
+    },
+    "quantization": "int8_per_row + zlib (level 9)",
+    "optimizer": "Muon (2D matrices) + Adam (embeddings, scalars/control tensors)",
+    "constraints": {
+        "artifact_size_limit_mb": 16,
+        "training_time_limit_seconds": 600,
+        "gpu_setup": "8x H100 SXM (80GB each)",
+        "data": "FineWeb 10B (SentencePiece 1024 tokenizer)"
+    }
+}
