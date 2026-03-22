@@ -121,6 +121,14 @@ class Hyperparameters:
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))  # freeze first N blocks for stability
     ttt_max_steps = int(os.environ.get("TTT_MAX_STEPS", 300))  # cap steps per epoch (~10s per epoch)
+    ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 64))  # seqs per GPU per step (64*8=512 total)
+    # Two-phase TTT (matches PR #415/#417 approach)
+    ttt_two_phase = bool(int(os.environ.get("TTT_TWO_PHASE", "0")))  # enable two-phase TTT
+    ttt_p1_epochs = int(os.environ.get("TTT_P1_EPOCHS", 50))  # phase 1: norm-only recalibration
+    ttt_p1_lr = float(os.environ.get("TTT_P1_LR", 0.01))  # phase 1: Adam lr
+    ttt_p2_epochs = int(os.environ.get("TTT_P2_EPOCHS", 10))  # phase 2: selective block adaptation
+    ttt_p2_lr = float(os.environ.get("TTT_P2_LR", 0.005))  # phase 2: SGD lr
+    ttt_p2_unfreeze_blocks = int(os.environ.get("TTT_P2_UNFREEZE_BLOCKS", 3))  # phase 2: unfreeze last N blocks
     use_zstd = bool(int(os.environ.get("USE_ZSTD", "1")))  # use zstd instead of zlib for compression
     curriculum = bool(int(os.environ.get("CURRICULUM", "0")))  # sort training shards by doc length (easy first)
     quant_bits = int(os.environ.get("QUANT_BITS", 6))  # 8=int8, 6=int6 (int6 fits ~3x more params in 16MB)
@@ -1331,6 +1339,85 @@ def eval_val_sliding(
 # TEST-TIME TRAINING (TTT)
 # -----------------------------
 
+def _ttt_run_phase(
+    model: nn.Module,
+    ttt_params: list[torch.nn.Parameter],
+    optimizer: torch.optim.Optimizer,
+    val_tokens: torch.Tensor,
+    seq_len: int,
+    batch_seqs: int,
+    epochs: int,
+    max_steps: int,
+    device: torch.device,
+    rank: int,
+    world_size: int,
+    phase_name: str,
+    t0: float,
+) -> None:
+    """Run one TTT phase with DDP gradient sharding across GPUs.
+    Each GPU processes batch_seqs sequences, gradients are manually all_reduced."""
+    distributed = world_size > 1
+    n_tokens = val_tokens.numel()
+    total_seqs = (n_tokens - 1) // seq_len
+    # Shard sequences across GPUs
+    my_start_seq = (total_seqs * rank) // world_size
+    my_end_seq = (total_seqs * (rank + 1)) // world_size
+    my_seqs = my_end_seq - my_start_seq
+
+    model.train()
+    for epoch in range(epochs):
+        # Random permutation of local sequences (broadcast from rank 0 for consistency)
+        perm = torch.randperm(my_seqs, device=device)
+        if distributed:
+            dist.broadcast(perm, src=0)
+        epoch_loss = torch.zeros((), device=device, dtype=torch.float64)
+        epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
+        step_i = 0
+        for bi in range(0, my_seqs - batch_seqs + 1, batch_seqs):
+            if step_i >= max_steps:
+                break
+            # Gather batch_seqs sequences for this GPU
+            seq_indices = perm[bi:bi + batch_seqs] + my_start_seq
+            # Build (batch_seqs, seq_len) input and target
+            x_list = []
+            y_list = []
+            for si in seq_indices:
+                start = int(si.item()) * seq_len
+                end = start + seq_len + 1
+                if end > n_tokens:
+                    continue
+                chunk = val_tokens[start:end].to(device=device, dtype=torch.int64)
+                x_list.append(chunk[:-1])
+                y_list.append(chunk[1:])
+            if len(x_list) < 2:
+                continue
+            x = torch.stack(x_list)
+            y = torch.stack(y_list)
+
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                loss = model(x, y)
+            loss.backward()
+
+            # Manual DDP: all_reduce gradients across GPUs
+            if distributed:
+                for p in ttt_params:
+                    if p.grad is not None:
+                        dist.all_reduce(p.grad, op=dist.ReduceOp.SUM)
+                        p.grad.div_(world_size)
+
+            torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
+            optimizer.step()
+            epoch_loss += loss.detach().to(torch.float64) * x.numel()
+            epoch_tokens += x.numel()
+            step_i += 1
+
+        if rank == 0:
+            avg_loss = epoch_loss.item() / max(epoch_tokens.item(), 1)
+            print(f"ttt_{phase_name} epoch:{epoch+1}/{epochs} loss:{avg_loss:.4f} "
+                  f"steps:{step_i} time:{time.perf_counter()-t0:.1f}s", flush=True)
+
+
 def ttt_adapt(
     args: Hyperparameters,
     model: nn.Module,
@@ -1339,46 +1426,94 @@ def ttt_adapt(
     rank: int = 0,
     world_size: int = 1,
 ) -> None:
-    """Adapt model weights to the validation distribution via full-weight SGD.
-    Freeze early blocks for stability. Runs before final sliding-window eval."""
+    """Two-phase TTT with DDP gradient sharding.
+
+    Phase 1 (norm-only): Fix quantization artifacts by adapting only LayerNorm
+    weights, scales, resid_mix, and q_gain (~22K params). Low risk, high epoch count.
+
+    Phase 2 (selective blocks): Adapt last N blocks + norms + head to val distribution.
+    Higher risk, lower epoch count.
+
+    Falls back to single-phase SGD if TTT_TWO_PHASE=0.
+    """
     t0 = time.perf_counter()
     seq_len = args.train_seq_len
-    batch_seqs = 32
-    # Freeze first N blocks
-    frozen = set()
-    for i, block in enumerate(model.blocks):  # type: ignore[attr-defined]
-        if i < args.ttt_freeze_blocks:
-            for p in block.parameters():
-                frozen.add(id(p))
-    ttt_params = [p for p in model.parameters() if p.requires_grad and id(p) not in frozen]
-    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
-    n_tokens = val_tokens.numel()
-    for epoch in range(args.ttt_epochs):
-        # Shuffle starting positions each epoch
-        starts = list(range(0, n_tokens - seq_len * batch_seqs, seq_len))
-        random.shuffle(starts)
-        epoch_loss = torch.zeros((), device=device)
-        epoch_tokens = torch.zeros((), device=device)
-        for step_i, start in enumerate(starts):
-            if step_i >= args.ttt_max_steps:
-                break
-            end = start + seq_len * batch_seqs + 1
-            if end > n_tokens:
-                break
-            chunk = val_tokens[start:end].to(device=device, dtype=torch.int64)
-            x = chunk[:-1].reshape(batch_seqs, seq_len)
-            y = chunk[1:].reshape(batch_seqs, seq_len)
-            optimizer.zero_grad(set_to_none=True)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                loss = model(x, y)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
-            optimizer.step()
-            epoch_loss += loss.detach() * x.numel()
-            epoch_tokens += x.numel()
+    batch_seqs = args.ttt_batch_seqs
+
+    if args.ttt_two_phase:
+        # ── Phase 1: Norm-only recalibration ────────────────────────────
+        # Freeze everything except norms, scales, resid_mix, q_gain
+        norm_params = []
+        for p in model.parameters():
+            p.requires_grad_(False)
+        for name, p in model.named_parameters():
+            if any(k in name for k in ("norm", "scale", "resid_mix", "q_gain", "skip_weight")):
+                p.requires_grad_(True)
+                norm_params.append(p)
+        n_norm = sum(p.numel() for p in norm_params)
         if rank == 0:
-            print(f"ttt epoch:{epoch+1}/{args.ttt_epochs} loss:{epoch_loss.item()/max(epoch_tokens.item(),1):.4f} time:{time.perf_counter()-t0:.1f}s", flush=True)
-    # Unfreeze
+            print(f"ttt_phase1:start params:{n_norm} epochs:{args.ttt_p1_epochs} lr:{args.ttt_p1_lr}", flush=True)
+
+        optimizer_p1 = torch.optim.Adam(norm_params, lr=args.ttt_p1_lr)
+        _ttt_run_phase(
+            model, norm_params, optimizer_p1, val_tokens, seq_len, batch_seqs,
+            epochs=args.ttt_p1_epochs, max_steps=args.ttt_max_steps,
+            device=device, rank=rank, world_size=world_size,
+            phase_name="phase1", t0=t0,
+        )
+        del optimizer_p1
+
+        # ── Phase 2: Selective block adaptation ─────────────────────────
+        # Unfreeze last N blocks + all norms + head + embeddings
+        for p in model.parameters():
+            p.requires_grad_(False)
+        num_layers = len(list(model.blocks))  # type: ignore[attr-defined]
+        phase2_params = []
+        for name, p in model.named_parameters():
+            is_late_block = False
+            for i in range(max(0, num_layers - args.ttt_p2_unfreeze_blocks), num_layers):
+                if f"blocks.{i}." in name:
+                    is_late_block = True
+                    break
+            is_norm_or_scale = any(k in name for k in ("norm", "scale", "resid_mix", "q_gain", "skip_weight"))
+            is_head = "lm_head" in name or "tok_emb" in name
+            if is_late_block or is_norm_or_scale or is_head:
+                p.requires_grad_(True)
+                phase2_params.append(p)
+        n_p2 = sum(p.numel() for p in phase2_params)
+        if rank == 0:
+            print(f"ttt_phase2:start params:{n_p2} epochs:{args.ttt_p2_epochs} lr:{args.ttt_p2_lr}", flush=True)
+
+        optimizer_p2 = torch.optim.SGD(phase2_params, lr=args.ttt_p2_lr, momentum=args.ttt_momentum)
+        _ttt_run_phase(
+            model, phase2_params, optimizer_p2, val_tokens, seq_len, batch_seqs,
+            epochs=args.ttt_p2_epochs, max_steps=args.ttt_max_steps,
+            device=device, rank=rank, world_size=world_size,
+            phase_name="phase2", t0=t0,
+        )
+        del optimizer_p2
+    else:
+        # ── Single-phase TTT (original behavior) ───────────────────────
+        frozen = set()
+        for i, block in enumerate(model.blocks):  # type: ignore[attr-defined]
+            if i < args.ttt_freeze_blocks:
+                for p in block.parameters():
+                    frozen.add(id(p))
+        ttt_params = [p for p in model.parameters() if p.requires_grad and id(p) not in frozen]
+        if rank == 0:
+            n_ttt = sum(p.numel() for p in ttt_params)
+            print(f"ttt:start params:{n_ttt} epochs:{args.ttt_epochs} lr:{args.ttt_lr} freeze:{args.ttt_freeze_blocks}", flush=True)
+
+        optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+        _ttt_run_phase(
+            model, ttt_params, optimizer, val_tokens, seq_len, batch_seqs,
+            epochs=args.ttt_epochs, max_steps=args.ttt_max_steps,
+            device=device, rank=rank, world_size=world_size,
+            phase_name="single", t0=t0,
+        )
+        del optimizer
+
+    # Unfreeze all params for eval
     for p in model.parameters():
         p.requires_grad_(True)
     if rank == 0:
@@ -1957,9 +2092,15 @@ def main() -> None:
         log0(f"reptile_ttt:start budget={args.reptile_budget_s:.0f}s inner_steps={args.reptile_inner_steps} inner_lr={args.reptile_inner_lr} outer_lr={args.reptile_outer_lr}")
         reptile_ttt(args, base_model, device, val_tokens, rank=rank)
 
-    # TTT: adapt to val distribution before eval (adds ~43s, gives ~0.02 BPB improvement)
+    # TTT: adapt to val distribution before eval
     if args.ttt_enabled:
-        log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs} freeze_blocks={args.ttt_freeze_blocks}")
+        if args.ttt_two_phase:
+            log0(f"ttt:start two_phase p1_epochs={args.ttt_p1_epochs} p1_lr={args.ttt_p1_lr} "
+                 f"p2_epochs={args.ttt_p2_epochs} p2_lr={args.ttt_p2_lr} p2_blocks={args.ttt_p2_unfreeze_blocks} "
+                 f"batch_seqs={args.ttt_batch_seqs}")
+        else:
+            log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs} freeze_blocks={args.ttt_freeze_blocks} "
+                 f"batch_seqs={args.ttt_batch_seqs}")
         ttt_adapt(args, base_model, device, val_tokens, rank=rank, world_size=world_size)
 
     # Magnitude pruning: zero the smallest weights for better zstd compression.
