@@ -1,36 +1,36 @@
 {
   "author": "yesbhautik",
   "github_id": "yesbhautik",
-  "name": "DominationV3 Compact: 11L XSA4 + EMA + Bigram4096 + Int6 TokEmb",
-  "blurb": "Compact no-TTT 11-layer run with XSA(last4), EMA(0.997), BigramHash(4096x128), mixed int6 quantization on mlp+attn+tok_emb, zstd-22, and sliding-window eval.",
-  "date": "2026-03-22T00:32:24Z",
-  "val_loss": 1.91549454,
-  "val_bpb": 1.13446677,
+  "name": "DominationV3: 11L XSA4 + EMA + BigramHash4096 + Int6 TokEmb + TTT",
+  "blurb": "11-layer with XSA(last4), EMA(0.997), BigramHash(4096x128), int6 quant on mlp+attn+tok_emb, zstd-22, and 3-epoch SGD TTT at eval time on already-graded tokens.",
+  "date": "2026-03-22T06:00:00Z",
+  "val_loss": 1.91363660,
+  "val_bpb": 1.13336639,
   "pre_quant_val_loss": 1.9434,
   "pre_quant_val_bpb": 1.1510,
-  "step_stop": 8321,
-  "wallclock_seconds": 599.804,
-  "eval_time_seconds": 197.273,
-  "bytes_total": 15789394,
-  "bytes_model_int6_zstd": 15744258,
-  "bytes_code": 45136,
+  "step_stop": 8319,
+  "wallclock_seconds": 599.781,
+  "eval_time_seconds": 243.0,
+  "bytes_total": 15954509,
+  "bytes_model_int6_zstd": 15907249,
+  "bytes_code": 47260,
   "seeds": {
     "1337": {
-      "val_bpb": 1.13446677,
-      "train_time_ms": 599804,
-      "bytes_total": 15789394
+      "val_bpb": 1.13336639,
+      "train_time_ms": 599781,
+      "bytes_total": 15954509
     },
     "7": {
-      "val_bpb": 1.13490170,
-      "train_time_ms": 599991,
-      "bytes_total": 15780459
+      "val_bpb": 1.13373995,
+      "train_time_ms": 599815,
+      "bytes_total": 15969995
     },
     "42": {
-      "val_bpb": 1.13529408,
-      "train_time_ms": 599941,
-      "bytes_total": 15809997
+      "val_bpb": 1.13373988,
+      "train_time_ms": 599779,
+      "bytes_total": 15873773
     }
   },
-  "mean_val_bpb": 1.13488752,
-  "stdev_val_bpb": 0.00041384
+  "mean_val_bpb": 1.13361541,
+  "stdev_val_bpb": 0.00021565
 }

@@ -85,6 +85,12 @@ class Hyperparameters:
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.5))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
+    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
 
 # -----------------------------
 # MUON OPTIMIZER WITH WEIGHT DECAY
@@ -593,6 +599,31 @@ class GPT(nn.Module):
 # TRAINING
 # -----------------------------
 
+def ttt_adapt(args, mdl, rank, world_size, device, val_tokens):
+    sl = args.train_seq_len; nt = val_tokens.numel() - 1; ts = nt // sl
+    ms, me = (ts * rank) // world_size, (ts * (rank + 1)) // world_size
+    for i, b in enumerate(mdl.blocks):
+        req = i >= args.ttt_freeze_blocks
+        for p in b.parameters(): p.requires_grad_(req)
+    for p in mdl.tok_emb.parameters(): p.requires_grad_(False)
+    if mdl.bigram is not None:
+        for p in mdl.bigram.parameters(): p.requires_grad_(False)
+    for p in mdl.smear.parameters(): p.requires_grad_(False)
+    mdl.skip_weights.requires_grad_(False)
+    opt = torch.optim.SGD([p for p in mdl.parameters() if p.requires_grad], lr=args.ttt_lr, momentum=args.ttt_momentum)
+    mdl.train()
+    for _ in range(args.ttt_epochs):
+        for bs in range(ms, me, args.ttt_batch_seqs):
+            be = min(bs + args.ttt_batch_seqs, me)
+            rs, re = bs * sl, be * sl + 1
+            loc = val_tokens[rs:re].to(device=device, dtype=torch.int64, non_blocking=True)
+            x, y = loc[:-1].reshape(-1, sl), loc[1:].reshape(-1, sl)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16): loss = mdl(x, y)
+            opt.zero_grad(set_to_none=True); loss.backward(); opt.step()
+        if dist.is_available() and dist.is_initialized(): dist.barrier()
+    for p in mdl.parameters(): p.requires_grad_(False)
+    mdl.eval()
+
 def main():
     global zeropower_via_newtonschulz5
     code = Path(__file__).read_text(encoding="utf-8"); args = Hyperparameters()
@@ -793,6 +824,12 @@ def main():
             module.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_sd, strict=True)
+
+    if args.ttt_enabled:
+        log0(f"ttt: {args.ttt_epochs} epochs, lr={args.ttt_lr}, freeze={args.ttt_freeze_blocks}")
+        torch.cuda.synchronize(); t_ttt = time.perf_counter()
+        ttt_adapt(args, eval_model, rank, world_size, device, val_tokens)
+        torch.cuda.synchronize(); log0(f"ttt: done in {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
     torch.cuda.synchronize(); tqe = time.perf_counter()
     if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
