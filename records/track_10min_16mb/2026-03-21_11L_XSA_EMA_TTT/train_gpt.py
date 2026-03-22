@@ -1379,13 +1379,11 @@ def _ttt_run_phase(
 
     model.train()
     for epoch in range(epochs):
-        perm = torch.randperm(my_seqs, device=device)
-        if distributed:
-            dist.broadcast(perm, src=0)
         epoch_loss = torch.zeros((), device=device, dtype=torch.float64)
         epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
         step_i = 0
-        for bi in range(0, my_seqs - batch_seqs + 1, batch_seqs):
+        # Contiguous slicing over this GPU's shard (matches #398 pattern)
+        for batch_start in range(my_start_seq, my_end_seq, batch_seqs):
             if step_i >= max_steps:
                 break
 
@@ -1403,21 +1401,14 @@ def _ttt_run_phase(
                 for g in optimizer.param_groups:
                     g["lr"] = g["initial_lr"] * mul
 
-            seq_indices = perm[bi:bi + batch_seqs] + my_start_seq
-            x_list = []
-            y_list = []
-            for si in seq_indices:
-                start = int(si.item()) * seq_len
-                end = start + seq_len + 1
-                if end > n_tokens:
-                    continue
-                chunk = val_tokens[start:end].to(device=device, dtype=torch.int64)
-                x_list.append(chunk[:-1])
-                y_list.append(chunk[1:])
-            if len(x_list) < 2:
-                continue
-            x = torch.stack(x_list)
-            y = torch.stack(y_list)
+            batch_end = min(batch_start + batch_seqs, my_end_seq)
+            raw_start = batch_start * seq_len
+            raw_end = batch_end * seq_len + 1
+            if raw_end > n_tokens:
+                break
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, seq_len)
+            y = local[1:].reshape(-1, seq_len)
 
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
@@ -1427,8 +1418,7 @@ def _ttt_run_phase(
             if distributed:
                 for p in ttt_params:
                     if p.grad is not None:
-                        dist.all_reduce(p.grad, op=dist.ReduceOp.SUM)
-                        p.grad.div_(world_size)
+                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
 
             torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
             optimizer.step()
@@ -1436,6 +1426,10 @@ def _ttt_run_phase(
             epoch_tokens += x.numel()
             step_i += 1
             global_step += 1
+
+        if distributed:
+            dist.all_reduce(epoch_loss, op=dist.ReduceOp.SUM)
+            dist.all_reduce(epoch_tokens, op=dist.ReduceOp.SUM)
 
         if rank == 0:
             avg_loss = epoch_loss.item() / max(epoch_tokens.item(), 1)
