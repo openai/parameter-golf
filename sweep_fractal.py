@@ -32,41 +32,51 @@ FIELDS = [
 # ─── SEARCH SPACE ─────────────────────────────────────────────────────────────
 
 FULL_SWEEP = [
-    # Cadence variations (core experiment)
-    {"cadence": 1, "notes": "always fractal (control)"},
-    {"cadence": 0, "notes": "never fractal (control)"},
-    {"cadence": 2, "cadence_offset": 0, "notes": "F/N pattern"},
-    {"cadence": 3, "cadence_offset": 2, "notes": "N/N/F pattern"},
-    {"cadence": 4, "cadence_offset": 0, "notes": "F/N/N/N pattern"},
-    {"cadence": 3, "cadence_offset": 0, "notes": "F/N/N pattern"},
+    # === PHASE 1: Controls (3 runs) ===
+    {"cadence": 1, "notes": "ctrl: always fractal"},
+    {"cadence": 0, "notes": "ctrl: never fractal"},
+    {"cadence": 2, "notes": "ctrl: cadence2 baseline"},
 
-    # Loop count variations
-    {"cadence": 2, "num_loops": 2, "notes": "2 loops, cadence 2"},
-    {"cadence": 2, "num_loops": 4, "notes": "4 loops, cadence 2"},
-    {"cadence": 1, "num_loops": 2, "notes": "always fractal, 2 loops"},
-    {"cadence": 1, "num_loops": 4, "notes": "always fractal, 4 loops"},
+    # === PHASE 2: Grad clip (fractal accumulates 3x grads) (3 runs) ===
+    {"cadence": 2, "grad_clip": 0.3, "notes": "clip 0.3"},
+    {"cadence": 2, "grad_clip": 0.5, "notes": "clip 0.5"},
+    {"cadence": 2, "grad_clip": 2.0, "notes": "clip 2.0"},
 
-    # Layer count variations (auto-dim adjusts width)
-    {"cadence": 2, "num_unique_layers": 2, "notes": "2 layers x3 loops"},
+    # === PHASE 3: LR sweep (wider model may need different LR) (4 runs) ===
+    {"cadence": 2, "lr": 1e-4, "notes": "lr 1e-4"},
+    {"cadence": 2, "lr": 2e-4, "notes": "lr 2e-4"},
+    {"cadence": 2, "lr": 5e-4, "notes": "lr 5e-4"},
+    {"cadence": 2, "lr": 1e-3, "notes": "lr 1e-3"},
+
+    # === PHASE 4: Architecture shape (6 runs) ===
+    {"cadence": 2, "num_loops": 2, "notes": "2 loops x3 layers"},
+    {"cadence": 2, "num_loops": 4, "notes": "4 loops x3 layers"},
     {"cadence": 2, "num_unique_layers": 4, "notes": "4 layers x3 loops"},
-    {"cadence": 2, "num_unique_layers": 5, "notes": "5 layers x3 loops"},
+    {"cadence": 2, "num_unique_layers": 2, "notes": "2 layers x3 loops"},
+    {"cadence": 1, "num_loops": 2, "notes": "always frac, 2 loops"},
+    {"cadence": 2, "num_unique_layers": 4, "num_loops": 2, "notes": "4L x2 loops"},
 
-    # Gravity interactions
-    {"cadence": 2, "gravity": True, "notes": "cadence 2 + gravity"},
-    {"cadence": 1, "gravity": True, "notes": "always fractal + gravity"},
+    # === PHASE 5: Cadence patterns (4 runs) ===
+    {"cadence": 3, "cadence_offset": 2, "notes": "N/N/F"},
+    {"cadence": 3, "cadence_offset": 0, "notes": "F/N/N"},
+    {"cadence": 4, "cadence_offset": 0, "notes": "F/N/N/N"},
+    {"cadence": 2, "cadence_offset": 1, "notes": "N/F (phase shift)"},
 
-    # Higher cadence (more normalize steps)
-    {"cadence": 5, "cadence_offset": 0, "notes": "F/N/N/N/N pattern"},
-    {"cadence": 2, "cadence_offset": 1, "notes": "N/F pattern (phase shifted)"},
+    # === PHASE 6: Best cadence + best LR combos (filled after phases 1-5) ===
+    {"cadence": 2, "lr": 5e-4, "grad_clip": 0.5, "notes": "combo: lr5e4+clip0.5"},
+    {"cadence": 2, "lr": 5e-4, "num_loops": 2, "notes": "combo: lr5e4+2loops"},
+    {"cadence": 2, "lr": 1e-3, "grad_clip": 2.0, "notes": "combo: lr1e3+clip2"},
 ]
 
 QUICK_SWEEP = [
-    {"cadence": 1, "notes": "always fractal (control)"},
-    {"cadence": 0, "notes": "never fractal (control)"},
-    {"cadence": 2, "cadence_offset": 0, "notes": "F/N pattern"},
-    {"cadence": 3, "cadence_offset": 2, "notes": "N/N/F pattern"},
-    {"cadence": 2, "num_loops": 2, "notes": "2 loops, cadence 2"},
-    {"cadence": 2, "num_loops": 4, "notes": "4 loops, cadence 2"},
+    {"cadence": 1, "notes": "ctrl: always fractal"},
+    {"cadence": 0, "notes": "ctrl: never fractal"},
+    {"cadence": 2, "notes": "ctrl: cadence2 baseline"},
+    {"cadence": 2, "grad_clip": 0.5, "notes": "clip 0.5"},
+    {"cadence": 2, "lr": 5e-4, "notes": "lr 5e-4"},
+    {"cadence": 2, "num_loops": 2, "notes": "2 loops"},
+    {"cadence": 2, "num_unique_layers": 4, "notes": "4 layers"},
+    {"cadence": 3, "cadence_offset": 2, "notes": "N/N/F"},
 ]
 
 # ─── DEFAULTS ─────────────────────────────────────────────────────────────────
@@ -78,6 +88,8 @@ DEFAULTS = {
     "num_loops": 3,
     "model_dim": 0,  # 0 = auto-size
     "gravity": False,
+    "lr": 3e-4,
+    "grad_clip": 1.0,
     "iterations": 300,
     "eval_tokens": 100000,
     "max_seconds": 300,
@@ -104,6 +116,8 @@ def run_experiment(config, run_id):
         "--batch-tokens", str(cfg["batch_tokens"]),
         "--seq-len", str(cfg["seq_len"]),
         "--seed", str(cfg["seed"]),
+        "--lr", str(cfg["lr"]),
+        "--grad-clip", str(cfg["grad_clip"]),
         "--run-id", run_id,
     ]
     if cfg.get("model_dim", 0) > 0:
