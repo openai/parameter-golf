@@ -714,11 +714,15 @@ if _HAS_TRITON:
     class _FusedReLU2MLPFunction(torch.autograd.Function):
         @staticmethod
         def forward(ctx, x, fc_weight, proj_weight):
-            h_pre = F.linear(x, fc_weight)
+            # Cast fp32 params to bf16 inside the Function (not at call site)
+            # so autograd can propagate gradients to the actual fp32 parameters
+            fc_bf16 = fc_weight.to(x.dtype)
+            proj_bf16 = proj_weight.to(x.dtype)
+            h_pre = F.linear(x, fc_bf16)
             h_relu = torch.relu(h_pre)
             h_sq = h_relu * h_relu
-            out = F.linear(h_sq, proj_weight)
-            ctx.save_for_backward(x, h_pre, fc_weight, proj_weight)
+            out = F.linear(h_sq, proj_bf16)
+            ctx.save_for_backward(x, h_pre, fc_bf16, proj_bf16)
             return out
 
         @staticmethod
@@ -729,10 +733,9 @@ if _HAS_TRITON:
             K = h_pre.shape[1]
             # Fused: grad_h_pre = (grad_out @ proj_weight) * relu_deriv
             grad_h = torch.empty_like(h_pre)
-            num_sms = torch.cuda.get_device_properties(grad_out.device).multi_processor_count
+            # Bug fix: launch ALL tiles, not capped at num_sms*4
             def grid(meta):
-                tiles = triton.cdiv(M, meta['BLOCK_M']) * triton.cdiv(K, meta['BLOCK_K'])
-                return (min(tiles, num_sms * 4),)
+                return (triton.cdiv(M, meta['BLOCK_M']) * triton.cdiv(K, meta['BLOCK_K']),)
             _relu2_bwd_kernel[grid](
                 grad_out, proj_weight, h_pre, grad_h,
                 M, N, K,
@@ -746,7 +749,8 @@ if _HAS_TRITON:
             grad_proj = grad_out.t().mm(h_sq)
             grad_fc = grad_h.t().mm(x)
             grad_x = grad_h.mm(fc_weight)
-            return grad_x, grad_fc, grad_proj
+            # Return fp32 gradients to match fp32 parameters
+            return grad_x, grad_fc.float(), grad_proj.float()
 
 
 def fused_relu_sq_proj(h_pre: Tensor, proj_weight: Tensor) -> Tensor:
@@ -952,10 +956,11 @@ class MLP(nn.Module):
         if not self.training and _HAS_TRITON:
             h_pre = self.fc(x)  # CastedLinear handles fp32->bf16 cast
             return fused_relu_sq_proj(h_pre, self.proj.weight.to(h_pre.dtype))
-        if False and self.training and _HAS_TRITON and x.is_cuda:  # DISABLED: debugging NaN
+        if self.training and _HAS_TRITON and x.is_cuda:
             B, S, D = x.shape
             x2d = x.reshape(-1, D)
-            out2d = _FusedReLU2MLPFunction.apply(x2d, self.fc.weight.to(x.dtype), self.proj.weight.to(x.dtype))
+            # Pass raw fp32 params — Function casts internally, autograd reaches actual params
+            out2d = _FusedReLU2MLPFunction.apply(x2d, self.fc.weight, self.proj.weight)
             return out2d.view(B, S, -1)
         # Fallback
         x = torch.relu(self.fc(x))
@@ -1018,12 +1023,20 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor, q_delta_fn=None, v_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        n = self.attn_norm(x)
+        if _HAS_TRITON and x.is_cuda:
+            bsz_seq = x.shape[0] * x.shape[1]
+            dim = x.shape[-1]
+            n = _FusedRMSNormFunction.apply(x.reshape(bsz_seq, dim), 1e-6).reshape(x.shape)
+        else:
+            n = self.attn_norm(x)
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
         attn_out = self.attn(n, qd, vd)
         x = x + self.ln_scale * self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        mlp_in = self.mlp_norm(x)
+        if _HAS_TRITON and x.is_cuda:
+            mlp_in = _FusedRMSNormFunction.apply(x.reshape(bsz_seq, dim), 1e-6).reshape(x.shape)
+        else:
+            mlp_in = self.mlp_norm(x)
         x = x + self.ln_scale * self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(mlp_in)
         return x
 
