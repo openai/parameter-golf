@@ -29,6 +29,7 @@ transformer_v18_full_stack,4800,15028926,,77416,1,1566.23,1.1386,f509b27,"11L 3x
 8xh100_v18_FA3_ddpfix,600,14945352,14867047,78305,8,273.90,1.1573,a7a3d2d,"8xH100 10min FA3+DDPfix (5320 steps @ 109ms, 14.9MB, +17% steps from FA3)"
 transformer_v23_tightSWA,4800,15169602,,77466,1,1565.75,1.1428,0d6806e,"v18 + tight SWA(0.2) — worse than v18's SWA(0.4) by 0.004"
 8xh100_torch28_noFA3,600,14485726,14407239,78487,8,232.86,1.1674,177dc7c,"8xH100 torch2.8 (4201 steps @ 143ms — SLOWER than torch2.4)"
+transformer_v24_VE_scaled,1500,,,,1,,unstable,b5fa01f,"Value Residual (0.1 scale): -0.011 at step 1000 but +0.020 jump at step 1500"
 8xh100_v18_test2,600,14900391,14822795,77515,8,286.38,1.1654,af66dda,"8xH100 10min: same config (4549 steps @ 132ms, train+eval within limits!)"
 transformer_v23_tightSWA,4800,15169602,,77466,1,1565.75,1.1428,393d474,"v18 + tight SWA(0.2): worse than v18's SWA(0.4). SWA(0.4) is better."
 8xh100v2_final_test,600,15376369,,78493,8,240.63,1.1676,8c2a0c6,"8xH100v2 torch2.8 SDPA: 3909 steps@153ms (EMA slows from 110->154ms, costs 1500 steps)"
