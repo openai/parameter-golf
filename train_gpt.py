@@ -535,10 +535,14 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
             if (param.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)) and param.dtype != torch.float32:
                 param.data = param.data.float()
 
-
 def export_state_dict(module: nn.Module) -> dict[str, Tensor]:
     return {name: tensor for name, tensor in module.state_dict().items() if not name.startswith("mtp_heads.")}
 
+def load_exported_state_dict(module: nn.Module, state_dict: dict[str, Tensor]) -> None:
+    missing, unexpected = module.load_state_dict(state_dict, strict=False)
+    bad_missing = [name for name in missing if not name.startswith("mtp_heads.")]
+    if bad_missing or unexpected:
+        raise RuntimeError(f"Export reload mismatch missing={bad_missing} unexpected={list(unexpected)}")
 
 class Rotary(nn.Module):
     def __init__(self, dim: int, base: float = 10000.0, train_seq_len: int = 1024, scaling: str = "ntk", scale: float = 1.0):
@@ -1446,7 +1450,7 @@ def main() -> None:
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    load_exported_state_dict(base_model, dequantize_state_dict_int8(quant_state))
     if args.skip_final_eval:
         log0("smoke_test: quantized reload ok; skipping final roundtrip and TTT eval")
         if distributed:
