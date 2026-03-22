@@ -43,7 +43,7 @@ class H:
  ve_enabled=bool(int(E("VE_ENABLED","1")));ve_dim=int(E("VE_DIM","128"))
  ve_layers=E("VE_LAYERS","1,2");ema_decay=float(E("EMA_DECAY","0.997"))
  ema_enabled=bool(int(E("EMA_ENABLED","0")))
- ttt_enabled=bool(int(E("TTT_ENABLED","0")));ttt_epochs=int(E("TTT_EPOCHS","3"))
+ ttt_enabled=bool(int(E("TTT_ENABLED","1")));ttt_epochs=int(E("TTT_EPOCHS","3"))
  ttt_lr=float(E("TTT_LR","1e-4"));ttt_stride=int(E("TTT_STRIDE","64"))
  ttt_drift=float(E("TTT_DRIFT","0.1"))
 _CP=tuple(p for p in E("CONTROL_TENSOR_NAME_PATTERNS","attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,ve_layer_scales,ve_shared.scale").split(",") if p)
@@ -313,19 +313,19 @@ class GPT(nn.Module):
   pp=list(s.blocks.parameters())+[s.loop_pos,s.skip_weights]
   return [p for p in pp if p.requires_grad]
  def forward_ttt_step(s,ids,tgt,ttt_opt,ttt_pp,ttt_orig,drift):
-  """Inner TTT on fractal layers only with drift gate."""
+  """Inner TTT on fractal layers only with drift gate. Fresh graph per loop."""
   with torch.no_grad():
    x=s.tok_emb(ids)
    if s.bigram:x=x+s.bigram(ids)
    x=F.rms_norm(x,(x.size(-1),));x=s.smear(x)
-  x0=x.detach();vc={}
+  x0=x.detach()
   for lp in range(s.num_loops):
    if lp<s.num_loops-1:
-    # Inner TTT: fresh forward for each loop, backward, update, detach
+    # Fresh vc + detached inputs = completely independent graph per loop
     x_in=x.detach()+s.loop_pos[lp][None,None,:]
-    x_out=s._run_blocks(x_in,x0,ids,vc)
+    x_out=s._run_blocks(x_in,x0.detach(),ids,{})
     xn=s.final_norm(x_out);xf=xn.reshape(-1,xn.size(-1));tg=tgt.reshape(-1)
-    lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
+    lp_=F.linear(xf,s.tok_emb.weight.detach()) if s.te else s.lm_head(xf)
     lg=s.lsc*torch.tanh(lp_/s.lsc)
     ttt_loss=F.cross_entropy(lg.float(),tg,reduction="mean")
     ttt_opt.zero_grad(set_to_none=True)
@@ -336,9 +336,8 @@ class GPT(nn.Module):
      for p,po in zip(ttt_pp,ttt_orig):p.data.lerp_(po,1.0-drift)
     x=x_out.detach()
    else:
-    # Final loop: just forward for scoring (no backward needed)
     with torch.no_grad():
-     x=x+s.loop_pos[lp][None,None,:];x=s._run_blocks(x,x0,ids,vc)
+     x=x+s.loop_pos[lp][None,None,:];x=s._run_blocks(x,x0,ids,{})
   with torch.no_grad():
    xn=s.final_norm(x);xf=xn.reshape(-1,xn.size(-1))
    lp_=F.linear(xf,s.tok_emb.weight) if s.te else s.lm_head(xf)
@@ -393,10 +392,11 @@ def eval_slide_ttt(a,bm,rk,ws,dev,vt,bl,hl,il,stride,ttt_epochs,ttt_lr,esl=None)
   tg=y.reshape(-1);pv=x.reshape(-1)
   tb=bl[tg[s:wlen]].to(torch.float64);tb+=(hl[tg[s:wlen]]&~il[pv[s:wlen]]).to(torch.float64);bc+=tb.sum()
   # Between-window TTT: extra epochs on the full window (tokens now graded)
+  xd=x.detach();yd=y.detach()
   for ep in range(ttt_epochs-1):
    ttt_opt.zero_grad(set_to_none=True)
    with torch.autocast(device_type="cuda",dtype=torch.bfloat16):
-    ttt_loss=bm(x,y)
+    ttt_loss=bm(xd,yd,fractal=True)
    ttt_loss.backward();torch.nn.utils.clip_grad_norm_(ttt_pp,1.0);ttt_opt.step()
    with torch.no_grad():
     for p,po in zip(ttt_pp,ttt_orig):p.data.lerp_(po,1.0-drift)
