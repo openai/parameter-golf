@@ -1042,9 +1042,13 @@ def main() -> None:
         raise RuntimeError("CUDA is required")
     device = torch.device("cuda", local_rank)
     torch.cuda.set_device(device)
+    print(f"[rank{rank}] CUDA device set: {torch.cuda.get_device_name(local_rank)}", flush=True)
     if distributed:
+        print(f"[rank{rank}] init_process_group start (nccl)", flush=True)
         dist.init_process_group(backend="nccl", device_id=device)
+        print(f"[rank{rank}] init_process_group done, barrier...", flush=True)
         dist.barrier()
+        print(f"[rank{rank}] barrier done", flush=True)
     master_process = rank == 0
 
     # Fast math knobs
@@ -1134,7 +1138,9 @@ def main() -> None:
     apply_attention_playground(base_model, cggr_loss)
     maybe_load_init_ckpt(base_model, log0)
     # Remove fullgraph=True to allow CGGR's data-dependent token selection.
+    log0(f"torch.compile: {'starting' if args.compile_model else 'skipped (COMPILE_MODEL=0)'}")
     runtime_model = torch.compile(base_model, dynamic=False) if args.compile_model else base_model
+    log0("torch.compile: done (lazy — actual JIT happens on first forward pass)")
     model: nn.Module = DDP(runtime_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else runtime_model
 
     # Optimizer split:
