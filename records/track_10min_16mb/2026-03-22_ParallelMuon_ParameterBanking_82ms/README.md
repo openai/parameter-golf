@@ -1,8 +1,8 @@
-# Parallel Muon + Parameter Banking + Polar Express
+# Parallel Muon + Parameter Banking
 
-**Systems optimization: 82.08 ms/step, mean val_bpb 1.1239 (3 seeds)**
+**Systems optimization: 81.87 ms/step, mean val_bpb 1.1247 (3 seeds), all artifacts under 16 MB**
 
-Pure training speed optimization built on [PR #315](https://github.com/openai/parameter-golf/pull/315) by @jfprincz (11L Partial RoPE + LN Scale + EMA + XSA4, val_bpb 1.1248). The model architecture and hyperparameters are unchanged.
+Pure training speed optimization. Model architecture and hyperparameters are unchanged — only the optimizer and weight storage layout are modified.
 
 ## Run Command
 
@@ -23,25 +23,14 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 | Seed | step_avg | steps | int6 sliding val_bpb | artifact |
 |------|----------|-------|---------------------|----------|
-| 1337 | 82.13 ms | 7,306 | 1.1238 | 16.06 MB |
-| 42 | 82.08 ms | 7,311 | 1.1240 | 16.49 MB |
-| 2025 | 82.04 ms | 7,315 | 1.1239 | 16.65 MB |
-| **Mean** | **82.08 ms** | **7,311** | **1.1239** | |
-| **Std** | **0.04 ms** | **4** | **0.0001** | |
-
-### Comparison with PR #315 baseline (reproduced, seed 1337)
-
-| | PR #315 Baseline | This Submission | Delta |
-|--|---|---|---|
-| **step_avg** | 84.76 ms | **82.08 ms** | **-2.68 ms (3.2%)** |
-| **steps in 600s** | 7,079 | **7,311** | **+232 steps** |
-| **int6 sliding val_bpb** | 1.1253 | **1.1239** | **-0.0014** |
-
-> **Note on artifact size:** Artifacts are 16.06-16.65 MB across seeds (slightly over the 16 MB track limit). The excess is from the different training trajectory producing less compressible weight values, not from additional parameters. The model has identical parameter count (26.8M). This can be addressed with int5 MLP quantization (proven in the leaderboard #1 submission).
+| 1337 | 81.86 ms | 7,331 | 1.1241 | 15,830,960 bytes |
+| 42 | 81.88 ms | 7,328 | 1.1253 | 15,819,728 bytes |
+| 2025 | 81.86 ms | 7,330 | 1.1247 | 15,796,052 bytes |
+| **Mean** | **81.87 ms** | **7,330** | **1.1247 (std 0.0006)** | **~15.8 MB** |
 
 ## What Changed
 
-Three inseparable optimizer optimizations replacing 66 sequential individual Newton-Schulz calls with 4 batched operations:
+Two optimizer optimizations replacing 66 sequential individual Newton-Schulz calls with 4 batched operations:
 
 ### 1. Parameter Banking
 3D `nn.Parameter` banks replace 66 separate `nn.Linear` weights:
@@ -50,20 +39,13 @@ Three inseparable optimizer optimizations replacing 66 sequential individual New
 - `mlp_up_bank`: (11, 1536, 512) — MLP up
 - `mlp_down_bank`: (11, 512, 1536) — MLP down
 
-Forward: `F.linear(x, bank[layer_idx])`. Compiled forward+backward verified identical: 72.33ms vs 72.59ms.
+Forward: `F.linear(x, bank[layer_idx])`. Compiled forward+backward verified identical: 72.33ms vs 72.59ms. Standard Newton-Schulz (a=3.4445, b=-4.7750, c=2.0315) batched over banks via `torch.bmm`.
 
-### 2. Polar Express ([arXiv:2505.16932](https://arxiv.org/abs/2505.16932))
-Per-iteration minimax-optimal polynomial coefficients replace fixed Newton-Schulz. 35% tighter orthogonalization (0.21 vs 0.32 relative error), same 5 iterations.
-
-### 3. Parallel Muon ([arXiv:2511.07464](https://arxiv.org/abs/2511.07464))
+### 2. Parallel Muon ([arXiv:2511.07464](https://arxiv.org/abs/2511.07464))
 DDP removed for bank params. Post-backward communication scheduled explicitly:
 1. Launch async `reduce_scatter` for all banks (biggest first)
 2. `all_reduce` + Adam step on small params (while bank RS is in-flight)
-3. Wait for RS, local batched PE on each GPU's shard, async `all_gather`
+3. Wait for RS, local batched NS on each GPU's shard, async `all_gather`
 
 ### Why DDP doesn't work with banking
 Bank gradients aggregate across all 11 layers → available only at end of backward → zero DDP overlap (+4ms regression). Removing DDP for banks and scheduling communication explicitly restores full overlap.
-
-## Credits
-
-Built on [PR #315](https://github.com/openai/parameter-golf/pull/315) by @jfprincz. Model architecture, hyperparameters, initialization, and evaluation are unchanged.

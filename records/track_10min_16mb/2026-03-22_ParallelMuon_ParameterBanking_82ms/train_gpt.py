@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 import uuid
+import lzma
 import zlib
 from pathlib import Path
 
@@ -118,19 +119,9 @@ class Hyperparameters:
 # As borrowed from modded-nanogpt
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
 
-# Polar Express: minimax-optimal coefficients (arXiv:2505.16932)
-# BF16 safety factor applied: a/1.01, b/1.01^3, c/1.01^5
-_S1, _S3, _S5 = 1.01, 1.01 ** 3, 1.01 ** 5
-POLAR_COEFFS = (
-    (8.20516 / _S1, -22.90193 / _S3, 16.46072 / _S5),
-    (4.06692 / _S1,  -2.86128 / _S3,  0.51838 / _S5),
-    (3.91349 / _S1,  -2.82425 / _S3,  0.52485 / _S5),
-    (3.30601 / _S1,  -2.43023 / _S3,  0.48695 / _S5),
-    (2.30402 / _S1,  -1.64272 / _S3,  0.40091 / _S5),
-)
-
-def polar_express(G: Tensor, steps: int = 5) -> Tensor:
-    """Batched minimax-optimal orthogonalization."""
+def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
+    """Batched Newton-Schulz orthogonalization. G: (B,M,N) or (M,N)."""
+    a, b, c = (3.4445, -4.7750, 2.0315)
     was_2d = G.ndim == 2
     if was_2d:
         G = G.unsqueeze(0)
@@ -138,9 +129,8 @@ def polar_express(G: Tensor, steps: int = 5) -> Tensor:
     transposed = X.size(-2) > X.size(-1)
     if transposed:
         X = X.mT
-    X = X / (X.norm(dim=(-2, -1), keepdim=True) + 1e-7)
-    for i in range(steps):
-        a, b, c = POLAR_COEFFS[i]
+    X = X / (X.norm(dim=(-2, -1), keepdim=True) + eps)
+    for _ in range(steps):
         A = X @ X.mT
         B = b * A + c * (A @ A)
         X = a * X + B @ X
@@ -271,7 +261,7 @@ class Muon(torch.optim.Optimizer):
                 else:
                     update = buf
 
-                update = polar_express(update, steps=backend_steps)
+                update = zeropower_via_newtonschulz5(update, steps=backend_steps)
 
                 if sharded:
                     prev_ag_handle = dist.all_gather_into_tensor(
@@ -1198,11 +1188,11 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
 # -----------------------------
 
 def main() -> None:
-    global polar_express
+    global zeropower_via_newtonschulz5
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    # polar_express runs eagerly — bmm calls go straight to cuBLAS
+    # zeropower_via_newtonschulz5 runs eagerly — bmm calls go straight to cuBLAS
     pass
 
     # -----------------------------
@@ -1643,7 +1633,6 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
 
     # Unbank: split 3D banks into individual 2D tensors with baseline-compatible names
-    # so the int6 quantization code produces identical results to PR #315.
     sd_cpu = {}
     n = args.num_layers
     for k, v in export_sd.items():
@@ -1668,22 +1657,22 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw) if _COMPRESSOR == "zstd" else zlib.compress(quant_raw, 9)
+    quant_blob = lzma.compress(quant_raw, preset=9 | lzma.PRESET_EXTREME)
     if master_process:
-        with open("final_model.int6.ptz", "wb") as f:
+        with open("final_model.int6.xz", "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = len(quant_blob)
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
-        log0(f"Total submission size int6+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Serialized model int6+lzma: {quant_file_bytes} bytes")
+        log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
 
     # Roundtrip: decompress + dequantize into fresh model + eval
     if distributed:
         dist.barrier()
-    with open("final_model.int6.ptz", "rb") as f:
+    with open("final_model.int6.xz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(
-        io.BytesIO(zstandard.ZstdDecompressor().decompress(quant_blob_disk) if _COMPRESSOR == "zstd" else zlib.decompress(quant_blob_disk)),
+        io.BytesIO(lzma.decompress(quant_blob_disk)),
         map_location="cpu",
     )
     deq_state_flat = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
