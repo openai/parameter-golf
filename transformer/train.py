@@ -113,6 +113,10 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
 
+    # Value Embedding: shared embedding table added to V in specified layers
+    ve_dim = int(os.environ.get("VE_DIM", 128))
+    ve_layers = os.environ.get("VE_LAYERS", "9,10")  # comma-separated layer indices
+
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
@@ -960,6 +964,19 @@ class BigramHashEmbedding(nn.Module):
         return h * self.scale.to(dtype=h.dtype)
 
 
+class ValueEmbedding(nn.Module):
+    """Shared value embedding table — projects token IDs to a value offset added to V."""
+    def __init__(self, vocab_size: int, ve_dim: int, kv_dim: int):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, ve_dim)
+        nn.init.zeros_(self.embed.weight)
+        self.proj = CastedLinear(ve_dim, kv_dim, bias=False)
+        nn.init.zeros_(self.proj.weight)
+
+    def forward(self, token_ids: Tensor) -> Tensor:
+        return self.proj(self.embed(token_ids))
+
+
 class MLP(nn.Module):
     # relu^2 MLP from the original modded-nanogpt setup
     def __init__(self, dim: int, mlp_mult: int):
@@ -997,13 +1014,15 @@ class Block(nn.Module):
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
-    def forward(self, x: Tensor, x0: Tensor, q_delta_fn=None, v_delta_fn=None, v_residual=None) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, q_delta_fn=None, v_delta_fn=None, v_residual=None, v_embed=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         n = self.attn_norm(x) * self.ln_scale_factor
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
-        attn_out = self.attn(n, qd, vd, v_residual=v_residual)
+        # Use v_embed if provided (Value Embedding from shared table)
+        vr = v_embed if v_embed is not None else v_residual
+        attn_out = self.attn(n, qd, vd, v_residual=vr)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * self.ln_scale_factor)
         return x
@@ -1028,6 +1047,8 @@ class GPT(nn.Module):
         xsa_last_n: int = 0,
         rope_dims: int = 0,
         ln_scale: bool = False,
+        ve_dim: int = 0,
+        ve_layers: str = "",
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1038,6 +1059,13 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
+        # Value Embedding
+        kv_dim = num_kv_heads * (model_dim // num_heads)
+        self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_layers else []
+        self.ve = ValueEmbedding(vocab_size, ve_dim, kv_dim) if ve_dim > 0 and self.ve_layer_indices else None
+        self.ve_layer_scales = nn.ParameterList(
+            [nn.Parameter(torch.tensor(0.1, dtype=torch.float32)) for _ in self.ve_layer_indices]
+        ) if self.ve else None
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -1076,6 +1104,15 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
+    def _get_ve(self, layer_idx: int, input_ids: Tensor, ve_cache: dict) -> Tensor | None:
+        """Get value embedding for a layer, using cached base embedding."""
+        if self.ve is None or layer_idx not in self.ve_layer_indices:
+            return None
+        if "ve" not in ve_cache:
+            ve_cache["ve"] = self.ve(input_ids)
+        ve_idx = self.ve_layer_indices.index(layer_idx)
+        return ve_cache["ve"] * self.ve_layer_scales[ve_idx].to(dtype=ve_cache["ve"].dtype)
+
     def _forward_body(self, input_ids: Tensor) -> Tensor:
         """Shared forward pass up to logits (before loss)."""
         x = self.tok_emb(input_ids)
@@ -1085,16 +1122,24 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
-        # Value Residual: layer 0's v projection mixed into deeper layers (scaled)
-        v_res = self.blocks[0].attn.c_v(self.blocks[0].attn_norm(x0) * self.blocks[0].ln_scale_factor)
+        # Compute value embedding once if enabled
+        ve_base = self.ve(input_ids) if self.ve is not None else None
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0, v_residual=v_res if i > 0 else None)
+            ve_i = None
+            if ve_base is not None and i in self.ve_layer_indices:
+                idx = self.ve_layer_indices.index(i)
+                ve_i = ve_base * self.ve_layer_scales[idx].to(dtype=ve_base.dtype)
+            x = self.blocks[i](x, x0, v_embed=ve_i)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[bi](x, x0, v_residual=v_res)
+            ve_i = None
+            if ve_base is not None and bi in self.ve_layer_indices:
+                idx = self.ve_layer_indices.index(bi)
+                ve_i = ve_base * self.ve_layer_scales[idx].to(dtype=ve_base.dtype)
+            x = self.blocks[bi](x, x0, v_embed=ve_i)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1470,6 +1515,8 @@ def main() -> None:
         xsa_last_n=args.xsa_last_n,
         rope_dims=args.rope_dims,
         ln_scale=args.ln_scale,
+        ve_dim=args.ve_dim,
+        ve_layers=args.ve_layers,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1504,6 +1551,9 @@ def main() -> None:
     scalar_params.append(base_model.smear.gate)
     if base_model.bigram is not None:
         scalar_params.append(base_model.bigram.scale)
+    if base_model.ve_layer_scales is not None:
+        for s in base_model.ve_layer_scales:
+            scalar_params.append(s)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
