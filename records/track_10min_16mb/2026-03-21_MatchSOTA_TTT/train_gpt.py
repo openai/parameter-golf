@@ -397,7 +397,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             continue
         if cat in int6_cats and t.ndim >= 1:
             # Int6 by default; set QUANT_BITS=5 for tighter compression (11L)
-            bits = int(os.environ.get("QUANT_BITS", "6"))
+            bits = int(os.environ.get("QUANT_BITS", "5"))
             q, s = gptq_lite_clip_search(t, bits=bits)
             result[name + ".q"] = q
             result[name + ".scale"] = s
@@ -676,7 +676,7 @@ class CastedLinear(nn.Linear):
         w = self.weight.to(x.dtype)
         if _QAT_ENABLED and self.weight.ndim == 2 and self.weight.numel() > 65536:
             # STE fake-quantize: forward uses quantized weights, backward sees original
-            bits = int(os.environ.get("QUANT_BITS", "6"))
+            bits = int(os.environ.get("QUANT_BITS", "5"))
             max_val = (1 << (bits - 1)) - 1
             w_float = w.float()
             if w_float.ndim == 2:
