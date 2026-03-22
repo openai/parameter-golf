@@ -1,0 +1,10 @@
+{
+  "author": "cmcdnd",
+  "github_id": "cmcdnd",
+  "val_bpb": 1.1418,
+  "artifact_bytes": 15713507,
+  "training_time_seconds": 600,
+  "gpu": "8xH100 SXM",
+  "seed": 1337,
+  "description": "Non-record: wider model (d=576, 27M params) with int5 QAT at early activation threshold 0.50. Train-large-compress approach."
+}
