@@ -573,42 +573,34 @@ class CausalSelfAttention(nn.Module):
         return out + (attn_delta if attn_delta is not None else 0)
 
 class BetaMuAttention(nn.Module):
-    """INL error-driven attention — O(n) causal cumsum, no attention matrix."""
+    """INL error-gated causal conv1d — fully parallel, no cumsum."""
     def __init__(self, dim: int, num_heads: int):
         super().__init__()
         self.dim, self.num_heads = dim, num_heads
         self.head_dim = dim // num_heads
         self.mu = nn.Parameter(torch.zeros(num_heads, self.head_dim))
-        self.beta_proj = nn.Sequential(
-            CastedLinear(dim, 64, bias=False), nn.SiLU(),
-            CastedLinear(64, num_heads, bias=False), nn.Softplus(),
-        )
-        # Init β higher (~1.0) so INL differentiates tokens from the start
-        nn.init.constant_(self.beta_proj[2].weight, 0.3)
-        # ALiBi decay per head — learned slope for positional weighting
-        self.alibi_slope = nn.Parameter(torch.zeros(num_heads))
+        # Error gate: sigmoid(-β * ||x - μ||) — stable tokens pass, unstable gated
+        self.beta = nn.Parameter(torch.ones(num_heads))
+        # Causal conv1d per head — local context mixing, fully parallel
+        self.conv_k = 64
+        self.conv = nn.Conv1d(dim, dim, kernel_size=self.conv_k, padding=self.conv_k - 1,
+                              groups=num_heads, bias=False)
         self.out_proj = CastedLinear(dim, dim, bias=False)
         self.out_proj._zero_init = True
 
     def forward(self, x: Tensor, attn_delta=None) -> Tensor:
         bsz, seq_len, _ = x.shape
-        beta = self.beta_proj(x).clamp(0, 2.0)  # [bsz, seq, H]
+        # Causal conv1d: mix local context
+        h = x.transpose(1, 2)  # [bsz, dim, seq]
+        h = self.conv(h)[:, :, :seq_len]  # causal: trim future
+        h = h.transpose(1, 2)  # [bsz, seq, dim]
+        # Error gate: modulate by distance from equilibrium
         x_heads = x.view(bsz, seq_len, self.num_heads, self.head_dim)
-        error_mag = (x_heads - self.mu).norm(dim=-1).clamp(0, 100.0)  # [bsz, seq, H]
-        # Per-token weight: stable tokens (small error) get higher weight
-        log_w = -beta * error_mag  # [bsz, seq, H]
-        # ALiBi positional decay: recent tokens weighted more
-        pos = torch.arange(seq_len, device=x.device, dtype=x.dtype)
-        slopes = F.softplus(self.alibi_slope)  # [H]
-        decay = -slopes.unsqueeze(-1) * pos.unsqueeze(0)  # [H, seq]
-        log_w = log_w + decay.permute(1, 0).unsqueeze(0)  # [1, seq, H] → broadcast with [bsz, seq, H]
-        # Causal weighted average via cumsum — O(n) memory, O(n) compute
-        w = log_w.softmax(dim=1)  # [bsz, seq, H] — normalize across seq
-        w_v = w.unsqueeze(-1) * x_heads  # [bsz, seq, H, hd]
-        # Causal: each position sees cumulative sum up to itself
-        cum_wv = torch.cumsum(w_v, dim=1)  # [bsz, seq, H, hd]
-        cum_w = torch.cumsum(w, dim=1).unsqueeze(-1).clamp(min=1e-8)  # [bsz, seq, H, 1]
-        out = (cum_wv / cum_w).reshape(bsz, seq_len, self.dim)  # normalized
+        error_mag = (x_heads - self.mu).norm(dim=-1)  # [bsz, seq, H]
+        gate = torch.sigmoid(-F.softplus(self.beta) * error_mag)  # [bsz, seq, H]
+        # Apply gate per head
+        h_heads = h.view(bsz, seq_len, self.num_heads, self.head_dim)
+        out = (gate.unsqueeze(-1) * h_heads).reshape(bsz, seq_len, self.dim)
         out = self.out_proj(out)
         return out + (attn_delta if attn_delta is not None else 0)
 
