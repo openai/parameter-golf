@@ -1045,7 +1045,7 @@ def main() -> None:
     print(f"[rank{rank}] CUDA device set: {torch.cuda.get_device_name(local_rank)}", flush=True)
     if distributed:
         print(f"[rank{rank}] init_process_group start (nccl)", flush=True)
-        dist.init_process_group(backend="nccl", device_id=device)
+        dist.init_process_group(backend="nccl")
         print(f"[rank{rank}] init_process_group done, barrier...", flush=True)
         dist.barrier()
         print(f"[rank{rank}] barrier done", flush=True)
