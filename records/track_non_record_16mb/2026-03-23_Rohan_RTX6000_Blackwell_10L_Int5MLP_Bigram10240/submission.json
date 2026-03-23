@@ -1,0 +1,18 @@
+{
+  "author": "Rohan Santhosh",
+  "github_id": "Rohan5commit",
+  "name": "Single-GPU Blackwell port of 10L Int5-MLP + BigramHash(10240)",
+  "blurb": "Non-record unlimited-compute submission on 1x RTX PRO 6000 Blackwell Server Edition. Ports the merged 10L mixed int5/int6 + BigramHash(10240) recipe to a single GPU with automatic AMP/SDPA selection and a GQA fallback. Best exact post-quant roundtrip val_bpb 1.19349046 at 15,691,796 bytes.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.01515331,
+  "val_bpb": 1.19349046,
+  "pre_quant_val_loss": 2.0399,
+  "pre_quant_val_bpb": 1.2082,
+  "step_stop": 14085,
+  "wallclock_seconds": 2700,
+  "bytes_total": 15691796,
+  "bytes_model_int8_zlib": 15636771,
+  "bytes_code": null,
+  "gpu": "1x RTX PRO 6000 Blackwell Server Edition"
+}
