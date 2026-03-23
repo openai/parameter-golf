@@ -1,0 +1,18 @@
+ABRAMGOCHI — Training Log (seed=2024)
+=======================================
+Author: Abraham | H.A.S. Framework
+Date: 2026-03-22 | Seed: 2024
+
+Architecture:
+  Model: ABRAMGOCHI
+  Agents: 8 nodes Erdos-Renyi graph p=0.6
+  Context: 2-gram sliding window
+  Evolution: genetic — select + reproduce + mutate
+
+Results (seed=2024):
+  val_bpb: 1.191
+  model_size_kb: 11.2
+  train_time_s: 27.9
+
+Dataset: simulation (FineWeb-style)
+FineWeb real validation: pending compute grant
