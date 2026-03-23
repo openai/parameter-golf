@@ -163,10 +163,29 @@ Root cause: the `forward_logits_cached` path likely has incompatibilities beyond
 
 **Verdict:** The step-time savings are too small when the freeze triggers late enough to be safe. Freezing earlier (threshold=0.5) risks the encoder not being done learning. The mechanism is mathematically marginal for our architecture — at most ±0.002 BPB. **Shelved.**
 
-### Still Running (1xH100 pods)
+### Innovation G/H: Hyper-Connections — SHELVED
 
-- **G: Hyper-Connections scalar** — learned mixing of all prior layer outputs
-- **H: Hyper-Connections vector** — per-dim mixing weights
+| Test | BPB | Steps | Step Avg | Issue |
+|------|-----|-------|----------|-------|
+| G (scalar) | 1.5226 | 1,029 | ~583ms | Only 1029 steps in 600s (1GPU too slow) |
+| H (vector) | 2.1524 | ~800? | ~700ms? | Even worse; 52 min eval time |
+
+**Root cause:** The `torch.stack` of all layer outputs per layer creates O(layers²) memory
+and compute overhead. On 1GPU at 583ms/step, only ~1000 steps completed — not enough to
+converge. Even on 8xH100, the overhead would likely cost 1000-2000 steps, outweighing the
+architectural benefit.
+
+The 1GPU tests were also invalid for the same reason as F: 600s wallclock on 1GPU with
+grad_accum=8 only yields ~1000 steps regardless of architecture.
+
+**Additionally:** Both G and H ran without U-Net skips (`UNET_SKIPS=0`), which removes the
+proven skip connections. Hyper-connections are supposed to subsume skips, but with so few
+training steps, they couldn't learn meaningful cross-layer mixing. The softmax-initialized
+weights (mostly on the previous layer) don't provide the same inductive bias as explicit
+encoder↔decoder skip connections.
+
+**Verdict:** The O(layers²) cost is too high for a competition with a 600s wallclock.
+Hyper-connections might work in longer training regimes but not here. **Shelved.**
 
 ## Local Artifacts
 
