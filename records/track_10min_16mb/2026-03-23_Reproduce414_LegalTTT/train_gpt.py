@@ -28,11 +28,15 @@ try:
     _HAS_FA3 = True
 except ImportError:
     try:
-        from flash_attn import flash_attn_func as flash_attn_3_func
+        from flash_attn.flash_attn_interface import flash_attn_func as flash_attn_3_func
         _HAS_FA3 = True
     except ImportError:
-        _HAS_FA3 = False
-        flash_attn_3_func = None
+        try:
+            from flash_attn import flash_attn_func as flash_attn_3_func
+            _HAS_FA3 = True
+        except ImportError:
+            _HAS_FA3 = False
+            flash_attn_3_func = None
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
