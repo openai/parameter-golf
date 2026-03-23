@@ -10,8 +10,14 @@ Train the best possible language model under these STRICT constraints:
 - New SOTA must beat existing by >= 0.005 nats with p<0.01 statistical significance.
 - Cannot access validation data during training ("paid prefix" is banned).
 
-Current best val_bpb: **{{best_bpb}}**
+Current local incumbent val_bpb for this run mode: **{{best_bpb}}**
 Leaderboard SOTA: **{{leaderboard_sota}}**
+
+## RUN MODE
+{{run_mode}}
+
+## SEARCH STATE
+{{search_state}}
 
 ## CURRENT TRAINING SCRIPT
 You have COMPLETE FREEDOM to change ANYTHING in this script: the architecture,
@@ -22,8 +28,11 @@ normalization, attention mechanism, or any other aspect.
 {{current_code}}
 ```
 
-## EXPERIMENT HISTORY
+## MEMORY DOSSIER
 {{history}}
+
+## ACTIVE REPEAT GUARD
+{{repeat_guard}}
 
 ## DOMAIN KNOWLEDGE & IDEAS
 {{program}}
@@ -37,13 +46,13 @@ idea for improving val_bpb — something you believe has >60% chance of improvin
 
 ### MANDATORY REASONING PROCESS (follow every step):
 
-**Step 1 -- STUDY THE HISTORY CAREFULLY**: Read EVERY past experiment above.
-- What ideas were tried? What were their BPB results?
-- Which experiments CRASHED and WHY? (error details are in the history)
-- Which experiments went OVER SIZE? By how much?
-- Which ideas WORKED (status=keep) and what was the delta?
-- NEVER propose something that is substantially similar to a past failure unless
-  you have a specific reason why your version will succeed where the previous failed.
+**Step 1 -- STUDY THE DOSSIER CAREFULLY**: Read the memory dossier above.
+- Separate infrastructure noise from actual research evidence.
+- Identify which proposal families are repeatedly failing or being discarded.
+- Read the latest timeout stage, last_step, and timing telemetry before making
+  any throughput-sensitive proposal.
+- NEVER repeat a blocked family unless you provide a concrete `repeat_exemption`
+  describing the new mechanism and why prior failures do not apply.
 
 **Step 2 -- Diagnose the current bottleneck**: Is it model capacity? Training
 optimization? Post-quantization degradation? Evaluation strategy? Be specific.
@@ -53,6 +62,11 @@ Reason about WHERE in the pipeline bits-per-byte are being lost.
 Draw on the full ML literature (QAT, SwiGLU, MoE, SSMs, advanced optimizers,
 curriculum learning, TTT, distillation, novel quantization, embedding tricks, etc.)
 Prefer ideas with strong theoretical backing AND practical evidence at small scale.
+In scout mode, completed low-overhead probes are better than ambitious ideas that
+never finish.
+- If the base script for this iteration is an exploratory frontier, only continue
+  building on it if you can clearly explain why the combination can close the
+  remaining gap to the incumbent. Otherwise pivot back toward a cleaner incumbent-based idea.
 
 **Step 4 -- Estimate the gain**: What BPB improvement do you expect? Show your work.
 If your honest estimate is < -0.001, pick something bolder — marginal tweaks are
@@ -69,11 +83,13 @@ A failed search/replace wastes an entire iteration.
 ### RETURN FORMAT
 Return a JSON object:
 {
+  "proposal_family": "One of: activation_mlp, optimizer_schedule, architecture_depth, attention_kv, embedding_tokenizer, quantization_compression, evaluation_strategy, systems_throughput, initialization_norm, unknown",
   "diagnosis": "What is the current bottleneck? (2-3 sentences)",
   "hypothesis": "What change addresses it and why? (2-3 sentences)",
   "expected_delta": "Estimated BPB change (e.g. -0.008) with justification",
   "risk_assessment": "What could go wrong?",
   "description": "Concise 1-sentence summary",
+  "repeat_exemption": "Required only if you intentionally repeat a blocked family. Explain the new mechanism and why prior failures do not apply.",
   "changes": [
     {
       "explanation": "What this specific edit does",
@@ -106,6 +122,8 @@ Return a JSON object:
 
 ### PHILOSOPHY
 - You are a researcher, not a hyperparameter tuner.
-- Bold architectural changes with strong theoretical backing beat safe tweaks.
+- In scout mode, information density and finishing runs matter more than ambition.
+- Bold architectural changes with strong theoretical backing beat safe tweaks when
+  they are still compatible with the active run mode.
 - Every GPU-minute wasted on a low-confidence idea is money burned.
 - Think about what top ML labs would try if they were competing.

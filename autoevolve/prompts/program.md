@@ -40,67 +40,76 @@ All of the following are already in `train_gpt.py`. Do NOT propose these as new 
 - **warmdown=3000**, warmup=20 steps, grad_clip=0.3
 - ~19.2M params → ~15.9MB compressed artifact (very tight: ~0.1MB headroom)
 
-## Ideas to Explore — Ranked by Expected Impact
+## Scout Mode Priorities
+When the runner is in scout mode on 1xH100, optimize for completed runs and good telemetry.
+
+- Prefer low-overhead probes first: activation swaps, optimizer/warmdown tuning, KV head count, eval-safe architectural simplifications, and other changes that preserve compile/step throughput.
+- Treat throughput-heavy quantization alignment ideas as promotion-track ideas until the scout loop has produced completed runs with trustworthy timing telemetry.
+- If the dossier shows repeated non-kept outcomes from the same family, pivot families before making a more complex variant of the same idea.
+
+## Ideas to Explore — Full-Fidelity / Promotion Track
 
 ### Tier 1: High Impact (expected delta > -0.005 BPB)
 
-1. **Quantization-Aware Training (QAT) — INT5/INT6 STE**
+1. **Improved Activation: SwiGLU / GeGLU**
+   Replace relu² with SwiGLU: out = (W1·x * silu(W3·x)) · W2.
+   Used in LLaMA-3, Gemma, Mistral. Consistently ~0.3-0.5 ppl improvement.
+   Need to adjust hidden dim to keep param count: hidden = floor(2/3 × 3 × 512) = 1024.
+   The parameter savings from 1024→1024 (vs current 1536) can fund an 11th layer.
+
+2. **KV Head Count**
+   Try 2 KV heads (from current 4) for an MQA-like setup.
+   This can save projection bytes and runtime, which is especially scout-friendly.
+
+3. **Longer Training with Warmdown Tuning**
+   Try warmdown tuning or a gentler LR tail without adding per-step compute.
+   More careful late training can be a cheap probe for optimization-limited regimes.
+
+4. **Weight Pruning Increase**
+   Current 3% magnitude pruning. Try 5-8% with a gradual schedule.
+   With zstd compression, sparse weights compress better and can fund capacity elsewhere.
+
+5. **Quantization-Aware Training (QAT) — INT5/INT6 STE**
    Inject fake int5/int6 quantization noise during the LAST 10-15% of training via
    Straight-Through Estimator (STE). The model learns to pack weights into integer ranges.
-   Record #2 already uses this. Expected gain: -0.003 to -0.008 BPB.
+   Record #2 already uses this. Expected gain: -0.003 to -0.008 BPB in full-fidelity mode.
    Key: match the quantization scheme used at eval (int5 for MLP, int6 for attn).
+   Scout warning: this is expensive and should not be the first family you try when runs are not finishing.
 
-2. **Better Compression: Block Quantization + zstd**
+6. **Better Compression: Block Quantization + zstd**
    Switch from per-row to per-block INT5/INT6 quantization (block size 32-64).
    Smaller scale factors = more bits available for actual weights.
    Combine with zstd level 22 for maximum compression.
    Current artifact is 15.9MB — any saved bytes can fund extra capacity.
 
-3. **Depth Recurrence / Looped Transformer**
+7. **Depth Recurrence / Looped Transformer**
    Share transformer block weights and forward through them 2× per input position.
    Effectively doubles depth for zero extra parameters.
    Key research: Universal Transformers, DEQ.
    Risk: throughput halves (may lose training steps), gradient flow trickier.
    Try: 5 unique blocks × 2 loops = 10 effective layers.
 
-4. **Larger Vocabulary with Subword BPE**
+8. **Larger Vocabulary with Subword BPE**
    The 1024 vocab is very small. A 2048 or 4096 vocab reduces token sequence length,
    more context per step, better byte-level compression.
    But embedding table grows: 2048×512×2bytes = ~2MB FP16. Tight on 16MB.
    Try: 2048 vocab with compressed INT8 embeddings or factored embedding.
 
-5. **Test-Time Training (TTT) with Low-Rank Updates**
+9. **Test-Time Training (TTT) with Low-Rank Updates**
    Fine-tune rank-1 LoRA adapters per document during evaluation.
    Submission #4 got 1.1928 without combining with SOTA architecture.
    Combined: potentially -0.015 or more. Risk: eval budget.
 
 ### Tier 2: Medium Impact (expected delta -0.002 to -0.005 BPB)
 
-6. **Improved Activation: SwiGLU / GeGLU**
-   Replace relu² with SwiGLU: out = (W1·x * silu(W3·x)) · W2.
-   Used in LLaMA-3, Gemma, Mistral. Consistently ~0.3-0.5 ppl improvement.
-   Need to adjust hidden dim to keep param count: hidden = floor(2/3 × 3 × 512) = 1024.
-   The parameter savings from 1024→1024 (vs current 1536) can fund an 11th layer.
-
-7. **11th Layer via Aggressive Quantization**
+10. **11th Layer via Aggressive Quantization**
    Current artifact: ~15.9MB. Extra layer = ~1MB params.
    But if we drop MLP to 2.5x + int4 for least-important heads = break even.
    Mixed-precision: int4 for 2-3 shallow layers, int6 for deep layers.
 
-8. **Attention Score Bias / ALiBi or FIRE Positional Bias**
+11. **Attention Score Bias / ALiBi or FIRE Positional Bias**
    Replace RoPE with ALiBi or relative position encoding.
    More generalizable to longer sequences. Saves embedding params (no RoPE cache).
-
-9. **Weight Pruning Increase**
-   Current 3% magnitude pruning. Try 5-8% with gradual pruning schedule.
-   With zstd compression, sparse weights compress better.
-
-10. **KV Head Count**: Try 2 KV heads (from current 4) = MQA-like.
-    Saves ~2MB from KV projection matrices. Spend on wider model (560 dim).
-
-11. **Longer Training with Warmdown Tuning**
-    Try warmdown_iters=4000 (20% of total). More careful LR tail often helps.
-    Also try cosine warmdown vs linear.
 
 ### Tier 3: Experimental / Lower Confidence
 

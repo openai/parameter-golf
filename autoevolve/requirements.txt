@@ -13,3 +13,4 @@ sentencepiece
 # Auto-evolve agent dependencies
 openai
 python-dotenv
+zstandard
