@@ -65,11 +65,12 @@ Per-level hit breakdown:
 ```bash
 SEED=42 \
 RUN_ID=ppm_k15_seed42 \
-FINAL_EVAL_PPM=0 \
-PPM_SWEEP_K_VALUES='16,12,8,6' \
-PPM_SWEEP_MIN_CONFS='1.0,1.0,1.0,0.95' \
-PPM_SWEEP_MIN_COUNTS='1,1,1,1' \
-PPM_SWEEP_BOOST_KS='15' \
+FINAL_EVAL_PPM=1 \
+PPM_K_VALUES='16,12,8,6' \
+PPM_MIN_CONFS='1.0,1.0,1.0,0.95' \
+PPM_MIN_COUNTS='1,1,1,1' \
+PPM_BOOST_K='15' \
+PPM_DELAY='2048' \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
@@ -77,8 +78,7 @@ Repeat with `SEED=1337` and `SEED=2024` for the 3-seed validation above.
 
 Files in this folder:
 
-- `train_gpt.py` — delayed-PPM submission entrypoint
-- `base_train_gpt.py` — snapshot of the base training script used by the wrapper
+- `train_gpt.py` — self-contained delayed-PPM submission entrypoint
 - `trie_bench.c` — C helper for delayed trie/PPM bank construction
 - `train_seed42.log`, `train_seed1337.log`, `train_seed2024.log` — full training/eval logs
 - `submission.json` — leaderboard metadata
