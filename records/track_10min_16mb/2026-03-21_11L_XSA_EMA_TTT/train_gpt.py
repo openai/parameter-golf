@@ -187,6 +187,7 @@ class Hyperparameters:
     # Per-layer lr: MLP proj (high quant damage) gets higher lr, MLP fc (low damage) gets lower lr
     # Based on our 34-config ablation showing 3.4x damage ratio between proj and fc weights
     star_relu = bool(int(os.environ.get("STAR_RELU", "1")))  # Star-ReLU: learnable scale+bias on relu²
+    leaky_relu = bool(int(os.environ.get("LEAKY_RELU", "0")))  # LeakyReLU(0.5)^2: zero params, -0.003 BPB proven
     perlayer_train_lr = bool(int(os.environ.get("PERLAYER_TRAIN_LR", "1")))
     proj_lr_mult = float(os.environ.get("PROJ_LR_MULT", "1.5"))   # multiplier for mlp.proj (high quant damage)
     fc_lr_mult = float(os.environ.get("FC_LR_MULT", "0.7"))       # multiplier for mlp.fc (low quant damage)
@@ -1023,23 +1024,26 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    # Star-ReLU MLP: relu(x)^2 with learnable per-channel scale+bias (MetaFormer)
-    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0, star_relu: bool = False):
+    # Activation options: relu^2 (default), Star-ReLU (learned scale+bias), LeakyReLU(0.5)^2
+    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0, star_relu: bool = False, leaky_relu: bool = False):
         super().__init__()
         hidden = mlp_hidden if mlp_hidden > 0 else mlp_mult * dim
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
         self.star_relu = star_relu
+        self.leaky_relu = leaky_relu
         if star_relu:
             self.star_scale = nn.Parameter(torch.ones(hidden, dtype=torch.float32))
             self.star_bias = nn.Parameter(torch.zeros(hidden, dtype=torch.float32))
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
-        x = x.square()
-        if self.star_relu:
-            x = x * self.star_scale.to(dtype=x.dtype) + self.star_bias.to(dtype=x.dtype)
+        if self.leaky_relu:
+            x = F.leaky_relu(self.fc(x), negative_slope=0.5).square()
+        else:
+            x = torch.relu(self.fc(x)).square()
+            if self.star_relu:
+                x = x * self.star_scale.to(dtype=x.dtype) + self.star_bias.to(dtype=x.dtype)
         return self.proj(x)
 
 
@@ -1060,6 +1064,7 @@ class Block(nn.Module):
         value_residual: bool = False,
         gated_attention: bool = False,
         star_relu: bool = False,
+        leaky_relu: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -1067,7 +1072,7 @@ class Block(nn.Module):
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
                                          ntk_base_seq_len=ntk_base_seq_len, rope_dims=rope_dims,
                                          value_residual=value_residual, gated_attention=gated_attention)
-        self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden, star_relu=star_relu)
+        self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden, star_relu=star_relu, leaky_relu=leaky_relu)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -1203,6 +1208,7 @@ class GPT(nn.Module):
         value_residual: bool = False,
         gated_attention: bool = False,
         star_relu: bool = False,
+        leaky_relu: bool = False,
         sigmoid_skip_gates: bool = False,
         hyper_connections: bool = False,
         hyper_conn_mode: str = "scalar",
@@ -1280,6 +1286,7 @@ class GPT(nn.Module):
                     value_residual=value_residual,
                     gated_attention=gated_attention,
                     star_relu=star_relu,
+                    leaky_relu=leaky_relu,
                 )
                 for i in range(num_layers)
             ]
@@ -2525,6 +2532,7 @@ def main() -> None:
         value_residual=args.value_residual,
         gated_attention=args.gated_attention,
         star_relu=args.star_relu,
+        leaky_relu=args.leaky_relu,
         sigmoid_skip_gates=args.sigmoid_skip_gates,
         hyper_connections=args.hyper_connections,
         hyper_conn_mode=args.hyper_conn_mode,
