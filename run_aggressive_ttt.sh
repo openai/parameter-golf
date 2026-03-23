@@ -17,7 +17,6 @@
 
 set -e
 cd /workspace/parameter-golf
-git fetch origin && git checkout next-gen && git reset --hard origin/next-gen
 
 export TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 UNET_SKIPS=1
 export ROPE_DIMS=16 LN_SCALE=1 ROPE_BASE=10000

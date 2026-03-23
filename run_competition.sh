@@ -11,7 +11,6 @@
 
 set -e
 cd /workspace/parameter-golf
-git fetch origin && git checkout next-gen && git reset --hard origin/next-gen
 
 # Training config
 export TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 UNET_SKIPS=1

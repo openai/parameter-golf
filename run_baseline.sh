@@ -6,9 +6,6 @@
 
 set -e
 cd /workspace/parameter-golf
-# Save this script before checkout (it doesn't exist on int6-3xMLP-pr)
-cp -f run_baseline.sh /tmp/run_baseline.sh 2>/dev/null || true
-git fetch origin && git checkout int6-3xMLP-pr && git reset --hard origin/int6-3xMLP-pr
 
 export TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 UNET_SKIPS=1
 export ROPE_DIMS=16 LN_SCALE=1 ROPE_BASE=10000

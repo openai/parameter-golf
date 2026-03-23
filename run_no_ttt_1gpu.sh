@@ -4,7 +4,6 @@
 
 set -e
 cd /workspace/parameter-golf
-git fetch origin && git checkout perlayer-lr-stack && git reset --hard origin/perlayer-lr-stack
 
 export TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 UNET_SKIPS=1
 export ROPE_DIMS=16 LN_SCALE=1 ROPE_BASE=10000
