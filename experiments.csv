@@ -76,3 +76,4 @@ pr414_int5mlp_bigram6144_s1337,600,14038723,,70190,8,89483,1.1466,2a89149,"int5 
 8xh100_4fixes_bigram2048_s1337,600,15980724,,85953,8,180945,1.1265,977dea6,"OUR CODE 4fixes+bigram2048: 1.1265, 15.98MB FITS. Beats merged SOTA by 0.016"
 8xh100_4fixes_bigram2560_s1337,600,15966072,,85953,8,181073,1.1274,977dea6,"OUR CODE bigram2560: 1.1274, 15.97MB — slightly worse than 2048"
 8xh100_gptqfix_bigram3072_s1337,600,15972090,,85491,8,181291,1.1261,c57b248,"GPTQ aligned+bigram3072: 1.1261, 15.97MB. Gap to SOTA: 0.003"
+8xh100_8Lx2_bigram4096_s1337,600,12469620,,85777,8,257917,1.1563,6ecb773,"8Lx2 loop: 1.1563, 12.5MB. Loop doubles depth but 40% fewer steps. WHY FAIL: step overhead (119ms vs 84ms) costs 2000 steps — more steps > more depth at this scale"
