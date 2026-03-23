@@ -1,7 +1,9 @@
 # Parameter Golf — Experimental Findings
-**Updated: 2026-03-21**
+**Updated: 2026-03-23**
 
-Everything we've tested, what we learned, and what remains untested.
+26 experiments, what we learned, and what remains untested.
+
+**Key findings:** §12 (Int6 + 3× MLP), §16 (optimizer coverage bug), §21b (TTT schedule ablation — the main contribution), §23 (causal TTT), §24 (PR #414 comparison — depth-scaled init), §25 (compression moonshots falsified).
 
 ---
 
@@ -263,3 +265,56 @@ Everything we've tested, what we learned, and what remains untested.
 9. **SWA only works with many checkpoints over a long warmdown.** A handful of checkpoints at WD=1200 shows no effect. 84 checkpoints at WD=20000 reverses the quantization gap entirely. The technique was undertested, not ineffective.
 
 11. **Hard tokens resist TTT regardless of method.** The hardest 2.7% of tokens (by loss) account for ~15% of total loss and are genuinely unpredictable — not a training artifact. Don't design TTT strategies targeting these tokens.
+
+### 23. Causal TTT (score-first, competition-legal)
+- **Motivation:** Standard TTT trains on all validation tokens before scoring, which violates the competition rule that tokens must be scored before training on them (issue #402). All TTT submissions in the top 10 at time of writing use the illegal pattern.
+- **Implementation:** Split validation into 1,893 non-overlapping 32K-token chunks. For each chunk: (1) score under `torch.inference_mode()`, (2) train with AdamW for 3 epochs with per-chunk cosine lr reset. Last chunk is scored but never trained on.
+- **Per-chunk cosine reset:** Each chunk starts at full lr and decays to zero across its 3 training epochs. This avoids lr starvation on later chunks (global cosine) and overshooting on the final epoch (flat lr).
+- **Per-layer lr groups carry over:** 3× for MLP output projections, 0.5× for input projections, 1× for rest (from §21b). The quantization damage ratios are a property of the trained weights, not the TTT protocol.
+- **Expected TTT gain:** ~0.002–0.005 BPB (vs ~0.06–0.08 for illegal train-all-then-score). The smaller gain is expected: early chunks are scored by an unadapted model, and those scores are included in the final average.
+- **Result:** val_bpb 1.1767 (seed 1337, 8xH100 FA3, XSA=4, VE enabled). Worse than plain sliding window eval (~1.12) because causal TTT scores each chunk with a single pass (no overlapping windows), while sliding window uses stride=64 overlapping windows. The adaptation benefit (~0.005 BPB) is smaller than the lost sliding window benefit (~0.03 BPB).
+- **Lesson:** Legal TTT is a fundamentally weaker intervention than illegal TTT. More importantly, causal TTT currently cannot be combined with sliding window eval within each chunk's scoring phase — this is the key engineering gap. The per-layer lr schedule matters more in this regime because each chunk gets only 3 adaptation epochs — allocating lr to the most damaged weights is critical when the budget is small.
+
+### 24. Code comparison vs PR #414 (1.1233 SOTA without TTT)
+- **Training quality gap:** 0.02 BPB behind at matched step counts (step 4000: ours 1.2424 vs #414 1.2211). Consistent throughout training, not a late-stage issue.
+- **Root cause found: depth-scaled projection init.** PR #414 scales projection weights by `1/sqrt(2*num_layers)` after orthogonal init. Our code did not. This prevents residual stream magnitude growth at 11 layers. Fixed in commit 3d08a10.
+- **SWA was dead code in PR #414.** Despite `SWA_ENABLED=1`, PR #414 collects SWA snapshots but only applies EMA weights. SWA state is never loaded.
+- **SWA was broken in our code.** Activation condition `step >= iterations * 0.5` with iterations=20000 never triggers since training stops at ~7000 steps. Fixed to `lr_scale < 0.2` (commit a4dd314).
+- **QAT:** PR #414 disables QAT entirely (`QAT_ENABLED=0`). Our QAT at `lr_scale < 0.1` may have been hurting. Fixed to QAT=0.
+- **run_no_ttt.sh unset bugs:** The `unset` block was killing VE_ENABLED, WARMDOWN_ITERS, SWA, and EMA_ENABLED immediately after setting them. Three separate bug fixes across sessions.
+
+### 25. Compression moonshots — empirical falsification (2026-03-23)
+Tested on final_model_baseline.pt (1.1344, seed 1337, 8672 steps).
+
+**Procrustes cross-layer similarity (MLP proj weights):**
+- All layer pairs show <0.3% rotational reduction after optimal alignment
+- Contradicts earlier analysis claiming 91-93% (likely from different checkpoint or methodology error)
+- **Verdict: symmetry-transport is DEAD.** Layers are genuinely independent.
+
+**Per-layer SVD reconstruction:**
+
+| Rank | Size (KB) | vs Int6 (6336 KB) | MSE ratio vs int6 |
+|------|-----------|-------------------|-------------------|
+| 32 | 1,409 | 22% | 688x worse |
+| 64 | 2,817 | 44% | 591x worse |
+| 128 | 5,635 | 89% | 429x worse |
+| 256 | 11,270 | 178% | 201x worse |
+| 384 | 16,904 | 267% | 65x worse |
+
+Even at rank=384 (2.7x bigger than int6), SVD is 65x worse on MSE. The weights are genuinely full-rank.
+
+**Prototype + low-rank corrections:** Worse than per-layer SVD at every rank. Cross-layer sharing adds noise rather than structure.
+
+**Compilerized decoder:** A decoder that achieves low MSE requires more parameters than the weights themselves. Overfitting to 786K output dims requires proportionally large networks.
+
+**Conclusion:** Int6 per-row quantization with zstd-22 is near-optimal for this architecture. The weight matrices are full-rank, layer-independent, and well-conditioned. All compression approaches that assume low-rank structure or cross-layer sharing are fundamentally worse. The remaining lever is byte allocation (which weights get higher precision), not representation change.
+
+### 26. Lessons (updated 2026-03-23)
+
+12. **Depth-scaled projection init is critical at 11+ layers.** Without `1/sqrt(2*depth)` scaling on attn.proj and mlp.proj, residual stream magnitudes grow with depth, causing 0.02 BPB worse training quality.
+
+13. **Wallclock-based warmdown is correct; step-based breaks.** With `iterations=20000` but only ~7000 actual steps, any feature triggered by `step >= fraction * iterations` will never activate. Use `lr_scale` thresholds instead.
+
+14. **Shell script `unset` blocks silently kill exports.** Setting `export FOO=1` then `unset FOO` later in the same script falls back to the code default. Audit unset blocks every time you add a new env var.
+
+15. **Int6 quantization is near-optimal for 27M-param transformers.** Tested codebooks (87% lower MSE but 25% larger compressed), SVD (full-rank, no savings), cross-layer sharing (layers are independent), and decoders (must be larger than originals). The weight structure doesn't admit cheaper representations under zstd-22.
