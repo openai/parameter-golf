@@ -43,11 +43,11 @@ class Hyperparameters:
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 6))  # unique layers (×2 loops = 12 effective)
-    num_loops = int(os.environ.get("NUM_LOOPS", 2))  # fractal loops over shared blocks
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
+    num_layers = int(os.environ.get("NUM_LAYERS", 4))  # unique layers (×3 loops = 12 effective)
+    num_loops = int(os.environ.get("NUM_LOOPS", 3))  # fractal loops over shared blocks
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
-    num_heads = int(os.environ.get("NUM_HEADS", 16))
+    num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 4.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
@@ -77,14 +77,14 @@ class Hyperparameters:
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 3))  # XSA on last 3 of 6 unique layers
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 2))  # XSA on last 2 of 4 unique layers
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
-    ve_layers = os.environ.get("VE_LAYERS", "4,5")  # last 2 of 6 unique layers
+    ve_layers = os.environ.get("VE_LAYERS", "2,3")  # last 2 of 4 unique layers
     # Late-stage TTT burst: sharp adaptation on recent training data before finalizing
     ttt_burst_enabled = bool(int(os.environ.get("TTT_BURST_ENABLED", "1")))
     ttt_burst_epochs = int(os.environ.get("TTT_BURST_EPOCHS", 2))  # epochs over recent data
