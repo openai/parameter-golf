@@ -1,0 +1,11 @@
+{
+  "author": "Atris Labs",
+  "github_id": "keshav55",
+  "name": "10L MLP3x Int5/Int6 + BigramHash + SmearGate + SWA",
+  "blurb": "25.5M param model with Int5 MLP + Int6 attention quantization, BigramHash(10240), SmearGate, SWA(24 checkpoints), WD=0.04, grad_clip=0.3, 3% magnitude pruning. Trained at seq_len=2048, batch=786K on 8xH100 via Modal.",
+  "date": "2026-03-22T08:00:00Z",
+  "val_loss": 2.0007,
+  "val_bpb": 1.2015,
+  "bytes_total": 14386782,
+  "bytes_code": 65264
+}
