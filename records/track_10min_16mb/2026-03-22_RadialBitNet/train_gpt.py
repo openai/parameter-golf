@@ -371,9 +371,10 @@ def eval_val(args, model, device, val_tokens, base_bytes_lut, has_space_lut, bou
 # -----------------------------
 # 4. EXPORT & SIZE VALIDATION
 # -----------------------------
-def export_and_check_size(model, filename="golf_model.zst"):
+def export_and_check_size(model_or_ddp, filename="golf_model.bin"):
     import zlib
-    # 1. State Dict
+    # 1. State Dict - DDP Safe (Fix Point 3)
+    model = model_or_ddp.module if hasattr(model_or_ddp, 'module') else model_or_ddp
     state = model.state_dict()
     # 2. Int8 Quantization (Ternary weights -> Int8)
     q_state = {}
@@ -444,12 +445,16 @@ def main():
         base_bytes, has_space, boundary = build_sentencepiece_luts(sp, args.vocab_size, device)
         val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
     except Exception as e:
-        print(f"\n⚠️ Mocking SentencePiece for local testing due to missing files: {e}")
-        # Dummy LUTs
-        base_bytes = torch.ones(args.vocab_size, dtype=torch.int16, device=device) * 4
-        has_space = torch.zeros(args.vocab_size, dtype=torch.bool, device=device)
-        boundary = torch.ones(args.vocab_size, dtype=torch.bool, device=device)
-        val_tokens = torch.randint(0, args.vocab_size, (10000,), device=device)
+        # Hard Failure for Record-Track (Fix Point 1)
+        if os.environ.get("ALLOW_MOCK", "0") == "1":
+            print(f"\n⚠️ DEBUG: Mocking SentencePiece for local testing: {e}")
+            # Dummy LUTs
+            base_bytes = torch.ones(args.vocab_size, dtype=torch.int16, device=device) * 4
+            has_space = torch.zeros(args.vocab_size, dtype=torch.bool, device=device)
+            boundary = torch.ones(args.vocab_size, dtype=torch.bool, device=device)
+            val_tokens = torch.randint(0, args.vocab_size, (10000,), device=device)
+        else:
+            raise RuntimeError(f"ABORTING: Record-track execution REQUIRES real tokenizer/dataset files. {e}")
 
     print("⏳ Loading training tokens into memory...")
     # Load training tokens with single-shard safeguard
