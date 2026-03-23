@@ -36,8 +36,10 @@ export TTT_ENABLED=0
 export TTT_CAUSAL=0
 
 # Neural Cache eval (the difference vs run_no_ttt.sh)
+# NO_POS_OFFSET=1: don't shift RoPE positions for cached KV — avoids OOD positions
 export NEURAL_CACHE=1
-export NEURAL_CACHE_MAX_LEN=8192
+export NEURAL_CACHE_MAX_LEN=2048
+export NEURAL_CACHE_NO_POS_OFFSET=1
 
 export SEED=${1:-1337}
 export RUN_TAG="neural_cache_$(date +%Y%m%d_%H%M%S)"
@@ -49,7 +51,7 @@ unset MLP_HIDDEN QUANT_BITS RUN_ID TIER2_MODE BIGRAM_HASH_BUCKETS \
   REPTILE_TTT TTT_TWO_PHASE TTT_EPOCHS TTT_MAX_STEPS
 
 echo "=== NEURAL CACHE EVAL ==="
-echo "SEED=$SEED stride=64 EMA=1 SWA=1 QAT=0 VR=1 GA=1 PERLAYER_LR=1 NEURAL_CACHE=1 (max_len=8192)"
+echo "SEED=$SEED stride=64 EMA=1 SWA=1 QAT=0 VR=1 GA=1 PERLAYER_LR=1 NEURAL_CACHE=1 (max_len=2048, no_pos_offset=1)"
 echo "========================="
 
 torchrun --standalone --nproc_per_node=8 \

@@ -191,6 +191,7 @@ class Hyperparameters:
     fc_lr_mult = float(os.environ.get("FC_LR_MULT", "0.7"))       # multiplier for mlp.fc (low quant damage)
     neural_cache = bool(int(os.environ.get("NEURAL_CACHE", "0")))  # cross-window KV caching at eval time
     neural_cache_max_len = int(os.environ.get("NEURAL_CACHE_MAX_LEN", 8192))  # max cached KV length per layer
+    neural_cache_no_pos_offset = bool(int(os.environ.get("NEURAL_CACHE_NO_POS_OFFSET", "0")))  # keep pos_offset=0 to avoid OOD positions
 
     # Disable schedule-dependent features in TIER2_MODE unless explicitly overridden
     if _tier2:
@@ -1693,7 +1694,7 @@ def eval_val_neural_cache(
                         v_all = v_all[:, :, -max_cache_len:, :]
                     trimmed_caches.append((k_all, v_all))
                 kv_caches = trimmed_caches
-                pos_offset = kv_caches[0][0].size(2) if kv_caches else 0
+                pos_offset = 0 if args.neural_cache_no_pos_offset else (kv_caches[0][0].size(2) if kv_caches else 0)
 
             # Progress
             if rank == 0 and doc_idx % 100 == 0:
@@ -2858,7 +2859,7 @@ def main() -> None:
         q_val_loss, q_val_bpb = causal_ttt_result
         log0(f"final_eval_mode:causal_ttt (scoring done during TTT)")
     elif args.neural_cache:
-        log0(f"final_eval_mode:neural_cache stride:{args.eval_stride} max_cache_len:{args.neural_cache_max_len}")
+        log0(f"final_eval_mode:neural_cache stride:{args.eval_stride} max_cache_len:{args.neural_cache_max_len} no_pos_offset:{args.neural_cache_no_pos_offset}")
         q_val_loss, q_val_bpb = eval_val_neural_cache(
             args,
             base_model,
