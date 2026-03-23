@@ -59,6 +59,7 @@ class Hyperparameters:
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
+    run_tag = os.environ.get("RUN_TAG", run_id)
     seed = int(os.environ.get("SEED", 1337))
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
@@ -2799,8 +2800,8 @@ def main() -> None:
         log0(f"prune:{args.prune_pct:.1f}% zeroed {pruned_count}/{total_count} weights ({100*pruned_count/max(total_count,1):.1f}%)")
 
     if master_process:
-        torch.save(base_model.state_dict(), "final_model.pt")
-        model_bytes = os.path.getsize("final_model.pt")
+        torch.save(base_model.state_dict(), f"final_model_{run_tag}.pt")
+        model_bytes = os.path.getsize(f"final_model_{run_tag}.pt")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
@@ -2827,9 +2828,9 @@ def main() -> None:
         compress_method = "zlib-9"
     quant_raw_bytes = len(quant_raw)
     if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
+        with open(f"final_model_{run_tag}.int8.ptz", "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        quant_file_bytes = os.path.getsize(f"final_model_{run_tag}.int8.ptz")
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
@@ -2840,7 +2841,7 @@ def main() -> None:
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
+    with open(f"final_model_{run_tag}.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
     # Decompress with the same method used for compression.
     if args.use_zstd and _HAS_ZSTD:

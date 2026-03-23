@@ -36,6 +36,7 @@ export TTT_ENABLED=0
 export TTT_CAUSAL=0
 
 export SEED=${1:-1337}
+export RUN_TAG="no_ttt_$(date +%Y%m%d_%H%M%S)"
 
 # Clean env — do NOT unset EMA_ENABLED, SWA, QAT, VE_ENABLED, WARMDOWN_ITERS
 unset MLP_HIDDEN QUANT_BITS RUN_ID TIER2_MODE BIGRAM_HASH_BUCKETS \

@@ -41,6 +41,7 @@ export NEURAL_CACHE=1
 export NEURAL_CACHE_MAX_LEN=8192
 
 export SEED=${1:-1337}
+export RUN_TAG="neural_cache_$(date +%Y%m%d_%H%M%S)"
 
 # Clean env
 unset MLP_HIDDEN QUANT_BITS RUN_ID TIER2_MODE BIGRAM_HASH_BUCKETS \
