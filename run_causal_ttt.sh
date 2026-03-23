@@ -18,6 +18,8 @@ export EVAL_STRIDE=64 DOC_ISOLATED_EVAL=0
 export QAT=0
 export LATE_K_FP16=0 FP16_EMBED_EXPORT=0
 export XSA_LAST_N=0
+export VE_ENABLED=1
+export WARMDOWN_ITERS=3500
 
 # Causal TTT config
 export TTT_CAUSAL=1
