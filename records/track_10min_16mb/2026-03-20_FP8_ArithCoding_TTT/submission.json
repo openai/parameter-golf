@@ -1,9 +1,9 @@
 {
-  "name": "FP8 Training + Arithmetic Coding + LoRA TTT",
-  "val_bpb": null,
+  "name": "FP8 Training + Arithmetic Coding + SWA",
+  "val_bpb": 1.1511,
   "bytes_total": null,
-  "blurb": "FP8 via TransformerEngine for 1.3-1.5x training throughput, custom arithmetic coder with empirical histograms replacing zstd-22 for ~1MB compression savings, LoRA test-time training at evaluation",
-  "author": "acruz",
-  "github_id": "acruz",
+  "blurb": "FP8 via TransformerEngine for 1.3-1.5x training throughput, custom arithmetic coder with empirical histograms replacing zstd-22, SWA with early step-based start for more averaging",
+  "author": "cruz-andr",
+  "github_id": "cruz-andr",
   "date": "2026-03-20"
 }
