@@ -60,9 +60,10 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_experts = int(os.environ.get("NUM_EXPERTS", 2))
-    top_k = int(os.environ.get("TOP_K", 1))
+    top_k = int(os.environ.get("TOP_K", 2))
     moe_aux_loss_coef = float(os.environ.get("MOE_AUX_LOSS_COEF", 0.01))
     moe_mode = os.environ.get("MOE_MODE", "standard")  # "standard" or "shared_routed"
+    moe_start_layer = int(os.environ.get("MOE_START_LAYER", -1))  # -1 = default to num_layers//2
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -290,7 +291,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 )
 FP16_KEEP_NAME_PATTERNS = tuple(
     pattern
-    for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,blocks.8.attn.c_k").split(",")
+    for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,router").split(",")
     if pattern
 )
 INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
@@ -355,6 +356,13 @@ def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
     return q, scale
 
 def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
+    # Dynamically keep the last layer's key projection in fp16
+    last_ck = None
+    for name in state_dict:
+        if ".attn.c_k" in name:
+            last_ck = name
+    dynamic_fp16 = {last_ck} if last_ck is not None else set()
+
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     for name, tensor in state_dict.items():
@@ -368,7 +376,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             result[name] = t.float()
             meta[name] = "passthrough_ctrl"
             continue
-        if any(pattern in name for pattern in FP16_KEEP_NAME_PATTERNS):
+        if any(pattern in name for pattern in FP16_KEEP_NAME_PATTERNS) or name in dynamic_fp16:
             result[name] = t.to(dtype=torch.float16).contiguous()
             meta[name] = "passthrough_fp16"
             continue
@@ -611,14 +619,25 @@ class MoEMLP(nn.Module):
         one_hot = F.one_hot(top_idx, self.num_experts).float()
         aux_loss = self.num_experts * (one_hot.mean(0).detach() * probs.mean(0)).sum()
 
-        # Sparse dispatch: only run the selected expert per token
+        # Sparse dispatch
         out = torch.zeros_like(x_flat)
-        for i, expert in enumerate(self.experts):
-            mask = (top_idx == i)
-            if mask.any():
-                gate = probs[mask, i].unsqueeze(-1).to(dtype=x.dtype)
-                out[mask] = expert(x_flat[mask]) * gate
-
+        if self.top_k >= 2:
+            topk_vals, topk_idx = probs.topk(self.top_k, dim=-1)             # (N, top_k)
+            topk_vals = topk_vals / topk_vals.sum(dim=-1, keepdim=True)       # renormalize
+            for k in range(self.top_k):
+                for i, expert in enumerate(self.experts):
+                    mask = (topk_idx[:, k] == i)
+                    if mask.any():
+                        gate = topk_vals[mask, k].unsqueeze(-1).to(dtype=x.dtype)
+                        out[mask] = out[mask] + expert(x_flat[mask]) * gate
+            self._last_routing = topk_idx[:, 0].detach()
+        else:
+            for i, expert in enumerate(self.experts):
+                mask = (top_idx == i)
+                if mask.any():
+                    gate = probs[mask, i].unsqueeze(-1).to(dtype=x.dtype)
+                    out[mask] = expert(x_flat[mask]) * gate
+            self._last_routing = top_idx.detach()
         return out.reshape(shape), aux_loss
 
 
@@ -655,6 +674,7 @@ class SharedRoutedMLP(nn.Module):
                 gate = probs[mask, i].unsqueeze(-1).to(dtype=x.dtype)
                 routed_out[mask] = expert(x_flat[mask]) * gate
 
+        self._last_routing = top_idx.detach()
         return (shared_out + routed_out).reshape(shape), aux_loss
 
 
@@ -776,6 +796,7 @@ class GPT(nn.Module):
         top_k: int = 1,
         moe_aux_loss_coef: float = 0.01,
         moe_mode: str = "standard",
+        moe_start_layer: int = -1,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -792,10 +813,13 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.smear = SmearGate(model_dim)
+        # Apply MoE only to layers >= moe_start_layer (default: deeper half)
+        effective_moe_start = moe_start_layer if moe_start_layer >= 0 else num_layers // 2
         self.blocks = nn.ModuleList(
             [
-                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, num_experts, top_k, moe_mode)
-                for _ in range(num_layers)
+                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
+                      num_experts if i >= effective_moe_start else 1, top_k, moe_mode)
+                for i in range(num_layers)
             ]
         )
         self.final_norm = RMSNorm()
@@ -1061,6 +1085,7 @@ def main() -> None:
         top_k=args.top_k,
         moe_aux_loss_coef=args.moe_aux_loss_coef,
         moe_mode=args.moe_mode,
+        moe_start_layer=args.moe_start_layer,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1145,6 +1170,22 @@ def main() -> None:
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
+    embed_params = sum(p.numel() for n, p in base_model.named_parameters() if "tok_emb" in n or "bigram" in n or "trigram" in n)
+    attn_params  = sum(p.numel() for n, p in base_model.named_parameters() if ".attn." in n)
+    mlp_params   = sum(p.numel() for n, p in base_model.named_parameters() if ".mlp." in n)
+    other_params = n_params - embed_params - attn_params - mlp_params
+    log0(
+        f"param_breakdown: embed={embed_params} ({embed_params/n_params*100:.1f}%) "
+        f"attn={attn_params} ({attn_params/n_params*100:.1f}%) "
+        f"mlp={mlp_params} ({mlp_params/n_params*100:.1f}%) "
+        f"other={other_params} ({other_params/n_params*100:.1f}%)"
+    )
+    est_mlp_bytes    = mlp_params * 5 / 8
+    est_attn_bytes   = attn_params * 6 / 8
+    est_embed_bytes  = embed_params * 2
+    est_other_bytes  = other_params * 2
+    est_compressed   = (est_mlp_bytes + est_attn_bytes + est_embed_bytes + est_other_bytes) * 0.65
+    log0(f"estimated_artifact_size: ~{est_compressed/1e6:.2f}MB (limit: 16.00MB)")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
@@ -1295,10 +1336,11 @@ def main() -> None:
             # Log expert utilization to detect router collapse
             if rank == 0:
                 for layer_idx, block in enumerate(base_model.blocks):
-                    if isinstance(block.mlp, (MoEMLP, SharedRoutedMLP)):
-                        with torch.no_grad():
-                            router_w = block.mlp.router.weight.float()
-                            log0(f"  expert_util layer={layer_idx} router_weight_norms={[f'{router_w[i].norm().item():.3f}' for i in range(args.num_experts)]}")
+                    if isinstance(block.mlp, (MoEMLP, SharedRoutedMLP)) and hasattr(block.mlp, "_last_routing") and block.mlp._last_routing is not None:
+                        routing = block.mlp._last_routing.cpu()
+                        counts = torch.bincount(routing, minlength=args.num_experts)
+                        fracs = counts.float() / counts.sum()
+                        log0(f"  expert_util layer={layer_idx} fracs=[{', '.join(f'{f:.3f}' for f in fracs.tolist())}]")
 
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
         if distributed and max_wallclock_ms is not None:
