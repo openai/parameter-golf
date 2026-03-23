@@ -9,3 +9,7 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+# Experiment artifacts
+experiments/**/final_model.pt
+experiments/**/final_model.int8.ptz
+experiments/**/logs/

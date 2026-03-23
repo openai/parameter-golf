@@ -140,6 +140,45 @@ For dataset export, tokenizer export, and docs-cache rebuild instructions, see [
 
 Evaluation will be in the RunPod environment with all packages installed. `requirements.txt` is provided as a reference if you want to self-setup.
 
+### Running On Your Own A6000 Box
+
+If you're moving this repo to another machine room instead of RunPod, the safest baseline is to keep the software stack simple and start with a smoke run before launching longer experiments.
+
+Recommended setup on the remote machine:
+
+```bash
+git clone <your-fork-or-private-repo-url>
+cd parameter-golf
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Then fetch the published dataset/tokenizer artifacts:
+
+```bash
+python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1
+```
+
+Single-GPU A6000 smoke run:
+
+```bash
+RUN_ID=a6000_smoke DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 MAX_WALLCLOCK_SECONDS=120 VAL_LOSS_EVERY=0 TRAIN_LOG_EVERY=50 TRAIN_BATCH_TOKENS=131072 python train_gpt.py
+```
+
+Multi-GPU A6000 run on one node:
+
+```bash
+RUN_ID=a6000_multi DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 MAX_WALLCLOCK_SECONDS=600 TORCH_NCCL_ASYNC_ERROR_HANDLING=1 torchrun --standalone --nproc_per_node=<num_gpus> train_gpt.py
+```
+
+Notes for A6000:
+- This script uses CUDA bf16 autocast and PyTorch SDPA. RTX A6000 (Ampere) can run it, but throughput will be materially lower than H100.
+- `train_gpt.py` now accepts arbitrary `WORLD_SIZE`; if `TRAIN_BATCH_TOKENS` is not evenly divisible by your GPU topology, it rounds down to the nearest valid effective batch and logs the actual value.
+- If you hit OOM, reduce `TRAIN_BATCH_TOKENS` first. If you need more control, set `GRAD_ACCUM_STEPS` explicitly.
+- For first bring-up, keep `--train-shards 1` and `MAX_WALLCLOCK_SECONDS=120`; once that is stable, increase shards and wallclock.
+
 ## FAQ
 
 **What exactly counts toward the 16MB artifact size?**

@@ -1,0 +1,12 @@
+rank	experiment	val_bpb	artifact_bytes	status
+-	baseline	3.16013399	15505702	done
+-	idea01_byte_weighted_loss	3.18665442	15901143	done
+-	idea12_zloss	3.16780107	15717150	done
+-	idea13_label_smooth	3.25258968	15652802	done
+-	idea16_embed_scales	3.15109912	15527789	done
+-	idea11_swiglu	3.18892855	16235661	done
+-	idea14_layerwise_lr	3.20030272	15614917	done
+-	idea20_ema	4.64555590	16023637	done
+-	idea21_stochastic_depth	999	-	crashed
+-	idea07_bigram16k	3.15438649	16406573	done
+-	idea19_grad_central	3.16467439	15833223	done

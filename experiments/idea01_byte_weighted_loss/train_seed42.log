@@ -1,0 +1,56 @@
+logs/idea01_byte_weighted_loss_seed42_20260323_122916.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/raid/R13K47007/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/raid/R13K47007/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:25517137
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:120.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9403 train_time:740ms step_avg:740.25ms
+step:2/20000 train_loss:8.6967 train_time:1417ms step_avg:708.60ms
+step:3/20000 train_loss:8.6898 train_time:2214ms step_avg:737.91ms
+step:4/20000 train_loss:8.5215 train_time:2892ms step_avg:722.97ms
+step:5/20000 train_loss:8.3360 train_time:3572ms step_avg:714.31ms
+step:6/20000 train_loss:8.1391 train_time:4251ms step_avg:708.45ms
+step:7/20000 train_loss:7.9169 train_time:4930ms step_avg:704.34ms
+step:8/20000 train_loss:7.7057 train_time:5609ms step_avg:701.16ms
+step:9/20000 train_loss:7.4701 train_time:6288ms step_avg:698.63ms
+step:10/20000 train_loss:7.2785 train_time:6965ms step_avg:696.50ms
+swa:start step:50
+step:50/20000 train_loss:5.5510 train_time:34098ms step_avg:681.96ms
+step:100/20000 train_loss:5.3673 train_time:68112ms step_avg:681.12ms
+step:150/20000 train_loss:5.1227 train_time:102154ms step_avg:681.02ms
+step:177/20000 val_loss:5.0777 val_bpb:3.0073 train_time:120531ms step_avg:680.97ms
+stopping_early: wallclock_cap train_time:120531ms step:177/20000
+peak memory allocated: 20296 MiB reserved: 20496 MiB
+swa:applying averaged 3 checkpoints
+Serialized model: 98437419 bytes
+Code size: 53890 bytes
+Total submission size: 98491309 bytes
+Serialized model int6+zstd: 15901143 bytes
+Total submission size int8+zlib: 15955033 bytes
+final_eval_mode:standard
+final_int8_zlib_roundtrip val_loss:5.3805 val_bpb:3.1867 eval_time:15321ms
+final_int8_zlib_roundtrip_exact val_loss:5.38053251 val_bpb:3.18665442

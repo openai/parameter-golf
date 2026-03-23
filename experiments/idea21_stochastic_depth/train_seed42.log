@@ -1,0 +1,136 @@
+W0323 12:56:13.156000 1630055 torch/fx/experimental/symbolic_shapes.py:7448] [0/0] failed during evaluate_expr(Eq(ToFloat(zuf0 >= 0.0111111111111111), 0.0), hint=None, size_oblivious=False, forcing_spec=False
+logs/idea21_stochastic_depth_seed42_20260323_125605.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/raid/R13K47007/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/raid/R13K47007/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:25517137
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:120.000
+seed:42
+Traceback (most recent call last):
+  File "/raid/R13K47007/parameter-golf/experiments/idea21_stochastic_depth/train_gpt.py", line 1246, in <module>
+    main()
+  File "/raid/R13K47007/parameter-golf/experiments/idea21_stochastic_depth/train_gpt.py", line 1045, in main
+    warmup_loss = model(x, y)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 465, in __call__
+    return super().__call__(*args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 953, in compile_wrapper
+    return fn(*args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 2202, in __call__
+    result = self._torchdynamo_orig_backend(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 707, in __call__
+    result = _compile(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 1752, in _compile
+    guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_utils_internal.py", line 97, in wrapper_function
+    return function(*args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 1433, in compile_inner
+    return _compile_inner(code, one_graph, hooks)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 1467, in _compile_inner
+    dynamo_output = compile_frame(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 1341, in compile_frame
+    bytecode, tracer_output = transform_code_object(code, transform)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/bytecode_transformation.py", line 1600, in transform_code_object
+    tracer_output = transformations(instructions, code_options)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 1313, in transform
+    tracer_output = trace_frame(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 328, in _fn
+    return fn(*args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 838, in trace_frame
+    run_tracer()
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/convert_frame.py", line 819, in run_tracer
+    tracer.run()
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 1654, in run
+    while self.step():
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 1334, in step
+    self.dispatch_table[inst.opcode](self, inst)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 866, in wrapper
+    return inner_fn(self, inst)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 2514, in CALL_FUNCTION
+    self.call_function(fn, args, {})
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 1240, in call_function
+    self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/variables/lazy.py", line 229, in realize_and_forward
+    return getattr(self.realize(), name)(*args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/variables/nn_module.py", line 1147, in call_function
+    return variables.UserFunctionVariable(fn, source=source).call_function(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/variables/functions.py", line 685, in call_function
+    return super().call_function(tx, args, kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/variables/functions.py", line 401, in call_function
+    return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 1262, in inline_user_function_return
+    return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 4718, in inline_call
+    return tracer.inline_call_()
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 4935, in inline_call_
+    self.run()
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 1654, in run
+    while self.step():
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 1334, in step
+    self.dispatch_table[inst.opcode](self, inst)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/symbolic_convert.py", line 805, in inner
+    eval_result = value.evaluate_expr(self.output)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/_dynamo/variables/tensor.py", line 1514, in evaluate_expr
+    return guard_scalar(self.sym_num)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/symbolic_shapes.py", line 1607, in guard_scalar
+    return guard_bool(a)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/symbolic_shapes.py", line 1799, in guard_bool
+    return a.node.guard_bool("", 0)  # NB: uses Python backtrace
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/sym_node.py", line 541, in guard_bool
+    r = self.evaluate()
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/sym_node.py", line 515, in evaluate
+    return self.shape_env.evaluate_sym_node(self, size_oblivious)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/symbolic_shapes.py", line 7318, in evaluate_sym_node
+    return self.evaluate_expr(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/symbolic_shapes.py", line 7413, in evaluate_expr
+    return self._inner_evaluate_expr(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/recording.py", line 273, in wrapper
+    return retlog(fn(*args, **kwargs))
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/symbolic_shapes.py", line 7436, in _inner_evaluate_expr
+    return self._evaluate_expr(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/symbolic_shapes.py", line 7560, in _evaluate_expr
+    static_expr = self._maybe_evaluate_static(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/symbolic_shapes.py", line 2636, in wrapper
+    return fn_cache(self, *args, **kwargs)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/symbolic_shapes.py", line 6437, in _maybe_evaluate_static
+    r = _maybe_evaluate_static_worker(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/fx/experimental/symbolic_shapes.py", line 2490, in _maybe_evaluate_static_worker
+    out = bound_sympy(new_expr, new_range_env)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/utils/_sympy/value_ranges.py", line 1143, in bound_sympy
+    return sympy_interp(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/utils/_sympy/interp.py", line 216, in sympy_interp
+    [
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/utils/_sympy/interp.py", line 217, in <listcomp>
+    sympy_interp(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/utils/_sympy/interp.py", line 214, in sympy_interp
+    return _run_sympy_handler(
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/utils/_sympy/interp.py", line 132, in _run_sympy_handler
+    return analysis.to_dtype(args[0], torch.float64)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/utils/_sympy/value_ranges.py", line 484, in to_dtype
+    return ValueRanges.increasing_map(a, ToFloat)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/utils/_sympy/value_ranges.py", line 345, in increasing_map
+    return ValueRanges(fn(x.lower), fn(x.upper))
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/utils/_sympy/value_ranges.py", line 158, in __init__
+    lower = simple_sympify(lower)
+  File "/raid/R13K47007/parameter-golf/.venv/lib/python3.10/site-packages/torch/utils/_sympy/value_ranges.py", line 67, in simple_sympify
+    raise AssertionError(e)
+AssertionError: ToFloat(False)
+
+from user code:
+   File "/raid/R13K47007/parameter-golf/experiments/idea21_stochastic_depth/train_gpt.py", line 712, in forward
+    x = self.blocks[i](x, x0)
+  File "/raid/R13K47007/parameter-golf/experiments/idea21_stochastic_depth/train_gpt.py", line 634, in forward
+    if keep == 0:
+
+Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
