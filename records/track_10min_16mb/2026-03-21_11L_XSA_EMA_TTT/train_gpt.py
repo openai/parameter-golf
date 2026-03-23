@@ -191,6 +191,7 @@ class Hyperparameters:
     perlayer_train_lr = bool(int(os.environ.get("PERLAYER_TRAIN_LR", "1")))
     proj_lr_mult = float(os.environ.get("PROJ_LR_MULT", "1.5"))   # multiplier for mlp.proj (high quant damage)
     fc_lr_mult = float(os.environ.get("FC_LR_MULT", "0.7"))       # multiplier for mlp.fc (low quant damage)
+    ck_lr_mult = float(os.environ.get("CK_LR_MULT", "1.0"))       # multiplier for attn.c_k (highest quant damage in attention)
     decoder_lr_mult = float(os.environ.get("DECODER_LR_MULT", "2.0"))  # decoder layers get higher lr (PR #505)
     neural_cache = bool(int(os.environ.get("NEURAL_CACHE", "0")))  # cross-window KV caching at eval time
     neural_cache_max_len = int(os.environ.get("NEURAL_CACHE_MAX_LEN", 8192))  # max cached KV length per layer
@@ -430,7 +431,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,skip_gates",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,skip_gates,attn_gate",
     ).split(",")
     if pattern
 )
@@ -2616,20 +2617,32 @@ def main() -> None:
         fc_matrix_params_dec = [p for name, p in block_named_params
             if p.ndim == 2 and "mlp.fc" in name and _is_decoder(name)
             and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)]
+        # c_k gets its own LR group when ck_lr_mult != 1.0 (highest quant damage in attention)
+        ck_matrix_params_enc = [p for name, p in block_named_params
+            if p.ndim == 2 and "attn.c_k" in name and not _is_decoder(name)
+            and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)] if args.ck_lr_mult != 1.0 else []
+        ck_matrix_params_dec = [p for name, p in block_named_params
+            if p.ndim == 2 and "attn.c_k" in name and _is_decoder(name)
+            and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)] if args.ck_lr_mult != 1.0 else []
+        ck_exclude = {"attn.c_k"} if args.ck_lr_mult != 1.0 else set()
         other_matrix_params_enc = [p for name, p in block_named_params
             if p.ndim == 2 and "mlp.proj" not in name and "mlp.fc" not in name
+            and not any(ex in name for ex in ck_exclude)
             and not _is_decoder(name) and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)]
         other_matrix_params_dec = [p for name, p in block_named_params
             if p.ndim == 2 and "mlp.proj" not in name and "mlp.fc" not in name
+            and not any(ex in name for ex in ck_exclude)
             and _is_decoder(name) and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)]
         matrix_params = (proj_matrix_params_enc + proj_matrix_params_dec +
                         fc_matrix_params_enc + fc_matrix_params_dec +
+                        ck_matrix_params_enc + ck_matrix_params_dec +
                         other_matrix_params_enc + other_matrix_params_dec)
         n_proj = len(proj_matrix_params_enc) + len(proj_matrix_params_dec)
         n_fc = len(fc_matrix_params_enc) + len(fc_matrix_params_dec)
+        n_ck = len(ck_matrix_params_enc) + len(ck_matrix_params_dec)
         n_other = len(other_matrix_params_enc) + len(other_matrix_params_dec)
-        log0(f"perlayer_train_lr: proj={n_proj} fc={n_fc} other={n_other} "
-             f"mult=({args.proj_lr_mult}x, {args.fc_lr_mult}x, 1.0x) decoder={dec_mult}x (enc={num_enc} dec={base_model.num_decoder_layers})")
+        log0(f"perlayer_train_lr: proj={n_proj} fc={n_fc} c_k={n_ck} other={n_other} "
+             f"mult=({args.proj_lr_mult}x, {args.fc_lr_mult}x, {args.ck_lr_mult}x, 1.0x) decoder={dec_mult}x (enc={num_enc} dec={base_model.num_decoder_layers})")
     else:
         matrix_params = [
             p
@@ -2687,6 +2700,7 @@ def main() -> None:
         proj_lr = args.matrix_lr * args.proj_lr_mult
         fc_lr = args.matrix_lr * args.fc_lr_mult
         dec_mult = args.decoder_lr_mult
+        ck_lr = args.matrix_lr * args.ck_lr_mult
         muon_param_groups = [
             {"params": proj_matrix_params_enc, "lr": proj_lr, "base_lr": proj_lr},
             {"params": proj_matrix_params_dec, "lr": proj_lr * dec_mult, "base_lr": proj_lr * dec_mult},
@@ -2695,6 +2709,11 @@ def main() -> None:
             {"params": other_matrix_params_enc, "lr": args.matrix_lr, "base_lr": args.matrix_lr},
             {"params": other_matrix_params_dec, "lr": args.matrix_lr * dec_mult, "base_lr": args.matrix_lr * dec_mult},
         ]
+        if ck_matrix_params_enc or ck_matrix_params_dec:
+            muon_param_groups.extend([
+                {"params": ck_matrix_params_enc, "lr": ck_lr, "base_lr": ck_lr},
+                {"params": ck_matrix_params_dec, "lr": ck_lr * dec_mult, "base_lr": ck_lr * dec_mult},
+            ])
         # Add non-block matrix params to encoder "other" group (no decoder multiplier)
         if base_model.bigram_hash is not None:
             muon_param_groups[4]["params"].append(base_model.bigram_hash.proj.weight)
