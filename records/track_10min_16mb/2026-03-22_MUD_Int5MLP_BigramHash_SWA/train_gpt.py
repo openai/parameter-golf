@@ -118,7 +118,7 @@ def mud_whiten(G: Tensor, passes: int = 1, eps: float = 1e-7) -> Tensor:
         M = G.contiguous()
     # Now M ∈ ℝ^{k×d}
 
-    Q = M.bfloat16()
+    Q = M.float()
     for _ in range(passes):
         # Row norms
         r = Q.norm(dim=1)
@@ -129,12 +129,13 @@ def mud_whiten(G: Tensor, passes: int = 1, eps: float = 1e-7) -> Tensor:
         # Lower-triangular part, perturb diagonal for numerical stability
         T = torch.tril(Gk)
         T.diagonal().add_(eps)
-        # Forward triangular solve: Q = T^{-1} Q
+        # Forward triangular solve: Q = T^{-1} Q (float32 required on CUDA)
         Q = torch.linalg.solve_triangular(T, Q, upper=False)
         # Row norms again
         r = Q.norm(dim=1)
         # Row-normalize again
         Q = Q / (r[:, None] + eps)
+    Q = Q.bfloat16()
 
     if n > m:
         Q = Q.T.contiguous()
