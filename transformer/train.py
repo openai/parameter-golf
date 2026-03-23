@@ -627,41 +627,28 @@ def _classify_param(name: str) -> str:
     return "other"
 
 
-_GPTQ_LITE_PERCENTILES = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
 
 
-def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
-    """Int6 per-row quantization with GPTQ-lite: search 5 clip percentiles per row."""
+def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
+    """Int6 per-row quantization with GPTQ-lite: search 5 clip percentiles."""
     t32 = t.float()
     if t32.ndim == 2:
-        # GPTQ-lite: try multiple clip percentiles, pick min MSE per row
-        abs_t = t32.abs()
-        best_q = None
-        best_scale = None
-        best_mse = None
-        for pct in _GPTQ_LITE_PERCENTILES:
-            if pct >= 1.0:
-                clip_abs = abs_t.amax(dim=1)
+        best_q, best_s, best_err = None, None, float('inf')
+        for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+            if pct < 1.0:
+                row_clip = torch.quantile(t32.abs(), pct, dim=1)
             else:
-                clip_abs = torch.quantile(abs_t, pct, dim=1)
-            scale = (clip_abs / 31.0).clamp_min(1.0 / 31.0)
-            clipped = torch.clamp(t32, -clip_abs[:, None], clip_abs[:, None])
-            q = torch.clamp(torch.round(clipped / scale[:, None]), -32, 31)
-            recon = q * scale[:, None]
-            mse = ((t32 - recon) ** 2).mean(dim=1)
-            if best_mse is None:
-                best_mse = mse
-                best_q = q
-                best_scale = scale
-            else:
-                improved = mse < best_mse
-                best_mse = torch.where(improved, mse, best_mse)
-                best_q = torch.where(improved[:, None], q, best_q)
-                best_scale = torch.where(improved, scale, best_scale)
-        return best_q.to(torch.int8), best_scale.to(torch.float16)
+                row_clip = t32.abs().amax(dim=1)
+            s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+            q = torch.clamp(torch.round(t32 / s.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+            recon = q.float() * s.float()[:, None]
+            err = (t32 - recon).pow(2).mean().item()
+            if err < best_err:
+                best_q, best_s, best_err = q, s, err
+        return best_q, best_s
     amax = t32.abs().max().item()
-    scale = torch.tensor(amax / 31.0 if amax > 0 else 1.0, dtype=torch.float16)
-    q = torch.clamp(torch.round(t32 / scale.float()), -32, 31).to(torch.int8)
+    scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
     return q, scale
 
 
