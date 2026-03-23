@@ -1,0 +1,10 @@
+{
+  "name": "11L VRL + LeakyReLU² + Full GPTQ + XSA-all(11) + EMA(0.997)",
+  "val_loss": 1.88684,
+  "val_bpb": 1.1175,
+  "bytes_total": 15943643,
+  "blurb": "Value Residual Learning (VRL, arxiv:2410.17897) + LeakyReLU(0.5)² + Full GPTQ (Hessian-aware Cholesky inverse, IST-DASLab/gptq ICLR 2023) + QAT-export alignment + 2% magnitude pruning. 11L, XSA-all(11), EMA(0.997), Tight SWA, Partial RoPE(16/64), LN Scale, VE128, SmearGate, BigramHash(2048). 3-seed mean: 1.1175 BPB (std 0.0005). No TTT. First VRL result on standard-arch non-TTT frontier.",
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "date": "2026-03-23"
+}
