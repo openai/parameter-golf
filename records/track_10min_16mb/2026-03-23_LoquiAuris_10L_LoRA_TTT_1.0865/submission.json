@@ -1,0 +1,27 @@
+{
+  "author": "Loqui Auris",
+  "github_id": "LoquiAuris",
+  "name": "Loqui Auris — 10L + EMA + LoRA TTT",
+  "blurb": "SP-1024 10x512 GQA-4KV + EMA(0.997) + per-document LoRA TTT (rank=8, 2 epochs, Adam lr=0.01). Batched TTT across 64 docs/GPU with fresh uncompiled model. Int6+zstd-22. Mean val_bpb=1.0865 (2 seeds).",
+  "date": "2026-03-23T15:30:00Z",
+  "seeds": {
+    "42": {
+      "val_loss": 1.8329802438108778,
+      "val_bpb": 1.0855941471729662,
+      "bytes_total": 15810855,
+      "bytes_code": 78226,
+      "steps": 5978
+    },
+    "1337": {
+      "val_loss": 1.8360795162680648,
+      "val_bpb": 1.0874297108956943,
+      "bytes_total": 15705529,
+      "bytes_code": 78226,
+      "steps": 5969
+    }
+  },
+  "val_loss": 1.8345298800394714,
+  "val_bpb": 1.0865119290343303,
+  "bytes_total": 15810855,
+  "bytes_code": 78226
+}
