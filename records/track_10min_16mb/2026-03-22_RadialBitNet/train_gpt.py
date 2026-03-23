@@ -295,8 +295,11 @@ def load_data_shard(file: Path) -> torch.Tensor:
 def load_validation_tokens(pattern: str, seq_len: int) -> torch.Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
-        print(f"Warning: No validation files found for {pattern}. Returning dummy data to avoid crash.")
-        return torch.zeros(seq_len * 2 + 1, dtype=torch.int64)
+        if os.environ.get("ALLOW_MOCK", "0") == "1":
+            print(f"Warning: No validation files found for {pattern}. Mocking...")
+            return torch.zeros(seq_len * 2 + 1, dtype=torch.int64)
+        else:
+            raise RuntimeError(f"ABORTING: Record-track execution REQUIRES validation data files. No shards found for {pattern}")
     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
     return tokens[: usable + 1].long()
