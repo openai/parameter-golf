@@ -1553,7 +1553,15 @@ def ttt_causal_adapt(
         # STEP 2: TRAIN on the already-scored chunk (last chunk: score only, no train)
         if ci < n_chunks - 1:
             model.train()
+            # Per-chunk cosine: reset lr to base at start of each chunk, decay to 0 over epochs
+            if args.ttt_cosine:
+                for g in param_groups:
+                    g["initial_lr"] = g["lr"]
             for ep in range(args.ttt_chunk_epochs):
+                if args.ttt_cosine and args.ttt_chunk_epochs > 1:
+                    cos_mul = 0.5 * (1.0 + math.cos(math.pi * ep / args.ttt_chunk_epochs))
+                    for g in optimizer.param_groups:
+                        g["lr"] = g["initial_lr"] * cos_mul
                 for bi in range(0, actual_seqs, args.ttt_batch_seqs):
                     be = min(bi + args.ttt_batch_seqs, actual_seqs)
                     xb = x[bi:be]
