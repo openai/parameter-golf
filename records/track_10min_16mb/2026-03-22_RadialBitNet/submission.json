@@ -3,6 +3,6 @@
     "github_id": "rthgit",
     "val_bpb": "2.6034",
     "model_size": "15600000",
-    "hardware": "8x H100 (Record-Track Compliant)",
+    "hardware": "8x H100 SXM (Target for Record-Track Evaluation)",
     "training_time": "10m"
 }

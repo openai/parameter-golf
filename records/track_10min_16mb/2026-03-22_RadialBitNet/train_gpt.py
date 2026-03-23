@@ -314,17 +314,22 @@ def load_training_tokens(pattern: str, seq_len: int) -> torch.Tensor:
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
     return tokens[: usable + 1].long()
 
-def eval_val(args, model, device, val_tokens, base_bytes_lut, has_space_lut, boundary_lut):
+def eval_val(args, model, device, val_tokens, base_bytes_lut, has_space_lut, boundary_lut, rank=0, world_size=1):
     model.eval()
-    val_loss_sum = 0.0
-    val_token_count = 0.0
-    val_byte_count = 0.0
+    local_loss_sum = 0.0
+    local_token_count = 0.0
+    local_byte_count = 0.0
     
     seq_len = args.train_seq_len
     total_seqs = (val_tokens.numel() - 1) // seq_len
     
+    # Distributed Evaluation Sharding
+    seqs_per_rank = total_seqs // world_size
+    start_seq = rank * seqs_per_rank
+    end_seq = (rank + 1) * seqs_per_rank if rank != world_size - 1 else total_seqs
+    
     with torch.inference_mode():
-        for i in range(total_seqs): # FULL validation set evaluation as per rules
+        for i in range(start_seq, end_seq):
             raw_start = i * seq_len
             raw_end = (i + 1) * seq_len + 1
             local = val_tokens[raw_start:raw_end].to(device)
@@ -339,19 +344,27 @@ def eval_val(args, model, device, val_tokens, base_bytes_lut, has_space_lut, bou
                 batch_loss = batch_loss.to(torch.float64)
                 
             batch_token_count = float(y.numel())
-            val_loss_sum += batch_loss * batch_token_count
-            val_token_count += batch_token_count
+            local_loss_sum += batch_loss * batch_token_count
+            local_token_count += batch_token_count
             
             prev_ids = x.reshape(-1)
             tgt_ids = y.reshape(-1)
             t_bytes = base_bytes_lut[tgt_ids].clone()
             t_bytes += (has_space_lut[tgt_ids] & ~boundary_lut[prev_ids]).to(dtype=torch.int16)
-            val_byte_count += t_bytes.to(torch.float64).sum()
-            
-    val_loss = val_loss_sum / val_token_count
+            local_byte_count += t_bytes.to(torch.float64).sum()
+    
+    # Aggregate results across all ranks
+    metrics = torch.tensor([local_loss_sum, local_token_count, local_byte_count], device=device, dtype=torch.float64)
+    if world_size > 1:
+        dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
+    
+    global_loss_sum, global_token_count, global_byte_count = metrics[0], metrics[1], metrics[2]
+    
+    val_loss = global_loss_sum / (global_token_count + 1e-10)
     bits_per_token = val_loss.item() / math.log(2.0)
-    tokens_per_byte = val_token_count / val_byte_count
+    tokens_per_byte = global_token_count / (global_byte_count + 1e-10)
     val_bpb = bits_per_token * tokens_per_byte
+    
     model.train()
     return float(val_loss.item()), float(val_bpb.item())
 
@@ -467,16 +480,19 @@ def main():
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
         
-        if step % 50 == 0 and rank == 0:
-            val_l, val_bpb = eval_val(args, model, device, val_tokens, base_bytes, has_space, boundary)
-            elapsed = time.time() - start_time
-            print(f"Step {step:04d} | Time {elapsed:.0f}s | Train Loss: {loss.item():.4f} | Val BPB: {val_bpb:.4f} ⛳")
+        if step % 50 == 0:
+            # Sync Fix: ALL ranks participate in eval_val to prevent desynchronization
+            val_l, val_bpb = eval_val(args, model, device, val_tokens, base_bytes, has_space, boundary, rank, world_size)
+            if rank == 0:
+                elapsed = time.time() - start_time
+                print(f"Step {step:04d} | Time {elapsed:.0f}s | Train Loss: {loss.item():.4f} | Val BPB: {val_bpb:.4f} ⛳")
             
         step += 1
         
+    # Final Distributed Validation
+    val_l, val_bpb = eval_val(args, model, device, val_tokens, base_bytes, has_space, boundary, rank, world_size)
     if rank == 0:
         print("\n⏰ 10-Minute training time budget exhausted. Validating final model...")
-        val_l, val_bpb = eval_val(args, model, device, val_tokens, base_bytes, has_space, boundary)
         print(f"FINAL RESULT | Val BPB: {val_bpb:.4f} 🏆")
 
 if __name__ == "__main__":
