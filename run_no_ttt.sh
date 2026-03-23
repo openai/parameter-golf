@@ -20,6 +20,11 @@ export GATED_ATTENTION=1
 export PERLAYER_TRAIN_LR=1
 export PROJ_LR_MULT=1.5
 export FC_LR_MULT=0.7
+export STAR_RELU=1
+export TRIGRAM_HASH=1
+export BIGRAM_HASH_BUCKETS=8192
+export TRAIN_BATCH_TOKENS=786432
+export GRAD_CLIP_NORM=0.0
 
 # Match PR #414: EMA + Tight SWA, no QAT
 export EMA_ENABLED=1
@@ -39,7 +44,7 @@ unset MLP_HIDDEN QUANT_BITS RUN_ID TIER2_MODE BIGRAM_HASH_BUCKETS \
   REPTILE_TTT TTT_TWO_PHASE TTT_EPOCHS TTT_MAX_STEPS
 
 echo "=== NO TTT (SLIDING WINDOW EVAL) ==="
-echo "SEED=$SEED stride=64 EMA=1 SWA=1 QAT=0 VR=1 GA=1 PERLAYER_LR=1"
+echo "SEED=$SEED stride=64 EMA=1 SWA=1 QAT=0 VR=1 GA=1 PERLAYER_LR=1 STAR_RELU=1 TRIGRAM=1 batch=786K bigram=8192 noclip"
 echo "====================================="
 
 torchrun --standalone --nproc_per_node=8 \

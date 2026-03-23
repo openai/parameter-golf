@@ -20,6 +20,8 @@ export PROJ_LR_MULT=1.5
 export FC_LR_MULT=0.7
 export STAR_RELU=1
 export TRIGRAM_HASH=1
+export BIGRAM_HASH_BUCKETS=8192
+export GRAD_CLIP_NORM=0.0
 
 # EMA + SWA, no QAT, no TTT
 export EMA_ENABLED=1
