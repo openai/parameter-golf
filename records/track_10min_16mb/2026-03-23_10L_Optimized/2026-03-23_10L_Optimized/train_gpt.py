@@ -66,7 +66,7 @@ class Hyperparameters:
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    rope_base = float(os.environ.get("ROPE_BASE", 50000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -1095,16 +1095,23 @@ def _reset_ttt_optimizer(opt):
 def lora_ttt_eval(args, base_model, rank, world_size, device,
                   val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
                   log_fn, lora_rank=8, ttt_lr=0.01, ttt_epochs=3, chunk_size=256):
+    import copy
     base_model.eval()
     for p in base_model.parameters():
         p.requires_grad_(False)
 
-    all_tokens = val_tokens  # already loaded
-    docs = _find_docs(all_tokens)
+    all_tokens = val_tokens
+    eval_seq_len = args.train_seq_len
+    batch_size = 64
     min_doc_len = 512
+
+    # Find document boundaries via BOS token
+    docs = _find_docs(all_tokens)
     rank_docs = docs[(len(docs) * rank) // world_size : (len(docs) * (rank + 1)) // world_size]
     short_docs = [d for d in rank_docs if d[1] < min_doc_len]
     long_docs = [d for d in rank_docs if d[1] >= min_doc_len]
+
+    log_fn(f"lora_ttt_batched: short={len(short_docs)} long={len(long_docs)} batch={batch_size} rank={lora_rank} lr={ttt_lr} epochs={ttt_epochs} chunk={chunk_size}")
 
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     byte_sum = torch.zeros((), device=device, dtype=torch.float64)
@@ -1126,61 +1133,128 @@ def lora_ttt_eval(args, base_model, rank, world_size, device,
             tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
             byte_sum += tb.sum()
 
-    # TTT on long docs
-    batch_size = 1  # process one doc at a time for simplicity
-    eval_seq_len = args.train_seq_len
+    # Sort long docs by number of chunks for efficient batching
+    long_docs.sort(key=lambda d: (d[1] - 2) // chunk_size)
+
+    # Process long docs in batches
     lora = BatchedTTTLoRA(batch_size, base_model, lora_rank).to(device)
     opt = torch.optim.Adam(lora.parameters(), lr=ttt_lr, betas=(0.9, 0.95), eps=1e-10)
 
-    for di, (ds, dl) in enumerate(long_docs):
-        pred_len = dl - 1
-        nc = (pred_len + chunk_size - 1) // chunk_size
-        lora.reset()
-        _reset_ttt_optimizer(opt)
+    def reset_opt():
+        for group in opt.param_groups:
+            for p in group["params"]:
+                s = opt.state.get(p)
+                if not s: continue
+                s["exp_avg"].zero_()
+                s["exp_avg_sq"].zero_()
+                s["step"].fill_(0)
+
+    for bi in range(0, len(long_docs), batch_size):
+        batch = long_docs[bi:bi+batch_size]
+        bsz = len(batch)
+
+        # Create right-sized LoRA if batch is smaller
+        if bsz < batch_size:
+            cur_lora = BatchedTTTLoRA(bsz, base_model, lora_rank).to(device)
+            cur_opt = torch.optim.Adam(cur_lora.parameters(), lr=ttt_lr, betas=(0.9, 0.95), eps=1e-10)
+        else:
+            cur_lora = lora
+            cur_opt = opt
+            cur_lora.reset()
+            reset_opt()
+
+        # Find max chunks in this batch
+        max_chunks = max((d[1] - 1 + chunk_size - 1) // chunk_size for _, d in enumerate(batch))
 
         for epoch in range(ttt_epochs):
-            for ci in range(nc):
-                cs = ci * chunk_size
-                ce = min((ci + 1) * chunk_size, pred_len)
-                cl = ce - cs
-                ws = max(0, ce - eval_seq_len)
-                wl = ce - ws
-                co = cs - ws
+            for ci in range(max_chunks):
+                # Build batch tensors
+                x_batch = torch.zeros(bsz, eval_seq_len, dtype=torch.int64, device=device)
+                y_batch = torch.zeros(bsz, eval_seq_len, dtype=torch.int64, device=device)
+                chunk_offsets = []
+                chunk_lens = []
+                active_mask = []
 
-                x = all_tokens[ds+ws:ds+ws+wl].to(dtype=torch.int64, device=device).unsqueeze(0)
-                y = all_tokens[ds+ws+1:ds+ws+wl+1].to(dtype=torch.int64, device=device).unsqueeze(0)
+                for di, (ds, dl) in enumerate(batch):
+                    pred_len = dl - 1
+                    nc = (pred_len + chunk_size - 1) // chunk_size
+                    if ci >= nc:
+                        active_mask.append(False)
+                        chunk_offsets.append(0)
+                        chunk_lens.append(0)
+                        continue
+                    active_mask.append(True)
+                    cs = ci * chunk_size
+                    ce = min((ci + 1) * chunk_size, pred_len)
+                    cl = ce - cs
+                    ws = max(0, ce - eval_seq_len)
+                    wl = ce - ws
+                    co = cs - ws
 
-                needs_train = ci < nc - 1
+                    tokens = all_tokens[ds+ws:ds+ws+wl+1].to(dtype=torch.int64, device=device)
+                    x_batch[di, :wl] = tokens[:-1]
+                    y_batch[di, :wl] = tokens[1:]
+                    chunk_offsets.append(co)
+                    chunk_lens.append(cl)
+
+                if not any(active_mask):
+                    continue
+
+                needs_train = ci < max_chunks - 1
+
                 if needs_train:
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        chunk_loss = base_model.forward_per_token(x, y, lora=lora)
+                        per_token_loss = base_model.forward_per_token(x_batch, y_batch, lora=cur_lora)
                 else:
                     with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        chunk_loss = base_model.forward_per_token(x, y, lora=lora)
+                        per_token_loss = base_model.forward_per_token(x_batch, y_batch, lora=cur_lora)
 
-                # Score on last epoch only
+                # Score on last epoch
                 if epoch == ttt_epochs - 1:
                     with torch.no_grad():
-                        loss_sum += chunk_loss[0, co:co+cl].to(torch.float64).sum()
-                        token_count += cl
-                        tgt = y[0, co:co+cl]
-                        prev = x[0, co:co+cl]
-                        tb = base_bytes_lut[tgt].to(torch.float64)
-                        tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-                        byte_sum += tb.sum()
+                        for di in range(bsz):
+                            if not active_mask[di]:
+                                continue
+                            co = chunk_offsets[di]
+                            cl = chunk_lens[di]
+                            loss_sum += per_token_loss[di, co:co+cl].to(torch.float64).sum()
+                            token_count += cl
 
+                            ds_di, dl_di = batch[di]
+                            pred_len = dl_di - 1
+                            nc = (pred_len + chunk_size - 1) // chunk_size
+                            cs = ci * chunk_size
+                            ce = min((ci + 1) * chunk_size, pred_len)
+                            ws = max(0, ce - eval_seq_len)
+                            tgt = y_batch[di, co:co+cl]
+                            prev = x_batch[di, co:co+cl]
+                            tb = base_bytes_lut[tgt].to(torch.float64)
+                            tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                            byte_sum += tb.sum()
+
+                # Train (not on last chunk)
                 if needs_train:
-                    opt.zero_grad()
-                    chunk_loss[0, co:co+cl].mean().backward()
-                    opt.step()
+                    cur_opt.zero_grad()
+                    # Average loss over active docs' chunk regions
+                    train_loss = torch.tensor(0.0, device=device)
+                    n_active = 0
+                    for di in range(bsz):
+                        if active_mask[di]:
+                            co = chunk_offsets[di]
+                            cl = chunk_lens[di]
+                            train_loss = train_loss + per_token_loss[di, co:co+cl].mean()
+                            n_active += 1
+                    if n_active > 0:
+                        (train_loss / n_active).backward()
+                        cur_opt.step()
 
-        if rank == 0 and di % 100 == 0:
-            pct = (di + 1) / len(long_docs) * 100
+        if rank == 0:
+            pct = min(bi + batch_size, len(long_docs)) / len(long_docs) * 100
             rbpb = 0.0
             if token_count.item() > 0:
                 rl = (loss_sum / token_count).item()
                 rbpb = rl / math.log(2.0) * (token_count.item() / byte_sum.item())
-            log_fn(f"  lora_ttt [{pct:.1f}%] docs={di+1}/{len(long_docs)} running_bpb={rbpb:.6f}")
+            log_fn(f"  lora_ttt_batch [{pct:.1f}%] docs={min(bi+batch_size, len(long_docs))}/{len(long_docs)} running_bpb={rbpb:.6f}")
 
     for p in base_model.parameters():
         p.requires_grad_(True)
