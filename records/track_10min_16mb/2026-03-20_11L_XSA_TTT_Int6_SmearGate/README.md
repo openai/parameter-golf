@@ -1,67 +1,50 @@
-# 11L + XSA + TTT + Int6 + SmearGate + BigramHash (val_bpb: 1.1429)
+# 11L SwiGLU + XSA4 + EMA + U-Net + AdamW TTT + BigramHash(8192) (pending compute)
 
 ## Results
-- **val_bpb: 1.1429** (sliding window, stride=64)
-- Pre-quantization BPB: 1.1578
-- Model parameters: 26,829,913
-- Artifact size: 16,175,323 bytes (slightly over 16MB limit — non-record, needs WD tuning)
-- Training: 7,723 steps in 600 seconds (~77.7ms/step) on 8xH100 SXM
-- SWA: 13 checkpoint average during warmdown (every 120 steps)
+- **val_bpb: pending** — awaiting 8xH100 compute credits
+- Expected range: ~1.07-1.10 based on architecture
 
 ## Approach
 
-Combines the two strongest eval-time techniques (XSA + TTT) on top of the full competitive meta stack.
-
-### XSA (Exclusive Self Attention) on last 3 layers
-Based on arXiv:2603.09078. Efficient GQA-aware implementation using free reshape + broadcasting instead of repeat_interleave. Removes self-value bias in attention at ~2ms/step overhead.
-
-### TTT (Test-Time Training)
-Full-weight SGD adaptation on validation data before scoring. 3 epochs at lr=0.002 with momentum=0.9. Freezes first 2 transformer blocks for stability. Full DDP support across all ranks. TTT took 79.4s (separate from training budget).
+Full frontier stack combining SwiGLU activation, U-Net skip connections, XSA4, EMA weight averaging, AdamW TTT, and GPTQ-lite quantization. Built on top of proven techniques from PRs #398, #442, #462.
 
 ### Architecture
-- 11 transformer layers, 512-dim, 8 heads (4 KV heads via GQA)
-- 3x MLP expansion (1536 hidden), relu-squared activation
-- U-Net skip connections (encoder=5, decoder=6)
-- SmearGate + BigramHash (2048 buckets, 128 dim)
+- 11 transformer layers, 512-dim, 8 heads (8 KV heads)
+- **SwiGLU FFN** with Star-ReLU activation (hidden=1792)
+- **U-Net skip connections** with learned gating (encoder=5, decoder=6)
+- **BigramHash** (8192 buckets, 128 dim) + SmearGate
+- **Partial RoPE** (16 dims only)
+- **LN Scale** (1/sqrt(layer_idx+1) per block)
 - Tied embeddings, logit softcap=30.0
-- XSA on layers 8, 9, 10
+- **XSA4** on last 4 layers
 
 ### Training
-- FlashAttention 2.8.3
-- Muon optimizer: lr=0.025, momentum=0.99 (warmup from 0.92 over 1500 steps)
-- AdamW for embeddings/scalars: lr=0.035/0.025
-- Weight decay: 0.04 (both Muon and AdamW)
-- Warmdown: 3000 iterations, grad clip 0.3
-- Batch size: 524,288 tokens
-- SWA every 120 steps (scale < 0.5)
-- OrthoInit + muP-scaled output projections
+- Muon optimizer: lr=0.025, momentum=0.99
+- AdamW for embeddings/scalars
+- Weight decay: 0.04
+- Warmdown: 6000 iterations
+- **EMA** (decay=0.9985) replacing SWA
+- Batch size: 524,288 tokens, seq_len=1024
+
+### Eval-time
+- **AdamW TTT** (lr=0.0005, 10 epochs) — legal score-first protocol
+- Sliding window eval (stride=64)
 
 ### Quantization
-- Int6 per-row quantization on MLP + attention weights
-- Int8 for embeddings
+- Int6 per-row quantization with GPTQ-lite calibration
 - zstd level 22 compression
 
-### Validation progression
-| Step | val_bpb |
-|------|---------|
-| 1000 | 1.3514 |
-| 2000 | 1.2913 |
-| 3000 | 1.2675 |
-| 4000 | 1.2537 |
-| 5000 | 1.2403 |
-| 6000 | 1.2139 |
-| 7000 | 1.1825 |
-| 7723 | 1.1578 |
-
-### Next steps
-- Increase weight decay to 0.045-0.05 to bring artifact under 16MB (~0.002-0.003 bpb cost)
-- Sweep BigramHash bucket size (2048 vs 10240)
-- Expected valid submission score: ~1.143-1.145
+### Credits
+- SwiGLU + U-Net + GEPA architecture: @JoeProAI (PR #462)
+- XSA + EMA + Partial RoPE + LN Scale: @felipe-parodi (PR #398)
+- AdamW TTT: @sjp611 (PR #442)
+- Late QAT: @fbedev (PR #410)
+- DDP compile fix: our contribution
 
 ## Checklist
 - [x] Submission folder in `records/track_10min_16mb/`
 - [x] `README.md` with approach description
 - [x] `submission.json` with metadata
 - [x] `train_gpt.py` (single file, self-contained)
-- [x] Training log
-- [x] BPB score (1.1429, non-record due to artifact size)
+- [ ] Training log (pending compute)
+- [ ] Verified BPB score (pending compute)

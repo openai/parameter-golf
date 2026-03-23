@@ -1,10 +1,10 @@
 {
     "submitter": "mohosy",
-    "date": "2026-03-20",
+    "date": "2026-03-22",
     "track": "10min_16mb",
     "hardware": "8xH100 SXM",
     "training_time_seconds": 600,
-    "val_bpb": 1.1429,
-    "artifact_size_bytes": 16175323,
-    "notes": "11L Int6 + XSA (last 3 layers) + TTT + SmearGate + BigramHash + SWA. Artifact 100KB over 16MB limit — non-record, needs WD tuning."
+    "val_bpb": null,
+    "artifact_size_bytes": null,
+    "notes": "11L SwiGLU + XSA4 + EMA + U-Net + AdamW TTT + BigramHash(8192) + GPTQ-lite. Pending compute validation."
 }
