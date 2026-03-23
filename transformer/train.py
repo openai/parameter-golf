@@ -1528,11 +1528,11 @@ def main() -> None:
             opt.step()
 
         # Late QAT: project weights to int6 grid after optimizer step
-        # Anneal soft-rounding temperature from 1.0 → 0.01 during QAT phase
+        # Use hard STE for most of QAT; switch to soft-rounding only in final phase
         if args.qat_threshold > 0 and scale < args.qat_threshold:
             global _STE_TAU
-            qat_progress = 1.0 - (scale / args.qat_threshold)  # 0→1 as QAT progresses
-            _STE_TAU = max(0.01, 1.0 - 0.99 * qat_progress)  # 1.0 → 0.01
+            # Soft rounding only when scale < 0.02 (last ~2% of training)
+            _STE_TAU = 0.1 if scale < 0.02 else 1000.0  # 1000 = effectively hard round
             apply_ste_int6(base_model)
 
         # EMA: update running average every step (on GPU)
