@@ -195,6 +195,19 @@ class Hyperparameters:
     neural_cache_max_len = int(os.environ.get("NEURAL_CACHE_MAX_LEN", 8192))  # max cached KV length per layer
     neural_cache_no_pos_offset = bool(int(os.environ.get("NEURAL_CACHE_NO_POS_OFFSET", "0")))  # keep pos_offset=0 to avoid OOD positions
 
+    # Progressive Layer Freezing: freeze encoder during warmdown for faster decoder-focused training
+    progressive_freeze = bool(int(os.environ.get("PROGRESSIVE_FREEZE", "0")))
+    progressive_freeze_threshold = float(os.environ.get("PROGRESSIVE_FREEZE_THRESHOLD", "0.3"))
+
+    # Hyper-Connections: learned mixing of all prior layer outputs (generalizes U-Net skips + resid_mix)
+    hyper_connections = bool(int(os.environ.get("HYPER_CONNECTIONS", "0")))
+    hyper_conn_mode = os.environ.get("HYPER_CONN_MODE", "scalar")  # "scalar" or "vector"
+
+    # Logit Ensemble: average logits from multiple checkpoints at eval time
+    logit_ensemble = bool(int(os.environ.get("LOGIT_ENSEMBLE", "0")))
+    logit_ensemble_n = int(os.environ.get("LOGIT_ENSEMBLE_N", "2"))
+    logit_ensemble_stride = int(os.environ.get("LOGIT_ENSEMBLE_STRIDE", "128"))
+
     # Disable schedule-dependent features in TIER2_MODE unless explicitly overridden
     if _tier2:
         qat = bool(int(os.environ.get("QAT", "0")))
@@ -286,9 +299,10 @@ class Muon(torch.optim.Optimizer):
             curr = 0
             for p in params:
                 g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
-                p.add_(g, alpha=-lr)
-                if wd > 0.0:
-                    p.mul_(1.0 - wd * lr)
+                if p.requires_grad:
+                    p.add_(g, alpha=-lr)
+                    if wd > 0.0:
+                        p.mul_(1.0 - wd * lr)
                 curr += p.numel()
 
         return loss
@@ -1190,6 +1204,8 @@ class GPT(nn.Module):
         gated_attention: bool = False,
         star_relu: bool = False,
         sigmoid_skip_gates: bool = False,
+        hyper_connections: bool = False,
+        hyper_conn_mode: str = "scalar",
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1219,6 +1235,22 @@ class GPT(nn.Module):
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32)) if unet_skips else None
         self.skip_gates = nn.Parameter(torch.zeros(self.num_skip_weights, model_dim, dtype=torch.float32)) if (unet_skips and sigmoid_skip_gates) else None
         self.sigmoid_skip_gates = sigmoid_skip_gates
+        self.hyper_connections = hyper_connections
+        if hyper_connections:
+            # Each layer i gets weights over (i+2) inputs: initial embedding + all prior layer outputs + current x
+            # Initialize so that weight on previous layer output = 1.0, all others = 0.0 (replicates standard residual)
+            alphas = []
+            for i in range(effective_depth):
+                n_inputs = i + 2  # x0 + outputs of layers 0..i-1 + (implicit current via block's own residual)
+                if hyper_conn_mode == "vector":
+                    alpha = torch.zeros(n_inputs, model_dim, dtype=torch.float32)
+                    alpha[-1] = 1.0  # weight 1.0 on most recent layer output
+                else:
+                    alpha = torch.full((n_inputs,), -2.0, dtype=torch.float32)  # softmax(-2) ≈ small
+                    alpha[-1] = 2.0  # softmax(2) ≈ large — most weight on previous layer
+                alphas.append(nn.Parameter(alpha))
+            self.hyper_alpha = nn.ParameterList(alphas)
+            self.unet_skips = False  # hyper-connections subsume U-Net skips
         self.value_residual = value_residual
         self.gated_attention = gated_attention
         self.blocks = nn.ModuleList(
@@ -1306,7 +1338,26 @@ class GPT(nn.Module):
             return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
 
         v0 = None  # Value Residual: cache layer-0's raw V
-        if self.unet_skips:
+        if self.hyper_connections:
+            all_outputs = [x]  # index 0 = initial embedding
+            num_layers = len(self.blocks)
+            for i in range(num_layers):
+                alpha = self.hyper_alpha[i].to(dtype=x.dtype)
+                if alpha.ndim == 1:
+                    # Scalar mode: softmax over (i+2,) weights
+                    w = torch.softmax(alpha, dim=0)
+                    x_in = sum(w[j] * all_outputs[j] for j in range(len(all_outputs)))
+                else:
+                    # Vector mode: per-dim weights, softmax over first dim
+                    w = torch.softmax(alpha, dim=0)  # (i+2, model_dim)
+                    stacked = torch.stack(all_outputs, dim=0)  # (i+2, bsz, seq, dim)
+                    x_in = (w[:, None, None, :] * stacked).sum(dim=0)
+                x_in, raw_v = self.blocks[i](x_in, x0, v_embed=_get_ve(i), v0=v0)
+                if v0 is None and raw_v is not None:
+                    v0 = raw_v
+                all_outputs.append(x_in)
+            x = x_in
+        elif self.unet_skips:
             skips: list[Tensor] = []
             for i in range(num_enc):
                 x, raw_v = self.blocks[i](x, x0, v_embed=_get_ve(i), v0=v0)
@@ -1361,7 +1412,24 @@ class GPT(nn.Module):
         num_dec = self.num_decoder_layers
 
         v0 = None
-        if self.unet_skips:
+        if self.hyper_connections:
+            all_outputs = [x]
+            num_layers = len(self.blocks)
+            for i in range(num_layers):
+                alpha = self.hyper_alpha[i].to(dtype=x.dtype)
+                if alpha.ndim == 1:
+                    w = torch.softmax(alpha, dim=0)
+                    x_in = sum(w[j] * all_outputs[j] for j in range(len(all_outputs)))
+                else:
+                    w = torch.softmax(alpha, dim=0)
+                    stacked = torch.stack(all_outputs, dim=0)
+                    x_in = (w[:, None, None, :] * stacked).sum(dim=0)
+                x_in, raw_v = self.blocks[i](x_in, x0, v0=v0)
+                if v0 is None and raw_v is not None:
+                    v0 = raw_v
+                all_outputs.append(x_in)
+            x = x_in
+        elif self.unet_skips:
             skips: list[Tensor] = []
             for i in range(num_enc):
                 x, raw_v = self.blocks[i](x, x0, v0=v0)
@@ -1613,6 +1681,111 @@ def eval_val_sliding(
                     rl = (loss_sum / token_count).item()
                     running_bpb = rl / math.log(2.0) * (token_count.item() / byte_count.item())
                 print(f"  sliding_eval [{pct:5.1f}%] {done}/{len(my_windows)} windows running_bpb={running_bpb:.6f}", flush=True)
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base_model.train()
+    return val_loss, bits_per_token * tokens_per_byte
+
+
+# -----------------------------
+# LOGIT ENSEMBLE EVALUATION
+# -----------------------------
+
+def eval_val_sliding_ensemble(
+    args,
+    base_model: nn.Module,
+    ensemble_states: list[dict[str, Tensor]],
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+    batch_seqs: int = 32,
+) -> tuple[float, float]:
+    """Sliding window eval with logit ensembling over multiple checkpoints.
+
+    For each batch of windows, runs forward with each checkpoint and averages
+    log-probabilities before computing NLL. This is strictly better than weight
+    averaging when checkpoints have diverged in the loss landscape.
+    """
+    seq_len = args.eval_seq_len
+    total_tokens = val_tokens.numel() - 1
+    all_windows = _build_sliding_windows(total_tokens, seq_len, stride)
+
+    my_s = (len(all_windows) * rank) // world_size
+    my_e = (len(all_windows) * (rank + 1)) // world_size
+    my_windows = all_windows[my_s:my_e]
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    n_models = len(ensemble_states)
+
+    base_model.eval()
+    with torch.inference_mode():
+        for bi in range(0, len(my_windows), batch_seqs):
+            batch_items = my_windows[bi:bi + batch_seqs]
+            bsz = len(batch_items)
+
+            # Build batch tensors
+            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            wlens = []
+            for i, (ws, s) in enumerate(batch_items):
+                end = min(ws + seq_len, total_tokens)
+                wlen = end - ws
+                wlens.append(wlen)
+                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                x_batch[i, :wlen] = chunk[:-1]
+                y_batch[i, :wlen] = chunk[1:]
+
+            # Accumulate log-probs from each checkpoint
+            avg_log_probs = None
+            for state_dict in ensemble_states:
+                current_state = base_model.state_dict()
+                base_model.load_state_dict(
+                    {k: v.to(dtype=current_state[k].dtype, device=device) for k, v in state_dict.items()},
+                    strict=True,
+                )
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    logits = base_model.forward_logits(x_batch)
+                log_probs = F.log_softmax(logits.float(), dim=-1)
+                if avg_log_probs is None:
+                    avg_log_probs = log_probs
+                else:
+                    avg_log_probs = avg_log_probs + log_probs
+            avg_log_probs = avg_log_probs / n_models
+
+            # Score using averaged log-probs
+            for i, (ws, s) in enumerate(batch_items):
+                wlen = wlens[i]
+                nll = -avg_log_probs[i, torch.arange(wlen, device=device), y_batch[i, :wlen]]
+                scored_nll = nll[s:].to(torch.float64)
+                loss_sum += scored_nll.sum()
+                token_count += float(wlen - s)
+                tgt = y_batch[i, s:wlen]
+                prev = x_batch[i, s:wlen]
+                tb = base_bytes_lut[tgt].to(torch.float64)
+                tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                byte_count += tb.sum()
+
+            if rank == 0 and bi % (batch_seqs * 50) == 0:
+                pct = (bi + bsz) / len(my_windows) * 100
+                running_bpb = 0.0
+                if token_count.item() > 0:
+                    rl = (loss_sum / token_count).item()
+                    running_bpb = rl / math.log(2.0) * (token_count.item() / byte_count.item())
+                print(f"  ensemble_eval [{pct:5.1f}%] {bi+bsz}/{len(my_windows)} windows running_bpb={running_bpb:.6f}", flush=True)
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
@@ -2333,6 +2506,8 @@ def main() -> None:
         gated_attention=args.gated_attention,
         star_relu=args.star_relu,
         sigmoid_skip_gates=args.sigmoid_skip_gates,
+        hyper_connections=args.hyper_connections,
+        hyper_conn_mode=args.hyper_conn_mode,
     ).to(device).bfloat16()
     if args._tier2:
         log0(f"*** TIER2_MODE: proxy run max={args.max_wallclock_seconds:.0f}s iters={args.iterations} "
@@ -2653,6 +2828,7 @@ def main() -> None:
     # GradQuant: accumulate gradient sensitivity during late warmdown for adaptive quantization
     grad_sensitivity: dict[str, float] = {}
     grad_sensitivity_active = False
+    freeze_active = False
 
     step = 0
     while True:
@@ -2726,6 +2902,15 @@ def main() -> None:
                         sens = p.grad.pow(2).mean().item()
                         grad_sensitivity[name] = grad_sensitivity.get(name, 0.0) + sens
 
+        # Progressive Layer Freezing: freeze encoder blocks during warmdown
+        if args.progressive_freeze and not freeze_active and scale < args.progressive_freeze_threshold:
+            freeze_active = True
+            num_freeze = base_model.num_encoder_layers
+            for i in range(num_freeze):
+                for p in base_model.blocks[i].parameters():
+                    p.requires_grad_(False)
+            log0(f"progressive_freeze:activated blocks[0:{num_freeze}] at step:{step} scale:{scale:.4f}")
+
         for opt in optimizers:
             opt.step()
         zero_grad_all()
@@ -2793,6 +2978,12 @@ def main() -> None:
     # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
+
+    # Logit Ensemble: save pre-EMA checkpoint for later ensemble eval
+    ensemble_raw_state = None
+    if args.logit_ensemble:
+        ensemble_raw_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+        log0(f"logit_ensemble:saved raw checkpoint for ensemble (n={args.logit_ensemble_n})")
 
     # Apply EMA weights (preferred) or SWA fallback before serialization.
     if ema_state is not None:
@@ -2903,9 +3094,44 @@ def main() -> None:
         quant_raw_disk = zlib.decompress(quant_blob_disk)
     quant_state = torch.load(io.BytesIO(quant_raw_disk), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+
+    # Logit Ensemble: prepare quantized ensemble checkpoints
+    ensemble_states = None
+    if args.logit_ensemble and ensemble_raw_state is not None:
+        ema_quant_state = base_model.state_dict()  # already quantized+dequantized EMA
+        # Quantize+dequantize the raw (pre-EMA) checkpoint
+        raw_quant_obj, _ = quantize_state_dict_int8(
+            ensemble_raw_state, bits=args.quant_bits,
+            grad_sensitivity=grad_sensitivity if grad_sensitivity else None,
+        )
+        raw_deq_state = dequantize_state_dict_int8(raw_quant_obj)
+        ensemble_states = [
+            {k: v.cpu() for k, v in ema_quant_state.items()},
+            {k: v.cpu() for k, v in raw_deq_state.items()},
+        ]
+        log0(f"logit_ensemble:prepared {len(ensemble_states)} quantized checkpoints")
+        del ensemble_raw_state, raw_quant_obj, raw_deq_state
+
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    if causal_ttt_result is not None:
+    if args.logit_ensemble and ensemble_states is not None:
+        ensemble_stride = args.logit_ensemble_stride
+        log0(f"final_eval_mode:logit_ensemble n={len(ensemble_states)} stride:{ensemble_stride}")
+        q_val_loss, q_val_bpb = eval_val_sliding_ensemble(
+            args,
+            base_model,
+            ensemble_states,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            stride=ensemble_stride,
+            batch_seqs=args.eval_batch_seqs,
+        )
+    elif causal_ttt_result is not None:
         # Causal TTT already scored all tokens — use its result
         q_val_loss, q_val_bpb = causal_ttt_result
         log0(f"final_eval_mode:causal_ttt (scoring done during TTT)")
