@@ -297,7 +297,7 @@ def load_validation_tokens(pattern: str, seq_len: int) -> torch.Tensor:
     if not files:
         if os.environ.get("ALLOW_MOCK", "0") == "1":
             print(f"Warning: No validation files found for {pattern}. Mocking...")
-            return torch.zeros(seq_len * 2 + 1, dtype=torch.int64)
+            return torch.randint(0, 1024, (seq_len * 2 + 1,), dtype=torch.int64)
         else:
             raise RuntimeError(f"ABORTING: Record-track execution REQUIRES validation data files. No shards found for {pattern}")
     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
@@ -399,7 +399,6 @@ def export_and_check_size(model_or_ddp, filename="golf_model.bin"):
     # 3. Serialize and Compress
     import pickle
     raw_bytes = pickle.dumps(q_state)
-    import zlib
     compressed = zlib.compress(raw_bytes, level=9)
     
     # 4. Physical Write to Disk (Fix Point 4)
