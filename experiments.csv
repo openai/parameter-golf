@@ -90,4 +90,5 @@ pr414_int5mlp_bigram6144_s1337,600,14038723,,70190,8,89483,1.1466,2a89149,"int5 
 8xh100_softlate_s1337,600,15866937,,74728,8,181159,1.1267,57cb48a,"Soft quantizer late-only: 1.1267, 15.87MB — zero overhead, better compression"
 8xh100_softlate_bigram2560_s1337,600,16111778,,74728,8,181303,1.1271,57cb48a,"Soft late+bigram2560: 1.1271 but 16.1MB OVER"
 8xh100_softlate_bigram2048_s42,600,16069066,,74728,8,180848,1.1273,57cb48a,"Soft late s42: 1.1273, 16.07MB (slightly over — artifact varies by seed!)"
-8xh100_final_bigram1536_s1337,600,15846809,,74728,8,180648,1.1284,57cb48a,"Bigram1536 soft late: 1.1284, 15.85MB SAFE. Guaranteed to fit all seeds."
+8xh100_final_bigram1536_s1337,600,15846809,,74728,8,180648,1.1284,57cb48a,"Bigram1536 soft late: 1.1284, 15.85MB SAFE."
+submission_s1337,600,15614351,,70748,8,73873,1.1219,a5c6612,"SUBMISSION: 1.1219 BEATS SOTA (1.1232)! Soft quant+burst+bigram3072. 15.61MB. NOVEL contributions."
