@@ -138,7 +138,9 @@ class Hyperparameters:
 
     # Novel ideas (ours)
     quant_aware_ttt = bool(int(os.environ.get("QUANT_AWARE_TTT", "0")))  # Fake-quant during TTT
-    ttt_curriculum = bool(int(os.environ.get("TTT_CURRICULUM", "1")))  # Loss-weighted TTT
+    ttt_curriculum = bool(int(os.environ.get("TTT_CURRICULUM", "0")))  # Loss-weighted TTT
+    elastic_ttt = bool(int(os.environ.get("ELASTIC_TTT", "1")))  # Penalize drift from quantized weights
+    elastic_lambda = float(os.environ.get("ELASTIC_LAMBDA", 0.1))  # Regularization strength
     test_time_distill = bool(int(os.environ.get("TEST_TIME_DISTILL", "0")))  # Distill full→quant at eval
     distill_temp = float(os.environ.get("DISTILL_TEMP", 2.0))
     distill_alpha = float(os.environ.get("DISTILL_ALPHA", 0.7))  # Weight of distill vs CE loss
@@ -1260,6 +1262,76 @@ def ttt_adapt(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn
         log_fn(f"ttt:done elapsed={time.perf_counter()-t0:.1f}s")
 
 
+def ttt_elastic(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn=None):
+    """Novel: Elastic TTT. Standard AdamW TTT with regularization that penalizes
+    weight drift from quantized values. Prevents overfitting while allowing adaptation."""
+    seq_len = args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // seq_len
+    batch_seqs = args.ttt_batch_seqs
+
+    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=args.ttt_weight_decay)
+
+    # Snapshot quantized weights as anchor points
+    anchors = {id(p): p.data.clone() for p in ttt_params if p.ndim >= 2 and p.numel() > 65536}
+
+    my_start = (total_seqs * rank) // world_size
+    my_end = (total_seqs * (rank + 1)) // world_size
+
+    base_model.train()
+    t0 = time.perf_counter()
+    lam = args.elastic_lambda
+
+    for epoch in range(args.ttt_epochs):
+        epoch_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+        epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
+
+        for batch_start in range(my_start, my_end, batch_seqs):
+            batch_end = min(batch_start + batch_seqs, my_end)
+            raw_start = batch_start * seq_len
+            raw_end = batch_end * seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, seq_len)
+            y = local[1:].reshape(-1, seq_len)
+
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                ce_loss = base_model(x, y)
+
+            # Elastic regularization: penalize drift from quantized anchor
+            elastic_reg = torch.tensor(0.0, device=device)
+            for p in ttt_params:
+                if id(p) in anchors:
+                    elastic_reg = elastic_reg + (p - anchors[id(p)]).pow(2).sum()
+
+            loss = ce_loss + lam * elastic_reg
+            loss.backward()
+
+            if world_size > 1:
+                for p in ttt_params:
+                    if p.grad is not None:
+                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+
+            torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
+            optimizer.step()
+
+            epoch_loss_sum += ce_loss.detach().to(torch.float64) * y.numel()
+            epoch_tokens += float(y.numel())
+
+        if world_size > 1:
+            dist.all_reduce(epoch_loss_sum, op=dist.ReduceOp.SUM)
+            dist.all_reduce(epoch_tokens, op=dist.ReduceOp.SUM)
+
+        elapsed = time.perf_counter() - t0
+        if log_fn:
+            log_fn(f"elastic_ttt_epoch:{epoch+1}/{args.ttt_epochs} loss:{epoch_loss_sum.item()/max(epoch_tokens.item(),1):.4f} time:{elapsed:.1f}s")
+
+    for p in base_model.parameters():
+        p.requires_grad_(True)
+    if log_fn:
+        log_fn(f"elastic_ttt:done elapsed={time.perf_counter()-t0:.1f}s")
+
+
 def _fake_quantize_model(model, cat_bits):
     """Apply fake quantization to all weight matrices in-place for quant-aware TTT."""
     for name, param in model.named_parameters():
@@ -2071,6 +2143,9 @@ def main() -> None:
                          rank=rank, world_size=world_size, log_fn=log0)
         del teacher_model
         torch.cuda.empty_cache()
+    elif args.elastic_ttt:
+        log0("elastic_ttt:starting")
+        ttt_elastic(args, eval_model, device, val_tokens, rank=rank, world_size=world_size, log_fn=log0)
     elif args.quant_aware_ttt:
         log0("quant_aware_ttt:starting")
         ttt_quant_aware(args, eval_model, device, val_tokens, rank=rank, world_size=world_size, log_fn=log0)
