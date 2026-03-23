@@ -177,6 +177,8 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "0")))  # shared value embedding
     ve_dim = int(os.environ.get("VE_DIM", 128))  # value embedding dimension
     ve_layers = os.environ.get("VE_LAYERS", "9,10")  # comma-separated layer indices
+    neural_cache = bool(int(os.environ.get("NEURAL_CACHE", "0")))  # cross-window KV caching at eval time
+    neural_cache_max_len = int(os.environ.get("NEURAL_CACHE_MAX_LEN", 8192))  # max cached KV length per layer
 
     # Disable schedule-dependent features in TIER2_MODE unless explicitly overridden
     if _tier2:
@@ -819,6 +821,62 @@ class CausalSelfAttention(nn.Module):
         self.rotary = Rotary(self.rope_dims, base=rope_base, ntk_base_seq_len=ntk_base_seq_len)
         self.use_xsa = False  # enabled on last N layers by GPT.__init__
 
+    def forward_cached(self, x: Tensor, kv_cache: tuple[Tensor, Tensor] | None, pos_offset: int = 0) -> tuple[Tensor, tuple[Tensor, Tensor]]:
+        """Forward with KV cache for Neural Cache eval. Not used during training.
+        Returns (output, (k_all, v_all)) where k_all/v_all include cached + new keys/values."""
+        bsz, seqlen, dim = x.shape
+        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = F.rms_norm(q, (q.size(-1),))
+        k = F.rms_norm(k, (k.size(-1),))
+        # RoPE with position offset for cached sequence positions
+        total_len = pos_offset + seqlen
+        cos, sin = self.rotary(total_len, x.device, q.dtype)
+        cos_q = cos[:, :, pos_offset:total_len, :]
+        sin_q = sin[:, :, pos_offset:total_len, :]
+        if self.rope_dims < self.head_dim:
+            q = torch.cat([apply_rotary_emb(q[..., :self.rope_dims], cos_q, sin_q), q[..., self.rope_dims:]], dim=-1)
+            k = torch.cat([apply_rotary_emb(k[..., :self.rope_dims], cos_q, sin_q), k[..., self.rope_dims:]], dim=-1)
+        else:
+            q = apply_rotary_emb(q, cos_q, sin_q)
+            k = apply_rotary_emb(k, cos_q, sin_q)
+        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+        # Concatenate with cached K/V
+        if kv_cache is not None:
+            k_cached, v_cached = kv_cache
+            k_all = torch.cat([k_cached, k], dim=2)
+            v_all = torch.cat([v_cached, v], dim=2)
+        else:
+            k_all = k
+            v_all = v
+        # Attention: q attends to all of k_all/v_all.
+        # With cache: q can attend to all cached positions (fully visible) + causal within current window.
+        # Without cache: standard causal attention.
+        if kv_cache is not None:
+            cache_len = k_cached.size(2)
+            # Build mask: each query can see all cache + causal within its own window
+            # Shape: (1, 1, seqlen, cache_len + seqlen)
+            causal_current = torch.ones(seqlen, seqlen, device=x.device, dtype=torch.bool).tril()
+            cache_visible = torch.ones(seqlen, cache_len, device=x.device, dtype=torch.bool)
+            mask = torch.cat([cache_visible, causal_current], dim=-1).unsqueeze(0).unsqueeze(0)
+            y = F.scaled_dot_product_attention(
+                q, k_all, v_all, attn_mask=mask,
+                enable_gqa=(self.num_kv_heads != self.num_heads),
+            )
+        else:
+            y = F.scaled_dot_product_attention(
+                q, k_all, v_all, attn_mask=None, is_causal=True,
+                enable_gqa=(self.num_kv_heads != self.num_heads),
+            )
+        if self.use_xsa:
+            # XSA on current window's values only
+            y = self._xsa_efficient(y.transpose(1, 2), v.transpose(1, 2))
+        else:
+            y = y.transpose(1, 2)
+        y = y.contiguous().reshape(bsz, seqlen, dim)
+        return self.proj(y), (k_all, v_all)
+
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
         """Exclusive Self Attention: subtract self-value projection (arXiv:2603.09078).
         GQA-aware reshape avoids repeat_interleave — zero extra allocation."""
@@ -1188,6 +1246,67 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
+    def forward_logits_cached(
+        self, input_ids: Tensor, kv_caches: list[tuple[Tensor, Tensor]] | None = None, pos_offset: int = 0,
+    ) -> tuple[Tensor, list[tuple[Tensor, Tensor]]]:
+        """Forward with per-layer KV cache for Neural Cache eval.
+        Returns (logits, new_kv_caches). Only supports unet_skips path (our default)."""
+        x = self.tok_emb(input_ids)
+        if self.bigram_hash is not None:
+            x = x + self.bigram_hash(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        if self.smear_gate is not None:
+            x = self.smear_gate(x)
+        x0 = x
+        num_layers = len(self.blocks)
+        new_caches: list[tuple[Tensor, Tensor]] = []
+
+        if self.unet_skips:
+            num_enc = self.num_encoder_layers
+            skips: list[Tensor] = []
+            for i in range(num_enc):
+                cache_i = kv_caches[i] if kv_caches is not None else None
+                mix = self.blocks[i].resid_mix.to(dtype=x.dtype)
+                x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+                s = self.blocks[i].ln_scale_factor
+                attn_out, new_kv = self.blocks[i].attn.forward_cached(self.blocks[i].attn_norm(x) * s, cache_i, pos_offset)
+                new_caches.append(new_kv)
+                x = x + self.blocks[i].attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+                x = x + self.blocks[i].mlp_scale.to(dtype=x.dtype)[None, None, :] * self.blocks[i].mlp(self.blocks[i].mlp_norm(x) * s)
+                skips.append(x)
+            if self.backout_alpha is not None:
+                x = x - self.backout_alpha.to(dtype=x.dtype) * x
+            for i in range(num_layers - num_enc):
+                if skips:
+                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                layer_idx = num_enc + i
+                cache_i = kv_caches[layer_idx] if kv_caches is not None else None
+                mix = self.blocks[layer_idx].resid_mix.to(dtype=x.dtype)
+                x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+                s = self.blocks[layer_idx].ln_scale_factor
+                attn_out, new_kv = self.blocks[layer_idx].attn.forward_cached(self.blocks[layer_idx].attn_norm(x) * s, cache_i, pos_offset)
+                new_caches.append(new_kv)
+                x = x + self.blocks[layer_idx].attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+                x = x + self.blocks[layer_idx].mlp_scale.to(dtype=x.dtype)[None, None, :] * self.blocks[layer_idx].mlp(self.blocks[layer_idx].mlp_norm(x) * s)
+        else:
+            for block_idx in range(num_layers):
+                cache_i = kv_caches[block_idx] if kv_caches is not None else None
+                mix = self.blocks[block_idx].resid_mix.to(dtype=x.dtype)
+                x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+                s = self.blocks[block_idx].ln_scale_factor
+                attn_out, new_kv = self.blocks[block_idx].attn.forward_cached(self.blocks[block_idx].attn_norm(x) * s, cache_i, pos_offset)
+                new_caches.append(new_kv)
+                x = x + self.blocks[block_idx].attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+                x = x + self.blocks[block_idx].mlp_scale.to(dtype=x.dtype)[None, None, :] * self.blocks[block_idx].mlp(self.blocks[block_idx].mlp_norm(x) * s)
+
+        x = self.final_norm(x)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            logits_proj = self.lm_head(x)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        return logits, new_caches
+
 
 BOS_ID = 1  # SentencePiece BOS token ID
 
@@ -1336,6 +1455,121 @@ def eval_val_sliding(
                     rl = (loss_sum / token_count).item()
                     running_bpb = rl / math.log(2.0) * (token_count.item() / byte_count.item())
                 print(f"  sliding_eval [{pct:5.1f}%] {done}/{len(my_windows)} windows running_bpb={running_bpb:.6f}", flush=True)
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base_model.train()
+    return val_loss, bits_per_token * tokens_per_byte
+
+
+# -----------------------------
+# NEURAL CACHE EVALUATION
+# -----------------------------
+
+def eval_val_neural_cache(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+) -> tuple[float, float]:
+    """Neural Cache evaluation: cross-window KV caching extends effective context.
+
+    Processes each document sequentially. Within a document, KV pairs from previous
+    windows are cached and attended to by subsequent windows, extending context
+    beyond the model's training sequence length. Cache is reset at document boundaries.
+    Processes batch_size=1 per document (sequential dependency).
+    """
+    seq_len = args.eval_seq_len
+    max_cache_len = args.neural_cache_max_len
+    total_tokens = val_tokens.numel() - 1
+
+    # Build per-document windows
+    docs = _find_docs(val_tokens)
+    all_doc_windows: list[tuple[list[tuple[int, int]], int]] = []  # (windows, doc_start)
+    for doc_start, doc_len in docs:
+        doc_pred_len = doc_len - 1
+        doc_windows = _build_sliding_windows(doc_pred_len, seq_len, stride)
+        if doc_windows:
+            all_doc_windows.append(([(doc_start + ws, s) for ws, s in doc_windows], doc_start))
+
+    # Distribute documents across ranks
+    my_s = (len(all_doc_windows) * rank) // world_size
+    my_e = (len(all_doc_windows) * (rank + 1)) // world_size
+    my_docs = all_doc_windows[my_s:my_e]
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    num_layers = len(list(base_model.blocks))
+
+    base_model.eval()
+    with torch.inference_mode():
+        for doc_idx, (doc_windows, doc_start) in enumerate(my_docs):
+            kv_caches: list[tuple[Tensor, Tensor]] | None = None
+            pos_offset = 0
+
+            for ws, s in doc_windows:
+                end = min(ws + seq_len, total_tokens)
+                wlen = end - ws
+                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                x = chunk[:-1].unsqueeze(0)  # (1, wlen)
+                y = chunk[1:]  # (wlen,)
+
+                # Pad to seq_len if needed
+                if wlen < seq_len:
+                    x_padded = torch.zeros(1, seq_len, dtype=torch.int64, device=device)
+                    x_padded[0, :wlen] = x[0]
+                    x = x_padded
+
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    logits, new_caches = base_model.forward_logits_cached(x, kv_caches, pos_offset)
+
+                # Score only the stride tokens (positions s..wlen)
+                nll = F.cross_entropy(
+                    logits[0, :wlen].float(), y, reduction="none"
+                )
+                scored_nll = nll[s:].to(torch.float64)
+                loss_sum += scored_nll.sum()
+                token_count += float(wlen - s)
+                tgt = y[s:]
+                prev = x[0, s:wlen]
+                tb = base_bytes_lut[tgt].to(torch.float64)
+                tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                byte_count += tb.sum()
+
+                # Update cache: trim to max_cache_len, advance position offset
+                trimmed_caches: list[tuple[Tensor, Tensor]] = []
+                for k_all, v_all in new_caches:
+                    cache_len = k_all.size(2)
+                    if cache_len > max_cache_len:
+                        # Keep most recent max_cache_len positions
+                        k_all = k_all[:, :, -max_cache_len:, :]
+                        v_all = v_all[:, :, -max_cache_len:, :]
+                    trimmed_caches.append((k_all, v_all))
+                kv_caches = trimmed_caches
+                pos_offset = kv_caches[0][0].size(2) if kv_caches else 0
+
+            # Progress
+            if rank == 0 and doc_idx % 100 == 0:
+                done = doc_idx + 1
+                pct = done / len(my_docs) * 100
+                running_bpb = 0.0
+                if token_count.item() > 0:
+                    rl = (loss_sum / token_count).item()
+                    running_bpb = rl / math.log(2.0) * (token_count.item() / byte_count.item())
+                print(f"  neural_cache_eval [{pct:5.1f}%] {done}/{len(my_docs)} docs running_bpb={running_bpb:.6f}", flush=True)
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
@@ -2406,6 +2640,20 @@ def main() -> None:
         # Causal TTT already scored all tokens — use its result
         q_val_loss, q_val_bpb = causal_ttt_result
         log0(f"final_eval_mode:causal_ttt (scoring done during TTT)")
+    elif args.neural_cache:
+        log0(f"final_eval_mode:neural_cache stride:{args.eval_stride} max_cache_len:{args.neural_cache_max_len}")
+        q_val_loss, q_val_bpb = eval_val_neural_cache(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            stride=args.eval_stride,
+        )
     elif args.eval_stride > 0 and args.eval_stride < args.eval_seq_len:
         log0(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs} doc_isolated:{args.doc_isolated_eval}")
         q_val_loss, q_val_bpb = eval_val_sliding(

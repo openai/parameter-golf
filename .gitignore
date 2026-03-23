@@ -15,3 +15,6 @@ logs/**/PRIVATE_NOTES.md
 **/EXECUTION_PLAN.md
 **/TEST_PLAN.md
 **/ANALYSIS_RESULTS.md
+checkpoints/
+logs/
+final_model*
