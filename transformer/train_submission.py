@@ -90,6 +90,15 @@ class Hyperparameters:
     ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.1))
     ttt_burst_steps = int(os.environ.get("TTT_BURST_STEPS", 100))
     ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.2))
+    # Backward-looking LoRA TTT during eval
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.001))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
+    ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
+    ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
+    ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 512))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -968,6 +977,69 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
         else:
             out[name] = (q.float() * float(s.item())).to(orig_dtype)
     return out
+
+# -----------------------------
+# FULL-WEIGHT TTT (AdamW adaptation on validation data)
+# -----------------------------
+
+def ttt_adapt(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn=None):
+    """Full-weight AdamW adaptation on validation data (backward-looking)."""
+    seq_len = args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // seq_len
+    batch_seqs = args.ttt_batch_size
+
+    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
+
+    my_start = (total_seqs * rank) // world_size
+    my_end = (total_seqs * (rank + 1)) // world_size
+
+    base_model.train()
+    t0 = time.perf_counter()
+
+    for epoch in range(args.ttt_epochs):
+        epoch_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+        epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
+
+        for batch_start in range(my_start, my_end, batch_seqs):
+            batch_end = min(batch_start + batch_seqs, my_end)
+            raw_start = batch_start * seq_len
+            raw_end = batch_end * seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, seq_len)
+            y = local[1:].reshape(-1, seq_len)
+
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                loss = base_model(x, y)
+            loss.backward()
+
+            if world_size > 1:
+                for p in ttt_params:
+                    if p.grad is not None:
+                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+
+            torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
+            optimizer.step()
+
+            epoch_loss_sum += loss.detach().to(torch.float64) * y.numel()
+            epoch_tokens += float(y.numel())
+
+        if world_size > 1:
+            dist.all_reduce(epoch_loss_sum, op=dist.ReduceOp.SUM)
+            dist.all_reduce(epoch_tokens, op=dist.ReduceOp.SUM)
+
+        elapsed = time.perf_counter() - t0
+        if log_fn:
+            log_fn(f"ttt_epoch:{epoch+1}/{args.ttt_epochs} "
+                   f"loss:{epoch_loss_sum.item()/max(epoch_tokens.item(),1):.4f} time:{elapsed:.1f}s")
+
+    for p in base_model.parameters():
+        p.requires_grad_(True)
+
+    if log_fn:
+        log_fn(f"ttt:done elapsed={time.perf_counter()-t0:.1f}s")
+
 def main() -> None:
     global zeropower_via_newtonschulz5
     code = Path(__file__).read_text(encoding="utf-8")
@@ -1401,6 +1473,21 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
+    # Full-weight TTT: adapt on validation data before eval
+    if args.ttt_enabled:
+        if distributed:
+            dist.barrier()
+        for block in eval_model.blocks:
+            block.attn.rotary._cos_cached = None
+            block.attn.rotary._sin_cached = None
+            block.attn.rotary._seq_len_cached = 0
+        log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs}")
+        t_ttt = time.perf_counter()
+        ttt_adapt(args, eval_model, device, val_tokens,
+                  rank=rank, world_size=world_size, log_fn=log0)
+        log0(f"ttt:elapsed={time.perf_counter() - t_ttt:.1f}s")
+        if distributed:
+            dist.barrier()
     compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
