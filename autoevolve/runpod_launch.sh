@@ -22,6 +22,7 @@ DRY_RUN=0
 SESSION="evolve"
 WORKSPACE="/workspace"
 REPO="$WORKSPACE/parameter-golf"
+CONDA_ENV="parameter-golf"
 
 # ── Argument parsing ───────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -62,6 +63,21 @@ cd "$REPO"
 echo ""
 echo "[1/6] Repo found at $REPO"
 git log --oneline -3
+
+# ── Verify conda environment ──────────────────────────────────────────────────
+if ! command -v conda >/dev/null 2>&1; then
+  echo ""
+  echo "ERROR: 'conda' command not found."
+  echo "Please install or initialize conda on this machine before launching autoevolve."
+  exit 1
+fi
+if ! conda run -n "$CONDA_ENV" python -c "import sys" >/dev/null 2>&1; then
+  echo ""
+  echo "ERROR: Conda env '$CONDA_ENV' is not available."
+  echo "Create or restore that env before running this launcher."
+  exit 1
+fi
+PYTHON_RUN="conda run --no-capture-output -n $CONDA_ENV python"
 
 # ── 2. Check .env ─────────────────────────────────────────────────────────────
 echo ""
@@ -104,8 +120,8 @@ git config user.name  "AutoEvolve Bot"             2>/dev/null || true
 
 # ── 3. Install Python deps ─────────────────────────────────────────────────────
 echo ""
-echo "[3/6] Installing Python dependencies ..."
-pip install --quiet openai python-dotenv zstandard 2>&1 | tail -3
+echo "[3/6] Installing Python dependencies in conda env '$CONDA_ENV' ..."
+conda run --no-capture-output -n "$CONDA_ENV" python -m pip install --quiet openai python-dotenv zstandard 2>&1 | tail -3
 echo "  Deps OK"
 
 # ── 4. Download data ───────────────────────────────────────────────────────────
@@ -116,7 +132,7 @@ TOKENIZER="$REPO/data/tokenizers/fineweb_1024_bpe.model"
 
 if [ ! -f "$TOKENIZER" ] || [ $(ls "$DATA_DIR"/fineweb_train_*.bin 2>/dev/null | wc -l) -lt 2 ]; then
   echo "  Downloading FineWeb data (this takes ~5-10 minutes)..."
-  python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
+  $PYTHON_RUN data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
   echo "  Data downloaded."
 else
   echo "  Data already present ($(ls "$DATA_DIR"/fineweb_train_*.bin | wc -l) shards)"
@@ -140,7 +156,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 # Build the command
-CMD="cd $REPO && python3 autoevolve/evolve.py --nproc $NPROC --model $MODEL $ITER_FLAG $DRY_FLAG 2>&1 | tee autoevolve/logs/evolve_main.log"
+CMD="cd $REPO && $PYTHON_RUN autoevolve/evolve.py --nproc $NPROC --model $MODEL $ITER_FLAG $DRY_FLAG 2>&1 | tee autoevolve/logs/evolve_main.log"
 
 tmux new-session -d -s "$SESSION" -x 220 -y 50
 tmux send-keys -t "$SESSION" "$CMD" Enter
@@ -151,10 +167,10 @@ echo "  Auto-evolve is running! Session: '$SESSION'"
 echo ""
 echo "  Monitor commands:"
 echo "    tmux attach -t $SESSION          # watch live output"
-echo "    python3 autoevolve/monitor.py    # full dashboard"
-echo "    python3 autoevolve/monitor.py --summary   # one-liner"
-echo "    python3 autoevolve/monitor.py --tail      # tail latest experiment"
-echo "    python3 autoevolve/monitor.py --watch 60  # auto-refresh every 60s"
+echo "    $PYTHON_RUN autoevolve/monitor.py             # full dashboard"
+echo "    $PYTHON_RUN autoevolve/monitor.py --summary   # one-liner"
+echo "    $PYTHON_RUN autoevolve/monitor.py --tail      # tail latest experiment"
+echo "    $PYTHON_RUN autoevolve/monitor.py --watch 60  # auto-refresh every 60s"
 echo ""
 echo "  Detach from tmux: Ctrl+B then D"
 echo "  Stop gracefully:  Ctrl+C inside tmux session"

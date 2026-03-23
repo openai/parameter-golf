@@ -1,12 +1,15 @@
 # AutoEvolve Memory Dossier
 
 - Mode: `scout`
-- Committed experiment rows: 0
-- Infrastructure failures: 0
-- Research outcomes: 0
-- Best kept val_bpb so far: 1.1428
+- Committed experiment rows (all modes): 0
+- Committed experiment rows for `scout`: 0
+- Infrastructure failures for `scout`: 0
+- Research outcomes for `scout`: 0
 
 ## Read This First
+- Local incumbent val_bpb for this mode: not yet benchmarked
+- There is no local incumbent benchmark for this mode yet.
+- There is no active exploration frontier right now.
 - There are no infrastructure-only failures in the committed history.
 - There are no committed research outcomes yet.
 

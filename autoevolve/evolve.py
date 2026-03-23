@@ -41,8 +41,11 @@ AUTOEVOLVE_DIR = ROOT / "autoevolve"
 PROMPTS_DIR = AUTOEVOLVE_DIR / "prompts"
 SCRIPT_PATH = AUTOEVOLVE_DIR / "train_gpt.py"
 BEST_SCRIPT_PATH = AUTOEVOLVE_DIR / "best_train_gpt.py"
+FRONTIER_SCRIPT_PATH = AUTOEVOLVE_DIR / "frontier_train_gpt.py"
 RESULTS_FILE = AUTOEVOLVE_DIR / "results.tsv"
 DOSSIER_FILE = PROMPTS_DIR / "memory_dossier.md"
+INCUMBENT_STATE_FILE = AUTOEVOLVE_DIR / "incumbent_state.json"
+FRONTIER_STATE_FILE = AUTOEVOLVE_DIR / "frontier_state.json"
 LOGS_DIR = AUTOEVOLVE_DIR / "logs"
 ROOT_TRAIN_LOGS_DIR = ROOT / "logs"
 RECORDS_DIR = ROOT / "records" / "track_10min_16mb"
@@ -56,6 +59,8 @@ MAX_WALLCLOCK = 600  # 10 minutes — hard competition limit
 MAX_CONSECUTIVE_FAILURES = 5
 UPSTREAM_SYNC_EVERY = 5
 REPEAT_FAMILY_THRESHOLD = 2
+NEAR_MISS_MAX_GAP = 0.0040
+FRONTIER_CONTINUATION_STEPS = 2
 
 MODE_SCOUT = "scout"
 MODE_FULL = "full"
@@ -228,11 +233,11 @@ FAMILY_ALIASES: list[tuple[str, tuple[str, ...]]] = [
     ),
 ]
 
-RESEARCH_FAILURE_STATUSES = {"crash", "discard", "over_size", "parse_error"}
+RESEARCH_FAILURE_STATUSES = {"crash", "discard", "near_miss", "over_size", "parse_error"}
 RESEARCH_NONKEEP_STATUSES = RESEARCH_FAILURE_STATUSES
 INFRA_FAILURE_STATUSES = {"llm_error", "invalid"}
-RESEARCH_SUCCESS_STATUSES = {"keep"}
-SCORABLE_STATUSES = {"keep", "discard", "over_size", "crash", "parse_error"}
+RESEARCH_SUCCESS_STATUSES = {"baseline", "keep"}
+SCORABLE_STATUSES = {"baseline", "keep", "near_miss", "discard", "over_size", "crash", "parse_error"}
 TRACK_RECORD_README_RE = re.compile(
     r"\|\s*[^|]+\|\s*(1\.\d{4})\s*\|[^|]*\|[^|]*\|[^|]*\|\s*\[info\]\((records/track_10min_16mb/[^)]+/README\.md)\)\s*\|"
 )
@@ -291,7 +296,10 @@ def setup_openai():
     try:
         from openai import OpenAI
     except ImportError:
-        print("ERROR: openai package is not installed. Install it with: python3 -m pip install openai")
+        print(
+            "ERROR: openai package is not installed. "
+            "Install it in the active environment with: python -m pip install openai"
+        )
         sys.exit(1)
 
     return OpenAI(api_key=api_key)
@@ -338,6 +346,24 @@ def find_best_sota_script() -> Path | None:
     return None
 
 
+def read_json_file(path: Path, default: dict | list) -> dict | list:
+    if not path.exists():
+        return json.loads(json.dumps(default))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return json.loads(json.dumps(default))
+    if isinstance(default, dict) and not isinstance(data, dict):
+        return json.loads(json.dumps(default))
+    if isinstance(default, list) and not isinstance(data, list):
+        return json.loads(json.dumps(default))
+    return data
+
+
+def write_json_file(path: Path, data: dict | list) -> None:
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def ensure_results_file() -> list[dict[str, str]]:
     """Create or migrate results.tsv to the current schema and return parsed rows."""
     if not RESULTS_FILE.exists():
@@ -355,6 +381,10 @@ def setup_workspace(mode: str) -> None:
     """Create directories, ensure schema, and copy the best SOTA baseline as starting point."""
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
+    if not INCUMBENT_STATE_FILE.exists():
+        write_json_file(INCUMBENT_STATE_FILE, {})
+    if not FRONTIER_STATE_FILE.exists():
+        write_json_file(FRONTIER_STATE_FILE, {"active": False})
 
     if not SCRIPT_PATH.exists():
         sota = find_best_sota_script()
@@ -369,7 +399,17 @@ def setup_workspace(mode: str) -> None:
     if not BEST_SCRIPT_PATH.exists() and SCRIPT_PATH.exists():
         shutil.copy2(SCRIPT_PATH, BEST_SCRIPT_PATH)
 
+    if not FRONTIER_SCRIPT_PATH.exists() and BEST_SCRIPT_PATH.exists():
+        shutil.copy2(BEST_SCRIPT_PATH, FRONTIER_SCRIPT_PATH)
+
     rows = ensure_results_file()
+    if not rows:
+        write_json_file(INCUMBENT_STATE_FILE, {})
+        write_json_file(FRONTIER_STATE_FILE, {"active": False})
+        if BEST_SCRIPT_PATH.exists():
+            shutil.copy2(BEST_SCRIPT_PATH, FRONTIER_SCRIPT_PATH)
+    elif load_frontier_state(mode) is None and BEST_SCRIPT_PATH.exists():
+        shutil.copy2(BEST_SCRIPT_PATH, FRONTIER_SCRIPT_PATH)
     write_memory_dossier(rows, mode)
 
 
@@ -742,12 +782,14 @@ def update_last_result_fields(**fields: str) -> list[dict[str, str]]:
     return rows
 
 
-def get_best_bpb(rows: list[dict[str, str]] | None = None) -> float:
+def get_best_bpb(rows: list[dict[str, str]] | None = None, mode: str | None = None) -> float:
+    if mode is not None:
+        return current_mode_best_bpb(mode)
     best = current_public_sota_bpb()
     if rows is None:
         rows = load_results_rows()
     for row in rows:
-        if row.get("status") != "keep":
+        if row.get("status") not in {"baseline", "keep"}:
             continue
         value = parse_float(row.get("val_bpb"))
         if value is not None:
@@ -765,6 +807,194 @@ def get_iteration_count(rows: list[dict[str, str]] | None = None) -> int:
     return max(iterations) if iterations else len(rows)
 
 
+def load_incumbent_states() -> dict[str, dict[str, str]]:
+    data = read_json_file(INCUMBENT_STATE_FILE, {})
+    return data if isinstance(data, dict) else {}
+
+
+def get_mode_incumbent(mode: str) -> dict[str, str] | None:
+    states = load_incumbent_states()
+    raw = states.get(mode)
+    if not isinstance(raw, dict):
+        return None
+    value = parse_float(str(raw.get("val_bpb", "")))
+    if value is None:
+        return None
+    incumbent = {key: clean_field(val) for key, val in raw.items()}
+    incumbent["val_bpb"] = clean_float(value)
+    return incumbent
+
+
+def save_mode_incumbent(
+    mode: str,
+    iteration: int,
+    val_bpb: float,
+    description: str,
+    proposal_family: str,
+    source_status: str,
+    metrics: dict[str, object] | None = None,
+) -> dict[str, str]:
+    metrics = metrics or {}
+    states = load_incumbent_states()
+    states[mode] = {
+        "iteration": clean_int(iteration),
+        "val_bpb": clean_float(val_bpb),
+        "description": clean_field(description),
+        "proposal_family": normalize_proposal_family(proposal_family, description),
+        "source_status": clean_field(source_status),
+        "last_train_time_ms": clean_int(parse_int(clean_field(metrics.get("last_train_time_ms")))),
+        "last_eval_time_ms": clean_int(parse_int(clean_field(metrics.get("last_eval_time_ms")))),
+        "updated_at": datetime.now().isoformat(),
+    }
+    write_json_file(INCUMBENT_STATE_FILE, states)
+    return states[mode]
+
+
+def clear_mode_incumbent(mode: str) -> None:
+    states = load_incumbent_states()
+    if mode in states:
+        states.pop(mode, None)
+        write_json_file(INCUMBENT_STATE_FILE, states)
+
+
+def load_frontier_state(mode: str | None = None) -> dict[str, str] | None:
+    raw = read_json_file(FRONTIER_STATE_FILE, {"active": False})
+    if not isinstance(raw, dict) or not raw.get("active"):
+        return None
+    frontier = {key: clean_field(val) for key, val in raw.items()}
+    if mode and frontier.get("mode") != mode:
+        return None
+    remaining = parse_int(frontier.get("remaining_steps"))
+    if remaining is None or remaining <= 0:
+        return None
+    if not FRONTIER_SCRIPT_PATH.exists():
+        return None
+    frontier["remaining_steps"] = clean_int(remaining)
+    frontier["branch_depth"] = clean_int(parse_int(frontier.get("branch_depth")) or 0)
+    frontier["val_bpb"] = clean_float(parse_float(frontier.get("val_bpb")))
+    frontier["gap_to_incumbent"] = clean_float(parse_float(frontier.get("gap_to_incumbent")))
+    return frontier
+
+
+def save_frontier_state(
+    *,
+    mode: str,
+    iteration: int,
+    val_bpb: float,
+    incumbent_bpb: float,
+    proposal_family: str,
+    description: str,
+    base_kind: str,
+    remaining_steps: int,
+    branch_depth: int,
+) -> dict[str, str]:
+    state = {
+        "active": True,
+        "mode": mode,
+        "source_iteration": clean_int(iteration),
+        "val_bpb": clean_float(val_bpb),
+        "gap_to_incumbent": clean_float(val_bpb - incumbent_bpb),
+        "proposal_family": normalize_proposal_family(proposal_family, description),
+        "description": clean_field(description),
+        "base_kind": clean_field(base_kind),
+        "remaining_steps": clean_int(max(remaining_steps, 0)),
+        "branch_depth": clean_int(max(branch_depth, 0)),
+        "updated_at": datetime.now().isoformat(),
+    }
+    write_json_file(FRONTIER_STATE_FILE, state)
+    shutil.copy2(SCRIPT_PATH, FRONTIER_SCRIPT_PATH)
+    return {key: clean_field(val) for key, val in state.items()}
+
+
+def clear_frontier_state() -> None:
+    write_json_file(
+        FRONTIER_STATE_FILE,
+        {
+            "active": False,
+            "updated_at": datetime.now().isoformat(),
+        },
+    )
+    if BEST_SCRIPT_PATH.exists():
+        shutil.copy2(BEST_SCRIPT_PATH, FRONTIER_SCRIPT_PATH)
+
+
+def select_base_state(mode: str) -> tuple[Path, str, dict[str, str] | None]:
+    frontier = load_frontier_state(mode)
+    if frontier is not None:
+        return FRONTIER_SCRIPT_PATH, "frontier", frontier
+    return BEST_SCRIPT_PATH, "incumbent", None
+
+
+def sync_script_to_active_base(mode: str) -> None:
+    base_path, _, _ = select_base_state(mode)
+    if base_path.exists():
+        shutil.copy2(base_path, SCRIPT_PATH)
+
+
+def current_mode_best_bpb(mode: str) -> float:
+    incumbent = get_mode_incumbent(mode)
+    if incumbent is not None:
+        value = parse_float(incumbent.get("val_bpb"))
+        if value is not None:
+            return value
+    return current_public_sota_bpb()
+
+
+def current_mode_anchor_text(mode: str) -> str:
+    incumbent = get_mode_incumbent(mode)
+    if incumbent is not None:
+        value = incumbent.get("val_bpb", "?")
+        return f"{value} (local incumbent)"
+    return f"{current_public_sota_bpb():.4f} (public SOTA anchor; local incumbent not yet benchmarked)"
+
+
+def is_near_miss(val_bpb: float, incumbent_bpb: float) -> bool:
+    gap = val_bpb - incumbent_bpb
+    return 0.0 < gap <= NEAR_MISS_MAX_GAP
+
+
+def frontier_follow_on_allowed(
+    *,
+    base_kind: str,
+    frontier_state: dict[str, str] | None,
+    val_bpb: float,
+    incumbent_bpb: float,
+) -> bool:
+    if not is_near_miss(val_bpb, incumbent_bpb):
+        return False
+    if base_kind != "frontier" or frontier_state is None:
+        return True
+    prior_frontier_bpb = parse_float(frontier_state.get("val_bpb"))
+    if prior_frontier_bpb is None:
+        return True
+    return val_bpb < prior_frontier_bpb
+
+
+def build_search_state(mode: str, base_kind: str, incumbent: dict[str, str] | None, frontier: dict[str, str] | None) -> str:
+    lines = [f"- Current run mode: `{mode}`"]
+    if incumbent is not None:
+        lines.append(
+            f"- Local incumbent benchmark for `{mode}`: {incumbent.get('val_bpb','?')} "
+            f"(iteration #{incumbent.get('iteration','?')}, status={incumbent.get('source_status','?')})."
+        )
+    else:
+        lines.append("- Local incumbent benchmark for this mode is not established yet.")
+
+    if base_kind == "frontier" and frontier is not None:
+        lines.append(
+            f"- Base script for this iteration: exploratory frontier from iteration #{frontier.get('source_iteration','?')} "
+            f"with val_bpb={frontier.get('val_bpb','?')} "
+            f"(gap +{frontier.get('gap_to_incumbent','?')} vs local incumbent, "
+            f"remaining continuation steps={frontier.get('remaining_steps','?')}, "
+            f"branch_depth={frontier.get('branch_depth','?')})."
+        )
+        lines.append("- Frontier rule: either find a coherent follow-on that reduces the gap, or the loop will fall back to the incumbent.")
+    else:
+        lines.append("- Base script for this iteration: incumbent best-known script.")
+        lines.append("- Exploration rule: a near-miss may earn a short continuation budget, but the incumbent remains the safety anchor.")
+    return "\n".join(lines)
+
+
 def is_infrastructure_row(row: dict[str, str]) -> bool:
     return row.get("status", "") in INFRA_FAILURE_STATUSES
 
@@ -773,11 +1003,23 @@ def is_research_row(row: dict[str, str]) -> bool:
     return row.get("status", "") in (RESEARCH_FAILURE_STATUSES | RESEARCH_SUCCESS_STATUSES)
 
 
-def detect_repeat_family_guard(rows: list[dict[str, str]]) -> dict[str, str] | None:
-    non_kept = [row for row in rows if row.get("status") in RESEARCH_NONKEEP_STATUSES]
-    if len(non_kept) < REPEAT_FAMILY_THRESHOLD:
+def detect_repeat_family_guard(rows: list[dict[str, str]], mode: str) -> dict[str, str] | None:
+    mode_research = [row for row in rows if row.get("mode") == mode and is_research_row(row)]
+    if not mode_research:
         return None
-    tail = non_kept[-REPEAT_FAMILY_THRESHOLD:]
+
+    contiguous_tail: list[dict[str, str]] = []
+    for row in reversed(mode_research):
+        status = row.get("status")
+        if status in RESEARCH_SUCCESS_STATUSES:
+            break
+        if status in RESEARCH_NONKEEP_STATUSES:
+            contiguous_tail.append(row)
+
+    if len(contiguous_tail) < REPEAT_FAMILY_THRESHOLD:
+        return None
+
+    tail = list(reversed(contiguous_tail[:REPEAT_FAMILY_THRESHOLD]))
     families = {row.get("proposal_family", "unknown") for row in tail}
     families.discard("")
     if len(families) != 1:
@@ -792,7 +1034,8 @@ def detect_repeat_family_guard(rows: list[dict[str, str]]) -> dict[str, str] | N
         "iterations": iterations,
         "message": (
             f"Active repeat guard: the last {REPEAT_FAMILY_THRESHOLD} non-kept research outcomes "
-            f"({iterations}) were all {family_label(family)}. The next proposal must use a "
+            f"in `{mode}` mode since the last keep/baseline ({iterations}) were all "
+            f"{family_label(family)}. The next proposal must use a "
             "different proposal_family unless it includes repeat_exemption explaining a new "
             "mechanism and why the prior failures do not apply."
         ),
@@ -800,23 +1043,50 @@ def detect_repeat_family_guard(rows: list[dict[str, str]]) -> dict[str, str] | N
 
 
 def build_memory_dossier(rows: list[dict[str, str]], mode: str) -> str:
-    best_bpb = get_best_bpb(rows)
     total = len(rows)
-    infra_rows = [row for row in rows if is_infrastructure_row(row)]
-    research_rows = [row for row in rows if is_research_row(row)]
-    repeat_guard = detect_repeat_family_guard(rows)
+    mode_rows = [row for row in rows if row.get("mode") == mode]
+    infra_rows = [row for row in mode_rows if is_infrastructure_row(row)]
+    research_rows = [row for row in mode_rows if is_research_row(row)]
+    repeat_guard = detect_repeat_family_guard(rows, mode)
+    incumbent = get_mode_incumbent(mode)
+    frontier = load_frontier_state(mode)
 
     lines = [
         "# AutoEvolve Memory Dossier",
         "",
         f"- Mode: `{mode}`",
-        f"- Committed experiment rows: {total}",
-        f"- Infrastructure failures: {len(infra_rows)}",
-        f"- Research outcomes: {len(research_rows)}",
-        f"- Best kept val_bpb so far: {best_bpb:.4f}",
+        f"- Committed experiment rows (all modes): {total}",
+        f"- Committed experiment rows for `{mode}`: {len(mode_rows)}",
+        f"- Infrastructure failures for `{mode}`: {len(infra_rows)}",
+        f"- Research outcomes for `{mode}`: {len(research_rows)}",
         "",
         "## Read This First",
     ]
+
+    if incumbent is not None:
+        lines.append(f"- Local incumbent val_bpb for this mode: {incumbent.get('val_bpb','?')}")
+        lines.append(
+            f"- The current local incumbent for `{mode}` is from iteration #{incumbent.get('iteration','?')} "
+            f"with val_bpb={incumbent.get('val_bpb','?')} ({incumbent.get('source_status','?')})."
+        )
+    else:
+        lines.append("- Local incumbent val_bpb for this mode: not yet benchmarked")
+        lines.append("- There is no local incumbent benchmark for this mode yet.")
+
+    if frontier is not None:
+        lines.append(
+            f"- There is an active exploration frontier from iteration #{frontier.get('source_iteration','?')} "
+            f"with val_bpb={frontier.get('val_bpb','?')} and gap +{frontier.get('gap_to_incumbent','?')} "
+            f"vs incumbent; remaining continuation steps={frontier.get('remaining_steps','?')}."
+        )
+    else:
+        lines.append("- There is no active exploration frontier right now.")
+
+    other_mode_rows = total - len(mode_rows)
+    if other_mode_rows > 0:
+        lines.append(
+            f"- There are {other_mode_rows} committed rows from other run modes; treat them as secondary context, not the primary anchor for this mode."
+        )
 
     if infra_rows:
         infra_counts = Counter(row.get("status", "unknown") for row in infra_rows)
@@ -831,7 +1101,9 @@ def build_memory_dossier(rows: list[dict[str, str]], mode: str) -> str:
         lines.append("- There are no infrastructure-only failures in the committed history.")
 
     if research_rows:
-        lines.append("- Research memory should focus on family, timing, throughput risk, and failure stage.")
+        lines.append(
+            f"- Research memory for `{mode}` should focus on family, timing, throughput risk, and failure stage."
+        )
         if any(
             row.get("mode") == "legacy" and row.get("parse_status") == "legacy_import"
             for row in research_rows
@@ -930,8 +1202,10 @@ def load_prompt_template() -> str:
         return agent_file.read_text(encoding="utf-8")
     return (
         "You are an ML researcher competing in the OpenAI Parameter Golf challenge.\n"
-        "Current best val_bpb: **{{best_bpb}}**\nLeaderboard SOTA: **{{leaderboard_sota}}**\n\n"
+        "Current local incumbent val_bpb for this run mode: **{{best_bpb}}**\n"
+        "Leaderboard SOTA: **{{leaderboard_sota}}**\n\n"
         "## RUN MODE\n{{run_mode}}\n\n"
+        "## SEARCH STATE\n{{search_state}}\n\n"
         "## CURRENT TRAINING SCRIPT\n```python\n{{current_code}}\n```\n\n"
         "## MEMORY DOSSIER\n{{history}}\n\n{{repeat_guard}}\n\n## DOMAIN KNOWLEDGE\n{{program}}\n\n"
         "Return JSON with diagnosis, hypothesis, proposal_family, expected_delta, risk_assessment, "
@@ -953,6 +1227,7 @@ def build_prompt(
     iteration: int,
     mode: str,
     repeat_guard: dict[str, str] | None,
+    search_state: str,
 ) -> str:
     template = load_prompt_template()
     program = load_program()
@@ -966,6 +1241,7 @@ def build_prompt(
         .replace("{{program}}", program)
         .replace("{{iteration}}", str(iteration))
         .replace("{{run_mode}}", mode_prompt_guidance(mode))
+        .replace("{{search_state}}", search_state)
         .replace("{{repeat_guard}}", repeat_guard_text)
     )
 
@@ -1338,8 +1614,11 @@ def git_commit(msg: str) -> str:
     files_to_stage = [
         str(SCRIPT_PATH),
         str(BEST_SCRIPT_PATH),
+        str(FRONTIER_SCRIPT_PATH),
         str(RESULTS_FILE),
         str(DOSSIER_FILE),
+        str(INCUMBENT_STATE_FILE),
+        str(FRONTIER_STATE_FILE),
         str(LOGS_DIR),
     ]
     subprocess.run(["git", "add"] + files_to_stage, capture_output=True, cwd=ROOT)
@@ -1376,7 +1655,7 @@ def persist_outcome(
     commit_message: str,
     annotation_message: str,
 ) -> str:
-    """Persist results and dossier, then annotate the last row with the durable commit SHA."""
+    """Persist result files, then write the primary outcome commit SHA back into the last row."""
     rows = load_results_rows()
     write_memory_dossier(rows, mode)
     outcome_sha = git_commit(commit_message)
@@ -1462,6 +1741,125 @@ def summarize_failure_reason(
     return " | ".join(part for part in parts if part)
 
 
+def benchmark_local_incumbent(mode: str, nproc: int, branch: str) -> dict[str, str]:
+    incumbent = get_mode_incumbent(mode)
+    if incumbent is not None:
+        return incumbent
+
+    rows = load_results_rows()
+    baseline_iteration = get_iteration_count(rows) + 1
+    description = f"Baseline incumbent benchmark for {mode} mode"
+    reasoning = (
+        "Measure the incumbent script under the current run mode before any mutations so "
+        "future keep/near-miss/discard decisions compare against a real local anchor."
+    )
+
+    print(f"  No local incumbent benchmark for {mode} mode. Running baseline benchmark first...")
+    shutil.copy2(BEST_SCRIPT_PATH, SCRIPT_PATH)
+    run_result = run_experiment(BEST_SCRIPT_PATH, nproc, mode, baseline_iteration)
+    analysis_output, _ = load_run_analysis_output(run_result)
+    save_experiment_logs(baseline_iteration, run_result, analysis_output)
+    metrics = parse_experiment_output(analysis_output)
+
+    if run_result.get("timed_out") or int(run_result.get("exit_code", 0)) != 0:
+        row = build_result_row(
+            iteration=baseline_iteration,
+            mode=mode,
+            proposal_family="unknown",
+            status="crash",
+            description=description,
+            reasoning=summarize_failure_reason(reasoning, run_result, metrics),
+            metrics=metrics,
+            parse_status="baseline_timeout" if run_result.get("timed_out") else "baseline_nonzero_exit",
+            timeout_stage=clean_field(metrics.get("timeout_stage")),
+        )
+        append_result_row(row)
+        persist_outcome(
+            branch,
+            mode,
+            f"Iter {baseline_iteration}: baseline benchmark crash [{mode}]",
+            f"Annotate iter {baseline_iteration} baseline crash metadata",
+        )
+        raise RuntimeError("Baseline incumbent benchmark failed before the search loop could start.")
+
+    val_bpb = parse_float(clean_field(metrics.get("val_bpb")))
+    if val_bpb is None:
+        row = build_result_row(
+            iteration=baseline_iteration,
+            mode=mode,
+            proposal_family="unknown",
+            status="parse_error",
+            description=description,
+            reasoning=summarize_failure_reason(reasoning, run_result, metrics),
+            metrics=metrics,
+            parse_status="baseline_missing_final_metric",
+            timeout_stage=clean_field(metrics.get("timeout_stage")),
+        )
+        append_result_row(row)
+        persist_outcome(
+            branch,
+            mode,
+            f"Iter {baseline_iteration}: baseline benchmark parse_error [{mode}]",
+            f"Annotate iter {baseline_iteration} baseline parse metadata",
+        )
+        raise RuntimeError("Baseline incumbent benchmark completed without a parseable val_bpb.")
+
+    total_bytes = parse_int(clean_field(metrics.get("total_bytes")))
+    if total_bytes is not None and total_bytes > ARTIFACT_LIMIT:
+        overage = total_bytes - ARTIFACT_LIMIT
+        row = build_result_row(
+            iteration=baseline_iteration,
+            mode=mode,
+            proposal_family="unknown",
+            status="over_size",
+            description=description,
+            reasoning=f"{reasoning} | OVER_SIZE: {total_bytes} bytes (+{overage})",
+            metrics=metrics,
+            parse_status="baseline_over_size",
+        )
+        append_result_row(row)
+        persist_outcome(
+            branch,
+            mode,
+            f"Iter {baseline_iteration}: baseline benchmark over_size [{mode}]",
+            f"Annotate iter {baseline_iteration} baseline over_size metadata",
+        )
+        raise RuntimeError("Baseline incumbent benchmark exceeded the artifact limit.")
+
+    row = build_result_row(
+        iteration=baseline_iteration,
+        mode=mode,
+        proposal_family="unknown",
+        status="baseline",
+        description=description,
+        reasoning=reasoning,
+        metrics=metrics,
+        parse_status="baseline_seed",
+    )
+    append_result_row(row)
+    save_mode_incumbent(
+        mode,
+        baseline_iteration,
+        val_bpb,
+        description,
+        "unknown",
+        "baseline",
+        metrics=metrics,
+    )
+    clear_frontier_state()
+    sync_script_to_active_base(mode)
+    persist_outcome(
+        branch,
+        mode,
+        f"Iter {baseline_iteration}: baseline benchmark [{mode}]",
+        f"Annotate iter {baseline_iteration} baseline metadata",
+    )
+    incumbent = get_mode_incumbent(mode)
+    if incumbent is None:
+        raise RuntimeError("Failed to persist local incumbent benchmark state.")
+    return incumbent
+
+
 # ---------------------------------------------------------------------------
 # Main Loop
 # ---------------------------------------------------------------------------
@@ -1491,12 +1889,19 @@ def main() -> None:
     branch = DEFAULT_BRANCH
 
     rows = load_results_rows()
-    best_bpb = get_best_bpb(rows)
+    if not args.dry_run:
+        try:
+            benchmark_local_incumbent(resolved_mode, args.nproc, branch)
+        except RuntimeError as err:
+            print(f"ERROR: {err}")
+            sys.exit(1)
+        rows = load_results_rows()
+    best_bpb = current_mode_best_bpb(resolved_mode)
     iteration = get_iteration_count(rows)
     consecutive_failures = 0
     iters_this_session = 0
 
-    print(f"Starting from iteration {iteration + 1}, best BPB: {best_bpb:.4f}\n")
+    print(f"Starting from iteration {iteration + 1}, anchor BPB: {current_mode_anchor_text(resolved_mode)}\n")
 
     while True:
         if args.max_iters > 0 and iters_this_session >= args.max_iters:
@@ -1506,7 +1911,7 @@ def main() -> None:
         iters_this_session += 1
 
         print(f"\n{'=' * 70}")
-        print(f"  ITERATION {iteration}  |  Best BPB: {best_bpb:.4f}  |  Mode: {resolved_mode}")
+        print(f"  ITERATION {iteration}  |  Anchor BPB: {current_mode_anchor_text(resolved_mode)}  |  Mode: {resolved_mode}")
         print(f"{'=' * 70}")
 
         if iteration % UPSTREAM_SYNC_EVERY == 1:
@@ -1517,11 +1922,27 @@ def main() -> None:
 
         rows = load_results_rows()
         write_memory_dossier(rows, resolved_mode)
-        repeat_guard = detect_repeat_family_guard(rows)
+        repeat_guard = detect_repeat_family_guard(rows, resolved_mode)
+        best_bpb = current_mode_best_bpb(resolved_mode)
+        incumbent_state = get_mode_incumbent(resolved_mode)
+        base_path, base_kind, frontier_state = select_base_state(resolved_mode)
+        if base_path.exists():
+            shutil.copy2(base_path, SCRIPT_PATH)
 
         current_code = SCRIPT_PATH.read_text(encoding="utf-8")
         dossier = DOSSIER_FILE.read_text(encoding="utf-8")
-        prompt = build_prompt(current_code, dossier, best_bpb, iteration, resolved_mode, repeat_guard)
+        search_state = build_search_state(resolved_mode, base_kind, incumbent_state, frontier_state)
+        prompt = build_prompt(current_code, dossier, best_bpb, iteration, resolved_mode, repeat_guard, search_state)
+
+        if base_kind == "frontier" and frontier_state is not None:
+            print(
+                "  Base:       frontier "
+                f"(iter #{frontier_state.get('source_iteration','?')}, "
+                f"bpb={frontier_state.get('val_bpb','?')}, "
+                f"remaining={frontier_state.get('remaining_steps','?')})"
+            )
+        else:
+            print("  Base:       incumbent")
 
         try:
             proposal, llm_meta = propose_modification(client, args.model, prompt)
@@ -1573,6 +1994,7 @@ def main() -> None:
             f"Family: {family_label(proposal_family)} | Diagnosis: {diagnosis} | "
             f"Hypothesis: {hypothesis} | Expected: {expected}"
         )
+        reasoning += f" | Base: {base_kind}"
         if repeat_exemption:
             reasoning += f" | Repeat exemption: {repeat_exemption}"
 
@@ -1683,7 +2105,9 @@ def main() -> None:
             tail = analysis_output.strip().splitlines()[-15:]
             for line in tail:
                 print(f"    {line}")
-            SCRIPT_PATH.write_text(backup_code, encoding="utf-8")
+            if base_kind == "frontier":
+                clear_frontier_state()
+            sync_script_to_active_base(resolved_mode)
 
             failure_reason = summarize_failure_reason(
                 reasoning,
@@ -1721,7 +2145,9 @@ def main() -> None:
 
         if val_bpb is None:
             print("  Could not parse final val_bpb from output")
-            SCRIPT_PATH.write_text(backup_code, encoding="utf-8")
+            if base_kind == "frontier":
+                clear_frontier_state()
+            sync_script_to_active_base(resolved_mode)
             row = build_result_row(
                 iteration=iteration,
                 mode=resolved_mode,
@@ -1758,7 +2184,9 @@ def main() -> None:
         if total_bytes and int(total_bytes) > ARTIFACT_LIMIT:
             overage = int(total_bytes) - ARTIFACT_LIMIT
             print(f"  OVER SIZE ({int(total_bytes):,} > {ARTIFACT_LIMIT:,}, +{overage:,} bytes)")
-            SCRIPT_PATH.write_text(backup_code, encoding="utf-8")
+            if base_kind == "frontier":
+                clear_frontier_state()
+            sync_script_to_active_base(resolved_mode)
             row = build_result_row(
                 iteration=iteration,
                 mode=resolved_mode,
@@ -1780,18 +2208,35 @@ def main() -> None:
             consecutive_failures += 1
             continue
 
-        if float(val_bpb) < best_bpb:
-            delta = best_bpb - float(val_bpb)
-            print(f"  >>> IMPROVEMENT: {best_bpb:.4f} -> {float(val_bpb):.4f} (delta: -{delta:.4f}) <<<")
-            best_bpb = float(val_bpb)
+        incumbent_state = get_mode_incumbent(resolved_mode)
+        incumbent_bpb = best_bpb if incumbent_state is None else parse_float(incumbent_state.get("val_bpb")) or best_bpb
+
+        if float(val_bpb) < incumbent_bpb:
+            delta = incumbent_bpb - float(val_bpb)
+            print(
+                f"  >>> INCUMBENT IMPROVEMENT: {incumbent_bpb:.4f} -> {float(val_bpb):.4f} "
+                f"(delta: -{delta:.4f}) <<<"
+            )
             shutil.copy2(SCRIPT_PATH, BEST_SCRIPT_PATH)
+            save_mode_incumbent(
+                resolved_mode,
+                iteration,
+                float(val_bpb),
+                description,
+                proposal_family,
+                "keep",
+                metrics=metrics,
+            )
+            clear_frontier_state()
+            sync_script_to_active_base(resolved_mode)
+            best_bpb = current_mode_best_bpb(resolved_mode)
             row = build_result_row(
                 iteration=iteration,
                 mode=resolved_mode,
                 proposal_family=proposal_family,
                 status="keep",
                 description=description,
-                reasoning=reasoning,
+                reasoning=f"{reasoning} | incumbent_delta=-{delta:.4f}",
                 llm_meta=llm_meta,
                 metrics=metrics,
                 parse_status="scored_keep",
@@ -1805,33 +2250,93 @@ def main() -> None:
             )
             consecutive_failures = 0
         else:
-            print(f"  No improvement ({float(val_bpb):.4f} >= {best_bpb:.4f})")
-            SCRIPT_PATH.write_text(backup_code, encoding="utf-8")
-            row = build_result_row(
-                iteration=iteration,
-                mode=resolved_mode,
-                proposal_family=proposal_family,
-                status="discard",
-                description=description,
-                reasoning=reasoning,
-                llm_meta=llm_meta,
-                metrics=metrics,
-                parse_status="scored_discard",
+            gap = float(val_bpb) - incumbent_bpb
+            near_miss_allowed = frontier_follow_on_allowed(
+                base_kind=base_kind,
+                frontier_state=frontier_state,
+                val_bpb=float(val_bpb),
+                incumbent_bpb=incumbent_bpb,
             )
-            append_result_row(row)
-            persist_outcome(
-                branch,
-                resolved_mode,
-                f"Iter {iteration}: discard [{proposal_family}] {description[:72]}",
-                f"Annotate iter {iteration} discard metadata",
-            )
-            consecutive_failures = 0
+            if near_miss_allowed:
+                if base_kind == "frontier" and frontier_state is not None:
+                    remaining_steps = max((parse_int(frontier_state.get("remaining_steps")) or 1) - 1, 0)
+                    branch_depth = (parse_int(frontier_state.get("branch_depth")) or 0) + 1
+                else:
+                    remaining_steps = FRONTIER_CONTINUATION_STEPS
+                    branch_depth = 1
+                frontier_reasoning = f"{reasoning} | near_miss_gap=+{gap:.4f}"
+                if remaining_steps > 0:
+                    save_frontier_state(
+                        mode=resolved_mode,
+                        iteration=iteration,
+                        val_bpb=float(val_bpb),
+                        incumbent_bpb=incumbent_bpb,
+                        proposal_family=proposal_family,
+                        description=description,
+                        base_kind=base_kind,
+                        remaining_steps=remaining_steps,
+                        branch_depth=branch_depth,
+                    )
+                    print(
+                        f"  Near miss (+{gap:.4f} vs incumbent); "
+                        f"saved as active frontier with {remaining_steps} continuation steps."
+                    )
+                else:
+                    clear_frontier_state()
+                    print(
+                        f"  Near miss (+{gap:.4f} vs incumbent), but frontier budget is exhausted. "
+                        "Returning to incumbent."
+                    )
+                sync_script_to_active_base(resolved_mode)
+                row = build_result_row(
+                    iteration=iteration,
+                    mode=resolved_mode,
+                    proposal_family=proposal_family,
+                    status="near_miss",
+                    description=description,
+                    reasoning=frontier_reasoning,
+                    llm_meta=llm_meta,
+                    metrics=metrics,
+                    parse_status="scored_near_miss",
+                )
+                append_result_row(row)
+                persist_outcome(
+                    branch,
+                    resolved_mode,
+                    f"Iter {iteration}: near_miss [{proposal_family}] {description[:72]}",
+                    f"Annotate iter {iteration} near_miss metadata",
+                )
+                consecutive_failures = 0
+            else:
+                print(f"  No incumbent improvement ({float(val_bpb):.4f} >= {incumbent_bpb:.4f})")
+                if base_kind == "frontier":
+                    clear_frontier_state()
+                sync_script_to_active_base(resolved_mode)
+                row = build_result_row(
+                    iteration=iteration,
+                    mode=resolved_mode,
+                    proposal_family=proposal_family,
+                    status="discard",
+                    description=description,
+                    reasoning=f"{reasoning} | incumbent_gap=+{gap:.4f}",
+                    llm_meta=llm_meta,
+                    metrics=metrics,
+                    parse_status="scored_discard",
+                )
+                append_result_row(row)
+                persist_outcome(
+                    branch,
+                    resolved_mode,
+                    f"Iter {iteration}: discard [{proposal_family}] {description[:72]}",
+                    f"Annotate iter {iteration} discard metadata",
+                )
+                consecutive_failures = 0
 
         time.sleep(2)
 
     print(f"\n{'=' * 70}")
     print(f"  Auto-evolve finished after {iteration} iterations")
-    print(f"  Best val_bpb: {best_bpb:.4f}")
+    print(f"  Anchor BPB:    {current_mode_anchor_text(resolved_mode)}")
     print(f"  Best script:  {BEST_SCRIPT_PATH}")
     print(f"  Results log:  {RESULTS_FILE}")
     print(f"  Dossier:      {DOSSIER_FILE}")

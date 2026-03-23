@@ -10,11 +10,14 @@ Train the best possible language model under these STRICT constraints:
 - New SOTA must beat existing by >= 0.005 nats with p<0.01 statistical significance.
 - Cannot access validation data during training ("paid prefix" is banned).
 
-Current best val_bpb: **{{best_bpb}}**
+Current local incumbent val_bpb for this run mode: **{{best_bpb}}**
 Leaderboard SOTA: **{{leaderboard_sota}}**
 
 ## RUN MODE
 {{run_mode}}
+
+## SEARCH STATE
+{{search_state}}
 
 ## CURRENT TRAINING SCRIPT
 You have COMPLETE FREEDOM to change ANYTHING in this script: the architecture,
@@ -61,6 +64,9 @@ curriculum learning, TTT, distillation, novel quantization, embedding tricks, et
 Prefer ideas with strong theoretical backing AND practical evidence at small scale.
 In scout mode, completed low-overhead probes are better than ambitious ideas that
 never finish.
+- If the base script for this iteration is an exploratory frontier, only continue
+  building on it if you can clearly explain why the combination can close the
+  remaining gap to the incumbent. Otherwise pivot back toward a cleaner incumbent-based idea.
 
 **Step 4 -- Estimate the gain**: What BPB improvement do you expect? Show your work.
 If your honest estimate is < -0.001, pick something bolder — marginal tweaks are
