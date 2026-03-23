@@ -75,6 +75,7 @@ class Hyperparameters:
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
     mlp_mult: int = int(os.environ.get("MLP_MULT", 3))
+    mlp_hidden: int = int(os.environ.get("MLP_HIDDEN", 1408))
     tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     logit_chunk_tokens: int = int(os.environ.get("LOGIT_CHUNK_TOKENS", 0))
@@ -409,10 +410,9 @@ def fake_quantize(w: mx.array, bits: int = 6) -> mx.array:
 
 
 class MLP(nn.Module):
-    # Baseline MLP uses relu^2 instead of GELU/SiLU. It is cheap and works well in this setup.
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0):
         super().__init__()
-        hidden = dim * mlp_mult
+        hidden = mlp_hidden if mlp_hidden > 0 else dim * mlp_mult
         self.fc = CastedLinear(dim, hidden)
         self.proj = CastedLinear(hidden, dim)
 
@@ -424,12 +424,12 @@ class MLP(nn.Module):
 class Block(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  rope_base: float, qk_gain_init: float, rope_dims: int = 64,
-                 layer_idx: int = 0, ln_scale: bool = False):
+                 layer_idx: int = 0, ln_scale: bool = False, mlp_hidden: int = 0):
         super().__init__()
         self.attn_norm = RMSNormNoWeight()
         self.mlp_norm = RMSNormNoWeight()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, mlp_hidden)
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
@@ -468,7 +468,8 @@ class GPT(nn.Module):
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
                  qk_gain_init: float, qat_enabled: bool = False, qat_bits: int = 6,
                  rope_dims: int = 16, ln_scale: bool = True, xsa_last_n: int = 4,
-                 ve_enabled: bool = False, ve_dim: int = 128, ve_layers: str = ""):
+                 ve_enabled: bool = False, ve_dim: int = 128, ve_layers: str = "",
+                 mlp_hidden: int = 0):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
@@ -489,7 +490,7 @@ class GPT(nn.Module):
         self.ve_scales = [mx.array(0.1, dtype=mx.float32) for _ in range(num_layers)]  # per-layer VE scale
         self.blocks = [
             Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
-                  rope_dims=rope_dims, layer_idx=i, ln_scale=ln_scale)
+                  rope_dims=rope_dims, layer_idx=i, ln_scale=ln_scale, mlp_hidden=mlp_hidden)
             for i in range(num_layers)
         ]
         self.final_norm = RMSNormNoWeight()
@@ -756,17 +757,17 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
         scales[name] = s
         dtypes[name] = str(arr.dtype).split(".")[-1]
         stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
-    # Int6 step rounding on ALL quantized block/VE weights
+    # Int6 step rounding on layers 1-9 (keep 0 and 10 at int8)
     for name in list(quantized.keys()):
-        if "blocks." in name or "ve." in name:
+        if "blocks." not in name:
+            continue
+        try:
+            layer_num = int(name.split("blocks.")[1].split(".")[0])
+        except (ValueError, IndexError):
+            continue
+        if 1 <= layer_num <= 9:
             t = quantized[name].astype(np.float32)
             quantized[name] = np.clip(np.round(t / 4) * 4, -127, 127).astype(np.int8)
-    # 10% magnitude pruning
-    for name in list(quantized.keys()):
-        t = quantized[name]
-        threshold = int(np.quantile(np.abs(t).astype(np.float32), 0.10))
-        if threshold > 0:
-            quantized[name] = np.where(np.abs(t) > threshold, t, np.zeros_like(t))
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_mixed_per_row_v1",
@@ -1076,6 +1077,7 @@ def main() -> None:
         ve_enabled=args.ve_enabled,
         ve_dim=args.ve_dim,
         ve_layers=args.ve_layers,
+        mlp_hidden=args.mlp_hidden,
     )
     opt = SplitOptimizers(model, args)
 
