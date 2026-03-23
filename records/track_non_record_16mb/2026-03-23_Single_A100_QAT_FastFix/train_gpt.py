@@ -29,22 +29,14 @@ try:
     import lz4.frame
 except ImportError:
     pass
-    
-import os
-_COMPRESSOR = os.environ.get("COMPRESSOR", _COMPRESSOR)
-import numba
 
-try:
-    import lz4.frame
-except ImportError:
-    pass
-
-import os
 _COMPRESSOR = os.environ.get("COMPRESSOR", _COMPRESSOR)
 
-import numba
-import numba
-from numba import njit
+if _COMPRESSOR == "zstd" and "zstandard" not in sys.modules:
+    raise RuntimeError("COMPRESSOR=zstd requested but zstandard module is not available.")
+if _COMPRESSOR == "lz4" and "lz4.frame" not in sys.modules:
+    raise RuntimeError("COMPRESSOR=lz4 requested but lz4.frame module is not available.")
+
 import sentencepiece as spm
 import torch
 import torch.distributed as dist
@@ -419,11 +411,6 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
 # DATA LOADING
 # -----------------------------
 
-@njit
-def fast_byte_parse(data_bytes):
-    # This is just a placeholder example to fulfill the numba requirement for fast processing
-    pass
-
 def load_data_shard(file: Path) -> Tensor:
     with open(file, "rb") as f:
         data = bytearray(f.read())
@@ -521,7 +508,12 @@ class CastedLinear(nn.Linear):
         if _USE_FP8 and w.ndim == 2:
             # We must compile for proper scaled_mm, handling simple scaling
             # For simplicity in this challenge, we just cast to BF16 or try crude e4m3
-            pass
+            # FP8 path is not implemented in this training script.
+            # Fail fast instead of silently ignoring USE_FP8 to avoid confusing behavior.
+            raise RuntimeError(
+                "USE_FP8=1 was set, but the FP8 path in CastedLinear is not implemented "
+                "in this script. Please unset USE_FP8 or implement FP8 handling."
+            )
 
         w = w.to(x.dtype)
         bias = self.bias.to(x.dtype) if self.bias is not None else None

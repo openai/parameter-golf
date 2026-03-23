@@ -7,10 +7,9 @@ We also constrained the gradient accum sizing from multi-GPU scales down to 131K
 
 ## Results
 * **Hardware:** 1x A100 (80GB)
-* **Epoch Length:** 10 Minutes (Wallclock Cap - 2600 iterations)
+* **Training Loop Length:** 10 Minutes (Wallclock Cap - 2600 iterations; excludes final sliding-window evaluation)
+* **End-to-End Runtime (Training + Final Sliding-Window Eval):** ~33 Minutes (per `train.log`)
 * **Validation BPB:** `1.4078`
 * **Artifact Size:** `15.77 MB` (int6 + zstd)
-
-* **Author:** Shuvam Banerji Seal (https://github.com/Shuvam-Banerji-Seal)
 
 * **Author:** Shuvam Banerji Seal (https://github.com/Shuvam-Banerji-Seal)
