@@ -1349,25 +1349,29 @@ class GPT(nn.Module):
 
         v0 = None  # Value Residual: cache layer-0's raw V
         if self.hyper_connections:
-            # Static-shape hyper-connections: all tensors padded to max_slots
+            # Hyper-connections: learned mixing of all prior layer outputs.
+            # Uses list + pad to avoid in-place mutation (breaks autograd) while
+            # keeping static shapes for torch.compile via zero-padding + -inf masks.
             num_layers = len(self.blocks)
             max_s = self.hyper_max_slots
-            # Pre-allocate output buffer: (max_slots, bsz, seq_len, dim)
-            all_outputs = torch.zeros(max_s, x.size(0), x.size(1), x.size(2), dtype=x.dtype, device=x.device)
-            all_outputs[0] = x  # slot 0 = initial embedding
+            zero_pad = torch.zeros_like(x)  # (bsz, seq, dim)
+            outputs_list: list[Tensor] = [x]  # layer outputs collected here
             for i in range(num_layers):
+                # Pad to max_slots with zeros, stack into static-shape tensor
+                padded = outputs_list + [zero_pad] * (max_s - len(outputs_list))
+                stacked = torch.stack(padded, dim=0)  # (max_slots, bsz, seq, dim)
                 alpha = self.hyper_alpha[i].to(dtype=x.dtype)
                 mask = self.hyper_masks[i].to(dtype=x.dtype, device=x.device)
                 if self.hyper_conn_mode == "vector":
                     w = torch.softmax(alpha + mask, dim=0)  # (max_slots, dim)
-                    x_in = (w[:, None, None, :] * all_outputs).sum(dim=0)
+                    x_in = (w[:, None, None, :] * stacked).sum(dim=0)
                 else:
                     w = torch.softmax(alpha + mask, dim=0)  # (max_slots,)
-                    x_in = (w[:, None, None, None] * all_outputs).sum(dim=0)
+                    x_in = (w[:, None, None, None] * stacked).sum(dim=0)
                 x_in, raw_v = self.blocks[i](x_in, x0, v_embed=_get_ve(i), v0=v0)
                 if v0 is None and raw_v is not None:
                     v0 = raw_v
-                all_outputs[i + 1] = x_in
+                outputs_list.append(x_in)
             x = x_in
         elif self.unet_skips:
             skips: list[Tensor] = []
@@ -1427,21 +1431,23 @@ class GPT(nn.Module):
         if self.hyper_connections:
             num_layers = len(self.blocks)
             max_s = self.hyper_max_slots
-            all_outputs = torch.zeros(max_s, x.size(0), x.size(1), x.size(2), dtype=x.dtype, device=x.device)
-            all_outputs[0] = x
+            zero_pad = torch.zeros_like(x)
+            outputs_list: list[Tensor] = [x]
             for i in range(num_layers):
+                padded = outputs_list + [zero_pad] * (max_s - len(outputs_list))
+                stacked = torch.stack(padded, dim=0)
                 alpha = self.hyper_alpha[i].to(dtype=x.dtype)
                 mask = self.hyper_masks[i].to(dtype=x.dtype, device=x.device)
                 if self.hyper_conn_mode == "vector":
                     w = torch.softmax(alpha + mask, dim=0)
-                    x_in = (w[:, None, None, :] * all_outputs).sum(dim=0)
+                    x_in = (w[:, None, None, :] * stacked).sum(dim=0)
                 else:
                     w = torch.softmax(alpha + mask, dim=0)
-                    x_in = (w[:, None, None, None] * all_outputs).sum(dim=0)
+                    x_in = (w[:, None, None, None] * stacked).sum(dim=0)
                 x_in, raw_v = self.blocks[i](x_in, x0, v0=v0)
                 if v0 is None and raw_v is not None:
                     v0 = raw_v
-                all_outputs[i + 1] = x_in
+                outputs_list.append(x_in)
             x = x_in
         elif self.unet_skips:
             skips: list[Tensor] = []
