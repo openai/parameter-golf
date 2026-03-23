@@ -982,13 +982,14 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
 # FULL-WEIGHT TTT (AdamW adaptation on validation data)
 # -----------------------------
 
-def eval_ttt_backward_looking(
+def eval_ttt_online(
     args, base_model, device, val_tokens,
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
     rank=0, world_size=1, log_fn=None,
 ):
-    """Backward-looking TTT: score first, then train on scored tokens.
-    Returns (val_loss, val_bpb) where BPB comes from online scoring."""
+    """Single-pass online TTT: score each batch, then train on it.
+    Each token is scored EXACTLY ONCE before any training on it.
+    Returns (val_loss, val_bpb) from online scoring."""
     seq_len = args.train_seq_len
     total_seqs = (val_tokens.numel() - 1) // seq_len
     batch_seqs = args.ttt_batch_size
@@ -1005,34 +1006,33 @@ def eval_ttt_backward_looking(
 
     base_model.train()
     t0 = time.perf_counter()
+    n_batches = 0
 
-    for epoch in range(args.ttt_epochs):
-        for batch_start in range(my_start, my_end, batch_seqs):
-            batch_end = min(batch_start + batch_seqs, my_end)
-            raw_start = batch_start * seq_len
-            raw_end = batch_end * seq_len + 1
-            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
-            x = local[:-1].reshape(-1, seq_len)
-            y = local[1:].reshape(-1, seq_len)
+    for batch_start in range(my_start, my_end, batch_seqs):
+        batch_end = min(batch_start + batch_seqs, my_end)
+        raw_start = batch_start * seq_len
+        raw_end = batch_end * seq_len + 1
+        local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
 
-            # 1) SCORE: compute per-token NLL with current model (no grad needed for scoring)
-            if epoch == args.ttt_epochs - 1:  # Only score on final epoch
-                with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    logits = base_model.forward_logits(x)
-                nll = F.cross_entropy(
-                    logits.reshape(-1, logits.size(-1)).float(),
-                    y.reshape(-1), reduction="none",
-                ).reshape(-1, seq_len).to(torch.float64)
-                loss_sum += nll.sum()
-                token_count += float(y.numel())
-                # BPB byte counting
-                prev_ids = x.reshape(-1)
-                tgt_ids = y.reshape(-1)
-                tok_bytes = base_bytes_lut[tgt_ids].to(torch.float64)
-                tok_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.float64)
-                byte_sum += tok_bytes.sum()
+        # 1) SCORE: compute per-token NLL with current (adapted) model
+        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            logits = base_model.forward_logits(x)
+        nll = F.cross_entropy(
+            logits.reshape(-1, logits.size(-1)).float(),
+            y.reshape(-1), reduction="none",
+        ).to(torch.float64)
+        loss_sum += nll.sum()
+        token_count += float(y.numel())
+        prev_ids = x.reshape(-1)
+        tgt_ids = y.reshape(-1)
+        tok_bytes = base_bytes_lut[tgt_ids].to(torch.float64)
+        tok_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.float64)
+        byte_sum += tok_bytes.sum()
 
-            # 2) TRAIN: adapt on these already-scored tokens
+        # 2) TRAIN: adapt on these just-scored tokens (multiple steps for deeper adaptation)
+        for _ in range(args.ttt_epochs):
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 loss = base_model(x, y)
@@ -1044,9 +1044,11 @@ def eval_ttt_backward_looking(
             torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
             optimizer.step()
 
-        elapsed = time.perf_counter() - t0
-        if log_fn:
-            log_fn(f"ttt_epoch:{epoch+1}/{args.ttt_epochs} time:{elapsed:.1f}s")
+        n_batches += 1
+        if n_batches % 20 == 0 and log_fn:
+            elapsed = time.perf_counter() - t0
+            running_bpb = float((loss_sum / math.log(2.0)) / byte_sum) if byte_sum > 0 else 0
+            log_fn(f"ttt_online: batch={n_batches} running_bpb={running_bpb:.4f} time={elapsed:.1f}s")
 
     for p in base_model.parameters():
         p.requires_grad_(True)
@@ -1059,7 +1061,7 @@ def eval_ttt_backward_looking(
     val_loss = (loss_sum / token_count).item()
     val_bpb = float((loss_sum / math.log(2.0)) / byte_sum)
     if log_fn:
-        log_fn(f"ttt:done val_loss={val_loss:.4f} val_bpb={val_bpb:.4f} elapsed={time.perf_counter()-t0:.1f}s")
+        log_fn(f"ttt_online:done val_loss={val_loss:.4f} val_bpb={val_bpb:.4f} elapsed={time.perf_counter()-t0:.1f}s")
     return val_loss, val_bpb
 
 def main() -> None:
@@ -1507,7 +1509,7 @@ def main() -> None:
             block.attn.rotary._seq_len_cached = 0
         log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs}")
         t_ttt = time.perf_counter()
-        ttt_val_loss, ttt_val_bpb = eval_ttt_backward_looking(
+        ttt_val_loss, ttt_val_bpb = eval_ttt_online(
             args, eval_model, device, val_tokens,
             base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             rank=rank, world_size=world_size, log_fn=log0,
