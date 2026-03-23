@@ -1046,9 +1046,10 @@ def eval_ttt_perdoc(
 ):
     """Per-document backward-looking LoRA TTT with batched processing.
 
+    Legal chunk-major loop: for each chunk, SCORE first (no grad), then
+    train N steps. Each token scored exactly once before any training on it.
     Batches documents by similar length, processes chunks in parallel.
-    Each doc has independent LoRA weights (lm_head only).
-    Score chunk → train LoRA → next chunk → reset at doc boundary.
+    Each doc batch has independent LoRA weights (Q/V + lm_head).
     """
     all_tokens = val_tokens.to(device=device, dtype=torch.int64)
     bos_positions = (all_tokens == BOS_ID).nonzero(as_tuple=True)[0].cpu().numpy()
@@ -1124,35 +1125,33 @@ def eval_ttt_perdoc(
                 doc_info.append((co, cl))
             chunk_data.append((x, y, doc_info, active, context_size))
 
-        # Multi-epoch: train on all chunks for N-1 epochs, score on final epoch
-        for epoch in range(args.ttt_epochs):
-            is_scoring_epoch = (epoch == args.ttt_epochs - 1)
-            for ci, (x, y, doc_info, active, context_size) in enumerate(chunk_data):
-                # SCORE on final epoch
-                if is_scoring_epoch:
-                    with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        ptl = base_model(x, y, lora=cur_lora)
-                    with torch.no_grad():
-                        for b in range(bsz):
-                            if not active[b]:
-                                continue
-                            co, cl = doc_info[b]
-                            if cl <= 0:
-                                continue
-                            scored_nll = ptl[b, co:co + cl].to(torch.float64)
-                            loss_sum += scored_nll.sum()
-                            token_count += float(cl)
-                            tgt = y[b, co:co + cl]
-                            prev = x[b, co:co + cl]
-                            tok_bytes = base_bytes_lut[tgt].to(torch.float64)
-                            tok_bytes += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-                            byte_sum += tok_bytes.sum()
+        # Chunk-major: SCORE each chunk first, then train N steps (legal backward-looking)
+        for ci, (x, y, doc_info, active, context_size) in enumerate(chunk_data):
+            # SCORE first — model has NOT been trained on this chunk yet
+            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                ptl = base_model(x, y, lora=cur_lora)
+            with torch.no_grad():
+                for b in range(bsz):
+                    if not active[b]:
+                        continue
+                    co, cl = doc_info[b]
+                    if cl <= 0:
+                        continue
+                    scored_nll = ptl[b, co:co + cl].to(torch.float64)
+                    loss_sum += scored_nll.sum()
+                    token_count += float(cl)
+                    tgt = y[b, co:co + cl]
+                    prev = x[b, co:co + cl]
+                    tok_bytes = base_bytes_lut[tgt].to(torch.float64)
+                    tok_bytes += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                    byte_sum += tok_bytes.sum()
 
-                # TRAIN on all epochs (including scoring epoch — backward-looking)
+            # TRAIN N steps on this chunk (after scoring — legal)
+            mask = torch.tensor([float(active[b]) for b in range(bsz)], device=device)
+            for _step in range(args.ttt_epochs):
                 cur_opt.zero_grad(set_to_none=True)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                     ptl_train = base_model(x, y, lora=cur_lora)
-                mask = torch.tensor([float(active[b]) for b in range(bsz)], device=device)
                 per_doc_loss = ptl_train[:, :context_size].mean(dim=-1)
                 train_loss = (per_doc_loss * mask).sum() / max(mask.sum(), 1)
                 train_loss.backward()
