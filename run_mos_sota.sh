@@ -153,6 +153,7 @@ export VE_LAYERS="9,10"
 export USE_MOS
 export MOS_K
 export SEED
+export DISABLE_COMPILE="${DISABLE_COMPILE:-1}"  # Disable torch.compile by default (fixes inductor issues)
 
 log "Starting training..."
 log "Log file: ${LOG_PATH}"

@@ -30,6 +30,10 @@ import sentencepiece as spm
 import torch
 import torch._dynamo
 torch._dynamo.config.optimize_ddp = False  # Required for FA3 + torch.compile backward pass
+# Disable torch.compile if environment variable is set (fixes inductor issues on some systems)
+_DISABLE_COMPILE = bool(int(os.environ.get("DISABLE_COMPILE", "0")))
+if _DISABLE_COMPILE:
+    torch._dynamo.config.suppress_errors = True
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
@@ -1075,7 +1079,7 @@ def eval_val_sliding(
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    compiled_logits = base_model.forward_logits if _DISABLE_COMPILE else torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     _use_nll = getattr(base_model, 'returns_log_probs', False)
 
     with torch.inference_mode():
@@ -1220,7 +1224,8 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    if not _DISABLE_COMPILE:
+        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -1344,7 +1349,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = base_model if _DISABLE_COMPILE else torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
@@ -1690,7 +1695,7 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    compiled_eval = eval_model if _DISABLE_COMPILE else torch.compile(eval_model, dynamic=False, fullgraph=True)
 
     # Standard non-overlapping eval (sanity check)
     torch.cuda.synchronize()
