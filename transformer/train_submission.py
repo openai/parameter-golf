@@ -1558,6 +1558,10 @@ def main() -> None:
     quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
+    # Save quantized model for fast eval-only iterations
+    if master_process:
+        torch.save({"quantized": quant_result, "meta": quant_meta}, "final_int6_model.pt")
+        log0(f"Saved quantized model to final_int6_model.pt")
     quant_raw = quant_buf.getvalue()
     quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw) if _COMPRESSOR == "zstd" else zlib.compress(quant_raw, 9)
     if master_process:
