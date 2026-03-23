@@ -23,6 +23,7 @@ image = (
         "datasets",
         "tiktoken",
         "sentencepiece",
+        "zstandard",
     )
     .apt_install("git")
     .run_commands(
