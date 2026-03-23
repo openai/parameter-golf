@@ -1,0 +1,13 @@
+{
+    "name": "Reproduce414_LegalTTT",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "track": "10min_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "val_bpb": null,
+    "bytes_total": null,
+    "bytes_code": null,
+    "blurb": "Reproduction of PR #414 (11L EMA+XSA+PartialRoPE+LNScale+VE128+GPTQ-lite+QAT@0.15, 1.1233 baseline) with legal score-first TTT from PR #461/#473 protocol (SGD+momentum, 3 epochs/32K chunk, freeze blocks 0-1)."
+}
