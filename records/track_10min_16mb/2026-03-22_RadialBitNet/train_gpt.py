@@ -119,6 +119,24 @@ class FRO(torch.optim.Optimizer):
         return loss
 
 # -----------------------------
+# 1.5 DISTRIBUTED SETUP (8xH100 READY)
+# -----------------------------
+def setup_distributed():
+    if 'RANK' in os.environ:
+        dist.init_process_group(backend='nccl')
+        rank = int(os.environ['RANK'])
+        local_rank = int(os.environ['LOCAL_RANK'])
+        world_size = int(os.environ['WORLD_SIZE'])
+        torch.cuda.set_device(local_rank)
+        device = torch.device('cuda', local_rank)
+    else:
+        rank = 0
+        local_rank = 0
+        world_size = 1
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    return device, rank, local_rank, world_size
+
+# -----------------------------
 # 2. ARCHITECTURE: RADIAL BITNET
 # -----------------------------
 class RadialEncoding(nn.Module):
@@ -306,7 +324,7 @@ def eval_val(args, model, device, val_tokens, base_bytes_lut, has_space_lut, bou
     total_seqs = (val_tokens.numel() - 1) // seq_len
     
     with torch.inference_mode():
-        for i in range(min(10, total_seqs)): # Evaluate on subset for rapid script testing
+        for i in range(total_seqs): # FULL validation set evaluation as per rules
             raw_start = i * seq_len
             raw_end = (i + 1) * seq_len + 1
             local = val_tokens[raw_start:raw_end].to(device)
@@ -363,28 +381,39 @@ def export_and_check_size(model, filename="golf_model.zst"):
     import pickle
     raw_bytes = pickle.dumps(q_state)
     compressed = zlib.compress(raw_bytes, level=9)
-    mb_size = len(compressed) / (1024 * 1024)
+    
+    # OpenAI Rule: artifact = code bytes + compressed model bytes <= 16,000,000 decimal bytes
+    code_bytes = Path(__file__).read_bytes()
+    total_bytes = len(code_bytes) + len(compressed)
+    
     print(f"\n📦 Artifact Size Audit:")
-    print(f"- Parameters: {sum(p.numel() for p in model.parameters()) / 1e6:.1f} M")
-    print(f"- Compressed Size: {mb_size:.2f} MB")
-    if mb_size <= 16.0:
-        print("✅ QUALIFIED FOR PARAMETER GOLF! (<16MB)")
+    print(f"- Source Code: {len(code_bytes)} bytes")
+    print(f"- Compressed Model: {len(compressed)} bytes")
+    print(f"- Total Artifact: {total_bytes} bytes")
+    
+    if total_bytes <= 16000000:
+        print("✅ QUALIFIED FOR PARAMETER GOLF! (<= 16,000,000 bytes)")
     else:
-        print(f"❌ TOO LARGE! Exceeds 16MB by {mb_size - 16.0:.2f} MB. Reduce layers/dim.")
+        print(f"❌ TOO LARGE! Exceeds 16MB limit by {total_bytes - 16000000} bytes.")
 
 # -----------------------------
 # TRAINING LOOP
 # -----------------------------
 def main():
-    import sys
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
     args = Hyperparameters()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"✨ Initializing Radial-BitNet for Parameter Golf (Constraint: 16MB)")
+    
+    device, rank, local_rank, world_size = setup_distributed()
+    if rank == 0:
+        print(f"✨ Initializing Radial-BitNet for Parameter Golf (Constraint: 16MB)")
     
     model = ParameterGolfBitNet(args).to(device)
-    export_and_check_size(model)
+    if world_size > 1:
+        model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
+    
+    if rank == 0:
+        export_and_check_size(model)
     
     optimizer = FRO(model.parameters(), lr=1e-3, gamma=0.8) # Aggressive FRO for 10-min run
     
@@ -414,7 +443,10 @@ def main():
     step = 0
     while time.time() - start_time < max_time:
         chunk_size = batch_size * args.train_seq_len
-        start_token = (step * chunk_size) % max(1, (train_tokens.numel() - chunk_size - 1))
+        # Rank-aware sharding: each GPU starts at a unique offset or uses a unique jump
+        total_available = max(1, (train_tokens.numel() - chunk_size - 1))
+        offset_per_rank = total_available // world_size
+        start_token = (rank * offset_per_rank + step * chunk_size * world_size) % total_available
         chunk = train_tokens[start_token : start_token + chunk_size + 1]
         
         # Fallback to random if dataset failed to load (Mocking)
@@ -435,16 +467,17 @@ def main():
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
         
-        if step % 50 == 0:
+        if step % 50 == 0 and rank == 0:
             val_l, val_bpb = eval_val(args, model, device, val_tokens, base_bytes, has_space, boundary)
             elapsed = time.time() - start_time
             print(f"Step {step:04d} | Time {elapsed:.0f}s | Train Loss: {loss.item():.4f} | Val BPB: {val_bpb:.4f} ⛳")
             
         step += 1
         
-    print("\n⏰ 10-Minute training time budget exhausted. Validating final model...")
-    val_l, val_bpb = eval_val(args, model, device, val_tokens, base_bytes, has_space, boundary)
-    print(f"FINAL RESULT | Val BPB: {val_bpb:.4f} 🏆")
+    if rank == 0:
+        print("\n⏰ 10-Minute training time budget exhausted. Validating final model...")
+        val_l, val_bpb = eval_val(args, model, device, val_tokens, base_bytes, has_space, boundary)
+        print(f"FINAL RESULT | Val BPB: {val_bpb:.4f} 🏆")
 
 if __name__ == "__main__":
     main()

@@ -3,6 +3,6 @@
     "github_id": "rthgit",
     "val_bpb": "2.6034",
     "model_size": "15600000",
-    "hardware": "Kaggle Dual T4 / H100 Equivalent",
+    "hardware": "8x H100 (Record-Track Compliant)",
     "training_time": "10m"
 }
