@@ -157,12 +157,8 @@ export DISABLE_COMPILE="${DISABLE_COMPILE:-1}"  # Disable torch.compile by defau
 
 log "Starting training..."
 log "Log file: ${LOG_PATH}"
-nohup torchrun --standalone --nproc_per_node="${GPU_COUNT}" "${TRAIN_SCRIPT}" > "${LOG_PATH}" 2>&1 &
-TRAIN_PID=$!
-log "Training launched in background (PID: ${TRAIN_PID}). Safe to disconnect."
-log "Monitor with: tail -f ${LOG_PATH}"
-wait ${TRAIN_PID}
-TRAIN_EXIT=$?
+torchrun --standalone --nproc_per_node="${GPU_COUNT}" "${TRAIN_SCRIPT}" 2>&1 | tee "${LOG_PATH}"
+TRAIN_EXIT=${PIPESTATUS[0]}
 
 log "Training finished (exit code: ${TRAIN_EXIT}). Key metrics:"
 grep -E 'val_bpb|model_params|mos_params|final_int|submission|Serialized|artifact|swa:' "${LOG_PATH}" | tail -20 || true
