@@ -71,6 +71,7 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 3))
+    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 0))  # override mlp_mult*dim if > 0
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -415,20 +416,17 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
-    # Int6 step rounding on ALL quantized block weights (not just middle layers).
-    # PR #374 applies int6 to everything except embeddings. Step=4 → 64 levels.
+    # Int6 step rounding on layers 1-9 (keep 0 and 10 at int8 for input/output quality)
     for name in list(quantized.keys()):
-        if "blocks." in name or "ve." in name:
+        if "blocks." not in name:
+            continue
+        try:
+            layer_num = int(name.split("blocks.")[1].split(".")[0])
+        except (ValueError, IndexError):
+            continue
+        if 1 <= layer_num <= 9:
             t = quantized[name]
             quantized[name] = ((t.float() / 4).round() * 4).clamp(-127, 127).to(torch.int8)
-
-    # 10% magnitude pruning: zero the smallest weights for better compression.
-    # PR #389 shows ~500KB savings with minimal quality impact.
-    for name in list(quantized.keys()):
-        t = quantized[name]
-        threshold = int(t.abs().float().quantile(0.10).item())
-        if threshold > 0:
-            quantized[name] = t.where(t.abs() > threshold, torch.zeros_like(t))
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_mixed_per_row_v1",
@@ -663,10 +661,11 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, dim, mlp_mult):
+    def __init__(self, dim, mlp_mult, mlp_hidden=0):
         super().__init__()
-        self.fc = CastedLinear(dim, mlp_mult * dim, bias=False)
-        self.proj = CastedLinear(mlp_mult * dim, dim, bias=False)
+        hidden = mlp_hidden if mlp_hidden > 0 else mlp_mult * dim
+        self.fc = CastedLinear(dim, hidden, bias=False)
+        self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
     def forward(self, x):
         return self.proj(torch.relu(self.fc(x)).square())
@@ -674,12 +673,12 @@ class MLP(nn.Module):
 
 class Block(nn.Module):
     def __init__(self, dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
-                 rope_dims=0, layer_idx=0, ln_scale=False):
+                 rope_dims=0, layer_idx=0, ln_scale=False, mlp_hidden=0):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, mlp_hidden)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -718,7 +717,8 @@ class GPT(nn.Module):
         self.ve_scales = nn.ParameterList([nn.Parameter(torch.tensor(0.1)) for _ in range(nl)])
         self.blocks = nn.ModuleList([
             Block(d, args.num_heads, args.num_kv_heads, args.mlp_mult, args.rope_base,
-                  args.qk_gain_init, rope_dims=args.rope_dims, layer_idx=i, ln_scale=args.ln_scale)
+                  args.qk_gain_init, rope_dims=args.rope_dims, layer_idx=i, ln_scale=args.ln_scale,
+                  mlp_hidden=args.mlp_hidden)
             for i in range(nl)
         ])
         self.final_norm = RMSNorm()
