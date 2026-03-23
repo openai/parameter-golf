@@ -32,7 +32,6 @@ class Hyperparameters:
     mlp_mult = 3  # Wide MLPs offset BitNet capacity reduction
 
     train_seq_len = 1024
-    val_batch_size = 524_288
     val_loss_every = 1000
     iterations = 20000
 
@@ -305,8 +304,11 @@ def load_validation_tokens(pattern: str, seq_len: int) -> torch.Tensor:
 def load_training_tokens(pattern: str, seq_len: int) -> torch.Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
-        print(f"Warning: No training files found.")
-        return torch.zeros(seq_len * 2 + 1, dtype=torch.int64)
+        if os.environ.get("ALLOW_MOCK", "0") == "1":
+            print(f"Warning: No training files found. Mocking...")
+            return torch.zeros(seq_len * 2 + 1, dtype=torch.int64)
+        else:
+            raise RuntimeError(f"ABORTING: Record-track execution REQUIRES training data files. No shards found for {pattern}")
     # ONLY load the first shard (100M tokens = ~800MB RAM) to completely avoid Kaggle Notebook CPU OOM!
     # A 10 minute training run will only consume ~80M tokens anyway.
     print(f"Loading single dataset shard to protect Kaggle RAM: {files[0]}")
@@ -476,10 +478,13 @@ def main():
         start_token = (rank * offset_per_rank + step * chunk_size * world_size) % total_available
         chunk = train_tokens[start_token : start_token + chunk_size + 1]
         
-        # Fallback to random if dataset failed to load (Mocking)
+        # Hard Failure for insufficient data (Fix Point 1-2)
         if chunk.numel() < chunk_size + 1:
-            x = torch.randint(0, args.vocab_size, (batch_size, args.train_seq_len)).to(device)
-            y = torch.randint(0, args.vocab_size, (batch_size, args.train_seq_len)).to(device)
+            if os.environ.get("ALLOW_MOCK", "0") == "1":
+                x = torch.randint(0, args.vocab_size, (batch_size, args.train_seq_len)).to(device)
+                y = torch.randint(0, args.vocab_size, (batch_size, args.train_seq_len)).to(device)
+            else:
+                raise RuntimeError(f"ABORTING: Insufficient training data for chunk at start_token {start_token}. Check dataset integrity.")
         else:
             x = chunk[:-1].reshape(batch_size, args.train_seq_len).to(device, non_blocking=True)
             y = chunk[1:].reshape(batch_size, args.train_seq_len).to(device, non_blocking=True)
@@ -518,6 +523,10 @@ def main():
         print(f"FINAL RESULT | Val BPB: {val_bpb:.4f} 🏆")
         # Final Physical Audit (Fix Point 1)
         export_and_check_size(model)
+    
+    # Distributed Cleanup (Fix Point 3)
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
 if __name__ == "__main__":
     main()
