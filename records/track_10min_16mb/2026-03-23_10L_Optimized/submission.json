@@ -1,8 +1,8 @@
 {
-  "name": "10L Optimized",
-  "val_loss": 1.14765559,
+  "name": "10L Optimized + LoRA TTT",
+  "val_loss": 1.1039,
   "bytes_total": 15749040,
-  "blurb": "10 layers, mixed int5/int6, improved activations, enhanced embeddings, EMA. Mean of 1 seed.",
+  "blurb": "10 layers, mixed int5/int6, per-doc LoRA adaptation. Base 1.148, with TTT 1.104.",
   "author": "hypery11",
   "github_id": "hypery11",
   "date": "2026-03-23"
