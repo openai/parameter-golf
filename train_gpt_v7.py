@@ -991,7 +991,9 @@ def eval_val_sliding_ttt(
             base_model.train()
             chunk_seqs = (chunk_end - chunk_start) // seq_len
             if chunk_seqs > 0:
-                cur_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(args.ttt_max_train_chunks - 1, 1)))
+                ttt_warmup = int(os.environ.get("TTT_WARMUP_CHUNKS", 0))
+                cosine_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(args.ttt_max_train_chunks - 1, 1)))
+                cur_lr = cosine_lr * min(1.0, (ci + 1) / max(ttt_warmup, 1)) if ttt_warmup > 0 else cosine_lr
                 for pg in optimizer.param_groups:
                     pg['lr'] = cur_lr
                 ms, me = (chunk_seqs * rank) // world_size, (chunk_seqs * (rank + 1)) // world_size
