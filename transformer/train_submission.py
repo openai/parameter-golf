@@ -1784,28 +1784,8 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    # Full-weight TTT: adapt on validation data before eval
-    if args.ttt_enabled:
-        CastedLinear._qat_enabled = False  # Disable QAT during TTT
-        CastedLinear._soft_tau = 1000.0
-        if distributed:
-            dist.barrier()
-        for block in eval_model.blocks:
-            block.attn.rotary._cos_cached = None
-            block.attn.rotary._sin_cached = None
-            block.attn.rotary._seq_len_cached = 0
-        log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs}")
-        t_ttt = time.perf_counter()
-        ttt_val_loss, ttt_val_bpb = eval_ttt_perdoc(
-            args, eval_model, device, val_tokens,
-            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            rank=rank, world_size=world_size, log_fn=log0,
-        )
-        log0(f"ttt:elapsed={time.perf_counter() - t_ttt:.1f}s")
-        log0(f"final_ttt_backward val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f}")
-        log0(f"final_ttt_backward_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
-        if distributed:
-            dist.barrier()
+    CastedLinear._qat_enabled = False
+    CastedLinear._soft_tau = 1000.0
     compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
@@ -1853,6 +1833,22 @@ def main() -> None:
         )
         log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
         log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+    # Legal score-first TTT (PR#461/549 recipe)
+    if args.ttt_enabled:
+        if distributed:
+            dist.barrier()
+        log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs} chunks={args.ttt_chunk_tokens}")
+        t_ttt = time.perf_counter()
+        ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+            args, eval_model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            stride=64, batch_seqs=32, log_fn=log0,
+        )
+        log0(f"ttt:elapsed={time.perf_counter() - t_ttt:.1f}s")
+        log0(f"final_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f}")
+        log0(f"final_ttt_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
+        if distributed:
+            dist.barrier()
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
