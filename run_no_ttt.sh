@@ -24,6 +24,7 @@ export TRIGRAM_HASH=1
 export BIGRAM_HASH_BUCKETS=8192
 export TRAIN_BATCH_TOKENS=786432
 export GRAD_CLIP_NORM=0.0
+export MLP_HIDDEN=1792
 
 # Match PR #414: EMA + Tight SWA, no QAT
 export EMA_ENABLED=1
@@ -37,14 +38,14 @@ export TTT_CAUSAL=0
 export SEED=${1:-1337}
 export RUN_TAG="no_ttt_$(date +%Y%m%d_%H%M%S)"
 
-# Clean env — do NOT unset EMA_ENABLED, SWA, QAT, VE_ENABLED, WARMDOWN_ITERS
-unset MLP_HIDDEN QUANT_BITS RUN_ID TIER2_MODE BIGRAM_HASH_BUCKETS \
+# Clean env — only unset things we DON'T explicitly set above
+unset QUANT_BITS RUN_ID TIER2_MODE \
   BACKOUT LAYER_DROP HEAD_DROP EVAL_TEMPERATURE \
-  MLP_QUANT_BITS USE_FA3 TRAIN_BATCH_TOKENS PRUNE_PCT \
+  MLP_QUANT_BITS USE_FA3 PRUNE_PCT \
   REPTILE_TTT TTT_TWO_PHASE TTT_EPOCHS TTT_MAX_STEPS
 
 echo "=== NO TTT (SLIDING WINDOW EVAL) ==="
-echo "SEED=$SEED stride=64 EMA=1 SWA=1 QAT=0 VR=1 GA=1 PERLAYER_LR=1 STAR_RELU=1 TRIGRAM=1 batch=786K bigram=8192 noclip"
+echo "SEED=$SEED stride=64 EMA=1 SWA=1 QAT=0 VR=1 GA=1 PERLAYER_LR=1 STAR_RELU=1 TRIGRAM=1 MLP=1792 batch=786K bigram=8192 noclip"
 echo "====================================="
 
 torchrun --standalone --nproc_per_node=8 \
