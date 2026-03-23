@@ -1,0 +1,5 @@
+[STAGE 1/4] run=d5282d0d | 8×H100 | hparams: {'num_layers': 10, 'train_seq_len': 4096, 'eval_stride': 64, 'warmdown_iters': 3600, 'mlp_mult': 3, 'seed': 7}
+[STAGE 2/4] run=d5282d0d | Env built. DATA_PATH=/data/datasets/fineweb10B_sp1024
+[STAGE 3/4] run=d5282d0d | Data: 81 shards | tokenizer=OK
+[STAGE 4/4] run=d5282d0d | Launching torchrun 8×H100 ...
+[RESULT] run=d5282d0d | score=1.1750 | size=15,711,843B | ✓ fits 16MB | OK | 988s
