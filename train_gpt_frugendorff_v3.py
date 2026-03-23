@@ -45,10 +45,10 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 6))
     num_loops = int(os.environ.get("NUM_LOOPS", 2))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 5))
-    model_dim = int(os.environ.get("MODEL_DIM", 640))
-    num_heads = int(os.environ.get("NUM_HEADS", 10))
-    mlp_mult = float(os.environ.get("MLP_MULT", 4.0))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    num_heads = int(os.environ.get("NUM_HEADS", 8))
+    mlp_mult = float(os.environ.get("MLP_MULT", 4.5))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -75,7 +75,7 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 8192))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))  # XSA on last 4 layers (0 = disabled)
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
@@ -87,8 +87,8 @@ class Hyperparameters:
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
     # Legal score-first TTT eval (PR #461 recipe)
     ttt_eval_enabled = bool(int(os.environ.get("TTT_EVAL_ENABLED", "1")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 10))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
     ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
@@ -595,12 +595,12 @@ class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = int(mlp_mult * dim)
-        self.fc = CastedLinear(dim, hidden, bias=False)
+        self.w1 = CastedLinear(dim, hidden, bias=False)
+        self.w2 = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
-        return self.proj(x.square())
+        return self.proj(F.silu(self.w1(x)) * self.w2(x))
 class Block(nn.Module):
     def __init__(
         self,
@@ -938,7 +938,7 @@ def eval_val_sliding_ttt(
         else:
             p.requires_grad_(True); ttt_params.append(p)
     log0(f"ttt_sliding:unfrozen={sum(p.numel() for p in ttt_params)} freeze_embed={args.ttt_freeze_embed}")
-    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
     # TTT-EMA: maintain smoothed weights for scoring
     ema_decay = args.ttt_ema_decay
     ema_state = None
