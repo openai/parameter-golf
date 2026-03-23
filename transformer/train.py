@@ -88,6 +88,7 @@ class Hyperparameters:
     moe_num_experts = int(os.environ.get("MOE_NUM_EXPERTS", 0))  # 0=dense, >0=MoE
     moe_top_k = int(os.environ.get("MOE_TOP_K", 2))
     focal_gamma = float(os.environ.get("FOCAL_GAMMA", 0.0))  # 0=standard CE, >0=focal loss
+    entropy_reg = float(os.environ.get("ENTROPY_REG", 0.0))  # artifact-aware entropy regularization
 
     # Sliding window evaluation.
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
@@ -112,6 +113,15 @@ class Hyperparameters:
     ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.1))
     ttt_burst_steps = int(os.environ.get("TTT_BURST_STEPS", 100))
     ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.2))
+
+    # Entropy regularization during QAT: penalize high entropy of quantized weight distributions.
+    # Lower entropy → weights cluster at fewer int6 levels → better zstd compression.
+    entropy_lambda = float(os.environ.get("ENTROPY_LAMBDA", 0.0))          # 0 = disabled
+    entropy_tau_start = float(os.environ.get("ENTROPY_TAU_START", 3.0))    # soft bins early in QAT
+    entropy_tau_end = float(os.environ.get("ENTROPY_TAU_END", 0.3))        # sharp bins late in QAT
+    entropy_subsample = int(os.environ.get("ENTROPY_SUBSAMPLE", 4096))     # elements per matrix
+    entropy_ramp_frac = float(os.environ.get("ENTROPY_RAMP_FRAC", 0.5))   # fraction of QAT to ramp λ
+    entropy_log_probe_every = int(os.environ.get("ENTROPY_LOG_PROBE", 500))  # compressed size probe freq
 
     # BigramHash + SmearGate
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
@@ -614,6 +624,113 @@ def apply_ste_int6(model: nn.Module) -> None:
             row_max = param.data.abs().amax(dim=-1, keepdim=True)
             scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
             param.data.copy_(torch.clamp(torch.round(param.data / scale), -32, 31) * scale)
+
+
+# _classify_param is defined below (used by apply_ste_int6 above and by entropy functions).
+# Forward-declared usage is fine because apply_ste_int6 is only called at runtime.
+
+# -----------------------------
+# ENTROPY-REGULARIZED QAT
+# -----------------------------
+
+_INT6_BINS: Tensor | None = None  # lazily created on first use
+
+
+def _get_int6_bins(device: torch.device) -> Tensor:
+    """Return cached int6 bin centers [-32, -31, ..., +31] on the given device."""
+    global _INT6_BINS
+    if _INT6_BINS is None or _INT6_BINS.device != device:
+        _INT6_BINS = torch.arange(-32, 32, dtype=torch.float32, device=device)
+    return _INT6_BINS
+
+
+def soft_entropy_penalty(model: nn.Module, temperature: float, subsample: int) -> Tensor:
+    """Differentiable entropy of quantized weight distributions over int6 levels.
+
+    For each eligible weight matrix, subsamples elements, normalizes to int6 index
+    space (per-row scale), soft-assigns to 64 bins, and computes Shannon entropy.
+    Lower entropy = weights cluster at fewer distinct levels = better zstd compression.
+
+    Returns: scalar tensor (mean entropy across matrices), with gradients flowing
+    back through the weight parameters.
+    """
+    total_entropy = torch.tensor(0.0, device=next(model.parameters()).device)
+    n_matrices = 0
+    inv_2tau2 = 1.0 / (2.0 * temperature * temperature)
+
+    for name, param in model.named_parameters():
+        cat = _classify_param(name)
+        if cat not in ("mlp", "attn"):
+            continue
+        if param.ndim < 2 or param.numel() <= 65536:
+            continue
+
+        # Per-row scale (same as int6 quantization)
+        row_max = param.abs().amax(dim=-1, keepdim=True)
+        scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+
+        # Normalize to int6 index space: values in ~[-32, 32]
+        w_norm = param / scale
+
+        # Subsample (strided, deterministic) for efficiency
+        w_flat = w_norm.reshape(-1)
+        stride = max(1, w_flat.numel() // subsample)
+        w_sub = w_flat[::stride][:subsample]  # (S,) where S <= subsample
+
+        # Soft assignment to 64 int6 bins
+        bins = _get_int6_bins(w_sub.device)  # (64,)
+        diff_sq = (w_sub.unsqueeze(-1) - bins.unsqueeze(0)).square()  # (S, 64)
+        soft_assign = F.softmax(-diff_sq * inv_2tau2, dim=-1)  # (S, 64)
+
+        # Aggregate to soft probability distribution and compute entropy
+        p = soft_assign.mean(dim=0)  # (64,)
+        entropy = -(p * (p + 1e-10).log()).sum()
+        total_entropy = total_entropy + entropy
+        n_matrices += 1
+
+    return total_entropy / max(n_matrices, 1)
+
+
+@torch.no_grad()
+def compute_weight_entropy_stats(model: nn.Module) -> tuple[float, dict[str, float]]:
+    """Non-differentiable: compute actual entropy of int6-quantized weight distributions.
+
+    Returns (mean_entropy, per_layer_dict).
+    """
+    entropies: dict[str, float] = {}
+    for name, param in model.named_parameters():
+        cat = _classify_param(name)
+        if cat not in ("mlp", "attn"):
+            continue
+        if param.ndim < 2 or param.numel() <= 65536:
+            continue
+        row_max = param.abs().amax(dim=-1, keepdim=True)
+        scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+        q = torch.clamp(torch.round(param / scale), -32, 31)
+        # Histogram of int6 indices (shift to [0, 63])
+        q_shifted = (q + 32).reshape(-1).float()
+        hist = torch.histc(q_shifted, bins=64, min=0, max=63)
+        p = hist / hist.sum()
+        p = p[p > 0]
+        entropy = -(p * p.log()).sum().item()
+        entropies[name] = entropy
+    mean_ent = sum(entropies.values()) / max(len(entropies), 1)
+    return mean_ent, entropies
+
+
+@torch.no_grad()
+def compute_compressed_size_probe(model: nn.Module) -> int:
+    """Quickly estimate compressed artifact size using fast zstd/zlib compression."""
+    sd = {k: v.detach().cpu() for k, v in model.state_dict().items()}
+    quant_result, quant_meta = mixed_quantize_int6(sd, {"mlp", "attn"})
+    buf = io.BytesIO()
+    torch.save({"result": quant_result, "meta": quant_meta}, buf)
+    raw = buf.getvalue()
+    if _COMPRESSOR == "zstd":
+        compressed = zstandard.ZstdCompressor(level=10).compress(raw)
+    else:
+        compressed = zlib.compress(raw, level=6)
+    return len(compressed)
 
 
 # -----------------------------
@@ -1814,9 +1931,31 @@ def main() -> None:
                     train_loader._ttt_buffer.pop(0)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
+            # Artifact-aware entropy regularization: penalize quantization residuals
+            # to encourage weight distributions that compress well
+            if args.entropy_reg > 0 and scale < args.qat_threshold:
+                ent_penalty = torch.tensor(0.0, device=device)
+                for p in base_model.parameters():
+                    if p.ndim == 2 and p.numel() > 1024:
+                        s = (p.abs().amax(dim=1, keepdim=True) / 31.0).clamp_min(1e-7).detach()
+                        residual = p - torch.round(p / s).detach() * s
+                        ent_penalty = ent_penalty + residual.pow(2).mean()
+                loss = loss + args.entropy_reg * ent_penalty
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
+
+        # Entropy-regularized QAT: add differentiable entropy penalty to encourage
+        # weight distributions that compress well under zstd.
+        qat_active = args.qat_threshold > 0 and scale < args.qat_threshold
+        ent_loss_val = 0.0
+        if qat_active and args.entropy_lambda > 0:
+            qat_progress = 1.0 - scale / args.qat_threshold  # 0 at QAT start → 1 at end
+            effective_lambda = args.entropy_lambda * min(1.0, qat_progress / max(args.entropy_ramp_frac, 1e-8))
+            tau = args.entropy_tau_start + (args.entropy_tau_end - args.entropy_tau_start) * qat_progress
+            ent_loss = soft_entropy_penalty(base_model, tau, args.entropy_subsample)
+            ent_loss_val = ent_loss.detach().item()
+            (effective_lambda * ent_loss).backward()
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -1862,10 +2001,21 @@ def main() -> None:
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
         )
         if should_log_train:
-            log0(
+            log_msg = (
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
+            # Entropy monitoring during QAT phase
+            if qat_active:
+                mean_ent, _ = compute_weight_entropy_stats(base_model)
+                log_msg += f" weight_entropy:{mean_ent:.3f}"
+                if ent_loss_val > 0:
+                    log_msg += f" ent_loss:{ent_loss_val:.3f}"
+                # Periodic compressed size probe (expensive, every N steps)
+                if args.entropy_log_probe_every > 0 and step % args.entropy_log_probe_every == 0:
+                    probe_bytes = compute_compressed_size_probe(base_model)
+                    log_msg += f" compressed_probe:{probe_bytes}"
+            log0(log_msg)
 
         # Needed to sync whether we've reached the wallclock cap.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
