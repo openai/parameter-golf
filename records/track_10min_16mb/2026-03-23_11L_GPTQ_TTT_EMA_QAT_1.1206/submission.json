@@ -1,0 +1,18 @@
+{
+  "author": "frosty40",
+  "github_id": "newjordan",
+  "model_name": "11L_GPTQ_EarlyQAT_TTT_EMA",
+  "description": "11L/512d/8H/4KV/3xMLP + GPTQ (Hessian-aware int6 with column reordering) + early QAT (percentile-matched clipping) + legal score-first TTT with EMA scoring (3-seed mean val_bpb: 1.1215)",
+  "val_loss": 1.89207582,
+  "val_bpb": 1.12059684,
+  "bytes_total": 15564772,
+  "track": "10min_16mb",
+  "seed": 1337,
+  "seeds": {
+    "1337": {"val_bpb": 1.12059684, "val_loss": 1.89207582},
+    "42": {"val_bpb": 1.12178348, "val_loss": 1.89407941},
+    "7": {"val_bpb": 1.12214237, "val_loss": 1.89468537}
+  },
+  "mean_val_bpb": 1.12150756,
+  "std_val_bpb": 0.00082
+}
