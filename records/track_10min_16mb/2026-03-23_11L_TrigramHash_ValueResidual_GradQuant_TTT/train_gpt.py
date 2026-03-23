@@ -1,12 +1,6 @@
 """
-11L EMA + AdamW TTT + TrigramHash + Value Residual + Gradient-Guided Quantization
-
-Built on PR #398/#442 baseline with three novel additions:
-1. TrigramHash(4096): hash-based trigram embeddings extending BigramHash to 3-token context
-2. Value Residual (ResFormer, arXiv:2410.17897): cache V from layer 0, blend into all layers
-3. Gradient-Guided Quantization: adaptive Int5/6/7 per-tensor based on gradient sensitivity
-
-Mean val_bpb: 1.1132 (3 seeds), best: 1.1101
+train_gpt_submit.py — Submission v2: wider MLP + STE int6 QAT + MTP + seq2048 + NTK RoPE +
+fp16 embed + late-K passthrough + sliding window eval.
 """
 
 from __future__ import annotations
@@ -117,18 +111,18 @@ class Hyperparameters:
     # TTT (Test-Time Training)
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 10))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 30))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
-    # TrigramHash embedding (3-token context via hash table)
+    # TrigramHash (our unique addition)
     trigram_vocab_size = int(os.environ.get("TRIGRAM_VOCAB_SIZE", 4096))
     trigram_dim = int(os.environ.get("TRIGRAM_DIM", 128))
-    # Value Residual (ResFormer, arXiv:2410.17897)
+    # Value Residual (from PR #413, ResFormer — -0.015 BPB for 18 params)
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))
-    # Gradient-Guided Adaptive Quantization
+    # Gradient-Guided Quantization (from PR #332)
     grad_quant = bool(int(os.environ.get("GRAD_QUANT", "1")))
 
 # -----------------------------
@@ -1199,10 +1193,12 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
 # -----------------------------
 
 def ttt_adapt(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn=None):
-    """Full-weight TTT: SGD adaptation on val data with DDP across all GPUs."""
+    """Full-weight TTT with cosine LR decay and per-layer LR (from PR #481)."""
     seq_len = args.train_seq_len
     total_seqs = (val_tokens.numel() - 1) // seq_len
     batch_seqs = args.ttt_batch_seqs
+    ttt_cosine = bool(int(os.environ.get("TTT_COSINE", "1")))
+    ttt_perlayer = bool(int(os.environ.get("TTT_PERLAYER", "1")))
 
     frozen_params = set()
     if args.ttt_freeze_blocks > 0:
@@ -1212,24 +1208,62 @@ def ttt_adapt(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn
                     p.requires_grad_(False)
                     frozen_params.add(id(p))
 
-    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+    # Per-layer LR: MLP output projections get 3× LR (most quant damage),
+    # MLP input projections get 0.5× LR (least damage)
     ttt_use_adamw = bool(int(os.environ.get("TTT_ADAMW", "1")))
-    if ttt_use_adamw:
-        optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
+    if ttt_perlayer:
+        proj_params = [p for n, p in base_model.named_parameters()
+                      if "mlp.proj" in n and p.requires_grad and id(p) not in frozen_params]
+        fc_params = [p for n, p in base_model.named_parameters()
+                    if "mlp.fc" in n and p.requires_grad and id(p) not in frozen_params]
+        other_params = [p for p in base_model.parameters()
+                       if p.requires_grad and id(p) not in frozen_params
+                       and id(p) not in {id(q) for q in proj_params + fc_params}]
+        param_groups = [g for g in [
+            {"params": proj_params, "lr": args.ttt_lr * 3.0},
+            {"params": fc_params, "lr": args.ttt_lr * 0.5},
+            {"params": other_params, "lr": args.ttt_lr},
+        ] if g["params"]]
+        ttt_params = proj_params + fc_params + other_params
     else:
-        optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+        ttt_params = [p for p in base_model.parameters() if p.requires_grad and id(p) not in frozen_params]
+        param_groups = [{"params": ttt_params, "lr": args.ttt_lr}]
+
+    if ttt_use_adamw:
+        optimizer = torch.optim.AdamW(param_groups, weight_decay=0.0)
+    else:
+        optimizer = torch.optim.SGD(param_groups, momentum=args.ttt_momentum)
+
+    # Store initial LR for cosine schedule
+    if ttt_cosine:
+        for g in optimizer.param_groups:
+            g["initial_lr"] = g["lr"]
 
     my_start = (total_seqs * rank) // world_size
     my_end = (total_seqs * (rank + 1)) // world_size
+    steps_per_epoch = (my_end - my_start) // max(batch_seqs, 1)
+    total_steps = args.ttt_epochs * steps_per_epoch
+    global_step = 0
 
     base_model.train()
     t0 = time.perf_counter()
+
+    if log_fn:
+        n_ttt = sum(p.numel() for p in ttt_params)
+        log_fn(f"ttt:config params:{n_ttt} cosine:{ttt_cosine} perlayer:{ttt_perlayer}")
 
     for epoch in range(args.ttt_epochs):
         epoch_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
         epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
 
         for batch_start in range(my_start, my_end, batch_seqs):
+            # Cosine LR decay
+            if ttt_cosine and total_steps > 0:
+                progress = global_step / total_steps
+                mul = 0.5 * (1.0 + math.cos(math.pi * min(progress, 1.0)))
+                for g in optimizer.param_groups:
+                    g["lr"] = g["initial_lr"] * mul
+
             batch_end = min(batch_start + batch_seqs, my_end)
             raw_start = batch_start * seq_len
             raw_end = batch_end * seq_len + 1
@@ -1252,6 +1286,7 @@ def ttt_adapt(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn
 
             epoch_loss_sum += loss.detach().to(torch.float64) * y.numel()
             epoch_tokens += float(y.numel())
+            global_step += 1
 
         if world_size > 1:
             dist.all_reduce(epoch_loss_sum, op=dist.ReduceOp.SUM)
