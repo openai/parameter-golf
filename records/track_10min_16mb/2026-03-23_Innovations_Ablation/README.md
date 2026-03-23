@@ -153,9 +153,18 @@ Root cause: the `forward_logits_cached` path likely has incompatibilities beyond
 - Our per-layer LR technique cited in 4 competition PRs
 - Key missing technique vs #505: wider MLP (blocked by 16MB cap) and full MHA (8 KV heads)
 
+### Innovation F: Progressive Layer Freezing — SHELVED
+
+**Result:** 1.5486 BPB (vs 1.1496 baseline) — catastrophic regression.
+
+**Root cause:** On 1xH100, the wallclock-based warmdown formula produced `scale=0.2369` at step 1 (below the 0.3 threshold), so the encoder froze immediately. The model trained for 987 steps with only decoder layers active. Invalid test.
+
+**8xH100 reverse-engineering:** On 8xH100 at 71ms/step, scale would hit 0.3 at step ~7400 out of ~8454. The freeze would only be active for the last ~1050 steps, saving ~32s of backward time = ~450 extra steps (5% more). But those steps have a frozen encoder while the decoder evolves, creating an EMA mismatch.
+
+**Verdict:** The step-time savings are too small when the freeze triggers late enough to be safe. Freezing earlier (threshold=0.5) risks the encoder not being done learning. The mechanism is mathematically marginal for our architecture — at most ±0.002 BPB. **Shelved.**
+
 ### Still Running (1xH100 pods)
 
-- **F: Progressive Layer Freezing** — freeze encoder during warmdown for more decoder-focused steps
 - **G: Hyper-Connections scalar** — learned mixing of all prior layer outputs
 - **H: Hyper-Connections vector** — per-dim mixing weights
 
@@ -175,10 +184,18 @@ checkpoints/pod_runs/
 │   ├── final_model_neural_cache_20260323_145307.pt
 │   ├── final_model_neural_cache_20260323_145307.int8.ptz
 │   └── neural_cache_run4.txt
-└── qat_notrigram_run5/                         # Run 5: QAT=1 trigram=0, 1.1492 BPB
-    ├── final_model_qat_notrigram_20260323_154446.pt
-    ├── final_model_qat_notrigram_20260323_154446.int8.ptz
-    └── qat_notrigram_run5.txt
+├── qat_notrigram_run5/                         # Run 5: QAT=1 trigram=0, 1.1492 BPB
+│   ├── final_model_qat_notrigram_20260323_154446.pt
+│   ├── final_model_qat_notrigram_20260323_154446.int8.ptz
+│   └── qat_notrigram_run5.txt
+├── no_ttt_run6/                                # Run 6: sigmoid gates + dec2x LR, 1.1635 BPB (REGRESSION)
+│   ├── final_model_no_ttt_20260323_161030.pt
+│   ├── final_model_no_ttt_20260323_161030.int8.ptz
+│   └── no_ttt_run6.txt
+└── freeze_F_run7/                              # Run 7: Progressive Freeze, 1.5486 BPB (SHELVED)
+    ├── final_model_freeze_F_20260323_155839.pt
+    ├── final_model_freeze_F_20260323_155839.int8.ptz
+    └── freeze_F_run7.txt
 ```
 
 ## Commit History
