@@ -569,22 +569,31 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 # LATE QAT: STE INT6 FAKE-QUANTIZATION
 # -----------------------------
 
-def _ste_int6_fakequant(t: Tensor) -> Tensor:
-    """Straight-through estimator for int6 per-row quantization.
+_STE_TAU = 1.0  # global temperature for soft rounding (annealed during training)
 
-    Forward: quantize to int6 and dequantize (simulates quantization noise).
-    Backward: gradient passes through unchanged (straight-through).
-    Uses symmetric [-31, 31] range to match final GPTQ-lite quantization.
+def _ste_int6_fakequant(t: Tensor) -> Tensor:
+    """Soft-to-hard int6 quantizer with temperature-controlled rounding.
+
+    Uses soft rounding for gradients (interpolates between floor/ceil),
+    hard rounding for forward values. Temperature tau controls sharpness:
+    - High tau (early QAT): soft gradients, broad exploration
+    - Low tau (late QAT): near-hard, weights snap to grid points
     """
     if t.ndim < 2 or not t.is_floating_point():
         return t
-    with torch.no_grad():
-        row_max = t.abs().amax(dim=-1, keepdim=True)
-        scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
-        q = torch.clamp(torch.round(t / scale), -31, 31)
-        t_dequant = q * scale
-    # STE: use dequantized value in forward, but gradient flows through t
-    return t + (t_dequant - t).detach()
+    row_max = t.abs().amax(dim=-1, keepdim=True).detach()
+    scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+    x = t / scale
+    # Hard quantized value (forward)
+    q_hard = torch.clamp(torch.round(x), -31, 31)
+    # Soft interpolation (backward) — sigmoid between floor and ceil
+    x_floor = x.floor()
+    frac = x - x_floor
+    p = torch.sigmoid((frac - 0.5) / max(_STE_TAU, 0.01))
+    q_soft = torch.clamp(x_floor + p, -31, 31)
+    # STE: hard forward, soft backward
+    q = q_hard.detach() + (q_soft - q_soft.detach())
+    return q * scale
 
 
 def apply_ste_int6(model: nn.Module) -> None:
@@ -1519,7 +1528,11 @@ def main() -> None:
             opt.step()
 
         # Late QAT: project weights to int6 grid after optimizer step
+        # Anneal soft-rounding temperature from 1.0 → 0.01 during QAT phase
         if args.qat_threshold > 0 and scale < args.qat_threshold:
+            global _STE_TAU
+            qat_progress = 1.0 - (scale / args.qat_threshold)  # 0→1 as QAT progresses
+            _STE_TAU = max(0.01, 1.0 - 0.99 * qat_progress)  # 1.0 → 0.01
             apply_ste_int6(base_model)
 
         # EMA: update running average every step (on GPU)
