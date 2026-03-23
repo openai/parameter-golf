@@ -193,6 +193,12 @@ class Hyperparameters:
     fc_lr_mult = float(os.environ.get("FC_LR_MULT", "0.7"))       # multiplier for mlp.fc (low quant damage)
     ck_lr_mult = float(os.environ.get("CK_LR_MULT", "1.0"))       # multiplier for attn.c_k (highest quant damage in attention)
     decoder_lr_mult = float(os.environ.get("DECODER_LR_MULT", "2.0"))  # decoder layers get higher lr (PR #505)
+    # Late Training Replay (PR #445): buffer last N batches during warmdown, replay 2 epochs at 10% LR
+    late_replay = bool(int(os.environ.get("LATE_REPLAY", "0")))
+    late_replay_epochs = int(os.environ.get("LATE_REPLAY_EPOCHS", "2"))
+    late_replay_lr_factor = float(os.environ.get("LATE_REPLAY_LR_FACTOR", "0.1"))  # 10% of base LR
+    late_replay_buffer_size = int(os.environ.get("LATE_REPLAY_BUFFER_SIZE", "100"))  # last N batches
+    late_replay_threshold = float(os.environ.get("LATE_REPLAY_THRESHOLD", "0.2"))  # start buffering when scale < this
     neural_cache = bool(int(os.environ.get("NEURAL_CACHE", "0")))  # cross-window KV caching at eval time
     neural_cache_max_len = int(os.environ.get("NEURAL_CACHE_MAX_LEN", 8192))  # max cached KV length per layer
     neural_cache_no_pos_offset = bool(int(os.environ.get("NEURAL_CACHE_NO_POS_OFFSET", "0")))  # keep pos_offset=0 to avoid OOD positions
@@ -2875,6 +2881,10 @@ def main() -> None:
     # GradQuant: accumulate gradient sensitivity during late warmdown for adaptive quantization
     grad_sensitivity: dict[str, float] = {}
     grad_sensitivity_active = False
+
+    # Late Training Replay: buffer training batches during warmdown
+    replay_buffer: list[tuple[Tensor, Tensor]] = []
+    replay_buffering = False
     freeze_active = False
 
     step = 0
@@ -2925,6 +2935,15 @@ def main() -> None:
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
+
+        # Late Replay: buffer training batches during warmdown
+        if args.late_replay and scale < args.late_replay_threshold:
+            if not replay_buffering:
+                replay_buffering = True
+                log0(f"late_replay:buffering started step:{step} scale:{scale:.3f}")
+            replay_buffer.append((x.detach().clone(), y.detach().clone()))
+            if len(replay_buffer) > args.late_replay_buffer_size:
+                replay_buffer.pop(0)  # FIFO: keep last N
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -3025,6 +3044,38 @@ def main() -> None:
     # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
+
+    # Late Training Replay: replay buffered batches at low LR before EMA application
+    if args.late_replay and replay_buffer:
+        log0(f"late_replay:start epochs={args.late_replay_epochs} buffer={len(replay_buffer)} lr_factor={args.late_replay_lr_factor}")
+        model.train()
+        replay_lr_factor = args.late_replay_lr_factor
+        for epoch in range(args.late_replay_epochs):
+            epoch_loss = 0.0
+            for bx, by in replay_buffer:
+                zero_grad_all()
+                # Set LR to base_lr * replay_lr_factor for all optimizer groups
+                for opt in optimizers:
+                    for group in opt.param_groups:
+                        group["lr"] = group["base_lr"] * replay_lr_factor
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    loss = model(bx, by)
+                loss.backward()
+                if args.grad_clip_norm > 0:
+                    torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+                for opt in optimizers:
+                    opt.step()
+                epoch_loss += loss.detach().item()
+                # EMA updated during replay (critical: PR #445 does this)
+                if ema_state is not None:
+                    d = args.ema_decay
+                    with torch.no_grad():
+                        for k, v in base_model.state_dict().items():
+                            ema_state[k].mul_(d).add_(v.detach().float(), alpha=1.0 - d)
+            log0(f"late_replay:epoch {epoch+1}/{args.late_replay_epochs} avg_loss={epoch_loss / len(replay_buffer):.4f}")
+        zero_grad_all()
+        del replay_buffer
+        log0("late_replay:done")
 
     # Logit Ensemble: save pre-EMA checkpoint for later ensemble eval
     ensemble_raw_state = None
