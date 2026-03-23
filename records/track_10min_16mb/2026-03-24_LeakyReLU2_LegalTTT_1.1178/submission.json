@@ -1,0 +1,10 @@
+{
+  "author": "royi",
+  "github_id": "royira",
+  "name": "Record: Late Soft-Round QAT + Score-First Backward-Looking TTT 3-seed mean val_bpb 1.1178",
+  "blurb": "LeakyReLU(0.5)² activation + legal score-first TTT (SGD, cosine decay, 32K chunks). Built on PR#414 stack (11L, XSA4, Partial RoPE 16/64, LN Scale, VE128, EMA, SWA, SmearGate, BigramHash 3072, int6+zstd).",
+  "date": "2026-03-24T00:00:00Z",
+  "val_loss": 1.88731039,
+  "val_bpb": 1.11777448,
+  "bytes_total": 15752363
+}
