@@ -1,0 +1,10 @@
+{
+  "name": "12L Gradient-Guided Quant + Partial RoPE + LN Scale + EMA + XSA4",
+  "val_loss": 1.9116,
+  "val_bpb": 1.1321,
+  "bytes_total": 15652352,
+  "blurb": "12 layers funded by gradient-guided adaptive quantization (int5/int6/int7 per-tensor based on gradient sensitivity). Partial RoPE (16/64 dims), LN Scale (1/sqrt(layer+1)), XSA on last 4 layers, EMA (0.997). Key finding: Late QAT is counterproductive at 12L — throughput cost exceeds quant improvement.",
+  "author": "samuellarson",
+  "github_id": "saml212",
+  "date": "2026-03-21"
+}
