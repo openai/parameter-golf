@@ -1,0 +1,19 @@
+{
+  "author": "Raahil Shah",
+  "github_id": "raahilshah",
+  "name": "11L LeakyReLU² + Full GPTQ + QAT Alignment",
+  "blurb": "LeakyReLU(0.5)² activation prevents dead neurons and doubles effective MLP capacity. Hessian-aware GPTQ quantization reduces int6 quant gap by 31%. QAT-export alignment via quantile(0.9995) clipping ensures STE matches the export quantizer. Built on 11L stack with EMA(0.997), Tight SWA, XSA4, VE128, Partial RoPE 16/64, LN Scale, SmearGate, BigramHash(2048), U-Net skips, int6+zstd-22.",
+  "date": "2026-03-23T00:00:00Z",
+  "val_loss": 1.89170159,
+  "val_bpb": 1.12037520,
+  "pre_quant_val_loss": 1.9210,
+  "pre_quant_val_bpb": 1.1374,
+  "seeds": {
+    "7": {"val_bpb": 1.12026948, "val_loss": 1.89152308, "bytes_total": 15762694},
+    "314": {"val_bpb": 1.12049747, "val_loss": 1.89190804, "bytes_total": 15732473},
+    "2024": {"val_bpb": 1.12035866, "val_loss": 1.89167366, "bytes_total": 15851228}
+  },
+  "mean_val_bpb": 1.12037520,
+  "std_val_bpb": 0.00011489,
+  "bytes_total_max": 15851228
+}
