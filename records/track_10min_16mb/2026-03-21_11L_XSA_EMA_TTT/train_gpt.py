@@ -108,8 +108,11 @@ class Hyperparameters:
     doc_isolated_eval = bool(int(os.environ.get("DOC_ISOLATED_EVAL", "1")))  # eval per-document, no cross-doc context
     smear_gate = bool(int(os.environ.get("SMEAR_GATE", "1")))  # cheap bigram context at embedding layer
     bigram_hash = bool(int(os.environ.get("BIGRAM_HASH", "1")))  # hash-based bigram embedding
-    bigram_hash_buckets = int(os.environ.get("BIGRAM_HASH_BUCKETS", 2048))
+    bigram_hash_buckets = int(os.environ.get("BIGRAM_HASH_BUCKETS", 4096))  # doubled from 2048
     bigram_hash_dim = int(os.environ.get("BIGRAM_HASH_DIM", 128))
+    trigram_hash = bool(int(os.environ.get("TRIGRAM_HASH", "1")))  # 3-token context hash embedding
+    trigram_hash_buckets = int(os.environ.get("TRIGRAM_HASH_BUCKETS", 4096))
+    trigram_hash_dim = int(os.environ.get("TRIGRAM_HASH_DIM", 32))  # smaller dim than bigram (additive)
     swa = bool(int(os.environ.get("SWA", "0")))  # stochastic weight averaging (disabled: EMA preferred)
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.5))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))  # XSA on last N layers (0=disabled)
@@ -181,6 +184,7 @@ class Hyperparameters:
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "1")))  # per-head sigmoid gate after SDPA
     # Per-layer lr: MLP proj (high quant damage) gets higher lr, MLP fc (low damage) gets lower lr
     # Based on our 34-config ablation showing 3.4x damage ratio between proj and fc weights
+    star_relu = bool(int(os.environ.get("STAR_RELU", "1")))  # Star-ReLU: learnable scale+bias on relu²
     perlayer_train_lr = bool(int(os.environ.get("PERLAYER_TRAIN_LR", "1")))
     proj_lr_mult = float(os.environ.get("PROJ_LR_MULT", "1.5"))   # multiplier for mlp.proj (high quant damage)
     fc_lr_mult = float(os.environ.get("FC_LR_MULT", "0.7"))       # multiplier for mlp.fc (low quant damage)
@@ -1001,17 +1005,24 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    # relu^2 MLP from the original modded-nanogpt setup
-    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0):
+    # Star-ReLU MLP: relu(x)^2 with learnable per-channel scale+bias (MetaFormer)
+    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0, star_relu: bool = False):
         super().__init__()
         hidden = mlp_hidden if mlp_hidden > 0 else mlp_mult * dim
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
+        self.star_relu = star_relu
+        if star_relu:
+            self.star_scale = nn.Parameter(torch.ones(hidden, dtype=torch.float32))
+            self.star_bias = nn.Parameter(torch.zeros(hidden, dtype=torch.float32))
 
     def forward(self, x: Tensor) -> Tensor:
         x = torch.relu(self.fc(x))
-        return self.proj(x.square())
+        x = x.square()
+        if self.star_relu:
+            x = x * self.star_scale.to(dtype=x.dtype) + self.star_bias.to(dtype=x.dtype)
+        return self.proj(x)
 
 
 class Block(nn.Module):
@@ -1030,6 +1041,7 @@ class Block(nn.Module):
         ln_scale: bool = False,
         value_residual: bool = False,
         gated_attention: bool = False,
+        star_relu: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -1037,7 +1049,7 @@ class Block(nn.Module):
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
                                          ntk_base_seq_len=ntk_base_seq_len, rope_dims=rope_dims,
                                          value_residual=value_residual, gated_attention=gated_attention)
-        self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden)
+        self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden, star_relu=star_relu)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -1114,6 +1126,29 @@ class BigramHashEmbedding(nn.Module):
         return self.scale.to(dtype=input_ids.dtype if input_ids.is_floating_point() else torch.bfloat16) * self.proj(self.embed(bucket_ids))
 
 
+# ── TrigramHash: hash-based trigram embedding ────────────────────────────────
+class TrigramHashEmbedding(nn.Module):
+    """Maps consecutive token triples to embeddings via xor hash.
+    Extends BigramHash to 3-token context window."""
+    def __init__(self, num_buckets: int, hash_dim: int, model_dim: int):
+        super().__init__()
+        self.num_buckets = num_buckets
+        self.embed = nn.Embedding(num_buckets, hash_dim)
+        self.proj = nn.Linear(hash_dim, model_dim, bias=False)
+        self.scale = nn.Parameter(torch.tensor(0.05, dtype=torch.float32))
+        nn.init.normal_(self.embed.weight, std=0.01)
+        nn.init.zeros_(self.proj.weight)
+
+    def forward(self, input_ids: Tensor) -> Tensor:
+        # 3-token xor hash: h(t-2, t-1, t) = (p1*t-2) ^ (p2*t-1) ^ (p3*t) mod buckets
+        ids = input_ids.long()
+        prev1 = torch.cat([torch.zeros_like(ids[:, :1]), ids[:, :-1]], dim=1)
+        prev2 = torch.cat([torch.zeros_like(ids[:, :2]), ids[:, :-2]], dim=1)
+        bucket_ids = (torch.bitwise_xor(torch.bitwise_xor(
+            48271 * prev2, 36313 * prev1), 27191 * ids) % max(self.num_buckets - 1, 1))
+        return self.scale.to(dtype=torch.bfloat16) * self.proj(self.embed(bucket_ids))
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -1135,6 +1170,9 @@ class GPT(nn.Module):
         bigram_hash: bool = False,
         bigram_hash_buckets: int = 4096,
         bigram_hash_dim: int = 128,
+        trigram_hash: bool = False,
+        trigram_hash_buckets: int = 4096,
+        trigram_hash_dim: int = 32,
         ortho_init: bool = True,
         xsa_last_n: int = 0,
         ntk_base_seq_len: int = 0,
@@ -1146,6 +1184,7 @@ class GPT(nn.Module):
         ve_layers: str = "9,10",
         value_residual: bool = False,
         gated_attention: bool = False,
+        star_relu: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1160,6 +1199,7 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.smear_gate = SmearGate(model_dim) if smear_gate else None
         self.bigram_hash = BigramHashEmbedding(bigram_hash_buckets, bigram_hash_dim, model_dim) if bigram_hash else None
+        self.trigram_hash = TrigramHashEmbedding(trigram_hash_buckets, trigram_hash_dim, model_dim) if trigram_hash else None
         # Shared Value Embedding: one table, added to V in selected layers
         self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_enabled else []
         kv_dim = num_kv_heads * (model_dim // num_heads)
@@ -1190,6 +1230,7 @@ class GPT(nn.Module):
                     ln_scale=ln_scale,
                     value_residual=value_residual,
                     gated_attention=gated_attention,
+                    star_relu=star_relu,
                 )
                 for i in range(num_layers)
             ]
@@ -1239,6 +1280,8 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         if self.bigram_hash is not None:
             x = x + self.bigram_hash(input_ids)
+        if self.trigram_hash is not None:
+            x = x + self.trigram_hash(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         if self.smear_gate is not None:
             x = self.smear_gate(x)
@@ -1295,6 +1338,8 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         if self.bigram_hash is not None:
             x = x + self.bigram_hash(input_ids)
+        if self.trigram_hash is not None:
+            x = x + self.trigram_hash(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         if self.smear_gate is not None:
             x = self.smear_gate(x)
@@ -1340,6 +1385,8 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         if self.bigram_hash is not None:
             x = x + self.bigram_hash(input_ids)
+        if self.trigram_hash is not None:
+            x = x + self.trigram_hash(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         if self.smear_gate is not None:
             x = self.smear_gate(x)
@@ -2245,6 +2292,9 @@ def main() -> None:
         bigram_hash=args.bigram_hash,
         bigram_hash_buckets=args.bigram_hash_buckets,
         bigram_hash_dim=args.bigram_hash_dim,
+        trigram_hash=args.trigram_hash,
+        trigram_hash_buckets=args.trigram_hash_buckets,
+        trigram_hash_dim=args.trigram_hash_dim,
         ortho_init=args.ortho_init,
         xsa_last_n=args.xsa_last_n,
         ntk_base_seq_len=args.train_seq_len if args.eval_seq_len > args.train_seq_len else 0,
@@ -2256,6 +2306,7 @@ def main() -> None:
         ve_layers=args.ve_layers,
         value_residual=args.value_residual,
         gated_attention=args.gated_attention,
+        star_relu=args.star_relu,
     ).to(device).bfloat16()
     if args._tier2:
         log0(f"*** TIER2_MODE: proxy run max={args.max_wallclock_seconds:.0f}s iters={args.iterations} "
@@ -2339,6 +2390,8 @@ def main() -> None:
     # (when perlayer_train_lr, these are added to muon_param_groups directly)
     if base_model.bigram_hash is not None and not args.perlayer_train_lr:
         matrix_params.append(base_model.bigram_hash.proj.weight)
+    if base_model.trigram_hash is not None and not args.perlayer_train_lr:
+        matrix_params.append(base_model.trigram_hash.proj.weight)
     scalar_params = [
         p
         for name, p in block_named_params
@@ -2352,6 +2405,8 @@ def main() -> None:
     # bigram_hash.scale is a learned scalar — AdamW at scalar_lr
     if base_model.bigram_hash is not None:
         scalar_params.append(base_model.bigram_hash.scale)
+    if base_model.trigram_hash is not None:
+        scalar_params.append(base_model.trigram_hash.scale)
     # VE: scales go to scalar, proj to matrix, embed to tok group
     if base_model.ve_shared is not None:
         scalar_params.append(base_model.ve_shared.scale)
@@ -2365,6 +2420,8 @@ def main() -> None:
     embed_params = [base_model.tok_emb.weight]
     if base_model.bigram_hash is not None:
         embed_params.append(base_model.bigram_hash.embed.weight)
+    if base_model.trigram_hash is not None:
+        embed_params.append(base_model.trigram_hash.embed.weight)
     if base_model.ve_shared is not None:
         embed_params.append(base_model.ve_shared.embed.weight)
     optimizer_tok = torch.optim.AdamW(
@@ -2385,6 +2442,8 @@ def main() -> None:
         # Add bigram_hash.proj to "other" group
         if base_model.bigram_hash is not None:
             muon_param_groups[2]["params"].append(base_model.bigram_hash.proj.weight)
+        if base_model.trigram_hash is not None:
+            muon_param_groups[2]["params"].append(base_model.trigram_hash.proj.weight)
         if base_model.ve_shared is not None and base_model.ve_shared.proj is not None:
             muon_param_groups[2]["params"].append(base_model.ve_shared.proj.weight)
         muon_param_groups = [g for g in muon_param_groups if g["params"]]
