@@ -1,0 +1,19 @@
+{
+  "author": "cmcdnd",
+  "github_id": "cmcdnd",
+  "name": "Record: Train Larger, Quantize Harder — 33.6M params in 15.9MB via Int5 GPTQ",
+  "blurb": "Train Larger, Quantize Harder: 33.6M params (50% more than int6 baselines) via int5 QAT (PR #469) + full Hessian GPTQ + 2% magnitude pruning. Post-TTT temperature calibration (T=0.98) corrects TTT-induced overconfidence for -0.003 BPB. MHA 8/8, MLP 3.5x, BigramHash(8192), XSA-all, LeakyReLU², EMA, VE128, Partial RoPE, LN Scale, U-Net skips.",
+  "date": "2026-03-23T00:00:00Z",
+  "val_loss": 1.88607,
+  "val_bpb": 1.1164,
+  "pre_ttt_val_bpb": 1.1264,
+  "bytes_total": 15885838,
+  "seeds": {
+    "1337": {"val_bpb": 1.1157, "val_loss": 1.88564, "bytes_total": 15885838},
+    "42": {"val_bpb": 1.1163, "val_loss": 1.88630, "bytes_total": 15296667},
+    "7": {"val_bpb": 1.1172, "val_loss": 1.88629, "bytes_total": 15576393}
+  },
+  "mean_val_bpb": 1.1164,
+  "std_val_bpb": 0.0008,
+  "bytes_total_max": 15885838
+}
