@@ -1090,13 +1090,20 @@ class GPT(nn.Module):
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        for module in self.modules():
+        num_layers = len(self.blocks)
+        for name, module in self.named_modules():
             if isinstance(module, (nn.Linear, CastedLinear)) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
             elif self.ortho_init and isinstance(module, (nn.Linear, CastedLinear)) \
                     and not getattr(module, "_zero_init", False) \
-                    and module.weight.ndim >= 2:
+                    and module.weight.ndim >= 2 \
+                    and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
                 nn.init.orthogonal_(module.weight, gain=1.0)
+                # Depth-scaled init: scale projection layers by 1/sqrt(2*depth)
+                # to prevent residual stream magnitude growth (matches PR #414)
+                if ".proj." in name or name.endswith(".proj"):
+                    with torch.no_grad():
+                        module.weight.mul_(1.0 / math.sqrt(2 * num_layers))
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
