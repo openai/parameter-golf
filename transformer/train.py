@@ -1932,11 +1932,14 @@ def main() -> None:
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             # Artifact-aware entropy regularization: penalize quantization residuals
-            # to encourage weight distributions that compress well
-            if args.entropy_reg > 0 and scale < args.qat_threshold:
+            # Applied every 50 steps to amortize cost, on 2 random layers
+            if args.entropy_reg > 0 and scale < args.qat_threshold and step % 50 == 0:
                 ent_penalty = torch.tensor(0.0, device=device)
-                for p in base_model.parameters():
-                    if p.ndim == 2 and p.numel() > 1024:
+                block_params = [(n, p) for n, p in base_model.named_parameters() if p.ndim == 2 and p.numel() > 4096]
+                if block_params:
+                    idxs = torch.randperm(len(block_params))[:2]
+                    for idx in idxs:
+                        _, p = block_params[idx]
                         s = (p.abs().amax(dim=1, keepdim=True) / 31.0).clamp_min(1e-7).detach()
                         residual = p - torch.round(p / s).detach() * s
                         ent_penalty = ent_penalty + residual.pow(2).mean()
