@@ -1475,6 +1475,8 @@ def main() -> None:
     eval_model.load_state_dict(deq_state, strict=True)
     # Full-weight TTT: adapt on validation data before eval
     if args.ttt_enabled:
+        CastedLinear._qat_enabled = False  # Disable QAT during TTT
+        CastedLinear._soft_tau = 1000.0
         if distributed:
             dist.barrier()
         for block in eval_model.blocks:
