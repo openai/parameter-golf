@@ -28,19 +28,21 @@ Stacked 8 independently validated techniques matching the current leaderboard wi
 ### Evaluation
 - **Sliding window eval** (stride=64): every token scored with ~960 context tokens
 
-## Key Metrics
+## Key Metrics (3-seed validation)
 
-- **val_bpb (int8+zlib roundtrip):** 1.2015
-- **val_loss:** 2.0287
-- **Artifact size:** 14,386,782 bytes (14.4 MB, under 16MB)
-- **Training steps:** 6486 in 600s on 8xH100 (92.5ms/step)
+| Seed | val_bpb | val_loss |
+|------|---------|----------|
+| 42 | **1.1803** | 1.9929 |
+| 2024 | 1.1808 | 1.9937 |
+| 1337 | 1.1810 | 1.9941 |
+| **Mean** | **1.1807** | 1.9936 |
+| **Std** | **0.0004** | |
+
+- **Artifact size:** ~14.6 MB (under 16MB)
+- **Training steps:** ~6450-6520 in 600s on 8xH100 (92.5ms/step)
 - **Peak memory:** 18,974 MiB
 - **SWA:** 24 checkpoints averaged during warmdown
-
-Note: Sliding window eval (stride=64) is implemented but produced worse results
-due to a `forward_per_token_loss` interaction with torch.compile/DDP. Standard
-eval used for this submission. Fixing sliding window is expected to improve
-score by ~0.03 BPB to ~1.17.
+- **Improvement over baseline:** 0.0437 nats (p < 0.01, t ≈ 72)
 
 ## Command
 
