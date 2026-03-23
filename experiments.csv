@@ -82,4 +82,5 @@ pr414_int5mlp_bigram6144_s1337,600,14038723,,70190,8,89483,1.1466,2a89149,"int5 
 8xh100_cosine_wd_s1337,600,16891434,,89173,8,181093,1.1303,a76c868,"Cosine warmdown: 1.1303, 16.9MB OVER. WHY: cosine keeps weights high longer, hurts compression"
 8xh100_entropy_reg_s1337,600,13347399,,96485,8,423400,1.1995,554e7ed,"Entropy reg λ=0.01: 1.1995, 13.3MB. WHY FAIL: 214ms/step too slow"
 8xh100_entropy_amort_s1337,600,16338810,,96706,8,180900,1.1259,fed9908,"Amortized entropy reg: 1.1259 same as baseline but 16.3MB larger"
-8xh100_stefix_bigram3072_s1337,600,16453199,,96780,8,180961,1.1260,93eb7c9,"STE symmetric fix: 1.1260, 16.5MB OVER (code size grew from novel features). Need bigram 2048 to fit"
+8xh100_stefix_bigram3072_s1337,600,16453199,,96780,8,180961,1.1260,93eb7c9,"STE symmetric fix: 1.1260, 16.5MB OVER (code 97KB from novel features)"
+8xh100_clean_bigram2048_s1337,600,16022372,,96780,8,180950,1.1265,93eb7c9,"Clean bigram2048: 1.1265, 16.02MB — 22KB over. Strip unused code for submission"
