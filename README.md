@@ -52,7 +52,7 @@ Happy training!
 
 If you have an Apple laptop or desktop with Apple Silicon, we've set up a simple MLX training script to help you start iterating locally.
 
-If you don't have a Mac with Apple Silicon, you can run an adapted version of this script without MLX support. Just ask [Codex](https://openai.com/codex/) to refactor it; the change is straightforward. It may still be fairly slow, so we recommend jumping straight to cloud GPUs with Runpod.
+If you don't have a Mac with Apple Silicon, you can use `train_gpt.py` in CPU mode for a small local smoke test. It will be slower than MLX or CUDA, so we still recommend moving to cloud GPUs once you're confident the setup works.
 
 First, clone the repository, create a fresh Python environment, and install the packages needed for the MLX path plus dataset download:
 
@@ -86,6 +86,30 @@ python3 train_gpt_mlx.py
 ```
 
 Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
+
+For a non-MLX local smoke run (for example on Windows or Linux CPU-only machines), install PyTorch instead of MLX:
+
+```bash
+pip install torch numpy sentencepiece huggingface-hub datasets tqdm
+```
+
+Then run a very small PyTorch smoke test. In PowerShell:
+
+```powershell
+$env:RUN_ID="cpu_smoke"
+$env:DEVICE="cpu"
+$env:TORCH_COMPILE="0"
+$env:ITERATIONS="20"
+$env:WARMUP_STEPS="0"
+$env:TRAIN_BATCH_TOKENS="8192"
+$env:VAL_BATCH_SIZE="8192"
+$env:VAL_MAX_TOKENS="65536"
+$env:VAL_LOSS_EVERY="0"
+$env:ENABLE_TTT_EVAL="0"
+python train_gpt.py
+```
+
+`VAL_MAX_TOKENS` keeps local validation short; unset it (or set it to `0`) for full validation on a real run.
 
 ### Scaling Up to a Remote Machine
 
