@@ -1,0 +1,15 @@
+{
+  "name": "Sofia Bodnar",
+  "github_id": "sofiabod",
+  "val_bpb": 1.0622,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": 1.0622
+  },
+  "artifact_bytes": 15530000,
+  "training_time_seconds": 600,
+  "eval_time_seconds": 845,
+  "gpu": "H100:8",
+  "tokenizer": "sp1024",
+  "description": "11L XSA4 + LeakyReLU(0.5)² + Int6+zstd + Cosine TTT 50ep + Per-Layer LR"
+}

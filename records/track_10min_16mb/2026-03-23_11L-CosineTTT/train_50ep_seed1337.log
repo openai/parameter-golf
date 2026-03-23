@@ -1,0 +1,97 @@
+✓ Initialized. View run at 
+https://modal.com/apps/sentra/main/ap-LPrpHyiklBPRryz7pgeVXw
+✓ Created objects.
+├── 🔨 Created mount /Users/sonia/Documents/GitHub/parameter-golf/modal_train.py
+├── 🔨 Created mount train_gpt.py
+└── 🔨 Created function train.
+launching 8xh100 training...
+logs/modal_run.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9279 val_bpb:4.1031 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9299 train_time:248ms step_avg:247.82ms
+step:2/20000 train_loss:8.5594 train_time:349ms step_avg:174.48ms
+step:3/20000 train_loss:7.9329 train_time:450ms step_avg:149.96ms
+step:4/20000 train_loss:7.1018 train_time:551ms step_avg:137.66ms
+step:5/20000 train_loss:7.0322 train_time:649ms step_avg:129.71ms
+step:6/20000 train_loss:7.0080 train_time:750ms step_avg:124.99ms
+step:7/20000 train_loss:6.8892 train_time:851ms step_avg:121.54ms
+step:8/20000 train_loss:6.8329 train_time:952ms step_avg:119.03ms
+step:9/20000 train_loss:6.4975 train_time:1051ms step_avg:116.76ms
+step:10/20000 train_loss:6.1575 train_time:1148ms step_avg:114.77ms
+step:500/20000 train_loss:2.3811 train_time:50238ms step_avg:100.48ms
+step:1000/20000 train_loss:2.2596 train_time:100845ms step_avg:100.85ms
+step:1500/20000 train_loss:2.2059 train_time:151371ms step_avg:100.91ms
+step:2000/20000 train_loss:2.0533 train_time:201964ms step_avg:100.98ms
+step:2500/20000 train_loss:2.1569 train_time:252528ms step_avg:101.01ms
+step:3000/20000 train_loss:2.1371 train_time:303107ms step_avg:101.04ms
+step:3500/20000 train_loss:2.1431 train_time:353668ms step_avg:101.05ms
+step:4000/20000 train_loss:1.9371 train_time:404226ms step_avg:101.06ms
+step:4000/20000 val_loss:2.0248 val_bpb:1.1992 train_time:404231ms step_avg:101.06ms
+step:4500/20000 train_loss:2.0805 train_time:454745ms step_avg:101.05ms
+step:5000/20000 train_loss:2.0566 train_time:505219ms step_avg:101.04ms
+swa:start step:5250
+late_qat:enabled step:5412 scale:0.1497
+step:5500/20000 train_loss:1.9671 train_time:555973ms step_avg:101.09ms
+step:5934/20000 val_loss:1.9305 val_bpb:1.1434 train_time:600046ms step_avg:101.12ms
+stopping_early: wallclock_cap train_time:600046ms step:5934/20000
+peak memory allocated: 20672 MiB reserved: 20718 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9291 val_bpb:1.1425 eval_time:2260ms
+Serialized model: 106178569 bytes
+Code size: 71793 bytes
+Serialized model int6+zstd: 16388867 bytes
+Total submission size int6+zstd: 16460660 bytes
+Total submission size int8+zlib: 16460660 bytes
+final_int6_roundtrip val_loss:1.9426 val_bpb:1.1505 eval_time:186834ms
+final_int6_roundtrip_exact val_loss:1.94262167 val_bpb:1.15052998
+ttt: starting 50 epochs, lr=0.0005, cosine+perlayer
+ttt_epoch:5/50 avg_loss:1.9047
+ttt_epoch:10/50 avg_loss:1.8789
+ttt_epoch:15/50 avg_loss:1.8641
+ttt_epoch:20/50 avg_loss:1.8470
+ttt_epoch:25/50 avg_loss:1.8307
+ttt_epoch:30/50 avg_loss:1.8173
+ttt_epoch:35/50 avg_loss:1.8048
+ttt_epoch:40/50 avg_loss:1.7921
+ttt_epoch:45/50 avg_loss:1.7795
+ttt_epoch:50/50 avg_loss:1.7581
+ttt: completed in 889480ms
+final_int6_sliding_window val_loss:1.7935 val_bpb:1.0622 stride:64 eval_time:307844ms
+final_int6_sliding_window_exact val_loss:1.79351216 val_bpb:1.06222173
+final_int8_zlib_roundtrip_exact val_loss:1.79351216 val_bpb:1.06222173
+training finished with exit code: 0
+Stopping app - local entrypoint completed.
+Runner terminated.
+✓ App completed. View run at 
+https://modal.com/apps/sentra/main/ap-LPrpHyiklBPRryz7pgeVXw
