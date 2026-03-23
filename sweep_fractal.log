@@ -1,0 +1,228 @@
+Fractal/Hybrid Sweep — 35 configs, ~3 min each
+Estimated runtime: 2.0 hours
+Results: sweep_fractal_results.csv
+
+[1/35] 11L 512d/8H/3xMLP lr=3e-04 | SOTA baseline 11L/512d/8H/3xMLP
+  => bpb=2.75267 params=26490368 est_h100_steps=?
+[2/35] 11L 512d/8H/4xMLP lr=3e-04 | 11L + 4xMLP
+  => bpb=2.78193 params=32257536 est_h100_steps=?
+[3/35] 9L 512d/8H/3xMLP lr=8e-04 | Qwen local winner: 9L high LR
+  FAILED (exit 2): [--warmup-steps WARMUP_STEPS] [--log-every LOG_EVERY]
+                      [--data-path DATA_PATH]
+                      [--tokenizer-path TOKENIZER_PATH] [--seed SEED]
+                      [--eval-tokens EVAL_TOKENS] [--run-id RUN_ID]
+train_local.py: error: unrecognized arguments: --num-layers 9
+
+  => FAILED
+[4/35] 9L 512d/8H/4xMLP lr=5e-04 | 9L 4xMLP
+  FAILED (exit 2): [--warmup-steps WARMUP_STEPS] [--log-every LOG_EVERY]
+                      [--data-path DATA_PATH]
+                      [--tokenizer-path TOKENIZER_PATH] [--seed SEED]
+                      [--eval-tokens EVAL_TOKENS] [--run-id RUN_ID]
+train_local.py: error: unrecognized arguments: --num-layers 9
+
+  => FAILED
+[5/35] 7L 512d/8H/4xMLP lr=5e-04 | 7L 4xMLP (fast, fewer params)
+  FAILED (exit 2): [--warmup-steps WARMUP_STEPS] [--log-every LOG_EVERY]
+                      [--data-path DATA_PATH]
+                      [--tokenizer-path TOKENIZER_PATH] [--seed SEED]
+                      [--eval-tokens EVAL_TOKENS] [--run-id RUN_ID]
+train_local.py: error: unrecognized arguments: --num-layers 7
+
+  => FAILED
+
+================================================================================
+LEADERBOARD (top 10 of 2) after 5 runs
+================================================================================
+   1. bpb= 2.7527 | baseline depth=11 dim=512 mlp=3x h100~? | SOTA baseline 11L/512d/8H/3xMLP
+   2. bpb= 2.7819 | baseline depth=11 dim=512 mlp=4x h100~? | 11L + 4xMLP
+
+[6/35] 8L 512d/8H/4xMLP lr=5e-04 | 8L 4xMLP
+  FAILED (exit 2): [--warmup-steps WARMUP_STEPS] [--log-every LOG_EVERY]
+                      [--data-path DATA_PATH]
+                      [--tokenizer-path TOKENIZER_PATH] [--seed SEED]
+                      [--eval-tokens EVAL_TOKENS] [--run-id RUN_ID]
+train_local.py: error: unrecognized arguments: --num-layers 8
+
+  => FAILED
+[7/35] 13L 384d/8H/3xMLP lr=3e-04 | 13L narrow
+  FAILED (exit 2): --warmup-steps WARMUP_STEPS] [--log-every LOG_EVERY]
+                      [--data-path DATA_PATH]
+                      [--tokenizer-path TOKENIZER_PATH] [--seed SEED]
+                      [--eval-tokens EVAL_TOKENS] [--run-id RUN_ID]
+train_local.py: error: unrecognized arguments: --num-layers 13
+
+  => FAILED
+[8/35] 11L 512d/16H/3xMLP lr=3e-04 | 11L 16H
+  FAILED (exit 2): --warmup-steps WARMUP_STEPS] [--log-every LOG_EVERY]
+                      [--data-path DATA_PATH]
+                      [--tokenizer-path TOKENIZER_PATH] [--seed SEED]
+                      [--eval-tokens EVAL_TOKENS] [--run-id RUN_ID]
+train_local.py: error: unrecognized arguments: --num-layers 11
+
+  => FAILED
+[9/35] 6x2=12eff 512d/8H/3xMLP lr=3e-04 | 6x2=12eff SOTA dims
+  => bpb=2.795183 params=14687232 est_h100_steps=?
+[10/35] 6x2=12eff 512d/8H/4xMLP lr=3e-04 | 6x2=12eff 4xMLP
+  => bpb=2.818359 params=17832960 est_h100_steps=?
+
+================================================================================
+LEADERBOARD (top 10 of 4) after 10 runs
+================================================================================
+   1. bpb= 2.7527 | baseline depth=11 dim=512 mlp=3x h100~? | SOTA baseline 11L/512d/8H/3xMLP
+   2. bpb= 2.7819 | baseline depth=11 dim=512 mlp=4x h100~? | 11L + 4xMLP
+   3. bpb= 2.7952 |  fractal depth=12 dim=512 mlp=3x h100~? | 6x2=12eff SOTA dims
+   4. bpb= 2.8184 |  fractal depth=12 dim=512 mlp=4x h100~? | 6x2=12eff 4xMLP
+
+[11/35] 6x2=12eff 512d/8H/4xMLP lr=5e-04 | 6x2=12eff 4xMLP hi-lr
+  => bpb=2.737374 params=17832960 est_h100_steps=?
+[12/35] 5x2=10eff 512d/8H/3xMLP lr=3e-04 | 5x2=10eff lighter
+  => bpb=2.701636 params=12326912 est_h100_steps=?
+[13/35] 5x2=10eff 512d/8H/4xMLP lr=3e-04 | 5x2=10eff 4xMLP
+  => bpb=2.762387 params=14948352 est_h100_steps=?
+[14/35] 7x2=14eff 512d/8H/3xMLP lr=3e-04 | 7x2=14eff deeper
+  => bpb=2.827208 params=17047552 est_h100_steps=?
+[15/35] 7x2=14eff 384d/8H/4xMLP lr=5e-04 | 7x2=14eff narrow 4xMLP
+  => bpb=2.756615 params=11753472 est_h100_steps=?
+
+================================================================================
+LEADERBOARD (top 10 of 9) after 15 runs
+================================================================================
+   1. bpb= 2.7016 |  fractal depth=10 dim=512 mlp=3x h100~? | 5x2=10eff lighter
+   2. bpb= 2.7374 |  fractal depth=12 dim=512 mlp=4x h100~? | 6x2=12eff 4xMLP hi-lr
+   3. bpb= 2.7527 | baseline depth=11 dim=512 mlp=3x h100~? | SOTA baseline 11L/512d/8H/3xMLP
+   4. bpb= 2.7566 |  fractal depth=14 dim=384 mlp=4x h100~? | 7x2=14eff narrow 4xMLP
+   5. bpb= 2.7624 |  fractal depth=10 dim=512 mlp=4x h100~? | 5x2=10eff 4xMLP
+   6. bpb= 2.7819 | baseline depth=11 dim=512 mlp=4x h100~? | 11L + 4xMLP
+   7. bpb= 2.7952 |  fractal depth=12 dim=512 mlp=3x h100~? | 6x2=12eff SOTA dims
+   8. bpb= 2.8184 |  fractal depth=12 dim=512 mlp=4x h100~? | 6x2=12eff 4xMLP
+   9. bpb= 2.8272 |  fractal depth=14 dim=512 mlp=3x h100~? | 7x2=14eff deeper
+
+[16/35] 8x2=16eff 384d/8H/3xMLP lr=3e-04 | 8x2=16eff narrow
+  => bpb=2.856138 params=11016960 est_h100_steps=?
+[17/35] 8x2=16eff 448d/8H/3xMLP lr=3e-04 | 8x2=16eff mid-width
+  => bpb=2.673662 params=14917504 est_h100_steps=?
+[18/35] 4x3=12eff 512d/8H/3xMLP lr=3e-04 | 4x3=12eff heavy sharing
+  => bpb=2.570226 params=9967104 est_h100_steps=?
+[19/35] 4x3=12eff 512d/8H/4xMLP lr=3e-04 | 4x3=12eff 4xMLP
+  => bpb=2.578621 params=12064256 est_h100_steps=?
+[20/35] 4x3=12eff 512d/8H/4xMLP lr=5e-04 | 4x3=12eff 4xMLP hi-lr
+  => bpb=2.422912 params=12064256 est_h100_steps=?
+
+================================================================================
+LEADERBOARD (top 10 of 14) after 20 runs
+================================================================================
+   1. bpb= 2.4229 |  fractal depth=12 dim=512 mlp=4x h100~? | 4x3=12eff 4xMLP hi-lr
+   2. bpb= 2.5702 |  fractal depth=12 dim=512 mlp=3x h100~? | 4x3=12eff heavy sharing
+   3. bpb= 2.5786 |  fractal depth=12 dim=512 mlp=4x h100~? | 4x3=12eff 4xMLP
+   4. bpb= 2.6737 |  fractal depth=16 dim=448 mlp=3x h100~? | 8x2=16eff mid-width
+   5. bpb= 2.7016 |  fractal depth=10 dim=512 mlp=3x h100~? | 5x2=10eff lighter
+   6. bpb= 2.7374 |  fractal depth=12 dim=512 mlp=4x h100~? | 6x2=12eff 4xMLP hi-lr
+   7. bpb= 2.7527 | baseline depth=11 dim=512 mlp=3x h100~? | SOTA baseline 11L/512d/8H/3xMLP
+   8. bpb= 2.7566 |  fractal depth=14 dim=384 mlp=4x h100~? | 7x2=14eff narrow 4xMLP
+   9. bpb= 2.7624 |  fractal depth=10 dim=512 mlp=4x h100~? | 5x2=10eff 4xMLP
+  10. bpb= 2.7819 | baseline depth=11 dim=512 mlp=4x h100~? | 11L + 4xMLP
+
+[21/35] 3x4=12eff 512d/8H/4xMLP lr=3e-04 | 3x4=12eff extreme sharing
+  => bpb=2.593546 params=9180160 est_h100_steps=?
+[22/35] 5x3=15eff 384d/8H/3xMLP lr=3e-04 | 5x3=15eff narrow deep
+  => bpb=2.691009 params=7033728 est_h100_steps=?
+[23/35] 5x3=15eff 448d/8H/3xMLP lr=3e-04 | 5x3=15eff mid-width
+  => bpb=2.649805 params=9496256 est_h100_steps=?
+[24/35] 5x3=15eff 384d/12H/4xMLP lr=5e-04 | 5x3=15eff narrow 12H 4xMLP
+  => bpb=2.560525 params=8262528 est_h100_steps=?
+[25/35] 6x2=12eff 512d/8H/3xMLP lr=3e-04 | 6x2=12eff + gravity
+  => bpb=2.575076 params=14687234 est_h100_steps=?
+
+================================================================================
+LEADERBOARD (top 10 of 19) after 25 runs
+================================================================================
+   1. bpb= 2.4229 |  fractal depth=12 dim=512 mlp=4x h100~? | 4x3=12eff 4xMLP hi-lr
+   2. bpb= 2.5605 |  fractal depth=15 dim=384 mlp=4x h100~? | 5x3=15eff narrow 12H 4xMLP
+   3. bpb= 2.5702 |  fractal depth=12 dim=512 mlp=3x h100~? | 4x3=12eff heavy sharing
+   4. bpb= 2.5751 |  fractal depth=12 dim=512 mlp=3x h100~? | 6x2=12eff + gravity
+   5. bpb= 2.5786 |  fractal depth=12 dim=512 mlp=4x h100~? | 4x3=12eff 4xMLP
+   6. bpb= 2.5935 |  fractal depth=12 dim=512 mlp=4x h100~? | 3x4=12eff extreme sharing
+   7. bpb= 2.6498 |  fractal depth=15 dim=448 mlp=3x h100~? | 5x3=15eff mid-width
+   8. bpb= 2.6737 |  fractal depth=16 dim=448 mlp=3x h100~? | 8x2=16eff mid-width
+   9. bpb= 2.6910 |  fractal depth=15 dim=384 mlp=3x h100~? | 5x3=15eff narrow deep
+  10. bpb= 2.7016 |  fractal depth=10 dim=512 mlp=3x h100~? | 5x2=10eff lighter
+
+[26/35] 6x2=12eff 512d/8H/4xMLP lr=3e-04 | 6x2=12eff + gravity + 4xMLP
+  => bpb=2.600369 params=17832962 est_h100_steps=?
+[27/35] 4x3=12eff 512d/8H/4xMLP lr=3e-04 | 4x3=12eff + gravity + 4xMLP
+  => bpb=2.619055 params=12064259 est_h100_steps=?
+[28/35] 6x2=12eff 512d/8H/3xMLP lr=3e-04 | 6x2=12eff + gravity + attnres
+  => bpb=2.611187 params=14693378 est_h100_steps=?
+[29/35] 6x2=12eff 512d/8H/4xMLP lr=1e-04 | 6x2 4xMLP lr=1e-4
+  => bpb=2.94091 params=17832960 est_h100_steps=?
+[30/35] 6x2=12eff 512d/8H/4xMLP lr=8e-04 | 6x2 4xMLP lr=8e-4
+  => bpb=2.476038 params=17832960 est_h100_steps=?
+
+================================================================================
+LEADERBOARD (top 10 of 24) after 30 runs
+================================================================================
+   1. bpb= 2.4229 |  fractal depth=12 dim=512 mlp=4x h100~? | 4x3=12eff 4xMLP hi-lr
+   2. bpb= 2.4760 |  fractal depth=12 dim=512 mlp=4x h100~? | 6x2 4xMLP lr=8e-4
+   3. bpb= 2.5605 |  fractal depth=15 dim=384 mlp=4x h100~? | 5x3=15eff narrow 12H 4xMLP
+   4. bpb= 2.5702 |  fractal depth=12 dim=512 mlp=3x h100~? | 4x3=12eff heavy sharing
+   5. bpb= 2.5751 |  fractal depth=12 dim=512 mlp=3x h100~? | 6x2=12eff + gravity
+   6. bpb= 2.5786 |  fractal depth=12 dim=512 mlp=4x h100~? | 4x3=12eff 4xMLP
+   7. bpb= 2.5935 |  fractal depth=12 dim=512 mlp=4x h100~? | 3x4=12eff extreme sharing
+   8. bpb= 2.6004 |  fractal depth=12 dim=512 mlp=4x h100~? | 6x2=12eff + gravity + 4xMLP
+   9. bpb= 2.6112 |  fractal depth=12 dim=512 mlp=3x h100~? | 6x2=12eff + gravity + attnres
+  10. bpb= 2.6191 |  fractal depth=12 dim=512 mlp=4x h100~? | 4x3=12eff + gravity + 4xMLP
+
+[31/35] 6x2=12eff 512d/8H/4xMLP lr=1e-03 | 6x2 4xMLP lr=1.2e-3
+  => bpb=2.533792 params=17832960 est_h100_steps=?
+[32/35] 4x3=12eff 640d/8H/3xMLP lr=3e-04 | 4x3=12eff wide 640d
+  => bpb=2.557879 params=15408000 est_h100_steps=?
+[33/35] 5x2=10eff 640d/8H/3xMLP lr=3e-04 | 5x2=10eff wide 640d
+  => bpb=2.486385 params=19095040 est_h100_steps=?
+[34/35] 6x2=12eff 640d/8H/3xMLP lr=3e-04 | 6x2=12eff wide 640d
+  => bpb=2.534514 params=22782720 est_h100_steps=?
+[35/35] 4x3=12eff 640d/8H/4xMLP lr=5e-04 | 4x3=12eff wide 640d 4xMLP
+  => bpb=2.4598 params=18684800 est_h100_steps=?
+
+================================================================================
+LEADERBOARD (top 10 of 29) after 35 runs
+================================================================================
+   1. bpb= 2.4229 |  fractal depth=12 dim=512 mlp=4x h100~? | 4x3=12eff 4xMLP hi-lr
+   2. bpb= 2.4598 |  fractal depth=12 dim=640 mlp=4x h100~? | 4x3=12eff wide 640d 4xMLP
+   3. bpb= 2.4760 |  fractal depth=12 dim=512 mlp=4x h100~? | 6x2 4xMLP lr=8e-4
+   4. bpb= 2.4864 |  fractal depth=10 dim=640 mlp=3x h100~? | 5x2=10eff wide 640d
+   5. bpb= 2.5338 |  fractal depth=12 dim=512 mlp=4x h100~? | 6x2 4xMLP lr=1.2e-3
+   6. bpb= 2.5345 |  fractal depth=12 dim=640 mlp=3x h100~? | 6x2=12eff wide 640d
+   7. bpb= 2.5579 |  fractal depth=12 dim=640 mlp=3x h100~? | 4x3=12eff wide 640d
+   8. bpb= 2.5605 |  fractal depth=15 dim=384 mlp=4x h100~? | 5x3=15eff narrow 12H 4xMLP
+   9. bpb= 2.5702 |  fractal depth=12 dim=512 mlp=3x h100~? | 4x3=12eff heavy sharing
+  10. bpb= 2.5751 |  fractal depth=12 dim=512 mlp=3x h100~? | 6x2=12eff + gravity
+
+
+================================================================================
+FINAL LEADERBOARD (29 runs)
+================================================================================
+   1. bpb= 2.4229 |  fractal depth=12 dim=512 mlp=4x params=12064256 h100~? | 4x3=12eff 4xMLP hi-lr
+   2. bpb= 2.4598 |  fractal depth=12 dim=640 mlp=4x params=18684800 h100~? | 4x3=12eff wide 640d 4xMLP
+   3. bpb= 2.4760 |  fractal depth=12 dim=512 mlp=4x params=17832960 h100~? | 6x2 4xMLP lr=8e-4
+   4. bpb= 2.4864 |  fractal depth=10 dim=640 mlp=3x params=19095040 h100~? | 5x2=10eff wide 640d
+   5. bpb= 2.5338 |  fractal depth=12 dim=512 mlp=4x params=17832960 h100~? | 6x2 4xMLP lr=1.2e-3
+   6. bpb= 2.5345 |  fractal depth=12 dim=640 mlp=3x params=22782720 h100~? | 6x2=12eff wide 640d
+   7. bpb= 2.5579 |  fractal depth=12 dim=640 mlp=3x params=15408000 h100~? | 4x3=12eff wide 640d
+   8. bpb= 2.5605 |  fractal depth=15 dim=384 mlp=4x params=8262528 h100~? | 5x3=15eff narrow 12H 4xMLP
+   9. bpb= 2.5702 |  fractal depth=12 dim=512 mlp=3x params=9967104 h100~? | 4x3=12eff heavy sharing
+  10. bpb= 2.5751 |  fractal depth=12 dim=512 mlp=3x params=14687234 h100~? | 6x2=12eff + gravity
+  11. bpb= 2.5786 |  fractal depth=12 dim=512 mlp=4x params=12064256 h100~? | 4x3=12eff 4xMLP
+  12. bpb= 2.5935 |  fractal depth=12 dim=512 mlp=4x params=9180160 h100~? | 3x4=12eff extreme sharing
+  13. bpb= 2.6004 |  fractal depth=12 dim=512 mlp=4x params=17832962 h100~? | 6x2=12eff + gravity + 4xMLP
+  14. bpb= 2.6112 |  fractal depth=12 dim=512 mlp=3x params=14693378 h100~? | 6x2=12eff + gravity + attnres
+  15. bpb= 2.6191 |  fractal depth=12 dim=512 mlp=4x params=12064259 h100~? | 4x3=12eff + gravity + 4xMLP
+  16. bpb= 2.6498 |  fractal depth=15 dim=448 mlp=3x params=9496256 h100~? | 5x3=15eff mid-width
+  17. bpb= 2.6737 |  fractal depth=16 dim=448 mlp=3x params=14917504 h100~? | 8x2=16eff mid-width
+  18. bpb= 2.6910 |  fractal depth=15 dim=384 mlp=3x params=7033728 h100~? | 5x3=15eff narrow deep
+  19. bpb= 2.7016 |  fractal depth=10 dim=512 mlp=3x params=12326912 h100~? | 5x2=10eff lighter
+  20. bpb= 2.7374 |  fractal depth=12 dim=512 mlp=4x params=17832960 h100~? | 6x2=12eff 4xMLP hi-lr
+
+Best baseline: 2.7527 (SOTA baseline 11L/512d/8H/3xMLP)
+Best fractal:  2.4229 (4x3=12eff 4xMLP hi-lr)
+Gap: -0.3298 (fractal wins)

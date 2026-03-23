@@ -1,0 +1,343 @@
+======================================================================
+SOTA AUTO-RESEARCH — Qwen-Guided Edge Finding
+Model: qwen3-coder:30b @ http://localhost:11434
+Started: 2026-03-22T14:01:20.481622
+Results: autoresearch_sota_results.csv
+======================================================================
+
+>>> SEED PHASE: 8 configs
+
+[seed 1] seed: baseline 9L/512d (reference)
+  L=9 dim=512 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.759127
+
+[seed 2] seed: 11L/512d (H100 match)
+  L=11 dim=512 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.746387
+
+[seed 3] seed: 13L/448d deeper
+  L=13 dim=448 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.933446
+
+[seed 4] seed: 8L/576d wider
+  L=8 dim=576 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.722008
+
+[seed 5] seed: 9L/512d mlp3x
+  L=9 dim=512 heads=8/4 mlp=3 lr=3.0e-04
+  >>> val_bpb=2.73303
+
+[seed 6] seed: baseline high lr
+  L=9 dim=512 heads=8/4 mlp=2 lr=8.0e-04
+  >>> val_bpb=2.528125
+
+[seed 7] seed: 16 heads
+  L=9 dim=512 heads=16/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.772565
+
+[seed 8] seed: 12L/480d
+  L=12 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.794138
+
+======================================================================
+RUN 9 | 14:20:13 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results, we see that reducing model dimension while increasing layers (12L/480d) performs well, and deeper 
+  Config: L=10 dim=544 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.732435
+
+======================================================================
+RUN 10 | 14:22:34 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results, we see that reducing model dimension while increasing layers (12L/480d) performs better than the b
+  Config: L=12 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.782665
+
+================================================================================
+LEADERBOARD (top 10 of 10)
+================================================================================
+   1. bpb= 2.5281 | L=9 dim=512 h=8/4 mlp=2 lr=8.0e-04
+   2. bpb= 2.7220 | L=8 dim=576 h=8/4 mlp=2 lr=3.0e-04
+   3. bpb= 2.7324 | L=10 dim=544 h=8/4 mlp=2 lr=3.0e-04
+   4. bpb= 2.7330 | L=9 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   5. bpb= 2.7464 | L=11 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   6. bpb= 2.7591 | L=9 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   7. bpb= 2.7726 | L=9 dim=512 h=16/4 mlp=2 lr=3.0e-04
+   8. bpb= 2.7827 | L=12 dim=480 h=8/4 mlp=2 lr=3.0e-04
+   9. bpb= 2.7941 | L=12 dim=480 h=8/4 mlp=2 lr=3.0e-04
+  10. bpb= 2.9334 | L=13 dim=448 h=8/4 mlp=2 lr=3.0e-04
+
+======================================================================
+RUN 11 | 14:24:30 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results, we see that reducing model dimension while increasing layers (12L/480d) performs well, and the bes
+  Config: L=13 dim=464 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.80086
+
+======================================================================
+RUN 12 | 14:26:36 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results, we see that reducing model dimension while increasing layers (12L/480d) performs better than the b
+  Config: L=14 dim=448 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.812599
+
+======================================================================
+RUN 13 | 14:28:19 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results, we see that reducing model dimension while increasing layers (12L/480d) performs better than the b
+  Config: L=12 dim=512 heads=8/4 mlp=3 lr=3.0e-04
+  >>> val_bpb=2.746999
+
+======================================================================
+RUN 14 | 14:30:28 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results showing that 12L/480d with 2x MLP performs well, and considering the pattern of improved performanc
+  Config: L=13 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.807553
+
+======================================================================
+RUN 15 | 14:32:23 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results showing that 12L/480d with 2x MLP performs well, and considering the pattern of diminishing returns
+  Config: L=14 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.809691
+
+================================================================================
+LEADERBOARD (top 10 of 15)
+================================================================================
+   1. bpb= 2.5281 | L=9 dim=512 h=8/4 mlp=2 lr=8.0e-04
+   2. bpb= 2.7220 | L=8 dim=576 h=8/4 mlp=2 lr=3.0e-04
+   3. bpb= 2.7324 | L=10 dim=544 h=8/4 mlp=2 lr=3.0e-04
+   4. bpb= 2.7330 | L=9 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   5. bpb= 2.7464 | L=11 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   6. bpb= 2.7470 | L=12 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   7. bpb= 2.7591 | L=9 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   8. bpb= 2.7726 | L=9 dim=512 h=16/4 mlp=2 lr=3.0e-04
+   9. bpb= 2.7827 | L=12 dim=480 h=8/4 mlp=2 lr=3.0e-04
+  10. bpb= 2.7941 | L=12 dim=480 h=8/4 mlp=2 lr=3.0e-04
+
+======================================================================
+RUN 16 | 14:34:18 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results showing that 12L/480d with 2x MLP performs well and the pattern of diminishing returns with increas
+  Config: L=15 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.816548
+
+======================================================================
+RUN 17 | 14:36:13 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results showing that 12L/480d with 2x MLP performs well and the pattern of diminishing returns with deeper 
+  Config: L=13 dim=480 heads=8/4 mlp=3 lr=2.0e-04
+  >>> val_bpb=2.908531
+
+======================================================================
+RUN 18 | 14:38:26 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results showing that 12L/480d with 2x MLP performs well and the pattern of diminishing returns with deeper 
+  Config: L=11 dim=480 heads=8/4 mlp=3 lr=2.0e-04
+  >>> val_bpb=2.903849
+
+======================================================================
+RUN 19 | 14:40:39 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the results, 12L/480d with 2x MLP shows strong performance and the pattern suggests that increasing layers whil
+  Config: L=12 dim=480 heads=12/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.791177
+
+======================================================================
+RUN 20 | 14:42:31 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 12 heads and 2x MLP shows strong performance (2.7912 BPB) and follo
+  Config: L=12 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.797661
+
+================================================================================
+LEADERBOARD (top 10 of 20)
+================================================================================
+   1. bpb= 2.5281 | L=9 dim=512 h=8/4 mlp=2 lr=8.0e-04
+   2. bpb= 2.7220 | L=8 dim=576 h=8/4 mlp=2 lr=3.0e-04
+   3. bpb= 2.7324 | L=10 dim=544 h=8/4 mlp=2 lr=3.0e-04
+   4. bpb= 2.7330 | L=9 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   5. bpb= 2.7464 | L=11 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   6. bpb= 2.7470 | L=12 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   7. bpb= 2.7591 | L=9 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   8. bpb= 2.7726 | L=9 dim=512 h=16/4 mlp=2 lr=3.0e-04
+   9. bpb= 2.7827 | L=12 dim=480 h=8/4 mlp=2 lr=3.0e-04
+  10. bpb= 2.7912 | L=12 dim=480 h=12/4 mlp=2 lr=3.0e-04
+
+======================================================================
+RUN 21 | 14:44:27 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 12 heads and 2x MLP shows strong performance (2.797661 BPB). The pa
+  Config: L=13 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.793642
+
+======================================================================
+RUN 22 | 14:46:23 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=14 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.800708
+
+======================================================================
+RUN 23 | 14:48:19 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, 12L/480d with 2x MLP shows strong performance and the pattern suggests that increasin
+  Config: L=13 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.802109
+
+======================================================================
+RUN 24 | 14:50:16 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=14 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.807047
+
+======================================================================
+RUN 25 | 14:52:13 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=14 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.803362
+
+================================================================================
+LEADERBOARD (top 10 of 25)
+================================================================================
+   1. bpb= 2.5281 | L=9 dim=512 h=8/4 mlp=2 lr=8.0e-04
+   2. bpb= 2.7220 | L=8 dim=576 h=8/4 mlp=2 lr=3.0e-04
+   3. bpb= 2.7324 | L=10 dim=544 h=8/4 mlp=2 lr=3.0e-04
+   4. bpb= 2.7330 | L=9 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   5. bpb= 2.7464 | L=11 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   6. bpb= 2.7470 | L=12 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   7. bpb= 2.7591 | L=9 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   8. bpb= 2.7726 | L=9 dim=512 h=16/4 mlp=2 lr=3.0e-04
+   9. bpb= 2.7827 | L=12 dim=480 h=8/4 mlp=2 lr=3.0e-04
+  10. bpb= 2.7912 | L=12 dim=480 h=12/4 mlp=2 lr=3.0e-04
+
+======================================================================
+RUN 26 | 14:54:09 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=13 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.796317
+
+======================================================================
+RUN 27 | 14:56:06 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=14 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.808402
+
+======================================================================
+RUN 28 | 14:58:02 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=15 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.797079
+
+======================================================================
+RUN 29 | 14:59:59 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=16 dim=480 heads=12/6 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.800799
+
+======================================================================
+RUN 30 | 15:01:55 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, 12L/480d with 2x MLP shows strong performance and the pattern suggests that increasin
+  Config: L=13 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.854825
+
+================================================================================
+LEADERBOARD (top 10 of 30)
+================================================================================
+   1. bpb= 2.5281 | L=9 dim=512 h=8/4 mlp=2 lr=8.0e-04
+   2. bpb= 2.7220 | L=8 dim=576 h=8/4 mlp=2 lr=3.0e-04
+   3. bpb= 2.7324 | L=10 dim=544 h=8/4 mlp=2 lr=3.0e-04
+   4. bpb= 2.7330 | L=9 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   5. bpb= 2.7464 | L=11 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   6. bpb= 2.7470 | L=12 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   7. bpb= 2.7591 | L=9 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   8. bpb= 2.7726 | L=9 dim=512 h=16/4 mlp=2 lr=3.0e-04
+   9. bpb= 2.7827 | L=12 dim=480 h=8/4 mlp=2 lr=3.0e-04
+  10. bpb= 2.7912 | L=12 dim=480 h=12/4 mlp=2 lr=3.0e-04
+
+======================================================================
+RUN 31 | 15:03:51 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, 12L/480d with 2x MLP shows strong performance and the pattern suggests that deeper mo
+  Config: L=14 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.799675
+
+======================================================================
+RUN 32 | 15:05:47 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=15 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.783884
+
+======================================================================
+RUN 33 | 15:07:42 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=16 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.798905
+
+======================================================================
+RUN 34 | 15:09:38 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=13 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.783503
+
+======================================================================
+RUN 35 | 15:11:34 | best=2.5281
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the experimental results, the 12L/480d with 2x MLP shows strong performance and the pattern suggests that incre
+  Config: L=14 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=2.792616
+
+================================================================================
+LEADERBOARD (top 10 of 35)
+================================================================================
+   1. bpb= 2.5281 | L=9 dim=512 h=8/4 mlp=2 lr=8.0e-04
+   2. bpb= 2.7220 | L=8 dim=576 h=8/4 mlp=2 lr=3.0e-04
+   3. bpb= 2.7324 | L=10 dim=544 h=8/4 mlp=2 lr=3.0e-04
+   4. bpb= 2.7330 | L=9 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   5. bpb= 2.7464 | L=11 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   6. bpb= 2.7470 | L=12 dim=512 h=8/4 mlp=3 lr=3.0e-04
+   7. bpb= 2.7591 | L=9 dim=512 h=8/4 mlp=2 lr=3.0e-04
+   8. bpb= 2.7726 | L=9 dim=512 h=16/4 mlp=2 lr=3.0e-04
+   9. bpb= 2.7827 | L=12 dim=480 h=8/4 mlp=2 lr=3.0e-04
+  10. bpb= 2.7835 | L=13 dim=480 h=8/4 mlp=2 lr=3.0e-04
+
+======================================================================
+RUN 36 | 15:13:30 | best=2.5281

@@ -1,0 +1,185 @@
+======================================================================
+SOTA AUTO-RESEARCH — Qwen-Guided Edge Finding
+Model: qwen3-coder:30b @ http://localhost:11434
+Started: 2026-03-22T13:01:39.046904
+Results: autoresearch_sota_results.csv
+======================================================================
+
+>>> SEED PHASE: 8 configs
+
+[seed 1] seed: baseline 9L/512d (reference)
+  L=9 dim=512 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=?
+
+[seed 2] seed: 11L/512d (H100 match)
+  L=11 dim=512 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=?
+
+[seed 3] seed: 13L/448d deeper
+  L=13 dim=448 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=?
+
+[seed 4] seed: 8L/576d wider
+  L=8 dim=576 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=?
+
+[seed 5] seed: 9L/512d mlp3x
+  L=9 dim=512 heads=8/4 mlp=3 lr=3.0e-04
+  >>> val_bpb=?
+
+[seed 6] seed: baseline high lr
+  L=9 dim=512 heads=8/4 mlp=2 lr=8.0e-04
+  >>> val_bpb=?
+
+[seed 7] seed: 16 heads
+  L=9 dim=512 heads=16/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=?
+
+[seed 8] seed: 12L/480d
+  L=12 dim=480 heads=8/4 mlp=2 lr=3.0e-04
+  >>> val_bpb=?
+
+======================================================================
+RUN 9 | 13:17:35 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the pattern showing that 12L/480d with mlp=2 performed well, I'm exploring the adjacent configuration of 11L/48
+  Config: L=11 dim=480 heads=8/8 mlp=3 lr=3.0e-04
+  >>> val_bpb=?
+
+======================================================================
+RUN 10 | 13:20:06 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the pattern showing that 11L/512d with 3x MLP is strong, but we see diminishing returns with larger models, I'm
+  Config: L=12 dim=480 heads=12/4 mlp=3 lr=3.0e-04
+  >>> val_bpb=?
+
+================================================================================
+LEADERBOARD (top 10 of 0)
+================================================================================
+
+======================================================================
+RUN 11 | 13:22:16 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the pattern of improving BPB with increasing layers and decreasing model dimension (11L/512d → 12L/480d shows i
+  Config: L=13 dim=448 heads=16/4 mlp=3 lr=5.0e-04
+  >>> val_bpb=?
+
+======================================================================
+RUN 12 | 13:24:19 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the trend showing that increasing layers beyond 11 and reducing model dimension slightly can improve performanc
+  Config: L=12 dim=480 heads=16/4 mlp=3 lr=5.0e-04
+  >>> val_bpb=?
+
+======================================================================
+RUN 13 | 13:26:49 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the pattern showing that 12L/480d with 16 heads performs well, I'm exploring the adjacent configuration of 11L/
+  Config: L=11 dim=480 heads=16/16 mlp=3 lr=5.0e-04
+  >>> val_bpb=?
+
+======================================================================
+RUN 14 | 13:29:55 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the pattern showing that increasing layers while reducing dimension can improve performance (11L/512d vs 10L/54
+  Config: L=12 dim=480 heads=16/16 mlp=3 lr=5.0e-04
+  >>> val_bpb=?
+
+======================================================================
+RUN 15 | 13:33:00 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the trend showing that 12L/480d with 16 heads performs well, I'm exploring the possibility of increasing layers
+  Config: L=13 dim=480 heads=16/16 mlp=3 lr=4.0e-04
+  >>> val_bpb=?
+
+================================================================================
+LEADERBOARD (top 10 of 0)
+================================================================================
+
+======================================================================
+RUN 16 | 13:36:06 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the trend showing that increasing layers beyond 11 and reducing model dimension slightly can improve performanc
+  Config: L=12 dim=480 heads=16/16 mlp=3 lr=4.0e-04
+  >>> val_bpb=?
+
+======================================================================
+RUN 17 | 13:39:12 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the trend showing that 12L/480d with 16 heads performs well, I'll explore increasing layers to 13 while maintai
+  Config: L=13 dim=480 heads=16/16 mlp=3 lr=5.0e-04
+  >>> val_bpb=?
+
+======================================================================
+RUN 18 | 13:42:18 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the trend showing that increasing layers generally improves performance (11L->13L), and the fact that 16 heads 
+  Config: L=14 dim=480 heads=16/4 mlp=3 lr=1.0e-03
+  >>> val_bpb=?
+
+======================================================================
+RUN 19 | 13:44:48 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the trend showing that increasing layers beyond 11 and reducing model dimension slightly can improve performanc
+  Config: L=15 dim=480 heads=16/4 mlp=3 lr=1.0e-03
+  >>> val_bpb=?
+
+======================================================================
+RUN 20 | 13:47:17 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the trend showing that 15L/480d with 16 heads performs well, I'll test a slightly smaller model with 12 layers 
+  Config: L=12 dim=480 heads=12/12 mlp=4 lr=1.0e-03
+  >>> val_bpb=?
+
+================================================================================
+LEADERBOARD (top 10 of 0)
+================================================================================
+
+======================================================================
+RUN 21 | 13:49:56 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the pattern showing that 12L/480d with 4x MLP expansion performed well, I'm exploring the possibility of increa
+  Config: L=13 dim=432 heads=12/12 mlp=4 lr=1.0e-03
+  >>> val_bpb=?
+
+======================================================================
+RUN 22 | 13:52:32 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the pattern of improving BPB with increasing model size and MLP expansion, while maintaining good head configur
+  Config: L=14 dim=384 heads=12/4 mlp=4 lr=1.0e-03
+  >>> val_bpb=?
+
+======================================================================
+RUN 23 | 13:54:22 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the pattern of improving BPB with increasing layers and decreasing dimension, while keeping head count high for
+  Config: L=15 dim=384 heads=12/4 mlp=4 lr=1.0e-03
+  >>> val_bpb=?
+
+======================================================================
+RUN 24 | 13:56:13 | best=999.0000
+======================================================================
+  Asking Qwen...
+  Qwen: Based on the pattern of improving BPB with fewer layers and lower dimension while maintaining good head counts, and cons
+  Config: L=12 dim=432 heads=12/4 mlp=4 lr=1.0e-03
+  >>> val_bpb=?
+
+======================================================================
+RUN 25 | 13:58:33 | best=999.0000
+======================================================================
+  Asking Qwen...
