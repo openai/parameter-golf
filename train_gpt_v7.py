@@ -86,10 +86,11 @@ class Hyperparameters:
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
     # Legal score-first TTT eval (PR #461 recipe)
     ttt_eval_enabled = bool(int(os.environ.get("TTT_EVAL_ENABLED", "1")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adamw")  # "sgd" or "adamw" (PR #462: AdamW 5x better)
+    ttt_lr = float(os.environ.get("TTT_LR", 0.0005))  # 0.0005 for AdamW (PR #462), 0.002 for SGD
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 10))  # 10 for AdamW (PR #462), 3 for SGD
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))  # PR #462 freezes 0
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
@@ -928,7 +929,12 @@ def eval_val_sliding_ttt(
         else:
             p.requires_grad_(True); ttt_params.append(p)
     log0(f"ttt_sliding:unfrozen={sum(p.numel() for p in ttt_params)} freeze_embed={args.ttt_freeze_embed}")
-    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    if args.ttt_optimizer == "adamw":
+        optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
+        log0(f"ttt_sliding:optimizer=AdamW lr={args.ttt_lr}")
+    else:
+        optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+        log0(f"ttt_sliding:optimizer=SGD lr={args.ttt_lr} momentum={args.ttt_momentum}")
     # TTT-EMA: maintain smoothed weights for scoring
     ema_decay = args.ttt_ema_decay
     ema_state = None
