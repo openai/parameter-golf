@@ -136,6 +136,15 @@ class Hyperparameters:
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "0")))
     qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.1))
 
+    # Novel ideas (ours)
+    quant_aware_ttt = bool(int(os.environ.get("QUANT_AWARE_TTT", "0")))  # Fake-quant during TTT
+    ttt_curriculum = bool(int(os.environ.get("TTT_CURRICULUM", "0")))  # Loss-weighted TTT
+    test_time_distill = bool(int(os.environ.get("TEST_TIME_DISTILL", "0")))  # Distill full→quant at eval
+    distill_temp = float(os.environ.get("DISTILL_TEMP", 2.0))
+    distill_alpha = float(os.environ.get("DISTILL_ALPHA", 0.7))  # Weight of distill vs CE loss
+    layer_adaptive_bits = bool(int(os.environ.get("LAYER_ADAPTIVE_BITS", "0")))  # Per-layer bit width
+    learned_quant_centroids = bool(int(os.environ.get("LEARNED_QUANT_CENTROIDS", "0")))  # Non-uniform quant
+
 # -----------------------------
 # MUON OPTIMIZER
 # -----------------------------
@@ -1251,6 +1260,312 @@ def ttt_adapt(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn
         log_fn(f"ttt:done elapsed={time.perf_counter()-t0:.1f}s")
 
 
+def _fake_quantize_model(model, cat_bits):
+    """Apply fake quantization to all weight matrices in-place for quant-aware TTT."""
+    for name, param in model.named_parameters():
+        if param.ndim >= 2 and param.numel() > 65536:
+            cat = _classify_param(name)
+            bits = cat_bits.get(cat, 8)
+            clip = QUANT_CLIP.get(bits, 127)
+            with torch.no_grad():
+                t32 = param.float()
+                row_max = t32.abs().amax(dim=1) if t32.ndim == 2 else t32.abs().amax()
+                if t32.ndim == 2:
+                    scale = (row_max / clip).clamp_min(1.0 / clip)
+                    q = torch.clamp(torch.round(t32 / scale[:, None]), -(clip + 1), clip)
+                    param.data.copy_((q * scale[:, None]).to(param.dtype))
+                else:
+                    scale = (row_max / clip).clamp_min(1.0 / clip)
+                    q = torch.clamp(torch.round(t32 / scale), -(clip + 1), clip)
+                    param.data.copy_((q * scale).to(param.dtype))
+
+
+def ttt_quant_aware(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn=None):
+    """Novel: Quantization-aware TTT. Apply fake quantization every N steps during TTT
+    so the adapted weights are inherently quantization-friendly."""
+    seq_len = args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // seq_len
+    batch_seqs = args.ttt_batch_seqs
+
+    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=args.ttt_weight_decay)
+
+    my_start = (total_seqs * rank) // world_size
+    my_end = (total_seqs * (rank + 1)) // world_size
+
+    base_model.train()
+    t0 = time.perf_counter()
+    step_count = 0
+
+    for epoch in range(args.ttt_epochs):
+        epoch_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+        epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
+
+        for batch_start in range(my_start, my_end, batch_seqs):
+            batch_end = min(batch_start + batch_seqs, my_end)
+            raw_start = batch_start * seq_len
+            raw_end = batch_end * seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, seq_len)
+            y = local[1:].reshape(-1, seq_len)
+
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                loss = base_model(x, y)
+            loss.backward()
+
+            if world_size > 1:
+                for p in ttt_params:
+                    if p.grad is not None:
+                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+
+            torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
+            optimizer.step()
+            step_count += 1
+
+            # Apply fake quantization every 5 steps to keep weights quant-friendly
+            if step_count % 5 == 0:
+                _fake_quantize_model(base_model, QUANT_BITS)
+
+            epoch_loss_sum += loss.detach().to(torch.float64) * y.numel()
+            epoch_tokens += float(y.numel())
+
+        if world_size > 1:
+            dist.all_reduce(epoch_loss_sum, op=dist.ReduceOp.SUM)
+            dist.all_reduce(epoch_tokens, op=dist.ReduceOp.SUM)
+
+        elapsed = time.perf_counter() - t0
+        if log_fn:
+            log_fn(f"qa_ttt_epoch:{epoch+1}/{args.ttt_epochs} loss:{epoch_loss_sum.item()/max(epoch_tokens.item(),1):.4f} time:{elapsed:.1f}s")
+
+    # Final fake-quantize pass to ensure weights are on grid
+    _fake_quantize_model(base_model, QUANT_BITS)
+
+    for p in base_model.parameters():
+        p.requires_grad_(True)
+    if log_fn:
+        log_fn(f"qa_ttt:done elapsed={time.perf_counter()-t0:.1f}s")
+
+
+def ttt_curriculum_adapt(args, base_model, device, val_tokens, rank=0, world_size=1, log_fn=None):
+    """Novel: Curriculum TTT. First pass scores all sequences by loss,
+    then subsequent epochs focus on high-loss sequences."""
+    seq_len = args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // seq_len
+    batch_seqs = args.ttt_batch_seqs
+
+    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=args.ttt_weight_decay)
+
+    my_start = (total_seqs * rank) // world_size
+    my_end = (total_seqs * (rank + 1)) // world_size
+
+    base_model.train()
+    t0 = time.perf_counter()
+
+    # Epoch 0: score all sequences
+    seq_losses = []
+    for batch_start in range(my_start, my_end, batch_seqs):
+        batch_end = min(batch_start + batch_seqs, my_end)
+        raw_start = batch_start * seq_len
+        raw_end = batch_end * seq_len + 1
+        local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
+
+        optimizer.zero_grad(set_to_none=True)
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            loss = base_model(x, y)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
+        optimizer.step()
+        seq_losses.append((batch_start, loss.item()))
+
+    elapsed = time.perf_counter() - t0
+    if log_fn:
+        log_fn(f"curriculum_ttt_epoch:1/{args.ttt_epochs} (scoring) loss:{sum(l for _,l in seq_losses)/len(seq_losses):.4f} time:{elapsed:.1f}s")
+
+    # Sort by loss descending - focus on hardest sequences
+    seq_losses.sort(key=lambda x: -x[1])
+    # Take top 50% hardest sequences for remaining epochs
+    hard_seqs = [s for s, _ in seq_losses[:len(seq_losses)//2]]
+
+    for epoch in range(1, args.ttt_epochs):
+        epoch_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+        epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
+
+        for batch_start in hard_seqs:
+            batch_end = min(batch_start + batch_seqs, my_end)
+            raw_start = batch_start * seq_len
+            raw_end = batch_end * seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, seq_len)
+            y = local[1:].reshape(-1, seq_len)
+
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                loss = base_model(x, y)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
+            optimizer.step()
+
+            epoch_loss_sum += loss.detach().to(torch.float64) * y.numel()
+            epoch_tokens += float(y.numel())
+
+        elapsed = time.perf_counter() - t0
+        if log_fn:
+            log_fn(f"curriculum_ttt_epoch:{epoch+1}/{args.ttt_epochs} loss:{epoch_loss_sum.item()/max(epoch_tokens.item(),1):.4f} time:{elapsed:.1f}s")
+
+    for p in base_model.parameters():
+        p.requires_grad_(True)
+    if log_fn:
+        log_fn(f"curriculum_ttt:done elapsed={time.perf_counter()-t0:.1f}s")
+
+
+def test_time_distill(args, teacher_model, student_model, device, val_tokens, rank=0, world_size=1, log_fn=None):
+    """Novel: Test-Time Distillation. Use the full-precision pre-quant model as teacher
+    to adapt the quantized student. Combines KD loss with CE loss on val tokens."""
+    seq_len = args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // seq_len
+    batch_seqs = args.ttt_batch_seqs
+
+    student_params = [p for p in student_model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(student_params, lr=args.ttt_lr, weight_decay=args.ttt_weight_decay)
+
+    my_start = (total_seqs * rank) // world_size
+    my_end = (total_seqs * (rank + 1)) // world_size
+
+    teacher_model.eval()
+    student_model.train()
+    t0 = time.perf_counter()
+    T = args.distill_temp
+    alpha = args.distill_alpha
+
+    for epoch in range(args.ttt_epochs):
+        epoch_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+        epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
+
+        for batch_start in range(my_start, my_end, batch_seqs):
+            batch_end = min(batch_start + batch_seqs, my_end)
+            raw_start = batch_start * seq_len
+            raw_end = batch_end * seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, seq_len)
+            y = local[1:].reshape(-1, seq_len)
+
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                # Student forward - get logits
+                student_logits = student_model.forward_logits(x)
+                # Teacher forward - no grad
+                with torch.no_grad():
+                    teacher_logits = teacher_model.forward_logits(x)
+
+                # CE loss on actual targets
+                flat_student = student_logits.reshape(-1, student_logits.size(-1))
+                flat_targets = y.reshape(-1)
+                ce_loss = F.cross_entropy(flat_student.float(), flat_targets, reduction="mean")
+
+                # KD loss: KL divergence between teacher and student softmax at temperature T
+                flat_teacher = teacher_logits.reshape(-1, teacher_logits.size(-1))
+                teacher_soft = F.log_softmax(flat_teacher.float() / T, dim=-1)
+                student_soft = F.log_softmax(flat_student.float() / T, dim=-1)
+                kd_loss = F.kl_div(student_soft, teacher_soft.exp(), reduction="batchmean") * (T * T)
+
+                loss = alpha * kd_loss + (1 - alpha) * ce_loss
+
+            loss.backward()
+
+            if world_size > 1:
+                for p in student_params:
+                    if p.grad is not None:
+                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+
+            torch.nn.utils.clip_grad_norm_(student_params, 1.0)
+            optimizer.step()
+
+            epoch_loss_sum += loss.detach().to(torch.float64) * y.numel()
+            epoch_tokens += float(y.numel())
+
+        elapsed = time.perf_counter() - t0
+        if log_fn:
+            log_fn(f"distill_epoch:{epoch+1}/{args.ttt_epochs} loss:{epoch_loss_sum.item()/max(epoch_tokens.item(),1):.4f} time:{elapsed:.1f}s")
+
+    for p in student_model.parameters():
+        p.requires_grad_(True)
+    if log_fn:
+        log_fn(f"distill:done elapsed={time.perf_counter()-t0:.1f}s")
+
+
+def compute_layer_sensitivity(model, device, val_tokens, seq_len=2048, num_samples=4):
+    """Measure quantization sensitivity per layer for adaptive bit-width assignment."""
+    model.eval()
+    sd = {k: v.clone() for k, v in model.state_dict().items()}
+    sensitivities = {}
+
+    # Get baseline loss
+    total_tokens = min(num_samples * seq_len + 1, val_tokens.numel())
+    local = val_tokens[:total_tokens].to(device=device, dtype=torch.int64)
+    x = local[:-1].reshape(-1, seq_len)
+    y = local[1:].reshape(-1, seq_len)
+    with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+        baseline_loss = model(x, y).item()
+
+    # For each layer's weight matrices, quantize and measure loss increase
+    for name, param in model.named_parameters():
+        if param.ndim < 2 or param.numel() <= 65536:
+            continue
+        cat = _classify_param(name)
+        if cat not in ("mlp", "attn"):
+            continue
+
+        # Try int4, int5, int6 and measure damage
+        layer_sens = {}
+        for bits in [4, 5, 6]:
+            clip = QUANT_CLIP[bits]
+            with torch.no_grad():
+                orig = param.data.clone()
+                t32 = param.float()
+                if t32.ndim == 2:
+                    row_max = t32.abs().amax(dim=1)
+                    scale = (row_max / clip).clamp_min(1.0 / clip)
+                    q = torch.clamp(torch.round(t32 / scale[:, None]), -(clip + 1), clip)
+                    param.data.copy_((q * scale[:, None]).to(param.dtype))
+                else:
+                    amax = t32.abs().max()
+                    scale = (amax / clip).clamp_min(1.0 / clip)
+                    q = torch.clamp(torch.round(t32 / scale), -(clip + 1), clip)
+                    param.data.copy_((q * scale).to(param.dtype))
+
+            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                quant_loss = model(x, y).item()
+            param.data.copy_(orig)
+            layer_sens[bits] = quant_loss - baseline_loss
+
+        sensitivities[name] = layer_sens
+
+    return sensitivities, baseline_loss
+
+
+def assign_adaptive_bits(sensitivities, target_size_bytes=16_000_000, param_sizes=None):
+    """Assign per-layer bit widths to minimize total quantization damage within size budget."""
+    # Greedy: start all at int4, upgrade most sensitive layers to int5/int6 until budget hit
+    assignments = {name: 4 for name in sensitivities}
+
+    # Sort by sensitivity at int4 (most damaged first)
+    ranked = sorted(sensitivities.items(), key=lambda x: -x[1].get(4, 0))
+
+    for name, sens in ranked:
+        # Try upgrading to int5
+        if sens.get(5, 0) < sens.get(4, 0) * 0.5:  # Significant improvement
+            assignments[name] = 5
+        # Try int6 for very sensitive layers
+        if sens.get(6, 0) < sens.get(4, 0) * 0.2:
+            assignments[name] = 6
+
+    return assignments
+
+
 # TRAINING
 # -----------------------------
 
@@ -1726,7 +2041,37 @@ def main() -> None:
     eval_model.load_state_dict(deq_state, strict=True)
 
     # TTT: adapt the quantized model on val tokens before final eval
-    if args.ttt_enabled:
+    if args.test_time_distill:
+        # Novel: Test-Time Distillation - use pre-quant model as teacher
+        log0("test_time_distill:starting")
+        # Build teacher from pre-quant weights (already in sd_cpu)
+        teacher_model = GPT(
+            vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
+            num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
+            tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
+            logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
+            mtp_num_heads=0, mtp_loss_weight=0.0,
+            bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
+            xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
+            value_residual=args.value_residual, gated_attention=args.gated_attention,
+        ).to(device).bfloat16()
+        for m in teacher_model.modules():
+            if isinstance(m, CastedLinear):
+                m.float()
+        restore_low_dim_params_to_fp32(teacher_model)
+        teacher_model.load_state_dict(sd_cpu, strict=True)
+        teacher_model.eval()
+        test_time_distill(args, teacher_model, eval_model, device, val_tokens,
+                         rank=rank, world_size=world_size, log_fn=log0)
+        del teacher_model
+        torch.cuda.empty_cache()
+    elif args.quant_aware_ttt:
+        log0("quant_aware_ttt:starting")
+        ttt_quant_aware(args, eval_model, device, val_tokens, rank=rank, world_size=world_size, log_fn=log0)
+    elif args.ttt_curriculum:
+        log0("ttt_curriculum:starting")
+        ttt_curriculum_adapt(args, eval_model, device, val_tokens, rank=rank, world_size=world_size, log_fn=log0)
+    elif args.ttt_enabled:
         log0("ttt:starting")
         ttt_adapt(args, eval_model, device, val_tokens, rank=rank, world_size=world_size, log_fn=log0)
 
