@@ -80,4 +80,5 @@ pr414_int5mlp_bigram6144_s1337,600,14038723,,70190,8,89483,1.1466,2a89149,"int5 
 8xh100_moe8_11L_s1337,600,,,88095,8,,crashed,f2c6211,"MoE 8 experts: OOM (44M params). WHY FAIL: MoE multiplies params 8x — wrong for param-constrained setting"
 8xh100_focal1_s1337,600,15864633,,88849,8,180973,1.1360,8e2f073,"Focal loss γ=1: SLIDING=1.1360 (WORSE). WHY: focal distorts CE objective"
 8xh100_cosine_wd_s1337,600,16891434,,89173,8,181093,1.1303,a76c868,"Cosine warmdown: 1.1303, 16.9MB OVER. WHY: cosine keeps weights high longer, hurts compression"
-8xh100_entropy_reg_s1337,600,13347399,,96485,8,423400,1.1995,554e7ed,"Entropy reg λ=0.01: 1.1995, 13.3MB (great compression!). WHY FAIL: 214ms/step — entropy penalty iteration too slow. Need amortized version"
+8xh100_entropy_reg_s1337,600,13347399,,96485,8,423400,1.1995,554e7ed,"Entropy reg λ=0.01: 1.1995, 13.3MB. WHY FAIL: 214ms/step too slow"
+8xh100_entropy_amort_s1337,600,16338810,,96706,8,180900,1.1259,fed9908,"Amortized entropy reg: 1.1259 same as baseline but 16.3MB larger. WHY: too infrequent to affect weight distribution"
