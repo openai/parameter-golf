@@ -109,7 +109,7 @@ def main():
     sw_val_loss, sw_val_bpb = eval_val_sliding(
         args, eval_model, rank, world_size, device,
         val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        stride=64, batch_seqs=args.eval_batch_seqs,
+        stride=64, batch_seqs=32,
     )
     log0(f"sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} time:{time.perf_counter()-t_slide:.1f}s")
 

@@ -535,13 +535,18 @@ class CausalSelfAttention(nn.Module):
         vn = F.normalize(v, dim=-1).unsqueeze(-2)    # [B, T, Hkv, 1, D] — broadcast ready
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
-    def forward(self, x: Tensor, v_embed: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, v_embed: Tensor | None = None, q_delta: Tensor | None = None, v_delta: Tensor | None = None) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
+        q = self.c_q(x)
+        if q_delta is not None:
+            q = q + q_delta
+        q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         v = self.c_v(x)
         if v_embed is not None:
             v = v + v_embed
+        if v_delta is not None:
+            v = v + v_delta
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
@@ -638,10 +643,13 @@ class Block(nn.Module):
             nn.init.constant_(self.dtg_gate.bias, 2.0)
         else:
             self.dtg_gate = None
-    def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None, q_delta_fn=None, v_delta_fn=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed)
+        n = self.attn_norm(x_in) * self.ln_scale_factor
+        qd = q_delta_fn(n) if q_delta_fn is not None else None
+        vd = v_delta_fn(n) if v_delta_fn is not None else None
+        attn_out = self.attn(n, v_embed=v_embed, q_delta=qd, v_delta=vd)
         x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor)
         if self.dtg_gate is not None:
@@ -757,7 +765,7 @@ class GPT(nn.Module):
         ve_base = ve_cache['ve'] if ve_cache is not None else self.ve_shared(input_ids)
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor, lora=None) -> Tensor:
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
@@ -768,14 +776,18 @@ class GPT(nn.Module):
         ve_cache: dict = {}
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
+            qd = lora.q_loras[i] if lora else None
+            vd = lora.v_loras[i] if lora else None
+            x = self.blocks[i](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve)
+            qd = lora.q_loras[bi] if lora else None
+            vd = lora.v_loras[bi] if lora else None
+            x = self.blocks[bi](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -785,7 +797,11 @@ class GPT(nn.Module):
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x_flat)
+        logits_proj = logits_proj + (lora.lm_head_lora(x).reshape(-1, logits_proj.size(-1)) if lora else 0)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        if lora:
+            bsz, sl, V = logits_proj.shape[0] // target_ids.shape[1], target_ids.shape[1], logits_proj.shape[-1]
+            return F.cross_entropy(logits.float(), targets, reduction="none").reshape(bsz, sl)
         main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
         if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
             _, seqlen, dim = x.shape
@@ -987,23 +1003,41 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
 
 BOS_ID = 1
 
-class BatchedLMHeadLoRA(nn.Module):
-    """Batched LoRA for lm_head: each batch element has independent A, B."""
-    def __init__(self, bsz: int, dim: int, vocab: int, rank: int):
+class BatchedLinearLoRA(nn.Module):
+    """LoRA adapter with independent weights per batch element."""
+    def __init__(self, bsz: int, in_features: int, out_features: int, rank: int):
         super().__init__()
-        self.A = nn.Parameter(torch.empty(bsz, rank, dim))
-        self.B = nn.Parameter(torch.zeros(bsz, vocab, rank))
+        self.in_features = in_features
+        self.A = nn.Parameter(torch.empty(bsz, rank, in_features))
+        self.B = nn.Parameter(torch.zeros(bsz, out_features, rank))
         self.reset()
 
     def forward(self, x: Tensor) -> Tensor:
-        # x: [bsz, T, dim] → [bsz, T, vocab]
         return (x @ self.A.transpose(1, 2)) @ self.B.transpose(1, 2)
 
     def reset(self):
         with torch.no_grad():
-            bound = 1.0 / math.sqrt(self.A.shape[2])
+            bound = 1.0 / math.sqrt(self.in_features)
             self.A.uniform_(-bound, bound)
             self.B.zero_()
+
+class BatchedTTTLoRA(nn.Module):
+    """All LoRA adapters for one batch: lm_head + Q/V per block."""
+    def __init__(self, bsz: int, model: nn.Module, rank: int):
+        super().__init__()
+        dim = model.tok_emb.embedding_dim
+        vocab = model.tok_emb.num_embeddings
+        self.lm_head_lora = BatchedLinearLoRA(bsz, dim, vocab, rank)
+        self.q_loras = nn.ModuleList()
+        self.v_loras = nn.ModuleList()
+        for block in model.blocks:
+            self.q_loras.append(BatchedLinearLoRA(bsz, dim, block.attn.c_q.weight.shape[0], rank))
+            self.v_loras.append(BatchedLinearLoRA(bsz, dim, block.attn.c_v.weight.shape[0], rank))
+
+    def reset(self):
+        for m in self.modules():
+            if isinstance(m, BatchedLinearLoRA):
+                m.reset()
 
 def eval_ttt_perdoc(
     args, base_model, device, val_tokens,
@@ -1036,10 +1070,8 @@ def eval_ttt_perdoc(
     for p in base_model.parameters():
         p.requires_grad_(False)
 
-    dim = base_model.tok_emb.embedding_dim
-    vocab = base_model.tok_emb.num_embeddings
-    lora = BatchedLMHeadLoRA(batch_size, dim, vocab, args.ttt_lora_rank).to(device)
-    opt = torch.optim.AdamW(lora.parameters(), lr=args.ttt_lr, weight_decay=0.0)
+    lora = BatchedTTTLoRA(batch_size, base_model, args.ttt_lora_rank).to(device)
+    opt = torch.optim.Adam(lora.parameters(), lr=args.ttt_lr, betas=(0.9, 0.95), eps=1e-10)
 
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     byte_sum = torch.zeros((), device=device, dtype=torch.float64)
@@ -1058,8 +1090,8 @@ def eval_ttt_perdoc(
                     s['exp_avg_sq'].zero_()
                     s['step'].fill_(0)
         else:
-            cur_lora = BatchedLMHeadLoRA(bsz, dim, vocab, args.ttt_lora_rank).to(device)
-            cur_opt = torch.optim.AdamW(cur_lora.parameters(), lr=args.ttt_lr, weight_decay=0.0)
+            cur_lora = BatchedTTTLoRA(bsz, base_model, args.ttt_lora_rank).to(device)
+            cur_opt = torch.optim.Adam(cur_lora.parameters(), lr=args.ttt_lr, betas=(0.9, 0.95), eps=1e-10)
 
         pred_lens = [dl - 1 for _, dl in batch]
         num_chunks = [(pl + chunk_size - 1) // chunk_size for pl in pred_lens]
@@ -1092,17 +1124,9 @@ def eval_ttt_perdoc(
                 y[b, :wl] = chunk_tok[1:]
                 doc_info.append((co, cl))
 
-            # SCORE: get logits + hidden states from base model, add LoRA delta
+            # SCORE: forward with LoRA-augmented model
             with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                base_logits, hidden = base_model.forward_logits(x, return_hidden=True)
-            with torch.no_grad():
-                lora_delta = cur_lora(hidden.float())
-            logits = base_logits + lora_delta.to(base_logits.dtype)
-
-            nll = F.cross_entropy(
-                logits.reshape(-1, logits.size(-1)).float(),
-                y.reshape(-1), reduction="none",
-            ).reshape(bsz, context_size)
+                ptl = base_model(x, y, lora=cur_lora)  # [bsz, context_size] per-token loss
 
             # Accumulate BPB for scored tokens
             with torch.no_grad():
@@ -1112,7 +1136,7 @@ def eval_ttt_perdoc(
                     co, cl = doc_info[b]
                     if cl <= 0:
                         continue
-                    scored_nll = nll[b, co:co + cl].to(torch.float64)
+                    scored_nll = ptl[b, co:co + cl].to(torch.float64)
                     loss_sum += scored_nll.sum()
                     token_count += float(cl)
                     tgt = y[b, co:co + cl]
@@ -1125,20 +1149,12 @@ def eval_ttt_perdoc(
             if needs_train:
                 for _ in range(args.ttt_epochs):
                     cur_opt.zero_grad(set_to_none=True)
-                    with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        _, hidden_train = base_model.forward_logits(x, return_hidden=True)
-                    lora_delta_train = cur_lora(hidden_train.detach().float())
-                    # Compute logits: base (detached) + LoRA (with grad)
-                    if base_model.tie_embeddings:
-                        base_logits_flat = F.linear(hidden_train.detach(), base_model.tok_emb.weight.detach())
-                    else:
-                        base_logits_flat = base_model.lm_head(hidden_train.detach())
-                    logits_train = base_logits_flat + lora_delta_train.to(base_logits_flat.dtype)
-                    logits_train = base_model.logit_softcap * torch.tanh(logits_train / base_model.logit_softcap)
-                    train_loss = F.cross_entropy(
-                        logits_train.reshape(-1, logits_train.size(-1)).float(),
-                        y.reshape(-1), reduction="mean",
-                    )
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        ptl_train = base_model(x, y, lora=cur_lora)
+                    # Mask inactive docs
+                    mask = torch.tensor([float(ci < num_chunks[b] - 1) for b in range(bsz)], device=device)
+                    per_doc_loss = ptl_train[:, :context_size].mean(dim=-1)
+                    train_loss = (per_doc_loss * mask).sum() / max(mask.sum(), 1)
                     train_loss.backward()
                     torch.nn.utils.clip_grad_norm_(cur_lora.parameters(), 1.0)
                     cur_opt.step()
