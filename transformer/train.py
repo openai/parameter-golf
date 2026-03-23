@@ -85,6 +85,8 @@ class Hyperparameters:
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     num_loops = int(os.environ.get("NUM_LOOPS", 1))
+    moe_num_experts = int(os.environ.get("MOE_NUM_EXPERTS", 0))  # 0=dense, >0=MoE
+    moe_top_k = int(os.environ.get("MOE_TOP_K", 2))
 
     # Sliding window evaluation.
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
@@ -985,6 +987,40 @@ class MLP(nn.Module):
         return self.proj(x)
 
 
+class MoEMLP(nn.Module):
+    """Mixture-of-Experts MLP: N small experts with top-k routing."""
+    def __init__(self, dim: int, mlp_mult: int, num_experts: int = 8, top_k: int = 2, mlp_hidden: int = 0):
+        super().__init__()
+        self.num_experts = num_experts
+        self.top_k = top_k
+        expert_hidden = (mlp_hidden if mlp_hidden > 0 else mlp_mult * dim) * top_k // num_experts
+        self.router = nn.Linear(dim, num_experts, bias=False)
+        self.experts_fc = nn.Parameter(torch.empty(num_experts, dim, expert_hidden))
+        self.experts_proj = nn.Parameter(torch.empty(num_experts, expert_hidden, dim))
+        nn.init.kaiming_uniform_(self.experts_fc, a=math.sqrt(5))
+        nn.init.zeros_(self.experts_proj)
+
+    def forward(self, x: Tensor) -> Tensor:
+        bsz, seq_len, dim = x.shape
+        x_flat = x.reshape(-1, dim)  # [B*T, D]
+        # Route
+        logits = self.router(x_flat)  # [B*T, E]
+        weights, indices = torch.topk(torch.softmax(logits, dim=-1), self.top_k, dim=-1)  # [B*T, K]
+        weights = weights / weights.sum(dim=-1, keepdim=True)  # renormalize
+        # Compute: gather experts, apply, scatter
+        out = torch.zeros_like(x_flat)
+        for k in range(self.top_k):
+            expert_idx = indices[:, k]  # [B*T]
+            w = weights[:, k:k+1]  # [B*T, 1]
+            fc_w = self.experts_fc[expert_idx]  # [B*T, D, H]
+            proj_w = self.experts_proj[expert_idx]  # [B*T, H, D]
+            h = torch.bmm(x_flat.unsqueeze(1), fc_w).squeeze(1)  # [B*T, H]
+            h = torch.relu(h).square()
+            h = torch.bmm(h.unsqueeze(1), proj_w).squeeze(1)  # [B*T, D]
+            out = out + w * h
+        return out.reshape(bsz, seq_len, dim)
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -998,12 +1034,17 @@ class Block(nn.Module):
         ln_scale: bool = False,
         layer_idx: int = 0,
         mlp_hidden: int = 0,
+        moe_num_experts: int = 0,
+        moe_top_k: int = 2,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims=rope_dims)
-        self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden)
+        if moe_num_experts > 0:
+            self.mlp = MoEMLP(dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k, mlp_hidden=mlp_hidden)
+        else:
+            self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -1045,6 +1086,8 @@ class GPT(nn.Module):
         ve_dim: int = 128,
         ve_layers: str = "9,10",
         num_loops: int = 1,
+        moe_num_experts: int = 0,
+        moe_top_k: int = 2,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1073,6 +1116,8 @@ class GPT(nn.Module):
                     ln_scale=ln_scale,
                     layer_idx=i,
                     mlp_hidden=mlp_hidden,
+                    moe_num_experts=moe_num_experts,
+                    moe_top_k=moe_top_k,
                 )
                 for i in range(num_layers)
             ]
@@ -1518,6 +1563,8 @@ def main() -> None:
         ve_dim=args.ve_dim,
         ve_layers=args.ve_layers,
         num_loops=args.num_loops,
+        moe_num_experts=args.moe_num_experts,
+        moe_top_k=args.moe_top_k,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
