@@ -66,18 +66,25 @@ Combines the PR #374 SOTA stack with MLP width reduction (1408 vs 1536) to fit u
 
 4. **GPTQ-lite clip search is free**: Trying 5 clip ratios per tensor during quantization costs ~2s total and reduces reconstruction error without any training cost.
 
-## Command
+## Setup
 
 ```bash
 pip install --break-system-packages zstandard
+# or: pip install -r requirements.txt
+```
 
+## Command
+
+```bash
 RUN_ID=pr374_8x_v2 MLP_HIDDEN=1408 \
-DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
+DATA_PATH=../../../data/datasets/fineweb10B_sp1024/ \
+TOKENIZER_PATH=../../../data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 ## Status
 
-Single seed (1337). Non-record submission — val_bpb 1.1804 does not beat SOTA 1.1428 by the required 0.005 margin. Submitted as a non-record contribution documenting the systematic combination of frontier techniques.
+**Non-record submission.** Single seed (1337). val_bpb 1.1804 does not beat SOTA 1.1428 by the required 0.005 margin.
+
+Submitted to document the systematic combination of frontier techniques (Partial RoPE, LN Scale, XSA, Shared VE, Tight SWA, Late QAT, GPTQ-lite) with the novel insight that MLP hidden=1408 (vs 1536) produces better results under the 16MB constraint because faster step time yields more training steps.
