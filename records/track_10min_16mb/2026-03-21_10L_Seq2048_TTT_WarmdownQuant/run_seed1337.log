@@ -1,6 +1,6 @@
 W0321 04:13:24.689000 46039 torch/distributed/run.py:803] 
 W0321 04:13:24.689000 46039 torch/distributed/run.py:803] *****************************************
-W0321 04:13:24.689000 46039 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0321 04:13:24.689000 46039 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.  
 W0321 04:13:24.689000 46039 torch/distributed/run.py:803] *****************************************
 logs/2479cd0b-529c-45bf-aa76-05d2a1cf8190.txt
 val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
@@ -124,11 +124,9 @@ step:13000/200000 train_loss:2.0783 train_time:587287ms step_avg:45.18ms
 step:13000/200000 val_loss:1.9929 val_bpb:1.1803 train_time:587302ms step_avg:45.18ms
 step:13200/200000 train_loss:1.8992 train_time:596298ms step_avg:45.17ms
 step:13282/200000 val_loss:1.9902 val_bpb:1.1787 train_time:600033ms step_avg:45.18ms
-stopping_early: wallclock_cap train_time:600033ms step:13282/200000
 peak memory allocated: 8513 MiB reserved: 8888 MiB
 Serialized model: 74573987 bytes
 Code size: 62945 bytes
 Total submission size: 74636932 bytes
 Serialized model int8+zlib: 15561996 bytes (payload:19552576 raw_torch:19602363 payload_ratio:3.81x)
 Total submission size int8+zlib: 15624941 bytes
-Starting TTT LoRA eval (rank=8, chunk=256, seq=1024)...

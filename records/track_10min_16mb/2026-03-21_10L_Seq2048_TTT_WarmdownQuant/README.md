@@ -42,3 +42,9 @@ Seed 1337 on 8xH100 SXM:
 | 10000 | 1.2130 |
 | 12000 | 1.1917 |
 | 13282 | 1.1787 |
+
+## Run log ([`run_seed1337.log`](run_seed1337.log))
+
+Training + int8+zlib export for seed 1337: ends at step 13282 with **val_bpb 1.1787**, then peak memory and submission byte counts. TTT LoRA (above) is separate eval — not in this capture.
+
+Val was still trending down at the 10-minute cap. More 8×H100 wall (or faster hardware) plus a full TTT pass is the path to a **~1.15 BPB** stretch; same stack, not logged end-to-end here yet.

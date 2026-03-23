@@ -1,8 +1,9 @@
 {
   "name": "10L Seq2048 WarmdownQuant + TTT LoRA",
-  "val_loss": 1.1787,
+  "val_loss": 1.9902,
+  "val_bpb": 1.1787,
   "bytes_total": 15624941,
-  "blurb": "10 layers, seq_len 2048, Muon momentum 0.98, LR 0.03, always-decaying warmdown (WD=15000) for reduced int8 quant penalty, TTT LoRA eval (rank 8). Seed 1337: val_bpb=1.1787 pre-quant.",
+  "blurb": "10 layers, seq_len 2048, Muon momentum 0.98, LR 0.03, always-decaying warmdown (WD=15000) for reduced int8 quant penalty, TTT LoRA eval (rank 8). Seed 1337: val_bpb=1.1787 at wall; v2 log stops before TTT completes — ~1.15 BPB stretch once eval + more H100 time land.",
   "author": "vishesh9131",
   "github_id": "vishesh9131",
   "date": "2026-03-21"
