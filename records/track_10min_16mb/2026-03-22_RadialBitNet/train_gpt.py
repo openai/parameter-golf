@@ -20,11 +20,11 @@ class Hyperparameters:
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     seed = int(os.environ.get("SEED", 1337))
+    vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
+    max_wallclock = int(os.environ.get("MAX_WALLCLOCK_SECONDS", 600))
 
-    # We scale down to fit exactly ~16MB compressed.
     # A standard 50M parameter model in FP16 is 100MB. 
     # With BitNet 1.58b (ternary weights), zstd shrinks this dramatically.
-    vocab_size = 1024
     num_layers = 12
     num_kv_heads = 2
     model_dim = 384
@@ -32,7 +32,7 @@ class Hyperparameters:
     mlp_mult = 3  # Wide MLPs offset BitNet capacity reduction
 
     train_seq_len = 1024
-    val_loss_every = 1000
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     iterations = 20000
 
 # -----------------------------
@@ -466,7 +466,7 @@ def main():
 
     import time
     start_time = time.time()
-    max_time = 10 * 60 - 30 # 9.5 minutes wallclock limit
+    max_time = args.max_wallclock - 30 if args.max_wallclock > 30 else args.max_wallclock
     
     batch_size = 4 # VRAM safe size for Deep Graph Accumulation
     print(f"\n🚀 Starting 10-Minute Rapid Convergence Cycle on real dataset...")
