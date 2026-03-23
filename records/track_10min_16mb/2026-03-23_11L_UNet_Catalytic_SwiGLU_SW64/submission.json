@@ -1,0 +1,13 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-23",
+  "name": "11L U-Net + Catalytic Residuals + SwiGLU + Sliding Window",
+  "author": "serkankarakulak",
+  "seed_results": {
+    "1337": {"val_loss": 1.95156679, "val_bpb": 1.15582778, "steps": 6898, "ms_per_step": 86.99}
+  },
+  "mean_val_loss": 1.95156679,
+  "mean_val_bpb": 1.15582778,
+  "artifact_bytes": 15096450,
+  "code_bytes": 96259
+}
