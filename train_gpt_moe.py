@@ -59,9 +59,10 @@ class Hyperparameters:
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 10))
-    num_experts = int(os.environ.get("NUM_EXPERTS", 4))
+    num_experts = int(os.environ.get("NUM_EXPERTS", 2))
     top_k = int(os.environ.get("TOP_K", 1))
     moe_aux_loss_coef = float(os.environ.get("MOE_AUX_LOSS_COEF", 0.01))
+    moe_mode = os.environ.get("MOE_MODE", "standard")  # "standard" or "shared_routed"
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -581,46 +582,79 @@ class MLP(nn.Module):
 
 
 class MoEMLP(nn.Module):
-    """Mixture of Experts MLP: num_experts small experts with top-k routing.
-    Each expert has hidden_dim = mlp_mult * dim / num_experts, so total
-    parameters stay roughly equal to a single full-size MLP.
-    Uses straight-through estimator for routing gradient and a Switch
-    Transformer-style load balancing auxiliary loss."""
+    """Sparse Mixture of Experts MLP with full-size experts.
+    Each expert is a full-size MLP (hidden = mlp_mult * dim). Each token
+    routes to exactly 1 expert — FLOPs per token match a single MLP,
+    but the model can specialize across experts at the cost of larger params.
+    Uses a Switch Transformer load balancing aux loss to prevent collapse."""
     def __init__(self, dim: int, mlp_mult: float, num_experts: int, top_k: int):
         super().__init__()
         self.num_experts = num_experts
         self.top_k = top_k
-        self.router = CastedLinear(dim, num_experts, bias=False)
-        self.experts = nn.ModuleList([MLP(dim, mlp_mult / num_experts) for _ in range(num_experts)])
+        # Plain nn.Linear — (dim, num_experts) is too small for Muon; handled in optimizer setup
+        self.router = nn.Linear(dim, num_experts, bias=False)
+        nn.init.zeros_(self.router.weight)  # start with uniform routing
+        # Each expert is a full-size MLP
+        self.experts = nn.ModuleList([MLP(dim, mlp_mult) for _ in range(num_experts)])
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         shape = x.shape
         x_flat = x.reshape(-1, shape[-1])  # (N, D)
 
-        # Router: per-token soft probabilities over experts
-        router_probs = torch.softmax(self.router(x_flat).float(), dim=-1)  # (N, E)
+        # Router
+        logits = self.router(x_flat.float())          # (N, E)
+        probs = torch.softmax(logits, dim=-1)          # (N, E)
+        top_idx = probs.argmax(dim=-1)                 # (N,) hard routing
 
-        # Hard top-1 dispatch
-        top_idx = router_probs.argmax(dim=-1)  # (N,)
-        one_hot = F.one_hot(top_idx, num_classes=self.num_experts).to(dtype=x.dtype)  # (N, E)
+        # Load balancing aux loss (Switch Transformer)
+        one_hot = F.one_hot(top_idx, self.num_experts).float()
+        aux_loss = self.num_experts * (one_hot.mean(0).detach() * probs.mean(0)).sum()
 
-        # Straight-through estimator: one_hot in forward, router_probs gradient in backward
-        gates = one_hot + (router_probs.to(dtype=x.dtype) - router_probs.to(dtype=x.dtype).detach())  # (N, E)
-
-        # Switch Transformer load balancing loss
-        # f_i: fraction of tokens dispatched to expert i (detached — just shapes the router)
-        # P_i: mean soft probability for expert i (has gradient)
-        fraction_tokens = one_hot.float().mean(dim=0)        # (E,)
-        mean_router_prob = router_probs.float().mean(dim=0)  # (E,)
-        aux_loss = self.num_experts * (fraction_tokens.detach() * mean_router_prob).sum()
-
-        # Dense computation: run all experts on all tokens, weight by gate
-        # FLOPs stay the same as a single full-size MLP (E experts × 1/E hidden each)
+        # Sparse dispatch: only run the selected expert per token
         out = torch.zeros_like(x_flat)
         for i, expert in enumerate(self.experts):
-            out = out + gates[:, i:i+1] * expert(x_flat)
+            mask = (top_idx == i)
+            if mask.any():
+                gate = probs[mask, i].unsqueeze(-1).to(dtype=x.dtype)
+                out[mask] = expert(x_flat[mask]) * gate
 
         return out.reshape(shape), aux_loss
+
+
+class SharedRoutedMLP(nn.Module):
+    """Shared + Routed MoE: a shared MLP (2x expansion) runs on every token,
+    plus one small routed expert (1x expansion) for specialization.
+    Total extra params vs single MLP = num_experts × small experts.
+    This is a more parameter-efficient MoE for the 16MB budget."""
+    def __init__(self, dim: int, mlp_mult: float, num_experts: int, top_k: int):
+        super().__init__()
+        self.num_experts = num_experts
+        self.shared = MLP(dim, 2.0)
+        self.router = nn.Linear(dim, num_experts, bias=False)
+        nn.init.zeros_(self.router.weight)
+        self.experts = nn.ModuleList([MLP(dim, max(mlp_mult - 2.0, 1.0)) for _ in range(num_experts)])
+
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        shape = x.shape
+        x_flat = x.reshape(-1, shape[-1])
+
+        shared_out = self.shared(x_flat)
+
+        logits = self.router(x_flat.float())
+        probs = torch.softmax(logits, dim=-1)
+        top_idx = probs.argmax(dim=-1)
+
+        one_hot = F.one_hot(top_idx, self.num_experts).float()
+        aux_loss = self.num_experts * (one_hot.mean(0).detach() * probs.mean(0)).sum()
+
+        routed_out = torch.zeros_like(x_flat)
+        for i, expert in enumerate(self.experts):
+            mask = (top_idx == i)
+            if mask.any():
+                gate = probs[mask, i].unsqueeze(-1).to(dtype=x.dtype)
+                routed_out[mask] = expert(x_flat[mask]) * gate
+
+        return (shared_out + routed_out).reshape(shape), aux_loss
 
 
 class SmearGate(nn.Module):
@@ -691,12 +725,15 @@ class TrigramHashEmbedding(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float, num_experts: int = 1, top_k: int = 1):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float, num_experts: int = 1, top_k: int = 1, moe_mode: str = "standard"):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MoEMLP(dim, mlp_mult, num_experts, top_k) if num_experts > 1 else MLP(dim, mlp_mult)
+        if num_experts > 1:
+            self.mlp = SharedRoutedMLP(dim, mlp_mult, num_experts, top_k) if moe_mode == "shared_routed" else MoEMLP(dim, mlp_mult, num_experts, top_k)
+        else:
+            self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -707,7 +744,7 @@ class Block(nn.Module):
         attn_out = self.attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         mlp_normed = self.mlp_norm(x)
-        if isinstance(self.mlp, MoEMLP):
+        if isinstance(self.mlp, (MoEMLP, SharedRoutedMLP)):
             mlp_out, aux_loss = self.mlp(mlp_normed)
         else:
             mlp_out = self.mlp(mlp_normed)
@@ -737,6 +774,7 @@ class GPT(nn.Module):
         num_experts: int = 1,
         top_k: int = 1,
         moe_aux_loss_coef: float = 0.01,
+        moe_mode: str = "standard",
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -755,7 +793,7 @@ class GPT(nn.Module):
         self.smear = SmearGate(model_dim)
         self.blocks = nn.ModuleList(
             [
-                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, num_experts, top_k)
+                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, num_experts, top_k, moe_mode)
                 for _ in range(num_layers)
             ]
         )
@@ -1021,23 +1059,37 @@ def main() -> None:
         num_experts=args.num_experts,
         top_k=args.top_k,
         moe_aux_loss_coef=args.moe_aux_loss_coef,
+        moe_mode=args.moe_mode,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    # MoE sparse dispatch uses data-dependent shapes; use dynamic=True instead of fullgraph=True
+    compiled_model = torch.compile(base_model, dynamic=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     block_named_params = list(base_model.blocks.named_parameters())
+    # Router weights are too small for Muon's Newton-Schulz; collect them separately
+    router_weight_ids = {
+        id(block.mlp.router.weight)
+        for block in base_model.blocks
+        if isinstance(block.mlp, (MoEMLP, SharedRoutedMLP))
+    }
     matrix_params = [
         p for name, p in block_named_params
-        if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        if p.ndim == 2
+        and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        and id(p) not in router_weight_ids
     ]
     scalar_params = [
         p for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
+    # Add router weights to AdamW scalar group
+    for block in base_model.blocks:
+        if isinstance(block.mlp, (MoEMLP, SharedRoutedMLP)):
+            scalar_params.append(block.mlp.router.weight)
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     scalar_params.append(base_model.smear.gate)
@@ -1238,6 +1290,13 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
+            # Log expert utilization to detect router collapse
+            if rank == 0:
+                for layer_idx, block in enumerate(base_model.blocks):
+                    if isinstance(block.mlp, (MoEMLP, SharedRoutedMLP)):
+                        with torch.no_grad():
+                            router_w = block.mlp.router.weight.float()
+                            log0(f"  expert_util layer={layer_idx} router_weight_norms={[f'{router_w[i].norm().item():.3f}' for i in range(args.num_experts)]}")
 
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
         if distributed and max_wallclock_ms is not None:
