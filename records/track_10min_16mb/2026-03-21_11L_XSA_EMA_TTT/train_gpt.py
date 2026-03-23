@@ -177,6 +177,13 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "0")))  # shared value embedding
     ve_dim = int(os.environ.get("VE_DIM", 128))  # value embedding dimension
     ve_layers = os.environ.get("VE_LAYERS", "9,10")  # comma-separated layer indices
+    value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))  # ResFormer: cache layer-0 V, mix into later layers
+    gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "1")))  # per-head sigmoid gate after SDPA
+    # Per-layer lr: MLP proj (high quant damage) gets higher lr, MLP fc (low damage) gets lower lr
+    # Based on our 34-config ablation showing 3.4x damage ratio between proj and fc weights
+    perlayer_train_lr = bool(int(os.environ.get("PERLAYER_TRAIN_LR", "1")))
+    proj_lr_mult = float(os.environ.get("PROJ_LR_MULT", "1.5"))   # multiplier for mlp.proj (high quant damage)
+    fc_lr_mult = float(os.environ.get("FC_LR_MULT", "0.7"))       # multiplier for mlp.fc (low quant damage)
     neural_cache = bool(int(os.environ.get("NEURAL_CACHE", "0")))  # cross-window KV caching at eval time
     neural_cache_max_len = int(os.environ.get("NEURAL_CACHE_MAX_LEN", 8192))  # max cached KV length per layer
 
@@ -489,13 +496,36 @@ def quantize_float_tensor(t: Tensor, bits: int = 8) -> tuple[Tensor, Tensor]:
 # Populated at runtime when fp16_embed_export=True.
 _FP16_EXPORT_NAMES: set[str] = set()
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor], bits: int = 8):
-    # Clean-script export format supporting int8 or int6:
+def _assign_bits_per_tensor(
+    state_dict: dict[str, Tensor],
+    default_bits: int,
+    grad_sensitivity: dict[str, float],
+) -> dict[str, int]:
+    """Assign quantization bits per tensor based on gradient sensitivity.
+    Top 10% most sensitive -> default+1 (int7), bottom 20% -> default-1 (int5), rest -> default (int6)."""
+    if not grad_sensitivity:
+        return {}
+    ranked = sorted(grad_sensitivity.items(), key=lambda x: x[1], reverse=True)
+    n = len(ranked)
+    bits_map: dict[str, int] = {}
+    for i, (name, _) in enumerate(ranked):
+        frac = i / n
+        if frac < 0.1:
+            bits_map[name] = min(default_bits + 1, 8)
+        elif frac >= 0.8:
+            bits_map[name] = max(default_bits - 1, 4)
+    return bits_map
+
+
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], bits: int = 8,
+                             grad_sensitivity: dict[str, float] | None = None):
+    # Clean-script export format supporting int8 or int6 with optional adaptive quantization:
     # - per-row quantization for 2D float tensors (int8: [-127,127], int6: [-31,31])
-    # - per-tensor quantization for other float tensors
+    # - if grad_sensitivity provided: top 10% get bits+1, bottom 20% get bits-1
     # - exact passthrough for non-floats
     # - passthrough for small float tensors, stored as fp16 to save bytes
     # - fp16 passthrough for tensors in _FP16_EXPORT_NAMES (e.g. tied embeddings)
+    bits_map = _assign_bits_per_tensor(state_dict, bits, grad_sensitivity or {})
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -538,7 +568,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], bits: int = 8):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t, bits=bits)
+        tensor_bits = bits_map.get(name, bits)
+        q, s = quantize_float_tensor(t, bits=tensor_bits)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -798,6 +829,8 @@ class CausalSelfAttention(nn.Module):
         qk_gain_init: float,
         ntk_base_seq_len: int = 0,
         rope_dims: int = 0,
+        value_residual: bool = False,
+        gated_attention: bool = False,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -820,6 +853,16 @@ class CausalSelfAttention(nn.Module):
         self.rope_dims = rope_dims if rope_dims > 0 else self.head_dim
         self.rotary = Rotary(self.rope_dims, base=rope_base, ntk_base_seq_len=ntk_base_seq_len)
         self.use_xsa = False  # enabled on last N layers by GPT.__init__
+        # Value Residual (ResFormer arXiv:2410.17897): mix layer-0 V into later layers
+        self.value_residual = value_residual
+        if value_residual:
+            self.vr_lambda = nn.Parameter(torch.tensor([0.5, 0.5], dtype=torch.float32))
+        # Gated Attention (arXiv:2505.06708): per-head sigmoid gate after SDPA
+        self.gated_attention = gated_attention
+        if gated_attention:
+            self.attn_gate = nn.Linear(dim, num_heads, bias=True)
+            nn.init.zeros_(self.attn_gate.weight)
+            nn.init.constant_(self.attn_gate.bias, 4.0)  # init open (sigmoid(4)≈0.98)
 
     def forward_cached(self, x: Tensor, kv_cache: tuple[Tensor, Tensor] | None, pos_offset: int = 0) -> tuple[Tensor, tuple[Tensor, Tensor]]:
         """Forward with KV cache for Neural Cache eval. Not used during training.
@@ -860,10 +903,12 @@ class CausalSelfAttention(nn.Module):
             causal_current = torch.ones(seqlen, seqlen, device=x.device, dtype=torch.bool).tril()
             cache_visible = torch.ones(seqlen, cache_len, device=x.device, dtype=torch.bool)
             mask = torch.cat([cache_visible, causal_current], dim=-1).unsqueeze(0).unsqueeze(0)
-            y = F.scaled_dot_product_attention(
-                q, k_all, v_all, attn_mask=mask,
-                enable_gqa=(self.num_kv_heads != self.num_heads),
-            )
+            # Custom mask + GQA requires math backend (flash doesn't support custom masks with GQA)
+            with torch.nn.attention.sdpa_kernel(torch.nn.attention.SDPBackend.MATH):
+                y = F.scaled_dot_product_attention(
+                    q, k_all, v_all, attn_mask=mask,
+                    enable_gqa=(self.num_kv_heads != self.num_heads),
+                )
         else:
             y = F.scaled_dot_product_attention(
                 q, k_all, v_all, attn_mask=None, is_causal=True,
@@ -888,7 +933,9 @@ class CausalSelfAttention(nn.Module):
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
 
-    def forward(self, x: Tensor, lora: AttentionLoRA | None = None, v_embed: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, lora: AttentionLoRA | None = None, v_embed: Tensor | None = None,
+                v0: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
+        """Returns (output, raw_v) where raw_v is the pre-mix V for caching as v0."""
         bsz, seqlen, dim = x.shape
         q = self.c_q(x)
         k = self.c_k(x)
@@ -896,14 +943,22 @@ class CausalSelfAttention(nn.Module):
         if v_embed is not None:
             v = v + v_embed
         if lora is not None:
-            # LoRA delta: (bsz, seqlen, dim) @ (dim, rank) @ (rank, out_dim)
-            # autocast handles fp32->bf16 cast of LoRA params automatically
             q = q + (x @ lora.q_A) @ lora.q_B
             k = k + (x @ lora.k_A) @ lora.k_B
             v = v + (x @ lora.v_A) @ lora.v_B
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        # Cache raw V before mixing (for Value Residual)
+        raw_v = v if self.value_residual else None
+        # Value Residual: mix layer-0 V into current layer's V
+        if self.value_residual:
+            lam = self.vr_lambda.to(dtype=v.dtype)
+            if v0 is not None:
+                v = lam[0] * v0 + lam[1] * v
+            else:
+                # First layer: no-op but keep lambda in graph for DDP grad sync
+                v = v * (lam[0] + lam[1])
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -934,10 +989,15 @@ class CausalSelfAttention(nn.Module):
             else:
                 y = y.transpose(1, 2)
             y = y.contiguous().reshape(bsz, seqlen, dim)
+        # Gated Attention: per-head sigmoid gate
+        if self.gated_attention:
+            gate = torch.sigmoid(self.attn_gate(x))  # (bsz, seqlen, num_heads)
+            y = y.reshape(bsz, seqlen, self.num_heads, self.head_dim) * gate.unsqueeze(-1)
+            y = y.reshape(bsz, seqlen, dim)
         out = self.proj(y)
         if lora is not None:
             out = out + (y @ lora.proj_A) @ lora.proj_B
-        return out
+        return out, raw_v
 
 
 class MLP(nn.Module):
@@ -968,25 +1028,31 @@ class Block(nn.Module):
         rope_dims: int = 0,
         layer_idx: int = 0,
         ln_scale: bool = False,
+        value_residual: bool = False,
+        gated_attention: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, ntk_base_seq_len=ntk_base_seq_len, rope_dims=rope_dims)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
+                                         ntk_base_seq_len=ntk_base_seq_len, rope_dims=rope_dims,
+                                         value_residual=value_residual, gated_attention=gated_attention)
         self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
-    def forward(self, x: Tensor, x0: Tensor, lora: AttentionLoRA | None = None, v_embed: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, lora: AttentionLoRA | None = None, v_embed: Tensor | None = None,
+                v0: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
+        """Returns (x, raw_v) where raw_v is the pre-mix V from this layer's attention."""
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         s = self.ln_scale_factor
-        attn_out = self.attn(self.attn_norm(x) * s, lora=lora, v_embed=v_embed)
+        attn_out, raw_v = self.attn(self.attn_norm(x) * s, lora=lora, v_embed=v_embed, v0=v0)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * s)
-        return x
+        return x, raw_v
 
 
 # ── Shared Value Embedding (VE) ──────────────────────────────────────────────
@@ -1078,6 +1144,8 @@ class GPT(nn.Module):
         ve_enabled: bool = False,
         ve_dim: int = 128,
         ve_layers: str = "9,10",
+        value_residual: bool = False,
+        gated_attention: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1104,6 +1172,8 @@ class GPT(nn.Module):
         self.num_decoder_layers = effective_depth - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32)) if unet_skips else None
+        self.value_residual = value_residual
+        self.gated_attention = gated_attention
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -1118,6 +1188,8 @@ class GPT(nn.Module):
                     rope_dims=rope_dims,
                     layer_idx=i,
                     ln_scale=ln_scale,
+                    value_residual=value_residual,
+                    gated_attention=gated_attention,
                 )
                 for i in range(num_layers)
             ]
@@ -1183,21 +1255,28 @@ class GPT(nn.Module):
             ve_idx = self.ve_layer_indices.index(layer_idx)
             return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
 
+        v0 = None  # Value Residual: cache layer-0's raw V
         if self.unet_skips:
             skips: list[Tensor] = []
             for i in range(num_enc):
-                x = self.blocks[i](x, x0, v_embed=_get_ve(i))
+                x, raw_v = self.blocks[i](x, x0, v_embed=_get_ve(i), v0=v0)
+                if v0 is None and raw_v is not None:
+                    v0 = raw_v
                 skips.append(x)
             for i in range(num_dec):
                 if skips:
                     x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                x = self.blocks[num_enc + i](x, x0, v_embed=_get_ve(num_enc + i))
+                x, raw_v = self.blocks[num_enc + i](x, x0, v_embed=_get_ve(num_enc + i), v0=v0)
+                if v0 is None and raw_v is not None:
+                    v0 = raw_v
         else:
             eff_idx = 0
             for loop_idx in range(self.num_loops):
                 for block_idx in range(self.num_unique_layers):
                     lora = self.lora_adapters[loop_idx][block_idx] if self.lora_adapters is not None else None
-                    x = self.blocks[block_idx](x, x0, lora=lora, v_embed=_get_ve(eff_idx))
+                    x, raw_v = self.blocks[block_idx](x, x0, lora=lora, v_embed=_get_ve(eff_idx), v0=v0)
+                    if v0 is None and raw_v is not None:
+                        v0 = raw_v
                     eff_idx += 1
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
@@ -1223,21 +1302,28 @@ class GPT(nn.Module):
         num_enc = self.num_encoder_layers
         num_dec = self.num_decoder_layers
 
+        v0 = None
         if self.unet_skips:
             skips: list[Tensor] = []
             for i in range(num_enc):
-                x = self.blocks[i](x, x0)
+                x, raw_v = self.blocks[i](x, x0, v0=v0)
+                if v0 is None and raw_v is not None:
+                    v0 = raw_v
                 skips.append(x)
             for i in range(num_dec):
                 if skips:
                     x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                x = self.blocks[num_enc + i](x, x0)
+                x, raw_v = self.blocks[num_enc + i](x, x0, v0=v0)
+                if v0 is None and raw_v is not None:
+                    v0 = raw_v
         else:
             eff_idx = 0
             for loop_idx in range(self.num_loops):
                 for block_idx in range(self.num_unique_layers):
                     lora = self.lora_adapters[loop_idx][block_idx] if self.lora_adapters is not None else None
-                    x = self.blocks[block_idx](x, x0, lora=lora)
+                    x, raw_v = self.blocks[block_idx](x, x0, lora=lora, v0=v0)
+                    if v0 is None and raw_v is not None:
+                        v0 = raw_v
                     eff_idx += 1
         x = self.final_norm(x)
         if self.tie_embeddings:
@@ -1274,7 +1360,7 @@ class GPT(nn.Module):
                 x = x + self.blocks[i].attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
                 x = x + self.blocks[i].mlp_scale.to(dtype=x.dtype)[None, None, :] * self.blocks[i].mlp(self.blocks[i].mlp_norm(x) * s)
                 skips.append(x)
-            if self.backout_alpha is not None:
+            if hasattr(self, 'backout_alpha') and self.backout_alpha is not None:
                 x = x - self.backout_alpha.to(dtype=x.dtype) * x
             for i in range(num_layers - num_enc):
                 if skips:
@@ -2168,6 +2254,8 @@ def main() -> None:
         ve_enabled=args.ve_enabled,
         ve_dim=args.ve_dim,
         ve_layers=args.ve_layers,
+        value_residual=args.value_residual,
+        gated_attention=args.gated_attention,
     ).to(device).bfloat16()
     if args._tier2:
         log0(f"*** TIER2_MODE: proxy run max={args.max_wallclock_seconds:.0f}s iters={args.iterations} "
@@ -2221,13 +2309,35 @@ def main() -> None:
     # - matrix params in transformer blocks use MATRIX_LR via Muon
     # - vectors/scalars use SCALAR_LR via Adam
     block_named_params = list(base_model.blocks.named_parameters())
-    matrix_params = [
-        p
-        for name, p in block_named_params
-        if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-    ]
+    if args.perlayer_train_lr:
+        # Per-layer lr: split matrix params by quantization damage profile
+        # MLP output projections (mlp.proj) have 3.4x higher quant damage → higher lr
+        # MLP input projections (mlp.fc) have low quant damage → lower lr
+        proj_matrix_params = [
+            p for name, p in block_named_params
+            if p.ndim == 2 and "mlp.proj" in name and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)
+        ]
+        fc_matrix_params = [
+            p for name, p in block_named_params
+            if p.ndim == 2 and "mlp.fc" in name and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)
+        ]
+        other_matrix_params = [
+            p for name, p in block_named_params
+            if p.ndim == 2 and "mlp.proj" not in name and "mlp.fc" not in name
+            and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)
+        ]
+        matrix_params = proj_matrix_params + fc_matrix_params + other_matrix_params
+        log0(f"perlayer_train_lr: proj={len(proj_matrix_params)} fc={len(fc_matrix_params)} "
+             f"other={len(other_matrix_params)} mult=({args.proj_lr_mult}x, {args.fc_lr_mult}x, 1.0x)")
+    else:
+        matrix_params = [
+            p
+            for name, p in block_named_params
+            if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        ]
     # bigram_hash.proj is a dense 2D projection — Muon is appropriate
-    if base_model.bigram_hash is not None:
+    # (when perlayer_train_lr, these are added to muon_param_groups directly)
+    if base_model.bigram_hash is not None and not args.perlayer_train_lr:
         matrix_params.append(base_model.bigram_hash.proj.weight)
     scalar_params = [
         p
@@ -2245,7 +2355,7 @@ def main() -> None:
     # VE: scales go to scalar, proj to matrix, embed to tok group
     if base_model.ve_shared is not None:
         scalar_params.append(base_model.ve_shared.scale)
-        if base_model.ve_shared.proj is not None:
+        if base_model.ve_shared.proj is not None and not args.perlayer_train_lr:
             matrix_params.append(base_model.ve_shared.proj.weight)
     if base_model.ve_layer_scales is not None:
         for vs in base_model.ve_layer_scales:
@@ -2264,15 +2374,41 @@ def main() -> None:
         weight_decay=args.adam_wd,
         fused=True,
     )
-    optimizer_muon = Muon(
-        matrix_params,
-        lr=args.matrix_lr,
-        momentum=args.muon_momentum,
-        backend_steps=args.muon_backend_steps,
-        weight_decay=args.muon_wd,
-    )
-    for group in optimizer_muon.param_groups:
-        group["base_lr"] = args.matrix_lr
+    if args.perlayer_train_lr:
+        proj_lr = args.matrix_lr * args.proj_lr_mult
+        fc_lr = args.matrix_lr * args.fc_lr_mult
+        muon_param_groups = [
+            {"params": proj_matrix_params, "lr": proj_lr, "base_lr": proj_lr},
+            {"params": fc_matrix_params, "lr": fc_lr, "base_lr": fc_lr},
+            {"params": other_matrix_params, "lr": args.matrix_lr, "base_lr": args.matrix_lr},
+        ]
+        # Add bigram_hash.proj to "other" group
+        if base_model.bigram_hash is not None:
+            muon_param_groups[2]["params"].append(base_model.bigram_hash.proj.weight)
+        if base_model.ve_shared is not None and base_model.ve_shared.proj is not None:
+            muon_param_groups[2]["params"].append(base_model.ve_shared.proj.weight)
+        muon_param_groups = [g for g in muon_param_groups if g["params"]]
+        optimizer_muon = Muon(
+            muon_param_groups,
+            lr=args.matrix_lr,
+            momentum=args.muon_momentum,
+            backend_steps=args.muon_backend_steps,
+            weight_decay=args.muon_wd,
+        )
+        # Muon constructor may overwrite group lr, restore per-group lr
+        for g in optimizer_muon.param_groups:
+            if "base_lr" in g:
+                g["lr"] = g["base_lr"]
+    else:
+        optimizer_muon = Muon(
+            matrix_params,
+            lr=args.matrix_lr,
+            momentum=args.muon_momentum,
+            backend_steps=args.muon_backend_steps,
+            weight_decay=args.muon_wd,
+        )
+        for group in optimizer_muon.param_groups:
+            group["base_lr"] = args.matrix_lr
     optimizer_scalar = torch.optim.AdamW(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
         betas=(args.beta1, args.beta2),
@@ -2402,6 +2538,10 @@ def main() -> None:
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
+    # GradQuant: accumulate gradient sensitivity during late warmdown for adaptive quantization
+    grad_sensitivity: dict[str, float] = {}
+    grad_sensitivity_active = False
+
     step = 0
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
@@ -2462,6 +2602,18 @@ def main() -> None:
 
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+
+        # GradQuant: accumulate per-tensor gradient sensitivity during late warmdown
+        if scale < 0.1:
+            if not grad_sensitivity_active:
+                grad_sensitivity_active = True
+                log0(f"grad_sensitivity:started step:{step}")
+            with torch.no_grad():
+                for name, p in base_model.named_parameters():
+                    if p.grad is not None and p.ndim == 2 and p.shape[0] >= 64:
+                        sens = p.grad.pow(2).mean().item()
+                        grad_sensitivity[name] = grad_sensitivity.get(name, 0.0) + sens
+
         for opt in optimizers:
             opt.step()
         zero_grad_all()
@@ -2597,8 +2749,13 @@ def main() -> None:
 
     global _gptq_lite
     _gptq_lite = args.gptq_lite
-    log0(f"quantization: {args.quant_bits}-bit gptq_lite:{_gptq_lite}")
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), bits=args.quant_bits)
+    if grad_sensitivity:
+        log0(f"grad_quant: {len(grad_sensitivity)} tensors tracked, assigning adaptive int{args.quant_bits-1}/{args.quant_bits}/{args.quant_bits+1} per tensor")
+    log0(f"quantization: {args.quant_bits}-bit{'(adaptive)' if grad_sensitivity else ''} gptq_lite:{_gptq_lite}")
+    quant_obj, quant_stats = quantize_state_dict_int8(
+        base_model.state_dict(), bits=args.quant_bits,
+        grad_sensitivity=grad_sensitivity if grad_sensitivity else None,
+    )
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()

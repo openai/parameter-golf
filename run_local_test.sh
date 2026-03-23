@@ -8,12 +8,18 @@ cd "$(dirname "$0")"
 
 export TRAIN_SEQ_LEN=512 EVAL_SEQ_LEN=512 UNET_SKIPS=1
 export TRAIN_BATCH_TOKENS=32768
+export NEURAL_CACHE=${NEURAL_CACHE:-0}
 export ROPE_DIMS=16 LN_SCALE=1 ROPE_BASE=10000
 export EVAL_STRIDE=64 DOC_ISOLATED_EVAL=0
 export LATE_K_FP16=0 FP16_EMBED_EXPORT=0
 export XSA_LAST_N=4
 export VE_ENABLED=1
 export WARMDOWN_ITERS=500
+export VALUE_RESIDUAL=1
+export GATED_ATTENTION=1
+export PERLAYER_TRAIN_LR=1
+export PROJ_LR_MULT=1.5
+export FC_LR_MULT=0.7
 
 # Match PR #414: EMA + Tight SWA, no QAT
 export EMA_ENABLED=1
@@ -30,7 +36,7 @@ export TIER2_MODE=0
 export SEED=${1:-1337}
 
 echo "=== LOCAL TEST (1xGPU, 60s) ==="
-echo "SEED=$SEED EMA=1 SWA=1 QAT=0 warmdown=500"
+echo "SEED=$SEED EMA=1 SWA=1 QAT=0 VR=1 GA=1 PERLAYER_LR=1 warmdown=500"
 echo "Checking: SWA activates, EMA applies, sliding window eval runs"
 echo "================================"
 
