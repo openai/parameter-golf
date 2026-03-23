@@ -47,3 +47,14 @@ Target: Beat PR #414 (1.1233 BPB, 15.55 MB)
 ## Submitted
 
 PR #445: v1 seed 1337, 1.12319 BPB, 15.68 MB
+
+## v7 TTT Results
+
+| Config | BPB | Notes |
+|--------|-----|-------|
+| Full TTT (lr=0.002, 3ep, freeze=2, 1893 chunks) | 1.13599 | Degraded — overfitting past chunk 51 |
+| Early stop 60 (lr=0.002, 3ep, freeze=2, 60 chunks) | **1.12312** | Best TTT result |
+| Gentle TTT (lr=0.0005, 1ep, freeze=4, 1893 chunks) | 1.12328 | Same as early stop |
+
+Peak at chunk 51: **1.1119** — unachievable over full val set with current approach.
+PR #473 gets 1.1218 with same recipe — their parameter banking likely helps TTT stability.
