@@ -1171,7 +1171,9 @@ def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
             H = hessians.get(module_name)
             clip = 127 if use_int8 else 31
             if H is not None and H.shape[0] == t.shape[1]:
-                q, s = gptq_quantize_weight(t, H.cpu(), clip_range=clip)
+                _gptq_bs = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
+                _gptq_pd = float(os.environ.get("GPTQ_PERCDAMP", 0.01))
+                q, s = gptq_quantize_weight(t, H.cpu(), clip_range=clip, block_size=_gptq_bs, percdamp=_gptq_pd)
                 if use_int8:
                     gptq8_count += 1
                 else:
