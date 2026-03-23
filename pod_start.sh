@@ -1,6 +1,6 @@
 #!/bin/bash
 # Pod startup script — run this first on any new/restarted pod
-# Usage: curl -s https://raw.githubusercontent.com/mrdavtan/parameter-golf/next-gen/pod_start.sh | bash
+# Usage: curl -s https://raw.githubusercontent.com/mrdavtan/parameter-golf/causal-ttt/pod_start.sh | bash
 
 set -e
 
@@ -76,10 +76,10 @@ if [ ! -d "parameter-golf/.git" ]; then
 fi
 cd parameter-golf
 
-# Checkout next-gen (has all run scripts + all features)
+# Checkout causal-ttt (has all run scripts + all features)
 git fetch origin
-git checkout next-gen
-git reset --hard origin/next-gen
+git checkout causal-ttt
+git reset --hard origin/causal-ttt
 
 # Download data and tokenizer if needed
 # Use /tmp for HF cache to avoid workspace quota issues
@@ -151,7 +151,7 @@ BRANCH=$(git branch --show-current)
 COMMIT=$(git log --oneline -1)
 echo "  [OK] branch: $BRANCH ($COMMIT)"
 
-for SCRIPT in run_baseline.sh run_oneshot.sh run_moonshot.sh; do
+for SCRIPT in run_no_ttt.sh run_causal_ttt.sh; do
     if [ -f "$SCRIPT" ]; then
         echo "  [OK] $SCRIPT exists"
     else
@@ -190,7 +190,7 @@ echo "Environment: Python $PY_VER | PyTorch $TORCH_VER | CUDA $CUDA_VER | $GPU_C
 echo ""
 echo "Run scripts:"
 echo ""
-echo "  bash run_competition.sh 1337   # Per-layer cosine TTT — targets sub-1.10"
-echo "  bash run_baseline.sh           # Proven 1.133 — safe fallback"
+echo "  bash run_no_ttt.sh 1337        # Sliding window eval, no TTT (clean baseline)"
+echo "  bash run_causal_ttt.sh 1337    # Legal score-first causal TTT"
 echo ""
 echo "Kill if step_avg@200 > 85ms (bad pod)"
