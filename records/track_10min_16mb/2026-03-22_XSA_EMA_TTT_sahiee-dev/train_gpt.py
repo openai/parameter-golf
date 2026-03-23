@@ -490,8 +490,9 @@ class LoRALinear(nn.Module):
         self.alpha = alpha
         dim_in = base_layer.weight.shape[1]
         dim_out = base_layer.weight.shape[0]
-        self.lora_A = nn.Parameter(torch.randn(rank, dim_in) * 0.01)
-        self.lora_B = nn.Parameter(torch.zeros(dim_out, rank))
+        device = base_layer.weight.device
+        self.lora_A = nn.Parameter(torch.randn(rank, dim_in, device=device) * 0.01)
+        self.lora_B = nn.Parameter(torch.zeros(dim_out, rank, device=device))
         self.scaling = alpha / rank
 
     def forward(self, x: Tensor) -> Tensor:
