@@ -971,6 +971,15 @@ def main() -> None:
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
+    # EMA shadow model — exponential moving average of weights, zero artifact cost.
+    # Decay=0.9999 tracks the full training trajectory; eval uses EMA weights.
+    import copy as _copy
+    ema_model = _copy.deepcopy(base_model)
+    ema_model.eval()
+    for _p in ema_model.parameters():
+        _p.requires_grad_(False)
+    EMA_DECAY = 0.9999
+
     block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [
         p for name, p in block_named_params
@@ -1151,6 +1160,11 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        # Update EMA weights after each optimizer step
+        with torch.no_grad():
+            for ema_p, model_p in zip(ema_model.parameters(), base_model.parameters()):
+                ema_p.data.mul_(EMA_DECAY).add_(model_p.data, alpha=1.0 - EMA_DECAY)
+
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
@@ -1197,6 +1211,14 @@ def main() -> None:
             for name, tensor in swa_state.items()
         }
         base_model.load_state_dict(avg_state, strict=True)
+
+    # Swap EMA weights into base_model for final serialization + eval.
+    # EMA coexists with SWA: SWA averaged checkpoints go into base_model above;
+    # then EMA weights (which tracked all of training) replace them for eval.
+    log0(f"ema:applying shadow weights decay:{EMA_DECAY}")
+    ema_state = {k: v.to(dtype=base_model.state_dict()[k].dtype)
+                 for k, v in ema_model.state_dict().items()}
+    base_model.load_state_dict(ema_state, strict=True)
 
     # SERIALIZATION + ROUNDTRIP VALIDATION
     if master_process:
