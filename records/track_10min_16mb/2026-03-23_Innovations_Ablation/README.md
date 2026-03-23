@@ -106,6 +106,59 @@ Neural cache eval has failed twice — the model produces garbage predictions th
 
 Root cause: the `forward_logits_cached` path likely has incompatibilities beyond just position encoding — possibly attention mask handling, or the model simply cannot generalize to cached KV it was never trained with. **Recommend shelving neural cache** and focusing on the three innovations above.
 
+## Session Learnings (2026-03-23)
+
+### Run Results
+
+| Run | Config | BPB | Steps | Step Avg | Key Finding |
+|-----|--------|-----|-------|----------|-------------|
+| 1 | no_ttt, 8xH100 | 1.1556 | 7346 | 81ms | First baseline (overwritten by run2) |
+| 2 | neural_cache, 8xH100 | 5.3528 | 7240 | 82ms | Neural cache broken — OOD RoPE positions |
+| 3 | no_ttt, 8xH100 | **1.1496** | 8454 | 71ms | Best score — faster pod, more steps |
+| 4 | neural_cache v2, 8xH100 | 5.7259 | ~7200 | ~83ms | Still broken even with no_pos_offset fix |
+| 5 | QAT=1 + trigram=0, 8xH100 | **1.1492** | ~8500 | ~70ms | Wash — QAT and no-trigram cancel out |
+
+### Confirmed Findings
+
+1. **Per-layer LR is our unique innovation** — 5 competition PRs adopted it, 4 credited us by name. All use it for TTT; our use during main training is still unique.
+
+2. **524K batch >> 786K batch on our hardware** — at ~70ms/step with 524K we get 8454 steps (4.4B tokens). At ~108ms/step with 786K we'd get ~5500 steps (4.3B tokens). The breakeven is ~80ms/step; PR #505 runs at 48ms so 786K works for them, not for us.
+
+3. **Sigmoid skip gates and decoder 2x LR already existed in our code** — `SIGMOID_SKIP_GATES=1` and `DECODER_LR_MULT=2.0` are defaults. Discovery via competitive intel analysis saved implementation time.
+
+4. **Stale env vars silently poison runs** — `MLP_HIDDEN=1792` leaked from a reverted commit and inflated the QAT run's model to 27.8M params (vs 27.5M). All run scripts now include `MLP_HIDDEN` in their `unset` blocks.
+
+5. **Timestamped checkpoints prevent data loss** — before the fix, run2 overwrote run1's checkpoint. Now all artifacts include `{run_tag}_{timestamp}` in filenames.
+
+### Falsified
+
+1. **Neural cache eval is fundamentally broken** — `forward_logits_cached` path produces garbage (5.3-5.7 BPB vs 1.15 expected). Tested twice with different configs. The model cannot use cached KV it wasn't trained with. Root cause likely in `forward_logits_cached` missing Value Residual and Gated Attention paths. **Shelved.**
+
+2. **MLP_HIDDEN=1792 doesn't fit** — artifact size goes to 17.6MB (cap is 16MB). PR #505 fits with h=1792 because they have tighter quantization or fewer other params. Reverted.
+
+3. **QAT + no-trigram is a wash** — 1.1492 vs 1.1496 baseline. The two changes appear to cancel each other out. Need isolated tests (QAT-only, trigram-only) to determine individual effects, but the combined result suggests neither is a large lever.
+
+### Infrastructure Improvements
+
+- `download_pod.sh` — one-command SCP download of all artifacts from any pod
+- Timestamped checkpoint filenames via `RUN_TAG` env var
+- Removed git operations from all run scripts (manual pull before run)
+- Fixed `unset` blocks across all scripts to prevent env var leaks
+
+### Competitive Intelligence
+
+- Best non-TTT score: PR #505 at 1.1181 (SwiGLU h=1792, sigmoid gates, Late QAT, full MHA)
+- Best TTT score: PR #512 at 0.9512 (LoRA TTT)
+- Our gap to non-TTT leader: 0.0315 BPB
+- Our per-layer LR technique cited in 4 competition PRs
+- Key missing technique vs #505: wider MLP (blocked by 16MB cap) and full MHA (8 KV heads)
+
+### Still Running (1xH100 pods)
+
+- **F: Progressive Layer Freezing** — freeze encoder during warmdown for more decoder-focused steps
+- **G: Hyper-Connections scalar** — learned mixing of all prior layer outputs
+- **H: Hyper-Connections vector** — per-dim mixing weights
+
 ## Local Artifacts
 
 ```
@@ -114,14 +167,18 @@ checkpoints/pod_runs/
 ├── final_model_neural_cache_run2.pt            # Run 2: neural cache, 5.3528 BPB
 ├── final_model_neural_cache_run2.int8.ptz
 ├── neural_cache_run2.txt
-├── no_ttt_run3/                                # Run 3: no_ttt, 1.1496 BPB
+├── no_ttt_run3/                                # Run 3: no_ttt, 1.1496 BPB (BASELINE)
 │   ├── final_model_no_ttt_20260323_142955.pt
 │   ├── final_model_no_ttt_20260323_142955.int8.ptz
 │   └── no_ttt_run3.txt
-└── neural_cache_run4/                          # Run 4: neural cache v2, 5.7259 BPB
-    ├── final_model_neural_cache_20260323_145307.pt
-    ├── final_model_neural_cache_20260323_145307.int8.ptz
-    └── neural_cache_run4.txt
+├── neural_cache_run4/                          # Run 4: neural cache v2, 5.7259 BPB
+│   ├── final_model_neural_cache_20260323_145307.pt
+│   ├── final_model_neural_cache_20260323_145307.int8.ptz
+│   └── neural_cache_run4.txt
+└── qat_notrigram_run5/                         # Run 5: QAT=1 trigram=0, 1.1492 BPB
+    ├── final_model_qat_notrigram_20260323_154446.pt
+    ├── final_model_qat_notrigram_20260323_154446.int8.ptz
+    └── qat_notrigram_run5.txt
 ```
 
 ## Commit History
@@ -131,3 +188,5 @@ checkpoints/pod_runs/
 - `edb9002` Fix run_tag: use args.run_tag instead of bare variable
 - `57270e2` Timestamp checkpoint filenames to prevent overwrite between runs
 - `00ea5f6` Add three novel innovations for ablation testing (freeze/hyper/ensemble)
+- `acea2ca` Add MLP_HIDDEN to unset block in all run scripts
+- `f15cac0` Fix batch size: 786K→524K to match run3 baseline
