@@ -111,7 +111,7 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.02))
     adam_wd = float(os.environ.get("ADAM_WD", 0.01))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 5))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))
     ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
@@ -122,23 +122,23 @@ class Hyperparameters:
 
     # TTT (Test-Time Training) - adapt model on val tokens during eval
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 15))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
-    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "sgd")  # "sgd" or "adamw"
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
+    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adamw")
     ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 0.0))
 
     # Novel experiments
-    gptq_lite = bool(int(os.environ.get("GPTQ_LITE", "0")))
+    gptq_lite = bool(int(os.environ.get("GPTQ_LITE", "1")))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "0")))
     qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.1))
 
     # Novel ideas (ours)
     quant_aware_ttt = bool(int(os.environ.get("QUANT_AWARE_TTT", "0")))  # Fake-quant during TTT
-    ttt_curriculum = bool(int(os.environ.get("TTT_CURRICULUM", "0")))  # Loss-weighted TTT
+    ttt_curriculum = bool(int(os.environ.get("TTT_CURRICULUM", "1")))  # Loss-weighted TTT
     test_time_distill = bool(int(os.environ.get("TEST_TIME_DISTILL", "0")))  # Distill full→quant at eval
     distill_temp = float(os.environ.get("DISTILL_TEMP", 2.0))
     distill_alpha = float(os.environ.get("DISTILL_ALPHA", 0.7))  # Weight of distill vs CE loss
