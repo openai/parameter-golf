@@ -60,10 +60,10 @@ echo ""
 echo "=== Installing Dependencies ==="
 
 # Install FA3 Hopper (prebuilt wheels, fast) — gives ~15-20% faster attention
-echo "Installing FA3 Hopper + FA2 fallback..."
-pip install flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291 -q 2>/dev/null &
-FA3_PID=$!
-pip install flash-attn --no-cache-dir --no-build-isolation &
+echo "Installing FA3 Hopper..."
+pip install flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291 -q 2>&1 || echo "  [WARN] FA3 wheels failed — will try again after repo setup"
+echo "Installing FA2 fallback (compiles from source, takes a few minutes)..."
+pip install flash-attn --no-cache-dir --no-build-isolation -q 2>&1 &
 FA2_PID=$!
 pip install zstandard huggingface_hub sentencepiece -q
 
@@ -91,13 +91,18 @@ else
     echo "Dataset and tokenizer exist."
 fi
 
-# Wait for flash-attn installs
-echo "Waiting for FA3 Hopper wheels..."
-wait $FA3_PID 2>/dev/null || echo "  [WARN] FA3 wheels not available — will use FA2"
+# Wait for FA2 compile
 echo "Waiting for FA2 to finish compiling..."
 if ! wait $FA2_PID; then
-    echo "  [FAIL] flash-attn install failed. Retrying..."
-    pip install flash-attn --no-cache-dir --no-build-isolation
+    echo "  [WARN] FA2 background install failed. Retrying..."
+    cd /workspace/parameter-golf && pip install flash-attn --no-cache-dir --no-build-isolation
+fi
+
+# Retry FA3 if not available (install from a known-good working directory)
+cd /workspace/parameter-golf
+if ! python3 -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; then
+    echo "Retrying FA3 Hopper install..."
+    pip install flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291 2>&1 || echo "  [WARN] FA3 not available — will use FA2"
 fi
 
 # === Preflight checks ===
