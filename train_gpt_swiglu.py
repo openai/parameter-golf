@@ -423,6 +423,34 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
     return t
 
 # ---------------------------------------------------------------------------
+# OptRot: Hadamard rotation before quantization to redistribute outliers
+# ---------------------------------------------------------------------------
+_hadamard_cache: dict[int, Tensor] = {}
+def _hadamard(n: int) -> Tensor:
+    """Normalized Hadamard matrix (self-inverse: H @ H = I). n must be power of 2."""
+    if n in _hadamard_cache:
+        return _hadamard_cache[n]
+    if n == 1:
+        H = torch.ones(1, 1)
+    else:
+        H_half = _hadamard(n // 2)
+        H = torch.cat([torch.cat([H_half, H_half], 1), torch.cat([H_half, -H_half], 1)], 0) / math.sqrt(2)
+    _hadamard_cache[n] = H
+    return H
+
+def optrot_rotate(W: Tensor) -> Tensor:
+    """Apply Hadamard rotation to rows before quantization. Spreads outliers."""
+    rows = W.shape[0]
+    if rows & (rows - 1) != 0 or rows < 2:
+        return W  # skip non-power-of-2
+    H = _hadamard(rows).to(dtype=W.dtype, device=W.device)
+    return H @ W
+
+def optrot_unrotate(W: Tensor) -> Tensor:
+    """Undo Hadamard rotation after dequantization. H is self-inverse."""
+    return optrot_rotate(W)  # H @ H = I, so un-rotate = rotate again
+
+# ---------------------------------------------------------------------------
 # GPTQ: Hessian-aware quantization with column-wise error compensation
 # ---------------------------------------------------------------------------
 def _find_best_row_scales_int6(W: Tensor, clip_range: int = 31) -> Tensor:
@@ -563,16 +591,20 @@ def quantize_state_dict_int6(state_dict: dict[str, Tensor], gptq_hessians: dict[
             continue
 
         stats["num_float_tensors"] += 1
+        # OptRot: Hadamard rotation before quantization (power-of-2 rows only)
+        t_q = optrot_rotate(t) if t.ndim == 2 else t
+        rotated = t_q is not t  # track if rotation was applied
         # Use GPTQ when Hessian available for 2D weight matrices
         module_name = name.rsplit(".weight", 1)[0] if name.endswith(".weight") else name
-        H = gptq_hessians.get(module_name) if gptq_hessians and t.ndim == 2 else None
-        if H is not None and H.shape[0] == t.shape[1]:
-            q, s = gptq_quantize_weight(t, H.cpu())
+        H = gptq_hessians.get(module_name) if gptq_hessians and t_q.ndim == 2 else None
+        if H is not None and H.shape[0] == t_q.shape[1]:
+            q, s = gptq_quantize_weight(t_q, H.cpu())
             gptq_count += 1
         else:
-            q, s = quantize_float_tensor_int6(t)
+            q, s = quantize_float_tensor_int6(t_q)
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
+            scheme = "per_row_rotated" if rotated else "per_row"
+            qmeta[name] = {"scheme": scheme, "axis": 0}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
@@ -599,9 +631,14 @@ def dequantize_state_dict_int6(obj: dict[str, object]) -> dict[str, Tensor]:
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+        meta = qmeta.get(name, {})
+        scheme = meta.get("scheme", "") if isinstance(meta, dict) else ""
+        if scheme in ("per_row", "per_row_rotated") or s.ndim > 0:
             s = s.to(dtype=torch.float32)
-            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+            w = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+            if scheme == "per_row_rotated":
+                w = optrot_unrotate(w)
+            out[name] = w
         else:
             scale = float(s.item())
             out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
