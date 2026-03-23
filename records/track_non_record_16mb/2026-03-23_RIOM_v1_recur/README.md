@@ -63,7 +63,7 @@ What is unfinished:
 - This is still a local development smoke, not an upstream-ready leaderboard submission.
 - Validation was capped with `VAL_MAX_TOKENS`; rerun with `VAL_MAX_TOKENS=0` before any upstream submission.
 - This MLX-only path demonstrates the idea locally, but a CUDA/PyTorch port is still required for a serious record attempt.
-- Identity fields in `submission.json` are placeholders.
+- `author` and `github_id` are set conservatively to the GitHub handle because no separately verified real-name metadata was available in this workspace.
 
 Next planned ablations:
 - port this shared-depth recurrence into the official CUDA `train_gpt.py`

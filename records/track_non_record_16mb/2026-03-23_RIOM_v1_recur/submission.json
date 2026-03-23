@@ -1,6 +1,6 @@
 {
-  "author": "TODO_FILL_AUTHOR",
-  "github_id": "TODO_FILL_GITHUB_ID",
+  "author": "hesong0222-dev",
+  "github_id": "hesong0222-dev",
   "name": "RIOM v1 Shared-Depth Recurrence (MLX dev smoke)",
   "blurb": "Non-record RIOM development package: 3 shared transformer blocks repeated 3 times with learned recurrence gates, using the official SP1024 tokenizer/dataset and the first 1,048,576 validation tokens on Apple Silicon MLX.",
   "date": "2026-03-23T00:00:00Z",
