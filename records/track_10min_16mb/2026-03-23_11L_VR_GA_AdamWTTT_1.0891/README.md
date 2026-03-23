@@ -1,43 +1,24 @@
-# Record: 11L EMA + Value Residual + Gated Attention + AdamW TTT (val_bpb=1.0891)
+# Record: 11L VR + GA + LeakyReLU² + Legal Score-First TTT (val_bpb=pending)
 
-**val_bpb = 1.0891** (sliding window stride=64, seed 1337) | **14.2 MB** artifact | 8xH100 SXM, 600s
+**val_bpb = pending rerun** | 8xH100 SXM, 600s training + legal TTT eval
 
 ## Approach
 
-Two architecture changes on top of the PR #442 recipe (11L EMA + AdamW TTT):
+Architecture improvements on the standard 11L competitive stack:
 
 **Value Residual** (ResFormer, arXiv:2410.17897): Each attention block receives the raw V from the first block. A learned 2-element lambda blends first-block V with current V before attention. Block 0 passes V through unchanged (no lambda parameter). Adds 2 params per layer (layers 1-10 only).
 
 **Gated Attention** (arXiv:2505.06708): Per-head sigmoid gate on attention output. Learned weight matrix (dim x num_heads) + bias initialized to 4.0 (near-open gate at init). Adds 4104 params per layer.
 
-Both techniques were ablated individually in PR #413 (-0.015 and -0.003 bpb respectively, -0.017 combined). This is the first validation on the full competitive stack with AdamW TTT.
+**LeakyReLU(0.5)²**: Replaces relu² in MLP. Preserves negative gradient flow. Proven by PR #569 and #535.
 
-## Results (seed 1337, 8xH100 SXM)
+**Legal score-first TTT**: Score each validation chunk before training on it. Every token evaluated BEFORE the model has seen it. AdamW optimizer, cosine LR across chunks, last 2 blocks + norms unfrozen.
 
-| Metric | Value |
-|--------|-------|
-| Training steps | 6,021 (wallclock capped at 600s) |
-| Step time | 99.66 ms/step |
-| Pre-quant val_bpb | 1.1545 |
-| Post-quant roundtrip val_bpb | 1.0964 |
-| **Sliding window val_bpb (s=64)** | **1.0891** |
-| Artifact size | 14,195,825 bytes |
-| Peak GPU memory | 21,374 MiB |
-| TTT time | 171.8s |
+Both VR and GA were ablated individually in PR #413 (-0.015 and -0.003 bpb respectively, -0.017 combined). This is the first validation with legal TTT + LeakyReLU².
 
-## Comparison to prior SOTA
+## Previous result (pre-eval TTT, non-compliant)
 
-| Submission | Best BPB | Steps | Step time |
-|-----------|----------|-------|-----------|
-| **Ours** | **1.0891** | 6,021 | 99.7 ms |
-| PR #442 (sjp611) | 1.0992 | 4,612 | ~137 ms |
-| PR #481 (mrdavtan) | 1.0959 | 7,101 | ~84 ms |
-
-## Key findings
-
-1. VR+GA adds ~300K params (27.1M vs 26.8M) with negligible throughput cost
-2. Faster step time (99.7ms vs PR #442's 137ms) yields 38% more training steps
-3. AdamW TTT recovers 0.065 bpb from quantized model (1.1545 -> 1.0891 with sliding window)
+The initial submission used pre-eval TTT (training on all val data before scoring), which is not competition-legal per issue #402. That result (1.0891) is invalid. This update switches to legal score-first TTT. Score pending rerun.
 
 ## Config
 
@@ -49,7 +30,7 @@ MATRIX_LR=0.025  SCALAR_LR=0.025  TIED_EMBED_LR=0.035
 ITERATIONS=9000  WARMDOWN_ITERS=1200
 EMA_ENABLED=1  EMA_DECAY=0.997
 VALUE_RESIDUAL=1  GATED_ATTENTION=1
-TTT_ENABLED=1  TTT_LR=0.0005  TTT_EPOCHS=10
+TTT_ENABLED=1  TTT_LR=0.0001  TTT_EPOCHS=3  TTT_UNFREEZE_BLOCKS=2
 EVAL_STRIDE=64
 ```
 
@@ -61,7 +42,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Credits
 
-- **PR #442** (sjp611): AdamW TTT, base recipe
-- **PR #398** (felipe-parodi): EMA, aggressive TTT findings
+- **PR #576** (cmcdnd): Legal score-first TTT implementation, temperature calibration
+- **PR #569** (gowtham0992): VRL + LeakyReLU² + Full GPTQ (best non-TTT)
 - **PR #413**: Value Residual + Gated Attention ablation
 - **PR #315** (jfprincz): Foundation architecture (U-Net skips, SmearGate, orthogonal init)
