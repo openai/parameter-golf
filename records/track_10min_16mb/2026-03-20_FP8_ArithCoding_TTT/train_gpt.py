@@ -364,6 +364,35 @@ def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
     q = torch.clamp(torch.round(t32 / scale.float()), -(clip_range+1), clip_range).to(torch.int8)
     return q, scale
 
+def quantize_codebook(t: Tensor, n_clusters: int = 32) -> tuple[Tensor, Tensor]:
+    """K-means codebook quantization. Returns (indices_int8, codebook_float16)."""
+    orig_shape = t.shape
+    t32 = t.float().flatten()
+    n = t32.numel()
+    vmin, vmax = t32.min().item(), t32.max().item()
+    centroids = torch.linspace(vmin, vmax, n_clusters, device=t32.device)
+    chunk = 500_000  # process in chunks to limit memory
+    for _ in range(20):
+        sums = torch.zeros(n_clusters, device=t32.device)
+        counts = torch.zeros(n_clusters, device=t32.device, dtype=torch.int64)
+        for i in range(0, n, chunk):
+            block = t32[i:i + chunk]
+            dists = (block[:, None] - centroids[None, :]).abs()
+            idx = dists.argmin(dim=1)
+            sums.scatter_add_(0, idx, block)
+            counts.scatter_add_(0, idx, torch.ones_like(idx, dtype=torch.int64))
+        alive = counts > 0
+        centroids[alive] = sums[alive] / counts[alive].float()
+    # Final assignment
+    all_indices = []
+    for i in range(0, n, chunk):
+        block = t32[i:i + chunk]
+        dists = (block[:, None] - centroids[None, :]).abs()
+        all_indices.append(dists.argmin(dim=1))
+    indices = torch.cat(all_indices).reshape(orig_shape).to(torch.int8)
+    codebook = centroids.to(torch.float16)
+    return indices, codebook
+
 def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
@@ -383,11 +412,11 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             meta[name] = "passthrough_fp16"
             continue
         if cat in int6_cats and t.ndim >= 1:
-            clip = 15 if cat == "mlp" else 31  # int5 for MLP, int6 for attention
-            q, s = quantize_intN_per_row(t, clip_range=clip)
-            result[name + ".q"] = q
-            result[name + ".scale"] = s
-            meta[name] = {"type": f"int{5 if cat == 'mlp' else 6}"}
+            n_clusters = 16 if cat == "mlp" else 32
+            indices, codebook = quantize_codebook(t, n_clusters)
+            result[name + ".q"] = indices
+            result[name + ".codebook"] = codebook
+            meta[name] = {"type": "codebook", "n_clusters": n_clusters}
         else:
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
@@ -407,11 +436,16 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
                 t = t.to(orig_dtype)
             out[name] = t
             continue
-        q, s = result[name + ".q"], result[name + ".scale"]
-        if s.ndim > 0:
-            out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
+        if isinstance(info, dict) and info.get("type") == "codebook":
+            indices = result[name + ".q"].long()
+            codebook = result[name + ".codebook"].float()
+            out[name] = codebook[indices].to(orig_dtype)
         else:
-            out[name] = (q.float() * float(s.item())).to(orig_dtype)
+            q, s = result[name + ".q"], result[name + ".scale"]
+            if s.ndim > 0:
+                out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
+            else:
+                out[name] = (q.float() * float(s.item())).to(orig_dtype)
     return out
 
 
@@ -1059,19 +1093,30 @@ def ac_compress_model(quant_result: dict, quant_meta: dict) -> bytes:
             passthrough_data.append((name, buf.getvalue()))
         elif isinstance(info, dict):
             q = quant_result[name + ".q"]
-            scale = quant_result[name + ".scale"]
             q_np = q.numpy()
             qtype = info["type"]
-            clip_range = 16 if qtype == "int5" else 32
-            n_bins = clip_range * 2
-            offset = clip_range  # shift [-clip, clip-1] to [0, n_bins-1]
-            hist = np.bincount((q_np.flatten() + offset).clip(0, n_bins - 1), minlength=n_bins)
-            cdf = _build_cdf(hist)
-            tensor_specs.append((name, q_np, cdf, offset, clip_range))
-            # Store scale separately
-            scale_buf = io.BytesIO()
-            torch.save(scale, scale_buf)
-            passthrough_data.append((name + ".scale", scale_buf.getvalue()))
+            if qtype == "codebook":
+                n_clusters = info["n_clusters"]
+                n_bins = n_clusters
+                offset = 0  # indices are already [0, n_clusters-1]
+                hist = np.bincount(q_np.flatten().astype(np.int32), minlength=n_bins)
+                cdf = _build_cdf(hist)
+                tensor_specs.append((name, q_np, cdf, offset, n_clusters))
+                # Store codebook (tiny: k * 2 bytes)
+                cb_buf = io.BytesIO()
+                torch.save(quant_result[name + ".codebook"], cb_buf)
+                passthrough_data.append((name + ".codebook", cb_buf.getvalue()))
+            else:
+                scale = quant_result[name + ".scale"]
+                clip_range = 16 if qtype == "int5" else 32
+                n_bins = clip_range * 2
+                offset = clip_range  # shift [-clip, clip-1] to [0, n_bins-1]
+                hist = np.bincount((q_np.flatten() + offset).clip(0, n_bins - 1), minlength=n_bins)
+                cdf = _build_cdf(hist)
+                tensor_specs.append((name, q_np, cdf, offset, clip_range))
+                scale_buf = io.BytesIO()
+                torch.save(scale, scale_buf)
+                passthrough_data.append((name + ".scale", scale_buf.getvalue()))
 
     # Parallel encode tensors
     if tensor_specs:
@@ -1760,7 +1805,7 @@ def main() -> None:
             if _is_te_internal(name):
                 continue
             if param.ndim == 2 and param.numel() > 65536:
-                threshold = torch.quantile(param.abs().float().flatten(), 0.03)
+                threshold = torch.quantile(param.abs().float().flatten(), 0.05)
                 mask = param.abs() < threshold
                 param.masked_fill_(mask, 0.0)
 
