@@ -1067,8 +1067,8 @@ def main() -> None:
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
     if master_process:
-        torch.save(base_model.state_dict(), f"final_model_{run_tag}.pt")
-        model_bytes = os.path.getsize(f"final_model_{run_tag}.pt")
+        torch.save(base_model.state_dict(), f"final_model_{args.run_tag}.pt")
+        model_bytes = os.path.getsize(f"final_model_{args.run_tag}.pt")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
@@ -1081,9 +1081,9 @@ def main() -> None:
     quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
     if master_process:
-        with open(f"final_model_{run_tag}.int8.ptz", "wb") as f:
+        with open(f"final_model_{args.run_tag}.int8.ptz", "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize(f"final_model_{run_tag}.int8.ptz")
+        quant_file_bytes = os.path.getsize(f"final_model_{args.run_tag}.int8.ptz")
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
@@ -1094,7 +1094,7 @@ def main() -> None:
 
     if distributed:
         dist.barrier()
-    with open(f"final_model_{run_tag}.int8.ptz", "rb") as f:
+    with open(f"final_model_{args.run_tag}.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
