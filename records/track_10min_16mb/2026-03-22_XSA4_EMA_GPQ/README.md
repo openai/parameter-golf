@@ -155,6 +155,5 @@ Inspired by:
 ## Notes
 
 - This submission demonstrates that **XSA + EMA + Late QAT** can compete with TTT approaches
-- The 600-second wallclock limit (10 min) was hard-capped; more iterations would likely improve further
 - SWA applied 23 checkpoints from warmdown phase (last 20% of training)
 - No test-time training; purely architectural + optimization improvements
