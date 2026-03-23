@@ -70,3 +70,4 @@ pr414_bigram3072_burst_s1337,600,15870400,,70021,8,74218,1.1223,e45bc1e,"bigram3
 pr414_bigram3072_burst_s42,600,16032344,,70021,8,74105,1.1233,e45bc1e,"bigram3072+burst s42: 16.03MB OVER limit"
 pr414_bigram3072_burst_s7,600,15813294,,70021,8,73918,1.1233,e45bc1e,"bigram3072+burst s7: 15.81MB fits. 3-seed mean: 1.1230"
 pr414_bigram2048_dim192_s1337,600,16095547,,70021,8,89341,1.1245,e45bc1e,"bigram2048 dim192: 1.1245, 16.10MB OVER"
+pr414_seq4096_s1337,600,15867937,,70021,8,73608,1.1375,e45bc1e,"seq4096: worse quant damage, 1.1375 despite better training"
