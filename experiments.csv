@@ -60,3 +60,6 @@ pr414_tttburst_s1337,600,15502652,,70021,8,74053,1.1232,a21df9a,"PR#414+TTTburst
 pr414_tttburst_s42,600,15490118,,70021,8,73659,1.1226,a21df9a,"PR#414+TTTburst seed42: 1.1226! Mean of 2 seeds: 1.1229"
 pr414_bigram8192_s1337,600,16906408,,70021,8,89576,1.1206,a21df9a,"bigram8192: 1.1206 BEATS SOTA! but 16.9MB — OVER 16MB limit"
 pr414_bigram4096_s1337,600,16008862,,70021,8,89809,1.1238,a21df9a,"bigram4096: 1.1238, 16.009MB — 8KB OVER limit! need to trim"
+pr414_bigram4096_dim96_s1337,600,15782682,,70021,8,91419,1.1239,a21df9a,"bigram4096 dim96: 15.8MB fits, dim reduction hurts"
+pr414_noburst_bigram4096_dim96_s1337,600,15762019,,70021,8,73803,1.1243,a21df9a,"bigram4096 dim96 no burst: 1.1243"
+pr414_bigram3072_s1337,600,15940482,,70021,8,89643,1.1225,b73ac5e,"bigram3072: 1.1225 BEATS SOTA (1.1232)! 15.94MB fits! seed 1337"
