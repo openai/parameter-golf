@@ -91,6 +91,12 @@ class Hyperparameters:
     ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.1))  # fraction of base LR
     ttt_burst_steps = int(os.environ.get("TTT_BURST_STEPS", 100))  # how many recent batches to replay
     ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.05))  # trigger at scale < this
+    # Self-distillation: EMA teacher smooths student weights before final EMA application
+    distill_enabled = bool(int(os.environ.get("DISTILL_ENABLED", "1")))
+    distill_steps = int(os.environ.get("DISTILL_STEPS", 50))
+    distill_lr_factor = float(os.environ.get("DISTILL_LR_FACTOR", 0.05))
+    distill_temperature = float(os.environ.get("DISTILL_TEMPERATURE", 2.0))
+    distill_alpha = float(os.environ.get("DISTILL_ALPHA", 0.7))  # weight of KL vs CE
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -1335,6 +1341,67 @@ def main() -> None:
                         ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
             log0(f"ttt_burst:epoch:{ttt_epoch + 1}/{args.ttt_burst_epochs} avg_loss:{ttt_epoch_loss / len(ttt_buffer):.4f}")
         log0("ttt_burst:done")
+    # Self-distillation: EMA teacher smooths student
+    if args.distill_enabled:
+        log0(f"distill:start steps:{args.distill_steps} lr_factor:{args.distill_lr_factor} "
+             f"temp:{args.distill_temperature} alpha:{args.distill_alpha}")
+        current_state = base_model.state_dict()
+        teacher_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
+        teacher_model = GPT(
+            vocab_size=args.vocab_size, num_layers=args.num_layers, num_loops=args.num_loops,
+            model_dim=args.model_dim, num_heads=args.num_heads, num_kv_heads=args.num_kv_heads,
+            mlp_mult=args.mlp_mult, tie_embeddings=args.tie_embeddings,
+            tied_embed_init_std=args.tied_embed_init_std, logit_softcap=args.logit_softcap,
+            rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
+            mtp_num_heads=0, mtp_loss_weight=0.0,
+            bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
+            xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
+            dtg=args.dtg_enabled, ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+        ).to(device).bfloat16()
+        for m in teacher_model.modules():
+            if isinstance(m, CastedLinear):
+                m.float()
+        restore_low_dim_params_to_fp32(teacher_model)
+        teacher_model.load_state_dict(teacher_state, strict=True)
+        teacher_model.eval()
+        for p in teacher_model.parameters():
+            p.requires_grad_(False)
+        compiled_teacher = torch.compile(teacher_model, dynamic=False, fullgraph=True)
+        model.train()
+        T = args.distill_temperature
+        alpha = args.distill_alpha
+        for d_step in range(args.distill_steps):
+            zero_grad_all()
+            for opt in optimizers:
+                for group in opt.param_groups:
+                    group["lr"] = group["base_lr"] * args.distill_lr_factor
+            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                student_logits = base_model.forward_logits(x)
+                with torch.no_grad():
+                    teacher_logits = compiled_teacher.forward_logits(x)
+                student_log_probs = F.log_softmax(student_logits.float() / T, dim=-1)
+                teacher_probs = F.softmax(teacher_logits.float() / T, dim=-1)
+                kl_loss = F.kl_div(student_log_probs, teacher_probs, reduction="batchmean") * (T * T)
+                ce_loss = F.cross_entropy(
+                    student_logits.reshape(-1, student_logits.size(-1)).float(),
+                    y.reshape(-1), reduction="mean"
+                )
+                loss = alpha * kl_loss + (1.0 - alpha) * ce_loss
+            (loss * grad_scale).backward()
+            if args.grad_clip_norm > 0:
+                torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+            for opt in optimizers:
+                opt.step()
+            zero_grad_all()
+            with torch.no_grad():
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
+            if (d_step + 1) % 10 == 0 or d_step == 0:
+                log0(f"distill:step:{d_step + 1}/{args.distill_steps} kl:{kl_loss.item():.4f} ce:{ce_loss.item():.4f} total:{loss.item():.4f}")
+        del teacher_model, compiled_teacher
+        torch.cuda.empty_cache()
+        log0("distill:done")
     # Apply EMA weights (better than SWA alone per PR#401)
     log0("ema:applying EMA weights")
     current_state = base_model.state_dict()
