@@ -1,4 +1,4 @@
-# MUD + Int5 MLP + BigramHash(10240) + SWA
+# MUD + Int5 MLP + BigramHash(10240) + SWA (Non-Record)
 
 ## Key Innovation: MUD Optimizer
 
@@ -25,23 +25,27 @@ The paper reports **1.3-2.6x throughput improvement** over Muon and **10-50% wal
 
 ### Algorithm (MUD1)
 
-```
-def mud_whiten(G, passes=1, eps=1e-8):
+```python
+def mud_whiten(G, passes=1, eps=1e-7):
     n, m = G.shape
     k = min(n, m)
     if n > m:
-        M = G.T
-    Q = M.bfloat16()
+        M = G.T.contiguous()
+    else:
+        M = G.contiguous()
+    Q = M.float()
     for _ in range(passes):
         r = Q.norm(dim=1)
         Q = Q / (r[:, None] + eps)        # row-normalize
         Gk = Q @ Q.T                       # Gram matrix k×k
         T = torch.tril(Gk)                 # lower-triangular
+        T.diagonal().add_(eps)             # numerical stability
         Q = torch.linalg.solve_triangular(T, Q, upper=False)  # TRSM
         r = Q.norm(dim=1)
         Q = Q / (r[:, None] + eps)        # row-normalize again
+    Q = Q.bfloat16()
     if n > m:
-        Q = Q.T
+        Q = Q.T.contiguous()
     return Q
 ```
 
@@ -57,16 +61,43 @@ Based on the SOTA submission (thwu1, 1.1428 BPB) with MUD replacing Muon:
 - SWA with start_frac=0.4
 - Sliding window eval stride=64
 
-## Expected Improvement
+## Results (Single Seed, 8xH100 SXM)
 
-The SOTA (1.1428 BPB) is limited by training steps within the 10-minute window. MUD's ~12x cheaper optimizer should allow **significantly more gradient updates** in the same wall-clock time, potentially:
+| Metric | Value |
+|--------|-------|
+| Final val_bpb | **1.1989** |
+| Final val_loss | 2.0243 |
+| Steps in 10 min | 5,087 |
+| step_avg | 118ms |
+| Peak memory | 18,866 MiB |
+| Artifact size | 15.9 MB |
 
-- ~15-25% more training steps (accounting for TRSM being slower than GEMM in practice)
-- Better convergence per wall-clock second
+### Convergence Curve
 
-## Hyperparameters
+| Step | val_bpb |
+|------|---------|
+| 500 | 1.4604 |
+| 1000 | 1.3649 |
+| 2000 | 1.3191 |
+| 3000 | 1.2647 |
+| 4000 | 1.2291 |
+| 5000 | 1.1945 |
+| Final (post-quant) | **1.1989** |
 
-Same as SOTA with `MUON_BACKEND_STEPS=1` (MUD1 passes).
+### vs. Muon SOTA
+
+| Metric | Muon (SOTA) | MUD (this) |
+|--------|-------------|------------|
+| step_avg | ~26ms | 118ms |
+| Steps in 10 min | ~20,000 | 5,087 |
+| Final val_bpb | 1.1428 | 1.1989 |
+| Convergence quality | — | Strong (4x fewer steps, within 0.056 BPB) |
+
+### Key Finding
+
+MUD achieves **strong convergence** (1.1989 BPB in only 5,087 steps) but is **4.5x slower per step** than Muon on H100s. The paper's throughput claims (A100/MI250/GH200) do not transfer to H100s due to `torch.linalg.solve_triangular` CUDA overhead — TRSM is not as well-optimized as GEMM on Hopper architecture.
+
+If MUD could match Muon's step time (~26ms), extrapolating the convergence curve suggests it could reach ~1.10 BPB in 20,000 steps.
 
 ## Run Command
 
