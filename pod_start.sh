@@ -193,13 +193,17 @@ echo "=== All checks passed. Ready to run. ==="
 echo ""
 echo "Environment: Python $PY_VER | PyTorch $TORCH_VER | CUDA $CUDA_VER | $GPU_COUNT x $GPU_NAME"
 echo ""
+echo "IMPORTANT: Run 'cd /workspace/parameter-golf' before any run script."
+echo ""
 echo "Run scripts:"
 echo ""
 if [ "$GPU_COUNT" -ge 8 ]; then
-    echo "  bash run_no_ttt.sh 1337        # 8xGPU: full stack, no TTT (competition submission)"
-    echo "  bash run_neural_cache.sh 1337  # 8xGPU: same + neural cache eval (A/B test)"
+    echo "  cd /workspace/parameter-golf && bash run_lr03_leaky_qat.sh 1337"
     echo ""
     echo "Kill if step_avg@200 > 85ms (bad pod)"
 else
-    echo "  bash run_no_ttt_1gpu.sh 1337   # 1xGPU: full stack, no TTT (test run, ~1hr)"
+    echo "  cd /workspace/parameter-golf && bash run_no_ttt_1gpu.sh 1337"
 fi
+
+# Re-enter directory so the shell's cwd is valid after git reset --hard
+cd /workspace/parameter-golf
