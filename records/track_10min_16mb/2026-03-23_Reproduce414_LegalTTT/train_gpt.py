@@ -1564,9 +1564,10 @@ def main() -> None:
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
-            args, base_model, rank, world_size, device,
+            args, eval_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=64, batch_seqs=args.ttt_batch_seqs, log0=log0,
+            stride=args.eval_stride if args.eval_stride > 0 else 64,
+            batch_seqs=args.ttt_batch_seqs, log0=log0,
         )
         torch.cuda.synchronize()
         log0(f"final_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
