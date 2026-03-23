@@ -849,6 +849,110 @@ class GPT(nn.Module):
         if return_hidden:
             return logits, x
         return logits
+def eval_val_sliding_ttt(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int = 64,
+    batch_seqs: int = 8,
+    eval_seq_len: int | None = None,
+    ttt_lr: float = 5e-5,
+    ttt_steps: int = 1,
+    log_fn=None,
+) -> tuple[float, float]:
+    """Sliding window eval with online full-parameter TTT.
+
+    Legal backward-looking: score each batch of new tokens BEFORE training
+    on that batch. Each GPU independently adapts on its slice of windows.
+    """
+    seq_len = eval_seq_len or args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+    window_starts = [ws for ws in range(0, total_tokens, stride)
+                     if min(ws + seq_len, total_tokens) - ws >= 1]
+    total_windows = len(window_starts)
+    my_s = (total_windows * rank) // world_size
+    my_e = (total_windows * (rank + 1)) // world_size
+    my_windows = window_starts[my_s:my_e]
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    base_model.eval()
+    for p in base_model.parameters():
+        p.requires_grad_(True)
+    optimizer = torch.optim.AdamW(base_model.parameters(), lr=ttt_lr, weight_decay=0.01)
+
+    t0 = time.perf_counter()
+    for bi in range(0, len(my_windows), batch_seqs):
+        batch_ws = my_windows[bi:bi + batch_seqs]
+        bsz = len(batch_ws)
+        x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+        y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+        wlens: list[int] = []
+        for i, ws in enumerate(batch_ws):
+            end = min(ws + seq_len, total_tokens)
+            wlen = end - ws
+            wlens.append(wlen)
+            chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+            x_batch[i, :wlen] = chunk[:-1]
+            y_batch[i, :wlen] = chunk[1:]
+
+        # SCORE — no grad, these new tokens haven't been trained on yet
+        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            logits = base_model.forward_logits(x_batch)
+        nll = F.cross_entropy(
+            logits.reshape(-1, logits.size(-1)).float(),
+            y_batch.reshape(-1),
+            reduction="none",
+        ).reshape(bsz, seq_len)
+        for i, ws in enumerate(batch_ws):
+            wlen = wlens[i]
+            s = 0 if ws == 0 else max(wlen - stride, 0)
+            scored_nll = nll[i, s:wlen].to(torch.float64)
+            loss_sum += scored_nll.sum()
+            token_count += float(wlen - s)
+            tgt = y_batch[i, s:wlen]
+            prev = x_batch[i, s:wlen]
+            tb = base_bytes_lut[tgt].to(torch.float64)
+            tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+            byte_count += tb.sum()
+
+        # TRAIN — gradient update after scoring (legal)
+        for _step in range(ttt_steps):
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits_t = base_model.forward_logits(x_batch)
+            train_loss = F.cross_entropy(
+                logits_t.reshape(-1, logits_t.size(-1)).float(),
+                y_batch.reshape(-1),
+                reduction="mean",
+            )
+            train_loss.backward()
+            torch.nn.utils.clip_grad_norm_(base_model.parameters(), 1.0)
+            optimizer.step()
+
+        if log_fn and (bi // batch_seqs) % 100 == 0:
+            elapsed = time.perf_counter() - t0
+            running_bpb = float((loss_sum / math.log(2.0)) / byte_count) if byte_count > 0 else 0
+            log_fn(f"ttt_sliding: batch={bi//batch_seqs} bpb={running_bpb:.4f} time={elapsed:.1f}s")
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    return val_loss, bits_per_token * tokens_per_byte
+
 def eval_val_sliding(
     args: Hyperparameters,
     base_model: nn.Module,

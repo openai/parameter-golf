@@ -7,8 +7,12 @@ Usage:
   RUN_ID=base ... torchrun --nproc=8 train_submission.py
 
   # Then: fast TTT eval iterations
-  TTT_LR=0.001 TTT_EPOCHS=3 ... torchrun --nproc=8 eval_ttt.py
+  TTT_LR=5e-5 TTT_EPOCHS=1 ... torchrun --nproc=8 eval_ttt.py
+
+  # Sliding window TTT (full-parameter, legal):
+  TTT_MODE=sliding TTT_LR=5e-5 ... torchrun --nproc=8 eval_ttt.py
 """
+import copy
 import os, sys, math, time, glob
 from pathlib import Path
 import torch
@@ -22,11 +26,17 @@ from train_submission import (
     Hyperparameters, GPT, CastedLinear, restore_low_dim_params_to_fp32,
     load_validation_tokens, build_sentencepiece_luts,
     dequantize_mixed_int6, eval_val_sliding, eval_ttt_perdoc,
+    eval_val_sliding_ttt,
     BatchedTTTLoRA, BatchedLinearLoRA, BOS_ID,
 )
 
 def main():
     args = Hyperparameters()
+    ttt_mode = os.environ.get("TTT_MODE", "sliding")  # "sliding" or "perdoc"
+    ttt_lr = float(os.environ.get("TTT_LR", "5e-5"))
+    ttt_steps = int(os.environ.get("TTT_STEPS", "1"))
+    ttt_batch = int(os.environ.get("TTT_BATCH", "8"))
+
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     if distributed:
         dist.init_process_group(backend="nccl")
@@ -80,31 +90,8 @@ def main():
     CastedLinear._qat_enabled = False
     CastedLinear._soft_tau = 1000.0
 
-    grad_accum_steps = 8 // world_size
-
-    # Run TTT eval
-    if args.ttt_enabled:
-        if distributed:
-            dist.barrier()
-        for block in eval_model.blocks:
-            block.attn.rotary._cos_cached = None
-            block.attn.rotary._sin_cached = None
-            block.attn.rotary._seq_len_cached = 0
-        log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs} rank={args.ttt_lora_rank}")
-        t_ttt = time.perf_counter()
-        ttt_val_loss, ttt_val_bpb = eval_ttt_perdoc(
-            args, eval_model, device, val_tokens,
-            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            rank=rank, world_size=world_size, log_fn=log0,
-        )
-        log0(f"ttt:elapsed={time.perf_counter() - t_ttt:.1f}s")
-        log0(f"final_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f}")
-        log0(f"final_ttt_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
-        if distributed:
-            dist.barrier()
-
-    # Also run standard sliding window for comparison
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    # Run standard sliding window FIRST (on clean model, for baseline comparison)
+    log0("--- Standard sliding window eval (baseline) ---")
     t_slide = time.perf_counter()
     sw_val_loss, sw_val_bpb = eval_val_sliding(
         args, eval_model, rank, world_size, device,
@@ -113,7 +100,41 @@ def main():
     )
     log0(f"sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} time:{time.perf_counter()-t_slide:.1f}s")
 
+    # Run TTT eval (modifies model weights!)
+    if ttt_mode == "sliding":
+        log0(f"--- Sliding window TTT: lr={ttt_lr} steps={ttt_steps} batch={ttt_batch} ---")
+        if distributed:
+            dist.barrier()
+        t_ttt = time.perf_counter()
+        ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+            args, eval_model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            stride=64, batch_seqs=ttt_batch, ttt_lr=ttt_lr, ttt_steps=ttt_steps,
+            log_fn=log0,
+        )
+        log0(f"ttt_sliding:elapsed={time.perf_counter() - t_ttt:.1f}s")
+        log0(f"final_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f}")
+        log0(f"final_ttt_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
+    elif ttt_mode == "perdoc":
+        log0(f"--- Per-doc LoRA TTT: lr={args.ttt_lr} epochs={args.ttt_epochs} rank={args.ttt_lora_rank} ---")
+        if distributed:
+            dist.barrier()
+        for block in eval_model.blocks:
+            block.attn.rotary._cos_cached = None
+            block.attn.rotary._sin_cached = None
+            block.attn.rotary._seq_len_cached = 0
+        t_ttt = time.perf_counter()
+        ttt_val_loss, ttt_val_bpb = eval_ttt_perdoc(
+            args, eval_model, device, val_tokens,
+            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            rank=rank, world_size=world_size, log_fn=log0,
+        )
+        log0(f"ttt_perdoc:elapsed={time.perf_counter() - t_ttt:.1f}s")
+        log0(f"final_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f}")
+        log0(f"final_ttt_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
+
     if distributed:
+        dist.barrier()
         dist.destroy_process_group()
 
 if __name__ == "__main__":
