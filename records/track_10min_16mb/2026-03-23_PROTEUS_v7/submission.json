@@ -3,16 +3,16 @@
   "github_id": "MatoTeziTanka",
   "name": "PROTEUS v7",
   "blurb": "11L, INT6 uniform, depth-scaled residual, backward-looking LoRA TTT (batch=64, multi-epoch). Built with PROTEUS by LightSpeedUp — lightspeedup.com",
-  "date": "2026-03-23T07:00:00Z",
-  "val_loss": 1.6068,
-  "val_bpb": 0.9525,
+  "date": "2026-03-23T08:00:00Z",
+  "val_loss": 1.6032,
+  "val_bpb": 0.9512,
   "bytes_total": 15429458,
   "bytes_code": 67148,
   "seeds": {
-    "42": {"val_bpb": 1.0854, "ttt_epochs": 2, "ttt_min_doc": 1024},
+    "42": {"val_bpb": 0.9485, "ttt_epochs": 3, "ttt_min_doc": 512},
     "1337": {"val_bpb": 0.9534, "ttt_epochs": 3, "ttt_min_doc": 512},
     "2024": {"val_bpb": 0.9516, "ttt_epochs": 3, "ttt_min_doc": 512}
   },
-  "mean_val_bpb": 0.9968,
-  "std_val_bpb": 0.0626
+  "mean_val_bpb": 0.9512,
+  "std_val_bpb": 0.0025
 }
