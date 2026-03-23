@@ -72,3 +72,5 @@ pr414_bigram3072_burst_s7,600,15813294,,70021,8,73918,1.1233,e45bc1e,"bigram3072
 pr414_bigram2048_dim192_s1337,600,16095547,,70021,8,89341,1.1245,e45bc1e,"bigram2048 dim192: 1.1245, 16.10MB OVER"
 pr414_seq4096_s1337,600,15867937,,70021,8,73608,1.1375,e45bc1e,"seq4096: worse quant damage, 1.1375 despite better training"
 pr414_int5mlp_bigram6144_s1337,600,14038723,,70190,8,89483,1.1466,2a89149,"int5 MLP: massive quant damage (+0.035), 1.1466 — ABANDONED"
+8xh100_4fixes_bigram3072_s1337,600,16118236,,85953,8,180827,1.1259,977dea6,"OUR CODE 4fixes+bigram3072: 1.1259! Gap closed from 0.006→0.003. 16.1MB slightly over"
+8xh100_4fixes_bigram2048_s1337,600,15980724,,85953,8,180945,1.1265,977dea6,"OUR CODE 4fixes+bigram2048: 1.1265, 15.98MB FITS. Beats merged SOTA by 0.016"
