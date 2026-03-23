@@ -56,5 +56,8 @@ PR #445: v1 seed 1337, 1.12319 BPB, 15.68 MB
 | Early stop 60 (lr=0.002, 3ep, freeze=2, 60 chunks) | **1.12312** | Best TTT result |
 | Gentle TTT (lr=0.0005, 1ep, freeze=4, 1893 chunks) | 1.12328 | Same as early stop |
 
+| Higher LR (lr=0.030, 3ep, freeze=2, 60 chunks) | 1.12467 | 15.89 MB | Worse — higher LR hurt base model |
+| MTP (2 heads, 0.2 weight, early stop 60) | ~1.16+ | 15.63 MB | BUST — MTP needs more steps than 7000 |
+
 Peak at chunk 51: **1.1119** — unachievable over full val set with current approach.
 PR #473 gets 1.1218 with same recipe — their parameter banking likely helps TTT stability.
