@@ -1,137 +1,82 @@
-# Sequential TTT + Global Cosine Schedule + Memorization Analysis
+# SwiGLU + EMA + TTT Memorization Analysis
 
 **Author:** Robby Sneiderman ([@Robby955](https://github.com/Robby955))
 
-**BPB:** 1.0028 (sliding-window eval on 5-epoch TTT-adapted weights, 8xH100 SXM)
+**Verified BPB:** 1.1679 (standard sliding-window eval, no TTT, 8xH100 SXM)
 
 **Artifact:** 15,528,857 bytes (code: 58,274 + weights: 15,470,583)
-
-Reproduced across two independent hardware instances (Run 9: 1.0022, Run 10: 1.0028). We report the sliding-window BPB on TTT-adapted weights rather than the TTT-loop BPB, verified via our memorization diagnostic.
 
 ## Results
 
 | Metric | Value |
 |--------|-------|
-| **Sliding BPB (TTT-adapted weights)** | **1.0028** |
-| TTT-loop BPB (5 epochs, global cosine) | 1.0106 |
-| Baseline BPB (no TTT, post-quant sliding) | 1.1679 |
+| **Verified BPB (no TTT)** | **1.1679** |
 | Training steps | 4,238 (8xH100 SXM, ~141ms/step) |
-| TTT eval time | 148s (5 epochs) + 233s (sliding diagnostic) |
 | Model params | 25,517,137 |
 | Artifact size | 15.53 MB |
 
-## Reproducibility
+## TTT Memorization Analysis (Research Contribution)
 
-| Run | Pod | Steps | TTT-loop | Sliding BPB | Gap |
-|-----|-----|-------|----------|-------------|-----|
-| Run 9 | Pod A (130ms/step) | ~4,350 | 1.0101 | **1.0022** | 0.008 |
-| Run 10 | Pod B (141ms/step) | 4,238 | 1.0106 | **1.0028** | 0.008 |
+We ran extensive multi-epoch TTT experiments and developed a diagnostic to distinguish genuine domain adaptation from test-set memorization. **Per Issue #402**, multi-epoch TTT is not valid for record claims — we present these results purely as a methodological contribution.
 
-Consistent 0.008 gap across independent hardware instances confirms genuine domain adaptation.
+### The Diagnostic
 
-## Key Contributions
-
-### 1. Global Cosine TTT Schedule
-
-Previous sequential TTT implementations use flat learning rates. We found that **global cosine LR decay** across all epochs enables safe use of higher epoch counts:
-
-```
-progress = global_step / total_ttt_steps  # single curve across ALL epochs
-lr = peak_lr * 0.5 * (1 + cos(pi * progress))
-```
-
-With flat LR, 5+ epochs causes memorization. With global cosine, the scoring epoch (epoch 5) has lr near zero (~0.000002), ensuring minimal training during evaluation.
-
-### 2. Per-Layer TTT Learning Rates
-
-Later transformer layers receive higher TTT learning rates:
-```
-lr_mult = 0.5 + 0.5 * (layer_idx / (num_layers - 1))
-```
-
-Layer 0 adapts at 50% of base LR; layer 9 at 100%. This reflects the empirical observation that later layers need more domain-specific adaptation.
-
-### 3. TTT Memorization Analysis
-
-We verify legitimacy by running standard sliding-window eval (stride=64) on TTT-adapted weights:
+After TTT adaptation, we run standard sliding-window eval (stride=64) on the adapted weights. If the model genuinely learned better representations, sliding eval (with overlapping context) should score *better* than the TTT-loop (non-overlapping chunks). If the model merely memorized token sequences, the TTT-loop score will be artificially low while sliding eval reveals the true performance.
 
 | TTT Config | TTT-Loop BPB | Sliding Diagnostic | Gap | Interpretation |
 |------------|-------------|-------------------|-----|----------------|
 | 0 epochs (baseline) | — | 1.1679 | — | No adaptation |
-| 3 epochs, flat 5e-4 | 1.1032 | 1.0476 | -0.056 | Sliding BETTER = real adaptation |
-| **5 epochs, cosine 7e-4** | **1.0101** | **1.0022** | **-0.008** | **Sliding BETTER = real adaptation** |
-| 10 epochs, flat 5e-4 | 0.8566 | 0.9229 | +0.066 | TTT-loop better = memorization |
+| 3 epochs, flat 5e-4 | 1.1032 | 1.0476 | -0.056 | Sliding BETTER — real adaptation |
+| 5 epochs, cosine 7e-4 | 1.0101 | 1.0022 | -0.008 | Sliding BETTER — real adaptation |
+| **10 epochs, flat 5e-4** | **0.8566** | **0.9229** | **+0.066** | **TTT-loop better — MEMORIZATION** |
 
-**Key insight**: When sliding BPB < TTT-loop BPB, the adapted weights genuinely predict better with overlapping context. When the inequality reverses, the model has memorized specific token sequences.
+**Key finding**: At 10 epochs with flat LR, the TTT-loop reports 0.8566 BPB — but the sliding diagnostic reveals the actual prediction quality is only 0.9229 BPB. The 0.066 gap is pure memorization of token sequences. Submissions reporting sub-0.95 BPB from high-epoch TTT should be scrutinized with this diagnostic.
 
-**Implication**: The BPB reported by multi-epoch TTT submissions reflects a mixture of domain adaptation and validation-set memorization. We recommend reporting sliding-window BPB on adapted weights as a more conservative metric.
+**Implication for the competition**: Multi-epoch TTT conflates domain adaptation with test-set memorization. We recommend that TTT submissions either (a) use strictly single-pass score-first TTT per Issue #402, or (b) report the sliding diagnostic alongside TTT-loop BPB to verify legitimacy.
 
-## Sequential TTT: Score-Then-Train
+### TTT Technical Details (for reproducibility of the analysis)
 
-1. Process validation tokens left-to-right in non-overlapping 2048-token chunks
-2. **Score** each chunk first (record loss for BPB computation)
-3. **Train** on that chunk (already scored/graded)
-4. Weights persist across chunks — no restoration between chunks
-5. Repeat for 5 epochs with global cosine LR decay
+- Sequential score-then-train on non-overlapping 2048-token chunks
+- Batch 8 chunks per forward pass
+- Freeze embeddings (tok_emb, bigram) — adapt only attention and MLP 2D weights
+- AdamW optimizer, wd=0.0
+- **Global cosine LR decay** across all epochs (single cosine curve, not per-epoch reset)
+- **Per-layer LR multipliers**: `lr_mult = 0.5 + 0.5 * (layer_idx / (num_layers - 1))`
 
-Key implementation details:
-- **Batch 8 chunks per forward pass** (8x speedup over batch_size=1)
-- **Freeze embeddings** (tok_emb, bigram) during TTT — adapt only attention and MLP 2D weights
-- **Per-layer param groups** with LR multipliers (later layers adapt faster)
-- AdamW optimizer, peak lr=7e-4, wd=0.0
-- Global cosine decay from 7e-4 to ~0 across all 5 epochs
+The global cosine schedule is what enables 5 epochs without crossing into memorization — by epoch 5, the LR has decayed to ~0.000002, minimizing further adaptation. With flat LR, 5+ epochs crosses the memorization boundary.
 
-## What We Changed from the Base
+## Architecture
 
 Built on thwu1 PR #180 (which built on unnir PR #162):
 
 1. **SwiGLU MLP** replacing ReLU-squared. `silu(W_gate @ x) * (W_up @ x)` with `swiglu_mult=2.0`.
-
-2. **EMA** (decay=0.9985) replacing SWA.
-
+2. **EMA** (decay=0.9985) replacing SWA during warmdown.
 3. **Int5 quantization for all weights** with 5% magnitude pruning, zstd-22.
-
-4. **Sequential TTT** (5 epochs, global cosine, per-layer LR). Score-then-train with persistent weight adaptation.
-
-## Evolution
-
-| Version | BPB | Key Change |
-|---------|-----|-----------|
-| v1 (no TTT) | 1.1679 | Baseline SwiGLU + EMA |
-| v2 (3-epoch flat) | 1.0476 | Sequential TTT, flat LR |
-| **v3 (5-epoch cosine)** | **1.0028** | Global cosine + per-layer LR |
-
-## Negative Results
-
-- **Trigram hashing**: Replacing bigram with 3-token XOR hash did not improve (1.0532 vs 1.0320)
-- **Late QAT**: STE-based int5 simulation added 13ms/step overhead; lost training steps outweighed benefits
-- **11 layers**: Either exceeds 16MB (SWIGLU 2.0) or trains too slowly (SWIGLU 1.7)
-- **Per-epoch cosine**: Resetting cosine each epoch was worse than flat LR
-- **XSA + TTT**: Negative interaction (per PR #303)
+4. 512-dim, 8 heads, 4 KV heads, 10 transformer layers
+5. BigramHash (10,240 buckets, 128-dim), SmearGate
+6. Muon optimizer (WD=0.04, matrix_lr=0.02, momentum=0.99)
 
 ## EBLS Exploration
 
-We also explored Empirical Bayes Layer Sharing with learned shrinkage gammas:
+We explored Empirical Bayes Layer Sharing with learned shrinkage gammas (see [companion repo](https://github.com/Robby955/parameter-golf-ebls)):
 
 - **MLP gammas → 0.0000**: Fully shared MLP is optimal under compression constraints
 - **Attention gammas near-zero**: Trace specialization in early layers only
 - **LoRA rank threshold**: Rank 8 → all sharing; rank 16 → mild specialization
 - **Quantization amplification**: 0.19 BPB compiled-vs-eager gap from depth recurrence
 
-## Architecture Details
+## Negative Results
 
-- 512-dim, 8 heads, 4 KV heads, SwiGLU (mult=2.0, hidden=1024)
-- 10 transformer layers
-- BigramHash(10,240 buckets, 128-dim), SmearGate
-- Muon optimizer (WD=0.04, matrix_lr=0.02, momentum=0.99)
-- EMA (decay=0.9985) during warmdown
-- Int5 quantization (all weights), 5% magnitude pruning, zstd-22
+- **Trigram hashing**: 3-token XOR hash did not improve over bigram (1.0532 vs 1.0320)
+- **Late QAT**: STE-based int5 simulation added 13ms/step overhead; lost training steps outweighed benefits
+- **11 layers**: Either exceeds 16MB (SWIGLU 2.0) or trains too slowly (SWIGLU 1.7)
+- **Per-epoch cosine**: Resetting cosine each epoch was worse than flat LR
 
 ## Reproducing
 
 ```bash
-# 8xH100 SXM, 10-minute wallclock training + ~6 min TTT eval
-NUM_LAYERS=10 SWIGLU_MULT=2.0 TTT_STEPS=5 TTT_LR=7e-4 TTT_BATCH=8 PRUNE_FRAC=0.05 \
+# 8xH100 SXM, 10-minute wallclock training
+NUM_LAYERS=10 SWIGLU_MULT=2.0 TTT_STEPS=0 PRUNE_FRAC=0.05 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
@@ -144,7 +89,3 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - JoeProAI PR #462 (sequential TTT approach, SwiGLU)
 - andrewbaggio1 PR #509, newjordan PR #508 (TTT epoch scaling data, embedding freeze)
 - ndokutovich PR #486 (per-layer LR concept, global cosine TTT)
-
-## Full Writeup
-
-For the statistical foundations connecting James-Stein shrinkage to neural network parameter sharing, see the companion repository: [github.com/Robby955/parameter-golf-ebls](https://github.com/Robby955/parameter-golf-ebls)

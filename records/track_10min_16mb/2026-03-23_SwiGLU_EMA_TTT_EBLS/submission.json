@@ -1,11 +1,11 @@
 {
   "author": "Robby Sneiderman",
   "github_id": "Robby955",
-  "name": "Sequential TTT + Global Cosine Schedule + Memorization Analysis",
-  "blurb": "SwiGLU MLP, EMA, int5 quantization, 5-epoch sequential score-then-train TTT with global cosine LR decay and per-layer LR multipliers. Reports sliding-window BPB on TTT-adapted weights (1.0028) verified via memorization diagnostic (sliding < TTT-loop). Reproduced across two independent hardware instances (1.0022, 1.0028).",
+  "name": "SwiGLU + EMA + TTT Memorization Analysis",
+  "blurb": "SwiGLU MLP (mult=2.0), EMA (0.9985), int5 quantization, 5% pruning, zstd-22. Verified 1.1679 BPB (no TTT, standard sliding eval). Includes TTT memorization analysis: multi-epoch TTT produces scores as low as 0.86 BPB but independent sliding-window diagnostic reveals memorization. We provide a framework for distinguishing genuine TTT adaptation from test-set memorization.",
   "date": "2026-03-23T00:00:00Z",
-  "val_loss": 1.6932,
-  "val_bpb": 1.0028,
+  "val_loss": 1.9765,
+  "val_bpb": 1.1679,
   "bytes_total": 15528857,
   "bytes_code": 58274
 }
