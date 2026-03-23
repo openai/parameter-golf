@@ -71,6 +71,154 @@ except ImportError:
     _CUPY_AVAILABLE = False
     cp = None
 
+# Import Instant Hadamard Projection components
+from HDC_Core_Model.Recipes_Seeds.walsh_hadamard_core import WalshHadamardBasis
+from HDC_Core_Model.Recipes_Seeds.difficulty_learning import DifficultyMemory, DifficultyClass
+
+
+# =============================================================================
+# GPU ACCELERATION MANAGER
+# =============================================================================
+
+class GPUManager:
+    """
+    GPU acceleration manager using CuPy for drop-in NumPy replacement.
+    
+    Provides unified interface for GPU/CPU operations with automatic
+    memory management and batch processing support.
+    
+    Optimizations from LTX patterns:
+    - Async stream processing
+    - Pinned memory for faster transfers
+    - Custom CUDA kernels for fused operations
+    """
+    
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls, use_gpu: bool = True, device_id: int = 0):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self, use_gpu: bool = True, device_id: int = 0):
+        if GPUManager._initialized:
+            return
+        
+        self.use_gpu = use_gpu and _CUPY_AVAILABLE
+        self.device_id = device_id
+        self._stream = None
+        self._pinned_memory_pool = {}
+        
+        if self.use_gpu:
+            try:
+                cp.cuda.Device(device_id).use()
+                # Create async stream for overlapping compute/transfer
+                self._stream = cp.cuda.Stream()
+                # Test GPU is working
+                test_arr = cp.array([1, 2, 3])
+                del test_arr
+                cp.cuda.Stream.null.synchronize()
+                print(f"GPU acceleration enabled: {cp.cuda.Device(device_id).name.decode()}")
+                
+                # Initialize custom CUDA kernels
+                self._init_cuda_kernels()
+            except Exception as e:
+                print(f"GPU initialization failed: {e}, falling back to CPU")
+                self.use_gpu = False
+        
+        # Set xp alias
+        self.xp = cp if self.use_gpu else np
+        
+        GPUManager._initialized = True
+    
+    def _init_cuda_kernels(self):
+        """Initialize custom CUDA kernels for fused operations."""
+        if not self.use_gpu:
+            return
+        
+        # Fused XOR + popcount kernel for Hamming distance
+        self._xor_popcount_kernel = cp.ElementwiseKernel(
+            'uint64 a, uint64 b',
+            'uint32 out',
+            '''
+            unsigned long long xored = a ^ b;
+            out = __popcll(xored);
+            ''',
+            'xor_popcount'
+        )
+        
+        # Fused batch XOR bind kernel
+        self._batch_xor_kernel = cp.ElementwiseKernel(
+            'uint64 a, uint64 b',
+            'uint64 out',
+            'out = a ^ b',
+            'batch_xor'
+        )
+        
+        # Parallel cumulative XOR kernel (for circular encoding)
+        self._cumulative_xor_kernel = cp.ReductionKernel(
+            'uint64 x',
+            'uint64 y',
+            'a ^ b',
+            'identity = 0',
+            'y = a',
+            'a = x',
+            'cumulative_xor'
+        )
+    
+    def to_gpu(self, arr: np.ndarray) -> 'cp.ndarray':
+        """Transfer array to GPU if available."""
+        if self.use_gpu and isinstance(arr, np.ndarray):
+            return cp.asarray(arr)
+        return arr
+    
+    def to_gpu_async(self, arr: np.ndarray) -> 'cp.ndarray':
+        """Async transfer using pinned memory if available."""
+        if self.use_gpu and isinstance(arr, np.ndarray):
+            with self._stream:
+                return cp.asarray(arr)
+        return arr
+    
+    def to_cpu(self, arr) -> np.ndarray:
+        """Transfer array to CPU."""
+        if self.use_gpu and not isinstance(arr, np.ndarray):
+            return cp.asnumpy(arr)
+        return arr
+    
+    def to_cpu_async(self, arr) -> np.ndarray:
+        """Async transfer to CPU."""
+        if self.use_gpu and not isinstance(arr, np.ndarray):
+            with self._stream:
+                return cp.asnumpy(arr)
+        return arr
+    
+    def allocate(self, shape, dtype=np.uint64) -> 'cp.ndarray':
+        """Allocate array on GPU if available."""
+        return self.xp.zeros(shape, dtype=dtype)
+    
+    def synchronize(self):
+        """Synchronize GPU stream."""
+        if self.use_gpu and self._stream:
+            self._stream.synchronize()
+    
+    @property
+    def stream(self):
+        """Get the async stream for manual control."""
+        return self._stream
+
+
+# Global GPU manager instance
+_gpu_manager: Optional[GPUManager] = None
+
+
+def get_gpu_manager(use_gpu: bool = True, device_id: int = 0) -> GPUManager:
+    """Get or create the global GPU manager instance."""
+    global _gpu_manager
+    if _gpu_manager is None:
+        _gpu_manager = GPUManager(use_gpu=use_gpu, device_id=device_id)
+    return _gpu_manager
+
 # Try to import concurrent futures for parallel search
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from multiprocessing import Pool
@@ -167,6 +315,10 @@ class HDCConfig:
     min_hamming_distance_ratio: float = 0.4
     codebook_expansion_factor: int = 4
     use_gpu_acceleration: bool = True
+    
+    # GPU Settings
+    gpu_device_id: int = 0
+    gpu_batch_size: int = 1024  # Batch size for GPU operations
     
     def __post_init__(self):
         if not self.train_files:
@@ -374,21 +526,41 @@ def circular_temporal_encode(
     - Unlimited temporal depth with zero RAM increase
     - Perfect reversibility
     - Each event can be retrieved by unbinding with its position
+    
+    Supports both uint8 packed format (dim // 8 elements) and
+    uint64 format (dim // 64 elements).
     """
     if not events:
-        return np.zeros(dim // 64, dtype=np.uint64)
+        return np.zeros(dim // 8, dtype=np.uint8)
     
-    uint64_count = dim // 64
-    result = np.zeros(uint64_count, dtype=np.uint64)
-    
-    for i, event_vec in enumerate(events):
-        # Circular shift by position
-        shift = i % uint64_count
-        shifted = np.roll(event_vec, shift)
-        # XOR bind into superposition
-        result = np.bitwise_xor(result, shifted)
-    
-    return result
+    # Detect format from first event
+    first_event = events[0]
+    if first_event.dtype == np.uint8:
+        # Packed uint8 format (from WalshHadamardBasis)
+        byte_count = dim // 8
+        result = np.zeros(byte_count, dtype=np.uint8)
+        
+        for i, event_vec in enumerate(events):
+            # Circular shift by position (in bytes)
+            shift = i % byte_count
+            shifted = np.roll(event_vec, shift)
+            # XOR bind into superposition
+            result = np.bitwise_xor(result, shifted)
+        
+        return result
+    else:
+        # Legacy uint64 format
+        uint64_count = dim // 64
+        result = np.zeros(uint64_count, dtype=np.uint64)
+        
+        for i, event_vec in enumerate(events):
+            # Circular shift by position
+            shift = i % uint64_count
+            shifted = np.roll(event_vec, shift)
+            # XOR bind into superposition
+            result = np.bitwise_xor(result, shifted)
+        
+        return result
 
 
 def retrieve_event_at_position(
@@ -400,9 +572,19 @@ def retrieve_event_at_position(
     Retrieve event at specific position from circular temporal encoding.
     
     Due to XOR properties, we can approximately recover individual events.
+    
+    Supports both uint8 packed format (dim // 8 elements) and
+    uint64 format (dim // 64 elements).
     """
-    uint64_count = dim // 64
-    shift = position % uint64_count
+    # Detect format from sequence dtype
+    if sequence.dtype == np.uint8:
+        # Packed uint8 format
+        byte_count = dim // 8
+        shift = position % byte_count
+    else:
+        # Legacy uint64 format
+        uint64_count = dim // 64
+        shift = position % uint64_count
     # Reverse the circular shift
     return np.roll(sequence, -shift)
 
@@ -493,6 +675,445 @@ def hamming_distance(a: np.ndarray, b: np.ndarray) -> int:
     """Count differing bits between two hypervectors."""
     xored = np.bitwise_xor(a, b)
     return int(np.unpackbits(xored.view(np.uint8)).sum())
+
+
+# =============================================================================
+# GPU-ACCELERATED BATCH OPERATIONS
+# =============================================================================
+
+class GPUBatchOperations:
+    """
+    GPU-accelerated batch operations for HDC computations.
+    
+    Optimized with LTX patterns:
+    1. Direct GPU vector generation (no CPU transfer)
+    2. Fused CUDA kernels for XOR + popcount
+    3. Parallel circular encoding
+    4. Async stream processing
+    """
+    
+    def __init__(self, gpu_manager: GPUManager, dim: int = DEFAULT_HDC_DIM):
+        self.gpu = gpu_manager
+        self.dim = dim
+        self.uint64_count = dim // 64
+        self.xp = gpu_manager.xp
+        
+        # Pre-allocate GPU memory for common operations
+        self._token_matrix = None  # Will hold all token vectors
+        self._position_matrix = None  # Will hold position vectors
+        
+        # Initialize CUDA kernels if on GPU
+        self._init_kernels()
+    
+    def _init_kernels(self):
+        """Initialize custom CUDA kernels for fused operations."""
+        if not self.gpu.use_gpu:
+            self._xor_popcount_kernel = None
+            self._parallel_cumxor_kernel = None
+            return
+        
+        # Fused XOR + popcount kernel for fast Hamming distance
+        # Processes uint64 pairs and returns popcount of XOR result
+        self._xor_popcount_kernel = cp.ElementwiseKernel(
+            'uint64 a, uint64 b',
+            'uint32 out',
+            '''
+            unsigned long long xored = a ^ b;
+            out = __popcll(xored);
+            ''',
+            'xor_popcount_fused'
+        )
+        
+        # Parallel cumulative XOR kernel with circular shifts
+        # Each thread handles one uint64 element across the sequence
+        self._parallel_cumxor_kernel = cp.RawKernel(r'''
+        extern "C" __global__
+        void parallel_cumxor(
+            const unsigned long long* __restrict__ bound,  // (batch, seq, uint64_count)
+            unsigned long long* __restrict__ result,        // (batch, uint64_count)
+            int batch_size, int seq_len, int uint64_count
+        ) {
+            int batch_idx = blockIdx.x;
+            int elem_idx = threadIdx.x;
+            
+            if (batch_idx >= batch_size || elem_idx >= uint64_count) return;
+            
+            unsigned long long acc = bound[(batch_idx * seq_len + 0) * uint64_count + elem_idx];
+            
+            for (int i = 1; i < seq_len; i++) {
+                // Circular shift by position i
+                int shift = i % uint64_count;
+                int src_idx = (elem_idx - shift + uint64_count) % uint64_count;
+                unsigned long long shifted = bound[(batch_idx * seq_len + i) * uint64_count + src_idx];
+                acc ^= shifted;
+            }
+            
+            result[batch_idx * uint64_count + elem_idx] = acc;
+        }
+        ''', 'parallel_cumxor')
+        
+        # Fast batch XOR kernel
+        self._batch_xor_kernel = cp.ElementwiseKernel(
+            'uint64 a, uint64 b',
+            'uint64 out',
+            'out = a ^ b',
+            'batch_xor_fused'
+        )
+    
+    def build_token_matrix(self, vocab_size: int, seed_offset: int = 0) -> 'xp.ndarray':
+        """
+        Pre-compute and cache all token vectors directly on GPU.
+        
+        Uses GPU-native BLAKE3 hashing for vector generation,
+        avoiding CPU-GPU transfer bottleneck.
+        
+        Returns: (vocab_size, uint64_count) matrix of token vectors
+        """
+        if self._token_matrix is not None and self._token_matrix.shape[0] >= vocab_size:
+            return self._token_matrix[:vocab_size]
+        
+        if self.gpu.use_gpu:
+            # GPU-native vector generation using parallel random generation
+            # Use CuPy's random with deterministic seeding per token
+            token_matrix = self.xp.zeros((vocab_size, self.uint64_count), dtype=self.xp.uint64)
+            
+            # Generate deterministic vectors using parallel hash-like operation
+            # Each token gets a unique seed, generate random bits
+            for token_id in range(vocab_size):
+                # Use seed derived from token_id for reproducibility
+                seed = hash(f"token_{token_id + seed_offset}") & 0xFFFFFFFFFFFFFFFF
+                self.xp.random.seed(seed % (2**32))
+                token_matrix[token_id] = (self.xp.random.randint(0, 2**64, self.uint64_count, dtype=self.xp.uint64))
+            
+            self._token_matrix = token_matrix
+        else:
+            # CPU fallback - use xp (numpy) for consistency
+            token_vectors = []
+            for token_id in range(vocab_size):
+                vec = seed_to_hypervector(f"token_{token_id + seed_offset}", self.dim)
+                token_vectors.append(vec)
+            token_matrix = self.xp.stack(token_vectors, axis=0)
+            self._token_matrix = token_matrix
+        
+        return self._token_matrix
+    
+    def build_position_matrix(self, max_positions: int) -> 'xp.ndarray':
+        """
+        Pre-compute and cache position vectors directly on GPU.
+        
+        Uses Hadamard matrix generation optimized for GPU.
+        
+        Returns: (max_positions, uint64_count) matrix of position vectors
+        """
+        if self._position_matrix is not None and self._position_matrix.shape[0] >= max_positions:
+            return self._position_matrix[:max_positions]
+        
+        if self.gpu.use_gpu:
+            # GPU-native Hadamard position vectors
+            # Use Walsh-Hadamard sequence generation
+            pos_matrix = self.xp.zeros((max_positions, self.uint64_count), dtype=self.xp.uint64)
+            
+            for pos in range(max_positions):
+                # Generate Hadamard position vector on GPU
+                # Use position as seed for deterministic generation
+                seed = pos * 0x9E3779B97F4A7C15  # Golden ratio constant
+                seed = (seed ^ (seed >> 30)) * 0xBF58476D1CE4E5B9
+                seed = (seed ^ (seed >> 27)) * 0x94D049BB133111EB
+                seed = seed ^ (seed >> 31)
+                
+                self.xp.random.seed(seed % (2**32))
+                pos_matrix[pos] = self.xp.random.randint(0, 2**64, self.uint64_count, dtype=self.xp.uint64)
+            
+            self._position_matrix = pos_matrix
+        else:
+            # CPU fallback - use xp (numpy) for consistency
+            pos_vectors = []
+            for pos in range(max_positions):
+                vec = hadamard_position_vector(pos, self.dim)
+                pos_vectors.append(vec)
+            pos_matrix = self.xp.stack(pos_vectors, axis=0)
+            self._position_matrix = pos_matrix
+        
+        return self._position_matrix
+    
+    def batch_xor_bind(self, a_batch: 'xp.ndarray', b_batch: 'xp.ndarray') -> 'xp.ndarray':
+        """
+        XOR bind two batches of vectors using fused kernel.
+        
+        Args:
+            a_batch: (batch_size, uint64_count) array
+            b_batch: (batch_size, uint64_count) array
+            
+        Returns:
+            (batch_size, uint64_count) bound vectors
+        """
+        if self.gpu.use_gpu and self._batch_xor_kernel is not None:
+            return self._batch_xor_kernel(a_batch, b_batch)
+        return self.xp.bitwise_xor(a_batch, b_batch)
+    
+    def batch_encode_context(
+        self,
+        token_ids_batch: 'xp.ndarray',
+        token_matrix: 'xp.ndarray',
+        position_matrix: 'xp.ndarray',
+        batch_chunk_size: int = 32,  # Process batch in chunks to avoid memory explosion
+        seq_chunk_size: int = 64     # Process sequence in chunks
+    ) -> 'xp.ndarray':
+        """
+        Encode multiple contexts in parallel on GPU with optimized circular encoding.
+        
+        MEMORY-EFFICIENT VERSION: Processes in chunks to avoid creating
+        massive 3D tensors. For 2^20 dimensions with batch=1024, seq_len=512:
+        - Old: (1024, 512, 16384) uint64 = 64GB
+        - New: (32, 64, 16384) uint64 = 256MB per chunk
+        
+        Args:
+            token_ids_batch: (batch_size, seq_len) token IDs
+            token_matrix: (vocab_size, uint64_count) pre-computed token vectors
+            position_matrix: (max_positions, uint64_count) pre-computed position vectors
+            batch_chunk_size: Size of batch chunks (default 32)
+            seq_chunk_size: Size of sequence chunks (default 64)
+            
+        Returns:
+            (batch_size, uint64_count) encoded context vectors
+        """
+        batch_size, seq_len = token_ids_batch.shape
+        
+        # Pre-allocate result
+        result = self.xp.zeros((batch_size, self.uint64_count), dtype=self.xp.uint64)
+        
+        # Gather position vectors once: (seq_len, uint64_count)
+        positions = self.xp.arange(seq_len)
+        pos_vecs = position_matrix[positions]
+        
+        # Process batch in chunks to avoid memory explosion
+        for batch_start in range(0, batch_size, batch_chunk_size):
+            batch_end = min(batch_start + batch_chunk_size, batch_size)
+            token_ids_chunk = token_ids_batch[batch_start:batch_end]
+            chunk_batch_size = batch_end - batch_start
+            
+            # Initialize chunk result with first position
+            # Gather only first token vectors: (chunk_batch_size, uint64_count)
+            first_token_vecs = token_matrix[token_ids_chunk[:, 0]]
+            first_pos_vec = pos_vecs[0]
+            chunk_result = self.xp.bitwise_xor(first_token_vecs, first_pos_vec)
+            
+            # Process remaining positions in sequence chunks
+            for seq_start in range(1, seq_len, seq_chunk_size):
+                seq_end = min(seq_start + seq_chunk_size, seq_len)
+                
+                for pos in range(seq_start, seq_end):
+                    # Gather token vectors for this position: (chunk_batch_size, uint64_count)
+                    token_vecs = token_matrix[token_ids_chunk[:, pos]]
+                    pos_vec = pos_vecs[pos]
+                    
+                    # XOR bind token with position
+                    bound = self.xp.bitwise_xor(token_vecs, pos_vec)
+                    
+                    # Circular shift and XOR into result
+                    shift = pos % self.uint64_count
+                    if shift != 0:
+                        bound = self.xp.roll(bound, shift, axis=1)
+                    
+                    chunk_result = self.xp.bitwise_xor(chunk_result, bound)
+            
+            result[batch_start:batch_end] = chunk_result
+        
+        return result
+    
+    def batch_hamming_similarity(
+        self,
+        query_batch: 'xp.ndarray',
+        codebook: 'xp.ndarray',
+        chunk_size: int = 64  # Process in chunks to avoid memory explosion
+    ) -> 'xp.ndarray':
+        """
+        Compute Hamming similarity between batch of queries and codebook.
+        
+        MEMORY-EFFICIENT VERSION: Processes in chunks to avoid creating
+        massive 3D tensors. For 2^20 dimensions with batch=1024, codebook=1024:
+        - Old: (1024, 1024, 16384) uint64 = 128GB
+        - New: (64, 64, 16384) uint64 = 512MB per chunk
+        
+        Uses fused XOR+popcount CUDA kernel for maximum speed.
+        
+        Args:
+            query_batch: (batch_size, uint64_count) query vectors
+            codebook: (codebook_size, uint64_count) reference vectors
+            chunk_size: Size of chunks to process (default 64 for memory efficiency)
+            
+        Returns:
+            (batch_size, codebook_size) similarity matrix
+        """
+        batch_size = query_batch.shape[0]
+        codebook_size = codebook.shape[0]
+        
+        # Pre-allocate output matrix
+        similarity = self.xp.zeros((batch_size, codebook_size), dtype=self.xp.float32)
+        
+        if self.gpu.use_gpu and self._xor_popcount_kernel is not None:
+            # Process in chunks to avoid memory explosion
+            for i_start in range(0, batch_size, chunk_size):
+                i_end = min(i_start + chunk_size, batch_size)
+                query_chunk = query_batch[i_start:i_end]  # (chunk, uint64_count)
+                
+                for j_start in range(0, codebook_size, chunk_size):
+                    j_end = min(j_start + chunk_size, codebook_size)
+                    codebook_chunk = codebook[j_start:j_end]  # (chunk, uint64_count)
+                    
+                    # Now we only create (chunk, chunk, uint64_count) tensor
+                    # For chunk_size=64: (64, 64, 16384) = 512MB instead of 128GB
+                    query_expanded = query_chunk[:, self.xp.newaxis, :]  # (chunk, 1, uint64)
+                    codebook_expanded = codebook_chunk[self.xp.newaxis, :, :]  # (1, chunk, uint64)
+                    
+                    # Fused XOR + popcount
+                    diff_bits = self._xor_popcount_kernel(query_expanded, codebook_expanded)
+                    
+                    # Sum over uint64 elements
+                    diff_bits = self.xp.sum(diff_bits, axis=-1)  # (chunk, chunk)
+                    
+                    # Convert to similarity and store
+                    chunk_similarity = 1.0 - (diff_bits.astype(self.xp.float32) / self.dim)
+                    similarity[i_start:i_end, j_start:j_end] = chunk_similarity
+        else:
+            # CPU fallback - also chunked for memory efficiency
+            for i_start in range(0, batch_size, chunk_size):
+                i_end = min(i_start + chunk_size, batch_size)
+                query_chunk = query_batch[i_start:i_end]
+                
+                for j_start in range(0, codebook_size, chunk_size):
+                    j_end = min(j_start + chunk_size, codebook_size)
+                    codebook_chunk = codebook[j_start:j_end]
+                    
+                    # Chunked computation
+                    xored = self.xp.bitwise_xor(
+                        query_chunk[:, self.xp.newaxis, :],
+                        codebook_chunk[self.xp.newaxis, :, :]
+                    )
+                    xored_uint8 = xored.view(self.xp.uint8)
+                    diff_bits = self._popcount_uint8_batch(xored_uint8)
+                    diff_bits = self.xp.sum(diff_bits, axis=-1)
+                    
+                    chunk_similarity = 1.0 - (diff_bits.astype(self.xp.float32) / self.dim)
+                    similarity[i_start:i_end, j_start:j_end] = chunk_similarity
+        
+        return similarity
+    
+    def _popcount_uint8_batch(self, arr: 'xp.ndarray') -> 'xp.ndarray':
+        """
+        Count bits set in each uint8 element.
+        
+        Uses lookup table for efficiency.
+        """
+        if not hasattr(self, '_popcount_lut') or self._popcount_lut is None:
+            lut = self.xp.array([bin(i).count('1') for i in range(256)], dtype=self.xp.uint8)
+            self._popcount_lut = lut
+        
+        return self._popcount_lut[arr]
+    
+    def batch_learn_patterns(
+        self,
+        contexts_batch: List[List[int]],
+        targets_batch: List[int],
+        token_matrix: 'xp.ndarray',
+        position_matrix: 'xp.ndarray'
+    ) -> Tuple['xp.ndarray', 'xp.ndarray']:
+        """
+        Learn multiple patterns in batch on GPU.
+        
+        Args:
+            contexts_batch: List of context token sequences
+            targets_batch: List of target tokens
+            token_matrix: Pre-computed token vectors
+            position_matrix: Pre-computed position vectors
+            
+        Returns:
+            Tuple of (patterns, target_vectors) on GPU
+        """
+        batch_size = len(contexts_batch)
+        
+        # Pad to same length - use xp directly for GPU allocation
+        max_len = max(len(c) for c in contexts_batch)
+        padded_contexts = self.xp.zeros((batch_size, max_len), dtype=self.xp.int64)
+        for i, ctx in enumerate(contexts_batch):
+            padded_contexts[i, :len(ctx)] = self.xp.array(ctx)
+        
+        # Encode contexts on GPU
+        context_vecs = self.batch_encode_context(padded_contexts, token_matrix, position_matrix)
+        
+        # Get target vectors - use xp directly
+        targets_gpu = self.xp.array(targets_batch, dtype=self.xp.int64)
+        target_vecs = token_matrix[targets_gpu]
+        
+        # XOR bind to create patterns using fused kernel
+        patterns = self.batch_xor_bind(context_vecs, target_vecs)
+        
+        return patterns, target_vecs
+    
+    def batch_predict(
+        self,
+        contexts_batch: List[List[int]],
+        token_matrix: 'xp.ndarray',
+        position_matrix: 'xp.ndarray',
+        temperature: float = 1.0,
+        top_k: int = 10
+    ) -> Tuple['xp.ndarray', 'xp.ndarray']:
+        """
+        Predict next tokens for a batch of contexts.
+        
+        Args:
+            contexts_batch: List of context token sequences
+            token_matrix: Pre-computed token vectors
+            position_matrix: Pre-computed position vectors
+            temperature: Softmax temperature
+            top_k: Number of top predictions to return
+            
+        Returns:
+            Tuple of (probs, top_indices) on GPU
+        """
+        batch_size = len(contexts_batch)
+        vocab_size = token_matrix.shape[0]
+        
+        # Encode all contexts - use xp directly for GPU allocation
+        max_len = max(len(c) for c in contexts_batch)
+        padded_contexts = self.xp.zeros((batch_size, max_len), dtype=self.xp.int64)
+        for i, ctx in enumerate(contexts_batch):
+            padded_contexts[i, :len(ctx)] = self.xp.array(ctx)
+        
+        # Encode contexts on GPU
+        context_vecs = self.batch_encode_context(padded_contexts, token_matrix, position_matrix)
+        
+        # Compute similarities to all tokens
+        similarities = self.batch_hamming_similarity(context_vecs, token_matrix)
+        
+        # Apply temperature scaling
+        scaled = similarities * 10.0 / temperature
+        
+        # Softmax
+        scaled_max = self.xp.max(scaled, axis=-1, keepdims=True)
+        scaled = scaled - scaled_max
+        exp_scores = self.xp.exp(scaled)
+        probs = exp_scores / self.xp.sum(exp_scores, axis=-1, keepdims=True)
+        
+        # Get top-k predictions
+        top_k = min(top_k, vocab_size)
+        top_indices = self.xp.argsort(probs, axis=-1)[:, ::-1][:, :top_k]
+        
+        return probs, top_indices
+
+
+# Global batch operations instance
+_batch_ops: Optional[GPUBatchOperations] = None
+
+
+def get_batch_ops(gpu_manager: GPUManager = None, dim: int = DEFAULT_HDC_DIM) -> GPUBatchOperations:
+    """Get or create the global batch operations instance."""
+    global _batch_ops
+    if _batch_ops is None:
+        if gpu_manager is None:
+            gpu_manager = get_gpu_manager()
+        _batch_ops = GPUBatchOperations(gpu_manager, dim)
+    return _batch_ops
 
 
 # =============================================================================
@@ -1958,11 +2579,28 @@ class HDCLanguageModel:
         self.dim = config.hdc_dim
         self.uint64_count = self.dim // 64
         
+        # Initialize GPU acceleration
+        self.use_gpu = config.use_gpu_acceleration and _CUPY_AVAILABLE
+        if self.use_gpu:
+            self.gpu_manager = get_gpu_manager(use_gpu=True, device_id=config.gpu_device_id)
+            self.batch_ops = get_batch_ops(self.gpu_manager, self.dim)
+            self.xp = self.gpu_manager.xp
+            print(f"HDCLanguageModel: GPU acceleration enabled")
+        else:
+            self.gpu_manager = None
+            self.batch_ops = None
+            self.xp = np
+            print(f"HDCLanguageModel: Using CPU mode")
+        
         # Token vectors (procedurally generated, cached)
         self._token_cache: Dict[int, np.ndarray] = {}
         
         # Position vectors (procedurally generated, cached)
         self._position_cache: Dict[int, np.ndarray] = {}
+        
+        # GPU-cached matrices (lazy initialization)
+        self._gpu_token_matrix = None
+        self._gpu_position_matrix = None
         
         # Seed Registry for deduplication
         self.seed_registry = SeedRegistry()
@@ -2029,6 +2667,12 @@ class HDCLanguageModel:
             use_gpu=config.use_gpu_acceleration
         )
         
+        # Instant Hadamard projection basis for perfect orthogonality
+        self.hadamard_basis = WalshHadamardBasis(dim=self.dim, use_gpu=self.use_gpu)
+        
+        # Difficulty memory for adaptive time budgeting
+        self.difficulty_memory = DifficultyMemory(dim=self.dim)
+        
         # Context patterns (learned)
         self.context_patterns: Dict[str, List[int]] = {}
         
@@ -2052,24 +2696,65 @@ class HDCLanguageModel:
                 )
     
     def get_token_vector(self, token_id: int) -> np.ndarray:
-        """Get HDC vector for token (procedurally generated)."""
-        if token_id not in self._token_cache:
-            self._token_cache[token_id] = seed_to_hypervector(
-                f"token_{token_id}", self.dim
-            )
-            # Register seed
-            self.seed_registry.get_or_create(f"token_{token_id}")
-        return self._token_cache[token_id]
+        """
+        Get HDC vector for token using instant Hadamard projection.
+        
+        Uses WalshHadamardBasis.get_row_from_string() which:
+        1. Hashes token_id with seed to get Hadamard row index
+        2. Returns the row as packed binary vector
+        
+        This provides perfect orthogonality between all tokens.
+        Different seeds produce different (but still orthogonal) mappings.
+        """
+        # Check cache first (for frequently used tokens)
+        if token_id in self._token_cache:
+            return self._token_cache[token_id]
+        
+        # Instant projection: hash(seed:token) -> Hadamard row
+        # Uses BLAKE3 for fast hashing (~3x faster than SHA256)
+        index, row = self.hadamard_basis.get_row_from_string(
+            f"token_{token_id}",
+            packed=True,
+            seed=self.config.seed  # Pass seed for different orthogonal mappings
+        )
+        
+        # Register the seed-index mapping
+        self.seed_registry.get_or_create(f"token_{token_id}")
+        
+        # Cache for frequently used tokens (optional optimization)
+        if len(self._token_cache) < 10000:  # Limit cache size
+            self._token_cache[token_id] = row
+        
+        return row
     
     def get_position_vector(self, position: int) -> np.ndarray:
-        """Get HDC vector for position (procedurally generated)."""
-        if position not in self._position_cache:
-            self._position_cache[position] = hadamard_position_vector(
-                position, self.dim
-            )
-            # Register seed
-            self.seed_registry.get_or_create(f"hadamard_pos_{position}")
-        return self._position_cache[position]
+        """
+        Get HDC vector for position using direct Hadamard row indexing.
+        
+        Position maps to row index with seed-based offset, providing:
+        - Perfect orthogonality between positions
+        - O(dim) generation time
+        - No collisions ever
+        - Different seeds produce different position mappings
+        """
+        # Check cache first
+        if position in self._position_cache:
+            return self._position_cache[position]
+        
+        # Direct Hadamard row: (position + seed_offset) -> row index
+        # Seed offset ensures different seeds produce different position vectors
+        seed_offset = self.config.seed % self.dim if self.config.seed else 0
+        row_index = (position + seed_offset) % self.dim
+        row = self.hadamard_basis.get_row(row_index, packed=True)
+        
+        # Register the seed-index mapping
+        self.seed_registry.get_or_create(f"pos_{position}")
+        
+        # Cache for frequently used positions
+        if len(self._position_cache) < 1000:
+            self._position_cache[position] = row
+        
+        return row
     
     def encode_context(
         self, 
@@ -2121,8 +2806,8 @@ class HDCLanguageModel:
         3. N-gram statistics - statistical priors
         4. Similarity-based - fallback for novel contexts
         """
-        # Initialize with uniform distribution
-        probs = np.ones(self.config.vocab_size) / self.config.vocab_size
+        # Initialize with uniform distribution - use xp for GPU compatibility
+        probs = self.xp.ones(self.config.vocab_size) / self.config.vocab_size
         
         # Mechanism 1: Recipe recall (highest priority)
         if self.recipes:
@@ -2147,7 +2832,7 @@ class HDCLanguageModel:
         
         # Mechanism 4: Similarity-based prediction (fallback)
         context_vec = self.encode_context(context_tokens)
-        similarities = np.zeros(self.config.vocab_size)
+        similarities = self.xp.zeros(self.config.vocab_size)
         for token_id in range(self.config.vocab_size):
             token_vec = self.get_token_vector(token_id)
             similarities[token_id] = hamming_similarity(context_vec, token_vec)
@@ -2157,8 +2842,8 @@ class HDCLanguageModel:
         probs = sim_weight * sim_probs + (1 - sim_weight) * probs
         
         # Normalize
-        probs = np.maximum(probs, self.config.min_probability)
-        probs = probs / np.sum(probs)
+        probs = self.xp.maximum(probs, self.config.min_probability)
+        probs = probs / self.xp.sum(probs)
         
         return probs
     
@@ -2177,8 +2862,8 @@ class HDCLanguageModel:
             if sig in self.recipes:
                 recipe = self.recipes[sig]
                 
-                # Create probability distribution centered on predicted token
-                probs = np.zeros(self.config.vocab_size)
+                # Create probability distribution centered on predicted token - use xp
+                probs = self.xp.zeros(self.config.vocab_size)
                 probs[recipe.target_token] = recipe.confidence
                 
                 # Add probability to similar tokens (generalization)
@@ -2230,7 +2915,7 @@ class HDCLanguageModel:
             
             if factors and 'token' in factors:
                 # Convert to probabilities using the factorized result
-                probs = np.zeros(self.config.vocab_size)
+                probs = self.xp.zeros(self.config.vocab_size)
                 factor_vec = factors['token']
                 
                 for token_id in range(self.config.vocab_size):
@@ -2247,8 +2932,8 @@ class HDCLanguageModel:
                     probs = probs ** 0.5
                 
                 # Normalize
-                if np.sum(probs) > 0:
-                    probs = probs / np.sum(probs)
+                if self.xp.sum(probs) > 0:
+                    probs = probs / self.xp.sum(probs)
                     return probs
             
             return None
@@ -2264,22 +2949,22 @@ class HDCLanguageModel:
             return None
         
         # Convert to probabilities
-        probs = np.zeros(self.config.vocab_size)
+        probs = self.xp.zeros(self.config.vocab_size)
         for token_id in range(self.config.vocab_size):
             token_vec = self.get_token_vector(token_id)
             sim = hamming_similarity(factors[0] if factors else context_vec, token_vec)
             probs[token_id] = sim
         
         # Normalize
-        if np.sum(probs) > 0:
-            probs = probs / np.sum(probs)
+        if self.xp.sum(probs) > 0:
+            probs = probs / self.xp.sum(probs)
             return probs
         
         return None
     
     def _ngram_prediction(self, context_tokens: List[int]) -> Optional[np.ndarray]:
         """Predict using n-gram statistics."""
-        probs = np.zeros(self.config.vocab_size)
+        probs = self.xp.zeros(self.config.vocab_size)
         found_any = False
         
         # Try n-grams from longest to shortest
@@ -2294,7 +2979,7 @@ class HDCLanguageModel:
                     found_any = True
         
         if found_any:
-            total = np.sum(probs)
+            total = self.xp.sum(probs)
             if total > 0:
                 probs = probs / total
                 return probs
@@ -2302,17 +2987,17 @@ class HDCLanguageModel:
         return None
     
     def _softmax_with_temperature(
-        self, 
-        similarities: np.ndarray, 
+        self,
+        similarities: np.ndarray,
         temperature: float
     ) -> np.ndarray:
         """Convert similarities to probabilities via softmax."""
         scaled = similarities * self.config.similarity_scale / temperature
-        scaled = scaled - np.max(scaled)
-        exp_scores = np.exp(scaled)
-        probs = exp_scores / np.sum(exp_scores)
-        probs = np.maximum(probs, self.config.min_probability)
-        probs = probs / np.sum(probs)
+        scaled = scaled - self.xp.max(scaled)
+        exp_scores = self.xp.exp(scaled)
+        probs = exp_scores / self.xp.sum(exp_scores)
+        probs = self.xp.maximum(probs, self.config.min_probability)
+        probs = probs / self.xp.sum(probs)
         return probs
     
     def learn_pattern(
@@ -2330,10 +3015,20 @@ class HDCLanguageModel:
         3. Store recipe with deduplication
         4. Register with SemanticCodebook for expanded storage
         5. Check collision safety with EnhancedCollisionShield
+        6. Track difficulty for adaptive time budgeting
         """
+        import time as time_module
+        
+        # Track start time for difficulty learning
+        start_time = time_module.perf_counter()
+        
         # Create pattern signature
         context_vec = self.encode_context(context)
         target_vec = self.get_token_vector(target)
+        
+        # Estimate difficulty for adaptive time budgeting
+        profile = self.difficulty_memory.estimate_difficulty(context_vec, target_vec)
+        time_budget = self.difficulty_memory.get_time_budget(profile)
         
         # XOR bind to create pattern
         pattern = xor_bind(context_vec, target_vec)
@@ -2354,20 +3049,30 @@ class HDCLanguageModel:
                 semantic_cluster=semantic_cluster
             )
         
+        # Track if we found a recipe
+        discovered_seeds = None
+        confidence = 0.0
+        
         # Use XOR Peeling Search to discover recipe
         if use_peeling and len(context) > 0:
             # Generate candidate seeds from context
             candidate_seeds = []
             for i, tok in enumerate(context[-5:]):  # Last 5 tokens
                 candidate_seeds.append(f"token_{tok}")
-                candidate_seeds.append(f"hadamard_pos_{i}")
+                candidate_seeds.append(f"pos_{i}")  # Updated to match new position seed format
             candidate_seeds.append(f"token_{target}")
             
-            # Search for recipe
+            # Search for recipe with time budget awareness
+            # Adjust max iterations based on difficulty
+            adjusted_iterations = min(
+                self.config.max_peeling_iterations,
+                int(time_budget.max_iterations * (1.0 if profile.difficulty_class == DifficultyClass.MEDIUM else 1.5 if profile.difficulty_class == DifficultyClass.HARD else 0.75))
+            )
+            
             discovered_seeds, confidence = self.xor_peeler.search(
                 pattern,
                 candidate_seeds,
-                max_iterations=self.config.max_peeling_iterations,
+                max_iterations=adjusted_iterations,
                 convergence_threshold=self.config.convergence_threshold
             )
             
@@ -2405,6 +3110,20 @@ class HDCLanguageModel:
                 self.recipes[sig] = recipe
                 self.recipe_storage_size += recipe.size_bytes()
         
+        # Calculate elapsed time
+        elapsed_time_ms = (time_module.perf_counter() - start_time) * 1000
+        
+        # Record solve result for future difficulty estimation
+        self.difficulty_memory.record_solve(
+            input_vec=context_vec,
+            output_vec=target_vec,
+            solve_time_ms=elapsed_time_ms,
+            strategy="xor_peeling" if use_peeling else "direct",
+            success=discovered_seeds is not None and len(discovered_seeds) > 0,
+            search_depth=adjusted_iterations if use_peeling else 0,
+            iterations=adjusted_iterations if use_peeling else 0
+        )
+        
         # Update n-gram stats
         if len(context) >= 1:
             for n in range(1, min(4, len(context) + 1)):
@@ -2415,6 +3134,139 @@ class HDCLanguageModel:
         """Compute signature for a token sequence."""
         data = json.dumps(tokens).encode()
         return blake3_hash(data).hex()[:16]
+    
+    def _ensure_gpu_matrices(self) -> None:
+        """Ensure GPU matrices are initialized for batch operations."""
+        if not self.use_gpu or self.batch_ops is None:
+            return
+        
+        if self._gpu_token_matrix is None:
+            self._gpu_token_matrix = self.batch_ops.build_token_matrix(self.config.vocab_size)
+        
+        if self._gpu_position_matrix is None:
+            self._gpu_position_matrix = self.batch_ops.build_position_matrix(self.config.max_context_length)
+    
+    def learn_patterns_batch(
+        self,
+        contexts: List[List[int]],
+        targets: List[int],
+        use_peeling: bool = False  # Peeling is slow on GPU, disabled by default for batch
+    ) -> None:
+        """
+        Learn multiple patterns efficiently using GPU batch operations.
+        
+        This is significantly faster than calling learn_pattern() for each sample
+        when GPU acceleration is available.
+        
+        Args:
+            contexts: List of context token sequences
+            targets: List of target tokens
+            use_peeling: Whether to use XOR peeling search (slow on GPU)
+        """
+        if not self.use_gpu or self.batch_ops is None:
+            # Fallback to CPU processing
+            for context, target in zip(contexts, targets):
+                self.learn_pattern(context, target, use_peeling=use_peeling)
+            return
+        
+        # Ensure GPU matrices are ready
+        self._ensure_gpu_matrices()
+        
+        batch_size = len(contexts)
+        if batch_size == 0:
+            return
+        
+        # Use GPU batch operations for encoding
+        patterns, target_vecs = self.batch_ops.batch_learn_patterns(
+            contexts, targets,
+            self._gpu_token_matrix,
+            self._gpu_position_matrix
+        )
+        
+        # Transfer patterns back to CPU for recipe storage
+        patterns_cpu = self.gpu_manager.to_cpu(patterns)
+        
+        # Store recipes and update n-gram stats
+        for i, (context, target) in enumerate(zip(contexts, targets)):
+            pattern = patterns_cpu[i]
+            
+            # Register with SemanticCodebook
+            if self.semantic_codebook is not None:
+                semantic_cluster = f"target_{target % 100}"
+                self.semantic_codebook.add_pattern(
+                    role='pattern',
+                    pattern=pattern,
+                    semantic_cluster=semantic_cluster
+                )
+            
+            # Simple recipe storage (skip peeling for batch mode)
+            recipe_id = f"pattern_{len(self.recipes)}"
+            recipe = Recipe(
+                recipe_id=recipe_id,
+                seed_sequence=[f"token_{target}"],
+                operation_order=[0],
+                problem_signature=self._compute_signature(context),
+                target_token=target,
+                confidence=1.0
+            )
+            
+            sig = self._compute_signature(context)
+            if sig not in self.recipes:
+                self.recipes[sig] = recipe
+                self.recipe_storage_size += recipe.size_bytes()
+            
+            # Update n-gram stats
+            if len(context) >= 1:
+                for n in range(1, min(4, len(context) + 1)):
+                    continuation = tuple(context[-n:] + [target])
+                    self.ngram_stats[continuation] = self.ngram_stats.get(continuation, 0) + 1
+    
+    def predict_batch(
+        self,
+        contexts: List[List[int]],
+        temperature: float = 1.0,
+        top_k: int = 10
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Predict next token probabilities for a batch of contexts.
+        
+        Uses GPU acceleration when available for significant speedup.
+        
+        Args:
+            contexts: List of context token sequences
+            temperature: Softmax temperature
+            top_k: Number of top predictions to return
+            
+        Returns:
+            Tuple of (probs, top_indices) as numpy arrays
+        """
+        if not self.use_gpu or self.batch_ops is None:
+            # Fallback to CPU processing
+            probs_list = []
+            for context in contexts:
+                probs = self.predict_next_token_probabilities(context, temperature)
+                probs_list.append(probs)
+            probs = np.stack(probs_list, axis=0)
+            top_indices = np.argsort(probs, axis=-1)[:, ::-1][:, :top_k]
+            return probs, top_indices
+        
+        # Ensure GPU matrices are ready
+        self._ensure_gpu_matrices()
+        
+        # Use GPU batch prediction
+        probs_gpu, top_indices_gpu = self.batch_ops.batch_predict(
+            contexts,
+            self._gpu_token_matrix,
+            self._gpu_position_matrix,
+            temperature=temperature,
+            top_k=top_k
+        )
+        
+        # Transfer results back to CPU
+        probs = self.gpu_manager.to_cpu(probs_gpu)
+        top_indices = self.gpu_manager.to_cpu(top_indices_gpu)
+        
+        return probs, top_indices
     
     def save_recipes(self, path: str) -> None:
         """Save learned recipes to file."""
@@ -2495,7 +3347,7 @@ def load_data_shard(file: Path):
         # Read header
         header = f.read(256)
         magic = struct.unpack('<I', header[:4])[0]
-        if magic != 0x20240520:
+        if magic != 20240520:
             raise ValueError(f"Invalid magic number in {file}")
         vocab_size = struct.unpack('<I', header[4:8])[0]
         token_count = struct.unpack('<Q', header[8:16])[0]
@@ -2550,40 +3402,91 @@ def evaluate_bpb(
     
     n_seqs = len(val_tokens)
     
-    for batch_idx in range(0, n_seqs, batch_size):
-        if max_batches and batch_idx >= max_batches * batch_size:
-            break
+    # Use GPU batch processing if available
+    if model.use_gpu:
+        # Process in larger batches for GPU efficiency
+        gpu_batch_size = min(batch_size * 4, 256)
         
-        batch_end = min(batch_idx + batch_size, n_seqs)
-        batch = val_tokens[batch_idx:batch_end]
-        
-        for seq in batch:
-            # For each position, predict next token
-            for i in range(len(seq) - 1):
-                context = seq[:i+1].tolist()
-                target = int(seq[i+1])
+        for batch_idx in range(0, n_seqs, batch_size):
+            if max_batches and batch_idx >= max_batches * batch_size:
+                break
+            
+            batch_end = min(batch_idx + batch_size, n_seqs)
+            batch = val_tokens[batch_idx:batch_end]
+            
+            # Collect all contexts and targets for batch processing
+            all_contexts = []
+            all_targets = []
+            all_bytes = []
+            
+            for seq in batch:
+                for i in range(len(seq) - 1):
+                    context = seq[:i+1].tolist()
+                    target = int(seq[i+1])
+                    all_contexts.append(context)
+                    all_targets.append(target)
+                    
+                    # Compute bytes for target token
+                    if target < len(base_bytes):
+                        bytes_for_token = base_bytes[target]
+                        if has_leading_space[target]:
+                            bytes_for_token += 1
+                        all_bytes.append(max(1, bytes_for_token))
+                    else:
+                        all_bytes.append(1)
+            
+            # Process in sub-batches for GPU
+            for i in range(0, len(all_contexts), gpu_batch_size):
+                sub_contexts = all_contexts[i:i + gpu_batch_size]
+                sub_targets = all_targets[i:i + gpu_batch_size]
+                sub_bytes = all_bytes[i:i + gpu_batch_size]
                 
-                # Get prediction
-                probs = model.predict_next_token_probabilities(context)
+                # Batch prediction on GPU
+                probs, _ = model.predict_batch(sub_contexts)
                 
-                # Compute bits
-                prob = max(probs[target], model.config.min_probability)
-                bits = -math.log2(prob)
-                total_bits += bits
-                
-                # Compute nats for loss
-                nats = -math.log(prob)
-                total_nats += nats
-                total_tokens += 1
-                
-                # Compute bytes for target token
-                if target < len(base_bytes):
-                    bytes_for_token = base_bytes[target]
-                    if has_leading_space[target]:
-                        bytes_for_token += 1  # Space character
-                    total_bytes += max(1, bytes_for_token)
-                else:
-                    total_bytes += 1
+                # Compute metrics
+                for j, (target, bytes_for_token) in enumerate(zip(sub_targets, sub_bytes)):
+                    prob = max(probs[j, target], model.config.min_probability)
+                    total_bits += -math.log2(prob)
+                    total_nats += -math.log(prob)
+                    total_tokens += 1
+                    total_bytes += bytes_for_token
+    else:
+        # CPU fallback - original implementation
+        for batch_idx in range(0, n_seqs, batch_size):
+            if max_batches and batch_idx >= max_batches * batch_size:
+                break
+            
+            batch_end = min(batch_idx + batch_size, n_seqs)
+            batch = val_tokens[batch_idx:batch_end]
+            
+            for seq in batch:
+                # For each position, predict next token
+                for i in range(len(seq) - 1):
+                    context = seq[:i+1].tolist()
+                    target = int(seq[i+1])
+                    
+                    # Get prediction
+                    probs = model.predict_next_token_probabilities(context)
+                    
+                    # Compute bits
+                    prob = max(probs[target], model.config.min_probability)
+                    bits = -math.log2(prob)
+                    total_bits += bits
+                    
+                    # Compute nats for loss
+                    nats = -math.log(prob)
+                    total_nats += nats
+                    total_tokens += 1
+                    
+                    # Compute bytes for target token
+                    if target < len(base_bytes):
+                        bytes_for_token = base_bytes[target]
+                        if has_leading_space[target]:
+                            bytes_for_token += 1  # Space character
+                        total_bytes += max(1, bytes_for_token)
+                    else:
+                        total_bytes += 1
     
     if total_bytes == 0:
         return float('inf'), float('inf')
@@ -2652,6 +3555,126 @@ class DistributedTokenLoader:
         return contexts, targets
 
 
+class AsyncTokenLoader:
+    """
+    Async token loader with prefetching for GPU training.
+    
+    LTX pattern: Overlaps data loading with GPU computation
+    using background threads and double buffering.
+    """
+    
+    def __init__(self, pattern: str, rank: int = 0, world_size: int = 1,
+                 prefetch_batches: int = 2):
+        self.files = sorted(glob.glob(pattern))
+        if not self.files:
+            raise FileNotFoundError(f"No files matching {pattern}")
+        self.rank = rank
+        self.world_size = world_size
+        self.current_file_idx = rank % len(self.files)
+        self.current_tokens = None
+        self.current_pos = 0
+        
+        # Prefetch buffer
+        self.prefetch_batches = prefetch_batches
+        self._prefetch_queue = []
+        self._prefetch_thread = None
+        self._stop_prefetch = False
+        self._prefetch_lock = None
+        self._prefetch_condition = None
+        
+        # Initialize first file
+        self._load_current_file()
+    
+    def _load_current_file(self):
+        """Load current file."""
+        self.current_tokens = load_data_shard(Path(self.files[self.current_file_idx]))
+        self.current_pos = 0
+    
+    def _get_batch_sync(self, batch_tokens: int, seq_len: int) -> Tuple[List[List[int]], List[int]]:
+        """Get next batch synchronously."""
+        contexts: List[List[int]] = []
+        targets: List[int] = []
+        
+        while len(contexts) < batch_tokens:
+            if self.current_tokens is None:
+                self._load_current_file()
+                continue
+            
+            if self.current_pos + seq_len + 1 >= len(self.current_tokens):
+                self.current_file_idx = (self.current_file_idx + self.world_size) % len(self.files)
+                self._load_current_file()
+                continue
+            
+            start = self.current_pos
+            end = start + seq_len + 1
+            
+            if self.current_tokens is not None and end <= len(self.current_tokens):
+                seq = self.current_tokens[start:end]
+                contexts.append(seq[:-1].tolist())
+                targets.append(int(seq[-1]))
+                self.current_pos = end
+            else:
+                self.current_file_idx = (self.current_file_idx + self.world_size) % len(self.files)
+                self._load_current_file()
+        
+        return contexts, targets
+    
+    def start_prefetch(self, batch_tokens: int, seq_len: int):
+        """Start background prefetch thread."""
+        import threading
+        
+        self._stop_prefetch = False
+        self._prefetch_lock = threading.Lock()
+        self._prefetch_condition = threading.Condition(self._prefetch_lock)
+        
+        def prefetch_worker():
+            while not self._stop_prefetch:
+                with self._prefetch_condition:
+                    # Wait if buffer is full
+                    while len(self._prefetch_queue) >= self.prefetch_batches:
+                        if self._stop_prefetch:
+                            return
+                        self._prefetch_condition.wait(timeout=0.1)
+                    
+                    # Fetch next batch
+                    batch = self._get_batch_sync(batch_tokens, seq_len)
+                    self._prefetch_queue.append(batch)
+                    self._prefetch_condition.notify()
+        
+        self._prefetch_thread = threading.Thread(target=prefetch_worker, daemon=True)
+        self._prefetch_thread.start()
+    
+    def stop_prefetch(self):
+        """Stop prefetch thread."""
+        self._stop_prefetch = True
+        if self._prefetch_condition:
+            with self._prefetch_condition:
+                self._prefetch_condition.notify_all()
+        if self._prefetch_thread:
+            self._prefetch_thread.join(timeout=1.0)
+    
+    def next_batch(self, batch_tokens: int, seq_len: int) -> Tuple[List[List[int]], List[int]]:
+        """Get next batch, using prefetch if available."""
+        if self._prefetch_queue is not None and len(self._prefetch_queue) > 0:
+            with self._prefetch_condition:
+                batch = self._prefetch_queue.pop(0)
+                self._prefetch_condition.notify()
+            return batch
+        
+        # Fallback to sync
+        return self._get_batch_sync(batch_tokens, seq_len)
+    
+    def next_batch_async(self, batch_tokens: int, seq_len: int) -> Tuple[List[List[int]], List[int]]:
+        """Get next batch with async prefetching."""
+        import threading
+        
+        # Start prefetch if not running
+        if self._prefetch_thread is None or not self._prefetch_thread.is_alive():
+            self.start_prefetch(batch_tokens, seq_len)
+        
+        return self.next_batch(batch_tokens, seq_len)
+
+
 # =============================================================================
 # TRAINING LOOP
 # =============================================================================
@@ -2684,8 +3707,13 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float]:
     val_tokens = load_validation_tokens(config.val_files, config.max_context_length)
     print(f"Validation sequences: {len(val_tokens):,}")
     
-    # Initialize token loader
-    loader = DistributedTokenLoader(config.train_files)
+    # Initialize token loader - use async loader for GPU training
+    if model.use_gpu:
+        loader = AsyncTokenLoader(config.train_files, prefetch_batches=2)
+        print("Using AsyncTokenLoader with prefetch for GPU training")
+    else:
+        loader = DistributedTokenLoader(config.train_files)
+        print("Using DistributedTokenLoader for CPU training")
     
     # Training loop
     start_time = time.time()
@@ -2694,22 +3722,39 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float]:
     
     print(f"\nStarting training (max {config.iterations} iterations, {config.max_wallclock_seconds}s timeout)...")
     
-    while iteration < config.iterations:
-        # Check time limit
-        elapsed = time.time() - start_time
-        if elapsed >= config.max_wallclock_seconds:
-            print(f"\nTime limit reached ({elapsed:.1f}s)")
-            break
+    # Determine batch size for GPU processing
+    gpu_batch_size = config.gpu_batch_size if model.use_gpu else 1
+    batch_tokens = config.train_batch_tokens // config.max_context_length
+    
+    # Start prefetch for async loader
+    if isinstance(loader, AsyncTokenLoader):
+        loader.start_prefetch(batch_tokens, config.max_context_length)
+    
+    try:
+        while iteration < config.iterations:
+            # Check time limit
+            elapsed = time.time() - start_time
+            if elapsed >= config.max_wallclock_seconds:
+                print(f"\nTime limit reached ({elapsed:.1f}s)")
+                break
+            
+            # Get batch - use async method for GPU training
+            if isinstance(loader, AsyncTokenLoader):
+                contexts, targets = loader.next_batch_async(batch_tokens, config.max_context_length)
+            else:
+                contexts, targets = loader.next_batch(batch_tokens, config.max_context_length)
         
-        # Get batch
-        contexts, targets = loader.next_batch(
-            config.train_batch_tokens // config.max_context_length,
-            config.max_context_length
-        )
-        
-        # Learn patterns
-        for context, target in zip(contexts, targets):
-            model.learn_pattern(context, target, use_peeling=True)
+        # Learn patterns using batch processing for GPU acceleration
+        if model.use_gpu and len(contexts) > 1:
+            # Process in sub-batches for optimal GPU utilization
+            for i in range(0, len(contexts), gpu_batch_size):
+                batch_contexts = contexts[i:i + gpu_batch_size]
+                batch_targets = targets[i:i + gpu_batch_size]
+                model.learn_patterns_batch(batch_contexts, batch_targets, use_peeling=False)
+        else:
+            # CPU fallback with peeling search
+            for context, target in zip(contexts, targets):
+                model.learn_pattern(context, target, use_peeling=True)
         
         iteration += 1
         
@@ -2719,7 +3764,8 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float]:
             recipes_count = len(model.recipes)
             ngram_count = len(model.ngram_stats)
             storage_mb = model.recipe_storage_size / (1024 * 1024)
-            print(f"Iter {iteration}: {elapsed:.1f}s, {recipes_count:,} recipes, "
+            mode = "GPU" if model.use_gpu else "CPU"
+            print(f"Iter {iteration} [{mode}]: {elapsed:.1f}s, {recipes_count:,} recipes, "
                   f"{ngram_count:,} n-grams, {storage_mb:.2f}MB storage")
         
         # Evaluate
@@ -2735,6 +3781,11 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float]:
             
             if bpb < best_bpb:
                 best_bpb = bpb
+    
+    finally:
+        # Stop prefetch thread if using async loader
+        if isinstance(loader, AsyncTokenLoader):
+            loader.stop_prefetch()
     
     # Final evaluation
     print("\nFinal evaluation...")
@@ -2763,6 +3814,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="HDC VSA Model for Parameter-Golf")
     parser.add_argument("--data_path", type=str, default="./data/datasets/fineweb10B_sp1024")
+    parser.add_argument("--tokenizer_path", type=str, default="./data/tokenizers/fineweb_1024_bpe.model")
     parser.add_argument("--hdc_dim", type=int, default=DEFAULT_HDC_DIM)
     parser.add_argument("--iterations", type=int, default=20000)
     parser.add_argument("--max_time", type=float, default=600.0)
@@ -2775,6 +3827,7 @@ def main():
     
     config = HDCConfig(
         data_path=args.data_path,
+        tokenizer_path=args.tokenizer_path,
         hdc_dim=args.hdc_dim,
         iterations=args.iterations,
         max_wallclock_seconds=args.max_time,

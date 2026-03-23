@@ -88,8 +88,8 @@ def parse_training_log(log_path: str) -> Dict[str, Any]:
     return result
 
 
-def run_single_training(seed: int, script_path: str, data_path: str, 
-                        max_time: float, iterations: int, 
+def run_single_training(seed: int, script_path: str, data_path: str, tokenizer_path: str,
+                        max_time: float, iterations: int,
                         author: str, github_id: str, run_name: str) -> Dict[str, Any]:
     """Run a single training session with the given seed."""
     log_file = f"train_seed{seed}.log"
@@ -102,6 +102,7 @@ def run_single_training(seed: int, script_path: str, data_path: str,
     cmd = [
         sys.executable, script_path,
         f"--data_path={data_path}",
+        f"--tokenizer_path={tokenizer_path}",
         f"--seed={seed}",
         f"--max_time={max_time}",
         f"--iterations={iterations}",
@@ -226,9 +227,12 @@ def main():
                         help="GitHub ID for submission")
     parser.add_argument("--run_name", type=str, default="HDC Zero Track 5Mb",
                         help="Run name for submission")
-    parser.add_argument("--data_path", type=str, 
+    parser.add_argument("--data_path", type=str,
                         default="./data/datasets/fineweb10B_sp1024",
                         help="Path to training data")
+    parser.add_argument("--tokenizer_path", type=str,
+                        default="./data/tokenizers/fineweb_1024_bpe.model",
+                        help="Path to tokenizer model")
     parser.add_argument("--max_time", type=float, default=600.0,
                         help="Maximum training time per run in seconds")
     parser.add_argument("--iterations", type=int, default=20000,
@@ -264,6 +268,7 @@ def main():
             seed=seed,
             script_path=args.script,
             data_path=args.data_path,
+            tokenizer_path=args.tokenizer_path,
             max_time=args.max_time,
             iterations=args.iterations,
             author=args.author,
