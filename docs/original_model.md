@@ -1,6 +1,6 @@
 # Propuesta de Contribucion Original: Parameter Golf
 
-*Actualizado: 2026-03-22 — Post-descarte de depth recurrence*
+*Actualizado: 2026-03-22 — Post-run 8×H100, artifact size fix pendiente*
 
 ## Estado del Arte (2026-03-22)
 
@@ -149,30 +149,82 @@ Combinar las mejores tecnicas de eval-time que son **complementarias y no explor
 
 ---
 
+## Resultado: Run 8×H100 (10 min)
+
+### Metricas
+
+| Metrica | Valor |
+|---|---|
+| Pasos | 3,061 |
+| ms/paso | ~178 avg |
+| **val_bpb pre-quant** | **1.1951** |
+| **val_bpb post-quant** | **1.1958** |
+| Degradacion quant | **+0.0007** (mejor que cualquier run previo) |
+| Late QAT | step 3060 (lr_scale=0.1) |
+| Tight SWA | 8 checkpoints (scale<0.2) |
+| **Artifact** | **18.0 MB (SOBRE LIMITE)** |
+| Compresion | zstd-22 |
+
+### Analisis
+
+- **val_bpb 1.1958** es competitivo — entre SOTA merged (1.1428) y frontera PRs (1.1246)
+- Sin sliding window eval todavía — con stride=64 bajaria ~0.02-0.04 BPB
+- **Degradacion +0.0007** es la mejor lograda — Tight SWA + GPTQ-lite funcionan
+- **Artifact 18 MB > 16 MB**: torch.save serializa escalas y metadata que zstd no comprime suficiente
+
+### Problema: Artifact Size
+
+El artifact con zstd-22 es 18 MB — necesitamos recortar ~2 MB. Opciones:
+
+1. **Int6 en TODAS las capas** (no solo 3-7): Ahorra ~1.5 MB. La referencia PR #374 aplica int6 a todos los bloques excepto embeddings.
+2. **Magnitude pruning 10%**: Zerear el 10% de pesos más pequeños antes de zstd. PR #389 lo usa con éxito (~500KB ahorro).
+3. **Reducir VE dim** (128→64): Ahorra ~80KB de params, marginal.
+4. **Usar pickle directo** en vez de torch.save: torch.save agrega metadata que infla el tamaño.
+
+Implementar opciones 1+2 debería bajar de 18 a ~15.5 MB.
+
+---
+
 ## Riesgos y Mitigaciones
 
 | Riesgo | Probabilidad | Mitigacion |
 |--------|-------------|------------|
-| PPM-C no mejora sobre SOTA stack | Media | Contribucion como negative result + GPTQ-lite submission |
-| No tenemos 8×H100 | Alta | Solicitar compute grant de OpenAI o probar en 1×H100 con 30min |
-| Reproduccion de PR #374 falla | Baja | Stack bien documentado, multiples PRs lo reproducen |
-| Eval time > 600s | Baja | PPM es O(n) per-doc, stride 32 ya validado en 170s |
-| zstd no disponible en RunPod | Baja | Template tiene pip, `pip install zstandard` |
-
-## Fallback
-
-Si PPM-C falla: submission de reproduccion PR #374 + GPTQ-lite como "non-record: systematic quantization optimization". Si GPTQ-lite tambien falla: documentar ambos negative results como contribucion de investigacion.
+| Artifact aún sobre 16MB | Media | Int6-all + pruning + pickle directo |
+| PPM-C no mejora | Media | Contribucion como negative result |
+| pip install zstandard falla | Resuelta | `--break-system-packages` en RunPod |
+| DDP unused parameters | Resuelta | `find_unused_parameters=True` |
 
 ---
 
-## Apendice: Resultados de Nuestros Experimentos
+## Apendice: Todos los Resultados Experimentales
 
-| Run | Config | Pasos | val_bpb | Artifact | Hardware |
-|-----|--------|-------|---------|----------|----------|
+| Run | Config | Pasos | val_bpb (post-quant) | Artifact | Hardware |
+|-----|--------|-------|---------------------|----------|----------|
 | mlx_smoke_baseline | 9L/512d baseline | 200 | 2.3244 | 10.1MB | Apple Silicon |
 | consensus_v3 | 11L/512d/MLP3x/SmearGate/int6mix | 1035 | 1.3501→1.3341(TTT) | 15.2MB | 1×H100 10min |
 | consensus_v4_30m | +XSA+EMA+Late QAT | 2850 | 1.2235→1.2087(TTT) | 17.5MB | 1×H100 30min |
 | ringgolf_phase1b | 8blk×576d, 16 eff layers | 1610 | 1.2631 | 15.5MB | 1×H100 30min |
+| pr374_v1d | PR374 stack (30min) | 2178 | 1.2357 | 16.7MB | 1×H100 30min |
+| **pr374_8x** | **PR374 stack + zstd** | **3061** | **1.1958** | **18.0MB** | **8×H100 10min** |
+
+### Convergencia pr374_8x (8×H100)
+
+| Step | val_bpb | train_time |
+|------|---------|-----------|
+| 1000 | 1.3140 | 174s |
+| 2000 | 1.2444 | 379s |
+| 3000 | 1.1973 | 536s |
+| 3061 | 1.1951 | 648s (cap) |
+
+---
+
+## Proximo Paso
+
+1. Aplicar int6 a TODOS los bloques + 10% magnitude pruning
+2. Re-correr en 8×H100 para validar artifact < 16 MB
+3. Agregar sliding window eval (stride=64) para bajar ~0.02 BPB adicional
+4. Si PPM-C funciona: submission original
+5. Si no: submission como non-record con analisis de tecnicas
 
 ---
 
