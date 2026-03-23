@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "val_bpb": 1.1101,
+  "mean_val_bpb": 1.1132,
+  "std_val_bpb": 0.004,
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "42": 1.1177,
+    "1337": 1.1118,
+    "2024": 1.1101
+  },
+  "artifact_bytes": 15342868,
+  "gpu": "8xH100 SXM 80GB",
+  "training_seconds": 600,
+  "eval_method": "sliding_window_stride64"
+}
