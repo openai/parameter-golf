@@ -96,6 +96,11 @@ class Hyperparameters:
     ttt_max_train_chunks = int(os.environ.get("TTT_MAX_TRAIN_CHUNKS", 200))  # stop training after N chunks, keep scoring
     ttt_ema_decay = float(os.environ.get("TTT_EMA_DECAY", 0.995))  # EMA decay for TTT weight smoothing (0 = disabled)
     ttt_freeze_embed = bool(int(os.environ.get("TTT_FREEZE_EMBED", "1")))  # freeze tok_emb/bigram/ve during TTT
+    # Post-quant training burst: repair quant damage on training data before eval
+    pqb_enabled = bool(int(os.environ.get("PQB_ENABLED", "1")))
+    pqb_steps = int(os.environ.get("PQB_STEPS", 100))
+    pqb_lr = float(os.environ.get("PQB_LR", 0.001))
+    pqb_freeze_blocks = int(os.environ.get("PQB_FREEZE_BLOCKS", 2))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -1037,6 +1042,67 @@ def eval_val_sliding_ttt(
     log0(f"ttt_sliding:done loss={val_loss:.6f} bpb={val_bpb:.6f} time={time.perf_counter()-t0:.0f}s")
     return val_loss, val_bpb
 # ---------------------------------------------------------------------------
+# Post-quant training burst: repair quant damage using training data
+# ---------------------------------------------------------------------------
+def post_quant_burst(
+    args: Hyperparameters, model: nn.Module, train_pattern: str,
+    rank: int, world_size: int, device: torch.device,
+) -> None:
+    """Fine-tune the dequantized model on training data to repair quantization damage.
+    Uses STE so weights stay near quantization grid points."""
+    master = (rank == 0)
+    log0 = (lambda msg: print(msg, flush=True)) if master else (lambda msg: None)
+    n_steps = args.pqb_steps
+    lr = args.pqb_lr
+    freeze_blocks = args.pqb_freeze_blocks
+    seq_len = args.train_seq_len
+    log0(f"pqb:start steps={n_steps} lr={lr} freeze_blocks={freeze_blocks}")
+    # Freeze early blocks + embeddings (same as TTT)
+    frozen_ids = set(range(min(freeze_blocks, len(model.blocks))))
+    pqb_params = []
+    for name, p in model.named_parameters():
+        if any(f"blocks.{bi}." in name for bi in frozen_ids):
+            p.requires_grad_(False)
+        elif any(en in name for en in {"tok_emb", "bigram", "ve_shared"}):
+            p.requires_grad_(False)
+        else:
+            p.requires_grad_(True)
+            pqb_params.append(p)
+    log0(f"pqb:trainable={sum(p.numel() for p in pqb_params)}")
+    optimizer = torch.optim.SGD(pqb_params, lr=lr, momentum=0.9)
+    # Enable QAT STE during burst so weights stay on the quant grid
+    old_qat = CastedLinear._qat_enabled
+    CastedLinear._qat_enabled = True
+    stream = TokenStream(train_pattern)
+    model.train()
+    t0 = time.perf_counter()
+    for step in range(n_steps):
+        # Cosine decay over burst steps
+        cur_lr = lr * 0.5 * (1.0 + math.cos(math.pi * step / max(n_steps - 1, 1)))
+        for pg in optimizer.param_groups:
+            pg['lr'] = cur_lr
+        tokens = stream.take(seq_len * 32 + 1).to(device=device, dtype=torch.int64)
+        x = tokens[:-1].reshape(-1, seq_len)
+        y = tokens[1:].reshape(-1, seq_len)
+        optimizer.zero_grad(set_to_none=True)
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            loss = model(x, y)
+        loss.backward()
+        if world_size > 1:
+            for p in pqb_params:
+                if p.grad is not None:
+                    dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+        torch.nn.utils.clip_grad_norm_(pqb_params, 1.0)
+        optimizer.step()
+        if master and (step % 20 == 0 or step == n_steps - 1):
+            log0(f"  pqb[{step+1}/{n_steps}] loss={loss.item():.4f} lr={cur_lr:.6f}")
+    CastedLinear._qat_enabled = old_qat
+    # Unfreeze all params
+    for p in model.parameters():
+        p.requires_grad_(True)
+    model.eval()
+    log0(f"pqb:done time={time.perf_counter()-t0:.1f}s")
+# ---------------------------------------------------------------------------
 # GPTQ: Hessian-aware quantization with column-wise error compensation
 # ---------------------------------------------------------------------------
 def _find_best_row_scales(W: Tensor, clip_range: int = 31) -> Tensor:
@@ -1639,6 +1705,9 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
+    # Post-quant burst: repair quant damage on training data before any eval
+    if args.pqb_enabled:
+        post_quant_burst(args, eval_model, args.train_files, rank, world_size, device)
     compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
