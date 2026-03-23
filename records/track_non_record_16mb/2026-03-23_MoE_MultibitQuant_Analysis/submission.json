@@ -1,0 +1,24 @@
+{
+  "author": "Yeseong Lim",
+  "github_id": "imyesung",
+  "name": "MoE Exploration + Multi-bit Quantization Analysis",
+  "blurb": "Negative result: Mixture of Experts (2 experts, soft routing) at 22M params underperforms dense by ~0.06 BPB due to halved per-token MLP capacity. Multi-bit quantization comparison (int4/5/6 for MLP, int5/6 for attention) on the same trained dense model shows int4 MLP incurs +0.065 BPB degradation, making MoE parameter expansion via aggressive quantization infeasible at this scale. int5 MLP saves 1.75MB at +0.007 BPB cost. Apple scaling laws (ICML 2025) confirm optimal sparsity=0 below 500M params.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-analysis",
+  "val_loss": 1.934329,
+  "val_bpb": 1.145622,
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": 7410,
+  "wallclock_seconds": 600.089,
+  "bytes_total": 15932249,
+  "bytes_model_compressed": 15876343,
+  "bytes_code": 55906,
+  "quantization_comparison": {
+    "attn6_mlp6": {"artifact_bytes": 15876343, "val_bpb": 1.145622},
+    "attn6_mlp5": {"artifact_bytes": 14042960, "val_bpb": 1.152391},
+    "attn6_mlp4": {"artifact_bytes": 12065742, "val_bpb": 1.211116},
+    "attn5_mlp5": {"artifact_bytes": 13678799, "val_bpb": 1.155945},
+    "attn5_mlp4": {"artifact_bytes": 11841296, "val_bpb": 1.218322}
+  }
+}
