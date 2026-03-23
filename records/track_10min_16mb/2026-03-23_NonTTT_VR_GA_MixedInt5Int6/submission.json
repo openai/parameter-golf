@@ -1,0 +1,21 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-23",
+  "name": "NonTTT VR GA MixedInt5Int6",
+  "author": "Asukabot0",
+  "seed_results": {
+    "1337": {"val_loss": 1.92955753, "val_bpb": 1.14279568, "steps": 4622, "ms_per_step": 129.82},
+    "42":   {"val_loss": 1.92958502, "val_bpb": 1.14281196, "steps": 4623, "ms_per_step": 129.79},
+    "2025": {"val_loss": 1.92968544, "val_bpb": 1.14287144, "steps": 4632, "ms_per_step": 129.55}
+  },
+  "mean_val_loss": 1.92960933,
+  "mean_val_bpb": 1.14282636,
+  "artifact_bytes": {
+    "1337": 16026184,
+    "42": 16339774,
+    "2025": 16244044
+  },
+  "code_bytes": 74850,
+  "eval_method": "final_int6_sliding_window_exact",
+  "notes": "All 3 seeds exceed 16MB limit. Mean artifact: 16,203,334 bytes."
+}
