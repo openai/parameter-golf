@@ -93,6 +93,7 @@ class Hyperparameters:
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
+    ttt_max_train_chunks = int(os.environ.get("TTT_MAX_TRAIN_CHUNKS", 60))  # stop training after N chunks, keep scoring
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -952,7 +953,7 @@ def eval_val_sliding_ttt(
                     tb = base_bytes_lut[tgt].to(torch.float64) + (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                     byte_count += tb.sum()
         # Phase 2: TRAIN on this chunk (already scored = legal)
-        if ci < num_chunks - 1 and args.ttt_epochs > 0:
+        if ci < num_chunks - 1 and ci < args.ttt_max_train_chunks and args.ttt_epochs > 0:
             base_model.train()
             chunk_seqs = (chunk_end - chunk_start) // seq_len
             if chunk_seqs > 0:
