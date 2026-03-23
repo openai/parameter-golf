@@ -47,7 +47,7 @@ class Hyperparameters:
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 0))  # disabled: hurts with depth_scale, wastes 15 min
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))  # Enabled: +0.02-0.04 BPB gain
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -78,17 +78,17 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
 
     ema_decay = float(os.environ.get("EMA_DECAY", 0.999))
-    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "0")))
     ema_every = int(os.environ.get("EMA_EVERY", 10))
 
-    ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
-    ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.008))
-    ttt_lora_lr_min = float(os.environ.get("TTT_LORA_LR_MIN", 1e-5))
+    ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 6))
+    ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.005))
+    ttt_lora_lr_min = float(os.environ.get("TTT_LORA_LR_MIN", 1e-6))
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
     ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 512))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 1))
     ttt_cosine_lr = bool(int(os.environ.get("TTT_COSINE_LR", "1")))
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
@@ -636,7 +636,7 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(2048, 128, model_dim)
+        self.bigram = BigramHashEmbedding(4096, 128, model_dim)
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
