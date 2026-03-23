@@ -1,0 +1,27 @@
+{
+  "team": "Artie AI",
+  "entry_name": "pcloadloveletter",
+  "github": "NotADevIAmaMeatPopsicle",
+  "version": "v6",
+  "date": "2026-03-23",
+  "track": "10min_16mb",
+  "val_bpb": 1.0487,
+  "val_bpb_exact": 1.04868570,
+  "artifact_mb": 14.12,
+  "seeds": 1,
+  "architecture": "11L d512 8h/4kv MLP1500 BigramHash SmearGate",
+  "techniques": [
+    "NorMuon + Adam hybrid optimizer (MATRIX_LR=0.03)",
+    "Partial RoPE (16/64 dims)",
+    "LN Scale (1/sqrt(layer_idx+1))",
+    "XSA on last 4 layers",
+    "EMA (decay=0.997)",
+    "Value Residual (arXiv:2410.17897)",
+    "Gated Attention (arXiv:2505.06708)",
+    "LeakyReLU(0.5)^2 activation",
+    "AdamW TTT (10ep, cosine schedule, per-layer lr)",
+    "Novel compression: per-tensor k-means codebook + Huffman entropy coding + zstd-22"
+  ],
+  "quantization": "Per-tensor k-means codebook (CB-48 MLP / CB-80 QKV / CB-64 proj) + Huffman + zstd-22",
+  "platform": "RunPod 8xH100 SXM, PyTorch 2.6.0+cu124"
+}
