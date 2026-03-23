@@ -67,6 +67,8 @@ Both converged to: `[0.127, 0.127, 0.699]`
 | v3 (3 blocks, 960d) | 3×4, MLP 3.3 | 1.2118 | 1.2210 | 5,590 | 107ms | 14.3 MB |
 | v3+TTT (960d) | 3×4, MLP 3.3, TTT | **~1.1901** peak | 1.2210 | 5,590 | 107ms | 14.3 MB |
 | v4 (960d, 1.5x batch) | 3×4, MLP 3.3, 1.18M tok | 1.2186 | 1.2257 | 3,764 | 159ms | 14.5 MB |
+| v5 (TTT warmup+freeze) | 3×4, MLP 3.3, TTT 1500w | 1.2122 | 1.2212 | 5,602 | 107ms | 14.4 MB |
+| longrun (1×H100, 2.3h) | 3×4, MLP 3.3, single GPU | — | 1.3991 | 48,000 | 176ms | — |
 
 ### Frugendorff Best: **1.1901 BPB** (v3+TTT peak at window 1400)
 ### Frugendorff Stable: **1.2113 BPB** (v2, standard sliding window)
@@ -74,9 +76,37 @@ Both converged to: `[0.127, 0.127, 0.699]`
 ### Key Innovations
 1. **Fractal weight sharing:** 3 unique blocks looped 4 times = 12 effective layers with only 3 blocks of parameters
 2. **Cadence training (F/N/N):** Every 3rd step runs all 4 fractal loops; other steps run single clean pass with orthogonal position
-3. **Orthogonal loop positions:** QR-initialized embeddings ensure each loop and normalize operate in non-interfering subspaces
-4. **Qwen-guided overnight optimization:** 141 automated experiments on DGX Spark found optimal config
-5. **Inner-TTT on fractal loops:** (experimental) Recursive weight improvement during eval — 4× leverage per TTT step via weight sharing
+3. **Orthogonal loop positions:** QR-initialized position embeddings ensure each loop and normalize operate in non-interfering subspaces
+4. **Qwen-guided overnight optimization:** 141 automated experiments on DGX Spark found optimal config (best: 2×4 loops, lr=2e-3, clip=5.0)
+5. **Inner-TTT on fractal loops:** Recursive weight improvement during eval — 4× leverage per TTT step via weight sharing. Peaked at 1.1901 before drift.
+6. **TTT drift gate:** Leash on TTT weight updates (lerp back toward originals). Prevents block drift from destabilizing frozen embeddings.
+
+### Experimental Findings
+- **TTT v3 (aggressive):** epochs=3, lr=1e-4, drift=0.1 → peaked 1.1901 at window 1400, drifted to ~1.205 by window 4600
+- **TTT v5 (conservative):** epochs=1, lr=5e-5, drift=0.05, 1500 warmup windows → no improvement (too gentle, weights barely moved)
+- **Sweet spot:** somewhere between v3 and v5. Need epochs=2, lr=8e-5, drift=0.08, freeze at ~1200 windows
+- **Bigger batch (v4):** 1.5× tokens/step hurt — fewer total steps offset richer gradients
+- **MLP 3.3 vs 3.0:** marginal improvement, extra params barely used
+- **Single GPU longrun:** Plateaued at 1.40 BPB after 20K steps. Muon needs distributed all-reduce to work properly. Single GPU with grad_accum is not equivalent.
+
+### Architecture as Compression
+The Frugendorff's primary value is as a **compression technique**, not a standalone architecture:
+- 3 unique blocks store ~25M params but provide 12 effective layers of depth
+- Artifact sizes 11-14 MB vs 16 MB budget — saves 2-5 MB
+- Can be used as a "fractal shim" inside a conventional model: e.g., 10 unique layers + 1 shared block × 2 loops = 12 effective depth with 11 blocks of params
+- The v6 hybrid (6 unique × 2 loops, 480d, MLP 4x) hit 1.1757 BPB — proving fractal compression works inside a larger architecture
+
+### Qwen Overnight Sweep Results (141 runs, DGX Spark)
+| Axis | Best Value | BPB |
+|------|-----------|-----|
+| num_unique_layers | 2 | 2.3332 |
+| num_loops | 4 | 2.3332 |
+| cadence | 3 (F/N/N) | 2.3332 |
+| lr | 2e-3 | 2.3332 |
+| grad_clip | 5.0 | 2.3332 |
+| mlp_mult | 3 | 2.3332 |
+
+Winning config: 2 layers × 4 loops, cadence 3, lr=2e-3, clip=5.0, MLP 3 → **2.3332 BPB** (vs 2.6371 baseline, 12% improvement)
 
 ### Gap to SOTA
 - Our SOTA: **1.1233 BPB** (11 unique layers, 512d, EMA + distillation)
