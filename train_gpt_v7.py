@@ -93,7 +93,9 @@ class Hyperparameters:
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
-    ttt_max_train_chunks = int(os.environ.get("TTT_MAX_TRAIN_CHUNKS", 60))  # stop training after N chunks, keep scoring
+    ttt_max_train_chunks = int(os.environ.get("TTT_MAX_TRAIN_CHUNKS", 200))  # stop training after N chunks, keep scoring
+    ttt_ema_decay = float(os.environ.get("TTT_EMA_DECAY", 0.995))  # EMA decay for TTT weight smoothing (0 = disabled)
+    ttt_freeze_embed = bool(int(os.environ.get("TTT_FREEZE_EMBED", "1")))  # freeze tok_emb/bigram/ve during TTT
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -913,21 +915,39 @@ def eval_val_sliding_ttt(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     frozen_ids = set(range(min(args.ttt_freeze_blocks, len(base_model.blocks))))
+    embed_names = {"tok_emb", "bigram", "ve_shared"} if args.ttt_freeze_embed else set()
     ttt_params = []
     for name, p in base_model.named_parameters():
         if any(f"blocks.{bi}." in name for bi in frozen_ids):
             p.requires_grad_(False)
+        elif any(en in name for en in embed_names):
+            p.requires_grad_(False)
         else:
             p.requires_grad_(True); ttt_params.append(p)
-    log0(f"ttt_sliding:unfrozen={sum(p.numel() for p in ttt_params)}")
+    log0(f"ttt_sliding:unfrozen={sum(p.numel() for p in ttt_params)} freeze_embed={args.ttt_freeze_embed}")
     optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    # TTT-EMA: maintain smoothed weights for scoring
+    ema_decay = args.ttt_ema_decay
+    ema_state = None
+    raw_state = None
+    if ema_decay > 0:
+        ema_state = {n: p.data.clone() for n, p in base_model.named_parameters() if p.requires_grad}
+        raw_state = {n: torch.empty_like(p.data) for n, p in base_model.named_parameters() if n in ema_state}
+        log0(f"ttt_sliding:ema_decay={ema_decay} ema_params={len(ema_state)}")
     t0 = time.perf_counter()
+    cur_lr = args.ttt_lr
     for ci in range(num_chunks):
         windows = chunk_windows[ci]
         if not windows:
             continue
         chunk_start, chunk_end = ci * ttt_chunk, min((ci + 1) * ttt_chunk, total_tokens)
         my_windows = windows[(len(windows) * rank) // world_size:(len(windows) * (rank + 1)) // world_size]
+        # Swap to EMA weights for scoring (if enabled and past first chunk)
+        if ema_state is not None and ci > 0:
+            for n, p in base_model.named_parameters():
+                if n in ema_state:
+                    raw_state[n].copy_(p.data)
+                    p.data.copy_(ema_state[n])
         base_model.eval()
         with torch.inference_mode():
             for bi in range(0, len(my_windows), batch_seqs):
@@ -952,13 +972,19 @@ def eval_val_sliding_ttt(
                     tgt, prev = y_batch[i, s:wlen], x_batch[i, s:wlen]
                     tb = base_bytes_lut[tgt].to(torch.float64) + (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                     byte_count += tb.sum()
+        # Restore raw weights after scoring (for training phase)
+        if ema_state is not None and ci > 0:
+            for n, p in base_model.named_parameters():
+                if n in raw_state:
+                    p.data.copy_(raw_state[n])
         # Phase 2: TRAIN on this chunk (already scored = legal)
         if ci < num_chunks - 1 and ci < args.ttt_max_train_chunks and args.ttt_epochs > 0:
             base_model.train()
             chunk_seqs = (chunk_end - chunk_start) // seq_len
             if chunk_seqs > 0:
+                cur_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(args.ttt_max_train_chunks - 1, 1)))
                 for pg in optimizer.param_groups:
-                    pg['lr'] = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
+                    pg['lr'] = cur_lr
                 ms, me = (chunk_seqs * rank) // world_size, (chunk_seqs * (rank + 1)) // world_size
                 for _ep in range(args.ttt_epochs):
                     for bs in range(0, me - ms, args.ttt_batch_seqs):
@@ -980,9 +1006,25 @@ def eval_val_sliding_ttt(
                                     dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
                         torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
                         optimizer.step()
-        if master and (ci % 10 == 0 or ci == num_chunks - 1):
+                # Update EMA after this chunk's training
+                if ema_state is not None:
+                    with torch.no_grad():
+                        for n, p in base_model.named_parameters():
+                            if n in ema_state:
+                                ema_state[n].mul_(ema_decay).add_(p.data, alpha=1.0 - ema_decay)
+        # Once training stops, load EMA weights permanently for remaining score-only chunks
+        if ema_state is not None and ci == args.ttt_max_train_chunks:
+            log0(f"  ttt:loading EMA weights permanently at chunk {ci}")
+            for n, p in base_model.named_parameters():
+                if n in ema_state:
+                    p.data.copy_(ema_state[n])
+            ema_state = None
+            raw_state = None
+        if master and (ci % 5 == 0 or ci == num_chunks - 1):
             rl = loss_sum.item() / max(token_count.item(), 1)
-            log0(f"  ttt[{ci+1}/{num_chunks}] bpb={rl/math.log(2)*(token_count.item()/max(byte_count.item(),1)) if token_count.item()>0 else 0:.6f} t={time.perf_counter()-t0:.0f}s")
+            cur_bpb = rl / math.log(2) * (token_count.item() / max(byte_count.item(), 1)) if token_count.item() > 0 else 0
+            lr_str = f" lr={cur_lr:.6f}" if ci < args.ttt_max_train_chunks else " lr=done"
+            log0(f"  ttt[{ci+1}/{num_chunks}] bpb={cur_bpb:.6f}{lr_str} t={time.perf_counter()-t0:.0f}s")
     if dist.is_available() and dist.is_initialized():
         for t in [loss_sum, token_count, byte_count]:
             dist.all_reduce(t, op=dist.ReduceOp.SUM)
