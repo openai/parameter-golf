@@ -109,7 +109,7 @@ class Hyperparameters:
     qat_threshold = float(os.environ.get("QAT_THRESHOLD", "0.5"))  # earlier QAT: 3x more steps
 
     # TTT: SGD fine-tune on val data after training
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
     ttt_lr = float(os.environ.get("TTT_LR", "0.0005"))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", "10"))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
@@ -592,12 +592,17 @@ def quantize_state_dict_int6(state_dict: dict[str, Tensor], gptq_hessians: dict[
 
         stats["num_float_tensors"] += 1
         # OptRot: Hadamard rotation before quantization (power-of-2 rows only)
-        t_q = optrot_rotate(t) if t.ndim == 2 else t
+        use_optrot = bool(int(os.environ.get("USE_OPTROT", "1")))
+        t_q = optrot_rotate(t) if (use_optrot and t.ndim == 2) else t
         rotated = t_q is not t  # track if rotation was applied
         # Use GPTQ when Hessian available for 2D weight matrices
+        # GPTQ_SKIP_MLP=1: use naive int6 for MLP weights (better compression)
+        gptq_skip_mlp = bool(int(os.environ.get("GPTQ_SKIP_MLP", "0")))
+        is_mlp = any(k in name for k in ("gate_up.", "down.", "mlp."))
         module_name = name.rsplit(".weight", 1)[0] if name.endswith(".weight") else name
         H = gptq_hessians.get(module_name) if gptq_hessians and t_q.ndim == 2 else None
-        if H is not None and H.shape[0] == t_q.shape[1]:
+        skip_gptq = gptq_skip_mlp and is_mlp
+        if H is not None and H.shape[0] == t_q.shape[1] and not skip_gptq:
             q, s = gptq_quantize_weight(t_q, H.cpu())
             gptq_count += 1
         else:

@@ -85,7 +85,7 @@ class Hyperparameters:
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
     # Legal score-first TTT eval (PR #461 recipe)
-    ttt_eval_enabled = bool(int(os.environ.get("TTT_EVAL_ENABLED", "1")))
+    ttt_eval_enabled = bool(int(os.environ.get("TTT_EVAL_ENABLED", "0")))
     ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adamw")  # "sgd" or "adamw" (PR #462: AdamW 5x better)
     ttt_lr = float(os.environ.get("TTT_LR", 0.0005))  # 0.0005 for AdamW (PR #462), 0.002 for SGD
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 10))  # 10 for AdamW (PR #462), 3 for SGD

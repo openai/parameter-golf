@@ -207,3 +207,997 @@ RUN 29 | 01:56:41 | best=2.1962
 RUN 30 | 02:00:43 | best=2.1962
   Qwen: Based on the results, L=5x2 with MLP=4 shows the best performance so far, but we need to explore if increasing loop coun
   L=5x2 cad=1 mlp=4
+  >>> val_bpb=2.398726
+
+LEADERBOARD (30 runs)
+  1. 2.1962 | L=6x1 cad=1 mlp=4
+  2. 2.1971 | L=4x2 cad=3 mlp=4
+  3. 2.2055 | L=4x3 cad=3 mlp=4
+  4. 2.2108 | L=4x3 cad=3 mlp=4
+  5. 2.2132 | L=4x3 cad=3 mlp=4
+  6. 2.2143 | L=4x3 cad=3 mlp=4
+  7. 2.2260 | L=5x2 cad=3 mlp=3
+  8. 2.2287 | L=5x2 cad=3 mlp=4
+  9. 2.2312 | L=5x2 cad=3 mlp=4
+  10. 2.2328 | L=5x2 cad=3 mlp=4
+
+======================================================================
+RUN 31 | 02:06:00 | best=2.1962
+  Qwen: The results show that 5x2 with MLP 4x performs best among the tested configs, with 6x2 showing slight degradation. The c
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.233198
+
+======================================================================
+RUN 32 | 02:09:41 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance around 2.23 BPB, but we need to explore i
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.841888
+
+======================================================================
+RUN 33 | 02:14:12 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance while maintaining good training stability. The cadence pa
+  L=5x2 cad=1 mlp=4
+  >>> val_bpb=2.279918
+
+======================================================================
+RUN 34 | 02:19:28 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance while maintaining efficiency. The trend s
+  L=4x3 cad=3 mlp=4
+  >>> val_bpb=2.204994
+
+======================================================================
+RUN 35 | 02:23:33 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance while maintaining efficiency. The trend s
+  L=4x2 cad=3 mlp=4
+  >>> val_bpb=2.205151
+
+LEADERBOARD (35 runs)
+  1. 2.1962 | L=6x1 cad=1 mlp=4
+  2. 2.1971 | L=4x2 cad=3 mlp=4
+  3. 2.2050 | L=4x3 cad=3 mlp=4
+  4. 2.2052 | L=4x2 cad=3 mlp=4
+  5. 2.2055 | L=4x3 cad=3 mlp=4
+  6. 2.2108 | L=4x3 cad=3 mlp=4
+  7. 2.2132 | L=4x3 cad=3 mlp=4
+  8. 2.2143 | L=4x3 cad=3 mlp=4
+  9. 2.2260 | L=5x2 cad=3 mlp=3
+  10. 2.2287 | L=5x2 cad=3 mlp=4
+
+======================================================================
+RUN 36 | 02:26:47 | best=2.1962
+  Qwen: The results show that 5x2 with MLP 4x performs best among the tested configs, with 6x2 and 4x3 also showing strong perfo
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.24843
+
+======================================================================
+RUN 37 | 02:30:24 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance close to the best, while 6x2 with MLP 4x is slightly wors
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.27582
+
+======================================================================
+RUN 38 | 02:34:53 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance around 2.24-2.25 BPB, while 6x2 with MLP 4x is slightly w
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.253498
+
+======================================================================
+RUN 39 | 02:38:31 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance close to the best, while 6x2 with MLP 4x is also competit
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.240797
+
+======================================================================
+RUN 40 | 02:42:08 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance around 2.24 BPB, and the cadence pattern F/N/N (cadence=3
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.271237
+
+LEADERBOARD (40 runs)
+  1. 2.1962 | L=6x1 cad=1 mlp=4
+  2. 2.1971 | L=4x2 cad=3 mlp=4
+  3. 2.2050 | L=4x3 cad=3 mlp=4
+  4. 2.2052 | L=4x2 cad=3 mlp=4
+  5. 2.2055 | L=4x3 cad=3 mlp=4
+  6. 2.2108 | L=4x3 cad=3 mlp=4
+  7. 2.2132 | L=4x3 cad=3 mlp=4
+  8. 2.2143 | L=4x3 cad=3 mlp=4
+  9. 2.2260 | L=5x2 cad=3 mlp=3
+  10. 2.2287 | L=5x2 cad=3 mlp=4
+
+======================================================================
+RUN 41 | 02:45:46 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance while maintaining efficiency. The cadence pattern F/N/N (
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.276246
+
+======================================================================
+RUN 42 | 02:49:24 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows the best performance so far, but we need to explore if increasing loop count
+  L=5x4 cad=3 mlp=4
+  >>> val_bpb=2.295302
+
+======================================================================
+RUN 43 | 02:54:47 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance while maintaining efficiency. The cadence pattern F/N/N (
+  L=5x2 cad=1 mlp=4
+  >>> val_bpb=2.319246
+
+======================================================================
+RUN 44 | 03:00:07 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows the best performance so far, but we need to explore if increasing loops whil
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.256701
+
+======================================================================
+RUN 45 | 03:04:41 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance while maintaining efficiency. The cadence pattern F/N/N (
+  L=5x2 cad=1 mlp=4
+  >>> val_bpb=2.287783
+
+LEADERBOARD (45 runs)
+  1. 2.1962 | L=6x1 cad=1 mlp=4
+  2. 2.1971 | L=4x2 cad=3 mlp=4
+  3. 2.2050 | L=4x3 cad=3 mlp=4
+  4. 2.2052 | L=4x2 cad=3 mlp=4
+  5. 2.2055 | L=4x3 cad=3 mlp=4
+  6. 2.2108 | L=4x3 cad=3 mlp=4
+  7. 2.2132 | L=4x3 cad=3 mlp=4
+  8. 2.2143 | L=4x3 cad=3 mlp=4
+  9. 2.2260 | L=5x2 cad=3 mlp=3
+  10. 2.2287 | L=5x2 cad=3 mlp=4
+
+======================================================================
+RUN 46 | 03:09:55 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far, but we should explore if increa
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.236697
+
+======================================================================
+RUN 47 | 03:13:37 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance while maintaining efficiency. The cadence pattern F/N/N (
+  L=5x2 cad=1 mlp=4
+  >>> val_bpb=2.316391
+
+======================================================================
+RUN 48 | 03:18:53 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows the best performance so far, but we need to explore if increasing loop count
+  L=5x3 cad=1 mlp=4
+  >>> val_bpb=2.381094
+
+======================================================================
+RUN 49 | 03:26:43 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x appears to be the strongest configuration so far, but we need to test if increasin
+  L=5x3 cad=1 mlp=4
+  >>> val_bpb=2.505559
+
+======================================================================
+RUN 50 | 03:34:33 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows strong performance while maintaining efficiency. The cadence pattern F/N/N (
+  L=5x2 cad=1 mlp=4
+  >>> val_bpb=2.295495
+
+LEADERBOARD (50 runs)
+  1. 2.1962 | L=6x1 cad=1 mlp=4
+  2. 2.1971 | L=4x2 cad=3 mlp=4
+  3. 2.2050 | L=4x3 cad=3 mlp=4
+  4. 2.2052 | L=4x2 cad=3 mlp=4
+  5. 2.2055 | L=4x3 cad=3 mlp=4
+  6. 2.2108 | L=4x3 cad=3 mlp=4
+  7. 2.2132 | L=4x3 cad=3 mlp=4
+  8. 2.2143 | L=4x3 cad=3 mlp=4
+  9. 2.2260 | L=5x2 cad=3 mlp=3
+  10. 2.2287 | L=5x2 cad=3 mlp=4
+
+======================================================================
+RUN 51 | 03:39:52 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows the best performance so far, but we need to explore if increasing loop count
+  L=5x3 cad=1 mlp=4
+  >>> val_bpb=2.361343
+
+======================================================================
+RUN 52 | 03:47:43 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x appears to be the strongest configuration so far, but we need to explore if increa
+  L=5x3 cad=1 mlp=4
+  >>> val_bpb=2.775085
+
+======================================================================
+RUN 53 | 03:55:34 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x appears to be the strongest configuration so far, but we need to explore if increa
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.271348
+
+======================================================================
+RUN 54 | 04:00:08 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows the best performance so far, but we need to explore if increasing loop count
+  L=5x3 cad=4 mlp=4
+  >>> val_bpb=2.231176
+
+======================================================================
+RUN 55 | 04:04:12 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's potential for improvement wi
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.271658
+
+LEADERBOARD (55 runs)
+  1. 2.1962 | L=6x1 cad=1 mlp=4
+  2. 2.1971 | L=4x2 cad=3 mlp=4
+  3. 2.2050 | L=4x3 cad=3 mlp=4
+  4. 2.2052 | L=4x2 cad=3 mlp=4
+  5. 2.2055 | L=4x3 cad=3 mlp=4
+  6. 2.2108 | L=4x3 cad=3 mlp=4
+  7. 2.2132 | L=4x3 cad=3 mlp=4
+  8. 2.2143 | L=4x3 cad=3 mlp=4
+  9. 2.2260 | L=5x2 cad=3 mlp=3
+  10. 2.2287 | L=5x2 cad=3 mlp=4
+
+======================================================================
+RUN 56 | 04:08:42 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far, but there's still room for impr
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.237683
+
+======================================================================
+RUN 57 | 04:12:19 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance around 2.237 BPB. The previous best was 1
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.254408
+
+======================================================================
+RUN 58 | 04:15:55 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance around 2.25 BPB, but we need to explore i
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.277305
+
+======================================================================
+RUN 59 | 04:20:24 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far, but we need to explore if incre
+  L=5x2 cad=4 mlp=4
+  >>> val_bpb=2.197374
+
+======================================================================
+RUN 60 | 04:23:48 | best=2.1962
+  Qwen: Based on the results, L=4x2 cad=3 with MLP 4x shows strong performance, but we need to explore if 5x2 or 6x2 configurati
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.214466
+
+LEADERBOARD (60 runs)
+  1. 2.1962 | L=6x1 cad=1 mlp=4
+  2. 2.1971 | L=4x2 cad=3 mlp=4
+  3. 2.1974 | L=5x2 cad=4 mlp=4
+  4. 2.2050 | L=4x3 cad=3 mlp=4
+  5. 2.2052 | L=4x2 cad=3 mlp=4
+  6. 2.2055 | L=4x3 cad=3 mlp=4
+  7. 2.2108 | L=4x3 cad=3 mlp=4
+  8. 2.2132 | L=4x3 cad=3 mlp=4
+  9. 2.2143 | L=4x3 cad=3 mlp=4
+  10. 2.2145 | L=5x2 cad=3 mlp=4
+
+======================================================================
+RUN 61 | 04:27:25 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far, with L=4x3 and L=6x2 also compe
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.246223
+
+======================================================================
+RUN 62 | 04:31:02 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=4x3 cad=3 mlp=4
+  >>> val_bpb=2.208527
+
+======================================================================
+RUN 63 | 04:35:01 | best=2.1962
+  Qwen: Based on the results, L=4x3 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.274741
+
+======================================================================
+RUN 64 | 04:39:31 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows consistent performance around 2.23-2.24 BPB, while 4x3 and 5x3 configuration
+  L=4x3 cad=3 mlp=4
+  >>> val_bpb=2.202405
+
+======================================================================
+RUN 65 | 04:43:30 | best=2.1962
+  Qwen: Based on the results, 5x2 with MLP 4x shows consistent performance around 2.20-2.21 BPB, while 4x3 and 5x3 configuration
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.231675
+
+LEADERBOARD (65 runs)
+  1. 2.1962 | L=6x1 cad=1 mlp=4
+  2. 2.1971 | L=4x2 cad=3 mlp=4
+  3. 2.1974 | L=5x2 cad=4 mlp=4
+  4. 2.2024 | L=4x3 cad=3 mlp=4
+  5. 2.2050 | L=4x3 cad=3 mlp=4
+  6. 2.2052 | L=4x2 cad=3 mlp=4
+  7. 2.2055 | L=4x3 cad=3 mlp=4
+  8. 2.2085 | L=4x3 cad=3 mlp=4
+  9. 2.2108 | L=4x3 cad=3 mlp=4
+  10. 2.2132 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 66 | 04:47:08 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The trend indicates that 5 laye
+  L=5x2 cad=4 mlp=4
+  >>> val_bpb=2.211761
+
+======================================================================
+RUN 67 | 04:50:32 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The trend suggests that increas
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.243454
+
+======================================================================
+RUN 68 | 04:54:09 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows consistent performance around 2.24 BPB, while L=4x3 with cad
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.232394
+
+======================================================================
+RUN 69 | 04:57:46 | best=2.1962
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=5x2 cad=4 mlp=4
+  >>> val_bpb=2.195624
+
+======================================================================
+RUN 70 | 05:01:11 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.234344
+
+LEADERBOARD (70 runs)
+  1. 2.1956 | L=5x2 cad=4 mlp=4
+  2. 2.1962 | L=6x1 cad=1 mlp=4
+  3. 2.1971 | L=4x2 cad=3 mlp=4
+  4. 2.1974 | L=5x2 cad=4 mlp=4
+  5. 2.2024 | L=4x3 cad=3 mlp=4
+  6. 2.2050 | L=4x3 cad=3 mlp=4
+  7. 2.2052 | L=4x2 cad=3 mlp=4
+  8. 2.2055 | L=4x3 cad=3 mlp=4
+  9. 2.2085 | L=4x3 cad=3 mlp=4
+  10. 2.2108 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 71 | 05:04:47 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The small improvements suggest w
+  L=5x2 cad=4 mlp=4
+  >>> val_bpb=2.196953
+
+======================================================================
+RUN 72 | 05:08:12 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x2 cad=2 mlp=4
+  >>> val_bpb=2.249136
+
+======================================================================
+RUN 73 | 05:12:14 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The recent experiments confirm 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.252293
+
+======================================================================
+RUN 74 | 05:15:50 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x appears to be the strongest configuration so far, with BPB around 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.251485
+
+======================================================================
+RUN 75 | 05:19:27 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance among tested configs. The trend suggest
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.248985
+
+LEADERBOARD (75 runs)
+  1. 2.1956 | L=5x2 cad=4 mlp=4
+  2. 2.1962 | L=6x1 cad=1 mlp=4
+  3. 2.1970 | L=5x2 cad=4 mlp=4
+  4. 2.1971 | L=4x2 cad=3 mlp=4
+  5. 2.1974 | L=5x2 cad=4 mlp=4
+  6. 2.2024 | L=4x3 cad=3 mlp=4
+  7. 2.2050 | L=4x3 cad=3 mlp=4
+  8. 2.2052 | L=4x2 cad=3 mlp=4
+  9. 2.2055 | L=4x3 cad=3 mlp=4
+  10. 2.2085 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 76 | 05:23:04 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The recent experiments confirm 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.247535
+
+======================================================================
+RUN 77 | 05:26:40 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows consistent performance around 2.24 BPB, but we need to explo
+  L=5x3 cad=2 mlp=4
+  >>> val_bpb=2.287091
+
+======================================================================
+RUN 78 | 05:31:59 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=6x2 cad=3 mlp=4
+  >>> val_bpb=2.288842
+
+======================================================================
+RUN 79 | 05:36:10 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows consistent performance around 2.23 BPB, while L=4x3 with cad
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.248008
+
+======================================================================
+RUN 80 | 05:39:47 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=4x2 cad=3 mlp=4
+  >>> val_bpb=2.196758
+
+LEADERBOARD (80 runs)
+  1. 2.1956 | L=5x2 cad=4 mlp=4
+  2. 2.1962 | L=6x1 cad=1 mlp=4
+  3. 2.1968 | L=4x2 cad=3 mlp=4
+  4. 2.1970 | L=5x2 cad=4 mlp=4
+  5. 2.1971 | L=4x2 cad=3 mlp=4
+  6. 2.1974 | L=5x2 cad=4 mlp=4
+  7. 2.2024 | L=4x3 cad=3 mlp=4
+  8. 2.2050 | L=4x3 cad=3 mlp=4
+  9. 2.2052 | L=4x2 cad=3 mlp=4
+  10. 2.2055 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 81 | 05:43:00 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The experiments suggest that inc
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.243034
+
+======================================================================
+RUN 82 | 05:46:38 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.246304
+
+======================================================================
+RUN 83 | 05:50:15 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=5x2 cad=4 mlp=4
+  >>> val_bpb=2.217512
+
+======================================================================
+RUN 84 | 05:53:40 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The experiments suggest that inc
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.247154
+
+======================================================================
+RUN 85 | 05:57:17 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The trend indicates that increas
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.26656
+
+LEADERBOARD (85 runs)
+  1. 2.1956 | L=5x2 cad=4 mlp=4
+  2. 2.1962 | L=6x1 cad=1 mlp=4
+  3. 2.1968 | L=4x2 cad=3 mlp=4
+  4. 2.1970 | L=5x2 cad=4 mlp=4
+  5. 2.1971 | L=4x2 cad=3 mlp=4
+  6. 2.1974 | L=5x2 cad=4 mlp=4
+  7. 2.2024 | L=4x3 cad=3 mlp=4
+  8. 2.2050 | L=4x3 cad=3 mlp=4
+  9. 2.2052 | L=4x2 cad=3 mlp=4
+  10. 2.2055 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 86 | 06:00:54 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The trend indicates that increas
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.242647
+
+======================================================================
+RUN 87 | 06:04:31 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.254354
+
+======================================================================
+RUN 88 | 06:08:08 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far, but there's still room for impr
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.286611
+
+======================================================================
+RUN 89 | 06:12:37 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far, but there's still room for impr
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.273107
+
+======================================================================
+RUN 90 | 06:17:06 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far, but there's still room for impr
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.292715
+
+LEADERBOARD (90 runs)
+  1. 2.1956 | L=5x2 cad=4 mlp=4
+  2. 2.1962 | L=6x1 cad=1 mlp=4
+  3. 2.1968 | L=4x2 cad=3 mlp=4
+  4. 2.1970 | L=5x2 cad=4 mlp=4
+  5. 2.1971 | L=4x2 cad=3 mlp=4
+  6. 2.1974 | L=5x2 cad=4 mlp=4
+  7. 2.2024 | L=4x3 cad=3 mlp=4
+  8. 2.2050 | L=4x3 cad=3 mlp=4
+  9. 2.2052 | L=4x2 cad=3 mlp=4
+  10. 2.2055 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 91 | 06:21:35 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far, but there's still room for impro
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.246549
+
+======================================================================
+RUN 92 | 06:25:12 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.256622
+
+======================================================================
+RUN 93 | 06:28:49 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The experiments suggest that inc
+  L=4x2 cad=3 mlp=4
+  >>> val_bpb=2.206988
+
+======================================================================
+RUN 94 | 06:32:02 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The trend indicates that increa
+  L=4x2 cad=3 mlp=4
+  >>> val_bpb=2.21057
+
+======================================================================
+RUN 95 | 06:35:16 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows consistent performance around 2.21-2.23 BPB, with cadence 4 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.239513
+
+LEADERBOARD (95 runs)
+  1. 2.1956 | L=5x2 cad=4 mlp=4
+  2. 2.1962 | L=6x1 cad=1 mlp=4
+  3. 2.1968 | L=4x2 cad=3 mlp=4
+  4. 2.1970 | L=5x2 cad=4 mlp=4
+  5. 2.1971 | L=4x2 cad=3 mlp=4
+  6. 2.1974 | L=5x2 cad=4 mlp=4
+  7. 2.2024 | L=4x3 cad=3 mlp=4
+  8. 2.2050 | L=4x3 cad=3 mlp=4
+  9. 2.2052 | L=4x2 cad=3 mlp=4
+  10. 2.2055 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 96 | 06:38:53 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The experiments suggest that inc
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.245689
+
+======================================================================
+RUN 97 | 06:42:30 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.245649
+
+======================================================================
+RUN 98 | 06:46:07 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far, but there's still room for impro
+  L=6x2 cad=3 mlp=4
+  >>> val_bpb=2.271649
+
+======================================================================
+RUN 99 | 06:50:12 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows consistent performance around 2.23 BPB, while L=6x1 with cad
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.246115
+
+======================================================================
+RUN 100 | 06:53:49 | best=2.1956
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The experiments suggest that inc
+  L=5x2 cad=4 mlp=4
+  >>> val_bpb=2.184926
+
+LEADERBOARD (100 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2024 | L=4x3 cad=3 mlp=4
+  9. 2.2050 | L=4x3 cad=3 mlp=4
+  10. 2.2052 | L=4x2 cad=3 mlp=4
+
+======================================================================
+RUN 101 | 06:57:14 | best=2.1849
+  Qwen: The best results so far show L=5x2 with cadence 3-4 and MLP 4x performing well, with the highest BPB of 2.1849 achieved 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.245384
+
+======================================================================
+RUN 102 | 07:00:51 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far, but we need to explore if increa
+  L=5x4 cad=2 mlp=4
+  >>> val_bpb=2.320646
+
+======================================================================
+RUN 103 | 07:07:26 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if the current be
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.263329
+
+======================================================================
+RUN 104 | 07:11:09 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=6x2 cad=3 mlp=4
+  >>> val_bpb=2.263165
+
+======================================================================
+RUN 105 | 07:15:14 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's still room for improvement. 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.240654
+
+LEADERBOARD (105 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2024 | L=4x3 cad=3 mlp=4
+  9. 2.2050 | L=4x3 cad=3 mlp=4
+  10. 2.2052 | L=4x2 cad=3 mlp=4
+
+======================================================================
+RUN 106 | 07:18:51 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The trend indicates that increa
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.229533
+
+======================================================================
+RUN 107 | 07:22:28 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x2 cad=2 mlp=4
+  >>> val_bpb=2.259992
+
+======================================================================
+RUN 108 | 07:26:29 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x2 cad=2 mlp=4
+  >>> val_bpb=2.247472
+
+======================================================================
+RUN 109 | 07:30:30 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x appears to be the strongest configuration so far, with BPB around 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.246858
+
+======================================================================
+RUN 110 | 07:34:07 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's a clear gap to SOTA. The dat
+  L=6x2 cad=3 mlp=4
+  >>> val_bpb=2.298456
+
+LEADERBOARD (110 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2024 | L=4x3 cad=3 mlp=4
+  9. 2.2050 | L=4x3 cad=3 mlp=4
+  10. 2.2052 | L=4x2 cad=3 mlp=4
+
+======================================================================
+RUN 111 | 07:38:13 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The previous experiments sugges
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.242192
+
+======================================================================
+RUN 112 | 07:41:49 | best=2.1849
+  Qwen: The results show that 5x2 with cadence 3 and MLP 4x performs consistently well, while 6x2 with cadence 3 shows slightly 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.240897
+
+======================================================================
+RUN 113 | 07:45:26 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far. The experiments suggest that in
+  L=4x2 cad=3 mlp=4
+  >>> val_bpb=2.200949
+
+======================================================================
+RUN 114 | 07:48:39 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's still room for improvement. 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.240689
+
+======================================================================
+RUN 115 | 07:52:16 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's still room for improvement. 
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.277808
+
+LEADERBOARD (115 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2009 | L=4x2 cad=3 mlp=4
+  9. 2.2024 | L=4x3 cad=3 mlp=4
+  10. 2.2050 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 116 | 07:56:46 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x appears to be the strongest configuration so far, with BPB around 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.247059
+
+======================================================================
+RUN 117 | 08:00:22 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's a clear trend toward better 
+  L=5x2 cad=1 mlp=4
+  >>> val_bpb=2.292536
+
+======================================================================
+RUN 118 | 08:05:38 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x2 cad=2 mlp=4
+  >>> val_bpb=2.267104
+
+======================================================================
+RUN 119 | 08:09:44 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows consistent performance around 2.23 BPB, while L=6x1 with cad
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.249592
+
+======================================================================
+RUN 120 | 08:13:21 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows the best performance so far, but there's still room for impr
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.27432
+
+LEADERBOARD (120 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2009 | L=4x2 cad=3 mlp=4
+  9. 2.2024 | L=4x3 cad=3 mlp=4
+  10. 2.2050 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 121 | 08:17:50 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's a clear trend toward better 
+  L=4x3 cad=3 mlp=4
+  >>> val_bpb=2.211631
+
+======================================================================
+RUN 122 | 08:21:50 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The experiments suggest that inc
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.267655
+
+======================================================================
+RUN 123 | 08:25:27 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's a clear trend toward better 
+  L=4x3 cad=3 mlp=4
+  >>> val_bpb=2.218896
+
+======================================================================
+RUN 124 | 08:29:26 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows strong performance, but we need to explore if increasing loop
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.236892
+
+======================================================================
+RUN 125 | 08:33:03 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x appears to be the strongest configuration so far, with BPB around 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.254332
+
+LEADERBOARD (125 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2009 | L=4x2 cad=3 mlp=4
+  9. 2.2024 | L=4x3 cad=3 mlp=4
+  10. 2.2050 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 126 | 08:36:41 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x4 cad=3 mlp=4
+  >>> val_bpb=2.275034
+
+======================================================================
+RUN 127 | 08:42:03 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.266156
+
+======================================================================
+RUN 128 | 08:45:45 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows the best performance so far. The experiments suggest that inc
+  L=4x3 cad=3 mlp=4
+  >>> val_bpb=2.205465
+
+======================================================================
+RUN 129 | 08:49:46 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x appears to be performing well, but we need to explore if increasin
+  L=5x2 cad=2 mlp=4
+  >>> val_bpb=2.249658
+
+======================================================================
+RUN 130 | 08:53:48 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's still room for improvement. 
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.262223
+
+LEADERBOARD (130 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2009 | L=4x2 cad=3 mlp=4
+  9. 2.2024 | L=4x3 cad=3 mlp=4
+  10. 2.2050 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 131 | 08:58:18 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x2 cad=2 mlp=4
+  >>> val_bpb=2.242806
+
+======================================================================
+RUN 132 | 09:02:20 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x appears to be the strongest configuration so far, but we need to e
+  L=6x2 cad=3 mlp=4
+  >>> val_bpb=2.275393
+
+======================================================================
+RUN 133 | 09:06:27 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x appears to be performing well, but we need to explore if increasin
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.253153
+
+======================================================================
+RUN 134 | 09:10:56 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x appears to be performing well, but we need to explore if increasin
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.319545
+
+======================================================================
+RUN 135 | 09:15:25 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's still room for improvement. 
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.294836
+
+LEADERBOARD (135 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2009 | L=4x2 cad=3 mlp=4
+  9. 2.2024 | L=4x3 cad=3 mlp=4
+  10. 2.2050 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 136 | 09:19:55 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x2 cad=2 mlp=4
+  >>> val_bpb=2.258077
+
+======================================================================
+RUN 137 | 09:23:56 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence=3 and mlp=4 shows the best performance so far. The trend indicates that increas
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.228809
+
+======================================================================
+RUN 138 | 09:27:34 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x4 cad=2 mlp=4
+  >>> val_bpb=2.316204
+
+======================================================================
+RUN 139 | 09:34:10 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.251641
+
+======================================================================
+RUN 140 | 09:38:45 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.265342
+
+LEADERBOARD (140 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2009 | L=4x2 cad=3 mlp=4
+  9. 2.2024 | L=4x3 cad=3 mlp=4
+  10. 2.2050 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 141 | 09:43:14 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.265987
+
+======================================================================
+RUN 142 | 09:47:44 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.266591
+
+======================================================================
+RUN 143 | 09:52:13 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows consistent performance around 2.23 BPB, while L=4x3 with cad
+  L=4x3 cad=3 mlp=4
+  >>> val_bpb=2.215105
+
+======================================================================
+RUN 144 | 09:56:14 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but there's a clear trend that 4x3 confi
+  L=5x3 cad=3 mlp=4
+  >>> val_bpb=2.271874
+
+======================================================================
+RUN 145 | 10:00:44 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x shows strong performance, but we need to explore if increasing loo
+  L=5x3 cad=2 mlp=4
+  >>> val_bpb=2.350738
+
+LEADERBOARD (145 runs)
+  1. 2.1849 | L=5x2 cad=4 mlp=4
+  2. 2.1956 | L=5x2 cad=4 mlp=4
+  3. 2.1962 | L=6x1 cad=1 mlp=4
+  4. 2.1968 | L=4x2 cad=3 mlp=4
+  5. 2.1970 | L=5x2 cad=4 mlp=4
+  6. 2.1971 | L=4x2 cad=3 mlp=4
+  7. 2.1974 | L=5x2 cad=4 mlp=4
+  8. 2.2009 | L=4x2 cad=3 mlp=4
+  9. 2.2024 | L=4x3 cad=3 mlp=4
+  10. 2.2050 | L=4x3 cad=3 mlp=4
+
+======================================================================
+RUN 146 | 10:06:02 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence=3 and MLP=4 shows strong performance, but we need to explore if increasing loop
+  L=5x2 cad=2 mlp=3
+  >>> val_bpb=2.221374
+
+======================================================================
+RUN 147 | 10:10:17 | best=2.1849
+  Qwen: Based on the results, L=5x2 with cadence 3 and MLP 4x appears to be the strongest configuration so far, with BPB around 
+  L=5x2 cad=3 mlp=4
+  >>> val_bpb=2.22755
+
+======================================================================
+RUN 148 | 10:13:54 | best=2.1849
