@@ -1,0 +1,48 @@
+{
+  "author": "mrdavtan",
+  "github_id": "mrdavtan",
+  "name": "Cosine TTT scheduling with per-layer lr (mean val_bpb=1.0970, 3 seeds)",
+  "blurb": "AdamW TTT with cosine lr decay and per-layer lr groups. 30 epochs, 3x lr for MLP output projections, 0.5x for input projections.",
+  "date": "2026-03-22",
+  "val_loss": 1.8504,
+  "val_bpb": 1.0959,
+  "mean_val_bpb": 1.0970,
+  "std_val_bpb": 0.0010,
+  "seed": 1337,
+  "num_seeds": 3,
+  "seed_results": {
+    "1337": 1.0959,
+    "42": 1.0971,
+    "7": 1.0979
+  },
+  "step_stop": 7101,
+  "wallclock_seconds": 600.0,
+  "ttt_time_seconds": 465.4,
+  "eval_time_seconds": 186.5,
+  "bytes_total": 15362557,
+  "bytes_model_int8_zstd": 15258143,
+  "bytes_code": 104414,
+  "hardware": "8xH100 SXM (RunPod), PyTorch 2.9.1+cu128, FA2",
+  "track": "track_10min_16mb",
+  "model": {
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3,
+    "vocab_size": 1024,
+    "tie_embeddings": true,
+    "total_params": 26829913
+  },
+  "ttt_config": {
+    "optimizer": "adamw",
+    "lr": 0.0005,
+    "epochs": 30,
+    "cosine": true,
+    "perlayer": true,
+    "perlayer_proj_mult": 3.0,
+    "perlayer_fc_mult": 0.5,
+    "freeze_blocks": 0,
+    "batch_seqs_per_gpu": 64
+  }
+}
