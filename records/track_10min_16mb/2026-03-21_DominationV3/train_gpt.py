@@ -86,11 +86,13 @@ class Hyperparameters:
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.5))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.01))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 25))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
+    ttt_p1_epochs = int(os.environ.get("TTT_P1_EPOCHS", 100))
+    ttt_p1_lr = float(os.environ.get("TTT_P1_LR", 0.01))
     rope_dims = int(os.environ.get("ROPE_DIMS", 0))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))
 
@@ -296,13 +298,21 @@ def _classify_param(name):
 def _get_ste_range_for_param(name):
     return STE_QAT_RANGE
 
+CLIP_PCTS = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
+
 def quantize_int6_per_row(t):
     t32 = t.float()
     if t32.ndim == 2:
-        rm = t32.abs().amax(dim=1)
-        sc = (rm / 31.0).clamp_min(1.0 / 31.0).to(torch.float16)
-        q = torch.clamp(torch.round(t32 / sc.float()[:, None]), -32, 31).to(torch.int8)
-        return q, sc
+        best_q, best_sc, best_mse = None, None, float("inf")
+        for pct in CLIP_PCTS:
+            rm = torch.quantile(t32.abs(), pct, dim=1)
+            sc = (rm / 31.0).clamp_min(1.0 / 31.0).to(torch.float16)
+            tc = torch.clamp(t32, -rm[:, None], rm[:, None])
+            q = torch.clamp(torch.round(tc / sc.float()[:, None]), -32, 31).to(torch.int8)
+            recon = q.float() * sc.float()[:, None]
+            mse = (t32 - recon).square().mean().item()
+            if mse < best_mse: best_mse = mse; best_q = q; best_sc = sc
+        return best_q, best_sc
     am = t32.abs().max().item()
     sc = torch.tensor(am / 31.0 if am > 0 else 1.0, dtype=torch.float16)
     q = torch.clamp(torch.round(t32 / sc.float()), -32, 31).to(torch.int8)
@@ -613,28 +623,47 @@ class GPT(nn.Module):
 # TRAINING
 # -----------------------------
 
-def ttt_adapt(args, mdl, rank, world_size, device, val_tokens):
-    sl = args.train_seq_len; nt = val_tokens.numel() - 1; ts = nt // sl
+def _ttt_run(mdl, opt, epochs, rank, world_size, device, val_tokens, sl, batch_seqs):
+    nt = val_tokens.numel() - 1; ts = nt // sl
     ms, me = (ts * rank) // world_size, (ts * (rank + 1)) // world_size
-    for i, b in enumerate(mdl.blocks):
-        req = i >= args.ttt_freeze_blocks
-        for p in b.parameters(): p.requires_grad_(req)
-    for p in mdl.tok_emb.parameters(): p.requires_grad_(False)
-    if mdl.bigram is not None:
-        for p in mdl.bigram.parameters(): p.requires_grad_(False)
-    for p in mdl.smear.parameters(): p.requires_grad_(False)
-    mdl.skip_weights.requires_grad_(False)
-    opt = torch.optim.SGD([p for p in mdl.parameters() if p.requires_grad], lr=args.ttt_lr, momentum=args.ttt_momentum)
     mdl.train()
-    for _ in range(args.ttt_epochs):
-        for bs in range(ms, me, args.ttt_batch_seqs):
-            be = min(bs + args.ttt_batch_seqs, me)
+    for _ in range(epochs):
+        for bs in range(ms, me, batch_seqs):
+            be = min(bs + batch_seqs, me)
             rs, re = bs * sl, be * sl + 1
             loc = val_tokens[rs:re].to(device=device, dtype=torch.int64, non_blocking=True)
             x, y = loc[:-1].reshape(-1, sl), loc[1:].reshape(-1, sl)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16): loss = mdl(x, y)
             opt.zero_grad(set_to_none=True); loss.backward(); opt.step()
         if dist.is_available() and dist.is_initialized(): dist.barrier()
+
+def ttt_adapt(args, mdl, rank, world_size, device, val_tokens, log0):
+    sl = args.train_seq_len
+    for p in mdl.parameters(): p.requires_grad_(False)
+    if args.ttt_p1_epochs > 0:
+        norm_params = []
+        for n, p in mdl.named_parameters():
+            if "norm" in n or "attn_scale" in n or "mlp_scale" in n or "resid_mix" in n or "skip_weight" in n:
+                p.requires_grad_(True); norm_params.append(p)
+        log0(f"ttt_p1: {args.ttt_p1_epochs}ep Adam lr={args.ttt_p1_lr} params={sum(p.numel() for p in norm_params)}")
+        opt1 = torch.optim.Adam(norm_params, lr=args.ttt_p1_lr)
+        torch.cuda.synchronize(); t0 = time.perf_counter()
+        _ttt_run(mdl, opt1, args.ttt_p1_epochs, rank, world_size, device, val_tokens, sl, args.ttt_batch_seqs)
+        torch.cuda.synchronize(); log0(f"ttt_p1: done in {1000.0 * (time.perf_counter() - t0):.0f}ms")
+        for p in norm_params: p.requires_grad_(False)
+        del opt1
+    if args.ttt_epochs > 0:
+        nl = len(mdl.blocks)
+        for i, b in enumerate(mdl.blocks):
+            req = i >= args.ttt_freeze_blocks
+            for p in b.parameters(): p.requires_grad_(req)
+        trainable = [p for p in mdl.parameters() if p.requires_grad]
+        log0(f"ttt_p2: {args.ttt_epochs}ep SGD lr={args.ttt_lr} freeze={args.ttt_freeze_blocks} params={sum(p.numel() for p in trainable)}")
+        opt2 = torch.optim.SGD(trainable, lr=args.ttt_lr, momentum=args.ttt_momentum)
+        torch.cuda.synchronize(); t0 = time.perf_counter()
+        _ttt_run(mdl, opt2, args.ttt_epochs, rank, world_size, device, val_tokens, sl, args.ttt_batch_seqs)
+        torch.cuda.synchronize(); log0(f"ttt_p2: done in {1000.0 * (time.perf_counter() - t0):.0f}ms")
+        del opt2
     for p in mdl.parameters(): p.requires_grad_(False)
     mdl.eval()
 
@@ -840,10 +869,10 @@ def main():
     eval_model.load_state_dict(deq_sd, strict=True)
 
     if args.ttt_enabled:
-        log0(f"ttt: {args.ttt_epochs} epochs, lr={args.ttt_lr}, freeze={args.ttt_freeze_blocks}")
+        log0(f"ttt: p1={args.ttt_p1_epochs}ep p2={args.ttt_epochs}ep freeze={args.ttt_freeze_blocks}")
         torch.cuda.synchronize(); t_ttt = time.perf_counter()
-        ttt_adapt(args, eval_model, rank, world_size, device, val_tokens)
-        torch.cuda.synchronize(); log0(f"ttt: done in {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
+        ttt_adapt(args, eval_model, rank, world_size, device, val_tokens, log0)
+        torch.cuda.synchronize(); log0(f"ttt: total {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
     torch.cuda.synchronize(); tqe = time.perf_counter()
     if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:

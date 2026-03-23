@@ -1,36 +1,36 @@
 {
   "author": "yesbhautik",
   "github_id": "yesbhautik",
-  "name": "DominationV3: 11L EMA + Partial RoPE + LN Scale + TTT(25ep)",
-  "blurb": "11-layer with EMA(0.997), Partial RoPE(16/64), LN Scale, BigramHash(4096x128), int6 quant on mlp+attn+tok_emb, zstd-22, and 25-epoch aggressive SGD TTT (lr=0.01, all blocks unfrozen) on already-graded validation tokens.",
-  "date": "2026-03-22T12:00:00Z",
-  "val_loss": 1.90054841,
-  "val_bpb": 1.12561480,
+  "name": "DominationV3: 11L EMA + Partial RoPE + LN Scale + GPTQ-lite + TTT(25ep, lr=0.012)",
+  "blurb": "11-layer with EMA(0.997), Partial RoPE(16/64), LN Scale, BigramHash(4096x128), GPTQ-lite clip search, int6 quant on mlp+attn+tok_emb, zstd-22, and 25-epoch aggressive SGD TTT (lr=0.012, all blocks unfrozen).",
+  "date": "2026-03-23T06:00:00Z",
+  "val_loss": 1.89835246,
+  "val_bpb": 1.12431423,
   "pre_quant_val_loss": 1.9440,
   "pre_quant_val_bpb": 1.1513,
-  "step_stop": 8447,
-  "wallclock_seconds": 599.782,
+  "step_stop": 8438,
+  "wallclock_seconds": 599.8,
   "eval_time_seconds": 585.0,
-  "bytes_total": 15801567,
-  "bytes_model_int6_zstd": 15753344,
-  "bytes_code": 48223,
+  "bytes_total": 15965664,
+  "bytes_model_int6_zstd": 15915703,
+  "bytes_code": 49961,
   "seeds": {
     "1337": {
-      "val_bpb": 1.12561480,
-      "train_time_ms": 599782,
-      "bytes_total": 15801567
+      "val_bpb": 1.12513674,
+      "train_time_ms": 599779,
+      "bytes_total": 15965664
     },
     "7": {
-      "val_bpb": 1.12677932,
-      "train_time_ms": 599800,
-      "bytes_total": 15778949
+      "val_bpb": 1.12540132,
+      "train_time_ms": 599841,
+      "bytes_total": 15829190
     },
     "42": {
-      "val_bpb": 1.12571883,
-      "train_time_ms": 599800,
-      "bytes_total": 15989167
+      "val_bpb": 1.12431423,
+      "train_time_ms": 599822,
+      "bytes_total": 15806256
     }
   },
-  "mean_val_bpb": 1.12603765,
-  "stdev_val_bpb": 0.00064441
+  "mean_val_bpb": 1.12495076,
+  "stdev_val_bpb": 0.00056691
 }
