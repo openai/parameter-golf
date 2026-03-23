@@ -1,0 +1,11 @@
+{
+  "author": "pragnyanramtha",
+  "github_id": "pragnyanramtha",
+  "name": "11L + XSA4 + EMA + Late QAT + GPTQ-lite",
+  "blurb": "SOTA micro-optimizations: 11 layers with XSA4 parameter savings, EMA (0.997) throughout training, late QAT when LR<15%, 5-percentile GPTQ-lite quantization, fullgraph=True. Seeds 1337/42 yield 1.1351/1.1298 BPB.",
+  "date": "2026-03-23T06:00:00Z",
+  "val_loss": 1.9165,
+  "val_bpb": 1.1351,
+  "bytes_total": 17498720,
+  "bytes_code": 56639
+}
