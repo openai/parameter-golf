@@ -1387,8 +1387,8 @@ def ttt_curriculum_adapt(args, base_model, device, val_tokens, rank=0, world_siz
 
     # Sort by loss descending - focus on hardest sequences
     seq_losses.sort(key=lambda x: -x[1])
-    # Take top 50% hardest sequences for remaining epochs
-    hard_seqs = [s for s, _ in seq_losses[:len(seq_losses)//2]]
+    # Take top 75% hardest sequences for remaining epochs (50% was too aggressive)
+    hard_seqs = [s for s, _ in seq_losses[:len(seq_losses)*3//4]]
 
     for epoch in range(1, args.ttt_epochs):
         epoch_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
