@@ -1,0 +1,20 @@
+{
+  "author": "ymrohit",
+  "github_id": "ymrohit",
+  "name": "11L Shared Sparse Sidecar + EMA + AdamW TTT",
+  "blurb": "Built on sjp611's 11-layer AdamW-TTT trunk, with a new shared sparse sidecar injected only in the late layers. The sidecar reuses one local refinement module across multiple late sites and conditions it per site with learned embeddings and residual scales, adding late capacity without paying for full extra blocks. A matched local ablation improved the donor family from 1.09459 to 1.07249 at full-width sidecar; the cloud-legal submission uses a trimmed sidecar (48) and bigram dim 96, achieving 1.09162 mean exact sliding-window val_bpb across 3 legal 8xH100 runs.",
+  "date": "2026-03-22T21:56:44Z",
+  "val_loss": 1.84314507,
+  "val_bpb": 1.09161722,
+  "val_loss_std": 0.00236,
+  "val_bpb_std": 0.00140,
+  "seeds": [13, 1337, 1111],
+  "seed_results": {
+    "13": {"val_loss": 1.84057430, "val_bpb": 1.09009466, "bytes_total": 15973374, "step_stop": 5965, "wallclock_seconds": 596.027},
+    "1337": {"val_loss": 1.84364647, "val_bpb": 1.09191418, "bytes_total": 15986252, "step_stop": 5966, "wallclock_seconds": 596.063},
+    "1111": {"val_loss": 1.84521443, "val_bpb": 1.09284281, "bytes_total": 15868806, "step_stop": 5961, "wallclock_seconds": 596.035}
+  },
+  "bytes_total": 15973374,
+  "bytes_model_int6_zstd": 15893960,
+  "bytes_code": 79414
+}
