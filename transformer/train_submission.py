@@ -90,15 +90,21 @@ class Hyperparameters:
     ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.1))
     ttt_burst_steps = int(os.environ.get("TTT_BURST_STEPS", 100))
     ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.2))
-    # Backward-looking LoRA TTT during eval
+    # Backward-looking LoRA TTT during eval (per-doc mode)
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.001))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
     ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 512))
+    # Sliding window TTT (full-parameter, PR#461/549 recipe)
+    ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
+    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
+    ttt_train_batch_seqs = int(os.environ.get("TTT_TRAIN_BATCH_SEQS", 32))
+    ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -860,88 +866,141 @@ def eval_val_sliding_ttt(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
     stride: int = 64,
-    batch_seqs: int = 8,
-    eval_seq_len: int | None = None,
-    ttt_lr: float = 5e-5,
-    ttt_steps: int = 1,
+    batch_seqs: int = 32,
     log_fn=None,
 ) -> tuple[float, float]:
-    """Sliding window eval with online full-parameter TTT.
-
-    Legal backward-looking: score each batch of new tokens BEFORE training
-    on that batch. Each GPU independently adapts on its slice of windows.
-    """
-    seq_len = eval_seq_len or args.train_seq_len
+    """Legal score-first TTT (PR #461/549 recipe): score each 32K chunk with
+    sliding windows, then train on it. Every token scored BEFORE any update
+    that could use it. Model synchronized across GPUs via all-reduce."""
+    seq_len = args.train_seq_len
     total_tokens = val_tokens.numel() - 1
+    ttt_chunk = args.ttt_chunk_tokens
+
+    # Pre-compute all window starts
     window_starts = [ws for ws in range(0, total_tokens, stride)
-                     if min(ws + seq_len, total_tokens) - ws >= 1]
-    total_windows = len(window_starts)
-    my_s = (total_windows * rank) // world_size
-    my_e = (total_windows * (rank + 1)) // world_size
-    my_windows = window_starts[my_s:my_e]
+                     if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0]
+
+    # Assign each window to a chunk based on the first token it scores
+    num_chunks = (total_tokens + ttt_chunk - 1) // ttt_chunk
+    chunk_windows: list[list[int]] = [[] for _ in range(num_chunks)]
+    for ws in window_starts:
+        end = min(ws + seq_len, total_tokens)
+        wlen = end - ws
+        s = 0 if ws == 0 else max(wlen - stride, 0)
+        scored_start = ws + s
+        ci = min(scored_start // ttt_chunk, num_chunks - 1)
+        chunk_windows[ci].append(ws)
+
+    if log_fn:
+        log_fn(f"ttt_sliding:start chunks={num_chunks} chunk_tokens={ttt_chunk} "
+               f"total_windows={len(window_starts)} stride={stride} "
+               f"ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} "
+               f"freeze_blocks={args.ttt_freeze_blocks}")
 
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    base_model.eval()
-    for p in base_model.parameters():
-        p.requires_grad_(True)
-    optimizer = torch.optim.AdamW(base_model.parameters(), lr=ttt_lr, weight_decay=0.01)
+    # Freeze first N blocks
+    frozen_block_ids = set(range(min(args.ttt_freeze_blocks, len(base_model.blocks))))
+    ttt_params = []
+    for name, p in base_model.named_parameters():
+        freeze = any(f"blocks.{bi}." in name for bi in frozen_block_ids)
+        if freeze:
+            p.requires_grad_(False)
+        else:
+            p.requires_grad_(True)
+            ttt_params.append(p)
 
+    if log_fn:
+        log_fn(f"ttt_sliding:params unfrozen={sum(p.numel() for p in ttt_params)} "
+               f"frozen={sum(p.numel() for p in base_model.parameters() if not p.requires_grad)}")
+
+    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
     t0 = time.perf_counter()
-    for bi in range(0, len(my_windows), batch_seqs):
-        batch_ws = my_windows[bi:bi + batch_seqs]
-        bsz = len(batch_ws)
-        x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-        y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-        wlens: list[int] = []
-        for i, ws in enumerate(batch_ws):
-            end = min(ws + seq_len, total_tokens)
-            wlen = end - ws
-            wlens.append(wlen)
-            chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
-            x_batch[i, :wlen] = chunk[:-1]
-            y_batch[i, :wlen] = chunk[1:]
 
-        # SCORE — no grad, these new tokens haven't been trained on yet
-        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            logits = base_model.forward_logits(x_batch)
-        nll = F.cross_entropy(
-            logits.reshape(-1, logits.size(-1)).float(),
-            y_batch.reshape(-1),
-            reduction="none",
-        ).reshape(bsz, seq_len)
-        for i, ws in enumerate(batch_ws):
-            wlen = wlens[i]
-            s = 0 if ws == 0 else max(wlen - stride, 0)
-            scored_nll = nll[i, s:wlen].to(torch.float64)
-            loss_sum += scored_nll.sum()
-            token_count += float(wlen - s)
-            tgt = y_batch[i, s:wlen]
-            prev = x_batch[i, s:wlen]
-            tb = base_bytes_lut[tgt].to(torch.float64)
-            tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-            byte_count += tb.sum()
+    for ci in range(num_chunks):
+        windows = chunk_windows[ci]
+        if not windows:
+            continue
+        chunk_start = ci * ttt_chunk
+        chunk_end = min((ci + 1) * ttt_chunk, total_tokens)
 
-        # TRAIN — gradient update after scoring (legal)
-        for _step in range(ttt_steps):
-            optimizer.zero_grad(set_to_none=True)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits_t = base_model.forward_logits(x_batch)
-            train_loss = F.cross_entropy(
-                logits_t.reshape(-1, logits_t.size(-1)).float(),
-                y_batch.reshape(-1),
-                reduction="mean",
-            )
-            train_loss.backward()
-            torch.nn.utils.clip_grad_norm_(base_model.parameters(), 1.0)
-            optimizer.step()
+        # --- Phase 1: SCORE this chunk's windows (inference_mode) ---
+        my_s = (len(windows) * rank) // world_size
+        my_e = (len(windows) * (rank + 1)) // world_size
+        my_windows = windows[my_s:my_e]
 
-        if log_fn and (bi // batch_seqs) % 100 == 0:
+        base_model.eval()
+        with torch.inference_mode():
+            for bi in range(0, len(my_windows), batch_seqs):
+                batch_ws = my_windows[bi:bi + batch_seqs]
+                bsz = len(batch_ws)
+                x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                wlens: list[int] = []
+                for i, ws in enumerate(batch_ws):
+                    end = min(ws + seq_len, total_tokens)
+                    wlen = end - ws
+                    wlens.append(wlen)
+                    chunk_tok = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                    x_batch[i, :wlen] = chunk_tok[:-1]
+                    y_batch[i, :wlen] = chunk_tok[1:]
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    logits = base_model.forward_logits(x_batch)
+                nll = F.cross_entropy(
+                    logits.reshape(-1, logits.size(-1)).float(),
+                    y_batch.reshape(-1), reduction="none",
+                ).reshape(bsz, seq_len)
+                for i, ws in enumerate(batch_ws):
+                    wlen = wlens[i]
+                    s = 0 if ws == 0 else max(wlen - stride, 0)
+                    scored_nll = nll[i, s:wlen].to(torch.float64)
+                    loss_sum += scored_nll.sum()
+                    token_count += float(wlen - s)
+                    tgt, prev = y_batch[i, s:wlen], x_batch[i, s:wlen]
+                    tb = base_bytes_lut[tgt].to(torch.float64)
+                    tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                    byte_count += tb.sum()
+
+        # --- Phase 2: TRAIN on this chunk (already scored = legal) ---
+        is_last_chunk = (ci == num_chunks - 1)
+        if not is_last_chunk and args.ttt_epochs > 0:
+            base_model.train()
+            chunk_seqs = (chunk_end - chunk_start) // seq_len
+            if chunk_seqs > 0:
+                cos_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
+                for pg in optimizer.param_groups:
+                    pg['lr'] = cos_lr
+                my_seq_s = (chunk_seqs * rank) // world_size
+                my_seq_e = (chunk_seqs * (rank + 1)) // world_size
+                my_chunk_seqs = my_seq_e - my_seq_s
+                for _ep in range(args.ttt_epochs):
+                    for bs in range(0, my_chunk_seqs, args.ttt_train_batch_seqs):
+                        be = min(bs + args.ttt_train_batch_seqs, my_chunk_seqs)
+                        actual_bs = my_seq_s + bs
+                        start_tok = chunk_start + actual_bs * seq_len
+                        end_tok = chunk_start + (my_seq_s + be) * seq_len + 1
+                        if end_tok > val_tokens.numel():
+                            continue
+                        local = val_tokens[start_tok:end_tok].to(device=device, dtype=torch.int64)
+                        x = local[:-1].reshape(-1, seq_len)
+                        y = local[1:].reshape(-1, seq_len)
+                        optimizer.zero_grad(set_to_none=True)
+                        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                            loss = base_model(x, y)
+                        loss.backward()
+                        if world_size > 1:
+                            for p in ttt_params:
+                                if p.grad is not None:
+                                    dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+                        torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
+                        optimizer.step()
+
+        if log_fn and (ci % 10 == 0 or ci == num_chunks - 1):
             elapsed = time.perf_counter() - t0
-            running_bpb = float((loss_sum / math.log(2.0)) / byte_count) if byte_count > 0 else 0
-            log_fn(f"ttt_sliding: batch={bi//batch_seqs} bpb={running_bpb:.4f} time={elapsed:.1f}s")
+            rbpb = float((loss_sum / math.log(2.0)) / byte_count) if byte_count > 0 else 0.0
+            log_fn(f"  ttt_chunk [{ci+1}/{num_chunks}] bpb={rbpb:.6f} time={elapsed:.1f}s")
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
@@ -949,9 +1008,16 @@ def eval_val_sliding_ttt(
         dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
 
     val_loss = (loss_sum / token_count).item()
-    bits_per_token = val_loss / math.log(2.0)
-    tokens_per_byte = token_count.item() / byte_count.item()
-    return val_loss, bits_per_token * tokens_per_byte
+    val_bpb = val_loss / math.log(2.0) * (token_count.item() / byte_count.item())
+
+    for p in base_model.parameters():
+        p.requires_grad_(True)
+    base_model.eval()
+
+    if log_fn:
+        log_fn(f"ttt_sliding:done val_loss={val_loss:.6f} val_bpb={val_bpb:.6f} "
+               f"elapsed={time.perf_counter() - t0:.1f}s")
+    return val_loss, val_bpb
 
 def eval_val_sliding(
     args: Hyperparameters,
