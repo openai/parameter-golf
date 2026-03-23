@@ -37,5 +37,3 @@ SEED=42 bash eval/eval.sh
 - grad_clip=0.3, 3% magnitude pruning
 - SWA: start_frac=0.4, every=50 steps
 - Sliding window eval: stride=64
-
-Built on SOTA submission by @thwu1.
