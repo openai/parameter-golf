@@ -1097,12 +1097,11 @@ def eval_ttt_perdoc(
         num_chunks = [(pl + chunk_size - 1) // chunk_size for pl in pred_lens]
         max_nc = max(num_chunks)
 
+        # Pre-build all chunk data for this batch
+        chunk_data = []
         for ci in range(max_nc):
             active = [ci < nc for nc in num_chunks]
-            needs_train = any(ci < nc - 1 for nc in num_chunks)
             chunk_start = ci * chunk_size
-
-            # Build context window for this chunk
             ce_template = min((ci + 1) * chunk_size, max(pred_lens))
             context_size = min(ce_template, eval_seq_len)
             x = torch.zeros(bsz, context_size, dtype=torch.int64, device=device)
@@ -1123,41 +1122,42 @@ def eval_ttt_perdoc(
                 x[b, :wl] = chunk_tok[:-1]
                 y[b, :wl] = chunk_tok[1:]
                 doc_info.append((co, cl))
+            chunk_data.append((x, y, doc_info, active, context_size))
 
-            # SCORE: forward with LoRA-augmented model
-            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                ptl = base_model(x, y, lora=cur_lora)  # [bsz, context_size] per-token loss
+        # Multi-epoch: train on all chunks for N-1 epochs, score on final epoch
+        for epoch in range(args.ttt_epochs):
+            is_scoring_epoch = (epoch == args.ttt_epochs - 1)
+            for ci, (x, y, doc_info, active, context_size) in enumerate(chunk_data):
+                # SCORE on final epoch
+                if is_scoring_epoch:
+                    with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        ptl = base_model(x, y, lora=cur_lora)
+                    with torch.no_grad():
+                        for b in range(bsz):
+                            if not active[b]:
+                                continue
+                            co, cl = doc_info[b]
+                            if cl <= 0:
+                                continue
+                            scored_nll = ptl[b, co:co + cl].to(torch.float64)
+                            loss_sum += scored_nll.sum()
+                            token_count += float(cl)
+                            tgt = y[b, co:co + cl]
+                            prev = x[b, co:co + cl]
+                            tok_bytes = base_bytes_lut[tgt].to(torch.float64)
+                            tok_bytes += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                            byte_sum += tok_bytes.sum()
 
-            # Accumulate BPB for scored tokens
-            with torch.no_grad():
-                for b in range(bsz):
-                    if not active[b]:
-                        continue
-                    co, cl = doc_info[b]
-                    if cl <= 0:
-                        continue
-                    scored_nll = ptl[b, co:co + cl].to(torch.float64)
-                    loss_sum += scored_nll.sum()
-                    token_count += float(cl)
-                    tgt = y[b, co:co + cl]
-                    prev = x[b, co:co + cl]
-                    tok_bytes = base_bytes_lut[tgt].to(torch.float64)
-                    tok_bytes += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-                    byte_sum += tok_bytes.sum()
-
-            # TRAIN LoRA on scored tokens (backward-looking)
-            if needs_train:
-                for _ in range(args.ttt_epochs):
-                    cur_opt.zero_grad(set_to_none=True)
-                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        ptl_train = base_model(x, y, lora=cur_lora)
-                    # Mask inactive docs
-                    mask = torch.tensor([float(ci < num_chunks[b] - 1) for b in range(bsz)], device=device)
-                    per_doc_loss = ptl_train[:, :context_size].mean(dim=-1)
-                    train_loss = (per_doc_loss * mask).sum() / max(mask.sum(), 1)
-                    train_loss.backward()
-                    torch.nn.utils.clip_grad_norm_(cur_lora.parameters(), 1.0)
-                    cur_opt.step()
+                # TRAIN on all epochs (including scoring epoch — backward-looking)
+                cur_opt.zero_grad(set_to_none=True)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    ptl_train = base_model(x, y, lora=cur_lora)
+                mask = torch.tensor([float(active[b]) for b in range(bsz)], device=device)
+                per_doc_loss = ptl_train[:, :context_size].mean(dim=-1)
+                train_loss = (per_doc_loss * mask).sum() / max(mask.sum(), 1)
+                train_loss.backward()
+                torch.nn.utils.clip_grad_norm_(cur_lora.parameters(), 1.0)
+                cur_opt.step()
 
         if (bi // batch_size) % 10 == 0 and log_fn:
             elapsed = time.perf_counter() - t0

@@ -22,7 +22,7 @@ from train_submission import (
     Hyperparameters, GPT, CastedLinear, restore_low_dim_params_to_fp32,
     load_validation_tokens, build_sentencepiece_luts,
     dequantize_mixed_int6, eval_val_sliding, eval_ttt_perdoc,
-    BatchedLMHeadLoRA, BOS_ID,
+    BatchedTTTLoRA, BatchedLinearLoRA, BOS_ID,
 )
 
 def main():
