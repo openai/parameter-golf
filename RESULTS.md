@@ -53,6 +53,33 @@ Both converged to: `[0.127, 0.127, 0.699]`
 - The model essentially learned to "turn off" early gravity — confirming that at
   300 steps, direct early-loop supervision is noise rather than signal
 
+## The Frugendorff Squared — 1.1478 BPB (8×H100, 2026-03-23)
+
+**Architecture:** 6 unique blocks × 2 loops = 12 effective depth, dim=640, 10 heads, 5 KV (GQA), MLP 4x
+**Result:** Sliding window **1.1478 BPB** | Pre-quant 1.1570 | Post-quant 1.1716 | Artifact 15.15 MB
+**Gap to SOTA:** 0.025 BPB (SOTA = 1.1233)
+
+| Metric | Value |
+|--------|-------|
+| Sliding BPB (stride 64) | **1.1478** |
+| Pre-quant (post-EMA) | 1.1570 |
+| Post-quant roundtrip | 1.1716 |
+| Quant gap | 0.0146 |
+| Params | 28.2M |
+| Steps | 4,390 |
+| ms/step | 137 |
+| Artifact | 15.15 MB |
+
+### What's missing (estimated recoverable ~0.012 BPB):
+- Self-distillation (50 steps, temp=2.0) — ~0.003
+- Tighter quantization (gap 0.015 → 0.008) — ~0.007
+- Tuned warmdown for this architecture — ~0.002
+
+### Why MLP 4x matters
+The Qwen overnight sweep found MLP 4x is a massive quality lever (+2% relative BPB). But MLP 4x with 12 unique layers blows the 16MB budget. Fractal weight sharing (6 unique × 2 loops) fits MLP 4x in 15.15 MB. The fractal isn't the point — the MLP 4x it enables is.
+
+---
+
 ## The Frugendorff — Fractal Cadence Baseline (8×H100, 2026-03-22)
 
 **Architecture:** 3 unique blocks × 4 loops = 12 effective depth, dim=960, 15 heads, 5 KV (GQA)
