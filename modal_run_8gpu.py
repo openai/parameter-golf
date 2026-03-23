@@ -42,11 +42,12 @@ def train_8gpu(run_id: str = "atris_v8_8gpu", wallclock: int = 600):
     env = os.environ.copy()
     env.update({
         "RUN_ID": run_id, "MAX_WALLCLOCK_SECONDS": str(wallclock),
-        "VAL_LOSS_EVERY": "0",   # CRITICAL: skip periodic val (sliding window eval is VERY expensive)
+        "VAL_LOSS_EVERY": "0",   # skip periodic val (final eval uses sliding window, ~2 min)
         "TRAIN_LOG_EVERY": "50",
         "NCCL_IB_DISABLE": "1",
         "WARMUP_STEPS": "5",
-        "EVAL_STRIDE": "0",     # disable sliding window for periodic val (only use at final eval)
+        # EVAL_STRIDE defaults to 64 (sliding window) — only runs at final eval
+        # USE_ZSTD defaults to 1 — zstandard is in pip_install
     })
 
     cmd = ["torchrun", "--standalone", "--nproc_per_node=8", "train_gpt.py"]
