@@ -317,7 +317,7 @@ def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
 
 
 def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
-    """Mixed int5/int6 quantization: int5 for MLP (better compression), int6 for attention."""
+    """Int5 quantization for all large weight categories (MLP, attention, bigram)."""
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     for name, tensor in state_dict.items():
@@ -336,11 +336,11 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             meta[name] = "passthrough_fp16"
             continue
         if cat in int6_cats and t.ndim >= 1:
-            clip = 15 if cat == "mlp" else 31  # int5 for MLP, int6 for attention
+            clip = 15  # int5 for all categories
             q, s = quantize_intN_per_row(t, clip_range=clip)
             result[name + ".q"] = q
             result[name + ".scale"] = s
-            meta[name] = {"type": f"int{5 if cat == 'mlp' else 6}"}
+            meta[name] = {"type": "int5"}
         else:
             # Fallback: int8 with percentile clipping
             t32 = t.float()
@@ -718,67 +718,66 @@ def eval_val_ttt(
     ttt_params = [p for n, p in base_model.named_parameters() if ".mlp." in n and p.requires_grad]
     saved_state = {id(p): p.data.clone() for p in ttt_params}
 
+    # Per-window TTT: adapt on prefix, score suffix, restore. Must be per-window
+    # (not batched) because overlapping windows would leak scored tokens into
+    # neighboring prefixes within the same batch.
     base_model.eval()
-    for bi in range(0, len(my_windows), batch_seqs):
-        batch_ws = my_windows[bi:bi + batch_seqs]
-        bsz = len(batch_ws)
-        x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-        y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-        wlens: list[int] = []
-        for i, ws in enumerate(batch_ws):
-            end = min(ws + seq_len, total_tokens)
-            wlen = end - ws
-            wlens.append(wlen)
-            chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
-            x_batch[i, :wlen] = chunk[:-1]
-            y_batch[i, :wlen] = chunk[1:]
+    for wi, ws in enumerate(my_windows):
+        end = min(ws + seq_len, total_tokens)
+        wlen = end - ws
+        chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+        x = chunk[:-1].unsqueeze(0)  # (1, wlen)
+        y = chunk[1:].unsqueeze(0)
 
-        # TTT: adapt MLP weights on context prefix using AdamW
+        # Pad to seq_len for model compatibility
+        x_pad = torch.zeros(1, seq_len, dtype=torch.int64, device=device)
+        y_pad = torch.zeros(1, seq_len, dtype=torch.int64, device=device)
+        x_pad[0, :wlen] = x[0]
+        y_pad[0, :wlen] = y[0]
+
+        # TTT: adapt MLP weights on this window's prefix
         if args.ttt_steps > 0:
-            prefix_len = seq_len - stride
+            prefix_len = min(seq_len - stride, wlen)
             base_model.train()
             ttt_opt = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=args.ttt_wd)
             for _ in range(args.ttt_steps):
                 ttt_opt.zero_grad()
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    ttt_loss = base_model(x_batch[:, :prefix_len], y_batch[:, :prefix_len])
+                    ttt_loss = base_model(x_pad[:, :prefix_len], y_pad[:, :prefix_len])
                 ttt_loss.backward()
                 ttt_opt.step()
             base_model.eval()
 
-        # Score: get logits and compute loss on scored tokens
+        # Score only the unseen suffix tokens
         with torch.inference_mode():
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits = base_model.forward_logits(x_batch)
+                logits = base_model.forward_logits(x_pad)
             nll = F.cross_entropy(
                 logits.reshape(-1, logits.size(-1)).float(),
-                y_batch.reshape(-1), reduction="none",
-            ).reshape(bsz, seq_len)
-            for i, ws in enumerate(batch_ws):
-                wlen = wlens[i]
-                s = 0 if ws == 0 else max(wlen - stride, 0)
-                scored_nll = nll[i, s:wlen].to(torch.float64)
-                loss_sum += scored_nll.sum()
-                token_count += float(wlen - s)
-                tgt = y_batch[i, s:wlen]
-                prev = x_batch[i, s:wlen]
-                tb = base_bytes_lut[tgt].to(torch.float64)
-                tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-                byte_count += tb.sum()
+                y_pad.reshape(-1), reduction="none",
+            ).reshape(1, seq_len)
+            s = 0 if ws == 0 else max(wlen - stride, 0)
+            scored_nll = nll[0, s:wlen].to(torch.float64)
+            loss_sum += scored_nll.sum()
+            token_count += float(wlen - s)
+            tgt = y_pad[0, s:wlen]
+            prev = x_pad[0, s:wlen]
+            tb = base_bytes_lut[tgt].to(torch.float64)
+            tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+            byte_count += tb.sum()
 
         # Restore MLP weights for next window
         with torch.no_grad():
             for p in ttt_params:
                 p.data.copy_(saved_state[id(p)])
 
-        if rank == 0 and (bi // batch_seqs) % 50 == 0:
-            done = min(bi + batch_seqs, len(my_windows))
-            pct = done / len(my_windows) * 100
+        if rank == 0 and wi % 1600 == 0:
+            pct = (wi + 1) / len(my_windows) * 100
             running_bpb = 0.0
             if token_count.item() > 0:
                 rl = (loss_sum / token_count).item()
                 running_bpb = rl / math.log(2.0) * (token_count.item() / byte_count.item())
-            print(f"  ttt_eval [{pct:5.1f}%] {done}/{len(my_windows)} windows running_bpb={running_bpb:.6f}", flush=True)
+            print(f"  ttt_eval [{pct:5.1f}%] {wi+1}/{len(my_windows)} windows running_bpb={running_bpb:.6f}", flush=True)
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)

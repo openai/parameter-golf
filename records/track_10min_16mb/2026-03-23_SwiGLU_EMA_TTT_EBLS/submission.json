@@ -1,11 +1,11 @@
 {
   "author": "Robby Sneiderman",
   "github_id": "Robby955",
-  "name": "SwiGLU + EMA + AdamW TTT + EBLS Findings (Non-Record)",
-  "blurb": "SwiGLU MLP replacing ReLU-squared, EMA replacing SWA, eval-time AdamW TTT on MLP weights. Includes EBLS exploration: learned shrinkage gammas discover MLP weights converge to full sharing while attention retains trace specialization. Statistical framing of TTT as posterior adaptation with adaptive shrinkage.",
+  "name": "SwiGLU + EMA + Int5 Quantization + EBLS Findings (Non-Record)",
+  "blurb": "SwiGLU MLP replacing ReLU-squared, EMA replacing SWA, int5 quantization for all weight categories. Includes EBLS exploration: learned shrinkage gammas discover MLP weights converge to full sharing while attention retains trace specialization. TTT investigation: per-window adaptation degrades quality due to high gradient variance at batch_size=1.",
   "date": "2026-03-23T00:00:00Z",
-  "val_loss": 1.9832,
-  "val_bpb": 1.1746,
-  "bytes_total": 15902348,
-  "bytes_code": 53610
+  "val_loss": 1.9719,
+  "val_bpb": 1.1679,
+  "bytes_total": 15099489,
+  "bytes_code": 53443
 }
