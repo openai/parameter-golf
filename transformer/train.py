@@ -596,13 +596,14 @@ def _ste_int6_fakequant(t: Tensor) -> Tensor:
 
     Forward: quantize to int6 and dequantize (simulates quantization noise).
     Backward: gradient passes through unchanged (straight-through).
+    Uses symmetric [-31, 31] range to match final GPTQ-lite quantization.
     """
     if t.ndim < 2 or not t.is_floating_point():
         return t
     with torch.no_grad():
         row_max = t.abs().amax(dim=-1, keepdim=True)
         scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
-        q = torch.clamp(torch.round(t / scale), -32, 31)
+        q = torch.clamp(torch.round(t / scale), -31, 31)
         t_dequant = q * scale
     # STE: use dequantized value in forward, but gradient flows through t
     return t + (t_dequant - t).detach()
@@ -623,7 +624,7 @@ def apply_ste_int6(model: nn.Module) -> None:
                 continue
             row_max = param.data.abs().amax(dim=-1, keepdim=True)
             scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
-            param.data.copy_(torch.clamp(torch.round(param.data / scale), -32, 31) * scale)
+            param.data.copy_(torch.clamp(torch.round(param.data / scale), -31, 31) * scale)
 
 
 # _classify_param is defined below (used by apply_ste_int6 above and by entropy functions).
