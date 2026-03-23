@@ -101,4 +101,5 @@ submission_localpred_s1337,600,16043235,,72329,8,90393,1.1265,8a4fb33,"Local pre
 submission_ve3_bigram3072_s1337,600,15716405,,70765,8,89655,1.1232,0e51139,"VE 3 layers: 1.1232"
 ttt_8gpu_3ep_s1337,600,15936865,,74533,8,74184,1.1101,f89483a,"TTT 3ep lr=5e-5: 1.1101 (48s TTT)"
 ttt_8gpu_10ep_s1337,600,15936865,,74533,8,74267,1.1015,f89483a,"TTT 10ep: 1.1015 (161s TTT)"
-ttt_8gpu_20ep_s1337,600,15936865,,74533,8,74619,1.0925,f89483a,"TTT 20ep: 1.0925 (321s TTT). CAVEAT: trains before eval — need backward-looking version"
+ttt_8gpu_20ep_s1337,600,15936865,,74533,8,74619,1.0925,f89483a,"TTT 20ep: 1.0925 (321s). INVALID: trains before eval"
+ttt_backward_10ep_s1337,600,,,,8,,1.1260,7f8fcf3,"Backward-looking TTT: 1.1260 (score on final epoch, but model saw data 9x before)"
