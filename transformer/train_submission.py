@@ -90,7 +90,6 @@ class Hyperparameters:
     ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.1))
     ttt_burst_steps = int(os.environ.get("TTT_BURST_STEPS", 100))
     ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.2))
-    local_pred_dim = int(os.environ.get("LOCAL_PRED_DIM", 64))  # 0=disabled, >0=residual local predictor
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -665,7 +664,6 @@ class GPT(nn.Module):
         ve_enabled: bool = False,
         ve_dim: int = 128,
         ve_layers: str = "9,10",
-        local_pred_dim: int = 0,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -679,14 +677,6 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
-        # Residual local predictor: cheap bigram-based logits added to transformer output
-        if local_pred_dim > 0:
-            self.local_embed = nn.Embedding(vocab_size, local_pred_dim)
-            self.local_proj = CastedLinear(local_pred_dim, vocab_size, bias=False)
-            nn.init.zeros_(self.local_proj.weight)
-            self.local_scale = nn.Parameter(torch.tensor(0.1, dtype=torch.float32))
-        else:
-            self.local_embed = None
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -786,11 +776,6 @@ class GPT(nn.Module):
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x_flat)
-        # Add residual local predictor logits (bigram transition model)
-        if self.local_embed is not None:
-            local_h = self.local_embed(input_ids)  # [B, T, local_dim]
-            local_logits = self.local_proj(local_h).reshape(-1, logits_proj.size(-1))
-            logits_proj = logits_proj + self.local_scale.to(dtype=logits_proj.dtype) * local_logits
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
         if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
@@ -835,10 +820,6 @@ class GPT(nn.Module):
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
             logits_proj = self.lm_head(x)
-        if self.local_embed is not None:
-            local_h = self.local_embed(input_ids)
-            local_logits = self.local_proj(local_h)
-            logits_proj = logits_proj + self.local_scale.to(dtype=logits_proj.dtype) * local_logits
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 def eval_val_sliding(
     args: Hyperparameters,
@@ -1085,7 +1066,6 @@ def main() -> None:
         ve_enabled=args.ve_enabled,
         ve_dim=args.ve_dim,
         ve_layers=args.ve_layers,
-        local_pred_dim=args.local_pred_dim,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1124,10 +1104,6 @@ def main() -> None:
         scalar_params.append(base_model.ve_shared.scale)
         for s in base_model.ve_layer_scales:
             scalar_params.append(s)
-    if base_model.local_embed is not None:
-        tok_params.append({"params": [base_model.local_embed.weight], "lr": token_lr, "base_lr": token_lr})
-        matrix_params.append(base_model.local_proj.weight)
-        scalar_params.append(base_model.local_scale)
     optimizer_tok = torch.optim.AdamW(
         tok_params,
         betas=(args.beta1, args.beta2),
@@ -1419,7 +1395,6 @@ def main() -> None:
         xsa_last_n=args.xsa_last_n,  # must match training model
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
-        local_pred_dim=args.local_pred_dim,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
