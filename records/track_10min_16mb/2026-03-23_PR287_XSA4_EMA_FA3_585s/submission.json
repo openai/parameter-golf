@@ -1,0 +1,17 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-23",
+  "name": "PR #287 family rerun at 585s wallclock (XSA4 + EMA + BigramHash + FA3)",
+  "author": "Thomas Mustier",
+  "github": "tmustier",
+  "seed_results": {
+    "1337": {"val_loss": 1.91585177, "val_bpb": 1.13467834, "steps": 6757, "ms_per_step": 86.58},
+    "42":   {"val_loss": 1.91753791, "val_bpb": 1.13567697, "steps": 6732, "ms_per_step": 86.90},
+    "2025": {"val_loss": 1.91365474, "val_bpb": 1.13337713, "steps": 6763, "ms_per_step": 86.50}
+  },
+  "mean_val_loss": 1.91568147,
+  "mean_val_bpb": 1.13457748,
+  "p_value": 0.0032,
+  "artifact_bytes": 15580753,
+  "code_bytes": 67137
+}
