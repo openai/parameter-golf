@@ -1035,6 +1035,122 @@ def eval_val_sliding_ttt(
     base_model.eval()
     log0(f"ttt_sliding:done loss={val_loss:.6f} bpb={val_bpb:.6f} time={time.perf_counter()-t0:.0f}s")
     return val_loss, val_bpb
+# ---------------------------------------------------------------------------
+# GPTQ: Hessian-aware quantization with column-wise error compensation
+# ---------------------------------------------------------------------------
+def gptq_quantize_weight(W: Tensor, H: Tensor, clip_range: int = 31,
+                          block_size: int = 128, percdamp: float = 0.01) -> tuple[Tensor, Tensor]:
+    """GPTQ: quantize weight matrix W using Hessian H = X^T X for error compensation.
+    Returns (quantized_int8, scale_fp16) in int6 range [-clip_range, clip_range]."""
+    W = W.float().clone()
+    rows, cols = W.shape
+    H = H.float().clone()
+    damp = percdamp * H.diag().mean()
+    H.diagonal().add_(damp)
+    try:
+        L = torch.linalg.cholesky(H)
+        Hinv = torch.cholesky_inverse(L)
+    except torch._C._LinAlgError:
+        Hinv = torch.diag(1.0 / H.diag().clamp_min(1e-6))
+    Q = torch.zeros_like(W)
+    for i1 in range(0, cols, block_size):
+        i2 = min(i1 + block_size, cols)
+        W_block = W[:, i1:i2].clone()
+        Hinv_block = Hinv[i1:i2, i1:i2]
+        Err = torch.zeros_like(W_block)
+        for j in range(i2 - i1):
+            w_col = W_block[:, j]
+            h_inv_jj = Hinv_block[j, j].clamp_min(1e-8)
+            amax = w_col.abs().max()
+            s = (amax / clip_range).clamp_min(1.0 / clip_range)
+            q_col = torch.clamp(torch.round(w_col / s), -clip_range, clip_range)
+            Q[:, i1 + j] = q_col * s
+            err = (w_col - q_col * s) / h_inv_jj
+            Err[:, j] = err
+            if j + 1 < i2 - i1:
+                W_block[:, j + 1:] -= err.unsqueeze(1) * Hinv_block[j, j + 1:].unsqueeze(0)
+        if i2 < cols:
+            W[:, i2:] -= Err @ Hinv[i1:i2, i2:]
+    # Final per-row int6 encoding from the compensated reconstruction
+    row_max = Q.abs().amax(dim=1)
+    scale = (row_max / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+    q_int = torch.clamp(torch.round(Q / scale.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+    return q_int, scale
+def gptq_calibrate(model: nn.Module, train_pattern: str, device: torch.device,
+                   n_samples: int = 128, seq_len: int = 2048) -> dict[str, Tensor]:
+    """Collect Hessian H = X^T X for each linear layer using training data."""
+    hessians: dict[str, Tensor] = {}
+    n_seen: dict[str, int] = {}
+    hooks = []
+    def make_hook(name: str):
+        def hook_fn(module, inp, out):
+            x = inp[0].detach().float()
+            if x.ndim == 3:
+                x = x.reshape(-1, x.shape[-1])
+            if name not in hessians:
+                hessians[name] = torch.zeros(x.shape[1], x.shape[1], device=x.device, dtype=torch.float32)
+                n_seen[name] = 0
+            hessians[name].addmm_(x.t(), x)
+            n_seen[name] += x.shape[0]
+        return hook_fn
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Linear, CastedLinear)):
+            hooks.append(module.register_forward_hook(make_hook(name)))
+    stream = TokenStream(train_pattern)
+    model.eval()
+    with torch.no_grad():
+        for _ in range(n_samples):
+            tokens = stream.take(seq_len + 1).to(device=device, dtype=torch.int64)
+            x = tokens[:-1].unsqueeze(0)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                model.forward_logits(x)
+    for h in hooks:
+        h.remove()
+    for name in hessians:
+        hessians[name] /= max(n_seen[name], 1)
+    return hessians
+def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
+                              hessians: dict[str, Tensor]) -> tuple[dict, dict]:
+    """Like mixed_quantize_int6 but uses GPTQ for int6 categories when Hessian available."""
+    result: dict[str, Tensor] = {}
+    meta: dict[str, object] = {}
+    gptq_count, naive_count = 0, 0
+    for name, tensor in state_dict.items():
+        t = tensor.detach().cpu().contiguous()
+        cat = _classify_param(name)
+        if not t.is_floating_point() or t.numel() <= 65536:
+            result[name] = t.to(torch.float16) if t.is_floating_point() else t
+            meta[name] = "passthrough"
+            continue
+        if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
+            result[name] = t.float()
+            meta[name] = "passthrough_ctrl"
+            continue
+        if cat in int6_cats and t.ndim == 2:
+            module_name = name.rsplit(".weight", 1)[0] if name.endswith(".weight") else name
+            H = hessians.get(module_name)
+            if H is not None and H.shape[0] == t.shape[1]:
+                q, s = gptq_quantize_weight(t, H.cpu())
+                gptq_count += 1
+            else:
+                q, s = quantize_int6_per_row(t)
+                naive_count += 1
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int6"}
+        elif cat in int6_cats and t.ndim >= 1:
+            q, s = quantize_int6_per_row(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int6"}
+            naive_count += 1
+        else:
+            q, s = quantize_float_tensor(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int8"}
+    print(f"gptq_quantize: {gptq_count} GPTQ layers, {naive_count} naive layers", flush=True)
+    return result, meta
 def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
@@ -1454,7 +1570,12 @@ def main() -> None:
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
-    quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
+    # GPTQ calibration: collect Hessians from training data
+    log0("gptq:calibrating with training data...")
+    t_gptq = time.perf_counter()
+    gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=128, seq_len=args.train_seq_len)
+    log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
+    quant_result, quant_meta = mixed_quantize_int6_gptq(sd_cpu, {"mlp", "attn"}, gptq_hessians)
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
