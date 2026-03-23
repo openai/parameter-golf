@@ -24,6 +24,7 @@ echo "============================================"
 ITERATIONS=7500 \
 WARMDOWN_ITERS=2500 \
 XSA_LAST_N=11 \
+BIGRAM_VOCAB_SIZE=1792 \
 INT8_SENSITIVE="" \
 TTT_OPTIMIZER=sgd \
 TTT_LR=0.002 \
