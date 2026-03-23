@@ -1,0 +1,19 @@
+{
+  "author": "Chris McClendon",
+  "github_id": "Christopher-Lee-McClendon",
+  "name": "11L VE128 PartialRoPE LNScale Legal TTT 30ep",
+  "blurb": "11-layer depth-recurrence GPT with Value Embeddings (128d on layers 9-10), Partial RoPE (16/64), Layer-Norm Scale, XSA last 4, BigramHash(2048), legal score-first TTT (30-epoch SGD momentum=0.9, freeze=2), int6+zstd quantization, SWA, and Late QAT. Key discovery: SGD with 30 epochs per chunk yields -0.0184 BPB TTT gain, 2.7x more than 3-epoch baseline. Trained on 4xA100.",
+  "date": "2026-03-23",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.92908897,
+  "val_bpb": 1.14251817,
+  "pre_ttt_val_loss": 1.9602,
+  "pre_ttt_val_bpb": 1.1609,
+  "step_stop": 5200,
+  "wallclock_seconds": 2455,
+  "eval_time_seconds": 3662,
+  "bytes_total": 15479992,
+  "bytes_model_int6_zstd": 15408253,
+  "bytes_code": 71739,
+  "gpu": "4xA100-40GB"
+}
