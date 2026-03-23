@@ -65,9 +65,11 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     # SwiGLU uses 8/3 * dim rounded to nearest multiple of 64 for hidden dim
-    swiglu_mult = float(os.environ.get("SWIGLU_MULT", 2.667))
+    swiglu_mult = float(os.environ.get("SWIGLU_MULT", 2.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    rope_dim = int(os.environ.get("ROPE_DIM", 0))  # Partial RoPE: 0 = full RoPE (default)
+    xsa_layers = int(os.environ.get("XSA_LAYERS", 0))  # Cross-sequence attention disabled (hurts TTT per PR #303)
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # BigramHash + SmearGate
@@ -105,7 +107,7 @@ class Hyperparameters:
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
     # Mixed quantization
-    prune_frac = float(os.environ.get("PRUNE_FRAC", 0.03))
+    prune_frac = float(os.environ.get("PRUNE_FRAC", 0.05))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -458,8 +460,17 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
+    qat_enabled: bool = False
+
     def forward(self, x: Tensor) -> Tensor:
-        w = self.weight.to(x.dtype)
+        w = self.weight
+        if self.qat_enabled:
+            # STE: simulate int5 per-row quantization during training
+            with torch.no_grad():
+                scale = (w.abs().amax(dim=1, keepdim=True) / 15).clamp_min(1e-12)
+            w_q = torch.clamp(torch.round(w / scale), -16, 15) * scale
+            w = w + (w_q - w).detach()
+        w = w.to(x.dtype)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
 
@@ -497,11 +508,14 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float,
+                 qk_gain_init: float, rope_dim: int = 0, use_xsa: bool = False):
         super().__init__()
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
+        self.rope_dim = rope_dim if rope_dim > 0 else self.head_dim  # Partial RoPE
+        self.use_xsa = use_xsa  # Cross-sequence attention during eval
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
@@ -509,7 +523,7 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(self.rope_dim, base=rope_base)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -519,15 +533,28 @@ class CausalSelfAttention(nn.Module):
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
+        # Partial RoPE: only rotate first rope_dim dimensions
+        if self.rope_dim < self.head_dim:
+            q_rot, q_pass = q[..., :self.rope_dim], q[..., self.rope_dim:]
+            k_rot, k_pass = k[..., :self.rope_dim], k[..., self.rope_dim:]
+            q_rot = apply_rotary_emb(q_rot, cos, sin)
+            k_rot = apply_rotary_emb(k_rot, cos, sin)
+            q = torch.cat([q_rot, q_pass], dim=-1)
+            k = torch.cat([k_rot, k_pass], dim=-1)
+        else:
+            q = apply_rotary_emb(q, cos, sin)
+            k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         # Manual GQA expansion (PyTorch 2.4 compatible)
         if self.num_kv_heads != self.num_heads:
             rep = self.num_heads // self.num_kv_heads
             k = k[:, :, None, :, :].expand(-1, -1, rep, -1, -1).reshape(bsz, self.num_heads, seqlen, self.head_dim)
             v = v[:, :, None, :, :].expand(-1, -1, rep, -1, -1).reshape(bsz, self.num_heads, seqlen, self.head_dim)
-        y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
+        # XSA: cross-sequence attention during eval (no causal mask)
+        use_causal = True
+        if self.use_xsa and not self.training:
+            use_causal = False
+        y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=use_causal)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -590,12 +617,15 @@ class BigramHashEmbedding(nn.Module):
 
 class Block(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int, swiglu_mult: float,
-                 rope_base: float, qk_gain_init: float):
+                 rope_base: float, qk_gain_init: float, layer_idx: int = 0,
+                 rope_dim: int = 0, use_xsa: bool = False):
         super().__init__()
+        self.layer_idx = layer_idx
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = SwiGLUMLP(dim, swiglu_mult)  # <-- SwiGLU instead of ReLU²
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
+                                        rope_dim=rope_dim, use_xsa=use_xsa)
+        self.mlp = SwiGLUMLP(dim, swiglu_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -613,7 +643,8 @@ class GPT(nn.Module):
     def __init__(self, vocab_size: int, num_layers: int, model_dim: int, num_heads: int,
                  num_kv_heads: int, swiglu_mult: float, tie_embeddings: bool,
                  tied_embed_init_std: float, logit_softcap: float, rope_base: float,
-                 qk_gain_init: float, bigram_vocab_size: int = 0, bigram_dim: int = 128):
+                 qk_gain_init: float, bigram_vocab_size: int = 0, bigram_dim: int = 128,
+                 rope_dim: int = 0, xsa_layers: int = 0):
         super().__init__()
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
@@ -625,9 +656,12 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.smear = SmearGate(model_dim)
+        # XSA on last xsa_layers blocks (eval-only cross-sequence attention)
         self.blocks = nn.ModuleList([
-            Block(model_dim, num_heads, num_kv_heads, swiglu_mult, rope_base, qk_gain_init)
-            for _ in range(num_layers)
+            Block(model_dim, num_heads, num_kv_heads, swiglu_mult, rope_base, qk_gain_init,
+                  layer_idx=i, rope_dim=rope_dim,
+                  use_xsa=(i >= num_layers - xsa_layers) if xsa_layers > 0 else False)
+            for i in range(num_layers)
         ])
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
@@ -709,24 +743,67 @@ def eval_val_ttt(
     my_end = (num_chunks * (rank + 1)) // world_size
     my_chunks = list(range(my_start, my_end))
 
-    # TTT parameters: all 2D weights EXCEPT embeddings (tok_emb, bigram)
-    ttt_params = [p for n, p in base_model.named_parameters()
-                  if p.requires_grad and p.ndim >= 2
-                  and "tok_emb" not in n and "bigram" not in n]
-    ttt_opt = torch.optim.AdamW(ttt_params, lr=args.ttt_lr,
-                                weight_decay=args.ttt_wd)
+    # TTT parameters: per-layer groups with LR multipliers (later layers get higher LR)
+    # Group params by block index; non-block 2D params get base LR
+    num_layers = args.num_layers
+    layer_groups: dict[int, list] = {i: [] for i in range(num_layers)}
+    other_params: list = []
+    for n, p in base_model.named_parameters():
+        if not p.requires_grad or p.ndim < 2:
+            continue
+        if "tok_emb" in n or "bigram" in n:
+            continue  # freeze embeddings
+        # Parse block index from name like "blocks.3.attn.W_Q"
+        matched = False
+        if "blocks." in n:
+            parts = n.split(".")
+            for i, part in enumerate(parts):
+                if part == "blocks" and i + 1 < len(parts) and parts[i + 1].isdigit():
+                    layer_idx = int(parts[i + 1])
+                    if layer_idx in layer_groups:
+                        layer_groups[layer_idx].append(p)
+                    else:
+                        other_params.append(p)
+                    matched = True
+                    break
+        if not matched:
+            other_params.append(p)
+
+    # Build optimizer param groups: layer i gets lr_mult = 0.5 + 0.5*(i/(N-1))
+    param_groups = []
+    for i in range(num_layers):
+        if layer_groups[i]:
+            lr_mult = 0.5 + 0.5 * (i / max(num_layers - 1, 1))
+            param_groups.append({"params": layer_groups[i], "lr_mult": lr_mult})
+    if other_params:
+        param_groups.append({"params": other_params, "lr_mult": 1.0})
+
+    # Set initial LR (will be overridden by cosine schedule)
+    for pg in param_groups:
+        pg["lr"] = args.ttt_lr * pg["lr_mult"]
+    ttt_opt = torch.optim.AdamW(param_groups, weight_decay=args.ttt_wd)
 
     ttt_epochs = max(args.ttt_steps, 1)
+    steps_per_epoch = math.ceil(len(my_chunks) / ttt_batch)
+    total_ttt_steps = ttt_epochs * steps_per_epoch
+
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
+    global_step = 0
     for epoch in range(ttt_epochs):
         is_last = (epoch == ttt_epochs - 1)
         if is_last:
             loss_sum.zero_(); token_count.zero_(); byte_count.zero_()
 
         for bi in range(0, len(my_chunks), ttt_batch):
+            # Global cosine LR decay across all epochs
+            progress = global_step / max(total_ttt_steps - 1, 1)
+            cos_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * progress))
+            for pg in ttt_opt.param_groups:
+                pg["lr"] = cos_lr * pg["lr_mult"]
+
             batch_indices = my_chunks[bi:bi + ttt_batch]
             B = len(batch_indices)
             xs, ys = [], []
@@ -763,6 +840,7 @@ def eval_val_ttt(
             ttt_loss.backward()
             ttt_opt.step()
 
+            global_step += 1
             step_num = bi // ttt_batch
             if rank == 0 and step_num % 100 == 0:
                 pct = min(bi + ttt_batch, len(my_chunks)) / len(my_chunks) * 100
@@ -770,7 +848,7 @@ def eval_val_ttt(
                 if is_last and token_count.item() > 0:
                     rl = (loss_sum / token_count).item()
                     rbpb = f" bpb={rl / math.log(2.0) * (token_count.item() / byte_count.item()):.6f}"
-                print(f"  ttt epoch={epoch+1}/{ttt_epochs} [{pct:5.1f}%] loss={ttt_loss.item():.4f}{rbpb}", flush=True)
+                print(f"  ttt epoch={epoch+1}/{ttt_epochs} [{pct:5.1f}%] lr={cos_lr:.6f} loss={ttt_loss.item():.4f}{rbpb}", flush=True)
 
         if rank == 0:
             print(f"  ttt epoch={epoch+1}/{ttt_epochs} done", flush=True)
@@ -902,6 +980,7 @@ def main() -> None:
         tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
+        rope_dim=args.rope_dim, xsa_layers=args.xsa_layers,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1047,6 +1126,15 @@ def main() -> None:
             opt.step()
         zero_grad_all()
         step += 1
+
+        # Late QAT: enable int5 STE during final warmdown phase (disabled by default)
+        qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.0))
+        if qat_threshold > 0 and scale < qat_threshold and not getattr(base_model, "_qat_active", False):
+            for m in base_model.modules():
+                if isinstance(m, CastedLinear):
+                    m.qat_enabled = True
+            base_model._qat_active = True
+            log0(f"qat:start step:{step} scale:{scale:.4f}")
 
         # EMA: start after ema_start_frac of warmdown
         if scale < args.ema_start_frac:
