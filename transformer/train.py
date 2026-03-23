@@ -362,7 +362,8 @@ def eval_val_sliding(
     Windows of train_seq_len advance by `stride`. Only the last `stride` tokens
     per window contribute to the score (first window scores all).
     """
-    seq_len = args.train_seq_len
+    eval_seq = int(os.environ.get("EVAL_SEQ_LEN", 0))
+    seq_len = eval_seq if eval_seq > 0 else args.train_seq_len
     total_tokens = val_tokens.numel() - 1
 
     window_starts = [ws for ws in range(0, total_tokens, stride)
