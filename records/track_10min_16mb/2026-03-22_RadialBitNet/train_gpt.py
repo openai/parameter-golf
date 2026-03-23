@@ -379,8 +379,8 @@ def export_and_check_size(model, filename="golf_model.zst"):
     q_state = {}
     for k, v in state.items():
         if v.is_floating_point():
-            # For BitNet layers, weight is heavily concentrated near -scale/0/scale
-            if 'weight' in k and 'proj' in k or 'linear' in k:
+            # Correct Logical Precedence (Fix Point 5)
+            if 'weight' in k and (('proj' in k) or ('linear' in k)):
                 # Store mostly as ternary via INT8 (-127, 0, 127 roughly)
                 scale = v.abs().mean().clamp(min=1e-5)
                 # Ensure we round to perfectly compressible integers
@@ -393,15 +393,21 @@ def export_and_check_size(model, filename="golf_model.zst"):
     # 3. Serialize and Compress
     import pickle
     raw_bytes = pickle.dumps(q_state)
+    import zlib
     compressed = zlib.compress(raw_bytes, level=9)
+    
+    # 4. Physical Write to Disk (Fix Point 4)
+    with open(filename, 'wb') as f:
+        f.write(compressed)
     
     # OpenAI Rule: artifact = code bytes + compressed model bytes <= 16,000,000 decimal bytes
     code_bytes = Path(__file__).read_bytes()
-    total_bytes = len(code_bytes) + len(compressed)
+    physical_model_size = os.path.getsize(filename)
+    total_bytes = len(code_bytes) + physical_model_size
     
-    print(f"\n📦 Artifact Size Audit:")
+    print(f"\n📦 Final Artifact Size Audit (Post-Training):")
     print(f"- Source Code: {len(code_bytes)} bytes")
-    print(f"- Compressed Model: {len(compressed)} bytes")
+    print(f"- Physical Model ({filename}): {physical_model_size} bytes")
     print(f"- Total Artifact: {total_bytes} bytes")
     
     if total_bytes <= 16000000:
@@ -417,16 +423,19 @@ def main():
         sys.stdout.reconfigure(encoding='utf-8')
     args = Hyperparameters()
     
+    # Comprehensive Seeding (Fix Point 6)
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+    
     device, rank, local_rank, world_size = setup_distributed()
     if rank == 0:
-        print(f"✨ Initializing Radial-BitNet for Parameter Golf (Constraint: 16MB)")
+        print(f"✨ Initializing Radial-BitNet Selection (Seed: {args.seed})")
     
     model = ParameterGolfBitNet(args).to(device)
     if world_size > 1:
         model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
-    
-    if rank == 0:
-        export_and_check_size(model)
     
     optimizer = FRO(model.parameters(), lr=1e-3, gamma=0.8) # Aggressive FRO for 10-min run
     
@@ -480,12 +489,20 @@ def main():
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
         
-        if step % 50 == 0:
+        # Optimize Validation Frequency (Fix Point 3)
+        if step > 0 and step % args.val_loss_every == 0:
             # Sync Fix: ALL ranks participate in eval_val to prevent desynchronization
             val_l, val_bpb = eval_val(args, model, device, val_tokens, base_bytes, has_space, boundary, rank, world_size)
+            
+            # Distributed Logging Aggregation (Fix Point 7)
+            train_loss_tensor = torch.tensor([loss.item()], device=device)
+            if world_size > 1:
+                dist.all_reduce(train_loss_tensor, op=dist.ReduceOp.SUM)
+            global_train_loss = train_loss_tensor.item() / world_size
+
             if rank == 0:
                 elapsed = time.time() - start_time
-                print(f"Step {step:04d} | Time {elapsed:.0f}s | Train Loss: {loss.item():.4f} | Val BPB: {val_bpb:.4f} ⛳")
+                print(f"Step {step:04d} | Time {elapsed:.0f}s | Train Loss: {global_train_loss:.4f} | Val BPB: {val_bpb:.4f} ⛳")
             
         step += 1
         
@@ -494,6 +511,8 @@ def main():
     if rank == 0:
         print("\n⏰ 10-Minute training time budget exhausted. Validating final model...")
         print(f"FINAL RESULT | Val BPB: {val_bpb:.4f} 🏆")
+        # Final Physical Audit (Fix Point 1)
+        export_and_check_size(model)
 
 if __name__ == "__main__":
     main()
