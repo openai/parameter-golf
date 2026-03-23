@@ -804,7 +804,7 @@ class GPT(nn.Module):
             if mtp_loss_count > 0:
                 main_loss = main_loss + self.mtp_loss_weight * (mtp_loss_sum / mtp_loss_count)
         return main_loss
-    def forward_logits(self, input_ids: Tensor) -> Tensor:
+    def forward_logits(self, input_ids: Tensor, return_hidden: bool = False):
         """Return logits (bsz, seq_len, vocab) without computing loss."""
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
@@ -829,7 +829,10 @@ class GPT(nn.Module):
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
             logits_proj = self.lm_head(x)
-        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        if return_hidden:
+            return logits, x
+        return logits
 def eval_val_sliding(
     args: Hyperparameters,
     base_model: nn.Module,
@@ -1089,17 +1092,11 @@ def eval_ttt_perdoc(
                 y[b, :wl] = chunk_tok[1:]
                 doc_info.append((co, cl))
 
-            # SCORE: get logits from base model + LoRA delta
+            # SCORE: get logits + hidden states from base model, add LoRA delta
             with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                base_logits = base_model.forward_logits(x)
-            # Add per-doc LoRA output to logits
-            hidden = x.float()  # Use input embeddings as LoRA input
-            # Actually we need the hidden state before lm_head, not the input
-            # For simplicity: apply LoRA on the base logits directly
-            # LoRA adds a small correction: logits += x_embed @ A @ B
+                base_logits, hidden = base_model.forward_logits(x, return_hidden=True)
             with torch.no_grad():
-                x_embed = base_model.tok_emb(x).float()
-                lora_delta = cur_lora(x_embed)
+                lora_delta = cur_lora(hidden.float())
             logits = base_logits + lora_delta.to(base_logits.dtype)
 
             nll = F.cross_entropy(
@@ -1124,15 +1121,20 @@ def eval_ttt_perdoc(
                     tok_bytes += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                     byte_sum += tok_bytes.sum()
 
-            # TRAIN LoRA on scored tokens
+            # TRAIN LoRA on scored tokens (backward-looking)
             if needs_train:
                 for _ in range(args.ttt_epochs):
                     cur_opt.zero_grad(set_to_none=True)
                     with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        base_logits_train = base_model.forward_logits(x)
-                    x_embed_train = base_model.tok_emb(x).float()
-                    lora_delta_train = cur_lora(x_embed_train)
-                    logits_train = base_logits_train.detach() + lora_delta_train.to(base_logits_train.dtype)
+                        _, hidden_train = base_model.forward_logits(x, return_hidden=True)
+                    lora_delta_train = cur_lora(hidden_train.detach().float())
+                    # Compute logits: base (detached) + LoRA (with grad)
+                    if base_model.tie_embeddings:
+                        base_logits_flat = F.linear(hidden_train.detach(), base_model.tok_emb.weight.detach())
+                    else:
+                        base_logits_flat = base_model.lm_head(hidden_train.detach())
+                    logits_train = base_logits_flat + lora_delta_train.to(base_logits_flat.dtype)
+                    logits_train = base_model.logit_softcap * torch.tanh(logits_train / base_model.logit_softcap)
                     train_loss = F.cross_entropy(
                         logits_train.reshape(-1, logits_train.size(-1)).float(),
                         y.reshape(-1), reduction="mean",
