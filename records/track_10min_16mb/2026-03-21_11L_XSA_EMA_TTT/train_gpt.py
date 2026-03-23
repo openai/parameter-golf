@@ -2247,8 +2247,8 @@ def main() -> None:
 
         # SWA: accumulate weight averages during warmdown for smoother quantization.
         # Accumulate in float32 to avoid bf16 precision loss over thousands of additions.
-        # Sample every 200 steps for sufficient checkpoint diversity.
-        if args.swa and step >= int(args.iterations * args.swa_start_frac) and step % 200 == 0:
+        # Trigger at lr_scale < 0.2 (last 20% of warmdown), collect every 50 steps (PR #414).
+        if args.swa and scale < 0.2 and step % 50 == 0:
             if swa_state is None:
                 swa_state = {k: v.detach().float().clone() for k, v in base_model.state_dict().items()}
                 swa_count = 1
