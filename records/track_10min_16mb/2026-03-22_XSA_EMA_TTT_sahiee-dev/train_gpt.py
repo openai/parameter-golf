@@ -1306,7 +1306,8 @@ def main() -> None:
             for idx in range(total_seqs):
                 start = idx * seq_len
                 chunk = val_tokens[start: start + seq_len + 1].to(device)
-                x, y = chunk[:-1].unsqueeze(0), chunk[1:].unsqueeze(0)
+                x = chunk[:-1].unsqueeze(0).long()
+                y = chunk[1:].unsqueeze(0).long()
                 optimizer.zero_grad()
                 loss = model(x, y).mean()
                 loss.backward()
