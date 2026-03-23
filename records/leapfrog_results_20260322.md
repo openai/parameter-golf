@@ -61,3 +61,19 @@ PR #445: v1 seed 1337, 1.12319 BPB, 15.68 MB
 
 Peak at chunk 51: **1.1119** — unachievable over full val set with current approach.
 PR #473 gets 1.1218 with same recipe — their parameter banking likely helps TTT stability.
+
+## SwiGLU Fork Results (2026-03-23)
+
+| Config | BPB | Size | Notes |
+|--------|-----|------|-------|
+| SwiGLU + GPTQ + OptRot + AdamW TTT | **1.0763** | 19.6 MB ❌ | Over 16MB limit — OptRot hurts compression |
+| v7 GPTQ + TTT EMA (seed 1337) | **1.1206** | 15.56 MB ✅ | PR #508 submitted |
+| v7 GPTQ + TTT EMA (seed 42) | **1.1218** | 15.57 MB ✅ | |
+| v7 GPTQ + TTT EMA (seed 7) | **1.1221** | 15.56 MB ✅ | |
+| v7 GPTQ + TTT EMA (3-seed mean) | **1.1215** | — | Beats old SOTA 1.1218 |
+| v7 GPTQ + AdamW TTT (seed 1337) | 1.1498 | 17.1 MB ❌ | AdamW worse on relu² arch |
+
+## Key Insight
+SwiGLU + AdamW TTT = 1.0763 BPB. Architecture is the multiplier for AdamW TTT.
+Size problem: GPTQ+OptRot inflates artifact 19.6MB vs PR #462's 15.7MB with naive int6.
+Next: solve size (disable OptRot? int5 MLP?) to submit competitive score.
