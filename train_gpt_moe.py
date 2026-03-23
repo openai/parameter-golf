@@ -652,7 +652,7 @@ class SharedRoutedMLP(nn.Module):
         self.shared = MLP(dim, 2.0)
         self.router = nn.Linear(dim, num_experts, bias=False)
         nn.init.zeros_(self.router.weight)
-        self.experts = nn.ModuleList([MLP(dim, max(mlp_mult - 2.0, 1.0)) for _ in range(num_experts)])
+        self.experts = nn.ModuleList([MLP(dim, 1.0) for _ in range(num_experts)])
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         shape = x.shape
@@ -1091,8 +1091,12 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    # MoE sparse dispatch uses data-dependent shapes; use dynamic=True instead of fullgraph=True
-    compiled_model = torch.compile(base_model, dynamic=True)
+    # MoE sparse dispatch has data-dependent shapes that thrash recompilation;
+    # skip compile entirely for MoE runs to get clean step times.
+    if args.num_experts > 1:
+        compiled_model = base_model
+    else:
+        compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     block_named_params = list(base_model.blocks.named_parameters())
@@ -1375,9 +1379,10 @@ def main() -> None:
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
     # Magnitude pruning: zero out smallest weights to improve compression
+    # Skip router weights — they're tiny and pruning would destroy routing
     with torch.no_grad():
         for name, param in base_model.named_parameters():
-            if param.ndim == 2 and param.numel() > 65536:
+            if param.ndim == 2 and param.numel() > 65536 and "router" not in name:
                 threshold = torch.quantile(param.abs().float().flatten(), 0.03)
                 mask = param.abs() < threshold
                 param.masked_fill_(mask, 0.0)
