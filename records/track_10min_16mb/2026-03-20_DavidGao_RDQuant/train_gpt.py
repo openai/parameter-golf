@@ -780,8 +780,9 @@ class DGAttention(nn.Module):
         # Asymmetric D: separate query/key designators (narrower than standard Q/K)
         d_dim = dim // 2
         self.d_head_dim = d_dim // num_heads
+        dk_dim = self.num_kv_heads * self.d_head_dim
         self.c_dq = CastedLinear(dim, d_dim, bias=False)
-        self.c_dk = CastedLinear(dim, d_dim, bias=False)
+        self.c_dk = CastedLinear(dim, dk_dim, bias=False)
         # Hybrid payload: differential + raw content
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_g = CastedLinear(dim, kv_dim, bias=False)  # differential channel
