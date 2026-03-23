@@ -97,4 +97,5 @@ submission_s7,600,15953663,,70748,8,73943,1.1226,a5c6612,"SUBMISSION s7: 1.1226,
 submission_bigram3584_s1337,600,15794343,,70748,8,73909,1.1227,a5c6612,"bigram3584: same BPB as 3072"
 submission_swa_s1337,600,15883534,,71110,8,74262,1.1230,31581f3,"SWA hurts PR#414 base (1.1230 vs 1.1219)"
 submission_ve3layers_s1337,600,,,,8,,pending,a5c6612,"VE 3 layers — still running"
-submission_localpred_s1337,600,16043235,,72329,8,90393,1.1265,8a4fb33,"Local predictor: 1.1265, 16.0MB OVER. WHY: existing BigramHash already captures local patterns"
+submission_localpred_s1337,600,16043235,,72329,8,90393,1.1265,8a4fb33,"Local predictor: 1.1265, 16.0MB OVER"
+submission_ve3_bigram3072_s1337,600,15716405,,70765,8,89655,1.1232,0e51139,"VE 3 layers: 1.1232, 15.72MB — extra VE layer doesn't help (= SOTA, not better)"
