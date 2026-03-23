@@ -1,0 +1,11 @@
+Training Summary:
+
+Epochs: 30
+Learning Rate: 0.005
+
+Final Loss: ~2.8
+
+Observations:
+- Loss consistently decreased across epochs
+- Smaller vocabulary improved convergence
+- Model remained stable and efficient

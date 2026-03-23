@@ -1,0 +1,7 @@
+{
+  "vocab_size": 200,
+  "embedding_dim": 16,
+  "hidden_dim": 64,
+  "epochs": 30,
+  "learning_rate": 0.005
+}
