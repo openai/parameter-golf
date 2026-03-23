@@ -68,7 +68,7 @@ python3 -c "import huggingface_hub, zstandard, sentencepiece, numpy" 2>/dev/null
 # Build FA3 (selective, ~5 min) if not already installed
 if ! python3 -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; then
     log "FA3 not found. Building selectively (~5 min)..."
-    FA3_DIR="/workspace/flash-attention"
+    FA3_DIR="${HOME}/flash-attention"
     if [ ! -d "${FA3_DIR}" ]; then
         git clone https://github.com/Dao-AILab/flash-attention.git "${FA3_DIR}"
     fi
