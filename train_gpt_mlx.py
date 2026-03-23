@@ -756,21 +756,17 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
         scales[name] = s
         dtypes[name] = str(arr.dtype).split(".")[-1]
         stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
-    # Post-hoc mixed-precision step rounding: only round middle layers to int6.
-    args = Hyperparameters()
-    if args.int6_layers:
-        int6_set = set(int(x) for x in args.int6_layers.split(",") if x.strip())
-        step = args.int6_step
-        for name in list(quantized.keys()):
-            if "blocks." not in name:
-                continue
-            try:
-                layer_num = int(name.split("blocks.")[1].split(".")[0])
-            except (ValueError, IndexError):
-                continue
-            if layer_num in int6_set:
-                t = quantized[name].astype(np.float32)
-                quantized[name] = np.clip(np.round(t / step) * step, -127, 127).astype(np.int8)
+    # Int6 step rounding on ALL quantized block/VE weights
+    for name in list(quantized.keys()):
+        if "blocks." in name or "ve." in name:
+            t = quantized[name].astype(np.float32)
+            quantized[name] = np.clip(np.round(t / 4) * 4, -127, 127).astype(np.int8)
+    # 10% magnitude pruning
+    for name in list(quantized.keys()):
+        t = quantized[name]
+        threshold = int(np.quantile(np.abs(t).astype(np.float32), 0.10))
+        if threshold > 0:
+            quantized[name] = np.where(np.abs(t) > threshold, t, np.zeros_like(t))
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_mixed_per_row_v1",

@@ -415,21 +415,20 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
-    # Int6 post-hoc step rounding on middle layers (like reference 10L_MixedPrecision)
-    args = Hyperparameters()
-    int6_set = set(int(x) for x in args.ve_layers.split(",") if x.strip()) if args.ve_layers else set()
-    # Default: round blocks 3-7 to int6 (middle layers)
-    int6_block_set = {3, 4, 5, 6, 7}
+    # Int6 step rounding on ALL quantized block weights (not just middle layers).
+    # PR #374 applies int6 to everything except embeddings. Step=4 → 64 levels.
     for name in list(quantized.keys()):
-        if "blocks." not in name:
-            continue
-        try:
-            layer_num = int(name.split("blocks.")[1].split(".")[0])
-        except (ValueError, IndexError):
-            continue
-        if layer_num in int6_block_set:
+        if "blocks." in name or "ve." in name:
             t = quantized[name]
             quantized[name] = ((t.float() / 4).round() * 4).clamp(-127, 127).to(torch.int8)
+
+    # 10% magnitude pruning: zero the smallest weights for better compression.
+    # PR #389 shows ~500KB savings with minimal quality impact.
+    for name in list(quantized.keys()):
+        t = quantized[name]
+        threshold = int(t.abs().float().quantile(0.10).item())
+        if threshold > 0:
+            quantized[name] = t.where(t.abs() > threshold, torch.zeros_like(t))
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_mixed_per_row_v1",
