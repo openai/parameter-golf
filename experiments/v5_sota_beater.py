@@ -1385,16 +1385,22 @@ def ttt_curriculum_adapt(args, base_model, device, val_tokens, rank=0, world_siz
     if log_fn:
         log_fn(f"curriculum_ttt_epoch:1/{args.ttt_epochs} (scoring) loss:{sum(l for _,l in seq_losses)/len(seq_losses):.4f} time:{elapsed:.1f}s")
 
-    # Sort by loss descending - focus on hardest sequences
+    # Sort by loss descending
     seq_losses.sort(key=lambda x: -x[1])
-    # Take top 75% hardest sequences for remaining epochs (50% was too aggressive)
-    hard_seqs = [s for s, _ in seq_losses[:len(seq_losses)*3//4]]
+    all_sorted_seqs = [s for s, _ in seq_losses]
+    n_total = len(all_sorted_seqs)
 
     for epoch in range(1, args.ttt_epochs):
+        # Progressive narrowing: epoch 2 uses 95%, epoch 3 uses 90%, etc.
+        # Floor at 50% to avoid overfitting on too few sequences
+        keep_frac = max(0.50, 1.0 - 0.05 * epoch)
+        n_keep = max(1, int(n_total * keep_frac))
+        epoch_seqs = all_sorted_seqs[:n_keep]
+
         epoch_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
         epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
 
-        for batch_start in hard_seqs:
+        for batch_start in epoch_seqs:
             batch_end = min(batch_start + batch_seqs, my_end)
             raw_start = batch_start * seq_len
             raw_end = batch_end * seq_len + 1
@@ -1414,7 +1420,7 @@ def ttt_curriculum_adapt(args, base_model, device, val_tokens, rank=0, world_siz
 
         elapsed = time.perf_counter() - t0
         if log_fn:
-            log_fn(f"curriculum_ttt_epoch:{epoch+1}/{args.ttt_epochs} loss:{epoch_loss_sum.item()/max(epoch_tokens.item(),1):.4f} time:{elapsed:.1f}s")
+            log_fn(f"curriculum_ttt_epoch:{epoch+1}/{args.ttt_epochs} keep:{keep_frac:.0%} loss:{epoch_loss_sum.item()/max(epoch_tokens.item(),1):.4f} time:{elapsed:.1f}s")
 
     for p in base_model.parameters():
         p.requires_grad_(True)
