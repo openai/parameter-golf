@@ -110,13 +110,19 @@ Root cause: the `forward_logits_cached` path likely has incompatibilities beyond
 
 ### Run Results
 
-| Run | Config | BPB | Steps | Step Avg | Key Finding |
-|-----|--------|-----|-------|----------|-------------|
-| 1 | no_ttt, 8xH100 | 1.1556 | 7346 | 81ms | First baseline (overwritten by run2) |
-| 2 | neural_cache, 8xH100 | 5.3528 | 7240 | 82ms | Neural cache broken — OOD RoPE positions |
-| 3 | no_ttt, 8xH100 | **1.1496** | 8454 | 71ms | Best score — faster pod, more steps |
-| 4 | neural_cache v2, 8xH100 | 5.7259 | ~7200 | ~83ms | Still broken even with no_pos_offset fix |
-| 5 | QAT=1 + trigram=0, 8xH100 | **1.1492** | ~8500 | ~70ms | Wash — QAT and no-trigram cancel out |
+| Run | Config | Pre-quant | Post-quant | Quant Gap | Steps | Step Avg | Key Finding |
+|-----|--------|-----------|------------|-----------|-------|----------|-------------|
+| 1 | no_ttt, 8xH100 | — | 1.1556 | — | 7346 | 81ms | First baseline (overwritten by run2) |
+| 2 | neural_cache, 8xH100 | — | 5.3528 | — | 7240 | 82ms | Neural cache broken — OOD RoPE |
+| 3 | no_ttt, 8xH100 | ~1.1499 | **1.1496** | **-0.0003** | 8454 | 71ms | **Best score** — fast pod |
+| 4 | neural_cache v2, 8xH100 | — | 5.7259 | — | ~7200 | ~83ms | Still broken w/ no_pos_offset |
+| 5 | QAT=1 trigram=0, 8xH100 | 1.1582 | **1.1492** | **-0.009** | ~8500 | ~70ms | QAT makes quant gap negative |
+| 6 | sigmoid gates + dec2x, 8xH100 | **1.1457** | 1.1635 | **+0.018** | 8552 | ~71ms | Best pre-quant but fragile |
+| 7 | Prog Freeze (F), 1xH100 | — | 1.5486 | — | 987 | 608ms | Freeze at step 1 — invalid |
+| 8 | Hyper-Conn scalar (G), 1xH100 | — | 1.5226 | — | 1029 | 583ms | Too few steps — invalid |
+| 9 | LR=0.03 + LeakyReLU + QAT, 8xH100 | 1.1583 | 1.1551 | -0.003 | 7018 | ~85ms | LeakyReLU lost Star-ReLU params |
+| 10 | Hyper-Conn vector (H), 1xH100 | — | 2.1524 | — | 684 | 878ms | O(layers²) too slow — invalid |
+| 11 | MATRIX_LR=0.03 only, 8xH100 | **1.1520** | 1.1664 | **+0.014** | 7058 | 84ms | Higher LR = quant-fragile weights |
 
 ### Confirmed Findings
 
@@ -130,13 +136,40 @@ Root cause: the `forward_logits_cached` path likely has incompatibilities beyond
 
 5. **Timestamped checkpoints prevent data loss** — before the fix, run2 overwrote run1's checkpoint. Now all artifacts include `{run_tag}_{timestamp}` in filenames.
 
+### Emerging Pattern: Pre-Quant vs Post-Quant Tradeoff
+
+The most important finding of the session. Changes that improve pre-quant quality often
+make weights harder to quantize, causing a net regression:
+
+| Change | Pre-quant | Quant gap | Post-quant | Net |
+|--------|-----------|-----------|------------|-----|
+| Run3 baseline | 1.1499 | -0.0003 | **1.1496** | Reference |
+| +sigmoid gates +dec2x (run6) | **1.1457** | +0.018 | 1.1635 | **Worse** |
+| +MATRIX_LR=0.03 (run11) | 1.1520 | +0.014 | 1.1664 | **Worse** |
+| +QAT (run5) | 1.1582 | **-0.009** | **1.1492** | **Better** |
+
+**Key insight:** Any change that trains "better" weights (larger magnitudes, more expressive)
+also makes those weights harder to compress to int6. QAT is the antidote — it teaches the
+model to find solutions that are both good AND quantization-friendly.
+
+**Implication:** MATRIX_LR=0.03 and sigmoid gates both need QAT to work. The winning combo
+is likely: MATRIX_LR=0.03 + QAT=1 (run5 proved QAT makes quant gap negative).
+
 ### Falsified
 
-1. **Neural cache eval is fundamentally broken** — `forward_logits_cached` path produces garbage (5.3-5.7 BPB vs 1.15 expected). Tested twice with different configs. The model cannot use cached KV it wasn't trained with. Root cause likely in `forward_logits_cached` missing Value Residual and Gated Attention paths. **Shelved.**
+1. **Neural cache eval is fundamentally broken** — `forward_logits_cached` path produces garbage (5.3-5.7 BPB vs 1.15 expected). Tested twice with different configs. Root cause likely in `forward_logits_cached` missing Value Residual and Gated Attention paths. **Shelved.**
 
-2. **MLP_HIDDEN=1792 doesn't fit** — artifact size goes to 17.6MB (cap is 16MB). PR #505 fits with h=1792 because they have tighter quantization or fewer other params. Reverted.
+2. **MLP_HIDDEN=1792 doesn't fit** — artifact size goes to 17.6MB (cap is 16MB). **PR #505 also doesn't fit** (confirmed ~20MB by community). Reverted.
 
-3. **QAT + no-trigram is a wash** — 1.1492 vs 1.1496 baseline. The two changes appear to cancel each other out. Need isolated tests (QAT-only, trigram-only) to determine individual effects, but the combined result suggests neither is a large lever.
+3. **LeakyReLU(0.5)^2 hurt us** — removed Star-ReLU's learned scale/bias (33K params). Run9 scored 1.1551 vs baseline 1.1496. The "proven -0.003 BPB" from PR #518 was on a different architecture. **Star-ReLU is better for us.**
+
+4. **MATRIX_LR=0.03 without QAT is worse** — strong pre-quant signal (-0.06 at step 500) but quant gap blows up (+0.014). Needs QAT. **Must pair with QAT=1.**
+
+5. **Progressive Freeze is marginal** — on 8xH100 would only activate for last 1050 steps, saving ~450 steps (5%). Not worth the encoder-decoder mismatch risk. **Shelved.**
+
+6. **Hyper-Connections are too expensive** — O(layers²) overhead from torch.stack. 583ms/step (scalar) and 878ms/step (vector) vs 70ms baseline. Only ~700-1000 steps in 600s. **Shelved.**
+
+7. **QAT + no-trigram is a wash** — 1.1492 vs 1.1496 baseline. Two changes cancel out.
 
 ### Infrastructure Improvements
 
@@ -211,10 +244,18 @@ checkpoints/pod_runs/
 │   ├── final_model_no_ttt_20260323_161030.pt
 │   ├── final_model_no_ttt_20260323_161030.int8.ptz
 │   └── no_ttt_run6.txt
-└── freeze_F_run7/                              # Run 7: Progressive Freeze, 1.5486 BPB (SHELVED)
-    ├── final_model_freeze_F_20260323_155839.pt
-    ├── final_model_freeze_F_20260323_155839.int8.ptz
-    └── freeze_F_run7.txt
+├── freeze_F_run7/                              # Run 7: Progressive Freeze, 1.5486 BPB (SHELVED)
+│   ├── final_model_freeze_F_20260323_155839.pt
+│   ├── final_model_freeze_F_20260323_155839.int8.ptz
+│   └── freeze_F_run7.txt
+├── hyper_G_run8/                               # Run 8: Hyper-Conn scalar, 1.5226 BPB (SHELVED)
+│   └── hyper_G_run8.txt
+├── best_run9/                                  # Run 9: LR=0.03+LeakyReLU+QAT, 1.1551 BPB
+│   └── best_run9.txt
+├── hyper_H_run10/                              # Run 10: Hyper-Conn vector, 2.1524 BPB (SHELVED)
+│   └── hyper_H_run10.txt
+└── lr03_leaky_qat_run11/                       # Run 11: MATRIX_LR=0.03 only, 1.1664 BPB
+    └── lr03_run11.txt
 ```
 
 ## Commit History
