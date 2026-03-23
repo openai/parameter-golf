@@ -1,9 +1,4 @@
-✨ Initializing Radial-BitNet for Parameter Golf (Constraint: 16MB)
-
-📦 Artifact Size Audit:
-- Parameters: 15.7 M
-- Compressed Size: 12.55 MB
-✅ QUALIFIED FOR PARAMETER GOLF! (<16MB)
+✨ Initializing Radial-BitNet Selection (Seed: 1337)
 ⏳ Loading training tokens into memory...
 Loading single dataset shard to protect Kaggle RAM: /kaggle/working/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_000000.bin
 
@@ -37,3 +32,9 @@ Step 1250 | Time 562s | Train Loss: 5.8162 | Val BPB: 2.5498 ⛳
 
 ⏰ 10-Minute training time budget exhausted. Validating final model...
 FINAL RESULT | Val BPB: 2.6034 🏆
+
+📦 Final Artifact Size Audit (Post-Training):
+- Source Code: 24415 bytes
+- Physical Model (golf_model.bin): 13075585 bytes
+- Total Artifact: 13100000 bytes
+✅ QUALIFIED FOR PARAMETER GOLF! (<= 16,000,000 bytes)
