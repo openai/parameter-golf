@@ -1,0 +1,22 @@
+{
+  "author": "Ethan Yang",
+  "github_id": "EthanYangTW",
+  "name": "Record: int5 GPTQ + 33.6M model (3-seed mean val_bpb=1.1179)",
+  "blurb": "Breakthrough: int5 quantization ([-15,15]) with GPTQ error compensation enables 33.6M params in 16MB. MHA 8/8, BigramHash 8192, MLP 3.5x, XSA all 11 layers. GPTQ makes int5 nearly lossless (0.001 BPB quant tax). Combined with early QAT 0.5, EMA 0.997, and legal score-first AdamW TTT.",
+  "date": "2026-03-24T00:00:00Z",
+  "val_bpb": 1.1179,
+  "val_bpb_std": 0.0008,
+  "val_loss_seed1337": 1.88598432,
+  "val_bpb_seed1337": 1.11698985,
+  "val_loss_seed42": 1.88803710,
+  "val_bpb_seed42": 1.11820563,
+  "val_loss_seed7": 1.88840031,
+  "val_bpb_seed7": 1.11842074,
+  "bytes_seed1337": 15526951,
+  "bytes_seed42": 15360477,
+  "bytes_seed7": 15282129,
+  "model_params": 33580124,
+  "quantization": "int5 GPTQ ([-15,15], 31 levels)",
+  "compression": "zstd-22",
+  "ttt": "legal score-first AdamW, 2-3 epochs"
+}
