@@ -26,11 +26,24 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 from mlx.utils import tree_flatten, tree_unflatten
 
+from mlx_eval_utils import (
+    count_doc_stride_windows,
+    count_doc_windows,
+    flatten_validation_docs,
+    iter_doc_stride_windows,
+    iter_doc_windows,
+    iter_validation_docs,
+)
+from mlx_run_utils import apply_cli_overrides, build_cli_parser, print_run_summary
+
 # ==============================================================================
 # SHARD FORMAT + COMPUTE DTYPE
 # ==============================================================================
 
 COMPUTE_DTYPE = mx.bfloat16
+DEFAULT_LOCAL_MAX_STEPS = int(os.environ.get("MAX_STEPS", "1200"))
+DEFAULT_EVAL_MODE = os.environ.get("EVAL_MODE", "doc_stride")
+DEFAULT_EVAL_STRIDE = int(os.environ.get("EVAL_STRIDE", "128"))
 
 # ==============================================================================
 # HYPERPARAMETERS
@@ -49,13 +62,21 @@ class Hyperparameters:
 
     # Training loop. These defaults now mirror train_gpt.py on a single process.
     iterations: int = int(os.environ.get("ITERATIONS", 20_000))
+    # Local step counts are only for Mac prototyping. They are not directly
+    # comparable to 8xH100 submission step counts.
+    max_steps: int = DEFAULT_LOCAL_MAX_STEPS
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
     # Validation always uses the full fineweb_val split.
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 10))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
     train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", os.environ.get("TRAIN_MAX_SEQ_LEN", 1024)))
+    eval_mode: str = DEFAULT_EVAL_MODE
+    eval_stride: int = DEFAULT_EVAL_STRIDE
+    eval_max_docs: int = int(os.environ.get("EVAL_MAX_DOCS", "0"))
+    run_prequant_eval: bool = bool(int(os.environ.get("RUN_PREQUANT_EVAL", "1")))
+    run_postquant_eval: bool = bool(int(os.environ.get("RUN_POSTQUANT_EVAL", "1")))
     # Chunk each logical MLX microbatch into smaller sub-batches to reduce peak
     # memory pressure without changing the effective optimizer batch.
     mlx_max_microbatch_tokens: int = int(os.environ.get("MLX_MAX_MICROBATCH_TOKENS", 8_192))
@@ -118,6 +139,7 @@ class Hyperparameters:
         warmdown_ms = self.warmdown_iters * step_ms
         remaining_ms = max(1000.0 * self.max_wallclock_seconds - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
 
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
@@ -432,24 +454,27 @@ class GPT(nn.Module):
             x = self.blocks[self.num_encoder_layers + i](x, x0)
         return self.final_norm(x)
 
-    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
+    def token_nll(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
         # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
-        # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
+        # memory knob on Macs, and reshape back to [batch, seq] so eval can score causal subsets exactly once.
         x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
         y = target_ids.reshape(-1)
         if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
             logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
             logits = self.softcap(logits_proj)
-            return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
+            return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="none").reshape(target_ids.shape)
 
-        loss_sum = mx.array(0.0, dtype=mx.float32)
+        losses: list[mx.array] = []
         n = int(x.shape[0])
         for s in range(0, n, self.logit_chunk_tokens):
             e = min(s + self.logit_chunk_tokens, n)
             logits_proj = x[s:e] @ self.tok_emb.weight.astype(x.dtype).T
             logits = self.softcap(logits_proj)
-            loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction="sum")
-        return loss_sum / float(n)
+            losses.append(nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction="none"))
+        return mx.concatenate(losses, axis=0).reshape(target_ids.shape)
+
+    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
+        return mx.mean(self.token_nll(input_ids, target_ids))
 
 # ==============================================================================
 # OPTIMIZERS (MUON + ADAM SPLIT)
@@ -666,6 +691,45 @@ def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.arr
     return out
 
 
+def quantize_and_measure(
+    args: Hyperparameters,
+    out_dir: Path,
+    flat_state: dict[str, mx.array],
+    log_fn: Callable[[str], None] | None = None,
+) -> dict[str, object]:
+    out_path = out_dir / f"{args.run_id}_mlx_model.npz"
+    mx.savez(str(out_path), **flat_state)
+    model_bytes = out_path.stat().st_size
+    if log_fn is not None:
+        log_fn(f"saved_model:{out_path} bytes:{model_bytes}")
+
+    quant_obj, quant_stats = quantize_state_dict_int8(flat_state)
+    quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
+    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_serialized_bytes = len(quant_raw)
+    quant_path = out_dir / f"{args.run_id}_mlx_model.int8.ptz"
+    with quant_path.open("wb") as f:
+        f.write(quant_blob)
+    compressed_bytes = quant_path.stat().st_size
+    ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+    if log_fn is not None:
+        log_fn(
+            f"serialized_model_int8_zlib:{compressed_bytes} bytes "
+            f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
+        )
+    with quant_path.open("rb") as f:
+        quant_blob_disk = f.read()
+    return {
+        "model_path": out_path,
+        "model_bytes": model_bytes,
+        "quant_path": quant_path,
+        "compressed_bytes": compressed_bytes,
+        "quant_serialized_bytes": quant_serialized_bytes,
+        "quant_stats": quant_stats,
+        "dequantized_flat_state": dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk))),
+    }
+
+
 def build_sentencepiece_luts(
     sp: spm.SentencePieceProcessor, vocab_size: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -726,16 +790,12 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> tupl
     return dataset_dir.name, actual_train_files, expected_train_files
 
 
-def load_validation_tokens(pattern: str, seq_len: int) -> np.ndarray:
+def load_validation_tokens(pattern: str) -> np.ndarray:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
     # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
-    tokens = np.ascontiguousarray(np.concatenate([load_data_shard(file) for file in files], axis=0))
-    usable = ((tokens.size - 1) // seq_len) * seq_len
-    if usable <= 0:
-        raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
-    return tokens[: usable + 1]
+    return np.ascontiguousarray(np.concatenate([load_data_shard(file) for file in files], axis=0))
 
 
 def loss_and_grad_chunked(
@@ -758,7 +818,38 @@ def loss_and_grad_chunked(
     return loss_value, tree_unflatten(list(grad_accum.items()))
 
 
-def eval_val(
+def eval_batch_size(args: Hyperparameters) -> int:
+    val_batch_tokens = args.val_batch_size // args.grad_accum_steps
+    if val_batch_tokens < args.train_seq_len:
+        raise ValueError(
+            "VAL_BATCH_SIZE must provide at least one sequence; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, GRAD_ACCUM_STEPS={args.grad_accum_steps}, "
+            f"TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    return max(val_batch_tokens // args.train_seq_len, 1)
+
+
+def token_bytes_sum(
+    prev_ids: np.ndarray,
+    tgt_ids: np.ndarray,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+) -> float:
+    bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
+    bytes_np += (
+        has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
+    ).astype(np.int16, copy=False)
+    return float(bytes_np.astype(np.float64).sum())
+
+
+def finalize_eval_metrics(loss_sum: float, token_count: float, byte_count: float) -> tuple[float, float]:
+    val_loss = loss_sum / token_count
+    bits_per_token = val_loss / math.log(2.0)
+    return val_loss, bits_per_token * (token_count / byte_count)
+
+
+def eval_flat(
     args: Hyperparameters,
     compiled_loss,
     val_tokens: np.ndarray,
@@ -767,18 +858,14 @@ def eval_val(
     is_boundary_token_lut: np.ndarray,
     log_fn: Callable[[str], None] | None = None,
 ) -> tuple[float, float]:
-    # Validation computes two metrics:
-    # - val_loss: token cross-entropy (natural log)
-    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
-    val_batch_tokens = args.val_batch_size // args.grad_accum_steps
-    if val_batch_tokens < args.train_seq_len:
-        raise ValueError(
-            "VAL_BATCH_SIZE must provide at least one sequence; "
-            f"got VAL_BATCH_SIZE={args.val_batch_size}, GRAD_ACCUM_STEPS={args.grad_accum_steps}, "
-            f"TRAIN_SEQ_LEN={args.train_seq_len}"
-        )
-    val_batch_seqs = val_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.size - 1) // args.train_seq_len
+    # Flat eval preserves the legacy behavior: the validation prefix is treated as
+    # one continuous token stream and truncated to a multiple of seq_len.
+    usable = ((val_tokens.size - 1) // args.train_seq_len) * args.train_seq_len
+    if usable <= 0:
+        raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={args.train_seq_len}")
+    val_tokens = val_tokens[: usable + 1]
+    val_batch_seqs = eval_batch_size(args)
+    total_seqs = usable // args.train_seq_len
     total_batches = max((total_seqs + val_batch_seqs - 1) // val_batch_seqs, 1)
     total_loss_sum = 0.0
     total_tokens = 0.0
@@ -790,28 +877,232 @@ def eval_val(
         chunk = val_tokens[raw_start:raw_end]
         x_np = chunk[:-1].reshape(-1, args.train_seq_len)
         y_np = chunk[1:].reshape(-1, args.train_seq_len)
-        x = mx.array(x_np, dtype=mx.int32)
-        y = mx.array(y_np, dtype=mx.int32)
-        chunk_token_count = float(y.size)
-        batch_loss = compiled_loss(x, y).astype(mx.float32)
+        batch_loss = compiled_loss(mx.array(x_np, dtype=mx.int32), mx.array(y_np, dtype=mx.int32)).astype(mx.float32)
         mx.eval(batch_loss)
+        chunk_token_count = float(y_np.size)
         total_loss_sum += float(batch_loss.item()) * chunk_token_count
-        prev_ids = x_np.reshape(-1)
-        tgt_ids = y_np.reshape(-1)
-        bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
-        bytes_np += (
-            has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
-        ).astype(np.int16, copy=False)
         total_tokens += chunk_token_count
-        total_bytes += float(bytes_np.astype(np.float64).sum())
+        total_bytes += token_bytes_sum(
+            x_np.reshape(-1),
+            y_np.reshape(-1),
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
         if log_fn is not None and total_batches > 1 and (
             batch_idx == 1 or batch_idx == total_batches or batch_idx % 25 == 0
         ):
-            log_fn(f"val_progress:{batch_idx}/{total_batches}")
-    val_loss = total_loss_sum / total_tokens
-    bits_per_token = val_loss / math.log(2.0)
-    val_bpb = bits_per_token * (total_tokens / total_bytes)
-    return val_loss, val_bpb
+            log_fn(f"val_progress:flat {batch_idx}/{total_batches}")
+    return finalize_eval_metrics(total_loss_sum, total_tokens, total_bytes)
+
+
+def eval_windows(
+    args: Hyperparameters,
+    compiled_token_nll,
+    windows,
+    total_windows: int,
+    bos_id: int,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    progress_label: str,
+    log_fn: Callable[[str], None] | None = None,
+) -> tuple[float, float]:
+    batch_size = eval_batch_size(args)
+    total_loss_sum = 0.0
+    total_tokens = 0.0
+    total_bytes = 0.0
+    batch_windows = []
+    processed_windows = 0
+
+    def flush_batch(batch, processed_before: int) -> tuple[float, float, float]:
+        x_np = np.full((len(batch), args.train_seq_len), bos_id, dtype=np.int32)
+        y_np = np.full((len(batch), args.train_seq_len), bos_id, dtype=np.int32)
+        mask = np.zeros((len(batch), args.train_seq_len), dtype=np.bool_)
+        for row, window in enumerate(batch):
+            inputs = window.chunk[:-1]
+            targets = window.chunk[1:]
+            wlen = int(inputs.size)
+            x_np[row, :wlen] = inputs
+            y_np[row, :wlen] = targets
+            mask[row, window.score_start : window.score_stop] = True
+
+        nll = compiled_token_nll(mx.array(x_np, dtype=mx.int32), mx.array(y_np, dtype=mx.int32)).astype(mx.float32)
+        mx.eval(nll)
+        nll_np = np.array(nll, dtype=np.float32)
+        selected_nll = nll_np[mask]
+        prev_ids = x_np[mask]
+        tgt_ids = y_np[mask]
+        batch_idx = (processed_before + len(batch) + batch_size - 1) // batch_size
+        if log_fn is not None and total_windows > 1:
+            if batch_idx == 1 or processed_before + len(batch) == total_windows or batch_idx % 25 == 0:
+                total_batches = max((total_windows + batch_size - 1) // batch_size, 1)
+                log_fn(f"val_progress:{progress_label} {batch_idx}/{total_batches}")
+        return (
+            float(selected_nll.astype(np.float64).sum()),
+            float(selected_nll.size),
+            token_bytes_sum(prev_ids, tgt_ids, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut),
+        )
+
+    for window in windows:
+        batch_windows.append(window)
+        if len(batch_windows) == batch_size:
+            loss_sum, token_count, byte_count = flush_batch(batch_windows, processed_windows)
+            total_loss_sum += loss_sum
+            total_tokens += token_count
+            total_bytes += byte_count
+            processed_windows += len(batch_windows)
+            batch_windows = []
+    if batch_windows:
+        loss_sum, token_count, byte_count = flush_batch(batch_windows, processed_windows)
+        total_loss_sum += loss_sum
+        total_tokens += token_count
+        total_bytes += byte_count
+    return finalize_eval_metrics(total_loss_sum, total_tokens, total_bytes)
+
+
+def eval_doc(
+    args: Hyperparameters,
+    compiled_token_nll,
+    val_docs: tuple[np.ndarray, ...],
+    bos_id: int,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    log_fn: Callable[[str], None] | None = None,
+) -> tuple[float, float]:
+    total_windows = count_doc_windows(val_docs, seq_len=args.train_seq_len)
+    return eval_windows(
+        args,
+        compiled_token_nll,
+        iter_doc_windows(val_docs, seq_len=args.train_seq_len),
+        total_windows,
+        bos_id,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+        progress_label="doc",
+        log_fn=log_fn,
+    )
+
+
+def eval_doc_stride(
+    args: Hyperparameters,
+    compiled_token_nll,
+    val_docs: tuple[np.ndarray, ...],
+    bos_id: int,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    log_fn: Callable[[str], None] | None = None,
+) -> tuple[float, float]:
+    total_windows = count_doc_stride_windows(
+        val_docs,
+        seq_len=args.train_seq_len,
+        stride=min(args.eval_stride, args.train_seq_len),
+    )
+    return eval_windows(
+        args,
+        compiled_token_nll,
+        iter_doc_stride_windows(
+            val_docs,
+            seq_len=args.train_seq_len,
+            stride=min(args.eval_stride, args.train_seq_len),
+        ),
+        total_windows,
+        bos_id,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+        progress_label="doc_stride",
+        log_fn=log_fn,
+    )
+
+
+def evaluate_mode(
+    mode: str,
+    args: Hyperparameters,
+    compiled_loss,
+    compiled_token_nll,
+    val_tokens: np.ndarray,
+    val_docs: tuple[np.ndarray, ...],
+    bos_id: int,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    log_fn: Callable[[str], None] | None = None,
+) -> tuple[float, float]:
+    if mode == "flat":
+        return eval_flat(
+            args,
+            compiled_loss,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            log_fn=log_fn,
+        )
+    if mode == "doc":
+        return eval_doc(
+            args,
+            compiled_token_nll,
+            val_docs,
+            bos_id,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            log_fn=log_fn,
+        )
+    if mode == "doc_stride":
+        return eval_doc_stride(
+            args,
+            compiled_token_nll,
+            val_docs,
+            bos_id,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            log_fn=log_fn,
+        )
+    raise ValueError(f"Unknown eval mode: {mode}")
+
+
+def run_eval_suite(
+    phase: str,
+    args: Hyperparameters,
+    compiled_loss,
+    compiled_token_nll,
+    val_tokens: np.ndarray,
+    val_docs: tuple[np.ndarray, ...],
+    bos_id: int,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    log_fn: Callable[[str], None] | None = None,
+) -> dict[str, dict[str, float]]:
+    results: dict[str, dict[str, float]] = {}
+    for mode in ("flat", "doc", "doc_stride"):
+        t0 = time.perf_counter()
+        val_loss, val_bpb = evaluate_mode(
+            mode,
+            args,
+            compiled_loss,
+            compiled_token_nll,
+            val_tokens,
+            val_docs,
+            bos_id,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            log_fn=log_fn,
+        )
+        eval_time_ms = 1000.0 * (time.perf_counter() - t0)
+        results[mode] = {"loss": val_loss, "bpb": val_bpb, "eval_time_ms": eval_time_ms}
+        if log_fn is not None:
+            log_fn(
+                f"{phase}_eval mode:{mode} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} eval_time:{eval_time_ms:.0f}ms"
+            )
+    return results
 
 # -----------------------------
 # TRAINING
@@ -838,6 +1129,8 @@ def main() -> None:
     # TOKENIZER + VALIDATION METRIC SETUP
     # ==============================================================================
     args = Hyperparameters()
+    cli_args = build_cli_parser(args).parse_args()
+    apply_cli_overrides(args, cli_args)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     logfile = out_dir / f"{args.run_id}.txt"
@@ -865,11 +1158,24 @@ def main() -> None:
         raise ValueError(
             f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
         )
+    bos_id = int(sp.bos_id())
+    if bos_id < 0:
+        raise ValueError("SentencePiece tokenizer must define a BOS token for document-aware eval")
     dataset_name, actual_train_files, expected_train_files = validate_dataset_tokenizer_pair(
         args.data_path,
         args.tokenizer_path,
     )
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    val_tokens_all = load_validation_tokens(args.val_files)
+    val_docs = tuple(
+        iter_validation_docs(
+            val_tokens_all,
+            bos_id=bos_id,
+            max_docs=None if args.eval_max_docs == 0 else args.eval_max_docs,
+        )
+    )
+    if not val_docs:
+        raise ValueError("Validation split is empty after document slicing")
+    val_tokens = flatten_validation_docs(val_docs)
 
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size
@@ -908,6 +1214,7 @@ def main() -> None:
     # Compiling the model-bound functions and capturing the full model state fixes that while still
     # returning gradients only for trainable parameters via nn.value_and_grad(...).
     compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
+    compiled_token_nll = mx.compile(lambda x, y: model.token_nll(x, y), inputs=model.state, outputs=model.state)
     compiled_loss_and_grad = mx.compile(
         nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
         inputs=model.state,
@@ -919,7 +1226,10 @@ def main() -> None:
     log(f"run_id:{args.run_id}")
     log(f"mlx_version:{mx.__version__}")
     log(f"train_loader:shards pattern={args.train_files}")
-    log(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.size - 1}")
+    log(
+        f"val_loader:shards pattern={args.val_files} docs:{len(val_docs)} tokens:{val_tokens.size - 1} "
+        f"eval_max_docs:{'all' if args.eval_max_docs == 0 else args.eval_max_docs}"
+    )
     if expected_train_files is None:
         log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}")
     elif actual_train_files < expected_train_files:
@@ -939,9 +1249,14 @@ def main() -> None:
     log(
         f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} grad_accum_steps:{args.grad_accum_steps} "
         f"microbatch_tokens:{args.microbatch_tokens} microbatch_batch_size:{args.microbatch_tokens // args.train_seq_len} "
-        f"val_batch_size:{args.val_batch_size} "
+        f"val_batch_size:{args.val_batch_size} max_steps:{args.max_steps} "
         f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log(
+        f"eval_config periodic_mode:{args.eval_mode} stride:{args.eval_stride} "
+        f"prequant:{args.run_prequant_eval} postquant:{args.run_postquant_eval}"
+    )
+    log("step_count_note: local max_steps are for Apple Silicon prototyping and are not comparable to 8xH100 runs")
     log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
@@ -978,19 +1293,19 @@ def main() -> None:
                 log(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
 
         # Prime the standalone eval graph once too. It is compiled separately from value_and_grad.
-        val_batch_tokens = args.val_batch_size // args.grad_accum_steps
-        if val_batch_tokens < args.train_seq_len:
-            raise ValueError(
-                "VAL_BATCH_SIZE must provide at least one sequence; "
-                f"got VAL_BATCH_SIZE={args.val_batch_size}, GRAD_ACCUM_STEPS={args.grad_accum_steps}, "
-                f"TRAIN_SEQ_LEN={args.train_seq_len}"
-            )
-        warm_val_seqs = min(val_batch_tokens // args.train_seq_len, (val_tokens.size - 1) // args.train_seq_len)
+        warm_val_seqs = min(eval_batch_size(args), max((val_tokens.size - 1) // args.train_seq_len, 1))
         warm_chunk = val_tokens[: warm_val_seqs * args.train_seq_len + 1]
         x_val = mx.array(warm_chunk[:-1].reshape(-1, args.train_seq_len), dtype=mx.int32)
         y_val = mx.array(warm_chunk[1:].reshape(-1, args.train_seq_len), dtype=mx.int32)
         warm_val_loss = compiled_loss(x_val, y_val)
-        mx.eval(warm_val_loss)
+        warm_doc = val_docs[0]
+        warm_doc_targets = min(max(int(warm_doc.size) - 1, 1), args.train_seq_len)
+        x_doc = np.full((1, args.train_seq_len), bos_id, dtype=np.int32)
+        y_doc = np.full((1, args.train_seq_len), bos_id, dtype=np.int32)
+        x_doc[0, :warm_doc_targets] = warm_doc[:warm_doc_targets]
+        y_doc[0, :warm_doc_targets] = warm_doc[1 : warm_doc_targets + 1]
+        warm_val_nll = compiled_token_nll(mx.array(x_doc, dtype=mx.int32), mx.array(y_doc, dtype=mx.int32))
+        mx.eval(warm_val_loss, warm_val_nll)
         mx.synchronize()
 
         train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
@@ -1004,19 +1319,25 @@ def main() -> None:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
             train_time_ms += 1000.0 * (time.perf_counter() - t0)
-            # Validation always scans the same fixed full validation split.
-            val_loss, val_bpb = eval_val(
+            eval_t0 = time.perf_counter()
+            val_loss, val_bpb = evaluate_mode(
+                args.eval_mode,
                 args,
                 compiled_loss,
+                compiled_token_nll,
                 val_tokens,
+                val_docs,
+                bos_id,
                 base_bytes_lut,
                 has_leading_space_lut,
                 is_boundary_token_lut,
-                log_fn=log,
+                log_fn=log if last_step else None,
             )
+            eval_time_ms = 1000.0 * (time.perf_counter() - eval_t0)
             if step % 25 == 0 or last_step:
                 log(
-                    f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                    f"step:{step}/{args.iterations} val_mode:{args.eval_mode} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                    f"eval_time:{eval_time_ms:.0f}ms "
                     f"train_time:{train_time_ms:.0f}ms step_avg:{train_time_ms / max(step, 1):.2f}ms"
                 )
             t0 = time.perf_counter()
@@ -1059,45 +1380,52 @@ def main() -> None:
     # ==============================================================================
     # FINAL SERIALIZATION + QUANTIZED ROUNDTRIP EVAL
     # ==============================================================================
-    # We always write a raw artifact and a quantized artifact, then validate the
-    # quantized roundtrip directly by loading the dequantized tensors back into the
-    # model and running one final validation pass.
-    out_path = out_dir / f"{args.run_id}_mlx_model.npz"
     flat_state = {k: v for k, v in tree_flatten(model.state)}
-    mx.savez(str(out_path), **flat_state)
-    log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
-
-    quant_obj, quant_stats = quantize_state_dict_int8(flat_state)
-    quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
-    quant_blob = zlib.compress(quant_raw, level=9)
-    quant_serialized_bytes = len(quant_raw)
-    quant_path = out_dir / f"{args.run_id}_mlx_model.int8.ptz"
-    with quant_path.open("wb") as f:
-        f.write(quant_blob)
-    quant_file_bytes = quant_path.stat().st_size
-    ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
-    log(
-        f"serialized_model_int8_zlib:{quant_file_bytes} bytes "
-        f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
+    prequant_results = (
+        run_eval_suite(
+            "prequant",
+            args,
+            compiled_loss,
+            compiled_token_nll,
+            val_tokens,
+            val_docs,
+            bos_id,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            log_fn=log,
+        )
+        if args.run_prequant_eval
+        else None
     )
 
-    with quant_path.open("rb") as f:
-        quant_blob_disk = f.read()
-    quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
-    model.update(tree_unflatten(list(quant_flat.items())))
-    q_t0 = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args,
-        compiled_loss,
-        val_tokens,
-        base_bytes_lut,
-        has_leading_space_lut,
-        is_boundary_token_lut,
-        log_fn=log,
+    artifact_metrics = quantize_and_measure(args, out_dir, flat_state, log_fn=log)
+
+    postquant_results = None
+    if args.run_postquant_eval:
+        model.update(tree_unflatten(list(artifact_metrics["dequantized_flat_state"].items())))
+        postquant_results = run_eval_suite(
+            "postquant",
+            args,
+            compiled_loss,
+            compiled_token_nll,
+            val_tokens,
+            val_docs,
+            bos_id,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            log_fn=log,
+        )
+
+    print_run_summary(
+        log,
+        train_steps_completed=step,
+        train_tokens_processed=step * args.train_batch_tokens,
+        prequant_results=prequant_results,
+        postquant_results=postquant_results,
+        artifact_metrics=artifact_metrics,
     )
-    q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
-    log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
-    log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
 
 if __name__ == "__main__":
