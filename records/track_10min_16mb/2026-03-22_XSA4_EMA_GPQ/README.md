@@ -116,8 +116,8 @@ db561a8 Enable XSA4 + add _xsa_efficient method to train_gpt.py
 2. Add 11L: ~−0.04 BPB (but exceeds 16MB)
 3. Add XSA4: Frees 800K params for extra layers
 4. Add fullgraph=True: Prevents SIGBUS, enables compilation speedup
-5. Add EMA (0.997, full training): ~−0.03 BPB
-6. Add Late QAT (<15% LR): Marginal gains, improves int6 quality
+5. Add EMA (0.997, full training duration): Maintains float32 moving average throughout, ~−0.03 BPB
+6. Add Late QAT (activates when LR < 15%): Improves int6 roundtrip quality
 7. Full GPTQ-lite (5-percentile search): Final −0.002 BPB
 
 ## Usage
@@ -125,7 +125,7 @@ db561a8 Enable XSA4 + add _xsa_efficient method to train_gpt.py
 ```bash
 cd parameter-golf
 torchrun --standalone --nproc_per_node=1 \
-  records/track_10min_16mb/2026-03-17_pragnyanramtha_0/train_gpt.py
+  records/track_10min_16mb/2026-03-22_XSA4_EMA_GPQ/train_gpt.py
 ```
 
 Environment variables:
@@ -155,5 +155,6 @@ Inspired by:
 ## Notes
 
 - This submission demonstrates that **XSA + EMA + Late QAT** can compete with TTT approaches
-- SWA applied 23 checkpoints from warmdown phase (last 20% of training)
+- EMA runs throughout training with 0.997 decay, accumulating float32 running average
+- Late QAT activates when LR drops below 15% of peak and quantizes weights during backward pass
 - No test-time training; purely architectural + optimization improvements

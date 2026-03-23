@@ -910,7 +910,6 @@ def eval_val_sliding(
 # -----------------------------
 
 def main() -> None:
-    # ADD after "import torch.nn.functional as F"
     global zeropower_via_newtonschulz5
 
     code = Path(__file__).read_text(encoding="utf-8")
@@ -1137,11 +1136,17 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
+    # Initialize EMA state from current model (will accumulate from step 0)
+    ema_state_init = {name: param.detach().float().clone().cpu() for name, param in base_model.state_dict().items()}
+
     # MAIN TRAINING LOOP
     training_time_ms = 0.0
     stop_after_step: int | None = None
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
+    ema_state: dict[str, Tensor] | None = None
+    ema_step_count = 0
+    qat_enabled_log = False  # Track if we've logged QAT activation
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1174,6 +1179,14 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+
+        # Late QAT: enable when LR drops below 15% of peak
+        qat_should_enable = scale < 0.15
+        if qat_should_enable and not qat_enabled_log:
+            log0(f"late_qat: enabled at step {step} (scale={scale:.6f})")
+            qat_enabled_log = True
+        CastedLinear._qat_enabled = qat_should_enable
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1200,6 +1213,16 @@ def main() -> None:
         for opt in optimizers:
             opt.step()
         zero_grad_all()
+
+        # Update EMA state every step (0.997 decay, maintains float32 running average)
+        if ema_state is None:
+            ema_state = {name: param.detach().float().cpu().clone() for name, param in base_model.state_dict().items()}
+            ema_step_count = 1
+        else:
+            for name, param in base_model.state_dict().items():
+                param_float = param.detach().float().cpu()
+                ema_state[name].mul_(args.ema_decay).add_(param_float, alpha=1.0 - args.ema_decay)
+            ema_step_count += 1
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -1238,9 +1261,18 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
-    # Apply SWA if collected
+    # Apply EMA if collected
+    if ema_state is not None and ema_step_count > 0:
+        log0(f"ema:applying moving average from {ema_step_count} steps (decay={args.ema_decay})")
+        ema_state_dtype = {
+            name: tensor.to(dtype=base_model.state_dict()[name].dtype)
+            for name, tensor in ema_state.items()
+        }
+        base_model.load_state_dict(ema_state_dtype, strict=True)
+
+    # Apply SWA if collected (as secondary averaging)
     if args.swa_enabled and swa_state is not None and swa_count > 1:
-        log0(f"swa:applying averaged {swa_count} checkpoints")
+        log0(f"swa:applying averaged {swa_count} checkpoints (post-ema)")
         current_state = base_model.state_dict()
         avg_state = {
             name: (tensor / swa_count).to(dtype=current_state[name].dtype)
@@ -1273,7 +1305,7 @@ def main() -> None:
         quant_file_bytes = os.path.getsize("final_model.int8.ptz")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size int6+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
