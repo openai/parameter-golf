@@ -80,9 +80,15 @@ class Hyperparameters:
     # sliding window eval
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
 
-    # test-time training (TTT)
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 5))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
+    # legal score-first TTT: evaluate first, then adapt on scored tokens
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.005))
+    ttt_freeze_early = int(os.environ.get("TTT_FREEZE_EARLY", 2))
+
+    # tight SWA: average checkpoints from final low-LR phase
+    swa_start_scale = float(os.environ.get("SWA_START_SCALE", 0.2))
+    swa_freq = int(os.environ.get("SWA_FREQ", 50))
+    swa_max_checkpoints = int(os.environ.get("SWA_MAX_CHECKPOINTS", 12))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -398,20 +404,33 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
+GPTQ_CLIP_CANDIDATES = [1.0, 0.999, 0.995, 0.99, 0.98]
+
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        # Matrices get one scale per row, which usually tracks output-channel
-        # ranges much better than a single tensor-wide scale.
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel()
-            else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        # gptq-lite: test multiple clip percentiles per row, pick best MSE
+        best_q = None
+        best_scale = None
+        best_mse = None
+        for clip_q in GPTQ_CLIP_CANDIDATES:
+            clip_abs = (
+                torch.quantile(t32.abs(), clip_q, dim=1)
+                if t32.numel()
+                else torch.empty((t32.shape[0],), dtype=torch.float32)
+            )
+            s = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            q = torch.clamp(torch.round(clipped / s[:, None]), -127, 127).to(torch.int8)
+            mse = ((t32 - q.float() * s[:, None]) ** 2).mean(dim=1)
+            if best_mse is None:
+                best_mse, best_q, best_scale = mse, q, s
+            else:
+                better = mse < best_mse
+                best_mse = torch.where(better, mse, best_mse)
+                best_q = torch.where(better[:, None], q, best_q)
+                best_scale = torch.where(better, s, best_scale)
+        return best_q.contiguous(), best_scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
@@ -1145,6 +1164,8 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    swa_checkpoints: list[dict[str, Tensor]] = []
+    swa_last_step = -args.swa_freq
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1212,6 +1233,13 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        # tight SWA: collect checkpoints when lr scale is low
+        if scale < args.swa_start_scale and (step - swa_last_step) >= args.swa_freq:
+            swa_checkpoints.append({n: p.data.detach().clone() for n, p in base_model.named_parameters()})
+            if len(swa_checkpoints) > args.swa_max_checkpoints:
+                swa_checkpoints.pop(0)
+            swa_last_step = step
+
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
@@ -1251,6 +1279,17 @@ def main() -> None:
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
+
+    # apply tight SWA: average collected checkpoints
+    if swa_checkpoints:
+        log0(f"swa: averaging {len(swa_checkpoints)} checkpoints")
+        with torch.no_grad():
+            avg = {n: torch.zeros_like(p.data) for n, p in base_model.named_parameters()}
+            for ckpt in swa_checkpoints:
+                for n in avg:
+                    avg[n] += ckpt[n]
+            for n, p in base_model.named_parameters():
+                p.data.copy_(avg[n] / len(swa_checkpoints))
 
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
     quant_buf = io.BytesIO()
@@ -1297,63 +1336,91 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
-    # test-time training: adapt model to validation distribution
-    if args.ttt_epochs > 0:
-        # free training memory before TTT
+    # legal score-first TTT + sliding window evaluation
+    # approach: evaluate each chunk (score it), then train on scored tokens
+    if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
+        # free training optimizer memory
         for opt in optimizers:
             opt.state.clear()
         del optimizers
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
-        t_ttt = time.perf_counter()
-        log0(f"ttt: starting {args.ttt_epochs} epochs, lr={args.ttt_lr}")
-        # use all parameters for TTT (unfreezing all, per vault: freeze_blocks=0 is critical)
-        ttt_params = [p for p in base_model.parameters() if p.requires_grad]
-        ttt_optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
-        total_val_tokens = val_tokens.numel() - 1
-        # shard validation tokens across ranks like training
-        ttt_batch_seqs = 4
-        rank_tokens = total_val_tokens // world_size
-        rank_start = rank * rank_tokens
-        rank_end = rank_start + rank_tokens
-        model.train()
-        for ttt_epoch in range(args.ttt_epochs):
-            ttt_loss_sum = 0.0
-            ttt_steps = 0
-            for batch_start in range(rank_start, rank_end - args.train_seq_len, ttt_batch_seqs * args.train_seq_len):
-                batch_end = min(batch_start + ttt_batch_seqs * args.train_seq_len + 1, rank_end + 1)
-                local = val_tokens[batch_start:batch_end].to(device=device, dtype=torch.int64)
-                n_seqs = (local.numel() - 1) // args.train_seq_len
-                if n_seqs == 0:
-                    continue
-                x = local[:n_seqs * args.train_seq_len].reshape(n_seqs, args.train_seq_len)
-                y = local[1:n_seqs * args.train_seq_len + 1].reshape(n_seqs, args.train_seq_len)
-                ttt_optimizer.zero_grad()
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    loss = model(x, y)
-                loss.backward()
-                ttt_optimizer.step()
-                ttt_loss_sum += loss.item()
-                ttt_steps += 1
-            if master_process:
-                log0(f"ttt_epoch:{ttt_epoch + 1}/{args.ttt_epochs} avg_loss:{ttt_loss_sum / max(ttt_steps, 1):.4f}")
-        del ttt_optimizer, ttt_params
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-        log0(f"ttt: completed in {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
-
-    # sliding window evaluation for better BPB scoring
-    if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
-        torch.cuda.synchronize()
         t_sw = time.perf_counter()
-        sw_val_loss, sw_val_bpb = eval_val_sliding(
-            args, base_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        )
+
+        seq_len = args.train_seq_len
+        stride = args.eval_stride
+        total_tokens = val_tokens.numel() - 1
+        score_len = min(stride, seq_len)
+        eval_batch = max(1, args.val_batch_size // seq_len)
+        all_starts = list(range(0, total_tokens - seq_len + 1, stride))
+        my_starts = all_starts[rank::world_size]
+
+        # set up legal TTT optimizer (freeze early blocks per #473)
+        ttt_opt = None
+        if args.ttt_epochs > 0:
+            for i, block in enumerate(base_model.blocks):
+                for p in block.parameters():
+                    p.requires_grad_(i >= args.ttt_freeze_early)
+            ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+            ttt_opt = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=0.9)
+            log0(f"legal_ttt: {len(ttt_params)} params, freeze_early={args.ttt_freeze_early}, {args.ttt_epochs}ep, lr={args.ttt_lr}")
+
+        val_nll_sum = torch.zeros((), dtype=torch.float64, device=device)
+        val_token_count = torch.zeros((), dtype=torch.float64, device=device)
+        val_byte_count = torch.zeros((), dtype=torch.float64, device=device)
+        ttt_adapt_count = 0
+
+        base_model.eval()
+        for batch_off in range(0, len(my_starts), eval_batch):
+            starts = my_starts[batch_off:batch_off + eval_batch]
+            x_batch = torch.stack([val_tokens[s:s + seq_len] for s in starts]).to(device=device, dtype=torch.int64)
+            y_batch = torch.stack([val_tokens[s + 1:s + seq_len + 1] for s in starts]).to(device=device, dtype=torch.int64)
+
+            # step 1: SCORE (evaluate) — this happens first, before any adaptation
+            with torch.inference_mode():
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    logits = base_model.forward_logits(x_batch)
+                sf = seq_len - score_len
+                logits_tail = logits[:, sf:, :].reshape(-1, logits.size(-1)).float()
+                targets_tail = y_batch[:, sf:].reshape(-1)
+                nll = F.cross_entropy(logits_tail, targets_tail, reduction="sum")
+                val_nll_sum += nll.to(torch.float64)
+                val_token_count += len(starts) * score_len
+                prev_tail = x_batch[:, sf:].reshape(-1)
+                tgt_tail = y_batch[:, sf:].reshape(-1)
+                tb = base_bytes_lut[tgt_tail].to(dtype=torch.int16)
+                tb += (has_leading_space_lut[tgt_tail] & ~is_boundary_token_lut[prev_tail]).to(dtype=torch.int16)
+                val_byte_count += tb.to(torch.float64).sum()
+
+            # step 2: ADAPT on already-scored tokens (legal backward-looking TTT)
+            # use only 1 sequence to avoid OOM (backward pass needs memory)
+            if ttt_opt is not None and (ttt_adapt_count % 4 == 0):
+                base_model.train()
+                ttt_x = x_batch[:1]
+                ttt_y = y_batch[:1]
+                for _ in range(args.ttt_epochs):
+                    ttt_opt.zero_grad()
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                        ttt_loss = base_model(ttt_x, ttt_y)
+                    ttt_loss.backward()
+                    ttt_opt.step()
+                base_model.eval()
+            ttt_adapt_count += 1
+
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(val_nll_sum, op=dist.ReduceOp.SUM)
+            dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+            dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+        sw_val_loss = val_nll_sum.item() / val_token_count.item()
+        bits_per_token = sw_val_loss / math.log(2.0)
+        tokens_per_byte = val_token_count.item() / val_byte_count.item()
+        sw_val_bpb = float(bits_per_token * tokens_per_byte)
+
         torch.cuda.synchronize()
         log0(
-            f"final_sliding_window stride:{args.eval_stride} val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
-            f"eval_time:{1000.0 * (time.perf_counter() - t_sw):.0f}ms"
+            f"final_sliding_window stride:{stride} val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_sw):.0f}ms ttt_adapts:{ttt_adapt_count}"
         )
         log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
 
