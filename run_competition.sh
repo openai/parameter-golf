@@ -24,7 +24,7 @@ export XSA_LAST_N=0
 # Per-layer cosine TTT (our finding: +23.5% over flat AdamW)
 export TTT_OPTIMIZER=adamw
 export TTT_LR=0.0005
-export TTT_EPOCHS=30
+export TTT_EPOCHS=50
 export TTT_COSINE=1
 export TTT_PERLAYER=1
 export TTT_FREEZE_BLOCKS=0
