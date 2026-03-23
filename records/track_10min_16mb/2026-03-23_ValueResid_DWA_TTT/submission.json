@@ -1,0 +1,17 @@
+{
+    "name": "Value Residual + DenseFormer DWA + TTT",
+    "author": "TBD",
+    "github_id": "TBD",
+    "val_bpb": null,
+    "techniques": [
+        "Value Residual (ResFormer)",
+        "DenseFormer DWA (replaces U-Net skips)",
+        "Test-Time Training (TTT)",
+        "Mixed int5/int6 QAT",
+        "BigramHash(10240)",
+        "SmearGate",
+        "Muon + SWA(0.4)",
+        "Sliding window eval stride=64"
+    ],
+    "base": "2026-03-20_10L_Int5MLP_MuonWD04_SWA50"
+}
