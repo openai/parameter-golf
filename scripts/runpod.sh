@@ -91,15 +91,18 @@ _scp_cmd() {
 
 cmd_create() {
     local gpu_count="${1:-1}"
+    local cloud_type="${2:-SECURE}"  # SECURE or COMMUNITY (spot)
     local gpu_type="NVIDIA H100 80GB HBM3"
     local name="pgolf-${gpu_count}xh100"
+    [[ "$cloud_type" == "COMMUNITY" ]] && name="${name}-spot"
 
-    echo "Creating pod: ${name} (${gpu_count}x H100)..."
+    echo "Creating pod: ${name} (${gpu_count}x H100, ${cloud_type})..."
     local result
     result=$(_api POST "/pods" -d "{
         \"name\": \"${name}\",
         \"gpuTypeIds\": [\"${gpu_type}\"],
         \"gpuCount\": ${gpu_count},
+        \"cloudType\": \"${cloud_type}\",
         \"templateId\": \"${TEMPLATE_ID}\",
         \"containerDiskInGb\": 50,
         \"volumeInGb\": 50,
@@ -269,7 +272,7 @@ cmd_done() {
 }
 
 case "${1:-help}" in
-    create)    cmd_create "${2:-1}" ;;
+    create)    cmd_create "${2:-1}" "${3:-SECURE}" ;;
     list)      cmd_list ;;
     status)    cmd_status ;;
     ssh)       cmd_ssh ;;
@@ -291,7 +294,7 @@ case "${1:-help}" in
         echo "  $0 done my_run              # fetch results + terminate"
         echo ""
         echo "Individual commands:"
-        echo "  create [1|8]    — create pod"
+        echo "  create [1|8] [SECURE|COMMUNITY] — create pod (COMMUNITY=spot)"
         echo "  setup           — clone repo + download data"
         echo "  run ID [ENVS]   — start training"
         echo "  tail ID         — quick log check"
