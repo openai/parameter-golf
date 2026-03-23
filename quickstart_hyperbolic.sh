@@ -36,7 +36,6 @@ if ! python3 -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; 
 
     # Install the interface package
     pip install -e . --no-build-isolation 2>/dev/null || {
-        # If that fails, just copy the interface files manually
         cp flash_attn_interface.py "${SITE_PACKAGES}/" 2>/dev/null || true
     }
 
@@ -46,20 +45,31 @@ if ! python3 -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; 
 
     log "FA3 installed"
     python3 -c "from flash_attn_interface import flash_attn_func; print('FA3: OK')" || {
-        log "WARNING: FA3 interface check failed, may need to build from source"
+        log "WARNING: FA3 interface check failed, will need selective build"
     }
 fi
 
-# Download dataset
+# Download dataset to runpod-testing/data (where run_mos_sota.sh expects it)
+cd /workspace/runpod-testing
+mkdir -p data/datasets data/tokenizers
+
+log "Downloading FineWeb dataset (8B tokens)..."
 cd /workspace/parameter-golf
-log "Downloading dataset (8B tokens)..."
 python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80
+
+# Symlink data from parameter-golf to runpod-testing
+cd /workspace/runpod-testing
+[ ! -L "data/datasets/fineweb10B_sp1024" ] && \
+    ln -s /workspace/parameter-golf/data/datasets/fineweb10B_sp1024 data/datasets/
+[ ! -L "data/tokenizers/fineweb_1024_bpe.model" ] && \
+    ln -s /workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model data/tokenizers/
 
 log ""
 log "=== Setup Complete ==="
 log "GPUs: ${GPU_COUNT}"
-log "FA3: $(python3 -c 'from flash_attn_interface import flash_attn_func; print("OK")' 2>/dev/null || echo 'FAILED - will need to build')"
+log "FA3: $(python3 -c 'from flash_attn_interface import flash_attn_func; print("OK")' 2>/dev/null || echo 'FAILED')"
 log "Dataset: $(ls -1 data/datasets/fineweb10B_sp1024/fineweb_train_*.bin 2>/dev/null | wc -l) train shards"
 log ""
 log "Ready! Run experiments with:"
-log "  cd /workspace/runpod-testing && MODE=mos bash run_mos_sota.sh"
+log "  cd /workspace/runpod-testing"
+log "  MODE=mos bash run_mos_sota.sh"
