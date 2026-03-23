@@ -1,0 +1,100 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+logs/h100_frontier_repro.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17059912
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:1800.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9344 val_bpb:4.1069 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9357 train_time:422ms step_avg:421.74ms
+step:2/20000 train_loss:16.3816 train_time:888ms step_avg:443.90ms
+step:3/20000 train_loss:8.0324 train_time:1355ms step_avg:451.50ms
+step:4/20000 train_loss:6.8161 train_time:1819ms step_avg:454.76ms
+step:5/20000 train_loss:6.9937 train_time:2289ms step_avg:457.78ms
+step:6/20000 train_loss:6.9255 train_time:2751ms step_avg:458.51ms
+step:7/20000 train_loss:6.4142 train_time:3221ms step_avg:460.20ms
+step:8/20000 train_loss:6.1962 train_time:3685ms step_avg:460.63ms
+step:9/20000 train_loss:6.0974 train_time:4153ms step_avg:461.43ms
+step:10/20000 train_loss:6.0023 train_time:4617ms step_avg:461.73ms
+step:200/20000 train_loss:2.7931 train_time:95466ms step_avg:477.33ms
+step:400/20000 train_loss:2.3980 train_time:191753ms step_avg:479.38ms
+step:600/20000 train_loss:2.4992 train_time:288051ms step_avg:480.09ms
+step:800/20000 train_loss:2.3465 train_time:384213ms step_avg:480.27ms
+step:1000/20000 train_loss:2.3626 train_time:480273ms step_avg:480.27ms
+step:1000/20000 val_loss:2.3316 val_bpb:1.3809 train_time:480274ms step_avg:480.27ms
+step:1200/20000 train_loss:2.2940 train_time:576286ms step_avg:480.24ms
+step:1400/20000 train_loss:2.3262 train_time:672307ms step_avg:480.22ms
+step:1600/20000 train_loss:2.2203 train_time:768328ms step_avg:480.21ms
+step:1800/20000 train_loss:2.2666 train_time:863971ms step_avg:479.98ms
+step:2000/20000 train_loss:2.2227 train_time:959787ms step_avg:479.89ms
+step:2000/20000 val_loss:2.2349 val_bpb:1.3237 train_time:959788ms step_avg:479.89ms
+step:2200/20000 train_loss:2.1552 train_time:1055808ms step_avg:479.91ms
+step:2400/20000 train_loss:2.2019 train_time:1151806ms step_avg:479.92ms
+step:2600/20000 train_loss:2.2661 train_time:1247788ms step_avg:479.92ms
+step:2800/20000 train_loss:2.2062 train_time:1343749ms step_avg:479.91ms
+step:3000/20000 train_loss:2.1252 train_time:1439733ms step_avg:479.91ms
+step:3000/20000 val_loss:2.1733 val_bpb:1.2872 train_time:1439733ms step_avg:479.91ms
+step:3200/20000 train_loss:2.1901 train_time:1535462ms step_avg:479.83ms
+step:3400/20000 train_loss:2.1678 train_time:1631194ms step_avg:479.76ms
+step:3600/20000 train_loss:2.1069 train_time:1727174ms step_avg:479.77ms
+step:3752/20000 val_loss:2.1260 val_bpb:1.2591 train_time:1800135ms step_avg:479.78ms
+stopping_early: wallclock_cap train_time:1800135ms step:3752/20000
+peak memory allocated: 12234 MiB reserved: 13294 MiB
+Serialized model: 67224578 bytes
+Code size: 65146 bytes
+Total submission size: 67289724 bytes
+Serialized model int8+zlib: 12662104 bytes (payload:17962272 raw_torch:18006098 payload_ratio:3.74x)
+Total submission size int8+zlib: 12727250 bytes
+/home/warrenjo/parameter-golf/train_gpt.py:1455: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+final_int8_zlib_roundtrip val_loss:2.1314 val_bpb:1.2623 eval_time:15018ms eval_seq_len:1024
+final_int8_zlib_roundtrip_exact val_loss:2.13139766 val_bpb:1.26233375
+W0322 01:26:31.106000 25236 torch/distributed/elastic/agent/server/api.py:704] Received Signals.SIGTERM death signal, shutting down workers
+W0322 01:26:31.107000 25236 torch/distributed/elastic/multiprocessing/api.py:897] Sending process 25278 closing signal SIGTERM
+Traceback (most recent call last):
+  File "/home/warrenjo/.local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+  File "/home/warrenjo/.local/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+  File "/home/warrenjo/.local/lib/python3.10/site-packages/torch/distributed/run.py", line 919, in main
+    run(args)
+  File "/home/warrenjo/.local/lib/python3.10/site-packages/torch/distributed/run.py", line 910, in run
+    elastic_launch(
+  File "/home/warrenjo/.local/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 138, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/home/warrenjo/.local/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 260, in launch_agent
+    result = agent.run()
+  File "/home/warrenjo/.local/lib/python3.10/site-packages/torch/distributed/elastic/metrics/api.py", line 137, in wrapper
+    result = f(*args, **kwargs)
+  File "/home/warrenjo/.local/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py", line 696, in run
+    result = self._invoke_run(role)
+  File "/home/warrenjo/.local/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py", line 855, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/home/warrenjo/.local/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 84, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 25236 got signal: 15
