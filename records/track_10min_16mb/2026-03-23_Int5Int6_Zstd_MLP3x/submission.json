@@ -1,0 +1,24 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-23",
+  "name": "Int5/Int6 + Zstd Compression + 3x MLP + 10L + Seq4096 + Sliding Window",
+  "author": "shajalahamedcse",
+  "seed_results": {
+    "1337": {"val_bpb": 1.17729606, "artifact_bytes": 15708798},
+    "42":   {"val_bpb": 1.17318445, "artifact_bytes": 15700116},
+    "7":    {"val_bpb": 1.17499096, "artifact_bytes": 15711843}
+  },
+  "mean_val_bpb": 1.1752,
+  "std_val_bpb": 0.0017,
+  "artifact_bytes": 15711843,
+  "key_changes": [
+    "int5 quantization for MLP matrices (vs int8 baseline)",
+    "int6 quantization for attention matrices",
+    "zstd compression (vs zlib baseline) for better model packing",
+    "mlp_mult=3 (wider MLP: 3x expansion vs 2x baseline)",
+    "num_layers=10",
+    "train_seq_len=4096",
+    "eval_stride=64 (sliding window evaluation)",
+    "warmdown_iters=3600"
+  ]
+}
