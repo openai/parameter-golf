@@ -1335,11 +1335,17 @@ def main() -> None:
             log0(f"ttt_burst:epoch:{ttt_epoch + 1}/{args.ttt_burst_epochs} avg_loss:{ttt_epoch_loss / len(ttt_buffer):.4f}")
         log0("ttt_burst:done")
 
-    # Apply EMA weights (better than SWA alone per PR#401)
+    # Apply EMA weights first
     log0("ema:applying EMA weights")
     current_state = base_model.state_dict()
     avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
     base_model.load_state_dict(avg_state, strict=True)
+    # Apply SWA if collected (overrides EMA with checkpoint average)
+    if swa_state is not None and swa_count > 1:
+        log0(f"swa:applying {swa_count} checkpoint average")
+        swa_avg = {k: (v / swa_count).to(dtype=current_state[k].dtype, device=current_state[k].device) for k, v in swa_state.items()}
+        base_model.load_state_dict(swa_avg, strict=True)
+        del swa_state
     torch.cuda.synchronize()
     t_diag = time.perf_counter()
     diag_val_loss, diag_val_bpb = eval_val(
