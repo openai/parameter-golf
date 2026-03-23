@@ -80,7 +80,7 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
-    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
+    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.5))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
@@ -430,8 +430,9 @@ class CastedLinear(nn.Linear):
         if CastedLinear._qat_enabled and self.training and w.ndim == 2:
             with torch.no_grad():
                 w32 = self.weight.float()
-                row_max = w32.abs().amax(dim=1)
-                scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+                # Use 99.95th percentile clipping to match GPTQ export quantizer
+                row_clip = torch.quantile(w32.abs(), 0.9995, dim=1)
+                scale = (row_clip / 31.0).clamp_min(1.0 / 31.0)
                 w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -32, 31) * scale[:, None]).to(x.dtype)
             w = w + (w_q - w).detach()
         bias = self.bias.to(x.dtype) if self.bias is not None else None
@@ -1038,21 +1039,48 @@ def eval_val_sliding_ttt(
 # ---------------------------------------------------------------------------
 # GPTQ: Hessian-aware quantization with column-wise error compensation
 # ---------------------------------------------------------------------------
+def _find_best_row_scales(W: Tensor, clip_range: int = 31) -> Tensor:
+    """Find optimal per-row scales by searching percentile clipping thresholds."""
+    t32 = W.float()
+    best_s = t32.abs().amax(dim=1) / clip_range
+    best_s = best_s.clamp_min(1.0 / clip_range)
+    best_err = torch.full((t32.shape[0],), float('inf'))
+    for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+        if pct < 1.0:
+            row_clip = torch.quantile(t32.abs(), pct, dim=1)
+        else:
+            row_clip = t32.abs().amax(dim=1)
+        s = (row_clip / clip_range).clamp_min(1.0 / clip_range)
+        q = torch.clamp(torch.round(t32 / s[:, None]), -clip_range, clip_range)
+        recon = q * s[:, None]
+        err = (t32 - recon).pow(2).mean(dim=1)
+        improved = err < best_err
+        best_s[improved] = s[improved]
+        best_err[improved] = err[improved]
+    return best_s
 def gptq_quantize_weight(W: Tensor, H: Tensor, clip_range: int = 31,
                           block_size: int = 128, percdamp: float = 0.01) -> tuple[Tensor, Tensor]:
     """GPTQ: quantize weight matrix W using Hessian H = X^T X for error compensation.
+    Uses pre-computed per-row scales and column reordering by Hessian diagonal.
     Returns (quantized_int8, scale_fp16) in int6 range [-clip_range, clip_range]."""
     W = W.float().clone()
     rows, cols = W.shape
+    # Pre-compute optimal per-row scales from the original weight matrix
+    row_scale = _find_best_row_scales(W, clip_range)
     H = H.float().clone()
     damp = percdamp * H.diag().mean()
     H.diagonal().add_(damp)
+    # Column reordering: process least-important columns first (ascending H_diag)
+    perm = torch.argsort(H.diag())
+    invperm = torch.argsort(perm)
+    W = W[:, perm]
+    H = H[perm][:, perm]
     try:
         L = torch.linalg.cholesky(H)
         Hinv = torch.cholesky_inverse(L)
     except torch._C._LinAlgError:
         Hinv = torch.diag(1.0 / H.diag().clamp_min(1e-6))
-    Q = torch.zeros_like(W)
+    Q = torch.zeros(rows, cols, dtype=torch.int8)
     for i1 in range(0, cols, block_size):
         i2 = min(i1 + block_size, cols)
         W_block = W[:, i1:i2].clone()
@@ -1061,23 +1089,21 @@ def gptq_quantize_weight(W: Tensor, H: Tensor, clip_range: int = 31,
         for j in range(i2 - i1):
             w_col = W_block[:, j]
             h_inv_jj = Hinv_block[j, j].clamp_min(1e-8)
-            amax = w_col.abs().max()
-            s = (amax / clip_range).clamp_min(1.0 / clip_range)
-            q_col = torch.clamp(torch.round(w_col / s), -clip_range, clip_range)
-            Q[:, i1 + j] = q_col * s
-            err = (w_col - q_col * s) / h_inv_jj
+            # Quantize using pre-computed per-row scales
+            q_col = torch.clamp(torch.round(w_col / row_scale), -clip_range, clip_range)
+            deq_col = q_col * row_scale
+            Q[:, i1 + j] = q_col.to(torch.int8)
+            err = (w_col - deq_col) / h_inv_jj
             Err[:, j] = err
             if j + 1 < i2 - i1:
                 W_block[:, j + 1:] -= err.unsqueeze(1) * Hinv_block[j, j + 1:].unsqueeze(0)
         if i2 < cols:
             W[:, i2:] -= Err @ Hinv[i1:i2, i2:]
-    # Final per-row int6 encoding from the compensated reconstruction
-    row_max = Q.abs().amax(dim=1)
-    scale = (row_max / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
-    q_int = torch.clamp(torch.round(Q / scale.float()[:, None]), -clip_range, clip_range).to(torch.int8)
-    return q_int, scale
+    # Undo column reordering
+    Q = Q[:, invperm]
+    return Q, row_scale.to(torch.float16)
 def gptq_calibrate(model: nn.Module, train_pattern: str, device: torch.device,
-                   n_samples: int = 128, seq_len: int = 2048) -> dict[str, Tensor]:
+                   n_samples: int = 256, seq_len: int = 2048) -> dict[str, Tensor]:
     """Collect Hessian H = X^T X for each linear layer using training data."""
     hessians: dict[str, Tensor] = {}
     n_seen: dict[str, int] = {}
@@ -1573,7 +1599,7 @@ def main() -> None:
     # GPTQ calibration: collect Hessians from training data
     log0("gptq:calibrating with training data...")
     t_gptq = time.perf_counter()
-    gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=128, seq_len=args.train_seq_len)
+    gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
     log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
     quant_result, quant_meta = mixed_quantize_int6_gptq(sd_cpu, {"mlp", "attn"}, gptq_hessians)
     quant_buf = io.BytesIO()
