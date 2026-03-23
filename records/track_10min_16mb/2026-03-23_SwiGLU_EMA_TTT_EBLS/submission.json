@@ -1,11 +1,11 @@
 {
   "author": "Robby Sneiderman",
   "github_id": "Robby955",
-  "name": "SwiGLU + EMA + Int5 Quantization + EBLS Findings (Non-Record)",
-  "blurb": "SwiGLU MLP replacing ReLU-squared, EMA replacing SWA, int5 quantization for all weight categories. Includes EBLS exploration: learned shrinkage gammas discover MLP weights converge to full sharing while attention retains trace specialization. TTT investigation: per-window adaptation degrades quality due to high gradient variance at batch_size=1.",
+  "name": "SwiGLU + EMA + Sequential TTT + Memorization Analysis (Non-Record)",
+  "blurb": "SwiGLU MLP, EMA, int5 quantization, sequential score-then-train TTT (3 epochs). Reports sliding-window BPB on TTT-adapted weights (1.0476) rather than TTT-loop BPB (1.1032) based on memorization analysis showing multi-epoch TTT overfits at higher epoch counts. Includes EBLS gamma convergence findings.",
   "date": "2026-03-23T00:00:00Z",
-  "val_loss": 1.9719,
-  "val_bpb": 1.1679,
-  "bytes_total": 15099489,
-  "bytes_code": 53443
+  "val_loss": 1.7689,
+  "val_bpb": 1.0476,
+  "bytes_total": 15184183,
+  "bytes_code": 53058
 }

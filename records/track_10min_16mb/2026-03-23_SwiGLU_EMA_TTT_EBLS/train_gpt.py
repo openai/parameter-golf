@@ -96,7 +96,7 @@ class Hyperparameters:
     ema_start_frac = float(os.environ.get("EMA_START_FRAC", 0.4))
 
     # TTT (test-time training with AdamW)
-    ttt_steps = int(os.environ.get("TTT_STEPS", 10))
+    ttt_steps = int(os.environ.get("TTT_STEPS", 3))
     ttt_lr = float(os.environ.get("TTT_LR", 5e-4))
     ttt_wd = float(os.environ.get("TTT_WD", 0.0))
 
@@ -685,99 +685,95 @@ class GPT(nn.Module):
         return self._get_logits(hidden).reshape(bsz, seq_len, -1)
 
 
-# ---- CHANGE 2: AdamW TTT sliding window eval ----
+# ---- CHANGE 2: Sequential TTT eval (score-then-train, batched) ----
 def eval_val_ttt(
     args: Hyperparameters, base_model: nn.Module, rank: int, world_size: int,
     device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
     stride: int, batch_seqs: int = 32,
 ) -> tuple[float, float]:
-    """Sliding window eval with AdamW test-time training on MLP weights.
+    """Sequential TTT: process val tokens left-to-right, score then train.
 
-    Statistical motivation: TTT is posterior adaptation. The pretrained weights
-    are the prior; TTT computes a MAP estimate conditioned on each eval context.
-    AdamW's per-parameter learning rates provide adaptive shrinkage toward the
-    prior — parameters with high gradient variance get less adaptation (more
-    shrinkage), matching the James-Stein principle that shrinkage should be
-    proportional to estimation uncertainty.
+    Per competition rules: "you are only allowed to test-time train on
+    validation set tokens you've already evaluated your model on."
+    Score each chunk first, then train on it. Weights persist across
+    chunks. Batches multiple chunks per forward pass for speed.
     """
     seq_len = args.train_seq_len
     total_tokens = val_tokens.numel() - 1
-    window_starts = [ws for ws in range(0, total_tokens, stride)
-                     if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0]
-    total_windows = len(window_starts)
-    my_s = (total_windows * rank) // world_size
-    my_e = (total_windows * (rank + 1)) // world_size
-    my_windows = window_starts[my_s:my_e]
+    num_chunks = total_tokens // seq_len
+    ttt_batch = int(os.environ.get("TTT_BATCH", 8))
 
+    # Distribute contiguous chunks across ranks
+    my_start = (num_chunks * rank) // world_size
+    my_end = (num_chunks * (rank + 1)) // world_size
+    my_chunks = list(range(my_start, my_end))
+
+    # TTT parameters: all 2D weights EXCEPT embeddings (tok_emb, bigram)
+    ttt_params = [p for n, p in base_model.named_parameters()
+                  if p.requires_grad and p.ndim >= 2
+                  and "tok_emb" not in n and "bigram" not in n]
+    ttt_opt = torch.optim.AdamW(ttt_params, lr=args.ttt_lr,
+                                weight_decay=args.ttt_wd)
+
+    ttt_epochs = max(args.ttt_steps, 1)
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    # Identify TTT-able parameters: all MLP weights
-    ttt_params = [p for n, p in base_model.named_parameters() if ".mlp." in n and p.requires_grad]
-    saved_state = {id(p): p.data.clone() for p in ttt_params}
+    for epoch in range(ttt_epochs):
+        is_last = (epoch == ttt_epochs - 1)
+        if is_last:
+            loss_sum.zero_(); token_count.zero_(); byte_count.zero_()
 
-    # Per-window TTT: adapt on prefix, score suffix, restore. Must be per-window
-    # (not batched) because overlapping windows would leak scored tokens into
-    # neighboring prefixes within the same batch.
-    base_model.eval()
-    for wi, ws in enumerate(my_windows):
-        end = min(ws + seq_len, total_tokens)
-        wlen = end - ws
-        chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
-        x = chunk[:-1].unsqueeze(0)  # (1, wlen)
-        y = chunk[1:].unsqueeze(0)
+        for bi in range(0, len(my_chunks), ttt_batch):
+            batch_indices = my_chunks[bi:bi + ttt_batch]
+            B = len(batch_indices)
+            xs, ys = [], []
+            for chunk_idx in batch_indices:
+                start = chunk_idx * seq_len
+                chunk = val_tokens[start:start + seq_len + 1].to(device=device, dtype=torch.int64)
+                xs.append(chunk[:-1])
+                ys.append(chunk[1:])
+            x = torch.stack(xs)  # (B, seq_len)
+            y = torch.stack(ys)  # (B, seq_len)
 
-        # Pad to seq_len for model compatibility
-        x_pad = torch.zeros(1, seq_len, dtype=torch.int64, device=device)
-        y_pad = torch.zeros(1, seq_len, dtype=torch.int64, device=device)
-        x_pad[0, :wlen] = x[0]
-        y_pad[0, :wlen] = y[0]
-
-        # TTT: adapt MLP weights on this window's prefix
-        if args.ttt_steps > 0:
-            prefix_len = min(seq_len - stride, wlen)
-            base_model.train()
-            ttt_opt = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=args.ttt_wd)
-            for _ in range(args.ttt_steps):
-                ttt_opt.zero_grad()
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    ttt_loss = base_model(x_pad[:, :prefix_len], y_pad[:, :prefix_len])
-                ttt_loss.backward()
-                ttt_opt.step()
+            # STEP 1: Score this batch (no gradients)
             base_model.eval()
+            if is_last:
+                with torch.inference_mode():
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        logits = base_model.forward_logits(x)
+                    nll = F.cross_entropy(
+                        logits.reshape(-1, logits.size(-1)).float(),
+                        y.reshape(-1), reduction="none",
+                    )
+                    loss_sum += nll.to(torch.float64).sum()
+                    token_count += float(B * seq_len)
+                    tgt, prev = y.reshape(-1), x.reshape(-1)
+                    tb = base_bytes_lut[tgt].to(torch.float64)
+                    tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                    byte_count += tb.sum()
 
-        # Score only the unseen suffix tokens
-        with torch.inference_mode():
+            # STEP 2: Train on this batch (already scored)
+            base_model.train()
+            ttt_opt.zero_grad()
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits = base_model.forward_logits(x_pad)
-            nll = F.cross_entropy(
-                logits.reshape(-1, logits.size(-1)).float(),
-                y_pad.reshape(-1), reduction="none",
-            ).reshape(1, seq_len)
-            s = 0 if ws == 0 else max(wlen - stride, 0)
-            scored_nll = nll[0, s:wlen].to(torch.float64)
-            loss_sum += scored_nll.sum()
-            token_count += float(wlen - s)
-            tgt = y_pad[0, s:wlen]
-            prev = x_pad[0, s:wlen]
-            tb = base_bytes_lut[tgt].to(torch.float64)
-            tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-            byte_count += tb.sum()
+                ttt_loss = base_model(x, y)
+            ttt_loss.backward()
+            ttt_opt.step()
 
-        # Restore MLP weights for next window
-        with torch.no_grad():
-            for p in ttt_params:
-                p.data.copy_(saved_state[id(p)])
+            step_num = bi // ttt_batch
+            if rank == 0 and step_num % 100 == 0:
+                pct = min(bi + ttt_batch, len(my_chunks)) / len(my_chunks) * 100
+                rbpb = ""
+                if is_last and token_count.item() > 0:
+                    rl = (loss_sum / token_count).item()
+                    rbpb = f" bpb={rl / math.log(2.0) * (token_count.item() / byte_count.item()):.6f}"
+                print(f"  ttt epoch={epoch+1}/{ttt_epochs} [{pct:5.1f}%] loss={ttt_loss.item():.4f}{rbpb}", flush=True)
 
-        if rank == 0 and wi % 1600 == 0:
-            pct = (wi + 1) / len(my_windows) * 100
-            running_bpb = 0.0
-            if token_count.item() > 0:
-                rl = (loss_sum / token_count).item()
-                running_bpb = rl / math.log(2.0) * (token_count.item() / byte_count.item())
-            print(f"  ttt_eval [{pct:5.1f}%] {wi+1}/{len(my_windows)} windows running_bpb={running_bpb:.6f}", flush=True)
+        if rank == 0:
+            print(f"  ttt epoch={epoch+1}/{ttt_epochs} done", flush=True)
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
@@ -785,10 +781,8 @@ def eval_val_ttt(
         dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
 
     val_loss = (loss_sum / token_count).item()
-    bits_per_token = val_loss / math.log(2.0)
-    tokens_per_byte = token_count.item() / byte_count.item()
     base_model.train()
-    return val_loss, bits_per_token * tokens_per_byte
+    return val_loss, val_loss / math.log(2.0) * (token_count.item() / byte_count.item())
 
 
 # No-TTT sliding window eval (for comparison / faster iteration)
@@ -1135,7 +1129,7 @@ def main() -> None:
     torch.cuda.synchronize()
     t_eval = time.perf_counter()
     if args.ttt_steps > 0 and args.eval_stride > 0:
-        log0(f"final_eval: ttt_sliding stride={args.eval_stride} ttt_steps={args.ttt_steps} ttt_lr={args.ttt_lr}")
+        log0(f"final_eval: sequential_ttt epochs={args.ttt_steps} lr={args.ttt_lr} wd={args.ttt_wd}")
         q_loss, q_bpb = eval_val_ttt(args, base_model, rank, world_size, device, val_tokens,
                                       base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
                                       stride=args.eval_stride, batch_seqs=args.eval_batch_seqs)
@@ -1150,6 +1144,19 @@ def main() -> None:
     torch.cuda.synchronize()
     log0(f"final val_loss:{q_loss:.4f} val_bpb:{q_bpb:.4f} eval_time:{1000.0 * (time.perf_counter() - t_eval):.0f}ms")
     log0(f"final_exact val_loss:{q_loss:.8f} val_bpb:{q_bpb:.8f}")
+
+    # Diagnostic: if TTT was used, also run standard sliding eval on TTT-adapted weights
+    # to check whether improvement persists with standard scoring (memorization test)
+    if args.ttt_steps > 0 and args.eval_stride > 0:
+        log0("diagnostic: running standard sliding eval on TTT-adapted weights")
+        torch.cuda.synchronize()
+        t_diag = time.perf_counter()
+        diag_loss, diag_bpb = eval_val_sliding(args, base_model, rank, world_size, device, val_tokens,
+                                                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                                                stride=args.eval_stride, batch_seqs=args.eval_batch_seqs)
+        torch.cuda.synchronize()
+        log0(f"diagnostic sliding val_loss:{diag_loss:.4f} val_bpb:{diag_bpb:.4f} eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms")
+        log0(f"diagnostic_exact val_loss:{diag_loss:.8f} val_bpb:{diag_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
