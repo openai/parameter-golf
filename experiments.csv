@@ -84,4 +84,6 @@ pr414_int5mlp_bigram6144_s1337,600,14038723,,70190,8,89483,1.1466,2a89149,"int5 
 8xh100_entropy_amort_s1337,600,16338810,,96706,8,180900,1.1259,fed9908,"Amortized entropy reg: 1.1259 same as baseline but 16.3MB larger"
 8xh100_stefix_bigram3072_s1337,600,16453199,,96780,8,180961,1.1260,93eb7c9,"STE symmetric fix: 1.1260, 16.5MB OVER (code 97KB from novel features)"
 8xh100_clean_bigram2048_s1337,600,16022372,,96780,8,180950,1.1265,93eb7c9,"Clean bigram2048: 1.1265, 16.02MB — 22KB over. Strip unused code for submission"
-8xh100_noswa_s1337,600,16499128,,96780,8,180704,1.1297,93eb7c9,"No SWA (EMA only): 1.1297 WORSE. SWA helps our code (unlike PR#414 which uses EMA only)"
+8xh100_noswa_s1337,600,16499128,,96780,8,180704,1.1297,93eb7c9,"No SWA (EMA only): 1.1297 WORSE. SWA helps our code"
+8xh100_stripped_bigram3072_s1337,600,16464837,,74094,8,181020,1.1259,bfb652a,"Stripped code+bigram3072: 1.1259 but 16.5MB OVER (model compression varies)"
+8xh100_softquant_s1337,600,15820614,,74725,8,180852,1.1325,5ad4f70,"Soft quantizer: 15.8MB (great!). BPP 1.1325 worse — sigmoid adds 14% overhead = 700 fewer steps"
