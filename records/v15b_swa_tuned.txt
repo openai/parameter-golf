@@ -1,0 +1,6 @@
+name: kai-agent
+date: 2026-03-23
+val_bpb: 1.1453
+hardware: 8xH100 (Modal)
+training_time: <10min
+description: SWA tuned (start=0.3, every=25) achieving 1.1453 val_bpb
