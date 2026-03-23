@@ -1,0 +1,6 @@
+chore(v5.9): prepare draft PR launch packet + portability hardening
+
+- harden V5.9 launch packet path/root resolution without changing thresholds or decisions
+- normalize V5.9 docs to repo-relative command/path references
+- add PR packet docs (scope, evidence audit, review and post-run checklists)
+- keep no-score-claim status explicit pending paid T0/T1 validation

@@ -1,0 +1,107 @@
+{
+  "packet_version": "v5.9",
+  "record_id": "2026-03-23_mike_record_pass_v5_9",
+  "description": "Runpod-ready launch packet: single T0, export sweep, deterministic decision step, conditional T1, optional donor.",
+  "paths": {
+    "repo_root": "${REPO_ROOT}",
+    "record_dir": "${RECORD_DIR}",
+    "analysis_dir": "${REPO_ROOT}/analysis/record_pass_v5_9",
+    "train_script": "${RECORD_DIR}/train_gpt.py",
+    "optimizer_script": "${RECORD_DIR}/post_train_export_optimizer.py",
+    "export_wrapper_script": "${RECORD_DIR}/export_launchcheck_wrapper.py",
+    "serializer_autochooser_script": "${RECORD_DIR}/serializer_autochooser.py",
+    "base_policy_json": "${REPO_ROOT}/analysis/record_pass_v5_2/precision_overrides/refined_budget_plus_20000.json",
+    "donor_policy_json": "${REPO_ROOT}/analysis/record_pass_v5_3/precision_overrides/bundle_attack.json",
+    "promotion_ranking_csv": "${REPO_ROOT}/analysis/record_pass_v5_4/micro_promotion_ranking_v2.csv",
+    "data_path": "${REPO_ROOT}/data/datasets/fineweb10B_sp1024",
+    "localbench_data": "${REPO_ROOT}/data/datasets/fineweb10B_sp1024_localbench_v1",
+    "tokenizer_path": "${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model",
+    "output_root": "${RECORD_DIR}/fullrun_outputs"
+  },
+  "hardware_expectations": {
+    "expected_cuda_devices": 8,
+    "minimum_cuda_devices": 1,
+    "minimum_free_disk_gb": 40,
+    "python_min_major": 3,
+    "python_min_minor": 10
+  },
+  "training": {
+    "run_ids": {
+      "t0": "v5_9_t0",
+      "t1": "v5_9_t1_seed1337",
+      "donor": "v5_9_donor_optional"
+    },
+    "common_env": {
+      "ALLOW_CPU_FALLBACK": "0",
+      "TORCH_COMPILE": "1",
+      "ITERATIONS": "20000",
+      "WARMUP_STEPS": "20",
+      "TRAIN_BATCH_TOKENS": "786432",
+      "TRAIN_SEQ_LEN": "2048",
+      "NUM_LAYERS": "10",
+      "MODEL_DIM": "512",
+      "NUM_HEADS": "8",
+      "NUM_KV_HEADS": "4",
+      "MLP_MULT": "3.0",
+      "VAL_LOSS_EVERY": "500",
+      "TRAIN_LOG_EVERY": "100",
+      "MAX_WALLCLOCK_SECONDS": "600",
+      "EVAL_STRIDE": "64",
+      "EVAL_BATCH_SEQS": "32",
+      "EVAL_MAX_WINDOWS": "0",
+      "PRUNE_MIN_NUMEL": "65536",
+      "ALLOW_FP16_COLLAPSE": "0",
+      "PRECISION_POLICY": "layerwise_schedule",
+      "LAYERWISE_MLP_EARLY_FRAC": "0.45",
+      "LAYERWISE_MLP_MID_FRAC": "0.35",
+      "LAYERWISE_LAST_ATTN_CK_FP16_COUNT": "1",
+      "LAYERWISE_LAST_ATTN_CQ_FP16_COUNT": "0",
+      "LAYERWISE_EMBED_FP16": "1",
+      "FP16_KEEP_NAME_PATTERNS": "tok_emb",
+      "SWA_MODE": "blend",
+      "SWA_BLEND_ALPHA": "0.70",
+      "SERIALIZER_VARIANT": "legacy",
+      "SCALE_STORAGE_MODE": "row_fp16",
+      "MODEL_COMPRESSOR": "zstd",
+      "MODEL_COMPRESSOR_LEVEL": "22",
+      "BIGRAM_MODE": "single_hash",
+      "BIGRAM_VOCAB_SIZE": "10240",
+      "BIGRAM_DIM": "128",
+      "BIGRAM_VOCAB_SIZE_B": "0",
+      "BIGRAM_DIM_B": "0",
+      "BIGRAM_DUAL_COMBINE": "concat",
+      "TAIL_QAT_ENABLED": "0"
+    },
+    "seeds": {
+      "t0": 42,
+      "t1": 1337,
+      "donor": 2024
+    }
+  },
+  "export": {
+    "budgets": [0, 4096, 8192, 12288],
+    "donor_budgets": [0, 4096, 8192],
+    "core_budgets": [0, 4096],
+    "larger_budgets": [8192, 12288],
+    "allow_promotion_groups": "mlp_int5_to_int6",
+    "eval_roundtrip": true,
+    "train_seq_len": 128,
+    "eval_stride": 64,
+    "eval_batch_seqs": 4,
+    "eval_max_windows": 24,
+    "target_cap_total_bytes_min": 15930000,
+    "target_cap_total_bytes_max": 15960000
+  },
+  "decision_thresholds": {
+    "noise_floor_bpb": 0.000007850897,
+    "ref_best_bpb": 3.734376345615,
+    "success_cutoff_bpb": 3.734384196512,
+    "t1_trigger_cutoff_bpb": 3.734392047409
+  },
+  "donor_gate": {
+    "quality_margin_bpb": -0.000012,
+    "required_reruns": 2,
+    "max_bytes_delta": 8192,
+    "require_no_broad_qat": true
+  }
+}
