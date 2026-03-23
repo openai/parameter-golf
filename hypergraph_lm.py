@@ -146,8 +146,8 @@ class HypergraphPatternStore:
 
     def scan_tokens_fast(self, tokens: np.ndarray):
         """
-        Optimized scan using numpy operations for bigrams.
-        Falls back to loop for trigrams/5-grams but only on frequent patterns.
+        Optimized scan using np.unique for all n-gram levels.
+        Avoids Counter(.tolist()) which is the main bottleneck.
 
         Args:
             tokens: 1D uint16 array of token ids
@@ -156,49 +156,75 @@ class HypergraphPatternStore:
         if n < 2:
             return
 
+        vs = self.vocab_size
+
         # Token frequencies — vectorized
-        counts = np.bincount(tokens.astype(np.int32), minlength=self.vocab_size)
-        self.token_freq[:len(counts)] += counts[:self.vocab_size]
+        counts = np.bincount(tokens.astype(np.int32), minlength=vs)
+        self.token_freq[:min(len(counts), vs)] += counts[:vs]
         self.total_tokens += n
 
-        # Bigrams — vectorized pair counting
-        prev_tokens = tokens[:-1].astype(np.int32)
-        next_tokens = tokens[1:].astype(np.int32)
-        # Pack pairs into single int for fast counting
-        pair_keys = prev_tokens * self.vocab_size + next_tokens
-        pair_counts = Counter(pair_keys.tolist())
-        for key, count in pair_counts.items():
-            prev = key // self.vocab_size
-            nxt = key % self.vocab_size
+        # Bigrams — np.unique instead of Counter
+        prev_tokens = tokens[:-1].astype(np.int64)
+        next_tokens = tokens[1:].astype(np.int64)
+        pair_keys = prev_tokens * vs + next_tokens
+        uniq, cnts = np.unique(pair_keys, return_counts=True)
+        for i in range(len(uniq)):
+            key = int(uniq[i])
+            count = int(cnts[i])
+            prev, nxt = divmod(key, vs)
             self._bigram_counts[prev][nxt] += count
             self._bigram_totals[prev] += count
 
-        # Trigrams — vectorized triple counting
+        # Trigrams — np.unique, skip singletons
         if n >= 3:
             t0 = tokens[:-2].astype(np.int64)
             t1 = tokens[1:-1].astype(np.int64)
             t2 = tokens[2:].astype(np.int64)
-            tri_keys = t0 * (self.vocab_size ** 2) + t1 * self.vocab_size + t2
-            tri_counts = Counter(tri_keys.tolist())
-            for key, count in tri_counts.items():
-                t2_val = key % self.vocab_size
-                remainder = key // self.vocab_size
-                t1_val = remainder % self.vocab_size
-                t0_val = remainder // self.vocab_size
-                ctx = (int(t0_val), int(t1_val))
-                self._trigram_counts[ctx][int(t2_val)] += count
-                self._trigram_totals[ctx] += count
+            tri_keys = (t0 * vs + t1) * vs + t2
+            uniq, cnts = np.unique(tri_keys, return_counts=True)
+            # Only store patterns that appear 2+ times (singletons get pruned anyway)
+            mask = cnts >= 2
+            uniq, cnts = uniq[mask], cnts[mask]
+            for i in range(len(uniq)):
+                key = int(uniq[i])
+                count = int(cnts[i])
+                t2v = key % vs
+                rem = key // vs
+                t1v = rem % vs
+                t0v = rem // vs
+                self._trigram_counts[(t0v, t1v)][t2v] += count
+                self._trigram_totals[(t0v, t1v)] += count
 
-        # 5-grams — only count if enough tokens, sample if too large
+        # 5-grams — np.unique with subsampling, skip singletons
         if n >= 5:
-            # For 5-grams, use loop but it's fine — we'll prune aggressively
-            step = max(1, n // 2_000_000)  # subsample for very large shards
-            for i in range(0, n - 4, step):
-                ctx = (int(tokens[i]), int(tokens[i + 1]),
-                       int(tokens[i + 2]), int(tokens[i + 3]))
-                nxt = int(tokens[i + 4])
-                self._fivegram_counts[ctx][nxt] += step  # scale by step
-                self._fivegram_totals[ctx] += step
+            f0 = tokens[:-4].astype(np.int64)
+            f1 = tokens[1:-3].astype(np.int64)
+            f2 = tokens[2:-2].astype(np.int64)
+            f3 = tokens[3:-1].astype(np.int64)
+            f4 = tokens[4:].astype(np.int64)
+            max_five = 2_000_000
+            if len(f0) > max_five:
+                step = len(f0) // max_five
+                idx = np.arange(0, len(f0), step)
+                f0, f1, f2, f3, f4 = f0[idx], f1[idx], f2[idx], f3[idx], f4[idx]
+                scale = step
+            else:
+                scale = 1
+            ctx_keys = ((f0 * vs + f1) * vs + f2) * vs + f3
+            five_keys = ctx_keys * vs + f4
+            uniq, cnts = np.unique(five_keys, return_counts=True)
+            mask = cnts >= 2
+            uniq, cnts = uniq[mask], cnts[mask]
+            for i in range(len(uniq)):
+                key = int(uniq[i])
+                count = int(cnts[i]) * scale
+                nxt = key % vs; ck = key // vs
+                c3 = ck % vs; ck //= vs
+                c2 = ck % vs; ck //= vs
+                c1 = ck % vs; c0 = ck // vs
+                ctx = (c0, c1, c2, c3)
+                self._fivegram_counts[ctx][nxt] += count
+                self._fivegram_totals[ctx] += count
 
     # -------------------------------------------------------------------
     # Binding energy computation

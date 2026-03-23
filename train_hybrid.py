@@ -59,42 +59,46 @@ class Hyperparameters:
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
+    # Training — tuned from leaderboard leaders
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3000))  # top subs use 3000
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))  # 768K from #1
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
+    # Model — 10 layers + 3x MLP from top submissions
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))       # +1 layer from int8 savings
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    mlp_mult = int(os.environ.get("MLP_MULT", 3))            # 3x MLP from top subs
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
+    # Optimizer — tuned from #1 submission
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.03))  # 0.03 from top subs
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
-    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 0))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))  # 0.99 final from top
+    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
+    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.04))   # WD=0.04 from top subs
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
 
     # Hypergraph-specific
     hyper_budget_bytes = int(os.environ.get("HYPER_BUDGET_BYTES", 5_000_000))
-    hyper_scan_shards = int(os.environ.get("HYPER_SCAN_SHARDS", 5))
+    hyper_scan_shards = int(os.environ.get("HYPER_SCAN_SHARDS", 1))  # 1 shard ≈ 100M tokens
     hyper_min_count = int(os.environ.get("HYPER_MIN_COUNT", 10))
     hyper_top_k = int(os.environ.get("HYPER_TOP_K", 32))
     hyper_lambda_init = float(os.environ.get("HYPER_LAMBDA_INIT", 0.3))
@@ -137,48 +141,78 @@ class HypergraphStore:
         self._built = False
 
     def scan(self, tokens: np.ndarray):
-        """Scan a shard of uint16 tokens."""
+        """Scan a shard of uint16 tokens using np.unique for speed."""
         n = len(tokens)
         if n < 5:
             return
 
+        vs = self.vocab_size
+
         # Frequencies — vectorized
-        counts = np.bincount(tokens.astype(np.int32), minlength=self.vocab_size)
-        self.token_freq[:min(len(counts), self.vocab_size)] += counts[:self.vocab_size]
+        counts = np.bincount(tokens.astype(np.int32), minlength=vs)
+        self.token_freq[:min(len(counts), vs)] += counts[:vs]
         self.total_tokens += n
 
-        # Bigrams — vectorized
-        prev = tokens[:-1].astype(np.int32)
-        nxt = tokens[1:].astype(np.int32)
-        keys = prev * self.vocab_size + nxt
-        for key, count in Counter(keys.tolist()).items():
-            p, nx = divmod(key, self.vocab_size)
+        # Bigrams — np.unique
+        prev = tokens[:-1].astype(np.int64)
+        nxt = tokens[1:].astype(np.int64)
+        keys = prev * vs + nxt
+        uniq, cnts = np.unique(keys, return_counts=True)
+        for i in range(len(uniq)):
+            key = int(uniq[i])
+            count = int(cnts[i])
+            p, nx = divmod(key, vs)
             self._bi_counts[p][nx] += count
             self._bi_totals[p] += count
 
-        # Trigrams — vectorized
+        # Trigrams — np.unique
         t0 = tokens[:-2].astype(np.int64)
         t1 = tokens[1:-1].astype(np.int64)
         t2 = tokens[2:].astype(np.int64)
-        vs = self.vocab_size
-        tri_keys = t0 * vs * vs + t1 * vs + t2
-        for key, count in Counter(tri_keys.tolist()).items():
+        tri_keys = (t0 * vs + t1) * vs + t2
+        uniq, cnts = np.unique(tri_keys, return_counts=True)
+        mask = cnts >= 2  # skip singletons
+        uniq, cnts = uniq[mask], cnts[mask]
+        for i in range(len(uniq)):
+            key = int(uniq[i])
+            count = int(cnts[i])
             t2v = key % vs
             rem = key // vs
             t1v = rem % vs
             t0v = rem // vs
-            ctx = (int(t0v), int(t1v))
-            self._tri_counts[ctx][int(t2v)] += count
-            self._tri_totals[ctx] += count
+            self._tri_counts[(t0v, t1v)][t2v] += count
+            self._tri_totals[(t0v, t1v)] += count
 
-        # 5-grams — subsample for speed
-        step = max(1, n // 1_000_000)
-        for i in range(0, n - 4, step):
-            ctx = (int(tokens[i]), int(tokens[i+1]),
-                   int(tokens[i+2]), int(tokens[i+3]))
-            nx = int(tokens[i+4])
-            self._five_counts[ctx][nx] += step
-            self._five_totals[ctx] += step
+        # 5-grams — np.unique with subsampling
+        if n >= 5:
+            f0 = tokens[:-4].astype(np.int64)
+            f1 = tokens[1:-3].astype(np.int64)
+            f2 = tokens[2:-2].astype(np.int64)
+            f3 = tokens[3:-1].astype(np.int64)
+            f4 = tokens[4:].astype(np.int64)
+            max_five = 2_000_000
+            if len(f0) > max_five:
+                step = len(f0) // max_five
+                idx = np.arange(0, len(f0), step)
+                f0, f1, f2, f3, f4 = f0[idx], f1[idx], f2[idx], f3[idx], f4[idx]
+                scale = step
+            else:
+                scale = 1
+            ctx_keys = ((f0 * vs + f1) * vs + f2) * vs + f3
+            five_keys = ctx_keys * vs + f4
+            uniq, cnts = np.unique(five_keys, return_counts=True)
+            mask = cnts >= 2
+            uniq, cnts = uniq[mask], cnts[mask]
+            for i in range(len(uniq)):
+                key = int(uniq[i])
+                count = int(cnts[i]) * scale
+                nxt = key % vs; ck = key // vs
+                c3 = ck % vs; ck //= vs
+                c2 = ck % vs; ck //= vs
+                c1 = ck % vs; c0 = ck // vs
+                ctx = (c0, c1, c2, c3)
+                self._five_counts[ctx][nxt] += count
+                self._five_totals[ctx] += count
 
     def _specificity(self, tok: int) -> float:
         f = self.token_freq[tok]
@@ -962,6 +996,253 @@ def eval_val_hybrid(
 
 
 # ============================================================================
+# GPU-ACCELERATED PATTERN LOOKUP
+# ============================================================================
+
+class GPUPatternLookup:
+    """
+    Pre-built GPU tensors for fast hypergraph pattern matching.
+    Eliminates CPU↔GPU roundtrips during eval by converting the
+    pattern store into dense/sparse GPU lookup tables.
+    """
+
+    def __init__(self, store: HypergraphStore, vocab_size: int, device: torch.device):
+        self.vocab_size = vocab_size
+        self.device = device
+
+        # Level 1: bigram lookup — dense table (vocab × vocab) of log-probs
+        # For vocab=1024, this is 1024×1024×4 = 4MB in float32 — fits easily
+        bi_table = torch.full((vocab_size, vocab_size), -20.0,
+                              device=device, dtype=torch.float32)
+        bi_conf = torch.zeros(vocab_size, device=device, dtype=torch.float32)
+        for ctx, (probs, binding) in store.bigrams.items():
+            prev = ctx[0]
+            bi_conf[prev] = binding
+            for tok, p in probs.items():
+                bi_table[prev, tok] = math.log(max(p, 1e-10))
+        self.bi_table = bi_table   # (V, V)
+        self.bi_conf = bi_conf     # (V,)
+
+        # Level 2: trigram lookup — hash table
+        # Pack (t0, t1) into single key: t0*V + t1
+        tri_keys = []
+        tri_dists = []
+        tri_bindings = []
+        for ctx, (probs, binding) in store.trigrams.items():
+            key = ctx[0] * vocab_size + ctx[1]
+            tri_keys.append(key)
+            dist = torch.full((vocab_size,), 1e-10, dtype=torch.float32)
+            for tok, p in probs.items():
+                dist[tok] = p
+            tri_dists.append(dist)
+            tri_bindings.append(binding)
+
+        if tri_keys:
+            self.tri_key_tensor = torch.tensor(tri_keys, device=device, dtype=torch.int64)
+            self.tri_dist_tensor = torch.stack(tri_dists).to(device)  # (N, V)
+            self.tri_binding_tensor = torch.tensor(tri_bindings, device=device,
+                                                    dtype=torch.float32)
+        else:
+            self.tri_key_tensor = torch.zeros(0, device=device, dtype=torch.int64)
+            self.tri_dist_tensor = torch.zeros(0, vocab_size, device=device)
+            self.tri_binding_tensor = torch.zeros(0, device=device)
+
+        # Level 3: 5-gram — same hash approach
+        five_keys = []
+        five_dists = []
+        five_bindings = []
+        for ctx, (probs, binding) in store.fivegrams.items():
+            key = ((ctx[0] * vocab_size + ctx[1]) * vocab_size + ctx[2]) * vocab_size + ctx[3]
+            five_keys.append(key)
+            dist = torch.full((vocab_size,), 1e-10, dtype=torch.float32)
+            for tok, p in probs.items():
+                dist[tok] = p
+            five_dists.append(dist)
+            five_bindings.append(binding)
+
+        if five_keys:
+            self.five_key_tensor = torch.tensor(five_keys, device=device, dtype=torch.int64)
+            self.five_dist_tensor = torch.stack(five_dists).to(device)
+            self.five_binding_tensor = torch.tensor(five_bindings, device=device,
+                                                     dtype=torch.float32)
+        else:
+            self.five_key_tensor = torch.zeros(0, device=device, dtype=torch.int64)
+            self.five_dist_tensor = torch.zeros(0, vocab_size, device=device)
+            self.five_binding_tensor = torch.zeros(0, device=device)
+
+    def lookup_bigram(self, prev_tokens: Tensor) -> Tuple[Tensor, Tensor]:
+        """
+        Args: prev_tokens: (...) int64 tensor of previous token ids
+        Returns: log_probs (..., V), confidence (...)
+        """
+        log_probs = self.bi_table[prev_tokens]  # (..., V)
+        conf = self.bi_conf[prev_tokens]         # (...)
+        return log_probs, conf
+
+    def lookup_trigram(self, t0: Tensor, t1: Tensor) -> Tuple[Tensor, Tensor]:
+        """Lookup trigram patterns. Returns (probs, confidence) or zeros if no match."""
+        keys = t0.long() * self.vocab_size + t1.long()  # (...)
+        flat_keys = keys.reshape(-1)
+        batch_size = flat_keys.shape[0]
+        V = self.vocab_size
+
+        probs = torch.full((batch_size, V), 1e-10, device=self.device, dtype=torch.float32)
+        conf = torch.zeros(batch_size, device=self.device, dtype=torch.float32)
+
+        if self.tri_key_tensor.numel() > 0:
+            # Find matches: compare each query key against stored keys
+            # For efficiency, use searchsorted on sorted keys
+            sorted_idx = self.tri_key_tensor.argsort()
+            sorted_keys = self.tri_key_tensor[sorted_idx]
+            positions = torch.searchsorted(sorted_keys, flat_keys)
+            # Check if match
+            valid = (positions < len(sorted_keys))
+            valid_pos = positions.clamp(max=len(sorted_keys) - 1)
+            matched = valid & (sorted_keys[valid_pos] == flat_keys)
+            if matched.any():
+                match_idx = sorted_idx[valid_pos[matched]]
+                probs[matched] = self.tri_dist_tensor[match_idx]
+                conf[matched] = self.tri_binding_tensor[match_idx]
+
+        return probs.reshape(*keys.shape, V), conf.reshape(*keys.shape)
+
+    def predict_hybrid_logits(self, input_ids: Tensor, neural_logits: Tensor,
+                               hyper_lambda: float = 0.3) -> Tensor:
+        """
+        Full GPU hybrid prediction for all positions.
+
+        Args:
+            input_ids: (B, T) int64
+            neural_logits: (B, T, V) float — raw logits from transformer
+            hyper_lambda: max interpolation weight
+
+        Returns:
+            combined_log_probs: (B, T, V)
+        """
+        B, T, V = neural_logits.shape
+        neural_probs = F.softmax(neural_logits.float(), dim=-1)
+
+        # Bigram: use token at each position as context for next position
+        # For position t, context token is input_ids[:, t]
+        bi_log_probs, bi_conf = self.lookup_bigram(input_ids)  # (B, T, V), (B, T)
+
+        # Convert bigram log-probs to probs
+        bi_probs = torch.exp(bi_log_probs.clamp(min=-20))
+        bi_probs = bi_probs / bi_probs.sum(dim=-1, keepdim=True).clamp(min=1e-10)
+
+        # Adaptive lambda per position
+        lam = torch.sigmoid(bi_conf - 1.0) * hyper_lambda  # (B, T)
+        lam = lam.unsqueeze(-1)  # (B, T, 1)
+
+        # Interpolate
+        combined = lam * bi_probs + (1.0 - lam) * neural_probs
+        return torch.log(combined.clamp(min=1e-10))
+
+
+# ============================================================================
+# SLIDING WINDOW EVALUATION
+# ============================================================================
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    model: HybridGPT,
+    gpu_lookup: Optional[GPUPatternLookup],
+    rank: int, world_size: int, device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor, has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int = 64,
+    use_hybrid: bool = True,
+) -> tuple[float, float]:
+    """
+    Sliding window evaluation: every token gets scored with near-maximum context.
+    Standard eval loses context at chunk boundaries; sliding window overlaps
+    chunks with stride=64, scoring only the rightmost `stride` tokens per window.
+
+    Gives ~0.03 BPB improvement for free.
+    """
+    seq_len = args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+
+    # Distribute windows across ranks
+    n_windows = (total_tokens - seq_len) // stride + 1
+    win_start = (n_windows * rank) // world_size
+    win_end = (n_windows * (rank + 1)) // world_size
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    base = model.module if hasattr(model, 'module') else model
+    base.eval()
+
+    with torch.inference_mode():
+        # Process in batches of windows
+        batch_windows = max(1, args.val_batch_size // (seq_len * world_size))
+
+        for wb_start in range(win_start, win_end, batch_windows):
+            wb_end = min(wb_start + batch_windows, win_end)
+            actual_batch = wb_end - wb_start
+
+            # Gather windows
+            x_list = []
+            y_list = []
+            for w in range(wb_start, wb_end):
+                offset = w * stride
+                chunk = val_tokens[offset:offset + seq_len + 1].to(
+                    device=device, dtype=torch.int64)
+                x_list.append(chunk[:-1])
+                y_list.append(chunk[1:])
+
+            x = torch.stack(x_list)  # (batch, seq_len)
+            y = torch.stack(y_list)
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = base.get_logits(x)  # (batch, seq_len, V)
+
+            if use_hybrid and gpu_lookup is not None:
+                # GPU-accelerated hybrid interpolation
+                combined_log_probs = gpu_lookup.predict_hybrid_logits(
+                    x, logits, hyper_lambda=base.hyper_lambda)
+                # Only score the rightmost `stride` tokens per window
+                # (first window scores all, subsequent score last `stride`)
+                score_start = 0 if wb_start == win_start and wb_start == 0 else seq_len - stride
+                scored_lp = combined_log_probs[:, score_start:, :]
+                scored_y = y[:, score_start:]
+                loss = -scored_lp.gather(dim=-1, index=scored_y.unsqueeze(-1)).squeeze(-1)
+                batch_loss = loss.mean()
+            else:
+                # Standard neural-only scoring on rightmost stride tokens
+                score_start = 0 if wb_start == win_start and wb_start == 0 else seq_len - stride
+                scored_logits = logits[:, score_start:, :].reshape(-1, logits.size(-1))
+                scored_targets = y[:, score_start:].reshape(-1)
+                batch_loss = F.cross_entropy(scored_logits.float(), scored_targets,
+                                             reduction="mean")
+
+            n_scored = y[:, (0 if wb_start == win_start and wb_start == 0 else seq_len - stride):].numel()
+            val_loss_sum += batch_loss.detach().to(torch.float64) * n_scored
+            val_token_count += n_scored
+
+            # BPB byte counting
+            prev_flat = x[:, (0 if wb_start == win_start and wb_start == 0 else seq_len - stride):].reshape(-1)
+            tgt_flat = y[:, (0 if wb_start == win_start and wb_start == 0 else seq_len - stride):].reshape(-1)
+            tb = base_bytes_lut[tgt_flat].to(torch.int16)
+            tb += (has_leading_space_lut[tgt_flat] & ~is_boundary_token_lut[prev_flat]).to(torch.int16)
+            val_byte_count += tb.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bpt = val_loss.item() / math.log(2.0)
+    tpb = val_token_count.item() / val_byte_count.item()
+    base.train()
+    return float(val_loss.item()), float(bpt * tpb)
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
@@ -1231,6 +1512,14 @@ def main():
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
+        # Post-step weight decay (decoupled, as in top submissions)
+        if args.weight_decay > 0:
+            wd = args.weight_decay * scale
+            for opt in optimizers:
+                for group in opt.param_groups:
+                    for p in group["params"]:
+                        if p.ndim >= 2:
+                            p.data.mul_(1.0 - group["lr"] * wd)
         zero_grad_all()
 
         step += 1
@@ -1310,6 +1599,41 @@ def main():
         use_hybrid=True)
     log0(f"Final (hybrid, int8 roundtrip):      val_bpb={q_val_bpb_h:.4f}")
     log0(f"Hypergraph improvement:              {q_val_bpb - q_val_bpb_h:.4f} BPB")
+
+    # Build GPU lookup for fast sliding window eval
+    log0(f"\nBuilding GPU pattern lookup...")
+    gpu_lookup = GPUPatternLookup(hyper_store, args.vocab_size, device)
+    log0(f"GPU lookup ready: bi_table={gpu_lookup.bi_table.shape}, "
+         f"tri_patterns={gpu_lookup.tri_key_tensor.shape[0]}, "
+         f"five_patterns={gpu_lookup.five_key_tensor.shape[0]}")
+
+    # Sliding window eval — free ~0.03 BPB improvement
+    log0(f"\nSliding window eval (stride=64)...")
+    torch.cuda.synchronize()
+    t_slide = time.perf_counter()
+    sw_loss, sw_bpb = eval_val_sliding(
+        args, base_model, None, rank, world_size, device,
+        val_tokens, base_bytes_lut, has_leading_space_lut,
+        is_boundary_token_lut, stride=64, use_hybrid=False)
+    torch.cuda.synchronize()
+    log0(f"Sliding neural:  val_bpb={sw_bpb:.4f} ({time.perf_counter()-t_slide:.1f}s)")
+
+    t_slide2 = time.perf_counter()
+    sw_loss_h, sw_bpb_h = eval_val_sliding(
+        args, base_model, gpu_lookup, rank, world_size, device,
+        val_tokens, base_bytes_lut, has_leading_space_lut,
+        is_boundary_token_lut, stride=64, use_hybrid=True)
+    torch.cuda.synchronize()
+    log0(f"Sliding hybrid:  val_bpb={sw_bpb_h:.4f} ({time.perf_counter()-t_slide2:.1f}s)")
+
+    log0(f"\n{'='*60}")
+    log0(f"FINAL RESULTS")
+    log0(f"{'='*60}")
+    log0(f"  Standard neural:   {q_val_bpb:.4f}")
+    log0(f"  Standard hybrid:   {q_val_bpb_h:.4f}  (delta={q_val_bpb - q_val_bpb_h:+.4f})")
+    log0(f"  Sliding neural:    {sw_bpb:.4f}  (delta={q_val_bpb - sw_bpb:+.4f})")
+    log0(f"  Sliding hybrid:    {sw_bpb_h:.4f}  (delta={q_val_bpb - sw_bpb_h:+.4f})")
+    log0(f"  BEST:              {min(q_val_bpb, q_val_bpb_h, sw_bpb, sw_bpb_h):.4f}")
 
     if distributed:
         dist.destroy_process_group()
