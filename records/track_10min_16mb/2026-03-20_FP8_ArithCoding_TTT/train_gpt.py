@@ -107,7 +107,8 @@ class Hyperparameters:
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 2048))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
-    ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
+    ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.001))
+    ttt_lr_min = float(os.environ.get("TTT_LR_MIN", 1e-5))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -624,7 +625,7 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = F.leaky_relu(self.fc(x), negative_slope=0.5)
         return self.proj(x.square())
 
 
@@ -668,7 +669,7 @@ class BigramHashEmbedding(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float, layer_idx: int = 0):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
@@ -677,13 +678,14 @@ class Block(nn.Module):
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        self.resid_scale = 1.0 / math.sqrt(layer_idx + 1)
 
     def forward(self, x: Tensor, x0: Tensor, q_lora=None, v_lora=None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x), q_lora=q_lora, v_lora=v_lora)
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.resid_scale * self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        x = x + self.resid_scale * self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
 
@@ -719,8 +721,8 @@ class GPT(nn.Module):
         self.smear = SmearGate(model_dim)
         self.blocks = nn.ModuleList(
             [
-                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
-                for _ in range(num_layers)
+                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, layer_idx=i)
+                for i in range(num_layers)
             ]
         )
         self.final_norm = RMSNorm()
@@ -1308,6 +1310,11 @@ def eval_val_ttt_lora(
         pred_lens = [doc_len - 1 for _, doc_len in batch]
         num_chunks = [(pl + chunk_size - 1) // chunk_size for pl in pred_lens]
         max_nc = max(num_chunks)
+        for group in cur_opt.param_groups:
+            group['lr'] = args.ttt_lora_lr
+        train_steps = max(max_nc - 1, 1)
+        cur_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+            cur_opt, T_max=train_steps, eta_min=args.ttt_lr_min)
 
         for ci in range(max_nc):
             chunk_stats = _compute_chunk_window(ci, (ci + 1) * chunk_size, ci + 1, chunk_size, eval_seq_len)
@@ -1354,6 +1361,7 @@ def eval_val_ttt_lora(
                 cur_opt.zero_grad()
                 (per_doc * mask).sum().backward()
                 cur_opt.step()
+                cur_sched.step()
 
         if rank == 0 and (bi // batch_size) % 20 == 0:
             done = min(bi + batch_size, len(rank_docs))
