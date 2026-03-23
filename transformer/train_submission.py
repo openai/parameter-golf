@@ -93,7 +93,7 @@ class Hyperparameters:
     # Backward-looking LoRA TTT during eval (per-doc mode)
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
@@ -916,7 +916,7 @@ def eval_val_sliding_ttt(
         log_fn(f"ttt_sliding:params unfrozen={sum(p.numel() for p in ttt_params)} "
                f"frozen={sum(p.numel() for p in base_model.parameters() if not p.requires_grad)}")
 
-    optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0, betas=(0.9, 0.95))
+    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
     t0 = time.perf_counter()
 
     for ci in range(num_chunks):
