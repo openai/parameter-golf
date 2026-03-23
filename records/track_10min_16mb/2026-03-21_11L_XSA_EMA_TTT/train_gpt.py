@@ -171,6 +171,7 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 0))  # 0 = full RoPE; >0 = apply RoPE to only first N dims per head
     ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))  # scale block output by 1/sqrt(layer_idx+1)
     unet_skips = bool(int(os.environ.get("UNET_SKIPS", "0")))  # U-Net style skip connections
+    sigmoid_skip_gates = bool(int(os.environ.get("SIGMOID_SKIP_GATES", "1")))  # sigmoid-gated skip blend (PR #505)
     prune_pct = float(os.environ.get("PRUNE_PCT", 0.0))  # magnitude pruning: zero smallest N% of weights before compression
     gptq_lite = bool(int(os.environ.get("GPTQ_LITE", "1")))  # per-row optimal clip search at quantization (default ON, zero training cost)
     reptile_enabled = bool(int(os.environ.get("REPTILE_TTT", "0")))  # Reptile meta-TTT before standard TTT
@@ -189,6 +190,7 @@ class Hyperparameters:
     perlayer_train_lr = bool(int(os.environ.get("PERLAYER_TRAIN_LR", "1")))
     proj_lr_mult = float(os.environ.get("PROJ_LR_MULT", "1.5"))   # multiplier for mlp.proj (high quant damage)
     fc_lr_mult = float(os.environ.get("FC_LR_MULT", "0.7"))       # multiplier for mlp.fc (low quant damage)
+    decoder_lr_mult = float(os.environ.get("DECODER_LR_MULT", "2.0"))  # decoder layers get higher lr (PR #505)
     neural_cache = bool(int(os.environ.get("NEURAL_CACHE", "0")))  # cross-window KV caching at eval time
     neural_cache_max_len = int(os.environ.get("NEURAL_CACHE_MAX_LEN", 8192))  # max cached KV length per layer
     neural_cache_no_pos_offset = bool(int(os.environ.get("NEURAL_CACHE_NO_POS_OFFSET", "0")))  # keep pos_offset=0 to avoid OOD positions
@@ -413,7 +415,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,skip_gates",
     ).split(",")
     if pattern
 )
@@ -1187,6 +1189,7 @@ class GPT(nn.Module):
         value_residual: bool = False,
         gated_attention: bool = False,
         star_relu: bool = False,
+        sigmoid_skip_gates: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1214,6 +1217,8 @@ class GPT(nn.Module):
         self.num_decoder_layers = effective_depth - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32)) if unet_skips else None
+        self.skip_gates = nn.Parameter(torch.zeros(self.num_skip_weights, model_dim, dtype=torch.float32)) if (unet_skips and sigmoid_skip_gates) else None
+        self.sigmoid_skip_gates = sigmoid_skip_gates
         self.value_residual = value_residual
         self.gated_attention = gated_attention
         self.blocks = nn.ModuleList(
@@ -1310,7 +1315,13 @@ class GPT(nn.Module):
                 skips.append(x)
             for i in range(num_dec):
                 if skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                    skip = skips.pop()
+                    scaled_skip = self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip
+                    if self.skip_gates is not None:
+                        gate = torch.sigmoid(self.skip_gates[i].to(dtype=x.dtype))[None, None, :]
+                        x = gate * x + (1.0 - gate) * scaled_skip
+                    else:
+                        x = x + scaled_skip
                 x, raw_v = self.blocks[num_enc + i](x, x0, v_embed=_get_ve(num_enc + i), v0=v0)
                 if v0 is None and raw_v is not None:
                     v0 = raw_v
@@ -1359,7 +1370,13 @@ class GPT(nn.Module):
                 skips.append(x)
             for i in range(num_dec):
                 if skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                    skip = skips.pop()
+                    scaled_skip = self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip
+                    if self.skip_gates is not None:
+                        gate = torch.sigmoid(self.skip_gates[i].to(dtype=x.dtype))[None, None, :]
+                        x = gate * x + (1.0 - gate) * scaled_skip
+                    else:
+                        x = x + scaled_skip
                 x, raw_v = self.blocks[num_enc + i](x, x0, v0=v0)
                 if v0 is None and raw_v is not None:
                     v0 = raw_v
@@ -1413,7 +1430,13 @@ class GPT(nn.Module):
                 x = x - self.backout_alpha.to(dtype=x.dtype) * x
             for i in range(num_layers - num_enc):
                 if skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                    skip = skips.pop()
+                    scaled_skip = self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip
+                    if self.skip_gates is not None:
+                        gate = torch.sigmoid(self.skip_gates[i].to(dtype=x.dtype))[None, None, :]
+                        x = gate * x + (1.0 - gate) * scaled_skip
+                    else:
+                        x = x + scaled_skip
                 layer_idx = num_enc + i
                 cache_i = kv_caches[layer_idx] if kv_caches is not None else None
                 mix = self.blocks[layer_idx].resid_mix.to(dtype=x.dtype)
@@ -2309,6 +2332,7 @@ def main() -> None:
         value_residual=args.value_residual,
         gated_attention=args.gated_attention,
         star_relu=args.star_relu,
+        sigmoid_skip_gates=args.sigmoid_skip_gates,
     ).to(device).bfloat16()
     if args._tier2:
         log0(f"*** TIER2_MODE: proxy run max={args.max_wallclock_seconds:.0f}s iters={args.iterations} "
@@ -2363,25 +2387,46 @@ def main() -> None:
     # - vectors/scalars use SCALAR_LR via Adam
     block_named_params = list(base_model.blocks.named_parameters())
     if args.perlayer_train_lr:
-        # Per-layer lr: split matrix params by quantization damage profile
+        # Per-layer lr: split matrix params by quantization damage profile AND encoder/decoder
         # MLP output projections (mlp.proj) have 3.4x higher quant damage → higher lr
         # MLP input projections (mlp.fc) have low quant damage → lower lr
-        proj_matrix_params = [
-            p for name, p in block_named_params
-            if p.ndim == 2 and "mlp.proj" in name and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)
-        ]
-        fc_matrix_params = [
-            p for name, p in block_named_params
-            if p.ndim == 2 and "mlp.fc" in name and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)
-        ]
-        other_matrix_params = [
-            p for name, p in block_named_params
+        # Decoder layers (>= num_encoder_layers) get decoder_lr_mult (PR #505: 2x)
+        num_enc = base_model.num_encoder_layers
+        def _is_decoder(name: str) -> bool:
+            """Check if a block param belongs to a decoder layer (index >= num_enc)."""
+            # block_named_params names are like "5.mlp.proj.weight" where 5 is the block index
+            parts = name.split(".")
+            try:
+                return int(parts[0]) >= num_enc
+            except (ValueError, IndexError):
+                return False
+        dec_mult = args.decoder_lr_mult
+        proj_matrix_params_enc = [p for name, p in block_named_params
+            if p.ndim == 2 and "mlp.proj" in name and not _is_decoder(name)
+            and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)]
+        proj_matrix_params_dec = [p for name, p in block_named_params
+            if p.ndim == 2 and "mlp.proj" in name and _is_decoder(name)
+            and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)]
+        fc_matrix_params_enc = [p for name, p in block_named_params
+            if p.ndim == 2 and "mlp.fc" in name and not _is_decoder(name)
+            and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)]
+        fc_matrix_params_dec = [p for name, p in block_named_params
+            if p.ndim == 2 and "mlp.fc" in name and _is_decoder(name)
+            and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)]
+        other_matrix_params_enc = [p for name, p in block_named_params
             if p.ndim == 2 and "mlp.proj" not in name and "mlp.fc" not in name
-            and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)
-        ]
-        matrix_params = proj_matrix_params + fc_matrix_params + other_matrix_params
-        log0(f"perlayer_train_lr: proj={len(proj_matrix_params)} fc={len(fc_matrix_params)} "
-             f"other={len(other_matrix_params)} mult=({args.proj_lr_mult}x, {args.fc_lr_mult}x, 1.0x)")
+            and not _is_decoder(name) and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)]
+        other_matrix_params_dec = [p for name, p in block_named_params
+            if p.ndim == 2 and "mlp.proj" not in name and "mlp.fc" not in name
+            and _is_decoder(name) and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)]
+        matrix_params = (proj_matrix_params_enc + proj_matrix_params_dec +
+                        fc_matrix_params_enc + fc_matrix_params_dec +
+                        other_matrix_params_enc + other_matrix_params_dec)
+        n_proj = len(proj_matrix_params_enc) + len(proj_matrix_params_dec)
+        n_fc = len(fc_matrix_params_enc) + len(fc_matrix_params_dec)
+        n_other = len(other_matrix_params_enc) + len(other_matrix_params_dec)
+        log0(f"perlayer_train_lr: proj={n_proj} fc={n_fc} other={n_other} "
+             f"mult=({args.proj_lr_mult}x, {args.fc_lr_mult}x, 1.0x) decoder={dec_mult}x (enc={num_enc} dec={base_model.num_decoder_layers})")
     else:
         matrix_params = [
             p
@@ -2401,6 +2446,8 @@ def main() -> None:
     ]
     if base_model.skip_weights is not None:
         scalar_params.append(base_model.skip_weights)
+    if base_model.skip_gates is not None:
+        scalar_params.append(base_model.skip_gates)
     # smear_gate.gate is now a single nn.Parameter(dim) — AdamW at scalar_lr
     if base_model.smear_gate is not None:
         scalar_params.append(base_model.smear_gate.gate)
@@ -2436,18 +2483,22 @@ def main() -> None:
     if args.perlayer_train_lr:
         proj_lr = args.matrix_lr * args.proj_lr_mult
         fc_lr = args.matrix_lr * args.fc_lr_mult
+        dec_mult = args.decoder_lr_mult
         muon_param_groups = [
-            {"params": proj_matrix_params, "lr": proj_lr, "base_lr": proj_lr},
-            {"params": fc_matrix_params, "lr": fc_lr, "base_lr": fc_lr},
-            {"params": other_matrix_params, "lr": args.matrix_lr, "base_lr": args.matrix_lr},
+            {"params": proj_matrix_params_enc, "lr": proj_lr, "base_lr": proj_lr},
+            {"params": proj_matrix_params_dec, "lr": proj_lr * dec_mult, "base_lr": proj_lr * dec_mult},
+            {"params": fc_matrix_params_enc, "lr": fc_lr, "base_lr": fc_lr},
+            {"params": fc_matrix_params_dec, "lr": fc_lr * dec_mult, "base_lr": fc_lr * dec_mult},
+            {"params": other_matrix_params_enc, "lr": args.matrix_lr, "base_lr": args.matrix_lr},
+            {"params": other_matrix_params_dec, "lr": args.matrix_lr * dec_mult, "base_lr": args.matrix_lr * dec_mult},
         ]
-        # Add bigram_hash.proj to "other" group
+        # Add non-block matrix params to encoder "other" group (no decoder multiplier)
         if base_model.bigram_hash is not None:
-            muon_param_groups[2]["params"].append(base_model.bigram_hash.proj.weight)
+            muon_param_groups[4]["params"].append(base_model.bigram_hash.proj.weight)
         if base_model.trigram_hash is not None:
-            muon_param_groups[2]["params"].append(base_model.trigram_hash.proj.weight)
+            muon_param_groups[4]["params"].append(base_model.trigram_hash.proj.weight)
         if base_model.ve_shared is not None and base_model.ve_shared.proj is not None:
-            muon_param_groups[2]["params"].append(base_model.ve_shared.proj.weight)
+            muon_param_groups[4]["params"].append(base_model.ve_shared.proj.weight)
         muon_param_groups = [g for g in muon_param_groups if g["params"]]
         optimizer_muon = Muon(
             muon_param_groups,
