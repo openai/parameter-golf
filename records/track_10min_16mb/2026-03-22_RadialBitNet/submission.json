@@ -2,7 +2,7 @@
     "author": "Christian Q. De Luca",
     "github_id": "rthgit",
     "val_bpb": "2.6034",
-    "model_size": "15600000",
-    "hardware": "8x H100 SXM (Designed for Record-Track Evaluation)",
-    "training_time": "10m"
+    "model_size": "13100000",
+    "hardware": "Kaggle Dual T4 (development run)",
+    "training_time": "562s"
 }
