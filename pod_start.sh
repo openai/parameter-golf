@@ -195,7 +195,11 @@ echo "Environment: Python $PY_VER | PyTorch $TORCH_VER | CUDA $CUDA_VER | $GPU_C
 echo ""
 echo "Run scripts:"
 echo ""
-echo "  bash run_no_ttt.sh 1337        # Sliding window eval, no TTT (clean baseline)"
-echo "  bash run_causal_ttt.sh 1337    # Legal score-first causal TTT"
-echo ""
-echo "Kill if step_avg@200 > 85ms (bad pod)"
+if [ "$GPU_COUNT" -ge 8 ]; then
+    echo "  bash run_no_ttt.sh 1337        # 8xGPU: full stack, no TTT (competition submission)"
+    echo "  bash run_neural_cache.sh 1337  # 8xGPU: same + neural cache eval (A/B test)"
+    echo ""
+    echo "Kill if step_avg@200 > 85ms (bad pod)"
+else
+    echo "  bash run_no_ttt_1gpu.sh 1337   # 1xGPU: full stack, no TTT (test run, ~1hr)"
+fi
