@@ -225,10 +225,10 @@ class Muon(torch.optim.Optimizer):
             wd = group["weight_decay"]
             curr = 0
             for p in params:
+                if wd > 0:
+                    p.data.mul_(1.0 - lr * wd)
                 g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
                 p.add_(g, alpha=-lr)
-                if wd > 0:
-                    p.add_(p, alpha=-lr * wd)
                 curr += p.numel()
 
         return loss
@@ -441,7 +441,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,bigram.scale,ve_layer_scales,ve_shared.scale,act_scale,act_bias",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,bigram.scale,ve_layer_scales,ve_shared.scale",
     ).split(",")
     if pattern
 )
@@ -815,8 +815,11 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 class Rotary(nn.Module):
     # Caches cos/sin tables per sequence length on the current device.
-    def __init__(self, dim: int, base: float = 10000.0, rope_dims: int = 0):
+    # YaRN-style frequency extension when seq_len > train_seq_len.
+    def __init__(self, dim: int, base: float = 10000.0, rope_dims: int = 0, train_seq_len: int = 1024):
         super().__init__()
+        self.base = base
+        self.train_seq_len = train_seq_len
         self.rope_dims = rope_dims if rope_dims > 0 else dim
         inv_freq = 1.0 / (base ** (torch.arange(0, self.rope_dims, 2, dtype=torch.float32) / self.rope_dims))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
@@ -831,8 +834,15 @@ class Rotary(nn.Module):
             or self._seq_len_cached != seq_len
             or self._cos_cached.device != device
         ):
-            t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
-            freqs = torch.outer(t, self.inv_freq.to(device))
+            rd = self.rope_dims
+            if seq_len > self.train_seq_len:
+                scale = seq_len / self.train_seq_len
+                new_base = self.base * (scale ** (rd / (rd - 2)))
+                inv_freq = 1.0 / (new_base ** (torch.arange(0, rd, 2, dtype=torch.float32, device=device) / rd))
+            else:
+                inv_freq = self.inv_freq.to(device)
+            t = torch.arange(seq_len, device=device, dtype=inv_freq.dtype)
+            freqs = torch.outer(t, inv_freq)
             self._cos_cached = freqs.cos()[None, :, None, :]  # [1, T, 1, D/2] for [B, T, H, D]
             self._sin_cached = freqs.sin()[None, :, None, :]
             self._seq_len_cached = seq_len
@@ -976,19 +986,15 @@ class ValueEmbedding(nn.Module):
 
 
 class MLP(nn.Module):
-    # Star-ReLU: relu^2 with learned per-channel scale + bias (from PR#462/MetaFormer)
     def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0):
         super().__init__()
         hidden = mlp_hidden if mlp_hidden > 0 else mlp_mult * dim
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
-        self.act_scale = nn.Parameter(torch.ones(hidden, dtype=torch.float32))
-        self.act_bias = nn.Parameter(torch.zeros(hidden, dtype=torch.float32))
 
     def forward(self, x: Tensor) -> Tensor:
         x = torch.relu(self.fc(x)).square()
-        x = x * self.act_scale.to(dtype=x.dtype) + self.act_bias.to(dtype=x.dtype)
         return self.proj(x)
 
 
@@ -1554,6 +1560,8 @@ def main() -> None:
     scalar_params.append(base_model.smear.gate)
     if base_model.bigram is not None:
         scalar_params.append(base_model.bigram.scale)
+        if base_model.bigram.proj is not None:
+            matrix_params.append(base_model.bigram.proj.weight)
     if base_model.ve_shared is not None:
         if base_model.ve_shared.proj is not None:
             matrix_params.append(base_model.ve_shared.proj.weight)
@@ -1562,6 +1570,8 @@ def main() -> None:
             scalar_params.append(s)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     tok_params: list[dict] = [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}]
+    if base_model.bigram is not None:
+        tok_params.append({"params": [base_model.bigram.embed.weight], "lr": token_lr, "base_lr": token_lr})
     if base_model.ve_shared is not None:
         tok_params.append({"params": [base_model.ve_shared.embed.weight], "lr": token_lr, "base_lr": token_lr})
     optimizer_tok = torch.optim.AdamW(
