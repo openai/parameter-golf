@@ -21,7 +21,6 @@ export STAR_RELU=1
 export TRIGRAM_HASH=1
 export BIGRAM_HASH_BUCKETS=8192
 export GRAD_CLIP_NORM=0.0
-export MLP_HIDDEN=1792
 
 # EMA + SWA, no QAT, no TTT
 export EMA_ENABLED=1
