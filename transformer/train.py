@@ -87,6 +87,7 @@ class Hyperparameters:
     num_loops = int(os.environ.get("NUM_LOOPS", 1))
     moe_num_experts = int(os.environ.get("MOE_NUM_EXPERTS", 0))  # 0=dense, >0=MoE
     moe_top_k = int(os.environ.get("MOE_TOP_K", 2))
+    focal_gamma = float(os.environ.get("FOCAL_GAMMA", 0.0))  # 0=standard CE, >0=focal loss
 
     # Sliding window evaluation.
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
@@ -1096,6 +1097,7 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.num_loops = num_loops
+        self.focal_gamma = 0.0  # set externally before training
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
@@ -1234,6 +1236,15 @@ class GPT(nn.Module):
             bsz, sl, V = logits.shape
             return F.cross_entropy(
                 logits.float().reshape(-1, V), target_ids.reshape(-1), reduction="none").reshape(bsz, sl)
+        if self.focal_gamma > 0:
+            # Focal loss: -(1-p)^gamma * log(p), focuses on hard tokens
+            logits_flat = logits.float().reshape(-1, logits.size(-1))
+            targets_flat = target_ids.reshape(-1)
+            log_probs = F.log_softmax(logits_flat, dim=-1)
+            nll = -log_probs.gather(1, targets_flat.unsqueeze(1)).squeeze(1)
+            probs = log_probs.gather(1, targets_flat.unsqueeze(1)).squeeze(1).exp()
+            focal_weight = (1 - probs) ** self.focal_gamma
+            return (focal_weight * nll).mean()
         return F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), target_ids.reshape(-1), reduction="mean")
 
 
@@ -1566,6 +1577,7 @@ def main() -> None:
         moe_num_experts=args.moe_num_experts,
         moe_top_k=args.moe_top_k,
     ).to(device).bfloat16()
+    base_model.focal_gamma = args.focal_gamma
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
