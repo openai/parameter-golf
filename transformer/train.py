@@ -1044,6 +1044,7 @@ class GPT(nn.Module):
         ve_enabled: bool = False,
         ve_dim: int = 128,
         ve_layers: str = "9,10",
+        num_loops: int = 1,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1051,6 +1052,7 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.num_loops = num_loops
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
@@ -1079,6 +1081,11 @@ class GPT(nn.Module):
         if xsa_last_n > 0:
             for i in range(max(0, num_layers - xsa_last_n), num_layers):
                 self.blocks[i].attn.use_xsa = True
+        # Per-loop learned gate (for recurrent/looped transformer)
+        if num_loops > 1:
+            self.loop_gates = nn.ParameterList(
+                [nn.Parameter(torch.zeros(model_dim, dtype=torch.float32)) for _ in range(num_loops)]
+            )
         # Value Embeddings: shared table + per-layer scale, injected into V
         self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_enabled else []
         kv_dim = num_kv_heads * (model_dim // num_heads)
@@ -1120,16 +1127,9 @@ class GPT(nn.Module):
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
 
-    def _forward_body(self, input_ids: Tensor) -> Tensor:
-        """Shared forward pass up to logits (before loss)."""
-        x = self.tok_emb(input_ids)
-        if self.bigram is not None:
-            x = x + self.bigram(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
-        x = self.smear(x)
-        x0 = x
+    def _run_blocks(self, x: Tensor, x0: Tensor, input_ids: Tensor, ve_cache: dict) -> Tensor:
+        """Run encoder-decoder blocks with U-Net skips."""
         skips: list[Tensor] = []
-        ve_cache: dict = {}
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
             x = self.blocks[i](x, x0, v_embed=ve)
@@ -1140,6 +1140,21 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
             x = self.blocks[bi](x, x0, v_embed=ve)
+        return x
+
+    def _forward_body(self, input_ids: Tensor) -> Tensor:
+        """Shared forward pass up to logits (before loss)."""
+        x = self.tok_emb(input_ids)
+        if self.bigram is not None:
+            x = x + self.bigram(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x = self.smear(x)
+        x0 = x
+        ve_cache: dict = {}
+        for loop in range(self.num_loops):
+            if self.num_loops > 1:
+                x = x + self.loop_gates[loop].to(dtype=x.dtype)[None, None, :]
+            x = self._run_blocks(x, x0, input_ids, ve_cache)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1158,22 +1173,11 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
         x0 = x
-        skips: list[Tensor] = []
         ve_cache: dict = {}
-        for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            qd = lora.q_loras[i] if lora else None
-            vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            qd = lora.q_loras[bi] if lora else None
-            vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd)
+        for loop in range(self.num_loops):
+            if self.num_loops > 1:
+                x = x + self.loop_gates[loop].to(dtype=x.dtype)[None, None, :]
+            x = self._run_blocks(x, x0, input_ids, ve_cache)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
@@ -1513,6 +1517,7 @@ def main() -> None:
         ve_enabled=args.ve_enabled,
         ve_dim=args.ve_dim,
         ve_layers=args.ve_layers,
+        num_loops=args.num_loops,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1555,6 +1560,9 @@ def main() -> None:
         scalar_params.append(base_model.ve_shared.scale)
         for s in base_model.ve_layer_scales:
             scalar_params.append(s)
+    if hasattr(base_model, 'loop_gates'):
+        for g in base_model.loop_gates:
+            scalar_params.append(g)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     tok_params: list[dict] = [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}]
     if base_model.bigram is not None:
