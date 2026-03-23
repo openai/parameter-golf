@@ -1,6 +1,6 @@
 #!/bin/bash
 # Pod startup script — run this first on any new/restarted pod
-# Usage: curl -s https://raw.githubusercontent.com/mrdavtan/parameter-golf/causal-ttt/pod_start.sh | bash
+# Usage: curl -s https://raw.githubusercontent.com/mrdavtan/parameter-golf/perlayer-lr-stack/pod_start.sh | bash
 
 set -e
 
@@ -78,8 +78,8 @@ cd parameter-golf
 
 # Checkout causal-ttt (has all run scripts + all features)
 git fetch origin
-git checkout causal-ttt
-git reset --hard origin/causal-ttt
+git checkout perlayer-lr-stack
+git reset --hard origin/perlayer-lr-stack
 
 # Download data and tokenizer if needed
 # Use /tmp for HF cache to avoid workspace quota issues
