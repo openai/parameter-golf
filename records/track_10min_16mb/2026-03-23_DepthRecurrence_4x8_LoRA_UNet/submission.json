@@ -1,0 +1,21 @@
+{
+  "author": "Derek Zhu",
+  "github_id": "derekzhu",
+  "name": "Depth Recurrence 4x8 + LoRA + U-Net Skips + Layer Scale",
+  "blurb": "Replaces 9 unique transformer layers with 4 shared blocks looped 8 times (32 effective layers). Per-iteration rank-2 LoRA adapters on attention output projection differentiate behavior across iterations. U-Net skip connections pair encoder iterations (0-3) with decoder iterations (4-7). Per-iteration layer scale (init 1/8) prevents activation explosion. Gradient checkpointing for memory efficiency. Tighter grad clipping (0.1), 2000-step LR warmup, 2500-step momentum warmup. All other techniques preserved: int6+zstd-22 quantization, 3x MLP, SmearGate, BigramHash, orthogonal init, Muon WD=0.04, SWA every 50 steps.",
+  "date": "2026-03-23T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "val_loss_std": null,
+  "val_bpb_std": null,
+  "seeds": [1337, 42, 7],
+  "seed_results": {},
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": null,
+  "wallclock_seconds": null,
+  "eval_time_seconds": null,
+  "bytes_total": null,
+  "bytes_model_int6_zstd": null,
+  "bytes_code": null
+}
