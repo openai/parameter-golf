@@ -96,6 +96,8 @@ class Hyperparameters:
     ttt_max_train_chunks = int(os.environ.get("TTT_MAX_TRAIN_CHUNKS", 200))  # stop training after N chunks, keep scoring
     ttt_ema_decay = float(os.environ.get("TTT_EMA_DECAY", 0.995))  # EMA decay for TTT weight smoothing (0 = disabled)
     ttt_freeze_embed = bool(int(os.environ.get("TTT_FREEZE_EMBED", "1")))  # freeze tok_emb/bigram/ve during TTT
+    # Selective int8: keep sensitive layers at int8 instead of int6 for lower quant tax
+    int8_sensitive = os.environ.get("INT8_SENSITIVE", "attn.proj")  # comma-separated patterns, empty=disabled
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -1136,11 +1138,13 @@ def gptq_calibrate(model: nn.Module, train_pattern: str, device: torch.device,
         hessians[name] /= max(n_seen[name], 1)
     return hessians
 def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
-                              hessians: dict[str, Tensor]) -> tuple[dict, dict]:
-    """Like mixed_quantize_int6 but uses GPTQ for int6 categories when Hessian available."""
+                              hessians: dict[str, Tensor],
+                              int8_sensitive_patterns: tuple[str, ...] = ()) -> tuple[dict, dict]:
+    """Like mixed_quantize_int6 but uses GPTQ for int6 categories when Hessian available.
+    Parameters matching int8_sensitive_patterns get GPTQ with int8 range for lower quant tax."""
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
-    gptq_count, naive_count = 0, 0
+    gptq6_count, gptq8_count, naive_count = 0, 0, 0
     for name, tensor in state_dict.items():
         t = tensor.detach().cpu().contiguous()
         cat = _classify_param(name)
@@ -1152,18 +1156,27 @@ def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
             result[name] = t.float()
             meta[name] = "passthrough_ctrl"
             continue
+        # Check if this layer should use int8 (higher precision) instead of int6
+        use_int8 = any(p in name for p in int8_sensitive_patterns) if int8_sensitive_patterns else False
         if cat in int6_cats and t.ndim == 2:
             module_name = name.rsplit(".weight", 1)[0] if name.endswith(".weight") else name
             H = hessians.get(module_name)
+            clip = 127 if use_int8 else 31
             if H is not None and H.shape[0] == t.shape[1]:
-                q, s = gptq_quantize_weight(t, H.cpu())
-                gptq_count += 1
+                q, s = gptq_quantize_weight(t, H.cpu(), clip_range=clip)
+                if use_int8:
+                    gptq8_count += 1
+                else:
+                    gptq6_count += 1
             else:
-                q, s = quantize_int6_per_row(t)
+                if use_int8:
+                    q, s = quantize_float_tensor(t)
+                else:
+                    q, s = quantize_int6_per_row(t)
                 naive_count += 1
             result[name + ".q"] = q
             result[name + ".scale"] = s
-            meta[name] = {"type": "int6"}
+            meta[name] = {"type": "int8" if use_int8 else "int6"}
         elif cat in int6_cats and t.ndim >= 1:
             q, s = quantize_int6_per_row(t)
             result[name + ".q"] = q
@@ -1175,7 +1188,7 @@ def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
             result[name + ".q"] = q
             result[name + ".scale"] = s
             meta[name] = {"type": "int8"}
-    print(f"gptq_quantize: {gptq_count} GPTQ layers, {naive_count} naive layers", flush=True)
+    print(f"gptq_quantize: {gptq6_count} GPTQ-int6, {gptq8_count} GPTQ-int8, {naive_count} naive", flush=True)
     return result, meta
 def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
@@ -1601,7 +1614,10 @@ def main() -> None:
     t_gptq = time.perf_counter()
     gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
     log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
-    quant_result, quant_meta = mixed_quantize_int6_gptq(sd_cpu, {"mlp", "attn"}, gptq_hessians)
+    int8_pats = tuple(p.strip() for p in args.int8_sensitive.split(",") if p.strip())
+    if int8_pats:
+        log0(f"gptq:int8_sensitive patterns: {int8_pats}")
+    quant_result, quant_meta = mixed_quantize_int6_gptq(sd_cpu, {"mlp", "attn"}, gptq_hessians, int8_pats)
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
