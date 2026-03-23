@@ -5,6 +5,7 @@
 set -e
 cd /workspace/parameter-golf
 
+# Architecture (matches run3 / run_no_ttt.sh exactly)
 export TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 UNET_SKIPS=1
 export ROPE_DIMS=16 LN_SCALE=1 ROPE_BASE=10000
 export EVAL_STRIDE=64 DOC_ISOLATED_EVAL=0
@@ -12,15 +13,22 @@ export LATE_K_FP16=0 FP16_EMBED_EXPORT=0
 export XSA_LAST_N=4
 export VE_ENABLED=1
 export WARMDOWN_ITERS=3500
+export TRAIN_BATCH_TOKENS=524288
+export GRAD_CLIP_NORM=0.3
+export BIGRAM_HASH_BUCKETS=4096
+
+# Our innovations
 export VALUE_RESIDUAL=1
 export GATED_ATTENTION=1
+export STAR_RELU=1
 export PERLAYER_TRAIN_LR=1
 export PROJ_LR_MULT=1.5
 export FC_LR_MULT=0.7
-export STAR_RELU=1
 export TRIGRAM_HASH=1
-export BIGRAM_HASH_BUCKETS=8192
-export GRAD_CLIP_NORM=0.0
+
+# Run3 config — no sigmoid gates, no decoder 2x LR
+export SIGMOID_SKIP_GATES=0
+export DECODER_LR_MULT=1.0
 
 # EMA + SWA, no QAT, no TTT
 export EMA_ENABLED=1
@@ -29,9 +37,8 @@ export QAT=0
 export TTT_ENABLED=0
 export TTT_CAUSAL=0
 
-# 1GPU: more wallclock needed, smaller batch
+# 1GPU: more wallclock needed
 export MAX_WALLCLOCK_SECONDS=3600
-export TRAIN_BATCH_TOKENS=524288
 
 export SEED=${1:-1337}
 
