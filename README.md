@@ -83,18 +83,29 @@ python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
 This populates `./data/datasets/fineweb10B_sp1024/` and `./data/tokenizers/`.
 By default this downloads the full validation split plus 80 training shards (8B tokens). For a smaller local smoke subset, pass `--train-shards 1`, for example `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1`.
 
-Then run a small MLX training job:
+Then run a local MLX prototype job:
 
 ```bash
-RUN_ID=mlx_smoke \
-ITERATIONS=200 \
+RUN_ID=mlx_proto \
 TRAIN_BATCH_TOKENS=8192 \
 VAL_LOSS_EVERY=0 \
 VAL_BATCH_SIZE=8192 \
-python3 train_gpt_mlx.py
+python3 train_gpt_mlx.py \
+  --max-steps 1200 \
+  --eval-mode doc_stride \
+  --eval-stride 128 \
+  --eval-max-docs 2048 \
+  --run-prequant-eval \
+  --run-postquant-eval
 ```
 
-Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
+`train_gpt_mlx.py` now supports `--eval-mode {flat,doc,doc_stride}`, `--eval-stride`, `--eval-max-docs`, `--run-prequant-eval`, `--run-postquant-eval`, and `--max-steps`. The exporter prepends `BOS` to every document, so the MLX script uses those markers to infer document boundaries for document-aware validation. The default local `--max-steps` is meant for Apple Silicon prototyping and is not directly comparable to 8xH100 submission step counts.
+
+At the end of a run, the script prints a compact summary block with pre/post-quant flat, document-isolated, and document-strided metrics plus artifact sizes. You can sanity-check the boundary and sliding-window logic without MLX by running:
+
+```bash
+python3 verify_mlx_eval_modes.py
+```
 
 ### Scaling Up to a Remote Machine
 
