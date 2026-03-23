@@ -7,7 +7,7 @@
 # inside a tmux session so it survives SSH disconnects.
 #
 # Usage:
-#   bash autoevolve/runpod_launch.sh [--nproc 1] [--model gpt-5.4] [--max-iters 30]
+#   bash autoevolve/runpod_launch.sh [--nproc 1] [--model gpt-5.4] [--max-iters 0] [--dry-run]
 #
 # Then detach: Ctrl+B then D
 # Re-attach:   tmux attach -t evolve
@@ -17,7 +17,8 @@ set -euo pipefail
 # ── Defaults ──────────────────────────────────────────────────────────────────
 NPROC=1
 MODEL="gpt-5.4"
-MAX_ITERS=0          # 0 = run until manually stopped
+MAX_ITERS=0
+DRY_RUN=0
 SESSION="evolve"
 WORKSPACE="/workspace"
 REPO="$WORKSPACE/parameter-golf"
@@ -28,6 +29,7 @@ while [[ $# -gt 0 ]]; do
     --nproc)     NPROC="$2";     shift 2 ;;
     --model)     MODEL="$2";     shift 2 ;;
     --max-iters) MAX_ITERS="$2"; shift 2 ;;
+    --dry-run)   DRY_RUN=1;      shift ;;
     *) echo "Unknown arg: $1"; exit 1 ;;
   esac
 done
@@ -35,7 +37,17 @@ done
 echo ""
 echo "==========================================================="
 echo "  Parameter Golf Auto-Evolve — RunPod Setup"
-echo "  GPUs: $NPROC  |  Model: $MODEL  |  Max iters: ${MAX_ITERS:-unlimited}"
+if [ "$NPROC" -eq 1 ]; then
+  RUN_MODE="scout"
+else
+  RUN_MODE="full"
+fi
+if [ "$MAX_ITERS" -eq 0 ]; then
+  MAX_ITERS_LABEL="until manually stopped"
+else
+  MAX_ITERS_LABEL="$MAX_ITERS"
+fi
+echo "  GPUs: $NPROC  |  Mode: $RUN_MODE  |  Model: $MODEL  |  Max iters: $MAX_ITERS_LABEL  |  Dry run: $DRY_RUN"
 echo "==========================================================="
 
 # ── 1. Check repo ─────────────────────────────────────────────────────────────
@@ -120,13 +132,15 @@ echo "[6/6] Launching auto-evolve in tmux session '$SESSION' ..."
 # Kill existing session if it's stuck
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 
-ITER_FLAG=""
-if [ "$MAX_ITERS" -gt 0 ]; then
-  ITER_FLAG="--max-iters $MAX_ITERS"
+ITER_FLAG="--max-iters $MAX_ITERS"
+
+DRY_FLAG=""
+if [ "$DRY_RUN" -eq 1 ]; then
+  DRY_FLAG="--dry-run"
 fi
 
 # Build the command
-CMD="cd $REPO && python3 autoevolve/evolve.py --nproc $NPROC --model $MODEL $ITER_FLAG 2>&1 | tee autoevolve/logs/evolve_main.log"
+CMD="cd $REPO && python3 autoevolve/evolve.py --nproc $NPROC --model $MODEL $ITER_FLAG $DRY_FLAG 2>&1 | tee autoevolve/logs/evolve_main.log"
 
 tmux new-session -d -s "$SESSION" -x 220 -y 50
 tmux send-keys -t "$SESSION" "$CMD" Enter

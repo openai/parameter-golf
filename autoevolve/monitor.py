@@ -19,8 +19,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 AUTOEVOLVE_DIR = ROOT / "autoevolve"
+PROMPTS_DIR = AUTOEVOLVE_DIR / "prompts"
 RESULTS_FILE = AUTOEVOLVE_DIR / "results.tsv"
 LOGS_DIR = AUTOEVOLVE_DIR / "logs"
+DOSSIER_FILE = PROMPTS_DIR / "memory_dossier.md"
 
 LEADERBOARD_SOTA = 1.1428  # Current public #1 as of 2026-03-20 (thwu1)
 COST_PER_HOUR = 2.49       # 1×H100 on RunPod (update if using different SKU)
@@ -47,6 +49,12 @@ def parse_bpb(s: str) -> float | None:
         return float(s)
     except (ValueError, TypeError):
         return None
+
+
+def family_label(family: str) -> str:
+    if not family:
+        return "unknown"
+    return family.replace("_", "/")
 
 
 def runtime_str(start: datetime, end: datetime) -> str:
@@ -107,15 +115,19 @@ def print_dashboard() -> None:
     total = len(results)
     kept = [r for r in results if r.get("status") == "keep"]
     discarded = [r for r in results if r.get("status") == "discard"]
-    crashed = [r for r in results if r.get("status") in ("crash", "llm_error", "invalid", "parse_error")]
+    infra = [r for r in results if r.get("status") in ("llm_error", "invalid")]
+    crashed = [r for r in results if r.get("status") in ("crash", "parse_error")]
 
     bpbs_keep = [parse_bpb(r["val_bpb"]) for r in kept]
     bpbs_keep = [b for b in bpbs_keep if b is not None]
     best_bpb = min(bpbs_keep) if bpbs_keep else None
 
     print(f"\n  Runtime:     {color(rt, 'cyan')}   |   Est. cost: {color(f'${cost:.2f}', 'yellow')}")
-    print(f"  Experiments: {total} total — {color(str(len(kept)), 'green')} kept, "
-          f"{len(discarded)} discarded, {color(str(len(crashed)), 'red')} failed")
+    print(
+        f"  Experiments: {total} total — {color(str(len(kept)), 'green')} kept, "
+        f"{len(discarded)} discarded, {color(str(len(crashed)), 'red')} research failures, "
+        f"{len(infra)} infra failures"
+    )
 
     if best_bpb is not None:
         gap = best_bpb - LEADERBOARD_SOTA
@@ -136,15 +148,17 @@ def print_dashboard() -> None:
         print(f"  {sparkline(bpb_seq, width=60)}")
 
     # ── Recent experiments ──────────────────────────────────────────────────
-    print(f"\n  {'─' * 68}")
-    print(f"  {'#':>4}  {'STATUS':8}  {'BPB':7}  DESCRIPTION")
-    print(f"  {'─' * 68}")
+    print(f"\n  {'─' * 92}")
+    print(f"  {'#':>4}  {'STATUS':8}  {'BPB':7}  {'FAMILY':20}  {'STAGE':10}  DESCRIPTION")
+    print(f"  {'─' * 92}")
 
     recent = results[-15:]
     for r in recent:
         itr = r.get("iteration", "?")
         status = r.get("status", "?")
         bpb = parse_bpb(r.get("val_bpb", ""))
+        family = family_label(r.get("proposal_family", ""))[:20]
+        stage = (r.get("timeout_stage", "") or "-")[:10]
         desc = r.get("description", "")[:50]
         bpb_s = f"{bpb:.4f}" if bpb else "  N/A "
 
@@ -167,14 +181,27 @@ def print_dashboard() -> None:
             s_color, b_color = "dim", "dim"
             sym = "  ?    "
 
-        print(f"  {itr:>4}  {color(sym, s_color)}  {color(bpb_s, b_color)}  {desc}")
+        print(
+            f"  {itr:>4}  {color(sym, s_color)}  {color(bpb_s, b_color)}  "
+            f"{family:20}  {stage:10}  {desc}"
+        )
 
     # ── Failure analysis ────────────────────────────────────────────────────
-    if crashed:
+    if crashed or infra:
         print(f"\n  {'─' * 68}")
-        print(color(f"  FAILURES ({len(crashed)} total):", "red"))
+        print(color(f"  FAILURES ({len(crashed) + len(infra)} total):", "red"))
         for r in crashed[-5:]:
-            print(f"    #{r.get('iteration','?'):>3}  [{r.get('status','?'):12}]  {r.get('description','')[:55]}")
+            print(
+                f"    #{r.get('iteration','?'):>3}  [{r.get('status','?'):12}]  "
+                f"{family_label(r.get('proposal_family','')):20}  "
+                f"stage={r.get('timeout_stage','-') or '-':10}  "
+                f"{r.get('description','')[:40]}"
+            )
+        for r in infra[-3:]:
+            print(
+                f"    #{r.get('iteration','?'):>3}  [{r.get('status','?'):12}]  "
+                f"{'infrastructure':20}  stage={'-':10}  {r.get('description','')[:40]}"
+            )
 
     # ── Current script ──────────────────────────────────────────────────────
     best_script = AUTOEVOLVE_DIR / "best_train_gpt.py"
@@ -195,6 +222,7 @@ def print_dashboard() -> None:
 
     print(f"\n  {'─' * 68}")
     print(f"  Log dir: {LOGS_DIR}")
+    print(f"  Dossier: {DOSSIER_FILE}")
     print(f"  Tail latest log: python3 autoevolve/monitor.py --tail")
     print()
 
@@ -209,10 +237,15 @@ def print_summary() -> None:
     bpbs = [parse_bpb(r["val_bpb"]) for r in kept if parse_bpb(r.get("val_bpb"))]
     best = min(bpbs) if bpbs else None
     total = len(results)
-    crashes = sum(1 for r in results if r.get("status") in ("crash", "llm_error"))
+    research_failures = sum(1 for r in results if r.get("status") in ("crash", "parse_error"))
+    infra_failures = sum(1 for r in results if r.get("status") in ("llm_error", "invalid"))
+    last_mode = results[-1].get("mode", "unknown")
     best_s = f"{best:.4f}" if best else "N/A"
     gap_s = f"({best - LEADERBOARD_SOTA:+.4f} vs SOTA)" if best else ""
-    print(f"Iterations: {total} | Best BPB: {best_s} {gap_s} | Kept: {len(kept)} | Crashes: {crashes}")
+    print(
+        f"Iterations: {total} | Mode: {last_mode} | Best BPB: {best_s} {gap_s} | "
+        f"Kept: {len(kept)} | Research failures: {research_failures} | Infra failures: {infra_failures}"
+    )
 
 
 def tail_latest() -> None:
