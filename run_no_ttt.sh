@@ -38,7 +38,7 @@ export SEED=${1:-1337}
 export RUN_TAG="no_ttt_$(date +%Y%m%d_%H%M%S)"
 
 # Clean env — only unset things we DON'T explicitly set above
-unset QUANT_BITS RUN_ID TIER2_MODE \
+unset QUANT_BITS RUN_ID TIER2_MODE MLP_HIDDEN \
   BACKOUT LAYER_DROP HEAD_DROP EVAL_TEMPERATURE \
   MLP_QUANT_BITS USE_FA3 PRUNE_PCT \
   REPTILE_TTT TTT_TWO_PHASE TTT_EPOCHS TTT_MAX_STEPS
