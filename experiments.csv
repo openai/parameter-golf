@@ -103,3 +103,7 @@ ttt_8gpu_3ep_s1337,600,15936865,,74533,8,74184,1.1101,f89483a,"TTT 3ep lr=5e-5: 
 ttt_8gpu_10ep_s1337,600,15936865,,74533,8,74267,1.1015,f89483a,"TTT 10ep: 1.1015 (161s TTT)"
 ttt_8gpu_20ep_s1337,600,15936865,,74533,8,74619,1.0925,f89483a,"TTT 20ep: 1.0925 (321s). INVALID: trains before eval"
 ttt_backward_10ep_s1337,600,,,,8,,1.1260,7f8fcf3,"Backward-looking TTT: 1.1260 (score on final epoch, but model saw data 9x before)"
+ttt_perdoc_lora_chunkmajor_s1337,600,,,,8,,~1.27,aeb9c78,"Per-doc LoRA TTT chunk-major lr=1e-3 3steps: ~1.27 BPB (LoRA overfits small chunks)"
+ttt_sliding_adamw_5e5_s1337,600,,,,8,,~1.165,4185dd6,"Sliding window AdamW TTT lr=5e-5: ~1.165 BPB (catastrophic forgetting, gradient mismatch)"
+ttt_pr549_sgd002_3ep_s1337,600,,,,8,474,1.1277,5e29fe5,"PR#549 recipe on saved model: SGD lr=0.002 3ep 32K chunks. -0.0029 vs 1.1306 baseline. 395s TTT"
+ttt_submission_s1337,600,15757774,,89578,8,513,1.1195,f7507f1,"FULL SUBMISSION+TTT s1337: sliding=1.1217 → TTT=1.1195. -0.0022 BPB. 405s TTT, 15.76MB"
