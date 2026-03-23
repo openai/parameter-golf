@@ -1,17 +1,19 @@
 #!/bin/bash
-# RUN_BESTSHOT: Everything that works, stacked
+# RUN_BESTSHOT: Run3 config + MATRIX_LR=0.03 + QAT=1
 #
-# Run3 base (1.1496) + all confirmed/expected improvements:
-#   1. MATRIX_LR=0.03 (local ablation: -0.06 BPB at 500 steps)
-#   2. fp32 attn_gate (automatic, preserves GA quant correction)
-#   3. CK_LR_MULT=1.5 (quant-gate analysis: c_k has 2x damage)
-#   4. Late Training Replay (PR #445: 200 extra steps at 10% LR)
-#   5. VALUE_RESIDUAL=0 (analysis showed near-zero v0 usage)
+# The key insight: higher LR trains better pre-quant but weights are quant-fragile.
+# QAT teaches the model to survive int6 quantization at the higher LR.
+#
+# Run11 proved: LR=0.03 pre-quant 1.1520 but quant gap +0.014 → 1.1664 (worse)
+# Run5 proved: QAT makes quant gap negative (-0.009)
+# Combined: better pre-quant + protected quant gap → projected 1.140-1.145
+#
+# Only TWO changes from run3 (1.1496): MATRIX_LR and QAT. Everything else identical.
 
 set -e
 cd /workspace/parameter-golf
 
-# Architecture (run3 base)
+# Exact run3 config
 export TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 UNET_SKIPS=1
 export ROPE_DIMS=16 LN_SCALE=1 ROPE_BASE=10000
 export EVAL_STRIDE=64 DOC_ISOLATED_EVAL=0
@@ -23,10 +25,8 @@ export TRAIN_BATCH_TOKENS=524288
 export GRAD_CLIP_NORM=0.3
 export BIGRAM_HASH_BUCKETS=4096
 
-# 1. MATRIX_LR=0.03
-export MATRIX_LR=0.03
-
-# Our innovations
+# Our innovations (same as run3)
+export VALUE_RESIDUAL=1
 export GATED_ATTENTION=1
 export STAR_RELU=1
 export LEAKY_RELU=0
@@ -35,26 +35,17 @@ export PROJ_LR_MULT=1.5
 export FC_LR_MULT=0.7
 export TRIGRAM_HASH=1
 
-# 3. Per-key LR
-export CK_LR_MULT=1.5
-
-# 4. Late Training Replay
-export LATE_REPLAY=1
-export LATE_REPLAY_EPOCHS=2
-export LATE_REPLAY_LR_FACTOR=0.1
-export LATE_REPLAY_BUFFER_SIZE=100
-
-# 5. Value Residual OFF (analysis showed near-zero usage)
-export VALUE_RESIDUAL=0
-
 # No run6 additions
 export SIGMOID_SKIP_GATES=0
 export DECODER_LR_MULT=1.0
 
-# EMA + SWA, no QAT
+# THE TWO CHANGES from run3:
+export MATRIX_LR=0.03    # Better pre-quant (run11: 1.1520 vs run3: 1.1499)
+export QAT=1             # Protects quant gap (run5: -0.009 vs run3: -0.0003)
+
+# Same as run3
 export EMA_ENABLED=1
 export SWA=1
-export QAT=0
 export TTT_ENABLED=0
 export TTT_CAUSAL=0
 
@@ -67,9 +58,9 @@ unset QUANT_BITS RUN_ID TIER2_MODE MLP_HIDDEN \
   MLP_QUANT_BITS USE_FA3 PRUNE_PCT \
   REPTILE_TTT TTT_TWO_PHASE TTT_EPOCHS TTT_MAX_STEPS
 
-echo "=== BESTSHOT: LR03 + CK1.5 + REPLAY + NO_VR ==="
-echo "SEED=$SEED MATRIX_LR=0.03 CK=1.5x REPLAY=1 VR=0"
-echo "================================================="
+echo "=== BESTSHOT: MATRIX_LR=0.03 + QAT=1 ==="
+echo "SEED=$SEED MATRIX_LR=0.03 QAT=1 (2 changes from run3)"
+echo "============================================"
 
 NGPU=${NGPU:-8}
 if [ "$NGPU" = "1" ]; then
