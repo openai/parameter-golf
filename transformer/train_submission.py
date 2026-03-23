@@ -982,73 +982,130 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
 # FULL-WEIGHT TTT (AdamW adaptation on validation data)
 # -----------------------------
 
-def eval_ttt_online(
+BOS_ID = 1
+
+def eval_ttt_perdoc(
     args, base_model, device, val_tokens,
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
     rank=0, world_size=1, log_fn=None,
 ):
-    """Single-pass online TTT: score each batch, then train on it.
-    Each token is scored EXACTLY ONCE before any training on it.
-    Returns (val_loss, val_bpb) from online scoring."""
-    seq_len = args.train_seq_len
-    total_seqs = (val_tokens.numel() - 1) // seq_len
-    batch_seqs = args.ttt_batch_size
+    """Per-document backward-looking TTT with lm_head-only adaptation.
 
-    my_start = (total_seqs * rank) // world_size
-    my_end = (total_seqs * (rank + 1)) // world_size
+    For each document:
+    1. Process in chunks: score chunk → train on scored chunk → next
+    2. Reset adapted params at document boundaries
+    3. BPB from step 1 scoring (tokens scored before training on them)
+    """
+    all_tokens = val_tokens.to(device=device, dtype=torch.int64)
+    # Find document boundaries
+    bos_positions = (all_tokens == BOS_ID).nonzero(as_tuple=True)[0].cpu().numpy()
+    docs = []
+    for i in range(len(bos_positions)):
+        start = int(bos_positions[i])
+        end = int(bos_positions[i + 1]) if i + 1 < len(bos_positions) else all_tokens.numel()
+        if end - start >= 2:
+            docs.append((start, end - start))
 
-    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
+    my_docs = docs[(len(docs) * rank) // world_size : (len(docs) * (rank + 1)) // world_size]
+    chunk_size = args.ttt_chunk_size
+    eval_seq_len = args.ttt_eval_seq_len
+
+    # Freeze all params, only adapt top-layer norms + lm_head-related
+    base_model.eval()
+    for p in base_model.parameters():
+        p.requires_grad_(False)
+    # Adapt: lm_head (or tok_emb if tied) + last 2 block norms/scales
+    adapt_params = []
+    adapt_param_states = {}
+    # Token embedding (= lm_head when tied)
+    base_model.tok_emb.weight.requires_grad_(True)
+    adapt_params.append(base_model.tok_emb.weight)
+    adapt_param_states[id(base_model.tok_emb.weight)] = base_model.tok_emb.weight.data.clone()
+    # Top 2 block norm + scale params
+    for block in base_model.blocks[-2:]:
+        for p in [block.attn_scale, block.mlp_scale]:
+            p.requires_grad_(True)
+            adapt_params.append(p)
+            adapt_param_states[id(p)] = p.data.clone()
+
+    optimizer = torch.optim.AdamW(adapt_params, lr=args.ttt_lr, weight_decay=0.0)
 
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     byte_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    base_model.train()
     t0 = time.perf_counter()
-    n_batches = 0
+    n_docs = 0
 
-    for batch_start in range(my_start, my_end, batch_seqs):
-        batch_end = min(batch_start + batch_seqs, my_end)
-        raw_start = batch_start * seq_len
-        raw_end = batch_end * seq_len + 1
-        local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
-        x = local[:-1].reshape(-1, seq_len)
-        y = local[1:].reshape(-1, seq_len)
+    for ds, dl in my_docs:
+        pred_len = dl - 1
+        if pred_len < args.ttt_min_doc_len:
+            # Short doc: just score without TTT
+            chunk = all_tokens[ds:ds + dl].to(dtype=torch.int64, device=device)
+            x = chunk[:-1].unsqueeze(0)
+            y = chunk[1:].unsqueeze(0)
+            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits = base_model.forward_logits(x)
+            nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y.reshape(-1), reduction="none").to(torch.float64)
+            loss_sum += nll.sum()
+            token_count += float(pred_len)
+            tgt = y.reshape(-1)
+            prev = x.reshape(-1)
+            tok_bytes = base_bytes_lut[tgt].to(torch.float64)
+            tok_bytes += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+            byte_sum += tok_bytes.sum()
+            n_docs += 1
+            continue
 
-        # 1) SCORE: compute per-token NLL with current (adapted) model
-        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            logits = base_model.forward_logits(x)
-        nll = F.cross_entropy(
-            logits.reshape(-1, logits.size(-1)).float(),
-            y.reshape(-1), reduction="none",
-        ).to(torch.float64)
-        loss_sum += nll.sum()
-        token_count += float(y.numel())
-        prev_ids = x.reshape(-1)
-        tgt_ids = y.reshape(-1)
-        tok_bytes = base_bytes_lut[tgt_ids].to(torch.float64)
-        tok_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.float64)
-        byte_sum += tok_bytes.sum()
+        # Reset adapted params to original state
+        for p in adapt_params:
+            p.data.copy_(adapt_param_states[id(p)])
+        for s in optimizer.state.values():
+            if 'exp_avg' in s:
+                s['exp_avg'].zero_()
+                s['exp_avg_sq'].zero_()
+                if 'step' in s:
+                    s['step'].fill_(0)
 
-        # 2) TRAIN: adapt on these just-scored tokens (multiple steps for deeper adaptation)
-        for _ in range(args.ttt_epochs):
-            optimizer.zero_grad(set_to_none=True)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                loss = base_model(x, y)
-            loss.backward()
-            if world_size > 1:
-                for p in ttt_params:
-                    if p.grad is not None:
-                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
-            torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
-            optimizer.step()
+        num_chunks = (pred_len + chunk_size - 1) // chunk_size
+        for ci in range(num_chunks):
+            cs = ci * chunk_size
+            ce = min((ci + 1) * chunk_size, pred_len)
+            ws = max(0, ce - eval_seq_len)
+            wl = ce - ws
+            co = cs - ws
+            cl = ce - cs
+            chunk = all_tokens[ds + ws: ds + ws + wl + 1].to(dtype=torch.int64, device=device)
+            x = chunk[:-1].unsqueeze(0)
+            y = chunk[1:].unsqueeze(0)
 
-        n_batches += 1
-        if n_batches % 20 == 0 and log_fn:
+            # SCORE this chunk
+            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits = base_model.forward_logits(x)
+            nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y.reshape(-1), reduction="none").to(torch.float64)
+            scored_nll = nll[co:co + cl]
+            loss_sum += scored_nll.sum()
+            token_count += float(cl)
+            tgt = y[0, co:co + cl]
+            prev = x[0, co:co + cl]
+            tok_bytes = base_bytes_lut[tgt].to(torch.float64)
+            tok_bytes += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+            byte_sum += tok_bytes.sum()
+
+            # TRAIN on scored chunk (backward-looking)
+            for _ in range(args.ttt_epochs):
+                optimizer.zero_grad(set_to_none=True)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    loss = base_model(x.squeeze(0), y.squeeze(0))
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(adapt_params, 1.0)
+                optimizer.step()
+
+        n_docs += 1
+        if n_docs % 500 == 0 and log_fn:
             elapsed = time.perf_counter() - t0
             running_bpb = float((loss_sum / math.log(2.0)) / byte_sum) if byte_sum > 0 else 0
-            log_fn(f"ttt_online: batch={n_batches} running_bpb={running_bpb:.4f} time={elapsed:.1f}s")
+            log_fn(f"ttt_perdoc: docs={n_docs}/{len(my_docs)} bpb={running_bpb:.4f} time={elapsed:.1f}s")
 
     for p in base_model.parameters():
         p.requires_grad_(True)
@@ -1061,7 +1118,7 @@ def eval_ttt_online(
     val_loss = (loss_sum / token_count).item()
     val_bpb = float((loss_sum / math.log(2.0)) / byte_sum)
     if log_fn:
-        log_fn(f"ttt_online:done val_loss={val_loss:.4f} val_bpb={val_bpb:.4f} elapsed={time.perf_counter()-t0:.1f}s")
+        log_fn(f"ttt_perdoc:done val_loss={val_loss:.4f} val_bpb={val_bpb:.4f} elapsed={time.perf_counter()-t0:.1f}s")
     return val_loss, val_bpb
 
 def main() -> None:
@@ -1509,7 +1566,7 @@ def main() -> None:
             block.attn.rotary._seq_len_cached = 0
         log0(f"ttt:start lr={args.ttt_lr} epochs={args.ttt_epochs}")
         t_ttt = time.perf_counter()
-        ttt_val_loss, ttt_val_bpb = eval_ttt_online(
+        ttt_val_loss, ttt_val_bpb = eval_ttt_perdoc(
             args, eval_model, device, val_tokens,
             base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             rank=rank, world_size=world_size, log_fn=log0,
