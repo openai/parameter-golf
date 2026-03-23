@@ -928,10 +928,12 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             meta[name] = "passthrough_ctrl"
             continue
         if cat in int6_cats and t.ndim >= 1:
-            q, s = quantize_int6_per_row(t)
+            # Use int5 (clip_range=15) for MLP weights, int6 (31) for attention
+            cr = 15 if cat == "mlp" else 31
+            q, s = quantize_int6_per_row(t, clip_range=cr)
             result[name + ".q"] = q
             result[name + ".scale"] = s
-            meta[name] = {"type": "int6"}
+            meta[name] = {"type": f"int{'5' if cat == 'mlp' else '6'}"}
         else:
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
