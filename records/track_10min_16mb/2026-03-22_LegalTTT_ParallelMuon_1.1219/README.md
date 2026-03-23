@@ -6,10 +6,10 @@
 
 | Seed | step_avg | steps | Pre-TTT bpb | **Post-TTT bpb** | TTT gain | TTT eval time | Artifact |
 |------|----------|-------|-------------|-----------------|----------|---------------|----------|
-| 1337 | 82.3ms | 7,278 | 1.1225 | **1.1204** | -0.0021 | 413s | 15,979,188 |
-| 42 | 82.4ms | 7,278 | 1.1234 | **1.1216** | -0.0018 | 406s | 15,987,108 |
-| 2025 | 82.4ms | 7,270 | 1.1232 | **1.1221** | -0.0011 | 405s | 15,988,312 |
-| **Mean** | **82.3ms** | **7,275** | **1.1230** | **1.1214 (std 0.0009)** | **-0.0017** | **~408s** | |
+| 1337 | 82.5ms | 7,273 | 1.1224 | **1.1204** | -0.0020 | 413s | 15,979,188 |
+| 42 | 82.5ms | 7,278 | 1.1237 | **1.1216** | -0.0021 | 406s | 15,987,108 |
+| 2025 | 82.5ms | 7,270 | 1.1240 | **1.1221** | -0.0019 | 405s | 15,988,312 |
+| **Mean** | **82.5ms** | **7,274** | **1.1233** | **1.1214 (std 0.0009)** | **-0.0019** | **~408s** | |
 
 ### Timing Budget
 
@@ -17,10 +17,10 @@
 |-------|------|-----------|
 | Training | 600s | ≤600s on 8×H100 |
 | Standard eval (int6 roundtrip + sliding window) | ~120s | — |
-| **Legal TTT (score-first sliding + adaptation)** | **~400s** | — |
-| **Total wall time** | **~1120s** | Training ≤10 min; eval is separate |
+| **Legal TTT (score-first sliding + adaptation)** | **~408s** | — |
+| **Total eval** | **~528s (< 10 min)** | Eval ≤10 min |
 
-Training completes in 600s (10 min). TTT runs during the evaluation phase — the same phase where other TTT submissions (#398, #442, #461) run their adaptation. Total eval is ~520s (~8.7 min).
+Training completes in 600s (10 min). TTT runs during the evaluation phase — the same phase where other TTT submissions (#398, #442, #461) run their adaptation. Total eval is ~528s (~8.8 min).
 
 ## TTT Legality
 
