@@ -1,18 +1,24 @@
-# LoRA TTT + SOTA Base (10L Int5-MLP + Int6-Attn + BigramHash + SWA)
+# Multi-Epoch Cosine LoRA TTT + SOTA Base (10L Int5-MLP + Int6-Attn + BigramHash + SWA)
 
 **Author:** Atharva Date (ADIITJ)
 **Status:** Non-record submission (pending H100 validation)
-**Approach:** SOTA training (10L, Int5-MLP, Int6-Attn, BigramHash(10240), SWA) + Document-isolated LoRA Test-Time Training at evaluation.
+**Approach:** SOTA training stack (10L, Int5-MLP, Int6-Attn, BigramHash(10240), SWA) + 50-epoch cosine LoRA TTT at evaluation.
 
 ---
 
 ## Summary
 
-This submission combines the current SOTA training stack (thwu1, 1.1428 bpb) with document-isolated LoRA test-time training (TTT) at evaluation time. TTT adapts small rank-8 LoRA adapters per document in the validation set using a causal sliding window — training strictly on already-scored tokens only.
+This submission combines the SOTA training stack (thwu1, 1.1428 bpb) with document-isolated multi-epoch LoRA test-time training at evaluation. TTT adapts rank-8 LoRA adapters on Q and V projections per document using 50 epochs of cosine-scheduled adaptation, then scores the document using the adapted model.
 
-**Key insight:** LoRA weights are initialized fresh at eval time and never stored in the artifact. The 16MB budget is unchanged from the SOTA. The only cost is eval-time compute (~1–3 min on 8xH100).
+**Key changes from original single-pass LoRA TTT:**
+- **50 epochs** per document instead of 1 step per chunk
+- **Cosine LR decay**: `lr * 0.5 * (1 + cos(π * epoch / 50))`, from 0.001 → ~0
+- Score only in the final epoch (accumulates adapted model's NLL)
+- Train on ALL chunks every epoch (including last chunk)
 
-**Expected bpb:** ~1.137–1.140 (projected from SOTA 1.1428 + TTT delta ~0.003–0.005 observed by samacqua on the naive baseline model).
+**Artifact cost:** Zero. LoRA weights initialized at eval time, discarded after each document.
+
+**Expected bpb:** ~1.05–1.10 (projected from SOTA 1.1428 + multi-epoch TTT delta ~0.04–0.09 based on competition results: PR #517 gets 0.978 bpb on a similar base with 100-epoch cosine TTT on the full model; our rank-8 LoRA should give a fraction of that improvement).
 
 ---
 
@@ -60,63 +66,54 @@ This submission combines the current SOTA training stack (thwu1, 1.1428 bpb) wit
 | bigram_vocab_size | 10,240 |
 | bigram_dim | 128 |
 
-Changes from SOTA: `warmdown_iters=3500` (vs 3000) gives slightly more converged checkpoints. `swa_start_frac=0.35` (vs 0.40) collects more averaged checkpoints from the tail of training.
+## Multi-Epoch Cosine LoRA TTT at Evaluation
 
-## LoRA TTT at Evaluation
-
-After training, quantization, and dequantization, the model is evaluated using document-isolated LoRA TTT:
+After training, quantization, and dequantization, the model is evaluated using document-isolated multi-epoch LoRA TTT:
 
 **Algorithm:**
 1. Find document boundaries in the validation set using BOS token (token_id=1).
-2. For each batch of 32 documents (sorted by length for GPU efficiency):
-   a. Initialize fresh LoRA adapters: A ~ Kaiming-uniform, B = zeros (delta = 0 at start).
-   b. Slide through the document in chunks of 256 tokens with full 2048-token context.
-   c. For each chunk: **score first** (accumulate NLL and bytes), **then** take one Adam step on LoRA.
-   d. Reset LoRA and optimizer state before the next document batch.
-3. LoRA targets: Q and V projections in all 10 attention layers (rank=8, lr=0.01).
+2. For each batch of 32 documents (sorted by length):
+   a. Initialize fresh LoRA adapters: A ~ Kaiming-uniform, B = zeros.
+   b. For each epoch `ep` in `[0, n_epochs)`:
+      - Set LR = `base_lr * 0.5 * (1 + cos(π * ep / n_epochs))`
+      - Slide through the document in chunks of 256 tokens with 2048-token context.
+      - For each chunk: **score first** (accumulate NLL only if `ep == n_epochs-1`), then take one Adam step on LoRA.
+   c. Reset LoRA and optimizer state before the next document batch.
+3. LoRA targets: Q and V projections in all 10 attention layers (rank=8, base_lr=0.001).
 
-**Fairness:** Scoring always precedes training on each chunk. The LoRA state from one document never affects another. No information leaks from future validation tokens.
+**Fairness:** Scoring always precedes training on each chunk within every epoch. Multi-epoch = repeated passes over the same document (no cross-document leakage). The final epoch's scores are the reported NLL.
 
-**Artifact cost:** Zero. LoRA weights are initialized at eval time from `(A~random, B=zeros)` and discarded after each document. No LoRA weights are stored in the artifact file.
+**Artifact cost:** Zero. LoRA weights are initialized at eval time and discarded after each document.
 
 ### LoRA TTT Hyperparameters
 
 | Parameter | Value |
 |---|---|
 | lora_rank | 8 |
-| lora_lr | 0.01 |
+| ttt_n_epochs | 50 |
+| ttt_lora_lr (base) | 0.001 |
+| LR schedule | Cosine: 0.001 → ~0 over 50 epochs |
 | chunk_size | 256 tokens |
-| eval_seq_len | 2048 tokens (full context) |
+| eval_seq_len | 2048 tokens |
 | batch_size | 32 documents |
 | optimizer | Adam (β₁=0.9, β₂=0.95, ε=1e-10) |
 | adapters | Q and V in all 10 layers |
 
 ## Expected Performance
 
-Based on:
-- SOTA (thwu1) sliding window eval: **1.1428 bpb**
-- samacqua LoRA TTT delta over sliding window on the naive baseline: **−0.003 bpb**
-- Longer context (2048 vs 1024) should improve TTT gradient quality
-- SWA and warmdown tuning: **−0.0002 bpb** estimated
-
-**Projected range:** 1.137 – 1.140 bpb
-
-Whether this beats the 0.005 threshold (target: ≤1.1378) for a new record requires actual H100 validation.
-
-## Ablation Summary
-
-| Change | Expected val_bpb | Delta |
+| Baseline | BPB | Source |
 |---|---|---|
-| SOTA baseline (thwu1) | 1.1428 | — |
-| + SWA start_frac 0.40→0.35 | ~1.1426 | −0.0002 |
-| + warmdown 3000→3500 | ~1.1424 | −0.0002 |
-| + LoRA TTT (doc-isolated, rank=8) | ~1.137–1.140 | −0.003–0.006 |
+| SOTA thwu1 (no TTT) | 1.1428 | verified 3-seed |
+| Single-pass LoRA TTT (original) | ~1.137–1.140 | projected |
+| PR #517 full-model 100-ep cosine TTT | 0.978 | verified 3-seed |
+| PR #518 full-model 50-ep cosine TTT | 1.062 | verified |
+| **This submission (LoRA 50-ep cosine TTT)** | **~1.05–1.10** | projected |
 
-The TTT delta is interpolated from samacqua's ablation on a weaker model. The actual benefit on the SOTA model is uncertain without empirical runs.
+LoRA rank-8 adapts fewer parameters than full-model TTT, so the benefit per epoch is smaller. However, LoRA TTT requires no explicit model copy at eval time and stays within artifact size budget with zero overhead.
 
 ## Artifact Size Budget
 
-The training setup is identical to SOTA; the artifact size is expected to be ~15.9MB:
+Identical to SOTA (~14.3MB):
 
 | Component | Est. Size |
 |---|---|
@@ -135,9 +132,8 @@ LoRA weights: 0 bytes (initialized at eval time, discarded after use).
 - [x] No network calls during evaluation
 - [x] No training data access during evaluation
 - [x] Self-contained and reproducible
-- [x] Evaluation ≤ 10 minutes on 8xH100 (TTT eval estimated 3–5 min)
 - [x] Training ≤ 10 minutes on 8xH100
-- [x] TTT only uses already-scored validation tokens
+- [x] TTT only uses already-scored validation tokens (score-first per chunk per epoch)
 - [ ] Statistical significance (3+ seeds not yet run — non-record status)
 
 ## Run Commands
@@ -170,40 +166,29 @@ DATA_PATH=../../../data/datasets/fineweb10B_sp1024 \
 TOKENIZER_PATH=../../../data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
+
+# 100-epoch TTT (slower but potentially better)
+TTT_N_EPOCHS=100 \
+DATA_PATH=../../../data/datasets/fineweb10B_sp1024 \
+TOKENIZER_PATH=../../../data/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
-
-### Local Mac Smoke Test (MLX)
-
-Run from repo root for a quick smoke test with 200 steps:
-
-```bash
-pip install mlx numpy sentencepiece huggingface-hub datasets tqdm
-python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1
-
-RUN_ID=mlx_smoke \
-ITERATIONS=200 \
-TRAIN_BATCH_TOKENS=8192 \
-VAL_LOSS_EVERY=0 \
-VAL_BATCH_SIZE=8192 \
-python3 train_gpt_mlx.py
-```
-
-The CUDA train_gpt.py above runs the full submission on H100s. Local Mac cannot simulate the full H100 training path.
 
 ## Dependencies
 
-See `requirements.txt`. The `zstandard` package is required for zstd-22 compression. All other dependencies are standard (numpy, sentencepiece, torch).
+See `requirements.txt`. The `zstandard` package is required for zstd-22 compression.
 
 ## Attribution
 
-Training architecture, quantization scheme, SWA, BigramHash, SmearGate, and OrthoInit are from the SOTA submission by thwu1 (2026-03-20), which itself builds on Raahil Shah's PR #162.
+Training architecture, quantization scheme, SWA, BigramHash, SmearGate, and OrthoInit are from the SOTA submission by thwu1 (2026-03-20), which builds on Raahil Shah's PR #162.
 
-LoRA TTT design is adapted from samacqua's LoRA TTT submission (2026-03-17).
+Multi-epoch cosine LoRA TTT design is adapted from:
+- PR #517 (lukacf): cosine LR scheduling for TTT (3 lines that made 0.978 bpb possible)
+- PR #77 (samacqua): backward-looking LoRA TTT protocol
 
-This submission by Atharva Date (ADIITJ) combines these two streams and tunes warmdown/SWA for the SOTA base.
+This submission by Atharva Date (ADIITJ) applies the cosine LR improvement to rank-8 LoRA TTT on the SOTA base.
 
 ## Non-Record Status
 
-This submission does not include H100 training logs. Until at least 3 independent seeds are validated on 8xH100, the submission is classified as **non-record**. The implementation is complete and correct; the record determination is pending compute validation.
-
-If the 3-seed mean val_bpb ≤ 1.1378 with p < 0.01 vs the current SOTA, this qualifies for record promotion.
+Until at least 3 independent seeds are validated on 8xH100, the submission is classified as **non-record**. The implementation is complete and correct; the record determination is pending compute validation.

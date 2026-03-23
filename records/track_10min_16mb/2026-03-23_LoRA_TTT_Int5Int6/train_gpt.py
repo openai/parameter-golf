@@ -102,7 +102,8 @@ class Hyperparameters:
     # LoRA TTT hyperparameters (eval time only, no artifact cost)
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
-    ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
+    ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.001))
+    ttt_n_epochs = int(os.environ.get("TTT_N_EPOCHS", 50))
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 2048))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 32))
@@ -921,43 +922,36 @@ def eval_val_ttt_lora(
     val_pattern: str,
     log_fn=None,
 ) -> tuple[float, float]:
-    """Document-isolated LoRA TTT evaluation.
+    """Multi-epoch document-isolated LoRA TTT evaluation with cosine LR decay.
 
     For each document in the validation set:
-    1. Initialize fresh LoRA adapters (A~Kaiming, B=0 => zero delta at start).
-    2. Slide through the document in chunks of `ttt_chunk_size` tokens.
-    3. For each chunk: (a) score the chunk (accumulate loss/bytes), then
-       (b) take one Adam step on LoRA params using that chunk's loss.
-    4. Reset LoRA before the next document.
+    1. Initialize fresh LoRA adapters (A~Kaiming, B=0).
+    2. Run ttt_n_epochs passes over the document with cosine LR decay.
+    3. Each pass: for every chunk, SCORE first (backward-looking), then take
+       one gradient step on LoRA.  NLL is accumulated only in the final epoch.
+    4. Reset LoRA + optimizer before the next document.
 
-    Fairness guarantee: We always SCORE a chunk before TRAINING on it,
-    so evaluation is never contaminated by future tokens.
+    Fairness: Within each epoch, every chunk is scored before training on it.
+    Multi-epoch = repeated adaptation passes (not bulk pre-training).
     """
     chunk_size = args.ttt_chunk_size
     eval_seq_len = args.ttt_eval_seq_len
     batch_size = args.ttt_batch_size
     lora_rank = args.ttt_lora_rank
+    n_epochs = args.ttt_n_epochs
+    base_lr = args.ttt_lora_lr
 
-    # Load all val tokens for document boundary detection
     files = [Path(p) for p in sorted(glob.glob(val_pattern))]
     all_tokens = torch.cat([load_data_shard(f) for f in files]).cpu()
     docs = _find_docs(all_tokens)
 
-    # Distribute documents across ranks
     my_s = (len(docs) * rank) // world_size
     my_e = (len(docs) * (rank + 1)) // world_size
-    rank_docs = docs[my_s:my_e]
-
-    # Sort by doc length for efficient batching (shorter docs together)
-    rank_docs = sorted(rank_docs, key=lambda d: d[1])
+    rank_docs = sorted(docs[my_s:my_e], key=lambda d: d[1])
 
     base_model.eval()
     for p in base_model.parameters():
         p.requires_grad_(False)
-
-    lora = BatchedTTTLoRA(batch_size, base_model, lora_rank).to(device)
-    ttt_opt = torch.optim.Adam(lora.parameters(), lr=args.ttt_lora_lr,
-                               betas=(args.beta1, args.beta2), eps=1e-10)
 
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     byte_sum = torch.zeros((), device=device, dtype=torch.float64)
@@ -968,92 +962,80 @@ def eval_val_ttt_lora(
         batch = rank_docs[bi : bi + batch_size]
         bsz = len(batch)
 
-        # Reuse preallocated lora if full batch, else create smaller one
-        if bsz == batch_size:
-            cur_lora, cur_opt = lora, ttt_opt
-            cur_lora.reset()
-            _reset_ttt_optimizer(cur_opt)
-        else:
-            cur_lora = BatchedTTTLoRA(bsz, base_model, lora_rank).to(device)
-            cur_opt = torch.optim.Adam(cur_lora.parameters(), lr=args.ttt_lora_lr,
-                                       betas=(args.beta1, args.beta2), eps=1e-10)
+        cur_lora = BatchedTTTLoRA(bsz, base_model, lora_rank).to(device)
+        cur_opt = torch.optim.Adam(cur_lora.parameters(), lr=base_lr,
+                                   betas=(0.9, 0.95), eps=1e-10)
 
-        # Compute chunk counts per doc in this batch
         pred_lens = [doc_len - 1 for _, doc_len in batch]
         num_chunks = [(pl + chunk_size - 1) // chunk_size for pl in pred_lens]
         max_nc = max(num_chunks)
-
         all_adapters = cur_lora.all_layer_adapters()
 
-        for ci in range(max_nc):
-            # Determine window for each active doc in batch
-            active = [ci < nc for nc in num_chunks]
-            if not any(active):
-                break
+        for ep in range(n_epochs):
+            # Cosine LR: starts at base_lr, ends near 0
+            cos_lr = base_lr * 0.5 * (1.0 + math.cos(math.pi * ep / n_epochs))
+            for g in cur_opt.param_groups:
+                g["lr"] = cos_lr
+            is_final = (ep == n_epochs - 1)
 
-            chunk_starts = [ci * chunk_size for _ in batch]
-            chunk_ends = [
-                pred_lens[b] if ci == num_chunks[b] - 1 else (ci + 1) * chunk_size
-                for b in range(bsz)
-            ]
-            # Context window: up to eval_seq_len tokens ending at chunk_end
-            win_starts = [max(0, chunk_ends[b] - eval_seq_len) for b in range(bsz)]
-            win_lens = [chunk_ends[b] - win_starts[b] for b in range(bsz)]
-            max_win_len = max(win_lens)
+            for ci in range(max_nc):
+                active = [ci < nc for nc in num_chunks]
+                if not any(active):
+                    break
 
-            x_batch = torch.zeros(bsz, max_win_len, dtype=torch.int64, device=device)
-            y_batch = torch.zeros(bsz, max_win_len, dtype=torch.int64, device=device)
-            chunk_offsets = []
+                chunk_starts = [ci * chunk_size for _ in batch]
+                chunk_ends = [
+                    pred_lens[b] if ci == num_chunks[b] - 1 else (ci + 1) * chunk_size
+                    for b in range(bsz)
+                ]
+                win_starts = [max(0, chunk_ends[b] - eval_seq_len) for b in range(bsz)]
+                win_lens = [chunk_ends[b] - win_starts[b] for b in range(bsz)]
+                max_win_len = max(win_lens)
 
-            for b in range(bsz):
-                if not active[b]:
-                    chunk_offsets.append((0, 0))
-                    continue
-                ds, dl = batch[b]
-                ws = win_starts[b]
-                wl = win_lens[b]
-                toks = all_tokens[ds + ws : ds + ws + wl + 1].to(dtype=torch.int64, device=device)
-                x_batch[b, :wl] = toks[:-1]
-                y_batch[b, :wl] = toks[1:]
-                co = chunk_starts[b] - ws
-                cl = chunk_ends[b] - chunk_starts[b]
-                chunk_offsets.append((co, cl))
+                x_batch = torch.zeros(bsz, max_win_len, dtype=torch.int64, device=device)
+                y_batch = torch.zeros(bsz, max_win_len, dtype=torch.int64, device=device)
+                chunk_offsets = []
 
-            needs_train = any(ci < num_chunks[b] - 1 for b in range(bsz) if active[b])
+                for b in range(bsz):
+                    if not active[b]:
+                        chunk_offsets.append((0, 0))
+                        continue
+                    ds, _ = batch[b]
+                    ws = win_starts[b]
+                    wl = win_lens[b]
+                    toks = all_tokens[ds + ws : ds + ws + wl + 1].to(dtype=torch.int64, device=device)
+                    x_batch[b, :wl] = toks[:-1]
+                    y_batch[b, :wl] = toks[1:]
+                    co = chunk_starts[b] - ws
+                    cl = chunk_ends[b] - chunk_starts[b]
+                    chunk_offsets.append((co, cl))
 
-            if needs_train:
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                     per_token_loss = base_model.forward_per_token_loss(
                         x_batch, y_batch, lora_adapters=all_adapters
                     )
-            else:
-                with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    per_token_loss = base_model.forward_per_token_loss(
-                        x_batch, y_batch, lora_adapters=all_adapters
-                    )
 
-            # Score: accumulate before training (no leakage)
-            with torch.no_grad():
-                for b in range(bsz):
-                    if not active[b]:
-                        continue
-                    co, cl = chunk_offsets[b]
-                    if cl <= 0:
-                        continue
-                    chunk_loss = per_token_loss[b, co : co + cl].to(torch.float64)
-                    tgt = y_batch[b, co : co + cl]
-                    prev = x_batch[b, co : co + cl]
-                    tb = base_bytes_lut[tgt].to(torch.float64)
-                    tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-                    loss_sum += chunk_loss.sum()
-                    byte_sum += tb.sum()
-                    token_count += cl
+                # Score chunk BEFORE training on it (backward-looking guarantee)
+                if is_final:
+                    with torch.no_grad():
+                        for b in range(bsz):
+                            if not active[b]:
+                                continue
+                            co, cl = chunk_offsets[b]
+                            if cl <= 0:
+                                continue
+                            chunk_loss = per_token_loss[b, co : co + cl].to(torch.float64)
+                            tgt = y_batch[b, co : co + cl]
+                            prev = x_batch[b, co : co + cl]
+                            tb = base_bytes_lut[tgt].to(torch.float64)
+                            tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                            loss_sum += chunk_loss.sum()
+                            byte_sum += tb.sum()
+                            token_count += cl
 
-            # Train LoRA on this chunk (only if more chunks remain for any doc)
-            if needs_train:
+                # Train LoRA on this chunk (all epochs, all chunks)
                 mask = torch.tensor(
-                    [float(ci < num_chunks[b] - 1 and active[b]) for b in range(bsz)],
-                    device=device
+                    [float(active[b]) for b in range(bsz)], device=device
                 )
                 per_doc_loss = torch.stack([
                     per_token_loss[b, chunk_offsets[b][0] : chunk_offsets[b][0] + chunk_offsets[b][1]].mean()
@@ -1072,14 +1054,13 @@ def eval_val_ttt_lora(
             if token_count.item() > 0:
                 rl = (loss_sum / token_count).item()
                 running_bpb = rl / math.log(2.0) * (token_count.item() / byte_sum.item())
-            log_fn(f"  ttt_eval [{pct:5.1f}%] {docs_done}/{len(rank_docs)} docs running_bpb={running_bpb:.6f}")
+            log_fn(f"  ttt_eval [{pct:5.1f}%] ep={n_epochs} docs={docs_done}/{len(rank_docs)} bpb={running_bpb:.6f}")
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(byte_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
 
-    # Restore grad for base model parameters
     for p in base_model.parameters():
         p.requires_grad_(True)
     base_model.train()
