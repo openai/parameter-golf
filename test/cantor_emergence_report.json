@@ -1,0 +1,257 @@
+{
+  "corpus_stats": {
+    "n_propositions": 36,
+    "n_topics": 5,
+    "topics": {
+      "machine_learning": 8,
+      "climate_science": 8,
+      "genomics": 8,
+      "distributed_systems": 8,
+      "noise": 4
+    }
+  },
+  "level1_handles": [
+    {
+      "id": "h1_distributed_systems",
+      "label": "distributed_systems",
+      "mass": 0.196429,
+      "n_members": 8
+    },
+    {
+      "id": "h1_machine_learning",
+      "label": "machine_learning",
+      "mass": 0.183036,
+      "n_members": 8
+    },
+    {
+      "id": "h1_genomics",
+      "label": "genomics",
+      "mass": 0.16369,
+      "n_members": 8
+    },
+    {
+      "id": "h1_climate_science",
+      "label": "climate_science",
+      "mass": 0.066964,
+      "n_members": 8
+    },
+    {
+      "id": "h1_noise",
+      "label": "noise",
+      "mass": 0.0,
+      "n_members": 4
+    }
+  ],
+  "level2_handles": [
+    {
+      "id": "h2_discourse",
+      "label": "all_coherent_topics",
+      "mass": 0.610119,
+      "members": [
+        "h1_machine_learning",
+        "h1_climate_science",
+        "h1_genomics",
+        "h1_distributed_systems"
+      ]
+    },
+    {
+      "id": "h2_science",
+      "label": "science_cluster",
+      "mass": 0.346726,
+      "members": [
+        "h1_machine_learning",
+        "h1_genomics"
+      ]
+    },
+    {
+      "id": "h2_systems",
+      "label": "systems_cluster",
+      "mass": 0.263393,
+      "members": [
+        "h1_climate_science",
+        "h1_distributed_systems"
+      ]
+    }
+  ],
+  "cantor_enrichment": {
+    "A0_propositions": 36,
+    "A1_props_plus_l1_handles": 41,
+    "A2_full_alphabet": 44,
+    "strict_enrichment_0_to_1": true,
+    "strict_enrichment_1_to_2": true,
+    "level1_handles": 5,
+    "level2_handles": 3,
+    "cantor_property_holds": true
+  },
+  "pairwise_binding": {
+    "matrix": {
+      "machine_learning_x_machine_learning": 0.0,
+      "machine_learning_x_climate_science": 0.0,
+      "machine_learning_x_genomics": 0.075,
+      "machine_learning_x_distributed_systems": 0.033333,
+      "machine_learning_x_noise": 0.0,
+      "climate_science_x_climate_science": 0.0,
+      "climate_science_x_genomics": 0.030556,
+      "climate_science_x_distributed_systems": 0.0,
+      "climate_science_x_noise": 0.033333,
+      "genomics_x_genomics": 0.152778,
+      "genomics_x_distributed_systems": 0.030556,
+      "genomics_x_noise": 0.030556,
+      "distributed_systems_x_distributed_systems": 0.0,
+      "distributed_systems_x_noise": 0.0,
+      "noise_x_noise": 0.0
+    },
+    "mean_within_topic": 0.030556,
+    "mean_cross_topic": 0.023333,
+    "within_exceeds_cross": true,
+    "separation_ratio": 1.31
+  },
+  "budget_allocation": {
+    "total_budget_bytes": 16000000,
+    "bits_used": 127999999,
+    "bytes_used": 15999999,
+    "within_budget": true,
+    "handles": [
+      {
+        "handle": "distributed_systems",
+        "binding_mass": 0.196429,
+        "bits_allocated": 41209756,
+        "bytes": 5151219,
+        "quant_level": "int8",
+        "pct_budget": 32.2
+      },
+      {
+        "handle": "machine_learning",
+        "binding_mass": 0.183036,
+        "bits_allocated": 38400000,
+        "bytes": 4800000,
+        "quant_level": "int8",
+        "pct_budget": 30.0
+      },
+      {
+        "handle": "genomics",
+        "binding_mass": 0.16369,
+        "bits_allocated": 34341463,
+        "bytes": 4292682,
+        "quant_level": "int8",
+        "pct_budget": 26.83
+      },
+      {
+        "handle": "climate_science",
+        "binding_mass": 0.066964,
+        "bits_allocated": 14048780,
+        "bytes": 1756097,
+        "quant_level": "int8",
+        "pct_budget": 10.98
+      },
+      {
+        "handle": "noise",
+        "binding_mass": 0.0,
+        "bits_allocated": 0,
+        "bytes": 0,
+        "quant_level": "dropped",
+        "pct_budget": 0.0
+      }
+    ]
+  },
+  "fisher_binding_correlation": {
+    "pearson_r": -0.4333951860048363,
+    "per_topic": [
+      {
+        "topic": "machine_learning",
+        "binding": 0.18303571428571427,
+        "fisher": 74.1938828551052
+      },
+      {
+        "topic": "climate_science",
+        "binding": 0.06696428571428571,
+        "fisher": 77.37789180356437
+      },
+      {
+        "topic": "genomics",
+        "binding": 0.1636904761904762,
+        "fisher": 75.86059458613344
+      },
+      {
+        "topic": "distributed_systems",
+        "binding": 0.19642857142857142,
+        "fisher": 77.37218900015769
+      },
+      {
+        "topic": "noise",
+        "binding": 0.0,
+        "fisher": 76.89453057663768
+      }
+    ],
+    "interpretation": "weak / no correlation"
+  },
+  "diversity_selection": {
+    "n_eff_final": 3.1606,
+    "total_docs": 36,
+    "selected": 5,
+    "rejected": 31,
+    "compression_ratio": 0.139,
+    "selected_docs": [
+      {
+        "doc": "machine_learning_0",
+        "source": "machine_learning",
+        "n_eff_gain": 0.6321
+      },
+      {
+        "doc": "climate_science_0",
+        "source": "climate_science",
+        "n_eff_gain": 0.6321
+      },
+      {
+        "doc": "genomics_0",
+        "source": "genomics",
+        "n_eff_gain": 0.6321
+      },
+      {
+        "doc": "distributed_systems_0",
+        "source": "distributed_systems",
+        "n_eff_gain": 0.6321
+      },
+      {
+        "doc": "noise_0",
+        "source": "noise",
+        "n_eff_gain": 0.6321
+      }
+    ],
+    "rejected_docs": [
+      {
+        "doc": "machine_learning_1",
+        "source": "machine_learning",
+        "n_eff_gain": 0.2325
+      },
+      {
+        "doc": "machine_learning_2",
+        "source": "machine_learning",
+        "n_eff_gain": 0.2325
+      },
+      {
+        "doc": "machine_learning_3",
+        "source": "machine_learning",
+        "n_eff_gain": 0.2325
+      },
+      {
+        "doc": "machine_learning_4",
+        "source": "machine_learning",
+        "n_eff_gain": 0.2325
+      },
+      {
+        "doc": "machine_learning_5",
+        "source": "machine_learning",
+        "n_eff_gain": 0.2325
+      }
+    ]
+  },
+  "method_verdict": {
+    "binding_separates_topics": true,
+    "cantor_hierarchy_holds": true,
+    "budget_within_16mb": true,
+    "diversity_selects_novel_sources": true,
+    "noise_cluster_dropped": true,
+    "fisher_binding_independent_signals": true
+  }
+}
