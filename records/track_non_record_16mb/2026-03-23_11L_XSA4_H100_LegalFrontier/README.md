@@ -1,18 +1,33 @@
-This record captures a non-record 16MB submission built from the current root `train_gpt.py`, validated on a single `H100 80GB`.
+# Non-Record: 11L + XSA4 H100 Frontier
 
-This run is not presented as a main-leaderboard record because the challenge record track requires reproducible `8xH100` evidence and statistical significance over the current SOTA. It is instead a legal, reproducible non-record result that packages the best under-cap checkpoint from an H100 checkpoint frontier.
+This PR adds a non-record `16 MB` submission built around an `11`-layer decoder-only transformer with `XSA` applied only in the final `4` layers. The model uses width `512`, `8` query heads, `4` KV heads, tied embeddings, ReLU^2 MLPs, `TRAIN_SEQ_LEN=256`, `TRAIN_BATCH_TOKENS=524288`, `WARMDOWN_ITERS=200`, and checkpoint-frontier saving every `25` steps. Artifacts use custom packed serialization with `packed_zstd`.
 
-Configuration:
-- Track: `non-record`, still under the decimal `16,000,000` byte artifact cap
-- Layout: `VOCAB_SIZE=1024 NUM_LAYERS=11 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4 MLP_MULT=2`
-- Attention: `XSA_TAIL_LAYERS=4`
-- Tied output/input embeddings: `TIE_EMBEDDINGS=1`
-- Batching: `TRAIN_BATCH_TOKENS=524288 TRAIN_SEQ_LEN=256`
-- Validation/export mode during training: `VAL_LOSS_EVERY=0 RUN_TTT_EVAL=0`
-- Frontier saving: `SAVE_DENSE_CHECKPOINT_EVERY=25`
-- Artifact path: `packed_zstd`
+This is not a record-track claim. It was developed and validated on single-`H100 80GB` hardware and is submitted as a reproducible non-record technical result.
 
-Training command:
+## Official Legal Result
+
+The official metric in `submission.json` is the best legal checkpoint from a `650`-step H100 frontier:
+
+- checkpoint: `logs/checkpoints/11l_xsa4_h100_scored_step00650.pt`
+- selection policy: `--no-default-large-keeps`
+- `val_loss: 2.46718130`
+- `val_bpb: 1.46120374`
+- compressed model bytes: `15,907,290`
+- code bytes: `76,313`
+- total bytes: `15,983,603`
+
+## Stronger Full-Data Frontier
+
+I also ran the same recipe on the full cached challenge shard set on single H100 hardware. The strongest raw point from that run was:
+
+- `950` steps
+- final roundtrip exact `val_bpb: 1.41212874`
+- total submission bytes: `17,636,401`
+
+This result is materially stronger in BPB but over the `16,000,000` byte cap, so it is included here as development evidence rather than as the official submission metric.
+
+## Training Command
+
 ```bash
 RUN_ID=11l_xsa4_h100_scored \
 NUM_LAYERS=11 \
@@ -33,13 +48,7 @@ python train_gpt.py
 ```
 
 Checkpoint selection:
-- The raw final export at `step650` scored better before the legal-size filter but exceeded the artifact cap.
-- We therefore selected from the saved frontier checkpoints after training.
-- The chosen legal checkpoint is:
-  - `logs/checkpoints/11l_xsa4_h100_scored_step00650.pt`
-  - evaluated with `--no-default-large-keeps`
 
-Post-training selection command:
 ```bash
 python scripts/eval_quant_candidate.py \
   --state-dict-path logs/checkpoints/11l_xsa4_h100_scored_step00650.pt \
@@ -50,33 +59,9 @@ python scripts/eval_quant_candidate.py \
   --train-seq-len 256
 ```
 
-Key metrics:
-- Raw final run at `step650`:
-  - `val_loss:2.4650`
-  - `val_bpb:1.4599`
-  - final roundtrip exact: `val_bpb:1.46031761`
-  - total submission size int8+zlib: `16291660` bytes
-- Best legal checkpoint selection:
-  - `step650 + no_default_large_keeps`
-  - `val_loss:2.46718130`
-  - `val_bpb:1.46120374`
-  - compressed model bytes: `15907290`
-  - code bytes: `76313`
-  - total bytes: `15983603`
+## Notes
 
-Performance notes:
-- Single-H100 train step average at `650` steps: about `388.36ms`
-- Peak memory: `13451 MiB allocated`, `13496 MiB reserved`
-- Dense checkpoint frontier was saved every `25` steps through `650`
-
-Included files:
-- `train_gpt.py` (exact code snapshot used for the run)
-- `train.log` (exact H100 training log)
-- `submission.json` (metadata)
-- `requirements.txt` (runtime packages)
-
-What to do next for better scores:
-- Run the same `11L + XSA4` stack on `8xH100` and repeat the legal frontier selection under the real record-track budget.
-- Keep the `step650 + no_keep` policy as the baseline legal selector, then test whether a slightly later checkpoint remains under cap on `8xH100`.
-- Push artifact economics further. The current bottleneck is still payload compression, not metadata. The next promising branch remains stronger post-training quantization or precision allocation, not more serializer work.
-- Re-run the selected checkpoint frontier with multiple seeds if the goal shifts from a non-record package to a statistically defensible record attempt.
+- `train_gpt.py` is the exact code snapshot used for this submission.
+- `train.log` contains the corresponding H100 run log for the official legal result.
+- The main remaining bottleneck is artifact size, not raw model quality.
+- The next obvious follow-up is to combine this recipe with stronger artifact economics or post-quant-aware late training so later checkpoints remain legal.
