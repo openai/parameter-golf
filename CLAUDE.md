@@ -28,16 +28,19 @@ All model hyperparameters are configured via environment variables (see `Hyperpa
 - `VOCAB_SIZE`, `NUM_LAYERS`, `MODEL_DIM`, `NUM_HEADS`, `NUM_KV_HEADS`, `MLP_MULT` — architecture
 - `ITERATIONS`, `MAX_WALLCLOCK_SECONDS`, `TRAIN_BATCH_TOKENS`, `TRAIN_SEQ_LEN` — training budget
 - `MATRIX_LR`, `SCALAR_LR`, `EMBED_LR`, `TIED_EMBED_LR`, `HEAD_LR` — per-group learning rates
+- `TTT_ENABLED`, `TTT_OPTIMIZER` (adamw/muon/sgd), `TTT_EPOCHS`, `TTT_LR`, `TTT_COSINE` — test-time training
+- `LEAKY_SLOPE` (0.0=ReLU², 0.5=LeakyReLU(0.5)²), `GPTQ_ENABLED` — activation & quantization
+- `EMA_ENABLED`, `SWA_ENABLED`, `LATE_QAT`, `VALUE_RESIDUAL`, `GATED_ATTENTION`, `XSA_LAST_N`, `LN_SCALE`
 
 There is no build system, test suite, or linter. The project is a single training script.
 
 ## Architecture
 
-### train_gpt.py (~1100 lines, single-file constraint)
+### train_gpt.py (~1487 lines, single-file constraint)
 
 The entire model, training loop, data loading, evaluation, and serialization live in one file. The challenge rules require all code in `train_gpt.py` (hard limit: 1500 lines).
 
-**Model (GPT class):** Transformer with RMSNorm, RoPE, Grouped Query Attention (GQA), ReLU² MLP, tied embeddings, logit softcapping, and skip connections between layers.
+**Model (GPT class):** Transformer with RMSNorm, RoPE, Grouped Query Attention (GQA), ReLU²/LeakyReLU(0.5)² MLP (`LEAKY_SLOPE`), tied embeddings, logit softcapping, and skip connections between layers.
 
 **Optimizer:** Muon (Newton-Schulz orthogonalization) for 2D matrix parameters; Adam for embeddings and scalar/control parameters. Separate learning rate groups for embeddings, matrices, scalars, and optional untied head.
 
@@ -45,7 +48,7 @@ The entire model, training loop, data loading, evaluation, and serialization liv
 
 **Evaluation:** Tokenizer-agnostic BPB metric computed via SentencePiece byte-accounting lookup tables, handling token boundaries and leading spaces correctly.
 
-**Serialization:** Int8 post-training quantization with per-row scales for 2D tensors, FP16 passthrough for small tensors, zlib compression (level 9). Final artifact must be ≤16,000,000 bytes.
+**Serialization:** Mixed int5 (MLP) / int6 (attention) quantization with GPTQ-lite per-row clip search, FP16 passthrough for embeddings + control tensors, zstd-22 compression. 3% magnitude pruning before quantization. Final artifact must be ≤16,000,000 bytes.
 
 ### train_gpt_mlx.py
 
@@ -54,10 +57,17 @@ MLX port for Apple Silicon development. Same architecture, different backend.
 ## Challenge Rules (key constraints)
 
 - Artifact = `len(open("train_gpt.py").read().encode()) + len(compressed_model_bytes)` ≤ 16MB
-- Training must complete in ≤10 minutes wallclock on 8×H100s
+- **Two separate 10-minute limits:**
+  - Training: ≤10 min wallclock on 8×H100s (`MAX_WALLCLOCK_SECONDS=600`)
+  - Evaluation (TTT + sliding window): ≤10 min ADDITIONAL (NOT included in training time)
+  - Total allowed: up to 20 min (10 train + 10 eval)
 - Cannot access validation data during training (test-time training on already-evaluated tokens is allowed)
+- TTT must be "score-first": evaluate tokens before training on them
 - New SOTA requires ≥0.005 nats BPB improvement with p < 0.01 statistical significance
-- Default config: 1024 vocab (SentencePiece BPE), 9 layers, 512 dim, 8 heads, 4 KV heads
+- Default config: 1024 vocab (SentencePiece BPE), 10 layers, 512 dim, 8 heads, 4 KV heads
+- Current best: 1.1492 BPB (10L, VR+GA+XSA4+SWA+LateQAT, 15.3MB artifact)
+- SOTA on GitHub (verified, rule-compliant): ~1.067 BPB (PR #462: SwiGLU + AdamW TTT 10ep)
+- SOTA on GitHub (unverified/borderline): ~0.978 BPB (PR #517: 100ep Cosine TTT, violates eval time limit)
 
 ## Records
 
@@ -115,17 +125,46 @@ curl -s -X POST https://api.runpod.io/graphql \
 ./run_on_runpod.sh --status     # Pod status + SSH command
 ./run_on_runpod.sh --logs       # Tail training logs
 ./run_on_runpod.sh --results    # Show key metrics
-./run_on_runpod.sh --save-log <tag>  # Save full log to logs/<timestamp>_<tag>.log
+./run_on_runpod.sh --save-log <tag>  # Save full log
+./run_on_runpod.sh --upload     # Upload train_gpt.py to pod
+./run_on_runpod.sh --rerun      # Re-launch training (upload code + restart)
+./run_on_runpod.sh --prep-data [N]   # Download N shards locally (once)
+./run_on_runpod.sh --upload-data     # Upload local data to pod
 ./run_on_runpod.sh --stop       # Stop pod
 ./run_on_runpod.sh --delete     # Delete pod
 ```
 
-Override GPU config with env vars:
+### Training env vars (inline)
+Pass `KEY=VALUE` args directly — forwarded to training process:
+```bash
+./run_on_runpod.sh EMA_ENABLED=1 SWA_ENABLED=0
+./run_on_runpod.sh --rerun TTT_ENABLED=1 TTT_OPTIMIZER=adamw TTT_EPOCHS=10
+./run_on_runpod.sh --rerun NUM_LAYERS=11 BIGRAM_VOCAB_SIZE=10240
+```
+
+### GPU config
 ```bash
 GPU_COUNT=8 BID_PRICE=1.75 ./run_on_runpod.sh           # 8xH100 spot ($14/hr)
 GPU_COUNT=1 BID_PRICE=1.75 ./run_on_runpod.sh           # 1xH100 spot ($1.75/hr)
 GPU_ID="NVIDIA RTX PRO 4500 Blackwell" BID_PRICE=0.27 ./run_on_runpod.sh  # cheap size test
-TRAIN_SHARDS=1 ./run_on_runpod.sh                       # minimal data for quick iteration
+```
+
+### Local data (separate from repo)
+Data lives at `$LOCAL_DATA_ROOT` (default: `~/dev/personal/parameter-golf-data/`).
+```bash
+./run_on_runpod.sh --prep-data 1    # Download 1 shard locally (quick iteration)
+./run_on_runpod.sh --prep-data 80   # Download all 80 shards (full training)
+```
+When local data exists, `./run_on_runpod.sh` auto-detects and rsync's it to the pod instead of downloading from HuggingFace. Override path: `LOCAL_DATA_ROOT=/path/to/data ./run_on_runpod.sh`
+
+### Fast experiment workflow (~30s between runs)
+```bash
+./run_on_runpod.sh --prep-data 1          # Once: download data locally
+GPU_COUNT=1 ./run_on_runpod.sh            # Create pod (auto-uploads local data)
+./run_on_runpod.sh --save-log "baseline"  # Save results
+./run_on_runpod.sh --rerun EMA_ENABLED=1  # New experiment (uploads code, restarts)
+./run_on_runpod.sh --save-log "ema"       # Save results
+./run_on_runpod.sh --delete               # Clean up
 ```
 
 ### Logging
@@ -134,16 +173,21 @@ Save every training run's log after completion:
 ./run_on_runpod.sh --save-log "11L_VR1_GA1_prune3pct"
 ```
 This saves to `logs/<timestamp>_<tag>.log` and `logs/<timestamp>_<tag>.summary` with key metrics extracted.
-Logs track: config, val_bpb, artifact size, steps, timing — essential for comparing experiments.
 
 ### Cost-saving tips
-- **Always delete pods after saving logs/results** — run `./run_on_runpod.sh --save-log <tag>` then `./run_on_runpod.sh --delete`
-- **Test artifact size on cheap GPUs first** — use RTX PRO 4500 spot ($0.27/hr) to verify model fits 16MB before running on H100
-- **Use `TRAIN_SHARDS=1`** for quick iteration (less data download time)
-- **Use `EVAL_STRIDE=0`** to skip slow sliding window eval on single GPU (takes hours; only useful on 8xH100)
-- **Use `EMA_ENABLED=0`** on single GPU — EMA kills throughput (~32% slower) but works fine on multi-GPU
+- **Always delete pods after saving logs/results** — `--save-log <tag>` then `--delete`
+- **Use `--rerun` to iterate** — skips pod creation + data download, ~30s turnaround
+- **Pre-download data locally** — `--prep-data 1` once, auto-uploaded to every pod
+- **Test artifact size on cheap GPUs** — RTX PRO 4500 spot ($0.27/hr) before H100. Needs smaller batch:
+  `GPU_ID="NVIDIA RTX PRO 4500 Blackwell" BID_PRICE=0.27 ./run_on_runpod.sh TRAIN_BATCH_TOKENS=131072 TRAIN_SEQ_LEN=1024 EVAL_STRIDE=0 EMA_ENABLED=0`
+- **Use `EVAL_STRIDE=0`** to skip sliding window eval on single GPU
+- **Use `EMA_ENABLED=0`** on single GPU — EMA kills throughput (~32% slower)
 - **Always `--stop` or `--delete` pods when done** — spot 8xH100 is $14/hr
-- **Spot instances get preempted** — always use `nohup` and check if pod is still alive before reading logs
-- **Shallow clone** (`git clone --depth 1`) saves ~30s on pod setup
-- **TTT (test-time training) needs H100** — OOMs on 32GB GPUs (RTX 4500). Only enable on H100+
-- **TTT on single GPU is very slow** — 20 epochs takes hours on 1xH100 but ~5 min on 8xH100
+- **Spot instances get preempted** — always use `nohup` and check pod status
+- **TTT needs H100** — OOMs on 32GB GPUs. Only enable on H100+
+- **TTT on single GPU is very slow** — use 8xH100 for TTT experiments
+- **TTT has separate 10-min eval budget** — not counted in training time. ~20 epochs safe (~380s TTT + ~200s eval)
+- **TTT adapts all params by default** — Muon for 2D + AdamW for 1D (when `TTT_OPTIMIZER=muon`)
+- **TTT cosine LR enabled by default** (`TTT_COSINE=1`) — prevents overfitting at high epoch counts
+- **Check pod status every 60s during experiments** — spot pods get preempted, don't waste money on dead pods
+- **Save logs after EVERY experiment** before starting the next one — logs are lost when pod dies
