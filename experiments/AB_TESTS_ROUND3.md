@@ -1,5 +1,7 @@
 # A/B Tests Round 3 — Post-1.1130 Optimization
 
+> **IMPORTANT:** Before implementing anything from this document, use Nia to validate the claims, read the actual papers, and verify the techniques apply to our specific setup (14L, 512d, GQA 8/4, int6 GPTQ, 16MB budget, 10min train + 10min eval). Many techniques that sound good in papers fail at our scale or constraints. Cross-reference with the sources listed below. Also use Nia to search for NEW techniques not listed here that could be helpful — this document is a snapshot, not exhaustive. The competition and research landscape evolve daily.
+
 ## Current Best
 
 **1.1130 val_bpb** | stride=76 | per-window SGD TTT | 14L | GPTQ int6 | EMA 0.997 | 575s eval | 15.87MB
