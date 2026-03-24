@@ -40,9 +40,11 @@ MLP 4x gives ~2% relative BPB improvement over 3x but doesn't fit in 16MB with u
 
 ### Roadblocks and Negative Results
 
-> **WARNING: Recursive double-firing (the original Frugendorff mechanism) provides zero measurable benefit.**
+> **NOTE: The current double-firing implementation of recursion is challenged and requires a different approach.**
 
-We conducted a systematic ablation of the C/N cadence (ratio of double-fire to single-fire steps) across two architecture variants (4f+2cx2 and 3f+3cx2) at 0.25 scale and 1.0 scale:
+Recursion shows clear per-step learning benefits (crawler bank at U-Net bottleneck: +0.016 BPP per-step advantage at step 1500). However, the current double-firing mechanism trades too much wallclock for too little gain under the 600s competition constraint.
+
+We conducted a systematic cadence ablation (ratio of double-fire to single-fire steps) across two architecture variants at 0.25 scale and 1.0 scale:
 
 | Cadence | Meaning | 4f+2cx2 Sliding BPB | Steps |
 |---------|---------|---------------------|-------|
@@ -51,25 +53,26 @@ We conducted a systematic ablation of the C/N cadence (ratio of double-fire to s
 | 4 (mostly single) | C/N/N/N pattern | 1.3836 | 878 |
 | **0 (never double-fire)** | **Single pass only** | **1.1325** (full scale) | **7,856** |
 
-**At full scale (600s, 8xH100), cad0 (never double-fire) beats cad2 by 0.003 BPB** (1.1325 vs 1.1355), gets 11% more steps, and uses 31% less memory.
+At full scale (600s, 8xH100), cad0 beats cad2 by 0.003 BPB (1.1325 vs 1.1355), gets 11% more steps, and uses 31% less memory.
 
-The double-firing mechanism:
-1. **Costs compute** — each C-step is ~2× the FLOP of an N-step, reducing total steps by 10-20%
-2. **Destabilizes EMA** — frequent double-firing creates weight oscillation that EMA can't track (EMA gap: 0.105 at cad1 vs 0.053 at cad4)
-3. **Hurts quantization** — quant gap scales directly with double-fire frequency (0.030 at cad1 → 0.006 at cad4)
-4. **Provides no per-step learning benefit** — val@500 is identical across cadences (1.384 ± 0.0004)
+The current double-firing implementation faces three specific challenges:
+1. **Compute cost** — each C-step is ~2× FLOP, reducing total steps by 10-20% under wallclock constraint
+2. **EMA instability** — frequent double-firing creates weight oscillation that EMA can't track (gap: 0.105 at cad1 vs 0.053 at cad4)
+3. **Quantization sensitivity** — quant gap scales with double-fire frequency (0.030 at cad1 → 0.006 at cad4)
 
-> **WARNING: Deeper recursive stacks amplify the problem.**
+These are implementation-specific problems, not fundamental limits of recursion. A cheaper recurrence mechanism (e.g., lightweight adapter loops, partial-block refire, or amortized recursion) could capture the per-step learning benefit without the wallclock and EMA penalties.
 
-3f+3cx2 (6 effective recursive depth) is always worse than 4f+2cx2 (4 effective recursive depth) at every cadence. The penalty is largest at high double-fire rates: +0.092 BPP at cad1, +0.019 at cad4. At cad1, the 3f+3cx2 model went BACKWARDS after step 500 — gradient interference across 3 shared blocks was actively destructive.
+> **NOTE: Deeper recursive stacks amplify these challenges.**
 
-> **WARNING: Persistent Deliberation gate mechanisms did not reliably improve final BPP.**
+3f+3cx2 (6 effective recursive depth) is more cadence-sensitive than 4f+2cx2. The penalty is largest at high double-fire rates: +0.092 BPP at cad1, +0.019 at cad4. This suggests gradient interference across shared blocks is the core issue to solve.
 
-We tested detached EMA consensus (Run 6), bidirectional learned consensus_ref (Run 8), self-referential gating (Run 3), and polar decomposition blending. PD showed mid-training advantages (+0.007 BPP ahead at steps 5000-7000) but post-processing (EMA + distillation) erased the lead. The bidirectional PD concept — gradients flowing both IN and OUT of a learned shared state — is theoretically sound but empirically fragile under EMA smoothing.
+> **NOTE: Persistent Deliberation shows promise but needs EMA-compatible design.**
+
+PD showed mid-training advantages (+0.007 BPP ahead at steps 5000-7000) but post-processing (EMA + distillation) erased the lead. The bidirectional PD concept — gradients flowing both IN and OUT of a learned shared state — is theoretically sound. The challenge is making it robust under EMA smoothing, which penalizes the weight oscillation that active deliberation creates.
 
 ## Transferable Findings
 
-Despite the negative results on recursion, this research produced findings applicable beyond this architecture:
+This research produced findings applicable beyond this architecture:
 
 1. **EMA instability from parameter reuse**: Any weight-shared/tied architecture (Universal Transformers, LoRA, MoE) will suffer EMA tracking degradation proportional to reuse frequency. Measured: 0.105 BPP EMA gap at full reuse vs 0.053 at 25% reuse.
 
@@ -77,9 +80,9 @@ Despite the negative results on recursion, this research produced findings appli
 
 3. **Asymmetric parameter allocation**: In weight-sharing schemes, more unique + fewer shared is strictly better than balanced sharing. The shared parameters should be a small minority.
 
-## Open Question (H4)
+## H4: Crawler Bank at U-Net Bottleneck
 
-Does a shared block at the U-Net **bottleneck** (between encoder and decoder) provide useful free depth? This is architecturally different from appending shared blocks at the end. Currently under investigation.
+Tested: shared block at the encoder/decoder bottleneck of GS v7. The crawler bank **learns better per step** (+0.016 BPP advantage at step 1500) but **loses on final sliding BPP** (1.2371 vs 1.2145 control) due to 14% fewer steps. This confirms recursion has real learning value — the challenge is implementation cost under wallclock constraints.
 
 ## Full Results Table
 
