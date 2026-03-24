@@ -97,7 +97,7 @@ class Hyperparameters:
     fisher_val_seqs = int(os.environ.get("FISHER_VAL_SEQS", 50))
 
     # --- FEATURE 3: TTT config ---
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 10))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 5))
     ttt_lr = float(os.environ.get("TTT_LR", 0.01))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_stride = int(os.environ.get("TTT_STRIDE", 64))
