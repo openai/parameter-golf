@@ -1,0 +1,11 @@
+{
+  "author": "Aryan Bhosale",
+  "github_id": "aryanbhosale",
+  "name": "11L Full SOTA Stack + Score-First TTT (1xH100)",
+  "blurb": "11-layer transformer with LeakyReLU(0.5)^2, SmearGate, BigramHash(10240), TrigramHash(4096), Value Residual, Gated Attention, XSA-all-11, Partial RoPE(16/64), int6+GPTQ-lite+zstd-22. Score-first TTT with frozen embeddings, per-layer LR groups, cosine schedule. Validated on 1xH100 via 30-experiment autoresearch loop.",
+  "date": "2026-03-24T00:00:00Z",
+  "val_loss": 1.9190,
+  "val_bpb": 1.1383,
+  "bytes_total": 8513097,
+  "bytes_code": 64193
+}
