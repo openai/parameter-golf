@@ -92,7 +92,7 @@ class Hyperparameters:
     ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.2))
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.002))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 2))
     # Sliding window TTT (full-parameter, PR#461/549 recipe)
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
@@ -103,9 +103,9 @@ class Hyperparameters:
     ttt_mode = os.environ.get("TTT_MODE", "lora")  # "sgd", "lora", or "none"
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
-    ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
-    ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
-    ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 1024))
+    ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 128))
+    ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 2048))
+    ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 512))
     ttt_batch_docs = int(os.environ.get("TTT_BATCH_DOCS", 64))
     ttt_temp = float(os.environ.get("TTT_TEMP", 1.0))  # Post-TTT temperature calibration
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
