@@ -1,0 +1,7 @@
+final_int6_roundtrip val_loss:1.9293 val_bpb:1.1427 eval_time:121817ms
+final_int6_roundtrip_exact val_loss:1.92933333 val_bpb:1.14265987
+final_int6_sliding_window val_loss:1.8897 val_bpb:1.1192 stride:64 eval_time:433345ms
+final_int6_sliding_window_exact val_loss:1.88969787 val_bpb:1.11918848
+final_int8_zlib_roundtrip_exact val_loss:1.88969787 val_bpb:1.11918848
+Stopping app - local entrypoint completed.
+Runner terminated.
