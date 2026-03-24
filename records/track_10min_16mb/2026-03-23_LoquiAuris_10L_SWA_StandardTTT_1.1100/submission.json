@@ -1,0 +1,11 @@
+{
+  "author": "Loqui Auris",
+  "github_id": "LoquiAuris",
+  "name": "Loqui Auris — 10L + SWA + Standard TTT",
+  "blurb": "SP-1024 10x512 GQA-4KV + SWA(29 checkpoints) + AdamW TTT (10 epochs, lr=0.0005). Int6+zstd-22. val_bpb=1.1100.",
+  "date": "2026-03-23T12:00:00Z",
+  "val_loss": 1.87412428855896,
+  "val_bpb": 1.109967109804319,
+  "bytes_total": 15750007,
+  "bytes_code": 64677
+}
