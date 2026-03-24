@@ -16,26 +16,26 @@ import sentencepiece as spm
 # ============================================================
 # CONFIG
 # ============================================================
-BASE_DIR = "/workspace/parameter-golf"
+BASE_DIR = os.environ.get("BASE_DIR", "/kaggle/working/parameter-golf")
 DATA_PATH = os.environ.get("DATA_PATH", os.path.join(BASE_DIR, "data/datasets/fineweb10B_sp1024"))
 TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", os.path.join(BASE_DIR, "data/tokenizers/fineweb_1024_bpe.model"))
 
 TRAIN_GLOB = os.path.join(DATA_PATH, "fineweb_train_*.bin")
 VAL_GLOB = os.path.join(DATA_PATH, "fineweb_val_*.bin")
 
-VOCAB_SIZE = int(os.environ.get("VOCAB_SIZE", 1024))
+VOCAB_SIZE = 1024
 SEQ_LEN = 1024
 BATCH_SIZE = 4
-MAX_WALLCLOCK_SECONDS = int(os.environ.get("MAX_WALLCLOCK_SECONDS", 600))
+MAX_WALLCLOCK_SECONDS = 600
 LOG_EVERY = 100
-VAL_EVERY = int(os.environ.get("VAL_LOSS_EVERY", 200))
+VAL_EVERY = 200
 VAL_SEQS_PER_RANK = 64
 GRAD_CLIP = 1.0
 
 EMA_ENABLED = True
 EMA_DECAY = 0.997
 
-OUT_PATH = "golf_model.bin"
+OUT_PATH = "/kaggle/working/hash1024_probe_model.bin"
 
 FUSE_DIM = 448
 A_LAYERS = 8
@@ -61,28 +61,20 @@ RADIAL_BITS = 10
 RADIAL_ALPHA = 0.02
 RADIAL_TOKEN_GAIN_INIT = 0.01
 
-HASH_BUCKETS = 256
+HASH_BUCKETS = 1024
 HASH_GAIN_INIT = 0.02
-
 
 # ============================================================
 # DISTRIBUTED
 # ============================================================
 def setup_distributed():
-    if "RANK" in os.environ:
-        dist.init_process_group(backend="nccl")
-        rank = int(os.environ["RANK"])
-        local_rank = int(os.environ["LOCAL_RANK"])
-        world_size = int(os.environ["WORLD_SIZE"])
-        torch.cuda.set_device(local_rank)
-        device = torch.device("cuda", local_rank)
-    else:
-        rank = 0
-        local_rank = 0
-        world_size = 1
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    dist.init_process_group(backend="nccl")
+    rank = int(os.environ["RANK"])
+    local_rank = int(os.environ["LOCAL_RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+    torch.cuda.set_device(local_rank)
+    device = torch.device("cuda", local_rank)
     return rank, local_rank, world_size, device
-
 
 # ============================================================
 # DATA
@@ -94,30 +86,23 @@ def load_data_shard(file: Path) -> torch.Tensor:
     tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
     return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
 
-
 def load_training_tokens(pattern: str, seq_len: int) -> torch.Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
-        if os.environ.get("ALLOW_MOCK", "0") == "1":
-            return torch.zeros(seq_len * 2 + 1, dtype=torch.int64)
         raise RuntimeError(f"No training files found for {pattern}")
     print(f"Loading train shard: {files[0]}")
     tokens = load_data_shard(files[0]).contiguous()
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
     return tokens[: usable + 1].long()
 
-
 def load_validation_tokens(pattern: str, seq_len: int) -> torch.Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
-        if os.environ.get("ALLOW_MOCK", "0") == "1":
-            return torch.randint(0, VOCAB_SIZE, (seq_len * 2 + 1,), dtype=torch.int64)
         raise RuntimeError(f"No validation files found for {pattern}")
     print(f"Loading {len(files)} val shards...")
     tokens = torch.cat([load_data_shard(f) for f in files]).contiguous()
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
     return tokens[: usable + 1].long()
-
 
 # ============================================================
 # BPB LUTS
@@ -149,7 +134,6 @@ def build_sentencepiece_luts(sp: spm.SentencePieceProcessor, vocab_size: int, de
         torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
     )
 
-
 # ============================================================
 # MODEL
 # ============================================================
@@ -164,18 +148,15 @@ class RMSNorm(nn.Module):
         normed = xf * torch.rsqrt(xf.pow(2).mean(dim=-1, keepdim=True) + self.eps)
         return (self.weight * normed).to(x.dtype)
 
-
 def weight_quant(w):
     scale = w.abs().mean().clamp(min=1e-5)
     return (torch.sign(w) * scale).detach() + (w - w.detach())
-
 
 class BitLinear(nn.Linear):
     def forward(self, x):
         if x.dtype != self.weight.dtype:
             x = x.to(self.weight.dtype)
         return F.linear(x, weight_quant(self.weight), self.bias)
-
 
 class BitAttention(nn.Module):
     def __init__(self, d_model, n_heads):
@@ -198,7 +179,6 @@ class BitAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().view(b, t, c)
         return self.out_proj(y)
 
-
 class BranchBlock(nn.Module):
     def __init__(self, d_model, n_heads, mlp_mult):
         super().__init__()
@@ -212,7 +192,6 @@ class BranchBlock(nn.Module):
         x = x + self.attn(self.norm1(x))
         x = x + self.fc2(F.gelu(self.fc1(self.norm2(x))))
         return x
-
 
 class RadialTokenFeatures(nn.Module):
     def __init__(self, n_bits=10, alpha=0.02):
@@ -233,13 +212,11 @@ class RadialTokenFeatures(nn.Module):
         phase = torch.atan2(im, re + 1e-8)
         return torch.stack([re, im, mag, phase], dim=-1)
 
-
 def make_bigram_hash(input_ids: torch.Tensor, buckets: int) -> torch.Tensor:
     prev = torch.roll(input_ids, shifts=1, dims=1)
     prev[:, 0] = 0
     h = (prev * 131 + input_ids) % buckets
     return h.long()
-
 
 class DualArchitectureRadialHashBridgeFP(nn.Module):
     def __init__(self):
@@ -288,7 +265,6 @@ class DualArchitectureRadialHashBridgeFP(nn.Module):
             return F.cross_entropy(logits.float(), target_ids.reshape(-1), reduction="mean")
         return logits
 
-
 # ============================================================
 # OPTIM
 # ============================================================
@@ -302,34 +278,13 @@ def soft_matrix_shape(update: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     u = 0.5 * u + 0.5 * (u / col_rms)
     return u.to(update.dtype)
 
-
 class FROStable(torch.optim.Optimizer):
-    def __init__(
-        self,
-        params,
-        lr=8e-4,
-        beta1=0.9,
-        beta2=0.999,
-        eps=1e-8,
-        scales=(0.1, 0.01, 0.001),
-        alpha=0.10,
-        gamma=0.60,
-        rt_min=0.05,
-        rt_max=1.0,
-        warmup_steps=10,
-    ):
-        defaults = dict(
-            lr=lr,
-            beta1=beta1,
-            beta2=beta2,
-            eps=eps,
-            scales=scales,
-            alpha=alpha,
-            gamma=gamma,
-            rt_min=rt_min,
-            rt_max=rt_max,
-            warmup_steps=warmup_steps,
-        )
+    def __init__(self, params, lr=8e-4, beta1=0.9, beta2=0.999, eps=1e-8,
+                 scales=(0.1, 0.01, 0.001), alpha=0.10, gamma=0.60,
+                 rt_min=0.05, rt_max=1.0, warmup_steps=10):
+        defaults = dict(lr=lr, beta1=beta1, beta2=beta2, eps=eps,
+                        scales=scales, alpha=alpha, gamma=gamma,
+                        rt_min=rt_min, rt_max=rt_max, warmup_steps=warmup_steps)
         super().__init__(params, defaults)
 
     @torch.no_grad()
@@ -385,12 +340,13 @@ class FROStable(torch.optim.Optimizer):
                     s2[k].mul_(1 - lam).add_(rho_t * rho_t, alpha=lam)
 
                 log_sum = 0.0
-                for k in range(len(scales)):
+                K = len(scales)
+                for k in range(K):
                     rk = (mu[k] * mu[k]) / (s2[k] + eps)
                     rk = rk.clamp(rt_min, rt_max)
                     log_sum = log_sum + torch.log(rk + eps)
 
-                Rt = torch.exp(log_sum / len(scales)).clamp(rt_min, rt_max)
+                Rt = torch.exp(log_sum / K).clamp(rt_min, rt_max)
                 rt_values.append(float(Rt))
 
                 warm = min(1.0, state["step"] / float(warmup_steps))
@@ -408,24 +364,13 @@ class FROStable(torch.optim.Optimizer):
                 adaptive_factor = alpha + (1.0 - alpha) * gamma * Rt_eff
                 step_size = group["lr"] * adaptive_factor / bias_correction1
                 p.add_(shaped_update, alpha=-float(step_size))
-
         return rt_values
-
 
 def build_param_groups(model):
     fro_params, adam_params = [], []
     adam_prefixes = [
-        "tok_emb",
-        "to_a",
-        "to_b",
-        "from_a",
-        "from_b",
-        "fuse_norm",
-        "lm_head",
-        "radial_token_proj",
-        "radial_token_gain",
-        "hash_emb",
-        "hash_gain",
+        "tok_emb", "to_a", "to_b", "from_a", "from_b", "fuse_norm", "lm_head",
+        "radial_token_proj", "radial_token_gain", "hash_emb", "hash_gain"
     ]
     for name, p in model.named_parameters():
         if not p.requires_grad:
@@ -436,11 +381,9 @@ def build_param_groups(model):
             fro_params.append(p)
     return fro_params, adam_params
 
-
 def set_lr(opt, lr):
     for g in opt.param_groups:
         g["lr"] = lr
-
 
 def lr_mult(step, total_steps_guess=3000):
     if step < WARMUP_STEPS:
@@ -449,7 +392,6 @@ def lr_mult(step, total_steps_guess=3000):
         return 1.0
     progress = min(1.0, (step - DECAY_START) / max(1.0, total_steps_guess - DECAY_START))
     return 0.5 * (1.0 + math.cos(math.pi * progress))
-
 
 # ============================================================
 # EMA
@@ -461,7 +403,6 @@ def ema_update(ema_model, live_model, decay):
         ema_p.data.mul_(decay).add_(live_p.data, alpha=1.0 - decay)
     for ema_b, live_b in zip(ema_model.buffers(), live.buffers()):
         ema_b.copy_(live_b)
-
 
 # ============================================================
 # EVAL
@@ -489,9 +430,8 @@ def eval_val_subset(model, device, val_tokens, base_bytes_lut, has_space_lut, bo
         x = local[:-1].unsqueeze(0)
         y = local[1:].unsqueeze(0)
 
-        autocast_device = "cuda" if device.type == "cuda" else "cpu"
-        autocast_dtype = torch.float16 if device.type == "cuda" else torch.bfloat16
-        with torch.autocast(device_type=autocast_device, dtype=autocast_dtype):
+        dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        with torch.autocast(device_type="cuda", dtype=dtype):
             batch_loss = model(x, y)
 
         batch_loss = batch_loss.to(torch.float64)
@@ -507,8 +447,7 @@ def eval_val_subset(model, device, val_tokens, base_bytes_lut, has_space_lut, bo
         local_byte_count += t_bytes.to(torch.float64).sum()
 
     metrics = torch.stack([local_loss_sum, local_token_count, local_byte_count])
-    if world_size > 1:
-        dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
+    dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
 
     global_loss_sum, global_token_count, global_byte_count = metrics[0], metrics[1], metrics[2]
     val_loss = global_loss_sum / (global_token_count + 1e-10)
@@ -521,7 +460,6 @@ def eval_val_subset(model, device, val_tokens, base_bytes_lut, has_space_lut, bo
 
     return float(val_loss.item()), float(val_bpb.item())
 
-
 # ============================================================
 # EXPORT
 # ============================================================
@@ -530,23 +468,19 @@ def prune_small_values(t: torch.Tensor, thr: float):
     out[out.abs() < thr] = 0
     return out
 
-
 def pack_int6_tensor(x: torch.Tensor):
     return x.to(torch.int8)
-
 
 def quantize_tensor_int8(v: torch.Tensor):
     scale = v.abs().mean().clamp(min=1e-5)
     q = torch.clamp(torch.round(v / scale * 127.0), -127, 127).to(torch.int8)
     return (q.cpu(), float(scale), "int8")
 
-
 def quantize_tensor_int6(v: torch.Tensor):
     scale = v.abs().mean().clamp(min=1e-5)
     q = torch.clamp(torch.round(v / scale * 31.0), -31, 31)
     q = pack_int6_tensor(q)
     return (q.cpu(), float(scale), "int6")
-
 
 def quantize_state_for_export(state_dict):
     q_state = {}
@@ -571,7 +505,6 @@ def quantize_state_for_export(state_dict):
 
     return q_state
 
-
 @torch.no_grad()
 def artifact_audit(model, out_path):
     model = model.cpu().eval()
@@ -594,15 +527,13 @@ def artifact_audit(model, out_path):
     print(f"Headroom:          {16_000_000 - total_bytes:,} bytes")
     print("PASS ✅" if total_bytes <= 16_000_000 else "FAIL ❌")
 
-
 # ============================================================
 # MAIN
 # ============================================================
 def main():
     torch.manual_seed(1337)
     np.random.seed(1337)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(1337)
+    torch.cuda.manual_seed_all(1337)
 
     rank, local_rank, world_size, device = setup_distributed()
 
@@ -628,8 +559,7 @@ def main():
     for p in ema_model.parameters():
         p.requires_grad_(False)
 
-    if world_size > 1:
-        live_model = nn.parallel.DistributedDataParallel(live_model, device_ids=[local_rank])
+    live_model = nn.parallel.DistributedDataParallel(live_model, device_ids=[local_rank])
 
     fro_opt = FROStable(fro_params, lr=FRO_LR)
     adam_opt = torch.optim.AdamW(adam_params, lr=ADAM_LR, betas=(0.9, 0.95), weight_decay=0.01)
@@ -659,9 +589,8 @@ def main():
         set_lr(fro_opt, FRO_LR * mult)
         set_lr(adam_opt, ADAM_LR * mult)
 
-        autocast_device = "cuda" if device.type == "cuda" else "cpu"
-        autocast_dtype = torch.float16 if device.type == "cuda" else torch.bfloat16
-        with torch.autocast(device_type=autocast_device, dtype=autocast_dtype):
+        dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        with torch.autocast(device_type="cuda", dtype=dtype):
             loss = live_model(x, y)
 
         loss.backward()
@@ -676,8 +605,7 @@ def main():
 
         if step % LOG_EVERY == 0:
             loss_tensor = torch.tensor([float(last_loss)], device=device)
-            if world_size > 1:
-                dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
+            dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
             mean_loss = loss_tensor.item() / world_size
 
             toks = (step + 1) * BATCH_SIZE * SEQ_LEN * world_size
@@ -714,9 +642,7 @@ def main():
         print(f"Best observed val_bpb: {best_val:.4f}")
         artifact_audit(ema_model, OUT_PATH)
 
-    if world_size > 1:
-        dist.destroy_process_group()
-
+    dist.destroy_process_group()
 
 if __name__ == "__main__":
     main()

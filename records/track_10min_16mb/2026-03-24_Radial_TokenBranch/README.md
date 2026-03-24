@@ -1,10 +1,10 @@
-# FRO + Radial Token Branch + Bigram Hash
+# FRO + Radial Token Branch + 1024-Bucket Bigram Hash
 
 This submission presents a compressed language-model design for the Parameter Golf 16MB track built around three interacting components:
 
 - **FRO (Fractal Resonant Optimization)** as the main optimizer for the compressed transformer core,
 - **Radial token geometry** as a lightweight token-level geometric feature branch,
-- **A micro bigram-hash branch** to provide fast short-horizon lexical context under the strict artifact budget.
+- **A 1024-bucket bigram-hash branch** to provide fast short-horizon lexical context under the strict artifact budget.
 
 The final exported artifact remains within the official `16,000,000` byte submission limit after post-training compression and audit.
 
@@ -17,7 +17,7 @@ This submission uses a compressed dual-branch transformer with:
 - EMA during training,
 - mixed post-training export (`int8` / `int6`) with light export-time pruning,
 - a **radial token branch** derived directly from token IDs,
-- a **small bigram-hash branch** to improve early short-budget convergence.
+- a **1024-bucket bigram-hash branch** to improve early short-budget convergence.
 
 The design goal is to maximize useful model capacity and fast convergence under the 16MB artifact constraint and a 10-minute wall-clock training budget.
 
@@ -30,7 +30,7 @@ FRO is the primary optimizer contribution in this submission. It is used on the 
 The radial component is used as a **token-level geometric representation**, not as a positional-attention bias. A lightweight radial feature is constructed from token IDs via a multi-angle geometric mapping and projected into the model fusion space through a learnable scalar gain.
 
 ### 3. Bigram Hash Branch
-A lightweight hashed bigram embedding branch is added to provide short-horizon lexical context at very low artifact cost. This branch improves convergence in the 10-minute regime while remaining compatible with the radial token branch and the compressed backbone.
+A lightweight hashed bigram embedding branch (1024 buckets) is added to provide short-horizon lexical context at very low artifact cost. This branch dramatically improves convergence in the 10-minute regime while remaining compatible with the radial token branch and the compressed backbone.
 
 ## Architecture
 
@@ -49,13 +49,13 @@ Major internal projections use BitNet-style ternary-weight forward behavior to r
 For each token ID, a radial feature vector is built from its binary representation through a lightweight geometric transform and projected into the fusion space.
 
 ### Bigram Hash Branch
-A small hashed bigram embedding is computed from adjacent token IDs and injected into the same fusion space through a learnable gain.
+A 1024-bucket hashed bigram embedding is computed from adjacent token IDs and injected into the same fusion space through a learnable gain.
 
 ## Optimization
 
 The training recipe uses:
 
-- **FRO** on the main compressed transformer parameter set,
+- **FROStable** on the main compressed transformer parameter set,
 - **AdamW** on embeddings / bridge / fusion / output parameters and auxiliary lightweight branches,
 - cosine-style decay after warmup,
 - EMA checkpoint tracking during training.
@@ -65,22 +65,22 @@ The training recipe uses:
 The final exported artifact uses:
 
 - mixed `int8` / `int6` serialization for selected weights,
-- light export-time pruning of very small values,
+- light export-time pruning of values below `0.0025`,
 - zlib compression,
 - decimal-byte accounting against the official artifact limit.
 
 Final audited artifact:
 
-- **Compressed model:** `15,266,937` bytes
-- **Source code:** `24,835` bytes
-- **Total artifact:** `15,291,772` bytes
-- **Headroom:** `708,228` bytes
+- **Compressed model:** `15,918,192` bytes
+- **Source code:** `24,987` bytes
+- **Total artifact:** `15,943,179` bytes
+- **Headroom:** `56,821` bytes
 
 ## Observed Development Result
 
 Observed development-run result for this configuration:
 
-- **Validation BPB:** `1.6250`
+- **Validation BPB:** `1.6130`
 
 This result was obtained from the included development configuration and log on Kaggle Dual T4 hardware.
 
@@ -103,4 +103,4 @@ The training script includes:
 
 ## Notes
 
-This submission should be interpreted as the current best development result of the author's **FRO + radial token branch + bigram-hash branch** line under the 16MB track constraints.
+This submission represents the definitive development result of the author's **FRO + radial token branch + bigram-hash branch** line under the 16MB track constraints.
