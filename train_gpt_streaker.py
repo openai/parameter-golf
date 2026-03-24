@@ -1,17 +1,15 @@
 from __future__ import annotations
 import copy
-import csv
 import glob
 import io
-import json
 import math
 import os
 import random
-import shutil
 import subprocess
 import sys
 import time
 import uuid
+import lzma
 import zlib
 from pathlib import Path
 try:
@@ -26,31 +24,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-FLASH_ATTN_AVAILABLE = True
-try:
-    from flash_attn_interface import flash_attn_func as flash_attn_3_func
-except ModuleNotFoundError:
-    FLASH_ATTN_AVAILABLE = False
-    # Fallback for local environments without flash-attn installed.
-    # Keep q/k/v layout compatible with existing call sites: [B, T, H, D].
-    def flash_attn_3_func(q: Tensor, k: Tensor, v: Tensor, causal: bool = True) -> Tensor:
-        q_t = q.transpose(1, 2)
-        k_t = k.transpose(1, 2)
-        v_t = v.transpose(1, 2)
-        if k_t.size(1) != q_t.size(1):
-            group = q_t.size(1) // k_t.size(1)
-            k_t = k_t.repeat_interleave(group, dim=1)
-            v_t = v_t.repeat_interleave(group, dim=1)
-        y_t = F.scaled_dot_product_attention(q_t, k_t, v_t, is_causal=causal)
-        return y_t.transpose(1, 2).contiguous()
-
-
-def compile_if_enabled(target, *, dynamic: bool = False, fullgraph: bool = True):
-    use_compile = bool(int(os.environ.get("USE_TORCH_COMPILE", "1")))
-    # torch.compile + fallback attention currently errors on backward shape checks.
-    if not FLASH_ATTN_AVAILABLE:
-        use_compile = False
-    return torch.compile(target, dynamic=dynamic, fullgraph=fullgraph) if use_compile else target
+from flash_attn_interface import flash_attn_func as flash_attn_3_func
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -71,10 +45,10 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 3.5))
+    mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -103,7 +77,7 @@ class Hyperparameters:
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on all layers by default
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on ALL 11 layers
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
@@ -113,29 +87,16 @@ class Hyperparameters:
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
     # Legal score-first TTT eval (PR #461 recipe)
     ttt_eval_enabled = bool(int(os.environ.get("TTT_EVAL_ENABLED", "1")))
-    ttt_lr = float(os.environ.get("TTT_LR", 1e-4))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
-    ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 131072))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 9))
+    ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
-    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adamw")
-    ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 0.01))
     ttt_max_train_chunks = int(os.environ.get("TTT_MAX_TRAIN_CHUNKS", 200))  # stop training after N chunks, keep scoring
     ttt_ema_decay = float(os.environ.get("TTT_EMA_DECAY", 0.995))  # EMA decay for TTT weight smoothing (0 = disabled)
     ttt_freeze_embed = bool(int(os.environ.get("TTT_FREEZE_EMBED", "1")))  # freeze tok_emb/bigram/ve during TTT
-    post_ttt_temp_enabled = bool(int(os.environ.get("POST_TTT_TEMP_ENABLED", "1")))
-    post_ttt_temperature = float(os.environ.get("POST_TTT_TEMPERATURE", 0.98))
-    gptq_calibration_samples = int(os.environ.get("GPTQ_CALIBRATION_SAMPLES", 256))
-    gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 64))
-    gptq_percdamp = float(os.environ.get("GPTQ_PERCDAMP", 0.01))
-    quant_int_categories = os.environ.get("QUANT_INT_CATEGORIES", "mlp,attn")
-    quant_attn_clip_range = int(os.environ.get("QUANT_ATTN_CLIP_RANGE", 15))
-    quant_mlp_clip_range = int(os.environ.get("QUANT_MLP_CLIP_RANGE", 15))
-    quant_embed_clip_range = int(os.environ.get("QUANT_EMBED_CLIP_RANGE", 31))
-    quant_other_clip_range = int(os.environ.get("QUANT_OTHER_CLIP_RANGE", 31))
-    quant_artifact_name = os.environ.get("QUANT_ARTIFACT_NAME", "final_model.intq.ptz")
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -636,7 +597,7 @@ class MLP(nn.Module):
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = F.leaky_relu(self.fc(x), negative_slope=0.5)
         return self.proj(x.square())
 class Block(nn.Module):
     def __init__(
@@ -871,7 +832,6 @@ def eval_val_sliding(
     stride: int,
     batch_seqs: int = 32,
     eval_seq_len: int | None = None,
-    logit_temperature: float = 1.0,
 ) -> tuple[float, float]:
     """Sliding window evaluation: each token scored with maximum context."""
     seq_len = eval_seq_len or args.train_seq_len
@@ -886,7 +846,7 @@ def eval_val_sliding(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     base_model.eval()
-    compiled_logits = compile_if_enabled(base_model.forward_logits, dynamic=False, fullgraph=True)
+    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
@@ -903,8 +863,6 @@ def eval_val_sliding(
                 y_batch[i, :wlen] = chunk[1:]
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 logits = compiled_logits(x_batch)
-            if logit_temperature != 1.0:
-                logits = logits / logit_temperature
             nll = F.cross_entropy(
                 logits.reshape(-1, logits.size(-1)).float(),
                 y_batch.reshape(-1),
@@ -943,7 +901,6 @@ def eval_val_sliding_ttt(
     device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
     stride: int, batch_seqs: int = 32,
-    logit_temperature: float = 1.0,
 ) -> tuple[float, float]:
     seq_len, total_tokens, ttt_chunk = args.train_seq_len, val_tokens.numel() - 1, args.ttt_chunk_tokens
     master = (rank == 0)
@@ -955,11 +912,7 @@ def eval_val_sliding_ttt(
         end, wlen = min(ws + seq_len, total_tokens), min(ws + seq_len, total_tokens) - ws
         s = 0 if ws == 0 else max(wlen - stride, 0)
         chunk_windows[min((ws + s) // ttt_chunk, num_chunks - 1)].append(ws)
-    log0(
-        f"ttt_sliding:start chunks={num_chunks} windows={len(window_starts)} "
-        f"lr={args.ttt_lr} epochs={args.ttt_epochs} freeze={args.ttt_freeze_blocks} "
-        f"optim={args.ttt_optimizer} temp={logit_temperature:.4f}"
-    )
+    log0(f"ttt_sliding:start chunks={num_chunks} windows={len(window_starts)} lr={args.ttt_lr} epochs={args.ttt_epochs} freeze={args.ttt_freeze_blocks}")
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -974,19 +927,7 @@ def eval_val_sliding_ttt(
         else:
             p.requires_grad_(True); ttt_params.append(p)
     log0(f"ttt_sliding:unfrozen={sum(p.numel() for p in ttt_params)} freeze_embed={args.ttt_freeze_embed}")
-    ttt_optim = args.ttt_optimizer.strip().lower()
-    if ttt_optim == "adamw":
-        optimizer = torch.optim.AdamW(
-            ttt_params,
-            lr=args.ttt_lr,
-            betas=(args.ttt_momentum, 0.95),
-            weight_decay=args.ttt_weight_decay,
-            eps=1e-8,
-        )
-    elif ttt_optim == "sgd":
-        optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
-    else:
-        raise ValueError(f"Unsupported TTT_OPTIMIZER={args.ttt_optimizer!r}; use 'adamw' or 'sgd'")
+    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
     # TTT-EMA: maintain smoothed weights for scoring
     ema_decay = args.ttt_ema_decay
     ema_state = None
@@ -1023,8 +964,6 @@ def eval_val_sliding_ttt(
                     x_batch[i, :wlen] = ct[:-1]; y_batch[i, :wlen] = ct[1:]
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                     logits = base_model.forward_logits(x_batch)
-                if logit_temperature != 1.0:
-                    logits = logits / logit_temperature
                 nll = F.cross_entropy(
                     logits.reshape(-1, logits.size(-1)).float(),
                     y_batch.reshape(-1), reduction="none",
@@ -1121,7 +1060,7 @@ def _find_best_row_scales(W: Tensor, clip_range: int = 31) -> Tensor:
         best_err[improved] = err[improved]
     return best_s
 def gptq_quantize_weight(W: Tensor, H: Tensor, clip_range: int = 31,
-                          block_size: int = 128, percdamp: float = 0.01) -> tuple[Tensor, Tensor]:
+                          block_size: int = 64, percdamp: float = 0.002) -> tuple[Tensor, Tensor]:
     """GPTQ: quantize weight matrix W using Hessian H = X^T X for error compensation.
     Uses pre-computed per-row scales and column reordering by Hessian diagonal.
     Returns (quantized_int8, scale_fp16) in int6 range [-clip_range, clip_range]."""
@@ -1197,15 +1136,9 @@ def gptq_calibrate(model: nn.Module, train_pattern: str, device: torch.device,
     for name in hessians:
         hessians[name] /= max(n_seen[name], 1)
     return hessians
-def mixed_quantize_int_gptq(
-    state_dict: dict[str, Tensor],
-    int_cats: set[str],
-    hessians: dict[str, Tensor],
-    clip_ranges: dict[str, int],
-    block_size: int = 128,
-    percdamp: float = 0.01,
-) -> tuple[dict, dict]:
-    """Mixed low-bit quantization with GPTQ for selected categories."""
+def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
+                              hessians: dict[str, Tensor]) -> tuple[dict, dict]:
+    """Like mixed_quantize_int6 but uses GPTQ for int6 categories when Hessian available."""
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     gptq_count, naive_count = 0, 0
@@ -1220,41 +1153,30 @@ def mixed_quantize_int_gptq(
             result[name] = t.float()
             meta[name] = "passthrough_ctrl"
             continue
-        clip_range = clip_ranges.get(cat, 31)
-        if cat in int_cats and t.ndim == 2:
+        if cat in int6_cats and t.ndim == 2:
             module_name = name.rsplit(".weight", 1)[0] if name.endswith(".weight") else name
             H = hessians.get(module_name)
             if H is not None and H.shape[0] == t.shape[1]:
-                q, s = gptq_quantize_weight(
-                    t,
-                    H.cpu(),
-                    clip_range=clip_range,
-                    block_size=block_size,
-                    percdamp=percdamp,
-                )
+                q, s = gptq_quantize_weight(t, H.cpu())
                 gptq_count += 1
             else:
-                q, s = quantize_int6_per_row(t, clip_range=clip_range)
+                q, s = quantize_int6_per_row(t)
                 naive_count += 1
             result[name + ".q"] = q
             result[name + ".scale"] = s
-            meta[name] = {"type": f"int_clip_{clip_range}"}
-        elif cat in int_cats and t.ndim >= 1:
-            q, s = quantize_int6_per_row(t, clip_range=clip_range)
+            meta[name] = {"type": "int6"}
+        elif cat in int6_cats and t.ndim >= 1:
+            q, s = quantize_int6_per_row(t)
             result[name + ".q"] = q
             result[name + ".scale"] = s
-            meta[name] = {"type": f"int_clip_{clip_range}"}
+            meta[name] = {"type": "int6"}
             naive_count += 1
         else:
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
             result[name + ".scale"] = s
             meta[name] = {"type": "int8"}
-    print(
-        f"gptq_quantize: {gptq_count} GPTQ layers, {naive_count} naive layers "
-        f"(block_size={block_size}, percdamp={percdamp})",
-        flush=True,
-    )
+    print(f"gptq_quantize: {gptq_count} GPTQ layers, {naive_count} naive layers", flush=True)
     return result, meta
 def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
@@ -1330,7 +1252,7 @@ def main() -> None:
     global zeropower_via_newtonschulz5
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = compile_if_enabled(zeropower_via_newtonschulz5, dynamic=False, fullgraph=True)
+    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -1429,7 +1351,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = compile_if_enabled(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
     block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [
@@ -1502,13 +1424,6 @@ def main() -> None:
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
-    )
-    log0(
-        f"quant_cfg:int_cats={args.quant_int_categories} "
-        f"attn_clip={args.quant_attn_clip_range} mlp_clip={args.quant_mlp_clip_range} "
-        f"embed_clip={args.quant_embed_clip_range} other_clip={args.quant_other_clip_range} "
-        f"gptq_block={args.gptq_block_size} gptq_percdamp={args.gptq_percdamp} "
-        f"gptq_calib_samples={args.gptq_calibration_samples}"
     )
     log0(f"seed:{args.seed}")
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
@@ -1685,51 +1600,74 @@ def main() -> None:
     # GPTQ calibration: collect Hessians from training data
     log0("gptq:calibrating with training data...")
     t_gptq = time.perf_counter()
-    gptq_hessians = gptq_calibrate(
-        base_model,
-        args.train_files,
-        device,
-        n_samples=args.gptq_calibration_samples,
-        seq_len=args.train_seq_len,
-    )
+    gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
     log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
-    int_cats = {
-        c.strip()
-        for c in args.quant_int_categories.split(",")
-        if c.strip()
-    }
-    clip_ranges = {
-        "attn": args.quant_attn_clip_range,
-        "mlp": args.quant_mlp_clip_range,
-        "embed": args.quant_embed_clip_range,
-        "other": args.quant_other_clip_range,
-    }
-    quant_result, quant_meta = mixed_quantize_int_gptq(
-        sd_cpu,
-        int_cats,
-        gptq_hessians,
-        clip_ranges=clip_ranges,
-        block_size=args.gptq_block_size,
-        percdamp=args.gptq_percdamp,
-    )
+    quant_result, quant_meta = mixed_quantize_int6_gptq(sd_cpu, {"mlp", "attn"}, gptq_hessians)
+    # Selective ±1 pruning: zero least-impactful ±1 quantized values to improve compressibility
+    target_mb = float(os.environ.get("TARGET_MB", "15.9"))
+    target_bytes = int(target_mb * 1024 * 1024)
+    code_bytes = len(code.encode("utf-8"))
+    ones_info: list[tuple[str, int, float]] = []
+    for name, info in quant_meta.items():
+        if not (isinstance(info, dict) and info.get("type") == "int6"):
+            continue
+        qk, sk = name + ".q", name + ".scale"
+        if qk not in quant_result or sk not in quant_result:
+            continue
+        q, s = quant_result[qk], quant_result[sk]
+        if s.ndim > 0:
+            ones_mask = (q.abs() == 1)
+            if ones_mask.any():
+                row_idx = torch.arange(q.shape[0]).unsqueeze(1).expand_as(q)[ones_mask]
+                flat_idx = torch.arange(q.numel()).reshape(q.shape)[ones_mask]
+                errors = s.float()[row_idx].pow(2)
+                for fi, err in zip(flat_idx.tolist(), errors.tolist()):
+                    ones_info.append((qk, fi, err))
+    if ones_info:
+        ones_info.sort(key=lambda x: x[2])  # ascending error = least impactful first
+        def _try_prune(n):
+            tmp = {k: v.clone() for k, v in quant_result.items()}
+            for i in range(min(n, len(ones_info))):
+                tmp[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
+            buf = io.BytesIO()
+            torch.save({"w": tmp, "m": quant_meta}, buf)
+            return len(lzma.compress(buf.getvalue(), preset=6)) + code_bytes, tmp
+        no_prune_sz, _ = _try_prune(0)
+        log0(f"prune:unpruned_size={no_prune_sz} target={target_bytes} candidates={len(ones_info)}")
+        if no_prune_sz > target_bytes:
+            full_sz, _ = _try_prune(len(ones_info))
+            if full_sz > target_bytes:
+                log0(f"prune:WARNING even full pruning ({full_sz}) exceeds target")
+                _, quant_result = _try_prune(len(ones_info))
+            else:
+                lo, hi = 0, len(ones_info)
+                while lo < hi:
+                    mid = (lo + hi) // 2
+                    sz, _ = _try_prune(mid)
+                    if sz <= target_bytes:
+                        hi = mid
+                    else:
+                        lo = mid + 1
+                log0(f"prune:zeroed {lo} of {len(ones_info)} ±1 values")
+                _, quant_result = _try_prune(lo)
+        else:
+            log0(f"prune:fits without pruning ({no_prune_sz} <= {target_bytes})")
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw) if _COMPRESSOR == "zstd" else zlib.compress(quant_raw, 9)
-    quant_file_bytes = len(quant_blob)
+    quant_blob = lzma.compress(quant_raw, preset=6)
     if master_process:
-        with open(args.quant_artifact_name, "wb") as f:
+        with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
-        code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model intq+{_COMPRESSOR}: {quant_file_bytes} bytes")
-        log0(f"Total submission size intq+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        quant_file_bytes = len(quant_blob)
+        log0(f"Serialized model int6+lzma: {quant_file_bytes} bytes")
+        log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
     if distributed:
         dist.barrier()
-    with open(args.quant_artifact_name, "rb") as f:
+    with open("final_model.int6.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(
-        io.BytesIO(zstandard.ZstdDecompressor().decompress(quant_blob_disk) if _COMPRESSOR == "zstd" else zlib.decompress(quant_blob_disk)),
+        io.BytesIO(lzma.decompress(quant_blob_disk)),
         map_location="cpu",
     )
     deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
@@ -1749,13 +1687,7 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    compiled_eval = compile_if_enabled(eval_model, dynamic=False, fullgraph=True)
-    sw_val_loss: float | None = None
-    sw_val_bpb: float | None = None
-    ttt_loss: float | None = None
-    ttt_bpb: float | None = None
-    tcal_loss: float | None = None
-    tcal_bpb: float | None = None
+    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
@@ -1765,10 +1697,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_intq_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_intq_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
     sw_seq_len = effective_eval_seq_len
     if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
         torch.cuda.synchronize()
@@ -1781,10 +1713,10 @@ def main() -> None:
         )
         torch.cuda.synchronize()
         log0(
-            f"final_intq_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
+            f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
             f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
         )
-        log0(f"final_intq_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
         log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
     # Legal score-first TTT eval
     if args.ttt_eval_enabled:
@@ -1794,151 +1726,11 @@ def main() -> None:
             args, eval_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             stride=args.eval_stride,
-            logit_temperature=1.0,
         )
         torch.cuda.synchronize()
         log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} "
              f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
         log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
-        if args.post_ttt_temp_enabled and args.eval_stride > 0 and args.eval_stride < sw_seq_len:
-            torch.cuda.synchronize()
-            t_tcal = time.perf_counter()
-            tcal_loss, tcal_bpb = eval_val_sliding(
-                args,
-                eval_model,
-                rank,
-                world_size,
-                device,
-                val_tokens,
-                base_bytes_lut,
-                has_leading_space_lut,
-                is_boundary_token_lut,
-                stride=args.eval_stride,
-                eval_seq_len=sw_seq_len,
-                logit_temperature=args.post_ttt_temperature,
-            )
-            torch.cuda.synchronize()
-            log0(
-                f"post_ttt_temp_rescore val_loss:{tcal_loss:.4f} val_bpb:{tcal_bpb:.4f} "
-                f"temp:{args.post_ttt_temperature:.4f} "
-                f"eval_time:{1000.0 * (time.perf_counter() - t_tcal):.0f}ms"
-            )
-            log0(
-                f"post_ttt_temp_rescore_exact val_loss:{tcal_loss:.8f} "
-                f"val_bpb:{tcal_bpb:.8f} temp:{args.post_ttt_temperature:.8f}"
-            )
-    if master_process:
-        results_root = Path("results") / "autoruns"
-        run_dir = results_root / args.run_id
-        run_dir.mkdir(parents=True, exist_ok=True)
-        code_bytes = len(code.encode("utf-8"))
-        raw_model_bytes = Path("final_model.pt").stat().st_size if Path("final_model.pt").exists() else None
-
-        copied_files: list[str] = []
-        for src, dst_name in [
-            (Path(__file__), "train_gpt.py"),
-            (Path(args.quant_artifact_name), Path(args.quant_artifact_name).name),
-            (Path("final_model.pt"), "final_model.pt"),
-            (Path(logfile) if logfile is not None else None, "train.log"),
-        ]:
-            if src is None:
-                continue
-            if src.exists():
-                shutil.copy2(src, run_dir / dst_name)
-                copied_files.append(dst_name)
-
-        summary = {
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "run_id": args.run_id,
-            "seed": args.seed,
-            "model_params": int(n_params),
-            "code_bytes": int(code_bytes),
-            "quant_artifact_name": args.quant_artifact_name,
-            "quant_artifact_bytes": int(quant_file_bytes),
-            "raw_model_bytes": int(raw_model_bytes) if raw_model_bytes is not None else None,
-            "metrics": {
-                "final_intq_roundtrip": {"val_loss": q_val_loss, "val_bpb": q_val_bpb},
-                "final_intq_sliding_window": {"val_loss": sw_val_loss, "val_bpb": sw_val_bpb},
-                "legal_ttt": {"val_loss": ttt_loss, "val_bpb": ttt_bpb},
-                "post_ttt_temp_rescore": {
-                    "enabled": bool(args.post_ttt_temp_enabled),
-                    "temperature": float(args.post_ttt_temperature),
-                    "val_loss": tcal_loss,
-                    "val_bpb": tcal_bpb,
-                },
-            },
-            "config": {
-                "num_layers": args.num_layers,
-                "model_dim": args.model_dim,
-                "num_heads": args.num_heads,
-                "num_kv_heads": args.num_kv_heads,
-                "mlp_mult": args.mlp_mult,
-                "train_seq_len": args.train_seq_len,
-                "eval_seq_len": args.eval_seq_len,
-                "eval_stride": args.eval_stride,
-                "ttt_eval_enabled": args.ttt_eval_enabled,
-                "ttt_optimizer": args.ttt_optimizer,
-                "ttt_lr": args.ttt_lr,
-                "ttt_chunk_tokens": args.ttt_chunk_tokens,
-                "ttt_freeze_blocks": args.ttt_freeze_blocks,
-                "quant_int_categories": args.quant_int_categories,
-                "quant_attn_clip_range": args.quant_attn_clip_range,
-                "quant_mlp_clip_range": args.quant_mlp_clip_range,
-                "gptq_block_size": args.gptq_block_size,
-                "gptq_percdamp": args.gptq_percdamp,
-                "gptq_calibration_samples": args.gptq_calibration_samples,
-            },
-            "copied_files": copied_files,
-        }
-        with open(run_dir / "result_summary.json", "w", encoding="utf-8") as f:
-            json.dump(summary, f, indent=2, sort_keys=True)
-            f.write("\n")
-
-        ledger_path = results_root / "results.csv"
-        write_header = not ledger_path.exists()
-        with open(ledger_path, "a", encoding="utf-8", newline="") as f:
-            w = csv.DictWriter(
-                f,
-                fieldnames=[
-                    "timestamp",
-                    "run_id",
-                    "seed",
-                    "model_params",
-                    "quant_artifact_bytes",
-                    "final_intq_val_bpb",
-                    "sliding_val_bpb",
-                    "legal_ttt_val_bpb",
-                    "post_ttt_temp",
-                    "post_ttt_temp_val_bpb",
-                    "num_layers",
-                    "model_dim",
-                    "num_heads",
-                    "num_kv_heads",
-                    "mlp_mult",
-                ],
-            )
-            if write_header:
-                w.writeheader()
-            w.writerow(
-                {
-                    "timestamp": summary["timestamp"],
-                    "run_id": args.run_id,
-                    "seed": args.seed,
-                    "model_params": n_params,
-                    "quant_artifact_bytes": quant_file_bytes,
-                    "final_intq_val_bpb": f"{q_val_bpb:.8f}",
-                    "sliding_val_bpb": "" if sw_val_bpb is None else f"{sw_val_bpb:.8f}",
-                    "legal_ttt_val_bpb": "" if ttt_bpb is None else f"{ttt_bpb:.8f}",
-                    "post_ttt_temp": args.post_ttt_temperature if args.post_ttt_temp_enabled else "",
-                    "post_ttt_temp_val_bpb": "" if tcal_bpb is None else f"{tcal_bpb:.8f}",
-                    "num_layers": args.num_layers,
-                    "model_dim": args.model_dim,
-                    "num_heads": args.num_heads,
-                    "num_kv_heads": args.num_kv_heads,
-                    "mlp_mult": args.mlp_mult,
-                }
-            )
-        log0(f"results_saved:{run_dir}/result_summary.json ledger:{ledger_path}")
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
