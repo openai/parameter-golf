@@ -1,0 +1,58 @@
+Loading train shard: /kaggle/working/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_000000.bin
+Loading 1 val shards...
+Loaded train tokens: 99,999,745
+Loaded val tokens:   62,021,633
+FRO params:  16,925,824
+Adam params: 1,091,777
+step 0000 | time 0.8s | train_loss 69.6053 | tok/s 10294 | mean_Rt 0.0630 | lr_mult 0.100 | radial_token_gain 0.00985 | max_mem 1.24 GB
+step 0100 | time 21.8s | train_loss 6.1701 | tok/s 38015 | mean_Rt 0.2913 | lr_mult 1.000 | radial_token_gain -0.00277 | max_mem 1.33 GB
+step 0200 | time 43.1s | train_loss 4.9785 | tok/s 38226 | mean_Rt 0.4219 | lr_mult 1.000 | radial_token_gain -0.00157 | max_mem 1.33 GB
+VALIDATION-EMA | step 0200 | val_loss 12.4708 | val_bpb 5.6239
+step 0300 | time 65.7s | train_loss 4.7257 | tok/s 37538 | mean_Rt 0.4952 | lr_mult 0.999 | radial_token_gain -0.00144 | max_mem 1.33 GB
+step 0400 | time 86.8s | train_loss 4.8498 | tok/s 37833 | mean_Rt 0.5523 | lr_mult 0.993 | radial_token_gain -0.00035 | max_mem 1.33 GB
+VALIDATION-EMA | step 0400 | val_loss 7.0134 | val_bpb 3.1628
+step 0500 | time 109.4s | train_loss 4.6238 | tok/s 37532 | mean_Rt 0.6064 | lr_mult 0.980 | mean_grad_ema 0.1245 | radial_token_gain -0.00148 | max_mem 1.33 GB
+step 0600 | time 130.7s | train_loss 4.4496 | tok/s 37675 | mean_Rt 0.6455 | lr_mult 0.961 | radial_token_gain -0.00015 | max_mem 1.33 GB
+VALIDATION-EMA | step 0600 | val_loss 5.3995 | val_bpb 2.4350
+step 0700 | time 153.5s | train_loss 4.5230 | tok/s 37423 | mean_Rt 0.6723 | lr_mult 0.935 | radial_token_gain -0.00061 | max_mem 1.33 GB
+step 0800 | time 174.6s | train_loss 4.4943 | tok/s 37585 | mean_Rt 0.6791 | lr_mult 0.905 | radial_token_gain 0.00123 | max_mem 1.33 GB
+VALIDATION-EMA | step 0800 | val_loss 4.7877 | val_bpb 2.1591
+step 0900 | time 197.2s | train_loss 4.5154 | tok/s 37428 | mean_Rt 0.7133 | lr_mult 0.868 | radial_token_gain 0.00081 | max_mem 1.33 GB
+step 1000 | time 218.3s | train_loss 4.5696 | tok/s 37563 | mean_Rt 0.7271 | lr_mult 0.827 | radial_token_gain 0.00047 | max_mem 1.33 GB
+VALIDATION-EMA | step 1000 | val_loss 4.5066 | val_bpb 2.0323
+step 1100 | time 241.0s | train_loss 4.4627 | tok/s 37428 | mean_Rt 0.7481 | lr_mult 0.782 | radial_token_gain 0.00006 | max_mem 1.33 GB
+step 1200 | time 262.2s | train_loss 4.4405 | tok/s 37525 | mean_Rt 0.7809 | lr_mult 0.733 | radial_token_gain 0.00042 | max_mem 1.33 GB
+VALIDATION-EMA | step 1200 | val_loss 4.3715 | val_bpb 1.9714
+step 1300 | time 284.5s | train_loss 4.3934 | tok/s 37462 | mean_Rt 0.7911 | lr_mult 0.681 | radial_token_gain 0.00048 | max_mem 1.33 GB
+step 1400 | time 305.3s | train_loss 4.2744 | tok/s 37594 | mean_Rt 0.8031 | lr_mult 0.627 | radial_token_gain 0.00065 | max_mem 1.33 GB
+VALIDATION-EMA | step 1400 | val_loss 4.2969 | val_bpb 1.9377
+step 1500 | time 327.6s | train_loss 4.3047 | tok/s 37531 | mean_Rt 0.7963 | lr_mult 0.571 | radial_token_gain 0.00147 | max_mem 1.33 GB
+step 1600 | time 348.7s | train_loss 4.4105 | tok/s 37608 | mean_Rt 0.8056 | lr_mult 0.514 | radial_token_gain 0.00203 | max_mem 1.33 GB
+VALIDATION-EMA | step 1600 | val_loss 4.2544 | val_bpb 1.9186
+step 1700 | time 371.3s | train_loss 4.2475 | tok/s 37531 | mean_Rt 0.8296 | lr_mult 0.457 | radial_token_gain -0.00025 | max_mem 1.33 GB
+step 1800 | time 392.5s | train_loss 4.1459 | tok/s 37591 | mean_Rt 0.8372 | lr_mult 0.401 | radial_token_gain -0.00021 | max_mem 1.33 GB
+VALIDATION-EMA | step 1800 | val_loss 4.2226 | val_bpb 1.9043
+step 1900 | time 415.1s | train_loss 4.1306 | tok/s 37519 | mean_Rt 0.8485 | lr_mult 0.345 | radial_token_gain 0.00109 | max_mem 1.33 GB
+step 2000 | time 436.2s | train_loss 4.0515 | tok/s 37575 | mean_Rt 0.8526 | lr_mult 0.292 | radial_token_gain 0.00161 | max_mem 1.33 GB
+VALIDATION-EMA | step 2000 | val_loss 4.1982 | val_bpb 1.8932
+step 2100 | time 458.9s | train_loss 4.2712 | tok/s 37502 | mean_Rt 0.8607 | lr_mult 0.242 | radial_token_gain 0.00208 | max_mem 1.33 GB
+step 2200 | time 480.2s | train_loss 4.1566 | tok/s 37544 | mean_Rt 0.8609 | lr_mult 0.195 | radial_token_gain 0.00204 | max_mem 1.33 GB
+VALIDATION-EMA | step 2200 | val_loss 4.1778 | val_bpb 1.8840
+step 2300 | time 502.9s | train_loss 4.3269 | tok/s 37483 | mean_Rt 0.8654 | lr_mult 0.152 | radial_token_gain 0.00263 | max_mem 1.33 GB
+step 2400 | time 524.1s | train_loss 4.1706 | tok/s 37526 | mean_Rt 0.8853 | lr_mult 0.113 | radial_token_gain 0.00273 | max_mem 1.33 GB
+VALIDATION-EMA | step 2400 | val_loss 4.1625 | val_bpb 1.8771
+step 2500 | time 546.8s | train_loss 4.2761 | tok/s 37468 | mean_Rt 0.8847 | lr_mult 0.079 | radial_token_gain 0.00368 | max_mem 1.33 GB
+step 2600 | time 568.0s | train_loss 4.0652 | tok/s 37511 | mean_Rt 0.8737 | lr_mult 0.051 | radial_token_gain 0.00380 | max_mem 1.33 GB
+VALIDATION-EMA | step 2600 | val_loss 4.1502 | val_bpb 1.8716
+step 2700 | time 590.8s | train_loss 4.2246 | tok/s 37451 | mean_Rt 0.8879 | lr_mult 0.029 | radial_token_gain 0.00418 | max_mem 1.33 GB
+
+Finished at step 2745 in 600.2s
+Final train loss: 4.1061
+
+=== MIXED EXPORT ARTIFACT AUDIT ===
+Parameters:        18,017,601
+Source Code:       25316 bytes
+Compressed model:  15,086,685 bytes
+Total artifact:    15,112,001 bytes
+Headroom:          887,999 bytes
+PASS ✅
