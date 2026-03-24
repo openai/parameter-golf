@@ -13,15 +13,27 @@
 
 **1.1130 val_bpb** | stride=76 | per-window SGD TTT | 14L | GPTQ int6 | EMA 0.997 | 575s eval | 15.87MB
 
-## Best Clean PRs for Reference
+## Best Clean PRs for Reference (UPDATED March 24)
 
+**LoRA TTT tier (sub-0.8 BPB — fundamentally different approach):**
+
+| PR | BPB | Technique |
+|----|-----|-----------|
+| #611 | 0.5601 | K-Projection LoRA + Min-NLL epoch selection |
+| #596 | 0.6430 | LoRA (8ep) + per-block bias tuning |
+| #614 | 0.6864 | K-LoRA + Min-NLL + FA3 |
+
+**Our tier (architecture + standard TTT):**
 
 | PR   | BPB    | Key technique                         |
 | ---- | ------ | ------------------------------------- |
+| **Us** | **1.1075** | **14L WD=0.05 QEP GPTQ + per-window SGD TTT** |
+| #595 | 1.1100 | SWA + BigramHash + AdamW TTT (10 epochs) — NEW |
+| #609 | 1.1154 | Full GPTQ + XSA-all + NO TTT — NEW |
+| #593 | 1.1163 | Full GPTQ + LeakyReLU² — NEW no TTT |
 | #569 | 1.1175 | VRL + LeakyReLU² + Full GPTQ (no TTT) |
-| #545 | 1.1179 | Int5 GPTQ + 33.6M model               |
-| #589 | 1.1178 | Soft-Round QAT + Backward-Looking TTT |
-| #505 | 1.1181 | SwiGLU + VE128 (no TTT)               |
+
+**⚠️ The LoRA TTT approaches (0.5-0.8 BPP) are a paradigm shift. Investigate urgently.**
 
 
 ---
