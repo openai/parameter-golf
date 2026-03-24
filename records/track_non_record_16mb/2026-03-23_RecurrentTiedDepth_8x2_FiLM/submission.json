@@ -1,10 +1,10 @@
 {
-  "name": "Recurrent Tied-Depth 8x2 + FiLM Conditioning",
-  "val_loss": 1.98434072,
-  "val_bpb": 1.17524146,
-  "bytes_total": 13243815,
-  "blurb": "8 unique transformer blocks looped 2x (16 effective layers) with FiLM scale/shift conditioning per iteration. U-Net skip connections on first/last loop. Same BigramHash(10240), SmearGate, int6+zstd, Muon+WD, SWA stack as SOTA baseline. Recurrence gives 3x param efficiency: 1.1752 BPB at 13.2MB vs SOTA's 1.1449 at 16.9MB. Systematic scaling study from 3x3 to 8x2 shows unique capacity matters more than loop depth.",
+  "name": "Recurrent Tied-Depth 8x2 + FiLM + TrigramHash",
+  "val_loss": 1.96439250,
+  "val_bpb": 1.16342696,
+  "bytes_total": 15339816,
+  "blurb": "8 unique transformer blocks looped 2x (16 effective layers) with FiLM conditioning + BigramHash(20480) + TrigramHash(8192) + LeakyReLU(0.5)². Recurrence + n-gram sidecars: 1.1634 BPB at 15.3MB. Trigram hashing gave -0.008 BPB — biggest single improvement after recurrence scaling. Systematic study: 3x3→8x2 scaling, width/EMA/TTT ablations, lexical-memory allocation.",
   "author": "loveless2001",
   "github_id": "loveless2001",
-  "date": "2026-03-23"
+  "date": "2026-03-24"
 }
