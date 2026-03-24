@@ -47,20 +47,42 @@ After both fronts complete, compare:
 3. Does the quant gap respond differently to cadence in deeper recursion?
 4. Plot: cadence vs BPB for both architectures on same axes.
 
-## Verdict
-_To be filled after runs complete._
+## Results (2026-03-24, 8xH100 SXM)
 
-| Arm | Steps | fast_val_bpb | sliding_bpb | post_ema_bpb | quant_gap | delib_scale_final | Verdict |
-|-----|-------|-------------|-------------|-------------|-----------|-------------------|---------|
-| cad1 | | | | | | | |
-| cad2 | | | | | | | |
-| cad3 | | | | | | | |
-| cad4 | | | | | | | |
+| Arm | Steps | step_avg | val@500 | final_val | post_ema | sliding_bpb | quant_gap |
+|-----|-------|----------|---------|-----------|----------|-------------|-----------|
+| cad1 | 612 | 245ms | 1.3876 | 1.4059 | 1.5550 | **1.6007** | 0.196 |
+| cad2 | 738 | 204ms | 1.3822 | 1.3599 | 1.4396 | **1.4587** | 0.099 |
+| cad3 | 792 | 189ms | 1.3828 | 1.3433 | 1.4090 | **1.4211** | 0.078 |
+| cad4 | 822 | 183ms | 1.3815 | 1.3370 | 1.3935 | **1.4030** | 0.066 |
+
+### Inverse Architecture: 2f+4cx2 (NPROC=1, INVALID)
+Ran with NPROC=1 by mistake — only 98 steps in 150s. Data unusable. Needs 8 GPU rerun.
+
+## Verdict
+
+**PREDICTION CONFIRMED — cadence sensitivity IS architecture-dependent.**
+
+Key findings:
+1. **6x2 is always worse than 4x2 at same cadence.** 4x2 beats 6x2 at every point.
+2. **6x2 is MORE cadence-sensitive than 4x2.** val@500 varies by 0.006 across cadences
+   for 6x2 (1.3815-1.3876) vs only 0.0004 for 4x2 (1.3838-1.3842). C-steps actively
+   hurt per-step learning on deeper stacks — not just compute cost, learning penalty.
+3. **6x2 penalty shrinks with less recursion:**
+   - cad1: +0.092 (6x2 vs 4x2)
+   - cad2: +0.037
+   - cad3: +0.027
+   - cad4: +0.019
+4. **6x2 cad1 went BACKWARDS** after step 500 (1.3876 → 1.4059). Gradient interference
+   across 3 crawler blocks with all-C was actively destructive.
 
 ## Cross-Front Conclusion
-_To be filled after both H1 and H2 complete._
 
-- Optimal cadence for 4x2: ___
-- Optimal cadence for 6x2: ___
-- Shift direction: ___
-- Interpretation: ___
+- Optimal cadence for 4x2 at 0.25 scale: **4** (monotonic, no U-shape)
+- Optimal cadence for 6x2 at 0.25 scale: **4** (monotonic, no U-shape)
+- Shift direction: **Same winner, but 6x2 is more sensitive to cadence**
+- Interpretation: Deeper recursion amplifies gradient interference from C-steps.
+  At 0.25 scale, the optimal strategy for both architectures is to minimize C-steps.
+  The 6x2 architecture suffers more from C-steps because 3 shared blocks create
+  more gradient surface for interference. This supports H3 (per-block cadence) —
+  not all blocks need the same firing rate.

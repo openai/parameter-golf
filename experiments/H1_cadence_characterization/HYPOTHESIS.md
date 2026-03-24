@@ -41,12 +41,33 @@ XSA_LAST_N=2  VE_LAYERS=0,1
 4. Total steps achieved (cadence 1 will get fewer)
 5. `quant_gap` — does cadence affect quantization friendliness?
 
-## Verdict
-_To be filled after runs complete._
+## Results (2026-03-24, 8xH100 SXM)
 
-| Arm | Steps | fast_val_bpb | sliding_bpb | post_ema_bpb | quant_gap | delib_scale_final | Verdict |
-|-----|-------|-------------|-------------|-------------|-----------|-------------------|---------|
-| cad1 | | | | | | | |
-| cad2 | | | | | | | |
-| cad3 | | | | | | | |
-| cad4 | | | | | | | |
+| Arm | Steps | step_avg | val@500 | final_val | post_ema | sliding_bpb | quant_gap |
+|-----|-------|----------|---------|-----------|----------|-------------|-----------|
+| cad1 | 702 | 213ms | 1.3842 | 1.3736 | 1.4790 | **1.5092** | 0.136 |
+| cad2 | 810 | 185ms | 1.3841 | 1.3409 | 1.4103 | **1.4222** | 0.081 |
+| cad3 | 854 | 176ms | 1.3839 | 1.3328 | 1.3875 | **1.3941** | 0.061 |
+| cad4 | 878 | 171ms | 1.3838 | 1.3249 | 1.3780 | **1.3836** | 0.059 |
+
+### cad0 Full Scale (600s, production diag script, TTT+distill ON)
+| Steps | val@500 | val@3828 | post_ema | sliding_bpb | quant_gap |
+|-------|---------|----------|----------|-------------|-----------|
+| 3828 | 1.4017 | 1.1853 | 1.1794 | **1.1603** | 0.004 |
+
+Note: cad0 full-scale used diagnostic script (156ms/step), NOT production script.
+Run 8 (cadence 2, production script) got 7076 steps in 600s at ~85ms/step.
+Comparison is confounded by step count difference. Clean A/B pending.
+
+## Verdict
+
+**PREDICTION PARTIALLY REFUTED.** No U-shape found at 0.25 scale.
+
+At 0.25 scale (150s), less recursion is monotonically better:
+- val@500 is identical across all cadences (1.3838-1.3842) — C-steps are neutral per step
+- More steps in same wallclock → better final BPB
+- Quant gap shrinks monotonically: 0.136 → 0.081 → 0.061 → 0.059
+- Winner: **cad4** (1.3836 sliding)
+
+Open question: does recursion compound at full scale (7000 steps)?
+Production-script cad0 vs Run 8 test pending.
