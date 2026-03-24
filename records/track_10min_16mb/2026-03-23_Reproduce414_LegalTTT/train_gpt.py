@@ -87,7 +87,7 @@ class Hyperparameters:
  muon_wd = float(os.environ.get("MUON_WD", 0.04))
  adam_wd = float(os.environ.get("ADAM_WD", 0.04))
  qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
- bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
+ bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 1536))
  bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
  xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))  # XSA on last 4 layers (0 = disabled)
  rope_dims = int(os.environ.get("ROPE_DIMS", 16))
@@ -950,7 +950,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
    meta[name] = "passthrough"
    continue
   if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
-   result[name] = t.float()
+   result[name] = t.to(torch.float16)
    meta[name] = "passthrough_ctrl"
    continue
   if cat in int6_cats and t.ndim >= 1:
