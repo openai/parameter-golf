@@ -446,20 +446,22 @@ class RMSNorm(nn.Module):
 class CastedLinear(nn.Linear):
     _qat_enabled: bool = False
     _soft_tau: float = 1000.0  # High = hard round; low = soft (annealed during QAT)
+    _qat_clip: int = 31  # 31 = int6 (63 levels), 15 = int5 (31 levels)
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.to(x.dtype)
+        clip = CastedLinear._qat_clip
         if CastedLinear._qat_enabled and self.training and w.ndim == 2:
             w32 = self.weight.float()
             row_max = w32.abs().amax(dim=1).detach()
-            scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+            scale = (row_max / clip).clamp_min(1.0 / clip)
             x_norm = w32 / scale[:, None]
             # Hard quantized value (forward)
-            q_hard = torch.clamp(torch.round(x_norm), -31, 31)
+            q_hard = torch.clamp(torch.round(x_norm), -clip, clip)
             # Soft interpolation (backward) for gradient signal
             x_floor = x_norm.detach().floor()
             frac = x_norm - x_floor
             p = torch.sigmoid((frac - 0.5) / max(CastedLinear._soft_tau, 0.01))
-            q_soft = torch.clamp(x_floor.detach() + p, -31, 31)
+            q_soft = torch.clamp(x_floor.detach() + p, -clip, clip)
             # STE: hard forward, soft backward
             q = q_hard.detach() + (q_soft - q_soft.detach())
             w_q = (q * scale[:, None]).to(x.dtype)
@@ -1654,6 +1656,7 @@ def main() -> None:
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
     log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
     CastedLinear._qat_enabled = args.qat_enabled
+    CastedLinear._qat_clip = args.gptq_clip_range if args.gptq_enabled else 31
     base_model = GPT(
         vocab_size=args.vocab_size,
         num_layers=args.num_layers,
