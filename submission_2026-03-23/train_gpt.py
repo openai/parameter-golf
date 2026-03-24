@@ -1873,6 +1873,7 @@ def main() -> None:
         xsa_last_n=args.xsa_last_n,  # must match training model
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+        hyper_k=args.hyper_k, hyper_layers=args.hyper_layers,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
@@ -1954,6 +1955,7 @@ def main() -> None:
             xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
             dtg=args.dtg_enabled, ve_enabled=args.ve_enabled, ve_dim=args.ve_dim,
             ve_layers=args.ve_layers,
+            hyper_k=args.hyper_k, hyper_layers=args.hyper_layers,
         ).to(device).bfloat16()
         for m in ttt_model.modules():
             if isinstance(m, CastedLinear):
