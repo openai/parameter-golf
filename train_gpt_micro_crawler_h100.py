@@ -47,8 +47,8 @@ class Hyperparameters:
     num_crawler_layers = int(os.environ.get("NUM_CRAWLER_LAYERS", 2))  # shared blocks, loop
     crawler_loops = int(os.environ.get("CRAWLER_LOOPS", 2))     # how many times crawler fires
     crawler_mlp_mult = float(os.environ.get("CRAWLER_MLP_MULT", 4.0))
-    crawler_cadence = int(os.environ.get("CRAWLER_CADENCE", 3))  # 0=never crawl, 1=always, N=crawl every Nth step
-    crawler_cadence_offset = int(os.environ.get("CRAWLER_CADENCE_OFFSET", 0))
+    crawler_cadence = int(os.environ.get("CRAWLER_CADENCE", 5))  # 0=never crawl, 1=always, N=crawl every Nth step
+    crawler_cadence_offset = int(os.environ.get("CRAWLER_CADENCE_OFFSET", 4))  # N/N/N/N/C
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 5))
     model_dim = int(os.environ.get("MODEL_DIM", 640))
     num_heads = int(os.environ.get("NUM_HEADS", 10))
@@ -995,6 +995,40 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
         else:
             out[name] = (q.float() * float(s.item())).to(orig_dtype)
     return out
+def _activation_row_importance(acts: Tensor) -> Tensor:
+    """Compute per-row activation importance: sqrt(mean(x²)) across batch+seq dims.
+    Input: [batch, seq, dim]. Output: [dim] importance per feature."""
+    return acts.float().pow(2).mean(dim=(0, 1)).sqrt().cpu()
+
+def _quantize_int6_activation_aware(
+    weight: Tensor, act_importance: Tensor, clip_range: int = 31,
+) -> tuple[Tensor, Tensor]:
+    """Quantize weight matrix with activation-aware row scaling.
+    Rows that drive high activations get tighter quantization (smaller scale)."""
+    t32 = weight.float()
+    if t32.ndim != 2:
+        return quantize_int6_per_row(weight)
+    # Scale weight rows by activation importance before finding optimal clip
+    # Rows with high activation importance need lower quant error
+    imp = act_importance.clamp_min(1e-8)
+    imp = imp / imp.mean()  # normalize so mean importance = 1
+    # Weight the reconstruction error by importance
+    best_q, best_s, best_err = None, None, float('inf')
+    for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+        if pct < 1.0:
+            row_clip = torch.quantile(t32.abs(), pct, dim=1)
+        else:
+            row_clip = t32.abs().amax(dim=1)
+        s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+        q = torch.clamp(torch.round(t32 / s.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+        recon = q.float() * s.float()[:, None]
+        # Importance-weighted reconstruction error
+        row_err = (t32 - recon).pow(2).mean(dim=1)
+        err = (row_err * imp[:t32.shape[0]]).mean().item() if imp.numel() >= t32.shape[0] else row_err.mean().item()
+        if err < best_err:
+            best_q, best_s, best_err = q, s, err
+    return best_q, best_s
+
 def per_loop_quantize(
     sd_cpu: dict[str, Tensor],
     model: nn.Module,
@@ -1002,38 +1036,42 @@ def per_loop_quantize(
     args,
     device: torch.device,
     grad_accum_steps: int,
+    blend_alpha: float = 0.7,
 ) -> tuple[dict[str, Tensor], dict[str, object]]:
     """
-    Per-loop GPTQ for the micro crawler.
+    Per-loop GPTQ for the micro crawler with activation-aware gradient blending.
 
-    Flat block weights: standard int6 quantization (single calibration).
-    Crawler block weights: quantized per-firing. Each loop iteration gets its own
-    (scale, zero) calibrated against the activation distribution at that firing.
-    The weight bytes are shared — only the quant metadata differs per firing.
+    Flat blocks: standard int6 quantization.
+    Crawler blocks: activation-calibrated per-firing quantization with blended scales.
 
-    At inference dequant, the crawler weights are reconstructed using firing-specific
-    scales stored as crawler_blocks.N.layer.q.loopK / .scale.loopK in the state dict.
+    For each crawler weight W:
+      1. Capture input activations at each firing
+      2. Compute activation importance per firing
+      3. Quantize with importance-weighted error minimization per firing
+      4. Blend scales: scale_k = α * scale_k + (1-α) * scale_other
+      5. Re-quantize with blended scales to get shared INT6 values
+
+    Stored: shared q (one copy), per-firing blended scales.
     """
-    # Step 1: Standard quant for all non-crawler params
+    # Step 1: Standard quant for flat params
     flat_sd = {k: v for k, v in sd_cpu.items() if "crawler_blocks" not in k}
     crawler_sd = {k: v for k, v in sd_cpu.items() if "crawler_blocks" in k}
 
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
 
-    # Quantize flat params normally
     flat_result, flat_meta = mixed_quantize_int6(flat_sd, {"mlp", "attn"})
     result.update(flat_result)
     meta.update(flat_meta)
 
-    # Step 2: Calibrate crawler per-firing
-    # Run a calibration batch through the model to capture activations at each firing
+    # Step 2: Capture per-firing activation distributions
     model.eval()
+    # Per-firing, per-block activation importance: {loop: {block_idx: {param_key: importance}}}
+    firing_importance: dict[int, dict[int, Tensor]] = {}
     with torch.no_grad():
         calib_x, calib_y = train_loader.next_batch(
             args.train_batch_tokens, args.train_seq_len, grad_accum_steps,
         )
-        # Run through embedding + flat section to get crawler input
         x = model.tok_emb(calib_x)
         if model.trigram is not None:
             x = x + model.trigram(calib_x)
@@ -1042,23 +1080,21 @@ def per_loop_quantize(
         x0 = x
         x = model._run_flat(x, x0)
 
-        # For each firing, capture the activation distribution entering each crawler block
-        firing_acts: dict[int, dict[int, Tensor]] = {}  # {loop: {block_idx: input_acts}}
         x_loop = x.clone()
         for loop in range(model.crawler_loops):
-            firing_acts[loop] = {}
+            firing_importance[loop] = {}
             if model.loop_pos is not None:
                 x_loop = x_loop + model.loop_pos[loop]
             for ci, block in enumerate(model.crawler_blocks):
-                # Capture activation stats for this block at this firing
-                firing_acts[loop][ci] = x_loop.detach()
+                # Capture activation importance entering this block at this firing
+                firing_importance[loop][ci] = _activation_row_importance(x_loop)
                 ve_cache: dict = {}
                 ve = model._get_crawler_ve(ci, calib_x, ve_cache)
                 x_loop = block(x_loop, x0, v_embed=ve)
     model.train()
 
-    # Step 3: Quantize crawler weights per-firing
-    # For each crawler weight, quantize using activation-aware scaling per firing
+    # Step 3: Quantize crawler weights with activation-aware blended scales
+    clip_range = 31
     for name, tensor in crawler_sd.items():
         t = tensor.detach().cpu().contiguous()
         cat = _classify_param(name)
@@ -1072,12 +1108,39 @@ def per_loop_quantize(
             meta[name] = "passthrough_ctrl"
             continue
 
-        if cat in {"mlp", "attn"} and t.ndim >= 1:
-            # Per-firing quantization: store quant params for each loop
+        if cat in {"mlp", "attn"} and t.ndim == 2:
+            # Extract block index from name: "crawler_blocks.0.mlp.fc.weight" → 0
+            parts = name.split(".")
+            block_idx = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+
+            # Compute per-firing scales with activation importance
+            per_firing_scales: list[Tensor] = []
             for loop in range(model.crawler_loops):
-                q, s = quantize_int6_per_row(t)
-                result[f"{name}.q.loop{loop}"] = q
-                result[f"{name}.scale.loop{loop}"] = s
+                imp = firing_importance.get(loop, {}).get(block_idx, torch.ones(t.shape[0]))
+                _, s = _quantize_int6_activation_aware(t, imp, clip_range)
+                per_firing_scales.append(s.float())
+
+            # Blend scales across firings
+            blended_scales: list[Tensor] = []
+            for loop in range(model.crawler_loops):
+                s_self = per_firing_scales[loop]
+                s_others = [per_firing_scales[k] for k in range(model.crawler_loops) if k != loop]
+                s_other_mean = torch.stack(s_others).mean(dim=0) if s_others else s_self
+                blended = blend_alpha * s_self + (1.0 - blend_alpha) * s_other_mean
+                blended_scales.append(blended.to(torch.float16))
+
+            # Compute shared INT6 values using mean blended scale
+            mean_scale = torch.stack([s.float() for s in blended_scales]).mean(dim=0)
+            mean_scale = mean_scale.clamp_min(1.0 / clip_range).to(torch.float16)
+            q = torch.clamp(
+                torch.round(t.float() / mean_scale.float()[:, None]),
+                -clip_range, clip_range,
+            ).to(torch.int8)
+
+            # Store: shared q, per-firing blended scales
+            result[f"{name}.q"] = q
+            for loop in range(model.crawler_loops):
+                result[f"{name}.scale.loop{loop}"] = blended_scales[loop]
             meta[name] = {"type": "int6_per_loop", "loops": model.crawler_loops}
         else:
             q, s = quantize_float_tensor(t)
@@ -1089,7 +1152,8 @@ def per_loop_quantize(
 
 def dequantize_per_loop(result: dict[str, Tensor], meta: dict[str, object],
                         template_sd: dict[str, Tensor], loop: int = 0) -> dict[str, Tensor]:
-    """Dequantize with per-loop scales for crawler blocks."""
+    """Dequantize with per-loop blended scales for crawler blocks.
+    Shared INT6 values, firing-specific scale reconstruction."""
     out: dict[str, Tensor] = {}
     for name, orig in template_sd.items():
         info = meta.get(name)
@@ -1103,9 +1167,8 @@ def dequantize_per_loop(result: dict[str, Tensor], meta: dict[str, object],
             out[name] = t
             continue
         if isinstance(info, dict) and info.get("type") == "int6_per_loop":
-            # Use firing-specific scales
-            q = result[f"{name}.q.loop{loop}"]
-            s = result[f"{name}.scale.loop{loop}"]
+            q = result[f"{name}.q"]  # shared INT6 values
+            s = result[f"{name}.scale.loop{loop}"]  # firing-specific blended scale
         else:
             q, s = result[name + ".q"], result[name + ".scale"]
         if s.ndim > 0:

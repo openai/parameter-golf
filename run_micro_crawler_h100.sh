@@ -9,7 +9,7 @@
 #   = 8 effective depth, 6 stored blocks, dim=640
 #   F = C×L → 50/50 balanced split
 #
-# Run on a single rented H100:
+# Run on 8xH100 SXM:
 #   chmod +x run_micro_crawler_h100.sh
 #   ./run_micro_crawler_h100.sh
 #
@@ -26,8 +26,8 @@ export NUM_FLAT_LAYERS=4
 export NUM_CRAWLER_LAYERS=2
 export CRAWLER_LOOPS=2
 export CRAWLER_MLP_MULT=4
-export CRAWLER_CADENCE=3            # C/N/N — crawl fires all loops every 3rd step
-export CRAWLER_CADENCE_OFFSET=0
+export CRAWLER_CADENCE=5            # N/N/N/N/C — 4 clean steps then 1 crawl
+export CRAWLER_CADENCE_OFFSET=4
 export MODEL_DIM=640
 export NUM_HEADS=10
 export NUM_KV_HEADS=5
@@ -51,7 +51,7 @@ export LOGIT_SOFTCAP=30.0
 # ── Training ──
 export TRAIN_SEQ_LEN=2048
 export EVAL_SEQ_LEN=2048
-export TRAIN_BATCH_TOKENS=262144   # 256K — smaller batch = more steps on 1 GPU
+export TRAIN_BATCH_TOKENS=786432    # full batch for 8xH100
 export ITERATIONS=20000
 export MAX_WALLCLOCK_SECONDS=600
 export WARMUP_STEPS=20
@@ -92,7 +92,7 @@ export DISTILL_ALPHA=0.7
 # ── Eval ──
 export EVAL_STRIDE=64
 export VAL_LOSS_EVERY=500
-export VAL_BATCH_SIZE=262144
+export VAL_BATCH_SIZE=524288
 
 # ── Run ID ──
 export SEED=1337
@@ -108,7 +108,7 @@ echo "Estimated params: ~28M (6 stored blocks at dim=640, MLP 4x)"
 echo "Expected artifact: ~15.1MB (int6+zstd)"
 echo ""
 
-python train_gpt_micro_crawler_h100.py
+torchrun --nproc_per_node=8 train_gpt_micro_crawler_h100.py
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════════"
