@@ -10,4 +10,4 @@ tiktoken
 sentencepiece
 scipy
 blake3
-cupy
+cupy-cuda12x
