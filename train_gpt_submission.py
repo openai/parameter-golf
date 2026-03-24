@@ -1060,7 +1060,8 @@ def eval_val_sliding_ttt(
         my_windows = windows[my_s:my_e]
 
         base_model.eval()
-        compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+        # Don't torch.compile inside the loop — weights change via TTT,
+        # and repeated recompilation causes errors/OOM.
         with torch.inference_mode():
             for bi in range(0, len(my_windows), batch_seqs):
                 batch_ws = my_windows[bi:bi + batch_seqs]
@@ -1076,7 +1077,7 @@ def eval_val_sliding_ttt(
                     x_batch[i, :wlen] = chunk_tok[:-1]
                     y_batch[i, :wlen] = chunk_tok[1:]
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    logits = compiled_logits(x_batch)
+                    logits = base_model.forward_logits(x_batch)
                 nll = F.cross_entropy(
                     logits.reshape(-1, logits.size(-1)).float(),
                     y_batch.reshape(-1), reduction="none",
@@ -1290,7 +1291,11 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             result[name] = t.float()
             meta[name] = "passthrough_ctrl"
             continue
-        # tok_emb.weight falls through to int8 via "embed" category
+        # Keep tok_emb (tied embedding/lm_head) in fp16 — highest-value precision decision
+        if "tok_emb" in name or "lm_head" in name:
+            result[name] = t.to(torch.float16)
+            meta[name] = "passthrough_fp16"
+            continue
         if cat in int6_cats and t.ndim >= 1:
             # Use Full GPTQ if Hessian available, else GPTQ-lite
             if name in _gptq_hessians and t.ndim == 2:
@@ -1708,7 +1713,9 @@ def main() -> None:
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
 
-    export_sd = base_model.state_dict()
+    # Deep copy state dict BEFORE any bf16 cast for calibration —
+    # state_dict() returns tensor references, not copies.
+    export_sd = {k: v.detach().clone().cpu() for k, v in base_model.state_dict().items()}
 
     if master_process:
         torch.save(export_sd, "final_model.pt")
@@ -1741,7 +1748,7 @@ def main() -> None:
         _gptq_hessians[k] = _gptq_hessians[k].cpu()
     log0(f"gptq_calibration:done layers={len(_gptq_hessians)}")
 
-    sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
+    sd_cpu = export_sd  # already cloned to CPU above
     # Magnitude pruning: zero out smallest 2% of float weights BEFORE quantization
     # so GPTQ can compensate for the pruned zeros rather than having its compensation undone.
     prune_pct = 0.02
@@ -1752,6 +1759,14 @@ def main() -> None:
                 thresh = torch.quantile(t.abs().float(), prune_pct)
                 t[t.abs() <= thresh] = 0.0
     log0(f"magnitude_pruning:{prune_pct*100:.0f}% (pre-quantization)")
+    # Diagnostic: check how many layers have GPTQ Hessians
+    gptq_keys = set(_gptq_hessians.keys())
+    sd_keys = set(sd_cpu.keys())
+    matched = gptq_keys & sd_keys
+    unmatched = gptq_keys - sd_keys
+    log0(f"gptq_diag: hessian_keys={len(gptq_keys)} sd_keys={len(sd_keys)} matched={len(matched)} unmatched={len(unmatched)}")
+    if unmatched:
+        log0(f"gptq_diag: UNMATCHED hessian keys (first 5): {list(unmatched)[:5]}")
     quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
@@ -1775,6 +1790,26 @@ def main() -> None:
         map_location="cpu",
     )
     deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
+
+    # Diagnostic: measure per-layer quant error
+    if master_process:
+        total_mse = 0.0
+        total_params = 0
+        worst_layers = []
+        for name in sd_cpu:
+            if name in deq_state and sd_cpu[name].is_floating_point() and sd_cpu[name].ndim == 2:
+                orig = sd_cpu[name].float()
+                recon = deq_state[name].float()
+                mse = ((orig - recon) ** 2).mean().item()
+                rmse = mse ** 0.5
+                rel_err = rmse / (orig.abs().mean().item() + 1e-8)
+                total_mse += mse * orig.numel()
+                total_params += orig.numel()
+                worst_layers.append((rel_err, name, mse))
+        worst_layers.sort(reverse=True)
+        log0(f"quant_diag: avg_mse={total_mse/max(total_params,1):.8f}")
+        for rel, name, mse in worst_layers[:5]:
+            log0(f"quant_diag: worst {name} rel_err={rel:.6f} mse={mse:.8f}")
 
     eval_model = GPT(
         vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
@@ -1835,7 +1870,11 @@ def main() -> None:
             block.attn.rotary._sin_cached = None
             block.attn.rotary._seq_len_cached = 0
         eval_model.inference_temp.fill_(args.ttt_temperature)
-        eval_model.bfloat16()
+        # Keep CastedLinear weights in fp32 for stable AdamW TTT updates;
+        # only non-CastedLinear modules go to bf16 for inference speed.
+        for m in eval_model.modules():
+            if not isinstance(m, CastedLinear):
+                m.bfloat16()
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
