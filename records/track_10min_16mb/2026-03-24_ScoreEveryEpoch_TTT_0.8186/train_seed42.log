@@ -1,0 +1,262 @@
+logs/exp82_SOTA_TTTv2_5ep.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:28800.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9301 val_bpb:4.1044 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9309 train_time:620ms step_avg:619.92ms
+step:2/20000 train_loss:8.6493 train_time:1158ms step_avg:578.84ms
+step:3/20000 train_loss:7.8515 train_time:1695ms step_avg:565.10ms
+step:4/20000 train_loss:7.2834 train_time:2238ms step_avg:559.49ms
+step:5/20000 train_loss:7.0075 train_time:2777ms step_avg:555.35ms
+step:6/20000 train_loss:6.9042 train_time:3315ms step_avg:552.55ms
+step:7/20000 train_loss:6.7728 train_time:3864ms step_avg:552.05ms
+step:8/20000 train_loss:6.6372 train_time:4403ms step_avg:550.34ms
+step:9/20000 train_loss:6.4247 train_time:4940ms step_avg:548.91ms
+step:10/20000 train_loss:6.1293 train_time:5478ms step_avg:547.84ms
+step:500/20000 train_loss:2.3365 train_time:269797ms step_avg:539.59ms
+step:1000/20000 train_loss:2.2787 train_time:539846ms step_avg:539.85ms
+step:1500/20000 train_loss:2.1462 train_time:809275ms step_avg:539.52ms
+step:2000/20000 train_loss:2.0608 train_time:1078630ms step_avg:539.31ms
+step:2500/20000 train_loss:2.1064 train_time:1348124ms step_avg:539.25ms
+step:3000/20000 train_loss:2.0881 train_time:1618678ms step_avg:539.56ms
+step:3500/20000 train_loss:2.0826 train_time:1890189ms step_avg:540.05ms
+step:4000/20000 train_loss:2.1590 train_time:2161106ms step_avg:540.28ms
+step:4000/20000 val_loss:2.0695 val_bpb:1.2257 train_time:2161107ms step_avg:540.28ms
+step:4500/20000 train_loss:2.1635 train_time:2430332ms step_avg:540.07ms
+step:5000/20000 train_loss:2.0850 train_time:2699671ms step_avg:539.93ms
+step:5500/20000 train_loss:2.1032 train_time:2969143ms step_avg:539.84ms
+step:6000/20000 train_loss:2.0135 train_time:3238597ms step_avg:539.77ms
+step:6500/20000 train_loss:2.1377 train_time:3508121ms step_avg:539.71ms
+step:7000/20000 train_loss:1.9553 train_time:3777673ms step_avg:539.67ms
+step:7500/20000 train_loss:2.0262 train_time:4047143ms step_avg:539.62ms
+step:8000/20000 train_loss:1.9944 train_time:4316325ms step_avg:539.54ms
+step:8000/20000 val_loss:2.0372 val_bpb:1.2065 train_time:4316327ms step_avg:539.54ms
+step:8500/20000 train_loss:1.9771 train_time:4585755ms step_avg:539.50ms
+step:9000/20000 train_loss:2.0287 train_time:4854780ms step_avg:539.42ms
+step:9500/20000 train_loss:2.1483 train_time:5123901ms step_avg:539.36ms
+step:10000/20000 train_loss:2.0645 train_time:5393087ms step_avg:539.31ms
+step:10500/20000 train_loss:2.0524 train_time:5662241ms step_avg:539.26ms
+step:11000/20000 train_loss:2.0164 train_time:5932487ms step_avg:539.32ms
+step:11500/20000 train_loss:2.0095 train_time:6202903ms step_avg:539.38ms
+step:12000/20000 train_loss:2.0306 train_time:6473571ms step_avg:539.46ms
+step:12000/20000 val_loss:2.0274 val_bpb:1.2008 train_time:6473572ms step_avg:539.46ms
+step:12500/20000 train_loss:2.0244 train_time:6742627ms step_avg:539.41ms
+step:13000/20000 train_loss:1.9829 train_time:7011689ms step_avg:539.36ms
+step:13500/20000 train_loss:2.0434 train_time:7280671ms step_avg:539.31ms
+step:14000/20000 train_loss:1.9777 train_time:7549684ms step_avg:539.26ms
+step:14500/20000 train_loss:2.0642 train_time:7818540ms step_avg:539.21ms
+step:15000/20000 train_loss:2.0342 train_time:8087482ms step_avg:539.17ms
+step:15500/20000 train_loss:2.0133 train_time:8356529ms step_avg:539.13ms
+step:16000/20000 train_loss:2.0044 train_time:8625790ms step_avg:539.11ms
+step:16000/20000 val_loss:2.0211 val_bpb:1.1970 train_time:8625791ms step_avg:539.11ms
+step:16500/20000 train_loss:2.1391 train_time:8895088ms step_avg:539.10ms
+step:17000/20000 train_loss:2.0137 train_time:9164358ms step_avg:539.08ms
+step:17500/20000 train_loss:2.0121 train_time:9433593ms step_avg:539.06ms
+step:18000/20000 train_loss:2.0572 train_time:9702830ms step_avg:539.05ms
+step:18500/20000 train_loss:1.9100 train_time:9972129ms step_avg:539.03ms
+step:19000/20000 train_loss:1.9059 train_time:10246622ms step_avg:539.30ms
+step:19500/20000 train_loss:2.1205 train_time:10518165ms step_avg:539.39ms
+step:20000/20000 train_loss:2.0205 train_time:10790324ms step_avg:539.52ms
+step:20000/20000 val_loss:2.0138 val_bpb:1.1927 train_time:10790325ms step_avg:539.52ms
+peak memory allocated: 20915 MiB reserved: 22058 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9375 val_bpb:1.1475 eval_time:12018ms
+Serialized model: 106178569 bytes
+Code size: 81323 bytes
+Serialized model int6+zstd: 17050758 bytes
+Total submission size int6+zstd: 17132081 bytes
+Total submission size int8+zlib: 17132081 bytes
+final_int6_roundtrip val_loss:1.9421 val_bpb:1.1502 eval_time:44884ms
+final_int6_roundtrip_exact val_loss:1.94206549 val_bpb:1.15020057
+final_int6_sliding_window val_loss:1.9019 val_bpb:1.1264 stride:64 eval_time:485779ms
+final_int6_sliding_window_exact val_loss:1.90191176 val_bpb:1.12642226
+final_int8_zlib_roundtrip_exact val_loss:1.90191176 val_bpb:1.12642226
+final_eval_mode:ttt_lora rank:8 epochs:5 chunk:256 lr:0.01
+  ttt [  0.0%] 0/50000 docs bpb=1.275697 time=0s
+  ttt [  0.6%] 320/50000 docs bpb=1.274202 time=1s
+  ttt [  1.3%] 640/50000 docs bpb=1.283712 time=1s
+  ttt [  1.9%] 960/50000 docs bpb=1.290907 time=2s
+  ttt [  2.6%] 1280/50000 docs bpb=1.285963 time=2s
+  ttt [  3.2%] 1600/50000 docs bpb=1.281384 time=3s
+  ttt [  3.8%] 1920/50000 docs bpb=1.273987 time=3s
+  ttt [  4.5%] 2240/50000 docs bpb=1.269887 time=4s
+  ttt [  5.1%] 2560/50000 docs bpb=1.269091 time=4s
+  ttt [  5.8%] 2880/50000 docs bpb=1.271943 time=5s
+  ttt [  6.4%] 3200/50000 docs bpb=1.275074 time=5s
+  ttt [  7.0%] 3520/50000 docs bpb=1.274511 time=6s
+  ttt [  7.7%] 3840/50000 docs bpb=1.272647 time=6s
+  ttt [  8.3%] 4160/50000 docs bpb=1.269977 time=7s
+  ttt [  9.0%] 4480/50000 docs bpb=1.268232 time=7s
+  ttt [  9.6%] 4800/50000 docs bpb=1.268124 time=8s
+  ttt [ 10.2%] 5120/50000 docs bpb=1.269726 time=8s
+  ttt [ 10.9%] 5440/50000 docs bpb=1.271132 time=8s
+  ttt [ 11.5%] 5760/50000 docs bpb=1.271848 time=9s
+  ttt [ 12.2%] 6080/50000 docs bpb=1.271271 time=9s
+  ttt [ 12.8%] 6400/50000 docs bpb=1.270564 time=10s
+  ttt [ 13.4%] 6720/50000 docs bpb=1.266495 time=11s
+  ttt [ 14.1%] 7040/50000 docs bpb=1.258133 time=13s
+  ttt [ 14.7%] 7360/50000 docs bpb=1.250479 time=15s
+  ttt [ 15.4%] 7680/50000 docs bpb=1.241813 time=17s
+  ttt [ 16.0%] 8000/50000 docs bpb=1.234906 time=18s
+  ttt [ 16.6%] 8320/50000 docs bpb=1.227923 time=20s
+  ttt [ 17.3%] 8640/50000 docs bpb=1.226089 time=22s
+  ttt [ 17.9%] 8960/50000 docs bpb=1.222978 time=23s
+  ttt [ 18.6%] 9280/50000 docs bpb=1.217660 time=25s
+  ttt [ 19.2%] 9600/50000 docs bpb=1.211861 time=27s
+  ttt [ 19.8%] 9920/50000 docs bpb=1.209144 time=29s
+  ttt [ 20.5%] 10240/50000 docs bpb=1.206229 time=30s
+  ttt [ 21.1%] 10560/50000 docs bpb=1.201988 time=32s
+  ttt [ 21.8%] 10880/50000 docs bpb=1.198494 time=34s
+  ttt [ 22.4%] 11200/50000 docs bpb=1.195895 time=36s
+  ttt [ 23.0%] 11520/50000 docs bpb=1.194860 time=37s
+  ttt [ 23.7%] 11840/50000 docs bpb=1.193412 time=39s
+  ttt [ 24.3%] 12160/50000 docs bpb=1.191963 time=41s
+  ttt [ 25.0%] 12480/50000 docs bpb=1.189929 time=42s
+  ttt [ 25.6%] 12800/50000 docs bpb=1.189758 time=44s
+  ttt [ 26.2%] 13120/50000 docs bpb=1.188505 time=46s
+  ttt [ 26.9%] 13440/50000 docs bpb=1.187348 time=48s
+  ttt [ 27.5%] 13760/50000 docs bpb=1.185899 time=49s
+  ttt [ 28.2%] 14080/50000 docs bpb=1.184577 time=51s
+  ttt [ 28.8%] 14400/50000 docs bpb=1.182756 time=53s
+  ttt [ 29.4%] 14720/50000 docs bpb=1.180416 time=55s
+  ttt [ 30.1%] 15040/50000 docs bpb=1.179967 time=56s
+  ttt [ 30.7%] 15360/50000 docs bpb=1.178523 time=58s
+  ttt [ 31.4%] 15680/50000 docs bpb=1.178339 time=60s
+  ttt [ 32.0%] 16000/50000 docs bpb=1.178676 time=61s
+  ttt [ 32.6%] 16320/50000 docs bpb=1.177922 time=63s
+  ttt [ 33.3%] 16640/50000 docs bpb=1.177328 time=65s
+  ttt [ 33.9%] 16960/50000 docs bpb=1.176235 time=67s
+  ttt [ 34.6%] 17280/50000 docs bpb=1.175264 time=68s
+  ttt [ 35.2%] 17600/50000 docs bpb=1.173989 time=70s
+  ttt [ 35.8%] 17920/50000 docs bpb=1.172907 time=72s
+  ttt [ 36.5%] 18240/50000 docs bpb=1.166850 time=75s
+  ttt [ 37.1%] 18560/50000 docs bpb=1.159179 time=78s
+  ttt [ 37.8%] 18880/50000 docs bpb=1.150826 time=82s
+  ttt [ 38.4%] 19200/50000 docs bpb=1.143902 time=86s
+  ttt [ 39.0%] 19520/50000 docs bpb=1.137498 time=89s
+  ttt [ 39.7%] 19840/50000 docs bpb=1.130720 time=93s
+  ttt [ 40.3%] 20160/50000 docs bpb=1.123809 time=96s
+  ttt [ 41.0%] 20480/50000 docs bpb=1.117963 time=100s
+  ttt [ 41.6%] 20800/50000 docs bpb=1.111941 time=104s
+  ttt [ 42.2%] 21120/50000 docs bpb=1.106958 time=107s
+  ttt [ 42.9%] 21440/50000 docs bpb=1.102852 time=111s
+  ttt [ 43.5%] 21760/50000 docs bpb=1.098628 time=114s
+  ttt [ 44.2%] 22080/50000 docs bpb=1.095044 time=118s
+  ttt [ 44.8%] 22400/50000 docs bpb=1.090863 time=122s
+  ttt [ 45.4%] 22720/50000 docs bpb=1.086984 time=125s
+  ttt [ 46.1%] 23040/50000 docs bpb=1.082653 time=129s
+  ttt [ 46.7%] 23360/50000 docs bpb=1.078375 time=133s
+  ttt [ 47.4%] 23680/50000 docs bpb=1.075058 time=136s
+  ttt [ 48.0%] 24000/50000 docs bpb=1.072147 time=140s
+  ttt [ 48.6%] 24320/50000 docs bpb=1.069409 time=144s
+  ttt [ 49.3%] 24640/50000 docs bpb=1.066548 time=147s
+  ttt [ 49.9%] 24960/50000 docs bpb=1.063903 time=151s
+  ttt [ 50.6%] 25280/50000 docs bpb=1.060120 time=154s
+  ttt [ 51.2%] 25600/50000 docs bpb=1.057388 time=158s
+  ttt [ 51.8%] 25920/50000 docs bpb=1.053572 time=162s
+  ttt [ 52.5%] 26240/50000 docs bpb=1.046358 time=168s
+  ttt [ 53.1%] 26560/50000 docs bpb=1.040617 time=175s
+  ttt [ 53.8%] 26880/50000 docs bpb=1.034678 time=181s
+  ttt [ 54.4%] 27200/50000 docs bpb=1.028635 time=187s
+  ttt [ 55.0%] 27520/50000 docs bpb=1.022887 time=193s
+  ttt [ 55.7%] 27840/50000 docs bpb=1.016878 time=199s
+  ttt [ 56.3%] 28160/50000 docs bpb=1.012101 time=206s
+  ttt [ 57.0%] 28480/50000 docs bpb=1.007559 time=212s
+  ttt [ 57.6%] 28800/50000 docs bpb=1.003629 time=218s
+  ttt [ 58.2%] 29120/50000 docs bpb=0.998954 time=224s
+  ttt [ 58.9%] 29440/50000 docs bpb=0.994546 time=230s
+  ttt [ 59.5%] 29760/50000 docs bpb=0.990149 time=237s
+  ttt [ 60.2%] 30080/50000 docs bpb=0.986628 time=243s
+  ttt [ 60.8%] 30400/50000 docs bpb=0.982818 time=249s
+  ttt [ 61.4%] 30720/50000 docs bpb=0.979892 time=255s
+  ttt [ 62.1%] 31040/50000 docs bpb=0.976441 time=261s
+  ttt [ 62.7%] 31360/50000 docs bpb=0.972690 time=268s
+  ttt [ 63.4%] 31680/50000 docs bpb=0.968719 time=275s
+  ttt [ 64.0%] 32000/50000 docs bpb=0.964100 time=284s
+  ttt [ 64.6%] 32320/50000 docs bpb=0.959533 time=293s
+  ttt [ 65.3%] 32640/50000 docs bpb=0.954839 time=303s
+  ttt [ 65.9%] 32960/50000 docs bpb=0.950151 time=312s
+  ttt [ 66.6%] 33280/50000 docs bpb=0.945582 time=321s
+  ttt [ 67.2%] 33600/50000 docs bpb=0.941444 time=330s
+  ttt [ 67.8%] 33920/50000 docs bpb=0.937960 time=339s
+  ttt [ 68.5%] 34240/50000 docs bpb=0.934232 time=349s
+  ttt [ 69.1%] 34560/50000 docs bpb=0.930180 time=358s
+  ttt [ 69.8%] 34880/50000 docs bpb=0.926866 time=367s
+  ttt [ 70.4%] 35200/50000 docs bpb=0.923682 time=376s
+  ttt [ 71.0%] 35520/50000 docs bpb=0.920468 time=385s
+  ttt [ 71.7%] 35840/50000 docs bpb=0.916893 time=395s
+  ttt [ 72.3%] 36160/50000 docs bpb=0.912889 time=407s
+  ttt [ 73.0%] 36480/50000 docs bpb=0.909177 time=420s
+  ttt [ 73.6%] 36800/50000 docs bpb=0.904685 time=432s
+  ttt [ 74.2%] 37120/50000 docs bpb=0.900854 time=444s
+  ttt [ 74.9%] 37440/50000 docs bpb=0.897448 time=456s
+  ttt [ 75.5%] 37760/50000 docs bpb=0.894047 time=468s
+  ttt [ 76.2%] 38080/50000 docs bpb=0.890374 time=481s
+  ttt [ 76.8%] 38400/50000 docs bpb=0.887212 time=493s
+  ttt [ 77.4%] 38720/50000 docs bpb=0.884451 time=505s
+  ttt [ 78.1%] 39040/50000 docs bpb=0.881149 time=519s
+  ttt [ 78.7%] 39360/50000 docs bpb=0.877785 time=534s
+  ttt [ 79.4%] 39680/50000 docs bpb=0.874174 time=549s
+  ttt [ 80.0%] 40000/50000 docs bpb=0.870655 time=564s
+  ttt [ 80.6%] 40320/50000 docs bpb=0.867465 time=580s
+  ttt [ 81.3%] 40640/50000 docs bpb=0.864086 time=595s
+  ttt [ 81.9%] 40960/50000 docs bpb=0.861296 time=610s
+  ttt [ 82.6%] 41280/50000 docs bpb=0.858177 time=626s
+  ttt [ 83.2%] 41600/50000 docs bpb=0.855110 time=645s
+  ttt [ 83.8%] 41920/50000 docs bpb=0.851826 time=663s
+  ttt [ 84.5%] 42240/50000 docs bpb=0.848757 time=681s
+  ttt [ 85.1%] 42560/50000 docs bpb=0.845685 time=699s
+  ttt [ 85.8%] 42880/50000 docs bpb=0.843201 time=717s
+  ttt [ 86.4%] 43200/50000 docs bpb=0.840483 time=738s
+  ttt [ 87.0%] 43520/50000 docs bpb=0.837364 time=759s
+  ttt [ 87.7%] 43840/50000 docs bpb=0.834642 time=780s
+  ttt [ 88.3%] 44160/50000 docs bpb=0.831938 time=801s
+  ttt [ 89.0%] 44480/50000 docs bpb=0.829165 time=824s
+  ttt [ 89.6%] 44800/50000 docs bpb=0.826148 time=849s
+  ttt [ 90.2%] 45120/50000 docs bpb=0.823377 time=873s
+  ttt [ 90.9%] 45440/50000 docs bpb=0.820912 time=898s
+  ttt [ 91.5%] 45760/50000 docs bpb=0.818454 time=925s
+  ttt [ 92.2%] 46080/50000 docs bpb=0.816154 time=953s
+  ttt [ 92.8%] 46400/50000 docs bpb=0.814358 time=983s
+  ttt [ 93.4%] 46720/50000 docs bpb=0.812441 time=1015s
+  ttt [ 94.1%] 47040/50000 docs bpb=0.810758 time=1048s
+  ttt [ 94.7%] 47360/50000 docs bpb=0.809467 time=1084s
+  ttt [ 95.4%] 47680/50000 docs bpb=0.808880 time=1123s
+  ttt [ 96.0%] 48000/50000 docs bpb=0.807946 time=1167s
+  ttt [ 96.6%] 48320/50000 docs bpb=0.807166 time=1213s
+  ttt [ 97.3%] 48640/50000 docs bpb=0.806905 time=1267s
+  ttt [ 97.9%] 48960/50000 docs bpb=0.807058 time=1329s
+  ttt [ 98.6%] 49280/50000 docs bpb=0.807168 time=1404s
+  ttt [ 99.2%] 49600/50000 docs bpb=0.807405 time=1506s
+  ttt [ 99.8%] 49920/50000 docs bpb=0.815240 time=1735s
+final_ttt val_loss:1.3821 val_bpb:0.8186 eval_time:1819176ms
+final_ttt_exact val_loss:1.38211666 val_bpb:0.81856733

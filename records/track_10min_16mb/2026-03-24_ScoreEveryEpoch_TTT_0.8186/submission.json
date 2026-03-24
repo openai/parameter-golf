@@ -1,0 +1,10 @@
+{
+  "name": "11L + Score-Every-Epoch LoRA TTT 5ep (val_bpb=0.8186)",
+  "author": "mn.hoang",
+  "github_id": "minh-stakc",
+  "date": "2026-03-24T00:00:00Z",
+  "val_loss": 1.38211666,
+  "val_bpb": 0.8186,
+  "bytes_total": 17132081,
+  "blurb": "Score-every-epoch multi-epoch LoRA TTT (5 epochs, LM rank-16, per-layer LR, bias tuning, T=0.98 temperature rescaling) on PR #414 base architecture. Pre-TTT: 1.1264 BPB. Post-TTT: 0.8186 BPB. Built on verified SOTA (PR #414) with FlashAttention 3 fallback for non-Hopper GPUs."
+}
