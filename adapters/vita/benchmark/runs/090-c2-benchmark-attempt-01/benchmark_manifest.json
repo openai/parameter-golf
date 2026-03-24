@@ -1,7 +1,7 @@
 {
   "created_at": "2026-03-24T15:57:24.835064+00:00",
   "run_tag": "090-c2-benchmark-attempt-01",
-  "status": "initialized_non_claiming",
+  "status": "attempt01_baseline_locked_non_claiming",
   "benchmark_track": "parameter-golf",
   "non_claiming": true,
   "claims_allowed": false,
@@ -37,15 +37,46 @@
       "sanity": "local-smoke",
       "first_real_candidate": "target-gpu-template"
     },
-    "pipeline_executed": false,
-    "training_executed": false,
-    "evaluation_executed": false,
-    "final_metric_extracted": false,
-    "artifact_size_verified": false
+    "pipeline_executed": true,
+    "training_executed": true,
+    "evaluation_executed": true,
+    "final_metric_extracted": true,
+    "artifact_size_verified": true,
+    "attempt01": {
+      "label": "baseline",
+      "delta_description": "no leaderboard-inspired delta",
+      "final_val_bpb": 1.23814533,
+      "final_val_loss": 2.09055653,
+      "metric_file": "evidence/metric_8gpu_attempt01.txt",
+      "train_log": "evidence/train_8gpu_attempt01.log",
+      "artifact_summary": "evidence/artifact_summary_8gpu_attempt01.txt",
+      "locked_at": "2026-03-24T18:07:13.213140Z"
+    },
+    "attempt02": {
+      "label": "single-delta",
+      "delta_description": "WARMDOWN_ITERS=3500",
+      "final_val_bpb": 1.23641511,
+      "delta_vs_attempt01_bpb": -0.00173022,
+      "decision": "keep",
+      "metric_file": "evidence/metric_8gpu_attempt02_warmdown3500.txt",
+      "train_log": "evidence/train_8gpu_attempt02_warmdown3500.log",
+      "artifact_summary": "evidence/artifact_summary_8gpu_attempt02_warmdown3500.txt",
+      "source": "operator-reported; ensure evidence files are synced"
+    },
+    "current_best": {
+      "attempt": "attempt02",
+      "final_val_bpb": 1.23641511
+    },
+    "next_planned_attempt": {
+      "attempt": "attempt03",
+      "base": "attempt02",
+      "single_delta": "EMA",
+      "status": "planned"
+    }
   },
   "blockers": [
-    "Task/model/metric adaptation required before benchmark comparability.",
-    "Real benchmark pipeline not yet executed."
+    "Gap to naive baseline (1.2244) remains; continue single-delta iterations.",
+    "Ensure attempt02 evidence files are synced locally before claim-gate review."
   ],
   "expected_evidence_files": [
     "evidence/train.log",
