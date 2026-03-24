@@ -107,3 +107,7 @@ ttt_perdoc_lora_chunkmajor_s1337,600,,,,8,,~1.27,aeb9c78,"Per-doc LoRA TTT chunk
 ttt_sliding_adamw_5e5_s1337,600,,,,8,,~1.165,4185dd6,"Sliding window AdamW TTT lr=5e-5: ~1.165 BPB (catastrophic forgetting, gradient mismatch)"
 ttt_pr549_sgd002_3ep_s1337,600,,,,8,474,1.1277,5e29fe5,"PR#549 recipe on saved model: SGD lr=0.002 3ep 32K chunks. -0.0029 vs 1.1306 baseline. 395s TTT"
 ttt_submission_s1337,600,15757774,,89578,8,513,1.1195,f7507f1,"FULL SUBMISSION+TTT s1337: sliding=1.1217 → TTT=1.1195. -0.0022 BPB. 405s TTT, 15.76MB"
+ttt_submission_s42,600,15745444,,89578,8,513,1.1208,f7507f1,"FULL SUBMISSION+TTT s42: sliding=1.1231 → TTT=1.1208. -0.0023 BPB. 15.75MB"
+leaky_adamw_s1337,600,16144260,,89600,8,,1.1566,f5fcf20,"LeakyReLU+AdamW(lr=5e-4) TTT: DISASTER. sliding=1.1212 but TTT=1.1566. 16.14MB OVER"
+leaky_sgd_s1337,600,16120496,,89600,8,485,1.1174,8300e82,"LeakyReLU+SGD TTT: sliding=1.1201 → TTT=1.1174! -0.0027. BUT 16.12MB OVER LIMIT"
+lora_ttt_full_s1337,600,15731927,,94536,8,603,1.0724,de65267,"LoRA TTT 2ep r8 lr01 c128 min256: sliding=1.1203 → TTT=1.0724! -0.048. 15.83MB FITS. NEW RECORD"
