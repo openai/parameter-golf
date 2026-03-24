@@ -1,6 +1,6 @@
 # 10L LoRA TTT 6ep + FlashAttention-3
 
-**val_bpb: 0.7227** | **artifact: 15.45 MB** | **8xH100 SXM, 600s train + 569s eval**
+**val_bpb: 0.7227** | **seed: 1337** | **artifact: 15.45 MB** | **8xH100 SXM, 600s train + 569s eval**
 
 ## Architecture
 
