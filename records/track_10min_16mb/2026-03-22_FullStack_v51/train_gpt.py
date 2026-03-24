@@ -954,42 +954,61 @@ def eval_val_ttt_lora(
 
 # ── In-Place TTT (ICLR 2026 Oral — update MLP output projection as fast weights) ──
 
-def inplace_ttt_adapt(
-    model, device, val_tokens, chunk_size: int = 256,
-    lr: float = 0.001, rank: int = 0, world_size: int = 1,
-    log_fn=None,
-) -> None:
-    """In-Place TTT: update MLP output projections (W_down) per-document using NTP loss.
+def inplace_ttt_eval(
+    args, model, device, val_tokens,
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+    chunk_size: int = 256, lr: float = 0.001,
+    rank: int = 0, world_size: int = 1, log_fn=None,
+) -> tuple[float, float]:
+    """In-Place TTT eval: per-document MLP projection adaptation with apply-then-update.
 
-    Orthogonal to LoRA TTT (which targets Q/V/LM head). This targets MLP.proj.
-    Apply-then-update ordering preserves strict causality.
+    For each document:
+    1. Reset MLP proj weights to original
+    2. For each chunk: SCORE (accumulate bpb) → then UPDATE MLP proj weights
+    3. Apply-then-update preserves strict causality (score before adapt)
+
+    Returns (val_loss, val_bpb) like eval_val_ttt_lora.
     """
     docs = _find_docs(val_tokens)
     rank_docs = docs[(len(docs) * rank) // world_size: (len(docs) * (rank + 1)) // world_size]
+    short_docs = [d for d in rank_docs if d[1] < args.ttt_min_doc_len]
+    long_docs = [d for d in rank_docs if d[1] >= args.ttt_min_doc_len]
     master = rank == 0
 
     # Collect MLP proj weights (the fast weights)
-    mlp_projs = []
-    for block in model.blocks:
-        mlp_projs.append(block.mlp.proj.weight)
-
-    # Save original weights for reset between documents
+    mlp_projs = [block.mlp.proj.weight for block in model.blocks]
     original_weights = [w.data.clone() for w in mlp_projs]
 
     if master and log_fn:
-        log_fn(f"inplace_ttt:start docs={len(rank_docs)} layers={len(mlp_projs)} lr={lr} chunk={chunk_size}")
+        log_fn(f"inplace_ttt:start docs={len(rank_docs)} ({len(long_docs)} long, {len(short_docs)} short) layers={len(mlp_projs)} lr={lr}")
 
     t0 = time.perf_counter()
     model.eval()
-
-    # Freeze all params, then selectively unfreeze MLP projs
     for p in model.parameters():
         p.requires_grad_(False)
 
-    for doc_idx, (ds, dl) in enumerate(rank_docs):
-        if dl < chunk_size + 1:
-            continue
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    byte_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
 
+    # Score short docs without TTT (same as LoRA TTT)
+    with torch.no_grad():
+        for ds, dl in short_docs:
+            x = val_tokens[ds: ds + dl - 1].to(device=device, dtype=torch.int64).unsqueeze(0)
+            y = val_tokens[ds + 1: ds + dl].to(device=device, dtype=torch.int64).unsqueeze(0)
+            n = dl - 1
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                mean_loss = model(x, y)
+            loss_sum += mean_loss.to(torch.float64) * n
+            token_count += n
+            tgt = y.reshape(-1)
+            px = x.reshape(-1)
+            tb = base_bytes_lut[tgt].to(torch.float64)
+            tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[px]).to(torch.float64)
+            byte_sum += tb.sum()
+
+    # Long docs: apply-then-update per chunk
+    for doc_idx, (ds, dl) in enumerate(long_docs):
         # Reset fast weights to original for each document
         for w, orig in zip(mlp_projs, original_weights):
             w.data.copy_(orig)
@@ -1004,39 +1023,69 @@ def inplace_ttt_adapt(
             if cl < 2:
                 continue
 
-            # Use backward-looking window (up to 1024 tokens of context)
             win_start = max(0, chunk_end - 1024)
             win_len = chunk_end - win_start
+            chunk_offset = chunk_start - win_start
 
-            x = val_tokens[ds + win_start: ds + win_start + win_len].to(device=device, dtype=torch.int64).unsqueeze(0)
-            y = val_tokens[ds + win_start + 1: ds + win_start + win_len + 1].to(device=device, dtype=torch.int64).unsqueeze(0)
+            toks = val_tokens[ds + win_start: ds + win_start + win_len + 1].to(device=device, dtype=torch.int64)
+            x = toks[:-1].unsqueeze(0)
+            y = toks[1:].unsqueeze(0)
 
-            if x.size(1) < 2 or y.size(1) < 2:
-                continue
+            # APPLY: Score this chunk (no grad)
+            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                per_token_loss_all = F.cross_entropy(
+                    model.forward_logits(x).reshape(-1, args.vocab_size).float(),
+                    y.reshape(-1),
+                    reduction="none",
+                )
+            # Accumulate only the chunk's tokens (not the context window)
+            chunk_losses = per_token_loss_all[chunk_offset: chunk_offset + cl]
+            loss_sum += chunk_losses.to(torch.float64).sum()
+            token_count += cl
+            tgt = y[0, chunk_offset: chunk_offset + cl]
+            px = x[0, chunk_offset: chunk_offset + cl]
+            tb = base_bytes_lut[tgt].to(torch.float64)
+            tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[px]).to(torch.float64)
+            byte_sum += tb.sum()
 
-            # UPDATE: gradient step on MLP proj weights using NTP loss
-            for w in mlp_projs:
-                w.requires_grad_(True)
-
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                loss = model(x, y)  # mean NTP loss (standard forward, no LoRA)
-
-            loss.backward()
-
-            with torch.no_grad():
+            # UPDATE: gradient step on MLP proj (skip last chunk — nothing to update for)
+            if ci < num_chunks - 1:
                 for w in mlp_projs:
-                    if w.grad is not None:
-                        w.data -= lr * w.grad
-                        w.grad = None
-                    w.requires_grad_(False)
+                    w.requires_grad_(True)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    update_loss = model(x, y)  # mean NTP loss
+                update_loss.backward()
+                with torch.no_grad():
+                    for w in mlp_projs:
+                        if w.grad is not None:
+                            w.data -= lr * w.grad
+                            w.grad = None
+                        w.requires_grad_(False)
 
-    # Restore requires_grad state
+        if master and log_fn and (doc_idx + 1) % 200 == 0:
+            elapsed = time.perf_counter() - t0
+            avg_l = loss_sum.item() / max(token_count.item(), 1)
+            log_fn(f"inplace_ttt: doc {doc_idx+1}/{len(long_docs)} time={elapsed:.1f}s avg_loss={avg_l:.4f}")
+
+    # Reset to original weights (don't leave model in mutated state)
+    for w, orig in zip(mlp_projs, original_weights):
+        w.data.copy_(orig)
+
+    # All-reduce across ranks
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+
     for p in model.parameters():
         p.requires_grad_(True)
     model.train()
 
+    val_loss = float(loss_sum.item() / max(token_count.item(), 1))
+    val_bpb = float((loss_sum.item() / math.log(2.0)) / max(byte_sum.item(), 1))
     if master and log_fn:
-        log_fn(f"inplace_ttt:complete time={time.perf_counter()-t0:.1f}s")
+        log_fn(f"inplace_ttt:complete loss:{val_loss:.4f} bpb:{val_bpb:.4f} time:{time.perf_counter()-t0:.1f}s")
+    return val_loss, val_bpb
 
 
 class BigramHashEmbedding(nn.Module):
@@ -2285,28 +2334,26 @@ def main() -> None:
         restore_low_dim_params_to_fp32(ttt_model)
         ttt_model.load_state_dict(deq_state, strict=True)
 
-        # Phase 1: In-Place TTT — adapt MLP output projections per-document
+        # TTT eval: choose between LoRA TTT (batched) or In-Place TTT (per-doc MLP adaptation)
+        t_ttt = time.perf_counter()
         if args.inplace_ttt_enabled:
+            # In-Place TTT: apply-then-update on MLP proj weights per document
             log0(f"inplace_ttt:start lr={args.inplace_ttt_lr} chunk={args.inplace_ttt_chunk}")
-            t_inplace = time.perf_counter()
-            inplace_ttt_adapt(
-                ttt_model, device, val_tokens,
-                chunk_size=args.inplace_ttt_chunk,
-                lr=args.inplace_ttt_lr,
-                rank=rank, world_size=world_size,
+            ttt_val_loss, ttt_val_bpb = inplace_ttt_eval(
+                args, ttt_model, device, val_tokens,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                chunk_size=args.inplace_ttt_chunk, lr=args.inplace_ttt_lr,
+                rank=rank, world_size=world_size, log_fn=log0,
+            )
+        else:
+            # LoRA TTT: batched per-document adaptation on Q/V/LM head
+            log0(f"lora_ttt:start rank={args.ttt_lora_rank} lr={args.ttt_lora_lr} epochs={args.ttt_epochs} batch={args.ttt_batch_seqs}")
+            ttt_val_loss, ttt_val_bpb = eval_val_ttt_lora(
+                args, ttt_model, rank, world_size, device, val_tokens,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
                 log_fn=log0,
             )
-            log0(f"inplace_ttt:elapsed={time.perf_counter() - t_inplace:.1f}s")
-
-        # Phase 2: LoRA TTT — adapt Q/V/LM head per-document (on top of In-Place adapted MLP)
-        log0(f"lora_ttt:start rank={args.ttt_lora_rank} lr={args.ttt_lora_lr} epochs={args.ttt_epochs} batch={args.ttt_batch_seqs}")
-        t_ttt = time.perf_counter()
-        ttt_val_loss, ttt_val_bpb = eval_val_ttt_lora(
-            args, ttt_model, rank, world_size, device, val_tokens,
-            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            log_fn=log0,
-        )
-        log0(f"lora_ttt:complete val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} time:{time.perf_counter() - t_ttt:.1f}s")
+        log0(f"ttt:complete val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} time:{time.perf_counter() - t_ttt:.1f}s")
         del ttt_model
         if distributed:
             dist.barrier()
