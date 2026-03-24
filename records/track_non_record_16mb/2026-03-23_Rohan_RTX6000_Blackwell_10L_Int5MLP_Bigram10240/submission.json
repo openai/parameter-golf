@@ -12,7 +12,8 @@
   "step_stop": 14085,
   "wallclock_seconds": 2700,
   "bytes_total": 15691796,
-  "bytes_model_int8_zlib": 15636771,
-  "bytes_code": null,
+  "bytes_model_int8_zlib": null,
+  "bytes_model_int6_zstd": 15636771,
+  "bytes_code": 55025,
   "gpu": "1x RTX PRO 6000 Blackwell Server Edition"
 }

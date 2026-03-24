@@ -1276,5 +1276,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-# fixes applied
-# tuned

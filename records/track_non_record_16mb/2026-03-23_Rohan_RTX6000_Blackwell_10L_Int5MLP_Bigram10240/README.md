@@ -17,6 +17,8 @@ Run ID: `rtx6000_45m_b131k_s64`
 - total artifact size: `15,691,796` bytes
 - GPU: `1x RTX PRO 6000 Blackwell Server Edition`
 
+Note: the preserved log tails keep the inherited upstream tag `final_int8_zlib_roundtrip`, but the actual best-run artifact here is the mixed int5/int6 export compressed with `zstd`, as reflected in `submission.json`.
+
 ## What Changed From The Merged 10L Record
 
 1. Portable AMP dtype selection: `bf16` on newer CUDA GPUs, `fp16` fallback on older GPUs.
@@ -44,7 +46,7 @@ torchrun --standalone --nproc_per_node=1 train_gpt.py
 
 ## Follow-up Run
 
-A longer follow-up run, `rtx6000_65m_b131k_s32_eb512`, trained to step `20330` with pre-quant `val_bpb 1.2011`, but its sliding-window evaluation was interrupted after the Lightning cloudspace was reclaimed. It is included in `results.tsv` and the preserved log tail for completeness, but it is not used as the submission score.
+A longer follow-up run, `rtx6000_65m_b131k_s32_eb512`, trained to step `20330` with pre-quant `val_bpb 1.2011`, but its sliding-window evaluation was interrupted after the Lightning cloudspace was reclaimed. Its artifact also came out at `16,180,242` bytes, which is over the decimal 16MB cap, so it is included only as exploratory context and not as a valid submission result.
 
 ## Included Files
 
