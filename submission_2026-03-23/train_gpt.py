@@ -1187,9 +1187,9 @@ def eval_val_ttt_lora(
     Each document gets its own ephemeral LoRA adapter (rank-8 on Q/V/LM head).
     Score on final epoch, train on all chunks except the last."""
     docs = _find_docs(val_tokens)
-    rank_docs = docs[(len(docs) * rank) // world_size: (len(docs) * (rank + 1)) // world_size]
-    short_docs = [d for d in rank_docs if d[1] < args.ttt_min_doc_len]
-    long_docs = [d for d in rank_docs if d[1] >= args.ttt_min_doc_len]
+    # Round-robin distribution for balanced load across GPUs
+    short_docs = [d for i, d in enumerate(docs) if d[1] < args.ttt_min_doc_len and i % world_size == rank]
+    long_docs = [d for i, d in enumerate(docs) if d[1] >= args.ttt_min_doc_len and i % world_size == rank]
     master = rank == 0
     if master and log_fn:
         log_fn(f"lora_ttt: {len(docs)} total docs, rank0: {len(long_docs)} long + {len(short_docs)} short, batch={args.ttt_batch_docs}")
