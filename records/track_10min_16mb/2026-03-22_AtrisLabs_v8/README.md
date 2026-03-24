@@ -29,21 +29,15 @@ Stacked 8 independently validated techniques matching the current leaderboard wi
 - **Reported score path:** standard final eval with `EVAL_SEQ_LEN=2048`
 - **Sliding-window code path:** included in `train_gpt.py`, but not used for the reported metrics in this folder
 
-## Key Metrics (3-seed validation)
+## Key Metrics (audited seed=42 run)
 
-| Seed | val_bpb | val_loss |
-|------|---------|----------|
-| 42 | **1.1803** | 1.9929 |
-| 2024 | 1.1808 | 1.9937 |
-| 1337 | 1.1810 | 1.9941 |
-| **Mean** | **1.1807** | 1.9936 |
-| **Std** | **0.0004** | |
-
-- **Artifact size:** ~14.6 MB (under 16MB)
-- **Training steps:** ~6450-6520 in 600s on 8xH100 (92.5ms/step)
+- **val_bpb (int8+zlib roundtrip exact):** 1.18069496
+- **val_loss:** 1.99355398
+- **Artifact size:** 14,461,499 bytes (under 16MB)
+- **Training steps:** 6428 in 600.039s on 8xH100 (93.35ms/step)
 - **Peak memory:** 18,974 MiB
 - **SWA:** 24 checkpoints averaged during warmdown
-- **3-seed spread:** std = 0.0004 val_bpb
+- **Train log:** included as `train.log`
 
 ## Command
 
