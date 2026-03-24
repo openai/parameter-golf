@@ -1010,8 +1010,6 @@ def gptq_calibrate_and_quantize_sequential(
 
     Based on QEP (arxiv:2504.09629, NeurIPS 2025).
     """
-    import copy
-
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     gptq_count, naive_count = 0, 0
@@ -1897,7 +1895,6 @@ def main() -> None:
         log0(f"qep_gptq:starting sequential calibration+quantization...")
         t_gptq_start = time.perf_counter()
         # Need a copy of the model on device for sequential quantization
-        import copy
         qep_model = copy.deepcopy(base_model).to(device)
         qep_model.load_state_dict({k: v.to(device) for k, v in sd_cpu.items()}, strict=True)
         quant_result, quant_meta = gptq_calibrate_and_quantize_sequential(
