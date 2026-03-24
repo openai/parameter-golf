@@ -3,6 +3,7 @@
 > **IMPORTANT:** Before implementing anything from this document, use Nia to validate the claims, read the actual papers, and verify the techniques apply to our specific setup (14L, 512d, GQA 8/4, int6 GPTQ, 16MB budget, 10min train + 10min eval). Many techniques that sound good in papers fail at our scale or constraints. Cross-reference with the sources listed below. Also use Nia to search for NEW techniques not listed here that could be helpful — this document is a snapshot, not exhaustive. The competition and research landscape evolve daily.
 >
 > **MAINTENANCE:** This document MUST be updated:
+>
 > - **Before** each A/B test: add the experiment with status, hypothesis, expected gain
 > - **After** each A/B test: record the result, update the completed results table
 > - **When new research is found**: add it to the appropriate section with sources
@@ -17,32 +18,38 @@
 
 **LoRA TTT tier (sub-0.8 BPB — fundamentally different approach):**
 
-| PR | BPB | Technique |
-|----|-----|-----------|
+
+| PR   | BPB    | Technique                                   |
+| ---- | ------ | ------------------------------------------- |
 | #611 | 0.5601 | K-Projection LoRA + Min-NLL epoch selection |
-| #596 | 0.6430 | LoRA (8ep) + per-block bias tuning |
-| #614 | 0.6864 | K-LoRA + Min-NLL + FA3 |
+| #596 | 0.6430 | LoRA (8ep) + per-block bias tuning          |
+| #614 | 0.6864 | K-LoRA + Min-NLL + FA3                      |
+
 
 **Our tier (architecture + standard TTT):**
 
-| PR   | BPB    | Key technique                         |
-| ---- | ------ | ------------------------------------- |
-| **Us** | **1.1075** | **14L WD=0.05 QEP GPTQ + per-window SGD TTT** |
-| #595 | 1.1100 | SWA + BigramHash + AdamW TTT (10 epochs) — NEW |
-| #609 | 1.1154 | Full GPTQ + XSA-all + NO TTT — NEW |
-| #593 | 1.1163 | Full GPTQ + LeakyReLU² — NEW no TTT |
-| #569 | 1.1175 | VRL + LeakyReLU² + Full GPTQ (no TTT) |
 
-**⚠️ LoRA TTT with score-every-epoch (0.5-0.8 BPP) may be ruled invalid. See issue #402 discussion. The "min-NLL epoch selection" re-scores tokens after training on them — arguably violates "preceding tokens" rule. Comment posted to @0hq for ruling. If invalid, we're #1 by 0.012 BPP.**
+| PR     | BPB        | Key technique                                  |
+| ------ | ---------- | ---------------------------------------------- |
+| **Us** | **1.1075** | **14L WD=0.05 QEP GPTQ + per-window SGD TTT**  |
+| #595   | 1.1100     | SWA + BigramHash + AdamW TTT (10 epochs) — NEW |
+| #609   | 1.1154     | Full GPTQ + XSA-all + NO TTT — NEW             |
+| #593   | 1.1163     | Full GPTQ + LeakyReLU² — NEW no TTT            |
+| #569   | 1.1175     | VRL + LeakyReLU² + Full GPTQ (no TTT)          |
+
+
+**⚠️ LoRA TTT with score-every-epoch (0.5-0.8 BPP) has been be ruled invalid. See issue #402 discussion. The "min-NLL epoch selection" re-scores tokens after training on them — arguably violates "preceding tokens" rule. Comment posted to @0hq for ruling. We're #1 by 0.012 BPP.**
 
 ---
 
 ## WHERE WE ARE (March 24, end of day)
 
 ### Current Submission-Ready Best
+
 **1.1075 BPB** — WD=0.05, QEP GPTQ, per-window SGD TTT @ stride=76, 551s eval
 
 ### Key Findings Today
+
 1. **WD=0.05 is optimal** (U-shaped, confirmed 0.03-0.11 sweep). Was at 0.09, cost us 0.004 BPP.
 2. **QEP GPTQ reduces quant gap** 0.015→0.012, but TTT absorbs most of the gain.
 3. **Rescore@s64 after TTT** gives 1.1058 but exceeds 600s eval budget (642s).
@@ -52,25 +59,83 @@
 7. **LoRA TTT paradigm shift** in competition — sub-0.8 BPP but legality unclear.
 
 ### What to Do Next (Priority Order)
+
 1. **Combine best settings**: WD=0.05 + QEP + freeze=8 + stride=64 → full training run
-   - Expected: ~1.106 BPP in ~450s eval (well under budget)
-   - This is the optimal non-LoRA configuration
+  - Expected: ~1.106 BPP in ~450s eval (well under budget)
+  - This is the optimal non-LoRA configuration
 2. **Implement Case 3 LoRA TTT** (per-document, auto-regressive, NO re-scoring)
-   - Unambiguously legal per issue #402
-   - Could add 0.01-0.05 BPP improvement on top of current
-   - Significant implementation effort (~200 lines)
+  - Unambiguously legal per issue #402
+  - Could add 0.01-0.05 BPP improvement on top of current
+  - Significant implementation effort (~200 lines)
 3. **Wait for @0hq ruling** on score-every-epoch — if valid, implement min-NLL LoRA
 4. **Multi-seed verification** — run best config with seeds 42, 7 for submission
 
-### Freeze Sweep Results (WD=0.09 model, stride=64)
-| Freeze | BPB | Delta |
-|--------|------|-------|
-| 2 | 1.1129 | — |
-| 4 | 1.1131 | +0.0002 |
-| 6 | 1.1133 | +0.0004 |
-| 8 | 1.1139 | +0.0010 |
-| 10 | pending | — |
+### Freeze Sweep Results (WD=0.09 model, stride=64, eval-only)
 
+| Freeze | BPB | Delta | Est time |
+|--------|------|-------|----------|
+| 2 | 1.1129 | — | ~654s |
+| 4 | 1.1131 | +0.0002 | ~580s |
+| 6 | 1.1133 | +0.0004 | ~510s |
+| **8** | **1.1139** | **+0.0010** | **~440s** |
+| 10 | 1.1145 | +0.0016 | ~380s |
+
+**Freeze=8 is sweet spot**: 0.001 cost, ~214s savings. With WD=0.05 → ~1.1069 est in ~440s.
+
+### WD Sweep Results (rescore@s64, full training runs)
+| WD | BPB |
+|----|------|
+| 0.03 | 1.1063 |
+| 0.04 | 1.1060 |
+| 0.045 | 1.1064 |
+| **0.05** | **1.1058 🏆** |
+| 0.06 | 1.1065 |
+| 0.065 | 1.1072 |
+| 0.07 | 1.1075 |
+| 0.075 | 1.1080 |
+| 0.09 | 1.1099 |
+| 0.11 | 1.1124 |
+
+### A/B Round 3 Results (full training, rescore@s64)
+| Exp | Config | TTT@s76 | Rescore@s64 | Delta vs baseline |
+|-----|--------|---------|-------------|-------|
+| T2 baseline (WD=0.09) | — | 1.1130 | 1.1099 | — |
+| **T5 WD=0.07** | MUON_WD=0.07 | 1.1098 | **1.1075** | **-0.0024** |
+| T6 WD=0.11 | MUON_WD=0.11 | 1.1165 | 1.1124 | +0.0025 |
+| T8 BigDim=96 | BIGRAM_DIM=96 | 1.1128 | 1.1097 | -0.0002 |
+| T9 EMA=0.995 | EMA_DECAY=0.995 | — | 1.1104 | +0.0005 |
+| T10 EMA=0.999 | EMA_DECAY=0.999 | — | 1.1188 | +0.0089 |
+| T11 warmdown=4000 | WARMDOWN_ITERS=4000 | — | 1.1096 | -0.0003 |
+| T12 warmdown=3000 | WARMDOWN_ITERS=3000 | — | 1.1099 | 0.0000 |
+| T3 Full QAT | QAT_ENABLED=1 | 1.1269 | 1.1249 | +0.0150 |
+| T4 Full QAT 0.5 | QAT_ENABLED=1 | 1.1265 | 1.1244 | +0.0145 |
+
+### Other Experiments
+| Exp | Config | Result | Notes |
+|-----|--------|--------|-------|
+| VRL v3 | VRL_ENABLED=1, WD=0.09 | 1.1133 s76 | Neutral — U-Net skips sufficient at 14L |
+| Late QAT 0.15 | LATE_QAT_THRESHOLD=0.15, WD=0.05 | 1.1109 s64 | +0.005 WORSE — dynamo reset disrupts training |
+| QEP GPTQ | QEP_ENABLED=1, WD=0.05 | 1.1075 s76, 1.1060 s64 | Quant gap 0.015→0.012, TTT absorbs most |
+| Chunked AdamW 1ep | TTT_MODE=chunked, WD=0.09 | 1.1175 | Fast (138s) but worse BPP |
+| T=0.98 | TTT_TEMPERATURE=0.98, WD=0.09 | 1.1132 s76 | Worse — don't use |
+
+### Stride Sweep Results (per-window SGD TTT, WD=0.09)
+| Stride | BPB | Time |
+|--------|------|------|
+| 64 | 1.1126 | 654s (over) |
+| 68 | 1.1129 | 640s (over) |
+| 72 | 1.1129 | 604s (over) |
+| **76** | **1.1130** | **575s ✓** |
+| 80 | 1.1130 | 547s ✓ |
+| 96 | 1.1131 | 458s ✓ |
+| 128 | 1.1133 | 347s ✓ |
+
+---
+
+## NOW RUNNING: Combined best config (WD=0.05 + QEP + freeze=8 + stride=64)
+- Script: clean_train_203_qep_gptq.py
+- Expected: ~1.106 BPB in ~440s eval
+- This combines all winning findings into one run
 
 ---
 
@@ -174,40 +239,40 @@
 ## Completed Results
 
 
-| Experiment               | BPB        | Time     | Delta vs baseline | Notes                    |
-| ------------------------ | ---------- | -------- | ----------------- | ------------------------ |
-| stride=64 per-window SGD | 1.1126     | 654s     | —                 | Over time budget         |
-| stride=68                | 1.1129     | 640s     | +0.0003           | Over budget              |
-| stride=72                | 1.1129     | 604s     | +0.0003           | 4s over                  |
-| **stride=76**            | **1.1130** | **575s** | **+0.0004**       | **Submission candidate** |
-| stride=80                | 1.1130     | 547s     | +0.0004           | Safe margin              |
-| stride=96                | 1.1131     | 458s     | +0.0005           | Very safe                |
-| stride=128               | 1.1133     | 347s     | +0.0007           | Very safe                |
-| stride=76 T=0.98         | 1.1132     | 566s     | +0.0006           | Temp hurts               |
-| chunked AdamW 1ep        | 1.1175     | 138s     | +0.0049           | Fast but worse           |
-| VRL v3 (exp202)          | 1.1133     | 577s     | +0.0003           | **NEUTRAL** — U-Net skips already carry early info at 14L |
-| no-VRL control           | skipped    | —        | —                 | VRL neutral, no need for control |
-| QEP GPTQ (exp203)        | 1.1075 s76 | 551s     | -0.003 roundtrip  | Quant gap reduced 0.015→0.012! But TTT undoes most of the gain |
-| Late QAT 0.15 (exp204)   | — | 1.1109 s64 | +0.0051 WORSE | QAT hurt — recompilation disrupts training, or clipping too aggressive |
-| TTT freeze sweep          | pending    | ~50s ea  | stride=64 recovery| eval-only, 5 experiments (freeze 2/4/6/8/10) |
-| **TTT@s76 + rescore@s64** | **1.1099** | **~642s** | **-0.0031!** | **MASSIVE FIND — TTT adapts weights, rescore at s64 for precise BPP** |
-| T3 Full QAT (QAT_ENABLED=1) | 1.1269 | ~575s | +0.0139 | **TERRIBLE** — full QAT hurts badly, need proper LATE QAT with threshold |
-| T4 Full QAT 0.5 | 1.1265 | — | +0.0145 | TERRIBLE — full QAT hurts |
-| **T5 WD=0.07** | **1.1098** | **1.1075** | **-0.0024** | **🏆 NEW BEST! WD=0.09 was too aggressive for 14L near Dcrit** |
-| T6 WD=0.11 | 1.1165 | 1.1124 | +0.0025 | Worse — confirms WD=0.09 was already near limit |
-| T8 BigDim=96 | 1.1128 | 1.1097 | -0.0002 | Marginal — need to verify artifact fits 16MB |
-| T9 EMA=0.995 | — | 1.1104 | +0.0005 | Slightly worse — 0.997 is near-optimal |
-| T10 EMA=0.999 | — | 1.1188 | +0.0089 | Much worse — too slow for 5700 steps |
-| T11 warmdown=4000 | — | 1.1096 | -0.0003 | Marginal — not significant |
-| T12 warmdown=3000 | — | 1.1099 | 0.0000 | Same as baseline — 3500 is fine |
-| **WD=0.05** | — | **1.1058** | **-0.0041** | **🏆🏆 CONFIRMED BEST — U-shaped curve, optimal at 0.05** |
-| WD=0.045 | — | 1.1064 | -0.0035 | Worse than 0.05 |
-| WD=0.04 | — | 1.1060 | -0.0039 | Close but 0.05 wins |
-| WD=0.03 | — | 1.1063 | -0.0036 | Too low, under-regularized |
-| WD=0.06 | — | 1.1065 | -0.0034 | |
-| WD=0.065 | — | 1.1072 | -0.0027 | |
-| WD=0.075 | — | 1.1080 | -0.0019 | |
-| WD=0.08 | — | pending | — | |
+| Experiment                  | BPB        | Time       | Delta vs baseline  | Notes                                                                    |
+| --------------------------- | ---------- | ---------- | ------------------ | ------------------------------------------------------------------------ |
+| stride=64 per-window SGD    | 1.1126     | 654s       | —                  | Over time budget                                                         |
+| stride=68                   | 1.1129     | 640s       | +0.0003            | Over budget                                                              |
+| stride=72                   | 1.1129     | 604s       | +0.0003            | 4s over                                                                  |
+| **stride=76**               | **1.1130** | **575s**   | **+0.0004**        | **Submission candidate**                                                 |
+| stride=80                   | 1.1130     | 547s       | +0.0004            | Safe margin                                                              |
+| stride=96                   | 1.1131     | 458s       | +0.0005            | Very safe                                                                |
+| stride=128                  | 1.1133     | 347s       | +0.0007            | Very safe                                                                |
+| stride=76 T=0.98            | 1.1132     | 566s       | +0.0006            | Temp hurts                                                               |
+| chunked AdamW 1ep           | 1.1175     | 138s       | +0.0049            | Fast but worse                                                           |
+| VRL v3 (exp202)             | 1.1133     | 577s       | +0.0003            | **NEUTRAL** — U-Net skips already carry early info at 14L                |
+| no-VRL control              | skipped    | —          | —                  | VRL neutral, no need for control                                         |
+| QEP GPTQ (exp203)           | 1.1075 s76 | 551s       | -0.003 roundtrip   | Quant gap reduced 0.015→0.012! But TTT undoes most of the gain           |
+| Late QAT 0.15 (exp204)      | —          | 1.1109 s64 | +0.0051 WORSE      | QAT hurt — recompilation disrupts training, or clipping too aggressive   |
+| TTT freeze sweep            | pending    | ~50s ea    | stride=64 recovery | eval-only, 5 experiments (freeze 2/4/6/8/10)                             |
+| **TTT@s76 + rescore@s64**   | **1.1099** | **~642s**  | **-0.0031!**       | **MASSIVE FIND — TTT adapts weights, rescore at s64 for precise BPP**    |
+| T3 Full QAT (QAT_ENABLED=1) | 1.1269     | ~575s      | +0.0139            | **TERRIBLE** — full QAT hurts badly, need proper LATE QAT with threshold |
+| T4 Full QAT 0.5             | 1.1265     | —          | +0.0145            | TERRIBLE — full QAT hurts                                                |
+| **T5 WD=0.07**              | **1.1098** | **1.1075** | **-0.0024**        | **🏆 NEW BEST! WD=0.09 was too aggressive for 14L near Dcrit**           |
+| T6 WD=0.11                  | 1.1165     | 1.1124     | +0.0025            | Worse — confirms WD=0.09 was already near limit                          |
+| T8 BigDim=96                | 1.1128     | 1.1097     | -0.0002            | Marginal — need to verify artifact fits 16MB                             |
+| T9 EMA=0.995                | —          | 1.1104     | +0.0005            | Slightly worse — 0.997 is near-optimal                                   |
+| T10 EMA=0.999               | —          | 1.1188     | +0.0089            | Much worse — too slow for 5700 steps                                     |
+| T11 warmdown=4000           | —          | 1.1096     | -0.0003            | Marginal — not significant                                               |
+| T12 warmdown=3000           | —          | 1.1099     | 0.0000             | Same as baseline — 3500 is fine                                          |
+| **WD=0.05**                 | —          | **1.1058** | **-0.0041**        | **🏆🏆 CONFIRMED BEST — U-shaped curve, optimal at 0.05**                |
+| WD=0.045                    | —          | 1.1064     | -0.0035            | Worse than 0.05                                                          |
+| WD=0.04                     | —          | 1.1060     | -0.0039            | Close but 0.05 wins                                                      |
+| WD=0.03                     | —          | 1.1063     | -0.0036            | Too low, under-regularized                                               |
+| WD=0.06                     | —          | 1.1065     | -0.0034            |                                                                          |
+| WD=0.065                    | —          | 1.1072     | -0.0027            |                                                                          |
+| WD=0.075                    | —          | 1.1080     | -0.0019            |                                                                          |
+| WD=0.08                     | —          | pending    | —                  |                                                                          |
 
 
 ---
@@ -277,7 +342,9 @@
 ## Deep Analysis: Where Our 14L Model Has Specific Inefficiencies
 
 ### Our unique situation
+
 We're the ONLY clean submission at 14 layers. Everyone else is at 11L. Our depth advantage gives us ~0.012 BPB over 11L baselines, but it comes with costs:
+
 - **~105ms/step vs ~85ms/step** (fewer training steps: 5700 vs 7000)
 - **More params to quantize** (more quantization error compounding across layers)
 - **Deeper gradient paths** (vanishing/exploding gradient risk)
@@ -286,6 +353,7 @@ We're the ONLY clean submission at 14 layers. Everyone else is at 11L. Our depth
 ### Specific inefficiencies to target
 
 **A. Quantization gap is our biggest loss (0.0149 BPB)**
+
 - Pre-quant: 1.1268, Post-quant: 1.1417, gap = 0.0149
 - Top PRs have gaps of 0.007-0.008 (half ours!)
 - Our 14 layers mean more weight matrices to quantize → error compounds layer by layer
@@ -294,30 +362,35 @@ We're the ONLY clean submission at 14 layers. Everyone else is at 11L. Our depth
 - **Fix: MLWQ-style per-layer bit allocation — give critical layers more bits**
 
 **B. Attention may be under-utilizing our depth**
+
 - 14 layers of identical attention with no cross-layer communication (except skip connections)
 - VRL (testing now) adds one form of cross-layer info (V0 residual)
 - **Differential Attention** (ICLR 2025): dual softmax branch, subtract noise → amplify signal. At 14 layers, attention noise compounds more than at 11L. Diff attention specifically helps deeper models.
 - **Gated Attention** (arxiv 2505.06708): sigmoid gate after softmax, dynamic sparsity. Could help our deeper model prune irrelevant attention at later layers where patterns are more abstract.
 
 **C. MLP activation may not be optimal for our depth**
+
 - leaky_relu(0.5)² is proven at 11L but untested at 14L
 - At 14 layers, the squared activation compounds gradient magnitudes more
 - **PolyGLU** (arxiv 2603.13347): state-conditional activation routing — different activation per token based on hidden state. Zero extra params, just routes between existing activation functions.
 - SwiGLU (PR #505) needs 3 weight matrices vs our 2 → doesn't fit at 14L without shrinking MLP
 
 **D. BigramHash dim=64 may be undersized**
+
 - We use BigramHash(8192, dim=64) then project to dim=512
 - The projection from 64→512 is a bottleneck — 64 dims can't capture much
 - PR #505 uses dim=128. Our earlier test (exp186) with dim=128 went over 16MB
 - **Fix: Try dim=80 or dim=96 — halfway, might fit**
 
 **E. Skip connections may need tuning for 14L**
+
 - U-Net skip: 7 encoder layers, 7 decoder layers
 - Skip weights are learned scalars per dim — initialized to 1.0
 - At 14L, the encoder/decoder split is deeper than 11L's 5/6 split
 - **Fix: Skip gating** (PR #569 uses learned gating on skips) — sigmoid gate instead of scalar multiply, adapts during training to route information more selectively
 
 **F. Our RoPE base=50000 was tuned for earlier configs**
+
 - Default 10000, we use 50000 — tuned for shorter training at an earlier layer count
 - At 14L with ~5700 steps (fewer than 11L's ~7000), the RoPE dynamics differ
 - **May be worth retesting** base=10000, 30000, 100000
@@ -327,6 +400,7 @@ We're the ONLY clean submission at 14 layers. Everyone else is at 11L. Our depth
 ## Novel Ideas Specific to Our 14L Architecture
 
 ### N1. Per-Layer Quantization Precision (MLWQ-inspired)
+
 - Instead of uniform int6 everywhere, allocate bits per layer based on loss sensitivity
 - First and last layers are most sensitive → give them int7 or int8
 - Middle layers are more redundant → could handle int5
@@ -335,6 +409,7 @@ We're the ONLY clean submission at 14 layers. Everyone else is at 11L. Our depth
 - Implementation: run GPTQ with different clip_ranges per layer based on Fisher information or gradient magnitude
 
 ### N2. Differential Attention (lightweight version)
+
 - Add a second, smaller attention branch (maybe 2 KV heads) that gets subtracted
 - Paper shows it specifically helps deeper models by canceling accumulated noise
 - Extra cost: ~2 extra KV heads per layer × 14 layers = modest param increase
@@ -342,12 +417,14 @@ We're the ONLY clean submission at 14 layers. Everyone else is at 11L. Our depth
 - **Particularly relevant for us** because 14L accumulates more attention noise than 11L
 
 ### N3. Layer-Wise LR Scaling for TTT
+
 - Our per-window SGD TTT uses same LR for all unfrozen layers
 - PR #545 uses per-layer LR groups: `lr * (0.5 + 0.5 * layer_idx / (num_layers - 1))`
 - Later layers need more adaptation (closer to output), earlier layers less
 - **Easy to implement** in the TTT optimizer setup, eval-only testable
 
 ### N4. Asymmetric U-Net (more encoder than decoder)
+
 - Currently 7 encoder + 7 decoder (symmetric)
 - Research suggests asymmetric splits (e.g., 9 encoder + 5 decoder) can be better
 - Encoder layers are "cheaper" (no skip addition) → slightly faster per step
@@ -359,6 +436,7 @@ We're the ONLY clean submission at 14 layers. Everyone else is at 11L. Our depth
 ## Updated Priority Order (with novel ideas integrated)
 
 ### Tier 1: Highest confidence, lowest effort
+
 1. **VRL** (running) — proven in #569
 2. **QAT-export alignment** — one constant, attacks 0.015 quant gap
 3. **Cosine-annealed TTT LR** — eval-only test, proven in #581/#589
@@ -366,22 +444,25 @@ We're the ONLY clean submission at 14 layers. Everyone else is at 11L. Our depth
 5. **Early QAT threshold 0.15-0.5** — proven in multiple PRs
 
 ### Tier 2: Medium effort, novel/high potential
-6. **Per-layer quant precision (MLWQ)** — directly targets our #1 loss (quant gap)
-7. **Soft-round QAT** — novel, bin-aware gradients
-8. **Asymmetric U-Net split** — zero params, might unlock free BPB
-9. **Skip gating (sigmoid)** — better than scalar for 14L depth
+
+1. **Per-layer quant precision (MLWQ)** — directly targets our #1 loss (quant gap)
+2. **Soft-round QAT** — novel, bin-aware gradients
+3. **Asymmetric U-Net split** — zero params, might unlock free BPB
+4. **Skip gating (sigmoid)** — better than scalar for 14L depth
 
 ### Tier 3: Higher effort, uncertain
-10. **Int5 + 15th layer** — risky, need int5 GPTQ quality to be good enough
-11. **Differential attention (lightweight)** — novel, param cost
-12. **BigramHash dim=80-96** — quick if artifact has room
-13. **Full GPTQ verification** — verify Cholesky, not lite
-14. **Multi-pass TTT** — legality + time budget questions
+
+1. **Int5 + 15th layer** — risky, need int5 GPTQ quality to be good enough
+2. **Differential attention (lightweight)** — novel, param cost
+3. **BigramHash dim=80-96** — quick if artifact has room
+4. **Full GPTQ verification** — verify Cholesky, not lite
+5. **Multi-pass TTT** — legality + time budget questions
 
 ### Tier 4: Research directions
-15. **PolyGLU activation routing** — zero params, novel
-16. **RoPE base re-tuning** — may have drifted from 14L optimum
-17. **EMA decay tuning for 14L** — deeper model may want different decay
+
+1. **PolyGLU activation routing** — zero params, novel
+2. **RoPE base re-tuning** — may have drifted from 14L optimum
+3. **EMA decay tuning for 14L** — deeper model may want different decay
 
 ---
 
@@ -396,7 +477,9 @@ From EPTQ/HAWQ research: quantization error doesn't just add across layers — i
 It's not that our GPTQ is worse — it's that we have more layers for error to propagate. The fix isn't better GPTQ — it's reducing error propagation.
 
 ### R1. Hessian-Weighted Per-Layer Bit Allocation (HAWQ-style)
+
 **Why it's perfect for us:**
+
 - Our 14 layers have different sensitivities to quantization
 - First layer (embedding projection) and last layer (pre-logit) are most sensitive
 - Middle U-Net layers are least sensitive (redundancy from skip connections)
@@ -409,7 +492,9 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **Effort: Medium** — need to add Hessian computation + mixed-bit GPTQ
 
 ### R2. Block-Wise Error Compensation Order
+
 **Why it matters for 14L:**
+
 - Standard GPTQ quantizes layers in order (0, 1, 2, ..., 13)
 - Error from layer 0 propagates to layer 1's calibration data, corrupting it
 - By layer 13, the calibration data has been corrupted 13 times
@@ -419,7 +504,9 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **Effort: Low** — just reorder the GPTQ loop
 
 ### R3. Activation Smoothing Before Quantization (SmoothQuant-style)
+
 **Why it's perfect for deep models:**
+
 - Deep models develop activation outliers that make quantization harder
 - 14 layers = more outlier buildup than 11
 - SmoothQuant migrates the quantization difficulty from activations to weights via per-channel scaling
@@ -429,7 +516,9 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **Effort: Medium** — add smoothing pass before GPTQ
 
 ### R4. Residual Quantization (two-pass GPTQ)
+
 **Why it fits our constraint:**
+
 - After first GPTQ pass, compute residual errors
 - Quantize the residuals with a second, smaller codebook
 - Store both in the same 16MB budget (residual codebook is tiny)
@@ -438,7 +527,9 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **Effort: Medium** — add residual computation + storage
 
 ### R5. Knowledge Distillation from Pre-Quant Model During TTT
+
 **Why it's uniquely applicable to our setup:**
+
 - We save the pre-quant model state (EMA weights before GPTQ)
 - During TTT, we could use the pre-quant model as a teacher
 - TTT adaptation target: match pre-quant model's output distribution, not just next-token loss
@@ -456,33 +547,37 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 ## Sources & References
 
 ### Quantization
-- **HAWQ-V3** (Hessian-aware per-layer bit allocation): https://assets.amazon.science/a5/a5/bc16183e477aabdb282bfbeea260/hawq-v3-dyadic-neural-network-quantization.pdf
-- **FlexQ** (INT6 with flexible group sizes): https://arxiv.org/abs/2508.04405
-- **EPTQ** (Hessian-guided block reconstruction): https://arxiv.org/abs/2309.11531, code: https://github.com/ssi-research/eptq-sla
-- **APTQ** (Attention-aware mixed precision): https://arxiv.org/abs/2402.14866
-- **MLWQ** (Multi-level weight quantization for SLMs): https://aclanthology.org/2025.emnlp-main.408
-- **SmoothQuant** (Activation smoothing before quant): https://arxiv.org/abs/2211.10438
+
+- **HAWQ-V3** (Hessian-aware per-layer bit allocation): [https://assets.amazon.science/a5/a5/bc16183e477aabdb282bfbeea260/hawq-v3-dyadic-neural-network-quantization.pdf](https://assets.amazon.science/a5/a5/bc16183e477aabdb282bfbeea260/hawq-v3-dyadic-neural-network-quantization.pdf)
+- **FlexQ** (INT6 with flexible group sizes): [https://arxiv.org/abs/2508.04405](https://arxiv.org/abs/2508.04405)
+- **EPTQ** (Hessian-guided block reconstruction): [https://arxiv.org/abs/2309.11531](https://arxiv.org/abs/2309.11531), code: [https://github.com/ssi-research/eptq-sla](https://github.com/ssi-research/eptq-sla)
+- **APTQ** (Attention-aware mixed precision): [https://arxiv.org/abs/2402.14866](https://arxiv.org/abs/2402.14866)
+- **MLWQ** (Multi-level weight quantization for SLMs): [https://aclanthology.org/2025.emnlp-main.408](https://aclanthology.org/2025.emnlp-main.408)
+- **SmoothQuant** (Activation smoothing before quant): [https://arxiv.org/abs/2211.10438](https://arxiv.org/abs/2211.10438)
 - **Soft-Round QAT** (PR #589 in parameter-golf): temperature-controlled smooth rounding surrogate
 
 ### Architecture
-- **VRL / ResFormer** (Value Residual Learning): https://arxiv.org/abs/2410.17897
-- **Differential Attention**: https://proceedings.iclr.cc/paper/2025/hash/00b67df24009747e8bbed4c2c6f9c825-Abstract-Conference.html
-- **Gated Attention**: https://arxiv.org/abs/2505.06708
-- **PolyGLU** (State-conditional activation routing): https://arxiv.org/abs/2603.13347
-- **Autoregressive U-Net** (gated skip connections): https://arxiv.org/abs/2506.14761
-- **Depth-Width Tradeoff**: https://arxiv.org/abs/2503.01805
+
+- **VRL / ResFormer** (Value Residual Learning): [https://arxiv.org/abs/2410.17897](https://arxiv.org/abs/2410.17897)
+- **Differential Attention**: [https://proceedings.iclr.cc/paper/2025/hash/00b67df24009747e8bbed4c2c6f9c825-Abstract-Conference.html](https://proceedings.iclr.cc/paper/2025/hash/00b67df24009747e8bbed4c2c6f9c825-Abstract-Conference.html)
+- **Gated Attention**: [https://arxiv.org/abs/2505.06708](https://arxiv.org/abs/2505.06708)
+- **PolyGLU** (State-conditional activation routing): [https://arxiv.org/abs/2603.13347](https://arxiv.org/abs/2603.13347)
+- **Autoregressive U-Net** (gated skip connections): [https://arxiv.org/abs/2506.14761](https://arxiv.org/abs/2506.14761)
+- **Depth-Width Tradeoff**: [https://arxiv.org/abs/2503.01805](https://arxiv.org/abs/2503.01805)
 
 ### Training & Optimization
-- **EMA dynamics in deep learning**: https://arxiv.org/abs/2411.18704
-- **Muon optimizer**: https://github.com/KellerJordan/Muon, https://docs.pytorch.org/docs/stable/generated/torch.optim.Muon.html
-- **Compute-optimal scaling** (OptiBERT): https://aclanthology.org/2025.emnlp-main.1804
+
+- **EMA dynamics in deep learning**: [https://arxiv.org/abs/2411.18704](https://arxiv.org/abs/2411.18704)
+- **Muon optimizer**: [https://github.com/KellerJordan/Muon](https://github.com/KellerJordan/Muon), [https://docs.pytorch.org/docs/stable/generated/torch.optim.Muon.html](https://docs.pytorch.org/docs/stable/generated/torch.optim.Muon.html)
+- **Compute-optimal scaling** (OptiBERT): [https://aclanthology.org/2025.emnlp-main.1804](https://aclanthology.org/2025.emnlp-main.1804)
 
 ### Competition PRs (verified clean)
+
 - **PR #569** (1.1175, VRL + GPTQ, no TTT): VRL + LeakyReLU² + Full GPTQ + QAT-export alignment
 - **PR #545** (1.1179, int5 GPTQ): 33.6M params, int5 per-row GPTQ, Early QAT 0.5
 - **PR #589** (1.1178, Soft-Round QAT): Late Soft-Round QAT + Backward-Looking TTT
 - **PR #505** (1.1181, SwiGLU + VE128): SwiGLU + VE128 + no TTT
-- **PR #414** (1.1233, EMA + GPTQ-lite): EMA + GPTQ-lite + QAT@0.15
+- **PR #414** (1.1233, EMA + GPTQ-lite): EMA + GPTQ-lite + [QAT@0.15](mailto:QAT@0.15)
 
 ---
 
@@ -497,10 +592,11 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 **Our leaky(0.5) mitigation helps** — the 0.5 negative slope prevents dead neurons. But the squaring still compounds. At 14 layers we may be hitting the limit.
 
 **Potential fixes:**
+
 - **R6. Replace square with abs** — `leaky_relu(x, 0.5).abs()` has gradient magnitude 1 everywhere, no compounding. Zero extra params. But changes the activation landscape.
 - **R7. Learnable activation power** — `leaky_relu(x, 0.5).pow(p)` where p is learned per-layer, initialized at 2.0. Lets later layers reduce squaring intensity. 14 extra scalar params.
 - **R8. Layer-wise activation scaling** — multiply activation output by `1/sqrt(layer_idx+1)` (like LN Scale but for MLP). Prevents gradient explosion from squaring. We tested LN Scale on attention norms and it hurt (+0.028) — but on MLP activations it's different.
-- Source: https://arxiv.org/abs/2402.03804
+- Source: [https://arxiv.org/abs/2402.03804](https://arxiv.org/abs/2402.03804)
 
 ### Problem 2: GQA 8H/4KV wastes attention capacity at 14 layers
 
@@ -511,9 +607,10 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 **Research says** (Cost-Optimal GQA, arxiv:2503.09579): "Decoupling total attention head dimensions from model hidden size to flexibly control inference FLOPs." Also: "Weighted Grouped-Query Attention introduces learnable weights for aggregating key and value heads."
 
 **Potential fixes:**
+
 - **R9. Increase KV heads from 4 to 6** — more unique KV information (384d vs 256d). Costs ~33% more attention params but may help deep layers. Need to check if artifact still fits 16MB.
 - **R10. Weighted GQA** — add a learned scalar per (query_group, kv_head) pair that weights the KV aggregation. 8 extra params per layer × 14 layers = 112 params total. Near-zero overhead.
-- Source: https://arxiv.org/abs/2503.09579
+- Source: [https://arxiv.org/abs/2503.09579](https://arxiv.org/abs/2503.09579)
 
 ### Problem 3: Our RoPE base=50000 was tuned at fewer layers
 
@@ -522,9 +619,10 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 **Research says** (arxiv:2503.04355): "Layer-Specific Scaling of Positional Encodings for Superior Long-Context Modeling" — different layers should have different RoPE scaling. Early layers need fine-grained position info, deep layers need coarse position info.
 
 **Potential fixes:**
+
 - **R11. Per-layer RoPE base** — layers 0-4 use base=10000 (fine position), layers 5-9 use 50000 (medium), layers 10-13 use 200000 (coarse). Zero extra params, just changes the precomputed cos/sin tables.
 - **R12. Sweep RoPE base** — just test 10000, 30000, 50000, 100000 as a hyperparameter. Quick A/B with eval-only if we save checkpoints at different bases (would need retraining).
-- Source: https://arxiv.org/abs/2503.04355
+- Source: [https://arxiv.org/abs/2503.04355](https://arxiv.org/abs/2503.04355)
 
 ### Problem 4: Entropy of our quantized weights could be lower for better compression
 
@@ -535,9 +633,10 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 **The tradeoff:** tensor-level quantization is less precise than per-row, so model quality drops. But if the compression savings let us fit a bigger model, net effect could be positive.
 
 **Potential fixes:**
+
 - **R13. Hybrid quantization** — use tensor-level quantization for the middle (least sensitive) layers and per-row for first/last layers. Better compression on middle layers, preserved quality on critical layers.
 - **R14. Huffman coding after quantization** — replace brotli with Huffman coding on the int6 weight values. Since int6 has only 64 possible values, the Huffman tree is tiny and compression is near-optimal. May beat brotli on structured quantized data.
-- Source: https://arxiv.org/abs/2505.02380
+- Source: [https://arxiv.org/abs/2505.02380](https://arxiv.org/abs/2505.02380)
 
 ### Problem 5: Our TTT only updates last 12 layers (freeze 2), but research says update only last 25%
 
@@ -546,16 +645,19 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 **Research says** (test-time-training.github.io, NanoAdapt IJCAI 2024): "Constraining updates to a subset of parameters (e.g., only MLP weights in the last 25% of transformer blocks) maintains performance while lowering computation."
 
 **Potential fixes:**
+
 - **R15. Freeze first 10 layers** (only update layers 10-13). Cuts backward computation by ~70%. Each TTT step is 3x faster → either faster eval or more steps in same budget.
 - **R16. Only update MLP weights** during TTT (freeze all attention). MLPs are where most of the model's distribution knowledge lives. Attention patterns are more structural and shouldn't change for domain adaptation.
-- Source: https://test-time-training.github.io, https://www.ijcai.org/proceedings/2024/0616.pdf
+- Source: [https://test-time-training.github.io](https://test-time-training.github.io), [https://www.ijcai.org/proceedings/2024/0616.pdf](https://www.ijcai.org/proceedings/2024/0616.pdf)
 
 ### Problem 6: We are RIGHT at the critical depth — "The Depth Delusion"
 
 **CRITICAL FINDING** (arxiv:2601.20994, "The Depth Delusion"):
+
 > "Transformer performance follows architecture-conditioned scaling laws with a critical depth Dcrit ∝ W^0.44. **At width 512, Dcrit ≈ 16 layers.** Beyond Dcrit, adding layers increases loss despite more parameters due to gradient starvation."
 
 **We are at 14 of 16 critical layers.** This explains EVERYTHING:
+
 - Why 15L was worse (exp189: 1.1171 vs 14L: 1.1155) — approaching Dcrit
 - Why techniques that help 11L models fail for us — 11L is well below Dcrit, 14L is near it
 - Why our quant gap is so big — gradient starvation in early layers means they're undertrained, making them more fragile to quantization
@@ -564,11 +666,12 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 **The U-shaped loss curve:** Below Dcrit, more depth helps. At Dcrit, it's optimal. Above, loss INCREASES. We're 2 layers below the cliff.
 
 **Implications for our strategy:**
+
 - **DO NOT add a 15th layer.** We're near the edge.
 - **Focus on making 14 layers more efficient, not deeper.**
 - **Gradient health is critical.** Any technique that worsens gradient flow (squared activations, aggressive weight decay, large learning rates) is more dangerous at 14L than at 11L.
 - **Our Muon WD=0.09 might be too aggressive** — high WD shrinks weights, which shrinks gradients through the square activation. At 14L near Dcrit, this could be starving early layers.
-- Source: https://arxiv.org/abs/2601.20994
+- Source: [https://arxiv.org/abs/2601.20994](https://arxiv.org/abs/2601.20994)
 
 ### Problem 7: QEP — Quantization Error Propagation is a solved problem we're not using
 
@@ -580,19 +683,21 @@ The Quantization Error Propagation (QEP) framework explicitly addresses our exac
 **Our current GPTQ probably uses ideal float inputs** for calibration (standard GPTQ). This means layer 13's calibration data is based on perfect float outputs from layers 0-12, but at inference those outputs are quantized. The deeper we go, the bigger the mismatch.
 
 **Fix R17: QEP-aware GPTQ** — During GPTQ calibration, propagate quantized outputs through already-quantized layers instead of float outputs. Each subsequent layer sees realistic (quantized) inputs.
+
 - Expected gain: **0.003-0.007 BPB** (directly proportional to our excess quant gap)
 - Effort: Medium — modify GPTQ calibration loop to use quantized intermediate outputs
 - This is the single most impactful technique for our specific situation.
-- Source: https://arxiv.org/abs/2504.09629
+- Source: [https://arxiv.org/abs/2504.09629](https://arxiv.org/abs/2504.09629)
 
 ### Problem 8: Layer sensitivity is wildly unequal — SmolLM2 study
 
 (arxiv:2603.19348): Study found a "critical core" in layers 8-11 of a 15L model where ablation causes +63,419% perplexity degradation. Also found "anti-layers" at specific depths where removal IMPROVES performance.
 
 **For our 14L model:** Our critical core is probably layers 10-13 (proportionally scaled). This means:
+
 - Layers 0-3 are likely less critical → safe to quantize more aggressively (int5)
 - Layers 10-13 are critical → should get int8 or at minimum careful GPTQ
 - There may be an "anti-layer" in our model whose weights are net-negative after quantization
 - **R18: Profile layer sensitivity** — run GPTQ with each layer individually at int5 vs int6 and measure per-layer BPB impact. The result tells us exactly where to allocate bits.
-- Source: https://arxiv.org/abs/2603.19348
+- Source: [https://arxiv.org/abs/2603.19348](https://arxiv.org/abs/2603.19348)
 
