@@ -11,7 +11,7 @@ VALIDATION-EMA | step 0200 | val_loss 12.4708 | val_bpb 5.6239
 step 0300 | time 65.7s | train_loss 4.7257 | tok/s 37538 | mean_Rt 0.4952 | lr_mult 0.999 | radial_token_gain -0.00144 | max_mem 1.33 GB
 step 0400 | time 86.8s | train_loss 4.8498 | tok/s 37833 | mean_Rt 0.5523 | lr_mult 0.993 | radial_token_gain -0.00035 | max_mem 1.33 GB
 VALIDATION-EMA | step 0400 | val_loss 7.0134 | val_bpb 3.1628
-step 0500 | time 109.4s | train_loss 4.6238 | tok/s 37532 | mean_Rt 0.6064 | lr_mult 0.980 | mean_grad_ema 0.1245 | radial_token_gain -0.00148 | max_mem 1.33 GB
+step 0500 | time 109.4s | train_loss 4.6238 | tok/s 37532 | mean_Rt 0.6064 | lr_mult 0.980 | radial_token_gain -0.00148 | max_mem 1.33 GB
 step 0600 | time 130.7s | train_loss 4.4496 | tok/s 37675 | mean_Rt 0.6455 | lr_mult 0.961 | radial_token_gain -0.00015 | max_mem 1.33 GB
 VALIDATION-EMA | step 0600 | val_loss 5.3995 | val_bpb 2.4350
 step 0700 | time 153.5s | train_loss 4.5230 | tok/s 37423 | mean_Rt 0.6723 | lr_mult 0.935 | radial_token_gain -0.00061 | max_mem 1.33 GB
@@ -51,8 +51,8 @@ Final train loss: 4.1061
 
 === MIXED EXPORT ARTIFACT AUDIT ===
 Parameters:        18,017,601
-Source Code:       25316 bytes
+Source Code:       47,000 bytes
 Compressed model:  15,086,685 bytes
-Total artifact:    15,112,001 bytes
-Headroom:          887,999 bytes
+Total artifact:    15,133,685 bytes
+Headroom:          866,315 bytes
 PASS ✅
