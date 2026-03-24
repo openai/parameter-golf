@@ -1312,9 +1312,13 @@ def main() -> None:
     if qat_active:
         base_model.disable_qat()
 
-    # Load EMA weights for serialization and eval.
-    log0("ema:loading averaged weights")
-    base_model.load_state_dict(ema_state, strict=True)
+    # EMA weights don't benefit from QAT, so they quantize poorly.
+    # Only use EMA if QAT was not active.
+    if not args.qat_enabled:
+        log0("ema:loading averaged weights (no QAT)")
+        base_model.load_state_dict(ema_state, strict=True)
+    else:
+        log0("ema:skipping (QAT-trained weights quantize better)")
 
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
