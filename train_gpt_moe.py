@@ -641,6 +641,26 @@ class MoEMLP(nn.Module):
         return out.reshape(shape), aux_loss
 
 
+class SoftMoE(nn.Module):
+    """Dense Soft MoE: run ALL experts on ALL tokens, blend outputs with
+    per-token learned gates. No routing collapse possible. Compile-friendly
+    (no variable-size tensors). With 2 experts this is a gated dual-pathway MLP.
+    Each expert is mlp_mult/num_experts sized so total params ~ 1 regular MLP."""
+    def __init__(self, dim: int, mlp_mult: float, num_experts: int, top_k: int):
+        super().__init__()
+        self.num_experts = num_experts
+        self.gate = CastedLinear(dim, num_experts, bias=False)
+        nn.init.zeros_(self.gate.weight)
+        self.experts = nn.ModuleList([MLP(dim, mlp_mult / num_experts) for _ in range(num_experts)])
+
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        weights = torch.softmax(self.gate(x).float(), dim=-1)  # (B, T, E)
+        out = torch.zeros_like(x)
+        for i, expert in enumerate(self.experts):
+            out = out + weights[..., i:i+1].to(x.dtype) * expert(x)
+        return out, torch.zeros((), device=x.device, dtype=torch.float32)
+
+
 class SharedRoutedMLP(nn.Module):
     """Shared + Routed MoE: a shared MLP (2x expansion) runs on every token,
     plus one small routed expert (1x expansion) for specialization.
@@ -752,7 +772,12 @@ class Block(nn.Module):
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         if num_experts > 1:
-            self.mlp = SharedRoutedMLP(dim, mlp_mult, num_experts, top_k) if moe_mode == "shared_routed" else MoEMLP(dim, mlp_mult, num_experts, top_k)
+            if moe_mode == "soft":
+                self.mlp = SoftMoE(dim, mlp_mult, num_experts, top_k)
+            elif moe_mode == "shared_routed":
+                self.mlp = SharedRoutedMLP(dim, mlp_mult, num_experts, top_k)
+            else:
+                self.mlp = MoEMLP(dim, mlp_mult, num_experts, top_k)
         else:
             self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -765,7 +790,7 @@ class Block(nn.Module):
         attn_out = self.attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         mlp_normed = self.mlp_norm(x)
-        if isinstance(self.mlp, (MoEMLP, SharedRoutedMLP)):
+        if isinstance(self.mlp, (MoEMLP, SharedRoutedMLP, SoftMoE)):
             mlp_out, aux_loss = self.mlp(mlp_normed)
         else:
             mlp_out = self.mlp(mlp_normed)
@@ -1091,9 +1116,9 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    # MoE sparse dispatch has data-dependent shapes that thrash recompilation;
-    # skip compile entirely for MoE runs to get clean step times.
-    if args.num_experts > 1:
+    # Soft MoE is dense (no variable-size tensors) — safe to compile with fullgraph.
+    # Sparse MoE modes thrash recompilation; skip compile for those.
+    if args.num_experts > 1 and args.moe_mode != "soft":
         compiled_model = base_model
     else:
         compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
@@ -1105,6 +1130,10 @@ def main() -> None:
         id(block.mlp.router.weight)
         for block in base_model.blocks
         if isinstance(block.mlp, (MoEMLP, SharedRoutedMLP))
+    } | {
+        id(block.mlp.gate.weight)
+        for block in base_model.blocks
+        if isinstance(block.mlp, SoftMoE)
     }
     matrix_params = [
         p for name, p in block_named_params
@@ -1116,10 +1145,12 @@ def main() -> None:
         p for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
-    # Add router weights to AdamW scalar group
+    # Add router/gate weights to AdamW scalar group (too small for Muon)
     for block in base_model.blocks:
         if isinstance(block.mlp, (MoEMLP, SharedRoutedMLP)):
             scalar_params.append(block.mlp.router.weight)
+        elif isinstance(block.mlp, SoftMoE):
+            scalar_params.append(block.mlp.gate.weight)
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     scalar_params.append(base_model.smear.gate)
