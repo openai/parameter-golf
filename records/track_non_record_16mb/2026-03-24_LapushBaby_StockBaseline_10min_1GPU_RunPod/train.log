@@ -1,0 +1,10 @@
+stopping_early: wallclock_cap train_time:600174ms step:967/20000
+peak memory allocated: 10317 MiB reserved: 10994 MiB
+Serialized model: 67224983 bytes
+Code size: 47686 bytes
+Total submission size: 67272669 bytes
+Serialized model int8+zlib: 12216566 bytes (payload:17178912 raw_torch:17224025 payload_ratio:3.91x)
+Total submission size int8+zlib: 12264252 bytes
+final_int8_zlib_roundtrip val_loss:2.3013 val_bpb:1.3629 eval_time:21532ms
+final_int8_zlib_roundtrip_exact val_loss:2.30127271 val_bpb:1.36294332
+step:967/20000 val_loss:2.2984 val_bpb:1.3613 train_time:600323ms step_avg:583.40ms

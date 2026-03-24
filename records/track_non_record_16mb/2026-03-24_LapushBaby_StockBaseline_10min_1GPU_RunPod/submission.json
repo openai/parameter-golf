@@ -1,0 +1,17 @@
+{
+  "author": "LapushBaby",
+  "github_id": "LapushBaby",
+  "name": "Stock train_gpt baseline — 1×GPU RunPod, 600s wallclock",
+  "blurb": "Non-record: unmodified root train_gpt.py, FineWeb sp1024 (10 train shards), single-GPU RunPod pod, MAX_WALLCLOCK_SECONDS=600. Post int8+zlib roundtrip val_bpb ~1.363 under 16MB artifact cap. Documented for reproducibility; not competitive with 8×H100 SOTA.",
+  "date": "2026-03-24T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.30127271,
+  "val_bpb": 1.36294332,
+  "pre_quant_val_loss": 2.2984,
+  "pre_quant_val_bpb": 1.3613,
+  "step_stop": 967,
+  "wallclock_seconds": 600,
+  "bytes_total": 12264252,
+  "bytes_code": 47686,
+  "gpu": "1×GPU (RunPod, exact SKU not pinned in log)"
+}
