@@ -1,0 +1,7 @@
+{
+  "author": "maorinka",
+  "run_name": "Depth Recurrence (3+3 unique x 2 loops) + HW Optimizations",
+  "date": "2026-03-24",
+  "val_bpb": "TBD",
+  "notes": "Weight-tied depth recurrence with per-loop conditioning, async data prefetch, NCCL tuning, GPU-resident SWA"
+}
