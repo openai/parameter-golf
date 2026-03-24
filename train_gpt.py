@@ -13,6 +13,7 @@ import inspect
 import math
 import os
 import random
+import shutil
 import subprocess
 import sys
 import time
@@ -56,16 +57,16 @@ class Hyperparameters:
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 128))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 6))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 3))
-    model_dim = int(os.environ.get("MODEL_DIM", 384))
-    num_heads = int(os.environ.get("NUM_HEADS", 6))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
@@ -736,6 +737,31 @@ def accelerator_name() -> str:
     return "rocm" if is_rocm_build() else "cuda"
 
 
+def gpu_diagnostics_output() -> str:
+    commands = [["amd-smi"], ["rocm-smi"]] if is_rocm_build() else [["nvidia-smi"]]
+    for command in commands:
+        executable = shutil.which(command[0])
+        if executable is None:
+            continue
+        result = subprocess.run(
+            [executable, *command[1:]],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        output = result.stdout.strip()
+        error = result.stderr.strip()
+        if output:
+            return output
+        if error:
+            return f"{command[0]} stderr:\n{error}"
+        return f"{command[0]} exited with code {result.returncode} and produced no output."
+    if is_rocm_build():
+        return "ROCm GPU diagnostics unavailable: neither amd-smi nor rocm-smi was found in PATH."
+    return "CUDA GPU diagnostics unavailable: nvidia-smi was not found in PATH."
+
+
 def autocast_kwargs() -> dict[str, object]:
     # ROCm uses the CUDA device type in PyTorch autocast APIs.
     return {"device_type": "cuda", "dtype": torch.bfloat16, "enabled": True}
@@ -756,10 +782,13 @@ def maybe_enable_sdp_backends(log0) -> str:
     flash_available = bool(flash_available_fn()) if callable(flash_available_fn) else False
     if flash_available:
         enable_flash_sdp(True)
+        enable_math_sdp(False)
         flash_enabled = True
+        math_enabled = False
     else:
         enable_flash_sdp(False)
         enable_math_sdp(True)
+        flash_enabled = False
         math_enabled = True
 
     msg = (
@@ -856,14 +885,7 @@ def main() -> None:
     log0(f"Running Python {sys.version}", console=False)
     log0(f"Running PyTorch {torch.__version__}", console=False)
     log0(f"Accelerator backend: {accelerator_name()}", console=False)
-    log0(
-        (
-            subprocess.run(["amd-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout
-            if is_rocm_build()
-            else subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout
-        ),
-        console=False,
-    )
+    log0(gpu_diagnostics_output(), console=False)
     log0("=" * 100, console=False)
     maybe_enable_sdp_backends(log0)
 
