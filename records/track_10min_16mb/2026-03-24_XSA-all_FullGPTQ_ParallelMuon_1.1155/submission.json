@@ -2,7 +2,7 @@
   "author": "Sam Larson",
   "github_id": "saml212",
   "name": "Record: 11L XSA-all + Full GPTQ + Selective Pruning + Parallel Muon",
-  "blurb": "XSA on all 11 layers (vs standard last-4), Full Hessian GPTQ int6, selective ±1 magnitude pruning, Parameter Banking + Parallel Muon. Built on PR #593 stack with LeakyReLU(0.5)², BigramHash(1536), Partial RoPE 16/64, LN Scale, VE128, SmearGate, U-Net skips, EMA(0.997), Tight SWA, lzma compression.",
+  "blurb": "XSA on all 11 layers (vs standard last-4), Full Hessian GPTQ int6, selective ±1 magnitude pruning, Parameter Banking + Parallel Muon. Built on PR #593 stack with LeakyReLU(0.5)², BigramHash(2048), Partial RoPE 16/64, LN Scale, VE128, SmearGate, U-Net skips, EMA(0.997), Tight SWA, lzma compression.",
   "date": "2026-03-24",
   "val_loss": 1.88342307,
   "val_bpb": 1.11547219,

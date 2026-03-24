@@ -101,8 +101,7 @@ class Hyperparameters:
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
-    gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 64))  # PR #587: smaller blocks
-    gptq_percdamp = float(os.environ.get("GPTQ_PERCDAMP", 0.002))  # PR #587: less Hessian damping
+    gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -1276,7 +1275,7 @@ def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
     q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
     return q, scale
 
-def quantize_int6_gptq(weight, hessian=None, clip_range=31, block_size=64):
+def quantize_int6_gptq(weight, hessian=None, clip_range=31, block_size=128):
     """Full GPTQ: Hessian-aware int6 quantization with Cholesky error compensation.
     If hessian is None, falls back to percentile search."""
     t32 = weight.float()
@@ -1286,8 +1285,7 @@ def quantize_int6_gptq(weight, hessian=None, clip_range=31, block_size=64):
     H = hessian.float().clone()
     dead = torch.diag(H) == 0
     H[dead, dead] = 1
-    percdamp = float(os.environ.get("GPTQ_PERCDAMP", "0.002"))
-    damp = percdamp * torch.mean(torch.diag(H))
+    damp = 0.01 * torch.mean(torch.diag(H))
     H[torch.arange(cols), torch.arange(cols)] += damp
     perm = torch.argsort(torch.diag(H), descending=True)
     inv_perm = torch.argsort(perm)
@@ -1593,7 +1591,7 @@ def collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps
     for name in hessians:
         H = hessians[name]
         H /= num_batches
-        damp = float(os.environ.get("GPTQ_PERCDAMP", "0.002")) * torch.diag(H).mean().clamp_min(1e-6)
+        damp = 0.01 * torch.diag(H).mean().clamp_min(1e-6)
         H += damp * torch.eye(H.shape[0])
         hessians[name] = H
     hessian_model.train()
