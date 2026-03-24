@@ -141,6 +141,8 @@ Decision gate: If >50% of records have 3+ simultaneous changes → recommend ski
 
 Also produces interaction discovery (R1.4): enumerate all node pairs, check co-occurrence across submissions, rank unexplored combinations by sum of individual marginal effects × interaction prior (default 1.0).
 
+**Note**: Spec R4.2 (shard_variance_check.py) is merged into C9 (influence_proxy.py) because the variance check requires the influence scores already computed by C9, making a separate script unnecessary. The spec file structure lists it separately but the design consolidates for simplicity.
+
 ### C5: experiment_runner.py — Paired Seed Ablation (R2.1)
 
 Wrapper script that:
@@ -208,7 +210,7 @@ Uses `nn.value_and_grad` API. Operates on a single checkpoint (not summed across
 
 **Per-shard batch size**: Sample 4096 tokens (4 sequences of 1024) per shard, not the full ~100M tokens. This gives a representative gradient direction while keeping each forward+backward pass under 1 second on Apple Silicon.
 
-**Memory budget**: Model params ~40MB (11L, 512-dim, bf16) + 2× gradient buffers ~40MB each + shard batch ~8KB + val batch ~8KB ≈ ~120MB peak. Well within 16GB Apple Silicon.
+**Memory budget**: For the 11L, 512-dim, 3× MLP SOTA config: ~28M params ≈ ~56MB in bf16 + 2× gradient buffers ~56MB each + shard batch ~8KB + val batch ~8KB ≈ ~170MB peak. Well within 16GB Apple Silicon.
 
 **Runtime estimate**: 195 shards × ~1s per shard ≈ ~4 minutes total. With `--max-shards 20` default for initial iteration: ~20 seconds.
 
@@ -216,7 +218,7 @@ Uses `nn.value_and_grad` API. Operates on a single checkpoint (not summed across
 
 ### C10: gradient_attribution.py — Per-Layer Logging (R4.4)
 
-Creates a patched copy of train_gpt_mlx.py (`train_gpt_mlx_instrumented.py`) with gradient norm logging inserted. The original script is never modified. The patched copy adds logging at each validation checkpoint:
+Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads train_gpt_mlx.py as text, inserts gradient-norm logging code after the `accumulate_flat_grads` call site (line ~1036), writes the result to `train_gpt_mlx_instrumented.py`, and executes it via subprocess. The copy is regenerated each time C10 runs, ensuring it tracks upstream changes. The original script is never modified. The patched copy adds logging at each validation checkpoint:
 1. After `loss_and_grad_chunked` returns `(loss, grads)`, iterate flat grad dict
 2. Compute L2 norm per named parameter group (attention, MLP, embedding, skip weights)
 3. Log to JSON-lines file: `{step, elapsed_ms, val_loss, layer_norms: {name: norm}}`
@@ -405,13 +407,15 @@ Output Schema:
   "seeds": [int],
   "treatment": {
     "config": {...},
-    "results": [{"seed": int, "val_bpb": float, "val_loss": float, "wall_time_s": float}]
+    "results": [{"seed": int, "val_bpb": float, "val_loss": float, "wall_time_s": float, "checkpoint_path": str | null, "train_log_path": str | null}]
   },
   "control": {
     "config": {...},
-    "results": [{"seed": int, "val_bpb": float, "val_loss": float, "wall_time_s": float}]
+    "results": [{"seed": int, "val_bpb": float, "val_loss": float, "wall_time_s": float, "checkpoint_path": str | null, "train_log_path": str | null}]
   }
 }
+
+Note: The --seeds argument sets the SEED environment variable for each subprocess invocation, separate from env_overrides which apply uniformly across all seed runs.
 ```
 
 ### I6: statistical_analysis.py
@@ -476,6 +480,35 @@ Output Schema:
     "boundary": {"n_tokens": int, "mean_loss": float, "bpb_contribution": float},
     "mid_sequence": {"n_tokens": int, "mean_loss": float, "bpb_contribution": float}
   }
+}
+```
+
+### I7b: quant_gap_analysis.py
+
+```
+Input:  Checkpoint path, validation data path, tokenizer path
+Output: results/causal/quant_report.json
+
+CLI:
+  python scripts/causal/quant_gap_analysis.py \
+    --checkpoint <path> \
+    --val-data data/datasets/fineweb10B_sp1024/ \
+    --tokenizer data/tokenizers/sp_bpe_1024.model \
+    --output results/causal/quant_report.json
+
+Output Schema:
+{
+  "pre_quant_bpb": float,
+  "post_quant_bpb": float,
+  "quant_gap": float,                    # post - pre (~0.017 expected)
+  "largest_training_effect": float | null, # From prior phase results
+  "gap_exceeds_3x_threshold": bool,       # quant_gap > 3 × largest_training_effect
+  "restrict_to_post_quant": bool,         # Recommendation based on threshold
+  "per_category_deltas": {                # Optional: per-token category quant impact
+    "top_100": {"pre_loss": float, "post_loss": float, "delta": float},
+    "mid_100_500": {"pre_loss": float, "post_loss": float, "delta": float},
+    "tail_500_1024": {"pre_loss": float, "post_loss": float, "delta": float}
+  } | null
 }
 ```
 
