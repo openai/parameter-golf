@@ -305,3 +305,71 @@ We're the ONLY clean submission at 14 layers. Everyone else is at 11L. Our depth
 16. **RoPE base re-tuning** — may have drifted from 14L optimum
 17. **EMA decay tuning for 14L** — deeper model may want different decay
 
+---
+
+## CRITICAL RESEARCH: What's Insanely Applicable to Our 14L Case
+
+### The #1 Insight: Our quantization gap compounds across 14 layers
+
+From EPTQ/HAWQ research: quantization error doesn't just add across layers — it **multiplies**. Each layer's output has small perturbations from quantization, and the next layer amplifies those perturbations through its nonlinear activations. With 14 layers vs 11, we have 27% more layers for error to compound through.
+
+**This explains why our quant gap (0.015) is 2x the 11L PRs (0.007).**
+
+It's not that our GPTQ is worse — it's that we have more layers for error to propagate. The fix isn't better GPTQ — it's reducing error propagation.
+
+### R1. Hessian-Weighted Per-Layer Bit Allocation (HAWQ-style)
+**Why it's perfect for us:**
+- Our 14 layers have different sensitivities to quantization
+- First layer (embedding projection) and last layer (pre-logit) are most sensitive
+- Middle U-Net layers are least sensitive (redundancy from skip connections)
+- **Concrete plan:** Run one forward pass with calibration data, compute per-layer Hessian trace (cheap via Hutchinson's estimator), then:
+  - Layers with top 3 Hessian traces → int8 (256 levels)
+  - Layers with bottom 3 Hessian traces → int5 (32 levels)
+  - Rest stay int6 (64 levels)
+  - Net: same average bits, dramatically less total quantization error
+- **Expected gain: 0.003-0.007 BPB** (could halve our quant gap)
+- **Effort: Medium** — need to add Hessian computation + mixed-bit GPTQ
+
+### R2. Block-Wise Error Compensation Order
+**Why it matters for 14L:**
+- Standard GPTQ quantizes layers in order (0, 1, 2, ..., 13)
+- Error from layer 0 propagates to layer 1's calibration data, corrupting it
+- By layer 13, the calibration data has been corrupted 13 times
+- **Fix:** Quantize in sensitivity order (most sensitive first, while calibration data is cleanest)
+- Or: quantize from both ends inward (0, 13, 1, 12, 2, 11, ...)
+- **Expected gain: 0.001-0.003 BPP**
+- **Effort: Low** — just reorder the GPTQ loop
+
+### R3. Activation Smoothing Before Quantization (SmoothQuant-style)
+**Why it's perfect for deep models:**
+- Deep models develop activation outliers that make quantization harder
+- 14 layers = more outlier buildup than 11
+- SmoothQuant migrates the quantization difficulty from activations to weights via per-channel scaling
+- This makes GPTQ's job easier on every layer
+- **Concrete plan:** Before GPTQ, compute per-channel activation scales from calibration data, fold them into weights
+- **Expected gain: 0.002-0.004 BPB**
+- **Effort: Medium** — add smoothing pass before GPTQ
+
+### R4. Residual Quantization (two-pass GPTQ)
+**Why it fits our constraint:**
+- After first GPTQ pass, compute residual errors
+- Quantize the residuals with a second, smaller codebook
+- Store both in the same 16MB budget (residual codebook is tiny)
+- This is essentially free error correction
+- **Expected gain: 0.001-0.002 BPB**
+- **Effort: Medium** — add residual computation + storage
+
+### R5. Knowledge Distillation from Pre-Quant Model During TTT
+**Why it's uniquely applicable to our setup:**
+- We save the pre-quant model state (EMA weights before GPTQ)
+- During TTT, we could use the pre-quant model as a teacher
+- TTT adaptation target: match pre-quant model's output distribution, not just next-token loss
+- This directly reverses quantization damage during eval
+- **Expected gain: 0.002-0.005 BPB** (directly attacks quant gap during TTT)
+- **Effort: High** — need to load both models, compute KL divergence
+- **Risk: May not fit in GPU memory** (two 14L models)
+
+### TLDR: If we only do ONE thing
+
+**R1 (Hessian-weighted per-layer bit allocation)** is the single highest-impact change for our specific case. Our 14L model is uniquely punished by uniform int6 quantization because error compounds over 27% more layers than competing 11L models. Giving sensitive layers int8 and insensitive layers int5 (same average bits) could recover 0.003-0.007 BPB — more than any architecture change we've tested.
+

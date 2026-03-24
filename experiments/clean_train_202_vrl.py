@@ -323,7 +323,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,vrl_gate",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear",
     ).split(",")
     if pattern
 )
@@ -521,22 +521,18 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
-        # VRL: learned sigmoid gate for blending layer-0 V into this layer's V
-        # Initialized to -2.0 so sigmoid(-2)≈0.12, meaning V0 starts with small influence
-        self.vrl_gate = nn.Parameter(torch.tensor(-2.0, dtype=torch.float32))
+        # VRL (ResFormer): average current V with layer 1's V
         self.use_vrl = False  # Set by GPT.__init__
-        self._last_v: Tensor | None = None  # Cached V for VRL (set by forward, read by GPT)
 
     def forward(self, x: Tensor, v0: Tensor | None = None) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-        self._last_v = v  # Cache for VRL (layer 0's V gets stored here)
-        # VRL: blend layer-0's V into this layer's V via learned sigmoid gate
+        # VRL (ResFormer): U_n = A_n × (V_n + V_1) / 2
+        # Average current layer's V with first layer's V (fixed 0.5 weight, no learned gate)
         if self.use_vrl and v0 is not None:
-            lam = torch.sigmoid(self.vrl_gate.to(dtype=v.dtype))
-            v = (1 - lam) * v + lam * v0
+            v = (v + v0) * 0.5
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -729,11 +725,17 @@ class GPT(nn.Module):
         skips: list[Tensor] = []
         v0: Tensor | None = None  # VRL: layer 0's V output
 
+        # VRL: compute V0 from layer 0's V projection on its normalized input
+        # This gets the same V that layer 0's attention will compute, with gradients flowing
+        if self.vrl_enabled:
+            mix = self.blocks[0].resid_mix.to(dtype=x.dtype)
+            v0_input = self.blocks[0].attn_norm(mix[0][None, None, :] * x + mix[1][None, None, :] * x0)
+            v0 = self.blocks[0].attn.c_v(v0_input).reshape(
+                x.size(0), x.size(1), self.blocks[0].attn.num_kv_heads, self.blocks[0].attn.head_dim
+            )
+
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0, v0=v0)
-            # Cache V0 from layer 0
-            if i == 0 and self.vrl_enabled:
-                v0 = self.blocks[0].attn._last_v
+            x = self.blocks[i](x, x0, v0=v0 if i > 0 else None)  # Layer 0 doesn't use VRL
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
@@ -781,10 +783,14 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         v0: Tensor | None = None
+        if self.vrl_enabled:
+            mix = self.blocks[0].resid_mix.to(dtype=x.dtype)
+            v0_input = self.blocks[0].attn_norm(mix[0][None, None, :] * x + mix[1][None, None, :] * x0)
+            v0 = self.blocks[0].attn.c_v(v0_input).reshape(
+                x.size(0), x.size(1), self.blocks[0].attn.num_kv_heads, self.blocks[0].attn.head_dim
+            )
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0, v0=v0)
-            if i == 0 and self.vrl_enabled:
-                v0 = self.blocks[0].attn._last_v
+            x = self.blocks[i](x, x0, v0=v0 if i > 0 else None)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
@@ -1474,11 +1480,7 @@ def main() -> None:
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     scalar_params.append(base_model.smear.gate)
-    # VRL gates are scalar params
-    if args.vrl_enabled:
-        for block in base_model.blocks:
-            if block.attn.use_vrl:
-                scalar_params.append(block.attn.vrl_gate)
+    # VRL has no extra params (fixed 0.5 weight per ResFormer paper)
     if base_model.bigram is not None:
         scalar_params.append(base_model.bigram.scale)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
