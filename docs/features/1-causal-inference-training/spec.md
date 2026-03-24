@@ -260,8 +260,7 @@ scripts/causal/
 ├── statistical_analysis.py     # R2.2: Paired t-test + Holm-Bonferroni
 ├── token_loss_decompose.py     # R3.1: Per-token loss attribution (MLX)
 ├── quant_gap_analysis.py       # R3.2: Pre/post-quant BPB comparison
-├── influence_proxy.py          # R4.1: Gradient inner product (~50 lines)
-├── shard_variance_check.py     # R4.2: Influence score heterogeneity
+├── influence_proxy.py          # R4.1: Gradient inner product + R4.2: Shard variance check (consolidated)
 ├── gradient_attribution.py     # R4.4: Per-layer gradient logging
 └── README.md                   # Script documentation and usage
 

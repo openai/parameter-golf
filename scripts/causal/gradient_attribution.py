@@ -265,11 +265,57 @@ def _build_output_from_log(grad_log_path: str) -> dict:
     records = parse_jsonlines(content)
     boundaries = detect_phase_boundaries(records)
 
+    # Compute per-phase correlations between layer norms and val_loss
+    phase_correlations = _compute_phase_correlations(records, boundaries)
+
     return {
         "phase_boundaries": boundaries,
         "per_step_norms": records,
-        "phase_correlations": {},  # Computed in post-processing
+        "phase_correlations": phase_correlations,
     }
+
+
+def _compute_phase_correlations(records, boundaries):
+    """Correlate per-layer gradient norms with val_loss within each phase."""
+    import numpy as np
+
+    if not records or not any(r.get("layer_norms") for r in records):
+        return {}
+
+    warmup_end = boundaries.get("warmup_end_step", 20)
+    warmdown_start = boundaries.get("warmdown_start_step", len(records))
+
+    phases = {
+        "warmup": [r for r in records if r["step"] <= warmup_end and r.get("layer_norms")],
+        "main": [r for r in records if warmup_end < r["step"] < warmdown_start and r.get("layer_norms")],
+        "warmdown": [r for r in records if r["step"] >= warmdown_start and r.get("layer_norms")],
+    }
+
+    # Collect all param names from first record with norms
+    param_names = set()
+    for r in records:
+        if r.get("layer_norms"):
+            param_names = set(r["layer_norms"].keys())
+            break
+
+    correlations = {}
+    for phase_name, phase_records in phases.items():
+        if len(phase_records) < 3:  # Need ≥3 points for correlation
+            correlations[phase_name] = {}
+            continue
+        val_losses = np.array([r.get("val_loss", 0) for r in phase_records])
+        phase_corr = {}
+        for param in param_names:
+            norms = np.array([r["layer_norms"].get(param, 0) for r in phase_records])
+            if np.std(norms) < 1e-10 or np.std(val_losses) < 1e-10:
+                phase_corr[param] = {"correlation": 0.0, "p_value": 1.0}
+                continue
+            from scipy.stats import pearsonr
+            corr, p_val = pearsonr(norms, val_losses)
+            phase_corr[param] = {"correlation": float(corr), "p_value": float(p_val)}
+        correlations[phase_name] = phase_corr
+
+    return correlations
 
 
 if __name__ == "__main__":

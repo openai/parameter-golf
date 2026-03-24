@@ -173,7 +173,7 @@
 
 ## Phase E: Integration
 
-### T19: Implement submission assembly [S12]
+### T19: Implement submission assembly [S12] — DEFERRED (Phase E, depends on experiment cycle results)
 - [ ] Write `tests/causal/test_submission.py` (schema, size check, required sections, files present)
 - [ ] Map causal findings → train_gpt.py changes
 - [ ] Verify artifact ≤ 16MB, training ≤ 10min

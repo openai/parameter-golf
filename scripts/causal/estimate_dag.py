@@ -578,7 +578,7 @@ def main() -> None:
 
     # Compute diff if previous DAG provided
     if args.previous_dag:
-        from common import dag_diff
+        from scripts.causal.common import dag_diff
 
         diff = dag_diff(args.previous_dag, str(dag_path))
         diff_path = out_dir / "dag_diff.json"
