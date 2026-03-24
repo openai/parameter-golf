@@ -1,0 +1,12 @@
+{
+  "author": "Aram Dovlatyan",
+  "github_id": "aramdovlatyan",
+  "name": "McGilchrist Register Token (negative result)",
+  "blurb": "Adds a learnable 'register' bottleneck token per block — a global synthesis slot inspired by McGilchrist's hemispheric attention theory. Register attends to all sequence tokens, then injects a summary back via cross-attention. Non-record: artifact 17.1MB > 16MB limit; per-step loss is better but overhead costs ~660 training steps.",
+  "date": "2026-03-21",
+  "val_loss": 1.96142134,
+  "val_bpb": 1.16166728,
+  "bytes_total": 17132420,
+  "bytes_code": 55528,
+  "notes": "At equal step counts, register outperforms baseline by ~0.006 bpb. But 19ms/step overhead reduces steps from ~4917 to 4259 in the 10-min window, erasing the gain. Artifact also exceeds 16MB limit. Next: bf16 cumsum reduces overhead; need to reduce model size."
+}

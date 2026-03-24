@@ -1,0 +1,13 @@
+{
+  "author": "Aram Dovlatyan",
+  "github_id": "aramdovlatyan",
+  "name": "LoRA TTT on SOTA (negative result)",
+  "blurb": "Per-document LoRA test-time training (rank=8 on c_q+c_v, Adam lr=0.01, stride=256) applied at eval time to the 1.1428 SOTA checkpoint. Training identical to 2026-03-20_10L_Int5MLP_MuonWD04_SWA50. TTT degraded performance significantly (+0.19 bpb). Non-record: artifact 16.9MB > 16MB limit; TTT eval took 20.4 min > 10 min eval budget.",
+  "date": "2026-03-21",
+  "val_loss": 1.94851239,
+  "val_bpb": 1.15402184,
+  "val_bpb_ttt": 1.34789270,
+  "bytes_total": 16907757,
+  "bytes_code": 65526,
+  "notes": "val_bpb is the base sliding-window eval (no TTT). val_bpb_ttt is with LoRA TTT applied — it regressed. See README for analysis."
+}
