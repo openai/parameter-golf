@@ -119,3 +119,6 @@ hyper_k2_top4_v4_s1337,600,15724371,,95543,8,325,1.1190,d335cf9,"HYPER-CONN top4
 12L_gptq5_s1337,600,14239812,,102743,8,356,1.1253,b9c4106,"12L int5 GPTQ (no QAT align): TTT=1.1253 14.24MB. +0.011 quant damage vs int6"
 12L_int5_aligned_s1337,600,14241515,,102743,8,353,1.1254,97adbf9,"12L int5 GPTQ aligned QAT: TTT=1.1254 14.24MB. QAT align didn't help much"
 11L_gptq6_s1337,600,12557961,,102743,8,330,1.1293,b9c4106,"11L int6 GPTQ: TTT=1.1293 12.56MB. GPTQ HURTS int6 (+0.011 vs naive)"
+pr606_baseline_s1337,600,16150228,,107217,8,538,1.1169,n/a,"PR#606 reproduction: 1.1169 BPB. 16.15MB slightly over"
+pr606_3expert_s1337,600,15398890,,107217,8,564,1.1165,n/a,"PR#606 + 3-expert Hedge mixer: 1.1165 BPB (-0.0004). 15.40MB FITS"
+pr606_5expert_s1337,600,n/a,,109258,8,1573,1.0902,5981b7b,"5-expert mixer: 1.0902 BPB (-0.026)! BUT 1573s eval (must be <600s)"
