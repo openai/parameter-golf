@@ -35,7 +35,6 @@ GRAD_CLIP = 1.0
 EMA_ENABLED = True
 EMA_DECAY = 0.997
 
-COUNTED_CODE_BYTES_ESTIMATE = 47000
 OUT_PATH = "golf_model.bin"
 
 FUSE_DIM = 448
@@ -62,11 +61,15 @@ RADIAL_BITS = 10
 RADIAL_ALPHA = 0.02
 RADIAL_TOKEN_GAIN_INIT = 0.01
 
+HASH_BUCKETS = 256
+HASH_GAIN_INIT = 0.02
+
+
 # ============================================================
 # DISTRIBUTED
 # ============================================================
 def setup_distributed():
-    if 'RANK' in os.environ:
+    if "RANK" in os.environ:
         dist.init_process_group(backend="nccl")
         rank = int(os.environ["RANK"])
         local_rank = int(os.environ["LOCAL_RANK"])
@@ -80,6 +83,7 @@ def setup_distributed():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return rank, local_rank, world_size, device
 
+
 # ============================================================
 # DATA
 # ============================================================
@@ -89,6 +93,7 @@ def load_data_shard(file: Path) -> torch.Tensor:
     num_tokens = int(header[2])
     tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
     return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
+
 
 def load_training_tokens(pattern: str, seq_len: int) -> torch.Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
@@ -101,16 +106,18 @@ def load_training_tokens(pattern: str, seq_len: int) -> torch.Tensor:
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
     return tokens[: usable + 1].long()
 
+
 def load_validation_tokens(pattern: str, seq_len: int) -> torch.Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         if os.environ.get("ALLOW_MOCK", "0") == "1":
-            return torch.randint(0, 1024, (seq_len * 2 + 1,), dtype=torch.int64)
+            return torch.randint(0, VOCAB_SIZE, (seq_len * 2 + 1,), dtype=torch.int64)
         raise RuntimeError(f"No validation files found for {pattern}")
     print(f"Loading {len(files)} val shards...")
     tokens = torch.cat([load_data_shard(f) for f in files]).contiguous()
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
     return tokens[: usable + 1].long()
+
 
 # ============================================================
 # BPB LUTS
@@ -142,6 +149,7 @@ def build_sentencepiece_luts(sp: spm.SentencePieceProcessor, vocab_size: int, de
         torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
     )
 
+
 # ============================================================
 # MODEL
 # ============================================================
@@ -156,15 +164,18 @@ class RMSNorm(nn.Module):
         normed = xf * torch.rsqrt(xf.pow(2).mean(dim=-1, keepdim=True) + self.eps)
         return (self.weight * normed).to(x.dtype)
 
+
 def weight_quant(w):
     scale = w.abs().mean().clamp(min=1e-5)
     return (torch.sign(w) * scale).detach() + (w - w.detach())
+
 
 class BitLinear(nn.Linear):
     def forward(self, x):
         if x.dtype != self.weight.dtype:
             x = x.to(self.weight.dtype)
         return F.linear(x, weight_quant(self.weight), self.bias)
+
 
 class BitAttention(nn.Module):
     def __init__(self, d_model, n_heads):
@@ -179,13 +190,14 @@ class BitAttention(nn.Module):
         self.out_proj = BitLinear(d_model, d_model, bias=False)
 
     def forward(self, x):
-        b, t, x_c = x.shape
+        b, t, c = x.shape
         q = self.q_proj(x).view(b, t, self.n_heads, self.head_dim).transpose(1, 2)
         k = self.k_proj(x).view(b, t, self.n_heads, self.head_dim).transpose(1, 2)
         v = self.v_proj(x).view(b, t, self.n_heads, self.head_dim).transpose(1, 2)
         y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-        y = y.transpose(1, 2).contiguous().view(b, t, x_c)
+        y = y.transpose(1, 2).contiguous().view(b, t, c)
         return self.out_proj(y)
+
 
 class BranchBlock(nn.Module):
     def __init__(self, d_model, n_heads, mlp_mult):
@@ -200,6 +212,7 @@ class BranchBlock(nn.Module):
         x = x + self.attn(self.norm1(x))
         x = x + self.fc2(F.gelu(self.fc1(self.norm2(x))))
         return x
+
 
 class RadialTokenFeatures(nn.Module):
     def __init__(self, n_bits=10, alpha=0.02):
@@ -220,7 +233,15 @@ class RadialTokenFeatures(nn.Module):
         phase = torch.atan2(im, re + 1e-8)
         return torch.stack([re, im, mag, phase], dim=-1)
 
-class DualArchitectureRadialTokenBridgeFP(nn.Module):
+
+def make_bigram_hash(input_ids: torch.Tensor, buckets: int) -> torch.Tensor:
+    prev = torch.roll(input_ids, shifts=1, dims=1)
+    prev[:, 0] = 0
+    h = (prev * 131 + input_ids) % buckets
+    return h.long()
+
+
+class DualArchitectureRadialHashBridgeFP(nn.Module):
     def __init__(self):
         super().__init__()
         self.tok_emb = nn.Embedding(VOCAB_SIZE, FUSE_DIM)
@@ -228,6 +249,9 @@ class DualArchitectureRadialTokenBridgeFP(nn.Module):
         self.radial_token = RadialTokenFeatures(RADIAL_BITS, RADIAL_ALPHA)
         self.radial_token_proj = nn.Linear(4, FUSE_DIM, bias=False)
         self.radial_token_gain = nn.Parameter(torch.tensor(RADIAL_TOKEN_GAIN_INIT))
+
+        self.hash_emb = nn.Embedding(HASH_BUCKETS, FUSE_DIM)
+        self.hash_gain = nn.Parameter(torch.tensor(HASH_GAIN_INIT))
 
         self.to_a = nn.Linear(FUSE_DIM, A_DIM, bias=False)
         self.to_b = nn.Linear(FUSE_DIM, B_DIM, bias=False)
@@ -241,8 +265,12 @@ class DualArchitectureRadialTokenBridgeFP(nn.Module):
 
     def forward(self, input_ids, target_ids=None):
         x = self.tok_emb(input_ids)
+
         rt = self.radial_token(input_ids)
         x = x + self.radial_token_gain * self.radial_token_proj(rt)
+
+        bh = make_bigram_hash(input_ids, HASH_BUCKETS)
+        x = x + self.hash_gain * self.hash_emb(bh)
 
         xa = self.to_a(x)
         xb = self.to_b(x)
@@ -260,6 +288,7 @@ class DualArchitectureRadialTokenBridgeFP(nn.Module):
             return F.cross_entropy(logits.float(), target_ids.reshape(-1), reduction="mean")
         return logits
 
+
 # ============================================================
 # OPTIM
 # ============================================================
@@ -273,16 +302,33 @@ def soft_matrix_shape(update: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     u = 0.5 * u + 0.5 * (u / col_rms)
     return u.to(update.dtype)
 
+
 class FROStable(torch.optim.Optimizer):
     def __init__(
-        self, params, lr=8e-4, beta1=0.9, beta2=0.999, eps=1e-8,
-        scales=(0.1, 0.01, 0.001), alpha=0.10, gamma=0.60,
-        rt_min=0.05, rt_max=1.0, warmup_steps=10
+        self,
+        params,
+        lr=8e-4,
+        beta1=0.9,
+        beta2=0.999,
+        eps=1e-8,
+        scales=(0.1, 0.01, 0.001),
+        alpha=0.10,
+        gamma=0.60,
+        rt_min=0.05,
+        rt_max=1.0,
+        warmup_steps=10,
     ):
         defaults = dict(
-            lr=lr, beta1=beta1, beta2=beta2, eps=eps,
-            scales=scales, alpha=alpha, gamma=gamma,
-            rt_min=rt_min, rt_max=rt_max, warmup_steps=warmup_steps
+            lr=lr,
+            beta1=beta1,
+            beta2=beta2,
+            eps=eps,
+            scales=scales,
+            alpha=alpha,
+            gamma=gamma,
+            rt_min=rt_min,
+            rt_max=rt_max,
+            warmup_steps=warmup_steps,
         )
         super().__init__(params, defaults)
 
@@ -339,13 +385,12 @@ class FROStable(torch.optim.Optimizer):
                     s2[k].mul_(1 - lam).add_(rho_t * rho_t, alpha=lam)
 
                 log_sum = 0.0
-                K = len(scales)
-                for k in range(K):
+                for k in range(len(scales)):
                     rk = (mu[k] * mu[k]) / (s2[k] + eps)
                     rk = rk.clamp(rt_min, rt_max)
                     log_sum = log_sum + torch.log(rk + eps)
 
-                Rt = torch.exp(log_sum / K).clamp(rt_min, rt_max)
+                Rt = torch.exp(log_sum / len(scales)).clamp(rt_min, rt_max)
                 rt_values.append(float(Rt))
 
                 warm = min(1.0, state["step"] / float(warmup_steps))
@@ -363,11 +408,25 @@ class FROStable(torch.optim.Optimizer):
                 adaptive_factor = alpha + (1.0 - alpha) * gamma * Rt_eff
                 step_size = group["lr"] * adaptive_factor / bias_correction1
                 p.add_(shaped_update, alpha=-float(step_size))
+
         return rt_values
+
 
 def build_param_groups(model):
     fro_params, adam_params = [], []
-    adam_prefixes = ["tok_emb", "to_a", "to_b", "from_a", "from_b", "fuse_norm", "lm_head", "radial_token_proj", "radial_token_gain"]
+    adam_prefixes = [
+        "tok_emb",
+        "to_a",
+        "to_b",
+        "from_a",
+        "from_b",
+        "fuse_norm",
+        "lm_head",
+        "radial_token_proj",
+        "radial_token_gain",
+        "hash_emb",
+        "hash_gain",
+    ]
     for name, p in model.named_parameters():
         if not p.requires_grad:
             continue
@@ -377,9 +436,11 @@ def build_param_groups(model):
             fro_params.append(p)
     return fro_params, adam_params
 
+
 def set_lr(opt, lr):
     for g in opt.param_groups:
         g["lr"] = lr
+
 
 def lr_mult(step, total_steps_guess=3000):
     if step < WARMUP_STEPS:
@@ -388,6 +449,7 @@ def lr_mult(step, total_steps_guess=3000):
         return 1.0
     progress = min(1.0, (step - DECAY_START) / max(1.0, total_steps_guess - DECAY_START))
     return 0.5 * (1.0 + math.cos(math.pi * progress))
+
 
 # ============================================================
 # EMA
@@ -399,6 +461,7 @@ def ema_update(ema_model, live_model, decay):
         ema_p.data.mul_(decay).add_(live_p.data, alpha=1.0 - decay)
     for ema_b, live_b in zip(ema_model.buffers(), live.buffers()):
         ema_b.copy_(live_b)
+
 
 # ============================================================
 # EVAL
@@ -458,6 +521,7 @@ def eval_val_subset(model, device, val_tokens, base_bytes_lut, has_space_lut, bo
 
     return float(val_loss.item()), float(val_bpb.item())
 
+
 # ============================================================
 # EXPORT
 # ============================================================
@@ -466,13 +530,16 @@ def prune_small_values(t: torch.Tensor, thr: float):
     out[out.abs() < thr] = 0
     return out
 
+
 def pack_int6_tensor(x: torch.Tensor):
     return x.to(torch.int8)
+
 
 def quantize_tensor_int8(v: torch.Tensor):
     scale = v.abs().mean().clamp(min=1e-5)
     q = torch.clamp(torch.round(v / scale * 127.0), -127, 127).to(torch.int8)
     return (q.cpu(), float(scale), "int8")
+
 
 def quantize_tensor_int6(v: torch.Tensor):
     scale = v.abs().mean().clamp(min=1e-5)
@@ -480,19 +547,18 @@ def quantize_tensor_int6(v: torch.Tensor):
     q = pack_int6_tensor(q)
     return (q.cpu(), float(scale), "int6")
 
+
 def quantize_state_for_export(state_dict):
     q_state = {}
     for k, v in state_dict.items():
         if not torch.is_tensor(v):
             q_state[k] = v
             continue
-
         if not v.is_floating_point():
             q_state[k] = v.detach().cpu()
             continue
 
         vv = v.detach().cpu()
-
         if vv.dim() >= 2:
             vv = prune_small_values(vv, EXPORT_PRUNE_THRESHOLD)
 
@@ -504,6 +570,7 @@ def quantize_state_for_export(state_dict):
             q_state[k] = vv.to(torch.float16)
 
     return q_state
+
 
 @torch.no_grad()
 def artifact_audit(model, out_path):
@@ -527,13 +594,15 @@ def artifact_audit(model, out_path):
     print(f"Headroom:          {16_000_000 - total_bytes:,} bytes")
     print("PASS ✅" if total_bytes <= 16_000_000 else "FAIL ❌")
 
+
 # ============================================================
 # MAIN
 # ============================================================
 def main():
     torch.manual_seed(1337)
     np.random.seed(1337)
-    torch.cuda.manual_seed_all(1337)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(1337)
 
     rank, local_rank, world_size, device = setup_distributed()
 
@@ -547,14 +616,14 @@ def main():
         print(f"Loaded train tokens: {train_tokens.numel():,}")
         print(f"Loaded val tokens:   {val_tokens.numel():,}")
 
-    live_model = DualArchitectureRadialTokenBridgeFP().to(device)
+    live_model = DualArchitectureRadialHashBridgeFP().to(device)
     fro_params, adam_params = build_param_groups(live_model)
 
     if rank == 0:
         print(f"FRO params:  {sum(p.numel() for p in fro_params):,}")
         print(f"Adam params: {sum(p.numel() for p in adam_params):,}")
 
-    ema_model = DualArchitectureRadialTokenBridgeFP().to(device)
+    ema_model = DualArchitectureRadialHashBridgeFP().to(device)
     ema_model.load_state_dict(live_model.state_dict())
     for p in ema_model.parameters():
         p.requires_grad_(False)
@@ -571,6 +640,7 @@ def main():
     start = time.time()
     step = 0
     last_loss = None
+    best_val = float("inf")
 
     while time.time() - start < MAX_WALLCLOCK_SECONDS:
         chunk_size = BATCH_SIZE * SEQ_LEN
@@ -617,12 +687,14 @@ def main():
             max_mem = torch.cuda.max_memory_allocated(device) / 1e9
 
             if rank == 0:
-                rg = float((live_model.module if hasattr(live_model, "module") else live_model).radial_token_gain.detach().cpu())
+                model_ref = live_model.module if hasattr(live_model, "module") else live_model
+                rg = float(model_ref.radial_token_gain.detach().cpu())
+                hg = float(model_ref.hash_gain.detach().cpu())
                 print(
                     f"step {step:04d} | time {elapsed:.1f}s | "
                     f"train_loss {mean_loss:.4f} | tok/s {toks_per_sec:.0f} | "
                     f"mean_Rt {mean_rt:.4f} | lr_mult {mult:.3f} | "
-                    f"radial_token_gain {rg:.5f} | max_mem {max_mem:.2f} GB"
+                    f"radial_gain {rg:.5f} | hash_gain {hg:.5f} | max_mem {max_mem:.2f} GB"
                 )
 
         if step > 0 and step % VAL_EVERY == 0:
@@ -630,7 +702,8 @@ def main():
                 ema_model, device, val_tokens, base_bytes, has_space, boundary, rank, world_size
             )
             if rank == 0:
-                print(f"VALIDATION-EMA | step {step:04d} | val_loss {val_loss:.4f} | val_bpb {val_bpb:.4f}")
+                best_val = min(best_val, val_bpb)
+                print(f"VALIDATION-EMA | step {step:04d} | val_loss {val_loss:.4f} | val_bpb {val_bpb:.4f} | best {best_val:.4f}")
 
         step += 1
 
@@ -638,10 +711,12 @@ def main():
         elapsed = time.time() - start
         print(f"\nFinished at step {step} in {elapsed:.1f}s")
         print(f"Final train loss: {float(last_loss):.4f}")
+        print(f"Best observed val_bpb: {best_val:.4f}")
         artifact_audit(ema_model, OUT_PATH)
 
     if world_size > 1:
         dist.destroy_process_group()
+
 
 if __name__ == "__main__":
     main()
