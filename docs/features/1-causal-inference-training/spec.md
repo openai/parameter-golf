@@ -140,7 +140,7 @@ Apply formal causal inference methods to the parameter golf challenge to discove
 **Acceptance Criteria:**
 - [ ] AC-4.1: Influence proxy script runs on MLX, produces per-shard scores in <2 hours
 - [ ] AC-4.2: Variance check produces proceed/skip recommendation
-- [ ] AC-4.3: If curriculum experiment run, statistical report follows R2.2 protocol
+- [ ] AC-4.3: If curriculum experiment run, statistical report follows R2.2 protocol. If AC-4.2 returns skip (CV < 0.1), document as null result in results/causal/influence_scores.json with `"curriculum_skipped": true, "reason": "CV < 0.1"`.
 - [ ] AC-4.4: Per-layer attribution logged and correlated with val_loss trajectory
 
 ### Phase 5: Engineering Fallback & Submission (FR-3)
@@ -286,7 +286,7 @@ def decision_gate(phase_results):
         if phase_results.p_value < 0.01:
             return "proceed_to_engineering"  # Confirmed effect → integrate
         else:
-            return "suggestive_only"  # Below significance → next phase
+            return "suggestive_only"  # Below significance → continue to next phase, do not integrate
     else:
         return "null_result"  # Below MDE → next phase
 ```
