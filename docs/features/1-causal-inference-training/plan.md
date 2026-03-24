@@ -112,7 +112,7 @@ Phase E: Integration
 **Why this item**: DAG is the navigation tool for the discovery-adjust cycle.
 **Why this order**: Depends on structured intervention data from S3.
 **Inputs**: `results/causal/interventions.json`
-**Outputs**: `results/causal/cycle_0/causal_dag.json`, `results/causal/cycle_0/dag.png`
+**Outputs**: `results/causal/cycle_0/causal_dag.json`, `results/causal/cycle_0/dag.png`, `scripts/causal/README.md`
 
 **Step 1 — Write tests**: Test expert skeleton has expected edges. Test binary encoding produces correct matrix dimensions. Test DOT output renders.
 
@@ -122,6 +122,7 @@ Phase E: Integration
 3. Marginal effect estimation per node (mean BPB of records with/without each intervention)
 4. DOT visualization output via graphviz
 5. Output causal_dag.json with schema (cycle=0, method="expert_guided")
+6. Write `scripts/causal/README.md` documenting cycle protocol, CLI usage for each script, and cycle execution steps
 
 **Verification**: `pytest tests/causal/test_estimate_dag.py`. Run on actual interventions.json, assert ≥5 nodes, assert dag.png renders.
 
@@ -150,7 +151,7 @@ Phase E: Integration
 ### S5: identifiability_check.py — Data Quality (C4)
 **Complexity**: Simple
 **Components**: C4
-**Dependencies**: S3, S4a (needs interventions.json + causal_dag.json)
+**Dependencies**: S3, S4a, S4b (needs interventions.json + fully-tagged causal_dag.json)
 **Why this item**: Decision gate for whether architecture ablation is feasible.
 **Why this order**: Depends on both parsed data and DAG structure.
 **Inputs**: `results/causal/interventions.json`, `results/causal/cycle_0/causal_dag.json`
@@ -316,16 +317,17 @@ Phase E: Integration
 **Why this item**: Translates causal findings into a competition submission.
 **Why this order**: Terminal step — requires all prior work.
 **Inputs**: Best causal finding (or SOTA baseline), competition constraints
-**Outputs**: `records/track_10min_16mb/YYYY-MM-DD_causal_BPB/` submission package
+**Outputs**: `records/track_10min_16mb/YYYY-MM-DD_causal_BPB/` submission package, `tests/causal/test_submission.py`
 
+**Step 1 — Write tests** (`tests/causal/test_submission.py`): Test submission.json schema validation. Test artifact size check (≤ 16,000,000 bytes). Test README.md has required sections (Results, Architecture, Ablation table). Test all required files exist in output directory.
+
+**Step 2 — Implement**:
 1. Map confirmed causal findings to train_gpt.py code changes
 2. Verify artifact ≤ 16MB and training ≤ 10min on 8×H100
 3. Run 3-seed validation on H100
 4. Produce README.md with ablation table documenting causal findings
 5. Produce submission.json with metadata
 6. If no causal findings: compose existing tricks (engineering fallback R5.3)
-
-**Step 1 — Write tests** (`tests/causal/test_submission.py`): Test submission.json schema validation. Test artifact size check (≤ 16,000,000 bytes). Test README.md has required sections (Results, Architecture, Ablation table). Test all required files exist in output directory.
 
 **Verification**: `pytest tests/causal/test_submission.py`. Assert artifact_size ≤ 16,000,000 bytes. Assert 3-seed BPB reported with mean and std.
 
