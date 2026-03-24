@@ -113,6 +113,13 @@ class Hyperparameters:
     gptq_enabled = bool(int(os.environ.get("GPTQ_ENABLED", "0")))
     gptq_clip_range = int(os.environ.get("GPTQ_CLIP_RANGE", 15))  # 15 = int5, 31 = int6
     gptq_samples = int(os.environ.get("GPTQ_SAMPLES", 256))
+    # Structure distillation: train teacher then distill to student
+    distill_enabled = bool(int(os.environ.get("DISTILL_ENABLED", "0")))
+    distill_teacher_layers = int(os.environ.get("DISTILL_TEACHER_LAYERS", 13))
+    distill_teacher_frac = float(os.environ.get("DISTILL_TEACHER_FRAC", 0.5))  # fraction of wallclock for teacher
+    distill_alpha = float(os.environ.get("DISTILL_ALPHA", 0.5))  # weight of distill loss vs LM loss
+    distill_layer_s = int(os.environ.get("DISTILL_LAYER_S", 5))  # student layer to match
+    distill_layer_t = int(os.environ.get("DISTILL_LAYER_T", 6))  # teacher layer to match
     # Hyper-connections: mix k previous hidden states (0 = disabled)
     hyper_k = int(os.environ.get("HYPER_K", 0))
     hyper_layers = int(os.environ.get("HYPER_LAYERS", 4))  # apply to top N layers
@@ -1817,6 +1824,55 @@ def main() -> None:
         if distributed:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    # Two-phase distillation: train teacher first, then student
+    _distill_teacher = None
+    if args.distill_enabled:
+        teacher_wallclock = args.max_wallclock_seconds * args.distill_teacher_frac
+        log0(f"distill:phase1 training teacher ({args.distill_teacher_layers}L) for {teacher_wallclock:.0f}s")
+        teacher_model = GPT(
+            vocab_size=args.vocab_size, num_layers=args.distill_teacher_layers,
+            model_dim=args.model_dim, num_heads=args.num_heads,
+            num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
+            tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
+            logit_softcap=args.logit_softcap, rope_base=args.rope_base,
+            qk_gain_init=args.qk_gain_init, bigram_vocab_size=args.bigram_vocab_size,
+            bigram_dim=args.bigram_dim, xsa_last_n=args.xsa_last_n,
+            rope_dims=args.rope_dims, ln_scale=args.ln_scale,
+            ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+            hyper_k=args.hyper_k, hyper_layers=args.hyper_layers,
+        ).to(device).bfloat16()
+        for m in teacher_model.modules():
+            if isinstance(m, CastedLinear):
+                m.float()
+        restore_low_dim_params_to_fp32(teacher_model)
+        # Quick teacher training (no DDP, no compile — just raw forward/backward)
+        teacher_opt = torch.optim.AdamW(teacher_model.parameters(), lr=0.001, weight_decay=0.04)
+        teacher_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+        teacher_model.train()
+        t_teacher = time.perf_counter()
+        teacher_step = 0
+        while (time.perf_counter() - t_teacher) < teacher_wallclock:
+            teacher_opt.zero_grad(set_to_none=True)
+            tx, ty = teacher_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                tloss = teacher_model(tx, ty)
+            (tloss / grad_accum_steps).backward()
+            torch.nn.utils.clip_grad_norm_(teacher_model.parameters(), 1.0)
+            teacher_opt.step()
+            teacher_step += 1
+            if teacher_step % 500 == 0:
+                log0(f"distill:teacher step:{teacher_step} loss:{tloss.item():.4f} time:{time.perf_counter()-t_teacher:.0f}s")
+        teacher_model.eval()
+        for p in teacher_model.parameters():
+            p.requires_grad_(False)
+        _distill_teacher = teacher_model
+        log0(f"distill:phase1 done teacher_steps:{teacher_step} time:{time.perf_counter()-t_teacher:.0f}s")
+        # Reduce remaining wallclock for student
+        args.max_wallclock_seconds -= (time.perf_counter() - t_teacher)
+        log0(f"distill:phase2 training student ({args.num_layers}L) with distillation for {args.max_wallclock_seconds:.0f}s")
+        # Reset student model and data loader
+        base_model._init_weights()
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
     ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
@@ -1879,6 +1935,18 @@ def main() -> None:
                     train_loader._ttt_buffer.pop(0)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
+                # Structure distillation from teacher (if available)
+                if args.distill_enabled and _distill_teacher is not None:
+                    with torch.no_grad():
+                        teacher_logits = _distill_teacher.forward_logits(x)
+                    student_logits = base_model.forward_logits(x)
+                    kd_temp = 2.0
+                    t_probs = F.softmax(teacher_logits.float() / kd_temp, dim=-1)
+                    s_log_probs = F.log_softmax(student_logits.float() / kd_temp, dim=-1)
+                    distill_loss = F.kl_div(s_log_probs.reshape(-1, s_log_probs.size(-1)),
+                                            t_probs.reshape(-1, t_probs.size(-1)),
+                                            reduction="batchmean") * (kd_temp ** 2)
+                    loss = loss + args.distill_alpha * distill_loss
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
