@@ -1,0 +1,11 @@
+{
+  "author": "Rakhmatillo Khonkhoshimov",
+  "github_id": "khoshimov2018",
+  "name": "11L EMA+GPTQ-lite with FA2 fallback (signalrush fork)",
+  "blurb": "Fork of signalrush's 11L architecture (XSA4, Partial RoPE, SmearGate, BigramHash, EMA, GPTQ-lite, int6+zstd) with FA2/SDPA fallback. 5440 steps on 8xH100 SXM with sliding window eval stride=64.",
+  "date": "2026-03-24T00:00:00Z",
+  "val_loss": 1.91623730,
+  "val_bpb": 1.13490667,
+  "bytes_total": 16191639,
+  "bytes_code": 77262
+}

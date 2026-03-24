@@ -1,0 +1,11 @@
+{
+  "author": "Rakhmatillo Khonkhoshimov",
+  "github_id": "khoshimov2018",
+  "name": "Score-First TTT with LoRA on 11L EMA+GPTQ-lite",
+  "blurb": "Score-first test-time training infrastructure with LoRA adapters on signalrush's 11L architecture. Demonstrates legal TTT approach: score token t before adapting on tokens <= t. FA2/SDPA fallback for non-FA3 environments.",
+  "date": "2026-03-24T00:00:00Z",
+  "val_loss": 1.91623730,
+  "val_bpb": 1.13490667,
+  "bytes_total": 16191639,
+  "bytes_code": 77262
+}
