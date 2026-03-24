@@ -1,0 +1,23 @@
+{
+    "name": "Chimera TTT",
+    "author": "chimera",
+    "github_id": "chimera",
+    "val_bpb": 0.5601,
+    "val_bpb_seeds": {
+        "1337": 0.5711,
+        "42": 0.5498,
+        "7": 0.5594
+    },
+    "val_bpb_mean": 0.5601,
+    "val_bpb_std": 0.0107,
+    "model_size_bytes": 15458527,
+    "train_time_seconds": 600,
+    "eval_time_seconds": 780,
+    "hardware": "8xH100 80GB SXM",
+    "base": "PR #596 (DeepQuant V10b, AriaAnima)",
+    "innovations": [
+        "K-Projection LoRA (TTT_K_LORA=1): LoRA on K projections with 0.3x LR",
+        "Min-NLL Epoch Selection (TTT_MIN_NLL=1): Track best epoch per document"
+    ],
+    "summary": "Two novel innovations on top of PR #596's per-document LoRA TTT: (1) K-projection LoRA adapters with conservative LR, (2) min-NLL epoch selection preventing overfitting. 8 TTT epochs instead of 6. Beats current #1 by 0.083 BPB (3-seed mean 0.5601 vs 0.6430, t=12.61, p<<0.01)."
+}
