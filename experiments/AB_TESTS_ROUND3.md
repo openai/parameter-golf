@@ -33,7 +33,43 @@
 | #593 | 1.1163 | Full GPTQ + LeakyReLU² — NEW no TTT |
 | #569 | 1.1175 | VRL + LeakyReLU² + Full GPTQ (no TTT) |
 
-**⚠️ The LoRA TTT approaches (0.5-0.8 BPP) are a paradigm shift. Investigate urgently.**
+**⚠️ LoRA TTT with score-every-epoch (0.5-0.8 BPP) may be ruled invalid. See issue #402 discussion. The "min-NLL epoch selection" re-scores tokens after training on them — arguably violates "preceding tokens" rule. Comment posted to @0hq for ruling. If invalid, we're #1 by 0.012 BPP.**
+
+---
+
+## WHERE WE ARE (March 24, end of day)
+
+### Current Submission-Ready Best
+**1.1075 BPB** — WD=0.05, QEP GPTQ, per-window SGD TTT @ stride=76, 551s eval
+
+### Key Findings Today
+1. **WD=0.05 is optimal** (U-shaped, confirmed 0.03-0.11 sweep). Was at 0.09, cost us 0.004 BPP.
+2. **QEP GPTQ reduces quant gap** 0.015→0.012, but TTT absorbs most of the gain.
+3. **Rescore@s64 after TTT** gives 1.1058 but exceeds 600s eval budget (642s).
+4. **Freeze 8/14 layers during TTT** at stride=64: costs 0.001 BPP, saves ~214s → fits budget at ~440s.
+5. **VRL neutral** at 14L. **Full QAT terrible**. **Late QAT worse** (dynamo reset disrupts training).
+6. **EMA=0.997 confirmed optimal.** Warmdown 3500 confirmed optimal.
+7. **LoRA TTT paradigm shift** in competition — sub-0.8 BPP but legality unclear.
+
+### What to Do Next (Priority Order)
+1. **Combine best settings**: WD=0.05 + QEP + freeze=8 + stride=64 → full training run
+   - Expected: ~1.106 BPP in ~450s eval (well under budget)
+   - This is the optimal non-LoRA configuration
+2. **Implement Case 3 LoRA TTT** (per-document, auto-regressive, NO re-scoring)
+   - Unambiguously legal per issue #402
+   - Could add 0.01-0.05 BPP improvement on top of current
+   - Significant implementation effort (~200 lines)
+3. **Wait for @0hq ruling** on score-every-epoch — if valid, implement min-NLL LoRA
+4. **Multi-seed verification** — run best config with seeds 42, 7 for submission
+
+### Freeze Sweep Results (WD=0.09 model, stride=64)
+| Freeze | BPB | Delta |
+|--------|------|-------|
+| 2 | 1.1129 | — |
+| 4 | 1.1131 | +0.0002 |
+| 6 | 1.1133 | +0.0004 |
+| 8 | 1.1139 | +0.0010 |
+| 10 | pending | — |
 
 
 ---
