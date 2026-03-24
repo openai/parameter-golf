@@ -1,6 +1,6 @@
 # Record: 11L XSA-all + Full GPTQ + Selective Pruning + Parallel Muon
 
-**val_bpb: 1.1155** (3-seed mean, std 0.0005) | 15.95 MB | 8xH100 SXM, 600s
+**val_bpb: 1.1154** (3-seed mean, std 0.0005) | 15.94 MB | 8xH100 SXM, 600s
 
 Two techniques on top of PR #593's Parallel Muon stack.
 
@@ -8,7 +8,7 @@ Two techniques on top of PR #593's Parallel Muon stack.
 
 | Change | Impact |
 |--------|--------|
-| **XSA on all 11 layers** | Standard practice is XSA on last 4. Applying to all layers forces cross-position information mixing from layer 0. -0.0016 BPP vs XSA-last-4 in ablation. Zero new parameters. |
+| **XSA on all 11 layers** | Standard practice is XSA on last 4. Applying to all layers forces cross-position information mixing from layer 0. -0.0016 BPB vs XSA-last-4 in ablation. Zero new parameters. |
 | **Selective ±1 magnitude pruning** | Post-GPTQ, sort ±1 quantized values by reconstruction error (scale²), zero least-impactful first until artifact fits. Targets only values whose removal causes minimal reconstruction damage. |
 
 Everything else from PR #593 carries forward: 11L, 512d, 8H/4KV, LeakyReLU(0.5)² MLP 3x, BigramHash(2048), Partial RoPE 16/64, LN Scale, VE128, SmearGate, U-Net skips, EMA(0.997), Tight SWA, Full Hessian GPTQ int6 + lzma, Parameter Banking + Parallel Muon.
@@ -17,15 +17,15 @@ Everything else from PR #593 carries forward: 11L, 512d, 8H/4KV, LeakyReLU(0.5)�
 
 | Seed | Steps | ms/step | Sliding BPB (s64) | Artifact |
 |------|-------|---------|--------------------|----------|
-| 1337 | 6,923 | 86.7 | **1.1154** | 15,943,135 bytes |
-| 1338 | 6,917 | 86.8 | **1.1150** | 15,950,643 bytes |
-| 1339 | 6,914 | 86.8 | **1.1160** | 15,939,727 bytes |
+| 7 | 6,938 | 86.7 | **1.1153** | 15,937,739 bytes |
+| 314 | ~6,930 | 86.7 | **1.1150** | 15,933,191 bytes |
+| 2024 | ~6,930 | 86.7 | **1.1159** | 15,928,475 bytes |
 
-**Mean: 1.1155 | Std: 0.0005**
+**Mean: 1.1154 | Std: 0.0005**
 
 ## Requirements
 
-**Flash Attention 3 (Hopper kernel) is required.** The script imports `flash_attn_interface` directly and will fail without it. FA2 is not sufficient — it produces ~100ms/step vs ~87ms, losing ~1,000 training steps and ~0.004 BPP.
+**Flash Attention 3 (Hopper kernel) is required.** The script imports `flash_attn_interface` directly and will fail without it. FA2 is not sufficient — it produces ~100ms/step vs ~87ms, losing ~1,000 training steps and ~0.004 BPB.
 
 ```bash
 pip install --break-system-packages flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291
@@ -38,14 +38,14 @@ Also requires: `zstandard`, `sentencepiece`
 
 ```bash
 python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80
-SEED=1337 TARGET_MB=15.9 torchrun --standalone --nproc_per_node=8 train_gpt.py
+SEED=7 TARGET_MB=15.9 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 ## Negative results
 
 Techniques tested on this stack that did not help:
 
-| Technique | BPP | Delta | Why |
+| Technique | BPB | Delta | Why |
 |-----------|-----|-------|-----|
 | Value Residual Learning (linear) | 1.1298 | +0.0012 | Conflicts with VE128 — both inject identity info into deep layers |
 | VRL sigmoid gates + TrigramHash | 1.1174 | +0.0020 | Combined overhead costs ~100 steps, net negative |
