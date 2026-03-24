@@ -140,6 +140,8 @@
 | VRL v3 (exp202)          | 1.1133     | 577s     | +0.0003           | **NEUTRAL** — U-Net skips already carry early info at 14L |
 | no-VRL control           | skipped    | —        | —                 | VRL neutral, no need for control |
 | QEP GPTQ (exp203)        | pending    | ~600s    | est -0.003-0.007  | IMPLEMENTED, queued after A/B round 3 |
+| Late QAT 0.15 (exp204)   | pending    | ~600s    | est -0.001-0.003  | With aligned 99.95th percentile clipping |
+| TTT freeze sweep          | pending    | ~50s ea  | stride=64 recovery| eval-only, 5 experiments (freeze 2/4/6/8/10) |
 
 
 ---
