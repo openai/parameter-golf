@@ -743,13 +743,12 @@ class Block(nn.Module):
         else:
             self.dtg_gate = None
     def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None, q_delta_fn=None, v_delta_fn=None, x_prev: Tensor | None = None) -> Tensor:
+        mix = self.resid_mix.to(dtype=x.dtype)
+        x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         if self.hyper_k > 0 and x_prev is not None:
-            # Hyper-connection: learned mixture of x, x0, and x_prev
+            # Hyper-connection: add weighted contribution from previous layer output
             w = self.hyper_mix.to(dtype=x.dtype)
-            x_in = w[0] * x + w[1] * x0 + w[2] * x_prev
-        else:
-            mix = self.resid_mix.to(dtype=x.dtype)
-            x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+            x_in = w[0] * x_in + w[2] * x_prev  # blend base mix with x_prev
         n = self.attn_norm(x_in) * self.ln_scale_factor
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
