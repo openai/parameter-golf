@@ -4,6 +4,10 @@
 
 Each step follows **test-first**: write pytest tests → implement until tests pass.
 
+**Prerequisites before starting**:
+- A saved MLX checkpoint must exist for diagnostic probes (S8-S10). If none exists, run `python train_gpt_mlx.py` with `MAX_WALLCLOCK_SECONDS=300 ITERATIONS=5000` to produce one (~5 min).
+- Training data shards at `data/datasets/fineweb10B_sp1024/` (see `data/README.md` for download).
+
 ```
 Phase A: Foundation
   S1 → S2
@@ -32,14 +36,16 @@ Phase E: Integration
 4. Add `results/causal/` to `.gitignore`
 5. Create `scripts/causal/__init__.py`
 
-**Verify**: All imports succeed, `dot -V` exits 0.
+6. Run `uv pip check` to verify no dependency conflicts (causal-learn pulls torch/sklearn)
+
+**Verify**: All imports succeed, `dot -V` exits 0, no dependency conflicts.
 
 ---
 
 ### S2: common.py (C1)
 **Complexity**: Medium | **Deps**: S1
 
-**Prerequisite**: `python -c "import train_gpt_mlx"` must exit 0 in <5s with no MLX warnings. If fails, extract model classes into `scripts/causal/model.py`.
+**Prerequisite**: `python -c "import train_gpt_mlx; print(train_gpt_mlx.GPT)"` must: (1) exit 0, (2) complete in <5s, (3) print the class reference (no FileNotFoundError/ImportError). If fails, extract GPT/Block/CausalSelfAttention/MLP/Rotary classes into `scripts/causal/model.py` (Medium complexity fallback). Note: train_gpt_mlx.py has module-level class definitions (lines 1-1100) and `if __name__ == "__main__":` guard at line 1103 — import should be safe.
 
 **Tests** (`tests/causal/test_common.py`): One test per function — load_submission_json, load_model, compute_bpb, paired_ttest, holm_bonferroni, decision_gate, log_experiment, get_cycle_dir, dag_diff.
 
@@ -59,7 +65,7 @@ Phase E: Integration
 ### S3: extract_interventions.py (C2)
 **Complexity**: Medium | **Deps**: S2
 
-**Tests** (`tests/causal/test_extract.py`): Each parser format with sample README snippets. Field coverage computation. --append-experiment with mock data.
+**Tests** (`tests/causal/test_extract.py`): Each parser format with test fixtures drawn from actual record READMEs (not synthetic). Field coverage computation. --append-experiment with mock data. Unknown format fallback test.
 
 **Implement**:
 1. submission.json pass — 6 core fields from all discovered records
@@ -117,8 +123,8 @@ Phase E: Integration
 **Implement**:
 1. Config loading + validation (env_overrides schema)
 2. Subprocess invocation with SEED env var, timeout = wallclock + 120s
-3. Stdout parsing for `val_bpb:<float>`, stderr capture
-4. Fallback parsing from training log file
+3. Parse LAST occurrence of `val_bpb:<float>` from complete stdout (not just final line), capture stderr
+4. Fallback: parse from training log file at `logs/{run_id}/train.log` if stdout parsing fails
 5. Error handling: crash → partial result with error field; 1/3 fail → reduced_power flag; 2+/3 fail → condition failed
 6. Per-run JSON-lines metrics capture
 7. Checkpoint/log path capture
@@ -194,7 +200,7 @@ Phase E: Integration
 ### S11: gradient_attribution.py (C10)
 **Complexity**: Complex | **Deps**: S1, S2
 
-**Tests** (`tests/causal/test_gradient_attr.py`): LAST occurrence targeting. Sentinel validation on current source. Sentinel fails on modified source. JSON-lines parsing.
+**Tests** (`tests/causal/test_gradient_attr.py`): LAST occurrence targeting. Sentinel validation on current source. Sentinel fails on modified source. **Patched file syntax check**: `ast.parse()` on the instrumented output to verify it's valid Python. JSON-lines parsing.
 
 **Implement**:
 1. Verify sentinel strings exist in current train_gpt_mlx.py
