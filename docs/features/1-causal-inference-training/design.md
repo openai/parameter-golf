@@ -23,7 +23,7 @@
 
 ## Architecture Overview
 
-The system uses a **discovery-adjust cycle** rather than a linear pipeline. Each experiment's results feed back into the DAG, refining causal beliefs and guiding the next intervention. The goal is pragmatic: if an intervention improves validation BPP, integrate it — the causal structure serves as a navigation tool, not a theoretical end.
+The system uses a **discovery-adjust cycle** rather than a linear pipeline. Each experiment's results feed back into the DAG, refining causal beliefs and guiding the next intervention. The goal is pragmatic: if an intervention improves validation BPB, integrate it — the causal structure serves as a navigation tool, not a theoretical end.
 
 ```
                     ┌─────────────────────────────────┐
@@ -89,6 +89,8 @@ Instead of a one-shot "discover → intervene → done" pipeline, the DAG is a l
 This is inspired by CBO with Unknown Causal Graphs (arXiv:2503.19554) — we only need to identify causal parents of BPB, not the full graph. Each cycle adds one data point, progressively disambiguating uncertain edges.
 
 The diagnostic scripts (token loss, quant gap, gradient attribution, influence proxy) run as parallel observability probes at any point in the cycle, providing supporting evidence for intervention selection.
+
+**Spec-design reconciliation**: The spec defines linear phases (1→2→3→4→5). The design maps these as: Cycle 0 = Phase 1 (R1.1-R1.4), Cycles 1-4 = Phase 2 (R2.1-R2.3) with iterative DAG feedback, diagnostics = Phases 3-4 running in parallel alongside any cycle. Phase 5 (submission) is unchanged. The spec's sequential decision gates are preserved within each cycle iteration. This is a refinement of the spec's execution model, not a contradiction — the spec allows engineering fallback and does not prohibit iterating.
 
 ### Design Principles
 
@@ -160,6 +162,7 @@ Utility module providing:
 - `decision_gate(effect_size, p_value, mde=0.002) -> str`: Returns "confirmed"/"suggestive"/"null"
 - `log_experiment(experiment_log_path, entry) -> None`: Append an experiment entry to the master experiment_log.json
 - `get_cycle_dir(base_path, cycle) -> Path`: Returns `results/causal/cycle_{N}/`, creating if needed
+- `dag_diff(old_dag_path, new_dag_path) -> dict`: Compare two causal_dag.json files, return `{"edges_added": ["A -> B"], "edges_removed": [...], "edges_strengthened": [...]}`. Edge format: `"source -> target"`. Used by C3 when `--previous-dag` is provided.
 
 ### C2: extract_interventions.py — Record Parser (R1.1)
 
@@ -172,6 +175,7 @@ Parses `records/track_10min_16mb/*/README.md` and `submission.json` to build a s
    - **Format B** (~8 records): `| | Base ref | This |` comparison tables with rows like `val_bpb | 1.1271 | 1.1248` — compute `delta_bpb` as `this - base` from val_bpb row; extract intervention names from "What's new" / "Changes from" sections
    - **Format C** (~10 records): No table — extract interventions from markdown headings ("### Key Innovations"), bullet lists, and `blurb` field. `delta_bpb` set to `null`.
 3. **Cross-reference pass**: For records with `base_bpb` available (from table or "Previous:" reference), compute total delta. For records without, use `final_bpb` only.
+4. **Experiment append** (cycle 1+): C2 also supports `--append-experiment raw_runs.json` which converts experiment results into the same submission format and appends them to the existing interventions.json. This is the feedback mechanism: experiment results become new "submissions" in the dataset for C3 to re-estimate the DAG. The appended entry includes the experiment's intervention as a single intervention, its BPB as final_bpb, and the control's BPB as base_bpb.
 
 **Output schema** (interventions.json):
 ```json
@@ -248,6 +252,8 @@ Uses subprocess to invoke training scripts — does not import or modify them. S
 ```
 The runner sets each `env_overrides` key as an environment variable before subprocess invocation. Only fields in `env_overrides` differ between treatment and control; all other env vars are inherited from the parent process. Allowed override fields: any Hyperparameters class attribute that reads from `os.environ`.
 
+**Platform note**: For MLX experiments, use root `train_gpt_mlx.py`. For H100 experiments, use root `train_gpt.py`. Both scripts share the same env var interface for core hyperparameters (NUM_LAYERS, MLP_MULT, MODEL_DIM, SEED, MAX_WALLCLOCK_SECONDS). SOTA record scripts in `records/` are NOT used directly — they contain submission-specific code (GPTQ-lite, custom quantizers) that differs from the baseline.
+
 ### C6: statistical_analysis.py — Effect Estimation (R2.2)
 
 Takes raw BPB results from C5. Computes:
@@ -286,7 +292,7 @@ For each shard k:
   influence_k  = dot(flatten(grad_train_k), flatten(grad_val))
 ```
 
-Uses `nn.value_and_grad` API. Operates on a single checkpoint (not summed across checkpoints like full TracIn — one checkpoint is sufficient for ranking, per TracIn paper Section 3.2).
+Uses plain (non-compiled) `nn.value_and_grad` API, which returns gradients only for trainable parameters by default. This means the influence inner product is computed only over trainable parameters (RoPE frequencies, embedding norms, etc. are excluded — desirable since they are not learned). Operates on a single checkpoint (not summed across checkpoints like full TracIn — one checkpoint is sufficient for ranking, per TracIn paper Section 3.2).
 
 **Per-shard batch size**: Sample 4096 tokens (4 sequences of 1024) per shard, not the full ~100M tokens. This gives a representative gradient direction while keeping each forward+backward pass under 1 second on Apple Silicon.
 
@@ -298,7 +304,7 @@ Uses `nn.value_and_grad` API. Operates on a single checkpoint (not summed across
 
 ### C10: gradient_attribution.py — Per-Layer Logging (R4.4)
 
-Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads train_gpt_mlx.py as text, inserts gradient-norm logging code after the `accumulate_flat_grads` call site (line ~1036), writes the result to `train_gpt_mlx_instrumented.py`, and executes it via subprocess. The copy is regenerated each time C10 runs, ensuring it tracks upstream changes. **Sentinel validation**: After patching, C10 asserts that the string `accumulate_flat_grads` appears within ±5 lines of the inserted code; if not found, aborts with an error indicating the patch site has drifted. The original script is never modified. The patched copy adds logging at each validation checkpoint:
+Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads train_gpt_mlx.py as text, inserts gradient-norm logging code after the `accumulate_flat_grads` call site (line ~1036), writes the result to `train_gpt_mlx_instrumented.py`, and executes it via subprocess. The copy is regenerated each time C10 runs, ensuring it tracks upstream changes. **Patch targeting**: C10 targets the LAST occurrence of `accumulate_flat_grads` in the file (the main training loop call at line ~1036, not the function definition or warmup loop calls). **Sentinel validation**: After patching, C10 asserts that the surrounding context includes `grad_scale` (which only appears in the main loop), confirming the correct call site was patched. If validation fails, aborts with an error indicating the patch site has drifted. The original script is never modified. The patched copy adds logging at each validation checkpoint:
 1. After `loss_and_grad_chunked` returns `(loss, grads)`, iterate flat grad dict
 2. Compute L2 norm per named parameter group (attention, MLP, embedding, skip weights)
 3. Log to JSON-lines file: `{step, elapsed_ms, val_loss, layer_norms: {name: norm}}`
@@ -339,7 +345,7 @@ Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads 
 
 ### TD-8: Discovery-Adjust Cycle over Linear Pipeline
 **Choice**: Iterative DAG refinement with experiment feedback loop
-**Rationale**: A one-shot DAG from 20 observational records is unreliable (high degeneracy risk). Each experiment we run adds a controlled data point that disambiguates uncertain edges. CBO with Unknown Graphs (arXiv:2503.19554) shows that jointly optimizing and discovering is more efficient than discovering-then-optimizing. We only need to identify the causal parents of BPP (5-7 variables), not the full graph.
+**Rationale**: A one-shot DAG from 20 observational records is unreliable (high degeneracy risk). Each experiment we run adds a controlled data point that disambiguates uncertain edges. CBO with Unknown Graphs (arXiv:2503.19554) shows that jointly optimizing and discovering is more efficient than discovering-then-optimizing. We only need to identify the causal parents of BPB (5-7 variables), not the full graph.
 **Cycle protocol**: (1) Estimate DAG, (2) Select intervention with highest expected BPB improvement among uncertain edges, (3) Run 3-seed experiment, (4) Update DAG with new data point, (5) Repeat until confirmed effect or time gate. Maximum 4 cycles (matching the 2-day decision gate per phase).
 **Trade-off**: More complex than linear phases. Mitigated by the experiment_log.json that tracks all cycles and the versioned DAG outputs.
 
@@ -420,15 +426,14 @@ Output Schema:
 
 ```
 Input:  results/causal/interventions.json
-Output: results/causal/causal_dag.json, results/causal/dag.png
+Output: results/causal/cycle_N/causal_dag.json, results/causal/cycle_N/dag.png
 
 CLI:
   python scripts/causal/estimate_dag.py \
     --input results/causal/interventions.json \
-    --output results/causal/causal_dag.json \
-    --viz results/causal/dag.png \
-    [--method fci|pc|notears]  \  # Default: fci
-    [--alpha 0.05]                # Significance threshold
+    --output-dir results/causal/cycle_0/ \
+    [--previous-dag results/causal/cycle_N-1/causal_dag.json]  \  # For cycle 1+: computes edge diff
+    [--alpha 0.01]                # Significance threshold (conservative for n<30)
 
 Output Schema (causal_dag.json — versioned per cycle):
 {
@@ -716,14 +721,23 @@ scripts/causal/
 └── README.md                   # Usage guide with per-script examples
 
 results/causal/                 # Created by scripts, gitignored
-├── interventions.json
-├── causal_dag.json
-├── dag.png
-├── identifiability_report.json
-├── raw_runs.json
-├── ablation_results.json
-├── token_analysis.json
-├── quant_report.json
-├── influence_scores.json
-└── gradient_attribution.json
+├── experiment_log.json         # Master log spanning all cycles
+├── interventions.json          # Grows: initial records + experiment results appended
+├── cycle_0/                    # Initial discovery from leaderboard records
+│   ├── causal_dag.json
+│   ├── dag.png
+│   └── identifiability_report.json
+├── cycle_1/                    # After first experiment
+│   ├── causal_dag.json         # Re-estimated with n+1 data points
+│   ├── dag.png
+│   ├── raw_runs.json
+│   └── ablation_results.json
+├── cycle_N/                    # ...
+├── diagnostics/                # Probes (run at any point, not cycle-specific)
+│   ├── token_analysis.json
+│   ├── quant_report.json
+│   ├── influence_scores.json
+│   └── gradient_attribution.json
+└── submission/                 # Final submission artifacts
+    └── ...
 ```
