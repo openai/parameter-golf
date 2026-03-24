@@ -1,0 +1,9 @@
+{
+  "name": "LeakyReLU(0.5)² + Per-Document LoRA TTT",
+  "val_loss": 0.9443,
+  "bytes_total": 15430887,
+  "blurb": "11L U-Net (512dim, 27M params) with LeakyReLU(0.5)² activation, per-document LoRA TTT (rank-8, 3 epochs, chunk-256), SmearGate, BigramHash, depth-scaled residuals, SWA, Muon with WD, int8+zstd-22 quantization. Mean 0.9443 BPB across 3 seeds.",
+  "author": "robinojw",
+  "github_id": "robinojw",
+  "date": "2026-03-23"
+}
