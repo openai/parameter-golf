@@ -108,10 +108,51 @@
 
 ---
 
-## Priority Order
+## NEW from research (March 24)
+
+### 11. Multi-Pass Score-First TTT
+**Status: NEEDS INVESTIGATION**
+- PR #573 uses 3 independent adaptation trajectories with shifted data orderings
+- For each token, take min(NLL) across passes — best-of-3 scoring
+- Claims 1.0523 BPB (need to verify legality)
+- Expected: significant gain if legal
+- Risk: 3x eval time — would need stride increase to compensate
+
+### 12. Full GPTQ (not lite)
+**Status: NEEDS TESTING**
+- PR #593 claims full GPTQ improves post-quant BPB by 0.0048 vs GPTQ-lite
+- We already use GPTQ but need to verify it's the full Hessian version with Cholesky error compensation
+- Check: does our GPTQ_ENABLED=1 do full Cholesky or simplified?
+
+### 13. EMA Decay Tuning
+**Status: NEEDS TESTING**
+- Our 14L model is deeper than typical 11L — may need different EMA dynamics
+- Test: EMA(0.995), EMA(0.9975), EMA(0.9985) vs current EMA(0.997)
+- Quick eval-only A/B if we save pre-EMA checkpoints
+
+### 14. Weight Sharing (Recursive Depth)
+**Status: HIGH RISK, INVESTIGATE LATER**
+- PR #579: 6 unique blocks × 2 loops = 12 effective depth, wider MLP
+- GPTQ catastrophically fails at 3+ loops — only 2 loops viable
+- Would require major architecture rework
+- Potential: large gain but untested at our scale
+
+### 15. Cosine-Annealed TTT LR
+**Status: EASY TO TEST**
+- PR #581, #589: cosine LR during TTT (not flat) improves by 0.003+
+- We use flat lr=0.002 — easy to add cosine decay across batches
+- Can test with saved model (eval-only mode)
+
+---
+
+## Priority Order (Updated)
 1. **VRL** (running) — architecture change, proven in #569
 2. **QAT-export alignment** — low effort, directly attacks quant gap
-3. **Early QAT threshold 0.5** — proven in multiple PRs
-4. **Soft-round QAT** — novel, higher effort but targets quant gap
-5. **Int5 + wider MLP** — risky but could unlock more capacity
-6. **Pruning 2% post-GPTQ** — easy test, helps compression
+3. **Cosine-annealed TTT LR** — easy eval-only test, proven in #581/#589
+4. **Early QAT threshold 0.5** — proven in multiple PRs
+5. **Soft-round QAT** — novel, higher effort but targets quant gap
+6. **Full GPTQ verification** — make sure we're doing full Hessian, not lite
+7. **Int5 + wider MLP** — risky but could unlock more capacity
+8. **Multi-pass TTT** — need to verify legality and time budget
+9. **EMA decay tuning** — quick eval-only if checkpoints available
+10. **Pruning 2% post-GPTQ** — easy test, helps compression
