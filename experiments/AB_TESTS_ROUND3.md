@@ -373,3 +373,36 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 
 **R1 (Hessian-weighted per-layer bit allocation)** is the single highest-impact change for our specific case. Our 14L model is uniquely punished by uniform int6 quantization because error compounds over 27% more layers than competing 11L models. Giving sensitive layers int8 and insensitive layers int5 (same average bits) could recover 0.003-0.007 BPB — more than any architecture change we've tested.
 
+---
+
+## Sources & References
+
+### Quantization
+- **HAWQ-V3** (Hessian-aware per-layer bit allocation): https://assets.amazon.science/a5/a5/bc16183e477aabdb282bfbeea260/hawq-v3-dyadic-neural-network-quantization.pdf
+- **FlexQ** (INT6 with flexible group sizes): https://arxiv.org/abs/2508.04405
+- **EPTQ** (Hessian-guided block reconstruction): https://arxiv.org/abs/2309.11531, code: https://github.com/ssi-research/eptq-sla
+- **APTQ** (Attention-aware mixed precision): https://arxiv.org/abs/2402.14866
+- **MLWQ** (Multi-level weight quantization for SLMs): https://aclanthology.org/2025.emnlp-main.408
+- **SmoothQuant** (Activation smoothing before quant): https://arxiv.org/abs/2211.10438
+- **Soft-Round QAT** (PR #589 in parameter-golf): temperature-controlled smooth rounding surrogate
+
+### Architecture
+- **VRL / ResFormer** (Value Residual Learning): https://arxiv.org/abs/2410.17897
+- **Differential Attention**: https://proceedings.iclr.cc/paper/2025/hash/00b67df24009747e8bbed4c2c6f9c825-Abstract-Conference.html
+- **Gated Attention**: https://arxiv.org/abs/2505.06708
+- **PolyGLU** (State-conditional activation routing): https://arxiv.org/abs/2603.13347
+- **Autoregressive U-Net** (gated skip connections): https://arxiv.org/abs/2506.14761
+- **Depth-Width Tradeoff**: https://arxiv.org/abs/2503.01805
+
+### Training & Optimization
+- **EMA dynamics in deep learning**: https://arxiv.org/abs/2411.18704
+- **Muon optimizer**: https://github.com/KellerJordan/Muon, https://docs.pytorch.org/docs/stable/generated/torch.optim.Muon.html
+- **Compute-optimal scaling** (OptiBERT): https://aclanthology.org/2025.emnlp-main.1804
+
+### Competition PRs (verified clean)
+- **PR #569** (1.1175, VRL + GPTQ, no TTT): VRL + LeakyReLU² + Full GPTQ + QAT-export alignment
+- **PR #545** (1.1179, int5 GPTQ): 33.6M params, int5 per-row GPTQ, Early QAT 0.5
+- **PR #589** (1.1178, Soft-Round QAT): Late Soft-Round QAT + Backward-Looking TTT
+- **PR #505** (1.1181, SwiGLU + VE128): SwiGLU + VE128 + no TTT
+- **PR #414** (1.1233, EMA + GPTQ-lite): EMA + GPTQ-lite + QAT@0.15
+
