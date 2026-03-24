@@ -152,7 +152,11 @@
 | T10 EMA=0.999 | — | 1.1188 | +0.0089 | Much worse — too slow for 5700 steps |
 | T11 warmdown=4000 | — | 1.1096 | -0.0003 | Marginal — not significant |
 | T12 warmdown=3000 | — | 1.1099 | 0.0000 | Same as baseline — 3500 is fine |
-| WD fine sweep | running | — | — | Testing 0.05/0.06/0.065/0.075/0.08 |
+| **WD=0.05** | — | **1.1058** | **-0.0041** | **🏆🏆 NEW BEST! Lower WD keeps winning** |
+| WD=0.06 | — | 1.1065 | -0.0034 | |
+| WD=0.065 | — | 1.1072 | -0.0027 | |
+| WD=0.075 | — | 1.1080 | -0.0019 | |
+| WD=0.08 | — | pending | — | |
 
 
 ---
