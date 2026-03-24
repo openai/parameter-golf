@@ -1,0 +1,24 @@
+{
+  "author": "Dean Barr (DSConsult LLC)",
+  "github_id": "deanbrr",
+  "name": "5-gram Eval Cache + LeakyReLU squared + Parallel Muon",
+  "blurb": "Record: 5-gram eval cache with confidence-gated log-sum-exp mixing. Strictly backward-looking. Zero GPU cost, safety-gated.",
+  "date": "2026-03-24T18:00:00Z",
+  "val_loss": 1.8433,
+  "val_bpb": 1.092,
+  "bytes_total": 15934276,
+  "bytes_code": 90380,
+  "seeds": {
+    "1337": {
+      "val_bpb": 1.0916
+    },
+    "42": {
+      "val_bpb": 1.0928
+    },
+    "2024": {
+      "val_bpb": 1.0917
+    }
+  },
+  "mean_val_bpb": 1.092,
+  "std_val_bpb": 0.0007
+}
