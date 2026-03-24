@@ -87,6 +87,18 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
+
+def env_flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "y", "on"}:
+        return True
+    if value in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean-like value, got {raw!r}")
+
 # SOPHONIC: Configuration
 @dataclass
 class SophonicConfig:
@@ -242,6 +254,7 @@ def eval_val(
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
     if local_batch_tokens < args.train_seq_len:
         raise ValueError(
@@ -266,7 +279,7 @@ def eval_val(
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            with torch.autocast(device_type="cuda", dtype=amp_dtype, enabled=True):
                 batch_loss = model(x, y).detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
@@ -1023,7 +1036,6 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -1047,16 +1059,42 @@ def main() -> None:
         dist.init_process_group(backend="nccl", device_id=device)
         dist.barrier()
     master_process = rank == 0
+    device_props = torch.cuda.get_device_properties(device)
+    device_name = device_props.name
+    device_total_gib = device_props.total_memory / float(1024**3)
+    is_t4 = "t4" in device_name.lower()
+    low_vram_gpu = device_total_gib <= 16.5
+    auto_t4_safe_defaults = env_flag("AUTO_T4_SAFE_DEFAULTS", True)
+    use_torch_compile = env_flag("TORCH_COMPILE", not is_t4)
+    compile_muon_backend = env_flag("COMPILE_MUON_BACKEND", use_torch_compile)
+    amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+
+    if compile_muon_backend:
+        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # Fast math knobs
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
 
-    enable_cudnn_sdp(False)
-    enable_flash_sdp(True)
-    enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    flash_sdp = env_flag("FLASH_SDP", not is_t4)
+    mem_efficient_sdp = env_flag("MEM_EFFICIENT_SDP", False)
+    cudnn_sdp = env_flag("CUDNN_SDP", False)
+    math_sdp = env_flag("MATH_SDP", is_t4)
+    if not (flash_sdp or mem_efficient_sdp or cudnn_sdp or math_sdp):
+        math_sdp = True
+
+    enable_cudnn_sdp(cudnn_sdp)
+    enable_flash_sdp(flash_sdp)
+    enable_mem_efficient_sdp(mem_efficient_sdp)
+    enable_math_sdp(math_sdp)
+
+    sdp_status = {
+        "cudnn": bool(getattr(torch.backends.cuda, "cudnn_sdp_enabled", lambda: cudnn_sdp)()),
+        "flash": bool(getattr(torch.backends.cuda, "flash_sdp_enabled", lambda: flash_sdp)()),
+        "mem_efficient": bool(getattr(torch.backends.cuda, "mem_efficient_sdp_enabled", lambda: mem_efficient_sdp)()),
+        "math": bool(getattr(torch.backends.cuda, "math_sdp_enabled", lambda: math_sdp)()),
+    }
 
     logfile = None
     if master_process:
@@ -1082,6 +1120,36 @@ def main() -> None:
         console=False,
     )
     log0("=" * 100, console=False)
+
+    if auto_t4_safe_defaults and low_vram_gpu and args.train_batch_tokens > 262_144:
+        if "TRAIN_BATCH_TOKENS" in os.environ:
+            log0(
+                f"warning: TRAIN_BATCH_TOKENS={args.train_batch_tokens} may OOM on low-VRAM GPU {device_name}; "
+                "set TRAIN_BATCH_TOKENS=262144 or 131072"
+            )
+        else:
+            args.train_batch_tokens = 262_144
+            log0(f"auto_tune: low-VRAM GPU {device_name} detected; TRAIN_BATCH_TOKENS capped to {args.train_batch_tokens}")
+
+    batch_divisor = world_size * grad_accum_steps
+    if args.train_batch_tokens % batch_divisor != 0:
+        raise ValueError(
+            "TRAIN_BATCH_TOKENS must be divisible by WORLD_SIZE*GRAD_ACCUM_STEPS; "
+            f"got TRAIN_BATCH_TOKENS={args.train_batch_tokens}, WORLD_SIZE={world_size}, "
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}"
+        )
+    local_train_tokens = args.train_batch_tokens // batch_divisor
+    if local_train_tokens < args.train_seq_len:
+        raise ValueError(
+            "TRAIN_BATCH_TOKENS too small for at least one sequence per microstep; "
+            f"got local_train_tokens={local_train_tokens}, TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    if local_train_tokens % args.train_seq_len != 0:
+        raise ValueError(
+            "Per-rank microstep tokens must be divisible by TRAIN_SEQ_LEN for reshape; "
+            f"got local_train_tokens={local_train_tokens}, TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    local_train_seqs = local_train_tokens // args.train_seq_len
 
     # -----------------------------
     # TOKENIZER + VALIDATION METRIC SETUP
@@ -1125,12 +1193,12 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
-    ).to(device).bfloat16()
+    ).to(device=device, dtype=amp_dtype)
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True) if use_torch_compile else base_model
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
@@ -1184,8 +1252,19 @@ def main() -> None:
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
+    log0(
+        f"gpu:name={device_name} total_mem_gib:{device_total_gib:.2f} "
+        f"bf16_supported:{torch.cuda.is_bf16_supported()} t4_detected:{is_t4}"
+    )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0(
+        "sdp_backends:"
+        f"cudnn={sdp_status['cudnn']} "
+        f"flash={sdp_status['flash']} "
+        f"mem_efficient={sdp_status['mem_efficient']} "
+        f"math={sdp_status['math']}"
+    )
+    log0(f"torch_compile:model={use_torch_compile} muon_backend={compile_muon_backend}")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -1194,6 +1273,7 @@ def main() -> None:
     )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
+        f"local_microstep_tokens:{local_train_tokens} local_microstep_seqs:{local_train_seqs} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
@@ -1234,7 +1314,7 @@ def main() -> None:
                 if distributed:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                with torch.autocast(device_type="cuda", dtype=amp_dtype, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
@@ -1302,7 +1382,7 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            with torch.autocast(device_type="cuda", dtype=amp_dtype, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
