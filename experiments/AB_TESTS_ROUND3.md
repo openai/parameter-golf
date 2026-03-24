@@ -148,6 +148,10 @@
 | **T5 WD=0.07** | **1.1098** | **1.1075** | **-0.0024** | **🏆 NEW BEST! WD=0.09 was too aggressive for 14L near Dcrit** |
 | T6 WD=0.11 | 1.1165 | 1.1124 | +0.0025 | Worse — confirms WD=0.09 was already near limit |
 | T8 BigDim=96 | 1.1128 | 1.1097 | -0.0002 | Marginal — need to verify artifact fits 16MB |
+| T9 EMA=0.995 | — | 1.1104 | +0.0005 | Slightly worse — 0.997 is near-optimal |
+| T10 EMA=0.999 | — | 1.1188 | +0.0089 | Much worse — too slow for 5700 steps |
+| T11 warmdown=4000 | pending | — | — | Running |
+| T12 warmdown=3000 | pending | — | — | Queued |
 
 
 ---
