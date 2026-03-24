@@ -97,7 +97,7 @@ class Hyperparameters:
     fisher_val_seqs = int(os.environ.get("FISHER_VAL_SEQS", 50))
 
     # --- FEATURE 3: TTT config ---
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 10))
     ttt_lr = float(os.environ.get("TTT_LR", 0.01))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_stride = int(os.environ.get("TTT_STRIDE", 64))
@@ -116,6 +116,8 @@ class Hyperparameters:
 # -----------------------------
 INT6_QUANT_RANGE = 31
 INT6_CLIP_PERCENTILE_Q = 0.9999984
+SOFT_ROUND_ENABLED = False  # Set to True in last 2% of training
+SOFT_ROUND_TAU = 1.0  # Temperature: 1.0 = soft, approaches 0 = hard round
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -521,13 +523,24 @@ class CastedLinear(nn.Linear):
         bias = self.bias.to(x.dtype) if self.bias is not None else None
 
         if self.training and w.ndim == 2:
+            w32 = w.float()
             with torch.no_grad():
-                w32 = w.float()
                 clip_abs = torch.quantile(w32.abs(), INT6_CLIP_PERCENTILE_Q, dim=1).clamp_min(1e-8)
                 scale = clip_abs / INT6_QUANT_RANGE
                 w_clipped = torch.clamp(w32, -clip_abs[:, None], clip_abs[:, None])
-                w_q = (torch.round(w_clipped / scale[:, None]) * scale[:, None]).to(x.dtype)
-            w = w + (w_q - w).detach()
+
+            if SOFT_ROUND_ENABLED:
+                # Soft-round: differentiable approximation to round()
+                # Gradient flows through sin(), encouraging weights toward grid points
+                w_scaled = w_clipped / scale[:, None]
+                tau = SOFT_ROUND_TAU
+                w_sr = w_scaled + tau / (2 * math.pi) * torch.sin(2 * math.pi * w_scaled / tau)
+                w_q = (w_sr * scale[:, None]).to(x.dtype)
+                w = w + (w_q - w32.to(x.dtype))  # Gradient flows through soft-round
+            else:
+                with torch.no_grad():
+                    w_q = (torch.round(w_clipped / scale[:, None]) * scale[:, None]).to(x.dtype)
+                w = w + (w_q - w).detach()  # STE: no gradient through round
 
         return F.linear(x, w.to(x.dtype), bias)
 
@@ -1564,6 +1577,22 @@ def main() -> None:
             torch.cuda.synchronize()
             speed_measure_t0 = time.perf_counter()
 
+        # Soft-Round QAT: enable in last 2% of training
+        global SOFT_ROUND_ENABLED, SOFT_ROUND_TAU
+        soft_round_start = int(args.iterations * 0.98)
+        if step >= soft_round_start and not SOFT_ROUND_ENABLED:
+            SOFT_ROUND_ENABLED = True
+            SOFT_ROUND_TAU = 1.0
+            # Must increase cache limit AND reset to allow recompilation with new forward path
+            torch._dynamo.config.cache_size_limit = 64
+            torch._dynamo.reset()
+            if master_process:
+                log0(f"soft_round: enabled at step {step}/{args.iterations}")
+        if SOFT_ROUND_ENABLED:
+            # Anneal temperature: 1.0 → 0.1 over the last 2%
+            progress = (step - soft_round_start) / max(args.iterations - soft_round_start, 1)
+            SOFT_ROUND_TAU = 1.0 - 0.9 * progress  # 1.0 → 0.1
+
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
@@ -1737,7 +1766,7 @@ def main() -> None:
         base_bytes_lut=base_bytes_lut,
         has_leading_space_lut=has_leading_space_lut,
         is_boundary_token_lut=is_boundary_token_lut,
-        lora_rank=int(os.environ.get("LORA_RANK", "8")),
+        lora_rank=int(os.environ.get("LORA_RANK", "1")),
         ttt_epochs=args.ttt_epochs,
         ttt_lr=args.ttt_lr,
         chunk_size=256,
