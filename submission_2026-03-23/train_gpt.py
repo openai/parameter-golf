@@ -731,27 +731,22 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
-        # Hyper-connections: mix k previous hidden states instead of just x + x0
+        # Hyper-connections: extend resid_mix to also mix with x_prev (previous layer output)
         self.hyper_k = hyper_k
         if hyper_k > 0:
-            self.hyper_logits = nn.Parameter(torch.zeros(hyper_k + 1, dtype=torch.float32))
-            # Initialize to favor the most recent state
-            with torch.no_grad():
-                self.hyper_logits[0] = 2.0  # current x gets highest weight
+            # Extend residual to mix 3 states: x, x0, x_prev
+            self.hyper_mix = nn.Parameter(torch.tensor([1.0, 0.0, 0.3], dtype=torch.float32))
         if dtg:
             self.dtg_gate = nn.Linear(dim, 1, bias=True)
             nn.init.zeros_(self.dtg_gate.weight)
             nn.init.constant_(self.dtg_gate.bias, 2.0)
         else:
             self.dtg_gate = None
-    def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None, q_delta_fn=None, v_delta_fn=None, history: list | None = None) -> Tensor:
-        if self.hyper_k > 0 and history is not None and len(history) >= 1:
-            # Hyper-connection: learned mixture of recent hidden states
-            states = [x] + history[:self.hyper_k]
-            while len(states) < self.hyper_k + 1:
-                states.append(x0)  # pad with x0 if not enough history
-            weights = F.softmax(self.hyper_logits[:len(states)].to(dtype=x.dtype), dim=0)
-            x_in = sum(w * s for w, s in zip(weights, states))
+    def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None, q_delta_fn=None, v_delta_fn=None, x_prev: Tensor | None = None) -> Tensor:
+        if self.hyper_k > 0 and x_prev is not None:
+            # Hyper-connection: learned mixture of x, x0, and x_prev
+            w = self.hyper_mix.to(dtype=x.dtype)
+            x_in = w[0] * x + w[1] * x0 + w[2] * x_prev
         else:
             mix = self.resid_mix.to(dtype=x.dtype)
             x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
@@ -887,14 +882,14 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         ve_cache: dict = {}
-        history: list[Tensor] = [x0]  # rolling buffer for hyper-connections
+        x_prev = x0  # for hyper-connections
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd, history=history if self.hyper_k > 0 else None)
-            if self.hyper_k > 0:
-                history = [x] + history[:self.hyper_k]
+            x_old = x
+            x = self.blocks[i](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd, x_prev=x_prev if self.hyper_k > 0 else None)
+            x_prev = x_old
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -903,9 +898,9 @@ class GPT(nn.Module):
             ve = self._get_ve(bi, input_ids, ve_cache)
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd, history=history if self.hyper_k > 0 else None)
-            if self.hyper_k > 0:
-                history = [x] + history[:self.hyper_k]
+            x_old = x
+            x = self.blocks[bi](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd, x_prev=x_prev if self.hyper_k > 0 else None)
+            x_prev = x_old
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -948,21 +943,21 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         ve_cache: dict = {}
-        history: list[Tensor] = [x0]
+        x_prev = x0
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve, history=history if self.hyper_k > 0 else None)
-            if self.hyper_k > 0:
-                history = [x] + history[:self.hyper_k]
+            x_old = x
+            x = self.blocks[i](x, x0, v_embed=ve, x_prev=x_prev if self.hyper_k > 0 else None)
+            x_prev = x_old
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve, history=history if self.hyper_k > 0 else None)
-            if self.hyper_k > 0:
-                history = [x] + history[:self.hyper_k]
+            x_old = x
+            x = self.blocks[bi](x, x0, v_embed=ve, x_prev=x_prev if self.hyper_k > 0 else None)
+            x_prev = x_old
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
