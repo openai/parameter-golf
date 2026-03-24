@@ -21,17 +21,6 @@
 #
 set -euo pipefail
 
-# ── FA3 PYTHONPATH (if not already set by setup_pod_micro_crawler.sh) ──
-if ! python3 -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; then
-    if [ -d "flash-attention/hopper" ]; then
-        export PYTHONPATH="$(pwd)/flash-attention/hopper:${PYTHONPATH:-}"
-        echo "Set PYTHONPATH for FA3: $PYTHONPATH"
-    else
-        echo "ERROR: flash_attn_interface not found. Run setup_pod_micro_crawler.sh first."
-        exit 1
-    fi
-fi
-
 # ── Architecture: Micro Crawler 4f+2cx2 (balanced) ──
 export NUM_FLAT_LAYERS=4
 export NUM_CRAWLER_LAYERS=2
