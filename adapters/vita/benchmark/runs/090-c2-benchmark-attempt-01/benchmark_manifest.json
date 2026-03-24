@@ -32,7 +32,11 @@
     }
   },
   "benchmark_execution": {
-    "hardware": "TBD",
+    "hardware": "RunPod/H100-template-primary",
+    "primary_paths": {
+      "sanity": "local-smoke",
+      "first_real_candidate": "target-gpu-template"
+    },
     "pipeline_executed": false,
     "training_executed": false,
     "evaluation_executed": false,

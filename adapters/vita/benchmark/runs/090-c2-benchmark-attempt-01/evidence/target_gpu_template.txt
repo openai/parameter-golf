@@ -1,0 +1,33 @@
+# ==========================================================
+# TARGET-GPU BENCHMARK TEMPLATE (NON-CLAIMING UNTIL EXECUTED)
+# ==========================================================
+# 1) Prepare benchmark environment
+cd /workspace
+# git clone https://github.com/<your-fork>/parameter-golf.git
+cd parameter-golf
+
+# 2) Download challenge dataset/tokenizer cache (example)
+python3 data/cached_challenge_fineweb.py --variant sp1024
+
+# 3) Run benchmark training path (example baseline-style command)
+# NOTE: Replace with your adapted candidate command once mapping is implemented.
+RUN_ID=vita_benchmark_attempt \
+MAX_WALLCLOCK_SECONDS=600 \
+VAL_LOSS_EVERY=200 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py | tee train.log
+
+# 4) Capture exact final metric lines
+# grep final_int8_zlib_roundtrip_exact train.log
+
+# 5) Capture artifact-size accounting from produced artifacts
+# (e.g., final model artifact bytes + code bytes)
+
+# 6) Copy evidence files into run scaffold
+# evidence/train.log
+# evidence/eval.log (or metric-extracted log)
+# evidence/submission.json
+# evidence/artifact_sizes.json
+# evidence/environment.json
+
+# 7) Only after all evidence + checks: evaluate claim eligibility.
+# ==========================================================
