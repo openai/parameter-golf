@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-24",
+  "name": "5-expert Hedge Mixer + TTT",
+  "author": "notapplica",
+  "seed_results": {
+    "1337": "TBD",
+    "42": "TBD",
+    "7": "TBD"
+  },
+  "mean_val_loss": "TBD",
+  "mean_val_bpb": "TBD",
+  "p_value": "TBD",
+  "artifact_bytes": 15993802,
+  "code_bytes": 109000
+}
