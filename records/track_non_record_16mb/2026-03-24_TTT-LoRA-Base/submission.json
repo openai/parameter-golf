@@ -1,0 +1,11 @@
+{
+  "author": "HumanAI Convention",
+  "github_id": "humanaiconvention",
+  "name": "TTT-LoRA Base (SmearGate + OrthoInit + SWA + int6)",
+  "blurb": "Introduces per-document Test-Time Training via rank-128 LoRA adapters updated with Adam during evaluation. Base submission with TTT disabled pending LR calibration. Architecture adds SmearGate residual mixing, orthogonal initialisation, bigram hash embeddings, GQA, and SWA over the final 5065 steps. Quantised to int6+zstd22.",
+  "date": "2026-03-24T05:17:00Z",
+  "val_loss": 2.08757157,
+  "val_bpb": 1.23637747,
+  "bytes_total": 15669326,
+  "bytes_code": 80186
+}
