@@ -1147,14 +1147,19 @@ def eval_val_sliding_ttt(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    # LoRA TTT: freeze all base params, attach LoRA to Q+V
-    lora_rank = int(os.environ.get("LORA_RANK", "8"))
+    # LoRA-style TTT: only train Q/V weights in parameter banks
+    # qo_bank shape: [2*L, D, D] — even indices are Q, odd are O
+    # kv_bank shape: [2*L, kv_dim, D] — even indices are K, odd are V
     for p in base_model.parameters():
         p.requires_grad_(False)
-    ttt_params = _attach_lora(base_model, rank=lora_rank)
-    n_lora = sum(p.numel() for p in ttt_params)
 
-    log0(f"ttt_sliding:lora rank={lora_rank} params={n_lora} "
+    # Enable grad only for Q (even rows of qo_bank) and V (odd rows of kv_bank)
+    base_model.qo_bank.requires_grad_(True)
+    base_model.kv_bank.requires_grad_(True)
+    ttt_params = [base_model.qo_bank, base_model.kv_bank]
+    n_ttt = sum(p.numel() for p in ttt_params)
+
+    log0(f"ttt_sliding:params qo_bank+kv_bank={n_ttt} "
          f"frozen={sum(p.numel() for p in base_model.parameters() if not p.requires_grad)}")
 
     optimizer = torch.optim.Adam(ttt_params, lr=args.ttt_lr)
@@ -1252,8 +1257,7 @@ def eval_val_sliding_ttt(
     val_loss = (loss_sum / token_count).item()
     val_bpb = val_loss / math.log(2.0) * (token_count.item() / byte_count.item())
 
-    # Cleanup LoRA
-    _detach_lora(base_model)
+    # Cleanup
     for p in base_model.parameters():
         p.requires_grad_(True)
     base_model.eval()
