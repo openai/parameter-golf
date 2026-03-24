@@ -1,6 +1,6 @@
 # QAT Int4 → 16 Layers
 
-**Expected val_bpb: ~1.150–1.165** (pending run results)
+**Expected val_bpb: ~1.13–1.14** 
 
 ## Key Insight
 
