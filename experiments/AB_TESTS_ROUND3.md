@@ -1,6 +1,13 @@
 # A/B Tests Round 3 — Post-1.1130 Optimization
 
 > **IMPORTANT:** Before implementing anything from this document, use Nia to validate the claims, read the actual papers, and verify the techniques apply to our specific setup (14L, 512d, GQA 8/4, int6 GPTQ, 16MB budget, 10min train + 10min eval). Many techniques that sound good in papers fail at our scale or constraints. Cross-reference with the sources listed below. Also use Nia to search for NEW techniques not listed here that could be helpful — this document is a snapshot, not exhaustive. The competition and research landscape evolve daily.
+>
+> **MAINTENANCE:** This document MUST be updated:
+> - **Before** each A/B test: add the experiment with status, hypothesis, expected gain
+> - **After** each A/B test: record the result, update the completed results table
+> - **When new research is found**: add it to the appropriate section with sources
+> - **When priorities change**: reorder the priority list based on new evidence
+> Keep this as the single source of truth for all optimization work.
 
 ## Current Best
 
