@@ -134,10 +134,17 @@ Append-only log of all experimental runs across all cycles:
       "edges_removed": [str],
       "edges_strengthened": [str]
     },
+    "cycle_status": str,            # continue|stop_confirmed|stop_null_streak|stop_time_gate
     "timestamp": str,
     "notes": str                   # Researcher notes / rationale
   }]
 }
+
+**cycle_status values**:
+- `continue`: Effect not yet confirmed, more cycles warranted
+- `stop_confirmed`: Effect ≥ MDE with p < 0.01 — integrate into submission
+- `stop_null_streak`: 3 consecutive null results — pivot to engineering fallback
+- `stop_time_gate`: 2-day time budget expired — use best result so far
 ```
 
 ### Per-Run Metrics (written by experiment_runner)
@@ -250,7 +257,15 @@ Uses subprocess to invoke training scripts — does not import or modify them. S
   "description": "11L 3x MLP baseline"
 }
 ```
-The runner sets each `env_overrides` key as an environment variable before subprocess invocation. Only fields in `env_overrides` differ between treatment and control; all other env vars are inherited from the parent process. Allowed override fields: any Hyperparameters class attribute that reads from `os.environ`.
+The runner sets each `env_overrides` key as an environment variable before subprocess invocation. Only fields in `env_overrides` differ between treatment and control; all other env vars are inherited from the parent process.
+
+**Common override keys** (from Hyperparameters class, train_gpt_mlx.py:43-102):
+- Architecture: `NUM_LAYERS`, `MODEL_DIM`, `NUM_HEADS`, `NUM_KV_HEADS`, `MLP_MULT`
+- Training: `ITERATIONS`, `WARMDOWN_ITERS`, `WARMUP_STEPS`, `MUON_MOMENTUM`
+- Learning rates: `MATRIX_LR`, `EMBED_LR`, `HEAD_LR`, `SCALAR_LR`
+- Batching: `TRAIN_BATCH_TOKENS`, `TRAIN_SEQ_LEN`, `GRAD_ACCUM_STEPS`
+- Timing: `MAX_WALLCLOCK_SECONDS` (600 for competition)
+- DO NOT override: `DATA_PATH`, `TOKENIZER_PATH`, `VAL_LOSS_EVERY` (shared across conditions)
 
 **Platform note**: For MLX experiments, use root `train_gpt_mlx.py`. For H100 experiments, use root `train_gpt.py`. Both scripts share the same env var interface for core hyperparameters (NUM_LAYERS, MLP_MULT, MODEL_DIM, SEED, MAX_WALLCLOCK_SECONDS). SOTA record scripts in `records/` are NOT used directly — they contain submission-specific code (GPTQ-lite, custom quantizers) that differs from the baseline.
 
@@ -511,15 +526,17 @@ Output Schema:
 
 ```
 Input:  Treatment config JSON, Control config JSON
-Output: results/causal/raw_runs.json
+Output: results/causal/cycle_N/raw_runs.json (versioned per cycle)
 
 CLI:
   python scripts/causal/experiment_runner.py \
     --treatment treatment_config.json \
     --control control_config.json \
-    --output results/causal/raw_runs.json \
+    --output results/causal/cycle_1/raw_runs.json \
     --seeds 42,137,256 \
     --platform mlx|h100
+
+BPB parsing: The runner captures stdout from the training subprocess and parses the final validation line matching the pattern `val_bpb:<float>` (existing log format in both train_gpt.py and train_gpt_mlx.py). If parsing fails, it falls back to reading the last val_bpb from the training log file.
 
 Output Schema:
 {
