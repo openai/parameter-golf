@@ -150,8 +150,9 @@
 | T8 BigDim=96 | 1.1128 | 1.1097 | -0.0002 | Marginal — need to verify artifact fits 16MB |
 | T9 EMA=0.995 | — | 1.1104 | +0.0005 | Slightly worse — 0.997 is near-optimal |
 | T10 EMA=0.999 | — | 1.1188 | +0.0089 | Much worse — too slow for 5700 steps |
-| T11 warmdown=4000 | pending | — | — | Running |
-| T12 warmdown=3000 | pending | — | — | Queued |
+| T11 warmdown=4000 | — | 1.1096 | -0.0003 | Marginal — not significant |
+| T12 warmdown=3000 | — | 1.1099 | 0.0000 | Same as baseline — 3500 is fine |
+| WD fine sweep | running | — | — | Testing 0.05/0.06/0.065/0.075/0.08 |
 
 
 ---
