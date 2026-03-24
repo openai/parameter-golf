@@ -1,0 +1,18 @@
+{
+  "author": "frido22",
+  "github_id": "frido22",
+  "name": "MLX Late Projection EMA Finalizer on Mac mini M4 16GB",
+  "blurb": "Non-record Apple Silicon submission from a published MLX run package on Mac mini M4 16GB. The verified best eligible run in frido22/low_vram_institute reached final_int8_zlib_roundtrip_exact val_bpb 1.56720003 under the 16MB artifact cap, and is submitted here as hardware-specific non-record evidence rather than an official 8xH100 record attempt.",
+  "date": "2026-03-24T17:30:18Z",
+  "track": "non-record-16mb",
+  "val_loss": 3.53539760,
+  "val_bpb": 1.56720003,
+  "pre_quant_val_loss": 3.5455,
+  "pre_quant_val_bpb": 1.5717,
+  "step_stop": 899,
+  "wallclock_seconds": 602.147632,
+  "bytes_total": 15962372,
+  "bytes_model_int8_zlib": 15888695,
+  "bytes_code": 73677,
+  "gpu": "Mac mini M4 16GB (Apple Silicon, MLX)"
+}
