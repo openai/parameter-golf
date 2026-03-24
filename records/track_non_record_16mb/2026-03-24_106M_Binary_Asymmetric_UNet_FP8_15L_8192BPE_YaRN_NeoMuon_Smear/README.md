@@ -44,21 +44,21 @@ The results document linked here and in my repo showcases all methods and sweeps
 
 ### Architecture
 - **Binary quantisation:** 1 bit/param packs 60% more parameters per MB than ternary (1.6 bits/param), allowing 15 layers vs 10 within similar budget
-- **4x relu² MLP:** same as ternary — relu² strictly dominates relu; 4x width outperforms 3x even with fewer layers at matched budget
+- **4x relu² MLP:* relu² strictly dominates relu; 4x width outperforms 3x even with fewer layers at matched budget
 - **SmearGate:** blends each position with causal cumulative mean; adds 22ms/step overhead but provides -0.007 bpb at scale. Viable here because the run is not wallclock-constrained
 
 ### Training
-- **NeoMuon** with 3 Newton-Schulz steps: same optimizer as ternary, effective for binary STE as well
-- **50,000 steps unconstrained:** binary converges slower than ternary — at 4,000 steps (the 10-minute equivalent) binary lags by 0.025 bpb. Extended training closes the gap and surpasses ternary
-- **524k batch tokens:** same optimal batch size as ternary
+- **NeoMuon** with 3 Newton-Schulz steps optimizer
+- **50,000 steps unconstrained:** binary converges slower than ternary (my other #640, at 4,000 steps (the 10-minute equivalent) binary lags by 0.025 bpb. Extended training closes the gap and surpasses ternary, showcasing with "unlimited compute" the models can be quite powerful.
+- **524k batch tokens:**
 
 ### Evaluation
-- **Temperature scaling (T=0.90):** same auto-calibrated grid as ternary
-- **Sliding window (stride=16):** same evaluation protocol
+- **Temperature scaling (T=0.90):** auto-calibrated grid
+- **Sliding window (stride=16):** evaluation protocol
 
 ### Compression
 - **Bit-packing + LZMA (preset=9):** binary weights pack at exactly 1 bit/param before LZMA entropy coding
-- **FP8 QAT (e4m3):** same as ternary for non-binary parameters. Clean roundtrip — binary has no zero state, so `mean(|Q|)=1.0` always; no shrinkage correction needed
+- **FP8 QAT (e4m3):** for non-binary parameters. Clean roundtrip, binary has no zero state, so `mean(|Q|)=1.0` always; no shrinkage correction needed
 - **No EMA:** despite clean binary roundtrip math, EMA still hurts quality by 0.03 bpb in practice
 
 ## Setup and Run
@@ -159,4 +159,4 @@ OMP_NUM_THREADS=1 torchrun --standalone --nproc_per_node=8 train_gpt_cuda_binary
 - [x] No test-time training on validation data
 - [x] No network calls during evaluation
 - [x] No external compute
-- [ ] Train time <=600s — **non-record submission** (7,763s / 50,000 steps)
+- [x] Train time: **non-record submission** (7,763s/ 2.2h / 50,000 steps)
