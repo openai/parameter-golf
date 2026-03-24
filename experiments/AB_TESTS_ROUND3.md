@@ -144,7 +144,10 @@
 | TTT freeze sweep          | pending    | ~50s ea  | stride=64 recovery| eval-only, 5 experiments (freeze 2/4/6/8/10) |
 | **TTT@s76 + rescore@s64** | **1.1099** | **~642s** | **-0.0031!** | **MASSIVE FIND — TTT adapts weights, rescore at s64 for precise BPP** |
 | T3 Full QAT (QAT_ENABLED=1) | 1.1269 | ~575s | +0.0139 | **TERRIBLE** — full QAT hurts badly, need proper LATE QAT with threshold |
-| T4 Full QAT 0.5 (running) | ~1.15+ est | — | worse | Even more QAT damage expected |
+| T4 Full QAT 0.5 | 1.1265 | — | +0.0145 | TERRIBLE — full QAT hurts |
+| **T5 WD=0.07** | **1.1098** | **1.1075** | **-0.0024** | **🏆 NEW BEST! WD=0.09 was too aggressive for 14L near Dcrit** |
+| T6 WD=0.11 | 1.1165 | 1.1124 | +0.0025 | Worse — confirms WD=0.09 was already near limit |
+| T8 BigDim=96 | 1.1128 | 1.1097 | -0.0002 | Marginal — need to verify artifact fits 16MB |
 
 
 ---
