@@ -304,7 +304,7 @@ Uses plain (non-compiled) `nn.value_and_grad` API, which returns gradients only 
 
 ### C10: gradient_attribution.py — Per-Layer Logging (R4.4)
 
-Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads train_gpt_mlx.py as text, inserts gradient-norm logging code after the `accumulate_flat_grads` call site (line ~1036), writes the result to `train_gpt_mlx_instrumented.py`, and executes it via subprocess. The copy is regenerated each time C10 runs, ensuring it tracks upstream changes. **Patch targeting**: C10 targets the LAST occurrence of `accumulate_flat_grads` in the file (the main training loop call at line ~1036, not the function definition or warmup loop calls). **Sentinel validation**: After patching, C10 asserts that the surrounding context includes `grad_scale` (which only appears in the main loop), confirming the correct call site was patched. If validation fails, aborts with an error indicating the patch site has drifted. The original script is never modified. The patched copy adds logging at each validation checkpoint:
+Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads train_gpt_mlx.py as text, inserts gradient-norm logging code after the `accumulate_flat_grads` call site (line ~1036), writes the result to `train_gpt_mlx_instrumented.py`, and executes it via subprocess. The copy is regenerated each time C10 runs, ensuring it tracks upstream changes. **Patch targeting**: C10 targets the LAST occurrence of `accumulate_flat_grads` in the file (the main training loop call at line ~1036, not the function definition or warmup loop calls). **Sentinel validation**: After patching, C10 asserts that the surrounding context (within ±5 lines) includes BOTH `train_loss = train_loss + loss` (unique to the main loop, not present in warmup) AND `lr_mul` assignment, confirming the correct call site was patched. If validation fails, aborts with an error indicating the patch site has drifted. The original script is never modified. The patched copy adds logging at each validation checkpoint:
 1. After `loss_and_grad_chunked` returns `(loss, grads)`, iterate flat grad dict
 2. Compute L2 norm per named parameter group (attention, MLP, embedding, skip weights)
 3. Log to JSON-lines file: `{step, elapsed_ms, val_loss, layer_norms: {name: norm}}`
@@ -391,10 +391,16 @@ python scripts/causal/<script>.py \
 Input:  records/track_10min_16mb/  (directory)
 Output: results/causal/interventions.json
 
-CLI:
+CLI (initial extraction):
   python scripts/causal/extract_interventions.py \
     --input records/track_10min_16mb/ \
     --output results/causal/interventions.json
+
+CLI (append experiment results for cycle 1+):
+  python scripts/causal/extract_interventions.py \
+    --input records/track_10min_16mb/ \
+    --output results/causal/interventions.json \
+    --append-experiment results/causal/cycle_1/raw_runs.json
 
 Output Schema:
 {
@@ -475,8 +481,14 @@ Output Schema (causal_dag.json — versioned per cycle):
 ### I4: identifiability_check.py
 
 ```
-Input:  results/causal/interventions.json, results/causal/causal_dag.json
-Output: results/causal/identifiability_report.json
+Input:  results/causal/interventions.json, results/causal/cycle_N/causal_dag.json
+Output: results/causal/cycle_N/identifiability_report.json
+
+CLI:
+  python scripts/causal/identifiability_check.py \
+    --interventions results/causal/interventions.json \
+    --dag results/causal/cycle_0/causal_dag.json \
+    --output results/causal/cycle_0/identifiability_report.json
 
 Output Schema:
 {
@@ -568,7 +580,7 @@ CLI:
     --checkpoint <path> \
     --val-data data/datasets/fineweb10B_sp1024/ \
     --tokenizer data/tokenizers/sp_bpe_1024.model \
-    --output results/causal/token_analysis.json
+    --output results/causal/diagnostics/token_analysis.json
 
 Output Schema:
 {
@@ -602,7 +614,7 @@ CLI:
     --checkpoint <path> \
     --val-data data/datasets/fineweb10B_sp1024/ \
     --tokenizer data/tokenizers/sp_bpe_1024.model \
-    --output results/causal/quant_report.json
+    --output results/causal/diagnostics/quant_report.json
 
 Output Schema:
 {
@@ -631,7 +643,7 @@ CLI:
     --checkpoint <path> \
     --train-data data/datasets/fineweb10B_sp1024/ \
     --val-data data/datasets/fineweb10B_sp1024/ \
-    --output results/causal/influence_scores.json \
+    --output results/causal/diagnostics/influence_scores.json \
     [--max-shards 20]           # Limit for faster iteration
 
 Output Schema:
@@ -659,7 +671,7 @@ Output: results/causal/gradient_attribution.json
 CLI:
   python scripts/causal/gradient_attribution.py \
     --script train_gpt_mlx.py \
-    --output results/causal/gradient_attribution.json \
+    --output results/causal/diagnostics/gradient_attribution.json \
     [--val-every 100]           # Log norms every N steps
 
 Output Schema:
