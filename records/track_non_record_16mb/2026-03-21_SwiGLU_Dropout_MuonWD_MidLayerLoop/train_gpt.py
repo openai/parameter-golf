@@ -116,6 +116,8 @@ class Hyperparameters:
     beta2              = float(os.environ.get("BETA2", 0.95))
     adam_eps           = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm     = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    # EMA: Maintain a smoothed shadow copy of weights for validation.
+    ema_decay          = float(os.environ.get("EMA_DECAY", 0.999))
 
     ttt_lora_rank      = int(os.environ.get("TTT_LORA_RANK", 8))
     ttt_lora_lr        = float(os.environ.get("TTT_LORA_LR", 0.01))
@@ -1309,6 +1311,7 @@ def main() -> None:
     # ── Data loader + warmup ─────────────────────────────────────────────────
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    ema = EMA(base_model, args.ema_decay)
 
     def zero_grad_all() -> None:
         for opt in optimizers:
@@ -1344,6 +1347,7 @@ def main() -> None:
             for opt in optimizers:
                 opt.step()
             zero_grad_all()
+            ema.update(base_model)
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
         base_model.load_state_dict(initial_model_state, strict=True)
@@ -1369,11 +1373,13 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            ema.apply(base_model)
             # During training: use fast non-overlapping eval (consistent scale).
             val_loss, val_bpb = eval_val(
                 args, model, rank, world_size, device, grad_accum_steps,
                 val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             )
+            ema.restore(base_model)
             log0(
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
@@ -1413,6 +1419,7 @@ def main() -> None:
         for opt in optimizers:
             opt.step()
         zero_grad_all()
+        ema.update(base_model)
 
         step += 1
         approx_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -1434,9 +1441,12 @@ def main() -> None:
     # ── Serialization + roundtrip validation ────────────────────────────────
 
     if master_process:
+        ema.apply(base_model)
         torch.save(base_model.state_dict(), "final_model.pt")
         log0(f"Serialized model: {os.path.getsize('final_model.pt')} bytes")
+        ema.restore(base_model)
 
+    ema.apply(base_model)
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
     quant_buf  = io.BytesIO()
     torch.save(quant_obj, quant_buf)
@@ -1482,6 +1492,7 @@ def main() -> None:
         base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
     )
     torch.cuda.synchronize()
+    ema.restore(base_model)
     log0(f"final_int8_ttt_lora val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
          f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
 
