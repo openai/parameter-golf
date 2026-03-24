@@ -139,7 +139,7 @@
 | chunked AdamW 1ep        | 1.1175     | 138s     | +0.0049           | Fast but worse           |
 | VRL v3 (exp202)          | 1.1133     | 577s     | +0.0003           | **NEUTRAL** — U-Net skips already carry early info at 14L |
 | no-VRL control           | skipped    | —        | —                 | VRL neutral, no need for control |
-| QEP GPTQ (exp203)        | pending    | ~600s    | est -0.003-0.007  | IMPLEMENTED, queued after A/B round 3 |
+| QEP GPTQ (exp203)        | 1.1075 s76 | 551s     | -0.003 roundtrip  | Quant gap reduced 0.015→0.012! But TTT undoes most of the gain |
 | Late QAT 0.15 (exp204)   | — | 1.1109 s64 | +0.0051 WORSE | QAT hurt — recompilation disrupts training, or clipping too aggressive |
 | TTT freeze sweep          | pending    | ~50s ea  | stride=64 recovery| eval-only, 5 experiments (freeze 2/4/6/8/10) |
 | **TTT@s76 + rescore@s64** | **1.1099** | **~642s** | **-0.0031!** | **MASSIVE FIND — TTT adapts weights, rescore at s64 for precise BPP** |
