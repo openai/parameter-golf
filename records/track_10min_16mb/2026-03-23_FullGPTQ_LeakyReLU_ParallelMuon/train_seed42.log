@@ -1,0 +1,83 @@
+W0324 11:11:35.254000 1135658 torch/distributed/run.py:803] 
+W0324 11:11:35.254000 1135658 torch/distributed/run.py:803] *****************************************
+W0324 11:11:35.254000 1135658 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0324 11:11:35.254000 1135658 torch/distributed/run.py:803] *****************************************
+logs/c14481e5-b3eb-477b-a89d-53845bd81f2d.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26952796
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:9000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/9000 val_loss:6.9281 val_bpb:4.1032 train_time:0ms step_avg:0.01ms
+step:1/9000 train_loss:6.9292 train_time:133ms step_avg:132.59ms
+step:2/9000 train_loss:8.5989 train_time:165ms step_avg:82.69ms
+step:3/9000 train_loss:7.7009 train_time:245ms step_avg:81.77ms
+step:4/9000 train_loss:7.2252 train_time:327ms step_avg:81.85ms
+step:5/9000 train_loss:7.0968 train_time:411ms step_avg:82.14ms
+step:6/9000 train_loss:6.9782 train_time:492ms step_avg:81.92ms
+step:7/9000 train_loss:6.8418 train_time:573ms step_avg:81.81ms
+step:8/9000 train_loss:6.7741 train_time:655ms step_avg:81.82ms
+step:9/9000 train_loss:6.4768 train_time:735ms step_avg:81.72ms
+step:10/9000 train_loss:6.0980 train_time:817ms step_avg:81.72ms
+step:500/9000 train_loss:2.4002 train_time:41377ms step_avg:82.75ms
+step:1000/9000 train_loss:2.2655 train_time:82854ms step_avg:82.85ms
+step:1500/9000 train_loss:2.2074 train_time:124387ms step_avg:82.92ms
+step:2000/9000 train_loss:2.0500 train_time:166006ms step_avg:83.00ms
+step:2500/9000 train_loss:2.1540 train_time:207683ms step_avg:83.07ms
+step:3000/9000 train_loss:2.1441 train_time:249376ms step_avg:83.13ms
+step:3500/9000 train_loss:2.1654 train_time:291096ms step_avg:83.17ms
+step:4000/9000 train_loss:1.9640 train_time:332826ms step_avg:83.21ms
+step:4000/9000 val_loss:2.0546 val_bpb:1.2169 train_time:332875ms step_avg:83.22ms
+step:4500/9000 train_loss:2.1132 train_time:374541ms step_avg:83.23ms
+step:5000/9000 train_loss:2.0945 train_time:416240ms step_avg:83.25ms
+step:5500/9000 train_loss:2.0138 train_time:457961ms step_avg:83.27ms
+step:6000/9000 train_loss:1.9327 train_time:499727ms step_avg:83.29ms
+step:6500/9000 train_loss:2.0757 train_time:541448ms step_avg:83.30ms
+swa:start step:6550
+late_qat:enabled step:6674 scale:0.1499
+step:7000/9000 train_loss:1.7876 train_time:583783ms step_avg:83.40ms
+step:7192/9000 val_loss:1.9180 val_bpb:1.1359 train_time:600074ms step_avg:83.44ms
+stopping_early: wallclock_cap train_time:600074ms step:7192/9000
+peak memory allocated: 21462 MiB reserved: 21990 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9162 val_bpb:1.1349 eval_time:1975ms
+Serialized model: 106027446 bytes
+Code size: 104448 bytes
+gptq:freed training model GPU memory
+gptq:building non-banked model for Hessian collection...
+gptq:calibrating with 256 batches...
+gptq:collected hessians for 68 layers
+Serialized model int6+lzma: 15791188 bytes
+Total submission size int6+lzma: 15895636 bytes
+final_int6_roundtrip val_loss:1.9223 val_bpb:1.1385 eval_time:19934ms
+final_int6_roundtrip_exact val_loss:1.92230969 val_bpb:1.13850008
+final_int6_sliding_window val_loss:1.8825 val_bpb:1.1149 stride:64 eval_time:98447ms
+final_int6_sliding_window_exact val_loss:1.88245275 val_bpb:1.11489750
+final_int8_zlib_roundtrip_exact val_loss:1.88245275 val_bpb:1.11489750

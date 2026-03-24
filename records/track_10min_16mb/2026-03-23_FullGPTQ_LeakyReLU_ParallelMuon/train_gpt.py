@@ -2051,6 +2051,15 @@ def main() -> None:
     # Unbank 3D tensors into individual 2D tensors for quantization
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
+    # Free training model + optimizer GPU memory before GPTQ
+    del export_sd, full_state_dict
+    base_model.cpu()
+    del base_model, compiled_model, model
+    for _o in optimizers:
+        del _o
+    del optimizers
+    torch.cuda.empty_cache()
+    log0(f"gptq:freed training model GPU memory")
     # Full GPTQ: collect Hessians via a temporary non-banked model
     log0(f"gptq:building non-banked model for Hessian collection...")
     hessian_model = _HessianGPT(
@@ -2082,7 +2091,7 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = lzma.compress(quant_raw, preset=6)
+    quant_blob = lzma.compress(quant_raw, preset=9)
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
