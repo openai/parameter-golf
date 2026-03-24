@@ -809,6 +809,9 @@ class GPT(nn.Module):
             for ci, block in enumerate(self.crawler_blocks):
                 ve = self._get_crawler_ve(ci, input_ids, ve_cache)
                 x = block(x, x0, v_embed=ve)
+            # Touch gate params so DDP doesn't complain about unused parameters
+            if self.delib_gate is not None:
+                x = x + 0.0 * self.delib_scale * self.delib_gate(torch.cat([x, x], dim=-1)).mean()
             return x
         # Parallel firings from same input, independent orthogonal positions
         firing_outputs: list[Tensor] = []
