@@ -426,7 +426,9 @@ def eval_val_subset(model, device, val_tokens, base_bytes_lut, has_space_lut, bo
         x = local[:-1].unsqueeze(0)
         y = local[1:].unsqueeze(0)
 
-        with torch.autocast(device_type="cuda", dtype=torch.float16):
+        autocast_device = "cuda" if device.type == "cuda" else "cpu"
+        autocast_dtype = torch.float16 if device.type == "cuda" else torch.bfloat16
+        with torch.autocast(device_type=autocast_device, dtype=autocast_dtype):
             batch_loss = model(x, y)
 
         batch_loss = batch_loss.to(torch.float64)
@@ -587,7 +589,9 @@ def main():
         set_lr(fro_opt, FRO_LR * mult)
         set_lr(adam_opt, ADAM_LR * mult)
 
-        with torch.autocast(device_type="cuda", dtype=torch.float16):
+        autocast_device = "cuda" if device.type == "cuda" else "cpu"
+        autocast_dtype = torch.float16 if device.type == "cuda" else torch.bfloat16
+        with torch.autocast(device_type=autocast_device, dtype=autocast_dtype):
             loss = live_model(x, y)
 
         loss.backward()
@@ -641,7 +645,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
-
-path = "/workspace/parameter-golf/records/track_10min_16mb/2026-03-24_Radial_TokenBranch/train_gpt.py"
-Path(path).write_text(script)
