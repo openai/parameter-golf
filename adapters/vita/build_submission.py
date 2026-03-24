@@ -21,6 +21,12 @@ def fmt(x):
     return str(x)
 
 
+def nearly_equal(a, b, tol: float) -> bool:
+    if a is None or b is None:
+        return a is b
+    return abs(float(a) - float(b)) <= tol
+
+
 def build_results_tsv(rec: dict) -> str:
     m = rec.get('metrics', {})
     sweep = m.get('sweep_accuracy_percent', {}) or {}
@@ -71,6 +77,53 @@ def build_readme(tag: str, repo_id: str, repo_name: str, o1: dict, o2: dict, win
     return '\n'.join(lines)
 
 
+def verify_gate(winner_id: str, metrics: dict):
+    expected_fields = {
+        'expected_winner': ARGS.expected_winner,
+        'expected_max_ratio': ARGS.expected_max_ratio,
+        'expected_acc_at_max': ARGS.expected_acc_at_max,
+        'expected_mean_band': ARGS.expected_mean_band,
+        'expected_confirm_acc': ARGS.expected_confirm_acc,
+    }
+
+    if ARGS.verify_only:
+        missing = [k for k, v in expected_fields.items() if v is None]
+        if missing:
+            raise SystemExit(f'ERROR: --verify-only requires: {", ".join("--" + k.replace("_", "-") for k in missing)}')
+
+    checks = []
+    if ARGS.expected_winner is not None:
+        checks.append((winner_id == ARGS.expected_winner, f'winner expected={ARGS.expected_winner} actual={winner_id}'))
+
+    if ARGS.expected_max_ratio is not None:
+        checks.append((nearly_equal(metrics.get('max_prune_ratio_passing_floor'), ARGS.expected_max_ratio, ARGS.tolerance),
+                       f"max_ratio expected={ARGS.expected_max_ratio} actual={metrics.get('max_prune_ratio_passing_floor')}"))
+
+    if ARGS.expected_acc_at_max is not None:
+        checks.append((nearly_equal(metrics.get('accuracy_at_max_passing_ratio'), ARGS.expected_acc_at_max, ARGS.tolerance),
+                       f"acc_at_max expected={ARGS.expected_acc_at_max} actual={metrics.get('accuracy_at_max_passing_ratio')}"))
+
+    if ARGS.expected_mean_band is not None:
+        checks.append((nearly_equal(metrics.get('mean_accuracy_0_4_to_0_7'), ARGS.expected_mean_band, ARGS.tolerance),
+                       f"mean_band expected={ARGS.expected_mean_band} actual={metrics.get('mean_accuracy_0_4_to_0_7')}"))
+
+    if ARGS.expected_confirm_acc is not None:
+        checks.append((nearly_equal(metrics.get('confirm_accuracy_percent'), ARGS.expected_confirm_acc, ARGS.tolerance),
+                       f"confirm_acc expected={ARGS.expected_confirm_acc} actual={metrics.get('confirm_accuracy_percent')}"))
+
+    failed = [msg for ok, msg in checks if not ok]
+    if failed:
+        print('VERIFY_FAIL')
+        for msg in failed:
+            print(f'- {msg}')
+        raise SystemExit(2)
+
+    if checks:
+        print('VERIFY_OK')
+        for _, msg in checks:
+            print(f'- {msg}')
+
+
 def parse_args():
     p = argparse.ArgumentParser(description='Build VITA submission-shaped package from O1/O2 reports')
     p.add_argument('--o1', type=Path, default=DEFAULT_O1)
@@ -81,6 +134,15 @@ def parse_args():
     p.add_argument('--github-id', default='ever-oli')
     p.add_argument('--floor', type=float, default=74.5)
     p.add_argument('--tag', default=f'vita-{datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")}')
+
+    p.add_argument('--verify-only', action='store_true', help='Only run expectation checks; do not write package files')
+    p.add_argument('--expected-winner', default=None)
+    p.add_argument('--expected-max-ratio', type=float, default=None)
+    p.add_argument('--expected-acc-at-max', type=float, default=None)
+    p.add_argument('--expected-mean-band', type=float, default=None)
+    p.add_argument('--expected-confirm-acc', type=float, default=None)
+    p.add_argument('--tolerance', type=float, default=1e-6)
+
     return p.parse_args()
 
 
@@ -101,6 +163,13 @@ def main():
         raise SystemExit(f'ERROR: winner config {winner_id} not found in o2 configs')
 
     m = winner.get('metrics', {})
+
+    # Optional strict gate: fail hard if expected values drift.
+    verify_gate(winner_id, m)
+
+    if ARGS.verify_only:
+        return
+
     submission = {
         'name': f'VITA-{ARGS.repo_id} Objective-B package ({ARGS.tag})',
         'author': ARGS.author,

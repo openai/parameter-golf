@@ -24,6 +24,46 @@ It only provides a structured packaging layer for your VITA 090 optimization out
 - `results.tsv` (ratio/accuracy sweep for the winner)
 - `leaderboard_row.json` (single-row payload suitable for a table renderer)
 
+## Verification gate (anti-drift)
+
+You can enforce strict expectation checks before publish:
+
+```bash
+python3 adapters/vita/build_submission.py \
+  --verify-only \
+  --expected-winner C2 \
+  --expected-max-ratio 0.7 \
+  --expected-acc-at-max 87.27 \
+  --expected-mean-band 87.3225 \
+  --expected-confirm-acc 87.37
+```
+
+Behavior:
+- exits `0` on full match (`VERIFY_OK`)
+- exits `2` on mismatch (`VERIFY_FAIL`)
+- in `--verify-only` mode, expected fields are required
+
+## Benchmark-run scaffold (explicitly non-claiming)
+
+A separate workstream is provided under:
+- `adapters/vita/benchmark/`
+
+Key files:
+- `BENCHMARK_CHECKLIST.md`
+- `MAPPING_090_C2_TO_BENCHMARK.md`
+- `init_benchmark_run.py`
+
+Initialize a benchmark attempt scaffold:
+
+```bash
+python3 adapters/vita/benchmark/init_benchmark_run.py \
+  --run-tag 090-c2-benchmark-attempt-01 \
+  --source-repo-id 090 \
+  --source-config-id C2
+```
+
+This creates a non-claiming run directory with manifest, claims guard, command placeholders, and expected-output checks.
+
 ## Usage
 
 From repo root:
