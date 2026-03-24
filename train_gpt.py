@@ -93,14 +93,17 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
-    # --- FEATURE 2: TTT config ---
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 10))
+    # --- FEATURE 2: Fisher config ---
+    fisher_val_seqs = int(os.environ.get("FISHER_VAL_SEQS", 50))
+
+    # --- FEATURE 3: TTT config ---
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_lr = float(os.environ.get("TTT_LR", 0.01))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_stride = int(os.environ.get("TTT_STRIDE", 64))
 
     # --- Phase 1: Norm recalibration (post-quantization) ---
-    norm_recal_epochs = int(os.environ.get("NORM_RECAL_EPOCHS", 0))  # 0 = disabled
+    norm_recal_epochs = int(os.environ.get("NORM_RECAL_EPOCHS", 50))
     norm_recal_lr = float(os.environ.get("NORM_RECAL_LR", 0.01))
     norm_recal_seqs = int(os.environ.get("NORM_RECAL_SEQS", 100))
 
@@ -742,6 +745,67 @@ class GPT(nn.Module):
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
+# -----------------------------
+# FEATURE 2: FISHER DIAGONAL COMPUTATION
+# -----------------------------
+
+def compute_fisher_mask(
+    model: nn.Module,
+    val_tokens: Tensor,
+    seq_len: int,
+    num_seqs: int,
+    device: torch.device,
+    rank: int,
+    world_size: int,
+    log_fn,
+) -> dict[str, Tensor]:
+    log_fn("fisher: computing diagonal Fisher over val sequences")
+    model.eval()
+
+    total_seqs = min(num_seqs, (val_tokens.numel() - 1) // seq_len)
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+
+    fisher: dict[str, Tensor] = {}
+    for name, param in model.named_parameters():
+        fisher[name] = torch.zeros_like(param.data, dtype=torch.float32)
+
+    for seq_idx in range(seq_start, seq_end):
+        raw_start = seq_idx * seq_len
+        tokens = val_tokens[raw_start : raw_start + seq_len + 1].to(device=device, dtype=torch.int64)
+        x = tokens[:-1].unsqueeze(0)
+        y = tokens[1:].unsqueeze(0)
+
+        model.zero_grad()
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            loss = model(x, y)
+        loss.backward()
+
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                fisher[name] += param.grad.float().pow(2)
+
+    model.zero_grad()
+
+    if dist.is_available() and dist.is_initialized():
+        for name in fisher:
+            dist.all_reduce(fisher[name], op=dist.ReduceOp.SUM)
+
+    all_fisher_vals = torch.cat([f.flatten() for f in fisher.values()])
+    threshold = float(torch.median(all_fisher_vals).item())
+
+    mask: dict[str, Tensor] = {}
+    for name, f in fisher.items():
+        mask[name] = (f > threshold)
+
+    core_count = sum(int(m.sum().item()) for m in mask.values())
+    total_count = sum(int(m.numel()) for m in mask.values())
+    log_fn(f"fisher: threshold={threshold:.6e} core={core_count}/{total_count} "
+           f"({100.0 * core_count / max(total_count, 1):.1f}%) edge={total_count - core_count}")
+
+    model.train()
+    return mask
+
 
 # -----------------------------
 # FEATURE 2b: NORM RECALIBRATION (Phase 1 of Two-Phase TTT)
@@ -878,6 +942,93 @@ def _reset_lora(lora_params: list[nn.Parameter], rank: int = 8) -> None:
         nn.init.zeros_(lora_params[i + 1])                # B
 
 
+def lora_ttt(
+    model: nn.Module,
+    val_tokens: Tensor,
+    seq_len: int,
+    ttt_epochs: int,
+    ttt_lr: float,
+    device: torch.device,
+    log_fn,
+    lora_rank: int = 8,
+    chunk_size: int = 256,
+    min_doc_tokens: int = 512,
+) -> None:
+    """LoRA-based test-time training. Per-document adaptation with reset."""
+    log_fn(f"ttt: LoRA TTT — rank={lora_rank} epochs={ttt_epochs} lr={ttt_lr} chunk={chunk_size}")
+
+    # Freeze all base params
+    for param in model.parameters():
+        param.requires_grad_(False)
+
+    # Attach LoRA
+    lora_params = _attach_lora(model, rank=lora_rank)
+    n_lora = sum(p.numel() for p in lora_params)
+    log_fn(f"ttt: {len(lora_params)} LoRA tensors, {n_lora} params")
+
+    total_tokens = val_tokens.numel()
+    max_seqs = int(os.environ.get("TTT_MAX_SEQS", "500"))
+
+    # Split into documents (sequences of seq_len tokens)
+    n_docs = min((total_tokens - 1) // seq_len, max_seqs)
+    log_fn(f"ttt: {n_docs} documents for TTT")
+
+    model.train()
+    total_loss = 0.0
+    total_chunks = 0
+
+    for doc_idx in range(n_docs):
+        doc_start = doc_idx * seq_len
+        doc_end = min(doc_start + seq_len + 1, total_tokens)
+        doc_len = doc_end - doc_start - 1
+
+        if doc_len < min_doc_tokens:
+            continue
+
+        # Reset LoRA for each document
+        _reset_lora(lora_params, rank=lora_rank)
+        optimizer = torch.optim.Adam(lora_params, lr=ttt_lr)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=ttt_epochs, eta_min=ttt_lr * 0.01
+        )
+
+        doc_tokens = val_tokens[doc_start:doc_end].to(device=device, dtype=torch.int64)
+
+        for epoch in range(ttt_epochs):
+            # Process document in chunks
+            for chunk_start in range(0, doc_len - chunk_size + 1, chunk_size):
+                chunk_end = chunk_start + chunk_size + 1
+                if chunk_end > len(doc_tokens):
+                    break
+                tokens = doc_tokens[chunk_start:chunk_end]
+                x = tokens[:-1].unsqueeze(0)
+                y = tokens[1:].unsqueeze(0)
+
+                optimizer.zero_grad()
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    loss = model(x, y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+                total_chunks += 1
+
+            scheduler.step()
+
+        if doc_idx > 0 and doc_idx % 100 == 0:
+            avg = total_loss / max(total_chunks, 1)
+            log_fn(f"ttt: doc {doc_idx}/{n_docs} avg_loss={avg:.4f}")
+
+    avg_loss = total_loss / max(total_chunks, 1)
+    log_fn(f"ttt: LoRA TTT done — {n_docs} docs, avg_loss={avg_loss:.4f}")
+
+    # Merge LoRA into base weights and remove wrappers
+    _merge_and_detach_lora(model)
+    log_fn("ttt: LoRA merged into base weights")
+
+    # Unfreeze all params
+    for param in model.parameters():
+        param.requires_grad_(True)
+
 
 # -----------------------------
 # FEATURE 3: SLIDING WINDOW EVAL
@@ -979,7 +1130,7 @@ def eval_with_lora_ttt(
     log_fn(f"lora_ttt_eval: {len(lora_params)} LoRA tensors, {n_lora} params")
 
     total_tokens = val_tokens.numel()
-    max_seqs = int(os.environ.get("TTT_MAX_SEQS", "999999"))  # process all docs
+    max_seqs = int(os.environ.get("TTT_MAX_SEQS", "500"))
     n_docs = min((total_tokens - 1) // seq_len, max_seqs)
 
     # Distribute documents across ranks
@@ -1566,6 +1717,10 @@ def main() -> None:
             log_fn=log0,
         )
 
+    # Reset torch.compile cache between phases (Phase 1 changed scalar params,
+    # Phase 2 adds LoRA which changes forward graph)
+    torch._dynamo.reset()
+
     # -----------------------------
     # FEATURE 2b: PER-DOCUMENT LoRA TTT + EVAL (Phase 2)
     # -----------------------------
@@ -1582,7 +1737,7 @@ def main() -> None:
         base_bytes_lut=base_bytes_lut,
         has_leading_space_lut=has_leading_space_lut,
         is_boundary_token_lut=is_boundary_token_lut,
-        lora_rank=8,
+        lora_rank=int(os.environ.get("LORA_RANK", "8")),
         ttt_epochs=args.ttt_epochs,
         ttt_lr=args.ttt_lr,
         chunk_size=256,
