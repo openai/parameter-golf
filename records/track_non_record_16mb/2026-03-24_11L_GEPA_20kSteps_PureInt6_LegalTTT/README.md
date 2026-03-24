@@ -148,6 +148,104 @@ TTT gain of **−0.044 BPP** (slightly less than the −0.046 at 12k steps), con
 
 ---
 
+## Research Arc: What We Learned from the Non-Record Track
+
+This submission is the culmination of a week-long series of non-record experiments (March 18–24, 2026) that explored what really matters for parameter golf once the 10-minute training constraint is removed. Below we distill five transferable findings and frame the open questions they point toward.
+
+### Finding 1: Warmdown Is a First-Class Research Variable, Not Cleanup
+
+The training trajectory table above makes this vivid: the model plateaus near 1.216–1.219 BPB across steps 9000–12000 at peak LR, then drops **0.101 BPB** during the 8000-step warmdown to reach 1.115. The late peak-LR phase (steps 7000–12000) delivers only ~0.010 BPB over 5000 steps — a rate of ~2 BPB/kstep. Warmdown delivers 12.6 BPB/kstep, roughly **6× the late-plateau rate**.
+
+| Phase | Steps | ΔBPB | BPB/kstep |
+|-------|-------|------|-----------|
+| Early peak-LR (1k→7k) | 6,000 | −0.097 | −16.2/kstep |
+| Late peak-LR plateau (7k→12k) | 5,000 | −0.010 | −2.0/kstep |
+| Warmdown (12k→20k) | 8,000 | −0.101 | **−12.6/kstep** |
+
+The early peak-LR phase is faster per step (as expected), but the model hits a wall around step 7000. Warmdown breaks through that wall. This isn't "cleanup" — once the plateau sets in, warmdown is where a large fraction of remaining gain originates. For record-track submissions limited to ~7k total steps, optimizing the warmdown-to-peak-LR ratio deserves at least as much attention as architecture changes.
+
+### Finding 2: Better-Trained Models Are Easier to Compress
+
+A counterintuitive but consistent result: the longest-trained model produces the **smallest artifact**.
+
+| Steps | Float BPB | Artifact Size | Float→Final ΔBPB |
+|-------|-----------|---------------|-------------------|
+| 9,000 | 1.135 | 14.94 MB | −0.019 |
+| 12,000 | 1.127 | 14.79 MB | −0.019 |
+| 15,000 | 1.122 | 14.52 MB | −0.019 |
+| **20,000** | **1.115** | **14.29 MB** | **−0.017** |
+
+(Note: Float→Final ΔBPB measures the gap between the unquantized float model and the final TTT output, encompassing both quantization damage and TTT recovery.)
+
+This suggests that optimization quality improves weight compressibility, not just floating-point loss. The warmdown phase appears to organize weight distributions into lower-entropy configurations that compress better under int6 + zstd. This is directly relevant to the 16 MB artifact constraint: the "best" model might also be the smallest.
+
+### Finding 3: Legal Full-Model TTT Prefers SGD Over AdamW in This Regime
+
+The AdamW → SGD transition across the March 22–23 runs produced our cleanest transferable conclusion. Both configurations below use the same 5.2k-step, 24.6M-parameter base model (float BPB ~1.161), so the TTT gains are directly comparable:
+
+| TTT Config | Optimizer | Epochs | Frozen | Float→Final ΔBPB | Source |
+|------------|-----------|--------|--------|-------------------|--------|
+| Full-model | AdamW, lr=5e-5 | 1 | 0 layers | −0.007 | PR #456 (Mar 22) |
+| Freeze-2 | SGD, lr=0.002, mom=0.9 | 3 | 2 layers | −0.017 | PR #461 (Mar 22) |
+| Freeze-2 | SGD, lr=0.002, mom=0.9 | 30 | 2 layers | −0.018 | Mar 23 (30ep) |
+
+SGD delivers **2.4× the TTT gain** of AdamW on the identical base model. The mechanism is straightforward: AdamW's second-moment estimates cannot converge when each chunk provides only ~30 gradient steps, while SGD + momentum's simpler dynamics are better matched to this short-horizon fitting problem.
+
+Separately, on the 20k GEPA model (27M params, different architecture), SGD TTT with 10 epochs recovers −0.044 BPB from the quantized baseline — but this larger number reflects both a different model family and a different measurement baseline (quant→final rather than float→final), so it should not be directly compared to the AdamW numbers above.
+
+### Finding 4: Freezing Early Layers During TTT Is Useful Regularization, Not Just Safety
+
+Freezing the first 2 of 11 blocks (~18% of depth) during TTT isn't merely defense against catastrophic forgetting — it's actively beneficial. Early layers encode generic lexical and syntactic features that are shared across all FineWeb domains. Later layers are the better adaptation surface because they hold more task/domain-specific representations.
+
+This gives practitioners a concrete, mechanistic TTT heuristic: **freeze early layers proportional to their generality, adapt later layers proportional to their specificity.** The AdamW→SGD+freeze comparison (Finding 3) confirms this: even though freezing removes parameters from TTT, the resulting model adapts better.
+
+### Finding 5: After the Right TTT Family, Invest in the Base Model
+
+The marginal value of TTT tuning shrinks once the base recipe is strong. Looking at float→final gain as a share of total improvement over the naive baseline (1.224):
+
+| Base Float BPB | Final BPP | Float→Final ΔBPB | Total Gain vs Baseline | TTT Share |
+|----------------|-----------|-------------------|------------------------|-----------|
+| 1.161 (5.2k steps) | 1.143 | −0.018 | 0.081 | 22% |
+| 1.135 (9k GEPA) | 1.116 | −0.019 | 0.108 | 18% |
+| 1.127 (12k GEPA) | 1.108 | −0.019 | 0.116 | 16% |
+| 1.115 (20k GEPA) | 1.098 | −0.017 | 0.126 | 13% |
+
+(Total Gain = naive baseline 1.224 − final BPP. TTT Share = Float→Final ΔBPB / Total Gain.)
+
+As the base model improves, TTT's percentage contribution shrinks from 22% to 13%. The really big jump in our recipe family came from choosing the right TTT regime (SGD + freeze + multi-epoch), not from endlessly polishing it. After that, additional base model quality delivers more BPB per unit of effort than exotic TTT micro-tuning.
+
+---
+
+## What Transfers to the Record Track
+
+Based on our non-record experiments, we believe the following are directly transferable to the 10-minute constraint:
+
+**Likely transferable:**
+- **Warmdown emphasis** — allocate a larger fraction of total steps to warmdown (our best results use ≥40%)
+- **GPTQ-lite / pure int6** — the quantization pipeline works regardless of training duration
+- **SGD-based legal TTT** — the 2.4× gain over AdamW holds on the same base and should transfer
+- **Freeze-early-blocks** — a simple, robust TTT regularization heuristic
+
+**Less transferable:**
+- Very long training curves (20k steps requires ~2.8 hours on 4×A100)
+- Large eval-time TTT budgets (10–30 epochs/chunk → 2000–3600s eval)
+- Gains that only appear because eval can take ~2000s instead of 600s
+
+---
+
+## Open Frontiers
+
+The local TTT recipe (SGD, freeze count, epoch count, per-layer LR) appears mostly saturated for the current protocol. The next meaningful questions are structural:
+
+1. **Stream vs. document-based adaptation** — should TTT state reset per document/topic?
+2. **Self-distillation at test time** — can teacher signals improve adaptation?
+3. **Quantization-aware TTT** — can adaptation be made aware of int6 rounding?
+4. **Base-training scaling laws under fixed 16 MB budget** — formalizing the warmdown/compression/TTT tradeoff as a function of total compute
+
+These represent a different class of research from hyperparameter sweeps and are the natural next step for the non-record track.
+
+---
+
 ## Acknowledgments
 
 This submission builds on techniques introduced by many contributors to the parameter-golf community:
