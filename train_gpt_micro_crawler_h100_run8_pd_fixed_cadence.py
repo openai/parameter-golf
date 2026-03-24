@@ -739,12 +739,13 @@ class GPT(nn.Module):
             Q, _ = torch.linalg.qr(raw.T)
             ortho = Q.T[:n_pos]
             self.loop_pos = nn.Parameter(ortho * 0.01)
-            # Persistent deliberation gate
+            # Persistent deliberation: bidirectional gradient flow
+            # Gate compares inputs, consensus_ref is a learned Parameter (not detached EMA)
+            # Gradients flow IN to ref (from loss) and OUT through ref (to crawler blocks)
             self.delib_gate = CastedLinear(model_dim * 2, model_dim, bias=False)
             nn.init.zeros_(self.delib_gate.weight)
             self.delib_scale = nn.Parameter(torch.tensor(0.0, dtype=torch.float32))
-            self.register_buffer('consensus_ema', torch.zeros(1, 1, model_dim))
-            self.consensus_ema_decay = 0.99
+            self.consensus_ref = nn.Parameter(torch.zeros(1, 1, model_dim))
         else:
             self.loop_pos = None
             self.delib_gate = None
@@ -798,17 +799,20 @@ class GPT(nn.Module):
             x = self.flat_blocks[bi](x, x0)
         return x
     def _run_crawler(self, x: Tensor, x0: Tensor, input_ids: Tensor, ve_cache: dict, crawl: bool = True) -> Tensor:
-        """Persistent deliberation crawler. Gate fires EVERY step.
-        C steps: parallel firings → gate compares → update consensus EMA
-        N steps: single firing → gate compares against consensus EMA"""
+        """Bidirectional persistent deliberation. consensus_ref is a learned Parameter.
+        Gradients flow IN (loss → ref) and OUT (ref → crawler blocks) on every step.
+        C steps: parallel firings → gate compares firings → refine against ref
+        N steps: single firing → gate compares against ref → gradients both ways
+        Even with tapered cadence, N steps keep the channel alive through gradient."""
         if self.loop_pos is None or self.delib_gate is None:
             for ci, block in enumerate(self.crawler_blocks):
                 ve = self._get_crawler_ve(ci, input_ids, ve_cache)
                 x = block(x, x0, v_embed=ve)
             return x
         scale = self.delib_scale.to(dtype=x.dtype)
+        ref = self.consensus_ref.expand_as(x)  # [1,1,dim] → [B,T,dim], gradient flows
         if crawl:
-            # C step: parallel firings, full deliberation
+            # C step: parallel firings, then refine against ref
             firing_outputs: list[Tensor] = []
             for loop in range(self.crawler_loops):
                 x_fire = x + self.loop_pos[loop]
@@ -816,25 +820,24 @@ class GPT(nn.Module):
                     ve = self._get_crawler_ve(ci, input_ids, ve_cache)
                     x_fire = block(x_fire, x0, v_embed=ve)
                 firing_outputs.append(x_fire)
-            gate_input = torch.cat(firing_outputs, dim=-1)
-            gate = torch.sigmoid(self.delib_gate(gate_input))
-            x_consensus = gate * firing_outputs[0] + (1 - gate) * firing_outputs[1]
-            x_out = firing_outputs[1] + scale * (x_consensus - firing_outputs[1])
-            with torch.no_grad():
-                ema_val = x_consensus.detach().mean(dim=(0, 1), keepdim=True)
-                self.consensus_ema.mul_(self.consensus_ema_decay).add_(
-                    ema_val, alpha=1.0 - self.consensus_ema_decay)
+            # Gate compares the two orthogonal views
+            firing_gate = torch.sigmoid(self.delib_gate(torch.cat(firing_outputs, dim=-1)))
+            x_consensus = firing_gate * firing_outputs[0] + (1 - firing_gate) * firing_outputs[1]
+            # Refine consensus against learned ref — bidirectional gradient
+            ref_gate = torch.sigmoid(self.delib_gate(torch.cat([x_consensus, ref], dim=-1)))
+            x_refined = ref_gate * x_consensus + (1 - ref_gate) * ref
+            # Gradients: loss → x_refined → ref (IN) and loss → x_refined → x_consensus → blocks (OUT)
+            x_out = firing_outputs[1] + scale * (x_refined - firing_outputs[1])
             return x_out
         else:
-            # N step: single firing, compare against consensus EMA
+            # N step: single firing, compare against ref — bidirectional
             x_single = x + self.loop_pos[0]
             for ci, block in enumerate(self.crawler_blocks):
                 ve = self._get_crawler_ve(ci, input_ids, ve_cache)
                 x_single = block(x_single, x0, v_embed=ve)
-            ema_expanded = self.consensus_ema.expand_as(x_single)
-            gate_input = torch.cat([x_single, ema_expanded], dim=-1)
-            gate = torch.sigmoid(self.delib_gate(gate_input))
-            x_adjusted = gate * x_single + (1 - gate) * ema_expanded
+            ref_gate = torch.sigmoid(self.delib_gate(torch.cat([x_single, ref], dim=-1)))
+            x_adjusted = ref_gate * x_single + (1 - ref_gate) * ref
+            # Gradients: loss → x_adjusted → ref (IN) and loss → x_adjusted → x_single → blocks (OUT)
             x_out = x_single + scale * (x_adjusted - x_single)
             return x_out
     def _compute_logits(self, x: Tensor) -> Tensor:
@@ -1477,6 +1480,12 @@ def main() -> None:
         scalar_params.append(base_model.trigram.scale)
     if base_model.loop_pos is not None:
         scalar_params.append(base_model.loop_pos)
+    if hasattr(base_model, 'delib_scale') and base_model.delib_scale is not None:
+        scalar_params.append(base_model.delib_scale)
+    if hasattr(base_model, 'consensus_ref') and base_model.consensus_ref is not None:
+        scalar_params.append(base_model.consensus_ref)
+    if hasattr(base_model, 'delib_gate') and base_model.delib_gate is not None:
+        matrix_params.append(base_model.delib_gate.weight)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     tok_params = [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}]
     if base_model.trigram is not None:
