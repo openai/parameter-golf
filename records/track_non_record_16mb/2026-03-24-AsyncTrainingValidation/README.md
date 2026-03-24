@@ -1,5 +1,7 @@
 # Asynchronous Prefetching — submission notes
 
+### 1191 (with technique) vs 1137 (default) steps in 600s on local compute
+
 ## Key changes
 
 Same model, optimizer, data layout, and training math as baseline. This is **a general purpose rework that could apply to most other approaches** for slight speed boosts. Overlap CPU data prep and host→device copies with GPU work so the GPU spends less time idle.
