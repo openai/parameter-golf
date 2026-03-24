@@ -51,11 +51,11 @@ Hadamard rotation enables VE128 by freeing 668KB of artifact headroom. GPTQ adds
 
 ## Methodology: CPU Parameter Probe
 
-Hyperparameter selection was guided by a CPU-based parameter sweep engine (Go, 80-core Modal) that predicts sliding BPB from architecture configuration without GPU training. The probe uses three independent prediction approaches (K-Nearest Neighbor, bounded parametric, relative delta) calibrated against 15 GPU training runs across sessions 2-7. Best calibration achieved 0.0007 max prediction error on held-out cuDNN runs.
+Hyperparameter selection was guided by a CPU-based parameter sweep engine (Go, 80-core Modal) that estimates sliding BPB from architecture configuration without GPU training. The probe uses three independent estimation approaches (K-Nearest Neighbor, bounded parametric, relative delta) calibrated against 15 GPU training runs across sessions 2-7.
 
-The probe validated that 11L MLP1536 at embed_lr=0.035 is the optimal configuration within the cuDNN parameter space (no untested config beats S5-7). It correctly predicted that FA3 backend compression (1.67x) would overflow the 16MB artifact limit at MLP1536, that 12L architectures would not fit at cuDNN compression ratios, and that embed_lr=0.040 would regress -- all confirmed by subsequent GPU runs.
+This is a directional methodology, not a high-precision predictor. The probe narrows the search space by eliminating configurations that are unlikely to fit artifact constraints or improve BPB, reducing the number of expensive GPU runs needed. In our workflow, it guided the path from 9L to 11L MLP1536, correctly flagged FA3 compression overflow and 12L artifact limits, and identified the embed_lr=0.035 configuration that produced our best result -- all confirmed by subsequent GPU training.
 
-Across our full experimentation cycle (sessions 2-8, 30+ GPU runs), the probe pre-screened thousands of candidate configurations in seconds on CPU, reducing total GPU compute by an estimated 84% compared to a naive grid search over the same parameter space. Without the probe, each configuration test requires a full 8xH100 training run (15-20 minutes, ~$30). With the probe, only configurations predicted to pass artifact limits and improve BPB were sent to GPU. Actual savings depend on how aggressively the probe is integrated into the experiment loop; in our workflow, it became mandatory before every GPU launch.
+The approach is exploratory and specific to our calibration data. It demonstrates how lightweight CPU-based pre-screening can complement GPU experimentation when compute is constrained, and could be adapted to other search spaces with different calibration sets.
 
 ## Additional Findings
 
