@@ -1848,23 +1848,26 @@ def main() -> None:
     eval_model.load_state_dict(deq_state, strict=True)
     CastedLinear._qat_enabled = False
     CastedLinear._soft_tau = 1000.0
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
-    torch.cuda.synchronize()
-    t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args, compiled_eval, rank, world_size, device, grad_accum_steps,
-        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        eval_seq_len=effective_eval_seq_len,
-    )
-    torch.cuda.synchronize()
-    log0(
-        f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
-    )
-    log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
-    # Skip sliding window evals when LoRA TTT is the final eval (saves ~75-150s)
-    sw_seq_len = effective_eval_seq_len
+    # Skip diagnostic evals when LoRA TTT is the final eval (saves ~80s total)
     skip_sliding = args.ttt_enabled and args.ttt_mode == "lora"
+    if not skip_sliding:
+        compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+        torch.cuda.synchronize()
+        t_qeval = time.perf_counter()
+        q_val_loss, q_val_bpb = eval_val(
+            args, compiled_eval, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            eval_seq_len=effective_eval_seq_len,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+        )
+        log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    else:
+        log0("Skipping roundtrip + sliding eval — LoRA TTT will be the final eval")
+    sw_seq_len = effective_eval_seq_len
     if not skip_sliding and args.eval_stride > 0 and args.eval_stride < sw_seq_len:
         torch.cuda.synchronize()
         t_slide = time.perf_counter()
