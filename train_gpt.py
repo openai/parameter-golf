@@ -86,8 +86,13 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
+    # PolyGLU configuration (per-neuron activation routing)
+    polyglu_enabled = bool(int(os.environ.get("POLYGLU_ENABLED", "1")))
+    polyglu_gate_dim = int(os.environ.get("POLYGLU_GATE_DIM", 16))
+    polyglu_tau_min = float(os.environ.get("POLYGLU_TAU_MIN", 0.1))
+
 # -----------------------------
-# MUON OPTIMIZER 
+# MUON OPTIMIZER
 # -----------------------------
 # 
 # As borrowed from modded-nanogpt
@@ -289,7 +294,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,routing_alpha,routing_beta,gate_w1,gate_w2",
     ).split(",")
     if pattern
 )
@@ -617,6 +622,50 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
+class PolyMLP(nn.Module):
+    """Per-neuron activation routing via Gumbel-Softmax (PolyGLU, arXiv:2603.13347)."""
+    def __init__(self, dim: int, mlp_mult: int, gate_dim: int = 16):
+        super().__init__()
+        hidden = mlp_mult * dim
+        self.fc = CastedLinear(dim, hidden, bias=False)
+        self.proj = CastedLinear(hidden, dim, bias=False)
+        self.proj._zero_init = True
+        # Static per-neuron routing preferences — zero init = uniform prior
+        self.routing_alpha = nn.Parameter(torch.zeros(hidden, 4))
+        # Per-activation dynamic scaling
+        self.routing_beta = nn.Parameter(torch.ones(4))
+        # Lightweight gate network: dim -> gate_dim -> 4
+        self.gate_w1 = nn.Linear(dim, gate_dim)
+        self.gate_w2 = nn.Linear(gate_dim, 4)
+        # Temperature buffer (non-persistent: excluded from state_dict, updated in-place)
+        self.register_buffer('_tau', torch.tensor(1.0), persistent=False)
+
+    def forward(self, x: Tensor) -> Tensor:
+        # Compute routing logits from mean-pooled input
+        gate_out = self.gate_w2(torch.relu(self.gate_w1(x.mean(dim=1))))  # [B, 4]
+        logits = self.routing_alpha.unsqueeze(0) + self.routing_beta * gate_out.unsqueeze(1)
+        # logits: [B, hidden, 4]
+
+        # Gumbel-Softmax during training, plain softmax during eval (no Gumbel noise)
+        if self.training:
+            logits_f = logits.float()
+            u = torch.rand_like(logits_f).clamp_(1e-10, 1.0 - 1e-10)
+            gumbels = -torch.log(-torch.log(u))
+            g = F.softmax((logits_f + gumbels) / self._tau, dim=-1).to(dtype=x.dtype)
+        else:
+            g = F.softmax(logits.float() / self._tau, dim=-1).to(dtype=x.dtype)
+        g = g.unsqueeze(1)  # [B, 1, hidden, 4]
+
+        # Up-project and compute all 4 activations (explicit — no lambdas for torch.compile)
+        h = self.fc(x)  # [B, seq, hidden]
+        # Additive accumulation avoids materializing [B, seq, hidden, 4] tensor
+        out = g[..., 0] * torch.relu(h).square()   # relu²
+        out = out + g[..., 1] * torch.tanh(h)      # tanh
+        out = out + g[..., 2] * F.silu(h)           # SiLU
+        out = out + g[..., 3] * F.gelu(h)           # GELU
+        return self.proj(out)
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -626,12 +675,14 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        polyglu_enabled: bool = False,
+        polyglu_gate_dim: int = 16,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = PolyMLP(dim, mlp_mult, gate_dim=polyglu_gate_dim) if polyglu_enabled else MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -659,6 +710,8 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        polyglu_enabled: bool = False,
+        polyglu_gate_dim: int = 16,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -666,6 +719,7 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.polyglu_enabled = polyglu_enabled
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -680,6 +734,8 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    polyglu_enabled=polyglu_enabled,
+                    polyglu_gate_dim=polyglu_gate_dim,
                 )
                 for i in range(num_layers)
             ]
@@ -835,6 +891,8 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        polyglu_enabled=args.polyglu_enabled,
+        polyglu_gate_dim=args.polyglu_gate_dim,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1005,6 +1063,17 @@ def main() -> None:
             break
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+
+        # PolyGLU tau annealing (wall-clock aware)
+        if args.polyglu_enabled:
+            if max_wallclock_ms is not None and max_wallclock_ms > 0:
+                progress = min(elapsed_ms / max_wallclock_ms, 1.0)
+            else:
+                progress = min(step / max(args.iterations, 1), 1.0)
+            new_tau = max(args.polyglu_tau_min, 1.0 - (1.0 - args.polyglu_tau_min) * progress)
+            for block in base_model.blocks:
+                block.mlp._tau.fill_(new_tau)
+
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
@@ -1040,9 +1109,11 @@ def main() -> None:
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
         )
         if should_log_train:
+            tau_str = f" tau:{base_model.blocks[0].mlp._tau.item():.4f}" if args.polyglu_enabled else ""
             log0(
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                + tau_str
             )
 
         # Needed to sync whether we've reached the wallclock cap.
