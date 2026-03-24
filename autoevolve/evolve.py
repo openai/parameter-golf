@@ -6,10 +6,10 @@ Inspired by Andrej Karpathy's autoresearch project. Uses an LLM to autonomously
 propose, test, and iterate on modifications to the training script.
 
 Usage:
-    # Scout mode on 1x GPU:
+    # Proxy mode on 1x GPU:
     python3 autoevolve/evolve.py --nproc 1
 
-    # Full-fidelity mode on multi-GPU:
+    # Final-fidelity mode on multi-GPU:
     python3 autoevolve/evolve.py --nproc 8
 
     # Dry run (propose + validate syntax, no training):
@@ -52,7 +52,7 @@ RECORDS_DIR = ROOT / "records" / "track_10min_16mb"
 ROOT_README = ROOT / "README.md"
 
 DEFAULT_MODEL = "gpt-5.4"
-DEFAULT_PUBLIC_SOTA_BPB = 1.1428
+DEFAULT_PUBLIC_SOTA_BPB = 1.1194
 DEFAULT_BRANCH = "autoevolve/run"
 ARTIFACT_LIMIT = 16_000_000
 MAX_WALLCLOCK = 600  # 10 minutes — hard competition limit
@@ -62,13 +62,11 @@ REPEAT_FAMILY_THRESHOLD = 2
 NEAR_MISS_MAX_GAP = 0.0040
 FRONTIER_CONTINUATION_STEPS = 2
 
-MODE_SCOUT = "scout"
-MODE_FULL = "full"
+MODE_SCOUT = "proxy"
+MODE_FULL = "final"
 
-SCOUT_WALLCLOCK_SECONDS = 240
-SCOUT_PROCESS_TIMEOUT_SECONDS = 900
-SCOUT_EVAL_STRIDE = 256
-SCOUT_TRAIN_LOG_EVERY = 50
+SCOUT_WALLCLOCK_SECONDS = 4_800
+SCOUT_PROCESS_TIMEOUT_SECONDS = 14_400
 
 FULL_WALLCLOCK_SECONDS = 600
 FULL_PROCESS_TIMEOUT_SECONDS = 1500
@@ -443,19 +441,30 @@ def setup_git(branch: str) -> None:
         cwd=ROOT,
     ).stdout.strip()
     if cur != branch:
-        created = subprocess.run(
+        checkout_result = subprocess.run(
             ["git", "checkout", "-b", branch],
             capture_output=True,
             text=True,
             cwd=ROOT,
         )
-        if created.returncode != 0:
-            subprocess.run(
+        if checkout_result.returncode != 0:
+            checkout_result = subprocess.run(
                 ["git", "checkout", branch],
                 capture_output=True,
                 text=True,
                 cwd=ROOT,
             )
+        if checkout_result.returncode != 0:
+            details = clean_field(checkout_result.stderr or checkout_result.stdout)[:240]
+            raise RuntimeError(f"Failed to switch to git branch '{branch}': {details}")
+    final_branch = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    ).stdout.strip()
+    if final_branch != branch:
+        raise RuntimeError(f"Expected git branch '{branch}', but current branch is '{final_branch or '?'}'")
     print(f"Git branch: {branch}")
 
 
@@ -483,25 +492,20 @@ def build_run_env(mode: str, iteration: int) -> tuple[dict[str, str], str]:
     env["MAX_WALLCLOCK_SECONDS"] = str(mode_train_wallclock_seconds(mode))
     run_id = f"autoevolve_{mode}_{iteration:04d}_{int(time.time())}"
     env["RUN_ID"] = run_id
-    if mode == MODE_SCOUT:
-        env["VAL_LOSS_EVERY"] = "0"
-        env["TRAIN_LOG_EVERY"] = str(SCOUT_TRAIN_LOG_EVERY)
-        env["EVAL_STRIDE"] = str(SCOUT_EVAL_STRIDE)
     return env, run_id
 
 
 def mode_prompt_guidance(mode: str) -> str:
     if mode == MODE_SCOUT:
         return (
-            "Mode: SCOUT (1xH100 information-gathering mode).\n"
-            "- Optimize for cheap, learnable experiments rather than leaderboard-faithful scoring.\n"
-            "- Prefer low-overhead changes that preserve throughput and compile behavior.\n"
-            "- Avoid per-step fake-quant, export-alignment, post-step projection, extra forward passes, "
-            "or other throughput-heavy interventions unless you provide a concrete repeat_exemption.\n"
-            f"- The runner caps training at {SCOUT_WALLCLOCK_SECONDS}s and uses a lighter eval stride for scouting."
+            "Mode: PROXY (1xH100 long-horizon local proxy).\n"
+            "- Optimize for transfer to the official 8xH100 / 600s competition setting, not for ultra-short-run hacks.\n"
+            "- Preserve official artifact and evaluation behavior; do not rely on cheaper-proxy-only shortcuts.\n"
+            "- Expect single-GPU throughput and eval timing to differ from the final hardware, so prefer robust wins over fragile timing tricks.\n"
+            f"- The runner caps training at {SCOUT_WALLCLOCK_SECONDS}s on 1xH100 before final 8xH100 validation."
         )
     return (
-        "Mode: FULL (promotion / competition-fidelity mode).\n"
+        "Mode: FINAL (8xH100 competition-fidelity mode).\n"
         "- Optimize for final score under the official train/eval budget.\n"
         "- Higher-overhead ideas are allowed if you justify the throughput tradeoff."
     )
@@ -1171,19 +1175,19 @@ def build_memory_dossier(rows: list[dict[str, str]], mode: str) -> str:
     else:
         lines.append("- No active repeat-family guard.")
 
-    lines.extend(["", "## Scout Heuristics"])
+    lines.extend(["", "## Mode Heuristics"])
     if mode == MODE_SCOUT:
         lines.append(
-            "- Prefer low-overhead probes that preserve step throughput. Completed scout runs beat ambitious ideas that never finish."
+            "- Proxy mode should rank ideas by likely transfer to the official 8xH100 / 600s setting, not by cheap single-GPU shortcuts."
         )
         lines.append(
-            "- Treat throughput-heavy quantization alignment and per-step fake-quant as promotion-track ideas unless timing telemetry says otherwise."
+            "- Preserve official-like evaluation behavior in proxy runs so local wins are more meaningful when promoted."
         )
         lines.append(
-            "- If a family has already produced two non-kept outcomes in a row, pivot to a different family before trying a more complicated variant."
+            "- Proxy mode is still single-GPU, so some throughput and eval timing noise remains; promote meaningful local wins to final validation."
         )
     else:
-        lines.append("- Full mode can revisit heavier ideas if scout data shows acceptable throughput.")
+        lines.append("- Final mode should confirm only the strongest proxy-mode ideas under the exact competition budget.")
 
     return "\n".join(lines).strip() + "\n"
 
@@ -1326,11 +1330,11 @@ def validate_competition_constraints(code: str) -> tuple[bool, str]:
         errors.append("Missing 'final_int8_zlib_roundtrip' output — cannot parse val_bpb")
     if "Total submission size" not in code:
         errors.append("Missing 'Total submission size' output — cannot parse artifact bytes")
-    if "zlib.compress" not in code and "zstandard" not in code and "ZstdCompressor" not in code:
-        errors.append("No compression (zlib/zstd) found — artifact won't be compressed")
+    if all(marker not in code for marker in ("zlib.compress", "zstandard", "ZstdCompressor", "lzma.compress")):
+        errors.append("No compression path (zlib/zstd/lzma) found — artifact won't be compressed")
     if "val_bpb" not in code:
         errors.append("No val_bpb computation found — cannot evaluate")
-    if "code_bytes" not in code or "quant_file_bytes" not in code:
+    if "Code size:" not in code or "Total submission size" not in code:
         errors.append("Artifact size reporting removed — cannot verify 16MB limit")
 
     if errors:
@@ -1360,10 +1364,6 @@ def apply_proposal(current_code: str, proposal: dict) -> tuple[str | None, str]:
         ast.parse(code)
     except SyntaxError as err:
         return None, f"SyntaxError after applying changes at line {err.lineno}: {err.msg}"
-
-    lines = code.strip().split("\n")
-    if len(lines) > 1500:
-        return None, f"Script too long after changes: {len(lines)} lines (max 1500)"
 
     for token in ("def main()", "class Hyperparameters"):
         if token not in code:
@@ -1521,6 +1521,30 @@ def parse_experiment_output(output: str) -> dict[str, object]:
         "saw_final_eval": False,
         "saw_final_eval_mode": False,
     }
+    final_candidates: dict[str, dict[str, object]] = {}
+
+    def record_final_candidate(kind: str, line: str) -> None:
+        loss_match = re.search(r"val_loss:([0-9.]+)", line)
+        bpb_match = re.search(r"val_bpb:([0-9.]+)", line)
+        if not loss_match and not bpb_match:
+            return
+
+        precision_rank = 1 if "_exact" in line else 0
+        previous = final_candidates.get(kind)
+        previous_precision = int(previous.get("precision_rank", -1)) if previous else -1
+        if precision_rank < previous_precision:
+            return
+
+        candidate = dict(previous or {})
+        candidate["precision_rank"] = precision_rank
+        if loss_match:
+            candidate["val_loss"] = float(loss_match.group(1))
+        if bpb_match:
+            candidate["val_bpb"] = float(bpb_match.group(1))
+        eval_match = re.search(r"eval_time:(\d+)ms", line)
+        if eval_match:
+            candidate["eval_time_ms"] = int(eval_match.group(1))
+        final_candidates[kind] = candidate
 
     for line in output.splitlines():
         if not line:
@@ -1550,18 +1574,25 @@ def parse_experiment_output(output: str) -> dict[str, object]:
         if "Serialized model" in line or "Total submission size" in line or "peak memory allocated:" in line:
             metrics["saw_serialization"] = True
 
-        if "final_int8_zlib_roundtrip " in line and "exact" not in line:
+        if any(
+            marker in line
+            for marker in (
+                "DIAGNOSTIC post_ema",
+                "final_int6_roundtrip",
+                "final_int6_sliding_window",
+                "final_int8_zlib_roundtrip",
+                "legal_ttt",
+                "ttt_sliding:start",
+                "ttt_sliding:done",
+            )
+        ):
             metrics["saw_final_eval"] = True
-            metrics["final_metric_present"] = True
-            match = re.search(r"val_bpb:([0-9.]+)", line)
-            if match:
-                metrics["val_bpb"] = float(match.group(1))
-            match = re.search(r"val_loss:([0-9.]+)", line)
-            if match:
-                metrics["val_loss"] = float(match.group(1))
-            match = re.search(r"eval_time:(\d+)ms", line)
-            if match:
-                metrics["last_eval_time_ms"] = int(match.group(1))
+
+        if line.startswith("final_int8_zlib_roundtrip"):
+            record_final_candidate("roundtrip", line)
+
+        if line.startswith("legal_ttt"):
+            record_final_candidate("legal_ttt", line)
 
         if "val_loss:" in line and "val_bpb:" in line:
             match = re.search(r"val_bpb:([0-9.]+)", line)
@@ -1591,6 +1622,15 @@ def parse_experiment_output(output: str) -> dict[str, object]:
             if match:
                 metrics["peak_memory_mib"] = int(match.group(1))
 
+    preferred_final = final_candidates.get("legal_ttt") or final_candidates.get("roundtrip")
+    if preferred_final:
+        metrics["final_metric_present"] = True
+        metrics["val_bpb"] = preferred_final.get("val_bpb")
+        metrics["val_loss"] = preferred_final.get("val_loss")
+        eval_time_ms = preferred_final.get("eval_time_ms")
+        if isinstance(eval_time_ms, int):
+            metrics["last_eval_time_ms"] = eval_time_ms
+
     metrics["timeout_stage"] = infer_timeout_stage(output, metrics)
     return metrics
 
@@ -1611,6 +1651,7 @@ def git_current_head() -> str:
 
 def git_commit(msg: str) -> str:
     """Stage all result files and commit. Returns HEAD after commit (or current HEAD if no changes)."""
+    log_paths = sorted(str(path) for path in LOGS_DIR.glob("exp_*"))
     files_to_stage = [
         str(SCRIPT_PATH),
         str(BEST_SCRIPT_PATH),
@@ -1619,9 +1660,16 @@ def git_commit(msg: str) -> str:
         str(DOSSIER_FILE),
         str(INCUMBENT_STATE_FILE),
         str(FRONTIER_STATE_FILE),
-        str(LOGS_DIR),
-    ]
-    subprocess.run(["git", "add"] + files_to_stage, capture_output=True, cwd=ROOT)
+    ] + log_paths
+    add_result = subprocess.run(
+        ["git", "add"] + files_to_stage,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    if add_result.returncode != 0:
+        details = clean_field(add_result.stderr or add_result.stdout)[:240]
+        raise RuntimeError(f"git add failed: {details}")
 
     staged = subprocess.run(
         ["git", "diff", "--cached", "--quiet"],
@@ -1630,7 +1678,15 @@ def git_commit(msg: str) -> str:
     if staged.returncode == 0:
         return git_current_head()
 
-    subprocess.run(["git", "commit", "-m", msg], capture_output=True, cwd=ROOT)
+    commit_result = subprocess.run(
+        ["git", "commit", "-m", msg],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    if commit_result.returncode != 0:
+        details = clean_field(commit_result.stderr or commit_result.stdout)[:240]
+        raise RuntimeError(f"git commit failed: {details}")
     return git_current_head()
 
 
@@ -1870,6 +1926,11 @@ def main() -> None:
     train_wallclock = mode_train_wallclock_seconds(resolved_mode)
     process_timeout = mode_process_timeout_seconds(resolved_mode)
 
+    def record_row(row: dict[str, str]) -> list[dict[str, str]]:
+        if args.dry_run:
+            return load_results_rows()
+        return append_result_row(row)
+
     print("=" * 70)
     print("  Parameter Golf Auto-Evolve Agent")
     print(
@@ -1958,7 +2019,7 @@ def main() -> None:
                 reasoning="LLM request failed before any code mutation.",
                 parse_status="llm_error",
             )
-            append_result_row(row)
+            record_row(row)
             if not args.dry_run:
                 persist_outcome(
                     branch,
@@ -2023,7 +2084,7 @@ def main() -> None:
                 llm_meta=llm_meta,
                 parse_status="repeat_guard_blocked",
             )
-            append_result_row(row)
+            record_row(row)
             if not args.dry_run:
                 persist_outcome(
                     branch,
@@ -2050,7 +2111,7 @@ def main() -> None:
                 llm_meta=llm_meta,
                 parse_status="proposal_invalid",
             )
-            append_result_row(row)
+            record_row(row)
             if not args.dry_run:
                 persist_outcome(
                     branch,
@@ -2081,9 +2142,8 @@ def main() -> None:
                 llm_meta=llm_meta,
                 parse_status="dry_run",
             )
-            append_result_row(row)
-            write_memory_dossier(load_results_rows(), resolved_mode)
             SCRIPT_PATH.write_text(backup_code, encoding="utf-8")
+            print("  [DRY RUN] No persistent state was updated.")
             consecutive_failures = 0
             continue
 
@@ -2127,7 +2187,7 @@ def main() -> None:
                 parse_status="timeout" if run_result.get("timed_out") else "nonzero_exit",
                 timeout_stage=clean_field(metrics.get("timeout_stage")),
             )
-            append_result_row(row)
+            record_row(row)
             persist_outcome(
                 branch,
                 resolved_mode,
@@ -2160,7 +2220,7 @@ def main() -> None:
                 parse_status="missing_final_metric",
                 timeout_stage=clean_field(metrics.get("timeout_stage")),
             )
-            append_result_row(row)
+            record_row(row)
             persist_outcome(
                 branch,
                 resolved_mode,
@@ -2198,7 +2258,7 @@ def main() -> None:
                 metrics=metrics,
                 parse_status="scored_over_size",
             )
-            append_result_row(row)
+            record_row(row)
             persist_outcome(
                 branch,
                 resolved_mode,
@@ -2241,7 +2301,7 @@ def main() -> None:
                 metrics=metrics,
                 parse_status="scored_keep",
             )
-            append_result_row(row)
+            record_row(row)
             persist_outcome(
                 branch,
                 resolved_mode,
@@ -2299,7 +2359,7 @@ def main() -> None:
                     metrics=metrics,
                     parse_status="scored_near_miss",
                 )
-                append_result_row(row)
+                record_row(row)
                 persist_outcome(
                     branch,
                     resolved_mode,
@@ -2323,7 +2383,7 @@ def main() -> None:
                     metrics=metrics,
                     parse_status="scored_discard",
                 )
-                append_result_row(row)
+                record_row(row)
                 persist_outcome(
                     branch,
                     resolved_mode,

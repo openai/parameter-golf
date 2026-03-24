@@ -1,10 +1,10 @@
 # AutoEvolve Memory Dossier
 
-- Mode: `scout`
+- Mode: `proxy`
 - Committed experiment rows (all modes): 0
-- Committed experiment rows for `scout`: 0
-- Infrastructure failures for `scout`: 0
-- Research outcomes for `scout`: 0
+- Committed experiment rows for `proxy`: 0
+- Infrastructure failures for `proxy`: 0
+- Research outcomes for `proxy`: 0
 
 ## Read This First
 - Local incumbent val_bpb for this mode: not yet benchmarked
@@ -25,7 +25,7 @@
 ## Active Guard
 - No active repeat-family guard.
 
-## Scout Heuristics
-- Prefer low-overhead probes that preserve step throughput. Completed scout runs beat ambitious ideas that never finish.
-- Treat throughput-heavy quantization alignment and per-step fake-quant as promotion-track ideas unless timing telemetry says otherwise.
-- If a family has already produced two non-kept outcomes in a row, pivot to a different family before trying a more complicated variant.
+## Mode Heuristics
+- Proxy mode should rank ideas by likely transfer to the official 8xH100 / 600s setting, not by cheap single-GPU shortcuts.
+- Preserve official-like evaluation behavior in proxy runs so local wins are more meaningful when promoted.
+- Proxy mode is still single-GPU, so some throughput and eval timing noise remains; promote meaningful local wins to final validation.

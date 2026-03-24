@@ -26,7 +26,7 @@ DOSSIER_FILE = PROMPTS_DIR / "memory_dossier.md"
 INCUMBENT_STATE_FILE = AUTOEVOLVE_DIR / "incumbent_state.json"
 FRONTIER_STATE_FILE = AUTOEVOLVE_DIR / "frontier_state.json"
 
-LEADERBOARD_SOTA = 1.1428  # Current public #1 as of 2026-03-20 (thwu1)
+LEADERBOARD_SOTA = 1.1194  # Current public #1 as of 2026-03-23 (abaybektursun)
 COST_PER_HOUR = 2.49       # 1×H100 on RunPod (update if using different SKU)
 
 

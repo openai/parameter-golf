@@ -39,7 +39,8 @@ normalization, attention mechanism, or any other aspect.
 
 ## YOUR TASK -- ITERATION #{{iteration}}
 
-You are spending real GPU money (~$1 per experiment) on every run. Think DEEPLY
+You are spending real GPU money on every run. In 1xH100 proxy mode, a single
+experiment can consume multiple dollars before final validation. Think DEEPLY
 and THOROUGHLY before proposing. Each wasted experiment burns money AND time that
 could have gone to a better idea. Your proposal must be your single highest-confidence
 idea for improving val_bpb — something you believe has >60% chance of improving the score.
@@ -62,8 +63,8 @@ Reason about WHERE in the pipeline bits-per-byte are being lost.
 Draw on the full ML literature (QAT, SwiGLU, MoE, SSMs, advanced optimizers,
 curriculum learning, TTT, distillation, novel quantization, embedding tricks, etc.)
 Prefer ideas with strong theoretical backing AND practical evidence at small scale.
-In scout mode, completed low-overhead probes are better than ambitious ideas that
-never finish.
+In 1xH100 proxy mode, prefer ideas that are likely to transfer to the official
+8xH100 / 600s setting rather than cheap single-GPU-only tricks.
 - If the base script for this iteration is an exploratory frontier, only continue
   building on it if you can clearly explain why the combination can close the
   remaining gap to the incumbent. Otherwise pivot back toward a cleaner incumbent-based idea.
@@ -79,6 +80,13 @@ is high, either mitigate it in your implementation or pick a safer idea.
 **Step 6 -- Implement carefully**: Provide SEARCH/REPLACE blocks. Double-check that
 your search strings are EXACT matches of the current script. Verify indentation.
 A failed search/replace wastes an entire iteration.
+- Prefer the smallest viable patch. If 1-4 surgical change blocks can express the idea,
+  do that instead of a sprawling rewrite.
+- This codebase contains repeated templates and similar blocks. Anchor every `search`
+  with enough surrounding context (usually 8-12 lines plus the enclosing function/class)
+  so it matches exactly once.
+- The current baseline is already a large record-style script. Prefer in-place edits over
+  adding parallel implementations or duplicated code paths unless the gain clearly justifies it.
 
 ### RETURN FORMAT
 Return a JSON object:
@@ -102,12 +110,14 @@ Return a JSON object:
 ### RULES FOR SEARCH/REPLACE BLOCKS
 - "search" must be an EXACT substring of the current script (whitespace-sensitive!)
 - Include enough surrounding context (3-5+ lines) so the match is UNIQUE in the file
+- For repeated code patterns, include the enclosing function or class signature and more context until the match is unique
 - You may include multiple change blocks -- they are applied in order
+- Prefer 1-4 change blocks unless a larger patch is truly unavoidable
 - To ADD new code, use a search block that matches the insertion point and include
   the original lines plus the new lines in "replace"
 - To DELETE code, use a search block and set "replace" to the remaining lines
 - You CAN make sweeping changes (rewrite entire classes, add new modules, etc.)
-  -- just provide enough search/replace blocks to cover it
+  -- but only when the expected gain clearly justifies the extra search/replace risk
 
 ### HARD CONSTRAINTS -- VIOLATIONS WASTE MONEY
 - Result must be valid Python, runnable via: torchrun --standalone --nproc_per_node=8 train_gpt.py
@@ -117,12 +127,12 @@ Return a JSON object:
 - Must keep the val_bpb evaluation and the output format lines containing:
   "final_int8_zlib_roundtrip" and "Total submission size" (these are parsed by the runner)
 - Must keep INT8/INT5/INT6 quantization + compression serialization for artifact
-- Keep under 1500 lines
+- Avoid unnecessary code growth: code bytes count toward the 16,000,000-byte artifact budget
 - The script must work with torchrun on 1, 2, 4, or 8 GPUs
 
 ### PHILOSOPHY
 - You are a researcher, not a hyperparameter tuner.
-- In scout mode, information density and finishing runs matter more than ambition.
+- In 1xH100 proxy mode, transferability to the official 8xH100 / 600s setting matters more than cheap local wins.
 - Bold architectural changes with strong theoretical backing beat safe tweaks when
   they are still compatible with the active run mode.
 - Every GPU-minute wasted on a low-confidence idea is money burned.

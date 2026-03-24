@@ -39,9 +39,9 @@ echo ""
 echo "==========================================================="
 echo "  Parameter Golf Auto-Evolve — RunPod Setup"
 if [ "$NPROC" -eq 1 ]; then
-  RUN_MODE="scout"
+  RUN_MODE="proxy"
 else
-  RUN_MODE="full"
+  RUN_MODE="final"
 fi
 if [ "$MAX_ITERS" -eq 0 ]; then
   MAX_ITERS_LABEL="until manually stopped"
@@ -175,5 +175,6 @@ echo ""
 echo "  Detach from tmux: Ctrl+B then D"
 echo "  Stop gracefully:  Ctrl+C inside tmux session"
 echo ""
-echo "  Budget reminder: 1xH100 ≈ \$2.49/hr → \$25 ≈ 10 hrs ≈ 25 experiments"
+echo "  Budget reminder: 1xH100 ≈ \$2.49/hr → \$25 ≈ 10 hrs total"
+echo "  Long 80-minute proxy runs mean you should expect only a handful of full experiments per credit grant."
 echo "==========================================================="

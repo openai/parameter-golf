@@ -8,43 +8,38 @@ Train the best language model that:
 - Evaluation must also complete within 10 minutes (separate from training)
 - No external downloads or network calls during eval - fully self-contained
 
-## Leaderboard Context (as of 2026-03-20)
-| Score  | Key Innovation                                                  |
-|--------|----------------------------------------------------------------|
-| 1.1428 | Int5 MLP + Int6 Attn + BigramHash(10240) + SWA(0.4) + WD=0.04 |
-| 1.1458 | 3x MLP + SmearGate + BigramHash + OrthoInit + Muon WD + SWA   |
-| 1.1502 | 11L, 3x MLP, Int6 QAT, zstd-22, WD=0.04, sliding eval         |
-| 1.1556 | SmearGate + BigramHash + 3x MLP + int6 STE QAT + sliding eval  |
-| 1.1586 | Int6 QAT + zstd-22, MLP 1344, Muon 0.99, sliding eval          |
+## Leaderboard Context (as of 2026-03-23)
+| Score  | Key Innovation                                                      |
+|--------|---------------------------------------------------------------------|
+| 1.1194 | LeakyReLU^2 + legal score-first TTT + Parallel Muon                 |
+| 1.1228 | 11L EMA + GPTQ-lite + warmdown3500                                  |
+| 1.1248 | 11L Partial RoPE + LN Scale + EMA + XSA4                            |
+| 1.1271 | 11L XSA4 + EMA + Int6 MLP3x                                         |
+| 1.1307 | 11L Efficient Partial XSA                                           |
 
 ## Current SOTA Techniques (Already in Baseline — DO NOT RE-IMPLEMENT)
 All of the following are already in `train_gpt.py`. Do NOT propose these as new ideas.
 
-- **10 transformer layers** with U-Net skip connections
-- **512 model dim**, 8 heads, 4 KV heads (GQA), **3x MLP expansion** (hidden=1536), relu² activation
-- **seq_len=2048** (training), batch=786K tokens
-- **SmearGate**: sigmoid-gated residual mixing with layer-position schedule
-- **BigramHash(10240, dim=128)**: consecutive token pair embeddings, projected to model_dim
-- **Orthogonal init** with muP-scaled output projections
-- **Mixed Int5/Int6 quantization**: Int5 [-16,15] for MLP (best compression), Int6 [-32,31] for attention, FP16 for tied embeddings + last-layer K projections
-- **zstandard compression** (zstd-22 level) for serialized weights
-- **SWA** (Stochastic Weight Averaging): collect from last 40% of warmdown, every 50 steps
-- **Muon optimizer** (matrix_lr=0.02, momentum=0.99, WD=0.04) + AdamW (embed_lr=0.6, scalar_lr=0.02, WD=0.04)
-- **Muon momentum warmup**: 0.92 → 0.99 over 1500 steps
-- **QK normalization** with learned per-head gain (init 1.5)
-- **RoPE** positional encoding, rope_base=10000
-- **Logit softcap** at 30.0 (tanh-based)
-- **CastedLinear** (fp32 weights, bf16 compute)
-- **Sliding window eval** (stride=64, eval_seq_len=2048)
-- **3% magnitude weight pruning** before serialization
-- **warmdown=3000**, warmup=20 steps, grad_clip=0.3
-- ~19.2M params → ~15.9MB compressed artifact (very tight: ~0.1MB headroom)
+- **11 transformer layers** at **512 dim**, 8 heads, 4 KV heads, with U-Net-style skip wiring
+- **3x MLP** with **LeakyReLU(0.5)^2** activation
+- **Parameter banking + Parallel Muon** optimizer path for the large matrix banks
+- **XSA on the last 4 layers**
+- **Partial RoPE** (16/64 dims) + **LN scale** factor `1/sqrt(layer+1)`
+- **Value Embeddings** (`VE_DIM=128`) on layers 9 and 10
+- **SmearGate** residual mixing
+- **BigramHash** baseline recipe centered around the latest top-record stack
+- **EMA (0.997)** plus **tight SWA** every 50 steps
+- **GPTQ-lite int6** post-training quantization with **lzma** compression
+- **Legal score-first TTT** support in evaluation
+- **warmdown=3500**, **iterations=9000**, **eval_stride=64**
+- Artifact target is still extremely tight: roughly **15.95 MB**
 
-## Scout Mode Priorities
-When the runner is in scout mode on 1xH100, optimize for completed runs and good telemetry.
+## 1xH100 Proxy Mode Priorities
+When the runner is in 1xH100 proxy mode, optimize for transfer to the official 8xH100 / 600s competition setting.
 
-- Prefer low-overhead probes first: activation swaps, optimizer/warmdown tuning, KV head count, eval-safe architectural simplifications, and other changes that preserve compile/step throughput.
-- Treat throughput-heavy quantization alignment ideas as promotion-track ideas until the scout loop has produced completed runs with trustworthy timing telemetry.
+- Preserve official-like evaluation behavior and artifact accounting, so local wins are meaningful before 8xH100 promotion.
+- Prefer robust changes that should survive the move from 1xH100 long proxy runs to 8xH100 final validation.
+- Use cheap smoke tests only as a filter; do not overvalue tricks that win solely because proxy hardware is single-GPU.
 - If the dossier shows repeated non-kept outcomes from the same family, pivot families before making a more complex variant of the same idea.
 
 ## Ideas to Explore — Full-Fidelity / Promotion Track
@@ -59,7 +54,7 @@ When the runner is in scout mode on 1xH100, optimize for completed runs and good
 
 2. **KV Head Count**
    Try 2 KV heads (from current 4) for an MQA-like setup.
-   This can save projection bytes and runtime, which is especially scout-friendly.
+   This can save projection bytes and runtime, which is especially proxy-friendly.
 
 3. **Longer Training with Warmdown Tuning**
    Try warmdown tuning or a gentler LR tail without adding per-step compute.
@@ -72,9 +67,9 @@ When the runner is in scout mode on 1xH100, optimize for completed runs and good
 5. **Quantization-Aware Training (QAT) — INT5/INT6 STE**
    Inject fake int5/int6 quantization noise during the LAST 10-15% of training via
    Straight-Through Estimator (STE). The model learns to pack weights into integer ranges.
-   Record #2 already uses this. Expected gain: -0.003 to -0.008 BPB in full-fidelity mode.
+   Record #2 already uses this. Expected gain: -0.003 to -0.008 BPB in final-validation mode.
    Key: match the quantization scheme used at eval (int5 for MLP, int6 for attn).
-   Scout warning: this is expensive and should not be the first family you try when runs are not finishing.
+   Proxy warning: this is expensive and should not be the first family you try unless the long local proxy is already stable.
 
 6. **Better Compression: Block Quantization + zstd**
    Switch from per-row to per-block INT5/INT6 quantization (block size 32-64).
@@ -160,8 +155,8 @@ These have been tested and CONFIRMED to hurt. Do not re-propose them.
 - **Multi-GPU bugs**: DDP requires careful handling of per-rank ops.
 - **Numerical instability**: Muon with high momentum (0.99) + aggressive LR → NaN risk.
 - **QAT noise timing**: Too early = destabilizes training; too late = no benefit.
-- **1×H100 vs 8×H100**: On 1×GPU, grad_accum_steps=8, so ~8× fewer steps in 600s.
-  Relative improvements should still transfer, but absolute BPB will be higher.
+- **1×H100 proxy vs 8×H100 final**: longer local runs are useful for idea discovery, but transfer is imperfect.
+  Promote only the strongest proxy wins to final validation.
 
 ## How to Reason About Each Proposal
 1. **Parameter budget**: Calculate params added vs removed. Will it fit in 16MB?
