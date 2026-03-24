@@ -380,33 +380,28 @@ class LogisticContextMixer:
             return
         self.total_tokens += n
 
-        # Unigram: bincount
-        self.uni_counts.scatter_add_(0, t, torch.ones(n, device=self.device))
+        # Unigram: in-place scatter_add
+        ones = torch.ones(n, device=self.device)
+        self.uni_counts.scatter_add_(0, t, ones)
 
-        # Bigram: scatter_add into [V, V] table
+        # Bigram: in-place scatter_add on flattened view (no temporary 1M tensor)
         if n >= 2:
             ctx = t[:-1]
             nxt = t[1:]
             bi_idx = ctx * self.V + nxt
-            flat = torch.zeros(self.V * self.V, device=self.device)
-            flat.scatter_add_(0, bi_idx, torch.ones(n - 1, device=self.device))
-            self.bi_counts += flat.reshape(self.V, self.V)
+            ones_bi = torch.ones(n - 1, device=self.device)
+            self.bi_counts.reshape(-1).scatter_add_(0, bi_idx, ones_bi)
 
-        # Trigram: hash(prev2, prev1) → count next
+        # Trigram: in-place scatter_add on flattened view (no temporary 67M tensor)
         if n >= 3:
             prev2 = t[:-2]
             prev1 = t[1:-1]
             nxt3 = t[2:]
-            # Hash (prev2, prev1) into TRI_HASH buckets
             tri_ctx = ((prev2 * 36313) ^ (prev1 * 27191)) % self.TRI_HASH
             tri_idx = tri_ctx * self.V + nxt3
-            flat_tri = torch.zeros(self.TRI_HASH * self.V, device=self.device)
-            flat_tri.scatter_add_(0, tri_idx, torch.ones(n - 2, device=self.device))
-            self.tri_counts += flat_tri.reshape(self.TRI_HASH, self.V)
-            # Update row totals
-            flat_totals = torch.zeros(self.TRI_HASH, device=self.device)
-            flat_totals.scatter_add_(0, tri_ctx, torch.ones(n - 2, device=self.device))
-            self.tri_row_totals += flat_totals
+            ones_tri = torch.ones(n - 2, device=self.device)
+            self.tri_counts.reshape(-1).scatter_add_(0, tri_idx, ones_tri)
+            self.tri_row_totals.scatter_add_(0, tri_ctx, ones_tri)
 
     def get_expert_log_probs(self, neural_logits, x_batch, y_batch, wlens):
         """Get log-probability of targets from each expert. All GPU-vectorized.
@@ -421,98 +416,85 @@ class LogisticContextMixer:
             expert_nll: [bsz, seq_len, K] NLL from each expert
         """
         bsz, slen, V = neural_logits.shape
+        uniform_nll = math.log(self.V)
+        has_data = self.total_tokens > 0  # Python int — no GPU-CPU sync
 
-        # Expert 0: Neural model
+        # Expert 0: Neural model — compute log_softmax once, reuse for entropy
         neural_lp = F.log_softmax(neural_logits, dim=-1)
         neural_nll = -neural_lp.gather(2, y_batch.unsqueeze(2)).squeeze(2)  # [bsz, slen]
 
         # Expert 1: Unigram
-        uni_total = self.uni_counts.sum()
-        if uni_total > 0:
-            uni_probs = (self.uni_counts + 0.1) / (uni_total + 0.1 * self.V)
-            uni_lp = uni_probs.log()
-            uni_nll = -uni_lp[y_batch]  # [bsz, slen]
+        if has_data:
+            uni_probs = (self.uni_counts + 0.1) / (self.total_tokens + 0.1 * self.V)
+            uni_nll = -uni_probs.log()[y_batch]  # [bsz, slen]
         else:
-            uni_nll = torch.full((bsz, slen), math.log(self.V), device=self.device)
+            uni_nll = torch.full((bsz, slen), uniform_nll, device=self.device)
 
         # Expert 2: Bigram P(next | prev)
-        bi_total = self.bi_counts.sum(dim=1, keepdim=True)  # [V, 1]
-        if bi_total.sum() > 0:
+        if has_data:
+            bi_total = self.bi_counts.sum(dim=1, keepdim=True)  # [V, 1]
             bi_probs = (self.bi_counts + 0.1) / (bi_total + 0.1 * self.V)  # [V, V]
-            bi_lp = bi_probs.log()
-            # Lookup: for each position, prev=x_batch, next=y_batch
-            prev_flat = x_batch.reshape(-1)  # [bsz*slen]
+            prev_flat = x_batch.reshape(-1)
             next_flat = y_batch.reshape(-1)
-            bi_nll_flat = -bi_lp[prev_flat, next_flat]
-            bi_nll = bi_nll_flat.reshape(bsz, slen)
+            bi_nll = -bi_probs.log()[prev_flat, next_flat].reshape(bsz, slen)
         else:
-            bi_nll = torch.full((bsz, slen), math.log(self.V), device=self.device)
+            bi_nll = torch.full((bsz, slen), uniform_nll, device=self.device)
 
         # Expert 3: GPU Trigram P(next | hash(prev2, prev1)) — vectorized
-        if self.tri_row_totals.sum() > 0:
-            if slen >= 2:
-                prev2 = torch.zeros_like(x_batch)
-                prev2[:, 1:] = x_batch[:, :-1]
-                prev1 = x_batch
-                ctx_hash = ((prev2 * 36313) ^ (prev1 * 27191)) % self.TRI_HASH
-                ctx_flat = ctx_hash.reshape(-1).long()
-                next_flat = y_batch.reshape(-1).long()
-                # Lookup: tri_counts[ctx_hash, next_token]
-                tri_count = self.tri_counts[ctx_flat, next_flat]
-                tri_total = self.tri_row_totals[ctx_flat].clamp(min=1)
-                tri_prob = (tri_count + 0.01) / (tri_total + 0.01 * self.V)
-                tri_nll = -tri_prob.log().reshape(bsz, slen)
-            else:
-                tri_nll = torch.full((bsz, slen), math.log(self.V), device=self.device)
+        if has_data and slen >= 2:
+            prev2 = torch.zeros_like(x_batch)
+            prev2[:, 1:] = x_batch[:, :-1]
+            ctx_hash = ((prev2 * 36313) ^ (x_batch * 27191)) % self.TRI_HASH
+            ctx_flat = ctx_hash.reshape(-1).long()
+            next_flat = y_batch.reshape(-1).long()
+            tri_count = self.tri_counts[ctx_flat, next_flat]
+            tri_total = self.tri_row_totals[ctx_flat].clamp(min=1)
+            tri_prob = (tri_count + 0.01) / (tri_total + 0.01 * self.V)
+            tri_nll = -tri_prob.log().reshape(bsz, slen)
         else:
-            tri_nll = torch.full((bsz, slen), math.log(self.V), device=self.device)
+            tri_nll = torch.full((bsz, slen), uniform_nll, device=self.device)
 
-        # Expert 4: Neural entropy-weighted fallback
-        # Use inverse neural confidence as a soft indicator
-        neural_entropy = -(F.softmax(neural_logits, dim=-1) * F.log_softmax(neural_logits, dim=-1)).sum(-1)  # [bsz, slen]
-        # Higher entropy → prefer uniform fallback → higher NLL from this "expert"
-        # This acts as a regularizer, preventing overconfidence
-        entropy_nll = neural_entropy  # use entropy itself as the "NLL" — high when neural is uncertain
+        # Expert 4: Neural entropy — reuse neural_lp (no redundant softmax)
+        entropy_nll = -(neural_lp.exp() * neural_lp).sum(-1)  # [bsz, slen]
 
         # Stack: [bsz, slen, K]
         return torch.stack([neural_nll, uni_nll, bi_nll, tri_nll, entropy_nll], dim=-1)
 
     def mix_and_score(self, neural_logits, x_batch, y_batch, wlens):
-        """Compute mixed NLL using current expert weights. Returns [bsz, slen] NLL.
+        """Compute mixed NLL using current expert weights.
 
-        Uses log-domain mixing: NLL_mixed = -log(sum_k w_k * exp(-NLL_k))
+        Returns (mixed_nll [bsz, slen], expert_nll [bsz, slen, K] or None).
+        Caller should pass expert_nll to update_weights() to avoid recomputation.
         """
         if self.total_tokens < 10000:
             # Not enough data for n-grams — just use neural
-            return F.cross_entropy(
+            nll = F.cross_entropy(
                 neural_logits.reshape(-1, neural_logits.size(-1)),
                 y_batch.reshape(-1), reduction="none"
             ).reshape(neural_logits.shape[0], neural_logits.shape[1])
+            return nll, None
 
         expert_nll = self.get_expert_log_probs(neural_logits, x_batch, y_batch, wlens)  # [bsz, slen, K]
 
         # Log-domain mixing: log(sum_k w_k * p_k) = logsumexp(log_w_k + log_p_k)
         log_w = self.log_weights - self.log_weights.logsumexp(0)  # normalize
-        # expert_lp = -expert_nll  [bsz, slen, K]
         mixed_lp = (-expert_nll + log_w.unsqueeze(0).unsqueeze(0)).logsumexp(dim=-1)  # [bsz, slen]
 
-        return -mixed_lp  # mixed NLL
+        return -mixed_lp, expert_nll  # mixed NLL + cached expert NLL
 
-    def update_weights(self, neural_logits, x_batch, y_batch, wlens):
-        """Update expert weights using Hedge algorithm on this batch's losses."""
-        if self.total_tokens < 10000:
+    def update_weights(self, expert_nll, wlens):
+        """Update expert weights using Hedge algorithm on pre-computed expert NLLs."""
+        if expert_nll is None:
             return
 
         with torch.no_grad():
-            expert_nll = self.get_expert_log_probs(neural_logits, x_batch, y_batch, wlens)  # [bsz, slen, K]
-
-            # Mean loss per expert across valid positions
-            mask = torch.zeros(expert_nll.shape[0], expert_nll.shape[1], device=self.device)
-            for i, wl in enumerate(wlens):
-                mask[i, :wl] = 1.0
+            # Vectorized mask: compare position index against window lengths
+            bsz, slen = expert_nll.shape[0], expert_nll.shape[1]
+            wlens_t = torch.tensor(wlens, device=self.device, dtype=torch.long)
+            mask = torch.arange(slen, device=self.device).unsqueeze(0) < wlens_t.unsqueeze(1)  # [bsz, slen] bool
 
             # Masked mean NLL per expert
-            masked_nll = expert_nll * mask.unsqueeze(-1)
+            masked_nll = expert_nll * mask.unsqueeze(-1).float()
             expert_mean_loss = masked_nll.sum(dim=(0, 1)) / mask.sum().clamp(min=1)  # [K]
 
             # Hedge update: log_w -= eta * loss
@@ -1438,8 +1420,8 @@ def eval_val_sliding_ttt(
 
                 # Logistic context mixing (GPU-vectorized) or plain CE
                 if mixer is not None:
-                    nll = mixer.mix_and_score(logits_scaled, x_batch, y_batch, wlens)
-                    mixer.update_weights(logits_scaled, x_batch, y_batch, wlens)
+                    nll, expert_nll = mixer.mix_and_score(logits_scaled, x_batch, y_batch, wlens)
+                    mixer.update_weights(expert_nll, wlens)
                 else:
                     nll = F.cross_entropy(
                         logits_scaled.reshape(-1, logits_scaled.size(-1)),
