@@ -142,7 +142,9 @@
 | QEP GPTQ (exp203)        | pending    | ~600s    | est -0.003-0.007  | IMPLEMENTED, queued after A/B round 3 |
 | Late QAT 0.15 (exp204)   | pending    | ~600s    | est -0.001-0.003  | With aligned 99.95th percentile clipping |
 | TTT freeze sweep          | pending    | ~50s ea  | stride=64 recovery| eval-only, 5 experiments (freeze 2/4/6/8/10) |
-| **TTT@stride128 + rescore@s64** | **1.1099** | **~438s est** | **-0.0031!** | **MASSIVE FIND from T2 control — TTT-adapted model rescored at s64** |
+| **TTT@s76 + rescore@s64** | **1.1099** | **~642s** | **-0.0031!** | **MASSIVE FIND — TTT adapts weights, rescore at s64 for precise BPP** |
+| T3 Full QAT (QAT_ENABLED=1) | 1.1269 | ~575s | +0.0139 | **TERRIBLE** — full QAT hurts badly, need proper LATE QAT with threshold |
+| T4 Full QAT 0.5 (running) | ~1.15+ est | — | worse | Even more QAT damage expected |
 
 
 ---
