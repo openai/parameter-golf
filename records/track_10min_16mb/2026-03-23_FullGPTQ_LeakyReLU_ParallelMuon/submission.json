@@ -2,7 +2,7 @@
   "name": "Full GPTQ + LeakyReLU² + Parallel Muon + BigramHash 3072",
   "val_bpb": 1.1163,
   "bytes_total": 15904036,
-  "blurb": "Full Hessian GPTQ + LeakyReLU(0.5)² + Parameter Banking + Parallel Muon (PR #399) + BigramHash 3072×80 (coverage-over-fidelity budget allocation). No TTT. 3-seed mean: 1.1163 (std 0.0012). Built on PR #414 by @signalrush, GPTQ from PR #569.",
+  "blurb": "Full Hessian GPTQ + LeakyReLU(0.5)² + Parameter Banking + Parallel Muon (PR #399) + BigramHash 3072×80 (coverage-over-fidelity budget allocation). No TTT. 3-seed mean: 1.1163 (std 0.0012). Built on PR #414 by @signalrush, GPTQ technique from PR #535 by @raahilshah and PR #569 by @gowtham0992.",
   "author": "abaybektursun",
   "github_id": "abaybektursun",
   "date": "2026-03-24"

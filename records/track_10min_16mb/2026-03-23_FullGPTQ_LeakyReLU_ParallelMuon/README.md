@@ -81,8 +81,8 @@ No TTT needed — Full GPTQ alone beats all prior TTT-based submissions.
 
 ## Credits
 
-- **Full GPTQ**: PR #569 by @abaybektursun (Hessian-aware quantization implementation)
-- **LeakyReLU²**: PR #493, PR #518
+- **Full GPTQ in competition**: [PR #535](https://github.com/openai/parameter-golf/pull/535) by @raahilshah (first Full GPTQ submission), [PR #569](https://github.com/openai/parameter-golf/pull/569) by @gowtham0992 (VRL + GPTQ)
+- **LeakyReLU²**: [PR #493](https://github.com/openai/parameter-golf/pull/493) by @parinzee, [PR #518](https://github.com/openai/parameter-golf/pull/518) by @sofiabod
 - **Optimizer (Parameter Banking + Parallel Muon)**: [PR #399](https://github.com/openai/parameter-golf/pull/399) by @abaybektursun
 - **Base model**: [PR #414](https://github.com/openai/parameter-golf/pull/414) by @signalrush
 - **GPTQ algorithm**: Frantar et al., "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers" (ICLR 2023)
