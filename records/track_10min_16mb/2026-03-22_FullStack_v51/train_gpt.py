@@ -112,7 +112,7 @@ class Hyperparameters:
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 20))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 5))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
@@ -1652,7 +1652,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str],
             if grad_sensitivity and name in grad_sensitivity:
                 sens = grad_sensitivity[name]
                 if sens >= p90:
-                    bits = 7  # Top 10%: high sensitivity → more precision
+                    bits = 6  # Top 10%: keep at int6 (int7 exceeds 16MB budget)
                 elif sens <= p20:
                     bits = 5  # Bottom 20%: low sensitivity → more compression
             # Try GPTQ if Hessian available (31% quant gap reduction)
