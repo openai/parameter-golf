@@ -60,15 +60,16 @@
 
 ### What to Do Next (Priority Order)
 
-1. **Combine best settings**: WD=0.05 + QEP + freeze=8 + stride=64 → full training run
-  - Expected: ~1.106 BPP in ~450s eval (well under budget)
-  - This is the optimal non-LoRA configuration
+1. **Redo freeze sweep on WD=0.05 + QEP model** — exp205 showed freeze=8 doesn't transfer from WD=0.09
+   - Need to: run exp203 config with the 201 script (which saves `final_model_pre_ttt.pt`), then eval-only freeze sweep on that saved model
+   - Test freeze=4/6 at stride=64 — freeze=8 was too aggressive for WD=0.05 but freeze=4 might work
+   - Goal: find the right freeze level to enable stride=64 under 600s
 2. **Implement Case 3 LoRA TTT** (per-document, auto-regressive, NO re-scoring)
-  - Unambiguously legal per issue #402
-  - Could add 0.01-0.05 BPP improvement on top of current
-  - Significant implementation effort (~200 lines)
+   - Unambiguously legal per issue #402
+   - Could add 0.01-0.05 BPP improvement on top of current
+   - Significant implementation effort (~200 lines)
 3. **Wait for @0hq ruling** on score-every-epoch — if valid, implement min-NLL LoRA
-4. **Multi-seed verification** — run best config with seeds 42, 7 for submission
+4. **Multi-seed verification** — run best config (exp203) with seeds 42, 7 for submission
 
 ### Freeze Sweep Results (WD=0.09 model, stride=64, eval-only)
 
