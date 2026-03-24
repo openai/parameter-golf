@@ -216,27 +216,6 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     return tokens[: usable + 1]
 
 
-def resolve_local_batch_shape(
-    global_tokens: int,
-    seq_len: int,
-    world_size: int,
-    grad_accum_steps: int,
-    batch_name: str,
-) -> tuple[int, int]:
-    total_seqs = global_tokens // seq_len
-    microbatches = world_size * grad_accum_steps
-    if total_seqs <= 0:
-        raise ValueError(f"{batch_name} must provide at least one sequence, got {global_tokens=}, {seq_len=}")
-    local_batch_seqs = total_seqs // microbatches
-    if local_batch_seqs <= 0:
-        raise ValueError(
-            f"{batch_name} must provide at least one sequence per rank and microstep; "
-            f"got {global_tokens=}, {seq_len=}, {world_size=}, {grad_accum_steps=}"
-        )
-    effective_global_tokens = local_batch_seqs * microbatches * seq_len
-    return local_batch_seqs, effective_global_tokens
-
-
 def eval_val(
     args: Hyperparameters,
     model: nn.Module,
@@ -252,13 +231,14 @@ def eval_val(
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
-    local_batch_seqs, _ = resolve_local_batch_shape(
-        args.val_batch_size,
-        args.train_seq_len,
-        world_size,
-        grad_accum_steps,
-        batch_name="VAL_BATCH_SIZE",
-    )
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    if local_batch_tokens < args.train_seq_len:
+        raise ValueError(
+            "VAL_BATCH_SIZE must provide at least one sequence per rank; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    local_batch_seqs = local_batch_tokens // args.train_seq_len
     total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
@@ -504,14 +484,7 @@ class DistributedTokenLoader:
         self.stream = TokenStream(pattern)
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
-        local_batch_seqs, _ = resolve_local_batch_shape(
-            global_tokens,
-            seq_len,
-            self.world_size,
-            grad_accum_steps,
-            batch_name="TRAIN_BATCH_TOKENS",
-        )
-        local_tokens = local_batch_seqs * seq_len
+        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
         per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
@@ -772,10 +745,9 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    default_grad_accum_steps = max(1, 8 // world_size)
-    grad_accum_steps = int(os.environ.get("GRAD_ACCUM_STEPS", default_grad_accum_steps))
-    if grad_accum_steps <= 0:
-        raise ValueError(f"GRAD_ACCUM_STEPS must be positive, got {grad_accum_steps}")
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
@@ -921,20 +893,6 @@ def main() -> None:
         optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
-    _, effective_train_batch_tokens = resolve_local_batch_shape(
-        args.train_batch_tokens,
-        args.train_seq_len,
-        world_size,
-        grad_accum_steps,
-        batch_name="TRAIN_BATCH_TOKENS",
-    )
-    _, effective_val_batch_tokens = resolve_local_batch_shape(
-        args.val_batch_size,
-        args.train_seq_len,
-        world_size,
-        grad_accum_steps,
-        batch_name="VAL_BATCH_SIZE",
-    )
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
@@ -945,9 +903,8 @@ def main() -> None:
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
     )
     log0(
-        f"train_batch_tokens:{args.train_batch_tokens} effective_train_batch_tokens:{effective_train_batch_tokens} "
-        f"val_batch_size:{args.val_batch_size} effective_val_batch_size:{effective_val_batch_tokens} "
-        f"train_seq_len:{args.train_seq_len} iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
+        f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
+        f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
