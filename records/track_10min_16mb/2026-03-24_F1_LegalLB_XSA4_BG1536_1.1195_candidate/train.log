@@ -1,0 +1,25 @@
+RUN_ID=f1_legal_lb_s1337_20260324_215935
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26928220
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:leaky_relu_sq mlp_leaky_slope:0.5
+XSA:last_4 world_size:8 grad_accum_steps:1
+seed:1337
+step:500/20000 train_loss:2.3779 train_time:43166ms step_avg:86.33ms
+step:1000/20000 train_loss:2.2573 train_time:86494ms step_avg:86.49ms
+step:2000/20000 train_loss:2.0504 train_time:173189ms step_avg:86.59ms
+step:4000/20000 val_loss:2.0510 val_bpb:1.2147 train_time:346612ms step_avg:86.65ms
+step:6919/20000 val_loss:1.9229 val_bpb:1.1388 train_time:600021ms step_avg:86.72ms
+stopping_early: wallclock_cap train_time:600021ms step:6919/20000
+DIAGNOSTIC post_ema val_loss:1.9212 val_bpb:1.1379 eval_time:1995ms
+Serialized model int6+zstd: 15809827 bytes
+Total submission size int6+zstd: 15901632 bytes
+final_int6_roundtrip_exact val_loss:1.93045373 val_bpb:1.14332344
+final_int6_sliding_window_exact val_loss:1.89038662 val_bpb:1.11959640
+ttt_sliding:start chunks=1893 windows=969088 lr=0.002 epochs=3 freeze=0
+ttt_sliding:unfrozen=25977946 freeze_embed=True
+ttt_sliding:done loss=1.890257 bpb=1.119520 time=222s
+legal_ttt val_loss:1.8903 val_bpb:1.1195 eval_time:223102ms
+legal_ttt_exact val_loss:1.89025719 val_bpb:1.11951975
