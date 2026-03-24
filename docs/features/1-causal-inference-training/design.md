@@ -134,17 +134,20 @@ Append-only log of all experimental runs across all cycles:
       "edges_removed": [str],
       "edges_strengthened": [str]
     },
-    "cycle_status": str,            # continue|stop_confirmed|stop_null_streak|stop_time_gate
+    "cycle_status": str,            # See cycle_status values below
     "timestamp": str,
     "notes": str                   # Researcher notes / rationale
   }]
 }
+```
 
 **cycle_status values**:
 - `continue`: Effect not yet confirmed, more cycles warranted
 - `stop_confirmed`: Effect ≥ MDE with p < 0.01 — integrate into submission
 - `stop_null_streak`: 3 consecutive null results — pivot to engineering fallback
 - `stop_time_gate`: 2-day time budget expired — use best result so far
+
+```
 ```
 
 ### Per-Run Metrics (written by experiment_runner)
@@ -319,7 +322,7 @@ Uses plain (non-compiled) `nn.value_and_grad` API, which returns gradients only 
 
 ### C10: gradient_attribution.py — Per-Layer Logging (R4.4)
 
-Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads train_gpt_mlx.py as text, inserts gradient-norm logging code after the `accumulate_flat_grads` call site (line ~1036), writes the result to `train_gpt_mlx_instrumented.py`, and executes it via subprocess. The copy is regenerated each time C10 runs, ensuring it tracks upstream changes. **Patch targeting**: C10 targets the LAST occurrence of `accumulate_flat_grads` in the file (the main training loop call at line ~1036, not the function definition or warmup loop calls). **Sentinel validation**: After patching, C10 asserts that the surrounding context (within ±5 lines) includes BOTH `train_loss = train_loss + loss` (unique to the main loop, not present in warmup) AND `lr_mul` assignment, confirming the correct call site was patched. If validation fails, aborts with an error indicating the patch site has drifted. The original script is never modified. The patched copy adds logging at each validation checkpoint:
+Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads train_gpt_mlx.py as text, inserts gradient-norm logging code after the `accumulate_flat_grads` call site (line ~1036), writes the result to `train_gpt_mlx_instrumented.py`, and executes it via subprocess. The copy is regenerated each time C10 runs, ensuring it tracks upstream changes. **Patch targeting**: C10 targets the LAST occurrence of `accumulate_flat_grads` in the file (the main training loop call at line ~1036, not the function definition or warmup loop calls). **Sentinel validation**: After patching, C10 asserts (using substring containment) that the surrounding context (within ±5 lines) includes BOTH `train_loss = train_loss + loss` (unique to the main loop, not present in warmup) AND `lr_mul` assignment, confirming the correct call site was patched. Note: the actual line is `train_loss = train_loss + loss.astype(mx.float32) * grad_scale` — substring match on `train_loss = train_loss + loss` is sufficient. If validation fails, aborts with an error indicating the patch site has drifted. The original script is never modified. The patched copy adds logging at each validation checkpoint:
 1. After `loss_and_grad_chunked` returns `(loss, grads)`, iterate flat grad dict
 2. Compute L2 norm per named parameter group (attention, MLP, embedding, skip weights)
 3. Log to JSON-lines file: `{step, elapsed_ms, val_loss, layer_norms: {name: norm}}`
@@ -558,8 +561,8 @@ Note: The --seeds argument sets the SEED environment variable for each subproces
 ### I6: statistical_analysis.py
 
 ```
-Input:  results/causal/raw_runs.json (or multiple)
-Output: results/causal/ablation_results.json
+Input:  results/causal/cycle_N/raw_runs.json (or multiple cycle directories)
+Output: results/causal/cycle_N/ablation_results.json
 
 Output Schema:
 {
