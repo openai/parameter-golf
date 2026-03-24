@@ -80,9 +80,16 @@ case "$PROFILE" in
     export SHARED_DEPTH_N="${SHARED_DEPTH_N:-4}"
     export SHARED_DEPTH_GAIN="${SHARED_DEPTH_GAIN:-0.15}"
     ;;
+  shared_depth_midshare)
+    export RUN_ID="${RUN_ID:-shared_depth_midshare}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export SHARED_DEPTH_N="${SHARED_DEPTH_N:-4}"
+    export SHARED_DEPTH_GAIN="${SHARED_DEPTH_GAIN:-0.05}"
+    export SHARED_DEPTH_EDGE_UNIQUE="${SHARED_DEPTH_EDGE_UNIQUE:-2}"
+    ;;
   *)
     echo "Unknown profile: $PROFILE" >&2
-    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth" >&2
+    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth shared_depth_midshare" >&2
     exit 1
     ;;
 esac

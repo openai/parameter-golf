@@ -92,6 +92,7 @@ class Hyperparameters:
     hybrid_delta_every = int(os.environ.get("HYBRID_DELTA_EVERY", 0))
     shared_depth_n = int(os.environ.get("SHARED_DEPTH_N", 0))
     shared_depth_gain = float(os.environ.get("SHARED_DEPTH_GAIN", 0.0))
+    shared_depth_edge_unique = int(os.environ.get("SHARED_DEPTH_EDGE_UNIQUE", 0))
 
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
@@ -753,6 +754,7 @@ class GPT(nn.Module):
         hybrid_delta_every: int,
         shared_depth_n: int,
         shared_depth_gain: float,
+        shared_depth_edge_unique: int,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -766,12 +768,13 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.logical_num_layers = num_layers
-        shared_blocks = min(shared_depth_n, num_layers) if shared_depth_n > 0 else num_layers
+        edge = min(shared_depth_edge_unique, num_layers // 2) if shared_depth_n > 0 else 0
+        shared_blocks = min(shared_depth_n, max(num_layers - 2 * edge, 1)) if shared_depth_n > 0 else num_layers
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.block_map = [i % shared_blocks for i in range(num_layers)]
+        self.block_map = list(range(edge)) + [edge + (i % shared_blocks) for i in range(max(num_layers - 2 * edge, 0))] + [edge + shared_blocks + i for i in range(edge)] if shared_depth_n > 0 else list(range(num_layers))
         self.pass_scales = nn.Parameter((1.0 + shared_depth_gain * torch.linspace(-1, 1, num_layers)[:, None]).expand(-1, model_dim).contiguous()) if shared_depth_n > 0 else None
         self.mtp_heads = nn.ModuleList([CastedLinear(model_dim, vocab_size, bias=False) for _ in range(mtp_depth)])
         self.blocks = nn.ModuleList(
@@ -1181,6 +1184,7 @@ def main() -> None:
         hybrid_delta_every=args.hybrid_delta_every,
         shared_depth_n=args.shared_depth_n,
         shared_depth_gain=args.shared_depth_gain,
+        shared_depth_edge_unique=args.shared_depth_edge_unique,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1265,7 +1269,8 @@ def main() -> None:
         f"muon_update_balance:{args.muon_update_balance} z_loss_coef:{args.z_loss_coef} "
         f"attn_twice_alpha:{args.attn_twice_alpha} attn_twice_alpha_slope:{args.attn_twice_alpha_slope} "
         f"mtp_depth:{args.mtp_depth} hybrid_delta_every:{args.hybrid_delta_every} shared_depth_n:{args.shared_depth_n} "
-        f"shared_depth_gain:{args.shared_depth_gain} overtone_init_power:{args.overtone_init_power}"
+        f"shared_depth_gain:{args.shared_depth_gain} shared_depth_edge_unique:{args.shared_depth_edge_unique} "
+        f"overtone_init_power:{args.overtone_init_power}"
     )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
