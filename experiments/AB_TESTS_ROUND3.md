@@ -472,3 +472,49 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **R16. Only update MLP weights** during TTT (freeze all attention). MLPs are where most of the model's distribution knowledge lives. Attention patterns are more structural and shouldn't change for domain adaptation.
 - Source: https://test-time-training.github.io, https://www.ijcai.org/proceedings/2024/0616.pdf
 
+### Problem 6: We are RIGHT at the critical depth — "The Depth Delusion"
+
+**CRITICAL FINDING** (arxiv:2601.20994, "The Depth Delusion"):
+> "Transformer performance follows architecture-conditioned scaling laws with a critical depth Dcrit ∝ W^0.44. **At width 512, Dcrit ≈ 16 layers.** Beyond Dcrit, adding layers increases loss despite more parameters due to gradient starvation."
+
+**We are at 14 of 16 critical layers.** This explains EVERYTHING:
+- Why 15L was worse (exp189: 1.1171 vs 14L: 1.1155) — approaching Dcrit
+- Why techniques that help 11L models fail for us — 11L is well below Dcrit, 14L is near it
+- Why our quant gap is so big — gradient starvation in early layers means they're undertrained, making them more fragile to quantization
+- Why XSA/LN Scale/Partial RoPE all hurt — they add perturbations to a model that's already at the edge of gradient stability
+
+**The U-shaped loss curve:** Below Dcrit, more depth helps. At Dcrit, it's optimal. Above, loss INCREASES. We're 2 layers below the cliff.
+
+**Implications for our strategy:**
+- **DO NOT add a 15th layer.** We're near the edge.
+- **Focus on making 14 layers more efficient, not deeper.**
+- **Gradient health is critical.** Any technique that worsens gradient flow (squared activations, aggressive weight decay, large learning rates) is more dangerous at 14L than at 11L.
+- **Our Muon WD=0.09 might be too aggressive** — high WD shrinks weights, which shrinks gradients through the square activation. At 14L near Dcrit, this could be starving early layers.
+- Source: https://arxiv.org/abs/2601.20994
+
+### Problem 7: QEP — Quantization Error Propagation is a solved problem we're not using
+
+**CRITICAL FINDING** (arxiv:2504.09629, NeurIPS 2025):
+The Quantization Error Propagation (QEP) framework explicitly addresses our exact problem: "quantization errors introduced during layer-wise PTQ accumulate across successive layers, leading to error growth proportional to network depth."
+
+**Their solution:** Add a tunable propagation coefficient α_l to each layer's GPTQ optimization that compensates for upstream quantization errors. When quantizing layer L, they feed in the *actually quantized* outputs from layers 0..L-1 (not the original float outputs). This means each layer's GPTQ optimizes against realistic inputs, not ideal inputs.
+
+**Our current GPTQ probably uses ideal float inputs** for calibration (standard GPTQ). This means layer 13's calibration data is based on perfect float outputs from layers 0-12, but at inference those outputs are quantized. The deeper we go, the bigger the mismatch.
+
+**Fix R17: QEP-aware GPTQ** — During GPTQ calibration, propagate quantized outputs through already-quantized layers instead of float outputs. Each subsequent layer sees realistic (quantized) inputs.
+- Expected gain: **0.003-0.007 BPB** (directly proportional to our excess quant gap)
+- Effort: Medium — modify GPTQ calibration loop to use quantized intermediate outputs
+- This is the single most impactful technique for our specific situation.
+- Source: https://arxiv.org/abs/2504.09629
+
+### Problem 8: Layer sensitivity is wildly unequal — SmolLM2 study
+
+(arxiv:2603.19348): Study found a "critical core" in layers 8-11 of a 15L model where ablation causes +63,419% perplexity degradation. Also found "anti-layers" at specific depths where removal IMPROVES performance.
+
+**For our 14L model:** Our critical core is probably layers 10-13 (proportionally scaled). This means:
+- Layers 0-3 are likely less critical → safe to quantize more aggressively (int5)
+- Layers 10-13 are critical → should get int8 or at minimum careful GPTQ
+- There may be an "anti-layer" in our model whose weights are net-negative after quantization
+- **R18: Profile layer sensitivity** — run GPTQ with each layer individually at int5 vs int6 and measure per-layer BPB impact. The result tells us exactly where to allocate bits.
+- Source: https://arxiv.org/abs/2603.19348
+
