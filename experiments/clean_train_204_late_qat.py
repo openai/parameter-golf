@@ -440,9 +440,12 @@ class CastedLinear(nn.Linear):
         if CastedLinear._qat_enabled and self.training and w.ndim == 2:
             with torch.no_grad():
                 w32 = self.weight.float()
-                row_max = w32.abs().amax(dim=1)
-                scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
-                w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -32, 31) * scale[:, None]).to(x.dtype)
+                # QAT-export aligned: use 99.95th percentile clipping instead of abs max
+                # This matches the GPTQ export clipping, reducing quant gap (PR#569 insight)
+                row_clip = torch.quantile(w32.abs(), 0.9995, dim=1)
+                scale = (row_clip / 31.0).clamp_min(1.0 / 31.0)
+                w_clipped = torch.clamp(w32, -row_clip[:, None], row_clip[:, None])
+                w_q = (torch.clamp(torch.round(w_clipped / scale[:, None]), -32, 31) * scale[:, None]).to(x.dtype)
             w = w + (w_q - w).detach()
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
