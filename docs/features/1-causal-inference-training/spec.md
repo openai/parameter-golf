@@ -105,7 +105,7 @@ Apply formal causal inference methods to the parameter golf challenge to discove
 - Report: fraction of tokens in each category, BPB contribution of each
 
 **Acceptance Criteria:**
-- [ ] AC-3.1: Per-token loss decomposition runs on MLX within 2 hours
+- [ ] AC-3.1: Per-token loss decomposition runs on the full validation set (all val shards) from one checkpoint on Apple Silicon MLX within 2 hours
 - [ ] AC-3.2: Quantization gap measured and threshold applied to restrict claims
 - [ ] AC-3.3: Token categories identified with causal transfer scores
 
@@ -135,7 +135,7 @@ Apply formal causal inference methods to the parameter golf challenge to discove
 - Log per-layer gradient norms at validation checkpoints during training
 - Correlate per-layer gradient norm trajectories with val_loss reduction across training phases
 - Identify layers with high causal signal (high correlation) vs. noise (low correlation)
-- Stratify by training phase: warmup (first 20 steps), main (step 20 to warmdown onset), warmdown (warmdown onset to end). Phase boundaries determined at runtime from lr_mul transitions — MLX uses wallclock-based warmdown (not fixed step counts), so boundaries are detected dynamically rather than hardcoded.
+- Stratify by training phase: warmup (first 20 steps), main (step 20 to warmdown onset), warmdown (warmdown onset to end). Phase boundaries determined at runtime from lr_mul transitions. MLX supports both step-based (when max_wallclock_seconds ≤ 0) and wallclock-based warmdown; the detection script must check which mode is active and compute boundaries accordingly.
 
 **Acceptance Criteria:**
 - [ ] AC-4.1: Influence proxy script runs on MLX, produces per-shard scores in <2 hours
@@ -291,4 +291,8 @@ def decision_gate(phase_results):
         return "null_result"  # Below MDE → next phase
 ```
 
+On confirmed effect, the phase result is carried forward to Phase 5 integration. Subsequent phases are skipped — stacking multiple causal findings across phases is out of scope for this iteration.
+
 After Phase 4 null: trigger engineering fallback (Phase 5 with R5.3).
+
+Note: FR-4 (per-layer gradient attribution) is deprioritized if earlier phases confirm effects. R4.4 may be run as an optional standalone diagnostic regardless of gate outcomes, but is not required if Phase 2 or 3 produces a confirmed result.
