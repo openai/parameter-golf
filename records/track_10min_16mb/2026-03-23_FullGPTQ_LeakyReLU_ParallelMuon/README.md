@@ -1,6 +1,6 @@
 # Full GPTQ + LeakyReLU² + Parallel Muon
 
-**val_bpb: 1.1170** (3-seed mean, std 0.0003) | **~15.95 MB** | 8×H100 SXM, 600s | No TTT
+**val_bpb: 1.1171** (3-seed mean, std 0.0003) | **~15.95 MB** | 8×H100 SXM, 600s | No TTT
 
 ## Results (8×H100 80GB SXM, PyTorch 2.9.1+cu128)
 
@@ -8,8 +8,8 @@
 |------|----------|-------|---------------|--------------------------|----------|
 | 2025 | 83.4ms | 7,182 | 1.1385 | **1.1167** | 15,901,230 |
 | 1337 | 83.3ms | 7,189 | 1.1388 | **1.1171** | 15,962,990 |
-| 2024 | 83.3ms | 7,185 | 1.1386 | **1.1173** | 15,994,746 |
-| **Mean** | **83.3ms** | **7,185** | **1.1386** | **1.1170 (std 0.0003)** | |
+| 2024 | 83.3ms | 7,201 | 1.1386 | **1.1173** | 15,994,746 |
+| **Mean** | **83.3ms** | **7,191** | **1.1386** | **1.1171 (std 0.0003)** | |
 
 GPTQ improves post-quantization BPB by **0.0216** vs pre-quantization (1.1386 → 1.1170). Standard GPTQ-lite gives only 1.1218 from the same pre-quant model — Full GPTQ is 0.0048 better.
 

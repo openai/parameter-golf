@@ -1,8 +1,8 @@
 {
   "name": "Full GPTQ + LeakyReLU² + Parallel Muon",
-  "val_bpb": 1.1170,
+  "val_bpb": 1.1171,
   "bytes_total": 15994746,
-  "blurb": "Full Hessian GPTQ (Cholesky error compensation, actorder) + LeakyReLU(0.5)² + Parameter Banking + Parallel Muon (PR #399). No TTT. 3-seed mean: 1.1170 (std 0.0003). Built on PR #414 by @signalrush, GPTQ from PR #569.",
+  "blurb": "Full Hessian GPTQ (Cholesky error compensation, actorder) + LeakyReLU(0.5)² + Parameter Banking + Parallel Muon (PR #399). No TTT. 3-seed mean: 1.1171 (std 0.0003). Built on PR #414 by @signalrush, GPTQ from PR #569.",
   "author": "abaybektursun",
   "github_id": "abaybektursun",
   "date": "2026-03-23"
