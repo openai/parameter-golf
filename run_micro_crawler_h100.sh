@@ -1,12 +1,13 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════
-# MICRO CRAWLER H100 TEST — 3flat + 1crawl×2, dim=800, trigram
+# MICRO CRAWLER H100 TEST — 4flat + 2crawl×2, dim=640, trigram
 # ═══════════════════════════════════════════════════════════════════════
 #
-# Optimal config from 167-run Spark sweep + 8-config micro crawler sweep:
-#   3 flat blocks (unique, run once, clean gradients)
-#   1 crawler block × 2 loops (shared, orthogonal fire)
-#   = 5 effective depth, 4 stored blocks, dim=800
+# Balanced micro crawler architecture:
+#   4 flat blocks (unique, run once, clean gradients)
+#   2 crawler blocks × 2 loops (shared pair, orthogonal double-tap)
+#   = 8 effective depth, 6 stored blocks, dim=640
+#   F = C×L → 50/50 balanced split
 #
 # Run on a single rented H100:
 #   chmod +x run_micro_crawler_h100.sh
@@ -20,12 +21,12 @@
 #
 set -euo pipefail
 
-# ── Architecture: Micro Crawler 3f+1cx2 ──
-export NUM_FLAT_LAYERS=3
-export NUM_CRAWLER_LAYERS=1
+# ── Architecture: Micro Crawler 4f+2cx2 (balanced) ──
+export NUM_FLAT_LAYERS=4
+export NUM_CRAWLER_LAYERS=2
 export CRAWLER_LOOPS=2
 export CRAWLER_MLP_MULT=4
-export MODEL_DIM=800
+export MODEL_DIM=640
 export NUM_HEADS=10
 export NUM_KV_HEADS=5
 export MLP_MULT=4
@@ -36,12 +37,12 @@ export TRIGRAM_VOCAB_SIZE=8192
 export TRIGRAM_DIM=128
 
 # ── Features ──
-export XSA_LAST_N=1          # XSA on the crawler block (it's the only one)
+export XSA_LAST_N=2          # XSA on both crawler blocks
 export ROPE_DIMS=16           # partial RoPE
 export LN_SCALE=1
 export VE_ENABLED=1
 export VE_DIM=128
-export VE_LAYERS="0"          # VE on crawler block 0
+export VE_LAYERS="0,1"        # VE on both crawler blocks
 export TIE_EMBEDDINGS=1
 export LOGIT_SOFTCAP=30.0
 
@@ -96,13 +97,13 @@ export SEED=1337
 export RUN_ID="micro_crawler_3f1cx2_d800_$(date +%Y%m%d_%H%M%S)"
 
 echo "═══════════════════════════════════════════════════════════════════"
-echo "MICRO CRAWLER H100 — 3flat + 1crawl×2 = 5 effective, dim=800"
+echo "MICRO CRAWLER H100 — 4flat + 2crawl×2 = 8 effective, dim=640"
 echo "Run ID: $RUN_ID"
 echo "═══════════════════════════════════════════════════════════════════"
 
-# Estimate params: 4 blocks × 11 × 800² + 1024×800 + trigram ≈ 29.0M
-echo "Estimated params: ~29M (4 stored blocks at dim=800, MLP 4x)"
-echo "Expected artifact: ~15.6MB (int6+zstd)"
+# Estimate params: 6 blocks × 11 × 640² + 1024×640 + trigram ≈ 28.0M
+echo "Estimated params: ~28M (6 stored blocks at dim=640, MLP 4x)"
+echo "Expected artifact: ~15.1MB (int6+zstd)"
 echo ""
 
 python train_gpt_micro_crawler_h100.py
