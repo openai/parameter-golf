@@ -1,16 +1,15 @@
-# LeakyReLU(0.5)^2 + VRL + lzma — val_bpb 1.1234
+# LeakyReLU(0.5)^2 + VRL + lzma — val_bpb 1.1229
 
-val_bpb = 1.1234 (seed 1337, more seeds running) | 15.89 MB | 8xH100 SXM
+val_bpb = 1.1229 (3-seed mean, std 0.0005) | ~15.89 MB | 8xH100 SXM
 
 ## 3-Seed Results (8xH100 80GB SXM, PyTorch 2.9.1+cu128)
 
 | Seed | step_avg | steps | val_bpb | Artifact |
 |------|----------|-------|---------|----------|
 | 1337 | 87.1ms | 6,889 | 1.1234 | 15,887,926 |
-| 42 | ~88ms | ~6,800 | RUNNING | RUNNING |
-| 2025 | ~88ms | ~6,800 | RUNNING | RUNNING |
-
-*Seeds 42 and 2025 in progress — will update when complete.*
+| 42 | 88.0ms | 6,818 | 1.1225 | 15,877,570 |
+| 2025 | 87.5ms | 6,857 | 1.1228 | 15,890,566 |
+| **Mean** | **87.5ms** | **6,855** | **1.1229 (std 0.0005)** | |
 
 ## Key Innovations
 
@@ -62,13 +61,13 @@ cd /workspace/flash-attention/hopper && MAX_JOBS=8 pip install --no-build-isolat
 cd /workspace/parameter-golf
 python3 data/cached_challenge_fineweb.py --variant sp1024
 
-# Train
-RUN_ID=seed1337 \
+# Train (replace SEED as needed)
+RUN_ID=seed1337 SEED=1337 \
 DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
 TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
 VOCAB_SIZE=1024 VRL_ENABLED=1 \
 torchrun --standalone --nproc_per_node=8 \
-records/track_10min_16mb/2026-03-23_Reproduce414_LegalTTT/train_gpt.py
+records/track_10min_16mb/2026-03-24_LeakyReLU2_VRL_LZMA/train_gpt.py
 ```
 
 ## Credits
