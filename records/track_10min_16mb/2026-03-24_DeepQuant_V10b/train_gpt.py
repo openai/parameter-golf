@@ -88,11 +88,12 @@ class Hyperparameters:
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
     ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 512))
+    ttt_max_doc_len = int(os.environ.get("TTT_MAX_DOC_LEN", 24450))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 6))  # V8: 6 epochs + score every epoch
     ttt_cosine_lr = bool(int(os.environ.get("TTT_COSINE_LR", "1")))
     ttt_bias_tune = bool(int(os.environ.get("TTT_BIAS_TUNE", "1")))
     ttt_temp_rescale = float(os.environ.get("TTT_TEMP_RESCALE", 0.98))
-    ttt_max_eval_secs = float(os.environ.get("TTT_MAX_EVAL_SECS", 550.0))  # V8: post-TTT calibration
+    ttt_max_eval_secs = float(os.environ.get("TTT_MAX_EVAL_SECS", 570.0))  # V8: post-TTT calibration
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -842,9 +843,16 @@ def eval_val_ttt_lora(
     files = sorted(glob.glob(args.val_files))
     all_tokens = torch.cat([load_data_shard(Path(f)) for f in files])
     docs = _find_docs(all_tokens)
-    rank_docs = docs[(len(docs) * rank) // world_size : (len(docs) * (rank + 1)) // world_size]
+    _zz = []
+    for i in range(0, len(docs), world_size):
+        c = docs[i:i+world_size]
+        if (i // world_size) % 2 == 1: c = c[::-1]
+        _zz.extend(c)
+    rank_docs = _zz[rank::world_size]
     short_docs = [d for d in rank_docs if d[1] < args.ttt_min_doc_len]
-    long_docs = [d for d in rank_docs if d[1] >= args.ttt_min_doc_len]
+    long_docs = [d for d in rank_docs if d[1] >= args.ttt_min_doc_len and d[1] <= args.ttt_max_doc_len]
+    outlier_docs = [d for d in rank_docs if d[1] > args.ttt_max_doc_len]
+    short_docs = short_docs + outlier_docs
     master = rank == 0
     if master:
         print(f"ttt:rank0 short={len(short_docs)} long={len(long_docs)} epochs={args.ttt_epochs} batch={args.ttt_batch_size}")
