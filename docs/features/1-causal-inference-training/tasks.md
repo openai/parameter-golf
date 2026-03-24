@@ -53,7 +53,7 @@
   - test_field_coverage_computation
   - test_append_experiment_mode (mock raw_runs.json)
   - test_unknown_format_fallback
-**Deps**: T4 | **Done**: All tests written, all fail
+**Deps**: T4b | **Done**: All tests written, all fail
 
 ### T6: Implement extract_interventions.py [S3]
 - [ ] Implement submission.json pass (6 core fields)
@@ -74,7 +74,7 @@
   - test_edge_tagging_logic
   - test_previous_dag_diff
   - test_dot_renders
-**Deps**: T4 | **Done**: All tests written, all fail
+**Deps**: T4b | **Done**: All tests written, all fail
 
 ### T8: Implement estimate_dag.py — expert skeleton + encoding [S4]
 - [ ] Expert-guided skeleton builder (known causal edges, tagged `expert_imposed`)
@@ -118,7 +118,7 @@
   - test_partial_failure (1/3 seeds fails → reduced_power)
   - test_timeout_handling
   - test_truncated_stdout (no val_bpb line)
-**Deps**: T4 | **Done**: All tests written, all fail
+**Deps**: T4b | **Done**: All tests written, all fail
 
 ### T13: Implement experiment_runner.py [S6]
 - [ ] Config loading + validation
@@ -137,7 +137,7 @@
 - [ ] Implement: load raw_runs, paired differences, bootstrap CI, t-test, correction, gate
 - [ ] Platform transfer coefficient
 - [ ] `pytest tests/causal/test_statistical.py` all green
-**Deps**: T4 | **Done**: Tests pass
+**Deps**: T4b | **Done**: Tests pass
 
 ## Phase D: Diagnostic Probes (parallel)
 
@@ -146,21 +146,22 @@
 - [ ] Implement: load model, forward pass reduction='none', decomposition verify
 - [ ] Frequency buckets, boundary/mid-sequence classification, per-category stats
 - [ ] `pytest tests/causal/test_token_loss.py` all green
-**Deps**: T4, checkpoint exists | **Done**: decomposition_check.passed, buckets sum correctly
+**Deps**: T4b, checkpoint exists | **Done**: decomposition_check.passed, buckets sum correctly
 
 ### T16: Implement quant_gap_analysis.py [S9]
 - [ ] Write `tests/causal/test_quant_gap.py` (gap computation, threshold check)
 - [ ] Implement: load model, pre-quant BPB, quantize→dequantize→post-quant BPB
 - [ ] Gap and threshold check (import quantize_state_dict_int8/dequantize_state_dict_int8 from train_gpt_mlx.py via `__name__` guard, same pattern as T4a load_model)
 - [ ] `pytest tests/causal/test_quant_gap.py` all green
-**Deps**: T4, checkpoint exists | **Done**: quant_gap > 0, gap_exceeds_3x_threshold is boolean
+**Deps**: T4b, checkpoint exists | **Done**: quant_gap > 0, gap_exceeds_3x_threshold is boolean
 
 ### T17: Implement influence_proxy.py [S10]
+*Note: R4.2 (shard variance check) is integrated into this script per plan consolidation; no separate shard_variance_check.py is produced.*
 - [ ] Write `tests/causal/test_influence.py` (dot product mock, CV, skip threshold)
 - [ ] Implement: load model, val gradient, memory check, shard iteration + dot product
 - [ ] mx.eval() after each, sort scores, CV check, skip recommendation
 - [ ] `pytest tests/causal/test_influence.py` all green
-**Deps**: T4, checkpoint + shards exist | **Done**: --max-shards 5 produces sorted scores, CV non-negative
+**Deps**: T4b, checkpoint + shards exist | **Done**: --max-shards 5 produces sorted scores, CV non-negative
 
 ### T18: Implement gradient_attribution.py [S11]
 - [ ] Write `tests/causal/test_gradient_attr.py` (LAST occurrence, sentinel, ast.parse() syntax, JSON-lines)
