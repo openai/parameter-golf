@@ -48,7 +48,7 @@ export MLP_MULT=4
 export VOCAB_SIZE=1024
 
 # ── Input conditioning ──
-export TRIGRAM_VOCAB_SIZE=2048
+export TRIGRAM_VOCAB_SIZE=8192
 export TRIGRAM_DIM=128
 
 # ── Features ──
