@@ -90,7 +90,9 @@ This is inspired by CBO with Unknown Causal Graphs (arXiv:2503.19554) — we onl
 
 The diagnostic scripts (token loss, quant gap, gradient attribution, influence proxy) run as parallel observability probes at any point in the cycle, providing supporting evidence for intervention selection.
 
-**Spec-design reconciliation**: The spec defines linear phases (1→2→3→4→5). The design maps these as: Cycle 0 = Phase 1 (R1.1-R1.4), Cycles 1-4 = Phase 2 (R2.1-R2.3) with iterative DAG feedback, diagnostics = Phases 3-4 running in parallel alongside any cycle. Phase 5 (submission) is unchanged. The spec's sequential decision gates are preserved within each cycle iteration. This is a refinement of the spec's execution model, not a contradiction — the spec allows engineering fallback and does not prohibit iterating.
+**Spec-design reconciliation**: The spec defines linear phases (1→2→3→4→5). The design maps these as: Cycle 0 = Phase 1 (R1.1-R1.4), Cycles 1-4 = Phase 2 (R2.1-R2.3) with iterative DAG feedback, diagnostics = Phases 3-4 running in parallel alongside any cycle. Phase 5 (submission) is unchanged. The spec's sequential decision gates are preserved within each cycle iteration.
+
+**Override of spec preconditions**: The spec's Phase 3 precondition ("Phase 2 null or skipped") and Phase 4 precondition ("Phase 3 null or skipped") are relaxed in this design. Diagnostic components C7/C8/C9/C10 are runnable in parallel with any cycle iteration regardless of gate outcomes. They are observability probes, not sequential dependencies. The `next_intervention` field in causal_dag.json is a human-readable advisory — config authoring for experiment_runner.py is a manual researcher task.
 
 ### Design Principles
 
@@ -146,6 +148,7 @@ Append-only log of all experimental runs across all cycles:
 - `stop_confirmed`: Effect ≥ MDE with p < 0.01 — integrate into submission
 - `stop_null_streak`: 3 consecutive null results — pivot to engineering fallback
 - `stop_time_gate`: 2-day time budget expired — use best result so far
+- `stop_max_cycles`: Maximum cycle count (4) reached without confirmed effect — pivot to engineering fallback
 
 ```
 ```
@@ -747,7 +750,7 @@ scripts/causal/
 ├── statistical_analysis.py     # C6: Effect estimation (R2.2)
 ├── token_loss_decompose.py     # C7: Per-token analysis (R3.1)
 ├── quant_gap_analysis.py       # C8: Pre/post quant BPB (R3.2)
-├── influence_proxy.py          # C9: Gradient inner product (R4.1) + shard variance check (R4.2, consolidated from spec's shard_variance_check.py)
+├── influence_proxy.py          # C9: Gradient inner product (R4.1) + shard variance check (R4.2) — merged from spec's shard_variance_check.py, do not create separately
 ├── gradient_attribution.py     # C10: Per-layer gradient logging (R4.4)
 ├── requirements.txt            # Phase-specific dependencies
 └── README.md                   # Usage guide with per-script examples
