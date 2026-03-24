@@ -105,7 +105,8 @@ class Hyperparameters:
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 128))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 2048))
-    ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 256))
+    ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 512))
+    ttt_max_doc_len = int(os.environ.get("TTT_MAX_DOC_LEN", 0))  # 0 = no cap
     ttt_batch_docs = int(os.environ.get("TTT_BATCH_DOCS", 64))
     ttt_temp = float(os.environ.get("TTT_TEMP", 1.0))  # Post-TTT temperature calibration
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
@@ -1188,8 +1189,9 @@ def eval_val_ttt_lora(
     Score on final epoch, train on all chunks except the last."""
     docs = _find_docs(val_tokens)
     # Balanced distribution: sort by length globally, deal alternating to ranks
-    all_short = [d for d in docs if d[1] < args.ttt_min_doc_len]
-    all_long = sorted([d for d in docs if d[1] >= args.ttt_min_doc_len], key=lambda d: d[1])
+    max_dl = args.ttt_max_doc_len if args.ttt_max_doc_len > 0 else float('inf')
+    all_short = [d for d in docs if d[1] < args.ttt_min_doc_len or d[1] > max_dl]
+    all_long = sorted([d for d in docs if args.ttt_min_doc_len <= d[1] <= max_dl], key=lambda d: d[1])
     short_docs = all_short[rank::world_size]
     long_docs = all_long[rank::world_size]  # alternating ensures balanced total work
     master = rank == 0
