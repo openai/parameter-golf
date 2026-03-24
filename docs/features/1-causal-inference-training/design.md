@@ -723,7 +723,13 @@ Output Schema:
 
 ## Dependencies
 
-### Python Packages (new, not in current requirements.txt)
+### Python Packages (new)
+
+Managed at project level via pyenv + uv. Install with:
+```bash
+uv add causal-learn statsmodels networkx graphviz scipy
+```
+
 | Package | Version | Used By | Purpose |
 |---------|---------|---------|---------|
 | causal-learn | >=0.1.3 | C3 | FCI/PC causal discovery algorithms |
@@ -731,6 +737,8 @@ Output Schema:
 | networkx | >=3.0 | C3 | DAG representation and analysis |
 | graphviz | >=0.20 | C3 | DOT visualization rendering |
 | scipy | >=1.10 | C6, common.py | paired t-test, bootstrap |
+
+No separate `scripts/causal/requirements.txt` — all dependencies managed in the project-level `pyproject.toml` via uv.
 
 ### Existing Dependencies (already available)
 - mlx, mlx.nn, mlx.optimizers — for all MLX-based scripts
@@ -752,7 +760,6 @@ scripts/causal/
 ├── quant_gap_analysis.py       # C8: Pre/post quant BPB (R3.2)
 ├── influence_proxy.py          # C9: Gradient inner product (R4.1) + shard variance check (R4.2) — merged from spec's shard_variance_check.py, do not create separately
 ├── gradient_attribution.py     # C10: Per-layer gradient logging (R4.4)
-├── requirements.txt            # Phase-specific dependencies
 └── README.md                   # Usage guide with per-script examples
 
 results/causal/                 # Created by scripts, gitignored
