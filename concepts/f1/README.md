@@ -11,13 +11,20 @@ This folder is a working copy of the race-car baseline from **PR #587** (`submis
 
 ## Files
 
-- `train_gpt.py`: exact copy from PR #587 commit above
+- `train_gpt.py`: PR #587 base with F1 experimental knobs added
 - `run.sh`: local runner wired to this folder's `train_gpt.py`
+- `run_legal_lb.sh`: legal leaderboard profile (record-track tactics only)
 
 ## Run
 
 ```bash
 SEED=1337 bash concepts/f1/run.sh
+```
+
+Legal leaderboard profile:
+
+```bash
+SEED=1337 bash concepts/f1/run_legal_lb.sh
 ```
 
 ## Teacher-Student + Extra Capacity Knobs
@@ -36,6 +43,20 @@ For `MODEL_DIM=512`, `VOCAB_SIZE=1024`:
 - `RANK=224` -> ~344k params
 - `RANK=256` -> ~393k params
 - `RANK=288` -> ~442k params
+
+## Legal Leaderboard Imports (Filtered)
+
+Only strategies from official **record track** entries were imported:
+
+- LeakyReLU-squared MLP (`MLP_ACT=leaky_relu_sq`, slope `0.5`)
+- `XSA_LAST_N=4`
+- `BIGRAM_VOCAB_SIZE=1536`
+- legal score-first TTT profile (`TTT_FREEZE_BLOCKS=0`, `TTT_GRAD_CLIP=0.8`)
+
+Excluded on purpose:
+
+- non-record hardware strategies (for example A100/A800-only experiments)
+- known illegal TTT recipes (including pre-eval TTT on validation labels)
 
 ## Suggested Profiles
 

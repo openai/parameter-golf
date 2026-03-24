@@ -48,6 +48,8 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
+    mlp_act = os.environ.get("MLP_ACT", "relu_sq").lower()
+    mlp_leaky_slope = float(os.environ.get("MLP_LEAKY_SLOPE", 0.5))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -600,14 +602,22 @@ class ValueEmbedding(nn.Module):
             h = self.proj(h)
         return h * self.scale.to(dtype=h.dtype)
 class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, mlp_act: str = "relu_sq", mlp_leaky_slope: float = 0.5):
         super().__init__()
         hidden = int(mlp_mult * dim)
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
+        self.mlp_act = mlp_act
+        self.mlp_leaky_slope = mlp_leaky_slope
+        if self.mlp_act not in {"relu_sq", "leaky_relu_sq"}:
+            raise ValueError(f"Unsupported MLP_ACT '{self.mlp_act}'. Use 'relu_sq' or 'leaky_relu_sq'.")
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = self.fc(x)
+        if self.mlp_act == "leaky_relu_sq":
+            x = F.leaky_relu(x, negative_slope=self.mlp_leaky_slope)
+        else:
+            x = F.relu(x)
         return self.proj(x.square())
 class Block(nn.Module):
     def __init__(
@@ -621,12 +631,14 @@ class Block(nn.Module):
         layer_idx: int = 0,
         ln_scale: bool = False,
         dtg: bool = False,
+        mlp_act: str = "relu_sq",
+        mlp_leaky_slope: float = 0.5,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, mlp_act=mlp_act, mlp_leaky_slope=mlp_leaky_slope)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -672,6 +684,8 @@ class GPT(nn.Module):
         ve_enabled: bool = False,
         ve_dim: int = 128,
         ve_layers: str = "9,10",
+        mlp_act: str = "relu_sq",
+        mlp_leaky_slope: float = 0.5,
         f1_corr_rank: int = 0,
         f1_corr_scale_init: float = 0.10,
     ):
@@ -703,6 +717,8 @@ class GPT(nn.Module):
                     layer_idx=i,
                     ln_scale=ln_scale,
                     dtg=dtg,
+                    mlp_act=mlp_act,
+                    mlp_leaky_slope=mlp_leaky_slope,
                 )
                 for i in range(num_layers)
             ]
@@ -1379,6 +1395,8 @@ def main() -> None:
         ve_enabled=args.ve_enabled,
         ve_dim=args.ve_dim,
         ve_layers=args.ve_layers,
+        mlp_act=args.mlp_act,
+        mlp_leaky_slope=args.mlp_leaky_slope,
         f1_corr_rank=args.f1_corr_rank,
         f1_corr_scale_init=args.f1_corr_scale_init,
     ).to(device).bfloat16()
@@ -1472,6 +1490,7 @@ def main() -> None:
         f"f1_corr:rank={args.f1_corr_rank} params={f1_corr_params} "
         f"est_int6_bytes~{est_corr_int6_bytes}"
     )
+    log0(f"mlp_act:{args.mlp_act} mlp_leaky_slope:{args.mlp_leaky_slope}")
     log0(f"XSA:last_{args.xsa_last_n} world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(f"num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads} embed_lr:{token_lr} matrix_lr:{args.matrix_lr}")
     log0(
@@ -1639,6 +1658,7 @@ def main() -> None:
             bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
             xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
             ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+            mlp_act=args.mlp_act, mlp_leaky_slope=args.mlp_leaky_slope,
             f1_corr_rank=args.f1_corr_rank, f1_corr_scale_init=args.f1_corr_scale_init,
         ).to(device).bfloat16()
         for m in teacher_model.modules():
@@ -1761,6 +1781,7 @@ def main() -> None:
         xsa_last_n=args.xsa_last_n,  # must match training model
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+        mlp_act=args.mlp_act, mlp_leaky_slope=args.mlp_leaky_slope,
         f1_corr_rank=args.f1_corr_rank, f1_corr_scale_init=args.f1_corr_scale_init,
     ).to(device).bfloat16()
     for m in eval_model.modules():
