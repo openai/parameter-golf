@@ -1033,7 +1033,12 @@ def eval_val_sliding_ttt(
         log_fn(f"ttt_sliding:params unfrozen={sum(p.numel() for p in ttt_params)} "
                f"frozen={sum(p.numel() for p in base_model.parameters() if not p.requires_grad)}")
 
-    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    ttt_optim = os.environ.get("TTT_OPTIMIZER", "sgd")
+    if ttt_optim == "adamw":
+        optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0,
+                                       betas=(args.ttt_momentum, 0.999))
+    else:
+        optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
     t0 = time.perf_counter()
 
     for ci in range(num_chunks):
