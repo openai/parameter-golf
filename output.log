@@ -1,0 +1,96 @@
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/9000 val_loss:6.9291 val_bpb:4.1038 train_time:0ms step_avg:0.02ms
+step:1/9000 train_loss:6.9307 train_time:9026ms step_avg:9026.36ms
+step:2/9000 train_loss:8.4423 train_time:9106ms step_avg:4552.96ms
+step:3/9000 train_loss:8.4704 train_time:9193ms step_avg:3064.27ms
+step:4/9000 train_loss:8.3405 train_time:9281ms step_avg:2320.20ms
+step:5/9000 train_loss:8.0910 train_time:9369ms step_avg:1873.72ms
+step:6/9000 train_loss:7.8027 train_time:9456ms step_avg:1576.04ms
+step:7/9000 train_loss:7.4216 train_time:9544ms step_avg:1363.41ms
+step:8/9000 train_loss:7.0937 train_time:9632ms step_avg:1203.97ms
+step:9/9000 train_loss:6.6733 train_time:9720ms step_avg:1079.99ms
+step:10/9000 train_loss:6.4118 train_time:9807ms step_avg:980.74ms
+step:200/9000 train_loss:2.3936 train_time:26734ms step_avg:133.67ms
+step:400/9000 train_loss:2.4027 train_time:44729ms step_avg:111.82ms
+step:600/9000 train_loss:2.3344 train_time:62704ms step_avg:104.51ms
+step:800/9000 train_loss:2.2385 train_time:80833ms step_avg:101.04ms
+step:1000/9000 train_loss:2.2790 train_time:98864ms step_avg:98.86ms
+step:1000/9000 val_loss:2.2290 val_bpb:1.3201 train_time:98876ms step_avg:98.88ms
+step:1200/9000 train_loss:2.3604 train_time:116932ms step_avg:97.44ms
+step:1400/9000 train_loss:2.1870 train_time:135045ms step_avg:96.46ms
+step:1600/9000 train_loss:2.0726 train_time:153061ms step_avg:95.66ms
+step:1800/9000 train_loss:2.1566 train_time:171183ms step_avg:95.10ms
+step:2000/9000 train_loss:2.0691 train_time:189189ms step_avg:94.59ms
+step:2000/9000 val_loss:2.1342 val_bpb:1.2640 train_time:189201ms step_avg:94.60ms
+step:2200/9000 train_loss:2.1496 train_time:207297ms step_avg:94.23ms
+step:2400/9000 train_loss:2.0741 train_time:225288ms step_avg:93.87ms
+step:2600/9000 train_loss:2.1180 train_time:243382ms step_avg:93.61ms
+step:2800/9000 train_loss:2.1673 train_time:261463ms step_avg:93.38ms
+step:3000/9000 train_loss:2.1700 train_time:279430ms step_avg:93.14ms
+step:3000/9000 val_loss:2.1041 val_bpb:1.2461 train_time:279441ms step_avg:93.15ms
+step:3200/9000 train_loss:2.1887 train_time:297497ms step_avg:92.97ms
+step:3400/9000 train_loss:2.0392 train_time:315447ms step_avg:92.78ms
+step:3600/9000 train_loss:2.1139 train_time:333500ms step_avg:92.64ms
+step:3800/9000 train_loss:2.0861 train_time:351424ms step_avg:92.48ms
+step:4000/9000 train_loss:1.9855 train_time:369469ms step_avg:92.37ms
+step:4000/9000 val_loss:2.0779 val_bpb:1.2306 train_time:369481ms step_avg:92.37ms
+step:4200/9000 train_loss:2.1617 train_time:387517ms step_avg:92.27ms
+step:4400/9000 train_loss:2.0447 train_time:405428ms step_avg:92.14ms
+step:4600/9000 train_loss:1.8527 train_time:423456ms step_avg:92.06ms
+step:4800/9000 train_loss:2.4310 train_time:441365ms step_avg:91.95ms
+step:5000/9000 train_loss:2.1085 train_time:459394ms step_avg:91.88ms
+step:5000/9000 val_loss:2.0275 val_bpb:1.2008 train_time:459405ms step_avg:91.88ms
+step:5200/9000 train_loss:2.0433 train_time:477314ms step_avg:91.79ms
+step:5400/9000 train_loss:2.0463 train_time:495327ms step_avg:91.73ms
+step:5600/9000 train_loss:1.9483 train_time:513338ms step_avg:91.67ms
+step:5800/9000 train_loss:1.9830 train_time:531248ms step_avg:91.59ms
+step:6000/9000 train_loss:1.9259 train_time:549255ms step_avg:91.54ms
+step:6000/9000 val_loss:1.9636 val_bpb:1.1630 train_time:549266ms step_avg:91.54ms
+step:6200/9000 train_loss:1.9264 train_time:567141ms step_avg:91.47ms
+step:6400/9000 train_loss:1.9667 train_time:585148ms step_avg:91.43ms
+step:6566/9000 val_loss:1.9193 val_bpb:1.1367 train_time:600024ms step_avg:91.38ms
+stopping_early: wallclock_cap train_time:600024ms step:6566/9000
+peak memory allocated: 21416 MiB reserved: 21714 MiB
+Serialized model: 116676179 bytes
+Code size: 72685 bytes
+pruning:applied frac=0.02
+zstd-dict: trained 119771 byte dictionary, compressed=14165725
+[compression comparison]
+  manual+zstd22+dict: 14285500 bytes (total=14358185)
+  manual+zstd22: 14286589 bytes (total=14359274)
+  torch+zstd22: 14782943 bytes (total=14855628)
+  manual+lzma9: 15073548 bytes (total=15146233)
+  manual+zlib9: 15984033 bytes (total=16056718)
+  torch+zlib9: 16024142 bytes (total=16096827)
+Serialized model int6 BEST=manual+zstd22+dict: 14285500 bytes
+Total submission size: 14358185 bytes
+ttt:starting epochs=3 lr=0.002 momentum=0.9 freeze_layers=2 grad_clip=1.0 batch_seqs=32 optimizer=sgd noise_std=0.0
+ttt:epoch 1/3 avg_loss:1.9506
+ttt:epoch 2/3 avg_loss:1.9445
+ttt:epoch 3/3 avg_loss:1.9422
+ttt:completed in 365013ms
+final_int6_roundtrip val_loss:1.9406 val_bpb:1.1493 eval_time:2357ms
+final_int6_roundtrip_exact val_loss:1.94058834 val_bpb:1.14932572
+final_int6_sliding_window val_loss:1.9022 val_bpb:1.1266 stride:64 eval_time:75836ms
+final_int6_sliding_window_exact val_loss:1.90217900 val_bpb:1.12658053

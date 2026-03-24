@@ -521,16 +521,16 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
-        # VRL (ResFormer): average current V with layer 1's V
+        # VRL (ResFormer): average current V with layer 0's V
         self.use_vrl = False  # Set by GPT.__init__
 
-    def forward(self, x: Tensor, v0: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, v0: Tensor | None = None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v_out = v  # Always return raw V (layer 0's gets cached by caller)
         # VRL (ResFormer): U_n = A_n × (V_n + V_1) / 2
-        # Average current layer's V with first layer's V (fixed 0.5 weight, no learned gate)
         if self.use_vrl and v0 is not None:
             v = (v + v0) * 0.5
         q = F.rms_norm(q, (q.size(-1),))
@@ -549,7 +549,7 @@ class CausalSelfAttention(nn.Module):
                 enable_gqa=(self.num_kv_heads != self.num_heads))
             y = y.transpose(1, 2)
         y = y.reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        return self.proj(y), v_out
 
 
 class SmearGate(nn.Module):
@@ -627,13 +627,13 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None) -> tuple[Tensor, Tensor]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x), v0=v0)
+        attn_out, v_raw = self.attn(self.attn_norm(x), v0=v0)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
-        return x
+        return x, v_raw
 
 
 class GPT(nn.Module):
@@ -723,24 +723,17 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
-        v0: Tensor | None = None  # VRL: layer 0's V output
-
-        # VRL: compute V0 from layer 0's V projection on its normalized input
-        # This gets the same V that layer 0's attention will compute, with gradients flowing
-        if self.vrl_enabled:
-            mix = self.blocks[0].resid_mix.to(dtype=x.dtype)
-            v0_input = self.blocks[0].attn_norm(mix[0][None, None, :] * x + mix[1][None, None, :] * x0)
-            v0 = self.blocks[0].attn.c_v(v0_input).reshape(
-                x.size(0), x.size(1), self.blocks[0].attn.num_kv_heads, self.blocks[0].attn.head_dim
-            )
+        v0: Tensor | None = None  # VRL: layer 0's V output (captured from layer 0's forward)
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0, v0=v0 if i > 0 else None)  # Layer 0 doesn't use VRL
+            x, v_raw = self.blocks[i](x, x0, v0=v0 if (i > 0 and self.vrl_enabled) else None)
+            if i == 0 and self.vrl_enabled:
+                v0 = v_raw  # Capture layer 0's V — zero overhead, computed anyway
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0, v0=v0)
+            x, _ = self.blocks[self.num_encoder_layers + i](x, x0, v0=v0 if self.vrl_enabled else None)
 
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
@@ -783,19 +776,15 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         v0: Tensor | None = None
-        if self.vrl_enabled:
-            mix = self.blocks[0].resid_mix.to(dtype=x.dtype)
-            v0_input = self.blocks[0].attn_norm(mix[0][None, None, :] * x + mix[1][None, None, :] * x0)
-            v0 = self.blocks[0].attn.c_v(v0_input).reshape(
-                x.size(0), x.size(1), self.blocks[0].attn.num_kv_heads, self.blocks[0].attn.head_dim
-            )
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0, v0=v0 if i > 0 else None)
+            x, v_raw = self.blocks[i](x, x0, v0=v0 if (i > 0 and self.vrl_enabled) else None)
+            if i == 0 and self.vrl_enabled:
+                v0 = v_raw
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0, v0=v0)
+            x, _ = self.blocks[self.num_encoder_layers + i](x, x0, v0=v0 if self.vrl_enabled else None)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)

@@ -127,6 +127,12 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "0")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "12,13")  # comma-separated layer indices
+    rope_dims = int(os.environ.get("ROPE_DIMS", 0))  # 0=full, 16=partial (PR505 uses 16)
+    ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))  # 1/sqrt(layer+1) on norm inputs
+    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 0))  # 0=use mlp_mult*dim, 1792=PR505 Star-ReLU
+    late_qat = bool(int(os.environ.get("LATE_QAT", "0")))  # Enable fake int6 STE late in training
+    qat_threshold = float(os.environ.get("QAT_THRESHOLD", 0.15))  # LR scale threshold for QAT
+    decoder_lr_mult = float(os.environ.get("DECODER_LR_MULT", 1.0))  # LR multiplier for decoder blocks
 
 
 # -----------------------------
@@ -321,7 +327,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,skip_gates,smear",
     ).split(",")
     if pattern
 )
@@ -329,6 +335,8 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+INT6_CLIP_PERCENTILE = 99.99984
+INT6_CLIP_Q = INT6_CLIP_PERCENTILE / 100.0
 
 
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
@@ -454,12 +462,15 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 
 class Rotary(nn.Module):
-    def __init__(self, dim: int, base: float = 10000.0, train_seq_len: int = 1024):
+    """RoPE with optional partial application (first rope_dims of head_dim)."""
+    def __init__(self, dim: int, base: float = 10000.0, train_seq_len: int = 1024, rope_dims: int = 0):
         super().__init__()
         self.dim = dim
         self.base = base
         self.train_seq_len = train_seq_len
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        # rope_dims=0 means full head_dim; otherwise rotate only first rope_dims dims
+        self.rope_d = rope_dims if rope_dims > 0 else dim
+        inv_freq = 1.0 / (base ** (torch.arange(0, self.rope_d, 2, dtype=torch.float32) / self.rope_d))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
@@ -474,8 +485,8 @@ class Rotary(nn.Module):
         ):
             if seq_len > self.train_seq_len:
                 scale = seq_len / self.train_seq_len
-                new_base = self.base * (scale ** (self.dim / (self.dim - 2)))
-                inv_freq = 1.0 / (new_base ** (torch.arange(0, self.dim, 2, dtype=torch.float32, device=device) / self.dim))
+                new_base = self.base * (scale ** (self.rope_d / (self.rope_d - 2)))
+                inv_freq = 1.0 / (new_base ** (torch.arange(0, self.rope_d, 2, dtype=torch.float32, device=device) / self.rope_d))
             else:
                 inv_freq = self.inv_freq.to(device)
             t = torch.arange(seq_len, device=device, dtype=inv_freq.dtype)
@@ -487,6 +498,16 @@ class Rotary(nn.Module):
 
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    """Apply RoPE; if cos covers fewer dims than x, rotate only those dims."""
+    rd = cos.size(-1) * 2
+    if rd < x.size(-1):
+        x_rope = x[..., :rd]
+        x_pass = x[..., rd:]
+        half = rd // 2
+        x1 = x_rope[..., :half]
+        x2 = x_rope[..., half:]
+        x_rot = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+        return torch.cat((x_rot, x_pass), dim=-1)
     half = x.size(-1) // 2
     x1, x2 = x[..., :half], x[..., half:]
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
@@ -500,6 +521,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        rope_dims: int = 0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -518,13 +540,27 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
+        self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024, rope_dims=rope_dims)
+        self.use_xsa = False  # Set by GPT.__init__ for last N layers
 
-    def forward(self, x: Tensor) -> Tensor:
+    def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
+        """XSA: subtract self-value projection via GQA-aware reshape (arxiv 2603.09078)."""
+        B, T, H, D = y.shape
+        Hkv = v.size(-2)
+        group = H // Hkv
+        y_g = y.reshape(B, T, Hkv, group, D)
+        vn = F.normalize(v, dim=-1).unsqueeze(-2)
+        proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
+        return (y_g - proj).reshape(B, T, H, D)
+
+    def forward(self, x: Tensor, v_embed: Tensor | None = None) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        # Add value embeddings to v before attention (PR#505 style)
+        if v_embed is not None:
+            v = v + v_embed.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -540,6 +576,9 @@ class CausalSelfAttention(nn.Module):
             y = F.scaled_dot_product_attention(q2, k2, v2, attn_mask=None, is_causal=True,
                 enable_gqa=(self.num_kv_heads != self.num_heads))
             y = y.transpose(1, 2)
+        # XSA: remove self-value projection from attention output
+        if self.use_xsa:
+            y = self._xsa_efficient(y, v)
         y = y.reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -581,17 +620,54 @@ class BigramHashEmbedding(nn.Module):
         return h * self.scale.to(dtype=h.dtype)
 
 
+class ValueEmbedding(nn.Module):
+    """Shared value embedding: maps token IDs to KV-dim vectors added to V in attention."""
+    def __init__(self, vocab_size: int, ve_dim: int, kv_dim: int):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, ve_dim)
+        nn.init.zeros_(self.embed.weight)
+        self.proj = CastedLinear(ve_dim, kv_dim, bias=False) if ve_dim != kv_dim else None
+        if self.proj is not None:
+            nn.init.zeros_(self.proj.weight)
+        self.scale = nn.Parameter(torch.tensor(0.0, dtype=torch.float32))  # start at 0
+
+    def forward(self, token_ids: Tensor) -> Tensor:
+        h = self.embed(token_ids)
+        if self.proj is not None:
+            h = self.proj(h)
+        return h * self.scale.to(dtype=h.dtype)
+
+
 class MLP(nn.Module):
     _activation: str = "relu2"  # Set before model creation: "relu2" or "leaky2"
 
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0):
         super().__init__()
-        hidden = int(mlp_mult * dim)
-        self.fc = CastedLinear(dim, hidden, bias=False)
-        self.proj = CastedLinear(hidden, dim, bias=False)
-        self.proj._zero_init = True
+        if mlp_hidden > 0:
+            # Star-ReLU: relu(x)^2 * scale + bias
+            hidden = mlp_hidden
+            self.up_proj = CastedLinear(dim, hidden, bias=False)
+            self.down_proj = CastedLinear(hidden, dim, bias=False)
+            self.down_proj._zero_init = True
+            self.scale = nn.Parameter(torch.ones(hidden, dtype=torch.float32))
+            self.bias = nn.Parameter(torch.zeros(hidden, dtype=torch.float32))
+            self._star_relu = True
+            # Dummy attributes for compatibility (not used in Star-ReLU path)
+            self.fc = None
+            self.proj = None
+        else:
+            hidden = int(mlp_mult * dim)
+            self.fc = CastedLinear(dim, hidden, bias=False)
+            self.proj = CastedLinear(hidden, dim, bias=False)
+            self.proj._zero_init = True
+            self._star_relu = False
 
     def forward(self, x: Tensor) -> Tensor:
+        if self._star_relu:
+            x_up = self.up_proj(x)
+            activated = F.relu(x_up).pow(2)
+            activated = activated * self.scale.to(dtype=activated.dtype) + self.bias.to(dtype=activated.dtype)
+            return self.down_proj(activated)
         x = self.fc(x)
         if MLP._activation == "leaky2":
             x = F.leaky_relu(x, negative_slope=0.5)
@@ -609,22 +685,29 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        mlp_hidden: int = 0,
+        rope_dims: int = 0,
+        layer_idx: int = 0,
+        ln_scale: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims=rope_dims)
+        self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        # LN Scale: dampen norm inputs by 1/sqrt(layer_idx+1) for deeper layers
+        self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        s = self.ln_scale_factor
+        attn_out = self.attn(self.attn_norm(x) * s, v_embed=v_embed)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x) * s)
         return x
 
 
@@ -646,6 +729,13 @@ class GPT(nn.Module):
         mtp_loss_weight: float = 0.1,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
+        xsa_last_n: int = 0,
+        ve_enabled: bool = False,
+        ve_dim: int = 128,
+        ve_layers: str = "12,13",
+        mlp_hidden: int = 0,
+        rope_dims: int = 0,
+        ln_scale: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -662,6 +752,7 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        self.skip_gates = nn.Parameter(torch.zeros(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -671,10 +762,29 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    mlp_hidden=mlp_hidden,
+                    rope_dims=rope_dims,
+                    layer_idx=i,
+                    ln_scale=ln_scale,
                 )
                 for i in range(num_layers)
             ]
         )
+        # XSA: enable on last N layers
+        if xsa_last_n > 0:
+            for i in range(max(0, num_layers - xsa_last_n), num_layers):
+                self.blocks[i].attn.use_xsa = True
+        # Value Embeddings: shared embedding + per-layer scales
+        kv_dim = (model_dim // num_heads) * num_kv_heads
+        self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_enabled else []
+        if self.ve_layer_indices:
+            self.ve_shared = ValueEmbedding(vocab_size, ve_dim, kv_dim)
+            self.ve_layer_scales = nn.ParameterList(
+                [nn.Parameter(torch.ones(1, dtype=torch.float32)) for _ in self.ve_layer_indices]
+            )
+        else:
+            self.ve_shared = None
+            self.ve_layer_scales = nn.ParameterList()
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -700,6 +810,15 @@ class GPT(nn.Module):
                         with torch.no_grad():
                             module.weight.mul_(1.0 / math.sqrt(2 * num_layers))
 
+    def _get_ve(self, layer_idx: int, input_ids: Tensor, ve_cache: dict) -> Tensor | None:
+        if self.ve_shared is None or layer_idx not in self.ve_layer_indices:
+            return None
+        if 've' not in ve_cache:
+            ve_cache['ve'] = self.ve_shared(input_ids)
+        ve_base = ve_cache['ve']
+        ve_idx = self.ve_layer_indices.index(layer_idx)
+        return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
+
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
@@ -708,14 +827,21 @@ class GPT(nn.Module):
         x = self.smear(x)
         x0 = x
         skips: list[Tensor] = []
+        ve_cache: dict = {}
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            ve = self._get_ve(i, input_ids, ve_cache)
+            x = self.blocks[i](x, x0, v_embed=ve)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+                skip = skips.pop()
+                gate = torch.sigmoid(self.skip_gates[i].to(dtype=x.dtype))
+                scaled_skip = self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip
+                x = gate[None, None, :] * x + (1.0 - gate[None, None, :]) * scaled_skip
+            layer_idx = self.num_encoder_layers + i
+            ve = self._get_ve(layer_idx, input_ids, ve_cache)
+            x = self.blocks[layer_idx](x, x0, v_embed=ve)
 
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
@@ -762,7 +888,10 @@ class GPT(nn.Module):
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                skip = skips.pop()
+                gate = torch.sigmoid(self.skip_gates[i].to(dtype=x.dtype))
+                scaled_skip = self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip
+                x = gate[None, None, :] * x + (1.0 - gate[None, None, :]) * scaled_skip
             x = self.blocks[self.num_encoder_layers + i](x, x0)
         x = self.final_norm(x)
         if self.tie_embeddings:
@@ -874,16 +1003,22 @@ def _classify_param(name: str) -> str:
 
 
 def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
-    """Quantize to [-(clip_range+1), clip_range] in int8. clip_range=31 -> int6, 15 -> int5."""
+    """Quantize to [-(clip_range+1), clip_range] in int8. clip_range=31 -> int6, 15 -> int5.
+    Uses percentile clipping (INT6_CLIP_Q) for 2D tensors to handle outliers."""
     t32 = t.float()
     if t32.ndim == 2:
-        row_max = t32.abs().amax(dim=1)
-        scale = (row_max / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
-        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -(clip_range + 1), clip_range).to(torch.int8)
+        clip_abs = (
+            torch.quantile(t32.abs(), INT6_CLIP_Q, dim=1)
+            if t32.numel()
+            else torch.empty((t32.shape[0],), dtype=torch.float32)
+        )
+        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+        q = torch.clamp(torch.round(clipped / scale.float()[:, None]), -(clip_range + 1), clip_range).to(torch.int8)
         return q, scale
-    amax = t32.abs().max().item()
+    amax = float(torch.quantile(t32.abs().flatten(), INT6_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float16)
-    q = torch.clamp(torch.round(t32 / scale.float()), -(clip_range + 1), clip_range).to(torch.int8)
+    q = torch.clamp(torch.round(torch.clamp(t32, -amax, amax) / scale.float()), -(clip_range + 1), clip_range).to(torch.int8)
     return q, scale
 
 
@@ -1250,7 +1385,7 @@ def main() -> None:
 
     # --- MODEL + OPTIMIZER SETUP ---
 
-    CastedLinear._qat_enabled = args.qat_enabled
+    CastedLinear._qat_enabled = args.qat_enabled if not args.late_qat else False
 
     base_model = GPT(
         vocab_size=args.vocab_size,
@@ -1268,7 +1403,19 @@ def main() -> None:
         mtp_loss_weight=args.mtp_loss_weight,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
+        xsa_last_n=args.xsa_last_n,
+        ve_enabled=args.ve_enabled,
+        ve_dim=args.ve_dim,
+        ve_layers=args.ve_layers,
+        mlp_hidden=args.mlp_hidden,
+        rope_dims=args.rope_dims,
+        ln_scale=args.ln_scale,
     ).to(device).bfloat16()
+    xsa_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_xsa]
+    if xsa_layers:
+        log0(f"xsa:enabled on layers {xsa_layers}")
+    if base_model.ve_shared is not None:
+        log0(f"ve:enabled dim={args.ve_dim} layers={base_model.ve_layer_indices}")
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
@@ -1276,31 +1423,41 @@ def main() -> None:
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
-    # Optimizer split
-    block_named_params = list(base_model.blocks.named_parameters())
-    matrix_params = [
-        p
-        for name, p in block_named_params
-        if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-    ]
+    # Differential LR setup: split block params into encoder/decoder groups
+    num_encoder_layers = base_model.num_encoder_layers
+    matrix_params_enc, scalar_params_enc = [], []
+    matrix_params_dec, scalar_params_dec = [], []
+    for i, block in enumerate(base_model.blocks):
+        is_decoder = i >= num_encoder_layers
+        for name, p in block.named_parameters():
+            if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS):
+                (matrix_params_dec if is_decoder else matrix_params_enc).append(p)
+            else:
+                (scalar_params_dec if is_decoder else scalar_params_enc).append(p)
     if base_model.mtp_num_heads > 0:
-        matrix_params.extend([p for p in base_model.mtp_heads.parameters() if p.ndim == 2])
-    scalar_params = [
-        p
-        for name, p in block_named_params
-        if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-    ]
+        matrix_params_enc.extend([p for p in base_model.mtp_heads.parameters() if p.ndim == 2])
+    # Non-block scalar parameters
+    other_scalar_params = [base_model.smear.gate]
     if base_model.skip_weights.numel() > 0:
-        scalar_params.append(base_model.skip_weights)
-    scalar_params.append(base_model.smear.gate)
+        other_scalar_params.append(base_model.skip_weights)
+    if base_model.skip_gates.numel() > 0:
+        other_scalar_params.append(base_model.skip_gates)
     if base_model.bigram is not None:
-        scalar_params.append(base_model.bigram.scale)
+        other_scalar_params.append(base_model.bigram.scale)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     tok_params = [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}]
     if base_model.bigram is not None:
         tok_params.append({"params": [base_model.bigram.embed.weight], "lr": token_lr, "base_lr": token_lr})
         if base_model.bigram.proj is not None:
-            matrix_params.append(base_model.bigram.proj.weight)
+            matrix_params_enc.append(base_model.bigram.proj.weight)
+    # Value Embedding params
+    if base_model.ve_shared is not None:
+        tok_params.append({"params": [base_model.ve_shared.embed.weight], "lr": token_lr, "base_lr": token_lr})
+        if base_model.ve_shared.proj is not None:
+            matrix_params_enc.append(base_model.ve_shared.proj.weight)
+        other_scalar_params.append(base_model.ve_shared.scale)
+        for s in base_model.ve_layer_scales:
+            other_scalar_params.append(s)
     optimizer_tok = torch.optim.AdamW(
         tok_params,
         betas=(args.beta1, args.beta2),
@@ -1308,17 +1465,24 @@ def main() -> None:
         weight_decay=args.adam_wd,
         fused=True,
     )
+    matrix_lr_dec = args.matrix_lr * args.decoder_lr_mult
     optimizer_muon = Muon(
-        matrix_params,
+        [
+            {'params': matrix_params_enc, 'lr': args.matrix_lr, 'base_lr': args.matrix_lr},
+            {'params': matrix_params_dec, 'lr': matrix_lr_dec, 'base_lr': matrix_lr_dec},
+        ],
         lr=args.matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
         weight_decay=args.muon_wd,
     )
-    for group in optimizer_muon.param_groups:
-        group["base_lr"] = args.matrix_lr
+    scalar_lr_dec = args.scalar_lr * args.decoder_lr_mult
     optimizer_scalar = torch.optim.AdamW(
-        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+        [
+            {'params': scalar_params_enc, 'lr': args.scalar_lr, 'base_lr': args.scalar_lr},
+            {'params': scalar_params_dec, 'lr': scalar_lr_dec, 'base_lr': scalar_lr_dec},
+            {'params': other_scalar_params, 'lr': args.scalar_lr, 'base_lr': args.scalar_lr},
+        ],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
         weight_decay=args.adam_wd,
@@ -1355,6 +1519,8 @@ def main() -> None:
     )
     log0(f"seed:{args.seed}")
     log0(f"int5_mlp:{args.int5_mlp} prune_frac:{args.prune_frac} ttt_enabled:{args.ttt_enabled}")
+    log0(f"rope_dims:{args.rope_dims} ln_scale:{args.ln_scale} mlp_hidden:{args.mlp_hidden}")
+    log0(f"late_qat:{args.late_qat} qat_threshold:{args.qat_threshold} decoder_lr_mult:{args.decoder_lr_mult}")
 
     # --- WANDB ---
     _use_wandb = master_process and _WANDB_OK and os.environ.get("WANDB_MODE") != "disabled"
@@ -1478,6 +1644,12 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+
+        # Late QAT: enable fake int6 quantization once LR scale drops below threshold
+        if args.late_qat and not CastedLinear._qat_enabled and scale < args.qat_threshold:
+            CastedLinear._qat_enabled = True
+            log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1746,6 +1918,8 @@ def main() -> None:
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         mtp_num_heads=0, mtp_loss_weight=0.0,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
+        xsa_last_n=args.xsa_last_n, ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+        mlp_hidden=args.mlp_hidden, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
