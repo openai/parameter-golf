@@ -1,0 +1,23 @@
+{
+  "name": "David Weyh",
+  "github_id": "dweyh",
+  "val_bpb": 1.094169148563295,
+  "model_dim": 512,
+  "num_layers": 10,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "vocab_size": 1024,
+  "mlp_mult": 3.0,
+  "train_seq_len": 2048,
+  "embed_quant": "fp16",
+  "post_quant_loss": 1.8474587744662379,
+  "artifact_bytes": 14998498,
+  "code_bytes": 78226,
+  "total_bytes": 15076724,
+  "headroom_bytes": 923276,
+  "fits_16mb": true,
+  "training_time_ms": 600092.797704041,
+  "steps_completed": 7373,
+  "swa_count": 30,
+  "n_params": 22368841
+}
