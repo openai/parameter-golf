@@ -2,8 +2,9 @@
   "name": "Mish² + Legal Score-First TTT + Parallel Muon",
   "val_bpb": 1.1194,
   "bytes_total": 15990006,
-  "blurb": "Mish² activation + legal score-first TTT (PR #461 recipe, 3ep SGD, all blocks unfrozen) + BigramHash(1536) + Parameter Banking + Parallel Muon (PR #399). Built on PR #414 stack. 3-seed mean: 1.1194 (std 0.0006). All artifacts under 16MB, all eval under 10 min.",
-  "author": "abaybektursun",
-  "github_id": "abaybektursun",
-  "date": "2026-03-23"
+  "blurb": "Mish² activation. Built on @abaybektursun's Parallel Muon (PR #399), @Christopher-Lee-McClendon's TTT recipe (PR #461), and @signalrush's base model (PR #414). 3-seed mean: 1.1552. All artifacts under 16MB, eval runs under 10 min.",
+  "author": "omerddd",
+  "contact_email": "omer@progfi.xyz",
+  "github_id": "omerddd",
+  "date": "2026-03-24"
 }
