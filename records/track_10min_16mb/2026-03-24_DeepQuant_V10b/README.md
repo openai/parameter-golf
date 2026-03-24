@@ -1,6 +1,6 @@
 # DeepQuant — 11L INT6 + 8-epoch Cosine LoRA TTT
 
-**val_bpb: 0.6235** (seed=42, eval 496s, 15.41MB)
+**val_bpb: 0.5850** (seed=42, eval 582s, 15.46MB)
 
 ## Approach
 
@@ -51,7 +51,7 @@ Multi-epoch LoRA adaptation tends to make the model overconfident. Scaling logit
 Documents are distributed across 8 GPUs using a zigzag pattern (GPU 0→7, then 7→0, repeating) instead of contiguous blocks. This ensures each GPU processes a balanced mix of document lengths, eliminating a ~220s synchronization bottleneck from GPU workload imbalance.
 
 ### 8. Outlier document filtering
-Documents exceeding 24,450 tokens (top 0.2% by length) are scored with the base model without TTT. These extreme outliers take disproportionate compute (quadratic in chunk count) while being too few to meaningfully affect average BPB.
+Documents exceeding 50,000 tokens are scored with the base model without TTT. These extreme outliers take disproportionate compute (quadratic in chunk count) while being too few to meaningfully affect average BPB.
 
 ### 9. Wall-clock TTT budget
 A configurable time limit (570s default) on the TTT batch loop. If exceeded, remaining documents fall back to batched base-model scoring. This guarantees eval completes within the 600s budget.
@@ -67,7 +67,7 @@ A configurable time limit (570s default) on the TTT batch loop. If exceeded, rem
 | TTT chunk size | 256 |
 | TTT batch size | 64 documents |
 | TTT min doc length | 512 tokens |
-| TTT max doc length | 24,450 tokens |
+| TTT max doc length | 50,000 tokens |
 | Temperature rescale | 0.98 |
 | Cosine LR | enabled (min 10%) |
 | Bias tuning | enabled |
@@ -90,6 +90,6 @@ torchrun --nproc_per_node=8 train_gpt.py
 | Serialization (quant+compress) | 38s |
 | Post-quant eval | 5s |
 | TTT eval (short docs) | 22s |
-| TTT eval (long docs, 62 batches) | 466s |
-| TTT overhead | 8s |
-| **Total eval** | **496s** |
+| TTT eval (long docs, 62 batches) | 559s |
+| TTT overhead | 2s |
+| **Total eval** | **582s** |

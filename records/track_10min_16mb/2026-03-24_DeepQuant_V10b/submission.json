@@ -4,7 +4,7 @@
   "name": "DeepQuant — 11L INT6 + 8-epoch Cosine LoRA TTT",
   "blurb": "8ep cosine TTT + LM rank-16 + bias tuning + zigzag GPU balancing",
   "date": "2026-03-24T00:00:00Z",
-  "val_loss": 1.0528,
-  "val_bpb": 0.6235,
-  "bytes_total": 15413092
+  "val_loss": 0.9878,
+  "val_bpb": 0.5850,
+  "bytes_total": 15463955
 }

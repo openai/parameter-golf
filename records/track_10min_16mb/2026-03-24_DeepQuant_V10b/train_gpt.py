@@ -88,7 +88,7 @@ class Hyperparameters:
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
     ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 512))
-    ttt_max_doc_len = int(os.environ.get("TTT_MAX_DOC_LEN", 24450))
+    ttt_max_doc_len = int(os.environ.get("TTT_MAX_DOC_LEN", 50000))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 6))  # V8: 6 epochs + score every epoch
     ttt_cosine_lr = bool(int(os.environ.get("TTT_COSINE_LR", "1")))
     ttt_bias_tune = bool(int(os.environ.get("TTT_BIAS_TUNE", "1")))
