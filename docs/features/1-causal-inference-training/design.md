@@ -13,74 +13,153 @@
 
 ### External Research
 - **Causal discovery (small n)**: FCI preferred over PC when latent confounders may exist (causal-learn). NOTEARS outperforms GES in low-data regime. For n≈20, Fisher-Z conditional independence tests are underpowered; KCI (kernel) is cubic in n but feasible.
-- **Influence scoring**: TracIn (gradient inner product summed over checkpoints) is the standard approach. TRAK is more scalable but PyTorch-only. No MLX ports exist — custom implementation required.
+- **Expert priors are load-bearing for n<30**: VaMSL + BED querying (arXiv:2510.06735) shows purely data-driven discovery is unreliable at this scale. "Imaginary observations" framework maps expert beliefs to beta distributions as pseudo-data. PC-stable with conservative alpha (0.01) reduces false positive edges.
+- **Iterative causal discovery**: CBO with Unknown Causal Graphs (arXiv:2503.19554) simultaneously optimizes target and discovers causal parents. Key insight: only need to identify direct causal parents of BPB, not the full graph. Bayesian Intervention Optimization (arXiv:2406.10917) uses Bayes factors to pick the most decisive intervention at each cycle.
+- **Influence scoring**: TracIn (gradient inner product summed over checkpoints) is the standard. TRAK is more scalable but PyTorch-only. Influence functions work reliably at small model scale (EMNLP 2025 shows they fail on LLMs but our model is ~28M params). MATES (NeurIPS 2024) uses adaptive influence models retrained during pretraining — relevant for data selection.
 - **Paired Seed Evaluation** (PSE, arXiv:2512.24145): Matched seeds exploit positive correlation for variance reduction — directly applicable to our 3-seed paired design.
-- **Per-token loss**: Rho-1 demonstrates heterogeneous per-token landscapes; selective loss on high-score tokens yields large gains — validates R3 hypothesis.
-- **Statistics**: `statsmodels.stats.multitest.multipletests(pvals, method='holm')` for Holm-Bonferroni. More powerful than Bonferroni, valid under arbitrary dependence.
-- **Pipeline**: causal-learn for structure discovery + DoWhy for effect estimation and refutation tests.
+- **Per-token loss**: Rho-1 demonstrates heterogeneous per-token landscapes; selective loss on high-score tokens yields large gains.
+- **Statistics**: `statsmodels.stats.multitest.multipletests(pvals, method='holm')` for Holm-Bonferroni.
+- **Pipeline**: causal-learn for structure discovery + statsmodels for tests + DoWhy optional for refutation.
 
 ## Architecture Overview
 
-The system consists of 5 independent script modules corresponding to the 5 spec phases, connected by JSON artifacts. No shared runtime state — each script reads inputs from disk, writes outputs to disk.
+The system uses a **discovery-adjust cycle** rather than a linear pipeline. Each experiment's results feed back into the DAG, refining causal beliefs and guiding the next intervention. The goal is pragmatic: if an intervention improves validation BPP, integrate it — the causal structure serves as a navigation tool, not a theoretical end.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   scripts/causal/                        │
-│                                                          │
-│  Phase 1: DAG Discovery                                  │
-│  ┌──────────────┐  ┌─────────────┐  ┌────────────────┐  │
-│  │ extract_      │→│ estimate_   │→│ identifiability_ │  │
-│  │ interventions │  │ dag         │  │ check           │  │
-│  └──────────────┘  └─────────────┘  └────────────────┘  │
-│         ↓                ↓                  ↓            │
-│   interventions.json  causal_dag.json  ident_report.json │
-│                                                          │
-│  Phase 2: Architecture Ablation                          │
-│  ┌──────────────┐  ┌──────────────────┐                  │
-│  │ experiment_   │→│ statistical_      │                  │
-│  │ runner        │  │ analysis          │                  │
-│  └──────────────┘  └──────────────────┘                  │
-│                           ↓                              │
-│                    ablation_results.json                  │
-│                                                          │
-│  Phase 3: Loss Decomposition                             │
-│  ┌──────────────┐  ┌──────────────────┐                  │
-│  │ token_loss_   │→│ quant_gap_        │                  │
-│  │ decompose     │  │ analysis          │                  │
-│  └──────────────┘  └──────────────────┘                  │
-│         ↓                  ↓                             │
-│   token_analysis.json  quant_report.json                 │
-│                                                          │
-│  Phase 4: Gradient/Data Probes                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  │
-│  │ influence_    │→│ shard_        │→│ gradient_       │  │
-│  │ proxy         │  │ variance_    │  │ attribution     │  │
-│  │               │  │ check        │  │                 │  │
-│  └──────────────┘  └──────────────┘  └────────────────┘  │
-│         ↓                                    ↓           │
-│   influence_scores.json          gradient_attribution.json│
-└─────────────────────────────────────────────────────────┘
+                    ┌─────────────────────────────────┐
+                    │         DISCOVERY-ADJUST CYCLE    │
+                    │                                   │
+                    │  ┌──────────┐    ┌────────────┐  │
+  leaderboard ────→ │  │ extract  │───→│ estimate   │  │
+  records           │  │ + DAG    │    │ + identify │  │
+                    │  └──────────┘    └─────┬──────┘  │
+                    │                        │         │
+                    │          ┌──────────────┘         │
+                    │          ▼                        │
+                    │  ┌──────────────┐                 │
+                    │  │ select next  │ ◄── expert      │
+                    │  │ intervention │     priors      │
+                    │  └──────┬───────┘                 │
+                    │         │                         │
+                    │         ▼                         │
+                    │  ┌──────────────┐                 │
+                    │  │  experiment  │ 3 seeds ×       │
+                    │  │  runner      │ 2 conditions    │
+                    │  └──────┬───────┘                 │
+                    │         │                         │
+                    │         ▼                         │
+                    │  ┌──────────────┐                 │
+                    │  │ statistical  │──→ decision     │
+                    │  │ analysis     │    gate         │
+                    │  └──────┬───────┘                 │
+                    │         │                         │
+                    │    ┌────┴────┐                    │
+                    │ confirmed  null                   │
+                    │    │         │                    │
+                    │    │    feed results back ────┐   │
+                    │    │    into DAG (re-run      │   │
+                    │    │    estimate with new     │   │
+                    │    │    data point)       ────┘   │
+                    │    │                              │
+                    └────┼──────────────────────────────┘
+                         ▼
+                  ┌──────────────┐
+                  │  submission  │
+                  │  assembly    │
+                  └──────────────┘
+
+  PARALLEL DIAGNOSTICS (run alongside any cycle iteration):
+  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐
+  │ token_loss     │  │ quant_gap      │  │ gradient     │
+  │ decompose      │  │ analysis       │  │ attribution  │
+  └────────────────┘  └────────────────┘  └──────────────┘
+  │ influence_proxy │
+  └────────────────┘
 ```
+
+### Key Architectural Change: Iterative DAG
+
+Instead of a one-shot "discover → intervene → done" pipeline, the DAG is a living artifact:
+
+1. **Cycle 0**: Build initial DAG from 20 leaderboard records + expert priors
+2. **Cycle 1**: Pick highest-value intervention from DAG, run 3-seed experiment, update DAG with new data point (n=21)
+3. **Cycle 2+**: Re-estimate DAG with augmented dataset, pick next intervention, repeat
+4. **Stop condition**: Confirmed effect found (integrate into submission) OR 2-day time gate expires OR 3 consecutive null results
+
+This is inspired by CBO with Unknown Causal Graphs (arXiv:2503.19554) — we only need to identify causal parents of BPB, not the full graph. Each cycle adds one data point, progressively disambiguating uncertain edges.
+
+The diagnostic scripts (token loss, quant gap, gradient attribution, influence proxy) run as parallel observability probes at any point in the cycle, providing supporting evidence for intervention selection.
 
 ### Design Principles
 
-1. **Script independence**: Each script is self-contained with CLI args for inputs/outputs. No shared library beyond a thin `common.py` utility module.
-2. **JSON as interchange**: All intermediate results are JSON files in `results/causal/`. Human-readable, diffable, versionable.
-3. **MLX-first diagnostics**: Phases 1, 3, 4 run entirely on Apple Silicon MLX. Phase 2 starts on MLX, validates on H100.
-4. **No training loop modification for final submission**: All diagnostics are offline scripts. C10 creates a separate instrumented copy, never modifies the original.
-5. **Manual phase orchestration**: The researcher runs scripts sequentially, checks each phase's output JSON for the decision gate recommendation field, and decides the next step. No automated orchestrator — the decision gates involve scientific judgment that should not be automated. Each output JSON includes a `recommendation` field ("proceed"/"skip"/"null") for the researcher to act on.
+1. **Script independence**: Each script is self-contained with CLI args for inputs/outputs. Shared utilities in `common.py`.
+2. **JSON as interchange + experiment log**: All results in `results/causal/`. Each cycle's results are versioned: `results/causal/cycle_N/`. A master `experiment_log.json` tracks all runs across cycles.
+3. **MLX-first diagnostics**: Diagnostic probes run on Apple Silicon MLX. Experiment runner supports both MLX and H100.
+4. **No training loop modification for final submission**: All diagnostics are offline scripts. C10 creates a separate instrumented copy.
+5. **Iterative over linear**: The DAG evolves with each experiment. The researcher runs the cycle manually, using the DAG + diagnostics to pick interventions. Each output JSON includes `recommendation` + `confidence` fields.
+6. **Maximum observability**: Every experiment logs: full config, per-step metrics, gradient norms (if instrumented), per-token loss breakdown, and decision rationale. Nothing is "fire and forget" — every run must produce enough data to explain why BPB moved (or didn't).
+
+## Observability Infrastructure
+
+All experiments produce structured logs that enable post-hoc edge discovery:
+
+### Experiment Log (results/causal/experiment_log.json)
+Append-only log of all experimental runs across all cycles:
+```json
+{
+  "experiments": [{
+    "cycle": int,
+    "experiment_id": str,          # Unique ID (timestamp-based)
+    "hypothesis": str,             # What we're testing
+    "intervention": str,           # What changed
+    "control_config": {...},
+    "treatment_config": {...},
+    "results": {
+      "seeds": [int],
+      "control_bpb": [float],
+      "treatment_bpb": [float],
+      "mean_effect": float,
+      "p_value": float,
+      "decision": str
+    },
+    "diagnostics": {               # Optional: attached diagnostic probes
+      "gradient_norms": str,       # Path to gradient log if collected
+      "token_analysis": str,       # Path to per-token breakdown if collected
+      "quant_gap": float | null
+    },
+    "dag_update": {                # How DAG changed after this experiment
+      "edges_added": [str],
+      "edges_removed": [str],
+      "edges_strengthened": [str]
+    },
+    "timestamp": str,
+    "notes": str                   # Researcher notes / rationale
+  }]
+}
+```
+
+### Per-Run Metrics (written by experiment_runner)
+Each training run produces a JSON-lines metrics file:
+```
+{"step": 0, "loss": 2.5, "val_loss": null, "lr_mul": 0.05, "elapsed_ms": 0}
+{"step": 100, "loss": 2.1, "val_loss": 2.3, "lr_mul": 1.0, "elapsed_ms": 8500}
+...
+```
+This enables post-hoc analysis of training dynamics differences between treatment and control — not just final BPB but the trajectory.
 
 ## Components
 
 ### C1: common.py — Shared Utilities
 
-Thin utility module providing:
+Utility module providing:
 - `load_submission_json(path) -> dict`: Parse submission.json
-- `load_model(checkpoint_path, config_overrides=None) -> (model, tokenizer)`: Import GPT class from train_gpt_mlx.py, construct model, load weights via mx.load(), load tokenizer. Single entry point for all offline inference scripts (C7, C8, C9, C10). See TD-7.
+- `load_model(checkpoint_path, config_overrides=None) -> (model, tokenizer)`: Import GPT class from train_gpt_mlx.py, construct model, load weights via mx.load(), load tokenizer. Single entry point for all offline inference scripts (C7, C8, C9, C10). See TD-7. Confirmed: train_gpt_mlx.py line 1103 contains `if __name__ == "__main__":` guard.
 - `compute_bpb(model, val_tokens, sp_model) -> float`: BPB computation reusing eval_val logic
 - `paired_ttest(treatment, control) -> (mean_diff, ci_lo, ci_hi, p_value)`: Paired t-test with bootstrap CI
 - `holm_bonferroni(p_values, alpha) -> (reject_mask, adjusted_p)`: Wraps statsmodels multipletests
 - `decision_gate(effect_size, p_value, mde=0.002) -> str`: Returns "confirmed"/"suggestive"/"null"
+- `log_experiment(experiment_log_path, entry) -> None`: Append an experiment entry to the master experiment_log.json
+- `get_cycle_dir(base_path, cycle) -> Path`: Returns `results/causal/cycle_{N}/`, creating if needed
 
 ### C2: extract_interventions.py — Record Parser (R1.1)
 
@@ -118,16 +197,17 @@ Parses `records/track_10min_16mb/*/README.md` and `submission.json` to build a s
 
 ### C3: estimate_dag.py — Causal Structure Discovery (R1.2)
 
-**Algorithm choice**: FCI (Fast Causal Inference) from causal-learn, preferred over PC because:
-- Handles latent confounders (unobserved factors like data ordering, hardware variance)
-- Outputs a Partial Ancestral Graph (PAG) with explicit uncertainty markers (o→, ↔)
-- Available with Fisher-Z test (continuous variables), suitable for BPB outcomes
+**Algorithm choice**: Expert-guided DAG as primary, with FCI as optional validation.
 
-**Contingency** (from spec R1.2): If FCI produces degenerate output (empty or fully-connected), fall back to expert-guided DAG using temporal ordering + domain priors. Document data-driven vs. expert edges.
+Given n≈20 (growing with each cycle), purely data-driven discovery is unreliable (arXiv:2510.06735). The approach:
+1. **Expert-guided skeleton**: Build initial DAG from domain knowledge — temporal ordering of submissions, known causal relationships (e.g., quantization → artifact size → BPB), community consensus from README discussions
+2. **Data validation**: Run FCI (causal-learn, Fisher-Z, alpha=0.01 conservative) on the data. Compare with expert DAG. Flag disagreements for investigation.
+3. **Uncertainty marking**: Edges are tagged as `expert_imposed`, `data_confirmed`, `data_contradicted`, or `uncertain`. Only `data_confirmed` edges are used for high-confidence intervention selection.
+4. **Cycle update**: After each experiment, re-run with n+1 data points. Track edge stability across cycles — edges that survive multiple re-estimations gain confidence.
 
 **Encoding**: Convert categorical interventions to binary presence/absence per submission. Nodes: `{num_layers, mlp_mult, attention_variant, rope_variant, weight_avg_method, quant_method, compression}` + `bpb` outcome.
 
-**Output**: Adjacency matrix (JSON) + DOT visualization (graphviz).
+**Output**: Versioned adjacency matrix (JSON, one per cycle) + DOT visualization + edge stability history.
 
 ### C4: identifiability_check.py — Data Quality Assessment (R1.3)
 
@@ -226,10 +306,10 @@ Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads 
 
 ## Technical Decisions
 
-### TD-1: FCI over PC for DAG Estimation
-**Choice**: FCI (Fast Causal Inference) with Fisher-Z conditional independence test
-**Rationale**: PC assumes no latent confounders — unrealistic when hardware variance, data ordering, and training stochasticity are unobserved. FCI produces a PAG that explicitly marks uncertain edge orientations.
-**Trade-off**: FCI may produce more ambiguous edges (o→ instead of →), requiring expert disambiguation. Acceptable given the contingency fallback.
+### TD-1: FCI as Validation, Expert DAG as Skeleton
+**Choice**: Expert-guided DAG (primary) + FCI validation (secondary) with Fisher-Z conditional independence test, alpha=0.01 conservative
+**Rationale**: PC/FCI alone are unreliable at n<30 (high degeneracy risk). Expert priors from domain knowledge (leaderboard READMEs, competition community) provide the skeleton. FCI validates or contradicts specific edges. Edges are tagged by source for transparency.
+**Trade-off**: Expert bias persists where data is insufficient. Mitigated by edge stability tracking across cycles and requiring data confirmation for high-confidence intervention selection.
 
 ### TD-2: TracIn-Style Single-Checkpoint Influence over TRAK
 **Choice**: Simple gradient inner product at one checkpoint
@@ -257,6 +337,17 @@ Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads 
 **Trade-off**: Couples offline scripts to train_gpt_mlx.py's internal API. If the model class changes, common.py must be updated. Acceptable because we control both files and changes are infrequent.
 **Scope of common.py load_model**: Returns a fully constructed model object (not just state dict). All scripts needing inference (C7, C8, C9, C10) use this single entry point.
 
+### TD-8: Discovery-Adjust Cycle over Linear Pipeline
+**Choice**: Iterative DAG refinement with experiment feedback loop
+**Rationale**: A one-shot DAG from 20 observational records is unreliable (high degeneracy risk). Each experiment we run adds a controlled data point that disambiguates uncertain edges. CBO with Unknown Graphs (arXiv:2503.19554) shows that jointly optimizing and discovering is more efficient than discovering-then-optimizing. We only need to identify the causal parents of BPP (5-7 variables), not the full graph.
+**Cycle protocol**: (1) Estimate DAG, (2) Select intervention with highest expected BPB improvement among uncertain edges, (3) Run 3-seed experiment, (4) Update DAG with new data point, (5) Repeat until confirmed effect or time gate. Maximum 4 cycles (matching the 2-day decision gate per phase).
+**Trade-off**: More complex than linear phases. Mitigated by the experiment_log.json that tracks all cycles and the versioned DAG outputs.
+
+### TD-9: Expert-Guided DAG as Primary (not Fallback)
+**Choice**: Expert priors are the starting point, not the contingency
+**Rationale**: With n<30, expert priors are load-bearing (arXiv:2510.06735). FCI validation catches cases where data contradicts expert beliefs — but the expert DAG is the skeleton we navigate by. This inverts the original design (FCI primary, expert fallback).
+**Trade-off**: Expert bias could persist if data is insufficient to contradict wrong edges. Mitigated by explicit edge tagging (expert_imposed vs. data_confirmed) and requiring data confirmation before high-confidence intervention selection.
+
 ### TD-6: Flat Gradient Dict for Per-Layer Attribution
 **Choice**: Use MLX's existing `accumulate_flat_grads` pattern (tree_flatten → flat dict) for gradient norm logging
 **Rationale**: The flat dict already exists in the training loop (train_gpt_mlx.py:1031-1044). Computing norms per key requires zero structural changes — just iterate the dict and log.
@@ -266,8 +357,8 @@ Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads 
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| FCI produces degenerate graph (n=20 too small) | Phase 1 yields no actionable DAG | High | Expert-guided fallback DAG (TD-1 contingency). Document data-driven vs. expert edges. |
-| Only ~5 of 20 records have structured ablation tables | R1.1 field coverage below 90% | Medium | Two-pass parser: structured table → prose fallback → submission.json blurb. Accept lower coverage for prose-only records. |
+| FCI produces degenerate graph (n=20 too small) | Data-driven validation unavailable for cycle 0 | High | Expert DAG is primary (TD-9). FCI is validation only. Each cycle adds 1 data point, improving FCI reliability over time. |
+| Only ~10 of 20 records have structured tables | R1.1 field coverage below 90% for delta_bpb | Medium | Three-tier parser (Format A/B/C). Accept null delta_bpb for prose-only records. Field coverage computed over 6 core fields, not just delta. |
 | Gradient inner products have low variance across shards (CV < 0.1) | Phase 4 data curriculum branch skipped | Medium | This is a valid scientific finding (null result). CV threshold is the explicit gate. |
 | MLX-to-H100 effect transfer coefficient < 0.5 | MLX findings do not replicate | Medium | BC-4 prevents claiming H100 validity from MLX-only. Phase 2 explicitly includes H100 validation step. |
 | Per-token loss decomposition is trivially dominated by high-frequency tokens | Phase 3 yields uninteresting signal | Low | Frequency bucketing separates the effect. If top-100 tokens dominate >80% of loss, report and move to Phase 4. |
@@ -339,27 +430,39 @@ CLI:
     [--method fci|pc|notears]  \  # Default: fci
     [--alpha 0.05]                # Significance threshold
 
-Output Schema (causal_dag.json):
+Output Schema (causal_dag.json — versioned per cycle):
 {
-  "method": str,                 # fci|pc|notears|expert_guided
+  "cycle": int,                  # 0 = initial, 1+ = after experiments
+  "method": str,                 # expert_guided+fci_validation
   "nodes": [str],                # Variable names
   "adjacency_matrix": [[int]],   # 0=no edge, 1=directed, 2=bidirected, 3=uncertain
   "edges": [{
     "from": str,
     "to": str,
     "type": str,                 # directed|bidirected|uncertain
-    "source": str                # data_driven|expert_imposed
+    "source": str,               # expert_imposed|data_confirmed|data_contradicted|uncertain
+    "stability": int,            # Number of consecutive cycles this edge has survived
+    "effect_estimate": float | null
   }],
   "estimated_effects": [{
     "node": str,
     "marginal_effect_on_bpb": float,
-    "n_observations": int
+    "n_observations": int,
+    "confidence": str            # high (data_confirmed) | medium (expert_imposed) | low (uncertain)
   }],
+  "next_intervention": {         # Recommended next experiment
+    "variable": str,
+    "suggested_value": str,
+    "expected_bpb_delta": float,
+    "rationale": str
+  } | null,
   "metadata": {
     "n_samples": int,
     "alpha": float,
-    "degenerate": bool,
-    "fallback_used": bool
+    "fci_degenerate": bool,
+    "expert_edges_count": int,
+    "data_confirmed_count": int,
+    "data_contradicted_count": int
   }
 }
 ```
