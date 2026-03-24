@@ -109,6 +109,9 @@ class Hyperparameters:
     ttt_max_doc_len = int(os.environ.get("TTT_MAX_DOC_LEN", 0))  # 0 = no cap
     ttt_batch_docs = int(os.environ.get("TTT_BATCH_DOCS", 64))
     ttt_temp = float(os.environ.get("TTT_TEMP", 1.0))  # Post-TTT temperature calibration
+    # Hyper-connections: mix k previous hidden states (0 = disabled)
+    hyper_k = int(os.environ.get("HYPER_K", 0))
+    hyper_layers = int(os.environ.get("HYPER_LAYERS", 4))  # apply to top N layers
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -717,6 +720,7 @@ class Block(nn.Module):
         layer_idx: int = 0,
         ln_scale: bool = False,
         dtg: bool = False,
+        hyper_k: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -727,15 +731,30 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
+        # Hyper-connections: mix k previous hidden states instead of just x + x0
+        self.hyper_k = hyper_k
+        if hyper_k > 0:
+            self.hyper_logits = nn.Parameter(torch.zeros(hyper_k + 1, dtype=torch.float32))
+            # Initialize to favor the most recent state
+            with torch.no_grad():
+                self.hyper_logits[0] = 2.0  # current x gets highest weight
         if dtg:
             self.dtg_gate = nn.Linear(dim, 1, bias=True)
             nn.init.zeros_(self.dtg_gate.weight)
             nn.init.constant_(self.dtg_gate.bias, 2.0)
         else:
             self.dtg_gate = None
-    def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None, q_delta_fn=None, v_delta_fn=None) -> Tensor:
-        mix = self.resid_mix.to(dtype=x.dtype)
-        x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+    def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None, q_delta_fn=None, v_delta_fn=None, history: list | None = None) -> Tensor:
+        if self.hyper_k > 0 and history is not None and len(history) >= 1:
+            # Hyper-connection: learned mixture of recent hidden states
+            states = [x] + history[:self.hyper_k]
+            while len(states) < self.hyper_k + 1:
+                states.append(x0)  # pad with x0 if not enough history
+            weights = F.softmax(self.hyper_logits[:len(states)].to(dtype=x.dtype), dim=0)
+            x_in = sum(w * s for w, s in zip(weights, states))
+        else:
+            mix = self.resid_mix.to(dtype=x.dtype)
+            x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         n = self.attn_norm(x_in) * self.ln_scale_factor
         qd = q_delta_fn(n) if q_delta_fn is not None else None
         vd = v_delta_fn(n) if v_delta_fn is not None else None
@@ -771,9 +790,12 @@ class GPT(nn.Module):
         ve_enabled: bool = False,
         ve_dim: int = 128,
         ve_layers: str = "9,10",
+        hyper_k: int = 0,
+        hyper_layers: int = 4,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
+        self.hyper_k = hyper_k
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         self.tie_embeddings = tie_embeddings
@@ -800,6 +822,7 @@ class GPT(nn.Module):
                     layer_idx=i,
                     ln_scale=ln_scale,
                     dtg=dtg,
+                    hyper_k=hyper_k if i >= num_layers - hyper_layers else 0,
                 )
                 for i in range(num_layers)
             ]
@@ -864,11 +887,14 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         ve_cache: dict = {}
+        history: list[Tensor] = [x0]  # rolling buffer for hyper-connections
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
             qd = lora.q_loras[i] if lora else None
             vd = lora.v_loras[i] if lora else None
-            x = self.blocks[i](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd)
+            x = self.blocks[i](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd, history=history if self.hyper_k > 0 else None)
+            if self.hyper_k > 0:
+                history = [x] + history[:self.hyper_k]
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -877,7 +903,9 @@ class GPT(nn.Module):
             ve = self._get_ve(bi, input_ids, ve_cache)
             qd = lora.q_loras[bi] if lora else None
             vd = lora.v_loras[bi] if lora else None
-            x = self.blocks[bi](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd)
+            x = self.blocks[bi](x, x0, v_embed=ve, q_delta_fn=qd, v_delta_fn=vd, history=history if self.hyper_k > 0 else None)
+            if self.hyper_k > 0:
+                history = [x] + history[:self.hyper_k]
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -920,16 +948,21 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         ve_cache: dict = {}
+        history: list[Tensor] = [x0]
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
+            x = self.blocks[i](x, x0, v_embed=ve, history=history if self.hyper_k > 0 else None)
+            if self.hyper_k > 0:
+                history = [x] + history[:self.hyper_k]
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve)
+            x = self.blocks[bi](x, x0, v_embed=ve, history=history if self.hyper_k > 0 else None)
+            if self.hyper_k > 0:
+                history = [x] + history[:self.hyper_k]
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -1511,6 +1544,8 @@ def main() -> None:
         ve_enabled=args.ve_enabled,
         ve_dim=args.ve_dim,
         ve_layers=args.ve_layers,
+        hyper_k=args.hyper_k,
+        hyper_layers=args.hyper_layers,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
