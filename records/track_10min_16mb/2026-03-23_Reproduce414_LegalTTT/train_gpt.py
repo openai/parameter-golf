@@ -97,6 +97,7 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
+    vrl_enabled = bool(int(os.environ.get("VRL_ENABLED", "1")))
     # TTT (score-first, legal per PR #461/#473)
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.002))
@@ -522,6 +523,7 @@ class CausalSelfAttention(nn.Module):
         self.rope_dims = 0  # set by GPT.__init__ for partial RoPE
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
         self.use_xsa = False  # set by GPT.__init__ for deep layers only
+        self.vrl_gate = None  # set by GPT.__init__ when VRL is enabled
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
         """Efficient XSA: subtract self-value projection via GQA-aware reshape (no repeat_interleave).
         y: [B, T, H, D], v: [B, T, Hkv, D]. H must be divisible by Hkv."""
@@ -532,13 +534,17 @@ class CausalSelfAttention(nn.Module):
         vn = F.normalize(v, dim=-1).unsqueeze(-2)    # [B, T, Hkv, 1, D] — broadcast ready
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
-    def forward(self, x: Tensor, v_embed: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, v_embed: Tensor | None = None, v_first: Tensor | None = None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         v = self.c_v(x)
+        v_raw = v  # save raw V before any modifications for VRL
         if v_embed is not None:
             v = v + v_embed
+        if v_first is not None and self.vrl_gate is not None:
+            gate = torch.sigmoid(self.vrl_gate.to(dtype=v.dtype))
+            v = (1 - gate) * v + gate * v_first
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
@@ -559,7 +565,7 @@ class CausalSelfAttention(nn.Module):
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         y = y.reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        return self.proj(y), v_raw
 class SmearGate(nn.Module):
     def __init__(self, dim: int):
         super().__init__()
@@ -644,16 +650,16 @@ class Block(nn.Module):
             nn.init.constant_(self.dtg_gate.bias, 2.0)
         else:
             self.dtg_gate = None
-    def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None, v_first: Tensor | None = None) -> tuple[Tensor, Tensor]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed)
+        attn_out, v_raw = self.attn(self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed, v_first=v_first)
         x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor)
         if self.dtg_gate is not None:
             gate = torch.sigmoid(self.dtg_gate(x_in.detach()))
             x_out = x_in + gate * (x_out - x_in)
-        return x_out
+        return x_out, v_raw
 class GPT(nn.Module):
     def __init__(
         self,
@@ -679,6 +685,7 @@ class GPT(nn.Module):
         ve_enabled: bool = False,
         ve_dim: int = 128,
         ve_layers: str = "9,10",
+        vrl_enabled: bool = False,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -740,6 +747,10 @@ class GPT(nn.Module):
         if xsa_last_n > 0:
             for i in range(max(0, num_layers - xsa_last_n), num_layers):
                 self.blocks[i].attn.use_xsa = True
+        self.vrl_enabled = vrl_enabled
+        if vrl_enabled:
+            for i in range(1, num_layers):  # all layers except layer 0
+                self.blocks[i].attn.vrl_gate = nn.Parameter(torch.tensor(-1.5, dtype=torch.float32))
         self._init_weights()
     def _init_weights(self) -> None:
         if self.tie_embeddings:
@@ -772,16 +783,19 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         ve_cache: dict = {}
+        v_first: Tensor | None = None
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
+            x, v_raw = self.blocks[i](x, x0, v_embed=ve, v_first=v_first if self.vrl_enabled else None)
+            if i == 0 and self.vrl_enabled:
+                v_first = v_raw
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve)
+            x, _ = self.blocks[bi](x, x0, v_embed=ve, v_first=v_first if self.vrl_enabled else None)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -820,16 +834,19 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         ve_cache: dict = {}
+        v_first: Tensor | None = None
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
+            x, v_raw = self.blocks[i](x, x0, v_embed=ve, v_first=v_first if self.vrl_enabled else None)
+            if i == 0 and self.vrl_enabled:
+                v_first = v_raw
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve)
+            x, _ = self.blocks[bi](x, x0, v_embed=ve, v_first=v_first if self.vrl_enabled else None)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -1212,6 +1229,7 @@ def main() -> None:
         ve_enabled=args.ve_enabled,
         ve_dim=args.ve_dim,
         ve_layers=args.ve_layers,
+        vrl_enabled=args.vrl_enabled,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1505,6 +1523,7 @@ def main() -> None:
         xsa_last_n=args.xsa_last_n,  # must match training model
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+        vrl_enabled=args.vrl_enabled,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
