@@ -53,7 +53,7 @@ Phase E: Integration
 **Outputs**: `scripts/causal/common.py`, `tests/causal/test_common.py`
 
 **Step 0 — Import safety check** (prerequisite for all subsequent steps):
-- Run `python -c "import train_gpt_mlx"` and confirm it exits 0 with no training activity, no data loading, and no MLX device allocation. If it fails, extract model classes into a separate `scripts/causal/model.py` module as fallback.
+- Run `python -c "import train_gpt_mlx"` and confirm: (1) exit code 0, (2) completes in under 5 seconds, (3) stderr is empty or contains no MLX allocation warnings. If any check fails, extract model classes into a separate `scripts/causal/model.py` module as fallback.
 
 **Step 1 — Write tests** (`tests/causal/test_common.py`):
 - Test `load_submission_json` with a known submission.json
@@ -134,7 +134,7 @@ Phase E: Integration
 **Why this item**: Data validation reveals where expert priors are wrong.
 **Why this order**: Expert skeleton must exist before FCI can compare against it.
 
-**Step 1 — Write tests**: Test FCI on synthetic data with known structure. Test degenerate detection. Test edge tagging logic. Test --previous-dag diff.
+**Step 1 — Write tests**: Test FCI on synthetic data with known structure. Test near-degenerate case (highly correlated binary columns, n=20) to exercise degenerate detection. Test that FCI numerical errors (LinAlgError) are caught and fall back to expert-only DAG with warning. Test edge tagging logic. Test --previous-dag diff.
 
 **Step 2 — Implement**:
 1. FCI validation (causal-learn, Fisher-Z, alpha=0.01)
@@ -223,6 +223,7 @@ Phase E: Integration
 **Complexity**: Medium
 **Components**: C7
 **Dependencies**: S2 (common.py for load_model, compute_bpb)
+**Prerequisite**: A saved checkpoint must exist (from a prior record's training run, or from an initial S6 dry-run). The baseline checkpoint or any existing record's trained model suffices.
 **Why this item**: Reveals which token categories drive loss — informs intervention selection.
 **Why this order**: Parallel diagnostic, runs after S2.
 
@@ -244,6 +245,7 @@ Phase E: Integration
 **Complexity**: Medium
 **Components**: C8
 **Dependencies**: S2 (common.py for load_model)
+**Prerequisite**: A saved checkpoint must exist (same as S8).
 **Why this item**: Determines if quantization gap dominates causal effects.
 **Why this order**: Parallel diagnostic, runs after S2.
 
@@ -264,6 +266,7 @@ Phase E: Integration
 **Complexity**: Medium
 **Components**: C9
 **Dependencies**: S2 (common.py for load_model)
+**Prerequisite**: A saved checkpoint must exist (same as S8). Training data shards must be present at `data/datasets/fineweb10B_sp1024/`.
 **Why this item**: Scores training data shards by causal influence on validation loss.
 **Why this order**: Parallel diagnostic, runs after S2.
 
@@ -322,7 +325,9 @@ Phase E: Integration
 5. Produce submission.json with metadata
 6. If no causal findings: compose existing tricks (engineering fallback R5.3)
 
-**Verification**: Assert artifact_size ≤ 16,000,000 bytes. Assert 3-seed BPB reported with mean and std. Assert all required submission files present.
+**Step 1 — Write tests** (`tests/causal/test_submission.py`): Test submission.json schema validation. Test artifact size check (≤ 16,000,000 bytes). Test README.md has required sections (Results, Architecture, Ablation table). Test all required files exist in output directory.
+
+**Verification**: `pytest tests/causal/test_submission.py`. Assert artifact_size ≤ 16,000,000 bytes. Assert 3-seed BPB reported with mean and std.
 
 ## Dependency Graph
 
