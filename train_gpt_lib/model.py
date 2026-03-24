@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from .config import CONTROL_TENSOR_NAME_PATTERNS
+from .flash_attention import get_flash_attn_fn
 
 
 class RMSNorm(nn.Module):
@@ -71,6 +72,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        flash_attn_version: int = 0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -90,27 +92,50 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
+        # 0 = torch SDPA, 2 = FlashAttention-2, 3 = FlashAttention-3
+        self.flash_attn_version = flash_attn_version
+        self._flash_fn = get_flash_attn_fn(flash_attn_version) if flash_attn_version in (2, 3) else None
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
-        cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
-        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
-        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+
+        if self._flash_fn is not None:
+            # FlashAttention path: keep (B, S, H, D) layout throughout to avoid
+            # extra transposes.  cos/sin are permuted to (1, S, 1, D//2).
+            q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
+            k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+            v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+            q = F.rms_norm(q, (q.size(-1),))
+            k = F.rms_norm(k, (k.size(-1),))
+            # cos/sin: (1, 1, S, D//2) → (1, S, 1, D//2)
+            cos, sin = self.rotary(seqlen, x.device, q.dtype)
+            cos = cos.permute(0, 2, 1, 3)
+            sin = sin.permute(0, 2, 1, 3)
+            q = apply_rotary_emb(q, cos, sin)
+            k = apply_rotary_emb(k, cos, sin)
+            # q_gain: (num_heads,) → (1, 1, H, 1)
+            q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
+            y = self._flash_fn(q, k, v, causal=True)           # (B, S, H, D)
+            y = y.reshape(bsz, seqlen, dim)
+        else:
+            # Standard PyTorch SDPA path: (B, H, S, D) layout.
+            q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+            k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+            v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+            q = F.rms_norm(q, (q.size(-1),))
+            k = F.rms_norm(k, (k.size(-1),))
+            cos, sin = self.rotary(seqlen, x.device, q.dtype)
+            q = apply_rotary_emb(q, cos, sin)
+            k = apply_rotary_emb(k, cos, sin)
+            q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+            y = F.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask=None,
+                is_causal=True,
+                enable_gqa=(self.num_kv_heads != self.num_heads),
+            )
+            y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+
         return self.proj(y)
 
 
@@ -152,17 +177,18 @@ class Block(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         init_hc: Callable | None = None,
+        flash_attn_version: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, flash_attn_version)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.hc_attn = None if init_hc is None else init_hc(dim=dim, branch=nn.Sequential(self.attn_norm, self.attn))
-        self.hc_mlp = None if init_hc is None else init_hc(dim=dim, branch=nn.Sequential(self.mlp_norm, self.mlp))
+        self.hc_mlp  = None if init_hc is None else init_hc(dim=dim, branch=nn.Sequential(self.mlp_norm, self.mlp))
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
@@ -193,6 +219,7 @@ class GPT(nn.Module):
         qk_gain_init: float,
         hyper_conn_type: str = "none",
         hyper_conn_n: int = 1,
+        flash_attn_version: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -218,6 +245,7 @@ class GPT(nn.Module):
                     rope_base,
                     qk_gain_init,
                     init_hc,
+                    flash_attn_version,
                 )
                 for _ in range(num_layers)
             ]

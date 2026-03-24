@@ -50,6 +50,12 @@ class Hyperparameters:
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
     compile_dynamic = bool(int(os.environ.get("COMPILE_DYNAMIC", "0")))
 
+    flash_attn_version = int(os.environ.get("USE_FLASHATTENTION3", os.environ.get("USE_FLASHATTENTION2", "0")))
+    if int(os.environ.get("USE_FLASHATTENTION3", "1")):
+        flash_attn_version = 3
+    elif int(os.environ.get("USE_FLASHATTENTION2", "0")):
+        flash_attn_version = 2
+
     # LR scheduler (see train_gpt_lib/lr_schedulers.py for options).
     lr_schedule = os.environ.get("LR_SCHEDULE", "trapezoid")
 
