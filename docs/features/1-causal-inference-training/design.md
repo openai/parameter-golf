@@ -218,7 +218,7 @@ Uses `nn.value_and_grad` API. Operates on a single checkpoint (not summed across
 
 ### C10: gradient_attribution.py — Per-Layer Logging (R4.4)
 
-Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads train_gpt_mlx.py as text, inserts gradient-norm logging code after the `accumulate_flat_grads` call site (line ~1036), writes the result to `train_gpt_mlx_instrumented.py`, and executes it via subprocess. The copy is regenerated each time C10 runs, ensuring it tracks upstream changes. The original script is never modified. The patched copy adds logging at each validation checkpoint:
+Creates a patched copy of train_gpt_mlx.py at runtime. The mechanism: C10 reads train_gpt_mlx.py as text, inserts gradient-norm logging code after the `accumulate_flat_grads` call site (line ~1036), writes the result to `train_gpt_mlx_instrumented.py`, and executes it via subprocess. The copy is regenerated each time C10 runs, ensuring it tracks upstream changes. **Sentinel validation**: After patching, C10 asserts that the string `accumulate_flat_grads` appears within ±5 lines of the inserted code; if not found, aborts with an error indicating the patch site has drifted. The original script is never modified. The patched copy adds logging at each validation checkpoint:
 1. After `loss_and_grad_chunked` returns `(loss, grads)`, iterate flat grad dict
 2. Compute L2 norm per named parameter group (attention, MLP, embedding, skip weights)
 3. Log to JSON-lines file: `{step, elapsed_ms, val_loss, layer_norms: {name: norm}}`
@@ -607,7 +607,7 @@ scripts/causal/
 ├── statistical_analysis.py     # C6: Effect estimation (R2.2)
 ├── token_loss_decompose.py     # C7: Per-token analysis (R3.1)
 ├── quant_gap_analysis.py       # C8: Pre/post quant BPB (R3.2)
-├── influence_proxy.py          # C9: Gradient inner product (R4.1)
+├── influence_proxy.py          # C9: Gradient inner product (R4.1) + shard variance check (R4.2, consolidated from spec's shard_variance_check.py)
 ├── gradient_attribution.py     # C10: Per-layer gradient logging (R4.4)
 ├── requirements.txt            # Phase-specific dependencies
 └── README.md                   # Usage guide with per-script examples
