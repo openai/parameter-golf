@@ -1,0 +1,22 @@
+{
+  "author": "Ethan Yang",
+  "github_id": "EthanYangTW",
+  "name": "Record: int5 GPTQ + 33.6M model + Soft-Round QAT + Legal Score-First TTT",
+  "blurb": "int5 GPTQ quantization ([-15,15], 31 levels) with Hessian-aware error compensation enables 33.6M params in 16MB. Soft-Round QAT (differentiable tanh rounding, alpha 1→16) replaces STE for better training quality. MHA 8/8, BigramHash 8192, MLP 3.5x (1792), XSA all 11 layers, Early QAT 0.5, EMA 0.997, legal score-first AdamW TTT with cosine LR decay.",
+  "date": "2026-03-24T00:00:00Z",
+  "val_bpb": 1.1162,
+  "val_bpb_std": 0.0006,
+  "val_loss_seed1337": 1.88347869,
+  "val_bpb_seed1337": 1.11550587,
+  "val_loss_seed42": 1.88480123,
+  "val_bpb_seed42": 1.11628915,
+  "val_loss_seed7": 1.88543543,
+  "val_bpb_seed7": 1.11666477,
+  "bytes_seed1337": 15822078,
+  "bytes_seed42": 15415405,
+  "bytes_seed7": 15368627,
+  "model_params": 33580124,
+  "quantization": "int5 GPTQ ([-15,15], 31 levels) + Soft-Round QAT",
+  "compression": "zstd-22",
+  "ttt": "legal score-first AdamW, 3 epochs, cosine LR across chunks"
+}
