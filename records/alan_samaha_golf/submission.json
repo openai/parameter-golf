@@ -1,0 +1,17 @@
+{
+  "name": "Alan Samaha",
+  "github_id": "whitestone1121-web",
+  "val_bpb": "TBD",
+  "val_loss": "TBD",
+  "compressed_bytes": "TBD",
+  "description": "16.4M Hybrid LM: LinearRecurrence (O(L)) + Attention every 3rd layer, d=288, L=14, vocab=1024 weight-tied. Muon optimizer for matrix params. EMA (decay=0.999) + warmdown LR for final checkpoint. Architecture subject to pending patent applications.",
+  "model_params": 16400000,
+  "architecture": "Hybrid LinearRecurrence + Attention",
+  "d_model": 288,
+  "num_layers": 14,
+  "vocab_size": 1024,
+  "weight_tied": true,
+  "optimizer": "Muon (matrices) + Adam (embeddings/scalars)",
+  "ema_decay": 0.999,
+  "warmdown_iters": 1200
+}
