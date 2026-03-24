@@ -137,8 +137,9 @@
 | stride=128               | 1.1133     | 347s     | +0.0007           | Very safe                |
 | stride=76 T=0.98         | 1.1132     | 566s     | +0.0006           | Temp hurts               |
 | chunked AdamW 1ep        | 1.1175     | 138s     | +0.0049           | Fast but worse           |
-| VRL (exp202)             | pending    | ~575s    | ?                 | Running                  |
-| no-VRL control           | queued     | ~575s    | ?                 | After VRL                |
+| VRL v3 (exp202)          | 1.1133     | 577s     | +0.0003           | **NEUTRAL** — U-Net skips already carry early info at 14L |
+| no-VRL control           | skipped    | —        | —                 | VRL neutral, no need for control |
+| QEP GPTQ (exp203)        | pending    | ~600s    | est -0.003-0.007  | IMPLEMENTED, queued after A/B round 3 |
 
 
 ---
