@@ -1,0 +1,11 @@
+{
+  "author": "Danial Hosseintabar",
+  "github_id": "danialht",
+  "name": "Mix Residuals + int6 GPTQ + TTT score first AdamW",
+  "blurb": "11-layer 512-dim MHA 8/8 model with denser residual input mixing, 3.5x MLP (1792), BigramHash-8192, and XSA on all layers. Mixed int6 per-row GPTQ with early QAT, EMA/SWA, 2% pruning, and legal score-first grouped-AdamW TTT on 131072-token chunks with the last 2 blocks plus control params adapted at eval.",
+  "date": "2026-03-23T01:00:00Z",
+  "val_loss": "1.8855",
+  "val_bpb": "1.1167",
+  "bytes_total": "15330834",
+  "bytes_code": "76849"
+}
