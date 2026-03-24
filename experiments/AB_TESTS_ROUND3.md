@@ -132,10 +132,11 @@
 
 ---
 
-## NOW RUNNING: Combined best config (WD=0.05 + QEP + freeze=8 + stride=64)
-- Script: clean_train_203_qep_gptq.py
-- Expected: ~1.106 BPB in ~440s eval
-- This combines all winning findings into one run
+## exp205 RESULT: Combined config WORSE than exp203
+- **1.1082 BPB at stride=64, 623s eval — OVER BUDGET and worse BPP**
+- Freeze=8 hurts more on WD=0.05 model than on WD=0.09 model
+- The freeze sweep was done on WD=0.09 — doesn't transfer to WD=0.05
+- **exp203 remains best: 1.1075 BPB, stride=76, 551s, under budget**
 
 ---
 
