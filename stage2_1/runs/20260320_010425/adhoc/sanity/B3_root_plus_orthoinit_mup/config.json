@@ -1,0 +1,47 @@
+{
+  "batch_id": "stage2_1_patch_portfolio_r1",
+  "pack": "train_arch",
+  "scope": "adhoc",
+  "phase": "sanity",
+  "slot": "B3",
+  "name": "root_plus_orthoinit_mup",
+  "role": "candidate",
+  "family": "initialization",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": "P206",
+  "patches": [
+    "orthoinit_mup"
+  ],
+  "label": "20260320_010425",
+  "gpu_spec": "3",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "B0",
+    "B3"
+  ],
+  "compare_to": "B0",
+  "why": "Cheap initialization family with strong public recurrence.",
+  "validates": "Better early curve and better final score on the same training regime.",
+  "falsifies": "Bootstrap improves but final score does not.",
+  "notes": [
+    "Hold architecture fixed for the first pass."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "MAX_WALLCLOCK_SECONDS": "90",
+    "MODEL_DIM": "512",
+    "MUP_OUTPUT_SCALE": "1",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "ORTHO_INIT": "1",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "1024",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

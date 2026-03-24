@@ -1,0 +1,220 @@
+{
+  "batch_id": "stage3_mechanism_screen",
+  "description": "Stage 3 mechanism-level screen: one causal question per slot. SmearGate and BigramHash are separate candidates. H1 (NorMuon+WD) is bundled as a community-paired optimizer discipline package, not a mechanism-level test. No slot claims to test muP or FA3.",
+  "benchmarks": {
+    "our_best_bpb": 1.1631,
+    "frontier_bpb": 1.1453,
+    "record_sota_bpb": 1.1453
+  },
+  "defaults": {
+    "MLP_MULT": "3",
+    "TRAIN_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "WARMDOWN_ITERS": "3000",
+    "GRAD_CLIP_NORM": "0.3",
+    "MUON_MOMENTUM": "0.95",
+    "MUON_BACKEND_STEPS": "5",
+    "VAL_LOSS_EVERY": "200",
+    "TRAIN_LOG_EVERY": "50",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model"
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1,
+      "slots": ["R0A", "R0B", "H1", "H2", "H3", "H4", "H5", "H6", "H7"]
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "slots": ["R0A", "R0B", "H1", "H2", "H3", "H4", "H5", "H6", "H7"]
+    },
+    "composite": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1
+    },
+    "decision": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A",
+      "name": "baseline_control_a",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control",
+      "why": "Primary control: MLP3x + seq2048 + grad_clip=0.3 baseline. No code patches.",
+      "validates": "The local patched code path can reproduce baseline quality.",
+      "falsifies": "All derivative screens are suspect because the control itself is unstable.",
+      "env": {},
+      "notes": ["Exact control for all seven candidates. Uses only env-var config."]
+    },
+    {
+      "slot": "R0B",
+      "name": "baseline_control_b",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control_repeat",
+      "why": "Noise estimate for the baseline control.",
+      "validates": "Short-run control variance is small enough for aggressive pruning.",
+      "falsifies": "The screen horizon is too noisy to interpret small deltas.",
+      "env": {},
+      "notes": ["R0A vs R0B spread calibrates kill thresholds."]
+    },
+    {
+      "slot": "H1",
+      "name": "normuon_wd",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["normuon_wd"],
+      "family": "OPT",
+      "why": "Community-paired optimizer discipline package: NorMuon (per-row second-moment normalization) + MuonWD=0.04 (decoupled weight decay). Every submission beating us uses at least one. Bundled because the community always pairs them and the causal story is unified: tighter optimizer discipline -> smaller weights -> better quant.",
+      "validates": "Better val_bpb or better quant gap at matched wallclock.",
+      "falsifies": "NorMuon+WD together are not worth the complexity; the baseline Muon is already good enough.",
+      "env": {
+        "MUON_WD": "0.04"
+      },
+      "notes": [
+        "WD=0.04 is the community sweet spot (#180). NorMuon from #89, #173.",
+        "This is a package test, not a mechanism-level test. If it wins, follow-on should isolate NorMuon vs WD."
+      ]
+    },
+    {
+      "slot": "H2",
+      "name": "smeargate",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["smeargate"],
+      "family": "SMEAR",
+      "why": "Learned sigmoid gate blending each token embedding with its predecessor. Injects a cheap recurrence-like bigram prior. ~512 params. Used by 7 of top 10 submissions.",
+      "validates": "Better val_bpb at matched wallclock from the token-blending prior alone.",
+      "falsifies": "SmearGate without BigramHash is not worth the code change.",
+      "env": {
+        "SMEARGATE": "1"
+      },
+      "notes": [
+        "Gate inits to sigmoid(0)=0.5, so starts at 50/50 blend and learns from there.",
+        "Separated from BigramHash to get clean attribution."
+      ]
+    },
+    {
+      "slot": "H3",
+      "name": "bigram_hash",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["bigram_hash"],
+      "family": "BIGRAM",
+      "why": "4096-bucket hashed token-pair lookup table (dim=128, projected to model_dim). Adds ~524K params of explicit bigram memory the model cannot learn in 10 minutes.",
+      "validates": "Better val_bpb at matched wallclock from explicit bigram features alone.",
+      "falsifies": "The extra ~524K parameters hurt quantization more than the bigram features help.",
+      "env": {
+        "BIGRAM_HASH": "1"
+      },
+      "notes": [
+        "Weights init to zeros, so starts as a no-op and learns during training.",
+        "Watch artifact size: ~524K extra params should still fit in 16MB with int8+zlib.",
+        "Separated from SmearGate to get clean attribution."
+      ]
+    },
+    {
+      "slot": "H4",
+      "name": "qat_int6",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["qat"],
+      "family": "QAT",
+      "why": "STE fake int6 quantization in the forward pass teaches the model to survive 6-bit compression. Straight-through estimator passes gradients unchanged. Reduces quant gap from ~0.015 to ~0.002.",
+      "validates": "Quant gap shrinks significantly; post-quant BPB improves even if pre-quant is slightly worse.",
+      "falsifies": "QAT hurts pre-quant quality too much to recover at export.",
+      "env": {
+        "QAT": "1"
+      },
+      "notes": [
+        "QAT makes pre-quant val_bpb WORSE (model trains with noise). The win is in post-quant.",
+        "Kill rule: if pre-quant val_bpb worse by >0.01, the gap is too large to recover.",
+        "Promote rule: if pre-quant within 0.005 of control (gap recovers at export)."
+      ]
+    },
+    {
+      "slot": "H5",
+      "name": "orthoinit",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["orthoinit"],
+      "family": "INIT",
+      "why": "Orthogonal init on Q,K,V,MLP.fc matrices (gain=1.0) provides better initial geometry than Kaiming uniform. Used by top submissions #135, #162, #164.",
+      "validates": "Faster early convergence (steps 50-100) and better final val_bpb.",
+      "falsifies": "Early convergence advantage disappears by step 300; Kaiming is good enough.",
+      "env": {},
+      "notes": [
+        "Only affects matrices with min(shape) >= 64. Zero-init projections are unchanged.",
+        "This tests orthogonal init only, NOT muP scaling (muP is not implemented).",
+        "Watch: early learning curve shape, not just final value."
+      ]
+    },
+    {
+      "slot": "H6",
+      "name": "label_smoothing",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["label_smoothing"],
+      "family": "LSMOOTH",
+      "why": "Label smoothing=0.05 softens targets, regularizes logits toward smaller magnitudes, which should improve quantization friendliness. No community PR tests this, so it covers an unexplored region.",
+      "validates": "Better post-quant val_bpb due to smaller logit magnitudes.",
+      "falsifies": "Label smoothing hurts the model's ability to assign confident predictions.",
+      "env": {
+        "LABEL_SMOOTHING": "0.05"
+      },
+      "notes": [
+        "Wildcard hypothesis. No community PR tests label smoothing.",
+        "Watch: pre-quant vs post-quant gap. Smoothing should reduce the gap."
+      ]
+    },
+    {
+      "slot": "H7",
+      "name": "compile_autotune",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["compile_autotune"],
+      "family": "SYS",
+      "why": "torch.compile mode=max-autotune may find faster CUDA kernels, increasing steps reached in fixed wallclock.",
+      "validates": "ms/step improves by >5% or total steps increases meaningfully.",
+      "falsifies": "max-autotune has higher compile overhead that eats the kernel gains.",
+      "env": {
+        "COMPILE_MODE": "max-autotune"
+      },
+      "notes": [
+        "Pure throughput test. No warmup change (that is a separate env var, testable independently).",
+        "Kill: if ms/step is SLOWER (compile regression).",
+        "Promote: if ms/step improves by >5%."
+      ]
+    }
+  ]
+}

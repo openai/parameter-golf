@@ -1,0 +1,40 @@
+{
+  "batch_id": "stage3_mechanism_screen",
+  "phase": "sanity",
+  "slot": "H5",
+  "name": "label_smoothing",
+  "role": "candidate",
+  "family": "LSMOOTH",
+  "label": "20260320_010921",
+  "gpu_spec": "6",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H5"
+  ],
+  "compare_to": "R0A",
+  "why": "Label smoothing=0.05 softens targets, regularizes logits toward smaller magnitudes, which should improve quantization friendliness. No community PR tests this, so it covers an unexplored region.",
+  "validates": "Better post-quant val_bpb due to smaller logit magnitudes.",
+  "falsifies": "Label smoothing hurts the model's ability to assign confident predictions.",
+  "patches": [
+    "label_smoothing"
+  ],
+  "notes": [
+    "Wildcard hypothesis. No community PR tests label smoothing.",
+    "Watch: pre-quant vs post-quant gap. Smoothing should reduce the gap."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "LABEL_SMOOTHING": "0.05",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

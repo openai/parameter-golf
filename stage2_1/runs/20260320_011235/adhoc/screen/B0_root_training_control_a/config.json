@@ -1,0 +1,42 @@
+{
+  "batch_id": "stage2_1_patch_portfolio_r1",
+  "pack": "train_arch",
+  "scope": "adhoc",
+  "phase": "screen",
+  "slot": "B0",
+  "name": "root_training_control_a",
+  "role": "control",
+  "family": "training_control",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": null,
+  "patches": [],
+  "label": "20260320_011235",
+  "gpu_spec": "0",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "B0"
+  ],
+  "compare_to": null,
+  "why": "Primary control for the patch-first training screen on the root script.",
+  "validates": "The current branch is stable enough to compare first-wave training patches.",
+  "falsifies": "Any training-side patch readout is suspect because the root control is unstable.",
+  "notes": [
+    "Use repeated control deltas as the short-run noise floor."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "MAX_WALLCLOCK_SECONDS": "180",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "1024",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}
