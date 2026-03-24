@@ -1,0 +1,9 @@
+{
+  "name": "Case Study: Training Data Ordering by Model Perplexity",
+  "val_bpb": 1.1187,
+  "bytes_total": 15921633,
+  "blurb": "Non-record case study: reordering training shards by model perplexity (hardest first) gives -0.0033 BPB for free. Token-level statistics (KL divergence) miss 100x of the variation that model-level scoring reveals. 3-seed validated. Ten lines of code, zero compute cost.",
+  "author": "abaybektursun",
+  "github_id": "abaybektursun",
+  "date": "2026-03-24"
+}
