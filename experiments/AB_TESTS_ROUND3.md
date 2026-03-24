@@ -406,3 +406,69 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **PR #505** (1.1181, SwiGLU + VE128): SwiGLU + VE128 + no TTT
 - **PR #414** (1.1233, EMA + GPTQ-lite): EMA + GPTQ-lite + QAT@0.15
 
+---
+
+## HYPERSPECIFIC RESEARCH: Problems Unique to Our 14L/512d/GQA/leaky²/GPTQ Model
+
+### Problem 1: leaky_relu(0.5)² gradient compounding at 14 layers
+
+**The issue:** Our activation is `leaky_relu(x, 0.5).square()`. The squared operation means gradients scale as `2 * leaky_relu(x)` in the backward pass. Over 14 layers of MLP, this creates a multiplicative gradient factor. At 11 layers this is manageable; at 14 layers the gradient magnitude compounds ~27% more.
+
+**Research says** (arxiv:2402.03804, zdtech.substack.com): "Squared ReLU exacerbates vanishing gradients in deep networks because the derivative is proportional to 2x for x>0, leading to rapidly diminishing gradients across many layers."
+
+**Our leaky(0.5) mitigation helps** — the 0.5 negative slope prevents dead neurons. But the squaring still compounds. At 14 layers we may be hitting the limit.
+
+**Potential fixes:**
+- **R6. Replace square with abs** — `leaky_relu(x, 0.5).abs()` has gradient magnitude 1 everywhere, no compounding. Zero extra params. But changes the activation landscape.
+- **R7. Learnable activation power** — `leaky_relu(x, 0.5).pow(p)` where p is learned per-layer, initialized at 2.0. Lets later layers reduce squaring intensity. 14 extra scalar params.
+- **R8. Layer-wise activation scaling** — multiply activation output by `1/sqrt(layer_idx+1)` (like LN Scale but for MLP). Prevents gradient explosion from squaring. We tested LN Scale on attention norms and it hurt (+0.028) — but on MLP activations it's different.
+- Source: https://arxiv.org/abs/2402.03804
+
+### Problem 2: GQA 8H/4KV wastes attention capacity at 14 layers
+
+**The issue:** With GQA, each KV head serves 2 query heads. At dim=512, each head is 64d. With only 4 KV heads × 64d = 256d of unique key/value information, we're projecting 512d inputs to 256d keys/values — 50% information bottleneck in every layer.
+
+**At 14 layers, this bottleneck compounds:** later layers receive increasingly processed representations but still squeeze them through the same 256d KV bottleneck. 11L models have fewer layers so the bottleneck matters less.
+
+**Research says** (Cost-Optimal GQA, arxiv:2503.09579): "Decoupling total attention head dimensions from model hidden size to flexibly control inference FLOPs." Also: "Weighted Grouped-Query Attention introduces learnable weights for aggregating key and value heads."
+
+**Potential fixes:**
+- **R9. Increase KV heads from 4 to 6** — more unique KV information (384d vs 256d). Costs ~33% more attention params but may help deep layers. Need to check if artifact still fits 16MB.
+- **R10. Weighted GQA** — add a learned scalar per (query_group, kv_head) pair that weights the KV aggregation. 8 extra params per layer × 14 layers = 112 params total. Near-zero overhead.
+- Source: https://arxiv.org/abs/2503.09579
+
+### Problem 3: Our RoPE base=50000 was tuned at fewer layers
+
+**The issue:** We set ROPE_BASE=50000 during earlier experiments (likely at 9-12 layers). RoPE base frequency determines how quickly position information decays across sequence length. Higher base = slower decay = longer effective context. But at 14 layers, the model processes positions differently — deeper models build hierarchical position representations that interact with RoPE frequencies.
+
+**Research says** (arxiv:2503.04355): "Layer-Specific Scaling of Positional Encodings for Superior Long-Context Modeling" — different layers should have different RoPE scaling. Early layers need fine-grained position info, deep layers need coarse position info.
+
+**Potential fixes:**
+- **R11. Per-layer RoPE base** — layers 0-4 use base=10000 (fine position), layers 5-9 use 50000 (medium), layers 10-13 use 200000 (coarse). Zero extra params, just changes the precomputed cos/sin tables.
+- **R12. Sweep RoPE base** — just test 10000, 30000, 50000, 100000 as a hyperparameter. Quick A/B with eval-only if we save checkpoints at different bases (would need retraining).
+- Source: https://arxiv.org/abs/2503.04355
+
+### Problem 4: Entropy of our quantized weights could be lower for better compression
+
+**The issue:** Our artifact is 15.83MB with brotli-11. We have only 170KB headroom. If we could improve compression by even 200KB, we could try BigramHash dim=96 or wider MLP.
+
+**Research says** (EntroLLM, arxiv:2505.02380): Tensor-level quantization (one scale per entire tensor, not per-row) produces "spiky" weight distributions with much lower entropy → dramatically better compression. Per-row quantization spreads the distribution out.
+
+**The tradeoff:** tensor-level quantization is less precise than per-row, so model quality drops. But if the compression savings let us fit a bigger model, net effect could be positive.
+
+**Potential fixes:**
+- **R13. Hybrid quantization** — use tensor-level quantization for the middle (least sensitive) layers and per-row for first/last layers. Better compression on middle layers, preserved quality on critical layers.
+- **R14. Huffman coding after quantization** — replace brotli with Huffman coding on the int6 weight values. Since int6 has only 64 possible values, the Huffman tree is tiny and compression is near-optimal. May beat brotli on structured quantized data.
+- Source: https://arxiv.org/abs/2505.02380
+
+### Problem 5: Our TTT only updates last 12 layers (freeze 2), but research says update only last 25%
+
+**The issue:** We freeze first 2 of 14 layers during TTT (85% unfrozen). Research on efficient TTT says updating only the last 25% of layers (i.e., last 3-4 of 14) maintains performance while being much faster.
+
+**Research says** (test-time-training.github.io, NanoAdapt IJCAI 2024): "Constraining updates to a subset of parameters (e.g., only MLP weights in the last 25% of transformer blocks) maintains performance while lowering computation."
+
+**Potential fixes:**
+- **R15. Freeze first 10 layers** (only update layers 10-13). Cuts backward computation by ~70%. Each TTT step is 3x faster → either faster eval or more steps in same budget.
+- **R16. Only update MLP weights** during TTT (freeze all attention). MLPs are where most of the model's distribution knowledge lives. Attention patterns are more structural and shouldn't change for domain adaptation.
+- Source: https://test-time-training.github.io, https://www.ijcai.org/proceedings/2024/0616.pdf
+
