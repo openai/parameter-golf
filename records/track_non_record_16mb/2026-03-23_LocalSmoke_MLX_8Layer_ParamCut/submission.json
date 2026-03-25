@@ -1,0 +1,18 @@
+{
+  "author": "",
+  "github_id": "",
+  "name": "Local smoke MLX 8-layer param cut",
+  "blurb": "First end-to-end non-record submission artifact from local Apple Silicon MLX smoke runs. Compares baseline 9-layer model to an 8-layer variant to test parameter/speed trade-offs under the 16MB artifact constraint workflow.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 4.59698495,
+  "val_bpb": 2.75529448,
+  "pre_quant_val_loss": 4.5954,
+  "pre_quant_val_bpb": 2.7543,
+  "step_stop": 60,
+  "wallclock_seconds": 35.198,
+  "bytes_total": 8451732,
+  "bytes_model_int8_zlib": 8451732,
+  "bytes_code": null,
+  "gpu": "Apple Silicon (MLX)"
+}
