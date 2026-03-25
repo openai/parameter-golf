@@ -1,0 +1,11 @@
+{
+  "author": "Andrew Baggio",
+  "github_id": "andrewbaggio1",
+  "name": "Chained TTT: Cosine Recovery + Multi-Pass Scoring",
+  "blurb": "Two-phase TTT: 20-epoch cosine AdamW to recover from quantization, then 3-pass score-first streaming with min(NLL). 3-seed mean val_bpb=1.0366.",
+  "date": "2026-03-25T04:00:00Z",
+  "val_loss": 1.75,
+  "val_bpb": 1.0366,
+  "bytes_total": 15621761,
+  "bytes_code": 71793
+}
