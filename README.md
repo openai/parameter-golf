@@ -115,6 +115,12 @@ python3 train_gpt_mlx.py
 
 Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
 
+### Windows or Linux with NVIDIA GPU
+
+If you are on Windows or Linux and have an NVIDIA GPU, use the CUDA training path with `train_gpt.py` rather than `train_gpt_mlx.py`.
+
+Install PyTorch with CUDA support in a fresh Python environment first, then install the rest of the project dependencies from `requirements.txt`. For Windows, make sure you are using a PyTorch-supported 64-bit Python version such as 3.12 or 3.13, since Python 3.14 may not yet have matching wheels.
+
 ### Scaling Up to a Remote Machine
 
 Once you're happy with your local tests, or you want more compute, switch to a remote CUDA machine.
