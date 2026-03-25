@@ -20,11 +20,6 @@ import lzma
 import zlib
 from pathlib import Path
 
-try:
-    from flash_attn_3 import flash_attn_func as fa3_func
-    HAS_FA3 = True
-except ImportError:
-    HAS_FA3 = False
 
 import numpy as np
 import sentencepiece as spm
@@ -946,7 +941,7 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         ve_enabled = bool(int(os.environ.get("VE_ENABLED", "0")))
         self.ve = ValueEmbedding(vocab_size, 128, model_dim) if ve_enabled else None
-        self.bigram_hash = BigramHash(4096, 64, model_dim)
+        self.bigram_hash = BigramHash(2048, 128, model_dim)
         self.smear_gate = SmearGate(model_dim)
         pre_enrich_hidden = model_dim * 3 // 2
         self.pre_enrich = nn.Sequential(
@@ -1165,7 +1160,7 @@ def main() -> None:
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.use_qat = True
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True, mode="max-autotune")
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
