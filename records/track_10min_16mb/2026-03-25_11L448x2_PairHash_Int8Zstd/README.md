@@ -1,7 +1,7 @@
 This record captures the current winning safe submission candidate: `11L / 448 / 2x / PairHash / int8+zstd`.
 
 Trainer changes in this snapshot:
-- current repository `train_gpt.py` snapshot copied into the record folder
+- modified `train_gpt.py` snapshot copied into the record folder; this is the run-specific script used on the pod and includes the PairHash + `int8+zstd` export logic for this record
 - `PairHash` enabled with `8192` buckets and `96` pair dimensions
 - 10-minute wallclock cap on `8xH100`
 - periodic validation every `2000` steps on the full `fineweb_val_*` split
