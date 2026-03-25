@@ -1,0 +1,22 @@
+{
+    "name": "CTW N-gram + Legal TTT + Full SOTA Stack",
+    "author": "ahmettrkck",
+    "github_id": "ahmettrkck",
+    "val_bpb": null,
+    "techniques": [
+        "CTW-weighted n-gram backoff (orders 2-7, logistic domain mixing)",
+        "Legal score-first TTT (SGD, 3 epochs per 32K chunk)",
+        "LeakyReLU(0.5)^2",
+        "Parallel Muon with parameter banking",
+        "XSA on last 4 layers",
+        "Partial RoPE (16/64 dims)",
+        "LN Scale (1/sqrt(layer+1))",
+        "Value Embedding (VE128) at layers 9-10",
+        "Late QAT (STE int6)",
+        "GPTQ-lite int6 multi-percentile",
+        "EMA(0.997)",
+        "BigramHash(1536) + SmearGate",
+        "U-Net skip connections"
+    ],
+    "base": "PR #549 (LeakyReLU_LegalTTT_ParallelMuon)"
+}
