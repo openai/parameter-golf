@@ -1,0 +1,17 @@
+{
+  "val_bpb_mean": 0.9789,
+  "val_bpb_std": 0.0015,
+  "val_bpb_best": 0.9779,
+  "seeds": {
+    "1337": {"sliding_bpb": 0.9781, "roundtrip_bpb": 0.9008, "artifact_bytes": 15510001, "valid": true},
+    "42": {"sliding_bpb": 0.9806, "roundtrip_bpb": 0.8993, "artifact_bytes": 16144107, "valid": false},
+    "7": {"sliding_bpb": 0.9779, "roundtrip_bpb": 0.8999, "artifact_bytes": 15789633, "valid": true}
+  },
+  "hardware": "8xH100 SXM (a3-megagpu-8g)",
+  "training_time_seconds": 600,
+  "ttt_time_seconds": 1463,
+  "eval_time_seconds": 90,
+  "total_time_seconds": 2153,
+  "technique_summary": "PR #398/#442 SOTA base + CosineAnnealingLR for TTT (100 epochs, lr 0.001 -> 0.00001)",
+  "note": "Artifact size varies ~0.6MB between seeds due to weight compression variance. 2 of 3 seeds produce valid (<16MB) artifacts."
+}
