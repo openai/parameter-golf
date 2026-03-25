@@ -1,0 +1,15 @@
+PLACEHOLDER LOG FILE
+
+Replace this file with the exact training log for the current best run before opening a real PR.
+
+Intended run:
+- experiment: seq2048_compile_midlr_v5
+- val_loss: 2.29268432
+- val_bpb: 1.35557361
+- bytes_total: 14840173
+- gpu: 1xA100
+
+Suggested source:
+- download the corresponding Colab log from `/content/parameter-golf/logs/`
+- rename it to `train_v0.txt`
+- replace this placeholder file
