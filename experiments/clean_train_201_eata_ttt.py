@@ -57,7 +57,7 @@ class Hyperparameters:
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
-    run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
+    run_id = os.environ.get("WANDB_RUN_NAME", os.environ.get("RUN_ID", str(uuid.uuid4())))
     seed = int(os.environ.get("SEED", 1337))
 
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
@@ -1234,7 +1234,11 @@ def eval_val_sliding_online_ttt(
                 p.requires_grad_(False)
 
     ttt_params = [p for p in base_model.parameters() if p.requires_grad]
-    ttt_optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    base_lr = args.ttt_adamw_lr if args.ttt_optimizer_type == "adamw" else args.ttt_lr
+    if args.ttt_optimizer_type == "adamw":
+        ttt_optimizer = torch.optim.AdamW(ttt_params, lr=base_lr, weight_decay=0.0)
+    else:
+        ttt_optimizer = torch.optim.SGD(ttt_params, lr=base_lr, momentum=args.ttt_momentum)
 
     compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     ttt_adapt_count = 0
@@ -1319,6 +1323,12 @@ def eval_val_sliding_online_ttt(
                 if args.ttt_grad_clip > 0:
                     torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
                 ttt_optimizer.step()
+                # Cosine LR decay across eval window
+                if args.ttt_cosine_lr:
+                    step_frac = ttt_adapt_count / max(total_batches, 1)
+                    cosine_lr = base_lr * 0.5 * (1.0 + math.cos(math.pi * step_frac))
+                    for pg in ttt_optimizer.param_groups:
+                        pg['lr'] = cosine_lr
             ttt_adapt_count += max(1, args.ttt_epochs)
         elif ttt_params:
             ttt_skip_count += 1

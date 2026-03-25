@@ -16,16 +16,6 @@
 
 ## Best Clean PRs for Reference (UPDATED March 24)
 
-**LoRA TTT tier (sub-0.8 BPB — fundamentally different approach):**
-
-
-| PR   | BPB    | Technique                                   |
-| ---- | ------ | ------------------------------------------- |
-| #611 | 0.5601 | K-Projection LoRA + Min-NLL epoch selection |
-| #596 | 0.6430 | LoRA (8ep) + per-block bias tuning          |
-| #614 | 0.6864 | K-LoRA + Min-NLL + FA3                      |
-
-
 **Our tier (architecture + standard TTT):**
 
 
@@ -36,9 +26,13 @@
 | #609   | 1.1154     | Full GPTQ + XSA-all + NO TTT — NEW             |
 | #593   | 1.1163     | Full GPTQ + LeakyReLU² — NEW no TTT            |
 | #569   | 1.1175     | VRL + LeakyReLU² + Full GPTQ (no TTT)          |
+| #638   | 1.1164     | 11L XSA-all + VR + GA + no TTT — NEW (single seed) |
+| #633   | 1.1526     | 11L single-epoch LoRA TTT (legal) — NEW         |
 
 
-**⚠️ LoRA TTT with score-every-epoch (0.5-0.8 BPP) has been be ruled invalid. See issue #402 discussion. The "min-NLL epoch selection" re-scores tokens after training on them — arguably violates "preceding tokens" rule. Comment posted to @0hq for ruling. We're #1 by 0.012 BPP.**
+**⚠️ LoRA TTT with score-every-epoch (0.5-0.8 BPP) RULED ILLEGAL. Multi-epoch cosine TTT (#672 1.0781, #518 1.0622) also ILLEGAL.**
+
+**We are #1 in the legal 10-min leaderboard at 1.1127.** Next best: #609 at 1.1154 (no TTT, 3-seed). PR #525 at 1.1160 uses legal batched LoRA TTT (rank-8 Q/V/LM-head, Adam lr=0.01).
 
 ---
 
@@ -61,83 +55,143 @@
 ### What to Do Next (Priority Order)
 
 1. **Redo freeze sweep on WD=0.05 + QEP model** — exp205 showed freeze=8 doesn't transfer from WD=0.09
-   - Need to: run exp203 config with the 201 script (which saves `final_model_pre_ttt.pt`), then eval-only freeze sweep on that saved model
-   - Test freeze=4/6 at stride=64 — freeze=8 was too aggressive for WD=0.05 but freeze=4 might work
-   - Goal: find the right freeze level to enable stride=64 under 600s
-2. **Implement Case 3 LoRA TTT** (per-document, auto-regressive, NO re-scoring)
-   - Unambiguously legal per issue #402
-   - Could add 0.01-0.05 BPP improvement on top of current
-   - Significant implementation effort (~200 lines)
-3. **Wait for @0hq ruling** on score-every-epoch — if valid, implement min-NLL LoRA
-4. **Multi-seed verification** — run best config (exp203) with seeds 42, 7 for submission
+  - Need to: run exp203 config with the 201 script (which saves `final_model_pre_ttt.pt`), then eval-only freeze sweep on that saved model
+  - Test freeze=4/6 at stride=64 — freeze=8 was too aggressive for WD=0.05 but freeze=4 might work
+  - Goal: find the right freeze level to enable stride=64 under 600s
+
+1. ~~**Switch SGD → AdamW + cosine LR for TTT**~~ — **TESTED, DOESN'T WORK for per-window TTT**. AdamW diverges at all LRs (0.0001→+0.015, 0.0005→+0.097, 0.001→+0.178). AdamW needs multiple steps to build moments; per-window gives only 1 step. PR #606 uses chunked TTT with 3 epochs — different paradigm.
+2. **LQER-style low-rank residual correction** — SVD of GPTQ residuals, rank 4-8, ~900KB overhead. Published ICML 2024. Directly attacks our 0.012 quant gap. Could recover 0.003-0.005 BPP.
+3. **Unfreeze norms + lm_head during TTT** — PR #606 unfreezes "last 2 blocks + norms + lm_head". We may only be unfreezing layer weights. Easy to test.
+4. **Multi-seed verification** — run best config with seeds 42, 7 for submission
+5. ~~**LoRA TTT**~~ — PR #610 confirmed LoRA doesn't work at 512d ("model too small for rank-16, 3% subspace"). Skip.
+6. ~~**Per-layer LR for TTT**~~ — PR #537 tested, minimal gain. Skip.
 
 ### Freeze Sweep Results (WD=0.09 model, stride=64, eval-only)
 
-| Freeze | BPB | Delta | Est time |
-|--------|------|-------|----------|
-| 2 | 1.1129 | — | ~654s |
-| 4 | 1.1131 | +0.0002 | ~580s |
-| 6 | 1.1133 | +0.0004 | ~510s |
-| **8** | **1.1139** | **+0.0010** | **~440s** |
-| 10 | 1.1145 | +0.0016 | ~380s |
+
+| Freeze | BPB        | Delta       | Est time  |
+| ------ | ---------- | ----------- | --------- |
+| 2      | 1.1129     | —           | ~654s     |
+| 4      | 1.1131     | +0.0002     | ~580s     |
+| 6      | 1.1133     | +0.0004     | ~510s     |
+| **8**  | **1.1139** | **+0.0010** | **~440s** |
+| 10     | 1.1145     | +0.0016     | ~380s     |
+
 
 **Freeze=8 is sweet spot**: 0.001 cost, ~214s savings. With WD=0.05 → ~1.1069 est in ~440s.
 
+### Freeze Sweep Results (WD=0.05+QEP model, stride=64, eval-only, EATA on) — RUNNING
+
+| Freeze | BPB | Delta vs f=0 | Eval time (EATA) |
+|--------|------|-------------|-----------------|
+| **0** | **1.1081** | **—** | **415s** |
+| 4 | 1.1082 | +0.0001 | 401s |
+| 6 | 1.1083 | +0.0002 | 397s |
+| 8 | 1.1085 | +0.0004 | 391s |
+
+**Conclusion:** Freeze cost is very small on WD=0.05 model (much less than WD=0.09). But none beat stride=76 results (1.1075-1.1078). EATA skips ~50% of adapt steps.
+
+## ⚠️ CRITICAL BLOCKER: Artifact Size is 18.3MB (over 16MB limit!)
+
+**Discovered March 24:** WD=0.05 artifact is 18.3MB — over 16MB. Entropy analysis shows brotli is already within 3.5% of theoretical minimum (4.30 vs 4.45 bits/value). **No compression trick can fix this — the entropy is fundamentally too high.** WD=0.09 is the only submittable WD (15.76MB). Bit-packing tested and confirmed useless (destroys byte patterns brotli relies on).
+
+**Current submittable best: WD=0.09+QEP → 1.1127 BPP, 15.76MB, 551s.**
+
+### Artifact Size Tests
+
+| Config | Artifact | BPP (roundtrip) | BPP (TTT@s76) | Notes |
+|--------|----------|-----------------|---------------|-------|
+| WD=0.05, int6, QEP (exp206) | **18.3MB ❌** | 1.1332 | 1.1078 | OVER 16MB |
+| WD=0.09, int6, no QEP (exp199) | **15.8MB ✓** | ~1.142 | 1.1130 | Old baseline, fits |
+| WD=0.05, **INT5_MLP**, QEP (exp207) | **15.5MB ✓** | 1.1530 | **1.1213** | Fits but +0.0135 BPP — too costly |
+| WD=0.05, int6, **prune=2%**, QEP | **18.3MB ❌** | 1.1337 | 1.1080 | Pruning saved ~0KB — useless at 2% |
+| WD=0.05, int6, **no QEP** | **18.3MB ❌** | 1.1334 | 1.1078 | QEP is NOT the cause — same size without QEP |
+| WD=0.07, int6, QEP | **16.9MB ❌** | 1.1369 | **1.1103** | 0.9MB over — need WD=0.08+ |
+| WD=0.08, int6, QEP | **16.3MB ❌** | 1.1396 | **1.1113** | 294KB over even with 0 code bytes |
+| WD=0.085, int6, QEP | **16.03MB ❌** | 1.1409 | running | Over by 25KB! So close. Need WD=0.087+ or RDO |
+| **WD=0.09, int6, QEP** | **15.76MB ✓** | 1.1415 | **1.1127** | **FITS! First submittable result. QEP gained 0.0003 vs old 1.1130** |
+| LQER rank=2 (WD=0.09) | 16.14MB ❌ | 1.1411 | — | Only +0.0004 roundtrip, over budget. Dead end. |
+| **RDO lambda=0.02 (WD=0.05)** | **15.6MB ✓** | **1.2005** | running | **COMPRESSION WORKS! (-2.7MB) but +0.067 BPP — lambda too high** |
+| RDO fine sweep (WD=0.05) | KILLED | — | — | Math shows RDO tradeoff is too steep — accuracy cost > WD benefit. Dead end. |
+| Cosine SGD flat lr=0.002 | 1.1121 | 565s | baseline | Eval-only on pre-TTT model (no compression roundtrip) |
+| Cosine SGD cosine lr=0.002 | 1.1122 | 563s | +0.0001 | **NEUTRAL** — cosine decay doesn't help at same LR |
+| **Cosine SGD cosine lr=0.004** | **1.1118** | 564s | **-0.0003** | **Tiny gain from higher peak LR + cosine decay** |
+
 ### WD Sweep Results (rescore@s64, full training runs)
-| WD | BPB |
-|----|------|
-| 0.03 | 1.1063 |
-| 0.04 | 1.1060 |
-| 0.045 | 1.1064 |
+
+
+| WD       | BPB           |
+| -------- | ------------- |
+| 0.03     | 1.1063        |
+| 0.04     | 1.1060        |
+| 0.045    | 1.1064        |
 | **0.05** | **1.1058 🏆** |
-| 0.06 | 1.1065 |
-| 0.065 | 1.1072 |
-| 0.07 | 1.1075 |
-| 0.075 | 1.1080 |
-| 0.09 | 1.1099 |
-| 0.11 | 1.1124 |
+| 0.06     | 1.1065        |
+| 0.065    | 1.1072        |
+| 0.07     | 1.1075        |
+| 0.075    | 1.1080        |
+| 0.09     | 1.1099        |
+| 0.11     | 1.1124        |
+
 
 ### A/B Round 3 Results (full training, rescore@s64)
-| Exp | Config | TTT@s76 | Rescore@s64 | Delta vs baseline |
-|-----|--------|---------|-------------|-------|
-| T2 baseline (WD=0.09) | — | 1.1130 | 1.1099 | — |
-| **T5 WD=0.07** | MUON_WD=0.07 | 1.1098 | **1.1075** | **-0.0024** |
-| T6 WD=0.11 | MUON_WD=0.11 | 1.1165 | 1.1124 | +0.0025 |
-| T8 BigDim=96 | BIGRAM_DIM=96 | 1.1128 | 1.1097 | -0.0002 |
-| T9 EMA=0.995 | EMA_DECAY=0.995 | — | 1.1104 | +0.0005 |
-| T10 EMA=0.999 | EMA_DECAY=0.999 | — | 1.1188 | +0.0089 |
-| T11 warmdown=4000 | WARMDOWN_ITERS=4000 | — | 1.1096 | -0.0003 |
-| T12 warmdown=3000 | WARMDOWN_ITERS=3000 | — | 1.1099 | 0.0000 |
-| T3 Full QAT | QAT_ENABLED=1 | 1.1269 | 1.1249 | +0.0150 |
-| T4 Full QAT 0.5 | QAT_ENABLED=1 | 1.1265 | 1.1244 | +0.0145 |
+
+
+| Exp                   | Config              | TTT@s76 | Rescore@s64 | Delta vs baseline |
+| --------------------- | ------------------- | ------- | ----------- | ----------------- |
+| T2 baseline (WD=0.09) | —                   | 1.1130  | 1.1099      | —                 |
+| **T5 WD=0.07**        | MUON_WD=0.07        | 1.1098  | **1.1075**  | **-0.0024**       |
+| T6 WD=0.11            | MUON_WD=0.11        | 1.1165  | 1.1124      | +0.0025           |
+| T8 BigDim=96          | BIGRAM_DIM=96       | 1.1128  | 1.1097      | -0.0002           |
+| T9 EMA=0.995          | EMA_DECAY=0.995     | —       | 1.1104      | +0.0005           |
+| T10 EMA=0.999         | EMA_DECAY=0.999     | —       | 1.1188      | +0.0089           |
+| T11 warmdown=4000     | WARMDOWN_ITERS=4000 | —       | 1.1096      | -0.0003           |
+| T12 warmdown=3000     | WARMDOWN_ITERS=3000 | —       | 1.1099      | 0.0000            |
+| T3 Full QAT           | QAT_ENABLED=1       | 1.1269  | 1.1249      | +0.0150           |
+| T4 Full QAT 0.5       | QAT_ENABLED=1       | 1.1265  | 1.1244      | +0.0145           |
+
 
 ### Other Experiments
-| Exp | Config | Result | Notes |
-|-----|--------|--------|-------|
-| VRL v3 | VRL_ENABLED=1, WD=0.09 | 1.1133 s76 | Neutral — U-Net skips sufficient at 14L |
-| Late QAT 0.15 | LATE_QAT_THRESHOLD=0.15, WD=0.05 | 1.1109 s64 | +0.005 WORSE — dynamo reset disrupts training |
-| QEP GPTQ | QEP_ENABLED=1, WD=0.05 | 1.1075 s76, 1.1060 s64 | Quant gap 0.015→0.012, TTT absorbs most |
-| Chunked AdamW 1ep | TTT_MODE=chunked, WD=0.09 | 1.1175 | Fast (138s) but worse BPP |
-| T=0.98 | TTT_TEMPERATURE=0.98, WD=0.09 | 1.1132 s76 | Worse — don't use |
+
+
+| Exp               | Config                           | Result                 | Notes                                         |
+| ----------------- | -------------------------------- | ---------------------- | --------------------------------------------- |
+| VRL v3            | VRL_ENABLED=1, WD=0.09           | 1.1133 s76             | Neutral — U-Net skips sufficient at 14L       |
+| Late QAT 0.15     | LATE_QAT_THRESHOLD=0.15, WD=0.05 | 1.1109 s64             | +0.005 WORSE — dynamo reset disrupts training |
+| QEP GPTQ          | QEP_ENABLED=1, WD=0.05           | 1.1075 s76, 1.1060 s64 | Quant gap 0.015→0.012, TTT absorbs most       |
+| Chunked AdamW 1ep | TTT_MODE=chunked, WD=0.09        | 1.1175                 | Fast (138s) but worse BPP                     |
+| T=0.98            | TTT_TEMPERATURE=0.98, WD=0.09    | 1.1132 s76             | Worse — don't use                             |
+
 
 ### Stride Sweep Results (per-window SGD TTT, WD=0.09)
-| Stride | BPB | Time |
-|--------|------|------|
-| 64 | 1.1126 | 654s (over) |
-| 68 | 1.1129 | 640s (over) |
-| 72 | 1.1129 | 604s (over) |
-| **76** | **1.1130** | **575s ✓** |
-| 80 | 1.1130 | 547s ✓ |
-| 96 | 1.1131 | 458s ✓ |
-| 128 | 1.1133 | 347s ✓ |
+
+
+| Stride | BPB        | Time        |
+| ------ | ---------- | ----------- |
+| 64     | 1.1126     | 654s (over) |
+| 68     | 1.1129     | 640s (over) |
+| 72     | 1.1129     | 604s (over) |
+| **76** | **1.1130** | **575s ✓**  |
+| 80     | 1.1130     | 547s ✓      |
+| 96     | 1.1131     | 458s ✓      |
+| 128    | 1.1133     | 347s ✓      |
+
 
 ---
 
 ## exp205 RESULT: Combined config WORSE than exp203
+
 - **1.1082 BPB at stride=64, 623s eval — OVER BUDGET and worse BPP**
 - Freeze=8 hurts more on WD=0.05 model than on WD=0.09 model
 - The freeze sweep was done on WD=0.09 — doesn't transfer to WD=0.05
 - **exp203 remains best: 1.1075 BPB, stride=76, 551s, under budget**
+
+## exp206 RESULT: Pre-TTT model saved, confirms exp203
+
+- **1.1078 BPB at stride=76, 551s eval** — matches exp203 (1.1075) within noise
+- Pre-quant roundtrip: 1.1332 BPB (quant gap = 0.012 after QEP GPTQ, then TTT recovers most)
+- `final_model_pre_ttt.pt` saved (134.5MB) for freeze sweep
+- **Freeze sweep RUNNING** on this model: freeze=0/4/6/8 at stride=64
 
 ---
 
@@ -256,7 +310,15 @@
 | no-VRL control              | skipped    | —          | —                  | VRL neutral, no need for control                                         |
 | QEP GPTQ (exp203)           | 1.1075 s76 | 551s       | -0.003 roundtrip   | Quant gap reduced 0.015→0.012! But TTT undoes most of the gain           |
 | Late QAT 0.15 (exp204)      | —          | 1.1109 s64 | +0.0051 WORSE      | QAT hurt — recompilation disrupts training, or clipping too aggressive   |
-| TTT freeze sweep            | pending    | ~50s ea    | stride=64 recovery | eval-only, 5 experiments (freeze 2/4/6/8/10)                             |
+| TTT freeze sweep (WD=0.09)  | see table  | ~50s ea    | stride=64 recovery | eval-only on WD=0.09 model — results DON'T transfer to WD=0.05          |
+| exp205 (freeze=8+s64, WD=0.05) | 1.1082  | 623s       | +0.0007 vs exp203  | WORSE + over budget — freeze=8 from WD=0.09 doesn't transfer             |
+| exp206 (retrain for pre-TTT) | 1.1078    | 551s       | +0.0003 vs exp203  | Confirms exp203. Saved final_model_pre_ttt.pt for freeze sweep           |
+| Freeze sweep WD=0.05 f=0    | 1.1081     | 415s(EATA) | —                  | Freeze cost tiny on WD=0.05: f4=+0.0001, f6=+0.0002, f8=+0.0004        |
+| exp207 INT5_MLP             | **1.1213** | 551s       | +0.0135            | ❌ 15.5MB fits but +0.0135 BPP — too costly. Int5 quant gap too large.   |
+| Size sweep (prune/noQEP/WD) | done       | —          | —                  | Only WD=0.09 fits under 16MB. WD=0.05-0.08 all over.                    |
+| **WD=0.09+QEP (submittable!)** | **1.1127** | **551s**   | —                  | **15.76MB ✓ First submittable result!**                                  |
+| AdamW TTT sweep (WD=0.09)  | all worse  | ~347s      | +0.015 to +0.178   | AdamW diverges for per-window TTT (needs multi-step). SGD is correct.   |
+| LQER rank=2 (WD=0.09)      | 16.14MB ❌  | 1.1411     | —                  | Only 0.0004 roundtrip gain, artifact over budget. Dead end.             |
 | **TTT@s76 + rescore@s64**   | **1.1099** | **~642s**  | **-0.0031!**       | **MASSIVE FIND — TTT adapts weights, rescore at s64 for precise BPP**    |
 | T3 Full QAT (QAT_ENABLED=1) | 1.1269     | ~575s      | +0.0139            | **TERRIBLE** — full QAT hurts badly, need proper LATE QAT with threshold |
 | T4 Full QAT 0.5             | 1.1265     | —          | +0.0145            | TERRIBLE — full QAT hurts                                                |
@@ -281,15 +343,130 @@
 
 ## NEW from research (March 24)
 
-### 11. Multi-Pass Score-First TTT
+### 16. ~~AdamW + Cosine LR for TTT~~ — TESTED, DOESN'T WORK
 
-**Status: NEEDS INVESTIGATION**
+**Status: TESTED — ALL WORSE.** AdamW diverges for per-window TTT (1 step per window isn't enough to build moment estimates). SGD lr=0.002 is correct for our setup.
+- AdamW lr=0.0001: +0.015 BPP worse
+- AdamW lr=0.0005: +0.097 BPP worse
+- AdamW lr=0.001: +0.178 BPP worse
+- Source: PR #606, PR #601, PR #615
 
-- PR #573 uses 3 independent adaptation trajectories with shifted data orderings
-- For each token, take min(NLL) across passes — best-of-3 scoring
-- Claims 1.0523 BPB (need to verify legality)
-- Expected: significant gain if legal
-- Risk: 3x eval time — would need stride increase to compensate
+### 17. Unfreeze Norms + LM Head During TTT
+
+**Status: EASY TO TEST**
+
+- PR #606 unfreezes "last 2 blocks + norms + lm_head" — we may only unfreeze block weights
+- LayerNorm params and tied embedding/lm_head contain distribution info that benefits from adaptation
+- Zero overhead, eval-only testable
+- Expected: 0.001-0.002 BPP
+
+### 18. LoRA TTT — Needs Our Own Testing (lower priority)
+
+**Status: NOT YET TESTED** — PR #610 claimed "model too small for rank-16" at dim=512, but their implementation may have been bad (wrong LR, wrong projections, wrong rank). Don't trust other PRs' conclusions. Our full-param SGD TTT already gets 0.026 BPP improvement, so LoRA would need to beat that — possibly via faster per-step → finer stride, or better optimization landscape. Test after higher-priority items (LQER, compression).
+
+### 19. Compression Improvements ⭐⭐ HIGHEST PRIORITY — Unlocks WD=0.05 (1.1078)
+
+**Status: READY TO IMPLEMENT**
+
+Our #1 blocker: WD=0.05 gives 1.1078 BPP but 18.3MB artifact. Need to save 2.5MB. These techniques are additive:
+
+**A. ~~Bit-Packing int6 → 6 bits~~ — TESTED, DOESN'T HELP**
+- Bit-packing saves 25% raw but brotli can't compress the packed byte patterns
+- manual+brotli with bitpacking: 21MB (WORSE). torch+brotli without: 18.3MB (same as before)
+- Brotli already exploits byte-level redundancy in int8 values. Bit-packing destroys those patterns.
+- **The problem is ENTROPY of the quantized distribution, not bit-level waste.**
+
+**A2. Rate-Aware GPTQ / AdaRound — Entropy-Optimal Quantization** ⭐ NEW
+- Modify GPTQ to also minimize entropy of quantized values (not just reconstruction error)
+- arxiv:2505.18758: adds quadratic rate penalty to GPTQ objective. 20-40% better compression at same accuracy.
+- AdaRound (arxiv:2004.10568): optimally rounds up/down to reduce entropy while minimizing error
+- Implementation: after GPTQ, second pass that nudges values toward more common bins when error cost is low
+- **Expected: 15-30% compression improvement — could save 2-4MB**
+- Risk: Medium — modifies quantization output, need to verify BPP is preserved
+
+**B. Hadamard Rotation Before Quantization (QuIP#-style)**
+- Multiply weights by random orthogonal (Hadamard) matrix before quantization
+- Decorrelates weight components → more uniform distribution → less quant error AND better compression
+- At inference: multiply input by inverse Hadamard (fast, O(n log n) via butterfly)
+- Source: QuIP# (Cornell), KVLinC (arxiv:2510.05373), HALO (NeurIPS 2025)
+- **Expected: 0.002-0.005 BPP improvement + 10-20% better compression**
+- Risk: Medium — need fast Hadamard at inference, modifies forward pass
+- Implementation: ~50 lines (Hadamard transform + modified quantize/dequantize)
+
+**C. Entropy Coding (Huffman/ANS) After Quantization**
+- Int6 has only 63 unique values. Custom Huffman tree is tiny (~126 bytes)
+- More efficient than brotli for structured quantized data
+- EntroLLM (arxiv:2505.02380): 7-11x better compression than raw with Huffman on quantized weights
+- Can combine: bit-pack first, then Huffman, then brotli on top
+- **Expected: 10-30% compression improvement**
+- Risk: Low — no model changes
+
+**D. Permutation-Based Weight Reordering (CVPR 2021)**
+- Reorder rows/columns of weight matrices to cluster similar quantized values
+- Functionally equivalent if you permute the corresponding layer too
+- Better local redundancy → brotli compresses much better
+- Source: "Permute, Quantize, and Fine-Tune" (CVPR 2021)
+- **Expected: 5-15% compression improvement**
+- Risk: Medium — need to find good permutations, modify inference to unpermute
+
+**E. Quantization-Aware Regularizers (arxiv:2602.03614)** — NEW
+- Drive weights to form clusters during TRAINING, making them quantization-friendly
+- Quantization levels become learnable backprop parameters — first approach to embed quant params in training
+- "Quantization-friendly" weights from the start → less quant error AND lower entropy
+- Like QAT but as regularization, not fake quantization
+- **Expected: better BPP + better compression simultaneously**
+- Risk: Medium — modifies training, needs tuning of regularizer strength
+- Source: arxiv:2602.03614
+
+**F. Neural Weight Compression / NWC (arxiv:2510.11234)** — NEW
+- Learned compression scheme optimized for neural network weights (not general-purpose like brotli)
+- "SOTA accuracy-compression tradeoffs at 4-6 bit regime" without Hadamard transform
+- Chunk-and-normalize preprocessing + importance-aware training objective
+- Could outperform brotli on our quantized weights → unlock WD=0.05
+- **Expected: potentially 10-30% better than brotli for quantized data**
+- Risk: High — significant implementation, need to train the compressor
+- Source: arxiv:2510.11234
+
+**G. L1 Proximal Gradient During Training** ⭐ TOP PRIORITY — NEW
+- NOT L1 loss penalty — use proximal operator after each step: `w ← sign(w) * max(|w| - α*λ, 0)`
+- Creates EXACT zeros (not just small values) — fundamentally different from L2 weight decay
+- Source: PROXGEN (NeurIPS 2021): adaptive proximal gradient methods for structured NNs
+- 3-line change to training loop. Compatible with Muon optimizer.
+- Unlike post-hoc 2% pruning (which failed because it removed important weights), L1 proximal lets the model LEARN which weights to zero out during training → organic sparsity with minimal accuracy cost
+- If 10-20% of weights become zero → 1-3MB compression savings → could unlock WD=0.05
+- **Expected: WD=0.05 quality (1.1078) with WD=0.09 compression (15.8MB)**
+- Risk: Low — simple implementation, tune λ. Start with λ=1e-5, sweep up.
+- **A/B test: WD=0.05 + L1_LAMBDA=1e-5/3e-5/1e-4 vs WD=0.05 baseline (18.3MB)**
+
+**H. PROXQUANT — Align Weights to Quantization Grid During Training** — NEW
+- Proximal operator that pushes weights toward nearest int6 codebook values during training
+- Weights naturally cluster onto discrete levels → minimal quant error AND low entropy
+- Source: ProxQuant (arxiv:1810.00861), PROXGEN (NeurIPS 2021)
+- More complex than L1 proximal but directly attacks both accuracy and compression
+- **Expected: better roundtrip BPP + lower entropy → better compression**
+- Risk: Medium — need to define codebook proximal operator, tune strength schedule
+
+**UPDATED Priority: A2 (RDO) tested — compression works but accuracy cost too high. B (Hadamard) still promising for BOTH accuracy + compression. E (QA regularizers) and G (L1) attack root cause during training. F (NWC) is a reach.**
+
+**Key insight from entropy analysis:** Brotli is within 3.5% of theoretical entropy limit. The ONLY way to reduce artifact size is to reduce the entropy of the weight distribution itself — either during training (E, G) or during quantization (B Hadamard).
+
+### 11. ~~Multi-Pass Score-First TTT~~ — ILLEGAL
+
+**Status: RULED ILLEGAL** — min(NLL) across passes = selecting scores after seeing outcomes = same violation as score-every-epoch LoRA. PR #573 is invalid.
+
+### 20. TTT Research — New Findings (March 25)
+
+**ZOA (Zeroth-Order Adaptation for Quantized NNs, arxiv:2508.02180):**
+- Two forward passes instead of backprop — avoids vanishing gradient problem in quantized models
+- 5% improvement over first-order adaptation on quantized ViT
+- Potentially applicable to our GPTQ-quantized model — our SGD TTT does backprop through dequantized weights which may have gradient issues
+- **Status: INVESTIGATE** — could explain why our TTT gains plateau
+
+**LaCT (Large Chunk TTT, arxiv:2505.23884):**
+- Uses 2K-1M token chunks instead of small windows → >5% GPU utilization → orders of magnitude faster
+- Mentions **Muon as TTT optimizer** — we already use Muon for training, could use it for TTT too
+- Our per-window TTT uses tiny batches (128 seqs × 2048 tokens) — we may be leaving perf on the table
+- **Status: INVESTIGATE** — Muon TTT could be a breakthrough since we already have the optimizer
 
 ### 12. Full GPTQ (not lite)
 
@@ -316,13 +493,15 @@
 - Would require major architecture rework
 - Potential: large gain but untested at our scale
 
-### 15. Cosine-Annealed TTT LR
+### 15. Cosine-Annealed SGD TTT LR — UNTESTED, queued after RDO
 
-**Status: EASY TO TEST**
+**Status: QUEUED** — code already in 201 script (`TTT_COSINE_LR=1`), never tested with SGD on submission config.
 
 - PR #581, #589: cosine LR during TTT (not flat) improves by 0.003+
-- We use flat lr=0.002 — easy to add cosine decay across batches
-- Can test with saved model (eval-only mode)
+- We use flat SGD lr=0.002 — cosine decay from 0.002→0 across eval window
+- NOTE: We tested cosine with AdamW and it failed, but that's because AdamW itself failed. Cosine on SGD is untested.
+- Can test with saved model (eval-only mode) on WD=0.09 pre-TTT model
+- **Expected: 0.001-0.003 BPP improvement. Quick eval-only test.**
 
 ---
 
@@ -517,16 +696,22 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **Expected gain: 0.002-0.004 BPB**
 - **Effort: Medium** — add smoothing pass before GPTQ
 
-### R4. Residual Quantization (two-pass GPTQ)
+### R4. Low-Rank Quantization Error Correction (LQER/ResQ) ⭐ NEW VALIDATED
 
-**Why it fits our constraint:**
+**This is a real, published technique with open-source code:**
 
-- After first GPTQ pass, compute residual errors
-- Quantize the residuals with a second, smaller codebook
-- Store both in the same 16MB budget (residual codebook is tiny)
-- This is essentially free error correction
-- **Expected gain: 0.001-0.002 BPB**
-- **Effort: Medium** — add residual computation + storage
+- **LQER** (ICML 2024, arxiv:2402.02446, github.com/ChengZhang-98/lqer): Low-Rank Quantization Error Reconstruction. After GPTQ, compute residual `R = W_float - W_quantized`, then SVD to get low-rank approximation. Store low-rank matrices (high precision) alongside quantized weights (low precision). Runs both GEMMs in parallel at inference.
+- **ResQ** (ICML 2025, arxiv:2412.14363): Mixed-precision via PCA of activation variance. Identifies low-rank subspace (~1/8 hidden dim) where outliers concentrate, keeps that subspace at 8-bit while rest is 4-bit. "Up to 33% lower perplexity than SpinQuant."
+
+**For our 14L model:**
+- Compute `R = W_float - Q_int6(W)` for each weight matrix after QEP GPTQ
+- SVD: `U, S, Vt = svd_lowrank(R, rank=8)`
+- Store U@diag(S) and Vt in fp16 alongside int6 weights
+- Size cost: per 512×512 matrix at rank=8: (512×8 + 8×512) × 2 bytes = ~16KB
+- Total: ~56 matrices × 16KB = **~900KB** — easily fits in 16MB budget
+- Expected recovery: **30-50% of quant error → 0.005-0.008 BPB**
+- **Effort: Medium** — SVD after GPTQ, modify inference to add correction
+- **This directly attacks our #1 problem (0.015 quant gap) with proven methods**
 
 ### R5. Knowledge Distillation from Pre-Quant Model During TTT
 
@@ -542,7 +727,7 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 
 ### TLDR: If we only do ONE thing
 
-**R1 (Hessian-weighted per-layer bit allocation)** is the single highest-impact change for our specific case. Our 14L model is uniquely punished by uniform int6 quantization because error compounds over 27% more layers than competing 11L models. Giving sensitive layers int8 and insensitive layers int5 (same average bits) could recover 0.003-0.007 BPB — more than any architecture change we've tested.
+**R4 (LQER-style low-rank residual correction)** is now the top priority. It's a published, validated technique (ICML 2024) that directly attacks our 0.015 quant gap. SVD of GPTQ residuals with rank=8 costs only ~900KB but could recover 0.005-0.008 BPP. Combined with our existing QEP GPTQ, this could bring our quant gap from 0.012 down to 0.004-0.007 — matching the 11L baselines. R1 (mixed-precision bit allocation) is the second priority.
 
 ---
 
@@ -557,6 +742,21 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **MLWQ** (Multi-level weight quantization for SLMs): [https://aclanthology.org/2025.emnlp-main.408](https://aclanthology.org/2025.emnlp-main.408)
 - **SmoothQuant** (Activation smoothing before quant): [https://arxiv.org/abs/2211.10438](https://arxiv.org/abs/2211.10438)
 - **Soft-Round QAT** (PR #589 in parameter-golf): temperature-controlled smooth rounding surrogate
+- **LQER** (Low-Rank Quantization Error Reconstruction, ICML 2024): [https://arxiv.org/abs/2402.02446](https://arxiv.org/abs/2402.02446), code: [https://github.com/ChengZhang-98/lqer](https://github.com/ChengZhang-98/lqer)
+- **ResQ** (Mixed-Precision with Low-Rank Residuals, ICML 2025): [https://arxiv.org/abs/2412.14363](https://arxiv.org/abs/2412.14363)
+- **Quantization-Aware Regularizers** (Cluster weights during training): [https://arxiv.org/abs/2602.03614](https://arxiv.org/abs/2602.03614)
+- **NWC** (Neural Weight Compression, learned compressor for NN weights): [https://arxiv.org/abs/2510.11234](https://arxiv.org/abs/2510.11234)
+- **Rate-Distortion PTQ** (Entropy-aware GPTQ rounding): [https://arxiv.org/abs/2505.18758](https://arxiv.org/abs/2505.18758)
+- **R²** (Range Regularization for model compression, Apple): [https://machinelearning.apple.com/research/range-regularization](https://machinelearning.apple.com/research/range-regularization)
+- **AdaRound** (Optimal up/down rounding for PTQ): [https://arxiv.org/abs/2004.10568](https://arxiv.org/abs/2004.10568)
+- **PROXGEN** (Adaptive Proximal Gradient for structured NNs, NeurIPS 2021): [https://proceedings.neurips.cc/paper_files/paper/2021/file/cc3f5463bc4d26bc38eadc8bcffbc654-Paper.pdf](https://proceedings.neurips.cc/paper_files/paper/2021/file/cc3f5463bc4d26bc38eadc8bcffbc654-Paper.pdf)
+- **ProxQuant** (Quantized NNs via Proximal Operators): [https://arxiv.org/abs/1810.00861](https://arxiv.org/abs/1810.00861)
+- **Gradient L1 Regularization for Quantization** (ICLR 2020): [https://openreview.net/pdf?id=ryxK0JBtPr](https://openreview.net/pdf?id=ryxK0JBtPr)
+- **FP6-LLM** (6-bit bit-packing for inference): [https://arxiv.org/abs/2401.14112](https://arxiv.org/abs/2401.14112)
+- **EntroLLM** (Tensor-level quant + Huffman coding): [https://arxiv.org/abs/2505.02380](https://arxiv.org/abs/2505.02380)
+- **QuIP#** (Hadamard rotation for incoherence before quantization): [https://github.com/Cornell-RelaxML/quip-sharp](https://github.com/Cornell-RelaxML/quip-sharp)
+- **Permute, Quantize, Fine-Tune** (Weight reordering for compression, CVPR 2021): [https://openaccess.thecvf.com/content/CVPR2021/papers/Martinez_Permute_Quantize_and_Fine-Tune_Efficient_Compression_of_Neural_Networks_CVPR_2021_paper.pdf](https://openaccess.thecvf.com/content/CVPR2021/papers/Martinez_Permute_Quantize_and_Fine-Tune_Efficient_Compression_of_Neural_Networks_CVPR_2021_paper.pdf)
+- **HALO** (Hadamard-Assisted Lower-Precision Optimization, NeurIPS 2025): [https://neurips.cc/virtual/2025/poster/118283](https://neurips.cc/virtual/2025/poster/118283)
 
 ### Architecture
 
@@ -580,6 +780,11 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **PR #589** (1.1178, Soft-Round QAT): Late Soft-Round QAT + Backward-Looking TTT
 - **PR #505** (1.1181, SwiGLU + VE128): SwiGLU + VE128 + no TTT
 - **PR #414** (1.1233, EMA + GPTQ-lite): EMA + GPTQ-lite + [QAT@0.15](mailto:QAT@0.15)
+- **PR #606** (1.1162, legal SOTA TTT): AdamW TTT lr=0.0001, cosine decay, last 2 blocks + norms + lm_head
+- **PR #610** (1.1190, SGD TTT + GPTQ): Found SGD hurts GPTQ models, LoRA doesn't work at 512d
+- **PR #615** (1.1169, grouped AdamW TTT): Grouped TTT with AdamW
+- **PR #633** (1.1526, single-epoch LoRA TTT): Legal but weak — LoRA too small at 512d
+- **PR #638** (1.1164, no TTT): 11L XSA-all + VR + GA, closest non-TTT competitor
 
 ---
 

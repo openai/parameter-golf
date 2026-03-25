@@ -1,5 +1,6 @@
 # Current State — March 24, 2026 (exp205) — RUNNING
 
+## Was NOT BETTER THAN 203!! DISREGARD!
 ## Expected Result
 **~1.106 val_bpb** (TTT@stride=64, ~440s eval) | **~15.8MB artifact**
 
