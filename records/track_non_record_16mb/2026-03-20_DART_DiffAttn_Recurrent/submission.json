@@ -1,0 +1,22 @@
+{
+  "run_id": "rlm_v1_t4",
+  "val_bpb": 1.85221128,
+  "val_loss": 3.09141515,
+  "authors": ["Anand K S"],
+  "github_ids": ["@anandks2006"],
+  "institution": "Independent, Kerala, India",
+  "date": "2026-03-20",
+  "model_dim": 512,
+  "n_loops": 4,
+  "n_memory": 16,
+  "seq_len": 256,
+  "vocab_size": 1024,
+  "iterations": 2000,
+  "hardware": "Google Colab T4 (free tier)",
+  "model_bytes": 3554683,
+  "code_bytes": 42197,
+  "total_bytes": 3596880,
+  "budget_pct": 22.5,
+  "summary": "DART: Differential Attention Recurrent Transformer. Single shared block looped 4x with per-loop low-rank Q delta, resid_mix, loop position embeddings, memory tokens, U-Net skips, deep supervision. 3.92M params, 3.55MB int8+zlib (22.5% of 16MB budget). Trained 2000 steps on FineWeb sp1024, Google Colab T4 free tier. Student submission, BCA 2nd year, Kerala, India."
+}
+```
