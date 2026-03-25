@@ -1,0 +1,81 @@
+W0325 19:24:03.648000 111379 torch/distributed/run.py:803] 
+W0325 19:24:03.648000 111379 torch/distributed/run.py:803] *****************************************
+W0325 19:24:03.648000 111379 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0325 19:24:03.648000 111379 torch/distributed/run.py:803] *****************************************
+logs/53a6e3e5-ba94-482e-80d2-d926ff5150ef.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:67579284
+quantization:ternary (BitNet 1.58-bit)
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[14, 15, 16, 17]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:2025
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9338 val_bpb:4.1066 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9344 train_time:237ms step_avg:237.46ms
+step:2/20000 train_loss:9.7275 train_time:435ms step_avg:217.46ms
+step:3/20000 train_loss:8.4145 train_time:627ms step_avg:209.06ms
+step:4/20000 train_loss:7.4034 train_time:819ms step_avg:204.68ms
+step:5/20000 train_loss:7.0631 train_time:1011ms step_avg:202.26ms
+step:6/20000 train_loss:6.8671 train_time:1211ms step_avg:201.87ms
+step:7/20000 train_loss:6.8065 train_time:1407ms step_avg:201.02ms
+step:8/20000 train_loss:6.6788 train_time:1601ms step_avg:200.10ms
+step:9/20000 train_loss:6.3983 train_time:1793ms step_avg:199.21ms
+step:10/20000 train_loss:6.1637 train_time:1985ms step_avg:198.51ms
+step:500/20000 train_loss:2.4295 train_time:105443ms step_avg:210.89ms
+step:1000/20000 train_loss:2.2772 train_time:214347ms step_avg:214.35ms
+step:1500/20000 train_loss:2.2170 train_time:321291ms step_avg:214.19ms
+step:2000/20000 train_loss:2.0550 train_time:429365ms step_avg:214.68ms
+late_qat:enabled step:2279 scale:0.1498
+step:2500/20000 train_loss:2.1291 train_time:535544ms step_avg:214.22ms
+step:2798/20000 val_loss:5.2392 val_bpb:3.1029 train_time:600598ms step_avg:214.65ms
+stopping_early: wallclock_cap train_time:600598ms step:2798/20000
+peak memory allocated: 40002 MiB reserved: 40264 MiB
+ema:disabled, using raw model weights
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+Serialized model: 135324501 bytes
+Code size: 76894 bytes
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+Serialized model ternary+zlib: 14322780 bytes
+Total submission size ternary+zlib: 14399674 bytes
+final_int6_roundtrip val_loss:2.0537 val_bpb:1.2163 eval_time:12373ms
+final_int6_roundtrip_exact val_loss:2.05367694 val_bpb:1.21630316

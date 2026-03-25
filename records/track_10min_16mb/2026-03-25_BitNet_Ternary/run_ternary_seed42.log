@@ -1,0 +1,118 @@
+W0325 19:09:50.484000 109468 torch/distributed/run.py:803] 
+W0325 19:09:50.484000 109468 torch/distributed/run.py:803] *****************************************
+W0325 19:09:50.484000 109468 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0325 19:09:50.484000 109468 torch/distributed/run.py:803] *****************************************
+logs/91e68d8c-be1c-4098-b072-7a3fda1f1d48.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:67579284
+quantization:ternary (BitNet 1.58-bit)
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[14, 15, 16, 17]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9340 val_bpb:4.1067 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9358 train_time:237ms step_avg:236.70ms
+step:2/20000 train_loss:9.7448 train_time:1075ms step_avg:537.73ms
+step:3/20000 train_loss:8.3741 train_time:1692ms step_avg:564.11ms
+step:4/20000 train_loss:7.6777 train_time:1904ms step_avg:476.06ms
+step:5/20000 train_loss:7.0593 train_time:2106ms step_avg:421.10ms
+step:6/20000 train_loss:6.6302 train_time:2308ms step_avg:384.71ms
+step:7/20000 train_loss:6.2864 train_time:2509ms step_avg:358.49ms
+step:8/20000 train_loss:6.1416 train_time:2709ms step_avg:338.61ms
+step:9/20000 train_loss:6.0889 train_time:2906ms step_avg:322.92ms
+step:10/20000 train_loss:5.9783 train_time:3110ms step_avg:311.03ms
+step:500/20000 train_loss:2.4318 train_time:105246ms step_avg:210.49ms
+step:1000/20000 train_loss:2.2831 train_time:213617ms step_avg:213.62ms
+step:1500/20000 train_loss:2.2213 train_time:321017ms step_avg:214.01ms
+step:2000/20000 train_loss:2.0567 train_time:428086ms step_avg:214.04ms
+late_qat:enabled step:2287 scale:0.1498
+step:2500/20000 train_loss:2.1317 train_time:534542ms step_avg:213.82ms
+step:2798/20000 val_loss:5.5429 val_bpb:3.2828 train_time:600214ms step_avg:214.52ms
+stopping_early: wallclock_cap train_time:600214ms step:2798/20000
+peak memory allocated: 40002 MiB reserved: 40264 MiB
+ema:disabled, using raw model weights
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+Serialized model: 135324501 bytes
+Code size: 76894 bytes
+/workspace/parameter-golf/train_gpt.py:1052: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return packed.contiguous(), torch.tensor(gamma, dtype=torch.float16), orig_shape
+Serialized model ternary+zlib: 14324677 bytes
+Total submission size ternary+zlib: 14401571 bytes
+final_int6_roundtrip val_loss:2.0571 val_bpb:1.2183 eval_time:12544ms
+final_int6_roundtrip_exact val_loss:2.05711660 val_bpb:1.21834032
+W0325 19:23:52.307000 109468 torch/distributed/elastic/agent/server/api.py:725] Received 15 death signal, shutting down workers
+W0325 19:23:52.310000 109468 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 109537 closing signal SIGTERM
+W0325 19:23:52.312000 109468 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 109538 closing signal SIGTERM
+W0325 19:23:52.314000 109468 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 109539 closing signal SIGTERM
+W0325 19:23:52.316000 109468 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 109540 closing signal SIGTERM
+W0325 19:23:52.318000 109468 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 109541 closing signal SIGTERM
+W0325 19:23:52.320000 109468 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 109542 closing signal SIGTERM
+W0325 19:23:52.322000 109468 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 109543 closing signal SIGTERM
+W0325 19:23:52.324000 109468 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 109544 closing signal SIGTERM
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 284, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/agent/server/api.py", line 717, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/agent/server/api.py", line 881, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/api.py", line 85, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 109468 got signal: 15

@@ -1,0 +1,27 @@
+{
+  "name": "BitNet b1.58 Ternary Quantization",
+  "author": "starq",
+  "github_id": "starq",
+  "date": "2026-03-25",
+  "val_bpb": 1.2185,
+  "val_bpb_std": 0.0018,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": 1.2208,
+    "42": 1.2183,
+    "2025": 1.2163
+  },
+  "step_avg_ms": 214,
+  "steps": 2794,
+  "artifact_bytes": 14401571,
+  "key_changes": [
+    "BitNet-style ternary quantization {-1, 0, +1} instead of int6",
+    "2x more parameters (67.5M vs ~33M)",
+    "EMA disabled (incompatible with ternary)",
+    "18 layers, 640 dim"
+  ],
+  "quantization": "ternary",
+  "layers": 18,
+  "model_dim": 640,
+  "based_on": "baseline"
+}
