@@ -1,0 +1,25 @@
+{
+  "author": "Maestro (iGent AI)",
+  "github_id": "seanward",
+  "name": "Byte-Level Tokenizer-Free Transformer with LeakyReLU² and ByteBigramHash",
+  "blurb": "First tokenizer-free byte-level model to beat the sp1024 baseline. 13-layer pure-attention transformer on raw UTF-8 bytes (vocab=256). LeakyReLU² activation, SmearGate, hashed byte-bigram embeddings. 4-seed mean sliding BPB: 1.2151, beating baseline 1.2244 by 0.0064 nats at p=0.0024.",
+  "date": "2026-03-25T12:00:00Z",
+  "selection_criterion": "best sliding_bpb across 4 seeds (seed 42)",
+  "val_loss": 0.84007639,
+  "val_bpb": 1.21197405,
+  "eval_method": "sliding_window_stride512_seq4096",
+  "bytes_total": 15795055,
+  "bytes_code": 73320,
+  "seeds_tested": 4,
+  "seed_results": {
+    "1337": {"sliding_bpb": 1.21456865, "nonoverlap_bpb": 1.23055633, "artifact_bytes": 15533929},
+    "42":   {"sliding_bpb": 1.21197405, "nonoverlap_bpb": 1.22781156, "artifact_bytes": 15795055},
+    "2025": {"sliding_bpb": 1.21744342, "nonoverlap_bpb": 1.23268589, "artifact_bytes": 16453242},
+    "7":    {"sliding_bpb": 1.21660625, "nonoverlap_bpb": 1.23190271, "artifact_bytes": 15457273}
+  },
+  "mean_sliding_bpb": 1.21514809,
+  "significance": {
+    "vs_official_baseline_1.2244": {"delta_nats": 0.006413, "p_value": 0.002368},
+    "vs_postquant_baseline_1.2269": {"delta_nats": 0.008146, "p_value": 0.001182}
+  }
+}
