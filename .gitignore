@@ -35,6 +35,9 @@ wandb/
 .env.*
 !.env.example
 
+# Chat / scratch notes
+parameter golf chat.txt
+
 # Jupyter
 .ipynb_checkpoints/
 
