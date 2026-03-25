@@ -1,0 +1,12 @@
+commit	val_bpb	artifact_mb	ms_per_step	status	description
+047f65f	1.328871	13.840514	435.58	keep	untouched baseline on 1x H100 Runpod stage A (full cached sp1024, wallclock-capped at step 1378)
+eacd422	0.000000	0.0	0.0	crash	tiny hyper-connections first run crashed at warmup with DDP unused-parameter error
+69f8121	1.547943	9.491089	1488.98	discard	tiny hyper-connections rerun: valid artifact but 3.42x slower and much worse BPB than untouched baseline
+6f0dbdd	1.331192	13.384367	433.22	keep	wavelet-lite full 1xH100 run: near-baseline quality with slightly smaller artifact and comparable throughput
+39f9171	1.334701	13.470763	455.21	discard	late-wavelet decoder-half schedule: slightly worse BPB than all-layer wavelet with no throughput win
+01c8861	1.320934	13.563465	407.70	keep	wavelet-lite dim64 full 1xH100 run: beats untouched baseline while staying under 16MB
+bcdf894	1.207600	0.0	110.77	discard	pr414 frontier wavelet on 8xH100: killed early after step4000 val 1.2076, far off top-ten pace
+8deb532	1.143900	16.052223	94.54	discard	pr549 frontier wavelet on 8xH100: post-EMA 1.1439 at step6347, but total size was 16052223 bytes (> cap by 52223) and quantized eval crashed from missing wavelet args in eval_model
+f14f193	0.000000	0.0	0.0	crash	pr549 wavelet bigram1024 no-TTT on ephemeral 8xH100: healthy pace to step3000 at 90.40ms/step, then pod vanished from Runpod control plane before first val checkpoint or final export
+f14f193	0.000000	0.0	0.0	crash	pr549 wavelet bigram1024 no-TTT on MO-1 8xH100 volume mount: log persisted, but step500 was only 126.64ms/step and the pod vanished before any mid-run val or final export
+9c0eba6	1.148256	15.859711	90.24	keep	pr549 wavelet bigram1024 no-TTT on MO-1 8xH100 with local NVMe data: post-EMA 1.1400 at step6648, exact int6 roundtrip 1.14825550, total size 15859711 bytes
