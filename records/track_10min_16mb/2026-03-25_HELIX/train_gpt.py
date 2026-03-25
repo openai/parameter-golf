@@ -731,13 +731,23 @@ class ValueEmbedding(nn.Module):
             h = self.proj(h)
         return h * self.scale.to(dtype=h.dtype)
 
-class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int):
+class SwiGLU(nn.Module):
+    """
+    SwiGLU FFN with hidden = 2 * dim.
+    Isoparametric to relu²(3*dim): both use 6d² weight entries.
+      SwiGLU(h=2d): gate(d→2d) + fc(d→2d) + proj(2d→d) = 3×d×2d = 6d²
+      relu²(h=3d): fc1(d→3d) + fc2(3d→d)               = 2×d×3d = 6d²
+    At d=768, hidden=1536: 3×768×1536 = 3,538,944 params per block.
+    """
+    def __init__(self, dim: int, hidden: int):
         super().__init__()
-        # No CastedLinear -- weights come from banks
-    def forward(self, x: Tensor, up_w: Tensor, down_w: Tensor) -> Tensor:
-        x = F.leaky_relu(F.linear(x, up_w.to(x.dtype)), negative_slope=0.5)
-        return F.linear(x.square(), down_w.to(x.dtype))
+        self.gate = CastedLinear(dim, hidden, bias=False)
+        self.fc   = CastedLinear(dim, hidden, bias=False)
+        self.proj = CastedLinear(hidden, dim, bias=False)
+        self.proj._zero_init = True
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.proj(F.silu(self.gate(x)) * self.fc(x))
 
 class Block(nn.Module):
     def __init__(
