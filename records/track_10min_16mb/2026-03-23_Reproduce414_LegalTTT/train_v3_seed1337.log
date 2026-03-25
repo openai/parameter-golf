@@ -936,7 +936,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
   (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
   default=0,
  ) + 1
-
+ late_k_layers = set(range(num_layers_total - 2, num_layers_total))
  result: dict[str, Tensor] = {}
  meta: dict[str, object] = {}
  for name, tensor in state_dict.items():
@@ -1351,7 +1351,7 @@ def main() -> None:
   code_bytes = len(code.encode("utf-8"))
   log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
   log0(f"Total submission size int6+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
-  log0(f"Total submission size: {quant_file_bytes + code_bytes} bytes")
+  log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
  if distributed:
   dist.barrier()
  with open("final_model.int6.ptz", "rb") as f:
@@ -1408,7 +1408,7 @@ def main() -> None:
    f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
   )
   log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-  log0(f"final_int6_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+  log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
  if args.eval_stride != 64 and 64 < sw_seq_len:
   torch.cuda.synchronize()
   t_slide64 = time.perf_counter()
@@ -1424,8 +1424,136 @@ def main() -> None:
    f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
   )
   log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-  log0(f"final_int6_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+  log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
  if distributed:
   dist.destroy_process_group()
 if __name__ == "__main__":
  main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Tue Mar 24 22:56:03 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:19:00.0 Off |                    0 |
+| N/A   36C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:3B:00.0 Off |                    0 |
+| N/A   32C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   31C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   33C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9B:00.0 Off |                    0 |
+| N/A   36C    P0            122W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:BB:00.0 Off |                    0 |
+| N/A   32C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   35C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   30C    P0            116W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993766
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9279 val_bpb:4.1031 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9299 train_time:146ms step_avg:146.11ms
+step:2/20000 train_loss:8.5665 train_time:228ms step_avg:113.92ms
+step:3/20000 train_loss:7.8156 train_time:313ms step_avg:104.41ms
+step:4/20000 train_loss:7.2433 train_time:399ms step_avg:99.75ms
+step:5/20000 train_loss:7.0807 train_time:484ms step_avg:96.80ms
+step:6/20000 train_loss:6.8431 train_time:570ms step_avg:94.96ms
+step:7/20000 train_loss:6.7274 train_time:655ms step_avg:93.58ms
+step:8/20000 train_loss:6.7474 train_time:740ms step_avg:92.56ms
+step:9/20000 train_loss:6.4106 train_time:826ms step_avg:91.76ms
+step:10/20000 train_loss:6.0777 train_time:911ms step_avg:91.14ms
+step:500/20000 train_loss:2.3693 train_time:43765ms step_avg:87.53ms
+step:1000/20000 train_loss:2.2545 train_time:87846ms step_avg:87.85ms
+step:1500/20000 train_loss:2.2030 train_time:132061ms step_avg:88.04ms
+step:2000/20000 train_loss:2.0519 train_time:176164ms step_avg:88.08ms
+step:2500/20000 train_loss:2.1559 train_time:220215ms step_avg:88.09ms
+step:3000/20000 train_loss:2.1506 train_time:264230ms step_avg:88.08ms
+step:3500/20000 train_loss:2.1664 train_time:308222ms step_avg:88.06ms
+step:4000/20000 train_loss:1.9565 train_time:352205ms step_avg:88.05ms
+step:4000/20000 val_loss:2.0490 val_bpb:1.2136 train_time:352210ms step_avg:88.05ms
+step:4500/20000 train_loss:2.1095 train_time:396197ms step_avg:88.04ms
+step:5000/20000 train_loss:2.0877 train_time:440176ms step_avg:88.04ms
+step:5500/20000 train_loss:2.0016 train_time:484163ms step_avg:88.03ms
+step:6000/20000 train_loss:1.9268 train_time:528199ms step_avg:88.03ms
+swa:start step:6150
+late_qat:enabled step:6290 scale:0.1498
+step:6500/20000 train_loss:2.0673 train_time:572435ms step_avg:88.07ms
+step:6812/20000 val_loss:1.9250 val_bpb:1.1401 train_time:600075ms step_avg:88.09ms
+stopping_early: wallclock_cap train_time:600075ms step:6812/20000
+peak memory allocated: 21155 MiB reserved: 21230 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9233 val_bpb:1.1391 eval_time:2012ms
+Serialized model: 106181533 bytes
+Code size: 60330 bytes
+Serialized model int6+lzma: 15827596 bytes
+Total submission size int6+lzma: 15887926 bytes
+Total submission size int8+zlib: 15887926 bytes
+final_int6_roundtrip val_loss:1.9368 val_bpb:1.1471 eval_time:40379ms
+final_int6_roundtrip_exact val_loss:1.93680926 val_bpb:1.14708754
+final_int6_sliding_window val_loss:1.8968 val_bpb:1.1234 stride:64 eval_time:95709ms
+final_int6_sliding_window_exact val_loss:1.89683858 val_bpb:1.12341762
+final_int8_zlib_roundtrip_exact val_loss:1.89683858 val_bpb:1.12341762

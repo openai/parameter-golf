@@ -936,7 +936,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
   (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
   default=0,
  ) + 1
- late_k_layers = set(range(num_layers_total - 2, num_layers_total))
+
  result: dict[str, Tensor] = {}
  meta: dict[str, object] = {}
  for name, tensor in state_dict.items():
@@ -1351,7 +1351,7 @@ def main() -> None:
   code_bytes = len(code.encode("utf-8"))
   log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
   log0(f"Total submission size int6+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
-  log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+  log0(f"Total submission size: {quant_file_bytes + code_bytes} bytes")
  if distributed:
   dist.barrier()
  with open("final_model.int6.ptz", "rb") as f:
@@ -1408,7 +1408,7 @@ def main() -> None:
    f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
   )
   log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-  log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+  log0(f"final_int6_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
  if args.eval_stride != 64 and 64 < sw_seq_len:
   torch.cuda.synchronize()
   t_slide64 = time.perf_counter()
@@ -1424,7 +1424,7 @@ def main() -> None:
    f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
   )
   log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-  log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+  log0(f"final_int6_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
  if distributed:
   dist.destroy_process_group()
 if __name__ == "__main__":
