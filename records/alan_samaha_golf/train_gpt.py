@@ -54,7 +54,7 @@ class Hyperparameters:
 
     # Training length
     iterations             = int(os.environ.get("ITERATIONS",             "20000"))
-    warmdown_iters         = int(os.environ.get("WARMDOWN_ITERS",         "200"))    # ~last 80s on 8xH100 (last 13% of 10-min run). 3500 was too large (>600s budget).
+    warmdown_iters         = int(os.environ.get("WARMDOWN_ITERS",         "3500"))    # aggressive late-stage warmdown (top entries)
     warmup_steps           = int(os.environ.get("WARMUP_STEPS",           "0"))   # warmup breaks weight tying via load_state_dict; skip for correctness
     train_batch_tokens     = int(os.environ.get("TRAIN_BATCH_TOKENS",     "524288"))
     train_seq_len          = int(os.environ.get("TRAIN_SEQ_LEN",          "1024"))
@@ -62,7 +62,7 @@ class Hyperparameters:
 
     # Model shape (vocab=1024 saves ~885KB vs 4096, allowing d=288/L=14)
     vocab_size   = int(os.environ.get("VOCAB_SIZE",   "1024"))
-    num_layers   = int(os.environ.get("NUM_LAYERS",   "13"))
+    num_layers   = int(os.environ.get("NUM_LAYERS",   "14"))
     model_dim    = int(os.environ.get("MODEL_DIM",    "288"))
     num_heads    = int(os.environ.get("NUM_HEADS",    "8"))
     ffn_mult     = int(os.environ.get("FFN_MULT",     "3"))   # SwiGLU hidden = ffn_mult * d
@@ -70,11 +70,11 @@ class Hyperparameters:
 
     # Optimizer (tuned: lower LRs reduce post-quant degradation)
     embed_lr     = float(os.environ.get("EMBED_LR",    "0.05"))
-    matrix_lr    = float(os.environ.get("MATRIX_LR",   "0.025"))
+    matrix_lr    = float(os.environ.get("MATRIX_LR",   "0.022"))
     scalar_lr    = float(os.environ.get("SCALAR_LR",   "0.025"))
     muon_momentum              = float(os.environ.get("MUON_MOMENTUM",              "0.99"))   # stronger
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", "0.85"))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS",   "1500"))  # longer warmup
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS",   "2500"))  # longer warmup
     muon_backend_steps  = int(os.environ.get("MUON_BACKEND_STEPS",  "5"))
     muon_weight_decay   = float(os.environ.get("MUON_WEIGHT_DECAY", "0.04"))  # decoupled WD
     beta1    = float(os.environ.get("BETA1",    "0.9"))
@@ -82,8 +82,8 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", "1e-8"))
 
     # EMA / training quality
-    ema_decay = float(os.environ.get("EMA_DECAY", "0.997"))   # stronger than 0.999
-    grad_clip = float(os.environ.get("GRAD_CLIP", "0.3"))     # tighter clip
+    ema_decay = float(os.environ.get("EMA_DECAY", "0.999"))   # stronger
+    grad_clip = float(os.environ.get("GRAD_CLIP", "0.25"))     # tighter clip
 
 
 # ─────────────────────────────────────────────
@@ -287,6 +287,9 @@ def apply_rope(q: Tensor, k: Tensor, seq_len: int, base: float = 10000.0) -> tup
     return q_rot, k_rot
 
 
+def leaky_relu_squared(x: Tensor) -> Tensor:
+    return F.leaky_relu(x, negative_slope=0.5).pow(2)
+
 class SwiGLUFFN(nn.Module):
     def __init__(self, dim: int, mult: int = 3):
         super().__init__()
@@ -296,7 +299,7 @@ class SwiGLUFFN(nn.Module):
         self.down = nn.Linear(hidden, dim, bias=False)
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.down(F.silu(self.gate(x)) * self.up(x))
+        return self.down(leaky_relu_squared(self.gate(x)) * self.up(x))
 
 
 class LinearRecurrenceLayer(nn.Module):
@@ -327,8 +330,8 @@ class LinearRecurrenceLayer(nn.Module):
         # Double-gated projection
         proj = self.in_proj(h_mix)                              # (B, T, 4D)
         g1, u1, g2, u2 = proj.chunk(4, dim=-1)
-        branch1 = F.silu(g1) * u1                               # (B, T, D)
-        branch2 = F.silu(g2) * u2                               # (B, T, D)
+        branch1 = leaky_relu_squared(g1) * u1                   # (B, T, D)
+        branch2 = leaky_relu_squared(g2) * u2                   # (B, T, D)
 
         out = self.out_proj(torch.cat([branch1, branch2], dim=-1))
         x   = x + out
@@ -405,7 +408,7 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE    = torch.float16
 INT8_CLIP_PERCENTILE        = 99.99984
 INT8_CLIP_Q                 = INT8_CLIP_PERCENTILE / 100.0
-
+INT6_CLIP_Q                 = 0.99995
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -418,17 +421,28 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict) -> Te
     return t
 
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(name: str, t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        if "weight" in name and t32.shape[0] > 64:  # INT6 for large matrices
+            clip_abs = (
+                torch.quantile(t32.abs(), INT6_CLIP_Q, dim=1)
+                if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32)
+            )
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            scale = (clip_abs / 31.0).clamp_min(1.0 / 31.0)
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -31, 31).to(torch.int8).contiguous()
+            return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        else:
+            clip_abs = (
+                torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+                if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32)
+            )
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+            return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
@@ -461,7 +475,7 @@ def quantize_state_dict_int8(state_dict: dict):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        q, s = quantize_float_tensor(name, t)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q

@@ -8,7 +8,7 @@
   "model_params": 16400000,
   "architecture": "Hybrid LinearRecurrence + Attention",
   "d_model": 288,
-  "num_layers": 13,
+  "num_layers": 14,
   "vocab_size": 1024,
   "weight_tied": true,
   "optimizer": "Muon (matrices) + Adam (embeddings/scalars)",
