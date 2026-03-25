@@ -48,7 +48,7 @@ from torch import Tensor, nn
 # =============================================================================
 
 class Hyperparameters:
-    variant = os.environ.get("VARIANT", "competitive")
+    variant = os.environ.get("VARIANT", "test")
 
     # Data
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
@@ -713,17 +713,15 @@ class QATWrapper(nn.Module):
         if self.enabled:
             return
         self.enabled = True
-        # Per-layer quantization hooks (forward hook, not pre-hook)
-        # Uses a forward wrapper that applies fake_quantize to the weight
-        # WITHOUT overwriting the stored parameter (proper STE)
+        # Per-layer QAT via pre-hook: swap in quantized weights before forward,
+        # restore originals after. Proper STE: gradients flow to original weights.
         for block_idx, block in enumerate(self.model.blocks):
             bits = get_layer_bits(block_idx, self.schedule)
             for m in block.modules():
                 if isinstance(m, nn.Linear):
-                    h = m.register_forward_hook(
-                        self._make_ste_hook(bits)
-                    )
-                    self._handles.append(h)
+                    pre_h = m.register_forward_pre_hook(self._make_pre_hook(bits))
+                    post_h = m.register_forward_hook(self._make_post_hook())
+                    self._handles.extend([pre_h, post_h])
 
     def disable(self):
         for h in self._handles:
@@ -732,14 +730,20 @@ class QATWrapper(nn.Module):
         self.enabled = False
 
     @staticmethod
-    def _make_ste_hook(bits: int):
+    def _make_pre_hook(bits: int):
+        def hook(module, _input):
+            # Save original weight, swap in fake-quantized version
+            module._qat_saved_weight = module.weight.data.clone()
+            module.weight.data = fake_quantize(module.weight, bits).data
+        return hook
+
+    @staticmethod
+    def _make_post_hook():
         def hook(module, _input, output):
-            # Re-compute output with fake-quantized weight (STE passthrough)
-            # The original weight.data is NEVER overwritten
-            w_q = fake_quantize(module.weight, bits)
-            # Difference between quantized and original output
-            delta = F.linear(_input[0], w_q - module.weight)
-            return output + delta
+            # Restore original weight (STE: gradients go to original)
+            if hasattr(module, "_qat_saved_weight"):
+                module.weight.data = module._qat_saved_weight
+                del module._qat_saved_weight
         return hook
 
     def forward(self, *args, **kwargs):
@@ -818,19 +822,21 @@ def evaluate(model: nn.Module, val_files: list[str], tokenizer_path: str,
     avg_loss = total_loss / total_tokens  # nats per token
 
     # BPB denominator: count actual bytes in the evaluated validation tokens
-    # Decode the scored tokens to get true byte count (tokenizer-agnostic)
+    # Decode ALL scored tokens to get true byte count (tokenizer-agnostic)
     total_bytes = 0
+    tokens_counted = 0
     for vf in sorted(glob.glob(val_files) if isinstance(val_files, str) else val_files):
         data = load_shard_tokens(vf)
-        n_scored = min(total_tokens, len(data))
-        scored_ids = data[:n_scored].tolist()
-        # Decode in chunks for speed
+        remaining = total_tokens - tokens_counted
+        if remaining <= 0:
+            break
+        n_from_shard = min(remaining, len(data))
+        scored_ids = data[:n_from_shard].tolist()
         chunk = 10000
         for i in range(0, len(scored_ids), chunk):
             text = sp.decode(scored_ids[i : i + chunk])
             total_bytes += len(text.encode("utf-8"))
-        if total_bytes > 0:
-            break  # one shard is enough for byte ratio
+        tokens_counted += n_from_shard
 
     if total_bytes == 0:
         total_bytes = total_tokens  # fallback: 1 byte per token
@@ -843,22 +849,23 @@ def evaluate(model: nn.Module, val_files: list[str], tokenizer_path: str,
 # SERIALIZATION (Quantize + Compress)
 # =============================================================================
 
-def quantize_state_dict(state_dict: dict, schedule: list, n_layers: int) -> dict:
+def quantize_state_dict(state_dict: dict, schedule: list) -> dict:
     """Quantize weights with per-layer precision schedule.
 
     Embeddings and norms kept in fp16. Layer weights quantized per schedule.
+    Schedule indexes by UNIQUE block index (blocks.0, blocks.1, ...).
     """
     q_dict = {}
     for k, v in state_dict.items():
         if "embed" in k or "ln" in k or "norm" in k:
             q_dict[k] = v.half()
         elif v.ndim >= 2:
-            # Determine bits from layer index
+            # Extract block index from key (e.g. "blocks.3.attn.q_proj.weight" → 3)
             bits = schedule[0][0]  # default
-            for i in range(n_layers):
-                if f"blocks.{i}." in k:
-                    bits = get_layer_bits(i, schedule)
-                    break
+            parts = k.split(".")
+            if "blocks" in parts:
+                idx = int(parts[parts.index("blocks") + 1])
+                bits = get_layer_bits(idx, schedule)
 
             qmax = (1 << (bits - 1)) - 1
             scale = v.abs().amax() / max(qmax, 1)
@@ -1034,18 +1041,18 @@ def main():
 
         optimizer.step()
 
-        # FP8: stochastic round weights + optimizer state back to FP8
-        fp8.save_weights(raw_model)
-        fp8.save_optimizer_state(optimizer)
-
         # QK-Clip: post-step attention score rescaling (Kimi K2)
         qk_clipped = qk_clip_step(raw_model, tau=H.qk_clip_tau)
 
-        optimizer.zero_grad(set_to_none=True)
-
-        # EMA update
+        # EMA update BEFORE FP8 rounding (capture full-precision post-clip weights)
         if step >= H.ema_start_step:
             ema.update(raw_model)
+
+        # FP8: stochastic round weights + optimizer state AFTER QK-Clip + EMA
+        fp8.save_weights(raw_model)
+        fp8.save_optimizer_state(optimizer)
+
+        optimizer.zero_grad(set_to_none=True)
 
         # Logging
         dt = time.time() - t0
@@ -1096,7 +1103,7 @@ def main():
         print(f"  [EMA] val_loss={val_loss:.4f} val_bpb={val_bpb:.4f}")
 
         # === Serialize and measure artifact size ===
-        q_state = quantize_state_dict(raw_model.state_dict(), H.precision_schedule, H.n_layer)
+        q_state = quantize_state_dict(raw_model.state_dict(), H.precision_schedule)
         compressed = serialize_compressed(q_state)
         model_bytes = len(compressed)
 
