@@ -1,0 +1,78 @@
+name: nesta-propensity-rl
+
+envs:
+    N_GPUS: 8
+    CONFIG_NAME: propensity_ppo_8gpu
+    PREPROCESS: 0
+    MAX_SAMPLES: 0
+    WANDB_PROJECT_NAME: prosus-propensity-ppo
+    WANDB_EXPERIMENT_NAME: qwen3-4b-ppo-8gpu-v1
+    TOTAL_EPOCHS: 1
+    CONFIG_FOLDER: threshold_prediction
+    SOURCE_PARQUET: /my_data/propensity/promotions/input_data/propensity_cpo_prediction_v3_equal_sampled
+    DATA_DIR: /tmp/propensity_cpo
+
+file_mounts:
+    /my_data:
+        source: s3://lcm-ifood-data
+        mode: MOUNT
+
+resources:
+    cloud: nebius
+    region: eu-north1
+    accelerators: H200:8
+    disk_size: 1000
+    ports:
+        - 8265
+    image_id: docker:verlai/verl:vllm011.latest
+
+num_nodes: 1
+
+workdir: .
+
+secrets:
+    WANDB_API_KEY: null
+
+setup: |
+    set -euo pipefail
+
+    rm -rf verl
+    pip cache purge
+
+    git clone https://github.com/volcengine/verl.git
+    cd verl
+    pip3 install -v -e .[vllm]
+    cd ..
+
+    if [[ -n "${WANDB_API_KEY:-}" ]]; then
+        python3 -c "import wandb; wandb.login(relogin=True, key='${WANDB_API_KEY}')"
+    fi
+
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+run: |
+    set -euo pipefail
+
+    # Preprocess data if requested and not already done
+    if [[ "${PREPROCESS}" == "1" ]]; then
+        echo "Preprocessing dataset..."
+        MAX_SAMPLES_ARG=""
+        if [[ "${MAX_SAMPLES}" -gt 0 ]]; then
+            MAX_SAMPLES_ARG="--max_samples ${MAX_SAMPLES}"
+        fi
+        python3 custom/propensity/datasets/prepare_data.py \
+            --input_path "${SOURCE_PARQUET}" \
+            --local_save_dir "${DATA_DIR}" \
+            ${MAX_SAMPLES_ARG}
+        echo "Preprocessing complete."
+    else
+        echo "Skipping preprocessing (PREPROCESS=${PREPROCESS}, data exists=$(test -f ${DATA_DIR}/train.parquet && echo yes || echo no))."
+    fi
+
+    export VLLM_USE_V1=1
+
+    python3 -m verl.trainer.main_ppo \
+        --config-path="${PWD}/configs/experiments/${CONFIG_FOLDER}" \
+        --config-name="${CONFIG_NAME}"
+
+    echo "Training completed!"

@@ -1,0 +1,57 @@
+name: param-golf-recurrent
+
+envs:
+    SEED: 1337
+    SCRIPT: train_bestbase_recurrent_feedback_learned.py
+    FEEDBACK_MODE: diagonal
+    FEEDBACK_RANK: 2
+    TTT_REGIME: tail_only
+    TTT_ENABLED: 0
+
+resources:
+    cloud: nebius
+    region: eu-north1
+    accelerators: H200:8
+    disk_size: 200
+    image_id: docker:nvcr.io/nvidia/pytorch:24.12-py3
+
+num_nodes: 1
+
+workdir: .
+
+setup: |
+    set -euo pipefail
+
+    pip install sentencepiece numpy huggingface-hub 2>/dev/null
+    pip install flash-attn --no-build-isolation 2>/dev/null || true
+
+    # Download FineWeb dataset + tokenizer (~2 min)
+    if [ ! -d "data/datasets/fineweb10B_sp1024" ]; then
+        echo "Downloading FineWeb dataset..."
+        python data/cached_challenge_fineweb.py
+    else
+        echo "Dataset already present."
+    fi
+
+run: |
+    set -euo pipefail
+
+    RECORD_DIR="records/track_10min_16mb/2026-03-25_RecurrentCore_LearnedFeedback_QAT"
+    cd "$RECORD_DIR"
+
+    export DATA_PATH="../../../data/datasets/fineweb10B_sp1024"
+    export TOKENIZER_PATH="../../../data/tokenizers/fineweb_1024_bpe.model"
+    export SEED="${SEED}"
+    export MAX_WALLCLOCK_SECONDS=600
+    export TTT_ENABLED="${TTT_ENABLED}"
+
+    echo "Running ${SCRIPT} with SEED=${SEED}..."
+    echo "Data: ${DATA_PATH}"
+    echo "Feedback: mode=${FEEDBACK_MODE} rank=${FEEDBACK_RANK}"
+
+    torchrun --standalone --nproc_per_node=8 "${SCRIPT}" \
+        --feedback-mode "${FEEDBACK_MODE}" \
+        --feedback-rank "${FEEDBACK_RANK}" \
+        --ttt-regime "${TTT_REGIME}"
+
+    echo "Training completed! Logs in logs/"

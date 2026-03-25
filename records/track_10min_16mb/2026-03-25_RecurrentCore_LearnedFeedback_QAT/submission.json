@@ -1,0 +1,9 @@
+{
+  "name": "Recurrent Core + Learned Feedback + Full-Rollout QAT",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Shared recurrent core (stem/core/tail partitioning) with STE fake-quantized core weights, low-rank error-feedback correction, and recurrence-safe TTT. Built on the LeakyReLU² + Legal TTT + Parallel Muon record (1.1194 BPB). Three script variants: QAT-only baseline, fixed feedback, learned feedback.",
+  "author": "nesta.midavaine",
+  "github_id": "nesta.midavaine",
+  "date": "2026-03-25"
+}
