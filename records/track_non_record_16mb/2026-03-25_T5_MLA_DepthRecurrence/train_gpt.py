@@ -21,7 +21,7 @@ Usage:
 
   # Full H100 run
   VARIANT=deep20 torchrun --standalone --nproc_per_node=8 train_gpt.py
-  VARIANT=ultra40 torchrun --standalone --nproc_per_node=8 train_gpt.py
+  VARIANT=looped40 torchrun --standalone --nproc_per_node=8 train_gpt.py
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ class Hyperparameters:
         n_unique_blocks = n_layer
         n_phases = 1
         precision_schedule = [(4, 16), (6, 4)]
-    else:  # test (local smoke test)
+    elif variant == "test":
         n_layer = int(os.environ.get("N_LAYER", 4))
         n_embd = int(os.environ.get("N_EMBD", 384))
         n_head = int(os.environ.get("N_HEAD", 6))
@@ -94,6 +94,10 @@ class Hyperparameters:
         n_unique_blocks = n_layer
         n_phases = 1
         precision_schedule = [(6, 4)]
+    else:
+        raise ValueError(
+            f"Unknown VARIANT={variant!r}. Valid: looped40, deep20, test"
+        )
 
     head_dim = n_embd // n_head
     qk_rope_dim = max(16, head_dim // 4)
