@@ -1,0 +1,20 @@
+{
+    "author": "shivnarain",
+    "github_id": "shivnarainms22",
+    "val_bpb": 1.1574,
+    "val_bpb_note": "8xH100 SXM result (seed=42). EMA + TTT + Backout Connection.",
+    "date": "2026-03-21",
+    "description": "10L Int5-MLP + BigramHash(10240) + EMA + TTT + Backout Connection",
+    "base": "thwu1/2026-03-20_10L_Int5MLP_MuonWD04_SWA50",
+    "techniques": [
+        "Mixed int5/int6 quantization",
+        "BigramHash(10240)",
+        "SmearGate",
+        "EMA (decay=0.997, replaces SWA)",
+        "U-Net skip connections",
+        "Backout connection (learned residual subtraction)",
+        "Test-time training (SGD on val tokens)",
+        "Magnitude pruning 3%",
+        "Sliding window eval stride=64"
+    ]
+}
