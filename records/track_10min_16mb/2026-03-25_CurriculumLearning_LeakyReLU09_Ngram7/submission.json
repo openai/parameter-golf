@@ -1,0 +1,13 @@
+{
+  "name": "ndokutovich",
+  "github_id": "ndokutovich",
+  "val_bpb": 0.9633,
+  "val_loss": 1.6265,
+  "artifact_bytes": 15560351,
+  "training_time_seconds": 600,
+  "eval_time_seconds": 131,
+  "hardware": "8xH100 SXM",
+  "seed": 42,
+  "num_seeds": 1,
+  "notes": "1 seed. 2 additional seeds pending compute grant. PR #753 base + curriculum learning (shard reorder, PR #650) + LeakyReLU(0.9)² slope optimization (MatoTeziTanka sweep)."
+}
