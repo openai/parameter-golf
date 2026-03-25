@@ -20,6 +20,12 @@ import lzma
 import zlib
 from pathlib import Path
 
+try:
+    from flash_attn_3 import flash_attn_func as fa3_func
+    HAS_FA3 = True
+except ImportError:
+    HAS_FA3 = False
+
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -815,20 +821,25 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
-        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True, enable_gqa=(self.num_kv_heads != self.num_heads))
+        q = apply_rotary_emb(q.transpose(1, 2), cos, sin).transpose(1, 2)
+        k = apply_rotary_emb(k.transpose(1, 2), cos, sin).transpose(1, 2)
+        q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
+        use_fa3 = HAS_FA3 and bool(int(os.environ.get("USE_FA3", "1")))
+        if use_fa3:
+            y = fa3_func(q, k, v, causal=True)
+        else:
+            y = F.scaled_dot_product_attention(q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2), attn_mask=None, is_causal=True, enable_gqa=(self.num_kv_heads != self.num_heads)).transpose(1, 2)
         if self.use_xsa:
-            vn = F.normalize(v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1), dim=-1)
+            v_exp = v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=2)
+            vn = F.normalize(v_exp, dim=-1)
             y = y - (y * vn).sum(dim=-1, keepdim=True) * vn
-        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        y = y.contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
