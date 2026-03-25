@@ -1,0 +1,10 @@
+{
+  "author": "julius",
+  "github_id": "julius",
+  "name": "Chimera tweaks - LeakyReLU(0.5)^2 + 2048 Context + 3500 Warmdown",
+  "blurb": "Applying LeakyReLU with 2048 sequence length, expanded BigramHash, and extended warmdown to the Chimera baseline",
+  "date": "2026-03-25T00:00:00Z",
+  "val_loss": 0.9435,
+  "val_bpb": 0.5588,
+  "bytes_total": 15302060
+}
