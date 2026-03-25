@@ -1,0 +1,9 @@
+{
+  "name": "Single A100 QAT Performance Fix",
+  "val_bpb": 1.4078,
+  "bytes_total": 15772699,
+  "blurb": "Enabled QAT directly within CastedLinear using straight-through estimators. Refactored torch.quantile to .amax(dim=1) to alleviate a 30x compiler performance penalty. Training loop fits perfectly in a Single A100 constraint for 10 minutes natively using 2600 steps (excludes final sliding-window evaluation which takes ~22 mins).",
+  "author": "Shuvam Banerji Seal",
+  "github_id": "Shuvam-Banerji-Seal",
+  "date": "2026-03-23"
+}
