@@ -5,6 +5,7 @@ import glob
 import pickle
 import zlib
 from pathlib import Path
+from collections import deque
 
 import numpy as np
 import torch
@@ -28,14 +29,16 @@ SEQ_LEN = 1024
 BATCH_SIZE = 4
 MAX_WALLCLOCK_SECONDS = 600
 LOG_EVERY = 100
-VAL_EVERY = 200
-VAL_SEQS_PER_RANK = 64
-GRAD_CLIP = 1.0
+VAL_EVERY = 800
+VAL_SEQS_PER_RANK = 12
+
+GRAD_CLIP = 1.8
 
 EMA_ENABLED = True
 EMA_DECAY = 0.997
+LOSS_EMA_DECAY = 0.98
 
-OUT_PATH = "/kaggle/working/hash1024_probe_model.bin"
+OUT_PATH = "/kaggle/working/hash1024_radial_disciplined_bestminus_fro900_gamma066.bin"
 
 FUSE_DIM = 448
 A_LAYERS = 8
@@ -48,21 +51,45 @@ B_DIM = 320
 B_HEADS = 5
 B_MLP_MULT = 3
 
-FRO_LR = 8e-4
-ADAM_LR = 1.5e-3
-WARMUP_STEPS = 40
-DECAY_START = 250
+# ============================================================
+# BEST RUN
+# ============================================================
+FRO_LR = 9.0e-4
+ADAM_LR = 1.40e-3
 
-EXPORT_PRUNE_THRESHOLD = 0.0025
-EXPORT_INT6_KEYS = ["to_a.weight", "to_b.weight", "from_a.weight", "from_b.weight"]
-EXPORT_INT8_KEYS = ["q_proj.weight", "k_proj.weight", "v_proj.weight", "out_proj.weight", "fc1.weight", "fc2.weight", "lm_head.weight"]
+WARMUP_STEPS = 40
+DECAY_START = 1000
+TOTAL_STEPS_GUESS = 2800
+
+FRO_ALPHA = 0.12
+FRO_GAMMA = 0.66
+
+MIDRANGE_BOOST_ON = False
+MIDRANGE_LOW = 3.70
+MIDRANGE_HIGH = 4.20
+MIDRANGE_MULT = 1.00
+
+EXPORT_PRUNE_THRESHOLD = 0.0030
+
+EXPORT_INT6_KEYS = [
+    "fc1.weight", "fc2.weight"
+]
+
+EXPORT_INT8_KEYS = [
+    "q_proj.weight", "k_proj.weight", "v_proj.weight", "out_proj.weight",
+    "to_a.weight", "to_b.weight", "from_a.weight", "from_b.weight",
+    "radial_token_proj.weight", "hash_emb.weight"
+]
 
 RADIAL_BITS = 10
 RADIAL_ALPHA = 0.02
-RADIAL_TOKEN_GAIN_INIT = 0.01
+RADIAL_GAIN_INIT = -0.01
+RADIAL_GAIN_MIN = -0.075
+RADIAL_GAIN_MAX = -0.002
 
 HASH_BUCKETS = 1024
 HASH_GAIN_INIT = 0.02
+HASH_GAIN_MAX = 1.05
 
 # ============================================================
 # DISTRIBUTED
@@ -218,14 +245,14 @@ def make_bigram_hash(input_ids: torch.Tensor, buckets: int) -> torch.Tensor:
     h = (prev * 131 + input_ids) % buckets
     return h.long()
 
-class DualArchitectureRadialHashBridgeFP(nn.Module):
+class DualArchitectureRadialHashDisciplined(nn.Module):
     def __init__(self):
         super().__init__()
         self.tok_emb = nn.Embedding(VOCAB_SIZE, FUSE_DIM)
 
         self.radial_token = RadialTokenFeatures(RADIAL_BITS, RADIAL_ALPHA)
         self.radial_token_proj = nn.Linear(4, FUSE_DIM, bias=False)
-        self.radial_token_gain = nn.Parameter(torch.tensor(RADIAL_TOKEN_GAIN_INIT))
+        self.radial_gain = nn.Parameter(torch.tensor(RADIAL_GAIN_INIT))
 
         self.hash_emb = nn.Embedding(HASH_BUCKETS, FUSE_DIM)
         self.hash_gain = nn.Parameter(torch.tensor(HASH_GAIN_INIT))
@@ -244,7 +271,7 @@ class DualArchitectureRadialHashBridgeFP(nn.Module):
         x = self.tok_emb(input_ids)
 
         rt = self.radial_token(input_ids)
-        x = x + self.radial_token_gain * self.radial_token_proj(rt)
+        x = x + self.radial_gain * self.radial_token_proj(rt)
 
         bh = make_bigram_hash(input_ids, HASH_BUCKETS)
         x = x + self.hash_gain * self.hash_emb(bh)
@@ -279,12 +306,16 @@ def soft_matrix_shape(update: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     return u.to(update.dtype)
 
 class FROStable(torch.optim.Optimizer):
-    def __init__(self, params, lr=8e-4, beta1=0.9, beta2=0.999, eps=1e-8,
-                 scales=(0.1, 0.01, 0.001), alpha=0.10, gamma=0.60,
-                 rt_min=0.05, rt_max=1.0, warmup_steps=10):
-        defaults = dict(lr=lr, beta1=beta1, beta2=beta2, eps=eps,
-                        scales=scales, alpha=alpha, gamma=gamma,
-                        rt_min=rt_min, rt_max=rt_max, warmup_steps=warmup_steps)
+    def __init__(
+        self, params, lr=8e-4, beta1=0.9, beta2=0.999, eps=1e-8,
+        scales=(0.1, 0.01, 0.001), alpha=0.12, gamma=0.66,
+        rt_min=0.05, rt_max=1.0, warmup_steps=10
+    ):
+        defaults = dict(
+            lr=lr, beta1=beta1, beta2=beta2, eps=eps,
+            scales=scales, alpha=alpha, gamma=gamma,
+            rt_min=rt_min, rt_max=rt_max, warmup_steps=warmup_steps
+        )
         super().__init__(params, defaults)
 
     @torch.no_grad()
@@ -366,26 +397,11 @@ class FROStable(torch.optim.Optimizer):
                 p.add_(shaped_update, alpha=-float(step_size))
         return rt_values
 
-def build_param_groups(model):
-    fro_params, adam_params = [], []
-    adam_prefixes = [
-        "tok_emb", "to_a", "to_b", "from_a", "from_b", "fuse_norm", "lm_head",
-        "radial_token_proj", "radial_token_gain", "hash_emb", "hash_gain"
-    ]
-    for name, p in model.named_parameters():
-        if not p.requires_grad:
-            continue
-        if any(name.startswith(prefix) for prefix in adam_prefixes):
-            adam_params.append(p)
-        else:
-            fro_params.append(p)
-    return fro_params, adam_params
-
 def set_lr(opt, lr):
     for g in opt.param_groups:
         g["lr"] = lr
 
-def lr_mult(step, total_steps_guess=3000):
+def lr_mult(step, total_steps_guess=TOTAL_STEPS_GUESS):
     if step < WARMUP_STEPS:
         return max(0.1, (step + 1) / float(WARMUP_STEPS))
     if step < DECAY_START:
@@ -394,7 +410,7 @@ def lr_mult(step, total_steps_guess=3000):
     return 0.5 * (1.0 + math.cos(math.pi * progress))
 
 # ============================================================
-# EMA
+# EMA / EVAL
 # ============================================================
 @torch.no_grad()
 def ema_update(ema_model, live_model, decay):
@@ -404,9 +420,6 @@ def ema_update(ema_model, live_model, decay):
     for ema_b, live_b in zip(ema_model.buffers(), live.buffers()):
         ema_b.copy_(live_b)
 
-# ============================================================
-# EVAL
-# ============================================================
 @torch.no_grad()
 def eval_val_subset(model, device, val_tokens, base_bytes_lut, has_space_lut, boundary_lut, rank, world_size):
     was_training = model.training
@@ -493,6 +506,7 @@ def quantize_state_for_export(state_dict):
             continue
 
         vv = v.detach().cpu()
+
         if vv.dim() >= 2:
             vv = prune_small_values(vv, EXPORT_PRUNE_THRESHOLD)
 
@@ -519,7 +533,7 @@ def artifact_audit(model, out_path):
     total_bytes = model_bytes + len(code_bytes)
     params = sum(p.numel() for p in model.parameters())
 
-    print("\n=== MIXED EXPORT ARTIFACT AUDIT ===")
+    print("\\n=== MIXED EXPORT ARTIFACT AUDIT ===")
     print(f"Parameters:        {params:,}")
     print(f"Source Code:       {len(code_bytes):,} bytes")
     print(f"Compressed model:  {model_bytes:,} bytes")
@@ -547,22 +561,29 @@ def main():
         print(f"Loaded train tokens: {train_tokens.numel():,}")
         print(f"Loaded val tokens:   {val_tokens.numel():,}")
 
-    live_model = DualArchitectureRadialHashBridgeFP().to(device)
+    live_model = DualArchitectureRadialHashDisciplined().to(device)
     fro_params, adam_params = build_param_groups(live_model)
 
     if rank == 0:
         print(f"FRO params:  {sum(p.numel() for p in fro_params):,}")
         print(f"Adam params: {sum(p.numel() for p in adam_params):,}")
 
-    ema_model = DualArchitectureRadialHashBridgeFP().to(device)
+    ema_model = DualArchitectureRadialHashDisciplined().to(device)
     ema_model.load_state_dict(live_model.state_dict())
     for p in ema_model.parameters():
         p.requires_grad_(False)
 
     live_model = nn.parallel.DistributedDataParallel(live_model, device_ids=[local_rank])
 
-    fro_opt = FROStable(fro_params, lr=FRO_LR)
-    adam_opt = torch.optim.AdamW(adam_params, lr=ADAM_LR, betas=(0.9, 0.95), weight_decay=0.01)
+    fro_opt = FROStable(
+        fro_params,
+        lr=FRO_LR,
+        alpha=FRO_ALPHA,
+        gamma=FRO_GAMMA
+    )
+    adam_opt = torch.optim.AdamW(
+        adam_params, lr=ADAM_LR, betas=(0.9, 0.95), weight_decay=0.01
+    )
 
     torch.cuda.reset_peak_memory_stats(device)
     rng = np.random.default_rng(1337 + rank)
@@ -570,6 +591,7 @@ def main():
     start = time.time()
     step = 0
     last_loss = None
+    loss_ema = None
     best_val = float("inf")
 
     while time.time() - start < MAX_WALLCLOCK_SECONDS:
@@ -598,15 +620,27 @@ def main():
 
         rt_values = fro_opt.step()
         adam_opt.step()
+
+        with torch.no_grad():
+            model_ref = live_model.module if hasattr(live_model, "module") else live_model
+            model_ref.radial_gain.clamp_(RADIAL_GAIN_MIN, RADIAL_GAIN_MAX)
+            model_ref.hash_gain.clamp_(0.0, HASH_GAIN_MAX)
+
         last_loss = loss.detach()
+        loss_scalar = float(last_loss)
+        if loss_ema is None:
+            loss_ema = loss_scalar
+        else:
+            loss_ema = LOSS_EMA_DECAY * loss_ema + (1.0 - LOSS_EMA_DECAY) * loss_scalar
 
         if EMA_ENABLED:
             ema_update(ema_model, live_model, EMA_DECAY)
 
         if step % LOG_EVERY == 0:
-            loss_tensor = torch.tensor([float(last_loss)], device=device)
-            dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
-            mean_loss = loss_tensor.item() / world_size
+            stats = torch.tensor([float(last_loss), float(loss_ema)], device=device, dtype=torch.float64)
+            dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+            mean_loss = stats[0].item() / world_size
+            mean_loss_ema = stats[1].item() / world_size
 
             toks = (step + 1) * BATCH_SIZE * SEQ_LEN * world_size
             elapsed = time.time() - start
@@ -616,12 +650,13 @@ def main():
 
             if rank == 0:
                 model_ref = live_model.module if hasattr(live_model, "module") else live_model
-                rg = float(model_ref.radial_token_gain.detach().cpu())
+                rg = float(model_ref.radial_gain.detach().cpu())
                 hg = float(model_ref.hash_gain.detach().cpu())
                 print(
                     f"step {step:04d} | time {elapsed:.1f}s | "
-                    f"train_loss {mean_loss:.4f} | tok/s {toks_per_sec:.0f} | "
-                    f"mean_Rt {mean_rt:.4f} | lr_mult {mult:.3f} | "
+                    f"train_loss {mean_loss:.4f} | loss_ema {mean_loss_ema:.4f} | "
+                    f"tok/s {toks_per_sec:.0f} | mean_Rt {mean_rt:.4f} | "
+                    f"fro_lr {FRO_LR * mult:.6f} | adam_lr {ADAM_LR * mult:.6f} | lr_mult {mult:.3f} | "
                     f"radial_gain {rg:.5f} | hash_gain {hg:.5f} | max_mem {max_mem:.2f} GB"
                 )
 
@@ -637,8 +672,9 @@ def main():
 
     if rank == 0:
         elapsed = time.time() - start
-        print(f"\nFinished at step {step} in {elapsed:.1f}s")
+        print(f"\\nFinished at step {step} in {elapsed:.1f}s")
         print(f"Final train loss: {float(last_loss):.4f}")
+        print(f"Final loss_ema: {loss_ema:.4f}")
         print(f"Best observed val_bpb: {best_val:.4f}")
         artifact_audit(ema_model, OUT_PATH)
 

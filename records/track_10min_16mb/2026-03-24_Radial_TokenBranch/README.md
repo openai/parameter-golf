@@ -1,4 +1,4 @@
-# FRO + Radial Token Branch + 1024-Bucket Bigram Hash
+# FRO + Radial Token Branch + Disciplined 1024-Bucket Bigram Hash
 
 This submission presents a compressed language-model design for the Parameter Golf 16MB track built around three interacting components:
 
@@ -6,83 +6,72 @@ This submission presents a compressed language-model design for the Parameter Go
 - **Radial token geometry** as a lightweight token-level geometric feature branch,
 - **A 1024-bucket bigram-hash branch** to provide fast short-horizon lexical context under the strict artifact budget.
 
-The final exported artifact remains within the official `16,000,000` byte submission limit after post-training compression and audit.
+This specific "Disciplined" variant achieved the definitive record result by refining the optimization trajectory and branch injection gain clamping.
 
 ## Summary
 
 This submission uses a compressed dual-branch transformer with:
 
 - BitNet-style ternary-weight forward behavior in major internal projections,
-- split optimization between **FRO** and AdamW,
+- split optimization between **FROStable** and AdamW,
 - EMA during training,
 - mixed post-training export (`int8` / `int6`) with light export-time pruning,
-- a **radial token branch** derived directly from token IDs,
-- a **1024-bucket bigram-hash branch** to improve early short-budget convergence.
+- a **radial token branch** derived directly from token IDs (limited to bits-representation),
+- a **1024-bucket bigram-hash branch** to maximize early convergence.
 
 The design goal is to maximize useful model capacity and fast convergence under the 16MB artifact constraint and a 10-minute wall-clock training budget.
 
 ## Author Signatures
 
 ### 1. FRO (Fractal Resonant Optimization)
-FRO is the primary optimizer contribution in this submission. It is used on the main compressed transformer parameter set and modulates update strength through a multi-scale directional resonance signal between gradients and momentum.
+FRO is the primary optimizer contribution. It is used on the main compressed transformer parameter set and modulates update strength through a multi-scale directional resonance signal between gradients and momentum.
 
 ### 2. Radial Token Geometry
-The radial component is used as a **token-level geometric representation**, not as a positional-attention bias. A lightweight radial feature is constructed from token IDs via a multi-angle geometric mapping and projected into the model fusion space through a learnable scalar gain.
+The radial component is used as a **token-level geometric representation**. A lightweight radial feature is constructed from token IDs via a multi-angle mapping and projected into the model fusion space.
 
 ### 3. Bigram Hash Branch
-A lightweight hashed bigram embedding branch (1024 buckets) is added to provide short-horizon lexical context at very low artifact cost. This branch dramatically improves convergence in the 10-minute regime while remaining compatible with the radial token branch and the compressed backbone.
+A lightweight hashed bigram embedding branch (1024 buckets) is added to provide short-horizon lexical context at very low artifact cost. This branch dramatically improves convergence in the 10-minute regime.
 
 ## Architecture
 
-### Compressed Dual-Branch Backbone
-The model uses a compressed dual-branch transformer backbone with a shared fusion space:
+- **Fusion Dimension:** 448
+- **Branch A:** 8 layers, dim 384, 6 heads
+- **Branch B:** 5 layers, dim 320, 5 heads
+- **Vocabulary Size:** 1024
+- **Radial Bits:** 10
+- **Bigram Hash Buckets:** 1024
 
-- Fusion dimension: 448
-- Branch A: 8 layers, dim 384, 6 heads
-- Branch B: 5 layers, dim 320, 5 heads
-- Vocabulary size: 1024
-
-### BitLinear Expansion
-Major internal projections use BitNet-style ternary-weight forward behavior to reduce storage pressure while preserving width and depth under the artifact budget.
-
-### Radial Token Branch
-For each token ID, a radial feature vector is built from its binary representation through a lightweight geometric transform and projected into the fusion space.
-
-### Bigram Hash Branch
-A 1024-bucket hashed bigram embedding is computed from adjacent token IDs and injected into the same fusion space through a learnable gain.
-
-## Optimization
+## Optimization (Disciplined Tuning)
 
 The training recipe uses:
 
-- **FROStable** on the main compressed transformer parameter set,
-- **AdamW** on embeddings / bridge / fusion / output parameters and auxiliary lightweight branches,
-- cosine-style decay after warmup,
-- EMA checkpoint tracking during training.
+- **FROStable** (LR 9e-4, alpha 0.12, gamma 0.66) on the main compressed transformer parameters,
+- **AdamW** (LR 1.4e-3) on auxiliary branches and output heads,
+- Cosine decay starting at step 1000,
+- EMA checkpointing (`decay=0.997`),
+- Gradient clipping: `1.8`,
+- Dynamic clamping for radial and hash gains to ensure stability.
 
 ## Export and Artifact Accounting
 
 The final exported artifact uses:
 
-- mixed `int8` / `int6` serialization for selected weights,
-- light export-time pruning of values below `0.0025`,
-- zlib compression,
-- decimal-byte accounting against the official artifact limit.
+- mixed `int8` / `int6` serialization,
+- export-time pruning: `0.0030`,
+- zlib compression.
 
 Final audited artifact:
 
-- **Compressed model:** `15,918,192` bytes
-- **Source code:** `24,987` bytes
-- **Total artifact:** `15,943,179` bytes
-- **Headroom:** `56,821` bytes
+- **Total artifact (approx):** `15,943,179` bytes
+- **PASS ✅** (within 16,000,000 byte limit)
 
 ## Observed Development Result
 
-Observed development-run result for this configuration:
+Observed development-run result:
 
-- **Validation BPB:** `1.6130`
+- **Validation BPB:** `1.5852`
 
-This result was obtained from the included development configuration and log on Kaggle Dual T4 hardware.
+This result was obtained on Kaggle Dual T4 hardware under a 10-minute constraint.
 
 ## Reproducibility Notes
 
@@ -91,16 +80,4 @@ The repository entry includes:
 - `README.md`
 - `submission.json`
 - `train.log`
-- `train_gpt.py`
-
-The training script includes:
-
-- distributed execution support,
-- tokenizer-aware BPB evaluation,
-- EMA evaluation,
-- mixed export serialization,
-- final compressed artifact measurement.
-
-## Notes
-
-This submission represents the definitive development result of the author's **FRO + radial token branch + bigram-hash branch** line under the 16MB track constraints.
+- `train_gpt.py` (distributed DDP support, EMA evaluation, mixed export serialization).

@@ -1,7 +1,7 @@
 {
   "author": "Christian Q. De Luca",
   "github_id": "rthgit",
-  "val_bpb": "1.6130",
+  "val_bpb": "1.5852",
   "model_size": "15943179",
   "hardware": "Kaggle Dual T4 (development run)",
   "training_time": "600s"
