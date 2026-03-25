@@ -1,0 +1,14 @@
+{
+  "track": "non-record-16mb",
+  "val_bpb": 1.1418,
+  "artifact_size_bytes": 16442824,
+  "hardware": "1x NVIDIA RTX A6000 (48GB)",
+  "training_time_hours": 14,
+  "novel_contributions": [
+    "Value Residual (VR): Layer-0 V vector shortcut that improves deep attention signal flow",
+    "Gated Attention (GA): Per-head learned sigmoid gate after SDPA for adaptive attention filtering",
+    "Late QAT: LR-threshold-based quantization-aware training during final training phase",
+    "Full GPTQ post-training: Hessian-aware column-wise quantization with Cholesky error compensation",
+    "Int5 MLP: Post-training re-quantization of MLP weights to int5, acts as regularization"
+  ]
+}
