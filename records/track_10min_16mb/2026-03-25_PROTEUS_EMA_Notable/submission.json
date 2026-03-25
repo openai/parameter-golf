@@ -1,0 +1,17 @@
+{
+  "author": "Mato (LightSpeedUp)",
+  "github_id": "MatoTeziTanka",
+  "name": "PROTEUS EMA — Notable Non-Record",
+  "blurb": "Baseline architecture + EMA weight averaging. 26 lines added, zero architectural changes. EMA smooths weight distributions, reducing INT8 quantization loss from 0.0072 to 0.0048 BPB. Includes documented negative results: INT4 catastrophic failure, depth recurrence boundary. Built with PROTEUS by LightSpeedUp — lightspeedup.com",
+  "date": "2026-03-25T00:00:00Z",
+  "val_bpb": 1.1836,
+  "bytes_total": 15878748,
+  "bytes_code": 54397,
+  "seeds": {
+    "42":   {"val_bpb": 1.1836},
+    "1337": {"val_bpb": 1.1841},
+    "2024": {"val_bpb": 1.1831}
+  },
+  "mean_val_bpb": 1.1836,
+  "std_val_bpb": 0.0005
+}
