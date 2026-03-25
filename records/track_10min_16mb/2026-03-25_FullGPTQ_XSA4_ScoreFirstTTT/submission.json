@@ -1,0 +1,19 @@
+{
+  "author": "Robby Sneiderman",
+  "github_id": "Robby955",
+  "name": "Full GPTQ + XSA-4 + SWA/EMA + Score-First TTT",
+  "blurb": "Hessian-aware GPTQ with percentile clip search, XSA on last 4 layers, EMA(0.997) + Tight SWA, legal score-first TTT (3 epochs, AdamW lr=1e-4, freeze first 9/11 blocks). LeakyReLU(0.5)^2, GQA 8H/4KV, BigramHash(3072), VE128, Partial RoPE 16/64, LN Scale, U-Net skips. LZMA compression.",
+  "date": "2026-03-25",
+  "val_loss": 1.89074159,
+  "val_bpb": 1.11980664,
+  "pre_quant_val_loss": 1.9232,
+  "pre_quant_val_bpb": 1.1390,
+  "bytes_total": 15920590,
+  "seeds": {
+    "1337": {"val_bpb": 1.11929318, "val_loss": 1.88987464, "bytes_total": 15899061},
+    "42": {"val_bpb": 1.11963121, "val_loss": 1.89044540, "bytes_total": 15954941},
+    "2025": {"val_bpb": 1.12049552, "val_loss": 1.89190474, "bytes_total": 15907769}
+  },
+  "mean_val_bpb": 1.11980664,
+  "std_val_bpb": 0.00062007
+}
