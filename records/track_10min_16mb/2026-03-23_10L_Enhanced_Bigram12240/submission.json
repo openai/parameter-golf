@@ -1,0 +1,9 @@
+{
+  "author": "YourName",
+  "github_id": "yourgithubid",
+  "val_bpb": 1.1428,
+  "run_date": "2026-03-23",
+  "summary": "10L + Int5 MLP + BigramHash(12288) + SmearGate + SWA + Muon WD=0.04 + sliding window + zstd22",
+  "training_time_minutes": 10.0,
+  "artifact_bytes": 15970000
+}
