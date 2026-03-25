@@ -2,7 +2,7 @@
   "name": "11L Full GPTQ + Multi-Order N-gram Backoff Cache",
   "val_bpb": 0.9757,
   "bytes_total": 15929323,
-  "blurb": "11L LeakyReLU(0.5)^2 + Full Hessian GPTQ (within 600s budget) + multi-order backward-looking n-gram cache (orders 2-7, fixed alpha=0.40, min_count=2). GPTQ calibration reserved within training budget (train 586s + GPTQ 10s = 596s). N-gram cache is purely eval-time: counts built from already-scored tokens only, fixed-weight probability blend, no oracle selection. 3-seed mean: 0.9757 (std 0.0002).",
+  "blurb": "11L LeakyReLU(0.5)^2 + Full Hessian GPTQ (within 600s budget) + multi-order backward-looking n-gram cache (orders 2-7). Fixed alpha=0.40 variant: 0.9757 (3-seed mean). Entropy-adaptive alpha variant: 0.9605 (3-seed mean). GPTQ calibration reserved within training budget (train 586s + GPTQ 10s = 596s). N-gram cache is purely eval-time, backward-looking, no oracle selection.",
   "author": "Raahil Shah",
   "github_id": "raahilshah",
   "date": "2026-03-25"
