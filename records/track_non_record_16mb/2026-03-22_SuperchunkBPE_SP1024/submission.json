@@ -1,0 +1,18 @@
+{
+    "author": "Eshan Singhal",
+    "github_id": "eshansinghal14",
+    "name": "Superchunk BPE, SP1024",
+    "blurb": "Initial test of superchunking BPE on SP1024",
+    "date": "2026-03-22T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 2.11308352,
+    "val_bpb": 1.23893525,
+    "pre_quant_val_loss": 2.0968,
+    "pre_quant_val_bpb": 1.2294,
+    "step_stop": 9131,
+    "wallclock_seconds": 600,
+    "bytes_total": 15868556,
+    "bytes_model_int8_zlib": 15818828,
+    "bytes_code": 49728,
+    "gpu": "8xH100"
+  }
