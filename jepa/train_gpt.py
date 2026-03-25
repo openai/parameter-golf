@@ -757,7 +757,7 @@ def eval_val_sliding(
                 end = min(ws + ctx_len, total)
                 wl = end - ws
                 wlens.append(wl)
-                chunk = val_tokens[ws : end + 1].to(torch.int64, device=device)
+                chunk = val_tokens[ws : end + 1].to(dtype=torch.int64, device=device)
                 x[i, :wl] = chunk[:-1]
                 y[i, :wl] = chunk[1:]
             with torch.autocast(device_type="cuda", dtype=amp_dtype):
