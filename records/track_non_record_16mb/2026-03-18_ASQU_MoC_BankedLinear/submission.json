@@ -9,7 +9,6 @@
   "val_bpb_post_quant": 1.2164,
   "bytes_total": 15852659,
   "bytes_code": 52984,
-  "hardware": "1x RTX 5090",
   "steps": 10000,
-  "step_avg_ms": 1140
+
 }
