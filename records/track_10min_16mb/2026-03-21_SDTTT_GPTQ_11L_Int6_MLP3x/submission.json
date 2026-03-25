@@ -1,0 +1,16 @@
+{
+  "author": "Danny Willow Liu",
+  "github_id": "dannywillowliu-uchi",
+  "name": "11L GPTQ-lite Int6 MLP3x",
+  "blurb": "PR #374 SOTA stack (11L XSA4, Tight SWA, Partial RoPE 16/64, LN Scale, Late QAT, Value Embedding) plus GPTQ-lite: per-layer optimal clip percentile search during int6 quantization. FA3 Hopper attention. Int6 per-row + zstd-22. 8xH100 SXM.",
+  "date": "2026-03-22T02:00:00Z",
+  "val_loss": 1.90068380,
+  "val_bpb": 1.12569499,
+  "roundtrip_val_loss": null,
+  "roundtrip_val_bpb": null,
+  "step_stop": 6733,
+  "wallclock_seconds": 600.024,
+  "bytes_total": null,
+  "bytes_model_int6_zstd": null,
+  "bytes_code": null
+}
