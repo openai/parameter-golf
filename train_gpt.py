@@ -314,6 +314,13 @@ def eval_val_sliding(
     ng_ctx = np.zeros(_NG_B, dtype=np.int32)
     ng_pair = np.zeros(_NG_B, dtype=np.int32)
     vt = val_tokens.numpy()
+    ng_hashes = {}
+    for order in _NG_ORDERS:
+        h = np.zeros(total_tokens, dtype=np.int64)
+        for ki in range(order - 1):
+            h[order-1:] = (h[order-1:] * _NG_MULT + vt[ki:total_tokens - order + 1 + ki].astype(np.int64)) % _NG_B
+        ng_hashes[order] = h
+    print("  n-gram hashes precomputed", flush=True)
     base_model.eval()
     num_batches = (len(my_windows) + batch_size - 1) // batch_size
     with torch.inference_mode():
@@ -359,22 +366,18 @@ def eval_val_sliding(
             for order in _NG_ORDERS:
                 m = (ap >= order) & (~found)
                 if not m.any(): continue
-                ch = np.zeros(m.sum(), dtype=np.int64)
-                for ki in range(order - 1):
-                    ch = (ch * _NG_MULT + vt[ap[m] - order + 1 + ki].astype(np.int64)) % _NG_B
+                ch = ng_hashes[order][ap[m]]
                 cc = ng_ctx[ch]; has = cc >= _NG_MIN
                 if not has.any(): continue
                 ph = (ch * _NG_PAIR_MULT + at[m]) % _NG_B
-                ng_p = np.where(has, ng_pair[ph] / np.maximum(cc, 1), 0.0)
+                ng_p = np.clip(np.where(has, ng_pair[ph] / np.maximum(cc, 1), 0.0), 0.0, 1.0)
                 ix = np.where(m)[0]; best_ng[ix[has]] = ng_p[has]; found[ix[has]] = True
             mixed = np.where(found, (1.0 - alpha) * amp + alpha * best_ng, amp)
             ng_loss_sum -= np.log(np.maximum(mixed, 1e-20)).sum()
             for order in _NG_ORDERS:
                 v = ap >= order
                 if not v.any(): continue
-                ch = np.zeros(v.sum(), dtype=np.int64)
-                for ki in range(order - 1):
-                    ch = (ch * _NG_MULT + vt[ap[v] - order + 1 + ki].astype(np.int64)) % _NG_B
+                ch = ng_hashes[order][ap[v]]
                 np.add.at(ng_ctx, ch, 1)
                 ph = (ch * _NG_PAIR_MULT + at[v]) % _NG_B
                 np.add.at(ng_pair, ph, 1)
