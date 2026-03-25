@@ -1,0 +1,11 @@
+{
+  "author": "codex",
+  "github_id": "pending",
+  "name": "Int8 Bigram+Cache Prototype",
+  "blurb": "12-layer shared-block (2x) transformer with LSQ-lite QAT, int8 export, and bigram+cache logit fusion; targets <=16MB artifact and <10min on 8xH100.",
+  "date": "2026-03-25T17:40:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
