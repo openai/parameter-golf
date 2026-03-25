@@ -1247,6 +1247,12 @@ def eval_val_sliding_ttt(
         # --- Phase 2: TRAIN on this chunk (already scored = legal) ---
         is_last_chunk = (ci == num_chunks - 1)
         if not is_last_chunk and args.ttt_epochs > 0:
+            # Clear Rotary caches to avoid inference tensor issues
+            for m in base_model.modules():
+                if hasattr(m, '_cos_cached'):
+                    m._cos_cached = None
+                    m._sin_cached = None
+                    m._seq_len_cached = 0
             base_model.train()
             chunk_seqs = (chunk_end - chunk_start) // seq_len
             if chunk_seqs > 0:
@@ -1339,6 +1345,12 @@ def eval_val_sliding_ttt(
 
         # Re-score with standard sliding window eval (no more training)
         log0(f"ttt_recovery:re-scoring with sliding window stride={stride}")
+        # Clear Rotary caches before re-scoring
+        for m in base_model.modules():
+            if hasattr(m, '_cos_cached'):
+                m._cos_cached = None
+                m._sin_cached = None
+                m._seq_len_cached = 0
         base_model.eval()
         loss_sum = torch.zeros((), device=device, dtype=torch.float64)
         token_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -2007,7 +2019,7 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=False)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
@@ -2022,6 +2034,7 @@ def main() -> None:
     )
     log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
     sw_seq_len = effective_eval_seq_len
+    log0(f"DEBUG:eval_stride={args.eval_stride} sw_seq_len={sw_seq_len} ttt_enabled={args.ttt_enabled}")
     if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
         torch.cuda.synchronize()
         t_slide = time.perf_counter()
@@ -2056,10 +2069,33 @@ def main() -> None:
         log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
     # Legal score-first TTT (PR #461 recipe)
     if args.ttt_enabled:
+        # TTT needs a fresh uncompiled model to avoid inference tensor issues
+        ttt_model = GPT(
+            vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
+            num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
+            tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
+            logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
+            mtp_num_heads=0, mtp_loss_weight=0.0,
+            bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
+            xsa_last_n=args.xsa_last_n,
+            rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
+            ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+            gated_attention=args.gated_attention, value_residual=args.value_residual,
+            depth_recurrence=args.depth_recurrence,
+        ).to(device).bfloat16()
+        ttt_model.qo_bank.data = ttt_model.qo_bank.data.float()
+        ttt_model.kv_bank.data = ttt_model.kv_bank.data.float()
+        ttt_model.mlp_up_bank.data = ttt_model.mlp_up_bank.data.float()
+        ttt_model.mlp_down_bank.data = ttt_model.mlp_down_bank.data.float()
+        for m in ttt_model.modules():
+            if isinstance(m, CastedLinear):
+                m.float()
+        restore_low_dim_params_to_fp32(ttt_model)
+        ttt_model.load_state_dict(eval_model.state_dict(), strict=True)
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         ttt_loss, ttt_bpb = eval_val_sliding_ttt(
-            args, eval_model, rank, world_size, device,
+            args, ttt_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             stride=args.eval_stride, log0=log0,
         )
