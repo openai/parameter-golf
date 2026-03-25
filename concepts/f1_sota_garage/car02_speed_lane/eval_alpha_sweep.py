@@ -82,9 +82,11 @@ def main():
         print(f"Model loaded. Running alpha sweep: {alphas}", flush=True)
 
     # Load val data
+    import sentencepiece as spm
     val_tokens = load_validation_tokens(args.val_files, args.eval_seq_len)
+    sp = spm.SentencePieceProcessor(args.tokenizer_path)
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = \
-        build_sentencepiece_luts(args.tokenizer_path, args.vocab_size)
+        build_sentencepiece_luts(sp, args.vocab_size, device)
 
     for alpha in alphas:
         if distributed:
