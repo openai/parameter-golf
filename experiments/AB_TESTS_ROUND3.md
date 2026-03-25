@@ -116,6 +116,12 @@
 | Cosine SGD flat lr=0.002 | 1.1121 | 565s | baseline | Eval-only on pre-TTT model (no compression roundtrip) |
 | Cosine SGD cosine lr=0.002 | 1.1122 | 563s | +0.0001 | **NEUTRAL** — cosine decay doesn't help at same LR |
 | **Cosine SGD cosine lr=0.004** | **1.1118** | 564s | **-0.0003** | **Tiny gain from higher peak LR + cosine decay** |
+| L1 Proximal λ=1e-5 (WD=0.05) | 18.04MB ❌ | 1.1351 | — | Only 260KB saved, +0.002 BPP. Same tradeoff wall as RDO. Dead end. |
+| Recursive 7-unique (WD=0.05) | **9.69MB** | 1.1926 | **1.1628** | Compression great (-47%) but +0.05 BPP — too much capacity loss |
+| WD warmup 0.05→0.09 (exp212) | **16.78MB ❌** | 1.1418 | **1.1119** | BPP better than WD=0.09 (+0.0008!) but 780KB over. Ramp not aggressive enough. |
+| Recursive 7ub dim=640 (WD=0.05) | **13.98MB ✓** | 1.1664 | **1.1387** | Fits but 1.1387 (+0.026) and 703s eval (over budget). dim=640 too slow. |
+| **WD warmup 0.05→0.12 (v2)** | **15.73MB ✓** | 1.1442 | **1.1158** | Fits but BPP worse than constant 0.09. WD=0.12 too aggressive. |
+| WD warmup 0.05→0.10 (v3) | 16.40MB ❌ | 1.1404 | 1.1130 | 400KB over. BPP same as constant 0.09. **WD warmup dead end — crossover doesn't exist.** |
 
 ### WD Sweep Results (rescore@s64, full training runs)
 
@@ -446,13 +452,34 @@ Our #1 blocker: WD=0.05 gives 1.1078 BPP but 18.3MB artifact. Need to save 2.5MB
 - **Expected: better roundtrip BPP + lower entropy → better compression**
 - Risk: Medium — need to define codebook proximal operator, tune strength schedule
 
-**UPDATED Priority: A2 (RDO) tested — compression works but accuracy cost too high. B (Hadamard) still promising for BOTH accuracy + compression. E (QA regularizers) and G (L1) attack root cause during training. F (NWC) is a reach.**
+**I. Relaxed Recursive Transformers — Weight Sharing Across Layers** — TESTED
+- Use 7 unique layers × 2 repetitions = 14 effective layers, HALF the unique weights
+- Source: arxiv:2410.20672 (ICLR 2025, Google DeepMind)
+- **RESULT: 9.69MB artifact (great!) but 1.1628 BPP (terrible, +0.05 vs baseline)**
+- 7×2 sharing loses too much capacity at our small scale (26.8M→13.4M params)
+- The 102ms/step (faster) and 5843 steps (more) don't compensate for capacity loss
+- Gentler sharing (10 or 12 unique) might work but diminishing returns on compression
+- **Verdict: 7×2 at 512d not viable. BUT 9.69MB gives 6.3MB headroom — try wider (dim=640) or more unique blocks or lower WD**
+- **Next test: 7 unique × 2 reps at dim=640, 10H/5KV, WD=0.05** — more capacity per layer, ~15MB estimated
+- Could also try 10 unique × 2 = 20 effective layers, or WD=0.03 for even more headroom
+
+**UPDATED Priority: G (L1 proximal) running now. If it fails, I (recursive transformer) is the biggest remaining opportunity — attacks compression at the architecture level. B (Hadamard) still worth trying. E/F are backup.**
 
 **Key insight from entropy analysis:** Brotli is within 3.5% of theoretical entropy limit. The ONLY way to reduce artifact size is to reduce the entropy of the weight distribution itself — either during training (E, G) or during quantization (B Hadamard).
 
 ### 11. ~~Multi-Pass Score-First TTT~~ — ILLEGAL
 
 **Status: RULED ILLEGAL** — min(NLL) across passes = selecting scores after seeing outcomes = same violation as score-every-epoch LoRA. PR #573 is invalid.
+
+### 21. TTT Speed Optimization — Keep Everything on GPU
+
+**Status: INVESTIGATE**
+
+- `val_tokens` is on CPU — transferred to GPU every batch during TTT. ~200MB, easily fits on H100.
+- `base_bytes_lut`, `has_leading_space_lut`, `is_boundary_token_lut` also on CPU.
+- `base_model.eval()` / `base_model.train()` toggles every batch — may trigger torch.compile recompilation
+- Moving all to GPU could save 10-20% eval time → finer stride → 0.0004+ BPP
+- Low risk, easy implementation
 
 ### 20. TTT Research — New Findings (March 25)
 
@@ -752,6 +779,9 @@ It's not that our GPTQ is worse — it's that we have more layers for error to p
 - **PROXGEN** (Adaptive Proximal Gradient for structured NNs, NeurIPS 2021): [https://proceedings.neurips.cc/paper_files/paper/2021/file/cc3f5463bc4d26bc38eadc8bcffbc654-Paper.pdf](https://proceedings.neurips.cc/paper_files/paper/2021/file/cc3f5463bc4d26bc38eadc8bcffbc654-Paper.pdf)
 - **ProxQuant** (Quantized NNs via Proximal Operators): [https://arxiv.org/abs/1810.00861](https://arxiv.org/abs/1810.00861)
 - **Gradient L1 Regularization for Quantization** (ICLR 2020): [https://openreview.net/pdf?id=ryxK0JBtPr](https://openreview.net/pdf?id=ryxK0JBtPr)
+- **Relaxed Recursive Transformers** (Weight sharing + per-layer LoRA, ICLR 2025): [https://arxiv.org/abs/2410.20672](https://arxiv.org/abs/2410.20672)
+- **ZOA** (Zeroth-Order Adaptation for Quantized NNs): [https://arxiv.org/abs/2508.02180](https://arxiv.org/abs/2508.02180)
+- **LaCT** (Large Chunk TTT with Muon optimizer): [https://arxiv.org/abs/2505.23884](https://arxiv.org/abs/2505.23884)
 - **FP6-LLM** (6-bit bit-packing for inference): [https://arxiv.org/abs/2401.14112](https://arxiv.org/abs/2401.14112)
 - **EntroLLM** (Tensor-level quant + Huffman coding): [https://arxiv.org/abs/2505.02380](https://arxiv.org/abs/2505.02380)
 - **QuIP#** (Hadamard rotation for incoherence before quantization): [https://github.com/Cornell-RelaxML/quip-sharp](https://github.com/Cornell-RelaxML/quip-sharp)
