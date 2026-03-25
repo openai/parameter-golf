@@ -35,6 +35,7 @@ class Hyperparameters:
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
+    eval_only = os.environ.get("EVAL_ONLY", "")  # path to saved model.pt, skips training
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
@@ -258,8 +259,16 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
-NGRAM_ORDER = int(os.environ.get("NGRAM_ORDER", 5))  # single order, matching PR #674
-NGRAM_ALPHA = float(os.environ.get("NGRAM_ALPHA", 0.20))  # fixed alpha, linear mixing
+NGRAM_ORDER = int(os.environ.get("NGRAM_ORDER", 7))  # max order for backoff
+NGRAM_MIN_ORDER = int(os.environ.get("NGRAM_MIN_ORDER", 2))  # backoff down to this
+NGRAM_ALPHA = float(os.environ.get("NGRAM_ALPHA", 0.40))  # base alpha (PR #727 uses 0.40)
+NGRAM_ENTROPY_ADAPTIVE = bool(int(os.environ.get("NGRAM_ENTROPY_ADAPTIVE", "1")))
+NGRAM_ENT_BASE = float(os.environ.get("NGRAM_ENT_BASE", 0.05))
+NGRAM_ENT_RANGE = float(os.environ.get("NGRAM_ENT_RANGE", 0.55))
+# PAQ-style online adaptive mixing (challenger innovation)
+NGRAM_PAQ_ADAPTIVE = bool(int(os.environ.get("NGRAM_PAQ_ADAPTIVE", "0")))  # off by default
+NGRAM_PAQ_LR = float(os.environ.get("NGRAM_PAQ_LR", 0.02))  # weight update rate
+NGRAM_PAQ_CONTEXTS = int(os.environ.get("NGRAM_PAQ_CONTEXTS", 256))  # context-dependent weight tables
 NGRAM_MIN_COUNT = int(os.environ.get("NGRAM_MIN_COUNT", 2))
 NGRAM_BUCKETS = int(os.environ.get("NGRAM_BUCKETS", 4_194_304))
 NGRAM_PRIMES = np.array([np.uint64(36313), np.uint64(27191), np.uint64(51647),
@@ -276,20 +285,26 @@ def eval_val_ngram(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
-    """Score-first sliding eval with multi-order hashed n-gram interpolation.
-    Innovation: uses multiple n-gram orders (e.g. 3,5,7) with highest-order-first backoff.
-    Legal: fixed-weight linear mixing, cache updated AFTER scoring."""
+    """Score-first sliding eval with multi-order backoff + entropy-adaptive alpha.
+    Orders 2-7 with highest-order-first backoff. Entropy-adaptive alpha trusts
+    n-gram more when model is uncertain. Legal: no target-aware gating."""
     stride = 128
     seq_len = args.train_seq_len
-    order = NGRAM_ORDER
-    alpha = NGRAM_ALPHA
+    max_order = NGRAM_ORDER
+    min_order = NGRAM_MIN_ORDER
+    base_alpha = NGRAM_ALPHA
     min_count = NGRAM_MIN_COUNT
     buckets = NGRAM_BUCKETS
     mask = np.uint64(buckets - 1)
     total_tokens = val_tokens.numel() - 1
     batch_seqs = 32
-    ctx_table = np.zeros(buckets, dtype=np.uint32)
-    full_table = np.zeros(buckets, dtype=np.uint32)
+    # Separate hash tables per order (critical — shared tables cause cross-order collisions)
+    n_orders = max_order - min_order + 1
+    ctx_tables = [np.zeros(buckets, dtype=np.uint32) for _ in range(n_orders)]
+    full_tables = [np.zeros(buckets, dtype=np.uint32) for _ in range(n_orders)]
+    # PAQ: initialize per-context mixing weights (logit space, 0 = alpha=0.5)
+    if NGRAM_PAQ_ADAPTIVE:
+        eval_val_ngram._paq_weights = np.zeros(NGRAM_PAQ_CONTEXTS, dtype=np.float64)
     all_ws = [ws for ws in range(0, total_tokens, stride) if min(ws + seq_len, total_tokens) - ws >= 1]
     my_s = (len(all_ws) * rank) // world_size
     my_e = (len(all_ws) * (rank + 1)) // world_size
@@ -327,10 +342,31 @@ def eval_val_ngram(
                     continue
                 seg_nll = nll[i, s:wlen].to(torch.float64).cpu().numpy()
                 seg_p = np.exp(-seg_nll)
-                # Single-order n-gram mixing (matching PR #674's proven approach)
+                # Compute per-token alpha: entropy-adaptive or PAQ online learning
+                if NGRAM_PAQ_ADAPTIVE and hasattr(eval_val_ngram, '_paq_weights'):
+                    # PAQ: use learned weights indexed by context hash
+                    paq_w = eval_val_ngram._paq_weights
+                    x_seg = val_np[ws + s:ws + wlen].astype(np.uint64)
+                    prev_seg = val_np[ws + s - 1:ws + wlen - 1].astype(np.uint64) if ws + s > 0 else np.zeros(wlen - s, dtype=np.uint64)
+                    ctx_idx = ((x_seg * np.uint64(31) + prev_seg) % np.uint64(NGRAM_PAQ_CONTEXTS)).astype(np.int64)
+                    # Sigmoid to convert logit weights to alpha
+                    token_alpha = 1.0 / (1.0 + np.exp(-paq_w[ctx_idx]))
+                elif NGRAM_ENTROPY_ADAPTIVE:
+                    log_probs = F.log_softmax(logits[i, s:wlen].float(), dim=-1)
+                    probs = log_probs.exp()
+                    entropy = -(probs * log_probs).sum(dim=-1).cpu().numpy()  # per-token entropy
+                    token_alpha = NGRAM_ENT_BASE + NGRAM_ENT_RANGE / (1.0 + np.exp(-2.0 * (entropy - 4.0)))
+                else:
+                    token_alpha = np.full(wlen - s, base_alpha)
+                # Multi-order backoff: try highest order first, cascade down on miss
                 global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
-                valid = global_j >= (order - 1)
-                if valid.any():
+                mixed_mask = np.zeros(len(global_j), dtype=bool)
+                all_cache_updates = []
+                for order in range(max_order, min_order - 1, -1):
+                    oi = order - min_order  # index into per-order tables
+                    valid = (global_j >= (order - 1)) & ~mixed_mask
+                    if not valid.any():
+                        continue
                     v_idx = np.nonzero(valid)[0]
                     jv = global_j[v_idx]
                     ctx_width = order - 1
@@ -341,20 +377,35 @@ def eval_val_ngram(
                     ctx_key = (ctx_hash & mask).astype(np.int64)
                     tgt_np = val_np[jv].astype(np.uint64)
                     full_key = ((ctx_hash ^ (tgt_np * NGRAM_PRIMES[ctx_width % len(NGRAM_PRIMES)])) & mask).astype(np.int64)
-                    ctx_counts = ctx_table[ctx_key].astype(np.float64)
-                    full_counts = full_table[full_key].astype(np.float64)
+                    ctx_counts = ctx_tables[oi][ctx_key].astype(np.float64)
+                    full_counts = full_tables[oi][full_key].astype(np.float64)
                     can_mix = ctx_counts >= float(min_count)
                     if can_mix.any():
                         p_ng = np.minimum(full_counts, ctx_counts) / np.maximum(ctx_counts, 1.0)
                         p_ng = np.clip(p_ng, 0.0, 1.0)
-                        # LINEAR mixing in probability space (proven by PR #674)
-                        mixed = (1.0 - alpha) * seg_p[v_idx] + alpha * p_ng
-                        seg_p[v_idx[can_mix]] = mixed[can_mix]
+                        mix_idx = v_idx[can_mix]
+                        a = token_alpha[mix_idx]
+                        mixed = (1.0 - a) * seg_p[mix_idx] + a * p_ng[can_mix]
+                        seg_p[mix_idx] = mixed
+                        mixed_mask[mix_idx] = True
+                    all_cache_updates.append((oi, ctx_key, full_key))
                 seg_nll = -np.log(np.clip(seg_p, 1e-12, 1.0))
-                if valid.any():
-                    # Score-first: update cache AFTER scoring
-                    np.add.at(ctx_table, ctx_key, 1)
-                    np.add.at(full_table, full_key, 1)
+                # PAQ: update mixing weights based on prediction quality
+                if NGRAM_PAQ_ADAPTIVE and hasattr(eval_val_ngram, '_paq_weights'):
+                    # For tokens that were mixed: update weight toward better component
+                    if mixed_mask.any():
+                        mixed_idx = np.nonzero(mixed_mask)[0]
+                        p_mixed = seg_p[mixed_idx]
+                        # Gradient: positive = n-gram helped, negative = n-gram hurt
+                        error = 1.0 - np.clip(p_mixed, 1e-7, 1.0)
+                        x_seg = val_np[ws + s:ws + wlen].astype(np.uint64)
+                        prev_seg = val_np[ws + s - 1:ws + wlen - 1].astype(np.uint64) if ws + s > 0 else np.zeros(wlen - s, dtype=np.uint64)
+                        ctx_idx = ((x_seg * np.uint64(31) + prev_seg) % np.uint64(NGRAM_PAQ_CONTEXTS)).astype(np.int64)
+                        np.add.at(eval_val_ngram._paq_weights, ctx_idx[mixed_idx], NGRAM_PAQ_LR * error)
+                # Score-first: update per-order caches AFTER scoring
+                for oi, ctx_key, full_key in all_cache_updates:
+                    np.add.at(ctx_tables[oi], ctx_key, 1)
+                    np.add.at(full_tables[oi], full_key, 1)
                 loss_sum += float(seg_nll.sum())
                 token_count += float(seg_len)
                 tgt = y_batch[i, s:wlen]
@@ -1203,143 +1254,149 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     # -----------------------------
-    # MAIN TRAINING LOOP
-    # -----------------------------
     training_time_ms = 0.0
-    stop_after_step: int | None = None
-    # EMA: exponential moving average (GPU-only, no CPU transfers!)
-    ema_decay = 0.997
-    ema_state: dict[str, Tensor] | None = None
-    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "0")))  # disabled by default until proven helpful
-    ema_start_pct = 0.1
-    # SWA: accumulate weight averages during warmdown
-    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))  # disabled until proven helpful
-    swa_start_pct = 0.4
-    swa_every = 50
-    swa_state: dict[str, Tensor] | None = None
-    swa_count = 0
-    torch.cuda.synchronize()
-    t0 = time.perf_counter()
-    step = 0
-    while True:
-        last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
-        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
-        if should_validate:
-            torch.cuda.synchronize()
-            training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = eval_val(
-                args,
-                model,
-                rank,
-                world_size,
-                device,
-                grad_accum_steps,
-                val_tokens,
-                base_bytes_lut,
-                has_leading_space_lut,
-                is_boundary_token_lut,
-            )
-            log0(
-                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
-                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
-            )
-            torch.cuda.synchronize()
-            t0 = time.perf_counter()
-        if last_step:
-            if stop_after_step is not None and step < args.iterations:
-                log0(
-                    f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
-                    f"step:{step}/{args.iterations}"
+    # EVAL_ONLY: skip training, load saved model, jump to serialization+eval
+    if args.eval_only:
+        log0(f"EVAL_ONLY: loading model from {args.eval_only}")
+        sd = torch.load(args.eval_only, map_location="cpu")
+        base_model.load_state_dict(sd)
+        restore_low_dim_params_to_fp32(base_model)
+        step = 0
+    if not args.eval_only:
+        stop_after_step: int | None = None
+        # EMA: exponential moving average (GPU-only, no CPU transfers!)
+        ema_decay = 0.997
+        ema_state: dict[str, Tensor] | None = None
+        ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "0")))  # disabled by default until proven helpful
+        ema_start_pct = 0.1
+        # SWA: accumulate weight averages during warmdown
+        swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))  # disabled until proven helpful
+        swa_start_pct = 0.4
+        swa_every = 50
+        swa_state: dict[str, Tensor] | None = None
+        swa_count = 0
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        step = 0
+        while True:
+            last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
+            should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+            if should_validate:
+                torch.cuda.synchronize()
+                training_time_ms += 1000.0 * (time.perf_counter() - t0)
+                val_loss, val_bpb = eval_val(
+                    args,
+                    model,
+                    rank,
+                    world_size,
+                    device,
+                    grad_accum_steps,
+                    val_tokens,
+                    base_bytes_lut,
+                    has_leading_space_lut,
+                    is_boundary_token_lut,
                 )
-            break
-        elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-        scale = lr_mul(step, elapsed_ms)
-        zero_grad_all()
-        train_loss = torch.zeros((), device=device)
-        for micro_step in range(grad_accum_steps):
-            if distributed:
-                model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
-            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
-            train_loss += loss.detach()
-            (loss * grad_scale).backward()
-        train_loss /= grad_accum_steps
-        frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
-        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
-        for group in optimizer_muon.param_groups:
-            group["momentum"] = muon_momentum
-        for opt in optimizers:
-            for group in opt.param_groups:
-                group["lr"] = group["base_lr"] * scale
-        if args.grad_clip_norm > 0:
-            torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
-        for opt in optimizers:
-            opt.step()
-        zero_grad_all()
-        step += 1
-        approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-        # EMA: update every step (GPU-only)
-        ema_active = ema_enabled and max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms * ema_start_pct
-        if ema_active:
-            sd = base_model.state_dict()
-            if ema_state is None:
-                ema_state = {k: v.clone() for k, v in sd.items()}
-            else:
-                for k in ema_state:
-                    ema_state[k].mul_(ema_decay).add_(sd[k], alpha=1.0 - ema_decay)
-        # SWA: accumulate model weights on GPU (wallclock-based start)
-        swa_active = swa_enabled and max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms * swa_start_pct
-        if swa_active and step % swa_every == 0:
-            sd = base_model.state_dict()
-            if swa_state is None:
-                swa_state = {k: v.clone() for k, v in sd.items()}
-            else:
-                for k in swa_state:
-                    swa_state[k].add_(sd[k])
-            swa_count += 1
-        should_log_train = (
-            args.train_log_every > 0
-            and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
-        )
-        if should_log_train:
-            log0(
-                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
-                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                log0(
+                    f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                    f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
+                )
+                torch.cuda.synchronize()
+                t0 = time.perf_counter()
+            if last_step:
+                if stop_after_step is not None and step < args.iterations:
+                    log0(
+                        f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
+                        f"step:{step}/{args.iterations}"
+                    )
+                break
+            elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+            scale = lr_mul(step, elapsed_ms)
+            zero_grad_all()
+            train_loss = torch.zeros((), device=device)
+            for micro_step in range(grad_accum_steps):
+                if distributed:
+                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    loss = model(x, y)
+                train_loss += loss.detach()
+                (loss * grad_scale).backward()
+            train_loss /= grad_accum_steps
+            frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+            muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+            for group in optimizer_muon.param_groups:
+                group["momentum"] = muon_momentum
+            for opt in optimizers:
+                for group in opt.param_groups:
+                    group["lr"] = group["base_lr"] * scale
+            if args.grad_clip_norm > 0:
+                torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+            for opt in optimizers:
+                opt.step()
+            zero_grad_all()
+            step += 1
+            approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+            # EMA: update every step (GPU-only)
+            ema_active = ema_enabled and max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms * ema_start_pct
+            if ema_active:
+                sd = base_model.state_dict()
+                if ema_state is None:
+                    ema_state = {k: v.clone() for k, v in sd.items()}
+                else:
+                    for k in ema_state:
+                        ema_state[k].mul_(ema_decay).add_(sd[k], alpha=1.0 - ema_decay)
+            # SWA: accumulate model weights on GPU (wallclock-based start)
+            swa_active = swa_enabled and max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms * swa_start_pct
+            if swa_active and step % swa_every == 0:
+                sd = base_model.state_dict()
+                if swa_state is None:
+                    swa_state = {k: v.clone() for k, v in sd.items()}
+                else:
+                    for k in swa_state:
+                        swa_state[k].add_(sd[k])
+                swa_count += 1
+            should_log_train = (
+                args.train_log_every > 0
+                and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
             )
-        # Needed to sync whether we've reached the wallclock cap.
-        reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
-        if distributed and max_wallclock_ms is not None:
-            reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
-            dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
-            reached_cap = bool(reached_cap_tensor.item())
-        if stop_after_step is None and reached_cap:
-            stop_after_step = step
-    log0(
-        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
-        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
-    )
-    # Apply EMA + SWA blend (frontier uses 50/50 blend)
-    if ema_state is not None and swa_state is not None and swa_count > 0:
-        log0(f"EMA+SWA blend: EMA(decay={ema_decay}) + SWA({swa_count} checkpoints)")
-        for k in swa_state:
-            swa_state[k].div_(swa_count)
-        # 50/50 blend of EMA and SWA
-        for k in ema_state:
-            ema_state[k].mul_(0.5).add_(swa_state[k], alpha=0.5)
-        base_model.load_state_dict(ema_state, strict=True)
-        del swa_state
-        del ema_state
-    elif ema_state is not None:
-        log0(f"EMA: applying EMA weights (decay={ema_decay})")
-        base_model.load_state_dict(ema_state, strict=True)
-        del ema_state
-    elif swa_state is not None and swa_count > 0:
-        log0(f"SWA: applying averaged weights from {swa_count} checkpoints")
-        for k in swa_state:
-            swa_state[k].div_(swa_count)
-        base_model.load_state_dict(swa_state, strict=True)
-        del swa_state
+            if should_log_train:
+                log0(
+                    f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
+                    f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                )
+            # Needed to sync whether we've reached the wallclock cap.
+            reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
+            if distributed and max_wallclock_ms is not None:
+                reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
+                dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
+                reached_cap = bool(reached_cap_tensor.item())
+            if stop_after_step is None and reached_cap:
+                stop_after_step = step
+        log0(
+            f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+            f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+        )
+        # Apply EMA + SWA blend (frontier uses 50/50 blend)
+        if ema_state is not None and swa_state is not None and swa_count > 0:
+            log0(f"EMA+SWA blend: EMA(decay={ema_decay}) + SWA({swa_count} checkpoints)")
+            for k in swa_state:
+                swa_state[k].div_(swa_count)
+            # 50/50 blend of EMA and SWA
+            for k in ema_state:
+                ema_state[k].mul_(0.5).add_(swa_state[k], alpha=0.5)
+            base_model.load_state_dict(ema_state, strict=True)
+            del swa_state
+            del ema_state
+        elif ema_state is not None:
+            log0(f"EMA: applying EMA weights (decay={ema_decay})")
+            base_model.load_state_dict(ema_state, strict=True)
+            del ema_state
+        elif swa_state is not None and swa_count > 0:
+            log0(f"SWA: applying averaged weights from {swa_count} checkpoints")
+            for k in swa_state:
+                swa_state[k].div_(swa_count)
+            base_model.load_state_dict(swa_state, strict=True)
+            del swa_state
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
