@@ -1,0 +1,69 @@
+{
+  "record_name": "2026-03-25_LegalTTT_GPTQLite",
+  "track": "track_10min_16mb",
+  "author": "robin.white",
+  "description": "Legal LoRA TTT (score-every-epoch) + GPTQ-lite multi-percentile int6 quant + configurable LeakyReLU slope. Built on 2026-03-23_LeakyReLU.",
+  "changes": [
+    "Fixed TTT legality: score every epoch with per-doc accumulators (was score-last-epoch-only)",
+    "GPTQ-lite multi-percentile quantization (5 percentiles, min-MSE per row)",
+    "Configurable LeakyReLU slope via LEAKY_SLOPE env var",
+    "Increased TTT defaults: rank 16 (was 8), 5 epochs (was 2), min_doc_len 256 (was 1024)"
+  ],
+  "results": {
+    "seed_1337": {
+      "val_bpb": 0.72930222,
+      "val_loss": 1.23139632,
+      "pre_quant_bpb": 1.16047938,
+      "post_quant_bpb": 1.17326019,
+      "quant_gap_bpb": 0.012781,
+      "ttt_gain_bpb": 0.443958,
+      "artifact_bytes": 15757556,
+      "train_steps": 6993,
+      "step_avg_ms": 85.81,
+      "ttt_eval_ms": 554289,
+      "total_wall_ms": 1273880
+    },
+    "seed_42": {
+      "val_bpb": 0.71253818,
+      "val_loss": 1.20309094,
+      "pre_quant_bpb": 1.16211074,
+      "post_quant_bpb": 1.17483094,
+      "quant_gap_bpb": 0.012720,
+      "ttt_gain_bpb": 0.462293,
+      "artifact_bytes": 15436413,
+      "train_steps": 6993,
+      "step_avg_ms": 85.80,
+      "ttt_eval_ms": 550880,
+      "total_wall_ms": 1270032
+    },
+    "seed_2025": {
+      "val_bpb": 0.70807946,
+      "val_loss": 1.19556257,
+      "pre_quant_bpb": 1.15796600,
+      "post_quant_bpb": 1.17051000,
+      "quant_gap_bpb": 0.012544,
+      "ttt_gain_bpb": 0.462431,
+      "artifact_bytes": 15431326,
+      "train_steps": 6993,
+      "step_avg_ms": 85.80,
+      "total_wall_ms": 1221008
+    },
+    "mean_val_bpb": 0.71664,
+    "std_val_bpb": 0.01100,
+    "competition_sota": 1.1194,
+    "improvement_over_sota": 0.40276
+  },
+  "environment": {
+    "gpus": "8x NVIDIA H100 80GB HBM3 (SXM)",
+    "image": "runpod/parameter-golf:latest",
+    "torch": "2.9.1+cu128",
+    "cuda": "12.8",
+    "platform": "RunPod SECURE cloud"
+  },
+  "env_vars": {
+    "TTT_EPOCHS": 5,
+    "TTT_LORA_RANK": 16,
+    "TTT_MIN_DOC_LEN": 256,
+    "LEAKY_SLOPE": 0.5
+  }
+}
