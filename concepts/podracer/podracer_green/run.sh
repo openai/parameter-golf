@@ -1,8 +1,9 @@
 #!/bin/bash
 set -euo pipefail
-# Podracer GREEN: SOTA + cubric lite (per-order adaptive alpha)
+# Podracer GREEN: aggressive n-gram + cubric lite
 # Base: verified SOTA 147bbccc + cubric lite overlay
-# CUBRIC_CADENCE=0 → identical to SOTA. >0 → per-order alpha scaling.
+# Racing profile: alpha_max=0.70, center=3.0, buckets=8M + cubric
+# A/B vs purple (same n-gram, no cubric) to isolate cubric contribution
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
@@ -32,11 +33,11 @@ NGRAM_EVAL_MIN_ORDER=2 \
 NGRAM_EVAL_ADAPTIVE=1 \
 NGRAM_EVAL_ALPHA=0.30 \
 NGRAM_EVAL_ALPHA_MIN=0.05 \
-NGRAM_EVAL_ALPHA_MAX=0.60 \
-NGRAM_EVAL_ENTROPY_CENTER=4.0 \
+NGRAM_EVAL_ALPHA_MAX=0.70 \
+NGRAM_EVAL_ENTROPY_CENTER=3.0 \
 NGRAM_EVAL_ENTROPY_SCALE=2.0 \
 NGRAM_EVAL_MIN_COUNT=2 \
-NGRAM_EVAL_BUCKETS=4194304 \
+NGRAM_EVAL_BUCKETS=8388608 \
 NGRAM_EVAL_MAX_SECONDS=300 \
 CUBRIC_CADENCE="${CUBRIC_CADENCE:-32}" \
 torchrun --standalone --nproc_per_node="${NPROC_PER_NODE}" \

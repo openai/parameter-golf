@@ -1,8 +1,10 @@
 #!/bin/bash
 set -euo pipefail
-# Podracer PURPLE: clean SOTA copy for experimental modifications
+# Podracer PURPLE: aggressive n-gram (no cubric)
 # Base: verified SOTA 147bbccc (unmodified train_gpt.py)
-# Modify this lane's train_gpt.py freely — SOTA copies are safe elsewhere.
+# Racing profile: alpha_max=0.70, center=3.0, buckets=8M
+# A/B vs green (same n-gram + cubric) to isolate cubric contribution
+# A/B vs red baseline (0.60/4.0/4M) to measure n-gram param gains
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
@@ -31,11 +33,11 @@ NGRAM_EVAL_MIN_ORDER=2 \
 NGRAM_EVAL_ADAPTIVE=1 \
 NGRAM_EVAL_ALPHA=0.30 \
 NGRAM_EVAL_ALPHA_MIN=0.05 \
-NGRAM_EVAL_ALPHA_MAX=0.60 \
-NGRAM_EVAL_ENTROPY_CENTER=4.0 \
+NGRAM_EVAL_ALPHA_MAX=0.70 \
+NGRAM_EVAL_ENTROPY_CENTER=3.0 \
 NGRAM_EVAL_ENTROPY_SCALE=2.0 \
 NGRAM_EVAL_MIN_COUNT=2 \
-NGRAM_EVAL_BUCKETS=4194304 \
+NGRAM_EVAL_BUCKETS=8388608 \
 NGRAM_EVAL_MAX_SECONDS=300 \
 torchrun --standalone --nproc_per_node="${NPROC_PER_NODE}" \
     "${SCRIPT_DIR}/train_gpt.py" \
