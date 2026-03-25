@@ -1,6 +1,6 @@
 This work explores whether architectural changes can improve intrinsic capacity per parameter under fixed-step training budgets.
 
-We introduce three components — ASQU, MoC, and BankedLinear — and evaluate their effects through controlled ablations.
+We introduce three components — ASQU, MoC, and BankLinear — and evaluate their effects through controlled ablations.
 
 ---
 
@@ -14,7 +14,7 @@ Ablations are run from the base train_gpt.py script for a fixed 10k steps. MLP e
 | + ASQU | 1.2232 | 1.2301 | 15898146 | 2.00 |
 | + Short Conv (k=1) | 1.2157 | 1.2217 | 15973462 | 1.99 |
 | + MoC (k=8) | 1.2121 | 1.2182 | 15911167 | 1.93 |
-| + BankedLinear | 1.2098 | 1.2164 | 15852659 | 2.6 |
+| + BankLinear | 1.2098 | 1.2164 | 15852659 | 2.6 |
 
 Across these changes, we observe an improvement of ~0.016 bpb over baseline under identical training conditions.
 
@@ -39,9 +39,9 @@ Basis interpolation offers enough expressivity to be useful without making optim
 The gate/router input is the same hidden state used to generate QKV.
 
 
-## BankedLinear
+## BankLinear
 
-BankedLinear replaces standard projections with a shared weight basis across layers, where each layer constructs its weights as a learned mixture of:
+BankLinear replaces standard projections with a shared weight basis across layers, where each layer constructs its weights as a learned mixture of:
 - a small set of learned weight matrices
 - a larger set of fixed random projections
 
@@ -49,7 +49,7 @@ Fixed random projections provide a cheap, high-dimensional basis from which weig
 
 In practice, removing the random projections significantly degrades performance, suggesting that combining many simple fixed components is an effective way to approximate more expressive transformations under a fixed parameter budget.
 
-When focusing on the learned weights, BankedLinear can be viewed as a form of continuous, learned weight reuse across depth, allowing layers to share structure without being identical, and in a way that is guided by the model’s learned mixing coefficients.
+When focusing on the learned weights, BankLinear can be viewed as a form of continuous, learned weight reuse across depth, allowing layers to share structure without being identical, and in a way that is guided by the model’s learned mixing coefficients.
 
 A depth-aware initialization of the mixing coefficients on learned layers is important for best performance. 
 
@@ -57,7 +57,7 @@ This approach enables parameter reuse across layers, allowing saved capacity to 
 
 We use 9 total layers, and with 3 learned projections total, and 512 fixed random projections.
 
-MoC and BankedLinear can be viewed as related forms of mixture-based parameterization: MoC constructs dynamic mixtures over layer-local operators on a per-token basis, while BankedLinear constructs mixtures over a global weight basis shared across layers.
+MoC and BankLinear can be viewed as related forms of mixture-based parameterization: MoC constructs dynamic mixtures over layer-local operators on a per-token basis, while BankLinear constructs mixtures over a global weight basis shared across layers.
 
 This suggests a broader design space combining dynamic and shared mixtures (e.g. globally banked operators with token-dependent routing).
 
