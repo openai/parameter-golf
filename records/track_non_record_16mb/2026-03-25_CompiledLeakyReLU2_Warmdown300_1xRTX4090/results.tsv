@@ -1,0 +1,30 @@
+commit	metric	status	description
+baseline_uc120	1.86281828	ok	uncompiled 4090 proxy baseline; warmdown scaled to ~10 steps; step:147/999999 val_loss:3.1428 val_bpb:1.8613 train_time:120425ms step_avg:819.22ms
+stack11_uc120	2.14925712	ok	11L 3x MLP plus lr/muon/clip stack; warmdown scaled to ~50 steps; step:104/999999 val_loss:3.6260 val_bpb:2.1475 train_time:120821ms step_avg:1161.74ms
+stack11_leaky_uc120	2.14415346	ok	stack11 plus LeakyReLU(0.5)^2 and longer warmdown (~60 steps); step:104/999999 val_loss:3.6172 val_bpb:2.1423 train_time:120978ms step_avg:1163.25ms
+stack11_leaky_rope16_ln_uc120	2.35934594	ok	stack11_leaky plus Partial RoPE 16 and LN scale; step:103/999999 val_loss:3.9820 val_bpb:2.3584 train_time:120450ms step_avg:1169.42ms
+baseline_leaky_uc120	1.84941753	ok	9L baseline plus LeakyReLU(0.5)^2; step:147/999999 val_loss:3.1204 val_bpb:1.8481 train_time:120434ms step_avg:819.28ms
+baseline_leaky_wd60_uc120	1.88089542	ok	9L baseline plus LeakyReLU(0.5)^2 and longer warmdown; step:147/999999 val_loss:3.1728 val_bpb:1.8791 train_time:120456ms step_avg:819.43ms
+baseline_leaky_ema099_uc120	2.21841035	ok	9L leaky baseline plus EMA decay 0.99 from step 50; step:147/999999 val_loss:3.1170 val_bpb:1.8461 train_time:120357ms step_avg:818.76ms
+baseline_leaky_ema0995_uc120	2.35862613	ok	9L leaky baseline plus EMA decay 0.995 from step 50; step:147/999999 val_loss:3.1201 val_bpb:1.8479 train_time:120547ms step_avg:820.05ms
+baseline_leaky_ema0997_uc120	2.41271584	ok	9L leaky baseline plus EMA decay 0.997 from step 50; step:147/999999 val_loss:3.1199 val_bpb:1.8478 train_time:120727ms step_avg:821.27ms
+baseline_leaky_s04_uc120	1.85137710	ok	9L leaky baseline with slope 0.4; step:147/999999 val_loss:3.1238 val_bpb:1.8501 train_time:120396ms step_avg:819.02ms
+baseline_leaky_s06_uc120	1.84945947	ok	9L leaky baseline with slope 0.6; step:147/999999 val_loss:3.1204 val_bpb:1.8481 train_time:120630ms step_avg:820.61ms
+baseline_leaky_qat085_uc120	1.88687874	ok	9L leaky baseline plus late QAT from 85% wallclock; step:146/999999 val_loss:3.1859 val_bpb:1.8869 train_time:120419ms step_avg:824.78ms
+baseline_leaky_qat090_uc120	1.87537201	ok	9L leaky baseline plus late QAT from 90% wallclock; step:146/999999 val_loss:3.1665 val_bpb:1.8754 train_time:120220ms step_avg:823.42ms
+baseline_leaky_fakeqat090_uc120	1.85239373	ok	9L leaky baseline plus proper forward-only fake QAT from 90% wallclock; step:146/999999 val_loss:3.1277 val_bpb:1.8524 train_time:120635ms step_avg:826.26ms
+baseline_leaky_ema099_fakeqat090_uc120	2.22178699	ok	9L leaky baseline plus EMA 0.99 from step 50 and proper fake QAT from 90% wallclock; step:146/999999 val_loss:3.1267 val_bpb:1.8518 train_time:120506ms step_avg:825.38ms
+baseline_leaky_ema099_exportqat_uc120	2.21828397	ok	9L leaky baseline plus EMA 0.99 from step 50 and export-time EMA quant-dequant; step:147/999999 val_loss:3.1205 val_bpb:1.8481 train_time:120713ms step_avg:821.18ms
+baseline_leaky_tokembfp16_uc120	1.85120500	ok	9L leaky baseline plus tok_emb kept fp16 in export; step:147/20000 val_loss:3.1234 val_bpb:1.8499 train_time:120728ms step_avg:821.28ms
+baseline_leaky_tokembfp32_uc120	1.84736881	ok	9L leaky baseline plus tok_emb kept fp32 in export; step:147/20000 val_loss:3.1169 val_bpb:1.8460 train_time:120193ms step_avg:817.64ms
+baseline_leaky_fakeqat090_tokembfp16_uc120	1.85131099	ok	9L leaky baseline plus proper fake QAT from 90% wallclock and tok_emb kept fp16 in export; step:146/20000 val_loss:3.1259 val_bpb:1.8513 train_time:120267ms step_avg:823.75ms
+baseline_leaky_compiled_tb131072_uc120	1.68955985	ok	9L leaky baseline, compiled, half batch; step:267/999999 val_loss:2.8512 val_bpb:1.6886 train_time:120093ms step_avg:449.79ms
+stack11_leaky_compiled_tb131072_uc120	2.13508659	ok	11L leaky stack, compiled, half batch; step:166/999999 val_loss:3.5984 val_bpb:2.1312 train_time:120074ms step_avg:723.33ms
+baseline_leaky_compiled_tb131072_uc300	1.46329953	ok	9L leaky baseline, compiled, half batch, 300s; step:1188/999999 val_loss:2.4689 val_bpb:1.4622 train_time:300188ms step_avg:252.68ms
+stack11_leaky_compiled_tb131072_uc300	1.49906250	ok	11L leaky stack, compiled, half batch, 300s; step:858/999999 val_loss:2.5300 val_bpb:1.4984 train_time:300172ms step_avg:349.85ms
+baseline_leaky_wd80_compiled_tb131072_uc300	1.43852172	ok	9L leaky baseline, compiled, half batch, 300s, warmdown 80; step:1212/999999 val_loss:2.4270 val_bpb:1.4374 train_time:300128ms step_avg:247.63ms
+baseline_leaky_wd150_compiled_tb131072_uc300	1.43197024	ok	9L leaky baseline, compiled, half batch, 300s, warmdown 150; step:1193/999999 val_loss:2.4163 val_bpb:1.4310 train_time:300019ms step_avg:251.48ms
+baseline_leaky_wd200_compiled_tb131072_uc300	1.42924227	ok	9L leaky baseline, compiled, half batch, 300s, warmdown 200; step:1191/999999 val_loss:2.4118 val_bpb:1.4284 train_time:300075ms step_avg:251.95ms
+baseline_leaky_wd250_compiled_tb131072_uc300	1.42569532	ok	9L leaky baseline, compiled, half batch, 300s, warmdown 250; step:1212/999999 val_loss:2.4055 val_bpb:1.4247 train_time:300230ms step_avg:247.71ms
+baseline_leaky_wd300_compiled_tb131072_uc300	1.42394278	ok	9L leaky baseline, compiled, half batch, 300s, warmdown 300; step:1206/999999 val_loss:2.4025 val_bpb:1.4229 train_time:300024ms step_avg:248.78ms
+baseline_leaky_wd300_seq2048_compiled_tb131072_uc300	1.42614308	ok	9L leaky baseline, compiled, half batch, 300s, warmdown 300, seq2048; step:891/999999 val_loss:2.4068 val_bpb:1.4254 train_time:300048ms step_avg:336.75ms
