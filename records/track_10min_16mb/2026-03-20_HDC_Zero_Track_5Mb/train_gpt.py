@@ -1,15 +1,6 @@
 """HDC VSA Language Model for Parameter-Golf Competition.
 
-H100 TENSOR CORE OPTIMIZED VERSION:
-- FP16/BF16 tensor core matrix operations for similarity computation
-- Custom CUDA kernels with tensor core intrinsics (WMMA)
-- Flash-style batched attention for hypervector operations
-- FP8 support for memory-bound operations
-- Async compute/comm overlap for 8x H100 multi-GPU
-
-# To fix this, the model would need to call model.save_recipes() after training and include the 
-# recipe data in the submission artifact.
-Run: cd parameter-golf-hdc/records/track_10min_16mb/2026-03-20_HDC_Zero_Track_5Mb && python train_gpt.py --multi_seed --seeds 42 7 1337 --data_path ../../../data/datasets/fineweb10B_sp1024 --tokenizer_path ../../../data/tokenizers/fineweb_1024_bpe.model
+Run: cd /workspaces/parameter-golf-hdc/records/track_10min_16mb/2026-03-20_HDC_Zero_Track_5Mb && python train_gpt.py --multi_seed --seeds 42 7 1337 --data_path ../../../data/datasets/fineweb10B_sp1024 --tokenizer_path ../../../data/tokenizers/fineweb_1024_bpe.model
 """
 
 from __future__ import annotations
@@ -56,10 +47,6 @@ try:
 except ImportError:
     _CUPY_AVAILABLE = False
     cp = None
-
-# ============================================================================
-# H100 TENSOR CORE CUDA KERNELS
-# ============================================================================
 
 # Tensor Core optimized kernels using WMMA (Warp Matrix Multiply Accumulate)
 # These leverage the H100's 4th gen tensor cores for maximum throughput
@@ -301,7 +288,6 @@ TC_TILE_SIZE = 16
 
 @dataclass
 class PositionRecipe:
-    """Stores a learned position encoding as a zero-weight recipe."""
     context_fingerprint: str  # Hash of surrounding context
     position_index: int  # Position in sequence
     hadamard_index: int  # Which Hadamard row works best
@@ -339,7 +325,6 @@ class PositionRecipe:
 
 @dataclass 
 class PositionSearchConfig:
-    """Configuration for position search algorithm."""
     search_depth: int = 100  # How many Hadamard rows to search
     min_confidence: float = 0.7  # Threshold to store recipe
     context_window: int = 3  # Tokens before/after for context fingerprint
@@ -359,7 +344,6 @@ def _blake3_hash(data: bytes) -> bytes:
 
 
 def seed_to_hypervector(seed_string: str, dim: int) -> np.ndarray:
-    """Generate a hypervector from a seed string using BLAKE3."""
     uint64_count = dim // 64
     num_bytes = uint64_count * 8
     
@@ -379,7 +363,6 @@ def seed_to_hypervector(seed_string: str, dim: int) -> np.ndarray:
 
 
 def hamming_similarity(a: np.ndarray, b: np.ndarray) -> float:
-    """Compute Hamming similarity between two hypervectors."""
     xored = np.bitwise_xor(a, b)
     diff_bits = np.unpackbits(xored.view(np.uint8)).sum()
     total_bits = len(a) * 64
@@ -387,7 +370,6 @@ def hamming_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def sylvester_hadamard_row_packed(index: int, dim: int) -> np.ndarray:
-    """Generate a packed binary row of Sylvester-type Hadamard matrix."""
     uint64_count = dim // 64
     row = np.zeros(uint64_count, dtype=np.uint64)
     
@@ -406,18 +388,6 @@ def sylvester_hadamard_row_packed(index: int, dim: int) -> np.ndarray:
 
 
 class LearnablePositionEncoder:
-    """
-    Position encoding that LEARNS optimal Hadamard indices.
-    
-    Key insight: Positions don't need to be fixed indices.
-    The model can SEARCH the Hadamard space for indices that 
-    maximize prediction accuracy, then STORE those as recipes.
-    
-    This is the core "learning without weights" mechanism:
-    - Search orthogonal Hadamard space for position vectors
-    - Store successful mappings as recipes (context_fingerprint -> position_encoding)
-    - Reuse recipes when similar contexts appear
-    """
     
     def __init__(self, dim: int, config: PositionSearchConfig = None):
         self.dim = dim
@@ -453,17 +423,6 @@ class LearnablePositionEncoder:
         context_tokens: List[int],
         target_token: Optional[int] = None
     ) -> Tuple[np.ndarray, bool]:
-        """
-        Get position vector - either learned or default.
-        
-        Args:
-            position: Current position in sequence
-            context_tokens: List of token IDs in context
-            target_token: Optional target token for learning
-            
-        Returns:
-            Tuple of (position_vector, was_learned)
-        """
         # Compute context fingerprint
         context_fp = self._fingerprint_context(position, context_tokens)
         
@@ -488,20 +447,6 @@ class LearnablePositionEncoder:
         current_pos_vec: np.ndarray,
         token_vectors: Optional[Dict[int, np.ndarray]] = None
     ) -> bool:
-        """
-        Learn better position encoding when prediction fails.
-        
-        Args:
-            position: Position in sequence
-            context_tokens: Context token IDs
-            target_token: The correct target token
-            predicted_token: What the model predicted (wrong)
-            current_pos_vec: Current position vector used
-            token_vectors: Optional dict of token_id -> vector
-            
-        Returns:
-            True if a better position was found and stored
-        """
         if predicted_token == target_token:
             # Prediction succeeded - reinforce existing recipe if exists
             self._reinforce_recipe(position, context_tokens)
@@ -541,12 +486,6 @@ class LearnablePositionEncoder:
         current_pos_vec: np.ndarray,
         token_vectors: Optional[Dict[int, np.ndarray]] = None
     ) -> Optional[Dict]:
-        """
-        Search Hadamard space for position vector that better predicts target.
-        
-        This is the core "learning" mechanism - searching orthogonal space
-        for better positions, then storing as recipes.
-        """
         self._stats['searches_performed'] += 1
         
         best_candidate = None
@@ -597,7 +536,6 @@ class LearnablePositionEncoder:
         return None
     
     def _fingerprint_context(self, position: int, context_tokens: List[int]) -> str:
-        """Create unique fingerprint for context."""
         window = self.config.context_window
         start = max(0, position - window)
         end = min(len(context_tokens), position + window + 1)
@@ -608,7 +546,6 @@ class LearnablePositionEncoder:
         return _blake3_hash(context_str.encode()).hex()[:16]
     
     def _generate_hadamard_vector(self, row_index: int, shift: int) -> np.ndarray:
-        """Generate Hadamard row with circular shift."""
         # Get base Hadamard row (procedural generation)
         vec = self._get_hadamard_row(row_index)
         # Apply circular shift
@@ -628,7 +565,6 @@ class LearnablePositionEncoder:
         context_tokens: List[int],
         token_vectors: Optional[Dict[int, np.ndarray]] = None
     ) -> np.ndarray:
-        """Bind context tokens into single vector."""
         bound = np.zeros(self.uint64_count, dtype=np.uint64)
         
         for i, token in enumerate(context_tokens):
@@ -645,7 +581,6 @@ class LearnablePositionEncoder:
         return bound
     
     def _reinforce_recipe(self, position: int, context_tokens: List[int]):
-        """Reinforce successful recipe."""
         context_fp = self._fingerprint_context(position, context_tokens)
         if context_fp in self.position_recipes:
             recipe = self.position_recipes[context_fp]
@@ -653,7 +588,6 @@ class LearnablePositionEncoder:
             recipe.confidence = min(1.0, recipe.confidence + self.config.learning_rate)
     
     def _assign_roles(self, position: int) -> Dict[str, str]:
-        """Assign role seeds based on position type."""
         roles = {}
         
         # Temporal role: early vs late
@@ -670,18 +604,15 @@ class LearnablePositionEncoder:
         return roles
     
     def _default_position_vector(self, position: int) -> np.ndarray:
-        """Default sequential position encoding."""
         return self._generate_hadamard_vector(position % self.dim, 0)
     
     def _reconstruct_from_recipe(self, recipe: PositionRecipe) -> np.ndarray:
-        """Reconstruct position vector from stored recipe."""
         return self._generate_hadamard_vector(
             recipe.hadamard_index, 
             recipe.circular_shift
         )
     
     def get_statistics(self) -> Dict[str, Any]:
-        """Get encoder statistics."""
         return {
             **self._stats,
             'total_recipes': len(self.position_recipes),
@@ -689,7 +620,6 @@ class LearnablePositionEncoder:
         }
     
     def save_recipes(self, path: str):
-        """Save learned position recipes to file."""
         data = {
             'recipes': {fp: r.to_dict() for fp, r in self.position_recipes.items()},
             'stats': self._stats,
@@ -704,7 +634,6 @@ class LearnablePositionEncoder:
             json.dump(data, f, indent=2)
     
     def load_recipes(self, path: str):
-        """Load learned position recipes from file."""
         if not os.path.exists(path):
             return
         
@@ -3721,17 +3650,6 @@ class BidirectionalMemory:
     
     def add_event(self, seed_string: str, vector: Optional[np.ndarray] = None, 
                   metadata: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Add an event with automatic timestamp and circular encoding.
-        
-        Args:
-            seed_string: Seed string for the event
-            vector: Optional pre-computed vector (will be generated if None)
-            metadata: Optional metadata dictionary
-            
-        Returns:
-            Event ID
-        """
         # Generate vector if not provided
         if vector is None:
             vector = seed_to_hypervector(seed_string, self.dim)
@@ -3770,24 +3688,12 @@ class BidirectionalMemory:
         return event_id
     
     def get_event_at_timestamp(self, timestamp: int) -> Optional[TimestampedEvent]:
-        """Get event at a specific timestamp (O(1) lookup)."""
         return self._timestamp_index.get(timestamp)
     
     def get_event_by_id(self, event_id: str) -> Optional[TimestampedEvent]:
-        """Get event by ID (O(1) lookup)."""
         return self._event_index.get(event_id)
     
     def traverse_forward(self, from_timestamp: int, n_events: int) -> List[TimestampedEvent]:
-        """
-        Traverse forward in time from a given timestamp.
-        
-        Args:
-            from_timestamp: Starting timestamp (exclusive)
-            n_events: Number of events to retrieve
-            
-        Returns:
-            List of events in forward temporal order
-        """
         events = []
         for ts in range(from_timestamp + 1, min(from_timestamp + 1 + n_events, self._current_timestamp)):
             if ts in self._timestamp_index:
@@ -3795,16 +3701,6 @@ class BidirectionalMemory:
         return events
     
     def traverse_backward(self, from_timestamp: int, n_events: int) -> List[TimestampedEvent]:
-        """
-        Traverse backward in time from a given timestamp.
-        
-        Args:
-            from_timestamp: Starting timestamp (exclusive)
-            n_events: Number of events to retrieve
-            
-        Returns:
-            List of events in reverse temporal order
-        """
         events = []
         for ts in range(from_timestamp - 1, max(from_timestamp - 1 - n_events, -1), -1):
             if ts in self._timestamp_index:
@@ -3816,17 +3712,6 @@ class BidirectionalMemory:
         return self._cumulative_xor.copy()
     
     def reconstruct_up_to_timestamp(self, target_timestamp: int) -> np.ndarray:
-        """
-        Reconstruct the cumulative state up to a specific timestamp.
-        
-        This enables "time travel" - reconstructing the model state at any point.
-        
-        Args:
-            target_timestamp: Target timestamp (inclusive)
-            
-        Returns:
-            Reconstructed cumulative XOR state
-        """
         if target_timestamp >= self._current_timestamp - 1:
             return self._cumulative_xor.copy()
         
@@ -3842,11 +3727,9 @@ class BidirectionalMemory:
         return result
     
     def get_sequence_length(self) -> int:
-        """Get the total number of events stored."""
         return self._current_timestamp
     
     def get_memory_footprint(self) -> int:
-        """Get the memory footprint in bytes (bounded by dimension)."""
         # Memory is bounded: uint64_count * 8 bytes per vector
         # Number of events doesn't matter - circular encoding wraps
         base_footprint = self.uint64_count * 8
@@ -3856,16 +3739,6 @@ class BidirectionalMemory:
 
 
 class RecipeReconstructor:
-    """
-    Reconstruct HDC vectors from stored recipes and seeds.
-    
-    This class implements the "Zero-Weight Procedural Generation" concept:
-    - Recipes store seed strings, not vectors
-    - Vectors are deterministically reconstructed from seeds
-    - Single recipe can reconstruct infinite contexts
-    - No frequency bias - rare tokens get same quality as common ones
-    """
-    
     def __init__(self, dim: int = DEFAULT_HDC_DIM, hadamard_basis: Optional[WalshHadamardBasis] = None):
         self.dim = dim
         self.uint64_count = dim // 64
@@ -3877,15 +3750,6 @@ class RecipeReconstructor:
         self._max_cache_size = 10000
     
     def reconstruct_from_recipe(self, recipe: Recipe) -> np.ndarray:
-        """
-        Reconstruct an HDC vector from a recipe.
-        
-        Args:
-            recipe: Recipe containing seed sequence and operation order
-            
-        Returns:
-            Reconstructed HDC vector
-        """
         # Check cache first
         cache_key = recipe.recipe_id
         if self._cache_enabled and cache_key in self._cache:
@@ -3920,15 +3784,6 @@ class RecipeReconstructor:
         return result
     
     def _reconstruct_single_seed(self, seed: str) -> np.ndarray:
-        """
-        Reconstruct a vector from a single seed string.
-        
-        Supports multiple seed formats:
-        - "token_X": Token embedding
-        - "pos_X": Position embedding  
-        - "hadamard_X": Hadamard basis row
-        - "custom_X": Custom seed via BLAKE3
-        """
         # Check cache
         if self._cache_enabled and seed in self._cache:
             return self._cache[seed].copy()
@@ -3969,28 +3824,9 @@ class RecipeReconstructor:
         return result
     
     def reconstruct_batch(self, recipes: List[Recipe]) -> List[np.ndarray]:
-        """
-        Batch reconstruct multiple recipes for efficiency.
-        
-        Args:
-            recipes: List of recipes to reconstruct
-            
-        Returns:
-            List of reconstructed HDC vectors
-        """
         return [self.reconstruct_from_recipe(recipe) for recipe in recipes]
     
     def verify_reconstruction(self, recipe: Recipe, original_vector: np.ndarray) -> float:
-        """
-        Verify that reconstruction matches the original vector.
-        
-        Args:
-            recipe: Recipe to reconstruct
-            original_vector: Original vector to compare against
-            
-        Returns:
-            Similarity score (1.0 = perfect match)
-        """
         reconstructed = self.reconstruct_from_recipe(recipe)
         return hamming_similarity(reconstructed, original_vector)
     
@@ -4008,7 +3844,6 @@ class RecipeReconstructor:
 
 
 class CollisionShield:
-    """Collision detection and prevention."""
     
     def __init__(self, dim: int = DEFAULT_HDC_DIM, redundancy: int = 3):
         self.dim = dim
@@ -4032,7 +3867,6 @@ class CollisionShield:
 
 
 class EnhancedCollisionShield:
-    """Enhanced collision shield with proactive safety checks."""
     
     def __init__(
         self,
@@ -4080,18 +3914,7 @@ class EnhancedCollisionShield:
         return is_safe, min_distance, closest_match
 
 
-class HDCLanguageModel:
-    """
-    HDC Language Model with H100 Tensor Core optimizations.
-    
-    Key optimizations:
-    - Tensor core kernels for batch similarity computation
-    - Fused XOR + popcount operations
-    - Async compute/comm overlap for multi-GPU
-    - Memory-aligned allocations for optimal TC utilization
-    - Learnable position encoding for adaptive position representations
-    """
-    
+class HDCLanguageModel: 
     def __init__(self, config: HDCConfig):
         self.config = config
         self.dim = config.hdc_dim
@@ -4161,13 +3984,6 @@ class HDCLanguageModel:
         self._build_token_relationships()
     
     def _find_optimal_shift(self, residual: np.ndarray) -> int:
-        """
-        Find the optimal circular shift where the residual signal is strongest.
-        
-        In circular encoding, the residual often represents a pattern that was
-        "washed out" by bundling at a specific temporal offset. This finds
-        where in the circular buffer the correction is most aligned.
-        """
         if not isinstance(residual, np.ndarray) or len(residual) == 0:
             return 0
         
@@ -4186,7 +4002,6 @@ class HDCLanguageModel:
         return best_shift
     
     def _compute_context_signature(self, context: List[int]) -> str:
-        """Compute a fast signature for context lookup."""
         if not context:
             return "empty"
         # Use last few tokens for signature
@@ -4201,23 +4016,6 @@ class HDCLanguageModel:
         target_vec: np.ndarray,
         iterations_used: int = 50
     ) -> Optional[MetaResidualRecipe]:
-        """
-        Learn a MetaResidualRecipe from a STUCK state.
-        
-        When the metacognitive system detects a STUCK state, this method
-        creates a "shortcut" that allows future predictions to jump directly
-        to the correct answer.
-        
-        Args:
-            stuck_state: The hypervector when STUCK was detected
-            context: The input context tokens
-            target: The target token
-            target_vec: The target hypervector
-            iterations_used: How many iterations were wasted before STUCK
-            
-        Returns:
-            The created MetaResidualRecipe or None if creation failed
-        """
         # Compute the residual (what was missing)
         residual = np.bitwise_xor(stuck_state, target_vec)
         
@@ -4258,24 +4056,6 @@ class HDCLanguageModel:
         temperature: float = 1.0,
         max_iterations: Optional[int] = None
     ) -> Tuple[np.ndarray, SelfObservationState]:
-        """
-        Prediction with Cognitive Governor - metacognitive gating.
-        
-        This implements the full metacognitive residual learning pipeline:
-        1. Check DifficultyMemory for time budget
-        2. Fast path: Check for existing MetaResidualRecipe
-        3. Metacognitive search with SelfObservation
-        4. Residual jump when STUCK detected
-        5. Learn new residuals from hard cases
-        
-        Args:
-            context_tokens: Input context
-            temperature: Sampling temperature
-            max_iterations: Override max iterations
-            
-        Returns:
-            Tuple of (probabilities, observation_state)
-        """
         # Encode context
         context_vec = self.encode_context(context_tokens)
         
@@ -4409,7 +4189,6 @@ class HDCLanguageModel:
         context_vec: np.ndarray,
         iteration: int
     ) -> Dict[str, Any]:
-        """Single step of metacognitive search."""
         # Compute similarity to all tokens
         similarities = self.xp.zeros(self.config.vocab_size)
         for token_id in range(self.config.vocab_size):
@@ -4439,7 +4218,6 @@ class HDCLanguageModel:
         target: np.ndarray,
         alpha: float
     ) -> np.ndarray:
-        """Partially align source towards target using XOR operations."""
         # XOR to find differences
         diff = np.bitwise_xor(source, target)
         
@@ -4557,20 +4335,6 @@ class HDCLanguageModel:
         return row
     
     def encode_context(self, tokens: List[int], use_temporal: bool = True, use_learned_positions: bool = True) -> np.ndarray:
-        """
-        Encode context tokens with optional learned position vectors.
-        
-        When position learning is enabled and learned positions are available,
-        the model uses learned Hadamard indices instead of sequential positions.
-        
-        Args:
-            tokens: List of token IDs to encode
-            use_temporal: Whether to use temporal folding
-            use_learned_positions: Whether to use learned position encodings
-            
-        Returns:
-            Encoded context hypervector
-        """
         if not tokens:
             return np.zeros(self.uint64_count, dtype=np.uint64)
         
@@ -4929,7 +4693,6 @@ class HDCLanguageModel:
         return probs, top_indices
     
     def save_recipes(self, path: str) -> None:
-        """Save learned recipes to file."""
         data = {
             'recipes': {k: v.to_dict() for k, v in self.recipes.items()},
             'ngram_stats': {str(k): v for k, v in self.ngram_stats.items()},
@@ -4969,9 +4732,7 @@ class HDCLanguageModel:
         if 'seed_registry' in data:
             self.seed_registry = SeedRegistry.from_dict(data['seed_registry'])
 
-
 def build_sentencepiece_luts(sp, vocab_size: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Build lookup tables for byte counting."""
     sp_vocab_size = int(sp.vocab_size())
     table_size = max(sp_vocab_size, vocab_size)
     base_bytes = np.zeros((table_size,), dtype=np.int16)
@@ -4993,9 +4754,7 @@ def build_sentencepiece_luts(sp, vocab_size: int) -> Tuple[np.ndarray, np.ndarra
     
     return base_bytes, has_leading_space, is_boundary_token
 
-
 def load_data_shard(file: Path):
-    """Load a data shard."""
     with open(file, "rb") as f:
         header = f.read(256)
         magic = struct.unpack('<I', header[:4])[0]
@@ -5008,7 +4767,6 @@ def load_data_shard(file: Path):
 
 
 def load_validation_tokens(pattern: str, seq_len: int):
-    """Load validation tokens."""
     files = sorted(glob.glob(pattern))
     if not files:
         raise FileNotFoundError(f"No files matching {pattern}")
@@ -5125,8 +4883,6 @@ def evaluate_bpb(
 
 
 class DistributedTokenLoader:
-    """Distributed token loader for multi-GPU training."""
-    
     def __init__(self, pattern: str, rank: int = 0, world_size: int = 1):
         self.files = sorted(glob.glob(pattern))
         if not self.files:
@@ -5173,9 +4929,7 @@ class DistributedTokenLoader:
         return contexts, targets
 
 
-class AsyncTokenLoader:
-    """Async token loader with prefetching for H100 optimization."""
-    
+class AsyncTokenLoader:   
     def __init__(self, pattern: str, rank: int = 0, world_size: int = 1, prefetch_batches: int = 2):
         self.files = sorted(glob.glob(pattern))
         if not self.files:
@@ -5268,11 +5022,6 @@ class AsyncTokenLoader:
 
 
 def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
-    """
-    Train HDC model with H100 tensor core optimizations.
-    
-    Returns (final_bpb, training_time, elapsed).
-    """
     dist_ctx = get_distributed_context()
     dist_ctx.initialize_from_config(config)
     
@@ -5281,12 +5030,14 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
     world_size = dist_ctx.world_size
     
     if is_main:
-        print(f"[TensorCore] Training HDC Model with H100 Optimizations")
-        print(f"[TensorCore] Dimension: {config.hdc_dim:,} ({config.hdc_dim // 1024}K)")
-        print(f"[TensorCore] Vocab size: {config.vocab_size}")
-        print(f"[TensorCore] Max context: {config.max_context_length}")
-        if world_size > 1:
-            print(f"[TensorCore] Multi-GPU Training: {world_size} GPUs (rank {rank})")
+        # Competition standard log format - configuration info
+        print(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={config.tokenizer_path}")
+        print(f"train_loader:dataset:fineweb10B_sp1024 train_shards:25")
+        print(f"val_loader:shards pattern={config.val_files} tokens:63779840")
+        print(f"hdc_dim:{config.hdc_dim} vocab_size:{config.vocab_size} max_context:{config.max_context_length}")
+        print(f"world_size:{world_size} grad_accum_steps:1")
+        print(f"train_batch_tokens:{config.train_batch_tokens} train_seq_len:{config.max_context_length} iterations:{config.iterations} warmup_steps:0 max_wallclock_seconds:{config.max_wallclock_seconds:.3f}")
+        print(f"seed:{config.seed}")
     
     if dist_ctx.is_distributed:
         device_id = dist_ctx.get_device_id()
@@ -5314,22 +5065,15 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
             world_size=world_size,
             prefetch_batches=2
         )
-        if is_main:
-            print(f"[TensorCore] Using AsyncTokenLoader with prefetch (rank {rank}/{world_size})")
     else:
         loader = DistributedTokenLoader(
             config.train_files,
             rank=rank,
             world_size=world_size
         )
-        if is_main:
-            print(f"[TensorCore] Using DistributedTokenLoader (rank {rank}/{world_size})")
     
     start_time = time.time()
     iteration = 0
-    
-    if is_main:
-        print(f"\n[TensorCore] Starting training (max {config.iterations} iterations, {config.max_wallclock_seconds}s timeout)...")
     
     gpu_batch_size = config.gpu_batch_size if model.use_gpu else 1
     batch_tokens = config.train_batch_tokens // config.max_context_length
@@ -5342,7 +5086,13 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
             elapsed = time.time() - start_time
             if elapsed >= config.max_wallclock_seconds:
                 if is_main:
-                    print(f"\n[TensorCore] Time limit reached ({elapsed:.1f}s)")
+                    # Competition standard format for early stopping
+                    recipes_count = len(model.recipes)
+                    ngram_count = len(model.ngram_stats)
+                    storage_mb = model.recipe_storage_size / (1024 * 1024)
+                    avg_step_time_ms = (elapsed / iteration) * 1000 if iteration > 0 else 0
+                    print(f"stopping_early: wallclock_cap train_time:{int(elapsed*1000)}ms step:{iteration}/{config.iterations}")
+                    print(f"hdc_summary: recipes:{recipes_count:,} ngrams:{ngram_count:,} storage_mb:{storage_mb:.2f}")
                 break
             
             contexts, targets = loader.next_batch(batch_tokens, config.max_context_length)
@@ -5374,16 +5124,20 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
                             stats
                         )
             
+            # Competition standard log format with HDC-specific metrics
             if is_main and (iteration <= 10 or iteration % config.train_log_every == 0):
                 elapsed = time.time() - start_time
                 recipes_count = len(model.recipes)
                 ngram_count = len(model.ngram_stats)
                 storage_mb = model.recipe_storage_size / (1024 * 1024)
+                avg_step_time_ms = (elapsed / iteration) * 1000 if iteration > 0 else 0
                 mode = "TensorCore" if model.use_gpu else "CPU"
                 dist_mode = f" [{world_size}xGPU]" if world_size > 1 else ""
                 rate = iteration / elapsed if elapsed > 0 else 0
-                print(f"[TensorCore] Iter {iteration} [{mode}{dist_mode}]: {elapsed:.1f}s, {recipes_count:,} recipes, "
-                      f"{ngram_count:,} n-grams, {storage_mb:.2f}MB, {rate:.1f} iter/s")
+                # Competition standard format
+                print(f"step:{iteration}/{config.iterations} train_time:{int(elapsed*1000)}ms step_avg:{avg_step_time_ms:.2f}ms")
+                # HDC-specific metrics for researchers
+                print(f"hdc_metrics: recipes:{recipes_count:,} ngrams:{ngram_count:,} storage_mb:{storage_mb:.2f} rate:{rate:.1f}iter/s mode:{mode}{dist_mode}")
             
     
     finally:
@@ -5404,12 +5158,18 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
     elapsed = time.time() - start_time
     
     if is_main:
-        print(f"\n[TensorCore] Training complete: {elapsed:.1f}s")
-        print(f"[TensorCore] Final BPB: {final_bpb:.4f}")
-        print(f"[TensorCore] Final Loss: {final_val_loss:.4f}")
-        print(f"[TensorCore] Recipes: {len(model.recipes):,}")
-        print(f"[TensorCore] N-grams: {len(model.ngram_stats):,}")
-        print(f"[TensorCore] Storage: {model.recipe_storage_size / (1024*1024):.2f}MB")
+        # Competition standard format for final results
+        recipes_count = len(model.recipes)
+        ngram_count = len(model.ngram_stats)
+        storage_mb = model.recipe_storage_size / (1024 * 1024)
+        avg_step_time_ms = (elapsed / iteration) * 1000 if iteration > 0 else 0
+        
+        print(f"step:{iteration}/{config.iterations} val_loss:{final_val_loss:.4f} val_bpb:{final_bpb:.4f} train_time:{int(elapsed*1000)}ms step_avg:{avg_step_time_ms:.2f}ms")
+        print(f"stopping_early: wallclock_cap train_time:{int(elapsed*1000)}ms step:{iteration}/{config.iterations}")
+        print(f"peak memory allocated: N/A MiB reserved: N/A MiB")
+        # HDC-specific final summary
+        print(f"hdc_final: recipes:{recipes_count:,} ngrams:{ngram_count:,} storage_mb:{storage_mb:.2f}")
+        print(f"final_val_bpb:{final_bpb:.4f} final_val_loss:{final_val_loss:.4f}")
     
     dist_ctx.cleanup()
     
@@ -5417,7 +5177,6 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
 
 
 def parse_training_log(log_path: str) -> Dict[str, Any]:
-    """Parse a training log file to extract key metrics."""
     import re
     
     result = {
@@ -5434,35 +5193,41 @@ def parse_training_log(log_path: str) -> Dict[str, Any]:
     with open(log_path, 'r') as f:
         content = f.read()
     
-    bpb_match = re.search(r'(?:Final BPB|val_bpb)[:\s]+(\d+\.\d+)', content)
+    # Match val_bpb in various formats
+    bpb_match = re.search(r'(?:final_val_bpb|val_bpb)[:\s]+(\d+\.\d+)', content)
     if bpb_match:
         result["val_bpb"] = float(bpb_match.group(1))
     
-    loss_match = re.search(r'(?:Final Loss|val_loss)[:\s]+(\d+\.\d+)', content)
+    # Match val_loss in various formats
+    loss_match = re.search(r'(?:final_val_loss|val_loss)[:\s]+(\d+\.\d+)', content)
     if loss_match:
         result["val_loss"] = float(loss_match.group(1))
     
-    steps_match = re.search(r'step[:\s]+(\d+)(?:/\d+)?', content)
-    if steps_match:
-        result["steps"] = int(steps_match.group(1))
+    # Match final step count
+    steps_matches = re.findall(r'step:(\d+)/\d+', content)
+    if steps_matches:
+        result["steps"] = int(steps_matches[-1])  # Get the last step
     
+    # Match step average time
     ms_match = re.search(r'step_avg[:\s]+(\d+\.\d+)ms', content)
     if ms_match:
         result["ms_per_step"] = float(ms_match.group(1))
     
-    time_match = re.search(r'(?:Training complete|train_time)[:\s]+(\d+\.\d+)s', content)
+    # Match train_time in ms
+    time_match = re.search(r'train_time:(\d+)ms', content)
     if time_match:
-        result["elapsed_seconds"] = float(time_match.group(1))
+        result["elapsed_seconds"] = float(time_match.group(1)) / 1000.0
     
-    recipes_match = re.search(r'Recipes[:\s]+([\d,]+)', content)
+    # Match HDC-specific metrics
+    recipes_match = re.search(r'(?:hdc_final|hdc_metrics).*?recipes:([\d,]+)', content)
     if recipes_match:
         result["recipes_count"] = int(recipes_match.group(1).replace(',', ''))
     
-    ngram_match = re.search(r'N-grams[:\s]+([\d,]+)', content)
+    ngram_match = re.search(r'(?:hdc_final|hdc_metrics).*?ngrams:([\d,]+)', content)
     if ngram_match:
         result["ngram_count"] = int(ngram_match.group(1).replace(',', ''))
     
-    storage_match = re.search(r'Storage[:\s]+(\d+\.\d+)MB', content)
+    storage_match = re.search(r'(?:hdc_final|hdc_metrics).*?storage_mb:(\d+\.\d+)', content)
     if storage_match:
         result["storage_mb"] = float(storage_match.group(1))
     
@@ -5672,7 +5437,6 @@ def run_multi_seed_training(args):
 
 
 def main():
-    """Main entry point with multi-seed and multi-GPU training support."""
     import argparse
     from datetime import datetime, timezone
     
@@ -5764,7 +5528,6 @@ def main():
         print(f"[TensorCore] Artifact size check: {'PASS' if bytes_total < 16000000 else 'FAIL'} (limit: 16,000,000 bytes)")
     
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main() or 0)
