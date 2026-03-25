@@ -87,11 +87,6 @@ class Hyperparameters:
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
     leaky_relu = bool(int(os.environ.get("LEAKY_RELU", "0")))
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
-    ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 32768))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -354,73 +349,86 @@ def eval_val_sliding(
     return float(val_loss), float(bpb)
 
 
-def eval_val_ttt(
+_NGRAM_ORDERS = list(range(7, 1, -1))
+_NGRAM_HASH_MULT = 265443576
+_NGRAM_MOD = (1 << 22)
+
+def _ngram_hash(tokens: Tensor, end: int, order: int) -> int:
+    h = 0
+    for i in range(end - order + 1, end):
+        h = (h * _NGRAM_HASH_MULT + tokens[i].item()) % _NGRAM_MOD
+    return h
+
+def eval_val_ngram(
     args: Hyperparameters, base_model: nn.Module, rank: int, world_size: int,
     device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
+    stride: int = 64, batch_size: int = 16,
 ) -> tuple[float, float]:
-    seq_len, chunk_size, stride, bsz = args.train_seq_len, args.ttt_chunk_size, 64, 128
-    num_chunks = (val_tokens.numel() - 1) // chunk_size
-    original_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
-    frozen_names = set()
-    for i in range(args.ttt_freeze_blocks):
-        for name, _ in base_model.blocks[i].named_parameters():
-            frozen_names.add(f"blocks.{i}.{name}")
-    for name, param in base_model.named_parameters():
-        param.requires_grad_(name not in frozen_names)
-    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
-    ttt_opt = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=0.9)
-    total_loss = torch.zeros((), device=device, dtype=torch.float64)
-    total_tokens_counted = torch.zeros((), device=device, dtype=torch.float64)
-    total_bytes = torch.zeros((), device=device, dtype=torch.float64)
-    distributed = dist.is_available() and dist.is_initialized()
-    for ci in range(num_chunks):
-        start = ci * chunk_size
-        chunk = val_tokens[start:min(start + chunk_size + 1, val_tokens.numel())].to(device=device, dtype=torch.int64)
-        if chunk.numel() < 2: continue
-        x_chunk, y_chunk = chunk[:-1].unsqueeze(0), chunk[1:].unsqueeze(0)
-        actual_len = x_chunk.shape[1]
-        base_model.eval()
-        chunk_loss = torch.zeros((), device=device, dtype=torch.float64)
-        chunk_tokens = torch.zeros((), device=device, dtype=torch.float64)
-        chunk_bytes = torch.zeros((), device=device, dtype=torch.float64)
-        with torch.inference_mode():
-            wins, p = [], 0
-            while p + seq_len <= actual_len:
-                wins.append((p, 0 if p == 0 else seq_len - stride))
-                p += stride
-            my_wins = wins[rank::world_size]
-            for bi in range(0, len(my_wins), bsz):
-                bw = my_wins[bi:bi + bsz]
-                x_b = torch.stack([x_chunk[0, w:w+seq_len] for w, _ in bw])
-                y_b = torch.stack([y_chunk[0, w:w+seq_len] for w, _ in bw])
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    logits = base_model.forward_logits(x_b)
-                ptl = F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), y_b.reshape(-1), reduction="none").reshape(len(bw), seq_len)
-                for j, (_, ss) in enumerate(bw):
-                    sl = ptl[j, ss:]; chunk_loss += sl.to(torch.float64).sum(); chunk_tokens += float(sl.numel())
-                    sx, sy = x_b[j, ss:], y_b[j, ss:]
-                    tb = base_bytes_lut[sy].to(dtype=torch.int16) + (has_leading_space_lut[sy] & ~is_boundary_token_lut[sx]).to(dtype=torch.int16)
-                    chunk_bytes += tb.to(torch.float64).sum()
-        if distributed:
-            for t in (chunk_loss, chunk_tokens, chunk_bytes): dist.all_reduce(t, op=dist.ReduceOp.SUM)
-        total_loss += chunk_loss; total_tokens_counted += chunk_tokens; total_bytes += chunk_bytes
-        lr_t = args.ttt_lr * 0.5 * (1 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
-        for pg in ttt_opt.param_groups: pg['lr'] = lr_t
-        base_model.train()
-        for _ in range(args.ttt_epochs):
-            for s in range(0, actual_len - seq_len + 1, seq_len):
-                ttt_opt.zero_grad()
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    loss = base_model(x_chunk[:, s:s + seq_len], y_chunk[:, s:s + seq_len])
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
-                ttt_opt.step()
-    for param in base_model.parameters():
-        param.requires_grad_(True)
-    val_loss = (total_loss / total_tokens_counted).item()
-    bpb = (total_loss / (total_bytes * math.log(2.0))).item()
-    base_model.load_state_dict(original_state, strict=True)
+    seq_len, vocab = args.train_seq_len, args.vocab_size
+    total_tokens = val_tokens.numel()
+    windows: list[tuple[int, int]] = []
+    pos = 0
+    while pos + seq_len < total_tokens:
+        windows.append((pos, 0 if pos == 0 else seq_len - stride))
+        pos += stride
+    ngram_table: dict[int, dict[int, int]] = {}
+    total_loss = 0.0
+    total_scored = 0.0
+    total_bytes = 0.0
+    base_model.eval()
+    with torch.inference_mode():
+        for bi in range(0, len(windows), batch_size):
+            bw = windows[bi:bi + batch_size]
+            x = torch.stack([val_tokens[w:w+seq_len] for w, _ in bw]).to(device=device, dtype=torch.int64)
+            y = torch.stack([val_tokens[w+1:w+seq_len+1] for w, _ in bw]).to(device=device, dtype=torch.int64)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = base_model.forward_logits(x)
+            log_probs = F.log_softmax(logits.float(), dim=-1).cpu()
+            for j, (wpos, ss) in enumerate(bw):
+                for t in range(ss, seq_len):
+                    abs_pos = wpos + t + 1
+                    tgt = val_tokens[abs_pos].item()
+                    model_lp = log_probs[j, t]
+                    ngram_dist = None
+                    for order in _NGRAM_ORDERS:
+                        if abs_pos >= order - 1:
+                            h = _ngram_hash(val_tokens, abs_pos, order)
+                            bucket = ngram_table.get(h)
+                            if bucket is not None:
+                                total_ct = sum(bucket.values())
+                                if total_ct >= 2:
+                                    ngram_dist = bucket
+                                    ngram_total = total_ct
+                                    break
+                    if ngram_dist is not None:
+                        entropy = -(model_lp.exp() * model_lp).sum().item()
+                        alpha = 0.05 + 0.55 / (1.0 + math.exp(-2.0 * (entropy - 4.0)))
+                        ng_prob = ngram_dist.get(tgt, 0) / ngram_total
+                        model_prob = model_lp[tgt].exp().item()
+                        mixed_prob = (1.0 - alpha) * model_prob + alpha * ng_prob
+                        total_loss -= math.log(max(mixed_prob, 1e-20))
+                    else:
+                        total_loss -= model_lp[tgt].item()
+                    total_scored += 1.0
+                    prev_tok = val_tokens[abs_pos - 1].item() if abs_pos > 0 else 0
+                    tb = base_bytes_lut[tgt].item()
+                    tb += (has_leading_space_lut[tgt].item() & (1 - is_boundary_token_lut[prev_tok].item()))
+                    total_bytes += tb
+                    for order in _NGRAM_ORDERS:
+                        if abs_pos >= order - 1:
+                            h = _ngram_hash(val_tokens, abs_pos, order)
+                            if h not in ngram_table: ngram_table[h] = {}
+                            ngram_table[h][tgt] = ngram_table[h].get(tgt, 0) + 1
+    total_loss_t = torch.tensor(total_loss, device=device, dtype=torch.float64)
+    total_scored_t = torch.tensor(total_scored, device=device, dtype=torch.float64)
+    total_bytes_t = torch.tensor(total_bytes, device=device, dtype=torch.float64)
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(total_loss_t, op=dist.ReduceOp.SUM)
+        dist.all_reduce(total_scored_t, op=dist.ReduceOp.SUM)
+        dist.all_reduce(total_bytes_t, op=dist.ReduceOp.SUM)
+    val_loss = (total_loss_t / total_scored_t).item()
+    bpb = (total_loss_t / (total_bytes_t * math.log(2.0))).item()
     base_model.train()
     return float(val_loss), float(bpb)
 
@@ -728,12 +736,11 @@ class CastedLinear(nn.Linear):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.use_qat = False
-        self._qat_scale = torch.tensor(0.0)
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight
         if self.use_qat and self.training:
-            w = w + self._qat_scale * (fake_quant_int6(w) - w)
+            w = fake_quant_int6(w)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w.to(x.dtype), bias)
 
@@ -813,14 +820,19 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
+        self.attn_gate = nn.Parameter(torch.ones(num_heads, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
         self.use_xsa = use_xsa
+        self.vr_lambda = nn.Parameter(torch.tensor([0.5, 0.5], dtype=torch.float32))
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, v0: Tensor | None = None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        if v0 is not None:
+            lam = torch.sigmoid(self.vr_lambda).to(dtype=v.dtype)
+            v = lam[0] * v0 + lam[1] * v
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -831,8 +843,9 @@ class CausalSelfAttention(nn.Module):
         if self.use_xsa:
             vn = F.normalize(v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1), dim=-1)
             y = y - (y * vn).sum(dim=-1, keepdim=True) * vn
+        y = y * torch.sigmoid(self.attn_gate).to(dtype=y.dtype)[None, :, None, None]
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        return self.proj(y), v
 
 
 class MLP(nn.Module):
@@ -864,13 +877,14 @@ class Block(nn.Module):
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self._ln_scale = 1.0 / math.sqrt(layer_idx + 1) if _LN_SCALE else 1.0
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None) -> tuple[Tensor, Tensor]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         s = self._ln_scale
-        x = x + s * self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
+        attn_out, v = self.attn(self.attn_norm(x), v0)
+        x = x + s * self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + s * self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
-        return x
+        return x, v
 
 
 
@@ -881,7 +895,7 @@ class SmearGate(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         g = torch.sigmoid(self.gate).to(dtype=x.dtype)
-        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
+        x_prev = F.pad(x[:, :-1], (0, 0, 1, 0))
         return g * x + (1.0 - g) * x_prev
 
 
@@ -920,7 +934,6 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
-        self.encoder_recurrence = bool(int(os.environ.get("ENCODER_RECURRENCE", "1")))
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram_hash = BigramHash(2048, 128, model_dim)
         self.smear_gate = SmearGate(model_dim)
@@ -934,7 +947,7 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
+        xsa_last_n = int(os.environ.get("XSA_LAST_N", num_layers))
         mlp_mult_enc = int(os.environ.get("MLP_MULT_ENCODER", mlp_mult))
         mlp_mult_dec = int(os.environ.get("MLP_MULT_DECODER", mlp_mult))
         leaky = bool(int(os.environ.get("LEAKY_RELU", "0")))
@@ -964,26 +977,16 @@ class GPT(nn.Module):
                 nn.init.zeros_(module.weight)
 
     def _run_blocks(self, x: Tensor, x0: Tensor) -> Tensor:
-        if self.encoder_recurrence:
-            skips: list[Tensor] = []
-            for i in range(self.num_encoder_layers):
-                x = self.blocks[i](x, x0)
-                skips.append(x)
-            x = F.rms_norm(x, (x.size(-1),))
-            skips2: list[Tensor] = []
-            for i in range(self.num_encoder_layers):
-                x = self.blocks[i](x, x0)
-                skips2.append(x)
-            skips = skips2
-        else:
-            skips: list[Tensor] = []
-            for i in range(self.num_encoder_layers):
-                x = self.blocks[i](x, x0)
-                skips.append(x)
+        v0 = None
+        skips: list[Tensor] = []
+        for i in range(self.num_encoder_layers):
+            x, v = self.blocks[i](x, x0, v0)
+            if v0 is None: v0 = v
+            skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x, v = self.blocks[self.num_encoder_layers + i](x, x0, v0)
         return x
 
     def _compute_logits(self, x: Tensor) -> Tensor:
@@ -1196,9 +1199,8 @@ def main() -> None:
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
-    log0(f"encoder_recurrence:{'ON' if base_model.encoder_recurrence else 'OFF'}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0("sdp_backends:cudnn=True flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -1269,7 +1271,7 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
-    ema_state = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
+    ema_state = {k: v.detach().clone().float() for k, v in base_model.state_dict().items()}
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
     torch.cuda.synchronize()
@@ -1312,9 +1314,6 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        if max_wallclock_ms and elapsed_ms / max_wallclock_ms > 0.85:
-            for m in base_model.modules():
-                if isinstance(m, CastedLinear): m._qat_scale.fill_(1.0)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1349,7 +1348,7 @@ def main() -> None:
         step += 1
         with torch.no_grad():
             for k, v in base_model.state_dict().items():
-                ema_state[k].mul_(args.ema_decay).add_(v.detach().cpu().float(), alpha=1.0 - args.ema_decay)
+                ema_state[k].mul_(args.ema_decay).add_(v.detach().float(), alpha=1.0 - args.ema_decay)
             if scale < 0.2 and step % 50 == 0:
                 sd = {k: v.detach().cpu().float() for k, v in base_model.state_dict().items()}
                 if swa_state is None: swa_state, swa_count = sd, 1
@@ -1387,6 +1386,7 @@ def main() -> None:
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
+    ema_state = {k: v.cpu() for k, v in ema_state.items()}
     if swa_state is not None and swa_count > 0:
         log0(f"swa: averaging {swa_count} checkpoints on top of EMA")
         for k in swa_state:
@@ -1458,19 +1458,18 @@ def main() -> None:
     )
     log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
 
-    if args.ttt_enabled:
-        torch.cuda.synchronize()
-        t_ttt = time.perf_counter()
-        ttt_val_loss, ttt_val_bpb = eval_val_ttt(
-            args, base_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"final_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
-            f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
-        )
-        log0(f"final_ttt_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
+    torch.cuda.synchronize()
+    t_ngram = time.perf_counter()
+    ng_val_loss, ng_val_bpb = eval_val_ngram(
+        args, base_model, rank, world_size, device,
+        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+    )
+    torch.cuda.synchronize()
+    log0(
+        f"final_ngram val_loss:{ng_val_loss:.4f} val_bpb:{ng_val_bpb:.4f} "
+        f"eval_time:{1000.0 * (time.perf_counter() - t_ngram):.0f}ms"
+    )
+    log0(f"final_ngram_exact val_loss:{ng_val_loss:.8f} val_bpb:{ng_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
