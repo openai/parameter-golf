@@ -1,4 +1,4 @@
-# GolfStudent — 16MB Hybrid LM for OpenAI Parameter Golf
+# GolfStudent -- 16MB Hybrid LM for OpenAI Parameter Golf
 
 **Score:** TBD | **Author:** Alan Samaha | **Params:** ~16.4M
 
@@ -11,7 +11,7 @@
 | Vocab | 1024 (sp1024, weight-tied) |
 | Attention | Flash via SDPA + RoPE, every 3rd layer |
 | Recurrence | Gated linear recurrence, O(L) time |
-| FFN | SwiGLU (3× expansion) |
+| FFN | SwiGLU (3x expansion) |
 | Quantization | Per-row INT8 + zlib (contest format) |
 
 ## Key Techniques
@@ -19,7 +19,7 @@
 - **Hybrid architecture**: Linear recurrence handles long-range state at O(L); attention provides global context at attention layers. Weight tying of embedding/output-projection recovers ~885KB vs 4096 vocab.
 - **Muon optimizer**: Newton-Schulz orthogonalization for matrix gradients (same technique as leaderboard #1-3).
 - **EMA checkpoint**: decay=0.999, updated every step. Export uses EMA weights (consistently better BPB than raw checkpoint).
-- **Warmdown LR**: last 15% of wallclock budget, LR decays linearly to 0. Matches `warmdown_iters=1200` in baseline.
+- **Warmdown LR**: last 15% of wallclock budget, LR decays linearly to 0. Matches warmdown_iters=1200 in baseline.
 
 ## Running
 
@@ -49,5 +49,3 @@ sentencepiece>=0.1.99
 torch>=2.2.0
 numpy>=1.24.0
 ```
-
-*Architecture and training methods subject to pending patent applications. All rights reserved.*
