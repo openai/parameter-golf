@@ -790,19 +790,10 @@ class CausalSelfAttention(nn.Module):
         lam = (torch.exp(torch.dot(self.lambda_q1.float(), self.lambda_k1.float()))
                - torch.exp(torch.dot(self.lambda_q2.float(), self.lambda_k2.float()))
                + self.lambda_init)
-        # Attention scores
-        scale = 1.0 / math.sqrt(self.half_head)
-        attn1 = (q1 @ k1.transpose(-2, -1)) * scale
-        attn2 = (q2 @ k2.transpose(-2, -1)) * scale
-        # Causal mask
-        causal_mask = torch.triu(torch.full((seqlen, seqlen), float('-inf'), device=x.device), diagonal=1)
-        attn1 = attn1 + causal_mask[None, None, :, :]
-        attn2 = attn2 + causal_mask[None, None, :, :]
-        attn1 = F.softmax(attn1, dim=-1)
-        attn2 = F.softmax(attn2, dim=-1)
-        # Differential: subtract and apply to values
-        diff_attn = attn1 - lam.to(dtype=attn1.dtype) * attn2
-        y = diff_attn @ v
+        # Use Flash Attention for both halves (fast!), then subtract outputs
+        y1 = F.scaled_dot_product_attention(q1, k1, v, attn_mask=None, is_causal=True)
+        y2 = F.scaled_dot_product_attention(q2, k2, v, attn_mask=None, is_causal=True)
+        y = y1 - lam.to(dtype=y1.dtype) * y2
         # Normalize and scale per paper
         y = self.diff_norm(y) * (1.0 - self.lambda_init)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
