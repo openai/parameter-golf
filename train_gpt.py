@@ -336,6 +336,7 @@ def eval_val_sliding(
             lp = F.log_softmax(logits.float(), dim=-1)
             entropy = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
             tgt_lp = lp.cpu().numpy()
+            all_pos, all_tgt, all_mp, all_H = [], [], [], []
             for idx, (win_start, score_start) in enumerate(batch_windows):
                 scored_loss = per_token_loss[idx, score_start:]
                 total_loss_sum += scored_loss.to(torch.float64).sum()
@@ -345,42 +346,38 @@ def eval_val_sliding(
                 token_bytes = base_bytes_lut[scored_tgt].to(dtype=torch.int16)
                 token_bytes += (has_leading_space_lut[scored_tgt] & ~is_boundary_token_lut[scored_prev]).to(dtype=torch.int16)
                 total_byte_count += token_bytes.to(torch.float64).sum()
-                n_scored = seq_len - score_start
-                abs_positions = np.arange(score_start, seq_len) + win_start + 1
-                targets = vt[abs_positions].astype(np.int64)
-                model_lp_scored = tgt_lp[idx, score_start:seq_len]
-                model_p_tgt = np.exp(model_lp_scored[np.arange(n_scored), targets])
-                H = entropy[idx, score_start:seq_len]
-                alpha = 0.05 + 0.55 / (1.0 + np.exp(-2.0 * (H - 4.0)))
-                best_ng_p = np.zeros(n_scored)
-                best_found = np.zeros(n_scored, dtype=bool)
-                for order in _NG_ORDERS:
-                    mask = (abs_positions >= order) & (~best_found)
-                    if not mask.any(): continue
-                    pos_m = abs_positions[mask]
-                    ch = np.zeros(mask.sum(), dtype=np.int64)
-                    for ki in range(order - 1):
-                        ch = (ch * _NG_MULT + vt[pos_m - order + 1 + ki].astype(np.int64)) % _NG_B
-                    cc = ng_ctx[ch]
-                    has_counts = cc >= _NG_MIN
-                    if not has_counts.any(): continue
-                    ph = (ch * _NG_PAIR_MULT + targets[mask]) % _NG_B
-                    ng_p = np.where(has_counts, ng_pair[ph] / np.maximum(cc, 1), 0.0)
-                    idx_m = np.where(mask)[0]
-                    best_ng_p[idx_m[has_counts]] = ng_p[has_counts]
-                    best_found[idx_m[has_counts]] = True
-                mixed_p = np.where(best_found, (1.0 - alpha) * model_p_tgt + alpha * best_ng_p, model_p_tgt)
-                ng_loss_sum -= np.log(np.maximum(mixed_p, 1e-20)).sum()
-                for order in _NG_ORDERS:
-                    valid = abs_positions >= order
-                    if not valid.any(): continue
-                    pos_v = abs_positions[valid]
-                    ch = np.zeros(valid.sum(), dtype=np.int64)
-                    for ki in range(order - 1):
-                        ch = (ch * _NG_MULT + vt[pos_v - order + 1 + ki].astype(np.int64)) % _NG_B
-                    np.add.at(ng_ctx, ch, 1)
-                    ph = (ch * _NG_PAIR_MULT + targets[valid]) % _NG_B
-                    np.add.at(ng_pair, ph, 1)
+                positions = np.arange(score_start, seq_len, dtype=np.int64) + win_start + 1
+                tgts = vt[positions].astype(np.int64)
+                mp = np.exp(tgt_lp[idx, score_start:seq_len][np.arange(len(positions)), tgts])
+                all_pos.append(positions); all_tgt.append(tgts); all_mp.append(mp)
+                all_H.append(entropy[idx, score_start:seq_len])
+            ap = np.concatenate(all_pos); at = np.concatenate(all_tgt)
+            amp = np.concatenate(all_mp); aH = np.concatenate(all_H)
+            n = len(ap)
+            alpha = 0.05 + 0.55 / (1.0 + np.exp(-2.0 * (aH - 4.0)))
+            best_ng = np.zeros(n); found = np.zeros(n, dtype=bool)
+            for order in _NG_ORDERS:
+                m = (ap >= order) & (~found)
+                if not m.any(): continue
+                ch = np.zeros(m.sum(), dtype=np.int64)
+                for ki in range(order - 1):
+                    ch = (ch * _NG_MULT + vt[ap[m] - order + 1 + ki].astype(np.int64)) % _NG_B
+                cc = ng_ctx[ch]; has = cc >= _NG_MIN
+                if not has.any(): continue
+                ph = (ch * _NG_PAIR_MULT + at[m]) % _NG_B
+                ng_p = np.where(has, ng_pair[ph] / np.maximum(cc, 1), 0.0)
+                ix = np.where(m)[0]; best_ng[ix[has]] = ng_p[has]; found[ix[has]] = True
+            mixed = np.where(found, (1.0 - alpha) * amp + alpha * best_ng, amp)
+            ng_loss_sum -= np.log(np.maximum(mixed, 1e-20)).sum()
+            for order in _NG_ORDERS:
+                v = ap >= order
+                if not v.any(): continue
+                ch = np.zeros(v.sum(), dtype=np.int64)
+                for ki in range(order - 1):
+                    ch = (ch * _NG_MULT + vt[ap[v] - order + 1 + ki].astype(np.int64)) % _NG_B
+                np.add.at(ng_ctx, ch, 1)
+                ph = (ch * _NG_PAIR_MULT + at[v]) % _NG_B
+                np.add.at(ng_pair, ph, 1)
     ng_loss_t = torch.tensor(ng_loss_sum, device=device, dtype=torch.float64)
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(total_loss_sum, op=dist.ReduceOp.SUM)
