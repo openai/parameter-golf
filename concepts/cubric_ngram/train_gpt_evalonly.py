@@ -138,12 +138,16 @@ class Hyperparameters:
     ngram_eval_max_seconds = float(os.environ.get("NGRAM_EVAL_MAX_SECONDS", 0.0))
     # Cubric accumulator: online adaptation of n-gram alpha based on accumulated performance
     cubric_enabled = bool(int(os.environ.get("CUBRIC_ENABLED", "0")))
-    cubric_decay = float(os.environ.get("CUBRIC_DECAY", 0.95))  # EMA decay for reliability tracking
-    cubric_boost_scale = float(os.environ.get("CUBRIC_BOOST_SCALE", 0.15))  # max alpha shift from accumulator
-    # Neural alpha head: learned per-token n-gram interpolation weight from hidden state
-    alpha_head_enabled = bool(int(os.environ.get("ALPHA_HEAD_ENABLED", "0")))
-    alpha_head_lr_factor = float(os.environ.get("ALPHA_HEAD_LR_FACTOR", 0.1))  # aux loss weight
-    alpha_head_eval = bool(int(os.environ.get("ALPHA_HEAD_EVAL", "0")))  # use alpha head at eval time
+    cubric_decay = float(os.environ.get("CUBRIC_DECAY", 0.95))
+    cubric_boost_scale = float(os.environ.get("CUBRIC_BOOST_SCALE", 0.15))
+    # Cubric per-order: separate reliability tracking per n-gram order
+    cubric_per_order = bool(int(os.environ.get("CUBRIC_PER_ORDER", "0")))
+    # Cubric agreement weighting: boost alpha when model and n-gram agree on target
+    cubric_agreement = bool(int(os.environ.get("CUBRIC_AGREEMENT", "0")))
+    cubric_agreement_scale = float(os.environ.get("CUBRIC_AGREEMENT_SCALE", 2.0))
+    # Cubric entropy adaptation: shift sigmoid center/scale based on document entropy profile
+    cubric_entropy_adapt = bool(int(os.environ.get("CUBRIC_ENTROPY_ADAPT", "0")))
+    cubric_entropy_decay = float(os.environ.get("CUBRIC_ENTROPY_DECAY", 0.98))
     compile_enabled = bool(int(os.environ.get("COMPILE_ENABLED", "1")))
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
 def maybe_torch_compile(obj, args: Hyperparameters):
@@ -729,7 +733,6 @@ class GPT(nn.Module):
         mlp_leaky_slope: float = 0.5,
         f1_corr_rank: int = 0,
         f1_corr_scale_init: float = 0.10,
-        alpha_head_enabled: bool = False,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -801,19 +804,6 @@ class GPT(nn.Module):
             self.f1_corr_in = None
             self.f1_corr_out = None
             self.f1_corr_scale = None
-        # Neural alpha head: predicts optimal n-gram interpolation weight from hidden state
-        if alpha_head_enabled:
-            self.alpha_head = nn.Sequential(
-                nn.Linear(model_dim, 64),
-                nn.ReLU(),
-                nn.Linear(64, 1),
-                nn.Sigmoid(),
-            )
-            # Init final bias to -1.0 so sigmoid(-1) ≈ 0.27, a reasonable starting alpha
-            with torch.no_grad():
-                self.alpha_head[2].bias.fill_(-1.0)
-        else:
-            self.alpha_head = None
         if xsa_last_n > 0:
             for i in range(max(0, num_layers - xsa_last_n), num_layers):
                 self.blocks[i].attn.use_xsa = True
@@ -859,8 +849,6 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
             x = self.blocks[bi](x, x0, v_embed=ve)
-        # Capture pre-norm hidden states for alpha head before final_norm
-        x_pre_norm = x if self.alpha_head is not None and self.training else None
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -876,24 +864,6 @@ class GPT(nn.Module):
             logits_proj = logits_proj + self.f1_corr_scale.to(dtype=logits_proj.dtype) * corr_proj
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
-        # Alpha head auxiliary loss: self-distillation from entropy-based formula
-        if self.alpha_head is not None and self.training and x_pre_norm is not None:
-            alpha_pred = self.alpha_head(x_pre_norm).squeeze(-1)  # (bsz, seq_len)
-            with torch.no_grad():
-                logits_3d = logits.reshape(x_pre_norm.shape[0], x_pre_norm.shape[1], -1)
-                log_probs = F.log_softmax(logits_3d.float(), dim=-1)
-                probs = log_probs.exp()
-                entropy = -(probs * log_probs).sum(dim=-1)  # (bsz, seq_len)
-                # Use ngram eval hyperparameters as target formula
-                ent_scale = float(os.environ.get("NGRAM_EVAL_ENTROPY_SCALE", "2.0"))
-                ent_center = float(os.environ.get("NGRAM_EVAL_ENTROPY_CENTER", "4.0"))
-                alpha_min_t = float(os.environ.get("NGRAM_EVAL_ALPHA_MIN", "0.05"))
-                alpha_max_t = float(os.environ.get("NGRAM_EVAL_ALPHA_MAX", "0.60"))
-                sig = torch.sigmoid(ent_scale * (entropy - ent_center))
-                target_alpha = alpha_min_t + (alpha_max_t - alpha_min_t) * sig
-            alpha_loss_weight = float(os.environ.get("ALPHA_HEAD_LR_FACTOR", "0.1"))
-            alpha_loss = F.mse_loss(alpha_pred, target_alpha)
-            main_loss = main_loss + alpha_loss_weight * alpha_loss
         if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
             _, seqlen, dim = x.shape
             mtp_loss_sum = x.new_zeros(())
@@ -941,40 +911,6 @@ class GPT(nn.Module):
             corr_proj = self.f1_corr_out(corr_hidden)
             logits_proj = logits_proj + self.f1_corr_scale.to(dtype=logits_proj.dtype) * corr_proj
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-    def forward_with_alpha(self, input_ids: Tensor) -> tuple[Tensor, Tensor]:
-        """Return (logits, alpha_pred) where alpha_pred is (bsz, seq_len) in [0,1].
-        Reuses the forward pass hidden states so the model is only run once."""
-        x = self.tok_emb(input_ids)
-        if self.bigram is not None:
-            x = x + self.bigram(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
-        x = self.smear(x)
-        x0 = x
-        skips: list[Tensor] = []
-        ve_cache: dict = {}
-        for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve)
-        # Pre-norm hidden states feed the alpha head (richer signal than post-norm)
-        alpha_pred = self.alpha_head(x).squeeze(-1)  # (bsz, seq_len)
-        x = self.final_norm(x)
-        if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
-        else:
-            logits_proj = self.lm_head(x)
-        if self.f1_corr_in is not None and self.f1_corr_out is not None and self.f1_corr_scale is not None:
-            corr_hidden = F.silu(self.f1_corr_in(x))
-            corr_proj = self.f1_corr_out(corr_hidden)
-            logits_proj = logits_proj + self.f1_corr_scale.to(dtype=logits_proj.dtype) * corr_proj
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return logits, alpha_pred
 def eval_val_sliding(
     args: Hyperparameters,
     base_model: nn.Module,
@@ -1116,6 +1052,18 @@ def eval_val_sliding_hashed_ngram(
     # Positive = n-gram is helping. Negative = n-gram is hurting. Zero = neutral.
     cubric_reliability = 0.0  # starts neutral
     cubric_segments_seen = 0
+    # Per-order reliability (for CUBRIC_PER_ORDER)
+    cubric_per_order_on = getattr(args, 'cubric_per_order', False) and cubric_on
+    cubric_order_reliability = {n: 0.0 for n in range(min_order, max_order + 1)}
+    cubric_order_counts = {n: 0 for n in range(min_order, max_order + 1)}
+    # Agreement weighting state
+    cubric_agree_on = getattr(args, 'cubric_agreement', False)
+    cubric_agree_scale = getattr(args, 'cubric_agreement_scale', 2.0)
+    # Entropy sigmoid adaptation state
+    cubric_ent_adapt_on = getattr(args, 'cubric_entropy_adapt', False)
+    cubric_ent_decay = getattr(args, 'cubric_entropy_decay', 0.98)
+    cubric_ent_running_mean = ent_center  # starts at configured center
+    cubric_ent_running_var = 1.0
 
     base_model.eval()
     compiled_logits = maybe_torch_compile(base_model.forward_logits, args)
@@ -1164,15 +1112,20 @@ def eval_val_sliding_hashed_ngram(
                 eff_alpha_min = alpha_min
                 eff_alpha_max = alpha_max
                 if cubric_on and cubric_segments_seen > 0:
-                    # cubric_reliability in [-1, 1]: positive = n-gram helping, negative = hurting
                     boost = np.clip(cubric_reliability, -1.0, 1.0) * cubric_boost_scale
                     eff_alpha_min = np.clip(alpha_min + boost, 0.0, 0.95)
                     eff_alpha_max = np.clip(alpha_max + boost, eff_alpha_min + 0.01, 0.95)
                 if adaptive:
                     log_probs = F.log_softmax(logits_f[i, s:wlen], dim=-1)
                     probs = log_probs.exp()
-                    entropy = -(probs * log_probs).sum(dim=-1).cpu().numpy()  # per-token entropy
-                    sig = 1.0 / (1.0 + np.exp(-ent_scale * (entropy - ent_center)))
+                    entropy = -(probs * log_probs).sum(dim=-1).cpu().numpy()
+                    # Cubric entropy adaptation: shift sigmoid to match document entropy profile
+                    eff_ent_center = ent_center
+                    eff_ent_scale = ent_scale
+                    if cubric_ent_adapt_on and cubric_segments_seen > 0:
+                        eff_ent_center = cubric_ent_running_mean
+                        eff_ent_scale = ent_scale / max(cubric_ent_running_var ** 0.5, 0.5)
+                    sig = 1.0 / (1.0 + np.exp(-eff_ent_scale * (entropy - eff_ent_center)))
                     per_token_alpha = eff_alpha_min + (eff_alpha_max - eff_alpha_min) * sig
                 else:
                     per_token_alpha = np.full(seg_len, alpha)
@@ -1184,7 +1137,15 @@ def eval_val_sliding_hashed_ngram(
                 ng_matched = np.zeros(seg_len, dtype=np.bool_)
                 tgt_np = val_np[global_j].astype(np.uint64)
 
-                for n in range(max_order, min_order - 1, -1):
+                ng_order = np.zeros(seg_len, dtype=np.int32)  # which order matched each token
+
+                # Per-order cubric: skip unreliable orders
+                order_range = list(range(max_order, min_order - 1, -1))
+                if cubric_per_order_on and cubric_segments_seen > 5:
+                    # Reorder: try most reliable orders first (still backoff, but reranked)
+                    order_range = sorted(order_range, key=lambda n: -cubric_order_reliability.get(n, 0.0))
+
+                for n in order_range:
                     ctx_width = n - 1
                     valid = (global_j >= ctx_width) & (~ng_matched)
                     if not valid.any():
@@ -1208,11 +1169,19 @@ def eval_val_sliding_hashed_ngram(
                         hit_idx = v_idx[has_data]
                         p_ng[hit_idx] = p[has_data]
                         ng_matched[hit_idx] = True
+                        ng_order[hit_idx] = n
 
                 # Mix where n-gram matched
                 if ng_matched.any():
                     m_idx = np.nonzero(ng_matched)[0]
                     a = per_token_alpha[m_idx]
+                    # Agreement weighting: boost alpha when model and n-gram agree
+                    if cubric_agree_on:
+                        # Higher model_p AND higher ngram_p = more agreement
+                        agreement = seg_model_p[m_idx] * p_ng[m_idx]
+                        # Scale agreement to [0.5, 1.5] range as alpha multiplier
+                        agree_mult = 0.5 + cubric_agree_scale * np.clip(agreement, 0.0, 1.0 / cubric_agree_scale)
+                        a = np.clip(a * agree_mult, 0.0, 0.95)
                     seg_model_p[m_idx] = (1.0 - a) * seg_model_p[m_idx] + a * p_ng[m_idx]
 
                 seg_nll = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
@@ -1255,6 +1224,23 @@ def eval_val_sliding_hashed_ngram(
                     signal = np.clip(-delta * 5.0, -1.0, 1.0)  # negative delta = good = positive signal
                     cubric_reliability = cubric_decay * cubric_reliability + (1.0 - cubric_decay) * signal
                     cubric_segments_seen += 1
+                    # Per-order reliability update
+                    if cubric_per_order_on:
+                        for n in range(min_order, max_order + 1):
+                            order_mask = ng_order[m_idx] == n
+                            if order_mask.any():
+                                om = m_idx[order_mask]
+                                order_delta = float(np.mean(blend_nll[om] - pure_model_nll[om]))
+                                order_signal = np.clip(-order_delta * 5.0, -1.0, 1.0)
+                                cubric_order_reliability[n] = cubric_decay * cubric_order_reliability[n] + (1.0 - cubric_decay) * order_signal
+                                cubric_order_counts[n] += len(om)
+                    # Entropy sigmoid adaptation: track running entropy stats
+                    if cubric_ent_adapt_on and adaptive:
+                        seg_entropy = entropy  # from the entropy computation above
+                        seg_mean = float(np.mean(seg_entropy))
+                        seg_var = float(np.var(seg_entropy))
+                        cubric_ent_running_mean = cubric_ent_decay * cubric_ent_running_mean + (1.0 - cubric_ent_decay) * seg_mean
+                        cubric_ent_running_var = cubric_ent_decay * cubric_ent_running_var + (1.0 - cubric_ent_decay) * seg_var
 
             if (bi // batch_seqs) % 2000 == 0 and bi > 0:
                 elapsed = time.perf_counter() - t0
@@ -1756,7 +1742,6 @@ def main() -> None:
         mlp_leaky_slope=args.mlp_leaky_slope,
         f1_corr_rank=args.f1_corr_rank,
         f1_corr_scale_init=args.f1_corr_scale_init,
-        alpha_head_enabled=args.alpha_head_enabled,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1787,9 +1772,6 @@ def main() -> None:
         scalar_params.append(base_model.bigram.scale)
     if base_model.f1_corr_scale is not None:
         scalar_params.append(base_model.f1_corr_scale)
-    if base_model.alpha_head is not None:
-        for p in base_model.alpha_head.parameters():
-            scalar_params.append(p)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     tok_params = [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}]
     if base_model.bigram is not None:
