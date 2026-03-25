@@ -1,0 +1,30 @@
+{
+    "submission_name": "HedgeMixer + VRL + AdamW TTT + Polyak EMA",
+    "description": "11L transformer with Value Residual, LeakyReLU(0.5)^2, XSA-4, legal score-first TTT with AdamW + Polyak EMA + byte-weighted loss + adaptive cosine LR, and a 5-expert Hedge Mixer (neural + unigram + bigram + trigram + entropy) with deferred weight updates.",
+    "bpb": 1.0400,
+    "val_loss": 1.7559,
+    "seeds": [42],
+    "num_params": 26993766,
+    "training_time_seconds": 600,
+    "steps": 6104,
+    "artifact_bytes": 15999919,
+    "code_bytes": 94305,
+    "model_bytes": 15905672,
+    "compression": "int6+lzma",
+    "gpu": "8xH100 SXM 80GB",
+    "pytorch_version": "2.11.0+cu128",
+    "techniques": [
+        "11 layers, 512 dim, GQA 8/4 heads",
+        "Value Residual (VRL) from layer 0 to all subsequent layers",
+        "LeakyReLU(0.5)^2 activation",
+        "XSA-4 (Cross-Token Self-Attention on last 4 layers)",
+        "Soft-Round QAT with late activation",
+        "EMA weight averaging (decay=0.997)",
+        "Muon optimizer + AdamW for embeddings",
+        "Int6 mixed quantization + lzma compression",
+        "Sliding window eval (stride=64)",
+        "Legal score-first TTT: AdamW (lr=0.0005), Polyak EMA (0.998), byte-weighted loss, adaptive cosine LR (1x->3x ramp), temperature=0.98, freeze first 9 of 11 blocks",
+        "5-expert Hedge Mixer: neural model + unigram + bigram + trigram(64K hashed) + entropy, with deferred between-chunk weight updates (eta=0.1)"
+    ],
+    "legality_notes": "All eval-time adaptations are strictly score-first: each chunk is scored before any adaptation. Hedge mixer weights update ONLY between chunks (after all windows scored). N-gram tables update ONLY after chunk scoring. Polyak EMA uses fixed decay, no selection. No validation data accessed during training."
+}
