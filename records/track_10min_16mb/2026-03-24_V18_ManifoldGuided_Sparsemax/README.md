@@ -8,7 +8,7 @@ By precomputing a physics-simulated token manifold from corpus co-occurrence sta
 
 The result is essentially a **GNN operating on a precomputed token interaction graph** — the manifold defines graph topology, sparsemax produces edge weights, and hop cells perform node updates with message passing. Every architecture decision is chosen to exploit this geometric prior: sparsemax routing along manifold geodesics, spectral-coordinate-conditioned attention, entropy-guided message passing, and parallel transport across the token manifold.
 
-With only 1024 tokens, the full pairwise statistics are trivially computable — the manifold captures essentially the complete statistical structure of the language. An 8B parameter model would need to rediscover these patterns through gradient descent. We hand them to a 20M parameter model on initialization.
+With only 1024 tokens, the full pairwise statistics are trivially computable — the manifold captures essentially the complete statistical structure of the language. Normally a model would need to rediscover these patterns through gradient descent. We hand them to a 20M parameter model on initialization.
 
 ## Results
 
