@@ -188,8 +188,8 @@ class DataLoader:
         self.seq_len = seq_len
         self.rank = rank
         self.world_size = world_size
-        self.batch_size = batch_tokens // seq_len
-        assert self.batch_size > 0
+        self.batch_size = batch_tokens // (seq_len * world_size)
+        assert self.batch_size > 0, f"batch_tokens={batch_tokens} too small for {world_size} GPUs × seq_len={seq_len}"
         self._shard_idx = 0
         self._pos = rank * self.batch_size * seq_len
         self._data = load_shard_tokens(self.files[0])
@@ -314,13 +314,16 @@ class MLAttention(nn.Module):
         v = v.transpose(1, 2)  # (B, nh, T, v_d)
 
         # Scaled dot-product attention (uses Flash Attention when available)
-        # QK-Clip: capture max attention logits before softmax for post-step rescaling
+        # QK-Clip: estimate max attention logits WITHOUT materializing B×H×T×T
+        # Sample 64 random query positions to approximate max score per head
         if self._capture_max_logits and self.training:
             with torch.no_grad():
                 scale = (self.nope_d + self.rope_d) ** -0.5
-                raw_scores = (q_full @ k_full.transpose(-2, -1)) * scale
-                self._current_max_logits = raw_scores.detach().amax(dim=(-2, -1))  # (B, nh) → (nh,) via mean over B
-                self._current_max_logits = self._current_max_logits.mean(dim=0)  # (nh,)
+                n_sample = min(64, q_full.shape[2])
+                idx = torch.randint(0, q_full.shape[2], (n_sample,), device=q_full.device)
+                q_sample = q_full[:, :, idx, :]  # (B, nh, n_sample, hd)
+                sampled_scores = (q_sample @ k_full.transpose(-2, -1)) * scale  # (B, nh, n_sample, T)
+                self._current_max_logits = sampled_scores.amax(dim=(-2, -1)).mean(dim=0)  # (nh,)
 
         out = F.scaled_dot_product_attention(q_full, k_full, v, is_causal=True)
         out = out.transpose(1, 2).contiguous().view(B, T, self.nh * self.v_d)
@@ -710,13 +713,15 @@ class QATWrapper(nn.Module):
         if self.enabled:
             return
         self.enabled = True
-        # Per-layer quantization hooks
+        # Per-layer quantization hooks (forward hook, not pre-hook)
+        # Uses a forward wrapper that applies fake_quantize to the weight
+        # WITHOUT overwriting the stored parameter (proper STE)
         for block_idx, block in enumerate(self.model.blocks):
             bits = get_layer_bits(block_idx, self.schedule)
             for m in block.modules():
                 if isinstance(m, nn.Linear):
-                    h = m.register_forward_pre_hook(
-                        self._make_hook(bits)
+                    h = m.register_forward_hook(
+                        self._make_ste_hook(bits)
                     )
                     self._handles.append(h)
 
@@ -727,9 +732,14 @@ class QATWrapper(nn.Module):
         self.enabled = False
 
     @staticmethod
-    def _make_hook(bits: int):
-        def hook(module, _input):
-            module.weight.data = fake_quantize(module.weight.data, bits)
+    def _make_ste_hook(bits: int):
+        def hook(module, _input, output):
+            # Re-compute output with fake-quantized weight (STE passthrough)
+            # The original weight.data is NEVER overwritten
+            w_q = fake_quantize(module.weight, bits)
+            # Difference between quantized and original output
+            delta = F.linear(_input[0], w_q - module.weight)
+            return output + delta
         return hook
 
     def forward(self, *args, **kwargs):
@@ -807,18 +817,25 @@ def evaluate(model: nn.Module, val_files: list[str], tokenizer_path: str,
 
     avg_loss = total_loss / total_tokens  # nats per token
 
-    # Compute bytes: decode tokens back to bytes to get exact byte count
-    # Approximation: use average bytes per token from tokenizer
-    # More precise: total_bytes = sum(len(sp.decode(tok)) for tok in all_tokens)
-    # For speed, use the ratio from a sample
-    sample_ids = list(range(min(1000, H.vocab_size)))
-    sample_text = sp.decode(sample_ids)
-    bytes_per_token = len(sample_text.encode("utf-8")) / max(len(sample_ids), 1)
-    # Fallback: if tokenizer has byte coverage info
-    if bytes_per_token < 0.5:
-        bytes_per_token = 1.0
+    # BPB denominator: count actual bytes in the evaluated validation tokens
+    # Decode the scored tokens to get true byte count (tokenizer-agnostic)
+    total_bytes = 0
+    for vf in sorted(glob.glob(val_files) if isinstance(val_files, str) else val_files):
+        data = load_shard_tokens(vf)
+        n_scored = min(total_tokens, len(data))
+        scored_ids = data[:n_scored].tolist()
+        # Decode in chunks for speed
+        chunk = 10000
+        for i in range(0, len(scored_ids), chunk):
+            text = sp.decode(scored_ids[i : i + chunk])
+            total_bytes += len(text.encode("utf-8"))
+        if total_bytes > 0:
+            break  # one shard is enough for byte ratio
 
-    bpb = avg_loss / bytes_per_token / math.log(2)
+    if total_bytes == 0:
+        total_bytes = total_tokens  # fallback: 1 byte per token
+
+    bpb = total_loss / total_bytes / math.log(2)
     model.train()
     return avg_loss, bpb
 
