@@ -610,8 +610,10 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
-    # Selective magnitude pruning (3% — PR #634 validated approach)
-    selective_magnitude_prune(quantized, scales)
+    # Magnitude pruning disabled — causes BPB degradation with our QAT-trained weights
+    # PR #634 uses this without QAT; with QAT the weights are already optimized for
+    # round-to-nearest and pruning disrupts that optimization.
+    # selective_magnitude_prune(quantized, scales)
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_clean_per_row_v1",
