@@ -26,6 +26,7 @@ import struct
 import time
 import uuid
 import zlib
+import zstandard as zstd
 from pathlib import Path
 
 import numpy as np
@@ -57,7 +58,7 @@ class Hyperparameters:
     warmdown_iters         = int(os.environ.get("WARMDOWN_ITERS",         "3500"))    # aggressive late-stage warmdown (top entries)
     warmup_steps           = int(os.environ.get("WARMUP_STEPS",           "0"))   # warmup breaks weight tying via load_state_dict; skip for correctness
     train_batch_tokens     = int(os.environ.get("TRAIN_BATCH_TOKENS",     "524288"))
-    train_seq_len          = int(os.environ.get("TRAIN_SEQ_LEN",          "1024"))
+    train_seq_len          = int(os.environ.get("TRAIN_SEQ_LEN",          "2048"))
     max_wallclock_seconds  = float(os.environ.get("MAX_WALLCLOCK_SECONDS", "600.0"))
 
     # Model shape (vocab=1024 saves ~885KB vs 4096, allowing d=288/L=14)
@@ -66,7 +67,7 @@ class Hyperparameters:
     model_dim    = int(os.environ.get("MODEL_DIM",    "288"))
     num_heads    = int(os.environ.get("NUM_HEADS",    "8"))
     ffn_mult     = int(os.environ.get("FFN_MULT",     "3"))   # SwiGLU hidden = ffn_mult * d
-    attn_every   = int(os.environ.get("ATTN_EVERY",   "3"))   # attention every N layers
+    attn_every   = int(os.environ.get("ATTN_EVERY",   "4"))   # attention every N layers
 
     # Optimizer (tuned: lower LRs reduce post-quant degradation)
     embed_lr     = float(os.environ.get("EMBED_LR",    "0.05"))
@@ -742,6 +743,15 @@ def main():
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+
+        # Late-stage QAT to reduce INT6 post-quant degradation
+        if scale < 0.25:   
+            with torch.no_grad():
+                for qname, p in base_model.named_parameters():
+                    if p.ndim == 2 and p.requires_grad and "weight" in qname:
+                        noise_scale = 0.0018 * (1.0 - scale)
+                        p.add_(torch.randn_like(p, dtype=p.dtype, device=p.device) * noise_scale)
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for ms in range(grad_accum_steps):
