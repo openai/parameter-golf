@@ -2,16 +2,15 @@
 
 ## Summary
 
-- **CROWN-Q**: Curvature-weighted quantization variance penalty applied during warmdown. Encourages weights to settle in flat minima where int6 quantization causes less damage. Penalty: `lambda * sum(h_j * delta_j^2 / 12)` where `h_j = w^2` (curvature proxy) and `delta_j = row_max / 15` (quantization step size).
-- **Full Cholesky GPTQ**: Hessian-aware quantization with act-order column permutation, block_size=128, 256-sample calibration from training data. All within 585s training budget.
+- **CROWN-Q**: Curvature-weighted quantization variance penalty applied during warmdown. Encourages weights to settle in flat minima where int6 quantization causes less damage. Penalty: `lambda * mean(h_j) * delta_j^2 / 12` per row, where `h_j = w^2` (curvature proxy) and `delta_j = row_max / 15` (CROWN-Q step size). Note: the GPTQ/QAT quantizer uses clip_range=31; CROWN-Q intentionally uses a larger step size (row_max/15) to over-penalize and push weights further into flat basins.
+- **Full Cholesky GPTQ**: Hessian-aware quantization with act-order column permutation, block_size=128, 256-sample calibration from training data. GPTQ runs after the 585s training phase as part of model export.
 - **SWA/EMA 50/50 blend**: Stochastic Weight Averaging (every 50 steps during warmdown) blended 50/50 with EMA (decay=0.997).
-- **Architecture**: 11L, 512d, GQA 8H/4KV, MLP 3x LeakyReLU(0.5)^2, XSA on all 11 layers, VRL, BigramHash 3072, partial RoPE 16/64.
+- **Architecture**: 11L, 512d, GQA 8H/4KV, MLP 3x LeakyReLU(0.5)^2, XSA on last 4 layers (7-10), VRL, BigramHash 3072, partial RoPE 16/64.
 - **Eval**: Sliding window with stride=64. No test-time training.
 
 ## Configuration
 
 ```bash
-# Training (585s wallclock, includes GPTQ calibration)
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 # Key env vars (all defaults in code):
@@ -20,6 +19,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 # LATE_QAT_THRESHOLD=0.15   — QAT activation point
 # MAX_WALLCLOCK_SECONDS=585  — training budget
 # WARMDOWN_ITERS=4000        — warmdown length
+# TTT_ENABLED=0              — TTT disabled for this submission
 ```
 
 ## Results
@@ -28,7 +28,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 |------|-------|-------------|-------------|----------|
 | 1337 | 6613  | 1.1387      | **1.1189**  | 15,945,134 |
 | 42   | 6612  | 1.1382      | **1.1189**  | 15,947,742 |
-| 7    | 6612  | 1.1378      | **1.1179**  | 15,938,790 |
+| 7    | 6613  | 1.1378      | **1.1179**  | 15,938,790 |
 | **Mean** | | 1.1382 | **1.1186** | |
 | **Std** | | | 0.0006 | |
 
@@ -41,10 +41,12 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 CROWN-Q (Curvature-Regularized Optimization for Weight Noise Quantization) adds a training-time penalty that makes weights more robust to quantization noise:
 
-1. For each weight matrix, compute the per-row quantization step size `delta = row_max / 15` (int6 range [-15, 15])
+1. For each weight matrix, compute the per-row quantization step size `delta = row_max / 15`
 2. Compute quantization variance `delta^2 / 12` (uniform rounding noise)
-3. Weight by curvature proxy `h = w^2` (large weights in high-curvature directions)
+3. Weight by curvature proxy `h = mean(w^2)` per row (mean of squared weights)
 4. Penalty: `lambda * sum(h * quant_var)` encourages the optimizer to reduce weights in directions where quantization noise is most damaging
+
+The CROWN-Q step size (row_max/15) is intentionally larger than the actual quantizer step size (row_max/31, clip_range=31). This over-penalization pushes weights further into flat basins, providing extra robustness margin against quantization damage.
 
 Applied only during warmdown when QAT is active. Zero eval-time cost.
 

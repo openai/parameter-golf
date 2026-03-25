@@ -2,19 +2,30 @@
   "author": "Ethan Yang",
   "github_id": "EthanYangTW",
   "name": "CROWN-Q + Full GPTQ + SWA/EMA Blend",
-  "blurb": "Curvature-weighted quantization variance penalty (CROWN-Q) during warmdown reduces quantization damage. Full Cholesky GPTQ with act-order, SWA/EMA 50/50 blend, VRL, XSA-all 11 layers, LeakyReLU(0.5)^2. Sliding window eval only, no TTT.",
+  "blurb": "Curvature-weighted quantization variance penalty (CROWN-Q) during warmdown reduces quantization damage. Full Cholesky GPTQ with act-order, SWA/EMA 50/50 blend, VRL, XSA last 4 layers, LeakyReLU(0.5)^2. Sliding window eval only, no TTT.",
   "date": "2026-03-25T06:30:00Z",
+  "val_loss": 1.8886,
+  "val_loss_std": 0.0009,
   "val_bpb": 1.1186,
   "val_bpb_std": 0.0006,
-  "val_bpb_seed1337": 1.1189,
-  "val_loss_seed1337": 1.8891,
-  "bytes_seed1337": 15945134,
-  "val_bpb_seed42": 1.1189,
-  "val_loss_seed42": 1.8891,
-  "bytes_seed42": 15947742,
-  "val_bpb_seed7": 1.1179,
-  "val_loss_seed7": 1.8876,
-  "bytes_seed7": 15938790,
+  "seeds": [1337, 42, 7],
+  "seed_results": {
+    "1337": {
+      "val_bpb": 1.1189,
+      "val_loss": 1.8891,
+      "bytes": 15945134
+    },
+    "42": {
+      "val_bpb": 1.1189,
+      "val_loss": 1.8891,
+      "bytes": 15947742
+    },
+    "7": {
+      "val_bpb": 1.1179,
+      "val_loss": 1.8876,
+      "bytes": 15938790
+    }
+  },
   "bytes_total": 15947742,
   "bytes_code": 95390
 }

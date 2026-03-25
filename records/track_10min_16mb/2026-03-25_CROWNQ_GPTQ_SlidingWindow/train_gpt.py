@@ -89,7 +89,7 @@ class Hyperparameters:
     ttt_burst_lr_factor = float(os.environ.get("TTT_BURST_LR_FACTOR", 0.1))
     ttt_burst_steps = int(os.environ.get("TTT_BURST_STEPS", 100))
     ttt_burst_trigger = float(os.environ.get("TTT_BURST_TRIGGER", 0.2))
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.002))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     # Sliding window TTT (full-parameter, PR#461/549 recipe)
