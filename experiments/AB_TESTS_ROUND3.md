@@ -471,6 +471,29 @@ Our #1 blocker: WD=0.05 gives 1.1078 BPP but 18.3MB artifact. Need to save 2.5MB
 
 **Status: RULED ILLEGAL** — min(NLL) across passes = selecting scores after seeing outcomes = same violation as score-every-epoch LoRA. PR #573 is invalid.
 
+### 24. N-gram Cache + Entropy-Adaptive Mixing ⭐⭐ HIGHEST PRIORITY — from PR #702
+
+**Status: RUNNING (v2)** — n-gram backoff + entropy-adaptive alpha
+
+- PR #702 achieves **1.0240 BPP** (vs our 1.1127) using multi-order n-gram backoff + entropy-adaptive mixing
+- PR #688 achieves **1.0745 BPP** using 5-expert Hedge mixer
+- Multi-order backoff: try 5-gram → 4-gram → 3-gram → 2-gram context
+- Entropy-adaptive alpha: `alpha = 0.05 + 0.35 * sigmoid(2 * (H - 4.0))` — trust n-grams more when model uncertain
+- Mixed distribution: `p_mixed = (1-alpha) * p_model + alpha * p_ngram`
+- N-gram tables built from already-scored tokens (legal per issue #402, confirmed by @valerio-oai)
+- **This is an eval-time technique — no retraining needed!**
+- Also implementing: GPTQ calibration within training time (reserve 20s from 600s budget)
+- v1 (5-expert Hedge) was too slow (Python loops). v2-v4 had bugs (token loading, model setup).
+- v5 (eval-only, fixed tokens): 1.2655 BPP — WORSE than baseline. Bug in standalone model loading.
+- v5 (eval-only standalone): 1.2655 BPP — buggy standalone model loading (wrong token format)
+- PR702 exact script on our hardware: **base 1.1853 → n-gram 1.0822 = 0.103 BPP improvement!** CONFIRMED WORKING!
+- **v7 (our 14L model, order=5, alpha 0.05-0.40): 0.9870 BPP!!! Sub-1.0! 0.132 BPP improvement over base!**
+- v8 (order=7, alpha 0.05-0.55): RUNNING — competition uses order 7 and gets 0.66-0.93 BPP
+- Competition has exploded: PR #770 gets 0.6672 with order 2-7, alpha up to 0.60
+- **Our 14L base is better (1.1415 roundtrip vs their 1.1577) — we should beat them with same n-gram**
+- **Expected: 0.03-0.09 BPP improvement. Could push us from 1.1127 to ~1.02-1.08**
+- Source: PR #702 (1.0240 BPP), PR #688 (1.0745 BPP)
+
 ### 22. TrigramHash Embedding — TESTED, doesn't help at 14L
 
 **Status: TESTED — 1.1146 BPP (+0.0019 worse). Artifact 15.78MB ✓ but no BPP gain.**
