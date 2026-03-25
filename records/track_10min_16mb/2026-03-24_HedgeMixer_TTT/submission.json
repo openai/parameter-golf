@@ -1,8 +1,9 @@
 {
   "track": "10min_16mb",
   "date": "2026-03-24",
+  "github_id": "royira",
   "name": "5-expert Hedge Mixer + TTT",
-  "author": "notapplica",
+  "author": "royira",
   "seed_results": {
     "1337": {"val_loss": 1.78307674, "val_bpb": 1.05604198, "artifact_bytes": 15484405},
     "42":   {"val_loss": 1.85218082, "val_bpb": 1.09696945, "artifact_bytes": 15408595},
