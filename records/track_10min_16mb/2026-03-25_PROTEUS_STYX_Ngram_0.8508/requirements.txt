@@ -1,0 +1,7 @@
+torch
+numpy
+tqdm
+huggingface-hub
+datasets
+tiktoken
+sentencepiece
