@@ -1,0 +1,11 @@
+{
+  "author": "YOUR_NAME",
+  "github_id": "YOUR_GITHUB_ID",
+  "name": "Mixed-Precision QAT: Int5 MLP + Int6 Attn",
+  "blurb": "Adds mixed-precision QAT (int5 STE for MLP, int6 STE for attention/bigram-proj) on top of the full SOTA stack (BigramHash-10240, SmearGate, OrthoInit, Muon WD=0.04, SWA, sliding-window eval, zstd-22). QAT clip ranges exactly match the post-training export quantization, closing the train/export gap.",
+  "date": "2026-03-23T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
