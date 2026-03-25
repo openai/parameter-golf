@@ -1,39 +1,40 @@
-Non-record submission: 11L int6 with Online Logit Bias eval technique.
+11L 512d int6+zstd, 7-gram cache, 100ep cosine TTT, GPTQ.
 
-## result
-
-**val_bpb: 1.1609** (sliding window, stride=64) | 13.9 MB artifact | 8xH100 SXM, 600s
-
-Note: ran without FlashAttention 3 (SDPA fallback). FA3 would improve step time and final score.
-
-| metric | value |
-|--------|-------|
-| pre-quant val_bpb | 1.1709 |
-| int6 roundtrip val_bpb | 1.1829 |
-| int6 sliding val_bpb (s64) | **1.1609** |
-| steps | 7,620 / 20,000 (wallclock cap) |
-| step time | 78.7ms |
-| artifact | 13,977,633 bytes |
-
-## novel technique: online logit bias (OLB)
-
-Learned per-token bias vector added to logits during sliding window eval. Updated after each scored batch using the exact CE gradient: `b -= lr * (softmax(z+b) - onehot(y))`. Only uses already-scored tokens to update - compliant with the TTT rules. Zero model parameters, near-zero compute overhead. Strictly generalizes frequency counting since the gradient naturally captures frequency information plus systematic prediction biases.
-
-`OLB_LR=0.1` enables it. `OLB_LR=0` disables. OLB was not enabled in this run - pending further compute to validate.
-
-## training stack
-
-11 layers, 512 dim, 3x MLP (1536 hidden), relu^2, GQA 8/4 heads, sp1024 tied embeddings, int6 per-row quant + zstd, SmearGate, BigramHash(2048x128), OrthoInit + muP, seq 2048 + NTK RoPE, Muon WD 0.04, EMA (0.997), XSA on last 4 layers, Partial RoPE (16/64 dims), LN Scale, Late QAT.
-
-## command
+## setup
 
 ```bash
-OLB_LR=0 SEED=1337 EVAL_STRIDE=64 \
+pip install -r requirements.txt
+pip install flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291
+python3 data/cached_challenge_fineweb.py --variant sp1024
+```
+
+## run
+
+```bash
+SEED=1337 NUM_LAYERS=11 MODEL_DIM=512 MLP_MULT=3.0 \
+LEAKY_RELU=0.5 XSA_LAST_N=11 VRL_ENABLED=1 GATED_ATTN=1 \
+BIGRAM_VOCAB_SIZE=4096 BIGRAM_DIM=128 \
+EMA_ENABLED=1 EMA_DECAY=0.997 SWA_ENABLED=0 \
+ROPE_DIMS=16 LN_SCALE=1 \
+LATE_QAT=1 QAT_ENABLED=0 \
+TTT_ENABLED=1 TTT_LR=0.001 TTT_EPOCHS=100 TTT_COSINE=1 TTT_ADAMW=1 TTT_PER_LAYER_LR=1 TTT_ETA_MIN_RATIO=0.01 \
+MUON_WD=0.04 ADAM_WD=0.04 \
+MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \
+MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 \
+MUON_MOMENTUM_WARMUP_STEPS=1500 WARMDOWN_ITERS=3000 \
+ITERATIONS=9000 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 \
+PRUNE_PCT=0.07 GPTQ_ENABLED=1 GPTQ_BATCHES=256 \
+NGRAM_ALPHA=0.40 NGRAM_ORDER=7 NGRAM_BUCKETS=4000000 NGRAM_ADAPTIVE=1 NGRAM_CONF_SCALE=1 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
-## files
+## toggles
 
-- `train_gpt.py`
-- `submission.json`
-- `requirements.txt`
+- `GPTQ_ENABLED=0` - skip hessian-aware quant, use naive per-row int6
+- `NGRAM_ALPHA=0` - disable n-gram eval cache
+- `NGRAM_CONF_SCALE=0` - disable count-confidence weighting
+- `LEAKY_RELU=0` - standard ReLU (before squaring)
+- `XSA_LAST_N=0` - no exclusive self-attention
+- `VRL_ENABLED=0` - no value residual
+- `GATED_ATTN=0` - no per-head attention gate
+- `TTT_ENABLED=0` - skip test-time training

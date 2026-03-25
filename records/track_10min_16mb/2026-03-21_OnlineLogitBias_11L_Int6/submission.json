@@ -1,15 +1,14 @@
 {
     "author": "bopmite",
     "github_id": "bopmite",
-    "val_bpb": 1.16088376,
-    "val_loss": 1.96009842,
-    "bytes_model": 13908297,
-    "bytes_code": 69336,
-    "bytes_total": 13977633,
-    "architecture": "11L 512d 3xMLP int6 XSA4 EMA PartialRoPE LNScale LateQAT + Online Logit Bias",
+    "val_bpb": null,
+    "val_loss": null,
+    "bytes_model": null,
+    "bytes_code": 83461,
+    "bytes_total": null,
+    "architecture": "11L 512d 3xMLP LeakyReLU^2 XSA-all VRL GatedAttn GPTQ int6+zstd 7-gram 100ep-cosine-TTT",
     "tokenizer": "sp1024",
     "training_time_minutes": 10,
     "gpu_config": "8xH100 SXM",
-    "steps": 7620,
     "seed": 1337
 }
