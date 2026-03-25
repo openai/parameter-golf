@@ -1,0 +1,12 @@
+{
+  "author": "Sheldon",
+  "github_id": "Aristide021",
+  "name": "QAT Int6 + MLP3 + Sliding Window + Overtone Init",
+  "blurb": "Submission-style code snapshot for the first int6 QAT branch: per-row int6 QAT, packed int6 export, explicit MLP_HIDDEN sizing, sliding-window eval, overtone embedding init, phase-transition resid_mix init, and full-budget warmdown. Metrics are intentionally left null because no verified H100 train log is checked in with this folder yet.",
+  "date": "2026-03-19T00:00:00Z",
+  "track": "10min_16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
