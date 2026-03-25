@@ -1,0 +1,17 @@
+{
+  "author": "Luka CF",
+  "github_id": "lukacf",
+  "name": "Record: 11L Multi-Order N-gram Backoff + Entropy-Adaptive Alpha + Soft-Round QAT + Full GPTQ",
+  "blurb": "Novel eval-time n-gram cache with multi-order backoff (2,3,4,5-gram) and entropy-adaptive mixing weight. Score-first legal: cache updated only after scoring. Proper distribution: p_mixed = (1-a)*p_model + a*p_ng sums to 1. Training: Soft-Round QAT + Full Hessian GPTQ + VRL + LeakyReLU(0.5)^2 + BigramHash(8192,192) + XSA-all(11) + EMA(0.997). 11L, 512d, int6+zstd-22.",
+  "date": "2026-03-25T00:00:00Z",
+  "val_loss": 1.72897765,
+  "val_bpb": 1.02400067,
+  "bytes_total": 15788203,
+  "seeds": {
+    "seed1": {"val_bpb": 1.02400067, "bytes": 15788203},
+    "seed2": {"val_bpb": 1.02472494, "bytes": 15788203},
+    "seed3": {"val_bpb": 1.02422549, "bytes": 15788203}
+  },
+  "mean_bpb": 1.02431703,
+  "std_bpb": 0.00037
+}
