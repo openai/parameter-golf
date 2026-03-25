@@ -1065,9 +1065,9 @@ def eval_val_sliding(
     # 5-gram eval cache (backward-looking, fixed-alpha mixing — vectorized hash table, PR #674)
     _ngram_default = "1" if world_size > 1 else "0"
     use_ngram = bool(int(os.environ.get("NGRAM_CACHE", _ngram_default)))
-    ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.20"))
+    ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.40"))
     ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
-    ngram_order = int(os.environ.get("NGRAM_ORDER", "5"))
+    ngram_order = int(os.environ.get("NGRAM_ORDER", "7"))
     ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
     if use_ngram:
         val_np = val_tokens.cpu().numpy()
