@@ -37,7 +37,7 @@ def load_model(
     """Load a GPT model from a checkpoint and return (model, tokenizer).
 
     Uses train_gpt_mlx.py's GPT class and Hyperparameters.
-    The checkpoint_path should point to a .safetensors weights file.
+    The checkpoint_path should point to a weights file (.npz or .safetensors).
     """
     import mlx.core as mx
     import mlx.nn as nn

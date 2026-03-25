@@ -51,13 +51,15 @@ class TestLoadSubmissionJson:
 
 # We need a checkpoint to test load_model properly. If none exists, skip.
 _CHECKPOINT_DIR = REPO_ROOT / "logs"
-_HAS_CHECKPOINT = any(_CHECKPOINT_DIR.glob("*.safetensors")) if _CHECKPOINT_DIR.exists() else False
+_HAS_CHECKPOINT = (
+    any(_CHECKPOINT_DIR.rglob("*_mlx_model.npz"))
+    if _CHECKPOINT_DIR.exists() else False
+)
 
 class TestLoadModel:
     @pytest.mark.skipif(not _HAS_CHECKPOINT, reason="No checkpoint found in logs/")
     def test_returns_model_and_tokenizer(self):
-        import glob as g
-        ckpt = sorted(g.glob(str(_CHECKPOINT_DIR / "*.safetensors")))[0]
+        ckpt = sorted(_CHECKPOINT_DIR.rglob("*_mlx_model.npz"))[0]
         model, tokenizer = load_model(ckpt)
         # model should be a GPT instance
         import train_gpt_mlx as tgm
