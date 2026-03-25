@@ -530,25 +530,22 @@ def collect_hessians(
     hessians: dict[str, Tensor] = {}
     n_tokens: dict[str, int] = {}
     handles: list = []
-    _name_map: dict[int, str] = {}
 
-    def _make_hook(name: str):
+    def _make_hook(name: str, dev: torch.device):
         def _hook(module, inp, out):
-            x = inp[0].detach().float().cpu()
-            x = x.reshape(-1, x.shape[-1]).double()
+            x = inp[0].detach().float()
+            x = x.reshape(-1, x.shape[-1])  # [tokens, features] on GPU, float32
             if name not in hessians:
-                hessians[name] = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float64)
+                hessians[name] = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float32, device=dev)
                 n_tokens[name] = 0
-            hessians[name].addmm_(x.T, x)
+            hessians[name].addmm_(x.T, x)  # GPU float32 matmul — fast
             n_tokens[name] += x.shape[0]
         return _hook
 
     for name, module in model.named_modules():
         if isinstance(module, CastedLinear) and module.weight.ndim == 2 and module.weight.numel() > INT8_KEEP_FLOAT_MAX_NUMEL:
-            # Map module name to weight param name (model uses named_modules, state_dict uses dot notation)
             weight_name = name + ".weight"
-            handles.append(module.register_forward_hook(_make_hook(weight_name)))
-            _name_map[id(module)] = weight_name
+            handles.append(module.register_forward_hook(_make_hook(weight_name, device)))
 
     log_fn(f"GPTQ: collecting Hessians for {len(handles)} layers with {n_samples} calibration samples")
     train_stream = TokenStream(args.train_files)
@@ -556,19 +553,19 @@ def collect_hessians(
     seq_len = args.train_seq_len
     samples_done = 0
     while samples_done < n_samples:
-        n_take = min(32, n_samples - samples_done)  # batch of 32 sequences
+        n_take = min(16, n_samples - samples_done)  # batch of 16 to limit VRAM for Hessians
         tokens = train_stream.take(n_take * seq_len + 1).to(dtype=torch.int64)
         x = tokens[:-1].reshape(n_take, seq_len).to(device)
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=False):
             model(x)
         samples_done += n_take
 
     for h in handles:
         h.remove()
 
-    # Normalize by token count
+    # Move to CPU and normalize
     for name in hessians:
-        hessians[name] /= max(n_tokens[name], 1)
+        hessians[name] = (hessians[name] / max(n_tokens[name], 1)).cpu().float()
     log_fn(f"GPTQ: Hessians collected for {len(hessians)} layers")
     return hessians
 
