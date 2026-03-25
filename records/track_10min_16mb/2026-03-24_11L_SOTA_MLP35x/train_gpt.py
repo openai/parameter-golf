@@ -534,12 +534,12 @@ def collect_hessians(
 
     def _make_hook(name: str):
         def _hook(module, inp, out):
-            x = inp[0].detach().float()
-            x = x.reshape(-1, x.shape[-1])
+            x = inp[0].detach().float().cpu()
+            x = x.reshape(-1, x.shape[-1]).double()
             if name not in hessians:
-                hessians[name] = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float64, device="cpu")
+                hessians[name] = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float64)
                 n_tokens[name] = 0
-            hessians[name].addmm_(x.cpu().T, x.cpu())
+            hessians[name].addmm_(x.T, x)
             n_tokens[name] += x.shape[0]
         return _hook
 
