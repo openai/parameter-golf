@@ -56,6 +56,7 @@ Happy training!
 | Run | Score | Author | Summary | Date | Info |
 |-----|------:|--------|---------|------|------|
 | 1 Bit Quantization | 1.1239 | Ciprian-Florin Ifrim | 106M params quantized to 1 bit + misc arch changes + 2hr training | 2026-03-24 | [info](records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/README.md) |
+| Frugendorff Squared Legalized Host | 1.1532 | Siddhant Gupta | Shared-weight Frugendorff host, 1x H100 SXM unlimited-compute run, int6+zstd byte-legal at 15.92MB | 2026-03-25 | [info](records/track_non_record_16mb/2026-03-24_FrugendorffSquared_SharedWeight_LegalizedHost_zstd/README.md) |
 | 4-Hour Baseline | 1.2074 | Will DePue | Testing unlimited compute, 4 hours on 8xH100 | 2026-03-18 | [info](records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/README.md) |
 
 #### Requests for PRs
