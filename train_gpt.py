@@ -716,6 +716,8 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
+    """Differential Attention (ICLR 2025, arXiv:2410.05258).
+    Computes attention as the difference of two softmax maps, cancelling noise."""
     def __init__(
         self,
         dim: int,
@@ -723,6 +725,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        layer_idx: int = 0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -734,6 +737,7 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
+        self.half_head = self.head_dim // 2
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
@@ -741,27 +745,66 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(self.half_head, base=rope_base)
+        # Differential attention: learnable lambda per head
+        # lambda_init = 0.8 - 0.6 * exp(-0.3 * layer_idx)
+        self.lambda_init = 0.8 - 0.6 * math.exp(-0.3 * layer_idx)
+        self.lambda_q1 = nn.Parameter(torch.randn(self.half_head) * 0.1)
+        self.lambda_k1 = nn.Parameter(torch.randn(self.half_head) * 0.1)
+        self.lambda_q2 = nn.Parameter(torch.randn(self.half_head) * 0.1)
+        self.lambda_k2 = nn.Parameter(torch.randn(self.half_head) * 0.1)
+        self.diff_norm = RMSNorm()
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
+        # Project Q, K, V
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
-        cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
-        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+        # Split Q and K into two halves for differential attention
+        q1, q2 = q[..., :self.half_head], q[..., self.half_head:]
+        k1, k2 = k[..., :self.half_head], k[..., self.half_head:]
+        # RMS norm each half
+        q1 = F.rms_norm(q1, (self.half_head,))
+        q2 = F.rms_norm(q2, (self.half_head,))
+        k1 = F.rms_norm(k1, (self.half_head,))
+        k2 = F.rms_norm(k2, (self.half_head,))
+        # RoPE on each half
+        cos, sin = self.rotary(seqlen, x.device, q1.dtype)
+        q1 = apply_rotary_emb(q1, cos, sin)
+        q2 = apply_rotary_emb(q2, cos, sin)
+        k1 = apply_rotary_emb(k1, cos, sin)
+        k2 = apply_rotary_emb(k2, cos, sin)
+        # Apply q_gain
+        gain = self.q_gain.to(dtype=q1.dtype)[None, :, None, None]
+        q1 = q1 * gain
+        q2 = q2 * gain
+        # Compute two attention maps and subtract (differential attention)
+        # GQA: repeat K/V heads if needed
+        if self.num_kv_heads != self.num_heads:
+            n_rep = self.num_heads // self.num_kv_heads
+            k1 = k1[:, :, None, :, :].expand(bsz, self.num_kv_heads, n_rep, seqlen, self.half_head).reshape(bsz, self.num_heads, seqlen, self.half_head)
+            k2 = k2[:, :, None, :, :].expand(bsz, self.num_kv_heads, n_rep, seqlen, self.half_head).reshape(bsz, self.num_heads, seqlen, self.half_head)
+            v = v[:, :, None, :, :].expand(bsz, self.num_kv_heads, n_rep, seqlen, self.head_dim).reshape(bsz, self.num_heads, seqlen, self.head_dim)
+        # Compute lambda
+        lam = (torch.exp(torch.dot(self.lambda_q1.float(), self.lambda_k1.float()))
+               - torch.exp(torch.dot(self.lambda_q2.float(), self.lambda_k2.float()))
+               + self.lambda_init)
+        # Attention scores
+        scale = 1.0 / math.sqrt(self.half_head)
+        attn1 = (q1 @ k1.transpose(-2, -1)) * scale
+        attn2 = (q2 @ k2.transpose(-2, -1)) * scale
+        # Causal mask
+        causal_mask = torch.triu(torch.full((seqlen, seqlen), float('-inf'), device=x.device), diagonal=1)
+        attn1 = attn1 + causal_mask[None, None, :, :]
+        attn2 = attn2 + causal_mask[None, None, :, :]
+        attn1 = F.softmax(attn1, dim=-1)
+        attn2 = F.softmax(attn2, dim=-1)
+        # Differential: subtract and apply to values
+        diff_attn = attn1 - lam.to(dtype=attn1.dtype) * attn2
+        y = diff_attn @ v
+        # Normalize and scale per paper
+        y = self.diff_norm(y) * (1.0 - self.lambda_init)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -789,11 +832,12 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        layer_idx: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, layer_idx=layer_idx)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -843,6 +887,7 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    layer_idx=i,
                 )
                 for i in range(num_layers)
             ]
