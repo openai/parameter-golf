@@ -1018,14 +1018,15 @@ def eval_val_ttt_lora(
     byte_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    # Score short docs without TTT (standard sliding window)
+    # Score short docs without TTT
     for ds, dl in rank_short:
         pred_len = dl - 1
         x = val_tokens[ds:ds + pred_len].to(dtype=torch.int64, device=device).unsqueeze(0)
         y = val_tokens[ds + 1:ds + pred_len + 1].to(dtype=torch.int64, device=device).unsqueeze(0)
         with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            nll = base_model(x, y)
-        loss_sum += nll[0].to(torch.float64).sum()
+            logits = base_model.forward_logits(x)
+            nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y.reshape(-1), reduction="none")
+        loss_sum += nll.to(torch.float64).sum()
         token_count += pred_len
         tgt = y[0]
         px = x[0]
