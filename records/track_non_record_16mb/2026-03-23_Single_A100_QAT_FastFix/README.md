@@ -10,7 +10,7 @@ We also constrained the gradient accum sizing from multi-GPU scales down to 131K
 * **Training Loop Length:** 10 Minutes (Wallclock Cap — run terminates around step 1186 in the attached `train.log`; excludes final sliding-window evaluation)
 * **End-to-End Runtime (Training + Final Sliding-Window Eval):** ~33 Minutes (per attached `train.log`)
 * **Validation BPB at wallclock stop (train-time checkpoint):** `1.4078` at `step:1186/2600` (per attached `train.log`)
-* **Submission Validation BPB (final sliding-window / roundtrip):** `1.52523098` (per attached `train.log`, `final_int8_zlib_roundtrip_exact`)
+* **Submission Validation BPB (final sliding-window / roundtrip):** `1.52523098` (per attached `train.log`, `final_mixed_int6_roundtrip_zstd_exact`)
 * **Artifact Size:** `15.77 MB` (int6 + zstd)
 
 ## Reporting Notes
