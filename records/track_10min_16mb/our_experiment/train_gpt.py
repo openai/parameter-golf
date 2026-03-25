@@ -116,6 +116,7 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     late_qat = bool(int(os.environ.get("LATE_QAT", "0")))
+    soft_round_qat = bool(int(os.environ.get("SOFT_ROUND_QAT", "0")))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "1")))
     canon_last_n = int(os.environ.get("CANON_LAST_N", 0))
@@ -567,16 +568,27 @@ class RMSNorm(nn.Module):
 
 class CastedLinear(nn.Linear):
     _qat_enabled: bool = False
+    _soft_round: bool = False
+    _soft_round_alpha: float = 1.0
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.to(x.dtype)
         if CastedLinear._qat_enabled and self.training and w.ndim == 2:
-            with torch.no_grad():
-                w32 = self.weight.float()
-                row_max = w32.abs().amax(dim=1)
-                scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
-                w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -32, 31) * scale[:, None]).to(x.dtype)
-            w = w + (w_q - w).detach()
+            w32 = self.weight.float()
+            row_max = w32.abs().amax(dim=1).detach()
+            scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+            r = w32 / scale[:, None]
+            if CastedLinear._soft_round:
+                alpha = CastedLinear._soft_round_alpha
+                r_frac = r - r.detach().floor() - 0.5
+                norm = torch.tanh(torch.tensor(alpha * 0.5, device=r.device, dtype=r.dtype))
+                r_soft = r.detach().floor() + 0.5 + torch.tanh(alpha * r_frac) / (2.0 * norm)
+                w_q = (torch.clamp(r_soft, -32, 31) * scale[:, None]).to(x.dtype)
+                w = w_q  # soft-round is differentiable, no STE needed
+            else:
+                with torch.no_grad():
+                    w_q = (torch.clamp(torch.round(r), -32, 31) * scale[:, None]).to(x.dtype)
+                w = w + (w_q - w).detach()  # STE
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
 
@@ -1671,7 +1683,11 @@ def main() -> None:
         qat_threshold = float(os.environ.get("QAT_THRESHOLD", "0.1"))
         if args.late_qat and scale < qat_threshold and not CastedLinear._qat_enabled:
             CastedLinear._qat_enabled = True
-            log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+            CastedLinear._soft_round = args.soft_round_qat
+            log0(f"late_qat:enabled step:{step} scale:{scale:.4f} soft_round:{args.soft_round_qat}")
+        if CastedLinear._qat_enabled and CastedLinear._soft_round:
+            qat_progress = max(0.0, 1.0 - (scale / qat_threshold))
+            CastedLinear._soft_round_alpha = 1.0 + 15.0 * qat_progress  # 1→16
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1801,23 +1817,34 @@ def main() -> None:
             quant_blob = blob
             chosen_level = lvl
             break
-    # Phase 2: int5 middle layers fallback
+    # Phase 2: progressive int5 fallback — one layer at a time from middle outward
     if quant_blob is None:
-        mid_start, mid_end = 2, num_layers_total - 2
-        int5_layers = set(range(mid_start, mid_end))
-        if master_process:
-            log0(f"quant_fallback: int5 for layers {mid_start}-{mid_end-1}, int6 for edges")
-        quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"}, int5_layers=int5_layers)
-        quant_buf = io.BytesIO()
-        torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
-        quant_raw = quant_buf.getvalue()
-        for lvl in _zstd_levels:
-            blob = zstandard.ZstdCompressor(level=lvl).compress(quant_raw) if _COMPRESSOR == "zstd" else zlib.compress(quant_raw, 9)
+        mid = num_layers_total // 2
+        # Expand outward from center: L5, L4, L6, L3, L7, L2, L8, ...
+        candidates = []
+        for offset in range(num_layers_total):
+            for sign in [0, 1]:
+                layer = mid + offset if sign == 0 else mid - offset
+                if 0 <= layer < num_layers_total and layer not in candidates:
+                    candidates.append(layer)
+        int5_layers: set[int] = set()
+        for layer in candidates:
+            int5_layers.add(layer)
             if master_process:
-                log0(f"quant_try int5mid zstd-{lvl}: {len(blob)} bytes (limit {artifact_limit})")
-            if len(blob) <= artifact_limit:
-                quant_blob = blob
-                chosen_level = lvl
+                log0(f"quant_fallback: int5 layers={sorted(int5_layers)}")
+            quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"}, int5_layers=int5_layers)
+            quant_buf = io.BytesIO()
+            torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
+            quant_raw = quant_buf.getvalue()
+            for lvl in _zstd_levels:
+                blob = zstandard.ZstdCompressor(level=lvl).compress(quant_raw) if _COMPRESSOR == "zstd" else zlib.compress(quant_raw, 9)
+                if master_process:
+                    log0(f"quant_try int5[{len(int5_layers)}L] zstd-{lvl}: {len(blob)} bytes (limit {artifact_limit})")
+                if len(blob) <= artifact_limit:
+                    quant_blob = blob
+                    chosen_level = lvl
+                    break
+            if quant_blob is not None:
                 break
     if quant_blob is None:
         quant_blob = blob  # Use last attempt even if over limit
