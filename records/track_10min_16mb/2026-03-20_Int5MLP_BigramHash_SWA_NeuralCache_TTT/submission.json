@@ -1,0 +1,9 @@
+{
+  "name": "QAT + Neural Cache + LoRA TTT (non-record)",
+  "val_bpb": 1.4245,
+  "bytes_total": 15766801,
+  "blurb": "Non-record submission exploring QAT + neural cache + LoRA TTT on top of #1 recipe. QAT implementation has export mismatch bug causing 0.25 BPB quantization penalty. Submitting to document approach and iterate.",
+  "author": "Bortlesboat",
+  "github_id": "Bortlesboat",
+  "date": "2026-03-20"
+}
