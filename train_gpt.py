@@ -793,6 +793,9 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
 
+_GATED_ATTN = bool(int(os.environ.get("GATED_ATTN", "0")))
+_VALUE_RESIDUAL = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))
+
 class CausalSelfAttention(nn.Module):
     def __init__(
         self,
@@ -820,17 +823,19 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.attn_gate = nn.Parameter(torch.ones(num_heads, dtype=torch.float32))
+        if _GATED_ATTN:
+            self.attn_gate = nn.Parameter(torch.ones(num_heads, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
         self.use_xsa = use_xsa
-        self.vr_lambda = nn.Parameter(torch.tensor([0.5, 0.5], dtype=torch.float32))
+        if _VALUE_RESIDUAL:
+            self.vr_lambda = nn.Parameter(torch.tensor([0.5, 0.5], dtype=torch.float32))
 
-    def forward(self, x: Tensor, v0: Tensor | None = None) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, v0: Tensor | None = None) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        if v0 is not None:
+        if _VALUE_RESIDUAL and v0 is not None:
             lam = torch.sigmoid(self.vr_lambda).to(dtype=v.dtype)
             v = lam[0] * v0 + lam[1] * v
         q = F.rms_norm(q, (q.size(-1),))
@@ -843,7 +848,8 @@ class CausalSelfAttention(nn.Module):
         if self.use_xsa:
             vn = F.normalize(v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1), dim=-1)
             y = y - (y * vn).sum(dim=-1, keepdim=True) * vn
-        y = y * torch.sigmoid(self.attn_gate).to(dtype=y.dtype)[None, :, None, None]
+        if _GATED_ATTN:
+            y = y * torch.sigmoid(self.attn_gate).to(dtype=y.dtype)[None, :, None, None]
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y), v
 
@@ -881,7 +887,7 @@ class Block(nn.Module):
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         s = self._ln_scale
-        attn_out, v = self.attn(self.attn_norm(x), v0)
+        attn_out, v = self.attn(self.attn_norm(x), v0 if _VALUE_RESIDUAL else None)
         x = x + s * self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + s * self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x, v
@@ -947,7 +953,7 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        xsa_last_n = int(os.environ.get("XSA_LAST_N", num_layers))
+        xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
         mlp_mult_enc = int(os.environ.get("MLP_MULT_ENCODER", mlp_mult))
         mlp_mult_dec = int(os.environ.get("MLP_MULT_DECODER", mlp_mult))
         leaky = bool(int(os.environ.get("LEAKY_RELU", "0")))
