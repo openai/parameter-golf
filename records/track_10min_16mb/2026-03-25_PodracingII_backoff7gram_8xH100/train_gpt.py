@@ -110,18 +110,6 @@ class Hyperparameters:
     distill_temperature = float(os.environ.get("DISTILL_TEMPERATURE", 1.5))
     distill_alpha = float(os.environ.get("DISTILL_ALPHA", 0.60))
     distill_kl_clip = float(os.environ.get("DISTILL_KL_CLIP", 10.0))
-    # Legal score-first TTT eval (PR #461 recipe)
-    ttt_eval_enabled = bool(int(os.environ.get("TTT_EVAL_ENABLED", "1")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
-    ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
-    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
-    ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
-    ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
-    ttt_max_train_chunks = int(os.environ.get("TTT_MAX_TRAIN_CHUNKS", 200))  # stop training after N chunks, keep scoring
-    ttt_ema_decay = float(os.environ.get("TTT_EMA_DECAY", 0.995))  # EMA decay for TTT weight smoothing (0 = disabled)
-    ttt_freeze_embed = bool(int(os.environ.get("TTT_FREEZE_EMBED", "1")))  # freeze tok_emb/bigram/ve during TTT
     # Optional legal score-first hashed n-gram interpolation at eval time.
     # Multi-order backoff (2..max_order) with entropy-adaptive alpha.
     # Alpha depends only on model entropy (no target/label access).
@@ -1192,147 +1180,6 @@ def _classify_param(name: str) -> str:
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
         return "attn"
     return "other"
-def eval_val_sliding_ttt(
-    args: Hyperparameters, base_model: nn.Module, rank: int, world_size: int,
-    device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
-    has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
-    stride: int, batch_seqs: int = 32,
-) -> tuple[float, float]:
-    seq_len, total_tokens, ttt_chunk = args.train_seq_len, val_tokens.numel() - 1, args.ttt_chunk_tokens
-    master = (rank == 0)
-    log0 = (lambda msg: print(msg, flush=True)) if master else (lambda msg: None)
-    window_starts = [ws for ws in range(0, total_tokens, stride) if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0]
-    num_chunks = (total_tokens + ttt_chunk - 1) // ttt_chunk
-    chunk_windows: list[list[int]] = [[] for _ in range(num_chunks)]
-    for ws in window_starts:
-        end, wlen = min(ws + seq_len, total_tokens), min(ws + seq_len, total_tokens) - ws
-        s = 0 if ws == 0 else max(wlen - stride, 0)
-        chunk_windows[min((ws + s) // ttt_chunk, num_chunks - 1)].append(ws)
-    log0(f"ttt_sliding:start chunks={num_chunks} windows={len(window_starts)} lr={args.ttt_lr} epochs={args.ttt_epochs} freeze={args.ttt_freeze_blocks}")
-    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
-    token_count = torch.zeros((), device=device, dtype=torch.float64)
-    byte_count = torch.zeros((), device=device, dtype=torch.float64)
-    frozen_ids = set(range(min(args.ttt_freeze_blocks, len(base_model.blocks))))
-    embed_names = {"tok_emb", "bigram", "ve_shared"} if args.ttt_freeze_embed else set()
-    ttt_params = []
-    for name, p in base_model.named_parameters():
-        if any(f"blocks.{bi}." in name for bi in frozen_ids):
-            p.requires_grad_(False)
-        elif any(en in name for en in embed_names):
-            p.requires_grad_(False)
-        else:
-            p.requires_grad_(True); ttt_params.append(p)
-    log0(f"ttt_sliding:unfrozen={sum(p.numel() for p in ttt_params)} freeze_embed={args.ttt_freeze_embed}")
-    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
-    # TTT-EMA: maintain smoothed weights for scoring
-    ema_decay = args.ttt_ema_decay
-    ema_state = None
-    raw_state = None
-    if ema_decay > 0:
-        ema_state = {n: p.data.clone() for n, p in base_model.named_parameters() if p.requires_grad}
-        raw_state = {n: torch.empty_like(p.data) for n, p in base_model.named_parameters() if n in ema_state}
-        log0(f"ttt_sliding:ema_decay={ema_decay} ema_params={len(ema_state)}")
-    t0 = time.perf_counter()
-    cur_lr = args.ttt_lr
-    for ci in range(num_chunks):
-        windows = chunk_windows[ci]
-        if not windows:
-            continue
-        chunk_start, chunk_end = ci * ttt_chunk, min((ci + 1) * ttt_chunk, total_tokens)
-        my_windows = windows[(len(windows) * rank) // world_size:(len(windows) * (rank + 1)) // world_size]
-        # Swap to EMA weights for scoring (if enabled and past first chunk)
-        if ema_state is not None and ci > 0:
-            for n, p in base_model.named_parameters():
-                if n in ema_state:
-                    raw_state[n].copy_(p.data)
-                    p.data.copy_(ema_state[n])
-        base_model.eval()
-        with torch.inference_mode():
-            for bi in range(0, len(my_windows), batch_seqs):
-                batch_ws = my_windows[bi:bi + batch_seqs]
-                bsz = len(batch_ws)
-                x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-                y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-                wlens = []
-                for i, ws in enumerate(batch_ws):
-                    wlen = min(ws + seq_len, total_tokens) - ws; wlens.append(wlen)
-                    ct = val_tokens[ws:ws + wlen + 1].to(dtype=torch.int64, device=device)
-                    x_batch[i, :wlen] = ct[:-1]; y_batch[i, :wlen] = ct[1:]
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    logits = base_model.forward_logits(x_batch)
-                nll = F.cross_entropy(
-                    logits.reshape(-1, logits.size(-1)).float(),
-                    y_batch.reshape(-1), reduction="none",
-                ).reshape(bsz, seq_len)
-                for i, ws in enumerate(batch_ws):
-                    wlen, s = wlens[i], 0 if ws == 0 else max(wlens[i] - stride, 0)
-                    loss_sum += nll[i, s:wlen].to(torch.float64).sum(); token_count += float(wlen - s)
-                    tgt, prev = y_batch[i, s:wlen], x_batch[i, s:wlen]
-                    tb = base_bytes_lut[tgt].to(torch.float64) + (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-                    byte_count += tb.sum()
-        # Restore raw weights after scoring (for training phase)
-        if ema_state is not None and ci > 0:
-            for n, p in base_model.named_parameters():
-                if n in raw_state:
-                    p.data.copy_(raw_state[n])
-        # Phase 2: TRAIN on this chunk (already scored = legal)
-        if ci < num_chunks - 1 and ci < args.ttt_max_train_chunks and args.ttt_epochs > 0:
-            base_model.train()
-            chunk_seqs = (chunk_end - chunk_start) // seq_len
-            if chunk_seqs > 0:
-                cur_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(args.ttt_max_train_chunks - 1, 1)))
-                for pg in optimizer.param_groups:
-                    pg['lr'] = cur_lr
-                ms, me = (chunk_seqs * rank) // world_size, (chunk_seqs * (rank + 1)) // world_size
-                for _ep in range(args.ttt_epochs):
-                    for bs in range(0, me - ms, args.ttt_batch_seqs):
-                        be = min(bs + args.ttt_batch_seqs, me - ms)
-                        start_tok = chunk_start + (ms + bs) * seq_len
-                        end_tok = chunk_start + (ms + be) * seq_len + 1
-                        if end_tok > val_tokens.numel():
-                            continue
-                        local = val_tokens[start_tok:end_tok].to(device=device, dtype=torch.int64)
-                        x = local[:-1].reshape(-1, seq_len)
-                        y = local[1:].reshape(-1, seq_len)
-                        optimizer.zero_grad(set_to_none=True)
-                        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                            loss = base_model(x, y)
-                        loss.backward()
-                        if world_size > 1:
-                            for p in ttt_params:
-                                if p.grad is not None:
-                                    dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
-                        torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
-                        optimizer.step()
-                # Update EMA after this chunk's training
-                if ema_state is not None:
-                    with torch.no_grad():
-                        for n, p in base_model.named_parameters():
-                            if n in ema_state:
-                                ema_state[n].mul_(ema_decay).add_(p.data, alpha=1.0 - ema_decay)
-        # Once training stops, load EMA weights permanently for remaining score-only chunks
-        if ema_state is not None and ci == args.ttt_max_train_chunks:
-            log0(f"  ttt:loading EMA weights permanently at chunk {ci}")
-            for n, p in base_model.named_parameters():
-                if n in ema_state:
-                    p.data.copy_(ema_state[n])
-            ema_state = None
-            raw_state = None
-        if master and (ci % 5 == 0 or ci == num_chunks - 1):
-            rl = loss_sum.item() / max(token_count.item(), 1)
-            cur_bpb = rl / math.log(2) * (token_count.item() / max(byte_count.item(), 1)) if token_count.item() > 0 else 0
-            lr_str = f" lr={cur_lr:.6f}" if ci < args.ttt_max_train_chunks else " lr=done"
-            log0(f"  ttt[{ci+1}/{num_chunks}] bpb={cur_bpb:.6f}{lr_str} t={time.perf_counter()-t0:.0f}s")
-    if dist.is_available() and dist.is_initialized():
-        for t in [loss_sum, token_count, byte_count]:
-            dist.all_reduce(t, op=dist.ReduceOp.SUM)
-    val_loss = (loss_sum / token_count).item()
-    val_bpb = val_loss / math.log(2.0) * (token_count.item() / byte_count.item())
-    for p in base_model.parameters():
-        p.requires_grad_(True)
-    base_model.eval()
-    log0(f"ttt_sliding:done loss={val_loss:.6f} bpb={val_bpb:.6f} time={time.perf_counter()-t0:.0f}s")
-    return val_loss, val_bpb
 # ---------------------------------------------------------------------------
 # GPTQ: Hessian-aware quantization with column-wise error compensation
 # ---------------------------------------------------------------------------
@@ -2122,19 +1969,6 @@ def main() -> None:
                     )
             if distributed:
                 dist.barrier()
-    # Legal score-first TTT eval
-    if args.ttt_eval_enabled:
-        torch.cuda.synchronize()
-        t_ttt = time.perf_counter()
-        ttt_loss, ttt_bpb = eval_val_sliding_ttt(
-            args, eval_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=args.eval_stride,
-        )
-        torch.cuda.synchronize()
-        log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} "
-             f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
-        log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
