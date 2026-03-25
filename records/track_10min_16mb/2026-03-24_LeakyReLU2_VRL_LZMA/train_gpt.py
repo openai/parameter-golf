@@ -95,7 +95,6 @@ class Hyperparameters:
  ve_dim = int(os.environ.get("VE_DIM", 128))
  ve_layers = os.environ.get("VE_LAYERS", "9,10")
  vrl_enabled = bool(int(os.environ.get("VRL_ENABLED", "1")))
- ga_enabled = bool(int(os.environ.get("GA_ENABLED", "1")))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
  a, b, c = (3.4445, -4.7750, 2.0315)
  X = G.bfloat16()
@@ -255,7 +254,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
  pattern
  for pattern in os.environ.get(
   "CONTROL_TENSOR_NAME_PATTERNS",
-  "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate",
+  "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale",
  ).split(",")
  if pattern
 )
@@ -513,8 +512,6 @@ class CausalSelfAttention(nn.Module):
   self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
   self.use_xsa = False  # set by GPT.__init__ for deep layers only
   self.vrl_gate = None  # set by GPT.__init__ when VRL is enabled
-  self.gated_attention = False  # set by GPT.__init__
-  self.attn_gate = None
  def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
   B, T, H, D = y.shape
   Hkv = v.size(-2)
@@ -553,9 +550,6 @@ class CausalSelfAttention(nn.Module):
    y = y.transpose(1, 2).contiguous()
   if self.use_xsa:
    y = self._xsa_efficient(y, v)
-  if self.gated_attention and self.attn_gate is not None:
-   gate = torch.sigmoid(self.attn_gate(x))
-   y = y * gate.unsqueeze(-1)
   y = y.reshape(bsz, seqlen, dim)
   return self.proj(y), v_raw
 class SmearGate(nn.Module):
@@ -676,7 +670,6 @@ class GPT(nn.Module):
   ve_dim: int = 128,
   ve_layers: str = "9,10",
   vrl_enabled: bool = False,
-  ga_enabled: bool = False,
  ):
   super().__init__()
   self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -740,14 +733,8 @@ class GPT(nn.Module):
     self.blocks[i].attn.use_xsa = True
   self.vrl_enabled = vrl_enabled
   if vrl_enabled:
-   for i in range(1, num_layers):
+   for i in range(1, num_layers):  # all layers except layer 0
     self.blocks[i].attn.vrl_gate = nn.Parameter(torch.tensor(-1.5, dtype=torch.float32))
-  if ga_enabled:
-   for block in self.blocks:
-    block.attn.gated_attention = True
-    block.attn.attn_gate = nn.Linear(model_dim, num_heads, bias=True)
-    nn.init.zeros_(block.attn.attn_gate.weight)
-    nn.init.constant_(block.attn.attn_gate.bias, 4.0)
   self._init_weights()
  def _init_weights(self) -> None:
   if self.tie_embeddings:
@@ -1092,7 +1079,7 @@ def main() -> None:
   ve_enabled=args.ve_enabled,
   ve_dim=args.ve_dim,
   ve_layers=args.ve_layers,
-  vrl_enabled=args.vrl_enabled, ga_enabled=args.ga_enabled,
+  vrl_enabled=args.vrl_enabled,
  ).to(device).bfloat16()
  for module in base_model.modules():
   if isinstance(module, CastedLinear):
@@ -1384,7 +1371,7 @@ def main() -> None:
   xsa_last_n=args.xsa_last_n,  # must match training model
   rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
   ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
-  vrl_enabled=args.vrl_enabled, ga_enabled=args.ga_enabled,
+  vrl_enabled=args.vrl_enabled,
  ).to(device).bfloat16()
  for m in eval_model.modules():
   if isinstance(m, CastedLinear):
