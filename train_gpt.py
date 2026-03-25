@@ -759,10 +759,10 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 
 class Rotary(nn.Module):
-    # Caches cos/sin tables per sequence length on the current device.
     def __init__(self, dim: int, base: float = 10000.0):
         super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        rdim = _ROPE_DIMS if _ROPE_DIMS > 0 else dim
+        inv_freq = 1.0 / (base ** (torch.arange(0, rdim, 2, dtype=torch.float32) / rdim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
@@ -783,7 +783,16 @@ class Rotary(nn.Module):
         return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
 
 
+_ROPE_DIMS = int(os.environ.get("ROPE_DIMS", 0))
+
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    rd = _ROPE_DIMS
+    if rd > 0 and rd < x.size(-1):
+        x_rope, x_pass = x[..., :rd], x[..., rd:]
+        half = rd // 2
+        x1, x2 = x_rope[..., :half], x_rope[..., half:]
+        x_rope = torch.cat((x1 * cos[..., :half] + x2 * sin[..., :half], x1 * (-sin[..., :half]) + x2 * cos[..., :half]), dim=-1)
+        return torch.cat((x_rope, x_pass), dim=-1)
     half = x.size(-1) // 2
     x1, x2 = x[..., :half], x[..., half:]
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
@@ -852,9 +861,11 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
+_LN_SCALE = bool(int(os.environ.get("LN_SCALE", "0")))
+
 class Block(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
-                 rope_base: float, qk_gain_init: float, use_xsa: bool = False, leaky: bool = False):
+                 rope_base: float, qk_gain_init: float, use_xsa: bool = False, leaky: bool = False, layer_idx: int = 0):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
@@ -863,13 +874,26 @@ class Block(nn.Module):
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        self._ln_scale = 1.0 / math.sqrt(layer_idx + 1) if _LN_SCALE else 1.0
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        s = self._ln_scale
+        x = x + s * self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
+        x = x + s * self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
+
+
+class ValueEmbedding(nn.Module):
+    def __init__(self, vocab_size: int, ve_dim: int, model_dim: int):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, ve_dim)
+        self.proj = CastedLinear(ve_dim, model_dim, bias=False)
+        self.scale = nn.Parameter(torch.tensor(0.1, dtype=torch.float32))
+        nn.init.normal_(self.embed.weight, std=0.01)
+    def forward(self, input_ids: Tensor) -> Tensor:
+        return self.scale * self.proj(self.embed(input_ids))
 
 
 class SmearGate(nn.Module):
@@ -920,6 +944,8 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.encoder_recurrence = bool(int(os.environ.get("ENCODER_RECURRENCE", "1")))
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        ve_enabled = bool(int(os.environ.get("VE_ENABLED", "0")))
+        self.ve = ValueEmbedding(vocab_size, 128, model_dim) if ve_enabled else None
         self.bigram_hash = BigramHash(4096, 64, model_dim)
         self.smear_gate = SmearGate(model_dim)
         pre_enrich_hidden = model_dim * 3 // 2
@@ -940,7 +966,7 @@ class GPT(nn.Module):
             [
                 Block(model_dim, num_heads, num_kv_heads,
                       mlp_mult_enc if i < self.num_encoder_layers else mlp_mult_dec,
-                      rope_base, qk_gain_init, use_xsa=(i >= num_layers - xsa_last_n), leaky=leaky)
+                      rope_base, qk_gain_init, use_xsa=(i >= num_layers - xsa_last_n), leaky=leaky, layer_idx=i)
                 for i in range(num_layers)
             ]
         )
@@ -995,6 +1021,8 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
+        if self.ve is not None:
+            x = x + self.ve(input_ids)
         x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
@@ -1007,6 +1035,8 @@ class GPT(nn.Module):
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
+        if self.ve is not None:
+            x = x + self.ve(input_ids)
         x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
