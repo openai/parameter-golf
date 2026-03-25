@@ -1,0 +1,19 @@
+{
+  "name": "Jonas Bayer",
+  "github_id": "Jonas-T5",
+  "date": "2026-03-25",
+  "val_bpb": null,
+  "track": "non_record_16mb",
+  "summary": "Phase-based depth recurrence (8 unique blocks, 40 effective layers at d=512) with MLA attention, graduated FP4/Int6 precision, FP8 stochastic rounding training, DeepNorm init, Muon+AdamW, QK-Clip, Z-Loss",
+  "variants": {
+    "looped40": "8 unique × 4 phases × 5 reps = 40 depth, d=512, MLP3x, MLA(r=64), 24M params, ~13MB",
+    "deep20": "20 unique layers, d=384, MLP3x, MLA(r=48), 34M params, ~15.5MB"
+  },
+  "innovations": [
+    "Phase-based depth recurrence (not uniform ALBERT-style cycling)",
+    "Graduated precision: FP4 early layers, Int6 late layers",
+    "MLA (Multi-Head Latent Attention) with low-rank KV compression",
+    "Pure FP8 training with stochastic rounding (nothing above FP8 persists)",
+    "QK-Clip post-step attention score rescaling (Kimi K2)"
+  ]
+}
