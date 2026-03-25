@@ -297,22 +297,9 @@ FP16_KEEP_NAME_PATTERNS = tuple(
     for pattern in os.environ.get("FP16_KEEP_NAME_PATTERNS", "tok_emb,blocks.8.attn.c_k").split(",")
     if pattern
 )
-INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get(
-        "INT8_KEEP_FLOAT_FP32_NAME_PATTERNS",
-        ",".join(CONTROL_TENSOR_NAME_PATTERNS),
-    ).split(",")
-    if pattern
-)
-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
-INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
-
-def tensor_nbytes(t: Tensor) -> int:
-    return int(t.numel()) * int(t.element_size())
 
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
@@ -472,8 +459,24 @@ class DistributedTokenLoader:
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
         local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
-        x = local[:-1].reshape(-1, seq_len)
-        y = local[1:].reshape(-1, seq_len)
+
+        # Enforce sequence-shape safety even under misconfigured token counts.
+        total_pairs = local.numel() - 1
+        if total_pairs <= 0:
+            raise ValueError(
+                f"Not enough tokens to form a sequence: got {local.numel()} tokens for seq_len={seq_len}"
+            )
+        usable_pairs = (total_pairs // seq_len) * seq_len
+        if usable_pairs == 0:
+            raise ValueError(
+                f"Token count ({total_pairs}) per rank is not compatible with seq_len={seq_len}. "
+                f"Set TRAIN_BATCH_TOKENS to a multiple of seq_len * world_size * grad_accum_steps."
+            )
+        if usable_pairs != total_pairs:
+            total_pairs = usable_pairs
+
+        x = local[:total_pairs].reshape(-1, seq_len)
+        y = local[1 : total_pairs + 1].reshape(-1, seq_len)
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
 
 
@@ -1204,7 +1207,8 @@ def main() -> None:
     with torch.no_grad():
         for name, param in base_model.named_parameters():
             if param.ndim == 2 and param.numel() > 65536:
-                threshold = torch.quantile(param.abs().float().flatten(), 0.03)
+                # Compute percentile on CPU to avoid expensive GPU quantile compilation overhead.
+                threshold = torch.quantile(param.detach().abs().float().flatten().cpu(), 0.03).to(device=param.device)
                 mask = param.abs() < threshold
                 param.masked_fill_(mask, 0.0)
 
@@ -1221,16 +1225,16 @@ def main() -> None:
     else:
         quant_blob = zlib.compress(quant_raw, 9)
     if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
+        with open("final_model.mixed_int6.ptz", "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        quant_file_bytes = os.path.getsize("final_model.mixed_int6.ptz")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model int6/8+{_COMPRESSOR}: {quant_file_bytes} bytes")
         log0(f"Total submission size int6/8+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
+    with open("final_model.mixed_int6.ptz", "rb") as f:
         quant_blob_disk = f.read()
     if _COMPRESSOR == "zstd":
         decompressed = zstandard.ZstdDecompressor().decompress(quant_blob_disk)
