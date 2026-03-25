@@ -1,0 +1,155 @@
+====================================================================================================
+
+=== Building Manifold (distributed, 1 GPUs) ===
+  Rank 0: processing 80/80 shards for manifold
+    rank 0 shard 1/80 (1s)
+    rank 0 shard 6/80 (6s)
+    rank 0 shard 11/80 (11s)
+    rank 0 shard 16/80 (16s)
+    rank 0 shard 21/80 (21s)
+    rank 0 shard 26/80 (26s)
+    rank 0 shard 31/80 (31s)
+    rank 0 shard 36/80 (36s)
+    rank 0 shard 41/80 (42s)
+    rank 0 shard 46/80 (47s)
+    rank 0 shard 51/80 (52s)
+    rank 0 shard 56/80 (58s)
+    rank 0 shard 61/80 (61s)
+    rank 0 shard 66/80 (63s)
+    rank 0 shard 71/80 (66s)
+    rank 0 shard 76/80 (68s)
+  All-reducing manifold stats...
+  Stats accumulated (70s)
+  Force 1: 30,405 spring pairs
+  Force 2: torsion done
+  Force 3: entropic mass done
+  Force 4: 39,052 directed pairs
+  Force 5: syntactic done
+
+  Physics simulation (300D, 5000 steps)...
+    physics step 0 (0s)
+    physics step 1000 (8s)
+    physics step 2000 (16s)
+    physics step 3000 (24s)
+    physics step 4000 (33s)
+  Physics done (42s)
+  Computing Hessian...
+  Hessian: (1024, 256), eigenvalues: 1302.10 → 6.11
+  Manifold ready: (1024, 320) (114s total)
+  KNN: torch.Size([1024, 12])
+
+=== Model Setup ===
+  V18 params: 20,705,679
+  D=500 NS=320 hops=4
+  warmup step 1/20
+  warmup step 11/20
+  warmup step 20/20
+
+=== Training ===
+step:0/50000 val_loss:7.1643 val_bpb:4.2431 train_time:0ms
+step:1/50000 train_loss:7.1640 train_time:53ms step_avg:53.04ms
+step:2/50000 train_loss:7.1629 train_time:137ms step_avg:68.45ms
+step:3/50000 train_loss:7.1178 train_time:237ms step_avg:78.87ms
+step:4/50000 train_loss:7.0163 train_time:336ms step_avg:84.08ms
+step:5/50000 train_loss:6.8846 train_time:436ms step_avg:87.21ms
+step:6/50000 train_loss:6.7035 train_time:536ms step_avg:89.35ms
+step:7/50000 train_loss:6.5403 train_time:636ms step_avg:90.82ms
+step:8/50000 train_loss:6.4198 train_time:737ms step_avg:92.12ms
+step:9/50000 train_loss:6.3152 train_time:836ms step_avg:92.90ms
+step:10/50000 train_loss:6.2303 train_time:936ms step_avg:93.57ms
+  DIAG s200 gb:[-4.07,-3.97,-3.95,-3.98] gw:[0.83,0.70,1.04,0.86] mg:-4.91 ng:-5.40 spec:6.3 smax:0.116 mix_d:[13.9,11.7,13.5,18.4] mix_u:[27.6,26.4,28.5,33.6] mix_sg:[22.43,20.98,34.94,45.39] attn_o:9.39 attn_v:23.31 cell:[50.6,39.4,36.3,38.3] msg:20.3 rb:-2.86 hemb:42.4
+step:200/50000 train_loss:3.9562 train_time:19508ms step_avg:97.54ms
+  DIAG s400 gb:[-4.05,-3.93,-3.89,-3.92] gw:[0.83,0.77,1.15,1.22] mg:-5.08 ng:-5.68 spec:8.8 smax:0.217 mix_d:[19.3,21.9,28.7,30.8] mix_u:[33.1,44.7,49.9,51.4] mix_sg:[31.93,52.91,72.99,79.54] attn_o:13.89 attn_v:25.67 cell:[61.6,53.6,51.2,65.9] msg:24.6 rb:-2.78 hemb:40.9
+step:400/50000 train_loss:3.5292 train_time:38986ms step_avg:97.46ms
+  DIAG s600 gb:[-4.01,-3.90,-3.85,-3.87] gw:[0.86,0.74,1.20,1.26] mg:-5.11 ng:-5.79 spec:10.7 smax:0.309 mix_d:[25.3,31.2,38.9,38.0] mix_u:[42.8,61.1,64.2,61.1] mix_sg:[47.98,78.98,93.57,96.58] attn_o:18.50 attn_v:28.92 cell:[68.7,70.3,64.9,82.9] msg:28.6 rb:-2.73 hemb:39.7
+step:600/50000 train_loss:3.0700 train_time:58467ms step_avg:97.45ms
+  DIAG s800 gb:[-4.00,-3.86,-3.82,-3.84] gw:[0.93,0.88,1.20,1.23] mg:-5.03 ng:-5.80 spec:13.5 smax:0.464 mix_d:[32.1,37.3,45.1,42.3] mix_u:[53.8,71.0,72.9,66.8] mix_sg:[65.83,94.86,106.38,107.52] attn_o:23.77 attn_v:32.98 cell:[73.9,82.6,72.8,93.2] msg:32.3 rb:-2.69 hemb:38.8
+step:800/50000 train_loss:2.5963 train_time:77962ms step_avg:97.45ms
+  DIAG s1000 gb:[-3.98,-3.84,-3.79,-3.80] gw:[0.92,0.95,1.31,1.26] mg:-4.89 ng:-5.69 spec:15.6 smax:0.571 mix_d:[37.5,41.7,49.4,45.4] mix_u:[61.9,78.0,79.2,70.5] mix_sg:[81.32,106.36,114.76,115.01] attn_o:28.47 attn_v:36.35 cell:[77.2,90.2,77.7,100.0] msg:35.3 rb:-2.65 hemb:38.2
+step:1000/50000 train_loss:2.2142 train_time:97455ms step_avg:97.46ms
+  DIAG s1200 gb:[-3.96,-3.81,-3.77,-3.75] gw:[0.93,0.97,1.30,1.34] mg:-4.75 ng:-5.55 spec:17.0 smax:0.606 mix_d:[41.3,44.4,52.5,47.6] mix_u:[67.7,82.3,83.8,73.2] mix_sg:[92.75,114.36,120.34,120.15] attn_o:31.32 attn_v:38.30 cell:[81.2,95.0,80.6,105.0] msg:38.1 rb:-2.61 hemb:37.8
+step:1200/50000 train_loss:1.7835 train_time:116983ms step_avg:97.49ms
+  DIAG s1400 gb:[-3.94,-3.79,-3.75,-3.71] gw:[0.93,1.02,1.46,1.44] mg:-4.63 ng:-5.41 spec:19.0 smax:0.629 mix_d:[45.0,46.8,54.7,49.3] mix_u:[72.9,86.6,87.4,75.3] mix_sg:[101.73,121.05,123.89,123.80] attn_o:33.28 attn_v:39.63 cell:[83.5,99.4,83.7,109.3] msg:39.6 rb:-2.58 hemb:37.4
+step:1400/50000 train_loss:1.4676 train_time:136470ms step_avg:97.48ms
+  DIAG s1600 gb:[-3.92,-3.76,-3.72,-3.67] gw:[0.94,1.06,1.48,1.51] mg:-4.54 ng:-5.29 spec:19.9 smax:0.642 mix_d:[47.0,48.1,56.2,50.6] mix_u:[75.6,88.6,90.0,76.9] mix_sg:[107.74,124.80,126.35,126.43] attn_o:34.67 attn_v:40.51 cell:[84.9,101.3,85.3,112.1] msg:40.5 rb:-2.55 hemb:37.1
+step:1600/50000 train_loss:1.2761 train_time:155968ms step_avg:97.48ms
+  DIAG s1800 gb:[-3.90,-3.73,-3.70,-3.64] gw:[1.01,1.00,1.44,1.52] mg:-4.47 ng:-5.19 spec:20.5 smax:0.654 mix_d:[48.3,48.9,57.2,51.7] mix_u:[77.2,89.7,91.7,78.0] mix_sg:[112.30,127.36,127.66,128.22] attn_o:35.74 attn_v:41.13 cell:[85.6,102.4,85.6,114.0] msg:41.0 rb:-2.52 hemb:36.9
+step:1800/50000 train_loss:1.1772 train_time:175438ms step_avg:97.47ms
+  DIAG s2000 gb:[-3.89,-3.72,-3.68,-3.61] gw:[1.01,0.98,1.44,1.56] mg:-4.42 ng:-5.11 spec:21.0 smax:0.663 mix_d:[49.2,49.5,57.8,52.5] mix_u:[78.2,90.3,92.8,78.8] mix_sg:[115.52,128.88,128.31,129.29] attn_o:36.51 attn_v:41.58 cell:[86.0,103.0,85.8,115.3] msg:41.4 rb:-2.50 hemb:36.7
+step:2000/50000 train_loss:0.9687 train_time:194908ms step_avg:97.45ms
+  DIAG s2200 gb:[-3.88,-3.70,-3.67,-3.58] gw:[1.01,0.95,1.44,1.61] mg:-4.39 ng:-5.06 spec:21.5 smax:0.672 mix_d:[50.0,50.0,58.3,53.1] mix_u:[79.2,91.0,93.6,79.2] mix_sg:[117.94,130.03,128.48,129.95] attn_o:37.05 attn_v:41.89 cell:[86.4,103.6,86.0,116.3] msg:41.7 rb:-2.49 hemb:36.6
+step:2200/50000 train_loss:0.9166 train_time:214386ms step_avg:97.45ms
+  DIAG s2400 gb:[-3.87,-3.68,-3.65,-3.55] gw:[1.00,0.92,1.45,1.64] mg:-4.37 ng:-5.02 spec:21.8 smax:0.675 mix_d:[50.4,50.3,58.5,53.5] mix_u:[79.6,91.2,94.1,79.4] mix_sg:[119.43,130.55,128.41,130.27] attn_o:37.40 attn_v:42.09 cell:[86.5,103.8,86.0,116.8] msg:41.8 rb:-2.47 hemb:36.4
+step:2400/50000 train_loss:0.7785 train_time:233856ms step_avg:97.44ms
+  DIAG s2600 gb:[-3.86,-3.67,-3.65,-3.53] gw:[1.00,0.92,1.44,1.67] mg:-4.37 ng:-4.99 spec:22.0 smax:0.675 mix_d:[50.7,50.5,58.7,53.7] mix_u:[79.8,91.3,94.4,79.5] mix_sg:[120.47,130.85,128.23,130.41] attn_o:37.64 attn_v:42.24 cell:[86.6,103.9,86.0,117.1] msg:41.9 rb:-2.46 hemb:36.4
+step:2600/50000 train_loss:0.7099 train_time:253326ms step_avg:97.43ms
+  DIAG s2800 gb:[-3.86,-3.66,-3.64,-3.52] gw:[0.99,0.92,1.44,1.70] mg:-4.37 ng:-4.98 spec:22.1 smax:0.675 mix_d:[50.9,50.6,58.8,53.9] mix_u:[80.0,91.3,94.6,79.5] mix_sg:[121.16,130.95,127.99,130.43] attn_o:37.80 attn_v:42.34 cell:[86.7,103.9,85.9,117.4] msg:42.0 rb:-2.45 hemb:36.3
+step:2800/50000 train_loss:0.5979 train_time:272803ms step_avg:97.43ms
+  DIAG s3000 gb:[-3.85,-3.65,-3.63,-3.50] gw:[0.99,0.92,1.44,1.74] mg:-4.37 ng:-4.97 spec:22.2 smax:0.674 mix_d:[51.0,50.7,58.8,54.0] mix_u:[80.0,91.3,94.7,79.5] mix_sg:[121.61,130.99,127.74,130.40] attn_o:37.90 attn_v:42.40 cell:[86.7,103.9,85.9,117.5] msg:42.0 rb:-2.44 hemb:36.2
+step:3000/50000 train_loss:0.6305 train_time:292283ms step_avg:97.43ms
+  NEW BEST step:3000 loss:0.6028 (saved EMA snapshot)
+  NEW BEST step:3002 loss:0.5866 (saved EMA snapshot)
+  NEW BEST step:3006 loss:0.5723 (saved EMA snapshot)
+  NEW BEST step:3008 loss:0.5261 (saved EMA snapshot)
+  NEW BEST step:3009 loss:0.5230 (saved EMA snapshot)
+  NEW BEST step:3106 loss:0.5177 (saved EMA snapshot)
+  NEW BEST step:3120 loss:0.5093 (saved EMA snapshot)
+  NEW BEST step:3122 loss:0.5025 (saved EMA snapshot)
+  NEW BEST step:3141 loss:0.4976 (saved EMA snapshot)
+  NEW BEST step:3173 loss:0.4789 (saved EMA snapshot)
+  NEW BEST step:3184 loss:0.4508 (saved EMA snapshot)
+  DIAG s3200 gb:[-3.85,-3.65,-3.63,-3.49] gw:[0.98,0.92,1.44,1.76] mg:-4.38 ng:-4.96 spec:22.2 smax:0.674 mix_d:[51.1,50.8,58.9,54.1] mix_u:[80.0,91.3,94.8,79.5] mix_sg:[121.93,130.98,127.49,130.34] attn_o:37.98 attn_v:42.44 cell:[86.8,103.9,85.8,117.5] msg:42.0 rb:-2.44 hemb:36.2
+step:3200/50000 train_loss:0.4858 train_time:312372ms step_avg:97.62ms
+  DIAG s3400 gb:[-3.85,-3.64,-3.62,-3.48] gw:[0.98,0.92,1.44,1.78] mg:-4.39 ng:-4.96 spec:22.3 smax:0.675 mix_d:[51.1,50.8,58.9,54.1] mix_u:[80.0,91.2,94.9,79.4] mix_sg:[122.14,130.94,127.28,130.28] attn_o:38.02 attn_v:42.47 cell:[86.8,103.9,85.8,117.6] msg:42.0 rb:-2.43 hemb:36.2
+step:3400/50000 train_loss:0.4749 train_time:332445ms step_avg:97.78ms
+  NEW BEST step:3414 loss:0.4455 (saved EMA snapshot)
+  NEW BEST step:3416 loss:0.4434 (saved EMA snapshot)
+  NEW BEST step:3419 loss:0.4170 (saved EMA snapshot)
+  NEW BEST step:3432 loss:0.4086 (saved EMA snapshot)
+  DIAG s3600 gb:[-3.84,-3.63,-3.62,-3.47] gw:[0.98,0.92,1.44,1.78] mg:-4.39 ng:-4.96 spec:22.3 smax:0.674 mix_d:[51.2,50.9,58.9,54.2] mix_u:[80.0,91.2,94.9,79.4] mix_sg:[122.35,130.91,127.08,130.23] attn_o:38.07 attn_v:42.50 cell:[86.8,103.8,85.8,117.7] msg:42.0 rb:-2.43 hemb:36.2
+step:3600/50000 train_loss:0.5213 train_time:352505ms step_avg:97.92ms
+  NEW BEST step:3756 loss:0.3859 (saved EMA snapshot)
+  DIAG s3800 gb:[-3.84,-3.63,-3.62,-3.46] gw:[0.98,0.92,1.44,1.81] mg:-4.40 ng:-4.96 spec:22.3 smax:0.674 mix_d:[51.2,50.9,59.0,54.3] mix_u:[80.0,91.2,95.0,79.4] mix_sg:[122.55,130.87,126.89,130.19] attn_o:38.11 attn_v:42.53 cell:[86.8,103.8,85.7,117.7] msg:42.0 rb:-2.42 hemb:36.1
+step:3800/50000 train_loss:0.4812 train_time:372570ms step_avg:98.04ms
+  DIAG s4000 gb:[-3.84,-3.62,-3.61,-3.45] gw:[0.98,0.93,1.44,1.83] mg:-4.41 ng:-4.96 spec:22.4 smax:0.673 mix_d:[51.2,51.0,59.0,54.3] mix_u:[80.0,91.1,95.0,79.3] mix_sg:[122.70,130.82,126.72,130.12] attn_o:38.14 attn_v:42.55 cell:[86.8,103.8,85.7,117.8] msg:42.0 rb:-2.42 hemb:36.1
+step:4000/50000 train_loss:0.4563 train_time:392589ms step_avg:98.15ms
+  NEW BEST step:4094 loss:0.3751 (saved EMA snapshot)
+  NEW BEST step:4097 loss:0.3668 (saved EMA snapshot)
+  DIAG s4200 gb:[-3.83,-3.62,-3.61,-3.44] gw:[0.98,0.93,1.44,1.83] mg:-4.41 ng:-4.96 spec:22.4 smax:0.673 mix_d:[51.3,51.0,59.0,54.4] mix_u:[80.0,91.1,95.1,79.3] mix_sg:[122.86,130.76,126.53,130.05] attn_o:38.17 attn_v:42.56 cell:[86.8,103.8,85.7,117.8] msg:42.0 rb:-2.41 hemb:36.1
+step:4200/50000 train_loss:0.4480 train_time:412574ms step_avg:98.23ms
+  NEW BEST step:4306 loss:0.3323 (saved EMA snapshot)
+  DIAG s4400 gb:[-3.83,-3.61,-3.60,-3.43] gw:[0.98,0.94,1.44,1.85] mg:-4.42 ng:-4.96 spec:22.4 smax:0.673 mix_d:[51.3,51.0,59.1,54.5] mix_u:[80.0,91.0,95.1,79.2] mix_sg:[123.03,130.70,126.35,130.01] attn_o:38.20 attn_v:42.58 cell:[86.9,103.8,85.7,117.9] msg:42.0 rb:-2.41 hemb:36.0
+step:4400/50000 train_loss:0.4744 train_time:432559ms step_avg:98.31ms
+  DIAG s4600 gb:[-3.83,-3.61,-3.60,-3.42] gw:[0.98,0.95,1.44,1.87] mg:-4.42 ng:-4.96 spec:22.5 smax:0.674 mix_d:[51.4,51.1,59.1,54.5] mix_u:[80.0,91.0,95.1,79.2] mix_sg:[123.21,130.65,126.18,129.94] attn_o:38.23 attn_v:42.60 cell:[86.9,103.8,85.6,118.0] msg:42.0 rb:-2.40 hemb:36.0
+step:4600/50000 train_loss:0.4237 train_time:452627ms step_avg:98.40ms
+  DIAG s4800 gb:[-3.82,-3.60,-3.60,-3.41] gw:[0.98,0.95,1.44,1.89] mg:-4.43 ng:-4.96 spec:22.5 smax:0.672 mix_d:[51.4,51.1,59.2,54.6] mix_u:[80.0,90.9,95.2,79.2] mix_sg:[123.38,130.59,126.02,129.89] attn_o:38.26 attn_v:42.62 cell:[86.9,103.8,85.6,118.1] msg:42.0 rb:-2.40 hemb:36.0
+step:4800/50000 train_loss:0.4266 train_time:472701ms step_avg:98.48ms
+  DIAG s5000 gb:[-3.82,-3.60,-3.59,-3.41] gw:[0.98,0.96,1.44,1.89] mg:-4.44 ng:-4.95 spec:22.6 smax:0.672 mix_d:[51.5,51.2,59.2,54.7] mix_u:[80.0,90.9,95.2,79.2] mix_sg:[123.54,130.54,125.86,129.83] attn_o:38.29 attn_v:42.63 cell:[87.0,103.8,85.6,118.1] msg:42.1 rb:-2.39 hemb:35.9
+step:5000/50000 train_loss:0.4430 train_time:492783ms step_avg:98.56ms
+  DIAG s5200 gb:[-3.82,-3.59,-3.59,-3.40] gw:[0.97,0.97,1.44,1.91] mg:-4.44 ng:-4.95 spec:22.6 smax:0.671 mix_d:[51.5,51.2,59.3,54.8] mix_u:[80.0,90.9,95.3,79.1] mix_sg:[123.71,130.47,125.70,129.78] attn_o:38.32 attn_v:42.65 cell:[87.0,103.9,85.6,118.2] msg:42.1 rb:-2.39 hemb:35.9
+step:5200/50000 train_loss:0.3668 train_time:512900ms step_avg:98.63ms
+  NEW BEST step:5239 loss:0.3249 (saved EMA snapshot)
+  DIAG s5400 gb:[-3.81,-3.59,-3.59,-3.39] gw:[0.97,0.97,1.44,1.93] mg:-4.45 ng:-4.95 spec:22.6 smax:0.671 mix_d:[51.6,51.2,59.3,54.9] mix_u:[79.9,90.8,95.3,79.1] mix_sg:[123.82,130.41,125.55,129.71] attn_o:38.34 attn_v:42.66 cell:[87.1,103.9,85.6,118.3] msg:42.1 rb:-2.38 hemb:35.9
+step:5400/50000 train_loss:0.3684 train_time:532998ms step_avg:98.70ms
+  NEW BEST step:5417 loss:0.3223 (saved EMA snapshot)
+  DIAG s5600 gb:[-3.81,-3.59,-3.58,-3.38] gw:[0.97,0.98,1.44,1.94] mg:-4.45 ng:-4.95 spec:22.7 smax:0.670 mix_d:[51.6,51.3,59.4,55.0] mix_u:[79.9,90.8,95.3,79.1] mix_sg:[123.98,130.34,125.40,129.65] attn_o:38.37 attn_v:42.68 cell:[87.1,103.9,85.6,118.4] msg:42.1 rb:-2.38 hemb:35.8
+step:5600/50000 train_loss:0.5657 train_time:553070ms step_avg:98.76ms
+  NEW BEST step:5701 loss:0.3189 (saved EMA snapshot)
+  NEW BEST step:5771 loss:0.3135 (saved EMA snapshot)
+  DIAG s5800 gb:[-3.81,-3.58,-3.58,-3.37] gw:[0.97,0.99,1.44,1.96] mg:-4.46 ng:-4.95 spec:22.7 smax:0.669 mix_d:[51.6,51.3,59.4,55.1] mix_u:[79.9,90.7,95.4,79.0] mix_sg:[124.08,130.29,125.27,129.60] attn_o:38.39 attn_v:42.70 cell:[87.2,103.9,85.6,118.4] msg:42.1 rb:-2.37 hemb:35.8
+step:5800/50000 train_loss:0.3832 train_time:573177ms step_avg:98.82ms
+  NEW BEST step:5878 loss:0.3097 (saved EMA snapshot)
+  NEW BEST step:5879 loss:0.2686 (saved EMA snapshot)
+  DIAG s6000 gb:[-3.81,-3.58,-3.58,-3.37] gw:[0.97,1.00,1.45,1.98] mg:-4.46 ng:-4.96 spec:22.7 smax:0.668 mix_d:[51.6,51.3,59.5,55.1] mix_u:[79.9,90.7,95.4,79.0] mix_sg:[124.12,130.25,125.18,129.56] attn_o:38.40 attn_v:42.71 cell:[87.2,103.9,85.6,118.5] msg:42.1 rb:-2.37 hemb:35.8
+step:6000/50000 train_loss:0.3158 train_time:593198ms step_avg:98.87ms
+step:6069/50000 val_loss:0.3143 val_bpb:0.1862 train_time:600087ms
+stopping_early: wallclock_cap train_time:600087ms step:6069
+peak memory: 23107 MiB reserved: 44196 MiB
+  Using BEST model for serialization (step:5879 loss:0.2686)
+Serialized model: 84235049 bytes
+Code size: 58477 bytes
+Serialized model int8+zlib: 15642855 bytes (payload:21230070 ratio:3.97x)
+Total submission size int8+zlib: 15701332 bytes
+final_int8_zlib_roundtrip val_loss:0.7334 val_bpb:0.4343 eval_time:34321ms
+final_int8_zlib_roundtrip_exact val_loss:0.73335938 val_bpb:0.43433670
+root@ca5f0ac3b6a0:/workspace/parameter-golf#

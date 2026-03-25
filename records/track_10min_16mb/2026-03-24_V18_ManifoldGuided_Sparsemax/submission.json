@@ -1,0 +1,9 @@
+{
+  "name": "V18 Manifold-Guided Architecture + Sparsemax Routing",
+  "val_bpb": 0.4343,
+  "bytes_total": 15701332,
+  "blurb": "Physics-simulated token manifold (5-force Hessian eigendecomposition) + GNN-style 4-hop geodesic message passing with sparsemax routing + manifold-guided attention. Not a transformer. Precomputes complete 1024-token statistical structure into a 320-dim spectral coordinate system, reducing the model's job from construction+navigation to just navigation.",
+  "author": "Raahil Gadhoke",
+  "github_id": "raahilg",
+  "date": "2026-03-24"
+}
