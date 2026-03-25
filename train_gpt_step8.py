@@ -541,17 +541,13 @@ class CastedLinear(nn.Linear):
 
 def _ortho_init(weight: Tensor) -> None:
     """OrthoInit (Step 8): initialize a 2D weight matrix as a (sliced) random orthogonal matrix.
-    Scaled by max(1, rows/cols)^0.5 to match Muon's per-step correction.
+    Uses gain=1.0 (no scale) to keep weight magnitudes compatible with int8 quantization.
+    Orthogonal init ensures better gradient flow at the start of training vs Gaussian.
     Works in-place on the parameter data.
     """
-    rows, cols = weight.shape
-    # torch.nn.init.orthogonal_ uses SVD; it produces a rows×cols orthogonal matrix.
-    # For tall matrices (rows > cols), singular values are all 1; for wide matrices, also 1.
-    nn.init.orthogonal_(weight)
-    # Apply Muon-style scale: max(1, rows/cols)^0.5
-    scale = max(1.0, rows / cols) ** 0.5
-    with torch.no_grad():
-        weight.data.mul_(scale)
+    # torch.nn.init.orthogonal_ produces an orthonormal matrix (singular values = 1).
+    # gain=1.0: keep the unit-norm property to avoid inflating weight magnitudes.
+    nn.init.orthogonal_(weight, gain=1.0)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
