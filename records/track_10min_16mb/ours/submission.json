@@ -1,0 +1,9 @@
+{
+  "name": "QAT & EMA Negative Results on SOTA Stack",
+  "val_loss": 1.1426,
+  "bytes_total": 15989023,
+  "blurb": "Non-record: Documents that adding QAT (STE) and EMA to PR #180 SOTA stack hurts performance. QAT costs 8% throughput, EMA costs 32%. Smaller artifact from QAT (15.69 vs 15.99 MB) but net negative BPB. Baseline reproduction: 1.1426.",
+  "author": "Felipe Vidal",
+  "github_id": "MultiFe22",
+  "date": "2026-03-21"
+}
