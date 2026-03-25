@@ -10,31 +10,16 @@ import subprocess
 import sys
 import time
 import uuid
-import lzma
 import zlib
 from pathlib import Path
 
 try:
     import zstandard
-    _HAS_ZSTD = True
+    def _compress(data: bytes) -> bytes: return zstandard.ZstdCompressor(level=22).compress(data)
+    def _decompress(data: bytes) -> bytes: return zstandard.ZstdDecompressor().decompress(data)
 except ImportError:
-    _HAS_ZSTD = False
-
-def _compress(data: bytes) -> bytes:
-    return lzma.compress(data, preset=6)
-
-def _decompress(data: bytes) -> bytes:
-    # Auto-detect: try LZMA first, fallback to zstd/zlib for old artifacts
-    try:
-        return lzma.decompress(data)
-    except lzma.LZMAError:
-        pass
-    if _HAS_ZSTD:
-        try:
-            return zstandard.ZstdDecompressor().decompress(data)
-        except Exception:
-            pass
-    return zlib.decompress(data)
+    def _compress(data: bytes) -> bytes: return zlib.compress(data, level=9)
+    def _decompress(data: bytes) -> bytes: return zlib.decompress(data)
 
 
 import numpy as np
@@ -1836,11 +1821,11 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
-            f"Serialized model GPTQ+lzma: {quant_file_bytes} bytes "
+            f"Serialized model int6+zstd: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} "
             f"payload_ratio:{ratio:.2f}x gptq_layers:{quant_stats.get('gptq_layers', 0)})"
         )
-        log0(f"Total submission GPTQ+lzma: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission int6+zstd: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
@@ -1856,10 +1841,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_gptq_lzma_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_int6_zstd_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_gptq_lzma_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_int6_zstd_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     # --- Legal Score-First TTT (PR #461 recipe) on quantized model ---
     if args.use_ttt:
