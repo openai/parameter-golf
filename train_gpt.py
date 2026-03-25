@@ -1,17 +1,17 @@
 """
-GolfStudent: 16MB Hybrid LM (LinearRecurrence + Attention)
-d=288, L=14 (10 Recurrence + 4 Attention), vocab=1024, weight-tied, SwiGLU
+GolfStudent v2: 16MB Hybrid LM (LinearRecurrence + Attention)
+d=352, L=14 (10 Recurrence + 4 Attention), vocab=1024, weight-tied, SwiGLU
 
 Submission for openai/parameter-golf challenge.
-Architecture and training methods subject to pending patent applications.
 
 Key techniques:
 - Weight-tied embedding / lm-head
 - Hybrid architecture: linear-recurrence (O(L)) + attention every 3rd layer
-- Muon optimizer for matrix params (same as leaderboard #1-3)
-- EMA (decay=0.999) for final checkpoint
-- Warmdown LR schedule (last 15% of wallclock)
-- Per-row INT8 + zlib compression (exact contest format)
+- Value Residuals: learned skip gates every 3 blocks (init=0, tanh-gated)
+- Muon optimizer (momentum 0.85→0.99 warmup) for matrix params
+- EMA (decay=0.997) for final checkpoint
+- Schedule-free final 120s window (LR floor=10%, EMA decay=0.97)
+- GPTQ-lite: 5 clip percentiles per row, min-MSE INT8 + zlib compression
 """
 
 from __future__ import annotations
