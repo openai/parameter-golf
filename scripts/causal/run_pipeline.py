@@ -222,17 +222,18 @@ def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, s
     screen_wallclock = max(screen_iters * 3, 300)  # at least 5 min for MLX compilation
     treatment["env_overrides"]["MAX_WALLCLOCK_SECONDS"] = str(screen_wallclock)
     treatment["env_overrides"]["ITERATIONS"] = str(screen_iters)
-    treatment["env_overrides"]["VAL_LOSS_EVERY"] = str(max(screen_iters // 4, 1))
-    treatment["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 10, 1))
-    treatment["env_overrides"]["WARMUP_STEPS"] = "1"  # minimal: just prime the compiled graph
+    # Only validate at the end — full val set (62M tokens) is expensive
+    treatment["env_overrides"]["VAL_LOSS_EVERY"] = "0"  # 0 = only at last step
+    treatment["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 5, 1))
+    treatment["env_overrides"]["WARMUP_STEPS"] = "1"
     treatment["env_overrides"]["WARMDOWN_ITERS"] = str(screen_iters // 5)
-    treatment["env_overrides"]["GRAD_ACCUM_STEPS"] = "1"  # no grad accumulation for screening
+    treatment["env_overrides"]["GRAD_ACCUM_STEPS"] = "1"
 
     control = json.loads(json.dumps(BASELINE_CONFIG))
     control["env_overrides"]["MAX_WALLCLOCK_SECONDS"] = str(screen_wallclock)
     control["env_overrides"]["ITERATIONS"] = str(screen_iters)
-    control["env_overrides"]["VAL_LOSS_EVERY"] = str(max(screen_iters // 4, 1))
-    control["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 10, 1))
+    control["env_overrides"]["VAL_LOSS_EVERY"] = "0"
+    control["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 5, 1))
     control["env_overrides"]["WARMUP_STEPS"] = "1"
     control["env_overrides"]["WARMDOWN_ITERS"] = str(screen_iters // 5)
     control["env_overrides"]["GRAD_ACCUM_STEPS"] = "1"
@@ -276,7 +277,7 @@ def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, s
         try:
             treatment_results = []
             control_results = []
-            val_every = max(screen_iters // 4, 1)
+            val_every = 0  # only validate at last step (full val set is expensive)
             warmup = min(1, screen_iters // 10)  # minimal warmup; cached after first run
             warmdown = screen_iters // 5
 

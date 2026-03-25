@@ -319,6 +319,9 @@ def train_single_run(
         _WARMED_ARCHITECTURES.add(arch)
 
     # --- Training loop (lines 998-1057 of train_gpt_mlx.py) ---
+    import logging as _log
+    _logger = _log.getLogger("inprocess_trainer")
+
     train_time_ms = 0.0
     val_loss = float("nan")
     val_bpb = float("nan")
@@ -337,6 +340,10 @@ def train_single_run(
                 ctx.base_bytes_lut,
                 ctx.has_leading_space_lut,
                 ctx.is_boundary_token_lut,
+            )
+            _logger.info(
+                "seed=%d step=%d/%d val_loss=%.4f val_bpb=%.4f train_time=%.0fms",
+                seed, step, args.iterations, val_loss, val_bpb, train_time_ms,
             )
             t0 = time.perf_counter()
 
@@ -361,6 +368,9 @@ def train_single_run(
         grads = tgm.clip_grad_tree(grads, args.grad_clip_norm)
         opt.step(model, grads, step=step, lr_mul=lr_mul)
         mx.synchronize()
+
+        if step % max(args.iterations // 5, 1) == 0:
+            _logger.info("seed=%d step=%d/%d training...", seed, step, args.iterations)
 
         step += 1
 
