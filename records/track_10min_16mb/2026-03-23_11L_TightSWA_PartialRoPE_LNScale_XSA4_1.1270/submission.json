@@ -1,0 +1,21 @@
+{
+  "author": "Sadegh Shokatian",
+  "github_id": "sadegh-shokatian",
+  "name": "11L + Tight SWA + Partial RoPE + LN Scale + XSA4",
+  "blurb": "11 layers, 512d, 8H/4KV, MLP 3x relu-squared. Tight SWA (scale<0.2, every 50 steps, ~12 checkpoints). XSA on last 4 layers. Partial RoPE (16/64 dims). LN Scale 1/sqrt(layer_idx+1). SmearGate + BigramHash(2048). OrthoInit + muP. Int6 per-row + zstd-22. FA3 Hopper. Muon WD=0.04, LR=0.025.",
+  "date": "2026-03-23",
+  "val_bpb": 1.1265,
+  "val_loss": 1.9020,
+  "val_bpb_std": 0.0006,
+  "seeds": [1337, 42, 7],
+  "seed_results": {
+    "1337": {"val_loss": 1.90249492, "val_bpb": 1.12676764, "artifact_bytes": 15498865, "steps": 7094},
+    "42": {"val_loss": 1.90200538, "val_bpb": 1.12647770, "artifact_bytes": 15469409, "steps": 7099},
+    "7": {"val_loss": 1.90405019, "val_bpb": 1.12768876, "artifact_bytes": 15482613, "steps": 7099}
+  },
+  "mean_val_bpb": 1.1270,
+  "bytes_total": 15469409,
+  "bytes_model_int6_zstd": 15420016,
+  "bytes_code": 49393,
+  "step_avg_ms": 84.5
+}
