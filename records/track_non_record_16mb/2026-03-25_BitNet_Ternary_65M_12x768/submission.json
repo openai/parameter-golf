@@ -1,0 +1,19 @@
+{
+  "author": "Chris",
+  "github_id": "chrislovescoding",
+  "name": "BitNet Ternary 65M 12x768",
+  "blurb": "Ternary weights {-1,0,1} at 1.58 bits/weight: 65M params in 15.9MB. 3x more parameters than int6 submissions. Trained with STE, near-zero quantization gap (0.0003 BPB). Sliding window val_bpb: 1.1932.",
+  "date": "2026-03-25T01:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.07197067,
+  "val_bpb": 1.22713774,
+  "pre_quant_val_loss": 2.0715,
+  "pre_quant_val_bpb": 1.2268,
+  "sliding_window_val_loss": 2.01474326,
+  "sliding_window_val_bpb": 1.19324548,
+  "step_stop": 5026,
+  "wallclock_seconds": 600.0,
+  "bytes_total": 15878267,
+  "bytes_model_zlib": 15834135,
+  "bytes_code": 44132
+}
