@@ -1,0 +1,9 @@
+{
+  "name": "10L TTT 22ep AdamW Cosine + LeakyReLU(0.5)² + TrigramHash",
+  "val_loss": 1.1354,
+  "bytes_total": 15351489,
+  "blurb": "10L 512d GQA 8/4 with Value Residual, Gated Attention, XSA last 4, LN Scale, SWA (27 ckpts), Late QAT (threshold 0.5), LeakyReLU(0.5)² activation, TrigramHash + BigramHash (shared 2048-bucket table), SmearGate, int5-MLP/int6-attn + zstd-22, MATRIX_LR=0.03. TTT: 22-epoch AdamW with per-step cosine LR decay to 0, per-layer LR groups (3x output proj, 0.5x input proj), batched 32 seqs/GPU, gradient sync via all_reduce, grad clip 1.0. Sliding window eval stride=64.",
+  "author": "bigbag",
+  "github_id": "bigbag",
+  "date": "2026-03-24"
+}

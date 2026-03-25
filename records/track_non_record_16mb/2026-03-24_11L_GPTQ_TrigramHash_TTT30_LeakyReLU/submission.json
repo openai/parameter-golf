@@ -1,0 +1,9 @@
+{
+  "name": "Non-record: 11L GPTQ + TrigramHash + TTT 30ep AdamW Cosine + LeakyReLU(0.5)²",
+  "val_loss": 1.1261,
+  "bytes_total": 17146523,
+  "blurb": "11L 512d GQA 8/4, Value Residual, Gated Attention, XSA4, LN Scale, SWA 28ckpts, Late QAT 0.5, LeakyReLU(0.5)², TrigramHash + BigramHash (shared 2048-bucket table), GPTQ Hessian calibration (78 layers), MATRIX_LR=0.03, int5-MLP/int6-attn + zstd-22. TTT: 30-epoch AdamW with per-step cosine LR decay, per-layer LR (3x proj, 0.5x fc), batch 64 seqs/GPU, grad sync + clip 1.0. Artifact 17.08MB — OVER 16MB limit by 1.08MB. Needs int5-all or better compression to fit.",
+  "author": "bigbag",
+  "github_id": "bigbag",
+  "date": "2026-03-24"
+}
