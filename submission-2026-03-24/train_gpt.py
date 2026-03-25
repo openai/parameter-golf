@@ -245,7 +245,7 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 32))
-    int6_last_n = int(os.environ.get("INT6_LAST_N", 2))  # last N layers use int6, rest use int5
+    int6_last_n = int(os.environ.get("INT6_LAST_N", 0))  # all int5 (saves ~300KB vs int6 for last 2 blocks)
     ttt_temperature = float(os.environ.get("TTT_TEMPERATURE", 0.98))  # post-TTT temperature calibration
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
@@ -254,7 +254,7 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 8192))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 6144))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
@@ -264,7 +264,7 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
-    prune_pct = float(os.environ.get("PRUNE_PCT", 0.02))
+    prune_pct = float(os.environ.get("PRUNE_PCT", 0.03))
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -1635,7 +1635,7 @@ def main() -> None:
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
-    train_reserve_ms = 25000  # reserve 25s for EMA/SWA + GPTQ calibration + quantization + save
+    train_reserve_ms = 18000  # reserve 18s for EMA + GPTQ calibration + quantization + save
     effective_train_ms = (max_wallclock_ms - train_reserve_ms) if max_wallclock_ms is not None else None
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
@@ -1849,58 +1849,15 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
-    raw_state = {name: t.detach().clone() for name, t in base_model.state_dict().items()}
-    best_bpb = float('inf')
-    best_label = "raw"
-    best_state = raw_state
-    log0("ema:applying EMA weights")
+    # Apply EMA weights directly (skip diagnostic evals to save ~5s of reserve)
+    log0("ema:applying EMA weights (skipping diagnostic evals)")
     current_state = base_model.state_dict()
     ema_sd = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
     base_model.load_state_dict(ema_sd, strict=True)
-    torch.cuda.synchronize()
-    t_diag = time.perf_counter()
-    ema_val_loss, ema_val_bpb = eval_val(
-        args, compiled_model, rank, world_size, device, grad_accum_steps,
-        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-    )
-    torch.cuda.synchronize()
-    log0(
-        f"DIAGNOSTIC post_ema val_loss:{ema_val_loss:.4f} val_bpb:{ema_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
-    )
-    if ema_val_bpb < best_bpb:
-        best_bpb = ema_val_bpb
-        best_label = "ema"
-        best_state = {name: t.detach().clone() for name, t in base_model.state_dict().items()}
-    if swa_state is not None and swa_count > 0:
-        log0(f"swa:applying SWA weights (count={swa_count})")
-        swa_sd = {}
-        for name in current_state:
-            swa_avg = (swa_state[name].float() / swa_count).to(dtype=current_state[name].dtype)
-            swa_sd[name] = swa_avg
-        base_model.load_state_dict(swa_sd, strict=True)
-        torch.cuda.synchronize()
-        t_diag = time.perf_counter()
-        swa_val_loss, swa_val_bpb = eval_val(
-            args, compiled_model, rank, world_size, device, grad_accum_steps,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"DIAGNOSTIC post_swa val_loss:{swa_val_loss:.4f} val_bpb:{swa_val_bpb:.4f} "
-            f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
-        )
-        if swa_val_bpb < best_bpb:
-            best_bpb = swa_val_bpb
-            best_label = "swa"
-            best_state = {name: t.detach().clone() for name, t in base_model.state_dict().items()}
-
-    log0(f"best_averaging:{best_label} val_bpb:{best_bpb:.4f}")
-    base_model.load_state_dict(best_state, strict=True)
     # GPTQ calibration on final model (within reserved training budget)
     log0("gptq:calibrating with training data...")
     t_gptq = time.perf_counter()
-    gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
+    gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=128, seq_len=args.train_seq_len)
     log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
     export_sd = base_model.state_dict()
     if master_process:
