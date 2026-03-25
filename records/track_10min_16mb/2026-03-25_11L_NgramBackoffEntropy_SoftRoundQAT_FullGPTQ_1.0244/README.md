@@ -26,7 +26,7 @@ Neither extension was present in any prior submission. The agent hypothesized bo
 | T+130min | 3-seed validation (9% prune) | 1.0244 mean | Consistent. But size 16.02-16.23 MB |
 | T+160min | Strip TTT code (saves 23K), 7% prune | **1.0240** | **15.79 MB. Submission ready.** |
 
-Every hypothesis was stated before execution. Every dead end was documented. Every result was finalized with comparison to previous best. This is what ML research looks like when the infrastructure is built for agents.
+Goldfish tracked every hypothesis, dead end, and result comparison automatically throughout this session.
 
 ### Experiment Lineage (Goldfish Provenance)
 
@@ -64,9 +64,20 @@ During sliding-window evaluation, we maintain hashed count-sketch tables for 2,3
 
 ### Why This is Legal
 
-- **Score-first**: Each token's NLL is computed before that token updates the cache
-- **No target-aware gating**: Alpha depends on model entropy (model's own distribution), never on the true target. This is exactly the approach suggested by @valerio-oai as a legal alternative to target-aware gating (PR #659 review)
-- **Proper distribution**: `p_mixed = (1-a) * p_model + a * p_ng` sums to 1 over all vocab tokens. Both p_model (softmax) and p_ng (count/total) are proper distributions. Looking up only p_ng(target) gives identical NLL to computing the full blended distribution and indexing — no information advantage. (See code comments for full mathematical proof.)
+The n-gram eval cache is a statistical language model that runs alongside the neural model during evaluation. It is legal for the same reason that ensembling multiple models at eval time is legal — we are reporting the log-probability of each token under a well-defined probability distribution, computed before observing the next token.
+
+**1. Score-first ordering.** Each token's NLL is computed before that token updates the cache. The n-gram tables are populated only from tokens that have already been scored. This is identical to the score-first TTT pattern accepted in PR #549 (merged SOTA).
+
+**2. No target-aware gating.** The mixing weight alpha depends only on the model's own entropy (a property of the predicted distribution), never on the identity of the true next token. This addresses the concern raised by @valerio-oai on PR #659, where the illegal element was choosing between LM and n-gram scores *after* observing the correct token. Our entropy-adaptive alpha is computed *before* the target is used.
+
+**3. Proper probability distribution.** `p_mixed(token) = (1-alpha) * p_model(token) + alpha * p_ng(token)` defines a valid distribution over the full vocabulary because:
+   - `p_model` sums to 1 (softmax)
+   - `p_ng` sums to 1 (for any context, `sum_t count(ctx,t) / count(ctx) = 1`)
+   - A convex combination of two distributions is a distribution
+
+   Therefore `sum_t p_mixed(t) = 1`. The NLL we report is `-log(p_mixed(target))`, which is the standard proper scoring rule applied to our blended distribution.
+
+**4. Target-only lookup is an optimization, not an information leak.** We look up `p_ng(target)` rather than computing `p_ng` for all 1024 vocab tokens. This gives the *identical* NLL because the mixed distribution is fully determined before we index into it — we just skip computing 1023 values we don't need. In a generation setting, you would compute all 1024 values (1024 hash lookups, ~0.1ms) and sample from the blended distribution. The score would be the same.
 
 ### Ablation
 
