@@ -16,7 +16,7 @@ Ablations are run from the base train_gpt.py script for a fixed 10k steps. MLP e
 | + MoC (k=8) | 1.2121 | 1.2182 | 15911167 | 1.93 |
 | + BankedLinear | 1.2098 | 1.2164 | 15852659 | 2.6 |
 
-Across these changes, we observe a consistent improvement of ~0.016 bpb over baseline under identical training conditions.
+Across these changes, we observe an improvement of ~0.016 bpb over baseline under identical training conditions.
 
 ---
 
@@ -45,7 +45,7 @@ BankedLinear replaces standard projections with a shared weight basis across lay
 - a small set of learned weight matrices
 - a larger set of fixed random projections
 
-Fixed random projections provide a high-dimensional basis from which weight matrices can be constructed. They enable the model to synthesize structured weight matrices as mixtures over many fixed components.
+Fixed random projections provide a cheap, high-dimensional basis from which weight matrices can be constructed. They enable the model to synthesize structured weight matrices as mixtures over many fixed components.
 
 In practice, removing the random projections significantly degrades performance, suggesting that combining many simple fixed components is an effective way to approximate more expressive transformations under a fixed parameter budget.
 
