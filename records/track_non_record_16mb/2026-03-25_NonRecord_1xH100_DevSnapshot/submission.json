@@ -1,0 +1,11 @@
+{
+  "author": "Challenge participant",
+  "github_id": "jaksenc",
+  "name": "NonRecord_1xH100_DevSnapshot",
+  "blurb": "Non-record dev snapshot: late-window int8 fake-quant + partial-graph torch.compile; 1xH100 baseline-1gpu, 600s wall, seed 12345; final_int8_zlib_roundtrip_exact val_bpb ~1.352; not claiming leaderboard SOTA.",
+  "date": "2026-03-25T01:58:49Z",
+  "val_loss": 2.28198205,
+  "val_bpb": 1.35151831,
+  "bytes_total": 12622882,
+  "bytes_code": 64499
+}
