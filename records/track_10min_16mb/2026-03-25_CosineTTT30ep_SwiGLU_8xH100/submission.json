@@ -1,0 +1,11 @@
+{
+  "author": "Andrew Baggio",
+  "github_id": "andrewbaggio1",
+  "name": "30-Epoch Cosine TTT on LeakyReLU² Stack",
+  "blurb": "PR #518 architecture with TTT_EPOCHS=30. 3-seed mean val_bpb=1.0781 (std=0.0041). Single hyperparameter change from PR #518.",
+  "date": "2026-03-25T02:00:00Z",
+  "val_loss": 1.82,
+  "val_bpb": 1.0781,
+  "bytes_total": 15621761,
+  "bytes_code": 71793
+}
