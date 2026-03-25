@@ -214,6 +214,21 @@ def _build_hyperparameters(
 # Single training run
 # ---------------------------------------------------------------------------
 
+_ORIGINAL_MLP_CALL = tgm.MLP.__call__
+
+# Activation variants — monkey-patch MLP.__call__ before model construction
+_ACTIVATION_VARIANTS = {
+    "relu_sq": None,  # default, no patch needed
+    "gelu": lambda self, x: self.proj(nn.gelu(self.fc(x))),
+    "silu": lambda self, x: self.proj(nn.silu(self.fc(x))),
+    "sin": lambda self, x: self.proj(mx.sin(self.fc(x))),
+    "sin_sq": lambda self, x: self.proj(mx.sin(self.fc(x)) ** 2),
+    "fan": lambda self, x: self.proj(
+        mx.concatenate([mx.sin(self.fc(x)), nn.gelu(self.fc(x))], axis=-1)
+    ),  # Note: fan doubles hidden dim — proj must match. Only works with mlp_mult halved.
+}
+
+
 def train_single_run(
     ctx: SharedTrainingContext,
     env_overrides: dict[str, str],
@@ -223,6 +238,7 @@ def train_single_run(
     warmup_steps: int = 1,
     warmdown_iters: int = 0,
     screening_mode: bool = False,
+    activation: str = "relu_sq",
 ) -> dict[str, Any]:
     """Run a single training session in-process, matching train_gpt_mlx.py main().
 
@@ -242,6 +258,11 @@ def train_single_run(
 
     # --- Seed PRNG ---
     mx.random.seed(args.seed)
+
+    # --- Activation patch ---
+    if activation != "relu_sq" and activation in _ACTIVATION_VARIANTS:
+        tgm.MLP.__call__ = _ACTIVATION_VARIANTS[activation]
+        _logger.info("seed=%d activation=%s (monkey-patched)", seed, activation)
 
     # --- Model + optimizer ---
     model = tgm.GPT(
@@ -386,6 +407,9 @@ def train_single_run(
         step += 1
 
     # --- Cleanup ---
+    # Restore original activation before deleting model
+    tgm.MLP.__call__ = _ORIGINAL_MLP_CALL
+
     wall_time_s = time.perf_counter() - t_start
     del model, opt, train_loader, compiled_loss, compiled_loss_and_grad
     gc.collect()

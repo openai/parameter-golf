@@ -84,6 +84,12 @@ INTERVENTION_SEARCH_SPACE = {
         {"label": "dim_384", "overrides": {"MODEL_DIM": "384", "NUM_HEADS": "6", "NUM_KV_HEADS": "3"}},
         {"label": "dim_640", "overrides": {"MODEL_DIM": "640", "NUM_HEADS": "10", "NUM_KV_HEADS": "5"}},
     ],
+    "activation": [
+        {"label": "gelu", "overrides": {}, "activation": "gelu"},
+        {"label": "silu", "overrides": {}, "activation": "silu"},
+        {"label": "sin", "overrides": {}, "activation": "sin"},
+        {"label": "sin_sq", "overrides": {}, "activation": "sin_sq"},
+    ],
 }
 
 # Baseline config (9L, 512-dim, default everything)
@@ -183,6 +189,7 @@ def select_interventions(dag, completed_interventions):
                 candidates.append((label, {
                     "script": "train_gpt_mlx.py",
                     "env_overrides": variant["overrides"],
+                    "activation": variant.get("activation", "relu_sq"),
                     "description": f"DAG recommendation: {variable}={variant['label']}",
                 }))
 
@@ -197,6 +204,7 @@ def select_interventions(dag, completed_interventions):
                         candidates.append((label, {
                             "script": "train_gpt_mlx.py",
                             "env_overrides": variant["overrides"],
+                            "activation": variant.get("activation", "relu_sq"),
                             "description": f"Sweep uncertain edge: {source_node}={variant['label']}",
                         }))
 
@@ -281,18 +289,20 @@ def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, s
             warmup = min(1, screen_iters // 10)  # minimal warmup; cached after first run
             warmdown = screen_iters // 5
 
+            act = treatment_config.get("activation", "relu_sq")
+
             for s in seeds:
                 r = train_single_run(ctx, treatment["env_overrides"], seed=s,
                                      iterations=screen_iters, val_loss_every=val_every,
                                      warmup_steps=warmup, warmdown_iters=warmdown,
-                                     screening_mode=True)
+                                     screening_mode=True, activation=act)
                 treatment_results.append(r)
 
             for s in seeds:
                 r = train_single_run(ctx, control["env_overrides"], seed=s,
                                      iterations=screen_iters, val_loss_every=val_every,
                                      warmup_steps=warmup, warmdown_iters=warmdown,
-                                     screening_mode=True)
+                                     screening_mode=True)  # control always uses default relu_sq
                 control_results.append(r)
 
             results = {
