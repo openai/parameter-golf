@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.causal.common import decision_gate, holm_bonferroni, paired_ttest
 
 
