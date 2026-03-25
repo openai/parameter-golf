@@ -84,11 +84,7 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-    # Late QAT: activate STE int6 fake-quantization when LR scale drops below this threshold
-    late_qat_lr_threshold = float(os.environ.get("LATE_QAT_LR_THRESHOLD", 0.15))
-    # Late QAT min step guard: only activate after this many steps (prevents smoke-test false triggers)
-    late_qat_min_step = int(os.environ.get("LATE_QAT_MIN_STEP", 500))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -114,10 +110,10 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True, weight_decay: float = 0.0):
         super().__init__(
             params,
-            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov),
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov, weight_decay=weight_decay),
         )
 
     @torch.no_grad()
@@ -163,9 +159,12 @@ class Muon(torch.optim.Optimizer):
             if distributed:
                 dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
 
+            wd = group.get("weight_decay", 0.0)
             curr = 0
             for p in params:
                 g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
+                if wd > 0:
+                    p.mul_(1.0 - lr * wd)
                 p.add_(g, alpha=-lr)
                 curr += p.numel()
 
@@ -510,46 +509,11 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
-# Global flag for Late QAT — when True, CastedLinear uses STE int6 fake-quantized weights
-_late_qat_active: bool = False
-
-
-def ste_fake_int6(w: Tensor) -> Tensor:
-    """Fake int6 quantization with Straight-Through Estimator.
-    Forward: round weights to nearest int6 level; Backward: identity (STE).
-    Int6 range: -31 to 31 (symmetric, 6-bit signed = -32..31 but we use -31..31 for symmetry).
-    Per-row scale to match the final quantization format.
-    """
-    w_f = w.float()
-    if w_f.ndim == 2:
-        # Per-row scale (mirrors quantize_state_dict_int8 per-row logic)
-        scale = w_f.abs().amax(dim=1, keepdim=True).clamp_min(1e-8) / 31.0
-    else:
-        scale = w_f.abs().amax().clamp_min(1e-8) / 31.0
-    w_q = torch.round(w_f / scale).clamp(-31, 31) * scale
-    # STE: use quantized in forward, pass gradient through as if identity
-    return w + (w_q.to(w.dtype) - w).detach()
-
-
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     def forward(self, x: Tensor) -> Tensor:
-        w = self.weight
-        if _late_qat_active and w.ndim == 2:
-            w = ste_fake_int6(w)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, w.to(x.dtype), bias)
-
-
-def _ortho_init(weight: Tensor) -> None:
-    """OrthoInit (Step 8): initialize a 2D weight matrix as a (sliced) random orthogonal matrix.
-    Uses gain=1.0 (no scale) to keep weight magnitudes compatible with int8 quantization.
-    Orthogonal init ensures better gradient flow at the start of training vs Gaussian.
-    Works in-place on the parameter data.
-    """
-    # torch.nn.init.orthogonal_ produces an orthonormal matrix (singular values = 1).
-    # gain=1.0: keep the unit-norm property to avoid inflating weight magnitudes.
-    nn.init.orthogonal_(weight, gain=1.0)
+        return F.linear(x, self.weight.to(x.dtype), bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -739,10 +703,6 @@ class GPT(nn.Module):
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
-            elif isinstance(module, CastedLinear) and not getattr(module, "_zero_init", False):
-                # OrthoInit (Step 8): initialize 2D weight matrices as orthogonal, scaled by
-                # max(1, fan_out/fan_in)^0.5 — matches Muon's per-step scaling convention.
-                _ortho_init(module.weight)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
@@ -920,6 +880,7 @@ def main() -> None:
         lr=args.matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
+        weight_decay=0.04,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
@@ -1059,14 +1020,6 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-
-        # Late QAT (Step 7): activate STE int6 fake-quant when LR scale drops below threshold
-        global _late_qat_active
-        new_qat_state = scale < args.late_qat_lr_threshold and step >= args.late_qat_min_step
-        if new_qat_state and not _late_qat_active:
-            log0(f"late_qat:activating step:{step} lr_scale:{scale:.4f}")
-        _late_qat_active = new_qat_state
-
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
