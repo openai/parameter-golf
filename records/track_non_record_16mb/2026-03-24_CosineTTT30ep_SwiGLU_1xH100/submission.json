@@ -1,0 +1,21 @@
+{
+  "author": "Andrew Baggio",
+  "github_id": "andrewbaggio1",
+  "name": "Cosine TTT 30ep on SwiGLU + U-Net (1xH100)",
+  "blurb": "Non-record 1xH100 run: PR #462 SwiGLU architecture with 30-epoch cosine TTT. Sliding window val_bpb=1.1175 (stride=64). Single change from PR #462: TTT_EPOCHS=30 (default 10).",
+  "date": "2026-03-24T06:00:00Z",
+  "track": "non-record-1xH100-16mb",
+  "val_loss": 1.88683863,
+  "val_bpb": 1.11749508,
+  "pre_quant_val_loss": 2.3040,
+  "pre_quant_val_bpb": 1.3646,
+  "step_stop": 936,
+  "wallclock_seconds": 600.457,
+  "bytes_total": 7505437,
+  "bytes_model_int6_zstd": 7428079,
+  "bytes_code": 77358,
+  "gpu": "1xH100 SXM 80GB",
+  "ttt_epochs": 30,
+  "ttt_cosine_decay": true,
+  "eval_stride": 64
+}
