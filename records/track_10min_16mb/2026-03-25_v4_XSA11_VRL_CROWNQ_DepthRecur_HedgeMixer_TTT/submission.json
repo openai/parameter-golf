@@ -1,0 +1,14 @@
+{
+  "name": "Saken Tukenov",
+  "github_id": "stukenov",
+  "val_bpb": 1.0222,
+  "val_bpb_std": 0.0067,
+  "seeds": [1337, 42, 2025],
+  "seed_bpbs": [1.0201, 1.0165, 1.0299],
+  "artifact_bytes_max": 15857972,
+  "train_time_seconds": 600,
+  "eval_time_seconds": 507,
+  "gpu": "8xH100 SXM 80GB",
+  "framework": "PyTorch 2.4.0",
+  "date": "2026-03-25"
+}
