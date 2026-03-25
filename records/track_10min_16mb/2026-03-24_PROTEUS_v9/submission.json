@@ -1,0 +1,18 @@
+{
+  "author": "Mato (LightSpeedUp)",
+  "github_id": "MatoTeziTanka",
+  "name": "PROTEUS v9",
+  "blurb": "11L, INT6 GPTQ-lite, depth-scaled residual, single-epoch score-then-train LoRA TTT (batch=64). Built with PROTEUS by LightSpeedUp — lightspeedup.com",
+  "date": "2026-03-24T12:00:00Z",
+  "val_loss": 1.9461,
+  "val_bpb": 1.1526,
+  "bytes_total": 15408603,
+  "bytes_code": 71033,
+  "seeds": {
+    "42": {"val_bpb": 1.1527, "ttt_epochs": 1, "ttt_min_doc": 512},
+    "1337": {"val_bpb": 1.1529, "ttt_epochs": 1, "ttt_min_doc": 512},
+    "2024": {"val_bpb": 1.1522, "ttt_epochs": 1, "ttt_min_doc": 512}
+  },
+  "mean_val_bpb": 1.1526,
+  "std_val_bpb": 0.0004
+}
