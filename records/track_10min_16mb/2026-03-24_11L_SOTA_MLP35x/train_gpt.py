@@ -556,7 +556,7 @@ def collect_hessians(
         n_take = min(16, n_samples - samples_done)  # batch of 16 to limit VRAM for Hessians
         tokens = train_stream.take(n_take * seq_len + 1).to(dtype=torch.int64)
         x = tokens[:-1].reshape(n_take, seq_len).to(device)
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=False):
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             model(x)
         samples_done += n_take
 
