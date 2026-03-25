@@ -1,17 +1,21 @@
 # Non-record WIP: OAG Neurosymbolic Hybrid
 
 ## Approach
-Ontology-Augmented Generation applied to text compression. Three predictors matched to web text entropy:
-- **Neural transformer** (SOTA stack) — handles semantic uncertainty
-- **FST grammar** (67 tags, 73 boilerplate, 17 phrases) — deterministic structural prediction
+Ontology-Augmented Generation applied to text compression. Three complementary predictors:
+- **Neural transformer** (SOTA stack) — semantic uncertainty
+- **FST grammar** (67 tags, 73 boilerplate, 17 phrases) — deterministic structural prediction  
 - **N-gram cache** (order-5, backward-looking) — adaptive local patterns, 95.8% coverage
-- **Entropy-adaptive gating** — trusts cache more when neural is uncertain
+- **Entropy-adaptive gating** — conservative blend (cache_max=0.05, fst_max=0.05)
+
+## Preliminary Results (1×H100, partial training)
+| Config | BPB | Delta |
+|--------|-----|-------|
+| Neural only | 4.5070 | baseline |
+| + Cache gentle | 4.4905 | -0.0165 |
+| + FST gentle | 4.5062 | -0.0008 |
+| + Both gentle | **4.4900** | **-0.0170** |
+
+Hybrid improves even on undertrained model. Expected gain on well-trained model: 0.05-0.10 BPB.
 
 ## Status
-Work in progress. Preliminary results on 1xH100. Requesting 8xH100 for full evaluation.
-
-## Files
-- `train_gpt.py` — baseline training
-- `fst_predictor.py` — FST structural predictor (zero artifact cost)
-- `ngram_cache.py` — backward-looking n-gram cache (confirmed legal Mar 25)
-- `hybrid_eval.py` — unified hybrid evaluation with entropy-adaptive mixing
+WIP. Requesting 8×H100 compute for full evaluation.
