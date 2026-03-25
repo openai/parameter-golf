@@ -575,10 +575,16 @@ def gptq_quantize_weight(
 ) -> tuple[Tensor, Tensor]:
     """Full Hessian GPTQ quantization of a single 2D weight matrix.
     W: [out_features, in_features], H: [in_features, in_features].
-    Returns (Q_int8, scale_fp16) with per-row int6 quantization."""
+    Returns (Q_int8, scale_fp16) with per-row int6 quantization.
+    Follows the reference implementation from IST-DASLab/gptq."""
     W = W.float().clone()
-    rows, cols = W.shape
+    cols = W.shape[1]
     H = H.float().clone()
+
+    # Handle dead columns (zero Hessian diagonal = never activated)
+    dead = H.diag() == 0
+    H[dead, dead] = 1.0
+    W[:, dead] = 0.0
 
     # Damping for numerical stability
     damp = percdamp * H.diag().mean()
@@ -589,29 +595,35 @@ def gptq_quantize_weight(
     W = W[:, perm]
     H = H[perm][:, perm]
 
-    # Cholesky of inverse Hessian (upper triangular)
+    # Compute inverse Hessian Cholesky (numerically stable path)
     try:
-        Hinv = torch.linalg.cholesky(torch.linalg.inv(H), upper=True)
+        H_chol = torch.linalg.cholesky(H)
+        H_inv = torch.cholesky_inverse(H_chol)
+        Hinv = torch.linalg.cholesky(H_inv, upper=True)
     except Exception:
-        # Extra damping on Cholesky failure
+        # More damping on failure
         H.diagonal().add_(0.1 * H.diag().mean())
-        Hinv = torch.linalg.cholesky(torch.linalg.inv(H), upper=True)
+        H_chol = torch.linalg.cholesky(H)
+        H_inv = torch.cholesky_inverse(H_chol)
+        Hinv = torch.linalg.cholesky(H_inv, upper=True)
 
-    # Per-row scale from original weights (fixed throughout GPTQ)
+    # Per-row scale from original (reordered) weights
     row_amax = W.abs().amax(dim=1).clamp_min(1e-10)
     scale = (row_amax / qrange).clamp_min(1.0 / qrange)
 
     Q = torch.zeros_like(W)
+    Losses = torch.zeros_like(W)
 
     for b_start in range(0, cols, blocksize):
         b_end = min(b_start + blocksize, cols)
+        count = b_end - b_start
 
         W1 = W[:, b_start:b_end].clone()
         Q1 = torch.zeros_like(W1)
         Err1 = torch.zeros_like(W1)
         Hinv1 = Hinv[b_start:b_end, b_start:b_end]
 
-        for j in range(b_end - b_start):
+        for j in range(count):
             w = W1[:, j]
             d = Hinv1[j, j]
 
@@ -619,13 +631,13 @@ def gptq_quantize_weight(
             q = torch.clamp(torch.round(w / scale), -qrange, qrange)
             Q1[:, j] = q
 
-            # Error normalized by inverse Hessian diagonal
+            # Error and compensation (standard GPTQ formula)
             err = (w - q * scale) / d
             Err1[:, j] = err
+            Losses[:, b_start + j] = (w - q * scale) ** 2 / d ** 2
 
             # Compensate remaining columns in this block
-            if j + 1 < b_end - b_start:
-                W1[:, j + 1:] -= err.unsqueeze(1) * Hinv1[j, j + 1:].unsqueeze(0)
+            W1[:, j:] -= err.unsqueeze(1) * Hinv1[j, j:].unsqueeze(0)
 
         Q[:, b_start:b_end] = Q1
 
