@@ -1812,7 +1812,7 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = lzma.compress(quant_raw, preset=6)
+    quant_blob = lzma.compress(quant_raw, preset=9)
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
