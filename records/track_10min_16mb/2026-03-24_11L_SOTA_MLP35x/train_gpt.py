@@ -28,6 +28,12 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 
+try:
+    from flash_attn_interface import flash_attn_func as _flash_attn_3_func
+    _HAS_FA3 = True
+except ImportError:
+    _HAS_FA3 = False
+
 # --- HYPERPARAMETERS ---
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
@@ -1028,15 +1034,15 @@ class CausalSelfAttention(nn.Module):
 
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
 
-        # SDPA expects [B, H, T, D]; our q/k/v are [B, T, H, D]
-        q_sdpa = q.transpose(1, 2)
-        k_sdpa = k.transpose(1, 2)
-        v_sdpa = v.transpose(1, 2)
-        y = F.scaled_dot_product_attention(
-            q_sdpa, k_sdpa, v_sdpa, attn_mask=None, is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
-        y = y.transpose(1, 2)  # back to [B, T, H, D]
+        # q/k/v are [B, T, H, D]
+        if _HAS_FA3:
+            y = _flash_attn_3_func(q, k, v, causal=True)  # FA3: [B,T,H,D] in/out
+        else:
+            q_t, k_t, v_t = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
+            y = F.scaled_dot_product_attention(
+                q_t, k_t, v_t, attn_mask=None, is_causal=True,
+                enable_gqa=(self.num_kv_heads != self.num_heads),
+            ).transpose(1, 2)
 
         if self.use_xsa:
             y = self._xsa_efficient(y, v)  # v is [B, T, Hkv, D]
