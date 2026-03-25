@@ -1,0 +1,87 @@
+run_id:188e65f2-8329-46bb-93cb-0a4528ee4373
+model_type:crystal_gpt params:3411484 crystal_iters:12 dim:512
+val_progress:1/947
+val_progress:25/947
+val_progress:50/947
+val_progress:75/947
+val_progress:100/947
+val_progress:125/947
+val_progress:150/947
+val_progress:175/947
+val_progress:200/947
+val_progress:225/947
+val_progress:250/947
+val_progress:275/947
+val_progress:300/947
+val_progress:325/947
+val_progress:350/947
+val_progress:375/947
+val_progress:400/947
+val_progress:425/947
+val_progress:450/947
+val_progress:475/947
+val_progress:500/947
+val_progress:525/947
+val_progress:550/947
+val_progress:575/947
+val_progress:600/947
+val_progress:625/947
+val_progress:650/947
+val_progress:675/947
+val_progress:700/947
+val_progress:725/947
+val_progress:750/947
+val_progress:775/947
+val_progress:800/947
+val_progress:825/947
+val_progress:850/947
+val_progress:875/947
+val_progress:900/947
+val_progress:925/947
+val_progress:947/947
+step:0/5 val_loss:15.6991 val_bpb:9.2979 train_time:0ms
+step:1/5 train_loss:15.7026 tok_s:12761
+step:2/5 train_loss:7.0846 tok_s:14778
+step:3/5 train_loss:7.0911 tok_s:14790
+step:4/5 train_loss:7.0735 tok_s:14790
+step:5/5 train_loss:7.0596 tok_s:14796
+val_progress:1/947
+val_progress:25/947
+val_progress:50/947
+val_progress:75/947
+val_progress:100/947
+val_progress:125/947
+val_progress:150/947
+val_progress:175/947
+val_progress:200/947
+val_progress:225/947
+val_progress:250/947
+val_progress:275/947
+val_progress:300/947
+val_progress:325/947
+val_progress:350/947
+val_progress:375/947
+val_progress:400/947
+val_progress:425/947
+val_progress:450/947
+val_progress:475/947
+val_progress:500/947
+val_progress:525/947
+val_progress:550/947
+val_progress:575/947
+val_progress:600/947
+val_progress:625/947
+val_progress:650/947
+val_progress:675/947
+val_progress:700/947
+val_progress:725/947
+val_progress:750/947
+val_progress:775/947
+val_progress:800/947
+val_progress:825/947
+val_progress:850/947
+val_progress:875/947
+val_progress:900/947
+val_progress:925/947
+val_progress:947/947
+step:5/5 val_loss:7.0541 val_bpb:4.1778 train_time:182895ms
