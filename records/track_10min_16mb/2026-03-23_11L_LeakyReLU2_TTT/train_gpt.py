@@ -922,7 +922,7 @@ def eval_val_sliding_ttt(
     the best-so-far model state is restored and training stops.  Scoring
     continues for all remaining chunks so the final BPB covers the full val set.
     """
-    _CKPT_INTERVAL = 50   # check every N chunks
+    _CKPT_INTERVAL = 10   # check every N chunks
     _PATIENCE = 3         # stop after this many non-improving checks
 
     seq_len = args.train_seq_len
