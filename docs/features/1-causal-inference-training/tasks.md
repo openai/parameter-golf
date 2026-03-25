@@ -173,13 +173,13 @@
 
 ## Phase E: Integration
 
-### T19: Implement submission assembly [S12] — DEFERRED (Phase E, depends on experiment cycle results)
-- [ ] Write `tests/causal/test_submission.py` (schema, size check, required sections, files present)
-- [ ] Map causal findings → train_gpt.py changes
-- [ ] Verify artifact ≤ 16MB, training ≤ 10min
-- [ ] 3-seed H100 validation (using S6 --platform h100)
-- [ ] README.md with ablation table, submission.json
-- [ ] Engineering fallback if no causal findings
+### T19: Implement submission assembly [S12]
+- [x] Write `tests/causal/test_submission.py` (schema, size check, required sections, files present)
+- [x] Map causal findings → train_gpt.py changes
+- [x] Verify artifact ≤ 16MB, training ≤ 10min
+- [ ] 3-seed H100 validation (using S6 --platform h100) — requires H100 access
+- [x] README.md with ablation table, submission.json
+- [x] Engineering fallback if no causal findings
 **Deps**: Confirmed cycle effect OR time gate | **Done**: All submission files pass validation
 
 ## Parallel Groups
