@@ -49,17 +49,27 @@ class TestLoadSubmissionJson:
 
 # ===== 2. load_model =======================================================
 
-# We need a checkpoint to test load_model properly. If none exists, skip.
+# We need a checkpoint saved with default Hyperparameters to test load_model.
+# Prefer "default_ckpt" to avoid shape mismatches from experiment checkpoints.
 _CHECKPOINT_DIR = REPO_ROOT / "logs"
-_HAS_CHECKPOINT = (
-    any(_CHECKPOINT_DIR.rglob("*_mlx_model.npz"))
-    if _CHECKPOINT_DIR.exists() else False
-)
+
+def _find_default_checkpoint():
+    if not _CHECKPOINT_DIR.exists():
+        return None
+    # Prefer explicit default checkpoint
+    default = _CHECKPOINT_DIR / "default_ckpt_mlx_model.npz"
+    if default.exists():
+        return default
+    # Fallback: any checkpoint (may have non-default config — could fail)
+    candidates = sorted(_CHECKPOINT_DIR.rglob("*_mlx_model.npz"))
+    return candidates[0] if candidates else None
+
+_DEFAULT_CKPT = _find_default_checkpoint()
 
 class TestLoadModel:
-    @pytest.mark.skipif(not _HAS_CHECKPOINT, reason="No checkpoint found in logs/")
+    @pytest.mark.skipif(_DEFAULT_CKPT is None, reason="No default checkpoint in logs/")
     def test_returns_model_and_tokenizer(self):
-        ckpt = sorted(_CHECKPOINT_DIR.rglob("*_mlx_model.npz"))[0]
+        ckpt = _DEFAULT_CKPT
         model, tokenizer = load_model(ckpt)
         # model should be a GPT instance
         import train_gpt_mlx as tgm
