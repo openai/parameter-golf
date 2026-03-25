@@ -1,0 +1,11 @@
+{
+  "author": "Tommy Markstein",
+  "github_id": "parameter-golf-autoresearch",
+  "name": "8L EMA + Int6-MLP + BigramHash-65k + Sliding-64",
+  "blurb": "Full stack improvement across 41 experiments on the autoresearch/pgolf_mar22 branch. Key gains: (1) 8L architecture +0.007 bpb, (2) bigram_vocab 4096→65536 +0.015 bpb total, (3) eval_stride=64 free +0.007 bpb, (4) EMA decay=0.9 replacing uniform SWA +0.006 bpb, (5) warmdown extended to 3000 steps (~79% of training) +0.008 bpb, (6) int6 quantization for MLP (was int5) +0.0015 bpb, (7) 1% magnitude pruning before quantization +0.0009 bpb. Total improvement from session-2 baseline: 6.3% (1.3978→1.3092 bpb). Combined with session-1 gains: 26.5% from original 1.7810 baseline.",
+  "date": "2026-03-23",
+  "val_loss": 2.2103,
+  "val_bpb": 1.30920628,
+  "bytes_total": 15931671,
+  "bytes_code": 48069
+}
