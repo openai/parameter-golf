@@ -177,8 +177,18 @@ device = torch.device("cpu")
 # DATA LOADING
 # =============================================================================
 
+SHARD_HEADER_INTS = 256  # 256 × int32 = 1024 bytes header per shard
+SHARD_MAGIC = 20240520
+
 def load_shard_tokens(path: str) -> np.ndarray:
-    return np.memmap(path, dtype=np.uint16, mode="r")
+    """Load tokens from a FineWeb shard, skipping the 1024-byte header."""
+    header_bytes = SHARD_HEADER_INTS * np.dtype("<i4").itemsize
+    header = np.fromfile(path, dtype="<i4", count=SHARD_HEADER_INTS)
+    if header.size < 3 or int(header[0]) != SHARD_MAGIC:
+        # Fallback: raw file without header (e.g. custom data)
+        return np.memmap(path, dtype=np.uint16, mode="r")
+    num_tokens = int(header[2])
+    return np.fromfile(path, dtype="<u2", count=num_tokens, offset=header_bytes)
 
 class DataLoader:
     def __init__(self, pattern: str, batch_tokens: int, seq_len: int, rank: int, world_size: int):
@@ -545,6 +555,9 @@ def qk_clip_step(model: nn.Module, tau: float = 100.0, alpha: float = 0.5) -> in
       gamma_h = min(1, tau / max_logit_h)
       Q_nope *= gamma^alpha,  Q_rope *= gamma
       K_nope *= gamma^(1-alpha),  V: untouched
+
+    In DDP: all-reduce max_logits across ranks before clipping,
+    so all replicas clip identically and stay synchronized.
     """
     total_clipped = 0
     for module in model.modules():
@@ -554,6 +567,9 @@ def qk_clip_step(model: nn.Module, tau: float = 100.0, alpha: float = 0.5) -> in
             continue
 
         max_logits = module._current_max_logits
+        # DDP sync: use global max across all ranks
+        if dist.is_initialized():
+            dist.all_reduce(max_logits, op=dist.ReduceOp.MAX)
         gamma = torch.clamp(tau / max_logits, max=1.0)
         clip_mask = gamma < 1.0
 
