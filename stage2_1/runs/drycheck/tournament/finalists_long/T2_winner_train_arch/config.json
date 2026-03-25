@@ -1,0 +1,58 @@
+{
+  "batch_id": "stage2_1_frontier_portfolio_r3",
+  "pack": "tournament_finalists",
+  "scope": "tournament",
+  "phase": "finalists_long",
+  "slot": "T2",
+  "name": "winner_train_arch",
+  "role": "candidate",
+  "family": "pack_winner",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": null,
+  "patches": [
+    "leaky_relu_sq"
+  ],
+  "label": "drycheck",
+  "gpu_spec": "2",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "T2"
+  ],
+  "compare_to": "T0",
+  "why": "One-line frontier patch with unusually strong cross-submission recurrence.",
+  "validates": "The activation really is one of the remaining first-order bottlenecks.",
+  "falsifies": "The effect was contingent on other missing stack pieces.",
+  "notes": [
+    "Highest-priority pure training patch.",
+    "synthetic_from=B3",
+    "winner_of=train_arch"
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "GRAD_CLIP_NORM": "0.3",
+    "LEAKY_RELU_SLOPE": "0.5",
+    "LEAKY_RELU_SQ": "1",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "SCALAR_LR": "0.025",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500"
+  }
+}

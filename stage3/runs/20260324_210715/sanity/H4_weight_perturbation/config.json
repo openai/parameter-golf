@@ -1,0 +1,42 @@
+{
+  "batch_id": "stage3_original_screen",
+  "phase": "sanity",
+  "slot": "H4",
+  "name": "weight_perturbation",
+  "role": "candidate",
+  "family": "LANDSCAPE",
+  "label": "20260324_210715",
+  "gpu_spec": "5",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H4"
+  ],
+  "compare_to": "R0A",
+  "why": "Add Gaussian noise to matrix weights after each optimizer step, scaled by LR. From Langevin dynamics: SGD + properly scaled noise samples from the posterior over weights, biasing toward flat (high-entropy) regions. Flat minima survive quantization better because nearby weight configurations have similar loss. Distinct from QAT (quantization-specific noise in forward), dropout (activation noise), SAM (adversarial perturbation).",
+  "validates": "Noise-biased flat minima improve post-quant val_bpb. The loss landscape geometry matters for quantization.",
+  "falsifies": "SGD stochasticity already provides enough implicit exploration. Explicit noise hurts convergence without improving flatness.",
+  "patches": [
+    "weight_perturbation"
+  ],
+  "notes": [
+    "Cross-domain: Langevin dynamics / statistical mechanics / channel coding.",
+    "Scale=0.01 means noise std = 0.01 * current_lr. Decays with the schedule.",
+    "If it wins, the mechanism is 'geometry of the minimum matters for quantization'.",
+    "If it loses with scale=0.01, try scale=0.001 before killing (noise too large)."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000",
+    "WEIGHT_PERTURB_SCALE": "0.01"
+  }
+}

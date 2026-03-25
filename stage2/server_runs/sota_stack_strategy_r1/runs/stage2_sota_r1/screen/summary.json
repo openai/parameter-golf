@@ -1,0 +1,150 @@
+{
+  "phase": "screen",
+  "results": {
+    "R0A": {
+      "steps": 267,
+      "step_avg_ms": 674.48,
+      "pre_quant_bpb": 1.9713,
+      "post_quant_bpb": 5.33333326,
+      "submission_size_bytes": 4605396,
+      "returncode": 0
+    },
+    "R0B": {
+      "steps": 265,
+      "step_avg_ms": 680.7,
+      "pre_quant_bpb": 1.9896,
+      "post_quant_bpb": 5.42297227,
+      "submission_size_bytes": 4590194,
+      "returncode": 0
+    },
+    "H1": {
+      "steps": 364,
+      "step_avg_ms": 495.15,
+      "pre_quant_bpb": 1.6711,
+      "post_quant_bpb": 3.1804434,
+      "submission_size_bytes": 5144029,
+      "returncode": 0
+    },
+    "H2": {
+      "steps": 270,
+      "step_avg_ms": 668.8,
+      "pre_quant_bpb": 1.9801,
+      "post_quant_bpb": 4.05865717,
+      "submission_size_bytes": 4795731,
+      "returncode": 0
+    },
+    "H3": {
+      "steps": 267,
+      "step_avg_ms": 674.5,
+      "pre_quant_bpb": 2.5053,
+      "post_quant_bpb": 5.7833787,
+      "submission_size_bytes": 4295818,
+      "returncode": 0
+    },
+    "H4": {
+      "steps": 277,
+      "step_avg_ms": 651.54,
+      "pre_quant_bpb": 1.9327,
+      "post_quant_bpb": 5.22740855,
+      "submission_size_bytes": 4614722,
+      "returncode": 0
+    },
+    "H5": {
+      "steps": 263,
+      "step_avg_ms": 685.52,
+      "pre_quant_bpb": 1.9609,
+      "post_quant_bpb": 5.32577691,
+      "submission_size_bytes": 4828480,
+      "returncode": 0
+    },
+    "H6": {
+      "steps": 327,
+      "step_avg_ms": 552.04,
+      "pre_quant_bpb": 2.2688,
+      "post_quant_bpb": 6.27074621,
+      "submission_size_bytes": 4426697,
+      "returncode": 0
+    }
+  },
+  "comparisons": [
+    {
+      "slot": "H1",
+      "name": "smaller_batch_more_steps",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": -2.1528898599999997,
+      "delta_pre_quant_bpb": -0.3002,
+      "delta_quant_gap": -1.8526898599999995,
+      "delta_step_avg_ms": -179.33000000000004,
+      "delta_steps": 97,
+      "candidate_post_quant_gap_to_sota": 2.023003
+    },
+    {
+      "slot": "H2",
+      "name": "higher_muon_momentum",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": -1.2746760899999998,
+      "delta_pre_quant_bpb": 0.008799999999999919,
+      "delta_quant_gap": -1.2834760899999997,
+      "delta_step_avg_ms": -5.680000000000064,
+      "delta_steps": 3,
+      "candidate_post_quant_gap_to_sota": 2.90121677
+    },
+    {
+      "slot": "H4",
+      "name": "muon_weight_decay",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": -0.10592471000000003,
+      "delta_pre_quant_bpb": -0.03859999999999997,
+      "delta_quant_gap": -0.06732470999999984,
+      "delta_step_avg_ms": -22.940000000000055,
+      "delta_steps": 10,
+      "candidate_post_quant_gap_to_sota": 4.069968149999999
+    },
+    {
+      "slot": "H5",
+      "name": "muon_backend_steps_7",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": -0.007556349999999767,
+      "delta_pre_quant_bpb": -0.010399999999999965,
+      "delta_quant_gap": 0.0028436500000004195,
+      "delta_step_avg_ms": 11.039999999999964,
+      "delta_steps": -4,
+      "candidate_post_quant_gap_to_sota": 4.16833651
+    },
+    {
+      "slot": "H3",
+      "name": "longer_warmdown",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": 0.45004544000000024,
+      "delta_pre_quant_bpb": 0.534,
+      "delta_quant_gap": -0.08395455999999957,
+      "delta_step_avg_ms": 0.01999999999998181,
+      "delta_steps": 0,
+      "candidate_post_quant_gap_to_sota": 4.6259383
+    },
+    {
+      "slot": "H6",
+      "name": "batch_momentum_warmdown_combo",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": 0.9374129500000006,
+      "delta_pre_quant_bpb": 0.2975000000000001,
+      "delta_quant_gap": 0.6399129500000003,
+      "delta_step_avg_ms": -122.44000000000005,
+      "delta_steps": 60,
+      "candidate_post_quant_gap_to_sota": 5.11330581
+    }
+  ],
+  "recommended_promotions": [
+    {
+      "slot": "H1",
+      "name": "smaller_batch_more_steps",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": -2.1528898599999997,
+      "delta_pre_quant_bpb": -0.3002,
+      "delta_quant_gap": -1.8526898599999995,
+      "delta_step_avg_ms": -179.33000000000004,
+      "delta_steps": 97,
+      "candidate_post_quant_gap_to_sota": 2.023003
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "batch_id": "stage2_1_frontier_portfolio_r3",
+  "pack": "tournament_finalists",
+  "scope": "tournament_finalists",
+  "phase": "screen",
+  "slot": "T7",
+  "name": "mix_train_context",
+  "role": "candidate",
+  "family": "tournament_mix",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": null,
+  "patches": [
+    "partial_rope",
+    "ln_scale",
+    "xsa_all"
+  ],
+  "label": "s2_1_finalists_resume",
+  "gpu_spec": "7",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "T7"
+  ],
+  "compare_to": "T0",
+  "why": "Tests whether the strongest train-side and broader-context survivors stack cleanly.",
+  "validates": "The training and context winners attack distinct bottlenecks and should compose.",
+  "falsifies": "The two strongest winners are mostly redundant on the 11L frontier base.",
+  "notes": [
+    "synthetic_composite=B7+D4"
+  ],
+  "env": {
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "GRAD_CLIP_NORM": "0.3",
+    "LN_SCALE_ENABLE": "1",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "ROPE_PARTIAL_DIM": "16",
+    "SCALAR_LR": "0.025",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500",
+    "XSA_ENABLE": "1",
+    "XSA_LAYERS": "all"
+  }
+}

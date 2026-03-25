@@ -1,0 +1,58 @@
+{
+  "batch_id": "stage2_1_frontier_portfolio_r3",
+  "pack": "tournament_finalists",
+  "scope": "tournament",
+  "phase": "finalists_long",
+  "slot": "T7",
+  "name": "mix_train_geometry",
+  "role": "candidate",
+  "family": "tournament_mix",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": null,
+  "patches": [
+    "leaky_relu_sq",
+    "weight_perturbation"
+  ],
+  "label": "drycheck2",
+  "gpu_spec": "7",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "T7"
+  ],
+  "compare_to": "T0",
+  "why": "Tests whether the main first-wave training winner stacks with the best deploy-geometry winner.",
+  "validates": "Training-shape and deploy-geometry gains are distinct enough to compose.",
+  "falsifies": "The geometry winner is mostly proxying the training winner or the interaction is destabilizing.",
+  "notes": [
+    "synthetic_composite=B3+F2"
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "GRAD_CLIP_NORM": "0.3",
+    "LEAKY_RELU_SLOPE": "0.5",
+    "LEAKY_RELU_SQ": "1",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "SCALAR_LR": "0.025",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500",
+    "WEIGHT_PERTURB_SCALE": "0.01"
+  }
+}

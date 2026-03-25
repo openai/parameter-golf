@@ -1,0 +1,150 @@
+{
+  "phase": "screen",
+  "results": {
+    "R0A": {
+      "steps": 360,
+      "step_avg_ms": 500.13,
+      "pre_quant_bpb": 1.7237,
+      "post_quant_bpb": 1.88253599,
+      "submission_size_bytes": 9335889,
+      "returncode": 0
+    },
+    "R0B": {
+      "steps": 357,
+      "step_avg_ms": 505.07,
+      "pre_quant_bpb": 1.7207,
+      "post_quant_bpb": 1.86327731,
+      "submission_size_bytes": 9390437,
+      "returncode": 0
+    },
+    "H1": {
+      "steps": 375,
+      "step_avg_ms": 480.3,
+      "pre_quant_bpb": 1.7012,
+      "post_quant_bpb": 1.85953876,
+      "submission_size_bytes": 9419444,
+      "returncode": 0
+    },
+    "H2": {
+      "steps": 350,
+      "step_avg_ms": 514.59,
+      "pre_quant_bpb": 1.7343,
+      "post_quant_bpb": 1.89972788,
+      "submission_size_bytes": 9604627,
+      "returncode": 0
+    },
+    "H3": {
+      "steps": 98,
+      "step_avg_ms": 1843.06,
+      "pre_quant_bpb": 3.23,
+      "post_quant_bpb": 3.28206646,
+      "submission_size_bytes": 6346488,
+      "returncode": 0
+    },
+    "H4": {
+      "steps": 376,
+      "step_avg_ms": 479.34,
+      "pre_quant_bpb": 1.7559,
+      "post_quant_bpb": 1.80442196,
+      "submission_size_bytes": 11835649,
+      "returncode": 0
+    },
+    "H5": {
+      "steps": 362,
+      "step_avg_ms": 497.79,
+      "pre_quant_bpb": 1.7152,
+      "post_quant_bpb": 1.8507871,
+      "submission_size_bytes": 9397188,
+      "returncode": 0
+    },
+    "H6": {
+      "steps": 99,
+      "step_avg_ms": 1827.97,
+      "pre_quant_bpb": 3.2374,
+      "post_quant_bpb": 3.28855099,
+      "submission_size_bytes": 6359067,
+      "returncode": 0
+    }
+  },
+  "comparisons": [
+    {
+      "slot": "H4",
+      "name": "weight_perturbation",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": -0.07811403000000006,
+      "delta_pre_quant_bpb": 0.032200000000000006,
+      "delta_quant_gap": -0.11031403000000006,
+      "delta_step_avg_ms": -20.79000000000002,
+      "delta_steps": 16,
+      "candidate_post_quant_gap_to_sota": 0.6886219600000001
+    },
+    {
+      "slot": "H5",
+      "name": "gradient_centralization",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": -0.03174889000000003,
+      "delta_pre_quant_bpb": -0.008499999999999952,
+      "delta_quant_gap": -0.023248890000000078,
+      "delta_step_avg_ms": -2.339999999999975,
+      "delta_steps": 2,
+      "candidate_post_quant_gap_to_sota": 0.7349871000000001
+    },
+    {
+      "slot": "H1",
+      "name": "zloss_regularization",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": -0.02299723000000009,
+      "delta_pre_quant_bpb": -0.022499999999999964,
+      "delta_quant_gap": -0.0004972300000001262,
+      "delta_step_avg_ms": -19.829999999999984,
+      "delta_steps": 15,
+      "candidate_post_quant_gap_to_sota": 0.74373876
+    },
+    {
+      "slot": "H2",
+      "name": "adaptive_ns_steps",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": 0.017191889999999876,
+      "delta_pre_quant_bpb": 0.010599999999999943,
+      "delta_quant_gap": 0.006591889999999934,
+      "delta_step_avg_ms": 14.460000000000036,
+      "delta_steps": -10,
+      "candidate_post_quant_gap_to_sota": 0.78392788
+    },
+    {
+      "slot": "H3",
+      "name": "nuclear_norm_regularization",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": 1.3995304699999997,
+      "delta_pre_quant_bpb": 1.5063,
+      "delta_quant_gap": -0.10676953000000022,
+      "delta_step_avg_ms": 1342.9299999999998,
+      "delta_steps": -262,
+      "candidate_post_quant_gap_to_sota": 2.16626646
+    },
+    {
+      "slot": "H6",
+      "name": "zloss_plus_nuclear_norm",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": 1.406015,
+      "delta_pre_quant_bpb": 1.5137,
+      "delta_quant_gap": -0.10768500000000003,
+      "delta_step_avg_ms": 1327.8400000000001,
+      "delta_steps": -261,
+      "candidate_post_quant_gap_to_sota": 2.17275099
+    }
+  ],
+  "recommended_promotions": [
+    {
+      "slot": "H4",
+      "name": "weight_perturbation",
+      "compare_to": "R0A",
+      "delta_post_quant_bpb": -0.07811403000000006,
+      "delta_pre_quant_bpb": 0.032200000000000006,
+      "delta_quant_gap": -0.11031403000000006,
+      "delta_step_avg_ms": -20.79000000000002,
+      "delta_steps": 16,
+      "candidate_post_quant_gap_to_sota": 0.6886219600000001
+    }
+  ]
+}

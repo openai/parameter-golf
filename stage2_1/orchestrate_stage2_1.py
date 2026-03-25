@@ -18,13 +18,19 @@ from patches import apply_patches, list_patches
 
 SUPPORTED_RUNNER_MODES = {"train"}
 PATCH_ID_TO_PATCHES = {
-    "P203": ["ste_qat"],
     "P204": ["muon_weight_decay"],
-    "P206": ["orthoinit_mup"],
-    "P207": ["normuon"],
-    "P208": ["smeargate"],
-    "P209": ["bigramhash"],
+    "P211": ["zstd_export"],
+    "P214": ["leaky_relu_sq"],
+    "P215": ["ema"],
+    "P216": ["xsa4"],
+    "P218": ["gptq_lite"],
+    "P220": ["partial_rope"],
+    "P221": ["ln_scale"],
 }
+TOURNAMENT_PRIMARY_PACKS = ["train_arch", "context_all", "curriculum", "geometry", "throughput"]
+TOURNAMENT_CONTROL_SLOTS = ("B0", "B1")
+TOURNAMENT_FINAL_PACK = "tournament_finalists"
+REFERENCE_PACK = "reference"
 
 
 @dataclass(frozen=True)
@@ -59,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--phase",
         default="plan",
-        choices=["plan", "readiness", "sanity", "screen", "final_single", "champion_8x", "all"],
+        choices=["plan", "readiness", "sanity", "screen", "final_single", "champion_8x", "all", "tournament"],
         help="Which phase to execute.",
     )
     parser.add_argument("--label", default=datetime.now().strftime("%Y%m%d_%H%M%S"), help="Run label.")
@@ -464,8 +470,61 @@ def comparison_entry(
             candidate.get("submission_size_bytes"), control.get("submission_size_bytes")
         ),
         "candidate_gap_to_ours": benchmark_gap(candidate, benchmarks, "ours_bpb"),
-        "candidate_gap_to_frontier": benchmark_gap(candidate, benchmarks, "frontier_bpb"),
+        "candidate_gap_to_merged_sota": benchmark_gap(candidate, benchmarks, "merged_sota_bpb"),
+        "candidate_gap_to_frontier": benchmark_gap(candidate, benchmarks, "frontier_no_ttt_bpb"),
     }
+
+
+def absolute_result_sort_key(metrics: dict[str, Any]) -> tuple[float, float, float, float, float]:
+    return (
+        metrics.get("score_bpb") if metrics.get("score_bpb") is not None else float("inf"),
+        metrics.get("post_quant_bpb") if metrics.get("post_quant_bpb") is not None else float("inf"),
+        metrics.get("pre_quant_bpb") if metrics.get("pre_quant_bpb") is not None else float("inf"),
+        metrics.get("step_avg_ms") if metrics.get("step_avg_ms") is not None else float("inf"),
+        -(float(metrics.get("steps")) if metrics.get("steps") is not None else -10**9),
+    )
+
+
+def absolute_result_entry(
+    slot_id: str,
+    slot_map: dict[str, dict[str, Any]],
+    metrics: dict[str, Any],
+    benchmarks: dict[str, Any],
+) -> dict[str, Any]:
+    slot = slot_map[slot_id]
+    return {
+        "slot": slot_id,
+        "name": slot["name"],
+        "role": slot["role"],
+        "family": slot["family"],
+        "runner_mode": slot.get("runner_mode", "train"),
+        "patches": resolve_patch_names(slot),
+        "score_bpb": metrics.get("score_bpb"),
+        "pre_quant_bpb": metrics.get("pre_quant_bpb"),
+        "post_quant_bpb": metrics.get("post_quant_bpb"),
+        "ttt_lora_bpb": metrics.get("ttt_lora_bpb"),
+        "sliding_bpb": metrics.get("sliding_bpb"),
+        "doc_sliding_bpb": metrics.get("doc_sliding_bpb"),
+        "step_avg_ms": metrics.get("step_avg_ms"),
+        "steps": metrics.get("steps"),
+        "submission_size_bytes": metrics.get("submission_size_bytes"),
+        "gap_to_ours": benchmark_gap(metrics, benchmarks, "ours_bpb"),
+        "gap_to_merged_sota": benchmark_gap(metrics, benchmarks, "merged_sota_bpb"),
+        "gap_to_frontier_no_ttt": benchmark_gap(metrics, benchmarks, "frontier_no_ttt_bpb"),
+        "gap_to_frontier_ttt": benchmark_gap(metrics, benchmarks, "frontier_ttt_bpb"),
+    }
+
+
+def best_result_from_phase_results(
+    phase_results: dict[str, dict[str, Any]],
+    slot_map: dict[str, dict[str, Any]],
+    benchmarks: dict[str, Any],
+) -> dict[str, Any] | None:
+    ranked = sorted(phase_results.items(), key=lambda item: absolute_result_sort_key(item[1]))
+    if not ranked:
+        return None
+    slot_id, metrics = ranked[0]
+    return absolute_result_entry(slot_id, slot_map, metrics, benchmarks)
 
 
 def comparison_sort_key(entry: dict[str, Any], pack_name: str) -> tuple[float, float, float, float]:
@@ -598,6 +657,7 @@ def write_phase_summary(
         "phase": phase_name,
         "results": phase_results,
         "comparisons": comparisons,
+        "best_result": best_result_from_phase_results(phase_results, slot_map, benchmarks),
         "recommended_promotions": recommend_promotions(
             phase_results, slot_map, benchmarks, pack_name, top_k
         ),
@@ -846,6 +906,545 @@ def should_run_champion(args: argparse.Namespace) -> bool:
     return args.top_k > 1
 
 
+def phase_like(base: PhaseSpec, name: str) -> PhaseSpec:
+    return PhaseSpec(name=name, max_wallclock_seconds=base.max_wallclock_seconds, nproc_per_slot=base.nproc_per_slot)
+
+
+def load_summary(summary_path: Path) -> dict[str, Any]:
+    return json.loads(summary_path.read_text(encoding="utf-8"))
+
+
+def pick_pack_winner(summary_path: Path) -> str:
+    summary = load_summary(summary_path)
+    promotions = summary.get("recommended_promotions", [])
+    if not promotions:
+        raise SystemExit(f"No recommended promotions found in {summary_path}")
+    return promotions[0]["slot"]
+
+
+def best_finalist_from_summary(summary_path: Path) -> dict[str, Any]:
+    summary = load_summary(summary_path)
+    comparisons = summary.get("comparisons", [])
+    if not comparisons:
+        raise SystemExit(f"No comparisons found in finalist summary {summary_path}")
+    return comparisons[0]
+
+
+def best_result_from_summary(summary_path: Path) -> dict[str, Any]:
+    summary = load_summary(summary_path)
+    best_result = summary.get("best_result")
+    if best_result is None:
+        raise SystemExit(f"No best_result found in summary {summary_path}")
+    return best_result
+
+
+def assess_result_vs_targets(
+    result: dict[str, Any],
+    benchmarks: dict[str, Any],
+    reference_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    score = result.get("score_bpb")
+    targets: list[dict[str, Any]] = []
+    for key, label in (
+        ("ours_bpb", "ours"),
+        ("merged_sota_bpb", "merged_sota"),
+        ("frontier_no_ttt_bpb", "frontier_no_ttt"),
+        ("frontier_ttt_bpb", "frontier_ttt"),
+    ):
+        target_value = benchmarks.get(key)
+        targets.append(
+            {
+                "label": label,
+                "target_bpb": target_value,
+                "gap_bpb": delta(score, target_value),
+                "beaten": None if score is None or target_value is None else score < target_value,
+            }
+        )
+    if reference_result is not None:
+        reference_score = reference_result.get("score_bpb")
+        targets.append(
+            {
+                "label": "local_reference_best",
+                "target_bpb": reference_score,
+                "gap_bpb": delta(score, reference_score),
+                "beaten": None if score is None or reference_score is None else score < reference_score,
+            }
+        )
+    return {
+        "score_bpb": score,
+        "distance_to_frontier_no_ttt_bpb": delta(score, benchmarks.get("frontier_no_ttt_bpb")),
+        "beats_frontier_no_ttt": None
+        if score is None or benchmarks.get("frontier_no_ttt_bpb") is None
+        else score < benchmarks["frontier_no_ttt_bpb"],
+        "targets": targets,
+    }
+
+
+def merged_env_snapshot(
+    slot_id: str, slot_map: dict[str, dict[str, Any]], defaults: dict[str, str]
+) -> dict[str, str]:
+    merged_env, _ = merge_env_for_slot(slot_id, slot_map, defaults)
+    return dict(merged_env)
+
+
+def merged_patch_names(slot_ids: list[str], slot_map: dict[str, dict[str, Any]]) -> list[str]:
+    patch_names: list[str] = []
+    for slot_id in slot_ids:
+        for patch_name in resolve_patch_names(slot_map[slot_id]):
+            if patch_name not in patch_names:
+                patch_names.append(patch_name)
+    return patch_names
+
+
+def synthetic_slot_from_source(
+    new_slot_id: str,
+    source_slot_id: str,
+    slot_map: dict[str, dict[str, Any]],
+    defaults: dict[str, str],
+    *,
+    compare_to: str | None,
+    name: str | None = None,
+    role: str | None = None,
+    family: str | None = None,
+    notes_suffix: list[str] | None = None,
+) -> dict[str, Any]:
+    source = slot_map[source_slot_id]
+    merged_env = merged_env_snapshot(source_slot_id, slot_map, defaults)
+    notes = list(source.get("notes", []))
+    notes.append(f"synthetic_from={source_slot_id}")
+    if notes_suffix:
+        notes.extend(notes_suffix)
+    return {
+        "slot": new_slot_id,
+        "name": name or source["name"],
+        "role": role or source["role"],
+        "runner_mode": source.get("runner_mode", "train"),
+        "implementation_state": "ready",
+        "patches": resolve_patch_names(source),
+        "parent": None,
+        "compare_to": compare_to,
+        "family": family or source["family"],
+        "why": source["why"],
+        "validates": source["validates"],
+        "falsifies": source["falsifies"],
+        "env": merged_env,
+        "notes": notes,
+    }
+
+
+def synthetic_composite_slot(
+    new_slot_id: str,
+    source_slot_ids: list[str],
+    slot_map: dict[str, dict[str, Any]],
+    defaults: dict[str, str],
+    *,
+    compare_to: str,
+    name: str,
+    family: str,
+    why: str,
+    validates: str,
+    falsifies: str,
+) -> dict[str, Any]:
+    merged_env = merged_env_snapshot(TOURNAMENT_CONTROL_SLOTS[0], slot_map, defaults)
+    for slot_id in source_slot_ids:
+        merged_env.update(merged_env_snapshot(slot_id, slot_map, defaults))
+    notes = [f"synthetic_composite={'+'.join(source_slot_ids)}"]
+    return {
+        "slot": new_slot_id,
+        "name": name,
+        "role": "candidate",
+        "runner_mode": "train",
+        "implementation_state": "ready",
+        "patches": merged_patch_names(source_slot_ids, slot_map),
+        "parent": None,
+        "compare_to": compare_to,
+        "family": family,
+        "why": why,
+        "validates": validates,
+        "falsifies": falsifies,
+        "env": merged_env,
+        "notes": notes,
+    }
+
+
+def config_with_slots_and_pack(
+    config: dict[str, Any],
+    pack_name: str,
+    slots: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    augmented = json.loads(json.dumps(config))
+    augmented["packs"][pack_name] = [slot["slot"] for slot in slots]
+    existing_ids = {slot["slot"] for slot in slots}
+    augmented["slots"] = [slot for slot in augmented["slots"] if slot["slot"] not in existing_ids]
+    augmented["slots"].extend(slots)
+    return augmented, build_slot_map(augmented)
+
+
+def build_tournament_finalist_pack(
+    config: dict[str, Any],
+    slot_map: dict[str, dict[str, Any]],
+    winners_by_pack: dict[str, str],
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    defaults = config["defaults"]
+    controls = [
+        synthetic_slot_from_source(
+            "T0",
+            TOURNAMENT_CONTROL_SLOTS[0],
+            slot_map,
+            defaults,
+            compare_to=None,
+            name="tournament_control_a",
+            role="control",
+            family="tournament_control",
+            notes_suffix=["stage=tournament_finalists"],
+        ),
+        synthetic_slot_from_source(
+            "T1",
+            TOURNAMENT_CONTROL_SLOTS[1],
+            slot_map,
+            defaults,
+            compare_to="T0",
+            name="tournament_control_b",
+            role="control",
+            family="tournament_control_repeat",
+            notes_suffix=["stage=tournament_finalists"],
+        ),
+    ]
+    pack_slots = [
+        synthetic_slot_from_source(
+            "T2",
+            winners_by_pack["train_arch"],
+            slot_map,
+            defaults,
+            compare_to="T0",
+            name="winner_train_arch",
+            family="pack_winner",
+            notes_suffix=["winner_of=train_arch"],
+        ),
+        synthetic_slot_from_source(
+            "T3",
+            winners_by_pack["context_all"],
+            slot_map,
+            defaults,
+            compare_to="T0",
+            name="winner_context_all",
+            family="pack_winner",
+            notes_suffix=["winner_of=context_all"],
+        ),
+        synthetic_slot_from_source(
+            "T4",
+            winners_by_pack["curriculum"],
+            slot_map,
+            defaults,
+            compare_to="T0",
+            name="winner_curriculum",
+            family="pack_winner",
+            notes_suffix=["winner_of=curriculum"],
+        ),
+        synthetic_slot_from_source(
+            "T5",
+            winners_by_pack["geometry"],
+            slot_map,
+            defaults,
+            compare_to="T0",
+            name="winner_geometry",
+            family="pack_winner",
+            notes_suffix=["winner_of=geometry"],
+        ),
+        synthetic_slot_from_source(
+            "T6",
+            winners_by_pack["throughput"],
+            slot_map,
+            defaults,
+            compare_to="T0",
+            name="winner_throughput",
+            family="pack_winner",
+            notes_suffix=["winner_of=throughput"],
+        ),
+        synthetic_composite_slot(
+            "T7",
+            [winners_by_pack["train_arch"], winners_by_pack["context_all"]],
+            slot_map,
+            defaults,
+            compare_to="T0",
+            name="mix_train_context",
+            family="tournament_mix",
+            why="Tests whether the strongest train-side and broader-context survivors stack cleanly.",
+            validates="The training and context winners attack distinct bottlenecks and should compose.",
+            falsifies="The two strongest winners are mostly redundant on the 11L frontier base.",
+        ),
+    ]
+    return config_with_slots_and_pack(config, TOURNAMENT_FINAL_PACK, controls + pack_slots)
+
+
+def tournament_stage_plan(
+    config: dict[str, Any],
+    slot_map: dict[str, dict[str, Any]],
+    label: str,
+) -> dict[str, Any]:
+    sanity = phase_from_config(config, "sanity")
+    screen = phase_from_config(config, "screen")
+    champion = phase_from_config(config, "champion_8x")
+    plan: list[dict[str, Any]] = []
+    if REFERENCE_PACK in config["packs"]:
+        reference_sanity_slots = phase_slot_defaults(sanity, config, REFERENCE_PACK)
+        reference_screen_slots = phase_slot_defaults(screen, config, REFERENCE_PACK)
+        ensure_runnable(reference_sanity_slots, slot_map)
+        ensure_runnable(reference_screen_slots, slot_map)
+        plan.append(
+            {
+                "reference_pack": REFERENCE_PACK,
+                "sanity_phase": phase_like(sanity, f"sanity_{REFERENCE_PACK}").name,
+                "screen_phase": phase_like(screen, f"screen_{REFERENCE_PACK}").name,
+                "sanity_slots": reference_sanity_slots,
+                "screen_slots": reference_screen_slots,
+                "note": "Reference anchor pack. Not used for promotion, only for distance-to-SOTA calibration.",
+            }
+        )
+    for pack_name in TOURNAMENT_PRIMARY_PACKS:
+        sanity_slots = phase_slot_defaults(sanity, config, pack_name)
+        screen_slots = phase_slot_defaults(screen, config, pack_name)
+        ensure_runnable(sanity_slots, slot_map)
+        ensure_runnable(screen_slots, slot_map)
+        plan.append(
+            {
+                "pack": pack_name,
+                "sanity_phase": phase_like(sanity, f"sanity_{pack_name}").name,
+                "screen_phase": phase_like(screen, f"screen_{pack_name}").name,
+                "sanity_slots": sanity_slots,
+                "screen_slots": screen_slots,
+                "promotion_rule": "top candidate relative to matched control",
+            }
+        )
+    plan.append(
+        {
+            "finalist_wave": {
+                "pack": TOURNAMENT_FINAL_PACK,
+                "sanity_phase": "sanity_finalists",
+                "long_phase": "finalists_long",
+                "shape": [
+                    "T0 control",
+                    "T1 control_repeat",
+                    "T2 winner_train_arch",
+                    "T3 winner_context_all",
+                    "T4 winner_curriculum",
+                    "T5 winner_geometry",
+                    "T6 winner_throughput",
+                    "T7 mix_train_context",
+                ],
+                "promotion_rule": "best finalist after 600s on 1xH100",
+            },
+            "champion_8x": {
+                "phase": champion.name,
+                "nproc_per_slot": champion.nproc_per_slot,
+                "max_wallclock_seconds": champion.max_wallclock_seconds,
+                "note": "Single best finalist gets the full 8xH100 run.",
+            },
+        }
+    )
+    return {"mode": "tournament", "label": label, "scope": "tournament", "stages": plan}
+
+
+def run_pack_screen(
+    script_path: Path,
+    config_path: Path,
+    config: dict[str, Any],
+    slot_map: dict[str, dict[str, Any]],
+    label: str,
+    pack_name: str,
+    gpus: list[str],
+    top_k: int,
+) -> tuple[str, Path]:
+    scope_name = "tournament"
+    scope_root_dir = scope_root(config_path, label, scope_name)
+    sanity = phase_like(phase_from_config(config, "sanity"), f"sanity_{pack_name}")
+    screen = phase_like(phase_from_config(config, "screen"), f"screen_{pack_name}")
+    sanity_slots = phase_slot_defaults(phase_from_config(config, "sanity"), config, pack_name)
+    screen_slots = phase_slot_defaults(phase_from_config(config, "screen"), config, pack_name)
+    ensure_runnable(sanity_slots, slot_map)
+    ensure_runnable(screen_slots, slot_map)
+
+    print(f"[tournament] pack={pack_name} sanity slots={','.join(sanity_slots)}", flush=True)
+    sanity_results = run_parallel_phase(
+        script_path, config_path, config, sanity, label, pack_name, scope_name, sanity_slots, gpus, False
+    )
+    sanity_summary = write_phase_summary(scope_root_dir, sanity.name, pack_name, sanity_results, slot_map, config["benchmarks"], top_k)
+    print(f"[summary] {sanity_summary}", flush=True)
+    if any(result.get("returncode") not in (0, None) for result in sanity_results.values()):
+        raise SystemExit(f"Tournament sanity failed for pack {pack_name}; refusing to continue.")
+
+    print(f"[tournament] pack={pack_name} screen slots={','.join(screen_slots)}", flush=True)
+    screen_results = run_parallel_phase(
+        script_path, config_path, config, screen, label, pack_name, scope_name, screen_slots, gpus, False
+    )
+    screen_summary = write_phase_summary(scope_root_dir, screen.name, pack_name, screen_results, slot_map, config["benchmarks"], top_k)
+    print(f"[summary] {screen_summary}", flush=True)
+    return pick_pack_winner(screen_summary), screen_summary
+
+
+def run_tournament(
+    script_path: Path,
+    config_path: Path,
+    config: dict[str, Any],
+    slot_map: dict[str, dict[str, Any]],
+    args: argparse.Namespace,
+    gpus: list[str],
+) -> None:
+    if args.dry_run:
+        print(json.dumps(tournament_stage_plan(config, slot_map, args.label), indent=2))
+        return
+
+    reference_summary_entry: dict[str, Any] | None = None
+    if REFERENCE_PACK in config["packs"]:
+        _, reference_screen_summary = run_pack_screen(
+            script_path, config_path, config, slot_map, args.label, REFERENCE_PACK, gpus, 1
+        )
+        reference_summary_entry = {
+            "pack": REFERENCE_PACK,
+            "summary_path": str(reference_screen_summary),
+            "best_result": best_result_from_summary(reference_screen_summary),
+        }
+
+    winners_by_pack: dict[str, str] = {}
+    pack_summaries: list[dict[str, Any]] = []
+    for pack_name in TOURNAMENT_PRIMARY_PACKS:
+        winner_slot, screen_summary = run_pack_screen(
+            script_path, config_path, config, slot_map, args.label, pack_name, gpus, args.top_k
+        )
+        winners_by_pack[pack_name] = winner_slot
+        pack_summaries.append({"pack": pack_name, "winner_slot": winner_slot, "summary_path": str(screen_summary)})
+
+    finalist_config, finalist_slot_map = build_tournament_finalist_pack(config, slot_map, winners_by_pack)
+    finalist_scope_name = "tournament"
+    finalist_scope_root = scope_root(config_path, args.label, finalist_scope_name)
+    finalist_pack = TOURNAMENT_FINAL_PACK
+    finalist_sanity = phase_like(phase_from_config(config, "sanity"), "sanity_finalists")
+    finalist_long = phase_like(phase_from_config(config, "final_single"), "finalists_long")
+    finalist_slots = finalist_config["packs"][finalist_pack]
+
+    print(f"[tournament] finalists sanity slots={','.join(finalist_slots)}", flush=True)
+    finalist_sanity_results = run_parallel_phase(
+        script_path,
+        config_path,
+        finalist_config,
+        finalist_sanity,
+        args.label,
+        finalist_pack,
+        finalist_scope_name,
+        finalist_slots,
+        gpus,
+        False,
+    )
+    finalist_sanity_summary = write_phase_summary(
+        finalist_scope_root,
+        finalist_sanity.name,
+        finalist_pack,
+        finalist_sanity_results,
+        finalist_slot_map,
+        finalist_config["benchmarks"],
+        1,
+    )
+    print(f"[summary] {finalist_sanity_summary}", flush=True)
+    if any(result.get("returncode") not in (0, None) for result in finalist_sanity_results.values()):
+        raise SystemExit("Tournament finalist sanity failed; refusing to continue to long finalists.")
+
+    print(f"[tournament] finalists long slots={','.join(finalist_slots)}", flush=True)
+    finalist_long_results = run_parallel_phase(
+        script_path,
+        config_path,
+        finalist_config,
+        finalist_long,
+        args.label,
+        finalist_pack,
+        finalist_scope_name,
+        finalist_slots,
+        gpus,
+        False,
+    )
+    finalist_long_summary = write_phase_summary(
+        finalist_scope_root,
+        finalist_long.name,
+        finalist_pack,
+        finalist_long_results,
+        finalist_slot_map,
+        finalist_config["benchmarks"],
+        1,
+    )
+    print(f"[summary] {finalist_long_summary}", flush=True)
+    champion_slot = pick_pack_winner(finalist_long_summary)
+    champion_entry = best_finalist_from_summary(finalist_long_summary)
+    best_available_result = absolute_result_entry(
+        champion_slot,
+        finalist_slot_map,
+        finalist_long_results[champion_slot],
+        config["benchmarks"],
+    )
+
+    scope_name = "tournament"
+    scope_root_dir = scope_root(config_path, args.label, scope_name)
+    tournament_summary = {
+        "mode": "tournament",
+        "label": args.label,
+        "reference_pack_result": reference_summary_entry,
+        "primary_packs": TOURNAMENT_PRIMARY_PACKS,
+        "primary_results": pack_summaries,
+        "winners_by_pack": winners_by_pack,
+        "finalist_pack": finalist_pack,
+        "finalist_slots": finalist_slots,
+        "finalist_summary_path": str(finalist_long_summary),
+        "champion_slot": champion_slot,
+        "champion_comparison": champion_entry,
+        "best_available_result": best_available_result,
+        "beat_status": assess_result_vs_targets(
+            best_available_result,
+            config["benchmarks"],
+            None if reference_summary_entry is None else reference_summary_entry["best_result"],
+        ),
+    }
+    tournament_summary_path = scope_root_dir / "tournament_summary.json"
+    tournament_summary_path.parent.mkdir(parents=True, exist_ok=True)
+    tournament_summary_path.write_text(json.dumps(tournament_summary, indent=2) + "\n", encoding="utf-8")
+    print(f"[summary] {tournament_summary_path}", flush=True)
+
+    if args.skip_champion:
+        return
+
+    champion_phase = phase_from_config(config, "champion_8x")
+    ensure_runnable([champion_slot], finalist_slot_map)
+    print(f"[tournament] champion_8x slot={champion_slot}", flush=True)
+    champion_results = run_serial_phase(
+        script_path,
+        config_path,
+        finalist_config,
+        champion_phase,
+        args.label,
+        finalist_pack,
+        scope_name,
+        [champion_slot],
+        ",".join(gpus[: champion_phase.nproc_per_slot]),
+        False,
+    )
+    champion_summary = write_phase_summary(
+        scope_root_dir,
+        champion_phase.name,
+        finalist_pack,
+        champion_results,
+        finalist_slot_map,
+        finalist_config["benchmarks"],
+        1,
+    )
+    print(f"[summary] {champion_summary}", flush=True)
+    tournament_summary["champion_8x_summary_path"] = str(champion_summary)
+    tournament_summary["champion_8x_result"] = best_result_from_summary(champion_summary)
+    tournament_summary["beat_status"] = assess_result_vs_targets(
+        tournament_summary["champion_8x_result"],
+        config["benchmarks"],
+        None if reference_summary_entry is None else reference_summary_entry["best_result"],
+    )
+    tournament_summary_path.write_text(json.dumps(tournament_summary, indent=2) + "\n", encoding="utf-8")
+    print(f"[summary] {tournament_summary_path}", flush=True)
+
+
 def main() -> None:
     args = parse_args()
     script_path = Path(__file__)
@@ -1027,6 +1626,10 @@ def main() -> None:
                 scope_root_dir, champion_phase.name, pack_name, champion_results, slot_map, config["benchmarks"], 1
             )
             print(f"[summary] {champion_summary_path}", flush=True)
+        return
+
+    if args.phase == "tournament":
+        run_tournament(script_path, config_path, config, slot_map, args, gpus)
         return
 
     raise SystemExit(f"Unsupported phase {args.phase}")

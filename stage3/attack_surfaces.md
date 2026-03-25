@@ -6,6 +6,37 @@ The script has 7 major sections. Each is an independent attack surface.
 
 ---
 
+## UPDATE 2026-03-24: Stage 3 Pivots to Original Hypotheses
+
+Stage 2_1 now owns the entire community technique playbook (LeakyReLU^2, EMA, MuonWD, XSA, GPTQ, Partial RoPE, LN Scale, curriculum). Stage 3 no longer duplicates those.
+
+Instead, stage3 tests **5 original hypotheses derived from cross-domain mechanism transfer**. Each attacks a surface no community PR has touched. The catalog below remains valid as a reference, but the active stage3 slots are:
+
+| Slot | Patch | Target Surface (below) | Source Domain | Target Lines |
+|------|-------|----------------------|---------------|-------------|
+| H1 | `zloss` | §7 Loss function | PaLM stabilization | 723-724 |
+| H2 | `adaptive_ns_steps` | §1 Optimizer internals | Control theory (gain scheduling) | 96-109, 153 |
+| H3 | `nuclear_norm` | §1 Weight structure (NEW surface) | Rate-distortion theory | 852-884 (matrix_params) |
+| H4 | `weight_perturbation` | §1 Landscape geometry (NEW surface) | Langevin dynamics | 1032-1034 (post-step) |
+| H5 | `grad_centralization` | §1 Gradient preprocessing (NEW surface) | ICCV 2020 (Yong et al.) | 1030-1031 (pre-step) |
+| H6 | `zloss` + `nuclear_norm` | Cross-surface compound | — | — |
+
+Three of these target the optimizer section (§1) but attack completely different aspects: H2 changes the computation budget of Newton-Schulz, H4 perturbs weights after the step, H5 preprocesses gradients before the step. They don't overlap.
+
+### New attack surfaces not in the original catalog
+
+The original catalog missed several exploitable surfaces:
+
+| Surface | Description | Stage 3 Hypothesis |
+|---------|-------------|-------------------|
+| **Loss function regularization** | Soft penalties on the output distribution beyond cross-entropy. The model has logit softcapping but no differentiable partition-function penalty. | H1 (z-loss) |
+| **Optimizer computation budget** | Newton-Schulz iteration count is fixed at 5. The quality/cost tradeoff changes over training phases. | H2 (adaptive NS) |
+| **Weight matrix spectral structure** | WD penalizes Frobenius norm (magnitude). Nuclear norm penalizes sum of singular values (rank). Different compression properties. | H3 (nuclear norm) |
+| **Loss landscape geometry** | Sharp vs flat minima have different quantization robustness. Explicit noise can bias toward flat regions. | H4 (weight perturbation) |
+| **Gradient DC component** | The mean of each gradient tensor is a global shift signal. Removing it (centralization) may improve convergence by focusing on differential structure. | H5 (gradient centralization) |
+
+---
+
 ## 1. Optimizer (lines 96-175): Muon + Adam Split
 
 ### Current State

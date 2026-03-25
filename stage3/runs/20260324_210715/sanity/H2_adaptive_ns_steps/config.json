@@ -1,0 +1,44 @@
+{
+  "batch_id": "stage3_original_screen",
+  "phase": "sanity",
+  "slot": "H2",
+  "name": "adaptive_ns_steps",
+  "role": "candidate",
+  "family": "OPT_INTERNAL",
+  "label": "20260324_210715",
+  "gpu_spec": "3",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H2"
+  ],
+  "compare_to": "R0A",
+  "why": "Schedule Newton-Schulz iterations: 7 early (noisy gradients need better ortho), 5 mid, 3 late (weights converging, cheaper is fine). From control theory gain scheduling: adapt controller precision to the operating regime. Nobody has tried varying NS steps over training.",
+  "validates": "Adaptive NS improves throughput (fewer matmuls late) without quality loss, or improves quality (better ortho early) without throughput cost.",
+  "falsifies": "5 steps is universally optimal. NS convergence is fast enough that extra early steps don't help, and 3 late steps lose quality.",
+  "patches": [
+    "adaptive_ns_steps"
+  ],
+  "notes": [
+    "Cross-domain: control theory gain scheduling.",
+    "Two potential wins: quality (early) and throughput (late).",
+    "Phase boundaries: 0-20% early, 20-80% mid, 80-100% late.",
+    "At 180s screen: early phase is ~36s, enough to see the 7-step effect."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NS_STEPS_EARLY": "7",
+    "NS_STEPS_LATE": "3",
+    "NS_STEPS_MID": "5",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

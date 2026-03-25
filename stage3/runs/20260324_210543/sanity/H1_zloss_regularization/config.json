@@ -1,0 +1,41 @@
+{
+  "batch_id": "stage3_original_screen",
+  "phase": "sanity",
+  "slot": "H1",
+  "name": "zloss_regularization",
+  "role": "candidate",
+  "family": "LOSS",
+  "label": "20260324_210543",
+  "gpu_spec": "2",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H1"
+  ],
+  "compare_to": "R0A",
+  "why": "Z-loss: penalize log(sum(exp(logits)))^2 (PaLM, Gemini). Keeps logit magnitudes small via soft differentiable penalty on the partition function. Distinct from logit softcap (hard clamp) and label smoothing (target distribution). Nobody in the pgolf community has tried this.",
+  "validates": "Z-loss improves val_bpb by stabilizing logit magnitudes. Opens loss-function surface as an attack vector.",
+  "falsifies": "Logit softcapping (cap=30, already present) makes z-loss redundant. Kill the loss-function surface.",
+  "patches": [
+    "zloss"
+  ],
+  "notes": [
+    "Cross-domain: PaLM / large-scale LM stabilization.",
+    "Interaction with softcap is the key question. If softcap already clamps, z-loss adds nothing.",
+    "PaLM uses 1e-4. We start there."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000",
+    "ZLOSS_WEIGHT": "1e-4"
+  }
+}

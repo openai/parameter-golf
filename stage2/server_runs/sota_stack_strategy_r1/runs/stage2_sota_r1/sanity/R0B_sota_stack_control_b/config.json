@@ -1,0 +1,47 @@
+{
+  "batch_id": "stage2_sota_stack_strategy_r1",
+  "phase": "sanity",
+  "slot": "R0B",
+  "name": "sota_stack_control_b",
+  "role": "control",
+  "family": "record_like_control_repeat",
+  "label": "stage2_sota_r1",
+  "gpu_spec": "1",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0B"
+  ],
+  "compare_to": null,
+  "why": "Noise estimate for the record-like control.",
+  "validates": "Short-run control variance is small enough for aggressive pruning.",
+  "falsifies": "The screen horizon is too noisy to interpret small deltas.",
+  "notes": [
+    "Use R0A vs R0B spread to calibrate kill thresholds."
+  ],
+  "env": {
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_BATCH_SEQS": "256",
+    "EVAL_SEQ_LEN": "2048",
+    "EVAL_STRIDE": "256",
+    "INT8_KEEP_LAST_KV_LAYERS_FP16": "2",
+    "INT8_KEEP_TOK_EMB_FP16": "1",
+    "INTX_BITS": "6",
+    "MATRIX_LR": "0.02",
+    "MAX_WALLCLOCK_SECONDS": "90",
+    "MLP_HIDDEN": "1536",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "SCALAR_LR": "0.02",
+    "TIED_EMBED_LR": "0.03",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

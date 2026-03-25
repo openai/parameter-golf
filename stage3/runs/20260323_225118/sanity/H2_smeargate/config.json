@@ -1,0 +1,40 @@
+{
+  "batch_id": "stage3_mechanism_screen",
+  "phase": "sanity",
+  "slot": "H2",
+  "name": "smeargate",
+  "role": "candidate",
+  "family": "SMEAR",
+  "label": "20260323_225118",
+  "gpu_spec": "3",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H2"
+  ],
+  "compare_to": "R0A",
+  "why": "Learned sigmoid gate blending each token embedding with its predecessor. Injects a cheap recurrence-like bigram prior. ~512 params. Used by 7 of top 10 submissions.",
+  "validates": "Better val_bpb at matched wallclock from the token-blending prior alone.",
+  "falsifies": "SmearGate without BigramHash is not worth the code change.",
+  "patches": [
+    "smeargate"
+  ],
+  "notes": [
+    "Gate inits to sigmoid(0)=0.5, so starts at 50/50 blend and learns from there.",
+    "Separated from BigramHash to get clean attribution."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "SMEARGATE": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}
