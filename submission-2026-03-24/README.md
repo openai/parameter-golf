@@ -11,6 +11,20 @@
 | 7 | 5,983 | 97.3ms | 1.1251 | **1.0704** | -0.0547 | 561s | 15.43 MB |
 | **Mean** | | | **1.1252** | **1.0745** | **-0.0507** | | |
 
+## Key Contribution: 5-expert Logistic Context Mixer
+
+GPU-vectorized online context mixing using the Hedge/multiplicative-weights algorithm. Five experts blend predictions in log-probability space:
+
+| Expert | Source | Description |
+|--------|--------|-------------|
+| 0 | Neural | Base model log-softmax |
+| 1 | Unigram | Token frequency from scored tokens |
+| 2 | Bigram | P(next \| prev) from scored tokens |
+| 3 | Trigram | Hashed P(next \| prev2, prev1) with 64K buckets |
+| 4 | Entropy | Neural model entropy as confidence regularizer |
+
+Expert weights are updated online via Hedge: `log_w -= eta * loss`. N-gram tables are built incrementally from already-scored tokens only (legal).
+
 ## Architecture
 
 PR #606 base with the following additions:
@@ -27,28 +41,6 @@ PR #606 base with the following additions:
 | Weight avg | EMA(0.997) |
 | Quantization | Full GPTQ int5 + zstd (level 22) |
 | Pruning | 3% magnitude |
-
-## Key Contribution: 5-expert Logistic Context Mixer
-
-GPU-vectorized online context mixing using the Hedge/multiplicative-weights algorithm. Five experts blend predictions in log-probability space:
-
-| Expert | Source | Description |
-|--------|--------|-------------|
-| 0 | Neural | Base model log-softmax |
-| 1 | Unigram | Token frequency from scored tokens |
-| 2 | Bigram | P(next \| prev) from scored tokens |
-| 3 | Trigram | Hashed P(next \| prev2, prev1) with 64K buckets |
-| 4 | Entropy | Neural model entropy as confidence regularizer |
-
-Expert weights are updated online via Hedge: `log_w -= eta * loss`. N-gram tables are built incrementally from already-scored tokens only (legal).
-
-### Mixer Speedup (1573s -> 562s)
-
-The original 5-expert mixer took 1573s (over 600s eval budget). Optimizations:
-- Cache `expert_nll` between `mix_and_score()` and `update_weights()` (eliminates redundant computation)
-- Share `log_softmax` between neural and entropy experts
-- Replace GPU-CPU sync conditionals with Python int checks
-- In-place `scatter_add_` on flattened views (no 67M-element temp tensors)
 
 ## Legal Score-First TTT
 
