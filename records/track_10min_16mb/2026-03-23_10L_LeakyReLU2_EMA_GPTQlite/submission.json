@@ -1,0 +1,8 @@
+{
+  "run_id": "leakyrelu2_ema_gptqlite",
+  "description": "10L LeakyReLU(0.5)^2 + EMA(0.997) + GPTQ-lite + pure PTQ + warmdown3500",
+  "val_bpb": null,
+  "artifact_bytes": null,
+  "steps": null,
+  "seed": 1337
+}
