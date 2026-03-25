@@ -1,7 +1,7 @@
 # Record: 11L Full GPTQ + Multi-Order N-gram Backoff Cache
 
 **Fixed alpha: 3-seed mean val_bpb = 0.9757** (std=0.0002)
-**Entropy-adaptive alpha: 3-seed mean val_bpb = 0.9605** (std=0.0002)
+**Entropy-adaptive alpha: 3-seed mean val_bpb = 0.9605** (std=0.0003)
 
 15.92 MB | 8xH100 SXM, 596s training + ~258s eval
 
@@ -13,7 +13,7 @@
 | 42 | 1.11715 | **0.97562** | **0.96029** | 15,929,323 B | 596s/600s |
 | 7 | 1.11787 | **0.97602** | **0.96082** | 15,922,059 B | 596s/600s |
 | **Mean** | **1.11740** | **0.97574** | **0.96046** | | |
-| **Std** | 0.00033 | 0.00020 | 0.00025 | | |
+| **Std** | 0.00041 | 0.00024 | 0.00031 | | |
 
 ## Two Variants
 
