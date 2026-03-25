@@ -34,7 +34,7 @@ def test_shard_roundtrip(shard_path: Path) -> None:
 
 
 def main() -> int:
-    sample = ROOT / "data" / "sample_docs.jsonl"
+    sample = ROOT / "fixtures" / "sample_docs.jsonl"
     texts = []
     with sample.open(encoding="utf-8") as f:
         for line in f:

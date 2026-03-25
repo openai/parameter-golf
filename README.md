@@ -144,6 +144,8 @@ parameter-golf-bese/
     bigram_analysis.md                   Letter co-occurrence analysis
     integration_guide.md                 How to plug into parameter-golf
     SUBMISSION.md                        Non-record PR checklist
+  fixtures/
+    sample_docs.jsonl                    Tiny JSONL for smoke tests (ignored: data/ for real corpora)
 ```
 
 ### Environment
@@ -158,7 +160,7 @@ pip install -r requirements.txt
 
 ## Next steps
 
-1. **Train BPE merges on real FineWeb data** — `python scripts/train_bpe_jsonl.py --input /path/to/docs_selected.jsonl --output data/tokenizers/bese_bpe_250.json --num-merges 250 --max-docs 100000`
+1. **Train BPE merges on real FineWeb data** — `python scripts/train_bpe_jsonl.py --input /path/to/docs_selected.jsonl --output data/tokenizers/bese_bpe_250.json --num-merges 250 --max-docs 100000` (tiny sample: `fixtures/sample_docs.jsonl`)
 2. **Re-export shards** — `python scripts/export_shards.py --input ... --tokenizer data/tokenizers/bese_bpe_250.json --output-dir data/datasets/fineweb10B_bese250/`
 3. **Train** — use `integration/train_gpt_bese.py` with `TOKENIZER_PATH` pointing at the same JSON; set `VOCAB_SIZE` to the tokenizer’s `vocab_size` (see `integration/README.md`).
 4. **Smoke test (no GPU)** — `python scripts/smoke_bese_integration.py`
