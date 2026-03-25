@@ -47,19 +47,19 @@ Everything else (TTT, int6 quantization, SWA, bigram embeddings, value embedding
 - **Mean val_bpb: 1.11840** (std: 0.00049)
 - Training: ~6,100 steps in ~600s
 - Model params: ~27M
-- Artifact size: ~15.9MB (int6+lzma)
+- Mean total submission size: 15,931,152 bytes (~15.9MB, int6+lzma)
 
 ## Reproducibility
 
 Three independent training runs with different random seeds:
 
-| Seed | val_loss | val_bpb |
-|------|----------|---------|
-| 1337 | 1.88749538 | 1.11788404 |
-| 2025 | 1.88948575 | 1.11906285 |
-| 2024 | 1.88811812 | 1.11825287 |
-| **Mean** | **1.88836642** | **1.11839992** |
-| **Std** | **0.00083132** | **0.00049235** |
+| Seed | val_loss | val_bpb | total_bytes |
+|------|----------|---------|-------------|
+| 1337 | 1.88749538 | 1.11788404 | 15,928,948 |
+| 2025 | 1.88948575 | 1.11906285 | 15,934,932 |
+| 2024 | 1.88811812 | 1.11825287 | 15,929,576 |
+| **Mean** | **1.88836642** | **1.11839992** | **15,931,152** |
+| **Std** | **0.00083132** | **0.00049235** | |
 
 ## Run Commands
 
