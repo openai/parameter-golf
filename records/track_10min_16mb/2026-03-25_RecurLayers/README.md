@@ -1,6 +1,6 @@
 # Depth Recurrence (layers 4,5)
 
-## Score: mean val_bpb = 1.1182 (3 seeds: 1.1179, 1.1191, 1.1176)
+## Score: mean val_bpb = 1.1184 (3 seeds: 1.1179, 1.1191, 1.1183)
 
 Trained on 8xH100 SXM in ~600 seconds. ~15.9MB artifact (int6+lzma).
 
@@ -44,7 +44,7 @@ Everything else (TTT, int6 quantization, SWA, bigram embeddings, value embedding
 
 ## Key Metrics
 
-- **Mean val_bpb: 1.11819** (std: 0.00076)
+- **Mean val_bpb: 1.11840** (std: 0.00049)
 - Training: ~6,100 steps in ~600s
 - Model params: ~27M
 - Artifact size: ~15.9MB (int6+lzma)
@@ -57,9 +57,9 @@ Three independent training runs with different random seeds:
 |------|----------|---------|
 | 1337 | 1.88749538 | 1.11788404 |
 | 2025 | 1.88948575 | 1.11906285 |
-| 2024 | 1.88706558 | 1.11762949 |
-| **Mean** | **1.88801557** | **1.11819213** |
-| **Std** | **0.00129122** | **0.00076473** |
+| 2024 | 1.88811812 | 1.11825287 |
+| **Mean** | **1.88836642** | **1.11839992** |
+| **Std** | **0.00083132** | **0.00049235** |
 
 ## Run Commands
 
