@@ -1,0 +1,9 @@
+{
+  "name": "Fixed Bank QAT + XSA5 + Label Smoothing + TTT Tuning",
+  "val_bpb": 1.1352,
+  "bytes_total": 15437537,
+  "blurb": "Fixed broken QAT for bank parameters via STE int6 fake-quantization with torch.compile recompilation, expanded XSA to 5 layers, added label smoothing 0.05, tuned TTT LR/momentum. Non-record experimental submission exploring QAT fix and hyperparameter changes. Built on LeakyReLU + Legal TTT + Parallel Muon stack.",
+  "author": "suchitjain",
+  "github_id": "suchitjain",
+  "date": "2026-03-24"
+}
