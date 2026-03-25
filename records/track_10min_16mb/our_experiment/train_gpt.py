@@ -125,13 +125,14 @@ class Hyperparameters:
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
-    # TTT (Test-Time Training)
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.008))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 20))
+    # TTT (Test-Time Training) — score-first, backward-looking
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.0001))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 4))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
+    ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 131072))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -785,9 +786,10 @@ class MLP(nn.Module):
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
         self.use_leaky = bool(int(os.environ.get("LEAKY_RELU", "0")))
+        self.leaky_slope = float(os.environ.get("LEAKY_SLOPE", "0.9"))
 
     def forward(self, x: Tensor) -> Tensor:
-        x = F.leaky_relu(self.fc(x), 0.5) if self.use_leaky else torch.relu(self.fc(x))
+        x = F.leaky_relu(self.fc(x), self.leaky_slope) if self.use_leaky else torch.relu(self.fc(x))
         return self.proj(x.square())
 
 
@@ -1224,70 +1226,84 @@ def eval_val_sliding(
 def ttt_adapt(args: Hyperparameters, base_model: nn.Module, device: torch.device,
               val_tokens: Tensor, rank: int = 0, world_size: int = 1,
               log_fn=None) -> None:
-    """Full-weight SGD adaptation on validation data with DDP across all GPUs."""
+    """Score-first TTT: process val data in chunks, score each chunk first
+    (inference_mode), then train on scored tokens. Compliant with Issue #677."""
     seq_len = args.train_seq_len
-    total_seqs = (val_tokens.numel() - 1) // seq_len
+    total_tokens = val_tokens.numel() - 1
+    chunk_tokens = args.ttt_chunk_tokens
     batch_seqs = args.ttt_batch_seqs
 
-    frozen_params: set[int] = set()
+    # Freeze early blocks
     if args.ttt_freeze_blocks > 0:
         for i, block in enumerate(base_model.blocks):
             if i < args.ttt_freeze_blocks:
                 for p in block.parameters():
                     p.requires_grad_(False)
-                    frozen_params.add(id(p))
 
     ttt_params = [p for p in base_model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
 
-    my_start = (total_seqs * rank) // world_size
-    my_end = (total_seqs * (rank + 1)) // world_size
-
-    base_model.train()
     t0 = time.perf_counter()
+    chunk_idx = 0
 
-    for epoch in range(args.ttt_epochs):
-        epoch_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
-        epoch_tokens = torch.zeros((), device=device, dtype=torch.float64)
+    for chunk_start in range(0, total_tokens - seq_len, chunk_tokens):
+        chunk_end = min(chunk_start + chunk_tokens, total_tokens)
+        chunk_len = chunk_end - chunk_start
+        n_seqs = chunk_len // seq_len
+        if n_seqs == 0:
+            break
 
-        for batch_start in range(my_start, my_end, batch_seqs):
-            batch_end = min(batch_start + batch_seqs, my_end)
-            raw_start = batch_start * seq_len
-            raw_end = batch_end * seq_len + 1
-            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, seq_len)
-            y = local[1:].reshape(-1, seq_len)
+        my_start = (n_seqs * rank) // world_size
+        my_end = (n_seqs * (rank + 1)) // world_size
+        if my_end <= my_start:
+            continue
 
-            optimizer.zero_grad(set_to_none=True)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                loss = base_model(x, y)
-            loss.backward()
+        # Phase 1: Score chunk under inference_mode (forward only)
+        base_model.eval()
+        with torch.inference_mode():
+            for si in range(my_start, my_end, batch_seqs):
+                se = min(si + batch_seqs, my_end)
+                raw_s = chunk_start + si * seq_len
+                raw_e = chunk_start + se * seq_len + 1
+                local = val_tokens[raw_s:raw_e].to(device=device, dtype=torch.int64)
+                x = local[:-1].reshape(-1, seq_len)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    base_model.forward_logits(x)
 
-            if world_size > 1:
-                for p in ttt_params:
-                    if p.grad is not None:
-                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+        # Phase 2: Train on scored tokens (K epochs)
+        base_model.train()
+        for epoch in range(args.ttt_epochs):
+            for si in range(my_start, my_end, batch_seqs):
+                se = min(si + batch_seqs, my_end)
+                raw_s = chunk_start + si * seq_len
+                raw_e = chunk_start + se * seq_len + 1
+                local = val_tokens[raw_s:raw_e].to(device=device, dtype=torch.int64)
+                x = local[:-1].reshape(-1, seq_len)
+                y = local[1:].reshape(-1, seq_len)
 
-            torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
-            optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    loss = base_model(x, y)
+                loss.backward()
 
-            epoch_loss_sum += loss.detach().to(torch.float64) * y.numel()
-            epoch_tokens += float(y.numel())
+                if world_size > 1:
+                    for p in ttt_params:
+                        if p.grad is not None:
+                            dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
 
-        if world_size > 1:
-            dist.all_reduce(epoch_loss_sum, op=dist.ReduceOp.SUM)
-            dist.all_reduce(epoch_tokens, op=dist.ReduceOp.SUM)
+                torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
+                optimizer.step()
 
-        elapsed = time.perf_counter() - t0
-        if log_fn:
-            log_fn(f"ttt_epoch:{epoch+1}/{args.ttt_epochs} "
-                   f"loss:{epoch_loss_sum.item()/max(epoch_tokens.item(),1):.4f} time:{elapsed:.1f}s")
+        chunk_idx += 1
+        if log_fn and chunk_idx % 20 == 0:
+            log_fn(f"ttt:chunk={chunk_idx} elapsed={time.perf_counter()-t0:.1f}s")
 
+    # Restore all params
     for p in base_model.parameters():
         p.requires_grad_(True)
 
     if log_fn:
-        log_fn(f"ttt:done elapsed={time.perf_counter()-t0:.1f}s")
+        log_fn(f"ttt:done chunks={chunk_idx} elapsed={time.perf_counter()-t0:.1f}s")
 
 
 # -----------------------------
@@ -1521,8 +1537,7 @@ def main() -> None:
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    _needs_find_unused = args.value_residual or args.gated_attention
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=_needs_find_unused) if distributed else compiled_model
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, static_graph=True) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -1936,8 +1951,9 @@ def main() -> None:
             block.attn.rotary._cos_cached = None
             block.attn.rotary._sin_cached = None
             block.attn.rotary._seq_len_cached = 0
-        log0(f"ttt:start lr={args.ttt_lr} momentum={args.ttt_momentum} "
-             f"epochs={args.ttt_epochs} freeze_blocks={args.ttt_freeze_blocks}")
+        log0(f"ttt:start score-first lr={args.ttt_lr} "
+             f"epochs={args.ttt_epochs} freeze_blocks={args.ttt_freeze_blocks} "
+             f"chunk_tokens={args.ttt_chunk_tokens}")
         t_ttt = time.perf_counter()
         ttt_adapt(args, eval_model, device, val_tokens,
                   rank=rank, world_size=world_size, log_fn=log0)
