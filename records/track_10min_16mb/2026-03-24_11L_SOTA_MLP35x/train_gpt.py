@@ -765,8 +765,8 @@ def quantize_state_dict_int8(
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
-    # P2: Selective magnitude pruning
-    selective_magnitude_prune(quantized, scales)
+    # P2: Selective magnitude pruning (disabled — caused excessive BPB degradation)
+    # selective_magnitude_prune(quantized, scales)
     stats["gptq_layers"] = gptq_count
 
     obj: dict[str, object] = {
