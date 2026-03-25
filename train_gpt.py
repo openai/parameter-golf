@@ -87,8 +87,8 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
-    recurrence_start_step = int(os.environ.get("RECURRENCE_START_STEP", 0))
-    recurrence_encoder_start = int(os.environ.get("RECURRENCE_ENCODER_START", 0))
+    leaky_relu = bool(int(os.environ.get("LEAKY_RELU", "0")))
+    qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.0))
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_lr = float(os.environ.get("TTT_LR", 0.002))
@@ -479,15 +479,20 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
 def quantize_float_tensor_int6(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel()
-            else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 31.0).clamp_min(1.0 / 31.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -31, 31).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        best_q = None
+        best_scale = None
+        best_mse = float("inf")
+        for pct in [0.999, 0.9999, 0.99999, 0.999999, 0.9999999]:
+            clip_abs = torch.quantile(t32.abs(), pct, dim=1) if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32)
+            s = (clip_abs / 31.0).clamp_min(1.0 / 31.0)
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            q = torch.clamp(torch.round(clipped / s[:, None]), -31, 31)
+            mse = ((q * s[:, None] - t32) ** 2).mean().item()
+            if mse < best_mse:
+                best_mse = mse
+                best_q = q.to(torch.int8).contiguous()
+                best_scale = s.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        return best_q, best_scale
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 31.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -31, 31).to(torch.int8).contiguous()
@@ -806,80 +811,57 @@ class CausalSelfAttention(nn.Module):
         self.rotary = Rotary(self.head_dim, base=rope_base)
         self.use_xsa = use_xsa
 
-    def forward(self, x: Tensor, cached_kv: tuple[Tensor, Tensor] | None = None) -> tuple[Tensor, tuple[Tensor, Tensor] | None]:
+    def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        if cached_kv is not None:
-            k, v = cached_kv
-        else:
-            k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-            v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
-        if cached_kv is None:
-            k = F.rms_norm(k, (k.size(-1),))
+        k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
-        if cached_kv is None:
-            k = apply_rotary_emb(k, cos, sin)
+        k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+        y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True, enable_gqa=(self.num_kv_heads != self.num_heads))
         if self.use_xsa:
-            v_expanded = v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-            vn = F.normalize(v_expanded, dim=-1)
+            vn = F.normalize(v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1), dim=-1)
             y = y - (y * vn).sum(dim=-1, keepdim=True) * vn
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        kv_out = (k.detach(), v.detach()) if cached_kv is None else None
-        return self.proj(y), kv_out
+        return self.proj(y)
 
 
 class MLP(nn.Module):
-    # relu^2 MLP from the original modded-nanogpt setup
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, leaky: bool = False):
         super().__init__()
         hidden = mlp_mult * dim
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
+        self._leaky = leaky
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = F.leaky_relu(self.fc(x), 0.5) if self._leaky else torch.relu(self.fc(x))
         return self.proj(x.square())
 
 
 class Block(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        rope_base: float,
-        qk_gain_init: float,
-        use_xsa: bool = False,
-    ):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
+                 rope_base: float, qk_gain_init: float, use_xsa: bool = False, leaky: bool = False):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, use_xsa=use_xsa)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, leaky=leaky)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor, cached_kv: tuple[Tensor, Tensor] | None = None) -> tuple[Tensor, tuple[Tensor, Tensor] | None]:
+    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out, kv_out = self.attn(self.attn_norm(x), cached_kv=cached_kv)
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
-        return x, kv_out
+        return x
 
 
 class SmearGate(nn.Module):
@@ -929,8 +911,6 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.encoder_recurrence = bool(int(os.environ.get("ENCODER_RECURRENCE", "1")))
-        self._kv_cache_reuse = bool(int(os.environ.get("KV_CACHE_REUSE", "0")))
-        self._recurrence_encoder_start = int(os.environ.get("RECURRENCE_ENCODER_START", 0))
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram_hash = BigramHash(4096, 64, model_dim)
         self.smear_gate = SmearGate(model_dim)
@@ -947,17 +927,12 @@ class GPT(nn.Module):
         xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
         mlp_mult_enc = int(os.environ.get("MLP_MULT_ENCODER", 2))
         mlp_mult_dec = int(os.environ.get("MLP_MULT_DECODER", mlp_mult))
+        leaky = bool(int(os.environ.get("LEAKY_RELU", "0")))
         self.blocks = nn.ModuleList(
             [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult_enc if i < self.num_encoder_layers else mlp_mult_dec,
-                    rope_base,
-                    qk_gain_init,
-                    use_xsa=(i >= num_layers - xsa_last_n),
-                )
+                Block(model_dim, num_heads, num_kv_heads,
+                      mlp_mult_enc if i < self.num_encoder_layers else mlp_mult_dec,
+                      rope_base, qk_gain_init, use_xsa=(i >= num_layers - xsa_last_n), leaky=leaky)
                 for i in range(num_layers)
             ]
         )
@@ -978,38 +953,27 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def _run_blocks(self, x: Tensor, x0: Tensor, use_recurrence: bool = True) -> Tensor:
-        rec_start = self._recurrence_encoder_start
-        if use_recurrence:
-            kv_caches: list[tuple[Tensor, Tensor]] = []
+    def _run_blocks(self, x: Tensor, x0: Tensor) -> Tensor:
+        if self.encoder_recurrence:
             skips: list[Tensor] = []
             for i in range(self.num_encoder_layers):
-                x, kv_out = self.blocks[i](x, x0)
+                x = self.blocks[i](x, x0)
                 skips.append(x)
-                if self._kv_cache_reuse and kv_out is not None and i >= rec_start:
-                    kv_caches.append(kv_out)
             x = F.rms_norm(x, (x.size(-1),))
             skips2: list[Tensor] = []
-            kv_idx = 0
             for i in range(self.num_encoder_layers):
-                if i >= rec_start:
-                    cached = kv_caches[kv_idx] if self._kv_cache_reuse and kv_idx < len(kv_caches) else None
-                    x, _ = self.blocks[i](x, x0, cached_kv=cached)
-                    if cached is not None:
-                        kv_idx += 1
-                else:
-                    x, _ = self.blocks[i](x, x0)
+                x = self.blocks[i](x, x0)
                 skips2.append(x)
             skips = skips2
         else:
             skips: list[Tensor] = []
             for i in range(self.num_encoder_layers):
-                x, _ = self.blocks[i](x, x0)
+                x = self.blocks[i](x, x0)
                 skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x, _ = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
         return x
 
     def _compute_logits(self, x: Tensor) -> Tensor:
@@ -1021,13 +985,13 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, recurrence_enabled: bool = True) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
         x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        x = self._run_blocks(x, x0, use_recurrence=recurrence_enabled and self.encoder_recurrence)
+        x = self._run_blocks(x, x0)
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         logits = self._compute_logits(x)
@@ -1336,7 +1300,6 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        recurrence_on = step >= args.recurrence_start_step
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1344,7 +1307,7 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y, recurrence_enabled=recurrence_on)
+                loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
