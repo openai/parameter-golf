@@ -96,6 +96,7 @@ class Hyperparameters:
  ve_layers = os.environ.get("VE_LAYERS", "9,10")
  vrl_enabled = bool(int(os.environ.get("VRL_ENABLED", "1")))
  ga_enabled = bool(int(os.environ.get("GA_ENABLED", "1")))
+ crownq_lambda = float(os.environ.get("CROWNQ_LAMBDA", "0.01"))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
  a, b, c = (3.4445, -4.7750, 2.0315)
  X = G.bfloat16()
@@ -1276,6 +1277,15 @@ def main() -> None:
    x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
    with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
     loss = model(x, y)
+   if CastedLinear._qat_enabled and args.crownq_lambda > 0:
+    cq = torch.zeros((), device=device)
+    for m in base_model.modules():
+     if isinstance(m, CastedLinear) and m.weight.ndim == 2:
+      w = m.weight.float()
+      row_max = w.abs().amax(dim=1).clamp(min=1e-10)
+      delta = row_max / 15.0
+      cq = cq + ((w ** 2).mean(dim=1) * (delta ** 2) / 12.0).sum()
+    loss = loss + args.crownq_lambda * cq
    train_loss += loss.detach()
    (loss * grad_scale).backward()
   train_loss /= grad_accum_steps
