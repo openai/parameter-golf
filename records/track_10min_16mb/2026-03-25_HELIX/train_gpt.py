@@ -802,47 +802,84 @@ class SwiGLU(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return self.proj(F.silu(self.gate(x)) * self.fc(x))
 
-class Block(nn.Module):
+class HELIXBlock(nn.Module):
+    """
+    Single HELIX block. Shared across up to R iterations via MoR.
+
+    Per-iteration adaptation: each of the R iterations gets its own
+    attn_scale[r], mlp_scale[r], resid_mix[r] — matching CONTROL_TENSOR_NAME_PATTERNS.
+    Peri-LN: pre-norm + post-norm (sandwich) at every sublayer.
+    """
     def __init__(
         self,
         dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
+        n_heads: int,
+        n_kv: int,
+        rank: int,
+        ffn_hidden: int,
+        rope_dims: int,
         rope_base: float,
-        qk_gain_init: float,
-        layer_idx: int = 0,
-        ln_scale: bool = False,
-        dtg: bool = False,
-        gated_attention: bool = False,
-        value_residual: bool = False,
+        use_xsa: bool,
+        num_iterations: int,
+        block_idx: int,
     ):
         super().__init__()
-        self.attn_norm = RMSNorm()
-        self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
-                                        gated_attention=gated_attention, value_residual=value_residual)
-        self.mlp = MLP(dim, mlp_mult)
-        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
-        self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
-        if dtg:
-            self.dtg_gate = nn.Linear(dim, 1, bias=True)
-            nn.init.zeros_(self.dtg_gate.weight)
-            nn.init.constant_(self.dtg_gate.bias, 2.0)
-        else:
-            self.dtg_gate = None
-    def forward(self, x: Tensor, x0: Tensor, q_w: Tensor, k_w: Tensor, v_w: Tensor, out_w: Tensor, up_w: Tensor, down_w: Tensor, v_embed: Tensor | None = None, v0: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
-        mix = self.resid_mix.to(dtype=x.dtype)
-        x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out, raw_v = self.attn(self.attn_norm(x_in) * self.ln_scale_factor, q_w, k_w, v_w, out_w, v_embed=v_embed, v0=v0)
-        x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
-        x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor, up_w, down_w)
-        if self.dtg_gate is not None:
-            gate = torch.sigmoid(self.dtg_gate(x_in.detach()))
-            x_out = x_in + gate * (x_out - x_in)
-        return x_out, raw_v
+        self.num_iterations = num_iterations
+        self.block_idx = block_idx
+
+        # D-TPA attention
+        self.dtpa = DTPA(
+            dim, n_heads, n_kv, rank, rope_dims, rope_base,
+            use_xsa=use_xsa, num_iterations=num_iterations,
+        )
+        # SwiGLU FFN
+        self.swiglu = SwiGLU(dim, ffn_hidden)
+
+        # Peri-LN: 4 RMSNorm instances (2 per sublayer)
+        self.pre_norm_attn  = RMSNorm()
+        self.post_norm_attn = RMSNorm()
+        self.pre_norm_mlp   = RMSNorm()
+        self.post_norm_mlp  = RMSNorm()
+
+        # Per-iteration adaptation scalars (named to match CONTROL_TENSOR_NAME_PATTERNS)
+        # "attn_scale", "mlp_scale", "resid_mix" → float32, scalar AdamW
+        self.iter_attn_scale = nn.ParameterList([
+            nn.Parameter(torch.ones(dim, dtype=torch.float32)) for _ in range(num_iterations)
+        ])
+        self.iter_mlp_scale = nn.ParameterList([
+            nn.Parameter(torch.ones(dim, dtype=torch.float32)) for _ in range(num_iterations)
+        ])
+        # resid_mix[r] is [2, dim]: mix[0]*x + mix[1]*x0 (anchored blending)
+        self.iter_resid_mix = nn.ParameterList([
+            nn.Parameter(torch.stack([torch.ones(dim), torch.zeros(dim)]).float())
+            for _ in range(num_iterations)
+        ])
+
+    def forward(self, x: Tensor, x0: Tensor, r: int) -> Tensor:
+        """
+        x  : [B, T, dim]  — current hidden state
+        x0 : [B, T, dim]  — initial hidden state (iteration anchor for resid_mix)
+        r  : int           — current MoR iteration index (0..num_iterations-1)
+        """
+        # Residual-mix: iteration-specific blend of current state and initial anchor
+        mix = self.iter_resid_mix[r].to(dtype=x.dtype)       # [2, dim]
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+
+        # Attention sublayer (Peri-LN: pre + post)
+        h = self.pre_norm_attn(x)
+        h = self.dtpa(h, x_residual=x, layer_r=r)
+        h = self.post_norm_attn(h)
+        attn_s = self.iter_attn_scale[r].to(dtype=x.dtype)[None, None, :]
+        x = x + attn_s * h
+
+        # MLP sublayer (Peri-LN: pre + post)
+        h = self.pre_norm_mlp(x)
+        h = self.swiglu(h)
+        h = self.post_norm_mlp(h)
+        mlp_s = self.iter_mlp_scale[r].to(dtype=x.dtype)[None, None, :]
+        x = x + mlp_s * h
+
+        return x
 
 class GPT(nn.Module):
     def __init__(
