@@ -70,20 +70,21 @@ class Hyperparameters:
     byte_offset = int(os.environ.get("BYTE_OFFSET", 4))
     byte_count = int(os.environ.get("BYTE_COUNT", 256))
 
-    model_dim = int(os.environ.get("MODEL_DIM", 480))
-    num_layers = int(os.environ.get("NUM_LAYERS", 11))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    num_layers = int(os.environ.get("NUM_LAYERS", 12))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     partial_rope_dim = int(os.environ.get("PARTIAL_ROPE_DIM", 16))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
 
     jepa_weight = float(os.environ.get("JEPA_WEIGHT", 0.1))
     jepa_latent_dim = int(os.environ.get("JEPA_LATENT_DIM", 256))
-    jepa_horizon = int(os.environ.get("JEPA_HORIZON", 16))
+    jepa_horizon = int(os.environ.get("JEPA_HORIZON", 32))
+    jepa_decay_frac = float(os.environ.get("JEPA_DECAY_FRAC", 0.5))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -187,7 +188,7 @@ class Muon(torch.optim.Optimizer):
 # ── int6 quantization ────────────────────────────────────────────────────────
 
 CONTROL_PATTERNS = tuple(
-    p for p in os.environ.get("CONTROL_PATTERNS", "attn_scale,mlp_scale,skip_weights").split(",") if p
+    p for p in os.environ.get("CONTROL_PATTERNS", "attn_scale,mlp_scale,skip_weights,smear").split(",") if p
 )
 INT_KEEP_FLOAT_MAX = 65_536
 INT_CLIP_Q = 0.9999984
@@ -510,7 +511,7 @@ class BigramHash(nn.Module):
 
     def forward(self, ids: Tensor) -> Tensor:
         prev = F.pad(ids[:, :-1], (1, 0), value=self.bos_id)
-        hashed = (prev * 31 + ids) % self.hash_vocab
+        hashed = (prev * 263 + ids) % self.hash_vocab
         return self.proj(self.embed(hashed))
 
 
@@ -564,9 +565,21 @@ class MLP(nn.Module):
         return self.proj(F.leaky_relu(self.fc(x), negative_slope=0.5).square())
 
 
+class TemporalSmear(nn.Module):
+    """Learned per-dim EMA gate: blends x[t] with x[t-1] for local byte context."""
+    def __init__(self, dim: int):
+        super().__init__()
+        self.smear = nn.Parameter(torch.full((dim,), -2.0))
+
+    def forward(self, x: Tensor) -> Tensor:
+        g = torch.sigmoid(self.smear.to(x.dtype))
+        return torch.lerp(x, F.pad(x[:, :-1], (0, 0, 1, 0)), g)
+
+
 class CausalBlock(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int, head_dim: int, mlp_hidden: int, rotary: Rotary):
         super().__init__()
+        self.smear = TemporalSmear(dim)
         self.attn_norm = RMSNorm(dim)
         self.mlp_norm = RMSNorm(dim)
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, head_dim, rotary)
@@ -575,6 +588,7 @@ class CausalBlock(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim))
 
     def forward(self, x: Tensor) -> Tensor:
+        x = self.smear(x)
         x = x + self.attn_scale.to(x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
         x = x + self.mlp_scale.to(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
@@ -593,6 +607,8 @@ class CausalJEPA(nn.Module):
         self.jepa_weight = args.jepa_weight
         self.jepa_horizon = args.jepa_horizon
         self.ema_decay = args.ema_decay
+        self.register_buffer('_jepa_scale', torch.ones(()), persistent=False)
+        self._jepa_active = True
 
         dim = args.model_dim
         hd = args.head_dim
@@ -696,16 +712,16 @@ class CausalJEPA(nn.Module):
         ce = F.cross_entropy(logits.float().reshape(-1, self.vocab_size), input_ids[:, 1:].reshape(-1))
 
         K = self.jepa_horizon
-        if self.jepa_weight > 0 and K > 0 and hidden.size(1) > K:
+        if self._jepa_active and K > 0 and hidden.size(1) > K:
             pred = self.jepa_predictor(hidden[:, :-K])
             with torch.no_grad():
                 ema_h = self._ema_forward(input_ids)
                 target = self.ema_target_proj(ema_h[:, K:])
             jepa_loss = F.mse_loss(F.normalize(pred.float(), dim=-1), F.normalize(target.float(), dim=-1))
+            total = ce + (self.jepa_weight * self._jepa_scale) * jepa_loss
         else:
             jepa_loss = ce.new_zeros(())
-
-        total = ce + self.jepa_weight * jepa_loss
+            total = ce
         return total, ce.detach(), jepa_loss.detach()
 
     def serializable_state_dict(self) -> dict[str, Tensor]:
@@ -715,6 +731,11 @@ class CausalJEPA(nn.Module):
     def load_serializable(self, sd: dict[str, Tensor]):
         self.load_state_dict(sd, strict=False)
         self._sync_ema()
+
+    def set_jepa_scale(self, scale: float):
+        self._jepa_scale.fill_(scale)
+        if scale <= 1e-6 and self._jepa_active:
+            self._jepa_active = False
 
     @torch.no_grad()
     def zero_pad_emb_(self):
@@ -820,7 +841,7 @@ def eval_val_ttt(
                 wl = we - ws
                 if wl < 1:
                     continue
-                chunk = val_tokens[ws : we + 1].to(torch.int64, device=device)
+                chunk = val_tokens[ws : we + 1].to(dtype=torch.int64, device=device)
                 x = chunk[:-1].unsqueeze(0)
                 y_tgt = chunk[1:].unsqueeze(0)
                 with torch.autocast(device_type="cuda", dtype=amp_dtype):
@@ -962,9 +983,10 @@ def main() -> None:
     n_saved = sum(v.numel() for v in base_model.serializable_state_dict().values())
     log0(f"params_total:{n_params} params_saved:{n_saved}")
     log0(f"arch: dim={args.model_dim} layers={args.num_layers} heads={args.num_heads}/{args.num_kv_heads} "
-         f"mlp={args.mlp_mult}x rope_dim={args.partial_rope_dim} bigram={args.bigram_vocab_size} "
-         f"skips={args.num_skips} softcap={args.logit_softcap}")
-    log0(f"jepa: weight={args.jepa_weight} latent_dim={args.jepa_latent_dim} horizon={args.jepa_horizon} ema={args.ema_decay}")
+         f"mlp={args.mlp_mult}x rope_dim={args.partial_rope_dim} bigram={args.bigram_vocab_size}x{args.bigram_dim} "
+         f"skips={args.num_skips} softcap={args.logit_softcap} smear=1")
+    log0(f"jepa: weight={args.jepa_weight} decay_frac={args.jepa_decay_frac} latent_dim={args.jepa_latent_dim} "
+         f"horizon={args.jepa_horizon} ema={args.ema_decay}")
     log0(f"train: seq={args.train_seq_len} batch_tokens={args.train_batch_tokens} ga={grad_accum} "
          f"warmdown={args.warmdown_iters} warmup={args.warmup_steps}")
     log0(f"eval: stride={args.eval_stride} ttt={int(args.ttt_enabled)} int6={int(args.int6_enabled)} "
@@ -1045,6 +1067,13 @@ def main() -> None:
 
         elapsed = train_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed)
+        if args.jepa_decay_frac > 0 and max_wc_ms is not None:
+            js = max(0.0, 1.0 - elapsed / (args.jepa_decay_frac * max_wc_ms))
+        elif args.jepa_decay_frac > 0:
+            js = max(0.0, 1.0 - step / (args.jepa_decay_frac * args.iterations))
+        else:
+            js = 1.0
+        base_model.set_jepa_scale(js)
         zero_grad()
         t_loss = torch.zeros((), device=device)
         t_ce = torch.zeros((), device=device)
@@ -1075,7 +1104,8 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for o in optimizers:
             o.step()
-        base_model.update_ema()
+        if base_model._jepa_active:
+            base_model.update_ema()
         base_model.zero_pad_emb_()
         zero_grad()
 
@@ -1084,6 +1114,7 @@ def main() -> None:
         if args.train_log_every > 0 and (step <= 10 or step % args.train_log_every == 0):
             log0(f"step:{step}/{args.iterations} train_loss:{t_loss.item():.4f} "
                  f"train_ce:{t_ce.item():.4f} train_jepa:{t_jepa.item():.4f} "
+                 f"jepa_s:{js:.2f} "
                  f"train_time:{approx_ms:.0f}ms step_avg:{approx_ms / step:.2f}ms")
 
         cap = max_wc_ms is not None and approx_ms >= max_wc_ms

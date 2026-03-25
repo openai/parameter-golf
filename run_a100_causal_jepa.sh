@@ -33,21 +33,22 @@ export GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-4}"
 
 # Architecture
 export VOCAB_SIZE="${VOCAB_SIZE:-260}"
-export MODEL_DIM="${MODEL_DIM:-480}"
-export NUM_LAYERS="${NUM_LAYERS:-11}"
+export MODEL_DIM="${MODEL_DIM:-512}"
+export NUM_LAYERS="${NUM_LAYERS:-12}"
 export NUM_HEADS="${NUM_HEADS:-8}"
 export NUM_KV_HEADS="${NUM_KV_HEADS:-4}"
 export MLP_MULT="${MLP_MULT:-3}"
 export PARTIAL_ROPE_DIM="${PARTIAL_ROPE_DIM:-16}"
 export ROPE_BASE="${ROPE_BASE:-10000}"
 export LOGIT_SOFTCAP="${LOGIT_SOFTCAP:-30.0}"
-export BIGRAM_VOCAB_SIZE="${BIGRAM_VOCAB_SIZE:-2048}"
-export BIGRAM_DIM="${BIGRAM_DIM:-128}"
+export BIGRAM_VOCAB_SIZE="${BIGRAM_VOCAB_SIZE:-4096}"
+export BIGRAM_DIM="${BIGRAM_DIM:-64}"
 
-# JEPA auxiliary
+# JEPA auxiliary (decays to 0 over first 50% of training)
 export JEPA_WEIGHT="${JEPA_WEIGHT:-0.1}"
 export JEPA_LATENT_DIM="${JEPA_LATENT_DIM:-256}"
-export JEPA_HORIZON="${JEPA_HORIZON:-16}"
+export JEPA_HORIZON="${JEPA_HORIZON:-32}"
+export JEPA_DECAY_FRAC="${JEPA_DECAY_FRAC:-0.5}"
 export EMA_DECAY="${EMA_DECAY:-0.997}"
 
 # Optimizer
