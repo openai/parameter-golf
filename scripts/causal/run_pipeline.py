@@ -40,6 +40,7 @@ SCRIPTS = REPO_ROOT / "scripts" / "causal"
 RESULTS = REPO_ROOT / "results" / "causal"
 
 # In-process trainer (avoids subprocess overhead)
+sys.path.insert(0, str(REPO_ROOT))
 from scripts.causal.inprocess_trainer import (
     SharedTrainingContext,
     create_shared_context,
