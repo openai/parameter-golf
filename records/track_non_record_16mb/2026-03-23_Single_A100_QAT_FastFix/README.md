@@ -3,7 +3,7 @@
 ## Summary
 This non-record submission tunes a standard `modded-nanogpt`-derived parameters stack so that Quantization-Aware Training (QAT) fits robustly within the 10-minute constraint on a single A100. Previous SOTA variants utilized `torch.quantile`, but passing that to Triton generated a severe 30x GPU performance penalty. By pivoting the internal clip factor estimator of `CastedLinear` to `w.abs().amax(dim=1)`, we bypass the compiler issue entirely.
 
-We also constrained the gradient accum sizing from multi-GPU scales down to 131K tokens, ensuring the model can make rapid progress under the 10-minute wallclock cap on a single A100; in the attached `train.log` for this record, training reaches step 1186 before terminating into SWA and evaluation, instead of starving the LR decay schedule.
+We also constrained the gradient accum sizing from multi-GPU scales down to 131K tokens, ensuring the model can make rapid progress under the 10-minute wallclock cap on a single A100; in the attached `train.log` for this run, training reaches step 1186 before terminating into SWA and evaluation, instead of starving the LR decay schedule.
 
 ## Results
 * **Hardware:** 1x A100 (80GB)
