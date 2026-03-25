@@ -93,16 +93,13 @@ class Hyperparameters:
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
-    # TTT (test-time training) hyperparameters - LoRA-based per-document adaptation
+    # TTT (test-time training) - legal single-epoch score-first LoRA adaptation
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
-    ttt_lora_lr_end = float(os.environ.get("TTT_LORA_LR_END", 0.001))
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 256))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
-    ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
     ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 512))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 5))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -924,62 +921,41 @@ def _ttt_one_doc(
     is_boundary_token_lut: Tensor, loss_sum: Tensor, byte_sum: Tensor, token_count: Tensor,
     doc_idx_in_batch: int,
 ) -> None:
-    """TTT on a single document: multi-epoch score-then-train per chunk."""
+    """Legal single-epoch TTT: score each chunk FIRST, then train on it.
+    Each token is scored exactly once before any training on it."""
     pred_len = dl - 1
     chunk_size = args.ttt_chunk_size
     eval_seq_len = args.ttt_eval_seq_len
     nc = (pred_len + chunk_size - 1) // chunk_size
-    num_epochs = args.ttt_epochs
 
-    # Cosine LR schedule across epochs
-    lr_start = args.ttt_lora_lr
-    lr_end = args.ttt_lora_lr_end
+    for ci in range(nc):
+        cs = ci * chunk_size
+        ce = min((ci + 1) * chunk_size, pred_len)
+        cl = ce - cs
+        ws = max(0, ce - eval_seq_len)
+        wl = ce - ws
+        co = cs - ws
+        x = all_tokens[ds + ws: ds + ws + wl].to(dtype=torch.int64, device=device).unsqueeze(0)
+        y = all_tokens[ds + ws + 1: ds + ws + wl + 1].to(dtype=torch.int64, device=device).unsqueeze(0)
 
-    for epoch in range(num_epochs):
-        # Update LR with cosine schedule
-        if num_epochs > 1:
-            cos_frac = epoch / (num_epochs - 1)
-            lr = lr_end + 0.5 * (lr_start - lr_end) * (1 + math.cos(math.pi * cos_frac))
-        else:
-            lr = lr_start
-        for pg in opt.param_groups:
-            pg["lr"] = lr
+        # SCORE FIRST: compute loss before any training on this chunk
+        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            ptl = base_model(x, y, lora=lora)
+        loss_sum += ptl[0, co:co + cl].to(torch.float64).sum()
+        token_count += cl
+        tgt = y[0, co:co + cl]
+        px = x[0, co:co + cl]
+        tb = base_bytes_lut[tgt].to(torch.float64)
+        tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[px]).to(torch.float64)
+        byte_sum += tb.sum()
 
-        for ci in range(nc):
-            cs = ci * chunk_size
-            ce = min((ci + 1) * chunk_size, pred_len)
-            cl = ce - cs
-            ws = max(0, ce - eval_seq_len)
-            wl = ce - ws
-            co = cs - ws
-            x = all_tokens[ds + ws: ds + ws + wl].to(dtype=torch.int64, device=device).unsqueeze(0)
-            y = all_tokens[ds + ws + 1: ds + ws + wl + 1].to(dtype=torch.int64, device=device).unsqueeze(0)
-
-            is_last_chunk = ci == nc - 1
-            needs_train = not is_last_chunk
-
-            if needs_train:
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    ptl = base_model(x, y, lora=lora)
-            else:
-                with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    ptl = base_model(x, y, lora=lora)
-
-            # Score on the LAST epoch only
-            if epoch == num_epochs - 1:
-                with torch.no_grad():
-                    loss_sum += ptl[0, co:co + cl].to(torch.float64).sum()
-                    token_count += cl
-                    tgt = y[0, co:co + cl]
-                    px = x[0, co:co + cl]
-                    tb = base_bytes_lut[tgt].to(torch.float64)
-                    tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[px]).to(torch.float64)
-                    byte_sum += tb.sum()
-
-            if needs_train:
-                opt.zero_grad()
-                ptl[0, co:co + cl].mean().backward()
-                opt.step()
+        # THEN TRAIN: adapt LoRA on the already-scored chunk
+        if ci < nc - 1:  # don't train on last chunk (nothing left to score)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                train_ptl = base_model(x, y, lora=lora)
+            opt.zero_grad()
+            train_ptl[0, co:co + cl].mean().backward()
+            opt.step()
 
 
 def eval_val_ttt_lora(
@@ -1007,8 +983,7 @@ def eval_val_ttt_lora(
 
     if rank == 0:
         print(f"ttt_lora: short={len(short_docs)} long={len(long_docs)} "
-              f"rank_long={len(rank_long)} epochs={args.ttt_epochs} "
-              f"lr={args.ttt_lora_lr}->{args.ttt_lora_lr_end}", flush=True)
+              f"rank_long={len(rank_long)} single_epoch lr={args.ttt_lora_lr}", flush=True)
 
     base_model.eval()
     for p in base_model.parameters():
@@ -1459,8 +1434,8 @@ def main() -> None:
     t_qeval = time.perf_counter()
     if args.ttt_enabled:
         bos_id = sp.bos_id() if sp.bos_id() >= 0 else 0
-        log0(f"final_eval_mode:ttt_lora rank:{args.ttt_lora_rank} epochs:{args.ttt_epochs} "
-             f"lr:{args.ttt_lora_lr}->{args.ttt_lora_lr_end} chunk:{args.ttt_chunk_size}")
+        log0(f"final_eval_mode:ttt_lora_single_epoch rank:{args.ttt_lora_rank} "
+             f"lr:{args.ttt_lora_lr} chunk:{args.ttt_chunk_size}")
         q_val_loss, q_val_bpb = eval_val_ttt_lora(
             args, base_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
