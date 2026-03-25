@@ -884,13 +884,14 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        # Harmonic loss (arXiv:2502.01628): Euclidean distance to target distribution
-        # Blended with CE to maintain alignment with BPB eval metric
         ce_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
-        probs = F.softmax(logits.float(), dim=-1)
-        one_hot = F.one_hot(targets, num_classes=probs.size(-1)).float()
-        harmonic_loss = (probs - one_hot).pow(2).sum(dim=-1).mean()
-        return 0.7 * ce_loss + 0.3 * harmonic_loss
+        if self.training:
+            # Harmonic loss blend during training only (arXiv:2502.01628)
+            probs = F.softmax(logits.float(), dim=-1)
+            one_hot = F.one_hot(targets, num_classes=probs.size(-1)).float()
+            harmonic_loss = (probs - one_hot).pow(2).sum(dim=-1).mean()
+            return 0.7 * ce_loss + 0.3 * harmonic_loss
+        return ce_loss
 
 
 # -----------------------------
