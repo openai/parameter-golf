@@ -124,6 +124,7 @@ class Hyperparameters:
     ngram_eval_min_count = int(os.environ.get("NGRAM_EVAL_MIN_COUNT", 2))
     ngram_eval_buckets = int(os.environ.get("NGRAM_EVAL_BUCKETS", 4_194_304))
     ngram_eval_max_seconds = float(os.environ.get("NGRAM_EVAL_MAX_SECONDS", 0.0))
+    cubric_cadence = int(os.environ.get("CUBRIC_CADENCE", 0))  # 0=off; >0 enables cubric-lite per-order alpha updates
     compile_enabled = bool(int(os.environ.get("COMPILE_ENABLED", "1")))
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
 def maybe_torch_compile(obj, args: Hyperparameters):
@@ -1004,7 +1005,12 @@ def eval_val_sliding_hashed_ngram(
     my_e = (len(all_window_starts) * (rank + 1)) // world_size
     window_starts = all_window_starts[my_s:my_e]
 
-    val_np = val_tokens.numpy()
+    val_np_i64 = val_tokens.numpy()
+    val_np_u64 = val_np_i64.astype(np.uint64, copy=False)
+    # Avoid per-segment GPU syncs for byte accounting.
+    base_bytes_np = base_bytes_lut.detach().cpu().numpy().astype(np.float64, copy=False)
+    has_leading_space_np = has_leading_space_lut.detach().cpu().numpy()
+    is_boundary_token_np = is_boundary_token_lut.detach().cpu().numpy()
     # Per-order hash tables for backoff
     ctx_tables = {n: np.zeros((buckets,), dtype=np.uint32) for n in range(min_order, max_order + 1)}
     full_tables = {n: np.zeros((buckets,), dtype=np.uint32) for n in range(min_order, max_order + 1)}
@@ -1014,10 +1020,29 @@ def eval_val_sliding_hashed_ngram(
          np.uint64(131071), np.uint64(174763), np.uint64(233017)],
         dtype=np.uint64,
     )
+    prime_count = int(primes.shape[0])
+    # Precompute per-order offsets and prime weights once.
+    order_offsets: dict[int, np.ndarray] = {}
+    order_weights: dict[int, np.ndarray] = {}
+    order_target_prime: dict[int, np.uint64] = {}
+    for n in range(min_order, max_order + 1):
+        ctx_width = n - 1
+        order_offsets[n] = np.arange(ctx_width, 0, -1, dtype=np.int64)
+        order_weights[n] = primes[np.arange(ctx_width, dtype=np.int64) % prime_count]
+        order_target_prime[n] = primes[ctx_width % prime_count]
 
     loss_sum = 0.0
     token_count = 0.0
     byte_count = 0.0
+    # Cubric lite: per-order adaptive alpha scaling using already-scored token stats only.
+    _cc = getattr(args, "cubric_cadence", 0)
+    _con = _cc > 0
+    _c_cnt = 0
+    _cfired = 0
+    if _con:
+        _c_alpha_mult = {n: 1.0 for n in range(min_order, max_order + 1)}
+        _c_hits = {n: 0 for n in range(min_order, max_order + 1)}
+        _c_beats = {n: 0 for n in range(min_order, max_order + 1)}
 
     base_model.eval()
     compiled_logits = maybe_torch_compile(base_model.forward_logits, args)
@@ -1050,6 +1075,12 @@ def eval_val_sliding_hashed_ngram(
                 y_batch.reshape(-1),
                 reduction="none",
             ).reshape(bsz, seq_len)
+            nll_np = nll.to(torch.float64).cpu().numpy()
+            entropy_np = None
+            if adaptive:
+                log_probs = F.log_softmax(logits_f, dim=-1)
+                probs = log_probs.exp()
+                entropy_np = -(probs * log_probs).sum(dim=-1).cpu().numpy()
 
             for i, ws in enumerate(batch_ws):
                 wlen = wlens[i]
@@ -1058,60 +1089,25 @@ def eval_val_sliding_hashed_ngram(
                 if seg_len <= 0:
                     continue
 
-                seg_nll = nll[i, s:wlen].to(torch.float64).cpu().numpy()
+                seg_nll = nll_np[i, s:wlen]
                 seg_model_p = np.exp(-seg_nll)
 
                 # Entropy-adaptive alpha (uses model output only, not target)
                 if adaptive:
-                    log_probs = F.log_softmax(logits_f[i, s:wlen], dim=-1)
-                    probs = log_probs.exp()
-                    entropy = -(probs * log_probs).sum(dim=-1).cpu().numpy()  # per-token entropy
+                    entropy = entropy_np[i, s:wlen]
                     sig = 1.0 / (1.0 + np.exp(-ent_scale * (entropy - ent_center)))
                     per_token_alpha = alpha_min + (alpha_max - alpha_min) * sig
                 else:
-                    per_token_alpha = np.full(seg_len, alpha)
+                    per_token_alpha = np.full(seg_len, alpha, dtype=np.float64)
 
                 global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
+                tgt_i64 = val_np_i64[global_j]
+                tgt_np = tgt_i64.astype(np.uint64, copy=False)
 
-                # Multi-order backoff: try highest order first, fall back
-                p_ng = np.zeros(seg_len, dtype=np.float64)
-                ng_matched = np.zeros(seg_len, dtype=np.bool_)
-                tgt_np = val_np[global_j].astype(np.uint64)
-
-                for n in range(max_order, min_order - 1, -1):
-                    ctx_width = n - 1
-                    valid = (global_j >= ctx_width) & (~ng_matched)
-                    if not valid.any():
-                        continue
-                    v_idx = np.nonzero(valid)[0]
-                    jv = global_j[v_idx]
-
-                    ctx_hash = np.zeros(len(jv), dtype=np.uint64)
-                    for k in range(ctx_width):
-                        tok = val_np[jv - (ctx_width - k)].astype(np.uint64)
-                        ctx_hash ^= tok * primes[k % len(primes)]
-                    ctx_key = (ctx_hash & mask).astype(np.int64)
-                    full_key = ((ctx_hash ^ (tgt_np[v_idx] * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
-
-                    ctx_counts = ctx_tables[n][ctx_key].astype(np.float64)
-                    full_counts = full_tables[n][full_key].astype(np.float64)
-                    has_data = ctx_counts >= float(min_count)
-                    if has_data.any():
-                        p = np.minimum(full_counts, ctx_counts) / np.maximum(ctx_counts, 1.0)
-                        p = np.clip(p, 0.0, 1.0)
-                        hit_idx = v_idx[has_data]
-                        p_ng[hit_idx] = p[has_data]
-                        ng_matched[hit_idx] = True
-
-                # Mix where n-gram matched
-                if ng_matched.any():
-                    m_idx = np.nonzero(ng_matched)[0]
-                    a = per_token_alpha[m_idx]
-                    seg_model_p[m_idx] = (1.0 - a) * seg_model_p[m_idx] + a * p_ng[m_idx]
-
-                seg_nll = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
-
-                # Score-first legality: update ALL order caches after segment scoring
+                # Precompute keys once per order so scoring and updates reuse them.
+                seg_v_idx: dict[int, np.ndarray] = {}
+                seg_ctx_key: dict[int, np.ndarray] = {}
+                seg_full_key: dict[int, np.ndarray] = {}
                 for n in range(min_order, max_order + 1):
                     ctx_width = n - 1
                     valid = global_j >= ctx_width
@@ -1119,22 +1115,103 @@ def eval_val_sliding_hashed_ngram(
                         continue
                     v_idx = np.nonzero(valid)[0]
                     jv = global_j[v_idx]
-                    ctx_hash = np.zeros(len(jv), dtype=np.uint64)
-                    for k in range(ctx_width):
-                        tok = val_np[jv - (ctx_width - k)].astype(np.uint64)
-                        ctx_hash ^= tok * primes[k % len(primes)]
-                    ctx_key = (ctx_hash & mask).astype(np.int64)
-                    full_key = ((ctx_hash ^ (tgt_np[v_idx] * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
-                    np.add.at(ctx_tables[n], ctx_key, 1)
-                    np.add.at(full_tables[n], full_key, 1)
+                    offsets = order_offsets[n]
+                    weights = order_weights[n]
+                    ctx_toks = val_np_u64[jv[:, None] - offsets[None, :]]
+                    ctx_hash = np.bitwise_xor.reduce(ctx_toks * weights[None, :], axis=1)
+                    ctx_key = (ctx_hash & mask).astype(np.int64, copy=False)
+                    full_key = (
+                        (ctx_hash ^ (tgt_np[v_idx] * order_target_prime[n])) & mask
+                    ).astype(np.int64, copy=False)
+                    seg_v_idx[n] = v_idx
+                    seg_ctx_key[n] = ctx_key
+                    seg_full_key[n] = full_key
+
+                # Multi-order backoff: try highest order first, fall back
+                p_ng = np.zeros(seg_len, dtype=np.float64)
+                ng_matched = np.zeros(seg_len, dtype=np.bool_)
+                _ng_ord = np.zeros(seg_len, dtype=np.int32) if _con else None
+
+                for n in range(max_order, min_order - 1, -1):
+                    if n not in seg_v_idx:
+                        continue
+                    v_idx = seg_v_idx[n]
+                    unmatched = ~ng_matched[v_idx]
+                    if not unmatched.any():
+                        continue
+                    um_v_idx = v_idx[unmatched]
+                    ctx_key = seg_ctx_key[n][unmatched]
+                    full_key = seg_full_key[n][unmatched]
+
+                    ctx_counts = ctx_tables[n][ctx_key].astype(np.float64, copy=False)
+                    full_counts = full_tables[n][full_key].astype(np.float64, copy=False)
+                    has_data = ctx_counts >= float(min_count)
+                    if has_data.any():
+                        p = np.minimum(full_counts, ctx_counts) / np.maximum(ctx_counts, 1.0)
+                        p = np.clip(p, 0.0, 1.0)
+                        hit_idx = um_v_idx[has_data]
+                        p_ng[hit_idx] = p[has_data]
+                        ng_matched[hit_idx] = True
+                        if _ng_ord is not None:
+                            _ng_ord[hit_idx] = n
+
+                # Mix where n-gram matched (cubric lite: per-order alpha scaling)
+                if ng_matched.any():
+                    m_idx = np.nonzero(ng_matched)[0]
+                    if _con:
+                        a = per_token_alpha[m_idx].copy()
+                        for n in range(min_order, max_order + 1):
+                            om = _ng_ord[m_idx] == n
+                            if om.any():
+                                _c_hits[n] += int(om.sum())
+                                _c_beats[n] += int((p_ng[m_idx[om]] > seg_model_p[m_idx[om]]).sum())
+                                a[om] *= _c_alpha_mult[n]
+                        np.clip(a, 0.0, alpha_max, out=a)
+                    else:
+                        a = per_token_alpha[m_idx]
+                    seg_model_p[m_idx] = (1.0 - a) * seg_model_p[m_idx] + a * p_ng[m_idx]
+
+                seg_nll = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
+
+                # Score-first legality: update ALL order caches after segment scoring
+                for n in range(min_order, max_order + 1):
+                    if n not in seg_ctx_key:
+                        continue
+                    np.add.at(ctx_tables[n], seg_ctx_key[n], 1)
+                    np.add.at(full_tables[n], seg_full_key[n], 1)
 
                 loss_sum += float(seg_nll.sum())
                 token_count += float(seg_len)
-                tgt = y_batch[i, s:wlen]
-                prev = x_batch[i, s:wlen]
-                tb = base_bytes_lut[tgt].to(torch.float64)
-                tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-                byte_count += float(tb.sum().item())
+                prev_i64 = val_np_i64[global_j - 1]
+                tb = base_bytes_np[tgt_i64].copy()
+                tb += (has_leading_space_np[tgt_i64] & ~is_boundary_token_np[prev_i64])
+                byte_count += float(tb.sum(dtype=np.float64))
+
+            # Cubric lite: periodic update of per-order alpha multipliers.
+            if _con:
+                _c_cnt += 1
+                if _c_cnt >= _cc:
+                    active = [
+                        (n, _c_beats[n] / _c_hits[n])
+                        for n in range(min_order, max_order + 1)
+                        if _c_hits[n] >= 20
+                    ]
+                    if len(active) >= 2:
+                        avg_rate = sum(r for _, r in active) / len(active)
+                        for n, rate in active:
+                            if rate > avg_rate + 0.05:
+                                _c_alpha_mult[n] = min(_c_alpha_mult[n] * 1.03, 2.0)
+                            elif rate < avg_rate - 0.05:
+                                _c_alpha_mult[n] = max(_c_alpha_mult[n] * 0.97, 0.3)
+                        if rank == 0 and _cfired % 8 == 0:
+                            mults = " ".join(
+                                f"o{n}:{_c_alpha_mult[n]:.3f}" for n in range(min_order, max_order + 1)
+                            )
+                            print(f"cubric:step={_cfired} {mults}", flush=True)
+                    _cfired += 1
+                    _c_cnt = 0
+                    _c_hits = {n: 0 for n in range(min_order, max_order + 1)}
+                    _c_beats = {n: 0 for n in range(min_order, max_order + 1)}
 
             if (bi // batch_seqs) % 2000 == 0 and bi > 0:
                 elapsed = time.perf_counter() - t0
@@ -1165,6 +1242,9 @@ def eval_val_sliding_hashed_ngram(
             f"coverage={coverage*100:.2f}% elapsed={elapsed:.0f}s",
             flush=True,
         )
+    if _con and rank == 0:
+        mults = " ".join(f"o{n}:{_c_alpha_mult[n]:.3f}" for n in range(min_order, max_order + 1))
+        print(f"cubric:final c_steps={_cfired} {mults}", flush=True)
 
     val_loss = loss_sum / max(token_count, 1.0)
     val_bpb = val_loss / math.log(2.0) * (token_count / max(byte_count, 1.0))

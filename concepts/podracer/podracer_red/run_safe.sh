@@ -1,9 +1,10 @@
 #!/bin/bash
 set -euo pipefail
-# Podracer RED: safety-first lane
+# Podracer RED: racing lane defaults (safe-legal eval)
 # - hard-disables TTT (no eval-time gradient updates)
 # - keeps legal score-first n-gram backoff
-# - applies conservative n-gram stability/coverage upgrades
+# - uses the proven 7-gram adaptive racing profile (~0.962 on best seeds)
+# - enables optional cubric-lite per-order alpha scaling (safe: score-first stats only)
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
@@ -27,24 +28,26 @@ export TTT_EVAL_ENABLED=0
 export TTT_EPOCHS=0
 export TTT_MAX_TRAIN_CHUNKS=0
 
-# Conservative n-gram improvements (safe: no target-leak oracle/min-loss routing)
+# Proven racing profile (matches the .962 backoff-7gram runs)
 export NGRAM_EVAL_ORDER="${NGRAM_EVAL_ORDER:-7}"
 export NGRAM_EVAL_MIN_ORDER="${NGRAM_EVAL_MIN_ORDER:-2}"
 export NGRAM_EVAL_ADAPTIVE="${NGRAM_EVAL_ADAPTIVE:-1}"
 export NGRAM_EVAL_ALPHA="${NGRAM_EVAL_ALPHA:-0.30}"
 export NGRAM_EVAL_ALPHA_MIN="${NGRAM_EVAL_ALPHA_MIN:-0.05}"
-export NGRAM_EVAL_ALPHA_MAX="${NGRAM_EVAL_ALPHA_MAX:-0.70}"
-export NGRAM_EVAL_ENTROPY_CENTER="${NGRAM_EVAL_ENTROPY_CENTER:-3.0}"
+export NGRAM_EVAL_ALPHA_MAX="${NGRAM_EVAL_ALPHA_MAX:-0.60}"
+export NGRAM_EVAL_ENTROPY_CENTER="${NGRAM_EVAL_ENTROPY_CENTER:-4.0}"
 export NGRAM_EVAL_ENTROPY_SCALE="${NGRAM_EVAL_ENTROPY_SCALE:-2.0}"
 export NGRAM_EVAL_MIN_COUNT="${NGRAM_EVAL_MIN_COUNT:-2}"
-export NGRAM_EVAL_BUCKETS="${NGRAM_EVAL_BUCKETS:-8388608}"
+export NGRAM_EVAL_BUCKETS="${NGRAM_EVAL_BUCKETS:-4194304}"
 export NGRAM_EVAL_MAX_SECONDS="${NGRAM_EVAL_MAX_SECONDS:-300}"
+export CUBRIC_CADENCE="${CUBRIC_CADENCE:-32}"
 
 echo "============================================"
-echo "  PODRACER RED (safe lane)"
+echo "  PODRACER RED (racing profile)"
 echo "  Seed: ${SEED}"
 echo "  TTT: disabled"
-echo "  NGRAM: order=${NGRAM_EVAL_ORDER} alpha_max=${NGRAM_EVAL_ALPHA_MAX} center=${NGRAM_EVAL_ENTROPY_CENTER} buckets=${NGRAM_EVAL_BUCKETS}"
+echo "  NGRAM: order=${NGRAM_EVAL_ORDER} alpha=${NGRAM_EVAL_ALPHA} alpha_max=${NGRAM_EVAL_ALPHA_MAX} center=${NGRAM_EVAL_ENTROPY_CENTER} buckets=${NGRAM_EVAL_BUCKETS}"
+echo "  CUBRIC_LITE: cadence=${CUBRIC_CADENCE} (set 0 to disable)"
 echo "============================================"
 
 SEED="${SEED}" \
