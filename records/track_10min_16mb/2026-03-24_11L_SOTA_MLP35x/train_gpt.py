@@ -76,7 +76,7 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.04))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     trigram_vocab_size = int(os.environ.get("TRIGRAM_VOCAB_SIZE", 4096))
     trigram_dim = int(os.environ.get("TRIGRAM_DIM", 128))
@@ -505,138 +505,6 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
     return t
 
 
-@torch.no_grad()
-def collect_hessians(
-    model: nn.Module, args, device: torch.device, n_samples: int = 256, log_fn=None,
-) -> dict[str, Tensor]:
-    """Collect per-layer Hessian H = X^T @ X from calibration forward passes."""
-    if log_fn is None:
-        log_fn = lambda msg: None
-    hessians: dict[str, Tensor] = {}
-    n_tokens: dict[str, int] = {}
-    handles: list = []
-
-    def _make_hook(name: str, dev: torch.device):
-        def _hook(module, inp, out):
-            x = inp[0].detach().float()
-            x = x.reshape(-1, x.shape[-1])  # [tokens, features] on GPU, float32
-            if name not in hessians:
-                hessians[name] = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float32, device=dev)
-                n_tokens[name] = 0
-            hessians[name].addmm_(x.T, x)  # GPU float32 matmul — fast
-            n_tokens[name] += x.shape[0]
-        return _hook
-
-    for name, module in model.named_modules():
-        if isinstance(module, CastedLinear) and module.weight.ndim == 2 and module.weight.numel() > INT8_KEEP_FLOAT_MAX_NUMEL:
-            weight_name = name + ".weight"
-            handles.append(module.register_forward_hook(_make_hook(weight_name, device)))
-
-    log_fn(f"GPTQ: collecting Hessians for {len(handles)} layers with {n_samples} calibration samples")
-    train_stream = TokenStream(args.train_files)
-    model.eval()
-    seq_len = args.train_seq_len
-    samples_done = 0
-    while samples_done < n_samples:
-        n_take = min(16, n_samples - samples_done)  # batch of 16 to limit VRAM for Hessians
-        tokens = train_stream.take(n_take * seq_len + 1).to(dtype=torch.int64)
-        x = tokens[:-1].reshape(n_take, seq_len).to(device)
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            model(x)
-        samples_done += n_take
-
-    for h in handles:
-        h.remove()
-
-    # Move to CPU and normalize
-    for name in hessians:
-        hessians[name] = (hessians[name] / max(n_tokens[name], 1)).cpu().float()
-    log_fn(f"GPTQ: Hessians collected for {len(hessians)} layers")
-    return hessians
-
-
-def gptq_quantize_weight(
-    W: Tensor, H: Tensor, qrange: int = 31, blocksize: int = 128, percdamp: float = 0.01,
-) -> tuple[Tensor, Tensor]:
-    """Full Hessian GPTQ quantization of a single 2D weight matrix.
-    W: [out_features, in_features], H: [in_features, in_features].
-    Returns (Q_int8, scale_fp16) with per-row int6 quantization.
-    Follows the reference implementation from IST-DASLab/gptq."""
-    W = W.float().clone()
-    cols = W.shape[1]
-    H = H.float().clone()
-
-    # Handle dead columns (zero Hessian diagonal = never activated)
-    dead = H.diag() == 0
-    H[dead, dead] = 1.0
-    W[:, dead] = 0.0
-
-    # Damping for numerical stability
-    damp = percdamp * H.diag().mean()
-    H.diagonal().add_(damp)
-
-    # Column reorder by ascending Hessian diagonal (quantize least-important first)
-    perm = torch.argsort(H.diag())
-    W = W[:, perm]
-    H = H[perm][:, perm]
-
-    # Compute inverse Hessian Cholesky (numerically stable path)
-    try:
-        H_chol = torch.linalg.cholesky(H)
-        H_inv = torch.cholesky_inverse(H_chol)
-        Hinv = torch.linalg.cholesky(H_inv, upper=True)
-    except Exception:
-        # More damping on failure
-        H.diagonal().add_(0.1 * H.diag().mean())
-        H_chol = torch.linalg.cholesky(H)
-        H_inv = torch.cholesky_inverse(H_chol)
-        Hinv = torch.linalg.cholesky(H_inv, upper=True)
-
-    # Per-row scale from original (reordered) weights
-    row_amax = W.abs().amax(dim=1).clamp_min(1e-10)
-    scale = (row_amax / qrange).clamp_min(1.0 / qrange)
-
-    Q = torch.zeros_like(W)
-    Losses = torch.zeros_like(W)
-
-    for b_start in range(0, cols, blocksize):
-        b_end = min(b_start + blocksize, cols)
-        count = b_end - b_start
-
-        W1 = W[:, b_start:b_end].clone()
-        Q1 = torch.zeros_like(W1)
-        Err1 = torch.zeros_like(W1)
-        Hinv1 = Hinv[b_start:b_end, b_start:b_end]
-
-        for j in range(count):
-            w = W1[:, j]
-            d = Hinv1[j, j]
-
-            # Quantize with per-row scale
-            q = torch.clamp(torch.round(w / scale), -qrange, qrange)
-            Q1[:, j] = q
-
-            # Error and compensation (standard GPTQ formula)
-            err = (w - q * scale) / d
-            Err1[:, j] = err
-            Losses[:, b_start + j] = (w - q * scale) ** 2 / d ** 2
-
-            # Compensate remaining columns in this block
-            W1[:, j:] -= err.unsqueeze(1) * Hinv1[j, j:].unsqueeze(0)
-
-        Q[:, b_start:b_end] = Q1
-
-        # Propagate block error to remaining columns
-        if b_end < cols:
-            W[:, b_end:] -= Err1 @ Hinv[b_start:b_end, b_end:]
-
-    # Undo column permutation
-    invperm = torch.argsort(perm)
-    Q = Q[:, invperm]
-
-    return Q.to(torch.int8).contiguous(), scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
-
-
 def quantize_float_tensor_simple(t: Tensor) -> tuple[Tensor, Tensor]:
     """Simple int6 quantization for non-2D tensors (fallback)."""
     qrange = QUANT_RANGE
@@ -688,18 +556,16 @@ def selective_magnitude_prune(quantized: dict[str, Tensor], scales: dict[str, Te
         # Error from zeroing: (1 * scale)^2 per element
         s_expanded = s.float().view(-1, 1).expand_as(q)
         zero_err = (s_expanded ** 2) * mask1.float()
-        # Zero out bottom 10% of ±1 values by error
+        # Zero out bottom 3% of ±1 values by error (PR #634 uses ~3%)
         errs = zero_err[mask1]
         if errs.numel() < 10:
             continue
-        threshold = torch.quantile(errs, 0.10)
+        threshold = torch.quantile(errs, 0.03)
         prune_mask = mask1 & (zero_err <= threshold)
         quantized[name] = q.masked_fill(prune_mask, 0)
 
 
-def quantize_state_dict_int8(
-    state_dict: dict[str, Tensor], hessians: dict[str, Tensor] | None = None,
-):
+def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -711,7 +577,6 @@ def quantize_state_dict_int8(
          "baseline_tensor_bytes", "int8_payload_bytes"),
         0,
     )
-    gptq_count = 0
 
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
@@ -733,12 +598,7 @@ def quantize_state_dict_int8(
 
         stats["num_float_tensors"] += 1
 
-        # Use full Hessian GPTQ for 2D weights with available Hessians
-        if t.ndim == 2 and hessians is not None and name in hessians:
-            q, s = gptq_quantize_weight(t, hessians[name])
-            gptq_count += 1
-        elif t.ndim == 2:
-            # Fallback: GPTQ-lite (per-row clip search)
+        if t.ndim == 2:
             q, s = _gptq_lite_2d(t)
         else:
             q, s = quantize_float_tensor_simple(t)
@@ -750,9 +610,8 @@ def quantize_state_dict_int8(
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
-    # P2: Selective magnitude pruning (disabled — caused excessive BPB degradation)
-    # selective_magnitude_prune(quantized, scales)
-    stats["gptq_layers"] = gptq_count
+    # Selective magnitude pruning (3% — PR #634 validated approach)
+    selective_magnitude_prune(quantized, scales)
 
     obj: dict[str, object] = {
         "__quant_format__": "int8_clean_per_row_v1",
@@ -1823,7 +1682,7 @@ def main() -> None:
         log0(
             f"Serialized model int6+zstd: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} "
-            f"payload_ratio:{ratio:.2f}x gptq_layers:{quant_stats.get('gptq_layers', 0)})"
+            f"payload_ratio:{ratio:.2f}x)"
         )
         log0(f"Total submission int6+zstd: {quant_file_bytes + code_bytes} bytes")
 
