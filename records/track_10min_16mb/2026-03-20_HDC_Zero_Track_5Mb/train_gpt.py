@@ -5684,7 +5684,7 @@ def main():
     parser.add_argument("--max_time", type=float, default=600.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--author", type=str, default="Ashley Klimpel", help="Author name for submission")
-    parser.add_argument("--github_id", type=str, default="YOUR_GITHUB_ID_HERE", help="GitHub ID for submission")
+    parser.add_argument("--github_id", type=str, default="viasky657", help="GitHub ID for submission")
     parser.add_argument("--run_name", type=str, default="HDC Zero Track 5Mb TensorCore", help="Run name for submission")
     
     parser.add_argument("--multi_seed", action="store_true",
