@@ -1,0 +1,10 @@
+{
+  "name": "QAT Int5/Int6 + BigramHash(10240) + Backout + SWA50 + U-Net Skips",
+  "val_loss": 1.93785918,
+  "val_bpb": 1.14770936,
+  "bytes_total": 15935368,
+  "blurb": "Quantization-Aware Training (straight-through estimator) with int5 MLP / int6 attention. BigramHash 10240, SmearGate, Backout (learned residual subtraction), U-Net skip connections, SVD embedding init. Simple Muon + compiled Newton-Schulz5. SWA every 50 steps (start_frac=0.4). 8% magnitude pruning + zstd-22.",
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "date": "2026-03-20"
+}
