@@ -7,6 +7,8 @@ H100 TENSOR CORE OPTIMIZED VERSION:
 - FP8 support for memory-bound operations
 - Async compute/comm overlap for 8x H100 multi-GPU
 
+# To fix this, the model would need to call model.save_recipes() after training and include the 
+# recipe data in the submission artifact.
 Run: cd parameter-golf-hdc/records/track_10min_16mb/2026-03-20_HDC_Zero_Track_5Mb && python train_gpt.py --multi_seed --seeds 42 7 1337 --data_path ../../../data/datasets/fineweb10B_sp1024 --tokenizer_path ../../../data/tokenizers/fineweb_1024_bpe.model
 """
 
@@ -2082,7 +2084,6 @@ class HDCConfig:
     max_wallclock_seconds: float = 600.0
     train_batch_tokens: int = 524288
     val_batch_size: int = 524288
-    val_loss_every: int = 1000
     train_log_every: int = 200
     
     temperature: float = 1.0
@@ -5326,7 +5327,6 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
     
     start_time = time.time()
     iteration = 0
-    best_bpb = float('inf')
     
     if is_main:
         print(f"\n[TensorCore] Starting training (max {config.iterations} iterations, {config.max_wallclock_seconds}s timeout)...")
@@ -5385,23 +5385,6 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
                 print(f"[TensorCore] Iter {iteration} [{mode}{dist_mode}]: {elapsed:.1f}s, {recipes_count:,} recipes, "
                       f"{ngram_count:,} n-grams, {storage_mb:.2f}MB, {rate:.1f} iter/s")
             
-            if iteration % config.val_loss_every == 0:
-                if world_size > 1:
-                    dist_ctx.barrier()
-                
-                if is_main:
-                    print(f"\n[TensorCore] Evaluating at iteration {iteration}...")
-                bpb, val_loss = evaluate_bpb(
-                    model, val_tokens, sp,
-                    base_bytes, has_leading_space, is_boundary_token,
-                    batch_size=32,
-                    max_batches=100
-                )
-                if is_main:
-                    print(f"[TensorCore] BPB: {bpb:.4f}, Loss: {val_loss:.4f}")
-                
-                if bpb < best_bpb:
-                    best_bpb = bpb
     
     finally:
         if isinstance(loader, AsyncTokenLoader):
@@ -5424,7 +5407,6 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
         print(f"\n[TensorCore] Training complete: {elapsed:.1f}s")
         print(f"[TensorCore] Final BPB: {final_bpb:.4f}")
         print(f"[TensorCore] Final Loss: {final_val_loss:.4f}")
-        print(f"[TensorCore] Best BPB: {best_bpb:.4f}")
         print(f"[TensorCore] Recipes: {len(model.recipes):,}")
         print(f"[TensorCore] N-grams: {len(model.ngram_stats):,}")
         print(f"[TensorCore] Storage: {model.recipe_storage_size / (1024*1024):.2f}MB")
@@ -5701,7 +5683,7 @@ def main():
     parser.add_argument("--iterations", type=int, default=20000)
     parser.add_argument("--max_time", type=float, default=600.0)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--author", type=str, default="YOUR_NAME_HERE", help="Author name for submission")
+    parser.add_argument("--author", type=str, default="Ashley Klimpel", help="Author name for submission")
     parser.add_argument("--github_id", type=str, default="YOUR_GITHUB_ID_HERE", help="GitHub ID for submission")
     parser.add_argument("--run_name", type=str, default="HDC Zero Track 5Mb TensorCore", help="Run name for submission")
     
