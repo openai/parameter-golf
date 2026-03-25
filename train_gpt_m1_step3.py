@@ -1065,18 +1065,22 @@ def main() -> None:
         log0("codec:analyzing byte frequencies + building ngram tables...")
         import collections
         shard_path = sorted(glob.glob(args.train_files))[0]
-        shard_data = np.memmap(shard_path, dtype=np.uint16, mode='r')[:100000]  # first 100K tokens
+        # Use load_data_shard to correctly parse the header and get real token ids
+        shard_tensor = load_data_shard(Path(shard_path))
+        shard_data = shard_tensor[:100000].numpy().astype(np.int64)
         V = args.vocab_size
+        # Clip token ids to valid vocab range (should already be in range, but be safe)
+        shard_data = np.clip(shard_data, 0, V - 1)
         # Unigram counts
-        token_counts_np = np.bincount(shard_data.astype(np.int64), minlength=V)[:V]
+        token_counts_np = np.bincount(shard_data, minlength=V)[:V].astype(np.float32)
         # Bigram counts (dense VxV, small since V=1024)
         bigram_count_np = np.zeros((V, V), dtype=np.float32)
-        src = shard_data[:-1].astype(np.int64)
-        tgt = shard_data[1:].astype(np.int64)
+        src = shard_data[:-1]
+        tgt = shard_data[1:]
         np.add.at(bigram_count_np, (src, tgt), 1)
         # Also collect top bigrams for codec (unchanged from Step 2)
         bigram_counter = collections.Counter()
-        for i in range(len(shard_data) - 1):
+        for i in range(min(len(shard_data) - 1, 100000)):
             bigram_counter[(int(shard_data[i]), int(shard_data[i+1]))] += 1
         top_bigrams = bigram_counter.most_common(2048)
         log0(f"codec:top_bigrams={len(top_bigrams)} most_common={top_bigrams[0]}")
