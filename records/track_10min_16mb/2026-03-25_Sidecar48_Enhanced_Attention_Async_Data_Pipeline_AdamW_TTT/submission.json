@@ -1,0 +1,9 @@
+{
+    "name": "Sidecar48 + Enhanced Attention + Async Data Pipeline + AdamW TTT",
+    "val_bpb": 1.0573,
+    "bytes_total": 15619296,
+    "blurb": "Enhanced submission building on the previous PR #414 11L SharedSparseSidecar + cosine-TTT architecture. The base model gains richer attention mechanics and a fully asynchronous, memory-mapped data pipeline, while the TTT phase and architecture core remain the same.",
+    "author": "DeepReinforce",
+    "github_id": "DeepReinforce",
+    "date": "2026-03-25"
+  }
