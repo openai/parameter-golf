@@ -44,8 +44,12 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-# Detect native GQA support in SDPA (added in PyTorch 2.4)
-_SDPA_SUPPORTS_GQA: bool = "enable_gqa" in _inspect.signature(F.scaled_dot_product_attention).parameters
+# Detect native GQA support in SDPA (added in PyTorch 2.4).
+# Falls back to False on older PyTorch where inspect can't introspect builtins.
+try:
+    _SDPA_SUPPORTS_GQA: bool = "enable_gqa" in _inspect.signature(F.scaled_dot_product_attention).parameters
+except (ValueError, TypeError):
+    _SDPA_SUPPORTS_GQA = False
 
 # -----------------------------
 # HYPERPARAMETERS
