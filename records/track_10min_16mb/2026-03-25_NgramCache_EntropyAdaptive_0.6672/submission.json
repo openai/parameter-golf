@@ -1,0 +1,7 @@
+{
+  "blurb": "11L SOTA base + multi-order n-gram backoff (2-7) with entropy-adaptive alpha. Legal score-first eval.",
+  "date": "2026-03-25T00:00:00Z",
+  "val_loss": 1.12659837,
+  "val_bpb": 0.66723678,
+  "bytes_total": 15025238
+}
