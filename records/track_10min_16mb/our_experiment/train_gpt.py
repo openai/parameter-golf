@@ -127,11 +127,12 @@ class Hyperparameters:
 
     # TTT (Test-Time Training) — score-first, backward-looking
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.0001))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 4))
+    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "sgd")  # "sgd" or "adamw"
+    ttt_lr = float(os.environ.get("TTT_LR", 1.0))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 20))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 131072))
 
 # -----------------------------
@@ -571,12 +572,15 @@ class CastedLinear(nn.Linear):
     _qat_enabled: bool = False
     _soft_round: bool = False
     _soft_round_alpha: float = 1.0
+    _quant_percentile: float = float(os.environ.get("QUANT_PERCENTILE", "1.0"))
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.to(x.dtype)
         if CastedLinear._qat_enabled and self.training and w.ndim == 2:
             w32 = self.weight.float()
-            row_max = w32.abs().amax(dim=1).detach()
+            pct = CastedLinear._quant_percentile
+            row_max = (torch.quantile(w32.abs(), pct, dim=1) if pct < 1.0
+                       else w32.abs().amax(dim=1)).detach()
             scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
             r = w32 / scale[:, None]
             if CastedLinear._soft_round:
@@ -786,7 +790,7 @@ class MLP(nn.Module):
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
         self.use_leaky = bool(int(os.environ.get("LEAKY_RELU", "1")))
-        self.leaky_slope = float(os.environ.get("LEAKY_SLOPE", "0.9"))
+        self.leaky_slope = float(os.environ.get("LEAKY_SLOPE", "0.5"))
 
     def forward(self, x: Tensor) -> Tensor:
         x = F.leaky_relu(self.fc(x), self.leaky_slope) if self.use_leaky else torch.relu(self.fc(x))
@@ -1241,7 +1245,10 @@ def ttt_adapt(args: Hyperparameters, base_model: nn.Module, device: torch.device
                     p.requires_grad_(False)
 
     ttt_params = [p for p in base_model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
+    if args.ttt_optimizer == "adamw":
+        optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
+    else:
+        optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
 
     t0 = time.perf_counter()
     chunk_idx = 0
@@ -1322,10 +1329,13 @@ def _classify_param(name: str) -> str:
 def quantize_int6_per_row(t: Tensor, qmax: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     qmin = -qmax - 1
+    pct = CastedLinear._quant_percentile
     if t32.ndim == 2:
-        row_max = t32.abs().amax(dim=1)
+        row_max = (torch.quantile(t32.abs(), pct, dim=1) if pct < 1.0
+                   else t32.abs().amax(dim=1))
         scale = (row_max / float(qmax)).clamp_min(1.0 / float(qmax)).to(torch.float16)
-        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), qmin, qmax).to(torch.int8)
+        clipped = t32.clamp(-row_max[:, None], row_max[:, None])
+        q = torch.clamp(torch.round(clipped / scale.float()[:, None]), qmin, qmax).to(torch.int8)
         return q, scale
     amax = t32.abs().max().item()
     scale = torch.tensor(amax / float(qmax) if amax > 0 else 1.0, dtype=torch.float16)
@@ -1951,7 +1961,7 @@ def main() -> None:
             block.attn.rotary._cos_cached = None
             block.attn.rotary._sin_cached = None
             block.attn.rotary._seq_len_cached = 0
-        log0(f"ttt:start score-first lr={args.ttt_lr} "
+        log0(f"ttt:start score-first optimizer={args.ttt_optimizer} lr={args.ttt_lr} "
              f"epochs={args.ttt_epochs} freeze_blocks={args.ttt_freeze_blocks} "
              f"chunk_tokens={args.ttt_chunk_tokens}")
         t_ttt = time.perf_counter()
