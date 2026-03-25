@@ -1,0 +1,7 @@
+{'stage': 'load_val_tokens', 'val_seq_len': 2048}
+{'stage': 'build_luts'}
+{'stage': 'load_states'}
+{'stage': 'build_model'}
+{'artifact_bytes': 15768240, 'code_bytes': 91471, 'total_bytes': 15859711}
+final_int6_roundtrip val_loss:1.9388 val_bpb:1.1483 eval_time:48740ms
+final_int6_roundtrip_exact val_loss:1.93878131 val_bpb:1.14825550
