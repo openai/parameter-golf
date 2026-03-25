@@ -1,12 +1,12 @@
 {
-    "author": "naazimsnh02",
-    "github_id": "naazimsnh02",
-    "val_bpb": null,
-    "date": "2026-03-25",
-    "summary": "Depth Recurrence (layers 4,5) + LoRA TTT (rank 8) + Parallel Muon on PR #549 stack",
-    "architecture": "11L 512d 8H/4KV GQA, 3x MLP LeakyReLU(0.5)², depth recurrence layers 4+5, XSA4, PartialRoPE 16/64, LN Scale, BigramHash(2048), SmearGate, VE128, EMA+SWA, Int6 GPTQ-lite + lzma",
-    "training_time_seconds": null,
-    "artifact_bytes": null,
-    "num_seeds": 1,
-    "gpu": "8xH100 SXM"
+  "name": "Record: Depth Recurrence + SGD TTT + Parallel Muon",
+  "author": "naazimsnh02",
+  "github_id": "naazimsnh02",
+  "blurb": "Depth Recurrence (layers 4,5) for 13 virtual layers from 11 physical at zero parameter cost + legal score-first SGD TTT (3ep, all blocks unfrozen) + SDPA fallback. Built on PR #549 stack (LeakyReLU(0.5)², BigramHash(2048), XSA4, Partial RoPE, LN Scale, VE128, EMA+SWA, Parameter Banking + Parallel Muon, int6 GPTQ-lite + lzma).",
+  "date": "2026-03-25",
+  "val_loss": 1.88805789,
+  "val_bpb": 1.11821719,
+  "bytes_total": 15930486,
+  "gpu": "8xH100 SXM",
+  "num_seeds": 1
 }
