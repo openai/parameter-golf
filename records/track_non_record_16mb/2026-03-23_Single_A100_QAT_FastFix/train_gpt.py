@@ -1260,10 +1260,14 @@ def main() -> None:
         )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_mixed_int6_roundtrip_{_COMPRESSOR} "
+        f"val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(
+        f"final_mixed_int6_roundtrip_{_COMPRESSOR}_exact "
+        f"val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}"
+    )
 
     if distributed:
         dist.destroy_process_group()
