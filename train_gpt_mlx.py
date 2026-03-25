@@ -398,6 +398,9 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
+        # AttnRes: learned pseudo-query per layer for depth-attention over layer history.
+        # Zero-init → uniform weights at start (equivalent to standard residuals).
+        self.attn_res_w = mx.zeros((num_layers, dim), dtype=mx.float32)
         self.blocks = [
             Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
             for i in range(num_layers)
@@ -415,13 +418,26 @@ class GPT(nn.Module):
         c = self.logit_softcap
         return c * mx.tanh(logits / c)
 
+    def _depth_attn(self, history: list[mx.array], w: mx.array) -> mx.array:
+        """AttnRes: softmax depth-attention over all preceding layer outputs."""
+        if len(history) == 1:
+            return history[0]
+        h_stack = mx.stack(history, axis=0)                              # (L, B, T, d)
+        h_normed = rms_norm(h_stack)                                     # normalize keys
+        scores = mx.einsum('d,lbtd->lbt', w.astype(h_normed.dtype), h_normed)  # (L, B, T)
+        alpha = mx.softmax(scores, axis=0)                               # (L, B, T)
+        return mx.einsum('lbt,lbtd->btd', alpha, h_stack)                # (B, T, d)
+
     def __call__(self, input_ids: mx.array) -> mx.array:
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
         x0 = x
         skips: list[mx.array] = []
+        layer_history: list[mx.array] = [x0]
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x_ctx = self._depth_attn(layer_history, self.attn_res_w[i].astype(x.dtype))
+            x = self.blocks[i](x, x_ctx)
+            layer_history.append(x)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             # Odd layer counts have one more decoder block than encoder block. The baseline only
@@ -429,7 +445,10 @@ class GPT(nn.Module):
             # without an added skip.
             if skips:
                 x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            bi = self.num_encoder_layers + i
+            x_ctx = self._depth_attn(layer_history, self.attn_res_w[bi].astype(x.dtype))
+            x = self.blocks[bi](x, x_ctx)
+            layer_history.append(x)
         return self.final_norm(x)
 
     def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
@@ -499,7 +518,7 @@ class SplitOptimizers:
         self.scalar_keys = [
             k
             for k, p in params.items()
-            if k == "skip_weights" or (k.startswith("blocks.") and (p.ndim < 2 or any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)))
+            if k in ("skip_weights", "attn_res_w") or (k.startswith("blocks.") and (p.ndim < 2 or any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)))
         ]
 
         self.muon = Muon(self.matrix_keys, params, args)

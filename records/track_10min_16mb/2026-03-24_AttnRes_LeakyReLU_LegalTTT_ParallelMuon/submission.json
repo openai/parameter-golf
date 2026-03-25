@@ -1,0 +1,9 @@
+{
+  "name": "AttnRes + LeakyReLU² + Legal Score-First TTT + Parallel Muon",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Adds Full Attention Residuals (AttnRes, Kimi Team): learned softmax depth-attention over all preceding layer outputs replaces fixed x0 global residual injection. 11×512d pseudo-queries, zero-init, ~22KB overhead. Built on 2026-03-23 stack: LeakyReLU(0.5)² + legal score-first TTT + Parameter Banking + Parallel Muon + BigramHash(1536). Pending benchmark run.",
+  "author": "abaybektursun",
+  "github_id": "abaybektursun",
+  "date": "2026-03-24"
+}
