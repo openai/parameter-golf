@@ -1,0 +1,5 @@
+sentencepiece
+huggingface-hub
+datasets
+tqdm
+zstandard
