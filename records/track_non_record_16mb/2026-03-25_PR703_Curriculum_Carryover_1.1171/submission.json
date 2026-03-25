@@ -1,0 +1,18 @@
+{
+  "author": "Peter",
+  "github_id": "petergpt",
+  "name": "PR703 + Shard-Order Curriculum + GPTQ Cache-Backout",
+  "blurb": "Non-record 8xH100 SXM submission: a PR703-style quant/cache-backout branch improved with score-ranked shard curriculum and stronger final int6+lzma packing. Single-seed result reached 1.11709895 sliding-window exact under the 16MB artifact cap.",
+  "date": "2026-03-25T22:44:46Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.88616979,
+  "val_bpb": 1.11709895,
+  "pre_quant_val_loss": 1.9195,
+  "pre_quant_val_bpb": 1.1368,
+  "step_stop": 6918,
+  "wallclock_seconds": 600.12,
+  "bytes_total": 15909560,
+  "bytes_model_int6_lzma": 15798304,
+  "bytes_code": 111256,
+  "gpu": "8xH100 SXM"
+}
