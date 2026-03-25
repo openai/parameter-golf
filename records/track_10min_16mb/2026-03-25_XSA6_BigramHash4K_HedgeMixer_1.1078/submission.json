@@ -1,0 +1,22 @@
+{
+  "name": "XSA6 + BigramHash4K on Hedge Mixer Stack",
+  "author": "Aygul Galimova",
+  "github_id": "agalimova",
+  "val_bpb": 1.1078,
+  "val_bpb_std": 0.0045,
+  "seeds": {
+    "42": 1.1045,
+    "1337": 1.1061,
+    "2025": 1.1129
+  },
+  "base_pr": 700,
+  "changes": [
+    "XSA_LAST_N=6 (extended from 4 to 6 layers)",
+    "BIGRAM_VOCAB_SIZE=4096 (doubled from 2048)"
+  ],
+  "env": {
+    "torch": "2.9.0+cu126",
+    "gpu": "8xH100 SXM 80GB",
+    "flash_attn": "FA3 (Hopper, minimal build)"
+  }
+}
