@@ -3,9 +3,9 @@
 # Usage: bash /workspace/my-parameter-golf/parameter-golf/run_experiments.sh
 set -e
 
-BASE=/workspace/my-parameter-golf/parameter-golf
-DATA=/workspace/my-parameter-golf/data/datasets/fineweb10B_sp1024
-TOK=/workspace/my-parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+BASE=/workspace/my-parameter-golf
+DATA=$BASE/data/datasets/fineweb10B_sp1024
+TOK=$BASE/data/tokenizers/fineweb_1024_bpe.model
 RECORDS=$BASE/records/track_10min_16mb
 
 run_seed() {
