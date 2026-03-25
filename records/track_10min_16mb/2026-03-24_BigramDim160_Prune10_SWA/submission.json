@@ -1,0 +1,9 @@
+{
+  "name": "BigramDim160 + 10% Prune + SWA + SmearGate + OrthoInit + Int6+Zstd",
+  "val_loss": 1.14767,
+  "bytes_total": 15855546,
+  "blurb": "BigramHash dim=160 (down from 192) with 10% weight pruning post-SWA. SWA start_frac=0.5 (23 averaged checkpoints). Int6+zstd-22 quantization. SmearGate + OrthoInit. Mean of 2 seeds: 1.14767 (std 0.00219). Third seed pending due to compute constraints.",
+  "author": "Bryce Judy",
+  "github_id": "bryjudy",
+  "date": "2026-03-24"
+}
