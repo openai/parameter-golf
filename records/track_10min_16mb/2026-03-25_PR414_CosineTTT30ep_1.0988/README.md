@@ -1,23 +1,24 @@
-# PR #414 Stack + 30-Epoch Cosine TTT
+# PR #414 Stack + Legal Score-First TTT
 
-**val_bpb: 1.0988** (8xH100 SXM, seed=1337, stride=64 sliding window eval)
+**val_bpb: 1.1408** (8xH100 SXM, seed=1337, legal score-first TTT)
 
 ## Summary
 
-Adds 30-epoch cosine pre-eval Test-Time Training (TTT) on top of the PR #414 consensus stack. TTT adapts the quantized model on validation data before the final sliding-window eval, recovering quantization loss and further improving BPB through domain adaptation.
+Legal chunk-based score-first TTT on the PR #414 consensus stack. Each validation chunk is scored first (under inference_mode), then the model trains on already-scored tokens. Never trains on tokens before scoring them.
 
-## Key Addition: Cosine Pre-Eval TTT
+## Key Addition: Legal Score-First TTT
 
-After int6 quantization and roundtrip eval, the model is fine-tuned on validation data for 30 epochs with cosine LR decay before the final sliding-window eval:
+After int6 quantization, validation data is processed in 32K-token chunks:
+1. **Score** chunk with sliding-window eval (inference_mode)
+2. **Train** on scored chunk for 3 epochs (SGD, cosine LR)
+3. Advance to next chunk — never training before scoring
 
-- AdamW optimizer, base LR=0.0005, weight_decay=0.0
-- Per-layer LR groups: `mlp.proj` 3x, `mlp.fc` 0.5x, others 1x
-- Cosine LR schedule across all TTT steps
+- SGD optimizer, base LR=0.002, momentum=0.9
+- Cosine LR decay across chunks
+- 3 epochs per chunk, 32768 tokens/chunk, 1893 chunks total
 - DDP gradient sync (all_reduce AVG)
-- Batch size: 32 sequences per rank
 - Gradient clipping: 1.0
-
-TTT runs within the 10-minute eval budget (~8 min TTT + ~2 min sliding eval).
+- Total eval time: ~617s on 8xH100 (SDPA backend)
 
 ## Architecture (PR #414 stack)
 
@@ -31,7 +32,6 @@ TTT runs within the 10-minute eval budget (~8 min TTT + ~2 min sliding eval).
 - GPTQ-lite int6 + zstd-22
 - Late QAT @ threshold 0.15
 - OrthoInit + muP-scaled output projections
-- Sliding window eval (stride=64)
 
 ## Training
 
@@ -40,6 +40,14 @@ TTT runs within the 10-minute eval budget (~8 min TTT + ~2 min sliding eval).
 - Batch: 786,432 tokens/step, seq_len=2048
 - Warmdown: 3500 iterations
 - Gradient clip: 0.3
+
+## Results
+
+| Stage | val_loss | val_bpb |
+|-------|----------|---------|
+| Post-EMA (float) | 1.9433 | 1.1509 |
+| Post-int6 roundtrip | 1.9570 | 1.1590 |
+| **Legal TTT (score-first)** | **1.9262** | **1.1408** |
 
 ## Run Command
 
@@ -50,5 +58,6 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 ## Credits
 
 - Base model and training recipe: PR #414 by @signalrush
-- TTT technique: PR #518 by @sofiabod, PR #672 by @andrewbaggio1
+- Legal TTT protocol: PR #549 by @a]exkarp
+- TTT technique: PR #518 by @sofiabod
 - SDPA fallback for non-FA3 environments

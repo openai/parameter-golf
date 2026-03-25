@@ -1,11 +1,11 @@
 {
   "author": "ajh",
   "github_id": "xexyz",
-  "name": "PR #414 Stack + 30-Epoch Cosine TTT",
-  "blurb": "30-epoch cosine pre-eval TTT with per-layer LR groups on PR #414 consensus stack (11L, XSA4, EMA, GPTQ-lite, int6+zstd-22, sliding eval stride=64).",
+  "name": "PR #414 Stack + Legal Score-First TTT",
+  "blurb": "Legal chunk-based score-first TTT (3 epochs/chunk, SGD cosine, 32K chunks) on PR #414 consensus stack (11L, XSA4, EMA, GPTQ-lite, int6+zstd-22, stride=64).",
   "date": "2026-03-25",
-  "val_loss": 1.8553,
-  "val_bpb": 1.0988,
-  "bytes_total": 15900191,
-  "bytes_code": 71596
+  "val_loss": 1.9262,
+  "val_bpb": 1.1408,
+  "bytes_total": 15758590,
+  "bytes_code": 73816
 }

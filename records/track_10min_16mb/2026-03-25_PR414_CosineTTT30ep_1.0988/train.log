@@ -1,8 +1,8 @@
-W0325 06:32:47.904000 124131012002432 torch/distributed/run.py:779] 
-W0325 06:32:47.904000 124131012002432 torch/distributed/run.py:779] *****************************************
-W0325 06:32:47.904000 124131012002432 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
-W0325 06:32:47.904000 124131012002432 torch/distributed/run.py:779] *****************************************
-logs/ttt30ep_v4.txt
+W0325 08:17:48.568000 136222819410560 torch/distributed/run.py:779] 
+W0325 08:17:48.568000 136222819410560 torch/distributed/run.py:779] *****************************************
+W0325 08:17:48.568000 136222819410560 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0325 08:17:48.568000 136222819410560 torch/distributed/run.py:779] *****************************************
+logs/legal_ttt_v3.txt
 val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
 train_loader:dataset:fineweb10B_sp1024 train_shards:80
 val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
@@ -36,62 +36,249 @@ warmup_step:18/20
 warmup_step:19/20
 warmup_step:20/20
 step:0/20000 val_loss:6.9271 val_bpb:4.1026 train_time:0ms step_avg:0.01ms
-step:1/20000 train_loss:6.9300 train_time:156ms step_avg:155.53ms
-step:2/20000 train_loss:8.3504 train_time:260ms step_avg:130.12ms
-step:3/20000 train_loss:7.5984 train_time:369ms step_avg:123.07ms
-step:4/20000 train_loss:8.1415 train_time:478ms step_avg:119.58ms
-step:5/20000 train_loss:8.3255 train_time:587ms step_avg:117.37ms
-step:6/20000 train_loss:8.0507 train_time:696ms step_avg:115.93ms
-step:7/20000 train_loss:7.4918 train_time:804ms step_avg:114.93ms
-step:8/20000 train_loss:7.0536 train_time:913ms step_avg:114.17ms
-step:9/20000 train_loss:6.6796 train_time:1022ms step_avg:113.59ms
-step:10/20000 train_loss:6.3579 train_time:1131ms step_avg:113.11ms
-step:500/20000 train_loss:2.4268 train_time:55122ms step_avg:110.24ms
-step:1000/20000 train_loss:2.2851 train_time:110454ms step_avg:110.45ms
-step:1500/20000 train_loss:2.2234 train_time:165697ms step_avg:110.46ms
-step:2000/20000 train_loss:2.0627 train_time:220878ms step_avg:110.44ms
-step:2500/20000 train_loss:2.1547 train_time:276031ms step_avg:110.41ms
-step:3000/20000 train_loss:2.1344 train_time:331221ms step_avg:110.41ms
-step:3500/20000 train_loss:2.1404 train_time:386331ms step_avg:110.38ms
-step:4000/20000 train_loss:1.9294 train_time:441438ms step_avg:110.36ms
-step:4000/20000 val_loss:2.0184 val_bpb:1.1954 train_time:441443ms step_avg:110.36ms
-step:4500/20000 train_loss:2.0700 train_time:496572ms step_avg:110.35ms
+step:1/20000 train_loss:6.9300 train_time:154ms step_avg:154.33ms
+step:2/20000 train_loss:8.3504 train_time:259ms step_avg:129.73ms
+step:3/20000 train_loss:7.5985 train_time:368ms step_avg:122.81ms
+step:4/20000 train_loss:8.1415 train_time:477ms step_avg:119.30ms
+step:5/20000 train_loss:8.3257 train_time:586ms step_avg:117.16ms
+step:6/20000 train_loss:8.0506 train_time:695ms step_avg:115.76ms
+step:7/20000 train_loss:7.4914 train_time:803ms step_avg:114.75ms
+step:8/20000 train_loss:7.0539 train_time:912ms step_avg:114.00ms
+step:9/20000 train_loss:6.6802 train_time:1021ms step_avg:113.44ms
+step:10/20000 train_loss:6.3554 train_time:1130ms step_avg:113.01ms
+step:500/20000 train_loss:2.4233 train_time:55151ms step_avg:110.30ms
+step:1000/20000 train_loss:2.2819 train_time:110465ms step_avg:110.46ms
+step:1500/20000 train_loss:2.2245 train_time:165680ms step_avg:110.45ms
+step:2000/20000 train_loss:2.0632 train_time:220848ms step_avg:110.42ms
+step:2500/20000 train_loss:2.1556 train_time:275989ms step_avg:110.40ms
+step:3000/20000 train_loss:2.1359 train_time:331096ms step_avg:110.37ms
+step:3500/20000 train_loss:2.1379 train_time:386200ms step_avg:110.34ms
+step:4000/20000 train_loss:1.9292 train_time:441292ms step_avg:110.32ms
+step:4000/20000 val_loss:2.0184 val_bpb:1.1954 train_time:441297ms step_avg:110.32ms
+step:4500/20000 train_loss:2.0696 train_time:496405ms step_avg:110.31ms
 swa:start step:4750
-late_qat:enabled step:4912 scale:0.1497
-step:5000/20000 train_loss:2.0422 train_time:551903ms step_avg:110.38ms
-step:5434/20000 val_loss:1.9437 val_bpb:1.1512 train_time:600046ms step_avg:110.42ms
-stopping_early: wallclock_cap train_time:600046ms step:5434/20000
-peak memory allocated: 26037 MiB reserved: 26214 MiB
+late_qat:enabled step:4913 scale:0.1499
+step:5000/20000 train_loss:2.0438 train_time:551759ms step_avg:110.35ms
+step:5436/20000 val_loss:1.9439 val_bpb:1.1513 train_time:600087ms step_avg:110.39ms
+stopping_early: wallclock_cap train_time:600087ms step:5436/20000
+peak memory allocated: 26038 MiB reserved: 26268 MiB
 ema:applying EMA weights
-DIAGNOSTIC post_ema val_loss:1.9427 val_bpb:1.1506 eval_time:2338ms
+DIAGNOSTIC post_ema val_loss:1.9429 val_bpb:1.1507 eval_time:2333ms
 Serialized model: 106178100 bytes
-Code size: 71596 bytes
-Serialized model int6+zstd: 15828595 bytes
-Total submission size int6+zstd: 15900191 bytes
-Total submission size int8+zlib: 15900191 bytes
-/workspace/train_gpt_ttt.py:1346: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+Code size: 74001 bytes
+Serialized model int6+zstd: 16045064 bytes
+Total submission size int6+zstd: 16119065 bytes
+Total submission size int8+zlib: 16119065 bytes
+/workspace/train_gpt_legal_ttt.py:1450: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   quant_state = torch.load(
-/workspace/train_gpt_ttt.py:1346: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+/workspace/train_gpt_legal_ttt.py:1450: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   quant_state = torch.load(
-/workspace/train_gpt_ttt.py:1346: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+/workspace/train_gpt_legal_ttt.py:1450: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   quant_state = torch.load(
-/workspace/train_gpt_ttt.py:1346: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+/workspace/train_gpt_legal_ttt.py:1450: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   quant_state = torch.load(
-/workspace/train_gpt_ttt.py:1346: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+/workspace/train_gpt_legal_ttt.py:1450: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   quant_state = torch.load(
-/workspace/train_gpt_ttt.py:1346: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+/workspace/train_gpt_legal_ttt.py:1450: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   quant_state = torch.load(
-/workspace/train_gpt_ttt.py:1346: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+/workspace/train_gpt_legal_ttt.py:1450: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   quant_state = torch.load(
-/workspace/train_gpt_ttt.py:1346: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+/workspace/train_gpt_legal_ttt.py:1450: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   quant_state = torch.load(
-final_int6_roundtrip val_loss:1.9577 val_bpb:1.1594 eval_time:46334ms
-final_int6_roundtrip_exact val_loss:1.95765651 val_bpb:1.15943445
-ttt:start epochs:30 lr:0.0005
-ttt:epoch:10/30 step:1190/3540
-ttt:epoch:20/30 step:2380/3540
-ttt:epoch:30/30 step:3570/3540
-ttt:done time:835732ms steps:3570
-final_int6_sliding_window val_loss:1.8553 val_bpb:1.0988 stride:64 eval_time:114021ms
-final_int6_sliding_window_exact val_loss:1.85525056 val_bpb:1.09878679
-final_int8_zlib_roundtrip_exact val_loss:1.85525056 val_bpb:1.09878679
+final_int6_roundtrip val_loss:1.9570 val_bpb:1.1590 eval_time:45195ms
+final_int6_roundtrip_exact val_loss:1.95700521 val_bpb:1.15904872
+ttt_sliding:start chunks=1893 chunk_tokens=32768 windows=969088 stride=64 lr=0.002 epochs=3
+  ttt_chunk [1/1893] bpb=1.175285 time=0.5s
+  ttt_chunk [11/1893] bpb=1.159537 time=3.8s
+  ttt_chunk [21/1893] bpb=1.144819 time=7.1s
+  ttt_chunk [31/1893] bpb=1.142496 time=10.3s
+  ttt_chunk [41/1893] bpb=1.129114 time=13.6s
+  ttt_chunk [51/1893] bpb=1.123388 time=16.9s
+  ttt_chunk [61/1893] bpb=1.130280 time=20.1s
+  ttt_chunk [71/1893] bpb=1.128593 time=23.4s
+  ttt_chunk [81/1893] bpb=1.127975 time=26.7s
+  ttt_chunk [91/1893] bpb=1.129183 time=29.9s
+  ttt_chunk [101/1893] bpb=1.133065 time=33.2s
+  ttt_chunk [111/1893] bpb=1.135746 time=36.5s
+  ttt_chunk [121/1893] bpb=1.129344 time=39.7s
+  ttt_chunk [131/1893] bpb=1.129777 time=43.0s
+  ttt_chunk [141/1893] bpb=1.135387 time=46.3s
+  ttt_chunk [151/1893] bpb=1.137228 time=49.5s
+  ttt_chunk [161/1893] bpb=1.136805 time=52.8s
+  ttt_chunk [171/1893] bpb=1.141245 time=56.0s
+  ttt_chunk [181/1893] bpb=1.143808 time=59.3s
+  ttt_chunk [191/1893] bpb=1.151256 time=62.6s
+  ttt_chunk [201/1893] bpb=1.150205 time=65.9s
+  ttt_chunk [211/1893] bpb=1.148087 time=69.1s
+  ttt_chunk [221/1893] bpb=1.149645 time=72.4s
+  ttt_chunk [231/1893] bpb=1.148301 time=75.6s
+  ttt_chunk [241/1893] bpb=1.148764 time=78.9s
+  ttt_chunk [251/1893] bpb=1.148283 time=82.2s
+  ttt_chunk [261/1893] bpb=1.145461 time=85.5s
+  ttt_chunk [271/1893] bpb=1.144402 time=88.8s
+  ttt_chunk [281/1893] bpb=1.145916 time=92.0s
+  ttt_chunk [291/1893] bpb=1.147826 time=95.3s
+  ttt_chunk [301/1893] bpb=1.148625 time=98.6s
+  ttt_chunk [311/1893] bpb=1.150787 time=101.8s
+  ttt_chunk [321/1893] bpb=1.152855 time=105.1s
+  ttt_chunk [331/1893] bpb=1.152795 time=108.4s
+  ttt_chunk [341/1893] bpb=1.151903 time=111.7s
+  ttt_chunk [351/1893] bpb=1.154310 time=114.9s
+  ttt_chunk [361/1893] bpb=1.154664 time=118.2s
+  ttt_chunk [371/1893] bpb=1.154075 time=121.5s
+  ttt_chunk [381/1893] bpb=1.154306 time=124.7s
+  ttt_chunk [391/1893] bpb=1.154153 time=128.0s
+  ttt_chunk [401/1893] bpb=1.152129 time=131.2s
+  ttt_chunk [411/1893] bpb=1.151127 time=134.5s
+  ttt_chunk [421/1893] bpb=1.150298 time=137.8s
+  ttt_chunk [431/1893] bpb=1.150239 time=141.1s
+  ttt_chunk [441/1893] bpb=1.150663 time=144.3s
+  ttt_chunk [451/1893] bpb=1.151092 time=147.6s
+  ttt_chunk [461/1893] bpb=1.150068 time=150.9s
+  ttt_chunk [471/1893] bpb=1.150753 time=154.1s
+  ttt_chunk [481/1893] bpb=1.150409 time=157.4s
+  ttt_chunk [491/1893] bpb=1.149396 time=160.7s
+  ttt_chunk [501/1893] bpb=1.148977 time=163.9s
+  ttt_chunk [511/1893] bpb=1.148409 time=167.2s
+  ttt_chunk [521/1893] bpb=1.146200 time=170.4s
+  ttt_chunk [531/1893] bpb=1.147401 time=173.6s
+  ttt_chunk [541/1893] bpb=1.147734 time=176.9s
+  ttt_chunk [551/1893] bpb=1.146733 time=180.1s
+  ttt_chunk [561/1893] bpb=1.147301 time=183.4s
+  ttt_chunk [571/1893] bpb=1.146324 time=186.7s
+  ttt_chunk [581/1893] bpb=1.145563 time=189.9s
+  ttt_chunk [591/1893] bpb=1.144998 time=193.2s
+  ttt_chunk [601/1893] bpb=1.145535 time=196.4s
+  ttt_chunk [611/1893] bpb=1.145490 time=199.7s
+  ttt_chunk [621/1893] bpb=1.145429 time=202.9s
+  ttt_chunk [631/1893] bpb=1.146168 time=206.2s
+  ttt_chunk [641/1893] bpb=1.145984 time=209.5s
+  ttt_chunk [651/1893] bpb=1.146082 time=212.7s
+  ttt_chunk [661/1893] bpb=1.145567 time=216.0s
+  ttt_chunk [671/1893] bpb=1.146021 time=219.2s
+  ttt_chunk [681/1893] bpb=1.146792 time=222.5s
+  ttt_chunk [691/1893] bpb=1.147782 time=225.8s
+  ttt_chunk [701/1893] bpb=1.147260 time=229.0s
+  ttt_chunk [711/1893] bpb=1.147279 time=232.2s
+  ttt_chunk [721/1893] bpb=1.146924 time=235.5s
+  ttt_chunk [731/1893] bpb=1.146994 time=238.8s
+  ttt_chunk [741/1893] bpb=1.147183 time=242.0s
+  ttt_chunk [751/1893] bpb=1.147089 time=245.3s
+  ttt_chunk [761/1893] bpb=1.147046 time=248.5s
+  ttt_chunk [771/1893] bpb=1.146732 time=251.7s
+  ttt_chunk [781/1893] bpb=1.147505 time=255.0s
+  ttt_chunk [791/1893] bpb=1.147115 time=258.2s
+  ttt_chunk [801/1893] bpb=1.147473 time=261.5s
+  ttt_chunk [811/1893] bpb=1.147285 time=264.7s
+  ttt_chunk [821/1893] bpb=1.147146 time=268.0s
+  ttt_chunk [831/1893] bpb=1.147017 time=271.3s
+  ttt_chunk [841/1893] bpb=1.146412 time=274.5s
+  ttt_chunk [851/1893] bpb=1.146208 time=277.8s
+  ttt_chunk [861/1893] bpb=1.146001 time=281.0s
+  ttt_chunk [871/1893] bpb=1.146302 time=284.3s
+  ttt_chunk [881/1893] bpb=1.146548 time=287.5s
+  ttt_chunk [891/1893] bpb=1.146118 time=290.8s
+  ttt_chunk [901/1893] bpb=1.145879 time=294.0s
+  ttt_chunk [911/1893] bpb=1.146043 time=297.3s
+  ttt_chunk [921/1893] bpb=1.146567 time=300.5s
+  ttt_chunk [931/1893] bpb=1.146533 time=303.7s
+  ttt_chunk [941/1893] bpb=1.146236 time=307.0s
+  ttt_chunk [951/1893] bpb=1.146682 time=310.2s
+  ttt_chunk [961/1893] bpb=1.146786 time=313.5s
+  ttt_chunk [971/1893] bpb=1.147674 time=316.7s
+  ttt_chunk [981/1893] bpb=1.147779 time=320.0s
+  ttt_chunk [991/1893] bpb=1.147810 time=323.2s
+  ttt_chunk [1001/1893] bpb=1.147837 time=326.4s
+  ttt_chunk [1011/1893] bpb=1.147683 time=329.7s
+  ttt_chunk [1021/1893] bpb=1.148048 time=333.0s
+  ttt_chunk [1031/1893] bpb=1.148550 time=336.2s
+  ttt_chunk [1041/1893] bpb=1.148239 time=339.5s
+  ttt_chunk [1051/1893] bpb=1.148029 time=342.7s
+  ttt_chunk [1061/1893] bpb=1.148113 time=346.0s
+  ttt_chunk [1071/1893] bpb=1.148751 time=349.3s
+  ttt_chunk [1081/1893] bpb=1.149046 time=352.5s
+  ttt_chunk [1091/1893] bpb=1.149820 time=355.7s
+  ttt_chunk [1101/1893] bpb=1.149861 time=359.0s
+  ttt_chunk [1111/1893] bpb=1.149728 time=362.2s
+  ttt_chunk [1121/1893] bpb=1.149566 time=365.5s
+  ttt_chunk [1131/1893] bpb=1.149457 time=368.7s
+  ttt_chunk [1141/1893] bpb=1.149222 time=372.0s
+  ttt_chunk [1151/1893] bpb=1.149249 time=375.2s
+  ttt_chunk [1161/1893] bpb=1.148897 time=378.5s
+  ttt_chunk [1171/1893] bpb=1.149245 time=381.7s
+  ttt_chunk [1181/1893] bpb=1.148514 time=385.0s
+  ttt_chunk [1191/1893] bpb=1.148439 time=388.2s
+  ttt_chunk [1201/1893] bpb=1.148865 time=391.5s
+  ttt_chunk [1211/1893] bpb=1.148404 time=394.7s
+  ttt_chunk [1221/1893] bpb=1.148106 time=398.0s
+  ttt_chunk [1231/1893] bpb=1.147832 time=401.2s
+  ttt_chunk [1241/1893] bpb=1.147516 time=404.5s
+  ttt_chunk [1251/1893] bpb=1.146946 time=407.7s
+  ttt_chunk [1261/1893] bpb=1.146953 time=411.0s
+  ttt_chunk [1271/1893] bpb=1.146592 time=414.2s
+  ttt_chunk [1281/1893] bpb=1.146409 time=417.5s
+  ttt_chunk [1291/1893] bpb=1.146214 time=420.8s
+  ttt_chunk [1301/1893] bpb=1.145676 time=424.0s
+  ttt_chunk [1311/1893] bpb=1.145300 time=427.3s
+  ttt_chunk [1321/1893] bpb=1.144988 time=430.5s
+  ttt_chunk [1331/1893] bpb=1.144939 time=433.8s
+  ttt_chunk [1341/1893] bpb=1.144817 time=437.0s
+  ttt_chunk [1351/1893] bpb=1.144767 time=440.3s
+  ttt_chunk [1361/1893] bpb=1.144824 time=443.5s
+  ttt_chunk [1371/1893] bpb=1.144710 time=446.8s
+  ttt_chunk [1381/1893] bpb=1.144709 time=450.0s
+  ttt_chunk [1391/1893] bpb=1.144328 time=453.3s
+  ttt_chunk [1401/1893] bpb=1.144319 time=456.6s
+  ttt_chunk [1411/1893] bpb=1.144454 time=459.8s
+  ttt_chunk [1421/1893] bpb=1.144740 time=463.1s
+  ttt_chunk [1431/1893] bpb=1.144457 time=466.3s
+  ttt_chunk [1441/1893] bpb=1.145003 time=469.6s
+  ttt_chunk [1451/1893] bpb=1.145354 time=472.9s
+  ttt_chunk [1461/1893] bpb=1.144904 time=476.1s
+  ttt_chunk [1471/1893] bpb=1.145967 time=479.4s
+  ttt_chunk [1481/1893] bpb=1.145520 time=482.6s
+  ttt_chunk [1491/1893] bpb=1.145331 time=485.9s
+  ttt_chunk [1501/1893] bpb=1.145269 time=489.1s
+  ttt_chunk [1511/1893] bpb=1.145309 time=492.4s
+  ttt_chunk [1521/1893] bpb=1.145339 time=495.6s
+  ttt_chunk [1531/1893] bpb=1.144849 time=498.9s
+  ttt_chunk [1541/1893] bpb=1.144712 time=502.1s
+  ttt_chunk [1551/1893] bpb=1.145058 time=505.4s
+  ttt_chunk [1561/1893] bpb=1.145075 time=508.6s
+  ttt_chunk [1571/1893] bpb=1.144928 time=511.9s
+  ttt_chunk [1581/1893] bpb=1.145050 time=515.1s
+  ttt_chunk [1591/1893] bpb=1.144934 time=518.4s
+  ttt_chunk [1601/1893] bpb=1.145134 time=521.7s
+  ttt_chunk [1611/1893] bpb=1.145083 time=525.0s
+  ttt_chunk [1621/1893] bpb=1.144693 time=528.2s
+  ttt_chunk [1631/1893] bpb=1.145040 time=531.5s
+  ttt_chunk [1641/1893] bpb=1.145085 time=534.8s
+  ttt_chunk [1651/1893] bpb=1.145056 time=538.0s
+  ttt_chunk [1661/1893] bpb=1.144956 time=541.3s
+  ttt_chunk [1671/1893] bpb=1.145445 time=544.5s
+  ttt_chunk [1681/1893] bpb=1.145596 time=547.8s
+  ttt_chunk [1691/1893] bpb=1.145429 time=551.1s
+  ttt_chunk [1701/1893] bpb=1.145612 time=554.3s
+  ttt_chunk [1711/1893] bpb=1.145641 time=557.6s
+  ttt_chunk [1721/1893] bpb=1.145659 time=560.9s
+  ttt_chunk [1731/1893] bpb=1.145554 time=564.1s
+  ttt_chunk [1741/1893] bpb=1.145380 time=567.4s
+  ttt_chunk [1751/1893] bpb=1.145230 time=570.6s
+  ttt_chunk [1761/1893] bpb=1.145384 time=573.9s
+  ttt_chunk [1771/1893] bpb=1.145299 time=577.1s
+  ttt_chunk [1781/1893] bpb=1.145346 time=580.4s
+  ttt_chunk [1791/1893] bpb=1.144942 time=583.7s
+  ttt_chunk [1801/1893] bpb=1.144822 time=586.9s
+  ttt_chunk [1811/1893] bpb=1.144737 time=590.2s
+  ttt_chunk [1821/1893] bpb=1.144807 time=593.4s
+  ttt_chunk [1831/1893] bpb=1.144205 time=596.7s
+  ttt_chunk [1841/1893] bpb=1.144262 time=600.0s
+  ttt_chunk [1851/1893] bpb=1.144060 time=603.2s
+  ttt_chunk [1861/1893] bpb=1.143705 time=606.5s
+  ttt_chunk [1871/1893] bpb=1.143690 time=609.7s
+  ttt_chunk [1881/1893] bpb=1.143244 time=613.0s
+  ttt_chunk [1891/1893] bpb=1.143018 time=616.3s
+  ttt_chunk [1893/1893] bpb=1.143066 time=616.7s
+ttt_sliding:done val_loss=1.926234 val_bpb=1.140827 elapsed=617.0s
+legal_ttt val_loss:1.9262 val_bpb:1.1408 eval_time:617367ms
+final_int6_sliding_window_exact val_loss:1.92623397 val_bpb:1.14082728
