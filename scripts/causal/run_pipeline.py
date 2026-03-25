@@ -39,6 +39,13 @@ PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
 SCRIPTS = REPO_ROOT / "scripts" / "causal"
 RESULTS = REPO_ROOT / "results" / "causal"
 
+# In-process trainer (avoids subprocess overhead)
+from scripts.causal.inprocess_trainer import (
+    SharedTrainingContext,
+    create_shared_context,
+    train_single_run,
+)
+
 # =========================================================================
 # Intervention Search Space
 # =========================================================================
@@ -203,14 +210,16 @@ def select_interventions(dag, completed_interventions):
     return deduped
 
 
-def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, seeds, dry_run=False):
+def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, seeds, dry_run=False, ctx=None):
     """Run a single screening experiment (short training)."""
     cycle_dir = RESULTS / f"cycle_{cycle_num}"
     cycle_dir.mkdir(parents=True, exist_ok=True)
 
     # Add screening overrides (short training)
     treatment = json.loads(json.dumps(treatment_config))  # deep copy
-    treatment["env_overrides"]["MAX_WALLCLOCK_SECONDS"] = "0"  # disable wallclock, use iterations
+    # Set wallclock high enough to not interfere; iterations control stopping
+    screen_wallclock = max(screen_iters * 3, 300)  # at least 5 min for MLX compilation
+    treatment["env_overrides"]["MAX_WALLCLOCK_SECONDS"] = str(screen_wallclock)
     treatment["env_overrides"]["ITERATIONS"] = str(screen_iters)
     treatment["env_overrides"]["VAL_LOSS_EVERY"] = str(max(screen_iters // 4, 1))
     treatment["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 10, 1))
@@ -218,7 +227,7 @@ def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, s
     treatment["env_overrides"]["WARMDOWN_ITERS"] = str(screen_iters // 5)
 
     control = json.loads(json.dumps(BASELINE_CONFIG))
-    control["env_overrides"]["MAX_WALLCLOCK_SECONDS"] = "0"
+    control["env_overrides"]["MAX_WALLCLOCK_SECONDS"] = str(screen_wallclock)
     control["env_overrides"]["ITERATIONS"] = str(screen_iters)
     control["env_overrides"]["VAL_LOSS_EVERY"] = str(max(screen_iters // 4, 1))
     control["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 10, 1))
@@ -258,9 +267,44 @@ def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, s
         log.info("[DRY RUN] Mock results written for %s", label)
         return raw_runs_path
 
-    # Run actual experiment
+    # Run in-process (avoids subprocess MLX warmup overhead)
+    if ctx is not None:
+        log.info("Running in-process (warmup cached: %s)", label)
+        try:
+            treatment_results = []
+            control_results = []
+            val_every = max(screen_iters // 4, 1)
+            warmup = min(1, screen_iters // 10)  # minimal warmup; cached after first run
+            warmdown = screen_iters // 5
+
+            for s in seeds:
+                r = train_single_run(ctx, treatment["env_overrides"], seed=s,
+                                     iterations=screen_iters, val_loss_every=val_every,
+                                     warmup_steps=warmup, warmdown_iters=warmdown)
+                treatment_results.append(r)
+
+            for s in seeds:
+                r = train_single_run(ctx, control["env_overrides"], seed=s,
+                                     iterations=screen_iters, val_loss_every=val_every,
+                                     warmup_steps=warmup, warmdown_iters=warmdown)
+                control_results.append(r)
+
+            results = {
+                "platform": "mlx",
+                "seeds": seeds,
+                "treatment": {"config": treatment, "results": treatment_results},
+                "control": {"config": control, "results": control_results},
+            }
+            raw_runs_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+            return raw_runs_path
+
+        except Exception as e:
+            log.warning("In-process failed (%s), falling back to subprocess", e)
+
+    # Subprocess fallback
     seeds_str = ",".join(str(s) for s in seeds)
-    timeout = screen_iters * 2 + 300  # rough estimate: ~1s/iter + buffer
+    n_runs = len(seeds) * 2
+    timeout = n_runs * (300 + screen_iters * 2) + 300
     ok, _ = run_script("experiment_runner.py", [
         "--treatment", str(treatment_path),
         "--control", str(control_path),
@@ -406,6 +450,21 @@ def run_pipeline(max_cycles=4, screen_iters=500, seeds=None, dry_run=False,
     all_results = []
     completed_interventions = set()
 
+    # Create shared training context once (avoids per-run data loading)
+    ctx = None
+    if not dry_run:
+        try:
+            ctx = create_shared_context(
+                data_path="./data/datasets/fineweb10B_sp1024",
+                tokenizer_path="./data/tokenizers/fineweb_1024_bpe.model",
+                vocab_size=1024,
+                train_seq_len=1024,
+            )
+            log.info("In-process training enabled (shared context loaded)")
+        except Exception as e:
+            log.warning("Failed to create shared context (%s), using subprocess fallback", e)
+            ctx = None
+
     # Load any existing results from previous cycles
     pipeline_log_path = RESULTS / "pipeline_log.json"
     if pipeline_log_path.exists() and resume_from > 0:
@@ -462,7 +521,7 @@ def run_pipeline(max_cycles=4, screen_iters=500, seeds=None, dry_run=False,
 
             # Run screening experiment
             raw_runs_path = run_screening_experiment(
-                cycle, label, treatment_config, screen_iters, seeds, dry_run
+                cycle, label, treatment_config, screen_iters, seeds, dry_run, ctx=ctx
             )
             if raw_runs_path is None:
                 log.warning("Skipping %s (experiment failed)", label)
