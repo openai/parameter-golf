@@ -1,0 +1,9 @@
+{
+  "name": "AttnRes + GatedAttn + ValueResidual + MTP + AdamTTT + lzma-9",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Builds on 2026-03-24 AttnRes stack. Adds: MTP_NUM_HEADS=1 (free training signal, stripped at export), GATED_ATTENTION=1 (~24KB, per-head input-gated attention), VALUE_RESIDUAL=1 (value-stream skip connection, ~0 bytes), Adam TTT (replaces SGD for better per-chunk adaptation), and lzma preset=9 (improved artifact compression). All eval under 10 min.",
+  "author": "pending",
+  "github_id": "pending",
+  "date": "2026-03-25"
+}
