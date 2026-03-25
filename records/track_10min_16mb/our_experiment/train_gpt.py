@@ -790,7 +790,7 @@ class MLP(nn.Module):
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
         self.use_leaky = bool(int(os.environ.get("LEAKY_RELU", "1")))
-        self.leaky_slope = float(os.environ.get("LEAKY_SLOPE", "0.5"))
+        self.leaky_slope = float(os.environ.get("LEAKY_SLOPE", "0.9"))
 
     def forward(self, x: Tensor) -> Tensor:
         x = F.leaky_relu(self.fc(x), self.leaky_slope) if self.use_leaky else torch.relu(self.fc(x))
