@@ -46,7 +46,11 @@ Every near-term run must contribute to:
 | **H1** | What does cadence do to BPB on a balanced 4x2 system? | **COMPLETE — recursion is overhead** |
 | **H2** | Does optimal cadence change on a 6x2 system? | **COMPLETE — yes, 6x2 more sensitive** |
 | **H3** | Should each crawler block have its own cadence (shape of recursive pressure)? | **DEPRIORITIZED — recursion itself is net negative** |
-| **H4** | Does a crawler bank at the U-Net bottleneck improve GS v7? | READY |
+| **H4** | Does a crawler bank at the U-Net bottleneck improve GS v7? | **COMPLETE — per-step better, net worse** |
+| **H5** | Does skiptrace beat every-step bank at near-zero cost? | READY |
+| **H6** | Does trigram beat bigram on the 1.1190 SOTA? | NEEDS CODE |
+| **H7** | Does Noisy QAT fix the crawler bank quant gap? | BLOCKED on H5 |
+| **H8** | Is weight sharing a useful regularizer independent of recursion? | NEEDS CODE |
 
 ## Measurement Protocol
 
