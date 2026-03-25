@@ -1,0 +1,11 @@
+{
+  "author": "seanward",
+  "github_id": "seanward",
+  "name": "Int6 MLP3x + MTP + Sliding Window Eval",
+  "blurb": "7-technique stack: (1) int6 per-row quantization [-31,31] with zstd-22 compression enables (2) 3x MLP expansion (hidden=1536) while fitting under 16MB. Combined with (3) seq4096 training for long context, (4) MTP auxiliary head (training-only, 1 head at weight 0.01), (5) fp16 tied embedding passthrough, (6) sliding window evaluation (stride=512), and (7) co-optimized training dynamics (MATRIX_LR=0.02, MUON_MOMENTUM=0.99, WARMDOWN_ITERS=3000). Mean sliding-window val_bpb across 3 seeds: 1.1625. MTP head excluded from artifact.",
+  "date": "2026-03-19T14:16:00Z",
+  "val_loss": 1.95943598,
+  "val_bpb": 1.16049104,
+  "bytes_total": 15281626,
+  "bytes_code": 64428
+}
