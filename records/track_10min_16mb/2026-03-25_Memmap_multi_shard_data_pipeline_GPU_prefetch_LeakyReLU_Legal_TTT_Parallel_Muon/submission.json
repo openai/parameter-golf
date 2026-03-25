@@ -1,0 +1,9 @@
+{
+    "name": "Memmap multi-shard data pipeline + GPU prefetch + LeakyReLU² + Legal TTT + Parallel Muon",
+    "val_bpb": 1.1147,
+    "bytes_total": 15957041,
+    "blurb": "The old loader walked shards in fixed order and took contiguous spans per rank. The new DistributedTokenLoader: 1. Memory-maps each .bin shard (numpy.memmap) with a small header-token cache to avoid repeated header reads. 2. Samples global training windows across shards: per batch, it draws multiple shards with probability weighted by remaining usable blocks (exponent tightens as training progresses), uses a coprime stride over valid 2048-token blocks inside each shard, and interleaves windows for batch diversity. 3. Merges nearby reads on the same shard into one slab copy to reduce mmap churn. 3. Overlaps I/O and compute: a daemon thread builds CPU (x, y) batches into a queue while the main thread trains; CUDA streams and events prefetch the next batch to GPU while the current step runs. Together this replaces the old strictly sequential per-rank stream with a stratified, multi-shard mixture and async H2D overlap. Model forward, optimizer (Parallel Muon + AdamW), EMA/SWA, late QAT, and export paths are otherwise in the same family as the previous script.",
+    "author": "DeepReinforce",
+    "github_id": "DeepReinforce",
+    "date": "2026-03-25"
+  }
