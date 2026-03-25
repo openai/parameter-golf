@@ -1,6 +1,6 @@
 {
-  "author": "",
-  "github_id": "",
+  "author": "ConeF",
+  "github_id": "C0neF",
   "name": "Seq2048 + torch.compile + mid LR (1xA100 Draft)",
   "blurb": "Non-record 1xA100 draft submission. Best current run uses seq_len=2048, torch.compile, and moderately reduced learning rates on the 9x512 KV4 SP1024 baseline, improving single-A100 post-quant val_bpb from 1.4386 to 1.3556 while staying under the 16MB artifact cap.",
   "date": "2026-03-26T00:00:00Z",
