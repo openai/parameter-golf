@@ -127,12 +127,12 @@ class Hyperparameters:
 
     # TTT (Test-Time Training) — score-first, backward-looking
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
-    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "sgd")  # "sgd" or "adamw"
-    ttt_lr = float(os.environ.get("TTT_LR", 1.0))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 20))
+    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adamw")  # "sgd" or "adamw"
+    ttt_lr = float(os.environ.get("TTT_LR", 0.0001))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 4))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 131072))
 
 # -----------------------------
@@ -790,7 +790,7 @@ class MLP(nn.Module):
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
         self.use_leaky = bool(int(os.environ.get("LEAKY_RELU", "1")))
-        self.leaky_slope = float(os.environ.get("LEAKY_SLOPE", "0.9"))
+        self.leaky_slope = float(os.environ.get("LEAKY_SLOPE", "0.5"))
 
     def forward(self, x: Tensor) -> Tensor:
         x = F.leaky_relu(self.fc(x), self.leaky_slope) if self.use_leaky else torch.relu(self.fc(x))
