@@ -1822,16 +1822,8 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    # --- Full Hessian GPTQ: collect calibration Hessians ---
-    log0("Collecting Hessians for GPTQ...")
-    torch.cuda.synchronize()
-    t_hess = time.perf_counter()
-    hessians = collect_hessians(base_model, args, device, n_samples=256, log_fn=log0)
-    torch.cuda.synchronize()
-    log0(f"Hessian collection done in {1000.0 * (time.perf_counter() - t_hess):.0f}ms")
-
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), hessians=hessians)
-    del hessians  # free memory
+    # --- Quantization (GPTQ-lite per-row clip search, compatible with QAT) ---
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
