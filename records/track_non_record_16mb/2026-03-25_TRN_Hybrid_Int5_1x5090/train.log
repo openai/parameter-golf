@@ -1,0 +1,77 @@
+logs/529d0ec9-c204-42e7-83ca-afa6048b676d.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:2
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024\fineweb_val_*.bin tokens:62021632
+model_type:hybrid num_layers:10 trn_K:256 hybrid_num_attn:2
+attn_positions:2,5,8
+layout:[TRN|TRN|Attn|TRN|TRN|Attn|TRN|TRN|Attn|TRN]
+model_params:25789479
+bigram:vocab=10240 dim=128 params=1376257
+world_size:1 grad_accum_steps:8
+[W324 14:53:38.000000000 unwind.cpp:12] Warning: record_context_cpp is not support on non-linux non-x86_64 platforms (function operator ())
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/1000 val_loss:6.9370 val_bpb:4.1085 train_time:0ms step_avg:0.01ms
+step:1/1000 train_loss:6.9378 train_time:978ms step_avg:977.70ms
+step:2/1000 train_loss:15.1706 train_time:1928ms step_avg:963.84ms
+step:3/1000 train_loss:10.8297 train_time:2879ms step_avg:959.65ms
+step:4/1000 train_loss:6.9361 train_time:3832ms step_avg:957.97ms
+step:5/1000 train_loss:5.6420 train_time:4783ms step_avg:956.63ms
+step:6/1000 train_loss:5.3310 train_time:5739ms step_avg:956.49ms
+step:7/1000 train_loss:5.1623 train_time:6689ms step_avg:955.64ms
+step:8/1000 train_loss:4.9910 train_time:7647ms step_avg:955.87ms
+step:9/1000 train_loss:4.8279 train_time:8604ms step_avg:955.96ms
+step:10/1000 train_loss:4.7205 train_time:9555ms step_avg:955.55ms
+step:50/1000 train_loss:4.0292 train_time:47688ms step_avg:953.77ms
+step:100/1000 train_loss:3.3645 train_time:95355ms step_avg:953.55ms
+step:100/1000 val_loss:3.3550 val_bpb:1.9870 train_time:95356ms step_avg:953.56ms
+step:150/1000 train_loss:3.1770 train_time:142399ms step_avg:949.32ms
+step:200/1000 train_loss:2.9366 train_time:189430ms step_avg:947.15ms
+step:200/1000 val_loss:2.9266 val_bpb:1.7333 train_time:189430ms step_avg:947.15ms
+step:250/1000 train_loss:2.8042 train_time:236442ms step_avg:945.77ms
+int5_qat:start step:275 scale:0.2999
+step:300/1000 train_loss:2.7486 train_time:283798ms step_avg:945.99ms
+step:300/1000 val_loss:2.7174 val_bpb:1.6094 train_time:283799ms step_avg:946.00ms
+step:350/1000 train_loss:2.5516 train_time:331044ms step_avg:945.84ms
+step:400/1000 train_loss:2.5474 train_time:378631ms step_avg:946.58ms
+step:400/1000 val_loss:2.6190 val_bpb:1.5511 train_time:378632ms step_avg:946.58ms
+step:450/1000 train_loss:2.5509 train_time:425710ms step_avg:946.02ms
+step:500/1000 train_loss:2.5613 train_time:472644ms step_avg:945.29ms
+step:500/1000 val_loss:2.5422 val_bpb:1.5056 train_time:472645ms step_avg:945.29ms
+step:550/1000 train_loss:2.4982 train_time:519767ms step_avg:945.03ms
+step:600/1000 train_loss:2.4897 train_time:566767ms step_avg:944.61ms
+step:600/1000 val_loss:2.4911 val_bpb:1.4754 train_time:566768ms step_avg:944.61ms
+step:636/1000 val_loss:2.4846 val_bpb:1.4715 train_time:600674ms step_avg:944.46ms
+stopping_early: wallclock_cap train_time:600674ms step:636/1000
+peak memory allocated: 19456 MiB reserved: 22512 MiB
+int5_qat:hooks_removed before final eval
+Serialized model: 62851631 bytes
+Code size: 82498 bytes
+Total submission size: 62934129 bytes
+Serialized model int8+zstd-22: 14593028 bytes (payload:26047698 raw_torch:26108025 payload_ratio:2.41x)
+Total submission size int8+zlib: 14675526 bytes
+final_int8_zlib_roundtrip val_loss:2.4913 val_bpb:1.4755 eval_time:62475ms
+final_int8_zlib_roundtrip_exact val_loss:2.49129179 val_bpb:1.47548333
+int5_roundtrip: quantizing to int5...
+Serialized model int5+zstd-22: 15277254 bytes (15.28 MB)
+Total submission size int5: 15359752 bytes
+final_int5_roundtrip val_loss:2.5229 val_bpb:1.4942 eval_time:232061ms
+final_int5_roundtrip_exact val_loss:2.52288708 val_bpb:1.49419584

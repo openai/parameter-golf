@@ -1,0 +1,25 @@
+{
+  "author": "amabito",
+  "github_id": "amabito",
+  "name": "TRN Hybrid Int5 1x5090",
+  "blurb": "TRN+Attention hybrid (7 TRN + 3 Attn layers), int5 QAT zstd-22, Kogge-Stone parallel scan. 636 steps / 600s wallclock on 1x RTX 5090. Int5 collapses at 20K steps due to oscillator projection sensitivity.",
+  "date": "2026-03-25",
+  "track": "non-record-16mb",
+  "val_loss": 2.52288708,
+  "val_bpb": 1.4942,
+  "pre_quant_val_loss": 2.4846,
+  "pre_quant_val_bpb": 1.4715,
+  "step_stop": 636,
+  "wallclock_seconds": 600.674,
+  "bytes_total": 15359752,
+  "bytes_model_int5_zstd": 15277254,
+  "bytes_code": 82498,
+  "gpu": "1x RTX 5090",
+  "metadata": {
+    "tags": ["trn", "hybrid", "oscillatory-recurrence", "int5-qat", "kogge-stone-scan"],
+    "layers": 10,
+    "d_model": 512,
+    "params": "25.8M",
+    "quantization": "int5+zstd-22"
+  }
+}
