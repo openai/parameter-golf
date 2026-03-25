@@ -17,7 +17,6 @@ import sys
 import time
 import uuid
 import lzma
-import zlib
 from pathlib import Path
 
 
@@ -69,7 +68,6 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    encoder_recurrence = bool(int(os.environ.get("ENCODER_RECURRENCE", "1")))
 
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
@@ -89,7 +87,6 @@ class Hyperparameters:
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
     leaky_relu = bool(int(os.environ.get("LEAKY_RELU", "0")))
-    qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.0))
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_lr = float(os.environ.get("TTT_LR", 0.002))
@@ -362,7 +359,7 @@ def eval_val_ttt(
     device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
-    seq_len, chunk_size = args.train_seq_len, args.ttt_chunk_size
+    seq_len, chunk_size, stride, bsz = args.train_seq_len, args.ttt_chunk_size, 64, 128
     num_chunks = (val_tokens.numel() - 1) // chunk_size
     my_chunks = list(range(rank, num_chunks, world_size))
     original_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
@@ -385,16 +382,22 @@ def eval_val_ttt(
         actual_len = x_chunk.shape[1]
         base_model.eval()
         with torch.inference_mode():
-            for s in range(0, actual_len - seq_len + 1, seq_len):
-                sx, sy = x_chunk[:, s:s + seq_len], y_chunk[:, s:s + seq_len]
+            wins, p = [], 0
+            while p + seq_len <= actual_len:
+                wins.append((p, 0 if p == 0 else seq_len - stride))
+                p += stride
+            for bi in range(0, len(wins), bsz):
+                bw = wins[bi:bi + bsz]
+                x_b = torch.stack([x_chunk[0, w:w+seq_len] for w, _ in bw])
+                y_b = torch.stack([y_chunk[0, w:w+seq_len] for w, _ in bw])
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    logits = base_model.forward_logits(sx)
-                ptl = F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), sy.reshape(-1), reduction="none")
-                total_loss += ptl.to(torch.float64).sum()
-                total_tokens_counted += float(seq_len)
-                tb = base_bytes_lut[sy[0]].to(dtype=torch.int16)
-                tb += (has_leading_space_lut[sy[0]] & ~is_boundary_token_lut[sx[0]]).to(dtype=torch.int16)
-                total_bytes += tb.to(torch.float64).sum()
+                    logits = base_model.forward_logits(x_b)
+                ptl = F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), y_b.reshape(-1), reduction="none").reshape(len(bw), seq_len)
+                for j, (_, ss) in enumerate(bw):
+                    sl = ptl[j, ss:]; total_loss += sl.to(torch.float64).sum(); total_tokens_counted += float(sl.numel())
+                    sx, sy = x_b[j, ss:], y_b[j, ss:]
+                    tb = base_bytes_lut[sy].to(dtype=torch.int16) + (has_leading_space_lut[sy] & ~is_boundary_token_lut[sx]).to(dtype=torch.int16)
+                    total_bytes += tb.to(torch.float64).sum()
         base_model.train()
         for _ in range(args.ttt_epochs):
             for s in range(0, actual_len - seq_len + 1, seq_len):
@@ -425,22 +428,12 @@ def eval_val_ttt(
 # Instead, we get approximately the same model (with a small hit) by quantizing the model to int8 & zlib compressing.
 # We can then decompress the model and run in higher precision for evaluation, after closing in under the size limit.
 
+_ctrl_default = "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights"
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get(
-        "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
-    ).split(",")
-    if pattern
-)
+    p for p in os.environ.get("CONTROL_TENSOR_NAME_PATTERNS", _ctrl_default).split(",") if p)
 INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get(
-        "INT8_KEEP_FLOAT_FP32_NAME_PATTERNS",
-        ",".join(CONTROL_TENSOR_NAME_PATTERNS),
-    ).split(",")
-    if pattern
-)
+    p for p in os.environ.get("INT8_KEEP_FLOAT_FP32_NAME_PATTERNS",
+                              ",".join(CONTROL_TENSOR_NAME_PATTERNS)).split(",") if p)
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -874,16 +867,6 @@ class Block(nn.Module):
         return x
 
 
-class ValueEmbedding(nn.Module):
-    def __init__(self, vocab_size: int, ve_dim: int, model_dim: int):
-        super().__init__()
-        self.embed = nn.Embedding(vocab_size, ve_dim)
-        self.proj = CastedLinear(ve_dim, model_dim, bias=False)
-        self.scale = nn.Parameter(torch.tensor(0.1, dtype=torch.float32))
-        nn.init.normal_(self.embed.weight, std=0.01)
-    def forward(self, input_ids: Tensor) -> Tensor:
-        return self.scale * self.proj(self.embed(input_ids))
-
 
 class SmearGate(nn.Module):
     def __init__(self, dim: int):
@@ -933,8 +916,6 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.encoder_recurrence = bool(int(os.environ.get("ENCODER_RECURRENCE", "1")))
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        ve_enabled = bool(int(os.environ.get("VE_ENABLED", "0")))
-        self.ve = ValueEmbedding(vocab_size, 128, model_dim) if ve_enabled else None
         self.bigram_hash = BigramHash(2048, 128, model_dim)
         self.smear_gate = SmearGate(model_dim)
         pre_enrich_hidden = model_dim * 3 // 2
@@ -1010,8 +991,6 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
-        if self.ve is not None:
-            x = x + self.ve(input_ids)
         x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
@@ -1024,8 +1003,6 @@ class GPT(nn.Module):
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
-        if self.ve is not None:
-            x = x + self.ve(input_ids)
         x = self.smear_gate(x)
         x = self.pre_enrich(x)
         x = F.rms_norm(x, (x.size(-1),))
