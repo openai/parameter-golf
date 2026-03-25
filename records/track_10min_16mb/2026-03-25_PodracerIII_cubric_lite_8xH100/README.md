@@ -4,10 +4,10 @@
 
 | Seed | Sliding BPB | Cubric N-gram BPB | Artifact |
 |------|-------------|-------------------|----------|
-| 2045 | 1.1199 | **0.9362** | ~15.8 MB (est. zstd) |
-| 42 | — | **pending** | — |
-| 7 | — | **pending** | — |
-| **Mean** | — | **pending** | — |
+| 2045 | 1.1193 | **0.9357** | 15.59 MB |
+| 43 | 1.1200 | **0.9362** | 15.58 MB |
+| 300 | 1.1202 | **0.9365** | 15.58 MB |
+| **Mean** | **1.1198** | **0.9362** | — |
 
 ## What Changed vs Podracing II (#753)
 
@@ -20,7 +20,7 @@ One eval-time improvement, no training changes:
 o2:0.300  o3:0.300  o4:0.970  o5:2.000  o6:2.000  o7:2.000
 ```
 
-Key insight: bigrams and trigrams (orders 2-3) were actively harming BPB by injecting noisy predictions at the same alpha as high-order matches. Suppressing them to 30% of base alpha and boosting orders 5-7 to 200% = 0.026 BPB improvement.
+Key insight: bigrams and trigrams (orders 2-3) were actively harming BPB by injecting noisy predictions at the same alpha as high-order matches. Suppressing them to 30% of base alpha and boosting orders 5-7 to 200% = 0.026 BPB improvement over Podracing II (0.9625 → 0.9362).
 
 ## Compliance
 
