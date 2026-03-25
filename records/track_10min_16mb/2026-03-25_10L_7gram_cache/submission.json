@@ -1,0 +1,9 @@
+{
+  "name": "10L + 7-gram eval cache",
+  "val_loss": 1.0717,
+  "bytes_total": 15749040,
+  "blurb": "10 layers, mixed int5/int6, backward-looking 7-gram eval cache (alpha=0.4). Mean 1.0717 (std 0.016) across 3 seeds.",
+  "author": "hypery11",
+  "github_id": "hypery11",
+  "date": "2026-03-25"
+}
