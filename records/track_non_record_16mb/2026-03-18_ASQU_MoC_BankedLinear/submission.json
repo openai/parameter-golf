@@ -1,0 +1,15 @@
+{
+  "author": "Andrew Mouldon",
+  "github_id": "andrewmouldon",
+  "name": "ASQU activation + Mixture of Convolutions + BankedLinear",
+  "blurb": "Learned activation function (ASQU), dynamic conv kernels (MoC), and weight sharing across layers with a combination of learned and random fixed weights (BankLinear)",
+  "date": "2026-03-24T00:00:00Z",
+  "val_loss": 2.0428,
+  "val_bpb": 1.2098,
+  "val_bpb_post_quant": 1.2164,
+  "bytes_total": 15852659,
+  "bytes_code": 52984,
+  "hardware": "1x RTX 5090",
+  "steps": 10000,
+  "step_avg_ms": 1140
+}
