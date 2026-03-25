@@ -1,1 +1,1 @@
-{"name":"Giulio Catanzariti","github_id":"sargonxg","val_bpb":"WIP","description":"Neurosymbolic hybrid: FST + n-gram cache + entropy-adaptive gating. OAG applied to text compression.","date":"2026-03-25"}
+{"name":"Giulio Catanzariti","github_id":"sargonxg","val_bpb":"WIP","description":"Neurosymbolic hybrid: FST + order-8 KN n-gram cache + LZ77 match model + GLN context mixer. All eval-time, zero artifact cost. OAG applied to text compression.","date":"2026-03-25"}

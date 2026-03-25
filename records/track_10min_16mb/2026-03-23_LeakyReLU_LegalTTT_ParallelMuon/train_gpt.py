@@ -25,6 +25,16 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
+
+# Hybrid eval imports (conditional on HYBRID_EVAL=1)
+_HYBRID_EVAL = os.environ.get("HYBRID_EVAL", "0") == "1"
+if _HYBRID_EVAL:
+    try:
+        from hybrid_eval import eval_val_sliding_hybrid
+        print("hybrid_eval: imported successfully, HYBRID_EVAL=1")
+    except ImportError as e:
+        print(f"hybrid_eval: import failed ({e}), falling back to standard eval")
+        _HYBRID_EVAL = False
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -1892,6 +1902,25 @@ def main() -> None:
         log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} "
              f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
         log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
+
+    # === Hybrid eval: neural + FST + n-gram cache + match model + GLN mixer ===
+    if _HYBRID_EVAL:
+        torch.cuda.synchronize()
+        t_hybrid = time.perf_counter()
+        hybrid_stride = args.eval_stride if args.eval_stride > 0 else 256
+        log0(f"hybrid_eval:start stride={hybrid_stride}")
+        hybrid_loss, hybrid_bpb = eval_val_sliding_hybrid(
+            args, eval_model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            stride=hybrid_stride,
+            eval_seq_len=effective_eval_seq_len,
+            log0=log0,
+        )
+        torch.cuda.synchronize()
+        log0(f"hybrid_eval val_loss:{hybrid_loss:.4f} val_bpb:{hybrid_bpb:.4f} "
+             f"eval_time:{1000.0 * (time.perf_counter() - t_hybrid):.0f}ms")
+        log0(f"hybrid_eval_exact val_loss:{hybrid_loss:.8f} val_bpb:{hybrid_bpb:.8f}")
+
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
