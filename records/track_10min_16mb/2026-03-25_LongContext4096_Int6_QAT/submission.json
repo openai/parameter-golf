@@ -1,0 +1,11 @@
+{
+  "author": "Ethan",
+  "github_id": "FlashyFlash3011",
+  "name": "LongContext 4096 + Int6 QAT + Full SOTA Stack (Safe)",
+  "blurb": "Full PR #549 SOTA stack at 4096 training context with int6 QAT active from step 1 (not just late warmdown). CastedLinear applies 6-bit STE fake-quant throughout training so the model is fully hardened to int6 noise before GPTQ-lite int6 export. Safe baseline for the int4 bank-QAT risky experiment.",
+  "date": "2026-03-25",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
