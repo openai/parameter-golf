@@ -11,7 +11,7 @@ LOG_FILE="logs_${RUN_ID}.txt"
 echo "=== GolfStudent v2 | RUN_ID=$RUN_ID | $(date) ===" | tee "$LOG_FILE"
 
 # ── 1. Install deps ───────────────────────────────────────────────────────────
-pip install -q sentencepiece tiktoken tqdm numpy torch --upgrade
+pip install -q sentencepiece tiktoken tqdm numpy torch huggingface_hub datasets --upgrade
 
 # ── 2. Clone the fork (your branch) ──────────────────────────────────────────
 if [ ! -d "parameter-golf" ]; then
