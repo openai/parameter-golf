@@ -1,0 +1,16 @@
+{
+  "name": "Thomas",
+  "github_id": "trasnake87",
+  "val_bpb": 1.1466,
+  "val_loss": 1.9360,
+  "hardware": "8xH100 SXM 80GB",
+  "steps": 5987,
+  "step_avg_ms": 100.24,
+  "training_time_s": 600,
+  "eval_time_s": 105,
+  "artifact_bytes": 14811335,
+  "model_params": 26829913,
+  "date": "2026-03-22",
+  "seed": 42,
+  "summary": "11L, int5 MLP+attn, XSA on last 5 layers, EMA 0.997, Partial RoPE 16d, LN Scale, Late QAT, BigramHash 4096, 10% magnitude pruning, sliding eval stride=64"
+}
