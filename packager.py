@@ -29,7 +29,7 @@ MODEL_DIM = 512
 NUM_HEADS = 8
 NUM_KV_HEADS = 4
 MLP_MULT = 3
-NUM_LAYERS = 6
+NUM_LAYERS = 7
 HEAD_DIM = MODEL_DIM // NUM_HEADS  # 64
 KV_DIM = NUM_KV_HEADS * HEAD_DIM   # 256
 MLP_HIDDEN = MLP_MULT * MODEL_DIM  # 1536
@@ -109,8 +109,9 @@ def count_params():
             params[f"{prefix}.attn.merge_alpha"] = 1
 
         # MLP: fc + proj
-        params[f"{prefix}.mlp.fc"] = MODEL_DIM * MLP_HIDDEN
-        params[f"{prefix}.mlp.proj"] = MLP_HIDDEN * MODEL_DIM
+        mlp_hidden_loc = 2 * MODEL_DIM if i <= 2 else MLP_HIDDEN
+        params[f"{prefix}.mlp.fc"] = MODEL_DIM * mlp_hidden_loc
+        params[f"{prefix}.mlp.proj"] = mlp_hidden_loc * MODEL_DIM
 
     return params
 
@@ -134,10 +135,10 @@ def estimate_artifact_size(param_counts):
         else:
             # Large tensor: INT6 quantized (stored as INT8 container)
             int6_bytes += count * 1  # int8 container
-            # Per-row scale (FP16): one scale per row
+            # QAT group_size=256: one FP16 scale per 256 block
             if count >= MODEL_DIM:
-                num_rows = count // (max(c for c in [MODEL_DIM, MLP_HIDDEN, KV_DIM, INTERMEDIATE_SIZE] if count % c == 0) if count > MODEL_DIM else MODEL_DIM)
-                scale_bytes += num_rows * 2  # FP16 scale
+                num_blocks = max(1, count // 256)
+                scale_bytes += num_blocks * 2  # FP16 scale per block
 
     raw_payload = fp16_bytes + int6_bytes + scale_bytes
 
@@ -211,7 +212,7 @@ def main():
     print(f"  Budget:               {limit:>10,} bytes")
     print(f"  Remaining:            {remaining:>10,} bytes")
 
-    status = "✅ PASS" if total < limit else "❌ FAIL"
+    status = "PASS" if total < limit else "FAIL"
     print(f"\n  {status}: {'Under' if total < limit else 'OVER'} 16MB limit by {abs(remaining):,} bytes")
 
     if total >= limit:
