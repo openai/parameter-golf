@@ -1,13 +1,13 @@
 # GolfStudent -- 16MB Hybrid LM for OpenAI Parameter Golf
 
-**Score:** TBD | **Author:** Alan Samaha | **Params:** ~16.4M
+**Score:** TBD | **Author:** Alan Samaha | **Params:** ~15.2M
 
 ## Architecture
 
 | Component | Value |
 |---|---|
 | d_model | 288 |
-| Layers | 14 (10 LinearRecurrence + 4 Attention) |
+| Layers | 13 (10 LinearRecurrence + 3 Attention) |
 | Vocab | 1024 (sp1024, weight-tied) |
 | Attention | Flash via SDPA + RoPE, every 3rd layer |
 | Recurrence | Gated linear recurrence, O(L) time |

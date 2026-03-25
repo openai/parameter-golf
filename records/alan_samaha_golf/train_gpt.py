@@ -62,7 +62,7 @@ class Hyperparameters:
 
     # Model shape (vocab=1024 saves ~885KB vs 4096, allowing d=288/L=14)
     vocab_size   = int(os.environ.get("VOCAB_SIZE",   "1024"))
-    num_layers   = int(os.environ.get("NUM_LAYERS",   "14"))
+    num_layers   = int(os.environ.get("NUM_LAYERS",   "13"))
     model_dim    = int(os.environ.get("MODEL_DIM",    "288"))
     num_heads    = int(os.environ.get("NUM_HEADS",    "8"))
     ffn_mult     = int(os.environ.get("FFN_MULT",     "3"))   # SwiGLU hidden = ffn_mult * d
