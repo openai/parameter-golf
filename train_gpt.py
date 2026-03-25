@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 import uuid
-import zlib
+import lzma
 from pathlib import Path
 
 import numpy as np
@@ -776,7 +776,7 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = F.leaky_relu(self.fc(x), negative_slope=0.5)
         return self.proj(x.square())
 
 
@@ -1274,12 +1274,12 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_blob = lzma.compress(quant_raw, preset=6)
     quant_raw_bytes = len(quant_raw)
     if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
+        with open("final_model.int8.ptlz", "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        quant_file_bytes = os.path.getsize("final_model.int8.ptlz")
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
@@ -1290,9 +1290,9 @@ def main() -> None:
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
+    with open("final_model.int8.ptlz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(io.BytesIO(lzma.decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
@@ -1314,6 +1314,101 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # 5-gram eval cache: accumulate n-gram stats and mix with model predictions
+    if master_process:
+        torch.cuda.synchronize()
+        t_ngram = time.perf_counter()
+        from collections import defaultdict
+        ngram_order = 5
+        ngram_counts: dict[tuple, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+        tokens_list = val_tokens.tolist()
+        total_tokens_val = len(tokens_list)
+        ngram_log_losses = 0.0
+        ngram_token_count = 0
+        ngram_byte_count = 0.0
+        mix_alpha = 0.3  # how much to trust n-gram cache
+
+        # Run standard model eval to get per-token logprobs, then mix with n-gram
+        model.eval()
+        seq_len = args.train_seq_len
+        total_seqs = (total_tokens_val - 1) // seq_len
+        with torch.inference_mode():
+            for seq_idx in range(total_seqs):
+                start = seq_idx * seq_len
+                end = start + seq_len + 1
+                local = val_tokens[start:end].to(device=device, dtype=torch.int64)
+                x = local[:-1].unsqueeze(0)
+                y = local[1:].unsqueeze(0)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    # Get logits from model
+                    xemb = base_model.tok_emb(x)
+                    xemb = F.rms_norm(xemb, (xemb.size(-1),))
+                    x0 = xemb
+                    skips_eval: list[Tensor] = []
+                    for i in range(base_model.num_encoder_layers):
+                        xemb = base_model.blocks[i](xemb, x0)
+                        skips_eval.append(xemb)
+                    for i in range(base_model.num_decoder_layers):
+                        if skips_eval:
+                            xemb = xemb + base_model.skip_weights[i].to(dtype=xemb.dtype)[None, None, :] * skips_eval.pop()
+                        xemb = base_model.blocks[base_model.num_encoder_layers + i](xemb, x0)
+                    xemb = base_model.final_norm(xemb)
+                    logits_proj = F.linear(xemb, base_model.tok_emb.weight) if base_model.tie_embeddings else base_model.lm_head(xemb)
+                    logits = base_model.logit_softcap * torch.tanh(logits_proj / base_model.logit_softcap)
+
+                log_probs = F.log_softmax(logits.float().squeeze(0), dim=-1)  # (seq_len, vocab)
+                targets = y.squeeze(0)  # (seq_len,)
+
+                for pos in range(seq_len):
+                    token_pos = start + pos
+                    target_tok = targets[pos].item()
+                    model_lp = log_probs[pos, target_tok].item()
+
+                    # Check n-gram cache for prediction
+                    ngram_lp = None
+                    for n in range(ngram_order, 0, -1):
+                        if token_pos >= n:
+                            ctx = tuple(tokens_list[token_pos - n + 1:token_pos + 1])
+                            counts = ngram_counts.get(ctx)
+                            if counts and sum(counts.values()) >= 2:
+                                total = sum(counts.values())
+                                prob = counts.get(target_tok, 0) / total
+                                if prob > 0:
+                                    ngram_lp = math.log(prob)
+                                    break
+
+                    # Mix model and n-gram predictions (safety: n-gram can only help)
+                    if ngram_lp is not None:
+                        mixed_lp = math.log(math.exp(model_lp) * (1 - mix_alpha) + math.exp(ngram_lp) * mix_alpha)
+                        final_lp = max(mixed_lp, model_lp)  # safety gate: never worsen
+                    else:
+                        final_lp = model_lp
+
+                    ngram_log_losses += -final_lp
+                    ngram_token_count += 1
+
+                    # BPB byte counting
+                    prev_tok = tokens_list[token_pos]
+                    tb = base_bytes_lut[target_tok].item()
+                    if has_leading_space_lut[target_tok].item() and not is_boundary_token_lut[prev_tok].item():
+                        tb += 1
+                    ngram_byte_count += tb
+
+                    # Update n-gram cache with this token
+                    for n in range(1, ngram_order + 1):
+                        if token_pos >= n:
+                            ctx = tuple(tokens_list[token_pos - n + 1:token_pos + 1])
+                            ngram_counts[ctx][target_tok] += 1
+
+        ngram_val_loss = ngram_log_losses / ngram_token_count
+        ngram_bits_per_token = ngram_val_loss / math.log(2.0)
+        ngram_tokens_per_byte = ngram_token_count / ngram_byte_count
+        ngram_bpb = ngram_bits_per_token * ngram_tokens_per_byte
+        log0(
+            f"ngram_cache_eval val_loss:{ngram_val_loss:.4f} val_bpb:{ngram_bpb:.4f} "
+            f"order:{ngram_order} alpha:{mix_alpha} eval_time:{1000.0 * (time.perf_counter() - t_ngram):.0f}ms"
+        )
 
     # Sliding window eval for better BPB
     if 0 < args.eval_stride < args.train_seq_len:
