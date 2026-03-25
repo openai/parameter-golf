@@ -1080,7 +1080,7 @@ def main() -> None:
     torch.backends.cudnn.allow_tf32 = True
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
 
-    enable_cudnn_sdp(False)
+    enable_cudnn_sdp(True)
     enable_flash_sdp(True)
     enable_mem_efficient_sdp(False)
     enable_math_sdp(False)
@@ -1293,6 +1293,8 @@ def main() -> None:
     training_time_ms = 0.0
     stop_after_step: int | None = None
     ema_state = {k: v.detach().cpu().clone().float() for k, v in base_model.state_dict().items()}
+    swa_state: dict[str, Tensor] | None = None
+    swa_count = 0
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1368,6 +1370,12 @@ def main() -> None:
         with torch.no_grad():
             for k, v in base_model.state_dict().items():
                 ema_state[k].mul_(args.ema_decay).add_(v.detach().cpu().float(), alpha=1.0 - args.ema_decay)
+            if scale < 0.2 and step % 50 == 0:
+                sd = {k: v.detach().cpu().float() for k, v in base_model.state_dict().items()}
+                if swa_state is None: swa_state, swa_count = sd, 1
+                else:
+                    for k in swa_state: swa_state[k] += sd[k]
+                    swa_count += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
             args.train_log_every > 0
@@ -1399,14 +1407,19 @@ def main() -> None:
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
-    log0("ema: loading exponential moving average weights")
+    if swa_state is not None and swa_count > 0:
+        log0(f"swa: averaging {swa_count} checkpoints on top of EMA")
+        for k in swa_state:
+            swa_state[k] /= swa_count
+            ema_state[k] = 0.5 * ema_state[k] + 0.5 * swa_state[k]
+        del swa_state
+    log0("ema: loading weights")
     base_model.load_state_dict(ema_state, strict=True)
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     del ema_state
-
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
