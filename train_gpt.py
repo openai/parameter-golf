@@ -1739,14 +1739,14 @@ def main() -> None:
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
     template_sd = {k: v.cpu() for k, v in base_model.state_dict().items()}
-    int6_cats = {"mlp", "attn", "other"}
+    int6_cats = {"mlp", "attn", "other", "embed"}
     quant_result, quant_meta = mixed_quantize_int6(
         base_model.state_dict(), int6_cats
     )
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = lzma.compress(quant_raw, preset=6)
+    quant_blob = lzma.compress(quant_raw, preset=9)
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
