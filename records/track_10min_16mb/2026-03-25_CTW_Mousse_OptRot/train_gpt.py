@@ -1485,21 +1485,13 @@ def eval_val_sliding_ctw_ngram(
                 seg_mixed_nll = nll[i, s:wlen].cpu().numpy().astype(np.float64)
                 if ng_matched.any():
                     m_idx = np.nonzero(ng_matched)[0]
-                    # CTW-inspired adaptive alpha per depth
-                    # Higher-order matches get more weight (they're more specific)
-                    # Base alpha from entropy, boosted by CTW beta for matched order
+                    # CTW-inspired adaptive alpha: entropy-adaptive + depth boost
                     sig = 1.0 / (1.0 + np.exp(-2.0 * (entropy[m_idx] - 4.0)))
                     alpha_base = 0.05 + 0.55 * sig
-                    # CTW boost: trust deeper matches more
                     order_boost = 1.0 + 0.1 * best_order[m_idx].astype(np.float64)
                     alpha = np.clip(alpha_base * order_boost, 0.01, 0.80)
-                    # Logistic domain mixing (PAQ-style)
-                    p_neural = np.clip(seg_model_p[m_idx], 1e-12, 1 - 1e-12)
-                    p_ng = np.clip(best_p_ng[m_idx], 1e-12, 1 - 1e-12)
-                    s_neural = np.log(p_neural / (1 - p_neural))
-                    s_ng = np.log(p_ng / (1 - p_ng))
-                    s_mixed = (1 - alpha) * s_neural + alpha * s_ng
-                    p_mixed = 1.0 / (1.0 + np.exp(-s_mixed))
+                    # Linear mixing on target probability (proven approach from PR #753)
+                    p_mixed = (1.0 - alpha) * seg_model_p[m_idx] + alpha * best_p_ng[m_idx]
                     p_mixed = np.clip(p_mixed, 1e-12, 1.0)
                     seg_mixed_nll[m_idx] = -np.log(p_mixed)
                 loss_sum += torch.tensor(seg_mixed_nll.sum(), dtype=torch.float64, device=device)
