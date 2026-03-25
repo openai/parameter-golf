@@ -1101,6 +1101,33 @@ def _classify_param(name: str) -> str:
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
         return "attn"
     return "other"
+def _pack6(arr: np.ndarray) -> np.ndarray:
+    """Pack int8 values in [-31,31] into 6-bit packed uint8 (4 values per 3 bytes)."""
+    flat = arr.reshape(-1)
+    u = (flat.astype(np.int16) + 31).astype(np.uint8)  # shift to [0,62]
+    pad = (-len(u)) % 4
+    if pad:
+        u = np.concatenate([u, np.zeros(pad, dtype=np.uint8)])
+    g = u.reshape(-1, 4).astype(np.uint32)
+    p = (g[:, 0] << 18) | (g[:, 1] << 12) | (g[:, 2] << 6) | g[:, 3]
+    out = np.zeros(len(p) * 3, dtype=np.uint8)
+    out[0::3] = (p >> 16) & 0xFF
+    out[1::3] = (p >> 8) & 0xFF
+    out[2::3] = p & 0xFF
+    return out
+
+def _unpack6(packed: np.ndarray, n: int, shape: tuple) -> np.ndarray:
+    """Unpack 6-bit packed uint8 back to int8 values in [-31,31]."""
+    b = packed.astype(np.uint32)
+    p = (b[0::3] << 16) | (b[1::3] << 8) | b[2::3]
+    n_groups = (n + 3) // 4
+    u = np.zeros(n_groups * 4, dtype=np.uint8)
+    u[0::4] = (p >> 18) & 0x3F
+    u[1::4] = (p >> 12) & 0x3F
+    u[2::4] = (p >> 6) & 0x3F
+    u[3::4] = p & 0x3F
+    return (u[:n].astype(np.int16) - 31).astype(np.int8).reshape(shape)
+
 def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
@@ -1142,9 +1169,12 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             continue
         if cat in int6_cats and t.ndim >= 1:
             q, s = quantize_int6_per_row(t)
-            result[name + ".q"] = q
+            q_np = q.cpu().numpy()
+            packed = _pack6(q_np)
+            result[name + ".q"] = torch.from_numpy(packed)
+            result[name + ".qn"] = torch.tensor(q_np.size, dtype=torch.int64)
             result[name + ".scale"] = s
-            meta[name] = {"type": "int6"}
+            meta[name] = {"type": "int6packed", "shape": list(q.shape)}
         else:
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
@@ -1165,7 +1195,13 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
                 t = t.to(orig_dtype)
             out[name] = t
             continue
-        q, s = result[name + ".q"], result[name + ".scale"]
+        s = result[name + ".scale"]
+        if isinstance(info, dict) and info.get("type") == "int6packed":
+            n = int(result[name + ".qn"].item())
+            shape = tuple(info["shape"])
+            q = torch.from_numpy(_unpack6(result[name + ".q"].numpy(), n, shape))
+        else:
+            q = result[name + ".q"]
         if s.ndim > 0:
             out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
         else:
