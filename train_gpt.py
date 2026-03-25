@@ -1489,7 +1489,11 @@ def main() -> None:
         if isinstance(m, CastedLinear):
             m._qat_param_name = mod_name + ".weight"
     compiled_model = base_model
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    model: nn.Module = (
+        DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True)
+        if distributed
+        else compiled_model
+    )
 
     optimizers = make_optimizers(args, base_model, compressor, True)
     optimizer_muon = optimizers[1]
@@ -1621,7 +1625,11 @@ def main() -> None:
             )
             base_model.packed_attn_mask = packed_pm
             base_model = torch.compile(base_model)  # type: ignore[assignment]
-            model = DDP(base_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else base_model
+            model = (
+                DDP(base_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True)
+                if distributed
+                else base_model
+            )
             optimizers = make_optimizers(args, base_model, compressor, False)
             optimizer_muon = optimizers[1]
             compressor_frozen = copy.deepcopy(compressor).to(device).eval()
