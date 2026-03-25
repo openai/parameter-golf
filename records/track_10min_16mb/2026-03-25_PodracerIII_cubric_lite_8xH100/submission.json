@@ -1,0 +1,11 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Podracing III: Cubric Lite — Per-Order Adaptive Alpha",
+  "blurb": "11L/512d U-Net with legal score-first 7-gram backoff (orders 2-7) + entropy-adaptive alpha + per-order adaptive alpha scaling (Cubric Lite). Orders 2-3 suppressed (0.3x), orders 5-7 boosted (2.0x). 3-seed mean val_bpb=0.9362. N-gram concept credited to @deanbrr (PR #659).",
+  "date": "2026-03-25T23:30:00Z",
+  "val_loss": 1.5807,
+  "val_bpb": 0.9362,
+  "bytes_total": 15588220,
+  "bytes_code": 100286
+}
