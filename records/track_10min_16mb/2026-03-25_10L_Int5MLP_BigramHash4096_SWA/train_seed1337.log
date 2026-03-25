@@ -1,0 +1,224 @@
+W0325 07:16:15.605000 130575319020160 torch/distributed/run.py:779] 
+W0325 07:16:15.605000 130575319020160 torch/distributed/run.py:779] *****************************************
+W0325 07:16:15.605000 130575319020160 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0325 07:16:15.605000 130575319020160 torch/distributed/run.py:779] *****************************************
+logs/20dd3955-5bac-461f-9e3b-a050655d8025.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:24730705
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9275 val_bpb:4.1028 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9296 train_time:149ms step_avg:148.54ms
+step:2/20000 train_loss:7.6884 train_time:233ms step_avg:116.34ms
+step:3/20000 train_loss:7.2759 train_time:328ms step_avg:109.23ms
+step:4/20000 train_loss:7.9423 train_time:424ms step_avg:105.95ms
+step:5/20000 train_loss:8.3472 train_time:519ms step_avg:103.85ms
+step:6/20000 train_loss:8.1676 train_time:614ms step_avg:102.35ms
+step:7/20000 train_loss:7.5226 train_time:709ms step_avg:101.35ms
+step:8/20000 train_loss:6.8361 train_time:805ms step_avg:100.64ms
+step:9/20000 train_loss:6.5260 train_time:900ms step_avg:100.01ms
+step:10/20000 train_loss:6.2617 train_time:996ms step_avg:99.60ms
+step:100/20000 train_loss:3.2133 train_time:9616ms step_avg:96.16ms
+step:200/20000 train_loss:2.4273 train_time:19264ms step_avg:96.32ms
+step:300/20000 train_loss:2.5783 train_time:28935ms step_avg:96.45ms
+step:400/20000 train_loss:2.4390 train_time:38629ms step_avg:96.57ms
+step:500/20000 train_loss:2.4157 train_time:48293ms step_avg:96.59ms
+step:500/20000 val_loss:2.3782 val_bpb:1.4085 train_time:48304ms step_avg:96.61ms
+step:600/20000 train_loss:2.3519 train_time:58036ms step_avg:96.73ms
+step:700/20000 train_loss:2.3673 train_time:67783ms step_avg:96.83ms
+step:800/20000 train_loss:2.2538 train_time:77525ms step_avg:96.91ms
+step:900/20000 train_loss:2.1454 train_time:87273ms step_avg:96.97ms
+step:1000/20000 train_loss:2.2913 train_time:96959ms step_avg:96.96ms
+step:1000/20000 val_loss:2.2449 val_bpb:1.3295 train_time:96971ms step_avg:96.97ms
+step:1100/20000 train_loss:2.3476 train_time:106707ms step_avg:97.01ms
+step:1200/20000 train_loss:2.3674 train_time:116443ms step_avg:97.04ms
+step:1300/20000 train_loss:2.1193 train_time:126268ms step_avg:97.13ms
+step:1400/20000 train_loss:2.2023 train_time:136006ms step_avg:97.15ms
+step:1500/20000 train_loss:2.2397 train_time:145670ms step_avg:97.11ms
+step:1500/20000 val_loss:2.2002 val_bpb:1.3031 train_time:145681ms step_avg:97.12ms
+step:1600/20000 train_loss:2.0923 train_time:155383ms step_avg:97.11ms
+step:1700/20000 train_loss:2.1601 train_time:165101ms step_avg:97.12ms
+step:1800/20000 train_loss:2.1761 train_time:174815ms step_avg:97.12ms
+step:1900/20000 train_loss:2.1475 train_time:184461ms step_avg:97.08ms
+step:2000/20000 train_loss:2.0845 train_time:194162ms step_avg:97.08ms
+step:2000/20000 val_loss:2.1466 val_bpb:1.2713 train_time:194173ms step_avg:97.09ms
+step:2100/20000 train_loss:2.0628 train_time:203854ms step_avg:97.07ms
+step:2200/20000 train_loss:2.1442 train_time:213548ms step_avg:97.07ms
+step:2300/20000 train_loss:2.1195 train_time:223233ms step_avg:97.06ms
+step:2400/20000 train_loss:2.0791 train_time:232858ms step_avg:97.02ms
+step:2500/20000 train_loss:2.1789 train_time:242535ms step_avg:97.01ms
+step:2500/20000 val_loss:2.1176 val_bpb:1.2542 train_time:242546ms step_avg:97.02ms
+step:2600/20000 train_loss:2.1207 train_time:252231ms step_avg:97.01ms
+step:2700/20000 train_loss:2.1130 train_time:261912ms step_avg:97.00ms
+step:2800/20000 train_loss:2.1604 train_time:271584ms step_avg:96.99ms
+step:2900/20000 train_loss:2.0358 train_time:281206ms step_avg:96.97ms
+step:3000/20000 train_loss:2.1692 train_time:290895ms step_avg:96.97ms
+step:3000/20000 val_loss:2.1023 val_bpb:1.2451 train_time:290906ms step_avg:96.97ms
+step:3100/20000 train_loss:2.0492 train_time:300575ms step_avg:96.96ms
+step:3200/20000 train_loss:2.1812 train_time:310242ms step_avg:96.95ms
+step:3300/20000 train_loss:2.0789 train_time:319868ms step_avg:96.93ms
+step:3400/20000 train_loss:2.0252 train_time:329534ms step_avg:96.92ms
+step:3500/20000 train_loss:2.1870 train_time:339206ms step_avg:96.92ms
+step:3500/20000 val_loss:2.0857 val_bpb:1.2352 train_time:339217ms step_avg:96.92ms
+step:3600/20000 train_loss:2.0989 train_time:348873ms step_avg:96.91ms
+step:3700/20000 train_loss:2.0945 train_time:358542ms step_avg:96.90ms
+step:3800/20000 train_loss:2.0716 train_time:368150ms step_avg:96.88ms
+step:3900/20000 train_loss:2.0747 train_time:377830ms step_avg:96.88ms
+step:4000/20000 train_loss:1.9727 train_time:387503ms step_avg:96.88ms
+step:4000/20000 val_loss:2.0646 val_bpb:1.2228 train_time:387514ms step_avg:96.88ms
+step:4100/20000 train_loss:2.0125 train_time:397163ms step_avg:96.87ms
+step:4200/20000 train_loss:2.1507 train_time:406841ms step_avg:96.87ms
+step:4300/20000 train_loss:2.0532 train_time:416445ms step_avg:96.85ms
+step:4400/20000 train_loss:2.0278 train_time:426108ms step_avg:96.84ms
+step:4500/20000 train_loss:2.1176 train_time:435774ms step_avg:96.84ms
+step:4500/20000 val_loss:2.0397 val_bpb:1.2081 train_time:435786ms step_avg:96.84ms
+step:4600/20000 train_loss:1.8352 train_time:445438ms step_avg:96.83ms
+step:4700/20000 train_loss:2.2230 train_time:455057ms step_avg:96.82ms
+step:4800/20000 train_loss:2.4225 train_time:464733ms step_avg:96.82ms
+step:4900/20000 train_loss:2.0402 train_time:474405ms step_avg:96.82ms
+swa:start step:5000
+step:5000/20000 train_loss:2.0954 train_time:484078ms step_avg:96.82ms
+step:5000/20000 val_loss:2.0163 val_bpb:1.1942 train_time:484169ms step_avg:96.83ms
+step:5100/20000 train_loss:2.1199 train_time:493854ms step_avg:96.83ms
+step:5200/20000 train_loss:2.0331 train_time:503514ms step_avg:96.83ms
+step:5300/20000 train_loss:1.9993 train_time:513250ms step_avg:96.84ms
+step:5400/20000 train_loss:2.0376 train_time:522959ms step_avg:96.84ms
+step:5500/20000 train_loss:2.0063 train_time:532694ms step_avg:96.85ms
+step:5500/20000 val_loss:1.9904 val_bpb:1.1788 train_time:532745ms step_avg:96.86ms
+step:5600/20000 train_loss:1.9444 train_time:542423ms step_avg:96.86ms
+step:5700/20000 train_loss:2.0014 train_time:552079ms step_avg:96.86ms
+step:5800/20000 train_loss:1.9841 train_time:561796ms step_avg:96.86ms
+step:5900/20000 train_loss:1.8864 train_time:571499ms step_avg:96.86ms
+step:6000/20000 train_loss:1.9303 train_time:581248ms step_avg:96.87ms
+step:6000/20000 val_loss:1.9645 val_bpb:1.1635 train_time:581299ms step_avg:96.88ms
+step:6100/20000 train_loss:1.9038 train_time:590921ms step_avg:96.87ms
+step:6194/20000 val_loss:1.9577 val_bpb:1.1595 train_time:600071ms step_avg:96.88ms
+stopping_early: wallclock_cap train_time:600071ms step:6194/20000
+peak memory allocated: 25197 MiB reserved: 25280 MiB
+swa:applying averaged 24 checkpoints
+Serialized model: 96864150 bytes
+Code size: 53947 bytes
+Total submission size: 96918097 bytes
+Serialized model int6+zstd: 15236935 bytes
+Total submission size: 15290882 bytes (15.29 MB)
+SIZE CHECK PASSED: 15.29 MB < 16.00 MB
+/workspace/submission/train_gpt.py:1216: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/submission/train_gpt.py:1216: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/submission/train_gpt.py:1216: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/submission/train_gpt.py:1216: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/submission/train_gpt.py:1216: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/submission/train_gpt.py:1216: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/submission/train_gpt.py:1216: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/submission/train_gpt.py:1216: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+final_eval_mode:sliding_window stride:64 batch_seqs:32
+  sliding_eval [  0.0%] 32/121136 windows running_bpb=1.212943
+  sliding_eval [  1.3%] 1632/121136 windows running_bpb=1.144652
+  sliding_eval [  2.7%] 3232/121136 windows running_bpb=1.144706
+  sliding_eval [  4.0%] 4832/121136 windows running_bpb=1.138295
+  sliding_eval [  5.3%] 6432/121136 windows running_bpb=1.150602
+  sliding_eval [  6.6%] 8032/121136 windows running_bpb=1.151797
+  sliding_eval [  8.0%] 9632/121136 windows running_bpb=1.153445
+  sliding_eval [  9.3%] 11232/121136 windows running_bpb=1.148814
+  sliding_eval [ 10.6%] 12832/121136 windows running_bpb=1.146503
+  sliding_eval [ 11.9%] 14432/121136 windows running_bpb=1.148155
+  sliding_eval [ 13.2%] 16032/121136 windows running_bpb=1.157046
+  sliding_eval [ 14.6%] 17632/121136 windows running_bpb=1.155636
+  sliding_eval [ 15.9%] 19232/121136 windows running_bpb=1.156994
+  sliding_eval [ 17.2%] 20832/121136 windows running_bpb=1.155387
+  sliding_eval [ 18.5%] 22432/121136 windows running_bpb=1.153958
+  sliding_eval [ 19.8%] 24032/121136 windows running_bpb=1.154325
+  sliding_eval [ 21.2%] 25632/121136 windows running_bpb=1.155682
+  sliding_eval [ 22.5%] 27232/121136 windows running_bpb=1.156220
+  sliding_eval [ 23.8%] 28832/121136 windows running_bpb=1.162211
+  sliding_eval [ 25.1%] 30432/121136 windows running_bpb=1.159600
+  sliding_eval [ 26.4%] 32032/121136 windows running_bpb=1.160541
+  sliding_eval [ 27.8%] 33632/121136 windows running_bpb=1.159183
+  sliding_eval [ 29.1%] 35232/121136 windows running_bpb=1.158487
+  sliding_eval [ 30.4%] 36832/121136 windows running_bpb=1.158106
+  sliding_eval [ 31.7%] 38432/121136 windows running_bpb=1.158726
+  sliding_eval [ 33.0%] 40032/121136 windows running_bpb=1.156341
+  sliding_eval [ 34.4%] 41632/121136 windows running_bpb=1.155426
+  sliding_eval [ 35.7%] 43232/121136 windows running_bpb=1.155782
+  sliding_eval [ 37.0%] 44832/121136 windows running_bpb=1.154693
+  sliding_eval [ 38.3%] 46432/121136 windows running_bpb=1.154535
+  sliding_eval [ 39.7%] 48032/121136 windows running_bpb=1.153819
+  sliding_eval [ 41.0%] 49632/121136 windows running_bpb=1.155007
+  sliding_eval [ 42.3%] 51232/121136 windows running_bpb=1.156107
+  sliding_eval [ 43.6%] 52832/121136 windows running_bpb=1.156644
+  sliding_eval [ 44.9%] 54432/121136 windows running_bpb=1.156142
+  sliding_eval [ 46.3%] 56032/121136 windows running_bpb=1.156486
+  sliding_eval [ 47.6%] 57632/121136 windows running_bpb=1.155541
+  sliding_eval [ 48.9%] 59232/121136 windows running_bpb=1.151669
+  sliding_eval [ 50.2%] 60832/121136 windows running_bpb=1.151800
+  sliding_eval [ 51.5%] 62432/121136 windows running_bpb=1.152747
+  sliding_eval [ 52.9%] 64032/121136 windows running_bpb=1.152949
+  sliding_eval [ 54.2%] 65632/121136 windows running_bpb=1.152795
+  sliding_eval [ 55.5%] 67232/121136 windows running_bpb=1.151539
+  sliding_eval [ 56.8%] 68832/121136 windows running_bpb=1.151232
+  sliding_eval [ 58.1%] 70432/121136 windows running_bpb=1.150524
+  sliding_eval [ 59.5%] 72032/121136 windows running_bpb=1.150606
+  sliding_eval [ 60.8%] 73632/121136 windows running_bpb=1.150584
+  sliding_eval [ 62.1%] 75232/121136 windows running_bpb=1.150767
+  sliding_eval [ 63.4%] 76832/121136 windows running_bpb=1.150466
+  sliding_eval [ 64.7%] 78432/121136 windows running_bpb=1.151063
+  sliding_eval [ 66.1%] 80032/121136 windows running_bpb=1.151378
+  sliding_eval [ 67.4%] 81632/121136 windows running_bpb=1.151041
+  sliding_eval [ 68.7%] 83232/121136 windows running_bpb=1.152109
+  sliding_eval [ 70.0%] 84832/121136 windows running_bpb=1.154006
+  sliding_eval [ 71.4%] 86432/121136 windows running_bpb=1.153328
+  sliding_eval [ 72.7%] 88032/121136 windows running_bpb=1.154049
+  sliding_eval [ 74.0%] 89632/121136 windows running_bpb=1.154407
+  sliding_eval [ 75.3%] 91232/121136 windows running_bpb=1.154369
+  sliding_eval [ 76.6%] 92832/121136 windows running_bpb=1.153934
+  sliding_eval [ 78.0%] 94432/121136 windows running_bpb=1.154175
+  sliding_eval [ 79.3%] 96032/121136 windows running_bpb=1.153559
+  sliding_eval [ 80.6%] 97632/121136 windows running_bpb=1.156369
+  sliding_eval [ 81.9%] 99232/121136 windows running_bpb=1.156395
+  sliding_eval [ 83.2%] 100832/121136 windows running_bpb=1.156419
+  sliding_eval [ 84.6%] 102432/121136 windows running_bpb=1.156053
+  sliding_eval [ 85.9%] 104032/121136 windows running_bpb=1.155522
+  sliding_eval [ 87.2%] 105632/121136 windows running_bpb=1.154779
+  sliding_eval [ 88.5%] 107232/121136 windows running_bpb=1.154745
+  sliding_eval [ 89.8%] 108832/121136 windows running_bpb=1.155380
+  sliding_eval [ 91.2%] 110432/121136 windows running_bpb=1.155403
+  sliding_eval [ 92.5%] 112032/121136 windows running_bpb=1.155400
+  sliding_eval [ 93.8%] 113632/121136 windows running_bpb=1.155853
+  sliding_eval [ 95.1%] 115232/121136 windows running_bpb=1.155580
+  sliding_eval [ 96.4%] 116832/121136 windows running_bpb=1.155193
+  sliding_eval [ 97.8%] 118432/121136 windows running_bpb=1.155506
+  sliding_eval [ 99.1%] 120032/121136 windows running_bpb=1.155584
+final_int8_zlib_roundtrip val_loss:1.9416 val_bpb:1.1499 eval_time:257631ms
+final_int8_zlib_roundtrip_exact val_loss:1.94158659 val_bpb:1.14991999
