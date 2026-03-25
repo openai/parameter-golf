@@ -223,9 +223,8 @@ _ACTIVATION_VARIANTS = {
     "silu": lambda self, x: self.proj(nn.silu(self.fc(x))),
     "sin": lambda self, x: self.proj(mx.sin(self.fc(x))),
     "sin_sq": lambda self, x: self.proj(mx.sin(self.fc(x)) ** 2),
-    "fan": lambda self, x: self.proj(
-        mx.concatenate([mx.sin(self.fc(x)), nn.gelu(self.fc(x))], axis=-1)
-    ),  # Note: fan doubles hidden dim — proj must match. Only works with mlp_mult halved.
+    # FAN excluded — doubles hidden dim, incompatible with existing proj shape.
+    # To test FAN, use mlp_mult=1 (so sin+gelu concat = 2*dim, matching proj at mlp_mult=2).
 }
 
 

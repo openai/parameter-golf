@@ -208,6 +208,20 @@ def select_interventions(dag, completed_interventions):
                             "description": f"Sweep uncertain edge: {source_node}={variant['label']}",
                         }))
 
+    # Priority 3: Sweep search space entries not in DAG (e.g., activation variants)
+    dag_nodes = set(dag.get("nodes", []))
+    for variable, variants in INTERVENTION_SEARCH_SPACE.items():
+        if variable not in dag_nodes:  # not a DAG node — can't be reached via Priority 1-2
+            for variant in variants:
+                label = f"explore_{variable}_{variant['label']}"
+                if label not in completed_interventions:
+                    candidates.append((label, {
+                        "script": "train_gpt_mlx.py",
+                        "env_overrides": variant["overrides"],
+                        "activation": variant.get("activation", "relu_sq"),
+                        "description": f"Explore non-DAG variable: {variable}={variant['label']}",
+                    }))
+
     # Deduplicate by label
     seen = set()
     deduped = []
