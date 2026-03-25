@@ -1,0 +1,12 @@
+{
+  "author": "Joel Ponukumatla",
+  "github_id": "joelnishanth",
+  "name": "11L Tight SWA + Shared VE + Partial RoPE + LN Scale + XSA4 + Late QAT",
+  "blurb": "Full competitive stack: Tight SWA (scale<0.2, every 50), Shared Value Embedding on layers 9-10, Partial RoPE (16/64 dims), depth-dependent LN scaling, XSA on last 4 layers, Late QAT at scale<0.1. FA3 on 8xH100 SXM.",
+  "date": "2026-03-22",
+  "val_loss": 1.9512,
+  "val_bpb": 1.1556,
+  "sliding_window_bpb": 1.1320,
+  "bytes_total": 15753020,
+  "bytes_code": 73064
+}
