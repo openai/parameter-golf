@@ -224,16 +224,18 @@ def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, s
     treatment["env_overrides"]["ITERATIONS"] = str(screen_iters)
     treatment["env_overrides"]["VAL_LOSS_EVERY"] = str(max(screen_iters // 4, 1))
     treatment["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 10, 1))
-    treatment["env_overrides"]["WARMUP_STEPS"] = str(min(20, screen_iters // 10))
+    treatment["env_overrides"]["WARMUP_STEPS"] = "1"  # minimal: just prime the compiled graph
     treatment["env_overrides"]["WARMDOWN_ITERS"] = str(screen_iters // 5)
+    treatment["env_overrides"]["GRAD_ACCUM_STEPS"] = "1"  # no grad accumulation for screening
 
     control = json.loads(json.dumps(BASELINE_CONFIG))
     control["env_overrides"]["MAX_WALLCLOCK_SECONDS"] = str(screen_wallclock)
     control["env_overrides"]["ITERATIONS"] = str(screen_iters)
     control["env_overrides"]["VAL_LOSS_EVERY"] = str(max(screen_iters // 4, 1))
     control["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 10, 1))
-    control["env_overrides"]["WARMUP_STEPS"] = str(min(20, screen_iters // 10))
+    control["env_overrides"]["WARMUP_STEPS"] = "1"
     control["env_overrides"]["WARMDOWN_ITERS"] = str(screen_iters // 5)
+    control["env_overrides"]["GRAD_ACCUM_STEPS"] = "1"
 
     # Write configs
     treatment_path = cycle_dir / f"{label}_treatment.json"
