@@ -14,7 +14,7 @@ I spent four days trying to make depth-recurrent transformers competitive in Par
 
 But the failure is informative, and two findings survived: **Noisy QAT** (a training technique that collapses quantization error amplification through recurrence from 0.37 bpb to 0.002 bpb) and **the 3x3 > 2x5 loop configuration** (more unique blocks with fewer repeats beats fewer blocks with more repeats, on every metric).
 
-This document covers 250+ hours of experiments, 12 negative results with specific numbers, and an honest post-mortem on why the "save parameters through weight sharing, spend them on more capacity" thesis doesn't work under competition constraints. If you're considering depth recurrence for Parameter Golf, read this first. It will save you days.
+This document covers 4 days of experiments, 12 negative results with specific numbers, and an honest post-mortem on why the "save parameters through weight sharing, spend them on more capacity" thesis doesn't work under competition constraints. If you're considering depth recurrence for Parameter Golf, read this first. It will save you days.
 
 ---
 
