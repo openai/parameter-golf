@@ -246,3 +246,83 @@ class TestRunConditionInprocess:
         assert len(results) == 1
         assert results[0]["seed"] == 42
         assert results[0]["val_bpb"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Tests: step_losses and screening_mode
+# ---------------------------------------------------------------------------
+
+@_skip_no_data
+class TestStepLosses:
+    @pytest.fixture(scope="class")
+    def ctx(self):
+        return create_shared_context(
+            data_path=_DATA_PATH,
+            tokenizer_path=_TOKENIZER_PATH,
+            vocab_size=1024,
+            train_seq_len=1024,
+        )
+
+    def test_step_losses_returned(self, ctx):
+        result = train_single_run(
+            ctx=ctx, env_overrides={}, seed=42,
+            iterations=5, val_loss_every=0, warmup_steps=1, warmdown_iters=0,
+        )
+        assert "step_losses" in result
+        assert isinstance(result["step_losses"], list)
+        assert len(result["step_losses"]) == 5
+        for entry in result["step_losses"]:
+            assert "step" in entry and isinstance(entry["step"], int)
+            assert "train_loss" in entry and isinstance(entry["train_loss"], float)
+
+    def test_train_loss_final_matches_last_step(self, ctx):
+        result = train_single_run(
+            ctx=ctx, env_overrides={}, seed=42,
+            iterations=5, val_loss_every=0, warmup_steps=1, warmdown_iters=0,
+        )
+        assert result["train_loss_final"] == result["step_losses"][-1]["train_loss"]
+
+    def test_step_losses_empty_on_zero_iters(self, ctx):
+        result = train_single_run(
+            ctx=ctx, env_overrides={}, seed=42,
+            iterations=0, val_loss_every=0, warmup_steps=0, warmdown_iters=0,
+        )
+        assert result["step_losses"] == []
+        import math
+        assert math.isnan(result["train_loss_final"])
+
+
+@_skip_no_data
+class TestScreeningMode:
+    @pytest.fixture(scope="class")
+    def ctx(self):
+        return create_shared_context(
+            data_path=_DATA_PATH,
+            tokenizer_path=_TOKENIZER_PATH,
+            vocab_size=1024,
+            train_seq_len=1024,
+        )
+
+    def test_screening_mode_skips_validation(self, ctx):
+        result = train_single_run(
+            ctx=ctx, env_overrides={}, seed=42,
+            iterations=5, val_loss_every=0, warmup_steps=1, warmdown_iters=0,
+            screening_mode=True,
+        )
+        # val_bpb should equal train_loss_final (proves eval_val was skipped)
+        assert result["val_bpb"] == result["train_loss_final"]
+
+    def test_screening_mode_flag_true(self, ctx):
+        result = train_single_run(
+            ctx=ctx, env_overrides={}, seed=42,
+            iterations=3, val_loss_every=0, warmup_steps=1, warmdown_iters=0,
+            screening_mode=True,
+        )
+        assert result["screening_mode"] is True
+
+    def test_screening_mode_flag_false(self, ctx):
+        result = train_single_run(
+            ctx=ctx, env_overrides={}, seed=42,
+            iterations=3, val_loss_every=0, warmup_steps=1, warmdown_iters=0,
+        )
+        assert result["screening_mode"] is False

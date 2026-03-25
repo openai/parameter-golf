@@ -222,6 +222,7 @@ def train_single_run(
     val_loss_every: int = 0,
     warmup_steps: int = 1,
     warmdown_iters: int = 0,
+    screening_mode: bool = False,
 ) -> dict[str, Any]:
     """Run a single training session in-process, matching train_gpt_mlx.py main().
 
@@ -325,6 +326,7 @@ def train_single_run(
     train_time_ms = 0.0
     val_loss = float("nan")
     val_bpb = float("nan")
+    step_losses: list[dict] = []
     t0 = time.perf_counter()
     step = 0
 
@@ -333,21 +335,27 @@ def train_single_run(
 
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
             train_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = tgm.eval_val(
-                args,
-                compiled_loss,
-                ctx.val_tokens,
-                ctx.base_bytes_lut,
-                ctx.has_leading_space_lut,
-                ctx.is_boundary_token_lut,
-            )
-            _logger.info(
-                "seed=%d step=%d/%d val_loss=%.4f val_bpb=%.4f train_time=%.0fms",
-                seed, step, args.iterations, val_loss, val_bpb, train_time_ms,
-            )
+            if not screening_mode:
+                val_loss, val_bpb = tgm.eval_val(
+                    args,
+                    compiled_loss,
+                    ctx.val_tokens,
+                    ctx.base_bytes_lut,
+                    ctx.has_leading_space_lut,
+                    ctx.is_boundary_token_lut,
+                )
+                _logger.info(
+                    "seed=%d step=%d/%d val_loss=%.4f val_bpb=%.4f train_time=%.0fms",
+                    seed, step, args.iterations, val_loss, val_bpb, train_time_ms,
+                )
             t0 = time.perf_counter()
 
         if last_step:
+            if screening_mode:
+                final_tl = step_losses[-1]["train_loss"] if step_losses else float("nan")
+                val_loss = final_tl
+                val_bpb = final_tl
+                _logger.info("seed=%d SCREENING final train_loss=%.4f", seed, final_tl)
             break
 
         lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
@@ -369,6 +377,9 @@ def train_single_run(
         opt.step(model, grads, step=step, lr_mul=lr_mul)
         mx.synchronize()
 
+        # Capture per-step training loss (pre-update, after synchronize)
+        step_losses.append({"step": step, "train_loss": float(train_loss.item())})
+
         if step % max(args.iterations // 5, 1) == 0:
             _logger.info("seed=%d step=%d/%d training...", seed, step, args.iterations)
 
@@ -384,6 +395,9 @@ def train_single_run(
         "val_bpb": float(val_bpb),
         "val_loss": float(val_loss),
         "wall_time_s": round(wall_time_s, 2),
+        "train_loss_final": step_losses[-1]["train_loss"] if step_losses else float("nan"),
+        "step_losses": step_losses,
+        "screening_mode": screening_mode,
     }
 
 
@@ -399,6 +413,7 @@ def run_condition_inprocess(
     val_loss_every: int = 0,
     warmup_steps: int = 1,
     warmdown_iters: int = 0,
+    screening_mode: bool = False,
 ) -> list[dict]:
     """Run treatment/control condition across all seeds in-process.
 
@@ -418,6 +433,7 @@ def run_condition_inprocess(
                 val_loss_every=val_loss_every,
                 warmup_steps=warmup_steps,
                 warmdown_iters=warmdown_iters,
+                screening_mode=screening_mode,
             )
             results.append(result)
         except Exception as exc:

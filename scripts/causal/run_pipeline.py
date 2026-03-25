@@ -284,13 +284,15 @@ def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, s
             for s in seeds:
                 r = train_single_run(ctx, treatment["env_overrides"], seed=s,
                                      iterations=screen_iters, val_loss_every=val_every,
-                                     warmup_steps=warmup, warmdown_iters=warmdown)
+                                     warmup_steps=warmup, warmdown_iters=warmdown,
+                                     screening_mode=True)
                 treatment_results.append(r)
 
             for s in seeds:
                 r = train_single_run(ctx, control["env_overrides"], seed=s,
                                      iterations=screen_iters, val_loss_every=val_every,
-                                     warmup_steps=warmup, warmdown_iters=warmdown)
+                                     warmup_steps=warmup, warmdown_iters=warmdown,
+                                     screening_mode=True)
                 control_results.append(r)
 
             results = {
@@ -305,7 +307,8 @@ def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, s
         except Exception as e:
             log.warning("In-process failed (%s), falling back to subprocess", e)
 
-    # Subprocess fallback
+    # Subprocess fallback — screening_mode not supported, full validation will run
+    log.warning("Subprocess fallback: screening_mode not supported, full validation will run")
     seeds_str = ",".join(str(s) for s in seeds)
     n_runs = len(seeds) * 2
     timeout = n_runs * (300 + screen_iters * 2) + 300
