@@ -73,8 +73,16 @@ Key environment for the best H100 run:
 
 SEED=42
 TRAIN_BATCH_TOKENS=262144
-TRAIN_SEQ_LEN=2048
-MAX_WALLCLOCK_SECONDS=600
-VAL_LOSS_EVERY=0
-TRAIN_LOG_EVERY=200
-TORCH_COMPILE=0
+
+## Attribution
+
+This submission builds on ideas and code patterns developed across earlier public Parameter Golf records in this repository. In particular, `train_merged_gpt_gold6.py` was assembled by borrowing and adapting components from:
+
+- `records/track_10min_16mb/2026-03-19_SlidingWindowEval/train_gpt.py`
+- `records/track_10min_16mb/2026-03-19_10L_MixedPrecision/train_gpt_v5.py`
+- `records/track_10min_16mb/2026-03-19_Seq2048_FP16Emb_TunedLR/train_gpt_v9.py`
+- `records/track_10min_16mb/2026-03-20_10L_Int5MLP_MuonWD04_SWA50/train_gpt.py`
+- `records/track_10min_16mb/2026-03-20_Int6_MLP3x_SmearGate_BigramHash_MuonWD_SWA/train_gpt.py`
+
+The final script is not a direct copy of any one submission; it is a merged derivative that reuses and modifies techniques including mixed low-bit export, long-context training/eval choices, Muon/Adam parameter grouping, BigramHash-style features, XSA/value-embedding options, and EMA/SWA-era training ideas from those earlier public records.
+
