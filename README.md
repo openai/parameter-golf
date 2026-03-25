@@ -79,6 +79,26 @@ python3 train_gpt_mlx.py
 
 Validation always runs on the full `fineweb_val_*` split, which is the fixed first-50k-document set. The smoke command above skips periodic validation and just prints the final `val_loss` and `val_bpb` once at the end.
 
+For faster local iteration, the trainers also support runtime limits that do not change the default challenge behavior:
+
+```bash
+TRAIN_MAX_SHARDS=1 \
+VAL_MAX_SEQS=128 \
+python3 train_gpt_mlx.py
+```
+
+- `TRAIN_MAX_SHARDS` restricts training to the first `N` train shards already present on disk.
+- `VAL_MAX_SEQS` restricts validation to the first `N` sequences as a local proxy metric.
+- Keep both at `0` for the default full-data, full-validation path.
+
+If you want an automated local sweep loop on Apple Silicon, see [docs/local_search.md](docs/local_search.md) and run:
+
+```bash
+python3 tools/local_search.py --python .venv/bin/python
+```
+
+By default the local search tool stops at proxy validation. Opt into full validation explicitly with `--full-val-top-k 1` when you want a slower confirmation pass.
+
 ### Scaling Up to a Remote Machine
 
 Once you're happy with your local tests, or you want more compute, switch to a remote CUDA machine.

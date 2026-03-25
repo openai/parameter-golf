@@ -46,6 +46,8 @@ class Hyperparameters:
     tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed: int = int(os.environ.get("SEED", 1337))
+    train_max_shards: int = int(os.environ.get("TRAIN_MAX_SHARDS", 0))
+    val_max_seqs: int = int(os.environ.get("VAL_MAX_SEQS", 0))
 
     # Training loop. These defaults now mirror train_gpt.py on a single process.
     iterations: int = int(os.environ.get("ITERATIONS", 20_000))
@@ -203,6 +205,16 @@ def load_data_shard(path: Path) -> np.ndarray:
     return tokens.astype(np.int32, copy=False)
 
 
+def resolve_shard_files(pattern: str, max_files: int = 0) -> list[Path]:
+    files = [Path(p) for p in sorted(glob.glob(pattern))]
+    if max_files > 0:
+        files = files[:max_files]
+    if not files:
+        limit = f" with max_files={max_files}" if max_files > 0 else ""
+        raise FileNotFoundError(f"No files found for pattern: {pattern}{limit}")
+    return files
+
+
 # ==============================================================================
 # TOKEN STREAMING / BATCHING
 # ==============================================================================
@@ -214,10 +226,9 @@ class TokenStream:
         pattern: str,
         log_fn: Callable[[str], None] | None = None,
         dataset_name: str = "",
+        max_files: int = 0,
     ):
-        self.files = [Path(p) for p in sorted(glob.glob(pattern))]
-        if not self.files:
-            raise FileNotFoundError(f"No files found for pattern: {pattern}")
+        self.files = resolve_shard_files(pattern, max_files=max_files)
         self.epoch = 1
         self.file_idx = 0
         self.log_fn = log_fn
@@ -256,8 +267,9 @@ class TokenLoader:
         pattern: str,
         log_fn: Callable[[str], None] | None = None,
         dataset_name: str = "",
+        max_files: int = 0,
     ):
-        self.stream = TokenStream(pattern, log_fn=log_fn, dataset_name=dataset_name)
+        self.stream = TokenStream(pattern, log_fn=log_fn, dataset_name=dataset_name, max_files=max_files)
 
     def next_batch(self, batch_tokens: int, seq_len: int) -> tuple[mx.array, mx.array]:
         usable = (batch_tokens // seq_len) * seq_len
@@ -685,22 +697,27 @@ def build_sentencepiece_luts(
     return base_bytes_lut, has_leading_space_lut, is_boundary_token_lut
 
 
-def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> tuple[str, int, int | None]:
+def validate_dataset_tokenizer_pair(
+    data_path: str,
+    tokenizer_path: str,
+    train_max_shards: int = 0,
+) -> tuple[str, int, int | None, int]:
     # The shard directory and tokenizer are coupled: val_bpb is only meaningful if we
     # decode bytes with the exact tokenizer that produced the shards. The manifest
     # lets the training script fail fast on accidental dataset/tokenizer mismatches.
     dataset_dir = Path(data_path).resolve()
-    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+    available_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+    selected_train_files = min(available_train_files, train_max_shards) if train_max_shards > 0 else available_train_files
     if len(dataset_dir.parents) < 2:
-        return dataset_dir.name, actual_train_files, None
+        return dataset_dir.name, selected_train_files, None, available_train_files
     manifest_path = dataset_dir.parents[1] / "manifest.json"
     if not manifest_path.is_file():
-        return dataset_dir.name, actual_train_files, None
+        return dataset_dir.name, selected_train_files, None, available_train_files
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == dataset_dir.name), None)
     if dataset_entry is None:
-        return dataset_dir.name, actual_train_files, None
+        return dataset_dir.name, selected_train_files, None, available_train_files
 
     tokenizer_name = dataset_entry.get("tokenizer_name")
     tokenizer_entry = (
@@ -714,21 +731,21 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> tupl
     expected_train_files = (dataset_entry.get("stats") or {}).get("files_train")
     if expected_train_files is not None:
         expected_train_files = int(expected_train_files)
-        if actual_train_files > expected_train_files:
+        if available_train_files > expected_train_files:
             raise ValueError(
-                f"{dataset_dir.name} has more train shards than expected: found {actual_train_files}, "
+                f"{dataset_dir.name} has more train shards than expected: found {available_train_files}, "
                 f"manifest says {expected_train_files}"
             )
-    return dataset_dir.name, actual_train_files, expected_train_files
+    return dataset_dir.name, selected_train_files, expected_train_files, available_train_files
 
 
-def load_validation_tokens(pattern: str, seq_len: int) -> np.ndarray:
-    files = [Path(p) for p in sorted(glob.glob(pattern))]
-    if not files:
-        raise FileNotFoundError(f"No files found for pattern: {pattern}")
+def load_validation_tokens(pattern: str, seq_len: int, max_seqs: int = 0) -> np.ndarray:
+    files = resolve_shard_files(pattern)
     # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
     tokens = np.ascontiguousarray(np.concatenate([load_data_shard(file) for file in files], axis=0))
     usable = ((tokens.size - 1) // seq_len) * seq_len
+    if max_seqs > 0:
+        usable = min(usable, max_seqs * seq_len)
     if usable <= 0:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
     return tokens[: usable + 1]
@@ -859,11 +876,19 @@ def main() -> None:
         raise ValueError(
             f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
         )
-    dataset_name, actual_train_files, expected_train_files = validate_dataset_tokenizer_pair(
+    dataset_name, selected_train_files, expected_train_files, available_train_files = validate_dataset_tokenizer_pair(
         args.data_path,
         args.tokenizer_path,
+        train_max_shards=args.train_max_shards,
     )
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len, args.val_max_seqs)
+
+    if args.microbatch_tokens < args.train_seq_len:
+        raise ValueError(
+            "TRAIN_BATCH_TOKENS / GRAD_ACCUM_STEPS must provide at least one sequence; "
+            f"got TRAIN_BATCH_TOKENS={args.train_batch_tokens}, "
+            f"GRAD_ACCUM_STEPS={args.grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
 
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size
@@ -874,7 +899,12 @@ def main() -> None:
     # ==============================================================================
     mx.random.seed(args.seed)
 
-    train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
+    train_loader = TokenLoader(
+        args.train_files,
+        log_fn=log,
+        dataset_name=dataset_name,
+        max_files=args.train_max_shards,
+    )
 
     # ==============================================================================
     # MODEL + OPTIMIZER SETUP
@@ -915,15 +945,17 @@ def main() -> None:
     log(f"train_loader:shards pattern={args.train_files}")
     log(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.size - 1}")
     if expected_train_files is None:
-        log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}")
-    elif actual_train_files < expected_train_files:
+        log(f"train_loader:dataset:{dataset_name} train_shards:{selected_train_files}")
+    elif selected_train_files < expected_train_files:
         log(
             f"WARNING: train_loader:subset dataset:{dataset_name} "
-            f"train_shards:{actual_train_files}/{expected_train_files} "
+            f"train_shards:{selected_train_files}/{expected_train_files} "
             f"new epochs will arrive sooner than the full dataset"
         )
     else:
-        log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}/{expected_train_files}")
+        log(f"train_loader:dataset:{dataset_name} train_shards:{selected_train_files}/{expected_train_files}")
+    if args.train_max_shards > 0 and selected_train_files < available_train_files:
+        log(f"train_loader:runtime_limit train_shards:{selected_train_files}/{available_train_files}")
     log(f"tokenizer_path:{args.tokenizer_path}")
     log(
         f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} "
@@ -944,6 +976,8 @@ def main() -> None:
         f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
     )
     log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    if args.val_max_seqs > 0:
+        log(f"val_loader:runtime_limit seqs:{(val_tokens.size - 1) // args.train_seq_len}")
     log(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
     log(
         f"dtypes tok_emb:{model.tok_emb.weight.dtype} "
@@ -987,7 +1021,12 @@ def main() -> None:
         mx.eval(warm_val_loss)
         mx.synchronize()
 
-        train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
+        train_loader = TokenLoader(
+            args.train_files,
+            log_fn=log,
+            dataset_name=dataset_name,
+            max_files=args.train_max_shards,
+        )
 
     train_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
