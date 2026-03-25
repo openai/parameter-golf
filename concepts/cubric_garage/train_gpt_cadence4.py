@@ -136,6 +136,12 @@ class Hyperparameters:
     ngram_eval_min_count = int(os.environ.get("NGRAM_EVAL_MIN_COUNT", 2))
     ngram_eval_buckets = int(os.environ.get("NGRAM_EVAL_BUCKETS", 4_194_304))
     ngram_eval_max_seconds = float(os.environ.get("NGRAM_EVAL_MAX_SECONDS", 0.0))
+    # Cubric cadence: N/N/N/C pattern — periodic optimization of n-gram tables
+    cubric_cadence = int(os.environ.get("CUBRIC_CADENCE", 0))  # 0=off, N=C-step every N batches
+    cubric_count_decay = float(os.environ.get("CUBRIC_COUNT_DECAY", 0.02))
+    cubric_boost_confident = bool(int(os.environ.get("CUBRIC_BOOST_CONFIDENT", "1")))
+    cubric_prune_noisy = bool(int(os.environ.get("CUBRIC_PRUNE_NOISY", "1")))
+    cubric_reweight_orders = bool(int(os.environ.get("CUBRIC_REWEIGHT_ORDERS", "1")))
     compile_enabled = bool(int(os.environ.get("COMPILE_ENABLED", "1")))
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
 def maybe_torch_compile(obj, args: Hyperparameters):
@@ -968,6 +974,78 @@ def eval_val_sliding(
     tokens_per_byte = token_count.item() / byte_count.item()
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
+
+
+def _cubric_c_step(
+    ctx_tables: dict, full_tables: dict,
+    buf_model_p: list, buf_ngram_p: list, buf_matched: list,
+    buf_orders: list, buf_ctx_keys: list, buf_full_keys: list,
+    min_order: int, max_order: int,
+    count_decay: float, boost_confident: bool, prune_noisy: bool, reweight_orders: bool,
+) -> dict:
+    """Cubric C-step: optimize n-gram hash tables from already-scored data."""
+    all_matched = np.concatenate(buf_matched) if buf_matched else np.array([], dtype=bool)
+    all_orders = np.concatenate(buf_orders) if buf_orders else np.array([], dtype=np.int32)
+    all_model_p = np.concatenate(buf_model_p) if buf_model_p else np.array([])
+    all_ngram_p = np.concatenate(buf_ngram_p) if buf_ngram_p else np.array([])
+    if len(all_matched) == 0 or not all_matched.any():
+        return {}
+    m_idx = np.nonzero(all_matched)[0]
+    order_acc = {}
+    for n in range(min_order, max_order + 1):
+        om = m_idx[all_orders[m_idx] == n]
+        if len(om) > 0:
+            order_acc[n] = float(np.mean(all_ngram_p[om] > all_model_p[om]))
+    # 1. Decay stale counts
+    if count_decay > 0.0:
+        df = 1.0 - count_decay
+        for n in range(min_order, max_order + 1):
+            active = ctx_tables[n] > 0
+            if active.any():
+                ctx_tables[n][active] = np.maximum((ctx_tables[n][active].astype(np.float64) * df).astype(np.uint32), 1)
+                full_tables[n][active] = np.minimum(full_tables[n][active], ctx_tables[n][active])
+    # 2. Boost where model+ngram agree
+    if boost_confident:
+        for si in range(len(buf_matched)):
+            m = np.nonzero(buf_matched[si])[0]
+            if len(m) == 0:
+                continue
+            conf = (buf_model_p[si][m] > 0.5) & (buf_ngram_p[si][m] > 0.3)
+            if not conf.any():
+                continue
+            ci = m[conf]
+            ords = buf_orders[si][ci]
+            for n in range(min_order, max_order + 1):
+                nm = ords == n
+                if not nm.any() or n not in buf_ctx_keys[si]:
+                    continue
+                ck = buf_ctx_keys[si][n][ci[nm]]
+                fk = buf_full_keys[si][n][ci[nm]]
+                np.add.at(ctx_tables[n], ck, 1)
+                np.add.at(full_tables[n], fk, 1)
+    # 3. Prune noisy buckets
+    if prune_noisy:
+        for n in range(min_order, max_order + 1):
+            noisy = (ctx_tables[n] > 20) & (full_tables[n].astype(np.float64) / np.maximum(ctx_tables[n].astype(np.float64), 1.0) < 0.01)
+            if noisy.any():
+                ctx_tables[n][noisy] = 0
+                full_tables[n][noisy] = 0
+    # 4. Reweight orders by accuracy
+    if reweight_orders and order_acc:
+        avg = np.mean(list(order_acc.values()))
+        for n, acc in order_acc.items():
+            if acc > avg + 0.1:
+                b = ctx_tables[n] > 0
+                if b.any():
+                    ctx_tables[n][b] = np.minimum((ctx_tables[n][b].astype(np.float64) * 1.05).astype(np.uint32), 2**31 - 1)
+                    full_tables[n][b] = np.minimum((full_tables[n][b].astype(np.float64) * 1.05).astype(np.uint32), ctx_tables[n][b])
+            elif acc < avg - 0.1:
+                s = ctx_tables[n] > 0
+                if s.any():
+                    ctx_tables[n][s] = np.maximum((ctx_tables[n][s].astype(np.float64) * 0.95).astype(np.uint32), 1)
+    return order_acc
+
+
 def eval_val_sliding_hashed_ngram(
     args: Hyperparameters,
     base_model: nn.Module,
@@ -1030,6 +1108,17 @@ def eval_val_sliding_hashed_ngram(
     loss_sum = 0.0
     token_count = 0.0
     byte_count = 0.0
+    # Cubric cadence state
+    _cub_on = getattr(args, 'cubric_cadence', 0) > 0
+    _cub_cad = getattr(args, 'cubric_cadence', 0)
+    _cub_cnt = 0
+    _cub_fired = 0
+    _cub_mp: list[np.ndarray] = []
+    _cub_np: list[np.ndarray] = []
+    _cub_ma: list[np.ndarray] = []
+    _cub_or: list[np.ndarray] = []
+    _cub_ck: list[dict] = []
+    _cub_fk: list[dict] = []
 
     base_model.eval()
     compiled_logits = maybe_torch_compile(base_model.forward_logits, args)
@@ -1088,7 +1177,10 @@ def eval_val_sliding_hashed_ngram(
                 # Multi-order backoff: try highest order first, fall back
                 p_ng = np.zeros(seg_len, dtype=np.float64)
                 ng_matched = np.zeros(seg_len, dtype=np.bool_)
+                ng_order = np.zeros(seg_len, dtype=np.int32) if _cub_on else None
                 tgt_np = val_np[global_j].astype(np.uint64)
+                _seg_ck: dict[int, np.ndarray] = {}
+                _seg_fk: dict[int, np.ndarray] = {}
 
                 for n in range(max_order, min_order - 1, -1):
                     ctx_width = n - 1
@@ -1105,6 +1197,11 @@ def eval_val_sliding_hashed_ngram(
                     ctx_key = (ctx_hash & mask).astype(np.int64)
                     full_key = ((ctx_hash ^ (tgt_np[v_idx] * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
 
+                    if _cub_on:
+                        ck = np.zeros(seg_len, dtype=np.int64); ck[v_idx] = ctx_key
+                        fk = np.zeros(seg_len, dtype=np.int64); fk[v_idx] = full_key
+                        _seg_ck[n] = ck; _seg_fk[n] = fk
+
                     ctx_counts = ctx_tables[n][ctx_key].astype(np.float64)
                     full_counts = full_tables[n][full_key].astype(np.float64)
                     has_data = ctx_counts >= float(min_count)
@@ -1114,12 +1211,23 @@ def eval_val_sliding_hashed_ngram(
                         hit_idx = v_idx[has_data]
                         p_ng[hit_idx] = p[has_data]
                         ng_matched[hit_idx] = True
+                        if ng_order is not None:
+                            ng_order[hit_idx] = n
 
                 # Mix where n-gram matched
                 if ng_matched.any():
                     m_idx = np.nonzero(ng_matched)[0]
                     a = per_token_alpha[m_idx]
                     seg_model_p[m_idx] = (1.0 - a) * seg_model_p[m_idx] + a * p_ng[m_idx]
+
+                # Buffer for cubric C-step
+                if _cub_on:
+                    _cub_mp.append(np.exp(-nll[i, s:wlen].to(torch.float64).cpu().numpy()))
+                    _cub_np.append(p_ng.copy())
+                    _cub_ma.append(ng_matched.copy())
+                    _cub_or.append(ng_order.copy())
+                    _cub_ck.append(_seg_ck)
+                    _cub_fk.append(_seg_fk)
 
                 seg_nll = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
 
@@ -1147,6 +1255,23 @@ def eval_val_sliding_hashed_ngram(
                 tb = base_bytes_lut[tgt].to(torch.float64)
                 tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                 byte_count += float(tb.sum().item())
+
+            # Cubric C-step: fire every K batches
+            if _cub_on:
+                _cub_cnt += 1
+                if _cub_cnt >= _cub_cad and len(_cub_ma) > 0:
+                    _cubric_c_step(
+                        ctx_tables, full_tables, _cub_mp, _cub_np, _cub_ma,
+                        _cub_or, _cub_ck, _cub_fk,
+                        min_order, max_order,
+                        getattr(args, 'cubric_count_decay', 0.02),
+                        getattr(args, 'cubric_boost_confident', True),
+                        getattr(args, 'cubric_prune_noisy', True),
+                        getattr(args, 'cubric_reweight_orders', True),
+                    )
+                    _cub_fired += 1; _cub_cnt = 0
+                    _cub_mp.clear(); _cub_np.clear(); _cub_ma.clear()
+                    _cub_or.clear(); _cub_ck.clear(); _cub_fk.clear()
 
             if (bi // batch_seqs) % 2000 == 0 and bi > 0:
                 elapsed = time.perf_counter() - t0
