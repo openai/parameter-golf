@@ -280,6 +280,12 @@ def eval_val(
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 
+_NG_B = 1 << 22
+_NG_ORDERS = (7, 6, 5, 4, 3, 2)
+_NG_MIN = 2
+_NG_MULT = 265443576
+_NG_PAIR_MULT = 1000003
+
 def eval_val_sliding(
     args: Hyperparameters,
     base_model: nn.Module,
@@ -292,43 +298,45 @@ def eval_val_sliding(
     is_boundary_token_lut: Tensor,
     stride: int = 64,
     batch_size: int = 256,
-) -> tuple[float, float]:
+) -> tuple[float, float, float]:
     seq_len = args.train_seq_len
     total_tokens = val_tokens.numel()
     windows: list[tuple[int, int]] = []
     pos = 0
     while pos + seq_len < total_tokens:
-        score_start = 0 if pos == 0 else seq_len - stride
-        windows.append((pos, score_start))
+        windows.append((pos, 0 if pos == 0 else seq_len - stride))
         pos += stride
     my_windows = windows[rank::world_size]
-
     total_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     total_scored_tokens = torch.zeros((), device=device, dtype=torch.float64)
     total_byte_count = torch.zeros((), device=device, dtype=torch.float64)
-
+    ng_loss_sum = 0.0
+    ng_ctx = np.zeros(_NG_B, dtype=np.int32)
+    ng_pair = np.zeros(_NG_B, dtype=np.int32)
+    vt = val_tokens.numpy()
     base_model.eval()
+    num_batches = (len(my_windows) + batch_size - 1) // batch_size
     with torch.inference_mode():
         for batch_start in range(0, len(my_windows), batch_size):
+            bi = batch_start // batch_size
+            if bi % 100 == 0:
+                print(f"  eval batch {bi}/{num_batches}", flush=True)
             batch_windows = my_windows[batch_start:batch_start + batch_size]
-            x_list = []
-            y_list = []
+            x_list, y_list = [], []
             for win_start, _ in batch_windows:
                 chunk = val_tokens[win_start:win_start + seq_len + 1]
-                x_list.append(chunk[:-1])
-                y_list.append(chunk[1:])
+                x_list.append(chunk[:-1]); y_list.append(chunk[1:])
             x = torch.stack(x_list).to(device=device, dtype=torch.int64)
             y = torch.stack(y_list).to(device=device, dtype=torch.int64)
-
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 logits = base_model.forward_logits(x)
             per_token_loss = F.cross_entropy(
-                logits.float().reshape(-1, logits.size(-1)),
-                y.reshape(-1),
-                reduction="none",
+                logits.float().reshape(-1, logits.size(-1)), y.reshape(-1), reduction="none",
             ).reshape(len(batch_windows), seq_len)
-
-            for idx, (_, score_start) in enumerate(batch_windows):
+            lp = F.log_softmax(logits.float(), dim=-1)
+            entropy = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
+            tgt_lp = lp.cpu().numpy()
+            for idx, (win_start, score_start) in enumerate(batch_windows):
                 scored_loss = per_token_loss[idx, score_start:]
                 total_loss_sum += scored_loss.to(torch.float64).sum()
                 total_scored_tokens += float(scored_loss.numel())
@@ -337,100 +345,50 @@ def eval_val_sliding(
                 token_bytes = base_bytes_lut[scored_tgt].to(dtype=torch.int16)
                 token_bytes += (has_leading_space_lut[scored_tgt] & ~is_boundary_token_lut[scored_prev]).to(dtype=torch.int16)
                 total_byte_count += token_bytes.to(torch.float64).sum()
-
+                for t in range(score_start, seq_len):
+                    abs_pos = win_start + t + 1
+                    tgt = int(vt[abs_pos])
+                    ng_p = 0.0
+                    found = False
+                    for order in _NG_ORDERS:
+                        if abs_pos < order: continue
+                        ch = 0
+                        for k in range(abs_pos - order + 1, abs_pos):
+                            ch = (ch * _NG_MULT + int(vt[k])) % _NG_B
+                        cc = ng_ctx[ch]
+                        if cc >= _NG_MIN:
+                            ph = (ch * _NG_PAIR_MULT + tgt) % _NG_B
+                            ng_p = ng_pair[ph] / cc
+                            found = True
+                            break
+                    model_p = float(np.exp(tgt_lp[idx, t, tgt]))
+                    if found:
+                        H = float(entropy[idx, t])
+                        alpha = 0.05 + 0.55 / (1.0 + math.exp(-2.0 * (H - 4.0)))
+                        mixed_p = (1.0 - alpha) * model_p + alpha * ng_p
+                    else:
+                        mixed_p = model_p
+                    ng_loss_sum -= math.log(max(mixed_p, 1e-20))
+                    for order in _NG_ORDERS:
+                        if abs_pos < order: continue
+                        ch = 0
+                        for k in range(abs_pos - order + 1, abs_pos):
+                            ch = (ch * _NG_MULT + int(vt[k])) % _NG_B
+                        ng_ctx[ch] += 1
+                        ph = (ch * _NG_PAIR_MULT + tgt) % _NG_B
+                        ng_pair[ph] += 1
+    ng_loss_t = torch.tensor(ng_loss_sum, device=device, dtype=torch.float64)
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(total_loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(total_scored_tokens, op=dist.ReduceOp.SUM)
         dist.all_reduce(total_byte_count, op=dist.ReduceOp.SUM)
-
+        dist.all_reduce(ng_loss_t, op=dist.ReduceOp.SUM)
     val_loss = (total_loss_sum / total_scored_tokens).item()
     bpb = (total_loss_sum / (total_byte_count * math.log(2.0))).item()
+    ng_bpb = (ng_loss_t / (total_byte_count * math.log(2.0))).item()
     base_model.train()
-    return float(val_loss), float(bpb)
+    return float(val_loss), float(bpb), float(ng_bpb)
 
-
-_NGRAM_ORDERS = list(range(7, 1, -1))
-_NGRAM_HASH_MULT = 265443576
-_NGRAM_MOD = (1 << 22)
-
-def _ngram_hash(tokens: Tensor, end: int, order: int) -> int:
-    h = 0
-    for i in range(end - order + 1, end):
-        h = (h * _NGRAM_HASH_MULT + tokens[i].item()) % _NGRAM_MOD
-    return h
-
-def eval_val_ngram(
-    args: Hyperparameters, base_model: nn.Module, rank: int, world_size: int,
-    device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
-    has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
-    stride: int = 64, batch_size: int = 256,
-) -> tuple[float, float]:
-    seq_len, vocab = args.train_seq_len, args.vocab_size
-    total_tokens = val_tokens.numel()
-    windows: list[tuple[int, int]] = []
-    pos = 0
-    while pos + seq_len < total_tokens:
-        windows.append((pos, 0 if pos == 0 else seq_len - stride))
-        pos += stride
-    ngram_table: dict[int, dict[int, int]] = {}
-    total_loss = 0.0
-    total_scored = 0.0
-    total_bytes = 0.0
-    base_model.eval()
-    with torch.inference_mode():
-        for bi in range(0, len(windows), batch_size):
-            bw = windows[bi:bi + batch_size]
-            x = torch.stack([val_tokens[w:w+seq_len] for w, _ in bw]).to(device=device, dtype=torch.int64)
-            y = torch.stack([val_tokens[w+1:w+seq_len+1] for w, _ in bw]).to(device=device, dtype=torch.int64)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                logits = base_model.forward_logits(x)
-            log_probs = F.log_softmax(logits.float(), dim=-1).cpu()
-            for j, (wpos, ss) in enumerate(bw):
-                for t in range(ss, seq_len):
-                    abs_pos = wpos + t + 1
-                    tgt = val_tokens[abs_pos].item()
-                    model_lp = log_probs[j, t]
-                    ngram_dist = None
-                    for order in _NGRAM_ORDERS:
-                        if abs_pos >= order - 1:
-                            h = _ngram_hash(val_tokens, abs_pos, order)
-                            bucket = ngram_table.get(h)
-                            if bucket is not None:
-                                total_ct = sum(bucket.values())
-                                if total_ct >= 2:
-                                    ngram_dist = bucket
-                                    ngram_total = total_ct
-                                    break
-                    if ngram_dist is not None:
-                        entropy = -(model_lp.exp() * model_lp).sum().item()
-                        alpha = 0.05 + 0.55 / (1.0 + math.exp(-2.0 * (entropy - 4.0)))
-                        ng_prob = ngram_dist.get(tgt, 0) / ngram_total
-                        model_prob = model_lp[tgt].exp().item()
-                        mixed_prob = (1.0 - alpha) * model_prob + alpha * ng_prob
-                        total_loss -= math.log(max(mixed_prob, 1e-20))
-                    else:
-                        total_loss -= model_lp[tgt].item()
-                    total_scored += 1.0
-                    prev_tok = val_tokens[abs_pos - 1].item() if abs_pos > 0 else 0
-                    tb = base_bytes_lut[tgt].item()
-                    tb += (has_leading_space_lut[tgt].item() & (1 - is_boundary_token_lut[prev_tok].item()))
-                    total_bytes += tb
-                    for order in _NGRAM_ORDERS:
-                        if abs_pos >= order - 1:
-                            h = _ngram_hash(val_tokens, abs_pos, order)
-                            if h not in ngram_table: ngram_table[h] = {}
-                            ngram_table[h][tgt] = ngram_table[h].get(tgt, 0) + 1
-    total_loss_t = torch.tensor(total_loss, device=device, dtype=torch.float64)
-    total_scored_t = torch.tensor(total_scored, device=device, dtype=torch.float64)
-    total_bytes_t = torch.tensor(total_bytes, device=device, dtype=torch.float64)
-    if dist.is_available() and dist.is_initialized():
-        dist.all_reduce(total_loss_t, op=dist.ReduceOp.SUM)
-        dist.all_reduce(total_scored_t, op=dist.ReduceOp.SUM)
-        dist.all_reduce(total_bytes_t, op=dist.ReduceOp.SUM)
-    val_loss = (total_loss_t / total_scored_t).item()
-    bpb = (total_loss_t / (total_bytes_t * math.log(2.0))).item()
-    base_model.train()
-    return float(val_loss), float(bpb)
 
 
 # -----------------------------
@@ -1245,11 +1203,11 @@ def main() -> None:
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
     if eval_only:
-        log0("eval_only: skipping training, loading final_model.int6.ptz")
+        log0("eval_only: loading final_model.int6.ptz")
         with open("final_model.int6.ptz", "rb") as f:
             base_model.load_state_dict(dequantize_state_dict_int8(
                 torch.load(io.BytesIO(lzma.decompress(f.read())), map_location="cpu")), strict=True)
-    if not eval_only and args.warmup_steps > 0:
+    elif args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
@@ -1279,8 +1237,8 @@ def main() -> None:
     # MAIN TRAINING LOOP
     # -----------------------------
 
+    training_time_ms = 0.0
     if not eval_only:
-        training_time_ms = 0.0
         stop_after_step: int | None = None
         ema_state = {k: v.detach().clone().float() for k, v in base_model.state_dict().items()}
         swa_state: dict[str, Tensor] | None = None
@@ -1451,29 +1409,16 @@ def main() -> None:
 
     torch.cuda.synchronize()
     t_slide = time.perf_counter()
-    sw_val_loss, sw_val_bpb = eval_val_sliding(
+    sw_val_loss, sw_val_bpb, ng_bpb = eval_val_sliding(
         args, base_model, rank, world_size, device,
         val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
     )
     torch.cuda.synchronize()
     log0(
         f"final_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
+        f"ngram_bpb:{ng_bpb:.4f} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
     )
-    log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-
-    torch.cuda.synchronize()
-    t_ngram = time.perf_counter()
-    ng_val_loss, ng_val_bpb = eval_val_ngram(
-        args, base_model, rank, world_size, device,
-        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-    )
-    torch.cuda.synchronize()
-    log0(
-        f"final_ngram val_loss:{ng_val_loss:.4f} val_bpb:{ng_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_ngram):.0f}ms"
-    )
-    log0(f"final_ngram_exact val_loss:{ng_val_loss:.8f} val_bpb:{ng_val_bpb:.8f}")
+    log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f} ngram_bpb:{ng_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
