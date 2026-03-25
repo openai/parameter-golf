@@ -8,3 +8,6 @@ typing-extensions==4.15.0
 datasets
 tiktoken
 sentencepiece
+scipy
+blake3
+cupy-cuda12x

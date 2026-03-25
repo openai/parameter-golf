@@ -5,6 +5,9 @@
 ## Run Command
 
 ```bash
+# Install dependencies
+pip install -r requirements.txt
+
 # Setup (once)
 python data/cached_challenge_fineweb.py
 
