@@ -1,0 +1,9 @@
+{
+  "name": "VRL + Full GPTQ + 5-gram Cache + Hidden-State kNN-LM",
+  "val_bpb": 1.0970,
+  "bytes_total": 15739515,
+  "blurb": "Hidden-state kNN-LM (Khandelwal 2019, first in competition) + online 5-gram cache with adaptive confidence-gated mixing. VRL + Full GPTQ (Hessian-aware, calibrated within 600s training budget) + LeakyReLU² + XSA-all(11). No safety gate (pre-committed confidence gate per #677). 3-seed mean 1.0970 (std 0.0006).",
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "date": "2026-03-25"
+}
