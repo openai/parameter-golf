@@ -1,0 +1,21 @@
+step=5000000 bpb=2.005436 tok_per_s=87059 weights=[ngram_4=1.000]
+step=10000000 bpb=1.997001 tok_per_s=101167 weights=[ngram_4=1.000]
+step=15000000 bpb=1.977351 tok_per_s=98463 weights=[ngram_4=1.000]
+step=20000000 bpb=1.962266 tok_per_s=100651 weights=[ngram_4=1.000]
+step=25000000 bpb=1.948778 tok_per_s=102760 weights=[ngram_4=1.000]
+step=30000000 bpb=1.943999 tok_per_s=104743 weights=[ngram_4=1.000]
+step=35000000 bpb=1.939619 tok_per_s=105619 weights=[ngram_4=1.000]
+step=40000000 bpb=1.932213 tok_per_s=106524 weights=[ngram_4=1.000]
+step=45000000 bpb=1.923477 tok_per_s=106111 weights=[ngram_4=1.000]
+step=50000000 bpb=1.922186 tok_per_s=107292 weights=[ngram_4=1.000]
+step=55000000 bpb=1.918598 tok_per_s=108088 weights=[ngram_4=1.000]
+step=60000000 bpb=1.912753 tok_per_s=108456 weights=[ngram_4=1.000]
+loaded_state_bytes=14310783
+loaded_warmup_predictions=9999999
+tokens_loaded=62021846
+predictions=62021845
+total_bytes=151080891
+val_bpb=1.91070694
+elapsed_seconds=571.97
+expert_weights:
+  ngram_4: weight=1.000000 avg_logloss_bits=4.654349
