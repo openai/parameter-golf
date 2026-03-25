@@ -1,0 +1,45 @@
+{
+  "val_bpb": 1.14802544,
+  "artifact_bytes": 14549183,
+  "artifact_mb": 13.88,
+  "model": "GEPA (Gated Enhanced Parallel Attention)",
+  "architecture": {
+    "num_layers": 11,
+    "num_encoder_layers": 5,
+    "num_decoder_layers": 6,
+    "model_dim": 512,
+    "num_heads": 8,
+    "mlp_hidden": 1792,
+    "xsa_layers": 11,
+    "activation": "LeakyReLU(0.5)^2",
+    "vocab_size": 50257,
+    "tie_embeddings": true,
+    "bigram_emb": true,
+    "ve_128": true,
+    "skip_connections": true,
+    "smear_gate": true
+  },
+  "training": {
+    "steps": 7870,
+    "wallclock_cap_s": 600,
+    "optimizer": "AdamW",
+    "matrix_lr": 0.025,
+    "scalar_lr": 0.025,
+    "tied_embed_lr": 0.035,
+    "warmup_steps": 100,
+    "warmdown_steps": 6000,
+    "grad_clip": 1.0,
+    "batch_tokens": 524288,
+    "sequence_length": 1024,
+    "hardware": "8xH100"
+  },
+  "quantization": {
+    "method": "int5_per_row",
+    "compression": "zstd-22",
+    "clip_percentile": 99.9
+  },
+  "val_bpb_float": 1.1519,
+  "val_bpb_postquant": 1.14802544,
+  "quant_degradation": 0.0039,
+  "run_tag": "wave17-lr025-leakyrelu-xsa11"
+}

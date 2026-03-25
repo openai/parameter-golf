@@ -1,0 +1,69 @@
+Starting 8xH100 run: wave17-lr025-leakyrelu-xsa11
+RESULT_JSON|{"tag": "wave17-lr025-leakyrelu-xsa11", "val_bpb": 1.14802544, "status": "success", "elapsed": 1002.8583664894104}
+Result: val_bpb=1.14802544 | status=success | time=1003s
+step:0/20000 val_loss:6.9289 val_bpb:4.1037 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9307 train_time:234ms step_avg:234.14ms
+step:2/20000 train_loss:8.5267 train_time:309ms step_avg:154.26ms
+step:3/20000 train_loss:7.3045 train_time:384ms step_avg:128.00ms
+step:4/20000 train_loss:7.1602 train_time:457ms step_avg:114.33ms
+step:5/20000 train_loss:7.1269 train_time:530ms step_avg:106.00ms
+step:6/20000 train_loss:8.0662 train_time:608ms step_avg:101.36ms
+step:7/20000 train_loss:7.4682 train_time:683ms step_avg:97.55ms
+step:8/20000 train_loss:7.2557 train_time:759ms step_avg:94.92ms
+step:9/20000 train_loss:6.9576 train_time:832ms step_avg:92.48ms
+step:10/20000 train_loss:6.5713 train_time:905ms step_avg:90.46ms
+step:200/20000 train_loss:2.7447 train_time:15273ms step_avg:76.37ms
+step:400/20000 train_loss:2.2672 train_time:30476ms step_avg:76.19ms
+step:600/20000 train_loss:2.4761 train_time:45635ms step_avg:76.06ms
+step:800/20000 train_loss:2.2432 train_time:60851ms step_avg:76.06ms
+step:1000/20000 train_loss:2.3407 train_time:76075ms step_avg:76.07ms
+step:1000/20000 val_loss:2.2967 val_bpb:1.3603 train_time:76080ms step_avg:76.08ms
+step:1200/20000 train_loss:2.3558 train_time:91371ms step_avg:76.14ms
+step:1400/20000 train_loss:2.4022 train_time:106564ms step_avg:76.12ms
+step:1600/20000 train_loss:2.0777 train_time:121862ms step_avg:76.16ms
+step:1800/20000 train_loss:2.1597 train_time:137082ms step_avg:76.16ms
+step:2000/20000 train_loss:2.2052 train_time:152334ms step_avg:76.17ms
+step:2000/20000 val_loss:2.1928 val_bpb:1.2987 train_time:152339ms step_avg:76.17ms
+step:2200/20000 train_loss:2.0268 train_time:167554ms step_avg:76.16ms
+step:2400/20000 train_loss:2.1475 train_time:182834ms step_avg:76.18ms
+step:2600/20000 train_loss:2.3734 train_time:198135ms step_avg:76.21ms
+step:2800/20000 train_loss:2.1851 train_time:213409ms step_avg:76.22ms
+step:3000/20000 train_loss:2.1659 train_time:228652ms step_avg:76.22ms
+step:3000/20000 val_loss:2.1391 val_bpb:1.2669 train_time:228656ms step_avg:76.22ms
+step:3200/20000 train_loss:2.1306 train_time:243929ms step_avg:76.23ms
+step:3400/20000 train_loss:2.1030 train_time:259237ms step_avg:76.25ms
+step:3600/20000 train_loss:2.0534 train_time:274445ms step_avg:76.23ms
+step:3800/20000 train_loss:2.1546 train_time:289696ms step_avg:76.24ms
+step:4000/20000 train_loss:2.1024 train_time:304972ms step_avg:76.24ms
+step:4000/20000 val_loss:2.1038 val_bpb:1.2460 train_time:304977ms step_avg:76.24ms
+step:4200/20000 train_loss:2.1095 train_time:320533ms step_avg:76.32ms
+step:4400/20000 train_loss:2.0400 train_time:335848ms step_avg:76.33ms
+step:4600/20000 train_loss:1.8890 train_time:350971ms step_avg:76.30ms
+step:4800/20000 train_loss:2.1824 train_time:366193ms step_avg:76.29ms
+step:5000/20000 train_loss:1.9491 train_time:381373ms step_avg:76.27ms
+step:5000/20000 val_loss:2.0717 val_bpb:1.2270 train_time:381379ms step_avg:76.28ms
+step:5200/20000 train_loss:2.0877 train_time:396690ms step_avg:76.29ms
+step:5400/20000 train_loss:2.0935 train_time:411970ms step_avg:76.29ms
+step:5600/20000 train_loss:2.0907 train_time:427216ms step_avg:76.29ms
+step:5800/20000 train_loss:2.0426 train_time:442445ms step_avg:76.28ms
+step:6000/20000 train_loss:2.1173 train_time:457699ms step_avg:76.28ms
+step:6000/20000 val_loss:2.0373 val_bpb:1.2066 train_time:457703ms step_avg:76.28ms
+step:6200/20000 train_loss:1.9818 train_time:472947ms step_avg:76.28ms
+step:6400/20000 train_loss:2.0440 train_time:488149ms step_avg:76.27ms
+step:6600/20000 train_loss:1.9936 train_time:503370ms step_avg:76.27ms
+step:6800/20000 train_loss:2.0579 train_time:518510ms step_avg:76.25ms
+late_qat:enabled step:6970 scale:0.1500
+step:7000/20000 train_loss:2.0798 train_time:533621ms step_avg:76.23ms
+step:7000/20000 val_loss:1.9890 val_bpb:1.1780 train_time:533626ms step_avg:76.23ms
+step:7200/20000 train_loss:2.0388 train_time:548837ms step_avg:76.23ms
+step:7400/20000 train_loss:1.9592 train_time:564008ms step_avg:76.22ms
+step:7600/20000 train_loss:1.8279 train_time:579174ms step_avg:76.21ms
+step:7800/20000 train_loss:1.9731 train_time:594474ms step_avg:76.21ms
+step:7870/20000 val_loss:1.9449 val_bpb:1.1519 train_time:600034ms step_avg:76.24ms
+stopping_early: wallclock_cap train_time:600034ms step:7870/20000
+final_int5_zstd-22_roundtrip val_loss:1.9384 val_bpb:1.1480 eval:153460ms
+final_int5_zstd-22_roundtrip_exact val_bpb:1.14802544
+Artifact: final_model.ptz = 14,549,183 bytes (13.88 MB)
+Result: val_bpb=1.14802544 | status=success | time=1003s
+Artifact saved: /home/joe/parameter-golf/modal/../artifacts/wave17-lr025-leakyrelu-xsa11_model.ptz (14,549,183 bytes, 13.88 MB)
+*** ARTIFACT FITS: 13.88 MB <= 16.00 MB ***
