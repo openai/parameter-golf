@@ -48,7 +48,7 @@ class Hyperparameters:
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 256))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
@@ -1179,8 +1179,12 @@ def main() -> None:
     eval_stride = args.eval_stride
     if eval_stride > 0 and eval_stride < args.train_seq_len:
         log0(f"final_eval_mode:sliding_window stride:{eval_stride}")
+        compiled_logits = torch.compile(base_model.forward_logits, dynamic=False)
+        # Warmup compilation
+        _dummy = compiled_logits(torch.zeros(1, args.train_seq_len, dtype=torch.int64, device=device))
+        del _dummy
         q_val_loss, q_val_bpb = eval_val_sliding(
-            base_model.forward_logits,
+            compiled_logits,
             device,
             val_tokens,
             base_bytes_lut,
