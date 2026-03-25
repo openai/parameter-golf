@@ -1,0 +1,11 @@
+{
+  "author": "Asukabot0",
+  "val_bpb": 1.0337,
+  "seeds": [1.0329, 1.0334, 1.0349],
+  "std": 0.0010,
+  "bytes_total": 15990221,
+  "bytes_code": 85725,
+  "num_gpus": 8,
+  "gpu_type": "H100 SXM",
+  "training_time": 600
+}
