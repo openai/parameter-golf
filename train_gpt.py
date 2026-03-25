@@ -85,6 +85,8 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "0")))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -306,6 +308,16 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+INT8_GPTQ_LITE_ENABLED = bool(int(os.environ.get("INT8_GPTQ_LITE_ENABLED", "1")))
+INT8_GPTQ_LITE_MIN_NUMEL = int(os.environ.get("INT8_GPTQ_LITE_MIN_NUMEL", 262_144))
+INT8_GPTQ_LITE_PERCENTILES = tuple(
+    float(x)
+    for x in os.environ.get(
+        "INT8_GPTQ_LITE_PERCENTILES",
+        "99.9990,99.9995,99.99984,99.9999,100.0",
+    ).split(",")
+    if x
+)
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -323,6 +335,28 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
+        if INT8_GPTQ_LITE_ENABLED and t32.numel() >= INT8_GPTQ_LITE_MIN_NUMEL:
+            best_q = None
+            best_scale = None
+            best_err = None
+            for pct in INT8_GPTQ_LITE_PERCENTILES:
+                qval = min(max(float(pct) / 100.0, 0.0), 1.0)
+                if qval < 1.0:
+                    clip_abs = torch.quantile(t32.abs(), qval, dim=1)
+                else:
+                    clip_abs = t32.abs().amax(dim=1)
+                clip_abs = clip_abs.clamp_min(1.0 / 127.0)
+                clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+                scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+                q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8)
+                recon = q.float() * scale[:, None]
+                err = (t32 - recon).pow(2).mean()
+                if best_err is None or err < best_err:
+                    best_err = err
+                    best_q = q
+                    best_scale = scale
+            return best_q.contiguous(), best_scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+
         clip_abs = (
             torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
             if t32.numel()
@@ -960,6 +994,11 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
+    # Optional EMA state (single-delta experiment path).
+    ema_state: dict[str, Tensor] | None = None
+    if args.ema_enabled:
+        ema_state = {name: tensor.detach().float().clone() for name, tensor in base_model.state_dict().items()}
+
     # -----------------------------
     # MAIN TRAINING LOOP
     # -----------------------------
@@ -1031,6 +1070,11 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
             opt.step()
+        if ema_state is not None:
+            with torch.no_grad():
+                one_minus_decay = 1.0 - args.ema_decay
+                for name, tensor in base_model.state_dict().items():
+                    ema_state[name].mul_(args.ema_decay).add_(tensor.detach().float(), alpha=one_minus_decay)
         zero_grad_all()
 
         step += 1
@@ -1058,6 +1102,14 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+
+    if ema_state is not None:
+        log0("ema:applying EMA weights")
+        ema_cast_state = {
+            name: tensor.to(dtype=base_model.state_dict()[name].dtype)
+            for name, tensor in ema_state.items()
+        }
+        base_model.load_state_dict(ema_cast_state, strict=True)
 
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
