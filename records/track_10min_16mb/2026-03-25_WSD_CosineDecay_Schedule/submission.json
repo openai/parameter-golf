@@ -1,0 +1,9 @@
+{
+  "name": "WSD Cosine Decay Schedule + 10L Int5-MLP BigramHash SmearGate SWA",
+  "val_loss": 1.28242,
+  "bytes_total": 15767236,
+  "blurb": "Replace linear warmdown with Warmup-Stable-Decay (WSD) cosine schedule: 5% warmup, 75% stable at peak LR, 20% cosine decay. Built on SOTA base (10L, MLP3x, SmearGate, BigramHash 10240, SWA 0.4, int5/int6 mixed quant, zstd-22). Preliminary 1-GPU result; 8xH100 results pending.",
+  "author": "ShihChunHao",
+  "github_id": "ShihChunHao",
+  "date": "2026-03-25"
+}
