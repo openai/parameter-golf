@@ -1,0 +1,15 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "Neural Cache: Cross-Window KV Cache for Extended Eval Context (research proposal)",
+  "author": "Xiaoan Liu",
+  "github_id": "sseanliu",
+  "blurb": "Research proposal for extending effective eval context from 2K to 50K+ tokens by caching K/V pairs across sliding windows. Backward-looking, zero artifact cost, rule-compliant. Implementation provided but untested due to compute constraints. Base: PR #287 reproduction at 1.1284 BPB.",
+  "seed_results": {
+    "1337": {"val_loss": 1.90519942, "val_bpb": 1.12836940, "steps": 7009, "ms_per_step": 85.62}
+  },
+  "mean_val_bpb": 1.1284,
+  "artifact_bytes": 15532039,
+  "code_bytes": 71412,
+  "notes": "Non-record research submission. Neural Cache eval not yet validated — torch.compile interaction bug prevented valid results. Base reproduction of PR #287 confirms 1.1284 BPB (vs original 1.1271). FA3 + 8xH100 SXM."
+}
