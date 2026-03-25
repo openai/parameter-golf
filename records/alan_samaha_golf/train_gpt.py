@@ -77,7 +77,7 @@ class Hyperparameters:
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", "0.85"))
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS",   "2500"))  # longer warmup
     muon_backend_steps  = int(os.environ.get("MUON_BACKEND_STEPS",  "5"))
-    muon_weight_decay   = float(os.environ.get("MUON_WEIGHT_DECAY", "0.04"))  # decoupled WD
+    muon_weight_decay   = float(os.environ.get("MUON_WEIGHT_DECAY", "0.05"))  # decoupled WD
     beta1    = float(os.environ.get("BETA1",    "0.9"))
     beta2    = float(os.environ.get("BETA2",    "0.95"))
     adam_eps = float(os.environ.get("ADAM_EPS", "1e-8"))
@@ -275,16 +275,23 @@ def rotate_half(x: Tensor) -> Tensor:
 
 def apply_rope(q: Tensor, k: Tensor, seq_len: int, base: float = 10000.0) -> tuple[Tensor, Tensor]:
     head_dim = q.shape[-1]
+    rope_dim = 32  # Apply rotation only to first 32 dims
     device   = q.device
     dtype    = q.dtype
-    inv_freq = 1.0 / (base ** (torch.arange(0, head_dim, 2, device=device).float() / head_dim))
+    
+    inv_freq = 1.0 / (base ** (torch.arange(0, rope_dim, 2, device=device).float() / rope_dim))
     pos      = torch.arange(seq_len, device=device).float()
     freqs    = torch.einsum("i,j->ij", pos, inv_freq)
     emb      = torch.cat([freqs, freqs], dim=-1).to(dtype)
     cos      = emb.cos()[None, None, :, :]
     sin      = emb.sin()[None, None, :, :]
-    q_rot    = q * cos + rotate_half(q) * sin
-    k_rot    = k * cos + rotate_half(k) * sin
+
+    q_rope, q_pass = q[..., :rope_dim], q[..., rope_dim:]
+    k_rope, k_pass = k[..., :rope_dim], k[..., rope_dim:]
+    
+    q_rot = torch.cat([q_rope * cos + rotate_half(q_rope) * sin, q_pass], dim=-1)
+    k_rot = torch.cat([k_rope * cos + rotate_half(k_rope) * sin, k_pass], dim=-1)
+    
     return q_rot, k_rot
 
 
@@ -463,7 +470,7 @@ def quantize_state_dict_int8(state_dict: dict):
         stats["num_tensors"]           += 1
         stats["baseline_tensor_bytes"] += tensor_nbytes(t)
 
-        if not t.is_floating_point():
+        if not t.is_floating_point() or "embed" in name:
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = t
             stats["int8_payload_bytes"]  += tensor_nbytes(t)
