@@ -1,0 +1,9 @@
+{
+  "name": "7-Gram Entropy-Adaptive Cache + XSA-all + EBLS Layer Sharing",
+  "val_bpb": 0.9623,
+  "bytes_total": 15888067,
+  "blurb": "Multi-order backward-looking 7-gram cache (PPM variant, orders 2-7) with entropy-adaptive alpha blending. EBLS (3 shared blocks, LoRA rank 8), XSA-all(11), LeakyReLU(0.5)^2, Val-GPTQ int6 + LZMA. Strictly causal: cache updates only after each token is scored, no oracle/min(NLL) selection. 3-seed mean: 0.9623 (std 0.0009).",
+  "author": "Robert Sneiderman",
+  "github_id": "Robby955",
+  "date": "2026-03-25"
+}
