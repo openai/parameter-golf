@@ -1,0 +1,17 @@
+{
+  "author": "Siddhant Gupta",
+  "github_id": "siddhantparadox",
+  "name": "Frugendorff Squared Legalized Host",
+  "blurb": "Unlimited compute track: shared-weight Frugendorff-derived host on 1x H100 SXM with XSA-last-2, VE, late QAT, and int6+zstd export; post-EMA reached 1.1629 BPB at wallclock stop and final sliding-window exact scored 1.15315937 at 15,923,834 total bytes.",
+  "date": "2026-03-25T15:32:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.94705614,
+  "val_bpb": 1.15315937,
+  "pre_quant_val_loss": 1.9635,
+  "pre_quant_val_bpb": 1.1629,
+  "step_stop": 4121,
+  "wallclock_seconds": 4800.619,
+  "bytes_total": 15923834,
+  "bytes_model_int6_zstd": 15848577,
+  "bytes_code": 75257
+}
