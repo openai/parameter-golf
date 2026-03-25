@@ -60,7 +60,7 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 3.5))
+    mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -83,9 +83,9 @@ class Hyperparameters:
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 1536))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
 
     use_smeargate = bool(int(os.environ.get("USE_SMEARGATE", "1")))
@@ -1538,11 +1538,11 @@ def main() -> None:
         zero_grad_all()
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
-    # --- EMA + SWA STATE INIT ---
+    # --- EMA + SWA STATE INIT (keep on GPU for speed) ---
     ema_state: dict[str, Tensor] = {}
     if args.use_ema:
         for name, t in base_model.state_dict().items():
-            ema_state[name] = t.detach().float().cpu().clone()
+            ema_state[name] = t.detach().float().clone()  # stays on GPU
 
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
@@ -1632,7 +1632,7 @@ def main() -> None:
         if args.use_ema:
             with torch.no_grad():
                 for name, t in base_model.state_dict().items():
-                    ema_state[name].mul_(args.ema_decay).add_(t.detach().float().cpu(), alpha=1.0 - args.ema_decay)
+                    ema_state[name].mul_(args.ema_decay).add_(t.detach().float(), alpha=1.0 - args.ema_decay)
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
