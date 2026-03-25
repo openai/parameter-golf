@@ -1,0 +1,12 @@
+{
+  "author": "skytuhua",
+  "github_id": "skytuhua",
+  "name": "12L Int5-MLP BigramHash10K EMA GPTQ-lite",
+  "blurb": "12-layer GPT with mixed Int5/Int6 quantization, BigramHash(10240), EMA(0.997), GPTQ-lite clip search, late QAT, SmearGate, XSA last 4, partial RoPE, sliding window eval stride=64. Built on PR#414 SOTA stack.",
+  "date": "2026-03-23T00:00:00Z",
+  "val_loss": 1.93767556,
+  "val_bpb": 1.14760365,
+  "bytes_total": 15497769,
+  "bytes_model_int6_zstd": 15411791,
+  "bytes_code": 85978
+}
