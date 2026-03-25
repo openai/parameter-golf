@@ -20,7 +20,7 @@ Ablations are run from the base train_gpt.py script for a fixed 10k steps. MLP e
 
 ASQU extends ReLU^2 by learning a per-channel scaling for the negative branch.
 
-Per-channel parameterization provides ~0.0013 bpb over learning a global scalar.
+Per-channel parameterization provides ~0.001 bpb over learning a global scalar.
 
 ---
 
