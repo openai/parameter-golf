@@ -1,0 +1,30 @@
+{
+  "author": "gthgomez",
+  "github_id": "gthgomez",
+  "name": "Local Ablation Pipeline: GTX 1650 — EMA + Int6 + Partial RoPE + LN Scale + Weight Decay",
+  "blurb": "Dev-hardware (GTX 1650, 4 GB VRAM, SM 7.5) local ablation pipeline porting proven techniques from leaderboard entries #1 and #2. All features validated via 200-step medium-scale runs: EMA (decay sweep 0.97/0.997), int6 clip-search quantizer, partial RoPE (ROPE_DIMS=16), LN scale (1/sqrt(layer+1)), Muon/Adam decoupled weight decay, and MLP_MULT float support. Not a competition-scale submission — intended to validate code paths and stage the feature set for a future 8x H100 run.",
+  "date": "2026-03-25T00:00:00Z",
+  "track": "non-record-dev-hardware-16mb",
+  "hardware": "NVIDIA GTX 1650 (4 GB VRAM, SM 7.5, no FlashAttention, no torch.compile on Windows)",
+  "val_bpb": 2.52733178,
+  "pre_quant_val_bpb": 2.5274,
+  "note": "200-step local ablation run, seq_len=512, batch=4096 tokens. NOT competition-scale. val_bpb reflects EMA+int8 roundtrip on a 17M-param 9L model. Full competition config (11L, MLP_MULT=3.0, seq_len=2048, 7000+ steps) requires 8xH100.",
+  "step_stop": 200,
+  "wallclock_seconds": 208.147,
+  "bytes_total": 11083572,
+  "bytes_model_int8_zlib": 11028065,
+  "bytes_model_int6_zlib": 6706360,
+  "bytes_code": 55507,
+  "features": [
+    "NO_COMPILE / math SDP fallback for SM<8.0 (GTX compatibility patch)",
+    "MAX_VAL_SEQS cap for fast local validation",
+    "EMA (EMA_DECAY env var, default off, competition value 0.997)",
+    "int6 clip-search quantizer (5-percentile search per row, values in [-31,31])",
+    "int6 A/B comparison at export time",
+    "Partial RoPE (ROPE_DIMS env var, default 0=full)",
+    "LN Scale 1/sqrt(layer+1) on attn+mlp norms (LN_SCALE env var)",
+    "Muon decoupled weight decay (MUON_WD env var)",
+    "AdamW for tok/scalar optimizers (ADAM_WD env var)",
+    "MLP_MULT float support (enables MLP_MULT=3.0)"
+  ]
+}
