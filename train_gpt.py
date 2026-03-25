@@ -63,7 +63,7 @@ class Hyperparameters:
     # Model shape (vocab=1024 saves ~885KB vs 4096, allowing d=288/L=14)
     vocab_size   = int(os.environ.get("VOCAB_SIZE",   "1024"))
     num_layers   = int(os.environ.get("NUM_LAYERS",   "14"))
-    model_dim    = int(os.environ.get("MODEL_DIM",    "304"))
+    model_dim    = int(os.environ.get("MODEL_DIM",    "352"))  # ~15.4MB trained (96% budget)
     num_heads    = int(os.environ.get("NUM_HEADS",    "8"))
     ffn_mult     = int(os.environ.get("FFN_MULT",     "3"))   # SwiGLU hidden = ffn_mult * d
     attn_every   = int(os.environ.get("ATTN_EVERY",   "3"))   # attention every N layers
