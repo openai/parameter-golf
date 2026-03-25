@@ -39,6 +39,19 @@ import mlx.core as mx
 import mlx.nn as nn
 from mlx.utils import tree_unflatten
 
+# Track which architecture shapes have been warmed up in this process.
+# Key: tuple of shape-affecting hyperparameters. Value: True.
+_WARMED_ARCHITECTURES: set[tuple] = set()
+
+
+def _arch_key(args) -> tuple:
+    """Extract architecture-affecting params that determine Metal shader shapes."""
+    return (
+        args.vocab_size, args.num_layers, args.model_dim, args.num_heads,
+        args.num_kv_heads, args.mlp_mult, args.train_seq_len,
+        args.mlx_max_microbatch_tokens, args.grad_accum_steps,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Environment override context manager
@@ -264,7 +277,11 @@ def train_single_run(
     )
 
     # --- Warmup phase (lines 963-996 of train_gpt_mlx.py) ---
-    if args.warmup_steps > 0:
+    # Skip warmup if this architecture was already primed in a prior run.
+    # Metal shaders are cached per tensor shape — no need to re-prime.
+    arch = _arch_key(args)
+    need_warmup = arch not in _WARMED_ARCHITECTURES and args.warmup_steps > 0
+    if need_warmup:
         for _warmup_step in range(args.warmup_steps):
             accum: dict[str, mx.array] | None = None
             warmup_loss = mx.array(0.0, dtype=mx.float32)
@@ -299,6 +316,7 @@ def train_single_run(
             ctx.train_files_pattern,
             dataset_name=ctx.dataset_name,
         )
+        _WARMED_ARCHITECTURES.add(arch)
 
     # --- Training loop (lines 998-1057 of train_gpt_mlx.py) ---
     train_time_ms = 0.0
