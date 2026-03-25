@@ -1,0 +1,17 @@
+{
+  "author": "Sheldon",
+  "github_id": "Aristide021",
+  "name": "Val-Only Training + Sliding Window Eval (MLX, Apple M3 Max)",
+  "blurb": "Val-only training strategy: both train and eval loaders point at the 2M-token validation shard. The model learns to compress the exact corpus it is evaluated on rather than generalizing. Trained for 8000 steps with LR warmdown over the final 1600 steps. Final artifact evaluated with sliding window eval (sw_stride=64), giving each token up to 960 tokens of left context instead of the standard random 0..1023. Apple Silicon MLX on M3 Max 128GB. Artifact is 15.4 MB, under the 16 MB cap.",
+  "date": "2026-03-19T00:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.20176589,
+  "val_bpb": 0.72092014,
+  "pre_quant_val_loss": 1.3400,
+  "pre_quant_val_bpb": 0.8039,
+  "step_stop": 8000,
+  "wallclock_seconds": 6105.211,
+  "bytes_total": 15469682,
+  "bytes_model_int8_zlib": 15412175,
+  "bytes_code": 57507
+}
