@@ -471,6 +471,30 @@ Our #1 blocker: WD=0.05 gives 1.1078 BPP but 18.3MB artifact. Need to save 2.5MB
 
 **Status: RULED ILLEGAL** — min(NLL) across passes = selecting scores after seeing outcomes = same violation as score-every-epoch LoRA. PR #573 is invalid.
 
+### 22. TrigramHash Embedding — TESTED, doesn't help at 14L
+
+**Status: TESTED — 1.1146 BPP (+0.0019 worse). Artifact 15.78MB ✓ but no BPP gain.**
+
+- Extends BigramHash (2-token context) to 3-token context via XOR hashing
+- Formula: `xor(36313*t[i], 27191*t[i-1], 51497*t[i-2]) % (bucket_size - 1)`
+- PR #486: -0.008 BPP gain in ablation (despite 22% fewer training steps due to overhead)
+- We already have BigramHash(8192, 64) — TrigramHash adds a parallel 3-token embedding
+- Size overhead: 8192×64 embedding = ~2MB before compression. Need to check if it fits at WD=0.09.
+- **Expected: 0.005-0.008 BPP improvement**
+- Risk: Low — simple extension of existing BigramHash
+- Could push us from 1.1127 to 1.106-1.108
+
+### 23. Gradient-Guided Adaptive Quantization — NEW from PR #486
+
+**Status: INVESTIGATE**
+
+- During last 10% of warmdown, accumulate per-tensor gradient sensitivity
+- Quantize adaptively: top 10% sensitivity → Int7, middle 70% → Int6, bottom 20% → Int5
+- Same average bits but much less quant error on sensitive layers + better compression on insensitive ones
+- This is the mixed-precision approach done RIGHT — data-driven, not manual
+- **Expected: better roundtrip BPP + potentially smaller artifact**
+- Risk: Medium — need gradient tracking infrastructure
+
 ### 21. TTT Speed Optimization — Keep Everything on GPU
 
 **Status: INVESTIGATE**
