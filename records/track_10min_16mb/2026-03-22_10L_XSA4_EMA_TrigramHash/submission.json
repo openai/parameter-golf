@@ -1,0 +1,9 @@
+{
+  "name": "10L + XSA(last4) + EMA + TrigramHash + Int5MLP + BigramHash(10240) + OrthoInit + MuonWD=0.04",
+  "val_loss": null,
+  "bytes_total": null,
+  "blurb": "10 layers with XSA (Exclusive Self Attention, arXiv:2603.09078) on last 4 layers, EMA weight averaging (decay=0.997), and TrigramHash embedding (1024 buckets, dim=64) for 3-gram context. BigramHash restored to 10240 buckets (same as SOTA). Mixed int5(MLP)/int6(attn,bigram,trigram) + int8(embed tables) + zstd-22. Mean of 3 seeds: TBD.",
+  "author": "vighaneshs",
+  "github_id": "vighaneshs",
+  "date": "2026-03-22"
+}
