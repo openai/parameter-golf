@@ -547,11 +547,11 @@ class CausalSelfAttention(nn.Module):
         if flash_attn_3_func is not None and x.is_cuda:
             y = flash_attn_3_func(q, k, v, causal=True)
         else:
-            # Repeat KV heads for T4
+            # Repeat KV heads for T4 (k,v are [bsz, seqlen, num_kv_heads, head_dim])
             if self.num_kv_heads != self.num_heads:
                 _nrep = self.num_heads // self.num_kv_heads
-                k = k.unsqueeze(2).expand(-1,-1,_nrep,-1,-1).reshape(k.shape[0],self.num_heads,k.shape[2],k.shape[3])
-                v = v.unsqueeze(2).expand(-1,-1,_nrep,-1,-1).reshape(v.shape[0],self.num_heads,v.shape[2],v.shape[3])
+                k = k.unsqueeze(3).expand(-1, -1, -1, _nrep, -1).reshape(bsz, seqlen, self.num_heads, self.head_dim)
+                v = v.unsqueeze(3).expand(-1, -1, -1, _nrep, -1).reshape(bsz, seqlen, self.num_heads, self.head_dim)
             y = F.scaled_dot_product_attention(
                 q.transpose(1, 2),
                 k.transpose(1, 2),
