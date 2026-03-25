@@ -87,6 +87,8 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
     # Late QAT: activate STE int6 fake-quantization when LR scale drops below this threshold
     late_qat_lr_threshold = float(os.environ.get("LATE_QAT_LR_THRESHOLD", 0.15))
+    # Late QAT min step guard: only activate after this many steps (prevents smoke-test false triggers)
+    late_qat_min_step = int(os.environ.get("LATE_QAT_MIN_STEP", 500))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -1060,7 +1062,7 @@ def main() -> None:
 
         # Late QAT (Step 7): activate STE int6 fake-quant when LR scale drops below threshold
         global _late_qat_active
-        new_qat_state = scale < args.late_qat_lr_threshold
+        new_qat_state = scale < args.late_qat_lr_threshold and step >= args.late_qat_min_step
         if new_qat_state and not _late_qat_active:
             log0(f"late_qat:activating step:{step} lr_scale:{scale:.4f}")
         _late_qat_active = new_qat_state
