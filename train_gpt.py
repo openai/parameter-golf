@@ -363,7 +363,7 @@ def eval_val_ngram(
     args: Hyperparameters, base_model: nn.Module, rank: int, world_size: int,
     device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
-    stride: int = 64, batch_size: int = 16,
+    stride: int = 64, batch_size: int = 256,
 ) -> tuple[float, float]:
     seq_len, vocab = args.train_seq_len, args.vocab_size
     total_tokens = val_tokens.numel()
@@ -1035,6 +1035,7 @@ def main() -> None:
     global zeropower_via_newtonschulz5
 
     code = Path(__file__).read_text(encoding="utf-8")
+    eval_only = bool(int(os.environ.get("EVAL_ONLY", "0")))
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
@@ -1243,9 +1244,12 @@ def main() -> None:
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
-    # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
-    # initial weights/optimizer state so measured training starts from the true init.
-    if args.warmup_steps > 0:
+    if eval_only:
+        log0("eval_only: skipping training, loading final_model.int6.ptz")
+        with open("final_model.int6.ptz", "rb") as f:
+            base_model.load_state_dict(dequantize_state_dict_int8(
+                torch.load(io.BytesIO(lzma.decompress(f.read())), map_location="cpu")), strict=True)
+    if not eval_only and args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
@@ -1275,16 +1279,17 @@ def main() -> None:
     # MAIN TRAINING LOOP
     # -----------------------------
 
-    training_time_ms = 0.0
-    stop_after_step: int | None = None
-    ema_state = {k: v.detach().clone().float() for k, v in base_model.state_dict().items()}
-    swa_state: dict[str, Tensor] | None = None
-    swa_count = 0
-    torch.cuda.synchronize()
-    t0 = time.perf_counter()
+    if not eval_only:
+        training_time_ms = 0.0
+        stop_after_step: int | None = None
+        ema_state = {k: v.detach().clone().float() for k, v in base_model.state_dict().items()}
+        swa_state: dict[str, Tensor] | None = None
+        swa_count = 0
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
 
     step = 0
-    while True:
+    while not eval_only:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
         should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
@@ -1381,59 +1386,52 @@ def main() -> None:
         if stop_after_step is None and reached_cap:
             stop_after_step = step
 
-    log0(
-        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
-        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
-    )
-
-    # -----------------------------
-    # SERIALIZATION + ROUNDTRIP VALIDATION
-    # -----------------------------
-    # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
-    # the compressed int8+zlib artifact and validate the round-tripped weights.
-
-    ema_state = {k: v.cpu() for k, v in ema_state.items()}
-    if swa_state is not None and swa_count > 0:
-        log0(f"swa: averaging {swa_count} checkpoints on top of EMA")
-        for k in swa_state:
-            swa_state[k] /= swa_count
-            ema_state[k] = 0.5 * ema_state[k] + 0.5 * swa_state[k]
-        del swa_state
-    log0("ema: loading weights")
-    base_model.load_state_dict(ema_state, strict=True)
-    for module in base_model.modules():
-        if isinstance(module, CastedLinear):
-            module.float()
-    restore_low_dim_params_to_fp32(base_model)
-    del ema_state
-    if master_process:
-        torch.save(base_model.state_dict(), "final_model.pt")
-        model_bytes = os.path.getsize("final_model.pt")
-        code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model: {model_bytes} bytes")
-        log0(f"Code size: {code_bytes} bytes")
-        log0(f"Total submission size: {model_bytes + code_bytes} bytes")
-
-    quant_obj, quant_stats = quantize_state_dict_int6(base_model.state_dict())
-    quant_buf = io.BytesIO()
-    torch.save(quant_obj, quant_buf)
-    quant_raw = quant_buf.getvalue()
-    quant_blob = lzma.compress(quant_raw, preset=6)
-    quant_raw_bytes = len(quant_raw)
-    if master_process:
-        with open("final_model.int6.ptz", "wb") as f:
-            f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int6.ptz")
-        code_bytes = len(code.encode("utf-8"))
-        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+    if not eval_only:
         log0(
-            f"Serialized model int6+lzma: {quant_file_bytes} bytes "
-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
+            f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+            f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
         )
-        log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
+        ema_state = {k: v.cpu() for k, v in ema_state.items()}
+        if swa_state is not None and swa_count > 0:
+            log0(f"swa: averaging {swa_count} checkpoints on top of EMA")
+            for k in swa_state:
+                swa_state[k] /= swa_count
+                ema_state[k] = 0.5 * ema_state[k] + 0.5 * swa_state[k]
+            del swa_state
+        log0("ema: loading weights")
+        base_model.load_state_dict(ema_state, strict=True)
+        for module in base_model.modules():
+            if isinstance(module, CastedLinear):
+                module.float()
+        restore_low_dim_params_to_fp32(base_model)
+        del ema_state
+        if master_process:
+            torch.save(base_model.state_dict(), "final_model.pt")
+            model_bytes = os.path.getsize("final_model.pt")
+            code_bytes = len(code.encode("utf-8"))
+            log0(f"Serialized model: {model_bytes} bytes")
+            log0(f"Code size: {code_bytes} bytes")
+            log0(f"Total submission size: {model_bytes + code_bytes} bytes")
+        quant_obj, quant_stats = quantize_state_dict_int6(base_model.state_dict())
+        quant_buf = io.BytesIO()
+        torch.save(quant_obj, quant_buf)
+        quant_raw = quant_buf.getvalue()
+        quant_blob = lzma.compress(quant_raw, preset=6)
+        quant_raw_bytes = len(quant_raw)
+        if master_process:
+            with open("final_model.int6.ptz", "wb") as f:
+                f.write(quant_blob)
+            quant_file_bytes = os.path.getsize("final_model.int6.ptz")
+            code_bytes = len(code.encode("utf-8"))
+            ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+            log0(
+                f"Serialized model int6+lzma: {quant_file_bytes} bytes "
+                f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
+            )
+            log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
+        if distributed:
+            dist.barrier()
 
-    if distributed:
-        dist.barrier()
     with open("final_model.int6.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(lzma.decompress(quant_blob_disk)), map_location="cpu")
