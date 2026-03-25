@@ -413,90 +413,27 @@ def append_experiment(existing: dict, raw_runs_path: str) -> dict:
 # Main extraction pipeline
 # ---------------------------------------------------------------------------
 
-_BASELINE_BPB_RE = re.compile(
-    r"(?:baseline|previous|base)[:\s]*(\d+\.\d{3,})", re.IGNORECASE
-)
-_ARROW_CHAIN_RE = re.compile(
-    r"(\d+\.\d{3,})\s*\)?\s*(?:->|→)\s*(?:this|$)", re.IGNORECASE
-)
-# Match "Baseline ... val_bpb | 1.2278" in table rows
-_BASELINE_TABLE_RE = re.compile(
-    r"[Bb]aseline.*?\|\s*(\d+\.\d{3,})\s*\|",
-)
-# Match "Naive Baseline.*1.2243" patterns
-_NAIVE_BASELINE_RE = re.compile(
-    r"[Nn]aive\s+[Bb]aseline.*?(\d+\.\d{3,})",
-)
-# Match "(default) | 1.2286" patterns in sweep tables
-_DEFAULT_ROW_RE = re.compile(
-    r"\(default\).*?\|\s*(\d+\.\d{3,})",
-)
-# Match "SOTA (1.2244 BPB" or "SOTA (1.2244"
-_SOTA_RE = re.compile(
-    r"SOTA\s*\(\s*(\d+\.\d{3,})", re.IGNORECASE
-)
-# Match "Naive Baseline | ... | 1.2244 |" in tables
-_BASELINE_ROW_BPB_RE = re.compile(
-    r"[Nn]aive\s+[Bb]aseline\s*\|.*?\|\s*\*?\*?(\d+\.\d{3,})",
-)
+# Ordered list of (compiled_regex, group_index) for base_bpb extraction.
+# Tried in priority order; first valid match wins.
+_BASE_BPB_PATTERNS = [
+    re.compile(r"[Bb]aseline.*?\|\s*(\d+\.\d{3,})\s*\|"),                      # table row
+    re.compile(r"[Nn]aive\s+[Bb]aseline.*?(\d+\.\d{3,})"),                     # prose
+    re.compile(r"(?:baseline|previous|base)[:\s]*(\d+\.\d{3,})", re.IGNORECASE),# generic
+    re.compile(r"\(default\).*?\|\s*(\d+\.\d{3,})"),                           # sweep table
+    re.compile(r"SOTA\s*\(\s*(\d+\.\d{3,})", re.IGNORECASE),                   # SOTA ref
+    re.compile(r"[Nn]aive\s+[Bb]aseline\s*\|.*?\|\s*\*?\*?(\d+\.\d{3,})"),    # table w/ bold
+    re.compile(r"(\d+\.\d{3,})\s*\)?\s*(?:->|→)\s*(?:this|$)", re.IGNORECASE), # arrow chain
+]
 
 
 def _extract_base_bpb_from_prose(readme: str) -> float | None:
-    """Try to extract base_bpb from prose references like 'baseline: 1.2244'
-    or arrow chains like '1.1271) -> this'."""
-
-    def _valid_bpb(val: float) -> bool:
-        return 1.0 < val < 2.0  # reasonable BPB range for this competition
-
-    # Check for "Baseline ... | val_bpb | X.XXXX" in table rows
-    m = _BASELINE_TABLE_RE.search(readme)
-    if m:
-        val = float(m.group(1))
-        if _valid_bpb(val):
-            return val
-
-    # Check for "Naive Baseline ... 1.2244"
-    m = _NAIVE_BASELINE_RE.search(readme)
-    if m:
-        val = float(m.group(1))
-        if _valid_bpb(val):
-            return val
-
-    # Check for "baseline: X.XXXX" patterns
-    m = _BASELINE_BPB_RE.search(readme)
-    if m:
-        val = float(m.group(1))
-        if _valid_bpb(val):
-            return val
-
-    # Check for "(default) | 1.2286" in sweep tables
-    m = _DEFAULT_ROW_RE.search(readme)
-    if m:
-        val = float(m.group(1))
-        if _valid_bpb(val):
-            return val
-
-    # Check for "SOTA (1.2244 BPB"
-    m = _SOTA_RE.search(readme)
-    if m:
-        val = float(m.group(1))
-        if _valid_bpb(val):
-            return val
-
-    # Check for "Naive Baseline | ... | 1.2244 |" in table rows
-    m = _BASELINE_ROW_BPB_RE.search(readme)
-    if m:
-        val = float(m.group(1))
-        if _valid_bpb(val):
-            return val
-
-    # Check for arrow chain ending in "this"
-    m = _ARROW_CHAIN_RE.search(readme)
-    if m:
-        val = float(m.group(1))
-        if _valid_bpb(val):
-            return val
-
+    """Try to extract base_bpb from prose references. Checks patterns in priority order."""
+    for pattern in _BASE_BPB_PATTERNS:
+        m = pattern.search(readme)
+        if m:
+            val = float(m.group(1))
+            if 1.0 < val < 2.0:  # reasonable BPB range
+                return val
     return None
 
 

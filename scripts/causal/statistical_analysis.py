@@ -58,7 +58,7 @@ def _load_raw_runs(path: str) -> dict:
 def _extract_paired_bpbs(raw: dict) -> tuple[list[float], list[float], list[int], str]:
     """Extract matched treatment/control BPB pairs, skipping error results.
 
-    Returns (treatment_bpbs, control_bpbs, valid_seeds, platform).
+    Returns (treatment_bpbs, control_bpbs, valid_seeds, platform, skipped_seeds).
     """
     platform = raw.get("platform", "unknown")
     treatment_results = raw["treatment"]["results"]
@@ -70,19 +70,28 @@ def _extract_paired_bpbs(raw: dict) -> tuple[list[float], list[float], list[int]
     treatment_bpbs: list[float] = []
     control_bpbs: list[float] = []
     valid_seeds: list[int] = []
+    skipped_seeds: list[dict] = []
 
     for tr in treatment_results:
-        if "error" in tr:
-            continue
         seed = tr["seed"]
+        if "error" in tr:
+            skipped_seeds.append({"seed": seed, "reason": f"treatment error: {tr['error']}"})
+            continue
+        if tr.get("val_bpb") is None:
+            skipped_seeds.append({"seed": seed, "reason": "treatment val_bpb is None"})
+            continue
         cr = control_by_seed.get(seed)
         if cr is None or "error" in cr:
+            skipped_seeds.append({"seed": seed, "reason": "control missing or error"})
+            continue
+        if cr.get("val_bpb") is None:
+            skipped_seeds.append({"seed": seed, "reason": "control val_bpb is None"})
             continue
         treatment_bpbs.append(tr["val_bpb"])
         control_bpbs.append(cr["val_bpb"])
         valid_seeds.append(seed)
 
-    return treatment_bpbs, control_bpbs, valid_seeds, platform
+    return treatment_bpbs, control_bpbs, valid_seeds, platform, skipped_seeds
 
 
 def analyse_raw_runs(
@@ -106,7 +115,7 @@ def analyse_raw_runs(
 
     for i, path in enumerate(input_paths):
         raw = _load_raw_runs(path)
-        treatment_bpbs, control_bpbs, valid_seeds, platform = _extract_paired_bpbs(raw)
+        treatment_bpbs, control_bpbs, valid_seeds, platform, skipped = _extract_paired_bpbs(raw)
 
         if len(treatment_bpbs) < 2:
             # Need at least 2 pairs for t-test
@@ -136,6 +145,7 @@ def analyse_raw_runs(
             "p_value": p_value,
             "p_value_corrected": p_value,  # Updated after correction
             "decision": "",  # Updated after correction
+            "skipped_seeds": skipped,
         })
         raw_p_values.append(p_value)
         platform_effects[platform] = mean_diff

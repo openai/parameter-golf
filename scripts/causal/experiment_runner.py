@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import re
 import subprocess
@@ -31,7 +32,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 _VAL_BPB_RE = re.compile(r"val_bpb[:\s]+(\d+\.\d+)")
 
 # Default timeout buffer added on top of MAX_WALLCLOCK_SECONDS
-_TIMEOUT_BUFFER_S = 120
+# MLX cold-start compilation can take 5-10 minutes on first run
+_TIMEOUT_BUFFER_S = 600
 _DEFAULT_WALLCLOCK_S = 600
 
 # Platform script mapping
@@ -136,7 +138,6 @@ def _run_single_seed(
         env[key] = val
 
     script = cfg["script"]
-    cmd = [sys.executable, script]
 
     result: dict[str, Any] = {
         "seed": seed,
@@ -147,6 +148,11 @@ def _run_single_seed(
         "train_log_path": None,
     }
 
+    # Resolve script path and ensure cwd is the repo root
+    repo_root = str(Path(__file__).resolve().parents[2])
+    script_path = Path(repo_root) / script if not Path(script).is_absolute() else Path(script)
+    cmd = [sys.executable, str(script_path)]
+
     start_time = time.monotonic()
     try:
         proc = subprocess.run(
@@ -155,6 +161,7 @@ def _run_single_seed(
             text=True,
             timeout=timeout,
             env=env,
+            cwd=repo_root,
         )
         wall_time = time.monotonic() - start_time
         result["wall_time_s"] = round(wall_time, 2)
@@ -210,11 +217,48 @@ def run_condition(
     cfg: dict,
     seeds: list[int],
     timeout: float | None = None,
+    *,
+    inprocess_ctx=None,
 ) -> list[dict]:
     """Run a condition (treatment or control) across all seeds.
 
+    Args:
+        cfg: Config dict with 'script' and 'env_overrides'.
+        seeds: List of random seeds for paired design.
+        timeout: Per-seed subprocess timeout (ignored in in-process mode).
+        inprocess_ctx: If provided (SharedTrainingContext), runs training
+            in-process avoiding subprocess overhead. Falls back to subprocess
+            on failure.
+
     Returns list of per-seed result dicts.
     """
+    # In-process path (avoids subprocess MLX warmup overhead)
+    if inprocess_ctx is not None:
+        from scripts.causal.inprocess_trainer import train_single_run
+        results = []
+        for seed in seeds:
+            try:
+                iters = int(cfg.get("env_overrides", {}).get("ITERATIONS", "20000"))
+                val_every = int(cfg.get("env_overrides", {}).get("VAL_LOSS_EVERY", "0"))
+                warmup = int(cfg.get("env_overrides", {}).get("WARMUP_STEPS", "1"))
+                warmdown = int(cfg.get("env_overrides", {}).get("WARMDOWN_ITERS", "0"))
+                r = train_single_run(
+                    inprocess_ctx, cfg.get("env_overrides", {}),
+                    seed=seed, iterations=iters, val_loss_every=val_every,
+                    warmup_steps=warmup, warmdown_iters=warmdown,
+                )
+                results.append(r)
+            except Exception as e:
+                logging.warning("In-process seed=%d failed (%s), falling back to subprocess", seed, e)
+                if timeout is None:
+                    wallclock = int(cfg.get("env_overrides", {}).get(
+                        "MAX_WALLCLOCK_SECONDS", str(_DEFAULT_WALLCLOCK_S)
+                    ))
+                    timeout = wallclock + _TIMEOUT_BUFFER_S
+                results.append(_run_single_seed(cfg, seed, timeout))
+        return results
+
+    # Subprocess path
     if timeout is None:
         wallclock = int(cfg.get("env_overrides", {}).get(
             "MAX_WALLCLOCK_SECONDS", str(_DEFAULT_WALLCLOCK_S)
@@ -269,6 +313,8 @@ def main(argv: list[str] | None = None) -> None:
                         help="Comma-separated seed list (default: 42,137,256)")
     parser.add_argument("--platform", choices=["mlx", "h100"], default="mlx",
                         help="Platform to run on (default: mlx)")
+    parser.add_argument("--inprocess", action="store_true",
+                        help="Run training in-process (avoids subprocess overhead)")
     args = parser.parse_args(argv)
 
     seeds = [int(s.strip()) for s in args.seeds.split(",")]
@@ -277,12 +323,24 @@ def main(argv: list[str] | None = None) -> None:
     treatment_cfg = validate_config(load_config(args.treatment))
     control_cfg = validate_config(load_config(args.control))
 
+    # Create in-process context if requested
+    inprocess_ctx = None
+    if args.inprocess:
+        from scripts.causal.inprocess_trainer import create_shared_context
+        inprocess_ctx = create_shared_context(
+            data_path="./data/datasets/fineweb10B_sp1024",
+            tokenizer_path="./data/tokenizers/fineweb_1024_bpe.model",
+            vocab_size=1024,
+            train_seq_len=1024,
+        )
+        print("In-process mode enabled")
+
     # Run both conditions
     print(f"Running treatment: {treatment_cfg.get('description', 'N/A')}")
-    treatment_results = run_condition(treatment_cfg, seeds)
+    treatment_results = run_condition(treatment_cfg, seeds, inprocess_ctx=inprocess_ctx)
 
     print(f"Running control: {control_cfg.get('description', 'N/A')}")
-    control_results = run_condition(control_cfg, seeds)
+    control_results = run_condition(control_cfg, seeds, inprocess_ctx=inprocess_ctx)
 
     # Classify results
     treatment_status = _classify_condition(treatment_results)

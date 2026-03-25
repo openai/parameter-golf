@@ -232,10 +232,11 @@ def run_decomposition(
     }
 
     # BPB conversion
-    aggregate_bpb = aggregate_loss / ln2  # Simplified; real BPB needs token/byte ratio
+    # Approximate BPB (loss/ln2). Real competition BPB multiplies by token/byte ratio.
+    aggregate_bpb_approx = aggregate_loss / ln2
 
     result: dict[str, Any] = {
-        "aggregate_bpb": aggregate_bpb,
+        "aggregate_bpb_approx": aggregate_bpb_approx,
         "decomposition_check": decomp_check,
         "by_frequency_bucket": freq_stats,
         "by_context_type": by_context,
