@@ -370,15 +370,17 @@ def eval_val_ttt(
     for i in range(args.ttt_freeze_blocks):
         for name, _ in base_model.blocks[i].named_parameters():
             frozen_names.add(f"blocks.{i}.{name}")
+    for name, param in base_model.named_parameters():
+        param.requires_grad_(name not in frozen_names)
+    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+    ttt_opt = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=0.9)
     total_loss = torch.zeros((), device=device, dtype=torch.float64)
     total_tokens_counted = torch.zeros((), device=device, dtype=torch.float64)
     total_bytes = torch.zeros((), device=device, dtype=torch.float64)
-    for ci in my_chunks:
-        base_model.load_state_dict(original_state, strict=True)
+    for idx, ci in enumerate(my_chunks):
         start = ci * chunk_size
         chunk = val_tokens[start:min(start + chunk_size + 1, val_tokens.numel())].to(device=device, dtype=torch.int64)
-        if chunk.numel() < 2:
-            continue
+        if chunk.numel() < 2: continue
         x_chunk, y_chunk = chunk[:-1].unsqueeze(0), chunk[1:].unsqueeze(0)
         actual_len = x_chunk.shape[1]
         base_model.eval()
@@ -393,9 +395,6 @@ def eval_val_ttt(
                 tb = base_bytes_lut[sy[0]].to(dtype=torch.int16)
                 tb += (has_leading_space_lut[sy[0]] & ~is_boundary_token_lut[sx[0]]).to(dtype=torch.int16)
                 total_bytes += tb.to(torch.float64).sum()
-        for name, param in base_model.named_parameters():
-            param.requires_grad_(name not in frozen_names)
-        ttt_opt = torch.optim.SGD([p for p in base_model.parameters() if p.requires_grad], lr=args.ttt_lr, momentum=0.9)
         base_model.train()
         for _ in range(args.ttt_epochs):
             for s in range(0, actual_len - seq_len + 1, seq_len):
@@ -403,9 +402,10 @@ def eval_val_ttt(
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     loss = base_model(x_chunk[:, s:s + seq_len], y_chunk[:, s:s + seq_len])
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
                 ttt_opt.step()
-        for param in base_model.parameters():
-            param.requires_grad_(True)
+    for param in base_model.parameters():
+        param.requires_grad_(True)
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
         dist.all_reduce(total_tokens_counted, op=dist.ReduceOp.SUM)
@@ -482,20 +482,14 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
 def quantize_float_tensor_int6(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        best_q = None
-        best_scale = None
-        best_mse = float("inf")
+        best_q, best_s, best_mse = None, None, float("inf")
         for pct in [0.999, 0.9999, 0.99999, 0.999999, 0.9999999]:
-            clip_abs = torch.quantile(t32.abs(), pct, dim=1) if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32)
-            s = (clip_abs / 31.0).clamp_min(1.0 / 31.0)
-            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-            q = torch.clamp(torch.round(clipped / s[:, None]), -31, 31)
+            ca = torch.quantile(t32.abs(), pct, dim=1) if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32)
+            s = (ca / 31.0).clamp_min(1.0 / 31.0)
+            q = torch.clamp(torch.round(torch.clamp(t32, -ca[:, None], ca[:, None]) / s[:, None]), -31, 31)
             mse = ((q * s[:, None] - t32) ** 2).mean().item()
-            if mse < best_mse:
-                best_mse = mse
-                best_q = q.to(torch.int8).contiguous()
-                best_scale = s.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
-        return best_q, best_scale
+            if mse < best_mse: best_q, best_s, best_mse = q.to(torch.int8).contiguous(), s.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous(), mse
+        return best_q, best_s
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 31.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -31, 31).to(torch.int8).contiguous()
@@ -1160,7 +1154,7 @@ def main() -> None:
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.use_qat = True
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True, mode="max-autotune")
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
