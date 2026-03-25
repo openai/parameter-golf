@@ -382,14 +382,16 @@ def eval_val_ttt(
         actual_len = x_chunk.shape[1]
         base_model.eval()
         with torch.inference_mode():
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                logits = base_model.forward_logits(x_chunk)
-            ptl = F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), y_chunk.reshape(-1), reduction="none")
-            total_loss += ptl.to(torch.float64).sum()
-            total_tokens_counted += float(actual_len)
-            tb = base_bytes_lut[y_chunk[0]].to(dtype=torch.int16)
-            tb += (has_leading_space_lut[y_chunk[0]] & ~is_boundary_token_lut[x_chunk[0]]).to(dtype=torch.int16)
-            total_bytes += tb.to(torch.float64).sum()
+            for s in range(0, actual_len - seq_len + 1, seq_len):
+                sx, sy = x_chunk[:, s:s + seq_len], y_chunk[:, s:s + seq_len]
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    logits = base_model.forward_logits(sx)
+                ptl = F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), sy.reshape(-1), reduction="none")
+                total_loss += ptl.to(torch.float64).sum()
+                total_tokens_counted += float(seq_len)
+                tb = base_bytes_lut[sy[0]].to(dtype=torch.int16)
+                tb += (has_leading_space_lut[sy[0]] & ~is_boundary_token_lut[sx[0]]).to(dtype=torch.int16)
+                total_bytes += tb.to(torch.float64).sum()
         for name, param in base_model.named_parameters():
             param.requires_grad_(name not in frozen_names)
         ttt_opt = torch.optim.SGD([p for p in base_model.parameters() if p.requires_grad], lr=args.ttt_lr, momentum=0.9)
