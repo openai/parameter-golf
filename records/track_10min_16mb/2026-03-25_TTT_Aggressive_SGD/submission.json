@@ -1,0 +1,25 @@
+{
+  "name": "Fielding Johnston",
+  "github": "fielding",
+  "val_bpb": 1.1124,
+  "val_bpb_seeds": {
+    "1337": 1.1129,
+    "42": 1.1128,
+    "2024": 1.1114
+  },
+  "val_bpb_std": 0.0008,
+  "artifact_bytes": 15405733,
+  "hardware": "8xH100 SXM",
+  "training_time_seconds": 600,
+  "eval_time_seconds": 591,
+  "key_techniques": [
+    "aggressive_ttt_sgd_30ep",
+    "value_embeddings",
+    "flash_attn_v3",
+    "ema_0.997",
+    "late_qat_int6",
+    "xsa_last_4",
+    "bigram_hash_6144",
+    "sliding_window_eval_s64"
+  ]
+}
