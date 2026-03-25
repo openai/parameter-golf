@@ -335,7 +335,7 @@ def eval_val_sliding(
             ).reshape(len(batch_windows), seq_len)
             lp = F.log_softmax(logits.float(), dim=-1)
             entropy = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
-            tgt_lp = lp.cpu().numpy()
+            tgt_lp = lp.gather(-1, y.unsqueeze(-1)).squeeze(-1).cpu().numpy()
             all_pos, all_tgt, all_mp, all_H = [], [], [], []
             for idx, (win_start, score_start) in enumerate(batch_windows):
                 scored_loss = per_token_loss[idx, score_start:]
@@ -348,7 +348,7 @@ def eval_val_sliding(
                 total_byte_count += token_bytes.to(torch.float64).sum()
                 positions = np.arange(score_start, seq_len, dtype=np.int64) + win_start + 1
                 tgts = vt[positions].astype(np.int64)
-                mp = np.exp(tgt_lp[idx, score_start:seq_len][np.arange(len(positions)), tgts])
+                mp = np.exp(tgt_lp[idx, score_start:seq_len])
                 all_pos.append(positions); all_tgt.append(tgts); all_mp.append(mp)
                 all_H.append(entropy[idx, score_start:seq_len])
             ap = np.concatenate(all_pos); at = np.concatenate(all_tgt)
