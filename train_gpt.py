@@ -1123,7 +1123,7 @@ def eval_with_lora_ttt(
     ttt_lr: float = 0.01,
     chunk_size: int = 256,
     min_doc_tokens: int = 512,
-    ttt_chunk_tokens: int = 32768,
+    ttt_chunk_tokens: int = 8192,
 ) -> tuple[float, float]:
     """Legal Score-First LoRA TTT eval (PR #549 / PR #461 framework).
 
