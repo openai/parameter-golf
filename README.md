@@ -50,6 +50,7 @@ Happy training!
 | Run | Score | Author | Summary | Date | Info |
 |-----|------:|--------|---------|------|------|
 | 4-Hour Baseline | 1.2074 | Will DePue | Testing unlimited compute, 4 hours on 8xH100 | 2026-03-18 | [info](records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/README.md) |
+| TRN Hybrid Int5 | 1.4942 | amabito | TRN+Attention hybrid (7 TRN + 3 Attn), int5 QAT, Kogge-Stone scan, 1x RTX 5090 | 2026-03-25 | [info](records/track_non_record_16mb/2026-03-25_TRN_Hybrid_Int5_1x5090/README.md) |
 
 ## Getting Started
 
