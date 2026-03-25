@@ -92,7 +92,7 @@ class Hyperparameters:
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.002))
-    ttt_use_adam = bool(int(os.environ.get("TTT_USE_ADAM", "1")))
+    ttt_use_adam = bool(int(os.environ.get("TTT_USE_ADAM", "0")))
     ttt_adam_lr = float(os.environ.get("TTT_ADAM_LR", 2e-4))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
@@ -635,7 +635,7 @@ class CausalSelfAttention(nn.Module):
             nn.init.constant_(self.attn_gate.bias, 4.0)
         self.value_residual = value_residual
         if value_residual:
-            self.vr_lambda = nn.Parameter(torch.tensor([0.5, 0.5], dtype=torch.float32))
+            self.vr_lambda = nn.Parameter(torch.tensor([0.0, 1.0], dtype=torch.float32))
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
         """Efficient XSA: subtract self-value projection via GQA-aware reshape (no repeat_interleave).
         y: [B, T, H, D], v: [B, T, Hkv, D]. H must be divisible by Hkv."""
@@ -818,9 +818,6 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        # AttnRes: learned pseudo-query per layer for depth-attention over layer history.
-        # Zero-init → uniform weights at start (equivalent to standard residuals).
-        self.attn_res_w = nn.Parameter(torch.zeros(num_layers, model_dim, dtype=torch.float32))
         # Parameter banks: contiguous 3D tensors for batched optimizer
         head_dim = model_dim // num_heads
         kv_dim = num_kv_heads * head_dim
@@ -909,18 +906,6 @@ class GPT(nn.Module):
         ve_base = ve_cache['ve'] if ve_cache is not None else self.ve_shared(input_ids)
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
-    def _depth_attn(self, history: list[Tensor], w: Tensor) -> Tensor:
-        """AttnRes: softmax depth-attention over all preceding layer outputs.
-        Replaces fixed x0 injection with learned weighted combination of layer history.
-        history: list of (B, T, d) tensors. w: (d,) pseudo-query, zero-init."""
-        if len(history) == 1:
-            return history[0]
-        h_stack = torch.stack(history, dim=0)                          # (L, B, T, d)
-        d = h_stack.shape[-1]
-        h_normed = F.rms_norm(h_stack, (d,))                           # normalize keys
-        scores = torch.einsum('d,lbtd->lbt', w.to(h_normed.dtype), h_normed)  # (L, B, T)
-        alpha = torch.softmax(scores, dim=0)                            # (L, B, T)
-        return torch.einsum('lbt,lbtd->btd', alpha, h_stack)           # (B, T, d)
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         n = self.num_layers
         x = self.tok_emb(input_ids)
@@ -932,29 +917,24 @@ class GPT(nn.Module):
         v0 = None
         skips: list[Tensor] = []
         ve_cache: dict = {}
-        layer_history: list[Tensor] = [x0]
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
-            x_ctx = self._depth_attn(layer_history, self.attn_res_w[i].to(dtype=x.dtype))
-            x, raw_v = self.blocks[i](x, x_ctx,
+            x, raw_v = self.blocks[i](x, x0,
                 self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
                 self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
                 v_embed=ve, v0=v0)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
-            layer_history.append(x)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x_ctx = self._depth_attn(layer_history, self.attn_res_w[bi].to(dtype=x.dtype))
-            x, _ = self.blocks[bi](x, x_ctx,
+            x, _ = self.blocks[bi](x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
                 v_embed=ve, v0=v0)
-            layer_history.append(x)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -995,29 +975,24 @@ class GPT(nn.Module):
         v0 = None
         skips: list[Tensor] = []
         ve_cache: dict = {}
-        layer_history: list[Tensor] = [x0]
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
-            x_ctx = self._depth_attn(layer_history, self.attn_res_w[i].to(dtype=x.dtype))
-            x, raw_v = self.blocks[i](x, x_ctx,
+            x, raw_v = self.blocks[i](x, x0,
                 self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
                 self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
                 v_embed=ve, v0=v0)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
-            layer_history.append(x)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x_ctx = self._depth_attn(layer_history, self.attn_res_w[bi].to(dtype=x.dtype))
-            x, _ = self.blocks[bi](x, x_ctx,
+            x, _ = self.blocks[bi](x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
                 v_embed=ve, v0=v0)
-            layer_history.append(x)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -1542,7 +1517,6 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
-    scalar_params.append(base_model.attn_res_w)
     scalar_params.append(base_model.smear.gate)
     if base_model.bigram is not None:
         scalar_params.append(base_model.bigram.scale)
