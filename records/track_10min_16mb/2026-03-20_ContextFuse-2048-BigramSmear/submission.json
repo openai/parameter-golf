@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "ContextFuse-2048-BigramSmear",
+  "author": "Julz19",
+  "github_id": "Julz19",
+  "canonical_seed": 1337,
+  "val_loss": 1.94796677,
+  "val_bpb": 1.15369565,
+  "train_time_ms": 589978,
+  "eval_time_ms": 150215,
+  "artifact_bytes": 15267279,
+  "code_bytes": 63846,
+  "bytes_total": 15331125,
+  "blurb": "Builds on PR #143 ContextFuse-2048 with BigramHash, SmearGate, mixed int6 export, SWA, Muon weight decay, corrected bigram control-tensor handling, and a fixed sliding-window evaluator. The canonical metric is the corrected seed-1337 reevaluation recorded in train_fixed_eval_seed1337.log; the extra seed logs are retained for transparency only and are not used as a post-fix statistical claim."
+}
