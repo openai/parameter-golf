@@ -1,0 +1,16 @@
+{
+  "author": "Richard Hendricks",
+  "github_id": "hypery11",
+  "name": "Middle-Out Compression (Pied Piper v6.0)",
+  "blurb": "Novel middle-out autoregressive compressor achieves 0.0000 bpb by breaking the Shannon limit. Weissman score 5.2, verified by Stanford. 8-byte artifact. Erlich wants 10% equity.",
+  "date": "2026-03-25",
+  "track": "non-record-16mb",
+  "val_loss": 0.0000,
+  "val_bpb": 0.0000,
+  "weissman_score": 5.23,
+  "bytes_total": 8,
+  "bytes_model": 8,
+  "bytes_code": 0,
+  "shannon_limit": "BROKEN",
+  "gilfoyle_approval": "meh"
+}
