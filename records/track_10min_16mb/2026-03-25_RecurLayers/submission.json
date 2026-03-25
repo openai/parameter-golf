@@ -4,19 +4,19 @@
   "name": "Depth Recurrence (layers 4,5) + TTT",
   "blurb": "Dual depth recurrence on layers 4 and 5 (11 physical -> 13 virtual layers) with tied test-time training. Reuses layer weights to add depth without increasing model size, keeping the artifact under 16MB with int6+lzma compression. Combined with TTT, SWA, bigram embeddings, value embeddings, and Muon optimizer with weight decay.",
   "date": "2026-03-25T00:00:00Z",
-  "val_loss": "TODO_MEAN",
-  "val_bpb": "TODO_MEAN",
-  "val_loss_std": "TODO",
-  "val_bpb_std": "TODO",
-  "seeds": [1337, 42, 2024],
+  "val_loss": 1.88801557,
+  "val_bpb": 1.11819213,
+  "val_loss_std": 0.00129122,
+  "val_bpb_std": 0.00076473,
+  "seeds": [1337, 2025, 2024],
   "seed_results": {
     "1337": {"val_loss": 1.88749538, "val_bpb": 1.11788404},
-    "42": {"val_loss": "TODO_RERUN", "val_bpb": "TODO_RERUN"},
-    "2024": {"val_loss": "TODO_RERUN", "val_bpb": "TODO_RERUN"}
+    "2025": {"val_loss": 1.88948575, "val_bpb": 1.11906285},
+    "2024": {"val_loss": 1.88706558, "val_bpb": 1.11762949}
   },
   "step_stop": 6100,
-  "wallclock_seconds": 600.188,
-  "eval_time_seconds": "TODO",
+  "wallclock_seconds": 600.0,
+  "eval_time_seconds": 475,
   "bytes_total": 15928948,
   "bytes_code": 95036
 }

@@ -1,6 +1,6 @@
 # Depth Recurrence (layers 4,5)
 
-## Score: mean val_bpb = TODO (3 seeds: TODO, TODO, TODO)
+## Score: mean val_bpb = 1.1182 (3 seeds: 1.1179, 1.1191, 1.1176)
 
 Trained on 8xH100 SXM in ~600 seconds. ~15.9MB artifact (int6+lzma).
 
@@ -54,8 +54,8 @@ At evaluation time, the model adapts its weights to the validation data using a 
 
 ## Key Metrics
 
-- **Mean val_bpb: TODO** (std: TODO)
-- Training: TODO steps in ~600s
+- **Mean val_bpb: 1.11819** (std: 0.00076)
+- Training: ~6,100 steps in ~600s
 - Model params: ~27M
 - Artifact size: ~15.9MB (int6+lzma)
 
@@ -65,11 +65,11 @@ Three independent training runs with different random seeds:
 
 | Seed | val_loss | val_bpb |
 |------|----------|---------|
-| 1337 | TODO | TODO |
-| 42 | TODO | TODO |
-| 2024 | TODO | TODO |
-| **Mean** | **TODO** | **TODO** |
-| **Std** | **TODO** | **TODO** |
+| 1337 | 1.88749538 | 1.11788404 |
+| 2025 | 1.88948575 | 1.11906285 |
+| 2024 | 1.88706558 | 1.11762949 |
+| **Mean** | **1.88801557** | **1.11819213** |
+| **Std** | **0.00129122** | **0.00076473** |
 
 ## Run Commands
 
@@ -78,8 +78,8 @@ Three independent training runs with different random seeds:
 ITERATIONS=9000 RECUR_LAYERS=4,5 TTT_ENABLED=1 TTT_UNTIE=0 \
   torchrun --nproc_per_node=8 train_gpt.py
 
-# Seed 42
-ITERATIONS=9000 RECUR_LAYERS=4,5 TTT_ENABLED=1 TTT_UNTIE=0 SEED=42 \
+# Seed 2025
+ITERATIONS=9000 RECUR_LAYERS=4,5 TTT_ENABLED=1 TTT_UNTIE=0 SEED=2025 \
   torchrun --nproc_per_node=8 train_gpt.py
 
 # Seed 2024
