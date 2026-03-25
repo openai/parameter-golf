@@ -1,11 +1,43 @@
-data/tokenizers
+# Byte-compiled / cache
 __pycache__/
-.DS_Store
-modded-nanogpt/
-modded-nanogpt
-data/datasets
-data/manifest.json
-data/docs_selected.jsonl
+*.py[cod]
+*$py.class
+*.so
+.Python
 .mypy_cache/
-.venv
-logs/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Data & checkpoints (Parameter Golf / local experiments)
+data/
+*.bin
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+wandb/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Upstream clone (optional local copy)
+parameter-golf/
+parameter-golf-upstream/
