@@ -109,6 +109,12 @@ class Hyperparameters:
     ttt_max_train_chunks = int(os.environ.get("TTT_MAX_TRAIN_CHUNKS", 200))  # stop training after N chunks, keep scoring
     ttt_ema_decay = float(os.environ.get("TTT_EMA_DECAY", 0.995))  # EMA decay for TTT weight smoothing (0 = disabled)
     ttt_freeze_embed = bool(int(os.environ.get("TTT_FREEZE_EMBED", "1")))  # freeze tok_emb/bigram/ve during TTT
+    # Optional legal score-first hashed n-gram interpolation at eval time.
+    # This path never uses label-aware gating: mix weight is fixed.
+    ngram_eval_order = int(os.environ.get("NGRAM_EVAL_ORDER", 0))  # 0=off, >=2 enables hashed n-gram
+    ngram_eval_alpha = float(os.environ.get("NGRAM_EVAL_ALPHA", 0.20))
+    ngram_eval_min_count = int(os.environ.get("NGRAM_EVAL_MIN_COUNT", 2))
+    ngram_eval_buckets = int(os.environ.get("NGRAM_EVAL_BUCKETS", 4_194_304))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -935,6 +941,141 @@ def eval_val_sliding(
     tokens_per_byte = token_count.item() / byte_count.item()
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
+def eval_val_sliding_hashed_ngram(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+    order: int,
+    alpha: float,
+    min_count: int,
+    buckets: int,
+    batch_seqs: int = 32,
+    eval_seq_len: int | None = None,
+) -> tuple[float, float]:
+    """Score-first sliding eval with fixed-weight hashed n-gram interpolation.
+
+    Legal behavior:
+    - per-token score is computed before that token updates the cache
+    - no target-aware gating/min-NLL selection is used
+    """
+    if order < 2:
+        raise ValueError(f"NGRAM_EVAL_ORDER must be >=2, got {order}")
+    if not (0.0 <= alpha <= 1.0):
+        raise ValueError(f"NGRAM_EVAL_ALPHA must be in [0, 1], got {alpha}")
+    if min_count < 1:
+        raise ValueError(f"NGRAM_EVAL_MIN_COUNT must be >=1, got {min_count}")
+    if buckets < 1024:
+        raise ValueError(f"NGRAM_EVAL_BUCKETS must be >=1024, got {buckets}")
+
+    seq_len = eval_seq_len or args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+    window_starts = [ws for ws in range(0, total_tokens, stride) if min(ws + seq_len, total_tokens) - ws >= 1]
+
+    val_np = val_tokens.numpy()
+    ctx_table = np.zeros((buckets,), dtype=np.uint32)
+    full_table = np.zeros((buckets,), dtype=np.uint32)
+    mask = np.uint64(buckets - 1)
+    primes = np.array(
+        [np.uint64(36313), np.uint64(27191), np.uint64(51647), np.uint64(81929), np.uint64(131071)],
+        dtype=np.uint64,
+    )
+
+    loss_sum = 0.0
+    token_count = 0.0
+    byte_count = 0.0
+
+    base_model.eval()
+    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    t0 = time.perf_counter()
+    with torch.inference_mode():
+        for bi in range(0, len(window_starts), batch_seqs):
+            batch_ws = window_starts[bi:bi + batch_seqs]
+            bsz = len(batch_ws)
+            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            wlens: list[int] = []
+            for i, ws in enumerate(batch_ws):
+                end = min(ws + seq_len, total_tokens)
+                wlen = end - ws
+                wlens.append(wlen)
+                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                x_batch[i, :wlen] = chunk[:-1]
+                y_batch[i, :wlen] = chunk[1:]
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits = compiled_logits(x_batch)
+            nll = F.cross_entropy(
+                logits.reshape(-1, logits.size(-1)).float(),
+                y_batch.reshape(-1),
+                reduction="none",
+            ).reshape(bsz, seq_len)
+
+            for i, ws in enumerate(batch_ws):
+                wlen = wlens[i]
+                s = 0 if ws == 0 else max(wlen - stride, 0)
+                seg_len = wlen - s
+                if seg_len <= 0:
+                    continue
+
+                seg_nll = nll[i, s:wlen].to(torch.float64).cpu().numpy()
+                seg_model_p = np.exp(-seg_nll)
+
+                global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
+                valid = global_j >= (order - 1)
+                if valid.any():
+                    v_idx = np.nonzero(valid)[0]
+                    jv = global_j[v_idx]
+
+                    ctx_hash = np.zeros((len(jv),), dtype=np.uint64)
+                    ctx_width = order - 1
+                    for k in range(ctx_width):
+                        tok = val_np[jv - (ctx_width - k)].astype(np.uint64)
+                        ctx_hash ^= tok * primes[k % len(primes)]
+                    ctx_key = (ctx_hash & mask).astype(np.int64)
+
+                    tgt_np = val_np[jv].astype(np.uint64)
+                    full_key = ((ctx_hash ^ (tgt_np * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
+
+                    ctx_counts = ctx_table[ctx_key].astype(np.float64)
+                    full_counts = full_table[full_key].astype(np.float64)
+                    can_mix = ctx_counts >= float(min_count)
+                    if can_mix.any():
+                        p_ng = full_counts / np.maximum(ctx_counts, 1.0)
+                        mixed = (1.0 - alpha) * seg_model_p[v_idx] + alpha * p_ng
+                        seg_model_p[v_idx[can_mix]] = mixed[can_mix]
+                    seg_nll = -np.log(np.clip(seg_model_p, 1e-12, None))
+
+                    # Score-first legality: update cache only after segment scoring.
+                    np.add.at(ctx_table, ctx_key, 1)
+                    np.add.at(full_table, full_key, 1)
+
+                loss_sum += float(seg_nll.sum())
+                token_count += float(seg_len)
+                tgt = y_batch[i, s:wlen]
+                prev = x_batch[i, s:wlen]
+                tb = base_bytes_lut[tgt].to(torch.float64)
+                tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                byte_count += float(tb.sum().item())
+
+            if (bi // batch_seqs) % 2000 == 0 and bi > 0:
+                elapsed = time.perf_counter() - t0
+                prog = min((bi + bsz) / max(len(window_starts), 1), 1.0)
+                cur_bpb = (loss_sum / max(token_count, 1.0)) / math.log(2.0) * (token_count / max(byte_count, 1.0))
+                print(
+                    f"ngram_eval:progress windows={bi + bsz}/{len(window_starts)} "
+                    f"({prog*100:.1f}%) bpb={cur_bpb:.6f} t={elapsed:.0f}s",
+                    flush=True,
+                )
+
+    val_loss = loss_sum / max(token_count, 1.0)
+    val_bpb = val_loss / math.log(2.0) * (token_count / max(byte_count, 1.0))
+    base_model.train()
+    return val_loss, val_bpb
 def _classify_param(name: str) -> str:
     if "tok_emb" in name or "lm_head" in name:
         return "embed"
@@ -1499,6 +1640,11 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+    if args.ngram_eval_order >= 2:
+        log0(
+            f"ngram_eval:order={args.ngram_eval_order} alpha={args.ngram_eval_alpha} "
+            f"min_count={args.ngram_eval_min_count} buckets={args.ngram_eval_buckets}"
+        )
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     def zero_grad_all() -> None:
         for opt in optimizers:
@@ -1820,6 +1966,38 @@ def main() -> None:
         )
         log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
         log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        if args.ngram_eval_order >= 2:
+            if distributed:
+                dist.barrier()
+            if rank == 0:
+                torch.cuda.synchronize()
+                t_ng = time.perf_counter()
+                ng_loss, ng_bpb = eval_val_sliding_hashed_ngram(
+                    args,
+                    eval_model,
+                    device,
+                    val_tokens,
+                    base_bytes_lut,
+                    has_leading_space_lut,
+                    is_boundary_token_lut,
+                    stride=args.eval_stride,
+                    order=args.ngram_eval_order,
+                    alpha=args.ngram_eval_alpha,
+                    min_count=args.ngram_eval_min_count,
+                    buckets=args.ngram_eval_buckets,
+                    eval_seq_len=sw_seq_len,
+                )
+                torch.cuda.synchronize()
+                log0(
+                    f"final_int6_sliding_window_ngram{args.ngram_eval_order} val_loss:{ng_loss:.4f} "
+                    f"val_bpb:{ng_bpb:.4f} eval_time:{1000.0 * (time.perf_counter() - t_ng):.0f}ms"
+                )
+                log0(
+                    f"final_int6_sliding_window_ngram{args.ngram_eval_order}_exact "
+                    f"val_loss:{ng_loss:.8f} val_bpb:{ng_bpb:.8f}"
+                )
+            if distributed:
+                dist.barrier()
     # Legal score-first TTT eval
     if args.ttt_eval_enabled:
         torch.cuda.synchronize()
