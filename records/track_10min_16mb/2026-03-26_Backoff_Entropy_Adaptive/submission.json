@@ -1,0 +1,12 @@
+{
+  "author": "Asukabot0",
+  "val_bpb": 0.9674,
+  "val_bpb_seeds": [0.9668, 0.9670, 0.9683],
+  "val_bpb_std": 0.0006,
+  "bytes_total": 15994366,
+  "bytes_code": 88158,
+  "technique": "XSA-all + LeakyReLU(0.5)^2 + VR + GA + Multi-order n-gram backoff (2-7) + Entropy-adaptive alpha",
+  "num_gpus": 8,
+  "gpu_type": "H100 SXM",
+  "training_time_seconds": 600
+}
