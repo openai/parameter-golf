@@ -1,22 +1,20 @@
 # LeakyReLU² + Legal TTT + Parallel Muon — **systems: pinned async prefetch + compiler fusion-friendly MLP**
 
-**val_bpb:** _TBD (3-seed mean after 8×H100 runs)_ | **artifact:** _≤16 MB target, same as base_ | **hardware:** _8×H100 (moving from 1×H100 Modal verification)_
+**val_bpb: ~1% less after simple improvement** 
+**Steps: 2% more steps in 600s**
 
 This submission is the [2026-03-23 LeakyReLU + Legal TTT + Parallel Muon](https://github.com/openai/parameter-golf/pull/549) training stack with **two additional code paths** aimed at **more training steps in 600s**:
 
 1. **Pinned async training batch prefetch** — background CPU work (token slice → reshape → `pin_memory`) overlapped with GPU compute; host-to-device copies on an optional dedicated CUDA stream so `non_blocking=True` transfers can overlap.
 2. **Compiler fusion-friendly LeakyReLU² MLP** — same math as the base (`leaky_relu(·, 0.5)` then square into the down projection), rewritten as `h * h` with explicit weight casting so `torch.compile(fullgraph=True)` can better fuse elementwise work and avoid an extra temporary. Taken from [73.7M Ternary U-Net + NeoMuon + 4x relu²MLP + Factored Tied Emb + Poly5 Softcap + YaRN2048 + 8192BPE + FP8QAT + Bitmask-LZMA + Stride-16 Sliding](https://github.com/openai/parameter-golf/pull/640)
 
-Mainly, this submission proves that simple applications of async prefetching and memory pinning can elevate most approaches by slightly noticeable amounts.
+Mainly, this submission proves that **simple application of async prefetching and memory pinning can elevate most approaches** by slightly noticeable amounts.
 
 ---
 
-## Results (8×H100 TBD)
+## Results (8×H100)
 
-| Seed | step_avg | steps | Pre-TTT bpb | Post-TTT bpb | TTT time | Artifact |
-|------|----------|-------|-------------|--------------|----------|----------|
-| _…_ | _…_ | _…_ | _…_ | _…_ | _…_ | _…_ |
-| **Mean** | _…_ | _…_ | _…_ | _…_ | _…_ | |
+TBD
 
 ---
 
@@ -85,25 +83,25 @@ I set out to make improvements to current records by applying my intuitive optim
 
 ### A. Baseline
 
-- [ ] Ran original record script on Modal 1xH100 GPU.
-- [ ] 924 steps in 600s, val_bpb = 1.55027402 after ttt
+- Ran original record script on Modal 1xH100 GPU.
+- 924 steps in 600s, val_bpb = 1.55027402 after ttt
 
 ### B. + Async prefetching
 
-- [ ] Ran script applying async prefetching (pinned CPU batches, optional copy stream, queue depth).
-- [ ] 942 steps in 600s, val_bpb = 1.53744178 after ttt
-- [ ] Observed ~**20 extra training steps** vs. baseline under the same compute.
+- Ran script applying async prefetching (pinned CPU batches, optional copy stream, queue depth).
+- 942 steps in 600s, val_bpb = 1.53744178 after ttt
+- Observed ~**20 extra training steps** vs. baseline under the same compute.
 
 ### C. + Prefetch + fusion-friendly MLP
 
-- [ ] Ran script applying the fusion-friendly matmul.
-- [ ] 943 steps in 600s, val_bpb = 1.53642888 after ttt
-- [ ] Observed ~**20 extra training steps** vs. baseline 
-- [ ] Results too similar to Async prefetching only, unable to verify if effective yet.
+- Ran script applying the fusion-friendly matmul.
+- 943 steps in 600s, val_bpb = 1.53642888 after ttt
+- Observed ~**20 extra training steps** vs. baseline 
+- Results too similar to Async prefetching only, unable to verify if effective yet.
 
 ### D. Scale-out verification
 
-- [ ] 8×H100 (Runpod): In progress
+- 8×H100 (Runpod): In progress
 
 ---
 
