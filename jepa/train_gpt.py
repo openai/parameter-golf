@@ -697,9 +697,11 @@ class CausalJEPA(nn.Module):
         return final_norm(x)
 
     def _jepa_logits(self, hidden: Tensor) -> Tensor:
-        """Augment hidden states with JEPA predictions before computing logits."""
+        """Augment hidden states with JEPA predictions before computing logits.
+        Predictor output is detached so the predictor is trained only by JEPA
+        loss; decode_proj learns from CE how to use the predictor's output."""
         pred_latent = self.jepa_predictor(hidden)
-        augmented = hidden + self.jepa_decode_proj(pred_latent)
+        augmented = hidden + self.jepa_decode_proj(pred_latent.detach())
         logits = F.linear(augmented, self.byte_emb.weight)
         return self.logit_softcap * torch.tanh(logits / self.logit_softcap)
 
@@ -715,7 +717,7 @@ class CausalJEPA(nn.Module):
         hidden = self._run_backbone(input_ids, self.byte_emb, self.blocks, self.skip_weights, self.final_norm)
 
         pred_latent = self.jepa_predictor(hidden)
-        augmented = hidden + self.jepa_decode_proj(pred_latent)
+        augmented = hidden + self.jepa_decode_proj(pred_latent.detach())
         logits = F.linear(augmented[:, :-1], self.byte_emb.weight)
         logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
         ce = F.cross_entropy(logits.float().reshape(-1, self.vocab_size), input_ids[:, 1:].reshape(-1))
