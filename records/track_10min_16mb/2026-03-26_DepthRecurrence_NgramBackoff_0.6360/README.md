@@ -1,6 +1,6 @@
-# Record: 0.6364 BPB — Depth Recurrence + Multi-Order N-gram Backoff
+# Record: 0.6360 BPB — Depth Recurrence + Multi-Order N-gram Backoff
 
-**val_bpb: 0.6364** (seed 1337) | **~15.95 MB** | 8xH100 SXM
+**val_bpb: 0.6360** (seed 1337) | **~15.94 MB** | 8xH100 SXM
 
 Built on our previous depth recurrence submission (1.1182 BPB) with eval-time multi-order n-gram backoff.
 
@@ -13,15 +13,15 @@ Built on our previous depth recurrence submission (1.1182 BPB) with eval-time mu
 
 ## Results (8xH100 80GB SXM)
 
-| Metric | Seed 1337 | Seed 42 |
-|--------|-----------|---------|
-| Steps completed | 6,126 | 6,123 |
-| step_avg | 97.96ms | 98.01ms |
-| Pre-ngram int6 roundtrip BPB | 1.1441 | 1.1452 |
-| **Sliding window + n-gram BPB** | **0.6364** | **0.6382** |
-| Artifact size | 15,951,328 bytes | 15,938,264 bytes |
+| Metric | Seed 1337 | Seed 2025 | Seed 42 |
+|--------|-----------|-----------|---------|
+| Steps completed | 6,171 | 6,167 | 6,172 |
+| step_avg | 97.24ms | 97.31ms | 97.24ms |
+| Pre-ngram int6 roundtrip BPB | 1.1434 | 1.1453 | 1.1458 |
+| **Sliding window + n-gram BPB** | **0.6360** | **0.6381** | **0.6387** |
+| Artifact size | 15,942,380 bytes | 16,052,376 bytes | 15,936,180 bytes |
 
-**Mean BPB across seeds: 0.6373**
+**Mean BPB across seeds: 0.6376**
 
 ## Architecture
 
