@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import uuid
+from datetime import timedelta
 import lzma
 from pathlib import Path
 import numpy as np
@@ -99,6 +100,8 @@ class Hyperparameters:
     ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.55"))
     ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
     ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
+    ngram_ent_adapt = bool(int(os.environ.get("NGRAM_ENT_ADAPT", "0")))
+    ngram_ent_thresh_lo = float(os.environ.get("NGRAM_ENT_THRESH_LO", "2.5"))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -826,6 +829,7 @@ def eval_val_sliding(
                         order_data.append((v_idx, ctx_key, full_key))
                     # Multi-order backoff: highest order first
                     best_p_ng = np.full(n_seg, -1.0)
+                    best_order = np.full(n_seg, -1, dtype=np.int32)
                     for oi in range(_n_orders - 1, -1, -1):
                         if order_data[oi] is None:
                             continue
@@ -838,10 +842,17 @@ def eval_val_sliding(
                             fill_idx = v_idx[needs_fill]
                             p = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(ctx_counts[needs_fill], 1.0)
                             best_p_ng[fill_idx] = np.clip(p, 0.0, 1.0)
+                            best_order[fill_idx] = args.ngram_min_order + oi
                     # Mix model prob with n-gram
                     has_match = best_p_ng >= 0
                     if has_match.any():
-                        if args.ngram_entropy:
+                        if args.ngram_entropy and args.ngram_ent_adapt:
+                            mo = best_order[has_match].astype(np.float64)
+                            frac = (mo - float(args.ngram_min_order)) / max(float(args.ngram_order - args.ngram_min_order), 1.0)
+                            per_center = args.ngram_ent_thresh - frac * (args.ngram_ent_thresh - args.ngram_ent_thresh_lo)
+                            alpha = args.ngram_ent_base + args.ngram_ent_range / (
+                                1.0 + np.exp(-args.ngram_ent_scale * (seg_ent[has_match] - per_center)))
+                        elif args.ngram_entropy:
                             alpha = alpha_per_tok[has_match]
                         else:
                             alpha = args.ngram_alpha
@@ -1076,7 +1087,8 @@ def main() -> None:
     device = torch.device("cuda", local_rank)
     torch.cuda.set_device(device)
     if distributed:
-        dist.init_process_group(backend="nccl", device_id=device)
+        dist.init_process_group(backend="nccl", device_id=device,
+                                timeout=timedelta(seconds=int(os.environ.get("NCCL_TIMEOUT", "3600"))))
         dist.barrier()
     master_process = rank == 0
     torch.backends.cuda.matmul.allow_tf32 = True; torch.backends.cudnn.allow_tf32 = True

@@ -1,0 +1,9 @@
+{
+  "name": "Distributed Prefill + Order-Adaptive Entropy Gating + 15-Gram Backoff + EBLS",
+  "val_bpb": 0.4374,
+  "bytes_total": 15994785,
+  "blurb": "Two key ideas: (1) distributed cache pre-fill — each GPU rank pre-populates n-gram hash tables from all preceding token positions before scoring, making 8-GPU eval equivalent to single-GPU sequential (-0.31 BPB); (2) order-adaptive entropy gating — 15-gram matches trusted aggressively (center=2.5) while bigrams only used when model is confused (center=4.5), continuous interpolation across 14 orders (-0.18 BPB). Built on EBLS architecture (3 shared blocks, LoRA rank 8) with the community n-gram backoff framework. 3-seed mean: 0.4374 BPB (std 0.0003).",
+  "author": "Robert Sneiderman",
+  "github_id": "Robby955",
+  "date": "2026-03-26"
+}
