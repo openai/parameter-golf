@@ -1,0 +1,17 @@
+{
+  "author": "Spruce Campbell",
+  "github_id": "mtybadger",
+  "name": "Masked Diffusion",
+  "blurb": "replaces the autoregressive `train_gpt.py` baseline with a masked diffusion language model implemented in`train_mdlm.py`. The MDLM is from 'Simple and Effective Masked Diffusion Language Models'",
+  "date": "2026-03-26T06:19:23Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.65530960,
+  "val_var_bpb": 1.62519980,
+  "pre_quant_val_loss": 2.6564,
+  "pre_quant_val_var_bpb": 1.6259,
+  "step_stop": 13818,
+  "wallclock_seconds": 600.032,
+  "bytes_total": 15379114,
+  "bytes_model_int6_zstd22": 15313980,
+  "bytes_code": 65134
+}
