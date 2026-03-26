@@ -61,23 +61,23 @@ SEQ_LEN = 1024             # training sequence length
 TRAIN_BATCH_TOKENS = 131072  # total tokens per optimizer step (smaller = more steps)
 DEVICE_BATCH_SIZE = 128      # micro-batch size (H100 80GB can handle large batches)
 WARMUP_STEPS = 0
-WARMDOWN_ITERS = 3000       # LR warmdown iterations (wallclock-based)
+WARMDOWN_ITERS = 700        # LR warmdown iterations (wallclock-based, ~50% of 1350 steps)
 
 # Optimizer
 MATRIX_LR = 0.02            # Muon LR for matrix params
 SCALAR_LR = 0.04            # Adam LR for scalars
 EMBED_LR = 0.06             # Adam LR for embeddings
-MUON_MOMENTUM = 0.95
-MUON_MOMENTUM_WARMUP_STEPS = 1500
-MUON_MOMENTUM_WARMUP_START = 0.85
-WEIGHT_DECAY = 0.0          # 0.04 for best results but keep 0 as baseline
+MUON_MOMENTUM = 0.99
+MUON_MOMENTUM_WARMUP_STEPS = 500
+MUON_MOMENTUM_WARMUP_START = 0.92
+WEIGHT_DECAY = 0.04
 ADAM_BETAS = (0.90, 0.95)
 ADAM_EPS = 1e-8
 GRAD_CLIP_NORM = 1.0
 
 # Evaluation
-EVAL_STRIDE = 0             # 0 = standard eval, 64 = sliding window
-EVAL_BATCH_SEQS = 4         # batch size for sliding window eval
+EVAL_STRIDE = 64            # sliding window eval for better bpb
+EVAL_BATCH_SEQS = 64        # large eval batch for H100 80GB
 
 
 # ---------------------------------------------------------------------------
@@ -448,6 +448,12 @@ def main():
 
         optimizer_muon.step()
         optimizer_adam.step()
+
+        # Decoupled weight decay on matrix params
+        if WEIGHT_DECAY > 0:
+            for group in optimizer_muon.param_groups:
+                for p in group["params"]:
+                    p.data.mul_(1 - group["lr"] * WEIGHT_DECAY)
 
         step += 1
         torch.cuda.synchronize()
