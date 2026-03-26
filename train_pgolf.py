@@ -62,7 +62,7 @@ DEVICE_BATCH_SIZE = 128
 WARMDOWN_FRAC = 0.5        # last 50% of wall time is warmdown (fraction-based, no step dependence)
 
 # Optimizer
-MATRIX_LR = 0.02
+MATRIX_LR = 0.03
 SCALAR_LR = 0.04
 EMBED_LR = 0.06
 MUON_MOMENTUM = 0.99
