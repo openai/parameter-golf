@@ -1,0 +1,16 @@
+{
+  "author": "Jack Princz",
+  "github_id": "jfprincz",
+  "name": "Non-record: Byte-level transformer + JEPA auxiliary loss",
+  "blurb": "13-layer byte-level AR transformer (vocab 260, no tokenizer) with lightweight JEPA auxiliary loss (lambda_max=0.001, ~0.1% of gradient). Primary objective: next-byte CE. JEPA adds chunk-level latent prediction (8-byte chunks, 256d, SIGReg). LeakyReLU(0.5)², XSA last 4, EMA 0.997, Partial RoPE 16d, LN Scale. Int6+zstd-22. Sliding window stride=512, seq=4096.",
+  "date": "2026-03-26T08:00:00Z",
+  "val_loss": 0.82477085,
+  "val_bpb": 1.19028660,
+  "pre_quant_val_loss": 0.8518,
+  "pre_quant_val_bpb": 1.2293,
+  "int6_zstd_val_loss": 0.84408287,
+  "int6_zstd_val_bpb": 1.21815719,
+  "bytes_total": 14369791,
+  "bytes_model_int6_zstd": 14298588,
+  "bytes_code": 71203
+}
