@@ -1,0 +1,14 @@
+{
+    "name": "NgramBackoff_VRL_LeakyReLU2",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "track": "10min_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "val_bpb": 0.9642,
+    "val_loss": 1.6279,
+    "bytes_total": 15953596,
+    "bytes_code": 67048,
+    "blurb": "11L LeakyReLU(0.5)^2 + VRL + lzma + Multi-order N-gram Backoff (2-7gram, entropy-adaptive alpha, 4M hash buckets). 3-seed mean 0.9642, std 0.0002."
+}
