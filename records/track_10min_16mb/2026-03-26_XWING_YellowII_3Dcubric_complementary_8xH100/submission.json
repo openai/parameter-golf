@@ -1,0 +1,15 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "X-WING Yellow II: 3D Cubric + Complementary Training",
+  "blurb": "Podracer engine with chunk-based shared n-gram tables + 3D cubric pattern recognizer (54 adaptive multipliers: order × entropy_bin × count_bin) + complementary training (downweight bigram-predictable tokens). Orders 2-9, alpha 0.20-0.75. Seed 1337 val_bpb=0.4896. Additional seeds pending.",
+  "date": "2026-03-26T04:00:00Z",
+  "seed_1337": {
+    "val_bpb": 0.4896,
+    "sliding_window_bpb": 1.1197
+  },
+  "val_bpb": 0.4896,
+  "bytes_total": 15736871,
+  "bytes_code": 104522,
+  "hardware": "8xH100 SXM"
+}
