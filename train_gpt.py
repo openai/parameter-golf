@@ -370,12 +370,7 @@ def eval_val_sliding(
                 ng_p = (ng_pair[order][ph].float() / cc.float().clamp(min=1)).clamp(EPS, 1 - EPS)
                 ix = m.nonzero(as_tuple=True)[0]; best_ng[ix[has]] = ng_p[has]; found[ix[has]] = True
             alpha = 0.05 + 0.55 / (1.0 + torch.exp(-2.0 * (aH - 4.0)))
-            mp_c = amp.clamp(EPS, 1 - EPS)
-            logit_m = torch.log(mp_c / (1 - mp_c))
-            ng_c = best_ng.clamp(EPS, 1 - EPS)
-            logit_ng = torch.log(ng_c / (1 - ng_c))
-            logit_mix = (1 - alpha) * logit_m + alpha * logit_ng
-            mixed = torch.where(found, torch.sigmoid(logit_mix), mp_c)
+            mixed = torch.where(found, (1 - alpha) * amp + alpha * best_ng, amp)
             ng_loss_sum -= torch.log(mixed.clamp(min=1e-20)).to(torch.float64).sum()
             for order in _NG_ORDERS:
                 v = ap >= order
