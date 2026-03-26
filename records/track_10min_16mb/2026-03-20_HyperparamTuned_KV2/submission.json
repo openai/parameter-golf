@@ -1,0 +1,11 @@
+{
+  "author": "ajh",
+  "github_id": "xexyz",
+  "name": "HyperparamTuned KV2 + FP16 Embed",
+  "blurb": "Systematic hyperparameter optimization: KV heads 4->2, MATRIX_LR 0.048, WARMDOWN_ITERS 600, SCALAR_LR 0.03, MUON_MOMENTUM 0.97, QK_GAIN_INIT 1.35, FP16 tied embedding export. All throughput-neutral changes.",
+  "date": "2026-03-20",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
