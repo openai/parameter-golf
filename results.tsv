@@ -1,13 +1,12 @@
 commit	val_bpb	quant_gap	artifact_mb	memory_gb	status	description
-1d4cc27	3.172799	-0.000172	15.6	14.4	discard	baseline 8L dim512 MLP2x, only 347 steps (batch too large)
-94782fc	2.521196	0.000036	15.6	28.0	discard	batch 131K DevBatch128, 1353 steps (no compile yet)
-ab6ce36	1.956044	0.000669	15.3	28.0	discard	WD=0.04 mom=0.99 warmdown=700 sliding eval (eval took 10min)
-6eaef17	1.549390	0.001117	14.9	15.9	discard	torch.compile + standard eval, 3252 steps (8L MLP2x)
-aa4b189	1.527175	0.000949	14.2	13.6	discard	6L MLP3x compile WD0.04 mom0.99, 4087 steps
-0142e65	1.566529	0.000668	18.9	17.8	discard	MLP3x 8L — artifact 18.9MB, too large
-166300a	1.568257	0.000000	15.0	0.0	discard	7L MLP2.5x — worse than 6L MLP3x
-4ddc827	1.607860	0.000000	14.1	0.0	discard	batch 65K 6596 steps — too noisy
-cb359cc	1.588754	0.000892	14.3	0.0	discard	SEQ_LEN=2048 — fewer steps, worse
-13db8cc	1.714721	0.000000	0.0	0.0	discard	batch 262K — only 2316 steps, much worse
-0f37f7a	3.736239	0.002099	14.4	14.3	discard	BigramHash+SmearGate+QAT+SWA — warmdown bug, SWA from step 50
-d2c0159	1.505089	0.000410	14.5	14.3	keep	BEST: full SOTA (BigramHash+SmearGate+OrthoInit+SWA+QAT) fraction warmdown
+d2c0159	1.505089	0.000410	14.5	14.3	discard	6L MLP3x BigramHash+SmearGate+OrthoInit+SWA+QAT
+17d7acc	1.478532	0.000213	14.4	0.0	discard	6L MLP3x MATRIX_LR=0.03
+f92685e	1.534684	0.000576	15.0	0.0	discard	BigramHash 8192 — worse
+fb66091	1.591936	0.000538	0.0	0.0	discard	warmdown 30% — too short
+a4bfcf1	1.538775	0.000000	0.0	0.0	discard	warmdown 70% — too long
+93a0d85	1.521040	0.000000	0.0	0.0	discard	MATRIX_LR=0.04 — too high
+3818a94	1.486485	0.000000	0.0	0.0	discard	EMBED_LR=0.08 — worse
+cd15609	1.492605	0.000000	16.7	0.0	discard	7L MLP3x — artifact too large
+fd0bac6	1.512156	0.000000	14.8	0.0	discard	7L dim480 MLP3x — narrower hurts
+222bd1d	1.493340	0.000000	0.0	0.0	discard	WD=0.06 SWA/25 — worse
+b941936	1.417088	0.000365	14.6	0.0	keep	BEST: 5L MLP4x! wider > deeper confirmed
