@@ -1,0 +1,113 @@
+W0326 07:34:38.155000 840294 site-packages/torch/distributed/run.py:851] 
+W0326 07:34:38.155000 840294 site-packages/torch/distributed/run.py:851] *****************************************
+W0326 07:34:38.155000 840294 site-packages/torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 07:34:38.155000 840294 site-packages/torch/distributed/run.py:851] *****************************************
+logs/seed42.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/root/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/root/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+mixed_precision: 68 int5 layers, 0 int6 layers (last 0 blocks)
+model_params:33321571
+XSA:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] ws:8 gqa:8/8
+lr:embed=0.035 matrix=0.025 scalar=0.025 batch:786432 wall:600s seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+pre-compiling mixer loss path (dummy data, no training tokens)...
+pre-compile done
+prefilling n-gram tables from training shards (frozen oracle)...
+prefilled 8,000,040,960 tokens in 18469ms (counted in wallclock)
+step:0/20000 val_loss:6.9289 val_bpb:4.1037 train_time:18469ms step_avg:0.04ms
+step:1/20000 train_loss:7.0803 train_time:20606ms step_avg:2137.63ms
+step:2/20000 train_loss:8.7705 train_time:20699ms step_avg:1115.15ms
+step:3/20000 train_loss:8.6532 train_time:20796ms step_avg:775.74ms
+step:4/20000 train_loss:8.1563 train_time:20893ms step_avg:606.19ms
+step:5/20000 train_loss:7.4648 train_time:20990ms step_avg:504.26ms
+step:6/20000 train_loss:6.8669 train_time:21087ms step_avg:436.33ms
+step:7/20000 train_loss:6.4211 train_time:21184ms step_avg:387.92ms
+step:8/20000 train_loss:6.1468 train_time:21281ms step_avg:351.57ms
+step:9/20000 train_loss:6.0173 train_time:21378ms step_avg:323.27ms
+step:10/20000 train_loss:5.9627 train_time:21475ms step_avg:300.66ms
+step:500/20000 train_loss:2.3853 train_time:70241ms step_avg:103.54ms
+step:1000/20000 train_loss:2.2594 train_time:120208ms step_avg:101.74ms
+step:1500/20000 train_loss:2.2095 train_time:170247ms step_avg:101.19ms
+step:2000/20000 train_loss:2.0477 train_time:220371ms step_avg:100.95ms
+step:2500/20000 train_loss:2.1440 train_time:270528ms step_avg:100.82ms
+step:3000/20000 train_loss:2.1239 train_time:320687ms step_avg:100.74ms
+step:3500/20000 train_loss:2.1278 train_time:370849ms step_avg:100.68ms
+late_qat:enabled step:3849 scale:0.4997
+step:4000/20000 train_loss:1.9147 train_time:421823ms step_avg:100.84ms
+step:4000/20000 val_loss:1.9914 val_bpb:1.1794 train_time:421828ms step_avg:100.84ms
+step:4500/20000 train_loss:2.0577 train_time:473552ms step_avg:101.13ms
+swa:start step:4900
+step:5000/20000 train_loss:2.0294 train_time:525430ms step_avg:101.39ms
+step:5500/20000 train_loss:1.9394 train_time:577481ms step_avg:101.64ms
+step:5540/20000 val_loss:1.9114 val_bpb:1.1320 train_time:581653ms step_avg:101.66ms
+stopping_early: wallclock_cap train_time:581653ms step:5540/20000
+peak memory allocated: 26272 MiB reserved: 26550 MiB
+ema:applying EMA weights (skipping diagnostic evals)
+Serialized model: 130447629 bytes
+Code size: 96235 bytes
+pruning:8.0% magnitude pruning applied
+Serialized model int6+zstd: 15667489 bytes
+Total submission size int6+zstd: 15763724 bytes
+  ttt: pre-compiling forward+backward kernels...
+  ttt: pre-compile done
+final_int6_sliding_window val_loss:1.9279 val_bpb:1.1418 stride:64 eval_time:86717ms
+final_int6_sliding_window_exact val_loss:1.92788074 val_bpb:1.14179957
+TTT: epochs=1 lr=3e-05 freeze_first=1 chunk=1048576 opt=adamw
+TTT temperature: 0.98
+PPM alpha: 0.85, Byte-weighted TTT: True
+  Logistic context mixer enabled: eta=0.02
+ttt:start chunks=60 chunk_tokens=1048576 windows=969057 stride=64 lr=3e-05 epochs=1 opt=adamw freeze_first=1
+ttt:params unfrozen=277003 frozen=33044568
+    ttt_train [1] seqs=512 start_train...
+    ttt_train [1] epoch=1/1 batches=64 ...
+      step done ep=1 bs=0 loss=2.3078
+      step done ep=1 bs=32 loss=2.1631
+  ttt_chunk [1/60] bpb=1.152773 time=4.5s
+    ttt_train [2] seqs=512 start_train...
+    ttt_train [2] epoch=1/1 batches=64 ...
+      step done ep=1 bs=0 loss=2.2326
+      step done ep=1 bs=32 loss=2.2696
+  ttt_chunk [2/60] bpb=1.111877 time=9.2s
+    ttt_train [3] seqs=512 start_train...
+    ttt_train [3] epoch=1/1 batches=64 ...
+      step done ep=1 bs=0 loss=2.1722
+      step done ep=1 bs=32 loss=2.1919
+  ttt_chunk [3/60] bpb=0.952971 time=13.8s
+  ttt_chunk [4/60] bpb=0.822452 time=18.3s
+  ttt_chunk [5/60] bpb=0.711977 time=22.9s
+  ttt_chunk [11/60] bpb=0.422211 time=50.6s
+  ttt_chunk [21/60] bpb=0.281210 time=96.6s
+  ttt_chunk [31/60] bpb=0.227402 time=142.7s
+  ttt_chunk [41/60] bpb=0.196624 time=188.8s
+  ttt_chunk [51/60] bpb=0.177759 time=234.9s
+  ttt_chunk [60/60] bpb=0.166252 time=272.4s
+ttt:done val_loss=0.280727 val_bpb=0.166262 elapsed=272.4s
+expert_logit[neural]: mean=-5.9150 std=4.5781 min=-43.7500 max=20.5000
+expert_logit[ngram_2]: mean=-15.9250 std=2.6356 min=-41.0000 max=-2.8281
+expert_logit[ngram_3]: mean=-12.5280 std=3.0628 min=-39.7500 max=4.3125
+expert_logit[ngram_4]: mean=-9.6301 std=3.6537 min=-44.2500 max=22.3750
+expert_logit[ngram_5]: mean=-6.8144 std=4.0640 min=-45.2500 max=35.2500
+expert_logit[ngram_6]: mean=-3.8407 std=4.5330 min=-45.0000 max=46.0000
+expert_logit[ngram_7]: mean=8.3118 std=4.6968 min=-16.8750 max=42.0000
+final_int6_ttt val_loss:0.2807 val_bpb:0.1663 stride:64 eval_time:304551ms
+final_int6_ttt_exact val_loss:0.28072723 val_bpb:0.16626248

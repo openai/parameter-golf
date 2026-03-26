@@ -1,0 +1,113 @@
+W0326 07:53:06.928000 845847 site-packages/torch/distributed/run.py:851] 
+W0326 07:53:06.928000 845847 site-packages/torch/distributed/run.py:851] *****************************************
+W0326 07:53:06.928000 845847 site-packages/torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 07:53:06.928000 845847 site-packages/torch/distributed/run.py:851] *****************************************
+logs/seed2024.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/root/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/root/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+mixed_precision: 68 int5 layers, 0 int6 layers (last 0 blocks)
+model_params:33321571
+XSA:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] ws:8 gqa:8/8
+lr:embed=0.035 matrix=0.025 scalar=0.025 batch:786432 wall:600s seed:2024
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+pre-compiling mixer loss path (dummy data, no training tokens)...
+pre-compile done
+prefilling n-gram tables from training shards (frozen oracle)...
+prefilled 8,000,040,960 tokens in 14268ms (counted in wallclock)
+step:0/20000 val_loss:6.9281 val_bpb:4.1032 train_time:14268ms step_avg:0.03ms
+step:1/20000 train_loss:7.0798 train_time:16669ms step_avg:2400.78ms
+step:2/20000 train_loss:8.6583 train_time:16767ms step_avg:1249.50ms
+step:3/20000 train_loss:8.5635 train_time:16865ms step_avg:865.54ms
+step:4/20000 train_loss:8.1252 train_time:16962ms step_avg:673.37ms
+step:5/20000 train_loss:7.4803 train_time:17060ms step_avg:558.25ms
+step:6/20000 train_loss:6.9016 train_time:17158ms step_avg:481.57ms
+step:7/20000 train_loss:6.4503 train_time:17255ms step_avg:426.66ms
+step:8/20000 train_loss:6.1521 train_time:17352ms step_avg:385.45ms
+step:9/20000 train_loss:5.9924 train_time:17450ms step_avg:353.47ms
+step:10/20000 train_loss:5.9175 train_time:17547ms step_avg:327.88ms
+step:500/20000 train_loss:2.3833 train_time:66311ms step_avg:104.08ms
+step:1000/20000 train_loss:2.2594 train_time:116255ms step_avg:101.99ms
+step:1500/20000 train_loss:2.2060 train_time:166265ms step_avg:101.33ms
+step:2000/20000 train_loss:2.0449 train_time:216332ms step_avg:101.03ms
+step:2500/20000 train_loss:2.1468 train_time:266453ms step_avg:100.87ms
+step:3000/20000 train_loss:2.1254 train_time:316571ms step_avg:100.77ms
+step:3500/20000 train_loss:2.1300 train_time:366653ms step_avg:100.68ms
+late_qat:enabled step:3887 scale:0.4998
+step:4000/20000 train_loss:1.9176 train_time:417545ms step_avg:100.82ms
+step:4000/20000 val_loss:1.9916 val_bpb:1.1796 train_time:417551ms step_avg:100.82ms
+step:4500/20000 train_loss:2.0612 train_time:469304ms step_avg:101.12ms
+swa:start step:4950
+step:5000/20000 train_loss:2.0322 train_time:521203ms step_avg:101.39ms
+step:5500/20000 train_loss:1.9437 train_time:573305ms step_avg:101.64ms
+step:5541/20000 val_loss:1.9113 val_bpb:1.1320 train_time:577580ms step_avg:101.66ms
+stopping_early: wallclock_cap train_time:577580ms step:5541/20000
+peak memory allocated: 26272 MiB reserved: 26550 MiB
+ema:applying EMA weights (skipping diagnostic evals)
+Serialized model: 130447629 bytes
+Code size: 96235 bytes
+pruning:8.0% magnitude pruning applied
+Serialized model int6+zstd: 15157574 bytes
+Total submission size int6+zstd: 15253809 bytes
+  ttt: pre-compiling forward+backward kernels...
+  ttt: pre-compile done
+final_int6_sliding_window val_loss:1.9321 val_bpb:1.1443 stride:64 eval_time:86622ms
+final_int6_sliding_window_exact val_loss:1.93214624 val_bpb:1.14432584
+TTT: epochs=1 lr=3e-05 freeze_first=1 chunk=1048576 opt=adamw
+TTT temperature: 0.98
+PPM alpha: 0.85, Byte-weighted TTT: True
+  Logistic context mixer enabled: eta=0.02
+ttt:start chunks=60 chunk_tokens=1048576 windows=969057 stride=64 lr=3e-05 epochs=1 opt=adamw freeze_first=1
+ttt:params unfrozen=277003 frozen=33044568
+    ttt_train [1] seqs=512 start_train...
+    ttt_train [1] epoch=1/1 batches=64 ...
+      step done ep=1 bs=0 loss=2.3198
+      step done ep=1 bs=32 loss=2.1694
+  ttt_chunk [1/60] bpb=1.153805 time=4.5s
+    ttt_train [2] seqs=512 start_train...
+    ttt_train [2] epoch=1/1 batches=64 ...
+      step done ep=1 bs=0 loss=2.2475
+      step done ep=1 bs=32 loss=2.2836
+  ttt_chunk [2/60] bpb=1.107031 time=9.1s
+    ttt_train [3] seqs=512 start_train...
+    ttt_train [3] epoch=1/1 batches=64 ...
+      step done ep=1 bs=0 loss=2.1831
+      step done ep=1 bs=32 loss=2.2012
+  ttt_chunk [3/60] bpb=0.953059 time=13.8s
+  ttt_chunk [4/60] bpb=0.824825 time=18.3s
+  ttt_chunk [5/60] bpb=0.715340 time=22.9s
+  ttt_chunk [11/60] bpb=0.424166 time=50.5s
+  ttt_chunk [21/60] bpb=0.282166 time=96.6s
+  ttt_chunk [31/60] bpb=0.228048 time=142.7s
+  ttt_chunk [41/60] bpb=0.197122 time=188.8s
+  ttt_chunk [51/60] bpb=0.178168 time=234.9s
+  ttt_chunk [60/60] bpb=0.166610 time=272.5s
+ttt:done val_loss=0.281302 val_bpb=0.166603 elapsed=272.5s
+expert_logit[neural]: mean=-4.5208 std=3.9274 min=-35.5000 max=23.2500
+expert_logit[ngram_2]: mean=-14.8128 std=2.3361 min=-34.2500 max=-0.7969
+expert_logit[ngram_3]: mean=-11.5087 std=2.5827 min=-33.2500 max=5.4062
+expert_logit[ngram_4]: mean=-9.3328 std=3.3730 min=-39.2500 max=16.6250
+expert_logit[ngram_5]: mean=-7.1167 std=3.8482 min=-44.0000 max=25.7500
+expert_logit[ngram_6]: mean=-4.5208 std=4.2303 min=-48.7500 max=33.7500
+expert_logit[ngram_7]: mean=6.9460 std=3.9513 min=-17.6250 max=35.2500
+final_int6_ttt val_loss:0.2813 val_bpb:0.1666 stride:64 eval_time:303472ms
+final_int6_ttt_exact val_loss:0.28130167 val_bpb:0.16660270
