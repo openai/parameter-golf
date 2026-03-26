@@ -66,6 +66,8 @@ class Hyperparameters:
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    eval_stride: int = int(os.environ.get("EVAL_STRIDE", 0))
+    eval_batch_seqs: int = int(os.environ.get("EVAL_BATCH_SEQS", 0))
 
     # Model (defaults match the current baseline setup).
     vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -74,6 +76,7 @@ class Hyperparameters:
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
     mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
+    mlp_hidden: int = int(os.environ.get("MLP_HIDDEN", 0))
     tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     logit_chunk_tokens: int = int(os.environ.get("LOGIT_CHUNK_TOKENS", 0))
@@ -107,6 +110,17 @@ class Hyperparameters:
     @property
     def microbatch_tokens(self) -> int:
         return self.train_batch_tokens // self.grad_accum_steps
+
+    @property
+    def effective_mlp_hidden(self) -> int:
+        return self.mlp_hidden if self.mlp_hidden > 0 else self.model_dim * self.mlp_mult
+
+    @property
+    def effective_eval_batch_seqs(self) -> int:
+        if self.eval_batch_seqs > 0:
+            return self.eval_batch_seqs
+        val_batch_tokens = max(self.val_batch_size // max(self.grad_accum_steps, 1), self.train_seq_len)
+        return max(val_batch_tokens // self.train_seq_len, 1)
 
     def lr_mul(self, step: int, elapsed_ms: float) -> float:
         if self.warmdown_iters <= 0:
@@ -340,9 +354,9 @@ class CausalSelfAttention(nn.Module):
 
 class MLP(nn.Module):
     # Baseline MLP uses relu^2 instead of GELU/SiLU. It is cheap and works well in this setup.
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0):
         super().__init__()
-        hidden = dim * mlp_mult
+        hidden = mlp_hidden if mlp_hidden > 0 else dim * mlp_mult
         self.fc = CastedLinear(dim, hidden)
         self.proj = CastedLinear(hidden, dim)
 
@@ -358,6 +372,7 @@ class Block(nn.Module):
         num_heads: int,
         num_kv_heads: int,
         mlp_mult: int,
+        mlp_hidden: int,
         rope_base: float,
         qk_gain_init: float,
     ):
@@ -365,7 +380,7 @@ class Block(nn.Module):
         self.attn_norm = RMSNormNoWeight()
         self.mlp_norm = RMSNormNoWeight()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, mlp_hidden)
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
@@ -385,6 +400,7 @@ class GPT(nn.Module):
     # - decoder half consumes reversed skips with learned skip_weights
     # - tied embeddings for the LM head (the baseline default setup)
     def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
+                 mlp_hidden: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
                  qk_gain_init: float):
         super().__init__()
@@ -399,7 +415,7 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
         self.blocks = [
-            Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+            Block(dim, num_heads, num_kv_heads, mlp_mult, mlp_hidden, rope_base, qk_gain_init)
             for i in range(num_layers)
         ]
         self.final_norm = RMSNormNoWeight()
@@ -432,24 +448,24 @@ class GPT(nn.Module):
             x = self.blocks[self.num_encoder_layers + i](x, x0)
         return self.final_norm(x)
 
-    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
-        # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
-        # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
-        x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
-        y = target_ids.reshape(-1)
-        if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
-            logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
-            logits = self.softcap(logits_proj)
-            return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
+    def forward_logits(self, input_ids: mx.array) -> mx.array:
+        hidden = self(input_ids)
+        flat = hidden.reshape(-1, self.tok_emb.weight.shape[1])
+        if self.logit_chunk_tokens <= 0 or flat.shape[0] <= self.logit_chunk_tokens:
+            logits = self.softcap(flat @ self.tok_emb.weight.astype(flat.dtype).T)
+            return logits.reshape(hidden.shape[0], hidden.shape[1], -1)
 
-        loss_sum = mx.array(0.0, dtype=mx.float32)
-        n = int(x.shape[0])
+        logits_chunks = []
+        n = int(flat.shape[0])
         for s in range(0, n, self.logit_chunk_tokens):
             e = min(s + self.logit_chunk_tokens, n)
-            logits_proj = x[s:e] @ self.tok_emb.weight.astype(x.dtype).T
-            logits = self.softcap(logits_proj)
-            loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction="sum")
-        return loss_sum / float(n)
+            logits_proj = flat[s:e] @ self.tok_emb.weight.astype(flat.dtype).T
+            logits_chunks.append(self.softcap(logits_proj))
+        return mx.concatenate(logits_chunks, axis=0).reshape(hidden.shape[0], hidden.shape[1], -1)
+
+    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
+        logits = self.forward_logits(input_ids)
+        return nn.losses.cross_entropy(logits.astype(mx.float32), target_ids, reduction="mean")
 
 # ==============================================================================
 # OPTIMIZERS (MUON + ADAM SPLIT)
@@ -563,6 +579,14 @@ def _np_float32(arr: mx.array) -> np.ndarray:
     return np.array(arr.astype(mx.float32), dtype=np.float32, copy=False)
 
 
+def keep_large_float_name_patterns() -> tuple[str, ...]:
+    return tuple(
+        pattern
+        for pattern in os.environ.get("INT8_KEEP_FLOAT_LARGE_NAME_PATTERNS", "").split(",")
+        if pattern
+    )
+
+
 def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str, str]) -> np.ndarray:
     if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
         return np.ascontiguousarray(_np_float32(arr))
@@ -613,7 +637,9 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
 
         # Small float tensors are cheap enough to keep directly. We still downcast
         # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
-        if int(arr.size) <= INT8_KEEP_FLOAT_MAX_NUMEL:
+        if int(arr.size) <= INT8_KEEP_FLOAT_MAX_NUMEL or any(
+            pattern in name for pattern in keep_large_float_name_patterns()
+        ):
             kept = keep_float_array(name, arr, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += int(kept.nbytes)
@@ -738,6 +764,34 @@ def load_validation_tokens(pattern: str, seq_len: int) -> np.ndarray:
     return tokens[: usable + 1]
 
 
+def build_sliding_eval_windows(total_tokens: int, seq_len: int, stride: int) -> list[tuple[int, int, int, int]]:
+    if seq_len <= 0:
+        raise ValueError(f"seq_len must be positive, got {seq_len}")
+    if stride <= 0:
+        raise ValueError(f"stride must be positive, got {stride}")
+    if stride > seq_len:
+        raise ValueError(f"stride must be <= seq_len, got stride={stride}, seq_len={seq_len}")
+    windows: list[tuple[int, int, int, int]] = []
+    next_score_token = 0
+    for window_start in range(0, total_tokens, stride):
+        window_end = min(window_start + seq_len, total_tokens)
+        window_len = window_end - window_start
+        if window_len < stride:
+            continue
+        default_score_start = window_start if window_start == 0 else window_end - stride
+        score_start_abs = max(default_score_start, next_score_token)
+        if score_start_abs >= window_end:
+            continue
+        score_start = score_start_abs - window_start
+        windows.append((window_start, window_len, score_start, window_len))
+        next_score_token = window_end
+    if not windows:
+        raise ValueError(
+            f"Validation split is too short for sliding eval: total_tokens={total_tokens}, seq_len={seq_len}, stride={stride}"
+        )
+    return windows
+
+
 def loss_and_grad_chunked(
     args: Hyperparameters,
     train_loader: TokenLoader,
@@ -758,7 +812,7 @@ def loss_and_grad_chunked(
     return loss_value, tree_unflatten(list(grad_accum.items()))
 
 
-def eval_val(
+def eval_val_non_overlapping(
     args: Hyperparameters,
     compiled_loss,
     val_tokens: np.ndarray,
@@ -812,6 +866,90 @@ def eval_val(
     bits_per_token = val_loss / math.log(2.0)
     val_bpb = bits_per_token * (total_tokens / total_bytes)
     return val_loss, val_bpb
+
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    compiled_forward_logits,
+    val_tokens: np.ndarray,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    log_fn: Callable[[str], None] | None = None,
+) -> tuple[float, float]:
+    windows = build_sliding_eval_windows(val_tokens.size - 1, args.train_seq_len, args.eval_stride)
+    batch_seqs = args.effective_eval_batch_seqs
+    total_batches = max((len(windows) + batch_seqs - 1) // batch_seqs, 1)
+    total_loss_sum = 0.0
+    total_tokens = 0.0
+    total_bytes = 0.0
+
+    for batch_idx, batch_start in enumerate(range(0, len(windows), batch_seqs), start=1):
+        batch_windows = windows[batch_start:batch_start + batch_seqs]
+        x_np = np.zeros((len(batch_windows), args.train_seq_len), dtype=np.int32)
+        y_np = np.zeros((len(batch_windows), args.train_seq_len), dtype=np.int32)
+        for i, (window_start, window_len, _, _) in enumerate(batch_windows):
+            chunk = val_tokens[window_start:window_start + window_len + 1]
+            x_np[i, :window_len] = chunk[:-1]
+            y_np[i, :window_len] = chunk[1:]
+
+        logits = compiled_forward_logits(mx.array(x_np, dtype=mx.int32))
+        nll = nn.losses.cross_entropy(logits.astype(mx.float32), mx.array(y_np, dtype=mx.int32), reduction="none").astype(mx.float32)
+        mx.eval(nll)
+        nll_np = np.array(nll, dtype=np.float32, copy=False)
+
+        for i, (_, _, score_start, score_end) in enumerate(batch_windows):
+            scored_nll = nll_np[i, score_start:score_end]
+            total_loss_sum += float(scored_nll.astype(np.float64).sum())
+            tgt_ids = y_np[i, score_start:score_end]
+            prev_ids = x_np[i, score_start:score_end]
+            bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
+            bytes_np += (
+                has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
+            ).astype(np.int16, copy=False)
+            total_tokens += float(score_end - score_start)
+            total_bytes += float(bytes_np.astype(np.float64).sum())
+
+        if log_fn is not None and total_batches > 1 and (
+            batch_idx == 1 or batch_idx == total_batches or batch_idx % 25 == 0
+        ):
+            log_fn(f"sliding_val_progress:{batch_idx}/{total_batches}")
+
+    val_loss = total_loss_sum / total_tokens
+    bits_per_token = val_loss / math.log(2.0)
+    val_bpb = bits_per_token * (total_tokens / total_bytes)
+    return val_loss, val_bpb
+
+
+def eval_val(
+    args: Hyperparameters,
+    compiled_loss,
+    compiled_forward_logits,
+    val_tokens: np.ndarray,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    log_fn: Callable[[str], None] | None = None,
+) -> tuple[float, float]:
+    if args.eval_stride > 0:
+        return eval_val_sliding(
+            args,
+            compiled_forward_logits,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            log_fn=log_fn,
+        )
+    return eval_val_non_overlapping(
+        args,
+        compiled_loss,
+        val_tokens,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+        log_fn=log_fn,
+    )
 
 # -----------------------------
 # TRAINING
@@ -892,6 +1030,7 @@ def main() -> None:
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
         mlp_mult=args.mlp_mult,
+        mlp_hidden=args.effective_mlp_hidden,
         logit_chunk_tokens=args.logit_chunk_tokens,
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
@@ -908,6 +1047,7 @@ def main() -> None:
     # Compiling the model-bound functions and capturing the full model state fixes that while still
     # returning gradients only for trainable parameters via nn.value_and_grad(...).
     compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
+    compiled_forward_logits = mx.compile(lambda x: model.forward_logits(x), inputs=model.state, outputs=model.state)
     compiled_loss_and_grad = mx.compile(
         nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
         inputs=model.state,
@@ -934,7 +1074,7 @@ def main() -> None:
     log(
         f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} "
         f"dim:{args.model_dim} heads:{args.num_heads} kv_heads:{args.num_kv_heads} "
-        f"seq_len:{args.train_seq_len} tie_embeddings:{args.tie_embeddings}"
+        f"mlp_hidden:{args.effective_mlp_hidden} seq_len:{args.train_seq_len} tie_embeddings:{args.tie_embeddings}"
     )
     log(
         f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} grad_accum_steps:{args.grad_accum_steps} "
@@ -950,6 +1090,10 @@ def main() -> None:
         f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
     )
     log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    if args.eval_stride > 0:
+        log(f"eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.effective_eval_batch_seqs}")
+    else:
+        log("eval_mode:non_overlapping")
     log(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
     log(
         f"dtypes tok_emb:{model.tok_emb.weight.dtype} "
@@ -988,9 +1132,13 @@ def main() -> None:
         warm_val_seqs = min(val_batch_tokens // args.train_seq_len, (val_tokens.size - 1) // args.train_seq_len)
         warm_chunk = val_tokens[: warm_val_seqs * args.train_seq_len + 1]
         x_val = mx.array(warm_chunk[:-1].reshape(-1, args.train_seq_len), dtype=mx.int32)
-        y_val = mx.array(warm_chunk[1:].reshape(-1, args.train_seq_len), dtype=mx.int32)
-        warm_val_loss = compiled_loss(x_val, y_val)
-        mx.eval(warm_val_loss)
+        if args.eval_stride > 0:
+            warm_val_logits = compiled_forward_logits(x_val)
+            mx.eval(warm_val_logits)
+        else:
+            y_val = mx.array(warm_chunk[1:].reshape(-1, args.train_seq_len), dtype=mx.int32)
+            warm_val_loss = compiled_loss(x_val, y_val)
+            mx.eval(warm_val_loss)
         mx.synchronize()
 
         train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
@@ -1008,6 +1156,7 @@ def main() -> None:
             val_loss, val_bpb = eval_val(
                 args,
                 compiled_loss,
+                compiled_forward_logits,
                 val_tokens,
                 base_bytes_lut,
                 has_leading_space_lut,
@@ -1089,6 +1238,7 @@ def main() -> None:
     q_val_loss, q_val_bpb = eval_val(
         args,
         compiled_loss,
+        compiled_forward_logits,
         val_tokens,
         base_bytes_lut,
         has_leading_space_lut,
