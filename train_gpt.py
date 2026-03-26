@@ -962,8 +962,8 @@ class GPT(nn.Module):
         bsz = input_ids.size(0)
         if self.use_cheat_prefix:
             assert self.cheat_sheet_prefix is not None
-            pref = self.cheat_sheet_prefix.to(dtype=input_ids.dtype, device=input_ids.device).unsqueeze(0).expand(bsz, -1, -1)
-            tok = self.embed_tokens(input_ids).to(dtype=pref.dtype)
+            tok = self.embed_tokens(input_ids)
+            pref = self.cheat_sheet_prefix.to(dtype=tok.dtype, device=input_ids.device).unsqueeze(0).expand(bsz, -1, -1)
             x = torch.cat([pref, tok], dim=1)
             logits_h = self.forward_body(x, return_pre_lm_hidden=True)
             cp = self.cheat_sheet_prefix.shape[0]
