@@ -6,9 +6,8 @@
 |------|-------------|---------------------|----------|
 | 1337 | 1.1190 | **0.5640** | 15.59 MB |
 | 42 | 1.1193 | **0.5642** | 15.59 MB |
-| **Mean** | **1.1192** | **0.5641** | — |
-
-Seed 2024 in progress — will update.
+| 300 | 1.1197 | **0.5651** | 15.63 MB |
+| **Mean** | **1.1193** | **0.5644** | — |
 
 ## What Changed vs Podracing III (#782)
 
@@ -16,7 +15,7 @@ One structural fix to n-gram eval, same training:
 
 1. **Shared n-gram tables (chunk-based)**: Previous podracer gave each GPU rank its own hash tables — with 8 GPUs, each rank only saw 1/8 of val tokens. X-WING groups eval windows into ~1M-token chunks. All ranks score their assigned windows, then ALL ranks update tables with the same chunk tokens. Every rank gets the full 62M-token picture. This is the single change that closes the 0.37 BPB gap between rank-local (0.936) and shared (0.564) tables.
 
-2. **Cubric per-order scaling (retained)**: Same proven adaptive alpha multipliers — suppress noisy orders 2-3, boost reliable orders 5-7. Converged to: `o2:0.45 o3:0.30 o4:0.47 o5:1.88 o6:2.00 o7:2.00`.
+2. **Cubric per-order scaling (retained)**: Same proven adaptive alpha multipliers — suppress noisy orders 2-3, boost reliable orders 5-7. Converged to: `o2:0.45 o3:0.30 o4:0.45 o5:1.94 o6:2.00 o7:2.00`.
 
 ## Key Insight
 
