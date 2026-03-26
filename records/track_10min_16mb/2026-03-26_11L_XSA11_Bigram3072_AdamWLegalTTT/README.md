@@ -36,6 +36,12 @@
 - Freeze first 8 blocks during TTT
 - Final legal TTT score: `1.11565196`
 
+## Setup
+
+```bash
+pip install -r requirements.txt --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch2100
+```
+
 ## Run Command
 
 ```bash
