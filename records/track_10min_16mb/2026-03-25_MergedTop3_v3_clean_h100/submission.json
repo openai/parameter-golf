@@ -1,0 +1,16 @@
+{
+  "author": "Hael",
+  "github_id": "hesong0222-dev",
+  "name": "MergedTop3_v3 clean H100 rerun",
+  "blurb": "Fresh uninterrupted 8xH100 rerun of the merged top-stack recipe: March 20 backbone, March 21 Partial RoPE and LN scale, and March 22 GPTQ-lite clip search plus warmdown 3500. This records the clean single-seed run completed on March 25, 2026.",
+  "date": "2026-03-25T00:00:00Z",
+  "track": "track_10min_16mb",
+  "val_loss": 1.96565872,
+  "val_bpb": 1.16417381,
+  "step_stop": 5347,
+  "wallclock_seconds": 580.213,
+  "eval_time_seconds": 44.398,
+  "bytes_total": 15635201,
+  "bytes_model_int6_zstd": 15562277,
+  "bytes_code": 72924
+}
