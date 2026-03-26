@@ -1,11 +1,9 @@
 {
   "author": "Daniel Wahnich",
   "github_id": "manfromnowhere143",
-  "name": "Aweb Ultimate — Full SOTA Stack + N-gram Oracle Mixing",
-  "blurb": "SOTA #1 base (LeakyReLU², XSA4, Partial RoPE, LN Scale, EMA, Parallel Muon, GPTQ-lite int6) + Legal TTT + N-gram oracle cache (orders 2-8, entropy-adaptive mixing). Neural model handles general patterns, n-gram cache handles local repetitions.",
+  "name": "Aweb Ultimate — 11L LeakyReLU² XSA4 PartialRoPE EMA ParallelMuon Int6",
+  "blurb": "11L 512d LeakyReLU(0.5)² + XSA4 + Partial RoPE(16/64) + LN Scale + EMA(0.997) + Parallel Muon + GPTQ-lite int6/int8 mixed + SmearGate + BigramHash + ValueEmbedding. Sliding window eval stride=64.",
   "date": "2026-03-23T00:00:00Z",
-  "val_loss": null,
-  "val_bpb": null,
-  "bytes_total": null,
-  "bytes_code": null
+  "val_bpb": 1.1210,
+  "bytes_total": 15956459
 }
