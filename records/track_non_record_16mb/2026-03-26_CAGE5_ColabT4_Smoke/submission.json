@@ -1,14 +1,14 @@
 {
   "author": "Chandrasen Pandey",
   "github_id": "Devchandrasen",
-  "name": "CAGE5 Colab T4 smoke",
-  "blurb": "Non-record 16MB smoke submission on a Colab Tesla T4 using a tiny debug configuration and a strictly causal hashed 5-gram mixer. This is an in-progress submission meant to validate the end-to-end training, artifact, and evaluation path before H100 scaling.",
+  "name": "CAGE5 Colab T4 smoke with legal TTT + 5-gram mixer",
+  "blurb": "Non-record 16MB smoke submission on a Colab Tesla T4 validating a strictly causal hashed 5-gram mixer that stacks with legal score-first TTT.",
   "date": "2026-03-26T00:00:00Z",
   "track": "non-record-16mb",
-  "val_loss": 4.66523169,
-  "val_bpb": 2.69806373,
-  "wallclock_seconds": 46.12,
-  "bytes_total": 656896,
-  "bytes_model_int6_lzma": 562620,
-  "bytes_code": 94276
+  "val_loss": 4.43143776,
+  "val_bpb": 2.56285268,
+  "wallclock_seconds": 82.48,
+  "bytes_total": 1315287,
+  "bytes_model_int6_lzma": 1219864,
+  "bytes_code": 95423
 }
