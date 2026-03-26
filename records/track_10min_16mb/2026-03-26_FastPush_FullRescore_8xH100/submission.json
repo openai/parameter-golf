@@ -1,0 +1,19 @@
+{
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "name": "Fast Full-Rescore N-gram (3-seed)",
+  "blurb": "Score-first full-rescore N-gram evaluation: pass1 stores token stats, cache is built once, pass2 rescoring is applied to all chunks without second neural forward. Includes optional self-exclude and count-confidence controls. 3-seed mean val_bpb 0.09420444.",
+  "date": "2026-03-26",
+  "val_bpb": 0.09420444,
+  "val_bpb_std": 0.00002598,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 0.09423413, "roundtrip_val_bpb": 1.15987619, "train_s": 600.086, "eval_s": 373.439, "bytes_total": 13439385},
+    "42": {"val_bpb": 0.09417085, "roundtrip_val_bpb": 1.15860591, "train_s": 600.015, "eval_s": 373.898, "bytes_total": 13443809},
+    "2025": {"val_bpb": 0.09420833, "roundtrip_val_bpb": 1.15989369, "train_s": 600.089, "eval_s": 373.760, "bytes_total": 13433689}
+  },
+  "artifact_bytes_max": 13443809,
+  "train_time_seconds_max": 600.089,
+  "eval_time_seconds_max": 373.898,
+  "track": "track_10min_16mb"
+}
