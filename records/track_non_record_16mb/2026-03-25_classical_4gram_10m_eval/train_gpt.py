@@ -13,15 +13,14 @@ from pathlib import Path
 
 import numpy as np
 import sentencepiece as spm
-
-
+REPO_ROOT = Path(__file__).resolve().parents[3]
 HEADER_INTS = 256
 HEADER_MAGIC = 20240520
 HEADER_VERSION = 1
 HEADER_DTYPE = np.dtype("<i4")
 TOKEN_DTYPE = np.dtype("<u2")
-
-
+def resolve_repo_path(raw: str) -> str:
+    return raw if not raw or Path(raw).is_absolute() else str(REPO_ROOT / raw)
 def load_data_shard(path: Path) -> np.ndarray:
     header_bytes = HEADER_INTS * HEADER_DTYPE.itemsize
     token_bytes = TOKEN_DTYPE.itemsize
@@ -1214,7 +1213,7 @@ def build_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Evaluate a non-neural token compressor on challenge val data")
     parser.add_argument(
         "--data-pattern",
-        default="data/datasets/fineweb10B_sp1024/fineweb_val_*.bin",
+        default=str(REPO_ROOT / "data/datasets/fineweb10B_sp1024/fineweb_val_*.bin"),
         help="Glob for validation shards.",
     )
     parser.add_argument(
@@ -1240,7 +1239,7 @@ def build_argparser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--tokenizer-path",
-        default="data/tokenizers/fineweb_1024_bpe.model",
+        default=str(REPO_ROOT / "data/tokenizers/fineweb_1024_bpe.model"),
         help="SentencePiece model path used for tokenizer-aware byte accounting.",
     )
     parser.add_argument("--vocab-size", type=int, default=1024)
@@ -1399,7 +1398,9 @@ def warmup_mixer(args: argparse.Namespace, mixer: AdaptiveMixer) -> tuple[int, f
 def main() -> None:
     parser = build_argparser()
     args = parser.parse_args()
-
+    args.data_pattern = resolve_repo_path(args.data_pattern)
+    args.train_pattern = resolve_repo_path(args.train_pattern)
+    args.tokenizer_path = resolve_repo_path(args.tokenizer_path)
     start = time.perf_counter()
     experts = build_experts(args, args.vocab_size)
     mixer = AdaptiveMixer(experts=experts, eta=args.eta, share=args.share, min_prob=args.min_prob)

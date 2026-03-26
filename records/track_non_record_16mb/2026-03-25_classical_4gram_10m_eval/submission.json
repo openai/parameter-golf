@@ -2,7 +2,7 @@
   "author": "muhtasham",
   "github_id": "Muhtasham",
   "name": "Classical 4-gram Artifact",
-  "blurb": "Non-record classical submission: discounted hashed 4-gram model built from 10M train tokens, exported as a 14.31MB compressed artifact, and evaluated exactly on the full FineWeb validation split. Full-val BPB is 1.91070694 with full-val wallclock 571.97s and total submission size 14,368,584 bytes.",
+  "blurb": "Non-record classical submission: discounted hashed 4-gram model built from 10M train tokens, exported as a 14.31MB compressed artifact, and evaluated exactly on the full FineWeb validation split. Full-val BPB is 1.91070694 with full-val wallclock 571.97s and total submission size 14,368,969 bytes.",
   "date": "2026-03-25T00:00:00Z",
   "track": "non-record-16mb",
   "val_loss": null,
@@ -11,8 +11,8 @@
   "pre_quant_val_bpb": null,
   "step_stop": null,
   "wallclock_seconds": 68.63,
-  "bytes_total": 14368584,
+  "bytes_total": 14368969,
   "bytes_model_int8_zlib": 14310783,
-  "bytes_code": 57801,
+  "bytes_code": 58186,
   "gpu": "local CPU"
 }

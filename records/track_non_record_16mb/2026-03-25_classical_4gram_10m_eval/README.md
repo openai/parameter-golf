@@ -14,8 +14,8 @@ The model is fully non-neural:
 - Model: discounted hashed 4-gram with backoff to bigram and unigram
 - Artifact build data: first `10,000,000` training tokens
 - Artifact bytes: `14,310,783`
-- Code bytes (`train_gpt.py`): `57,801`
-- Total submission bytes: `14,368,584`
+- Code bytes (`train_gpt.py`): `58,186`
+- Total submission bytes: `14,368,969`
 
 Command used to build the artifact:
 
