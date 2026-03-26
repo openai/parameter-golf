@@ -1,0 +1,13 @@
+{
+  "name": "Fielding Johnston",
+  "github": "fielding",
+  "val_bpb": 1.6073,
+  "artifact_bytes": 1921614,
+  "hardware": "4xH200 (non-record, unlimited compute track)",
+  "training_time_seconds": 13500,
+  "key_techniques": [
+    "random_linear_maps",
+    "learned_low_rank_adapters",
+    "seeded_random_projections"
+  ]
+}
