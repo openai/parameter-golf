@@ -414,7 +414,7 @@ def main():
 
     print(f"Batch: {TRAIN_BATCH_TOKENS:,} tokens, micro={DEVICE_BATCH_SIZE}x{SEQ_LEN}, accum={grad_accum_steps}")
 
-    target_seconds = 30 if args.smoke_test else TIME_BUDGET
+    target_seconds = 30 if args.smoke_test else 600  # 10 minutes (challenge limit)
     max_wallclock_ms = target_seconds * 1000.0
     print(f"Time budget: {target_seconds}s")
 
