@@ -1,0 +1,22 @@
+{
+  "author": "quietsmile",
+  "github_id": "quietsmile",
+  "name": "Order-12 N-gram Backoff + 256K Chunks + Alpha 0.70",
+  "blurb": "Extended n-gram backoff to order 12 (from 9) with 256K token chunks (from 1M) and higher alpha_max=0.70 (from 0.60). 11L 512d GQA 8/4, MLP 3.0x, XSA-4, LeakyReLU(0.9)², BigramHash(4096), GPTQ int5. Mean of 2 seeds: val_bpb 0.2834 (std 0.0001). Key changes: (1) 6 additional hash primes for orders 10-15, (2) 256K chunk tokens for faster cache refresh, (3) alpha_max 0.70 for stronger n-gram mixing. Training 525s on 8xH100 SXM equivalent (L20Z), eval 431s.",
+  "date": "2026-03-26",
+  "val_loss": 0.47851,
+  "val_bpb": 0.28340,
+  "val_loss_std": 0.00016,
+  "val_bpb_std": 0.00010,
+  "seeds": [1337, 42],
+  "seed_results": {
+    "1337": {"val_loss": 0.47867, "val_bpb": 0.28350},
+    "42": {"val_loss": 0.47835, "val_bpb": 0.28330}
+  },
+  "pre_quant_val_bpb": 1.1454,
+  "step_stop": 6192,
+  "wallclock_seconds": 525.0,
+  "eval_time_seconds": 431.0,
+  "bytes_total": 13412672,
+  "bytes_code": 193000
+}
