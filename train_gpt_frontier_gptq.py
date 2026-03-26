@@ -987,7 +987,7 @@ def eval_val_sliding(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    compiled_logits = base_model.forward_logits
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
@@ -1256,7 +1256,7 @@ def main() -> None:
     if args.gptq_mode not in {"full", "lite"}:
         raise ValueError(f"GPTQ_MODE must be 'full' or 'lite', got {args.gptq_mode!r}")
     _ = causal_cache_from_env(dict(os.environ))
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    zeropower_via_newtonschulz5 = zeropower_via_newtonschulz5
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -1361,7 +1361,7 @@ def main() -> None:
     CastedLinear._clip_range = args.clip_range
     log0(f"mixed_precision: clip_range={args.clip_range} ({'int5' if args.clip_range == 15 else 'int6'}) compressor={args.compressor}")
     base_model = _make_gpt(args, device)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = base_model
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
     block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [p for n, p in block_named_params if p.ndim == 2 and not any(pat in n for pat in CONTROL_TENSOR_NAME_PATTERNS)]
@@ -1794,7 +1794,7 @@ def main() -> None:
     eval_model = _make_gpt(args, device)
     eval_model.load_state_dict(deq_state, strict=True)
     CastedLinear._qat_enabled = False
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    compiled_eval = eval_model
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(args, compiled_eval, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, eval_seq_len=effective_eval_seq_len)

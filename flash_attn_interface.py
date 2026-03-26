@@ -121,6 +121,14 @@ def _sdp_math_attention(q: Tensor, k: Tensor, v: Tensor, *, enable_gqa: bool) ->
 
 
 def causal_attention(q: Tensor, k: Tensor, v: Tensor, *, enable_gqa: bool) -> Tensor:
+    # Force a single dtype so FlashAttention eligibility is preserved.
+    # H100 smoke showed q/k=float32 while v=bfloat16, which forces the
+    # memory-heavy math fallback. Prefer v.dtype when mixed.
+    if q.dtype != k.dtype or q.dtype != v.dtype:
+        target_dtype = v.dtype
+        q = q.to(target_dtype)
+        k = k.to(target_dtype)
+        v = v.to(target_dtype)
     can_use_flash, reason = _flash_attention_eligibility(q, k, v)
     if can_use_flash:
         try:
