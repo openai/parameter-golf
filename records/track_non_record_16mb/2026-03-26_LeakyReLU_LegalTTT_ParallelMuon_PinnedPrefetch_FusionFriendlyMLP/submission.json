@@ -1,0 +1,12 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-26",
+  "name": "LeakyReLU² + Legal TTT + Parallel Muon — systems: pinned async prefetch + compiler fusion-friendly MLP",
+  "author": "Binh-Khang Nguyen",
+  "github": "sirsaltysalmon",
+  "seed_results": {
+  },
+  "mean_val_loss": null,
+  "mean_val_bpb": null,
+  "code_bytes": null
+}
