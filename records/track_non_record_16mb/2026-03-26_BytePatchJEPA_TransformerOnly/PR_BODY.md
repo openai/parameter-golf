@@ -29,9 +29,9 @@ So the clean question here is: can a pure raw-byte JEPA backbone, trained withou
 | This PR | pure raw-byte detached-probe JEPA | `2.3839` | no exact-loss gradients into the backbone |
 | [#708](https://github.com/openai/parameter-golf/pull/708) | byte-level hybrid JEPA + exact next-byte scorer | about `2.1252` | stronger numerically, but exact next-byte loss is in the main training path |
 | [#896](https://github.com/openai/parameter-golf/pull/896) | tokenized JEPA self-distillation on top of autoregressive LM | PR author reports vanilla CE wins by `0.005 BPB` and is `40%` faster | useful negative result, but not raw-byte pure JEPA |
-| [#903](https://github.com/openai/parameter-golf/pull/903) | LeWorldModel-style JEPA + SIGReg + Mamba-2 SSM + CE head | reported `1.2064` sliding / `1.2235` standard for best long BPE; `1.3348` standard for 10-minute byte | strongest JEPA-augmented result, but still CE-trained and not a pure JEPA test |
+| [#903](https://github.com/openai/parameter-golf/pull/903) | LeWorldModel-style JEPA + SIGReg + Mamba-2 SSM + CE head, plus a detached diagnostic probe | reported `1.2064` sliding / `1.2235` standard for best long BPE; `1.3348` standard for 10-minute byte | closest comparison, but the main reported model is still CE-trained and the JEPA-only contribution remains open |
 
-PRs #708, #896, and #903 are useful references, but all of them are hybrid or auxiliary-loss approaches, not pure detached-probe JEPA. They are best described as JEPA-inspired or JEPA-augmented rather than apples-to-apples comparisons to this PR.
+PRs #708 and #896 are hybrid or auxiliary-loss approaches. PR #903 is closer to this work because it also includes a detached probe diagnostic, but its main reported model is still a CE-trained JEPA-augmented system rather than a pure backbone-only JEPA path. So none of them are apples-to-apples comparisons to this PR.
 
 # Main Negative Findings
 
