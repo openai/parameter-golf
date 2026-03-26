@@ -1,0 +1,10 @@
+{
+  "name": "turbogrannie",
+  "description": "TurboQuant rotation codebooks + full-rescore n-gram cache + 11L/576d/3.5x MLP",
+  "track": "10min_16mb",
+  "hardware": "8xH100 SXM 80GB",
+  "train_time_budget_seconds": 600,
+  "eval_time_budget_seconds": 600,
+  "artifact_size_budget_bytes": 16000000,
+  "code_file": "train_gpt.py"
+}
