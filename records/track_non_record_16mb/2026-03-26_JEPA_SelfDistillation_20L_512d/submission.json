@@ -1,0 +1,22 @@
+{
+  "author": "Manav Pandey",
+  "github_id": "MVPandey",
+  "name": "JEPA Self-Distillation with EMA Target Encoder + VICReg (20L/512d)",
+  "blurb": "Full JEPA self-distillation with EMA target encoder as auxiliary training objective for autoregressive LM. VICReg on target encoder output prevents collapse. Context encoder only in artifact.",
+  "date": "2026-03-26",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "pre_quant_val_loss": 0.0,
+  "pre_quant_val_bpb": 0.0,
+  "step_stop": 0,
+  "wallclock_seconds": 7200,
+  "bytes_total": 0,
+  "bytes_model_int6_lzma": 0,
+  "bytes_code": 0,
+  "seeds": {
+    "42": {"val_bpb": 0.0, "artifact_bytes": 0},
+    "1234": {"val_bpb": 0.0, "artifact_bytes": 0},
+    "5678": {"val_bpb": 0.0, "artifact_bytes": 0}
+  }
+}
