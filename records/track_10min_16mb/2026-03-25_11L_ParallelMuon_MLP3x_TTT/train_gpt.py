@@ -99,7 +99,7 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
-    ve_dim = int(os.environ.get("VE_DIM", 128))
+    ve_dim = int(os.environ.get("VE_DIM", 64))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
 
     use_smeargate = bool(int(os.environ.get("USE_SMEARGATE", "1")))
