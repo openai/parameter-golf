@@ -1,0 +1,41 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "X-WING: 3D Cubric + Complementary Training",
+  "blurb": "Shared n-gram tables + 3D cubric pattern recognizer (54 warm-started adaptive multipliers: order x entropy_bin x count_bin) + complementary training (downweight bigram-predictable tokens). Orders 2-9, alpha 0.20-0.75. 3-seed mean val_bpb=0.4820 (std 0.0002).",
+  "date": "2026-03-26T05:00:00Z",
+  "seed_1337": {
+    "val_bpb": 0.4818,
+    "val_bpb_exact": 0.48176787,
+    "sliding_window_bpb": 1.1196,
+    "sliding_window_bpb_exact": 1.11962844,
+    "post_ema_bpb": 1.1376,
+    "steps": 6822,
+    "train_time_s": 600,
+    "eval_time_s": 202
+  },
+  "seed_300": {
+    "val_bpb": 0.4821,
+    "val_bpb_exact": 0.48211332,
+    "sliding_window_bpb": 1.1196,
+    "sliding_window_bpb_exact": 1.11956294,
+    "post_ema_bpb": 1.1375,
+    "steps": 6814,
+    "train_time_s": 600,
+    "eval_time_s": 204
+  },
+  "seed_58": {
+    "val_bpb": 0.4821,
+    "val_bpb_exact": 0.48207518,
+    "sliding_window_bpb": 1.1206,
+    "sliding_window_bpb_exact": 1.12060881,
+    "post_ema_bpb": 1.1386,
+    "steps": 6822,
+    "train_time_s": 600,
+    "eval_time_s": 203
+  },
+  "val_bpb": 0.4820,
+  "bytes_total": 15581439,
+  "bytes_code": 104697,
+  "hardware": "8xH100 SXM"
+}

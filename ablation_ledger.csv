@@ -1,0 +1,1 @@
+exp_id,thread,mode,parent_id,scale,variable_changed,hypothesis,overrides_json,run_id,timestamp,status,steps,fast_val_bpb,sliding_window_bpb,post_ema_bpb,quant_gap,artifact_bytes,delta_vs_parent,verdict,notes,diag_csv_path

@@ -1,0 +1,36 @@
+#!/bin/bash
+# A/B Test A: Cartesian blending baseline (POLAR_ENABLED=0), 0.25 scale diagnostic
+# Fixed cadence 2, per-step CSV logging. Compare against B (polar).
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_DIR"
+
+export PYTHONPATH="$REPO_DIR/flash-attention/hopper:${PYTHONPATH:-}"
+NPROC="${NPROC:-8}"
+SEED="${SEED:-1337}"
+RUN_ID="${RUN_ID:-diag_A_cartesian_025_$(date +%Y%m%d_%H%M%S)}"
+
+echo "RUN_ID=$RUN_ID"
+env \
+  RUN_ID="$RUN_ID" SEED="$SEED" \
+  NUM_FLAT_LAYERS=4 NUM_CRAWLER_LAYERS=2 CRAWLER_LOOPS=2 CRAWLER_MLP_MULT=4.0 \
+  MODEL_DIM=640 NUM_HEADS=10 NUM_KV_HEADS=5 MLP_MULT=4.0 \
+  TRIGRAM_VOCAB_SIZE=8192 TRIGRAM_DIM=128 XSA_LAST_N=2 ROPE_DIMS=16 \
+  TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 TRAIN_BATCH_TOKENS=786432 \
+  MAX_WALLCLOCK_SECONDS=150 WARMDOWN_ITERS=875 VAL_LOSS_EVERY=0 EVAL_STRIDE=64 \
+  MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 MUON_MOMENTUM=0.99 MUON_WD=0.04 \
+  QAT_ENABLED=0 LATE_QAT_THRESHOLD=0.5 \
+  QUANT_INT_CATEGORIES=mlp,attn QUANT_MLP_CLIP_RANGE=15 QUANT_ATTN_CLIP_RANGE=31 \
+  QUANT_EMBED_CLIP_RANGE=31 QUANT_OTHER_CLIP_RANGE=31 \
+  GPTQ_BLOCK_SIZE=128 GPTQ_PERCDAMP=0.01 GPTQ_CALIBRATION_SAMPLES=256 \
+  QUANT_ARTIFACT_NAME=final_model.intq.ptz \
+  TTT_EVAL_ENABLED=0 POST_TTT_TEMP_ENABLED=0 \
+  DISTILL_ENABLED=0 \
+  POLAR_ENABLED=0 \
+  DIAG_FIXED_CADENCE=2 \
+  DIAG_CSV_PATH="results/autoruns/${RUN_ID}/diag_A_cartesian.csv" \
+  DIAG_FAST_VAL=1 \
+  torchrun --standalone --nproc_per_node="$NPROC" train_gpt_diag_ts_polar.py
+
+echo "diag CSV: results/autoruns/${RUN_ID}/diag_A_cartesian.csv"

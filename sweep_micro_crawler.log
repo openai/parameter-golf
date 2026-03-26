@@ -1,0 +1,184 @@
+============================================================
+MICRO CRAWLER SWEEP — Mon Mar 23 09:11:40 PM CDT 2026
+============================================================
+
+>>> CONFIG 1: 4f+1cx2 MLP4x trigram
+step:500/500 [N] loss:3.5648 step_ms:23 total:180210ms
+  >>> val_bpb:2.1912 (step 500)
+
+Final eval...
+
+======================================================================
+RESULTS — 4flat + 1crawl x2
+======================================================================
+val_loss:        3.6206
+val_bpb:         2.191166
+params:          17,958,817
+flat_params:     13,025,536 (4 blocks, MLP 4x)
+crawler_params:  3,256,384 (1 blocks x2, MLP 4x)
+effective_depth: 6
+dim:             544
+steps:           500 (C:250 N:250)
+time:            181.0s
+avg_ms:          362.0ms/step
+log:             logs/mc_4f1cx2_tri.tsv
+peak_vram:       6818 MiB
+
+>>> CONFIG 2: 5f+1cx2 MLP4x trigram
+step:500/500 [N] loss:3.6448 step_ms:10 total:199681ms
+  >>> val_bpb:2.2458 (step 500)
+
+Final eval...
+
+======================================================================
+RESULTS — 5flat + 1crawl x2
+======================================================================
+val_loss:        3.7108
+val_bpb:         2.245776
+params:          17,864,465
+flat_params:     13,535,840 (5 blocks, MLP 4x)
+crawler_params:  2,707,168 (1 blocks x2, MLP 4x)
+effective_depth: 7
+dim:             496
+steps:           500 (C:250 N:250)
+time:            200.7s
+avg_ms:          401.3ms/step
+log:             logs/mc_5f1cx2_tri.tsv
+peak_vram:       7092 MiB
+
+>>> CONFIG 3: 3f+1cx3 MLP4x trigram
+step:500/500 [N] loss:3.5372 step_ms:22 total:171006ms
+  >>> val_bpb:2.1735 (step 500)
+
+Final eval...
+
+======================================================================
+RESULTS — 3flat + 1crawl x3
+======================================================================
+val_loss:        3.5914
+val_bpb:         2.173487
+params:          18,021,505
+flat_params:     12,202,560 (3 blocks, MLP 4x)
+crawler_params:  4,067,520 (1 blocks x3, MLP 4x)
+effective_depth: 6
+dim:             608
+steps:           500 (C:167 N:333)
+time:            171.9s
+avg_ms:          343.8ms/step
+log:             logs/mc_3f1cx3_tri.tsv
+peak_vram:       7599 MiB
+
+>>> CONFIG 4: 4f+2cx2 MLP4x trigram
+step:500/500 [N] loss:3.7341 step_ms:11 total:204871ms
+  >>> val_bpb:2.3013 (step 500)
+
+Final eval...
+
+======================================================================
+RESULTS — 4flat + 2crawl x2
+======================================================================
+val_loss:        3.8025
+val_bpb:         2.301270
+params:          17,864,465
+flat_params:     10,828,672 (4 blocks, MLP 4x)
+crawler_params:  5,414,336 (2 blocks x2, MLP 4x)
+effective_depth: 8
+dim:             496
+steps:           500 (C:167 N:333)
+time:            206.0s
+avg_ms:          412.0ms/step
+log:             logs/mc_4f2cx2_tri.tsv
+peak_vram:       7954 MiB
+
+>>> CONFIG 5: 5f+1cx2 flat3x/crawl5x trigram
+step:500/500 [N] loss:3.5669 step_ms:27 total:212713ms
+  >>> val_bpb:2.1910 (step 500)
+
+Final eval...
+
+======================================================================
+RESULTS — 5flat + 1crawl x2
+======================================================================
+val_loss:        3.6203
+val_bpb:         2.191027
+params:          17,834,225
+flat_params:     12,550,560 (5 blocks, MLP 3x)
+crawler_params:  3,625,248 (1 blocks x2, MLP 5x)
+effective_depth: 7
+dim:             528
+steps:           500 (C:250 N:250)
+time:            213.8s
+avg_ms:          427.5ms/step
+log:             logs/mc_5f1cx2_35_tri.tsv
+peak_vram:       7426 MiB
+
+>>> CONFIG 6: 3f+1cx2 MLP4x trigram
+step:500/500 [N] loss:3.5116 step_ms:12 total:165611ms
+  >>> val_bpb:2.1571 (step 500)
+
+Final eval...
+
+======================================================================
+RESULTS — 3flat + 1crawl x2
+======================================================================
+val_loss:        3.5643
+val_bpb:         2.157078
+params:          18,020,897
+flat_params:     12,202,560 (3 blocks, MLP 4x)
+crawler_params:  4,067,520 (1 blocks x2, MLP 4x)
+effective_depth: 5
+dim:             608
+steps:           500 (C:250 N:250)
+time:            166.4s
+avg_ms:          332.7ms/step
+log:             logs/mc_3f1cx2_tri.tsv
+peak_vram:       6545 MiB
+
+>>> CONFIG 7: 6flat control (no crawler)
+step:500/500 [N] loss:3.5650 step_ms:27 total:185014ms
+  >>> val_bpb:2.1900 (step 500)
+
+Final eval...
+
+======================================================================
+RESULTS — 6flat + 0crawl x0
+======================================================================
+val_loss:        3.6186
+val_bpb:         2.189973
+params:          17,862,977
+flat_params:     16,243,008 (6 blocks, MLP 4x)
+crawler_params:  0 (0 blocks x0, MLP 4x)
+effective_depth: 6
+dim:             496
+steps:           500 (C:0 N:500)
+time:            185.9s
+avg_ms:          371.7ms/step
+log:             logs/mc_6flat_ctrl.tsv
+peak_vram:       6229 MiB
+
+>>> CONFIG 8: 4f+1cx2 MLP4x NO trigram
+step:500/500 [N] loss:3.5520 step_ms:24 total:178664ms
+  >>> val_bpb:2.1812 (step 500)
+
+Final eval...
+
+======================================================================
+RESULTS — 4flat + 1crawl x2
+======================================================================
+val_loss:        3.6042
+val_bpb:         2.181247
+params:          16,840,608
+flat_params:     13,025,536 (4 blocks, MLP 4x)
+crawler_params:  3,256,384 (1 blocks x2, MLP 4x)
+effective_depth: 6
+dim:             544
+steps:           500 (C:250 N:250)
+time:            179.4s
+avg_ms:          358.9ms/step
+log:             logs/mc_4f1cx2_notri.tsv
+peak_vram:       6771 MiB
+
+============================================================
+SWEEP COMPLETE — Mon Mar 23 09:37:09 PM CDT 2026
+============================================================
+Logs in logs/mc_*.tsv

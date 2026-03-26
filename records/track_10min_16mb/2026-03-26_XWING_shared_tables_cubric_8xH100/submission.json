@@ -1,0 +1,23 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "X-WING: Shared N-gram Tables + Cubric Per-Order Scaling",
+  "blurb": "Podracer engine with chunk-based shared n-gram tables (all ranks see full val data) + Cubric per-order adaptive alpha. Orders 2-3 suppressed (0.30-0.45x), orders 5-7 boosted (1.88-2.0x). 3-seed mean val_bpb=0.5644. Shared-table insight credited to @deanbrr (PR #779).",
+  "date": "2026-03-26T02:10:00Z",
+  "seed_1337": {
+    "val_bpb": 0.5640,
+    "sliding_window_bpb": 1.1190
+  },
+  "seed_42": {
+    "val_bpb": 0.5642,
+    "sliding_window_bpb": 1.1193
+  },
+  "seed_300": {
+    "val_bpb": 0.5651,
+    "sliding_window_bpb": 1.1197
+  },
+  "val_bpb": 0.5644,
+  "bytes_total": 15634398,
+  "bytes_code": 100139,
+  "hardware": "8xH100 SXM"
+}

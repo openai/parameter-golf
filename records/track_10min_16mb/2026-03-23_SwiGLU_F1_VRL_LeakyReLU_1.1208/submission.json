@@ -1,0 +1,11 @@
+{
+  "author": "frosty40",
+  "github_id": "newjordan",
+  "model_name": "SwiGLU_F1_VRL_LeakyReLU",
+  "description": "PR#505 base + VRL + LeakyReLU(0.5)² + int8 attn.proj + GPTQ + seq2048 + grad_clip=0.3 (NOT submittable: 20.6MB, needs Frugendorff compression)",
+  "val_bpb": 1.12078572,
+  "bytes_total": 20645288,
+  "track": "10min_16mb",
+  "seed": 1337,
+  "notes": "Over 16MB budget. Raw quality number for Frugendorff compression calibration. No TTT."
+}

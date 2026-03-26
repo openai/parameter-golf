@@ -1,0 +1,11 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Podracing II: Multi-Order Backoff + Entropy-Adaptive Alpha",
+  "blurb": "11L/512d U-Net with legal score-first 7-gram backoff (orders 2-7) + entropy-adaptive alpha. 3-seed mean val_bpb=0.9823. N-gram concept credited to @deanbrr (PR #659).",
+  "date": "2026-03-25T17:30:00Z",
+  "val_loss": 1.6585,
+  "val_bpb": 0.9823,
+  "bytes_total": 15591748,
+  "bytes_code": 106211
+}
