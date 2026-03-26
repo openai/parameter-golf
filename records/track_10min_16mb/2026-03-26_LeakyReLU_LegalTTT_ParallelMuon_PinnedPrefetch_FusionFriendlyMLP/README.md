@@ -8,7 +8,7 @@ This submission is the [2026-03-23 LeakyReLU + Legal TTT + Parallel Muon](https:
 1. **Pinned async training batch prefetch** — background CPU work (token slice → reshape → `pin_memory`) overlapped with GPU compute; host-to-device copies on an optional dedicated CUDA stream so `non_blocking=True` transfers can overlap.
 2. **Compiler fusion-friendly LeakyReLU² MLP** — same math as the base (`leaky_relu(·, 0.5)` then square into the down projection), rewritten as `h * h` with explicit weight casting so `torch.compile(fullgraph=True)` can better fuse elementwise work and avoid an extra temporary. Taken from [73.7M Ternary U-Net + NeoMuon + 4x relu²MLP + Factored Tied Emb + Poly5 Softcap + YaRN2048 + 8192BPE + FP8QAT + Bitmask-LZMA + Stride-16 Sliding](https://github.com/openai/parameter-golf/pull/640)
 
-Mainly, this submission proves that **simple application of async prefetching and memory pinning can elevate most approaches** by slightly noticeable amounts.
+Mainly, this submission proves that **simple application of async prefetching and memory pinning can elevate most approaches** by slightly noticeable amounts. Though Triton, cuBLAS and FA3 are already known to minimize graph breaks and idle time, I wanted to verify if my approach can still make further optimizations.
 
 ---
 
