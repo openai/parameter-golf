@@ -58,8 +58,6 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
-    compile_model = bool(int(os.environ.get("COMPILE_MODEL", "1")))
-    compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -71,10 +69,6 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    # Optional shared-block recurrence path ("Weird-1"), disabled by default.
-    shared_blocks = int(os.environ.get("SHARED_BLOCKS", 0))
-    num_passes = int(os.environ.get("NUM_PASSES", 0))
-    pass_scale_init = float(os.environ.get("PASS_SCALE_INIT", 1.0))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -253,9 +247,7 @@ def eval_val(
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     model.eval()
-    # no_grad avoids creating "inference tensors" that can leak through module caches
-    # (e.g. RoPE tables) and later trip autograd in training mode.
-    with torch.no_grad():
+    with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
             raw_start = batch_seq_start * args.train_seq_len
@@ -667,68 +659,31 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
-        shared_blocks: int = 0,
-        num_passes: int = 0,
-        pass_scale_init: float = 1.0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
-        if shared_blocks < 0:
-            raise ValueError(f"shared_blocks must be >= 0, got {shared_blocks}")
-        if num_passes < 0:
-            raise ValueError(f"num_passes must be >= 0, got {num_passes}")
-        if pass_scale_init < 0.0:
-            raise ValueError(f"pass_scale_init must be >= 0, got {pass_scale_init}")
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
-        self.use_shared_blocks = shared_blocks > 0
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        if self.use_shared_blocks:
-            self.num_encoder_layers = 0
-            self.num_decoder_layers = 0
-            self.num_skip_weights = 0
-            self.skip_weights = nn.Parameter(torch.zeros((0, model_dim), dtype=torch.float32))
-            self.num_passes = num_passes if num_passes > 0 else num_layers
-            if self.num_passes <= 0:
-                raise ValueError(f"num_passes must be > 0 when shared_blocks is enabled, got {self.num_passes}")
-            self.blocks = nn.ModuleList(
-                [
-                    Block(
-                        model_dim,
-                        num_heads,
-                        num_kv_heads,
-                        mlp_mult,
-                        rope_base,
-                        qk_gain_init,
-                    )
-                    for _ in range(shared_blocks)
-                ]
-            )
-            self.pass_emb = nn.Embedding(self.num_passes, model_dim)
-            self.pass_scale = nn.Parameter(torch.full((self.num_passes,), pass_scale_init, dtype=torch.float32))
-        else:
-            self.num_passes = num_layers
-            self.num_encoder_layers = num_layers // 2
-            self.num_decoder_layers = num_layers - self.num_encoder_layers
-            self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-            self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-            self.blocks = nn.ModuleList(
-                [
-                    Block(
-                        model_dim,
-                        num_heads,
-                        num_kv_heads,
-                        mlp_mult,
-                        rope_base,
-                        qk_gain_init,
-                    )
-                    for _ in range(num_layers)
-                ]
-            )
-            self.pass_emb = None
-            self.pass_scale = None
+        self.num_encoder_layers = num_layers // 2
+        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    model_dim,
+                    num_heads,
+                    num_kv_heads,
+                    mlp_mult,
+                    rope_base,
+                    qk_gain_init,
+                )
+                for i in range(num_layers)
+            ]
+        )
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -746,27 +701,16 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        if self.use_shared_blocks:
-            if self.pass_emb is None or self.pass_scale is None:
-                raise RuntimeError("Shared-block mode requires pass_emb and pass_scale")
-            for pass_idx in range(self.num_passes):
-                block = self.blocks[pass_idx % len(self.blocks)]
-                pass_bias = self.pass_emb.weight[pass_idx].to(dtype=x.dtype)[None, None, :]
-                x = x + pass_bias
-                block_out = block(x, x0)
-                # Per-pass residual interpolation keeps recurrence trainable but stable.
-                alpha = self.pass_scale[pass_idx].to(dtype=x.dtype)
-                x = x + alpha * (block_out - x)
-        else:
-            skips: list[Tensor] = []
-            # First half stores skips; second half reuses them in reverse order.
-            for i in range(self.num_encoder_layers):
-                x = self.blocks[i](x, x0)
-                skips.append(x)
-            for i in range(self.num_decoder_layers):
-                if skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                x = self.blocks[self.num_encoder_layers + i](x, x0)
+        skips: list[Tensor] = []
+
+        # First half stores skips; second half reuses them in reverse order.
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -891,32 +835,13 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
-        shared_blocks=args.shared_blocks,
-        num_passes=args.num_passes,
-        pass_scale_init=args.pass_scale_init,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    use_compile = args.compile_model
-    # Shared recurrent mode currently hits an Inductor scheduler assert on some GPUs.
-    # Keep baseline behavior compiled, but default shared mode to eager unless forced.
-    if base_model.use_shared_blocks and "COMPILE_MODEL" not in os.environ:
-        use_compile = False
-    if use_compile:
-        try:
-            compiled_model = torch.compile(base_model, dynamic=False, fullgraph=args.compile_fullgraph)
-            model_core: nn.Module = compiled_model
-            log0(f"compile:enabled fullgraph:{args.compile_fullgraph}")
-        except Exception as exc:
-            model_core = base_model
-            log0(f"compile:fallback_eager reason:{type(exc).__name__}:{exc}")
-    else:
-        model_core = base_model
-        reason = "shared_recurrent_default_eager" if base_model.use_shared_blocks else "disabled_by_env"
-        log0(f"compile:disabled reason:{reason}")
-    model: nn.Module = DDP(model_core, device_ids=[local_rank], broadcast_buffers=False) if distributed else model_core
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -936,10 +861,6 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
-    if base_model.pass_emb is not None:
-        matrix_params.append(base_model.pass_emb.weight)
-    if base_model.pass_scale is not None:
-        scalar_params.append(base_model.pass_scale)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -976,16 +897,6 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
-    if base_model.use_shared_blocks:
-        log0(
-            f"architecture:shared_recurrent unique_blocks:{len(base_model.blocks)} "
-            f"effective_passes:{base_model.num_passes}"
-        )
-    else:
-        log0(
-            f"architecture:baseline num_layers:{args.num_layers} "
-            f"encoder:{base_model.num_encoder_layers} decoder:{base_model.num_decoder_layers}"
-        )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
