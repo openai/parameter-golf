@@ -281,7 +281,7 @@ def eval_val(
 
 
 _NG_B = 1 << 22
-_NG_ORDERS = (13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2)
+_NG_ORDERS = (11, 10, 9, 8, 7, 6, 5, 4, 3, 2)
 _NG_MIN = 2
 _NG_MULT = 265443576
 _NG_PAIR_MULT = 1000003
@@ -1417,10 +1417,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
-        f"ngram_bpb:{ng_bpb:.4f} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
+        f"final_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{ng_bpb:.4f} "
+        f"sliding_bpb:{sw_val_bpb:.4f} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
     )
-    log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f} ngram_bpb:{ng_bpb:.8f}")
+    log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{ng_bpb:.8f} sliding_bpb:{sw_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()

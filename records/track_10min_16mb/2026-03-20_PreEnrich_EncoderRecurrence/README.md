@@ -1,6 +1,6 @@
 ## EMA-GPU + Multi-Order N-gram Backoff + Pre-Enrichment + XSA
 
-**val_bpb: 0.9784** (multi-order n-gram backoff 2-7, entropy-adaptive alpha) | 14.94 MB | 8xH100 SXM, 600s
+**val_bpb: 0.9408** (multi-order n-gram backoff 2-11, entropy-adaptive alpha) | 14.94 MB | 8xH100 SXM, 600s
 
 ---
 
@@ -8,7 +8,7 @@
 
 | Metric | Value |
 |---|---|
-| **N-gram eval val_bpb** | **0.9784** |
+| **N-gram eval val_bpb** | **0.9408** |
 | Sliding window val_bpb | 1.1478 |
 | Standard eval val_bpb (post-quant) | 1.1690 |
 | Pre-quant val_bpb | 1.1646 |
@@ -63,7 +63,7 @@ Multi-order n-gram backoff with entropy-adaptive alpha during sliding window eva
 - No oracle selection: alpha depends solely on model's own entropy, never on ground-truth
 - No cross-GPU sync: each GPU maintains its own independent cache
 
-**Improvement:** 1.1478 → 0.9784 = **-0.169 BPB**
+**Improvement:** 1.1478 → 0.9408 = **-0.207 BPB**
 
 ---
 

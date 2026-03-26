@@ -111,5 +111,5 @@ Serialized model int6+lzma: 14878748 bytes (payload:25993024 raw_torch:26045291 
 Total submission size int6+lzma: 14942971 bytes
 final_int8_zlib_roundtrip val_loss:1.9738 val_bpb:1.1690 eval_time:2054ms
 final_int8_zlib_roundtrip_exact val_loss:1.97382834 val_bpb:1.16901232
-final_sliding_window val_loss:1.9379 val_bpb:1.1478 ngram_bpb:0.9784 eval_time:186843ms
-final_sliding_window_exact val_loss:1.93793804 val_bpb:1.14775606 ngram_bpb:0.97840827
+final_sliding_window val_loss:1.9379 val_bpb:0.9408 eval_time:187956ms
+final_sliding_window_exact val_loss:1.93793804 val_bpb:0.94083552
