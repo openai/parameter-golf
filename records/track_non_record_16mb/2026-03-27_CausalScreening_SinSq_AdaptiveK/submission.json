@@ -1,0 +1,11 @@
+{
+  "author": "clthuang",
+  "github_id": "clthuang",
+  "name": "sin^2 Activation + Causal Screening Pipeline",
+  "blurb": "Non-record submission: sin^2 periodic activation replacing relu^2 in MLP layers (1-line change), discovered via automated causal DAG-guided screening of 24 interventions including novel adaptive multi-token prediction and Rho-1 selective loss. Local MLX screening shows sin^2 competitive with GELU/SiLU. Pending H100 validation.",
+  "date": "2026-03-27T00:00:00Z",
+  "track": "non-record-in-progress",
+  "val_bpb": null,
+  "val_loss": null,
+  "note": "H100 results pending compute credits. Local MLX screening at reduced scale shows competitive signal."
+}
