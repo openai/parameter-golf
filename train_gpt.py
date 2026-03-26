@@ -147,7 +147,8 @@ class Compressor(nn.Module):
         # hidden_last: [batch, seq_len, d_model]
         pooled = hidden_last.mean(dim=1)
         z = self.proj(pooled).reshape(-1, 8, self.d_model)
-        return self.ln(z)
+        ln_dtype = self.ln.weight.dtype if self.ln.weight is not None else z.dtype
+        return self.ln(z.to(dtype=ln_dtype))
 
 
 # -----------------------------
