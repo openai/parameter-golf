@@ -281,7 +281,7 @@ def eval_val(
 
 
 _NG_B = 1 << 22
-_NG_ORDERS = (9, 8, 7, 6, 5, 4, 3, 2)
+_NG_ORDERS = (11, 10, 9, 8, 7, 6, 5, 4, 3, 2)
 _NG_MIN = 2
 _NG_MULT = 265443576
 _NG_PAIR_MULT = 1000003
@@ -369,7 +369,7 @@ def eval_val_sliding(
                 ph = (ch * _NG_PAIR_MULT + at[m]) % _NG_B
                 ng_p = (ng_pair[order][ph].float() / cc.float().clamp(min=1)).clamp(EPS, 1 - EPS)
                 ix = m.nonzero(as_tuple=True)[0]; best_ng[ix[has]] = ng_p[has]; found[ix[has]] = True
-            alpha = 0.05 + 0.55 / (1.0 + torch.exp(-2.0 * (aH - 4.0)))
+            alpha = 0.05 + 0.55 / (1.0 + torch.exp(-3.0 * (aH - 3.5)))
             mixed = torch.where(found, (1 - alpha) * amp + alpha * best_ng, amp)
             ng_loss_sum -= torch.log(mixed.clamp(min=1e-20)).to(torch.float64).sum()
             for order in _NG_ORDERS:
