@@ -1,0 +1,23 @@
+{
+  "author": "quietsmile",
+  "github_id": "quietsmile",
+  "name": "Complementary Training + Backoff N-gram Mixer (Reproduction)",
+  "blurb": "Reproduction of PR #803's complementary training approach on 8xL20Z (H100). Bigram-weighted loss reweighting (COMPLEMENT_ALPHA=0.5) trains the neural model to specialize on tokens n-gram caches can't predict. BackoffNgramMixer (orders 2-10, 4M hash buckets) with entropy-adaptive alpha (0.20+0.55*sigmoid(2*(H-3.0))). Legal score-first AdamW TTT (4 epochs, lr=5e-4, freeze first 2 blocks). Int6 mixed quantization + lzma. Evaluated with stride=128.",
+  "date": "2026-03-26T12:00:00Z",
+  "val_loss": 0.73909041,
+  "val_bpb": 0.4377,
+  "val_loss_std": 0.00026,
+  "val_bpb_std": 0.00016,
+  "seeds": [1337, 42],
+  "seed_results": {
+    "1337": {"val_loss": 0.73909041, "val_bpb": 0.43773153},
+    "42": {"val_loss": 0.73961404, "val_bpb": 0.43804165}
+  },
+  "step_stop": 7003,
+  "wallclock_seconds": 600.074,
+  "eval_time_seconds": 449.857,
+  "bytes_total": 15875857,
+  "bytes_code": 87336,
+  "base_pr": 803,
+  "hardware": "8x NVIDIA L20Z (H100 equivalent, 81GB)"
+}
