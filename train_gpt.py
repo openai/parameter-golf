@@ -687,7 +687,7 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 class MambaBlock(nn.Module):
     """Mamba SSM block (arXiv:2312.00752, Mamba-3: arXiv:2603.15569).
     Replaces attention with selective state space model. Linear-time in sequence length."""
-    def __init__(self, dim: int, d_state: int = 16, d_conv: int = 4, expand: int = 2):
+    def __init__(self, dim: int, d_state: int = 8, d_conv: int = 4, expand: int = 2):
         super().__init__()
         self.d_inner = dim * expand
         self.d_state = d_state
@@ -723,19 +723,20 @@ class MambaBlock(nn.Module):
         dt, B, C = x_dbl.split([self.dt_rank, self.d_state, self.d_state], dim=-1)
         dt = F.softplus(self.dt_proj(dt))  # (b, l, d_inner)
         A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
-        # Selective scan (parallel via cumulative sum approximation)
-        # Discretize: deltaA = exp(dt * A), deltaB_u = dt * B * x
-        dtA = torch.einsum("bld,dn->bldn", dt, A)  # (b, l, d_inner, d_state)
-        dtA_cumsum = dtA.cumsum(dim=1)  # cumulative for parallel scan
-        # Compute decay weights between positions
-        dtB_u = torch.einsum("bld,bln,bld->bldn", dt, B, x_in)
-        # Parallel scan via exp-cumsum trick
-        decay = torch.exp(dtA_cumsum)
-        dtB_u_scaled = dtB_u * torch.exp(-dtA_cumsum)
-        y_states = (dtB_u_scaled.cumsum(dim=1) * decay)
-        # Output from state
-        y = torch.einsum("bldn,bln->bld", y_states, C)
-        y = y + x_in * self.D.to(dtype=x_in.dtype)
+        D = self.D.float()
+        # Discretize
+        deltaA = torch.exp(torch.einsum("bld,dn->bldn", dt, A))  # (b, l, d_inner, d_state)
+        deltaB_x = torch.einsum("bld,bln,bld->bldn", dt, B, x_in)  # (b, l, d_inner, d_state)
+        # Sequential scan (memory-efficient — only one hidden state at a time)
+        b_size = x_in.size(0)
+        h = torch.zeros(b_size, self.d_inner, self.d_state, device=x_in.device, dtype=deltaA.dtype)
+        ys = []
+        for t in range(x_in.size(1)):
+            h = deltaA[:, t] * h + deltaB_x[:, t]
+            y_t = torch.einsum("bdn,bn->bd", h, C[:, t])
+            ys.append(y_t)
+        y = torch.stack(ys, dim=1)  # (b, l, d_inner)
+        y = y + x_in * D
         # Gate and project
         y = y * F.silu(z)
         return self.out_proj(y)
