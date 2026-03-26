@@ -125,11 +125,23 @@ TTT and LoRA adaptation follow the same principle as the n-gram cache — build 
 
 ## Proposal
 
-### 1. Cap eval-time memory
+### 1. Cap auxiliary eval-time state
 
-Define a total memory budget for eval-time state — for example, artifact + eval state <= 64 MB. This directly constrains the effective model size and aligns the competition with deployment realities. Simple to enforce: measure peak GPU memory allocation during eval.
+An important distinction: when a 16 MB int6+compressed artifact loads into VRAM, it decompresses into ~50–100 MB of bf16 weights. Add activations, KV cache, and CUDA overhead, and the base model alone uses several hundred MB of GPU memory. So "cap total GPU memory" doesn't work — the decompressed model already exceeds any reasonable cap.
 
-This extends the 16 MB artifact philosophy to cover the full model at inference time. A model that fits in 16 MB but needs 272 MB to run doesn't fit in 16 MB.
+The right thing to constrain is **auxiliary state**: tensors that accumulate across the evaluation and are not derivable from the artifact alone. This includes:
+
+- N-gram hash tables (192–256 MB) — built from scored tokens
+- TTT LoRA deltas (~2 MB) — built from scored tokens
+- Any other state that persists across batches and grows with the corpus
+
+This does NOT include:
+
+- Model weights (deterministic decompression of the artifact)
+- KV cache (recomputed each sliding window, does not accumulate)
+- Activations (transient, discarded after each forward pass)
+
+A cap of, say, auxiliary state ≤ 32 MB would preserve everything currently approved (TTT LoRA deltas at ~2 MB, KV cache is excluded) while constraining the techniques that grow the effective model by 10–250x. Enforcement: sum the sizes of all non-model tensors that persist across batches.
 
 ### 2. Cap per-token overhead
 
@@ -137,7 +149,7 @@ Require that eval-time techniques do not increase per-token latency by more than
 
 Base LM on 8×H100 takes 110s. A 1.5× cap means 165s max. The n-gram cache takes 401s (3.6×). KV cache, TTT, LoRA are all within 1.5×. This also catches two-pass rescoring mechanically.
 
-Both proposals preserve everything currently approved. KV caches (~20 MB), TTT LoRA deltas (~2 MB), and sliding window eval all fit comfortably. They only constrain techniques that grow the model by 10–250x during evaluation.
+Both proposals preserve everything currently approved and only constrain techniques that grow the model by 10–250x during evaluation.
 
 ---
 
