@@ -2371,7 +2371,7 @@ def batched_per_document_lora_eval(
         try:
             lora_params, bias_params = setup_batched_lora(
                 base_model, bsz=actual_bsz, rank=lora_rank,
-                alpha=2.0 * float(lora_rank),
+                alpha=float(lora_rank),  # PR #611: no alpha/rank scaling (alpha=rank → scale=1.0)
                 target_names=('c_q', 'c_k', 'c_v', 'proj'),  # PR #611 Q/K/V + attn output proj (0.2x LR)
                 device=device, lm_head_lora=True, bias_tuning=True,
                 rank_overrides=_rank_ov, lm_head_rank=lora_rank,
@@ -2446,7 +2446,7 @@ def batched_per_document_lora_eval(
                     _blora_pg_lrc.append({"params": [base_model._blm_lora_A, base_model._blm_lora_B], "lr": _lrc * 2.0})
                 if bias_params:
                     _blora_pg_lrc.append({"params": bias_params, "lr": _lrc * 3.0})
-                lora_opt = torch.optim.AdamW(_blora_pg_lrc, betas=(0.9, 0.95), eps=1e-10, weight_decay=0.0, fused=True)
+                lora_opt = torch.optim.Adam(_blora_pg_lrc, betas=(0.9, 0.95), eps=1e-10, fused=True)  # PR #611: Adam (not AdamW)
                 for pg in lora_opt.param_groups:
                     pg["initial_lr"] = pg["lr"]
 
@@ -2461,10 +2461,10 @@ def batched_per_document_lora_eval(
                 _es_patience = 0
 
                 for ep in range(_dyn_epochs):
-                    # Pure cosine LR decay (PR #611 style, no warmup — min-NLL prevents overshoot damage)
+                    # Pure cosine LR decay to 0 (PR #611 style, no warmup, no floor)
                     _lr_scale = 0.5 * (1.0 + math.cos(math.pi * ep / max(_dyn_epochs, 1)))
                     for pg in lora_opt.param_groups:
-                        pg["lr"] = pg["initial_lr"] * max(_lr_scale, 0.1)
+                        pg["lr"] = pg["initial_lr"] * _lr_scale
 
                     _is_last = (ep == _dyn_epochs - 1)
                     if _is_last:
@@ -2511,7 +2511,7 @@ def batched_per_document_lora_eval(
                     # Backward + step (no label smoothing — PR #596 uses 0.0, sharper gradients for adaptation)
                     loss = F.cross_entropy(scored_flat, targets_flat)
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(all_params, 1.0)
+                    # PR #611: no gradient clipping in TTT (LoRA grads are naturally bounded)
                     lora_opt.step()
         except torch.cuda.OutOfMemoryError:
             torch.cuda.empty_cache()
@@ -2655,7 +2655,7 @@ def per_document_lora_eval(
             _lora_param_groups.append({"params": [base_model._lm_lora_A, base_model._lm_lora_B], "lr": lora_lr * 2.0})
         if bias_params:
             _lora_param_groups.append({"params": bias_params, "lr": lora_lr * 3.0})
-        lora_opt = torch.optim.AdamW(_lora_param_groups, betas=(0.9, 0.95), eps=1e-10, weight_decay=0.0, fused=True)
+        lora_opt = torch.optim.Adam(_lora_param_groups, betas=(0.9, 0.95), eps=1e-10, fused=True)  # PR #611: Adam
 
         # Epoch 0: score with fresh LoRA (B=0, effectively base model per-chunk)
         # Captures tokens where base model is already optimal (free improvement)
@@ -2682,10 +2682,10 @@ def per_document_lora_eval(
         for pg in lora_opt.param_groups:
             pg["initial_lr"] = pg["lr"]
         for ep in range(lora_epochs):
-            # Cosine LR per-step within document
+            # Cosine LR decay to 0 (PR #611 style, no floor)
             cos_scale = 0.5 * (1.0 + math.cos(math.pi * ep / max(lora_epochs, 1)))
             for pg in lora_opt.param_groups:
-                pg["lr"] = pg["initial_lr"] * max(cos_scale, 0.1)
+                pg["lr"] = pg["initial_lr"] * cos_scale
 
             _is_last_ep = (ep == lora_epochs - 1)
             if _is_last_ep:
@@ -2740,10 +2740,10 @@ def per_document_lora_eval(
             _prev_best_sum = _cur_best_sum
 
             # Backward through LoRA (reuses same forward activations)
-            # Label smoothing (0.01) regularizes LoRA training, prevents overfitting to specific tokens
-            loss = F.cross_entropy(scored_raw, _pd_targets, label_smoothing=0.01)
+            # No label smoothing (PR #596/611 style — sharper gradients for adaptation)
+            loss = F.cross_entropy(scored_raw, _pd_targets)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(all_params, 1.0)
+            # PR #611: no gradient clipping in TTT
             lora_opt.step()
 
         # Discard LoRA and temporary biases (don't merge — keep base model clean for next document)
