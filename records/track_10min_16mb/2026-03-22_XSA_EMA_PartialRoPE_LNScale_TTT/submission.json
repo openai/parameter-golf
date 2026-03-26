@@ -1,0 +1,12 @@
+{
+  "name": "10L XSA + EMA + Partial RoPE + LN Scale",
+  "author": "ofirkris",
+  "github_id": "ofirkris",
+  "date": "2026-03-22",
+  "val_bpb": 1.13647704,
+  "val_loss": 1.91888879,
+  "artifact_bytes": 15759319,
+  "training_time_seconds": 600,
+  "gpu_config": "8xH100_SXM",
+  "seeds": {"42": 1.13647704, "1337": 1.13662891}
+}
