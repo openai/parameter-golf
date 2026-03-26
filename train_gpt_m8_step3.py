@@ -669,12 +669,7 @@ class GrowthRule(nn.Module):
     def get_scale(self, layer_idx: int, device: torch.device) -> Tensor:
         idx = self.layer_indices[layer_idx].to(device)
         emb = self.layer_embeddings(idx)
-        return 1.0 + 0.1 * torch.tanh(self.growth_mlp(emb))  # [model_dim], centered at 1.0
-    
-    def get_all_scales(self) -> Tensor:
-        """Get scales for all layers at once. Returns [num_layers, model_dim]."""
-        embs = self.layer_embeddings(self.layer_indices)  # [num_layers, 32]
-        return 1.0 + 0.1 * torch.tanh(self.growth_mlp(embs))  # [num_layers, model_dim]
+        return 1.0 + 0.05 * torch.tanh(self.growth_mlp(emb))  # [model_dim], centered at 1.0, ±5%
 
 
 class GPT(nn.Module):
@@ -736,24 +731,20 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        # Crystal: pre-compute all growth scales [num_layers, model_dim]
-        growth_scales = self.growth_rule.get_all_scales()  # [num_layers, dim]
-
         # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
-            # Apply growth rule: per-layer learned scaling
-            scale = growth_scales[i].to(dtype=x.dtype)[None, None, :]  # [1, 1, dim]
-            x = x * scale
+            # Crystal: per-layer learned scaling from growth rule (computed lazily)
+            scale = self.growth_rule.get_scale(i, x.device).to(dtype=x.dtype)
+            x = x * scale[None, None, :]  # broadcast [1, 1, dim]
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             layer_idx = self.num_encoder_layers + i
             x = self.blocks[layer_idx](x, x0)
-            # Apply growth rule to decoder layers too
-            scale = growth_scales[layer_idx].to(dtype=x.dtype)[None, None, :]
-            x = x * scale
+            scale = self.growth_rule.get_scale(layer_idx, x.device).to(dtype=x.dtype)
+            x = x * scale[None, None, :]
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
