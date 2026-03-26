@@ -930,11 +930,46 @@ def eval_val_sliding(
     base_model.eval()
     compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     _PRIMES = [36313, 27191, 48611, 59369, 73721, 87671, 91813]
+    _knn_enabled = bool(int(os.environ.get("KNN_LM", "0")))
+    _knn_k = int(os.environ.get("KNN_K", "32"))
+    _knn_temp = float(os.environ.get("KNN_TEMP", "10.0"))
+    _knn_lambda = float(os.environ.get("KNN_LAMBDA", "0.1"))
+    _knn_buf_size = int(os.environ.get("KNN_BUF", "100000"))
+    if _knn_enabled:
+        _hdim = base_model.blocks[0].attn.c_q.weight.shape[1]
+        _knn_keys = torch.zeros(_knn_buf_size, _hdim, device=device, dtype=torch.float16)
+        _knn_vals = torch.zeros(_knn_buf_size, device=device, dtype=torch.long)
+        _knn_ptr = 0
+        _knn_fill = 0
+        _hidden_capture = [None]
+        def _capture_hook(module, inp, out):
+            _hidden_capture[0] = out.detach()
+        _knn_hook = base_model.final_norm.register_forward_hook(_capture_hook)
     use_ngram = ngram_alpha > 0
     if use_ngram:
         ng_ctx = [torch.zeros(ngram_buckets, dtype=torch.int32, device=device) for _ in range(ngram_order - 1)]
         ng_jnt = [torch.zeros(ngram_buckets, dtype=torch.int32, device=device) for _ in range(ngram_order - 1)]
         val_long = val_tokens.to(dtype=torch.int64, device=device)
+        _ng_bloom = bool(int(os.environ.get("NGRAM_BLOOM", "0")))
+        _BLOOM_PRIMES = [104729, 131071, 174763]  # independent of _PRIMES
+        _bloom_bits = ngram_buckets * 8  # 8 bits per count bucket
+        if _ng_bloom:
+            bloom = [torch.zeros(_bloom_bits, dtype=torch.uint8, device=device) for _ in range(ngram_order - 1)]
+        _apm_enabled = bool(int(os.environ.get("APM_ENABLED", "0")))
+        _apm_bins = int(os.environ.get("APM_BINS", "64"))
+        _apm_decay = float(os.environ.get("APM_DECAY", "0.995"))
+        if _apm_enabled:
+            _apm_num = torch.zeros(1024, _apm_bins, device=device)  # hits
+            _apm_den = torch.ones(1024, _apm_bins, device=device)   # total, init 1 for Laplace
+        _ng_learned = bool(int(os.environ.get("NGRAM_LEARNED_MIX", "0")))
+        if _ng_learned:
+            _mix_w = torch.tensor([-2.0, 0.5, 0.3, 0.5], device=device)
+            _mix_lr = float(os.environ.get("NGRAM_MIX_LR", "0.01"))
+            _mix_mom = torch.zeros(4, device=device)
+        _ng_logistic = bool(int(os.environ.get("NGRAM_LOGISTIC", "0")))
+        if _ng_logistic:
+            _log_w = torch.tensor([0.8, 0.2], device=device)  # [model_weight, ngram_weight]
+            _log_lr = float(os.environ.get("NGRAM_LOG_LR", "0.005"))
 
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
@@ -990,13 +1025,33 @@ def eval_val_sliding(
                         jh = (h * 27191 + scored_tgt.long()) % ngram_buckets
                         cc = ng_ctx[oi][h]; jc = ng_jnt[oi][jh]
                         has = valid & (cc >= 2) & (p_ng == 0)
+                        if _ng_bloom and has.any():
+                            bloom_ok = torch.ones(ns, dtype=torch.bool, device=device)
+                            for bp in _BLOOM_PRIMES:
+                                bh = torch.zeros(ns, dtype=torch.long, device=device)
+                                for k in range(order - 1):
+                                    idx = global_pos - (order - 1) + k
+                                    tok = torch.where(valid, val_long[idx.clamp(0, val_long.numel()-1)], torch.zeros_like(bh))
+                                    bh = (bh * bp + tok) % _bloom_bits
+                                bloom_ok &= (bloom[oi][bh] > 0)
+                            has = has & bloom_ok
                         if has.any():
                             p_ng[has] = jc[has].float() / cc[has].float()
                             ng_cc[has] = cc[has].float()
+                    entropy = -(p_model * torch.log(p_model + 1e-10)).sum(dim=-1)
                     _ng_adaptive = bool(int(os.environ.get("NGRAM_ADAPTIVE", "1")))
-                    if _ng_adaptive:
-                        entropy = -(p_model * torch.log(p_model + 1e-10)).sum(dim=-1)
-                        alpha = 0.05 + 0.35 * torch.sigmoid(2.0 * (entropy - 4.0))
+                    if _ng_learned:
+                        feats = torch.stack([torch.ones(ns, device=device),
+                                             entropy,
+                                             torch.log(ng_cc + 1.0),
+                                             p_ng], dim=1)  # (ns, 4)
+                        alpha_raw = feats @ _mix_w
+                        alpha = torch.sigmoid(alpha_raw)
+                        alpha = torch.where(p_ng > 0, alpha, torch.zeros_like(alpha))
+                    elif _ng_adaptive:
+                        _ng_alpha_lo = float(os.environ.get("NGRAM_ALPHA_LO", "0.05"))
+                        _ng_alpha_hi = float(os.environ.get("NGRAM_ALPHA_HI", "0.55"))
+                        alpha = _ng_alpha_lo + (_ng_alpha_hi - _ng_alpha_lo) * torch.sigmoid(2.0 * (entropy - 4.0))
                         _ng_conf_scale = bool(int(os.environ.get("NGRAM_CONF_SCALE", "1")))
                         if _ng_conf_scale:
                             count_conf = torch.clamp(ng_cc / 8.0, 0.2, 1.0)
@@ -1004,8 +1059,44 @@ def eval_val_sliding(
                         alpha = torch.where(p_ng > 0, alpha, torch.zeros_like(alpha))
                     else:
                         alpha = torch.where(p_ng > 0, torch.full_like(p_ng, ngram_alpha), torch.zeros_like(p_ng))
-                    p_mixed = (1 - alpha) * p_model_t + alpha * p_ng
-                    nll[i, s:wlen] = -torch.log(p_mixed.clamp(min=1e-10)).to(torch.float64)
+                    if _ng_logistic and (p_ng > 0).any():
+                        _eps = 1e-7
+                        pm_c = p_model_t.clamp(_eps, 1 - _eps)
+                        pn_c = p_ng.clamp(_eps, 1 - _eps)
+                        s_m = torch.log(pm_c / (1 - pm_c))
+                        s_n = torch.log(pn_c / (1 - pn_c))
+                        has_ng = p_ng > 0
+                        logit_mix = _log_w[0] * s_m + torch.where(has_ng, _log_w[1] * s_n, torch.zeros_like(s_n))
+                        p_mixed = torch.sigmoid(logit_mix)
+                        nll[i, s:wlen] = -torch.log(p_mixed.clamp(min=1e-10)).to(torch.float64)
+                        # PAQ-style weight update: w += lr * stretch(p) * (y - p_mixed)
+                        err = (1.0 - p_mixed)  # target=1 for correct token
+                        if has_ng.any():
+                            _log_w[0] += _log_lr * (s_m[has_ng] * err[has_ng]).mean()
+                            _log_w[1] += _log_lr * (s_n[has_ng] * err[has_ng]).mean()
+                    else:
+                        p_mixed = (1 - alpha) * p_model_t + alpha * p_ng
+                        nll[i, s:wlen] = -torch.log(p_mixed.clamp(min=1e-10)).to(torch.float64)
+                    if _ng_learned and (p_ng > 0).any():
+                        mask = p_ng > 0
+                        dnll_dalpha = -(p_ng[mask] - p_model_t[mask]) / p_mixed[mask]
+                        dalpha_draw = alpha[mask] * (1 - alpha[mask])
+                        grad_w = (dnll_dalpha * dalpha_draw).unsqueeze(1) * feats[mask]
+                        g = grad_w.mean(dim=0)
+                        _mix_mom.mul_(0.9).add_(g, alpha=0.1)
+                        _mix_w -= _mix_lr * _mix_mom
+                    if _apm_enabled:
+                        prev_tok = x_batch[i, s:wlen].long()
+                        cur_p = torch.exp(-nll[i, s:wlen].float()).clamp(1e-7, 1 - 1e-7)
+                        logit_p = torch.log(cur_p / (1 - cur_p))
+                        bin_idx = ((logit_p + 8.0) / 16.0 * _apm_bins).long().clamp(0, _apm_bins - 1)
+                        apm_p = _apm_num[prev_tok, bin_idx] / _apm_den[prev_tok, bin_idx]
+                        corrected = 0.7 * cur_p + 0.3 * apm_p.clamp(0.01, 0.99)
+                        nll[i, s:wlen] = -torch.log(corrected.clamp(min=1e-10)).to(torch.float64)
+                        _apm_num.mul_(_apm_decay)
+                        _apm_den.mul_(_apm_decay)
+                        _apm_num[prev_tok, bin_idx] += 1.0  # target=correct token, so hit=1
+                        _apm_den[prev_tok, bin_idx] += 1.0
                     for oi, order in enumerate(range(2, ngram_order + 1)):
                         global_pos = torch.arange(ws + s + 1, ws + s + 1 + ns, device=device)
                         h = torch.zeros(ns, dtype=torch.long, device=device)
@@ -1020,6 +1111,48 @@ def eval_val_sliding(
                         if m.any():
                             ng_ctx[oi].scatter_add_(0, h[m], torch.ones(m.sum(), dtype=torch.int32, device=device))
                             ng_jnt[oi].scatter_add_(0, jh[m], torch.ones(m.sum(), dtype=torch.int32, device=device))
+                            if _ng_bloom:
+                                for bp in _BLOOM_PRIMES:
+                                    bh = torch.zeros(ns, dtype=torch.long, device=device)
+                                    for k in range(order - 1):
+                                        idx = global_pos - (order - 1) + k
+                                        tok = torch.where(vld, val_long[idx.clamp(0, val_long.numel()-1)], torch.zeros_like(bh))
+                                        bh = (bh * bp + tok) % _bloom_bits
+                                    bloom[oi][bh[m]] = 1
+
+                if _knn_enabled and _knn_fill >= _knn_k and _hidden_capture[0] is not None:
+                    h_scored = _hidden_capture[0][i, s:wlen].float()  # (ns, hdim)
+                    ns_knn = h_scored.shape[0]
+                    buf_len = min(_knn_fill, _knn_buf_size)
+                    keys_buf = _knn_keys[:buf_len].float()
+                    dists = torch.cdist(h_scored, keys_buf)  # (ns_knn, buf_len)
+                    topk_d, topk_i = dists.topk(_knn_k, dim=1, largest=False)
+                    nn_tokens = _knn_vals[topk_i]  # (ns_knn, k)
+                    per_token_temp = topk_d[:, 0:1].clamp(min=1.0) * (_knn_temp / 10.0)
+                    nn_weights = F.softmax(-topk_d / per_token_temp, dim=1)  # (ns_knn, k)
+                    tgt_knn = y_batch[i, s:wlen]
+                    p_knn = torch.zeros(ns_knn, device=device)
+                    for ki in range(_knn_k):
+                        p_knn += nn_weights[:, ki] * (nn_tokens[:, ki] == tgt_knn).float()
+                    has_knn = p_knn > 0
+                    if has_knn.any():
+                        cur_p = torch.exp(-nll[i, s:wlen].float())
+                        mixed_p = (1 - _knn_lambda) * cur_p + _knn_lambda * p_knn
+                        nll[i, s:wlen] = torch.where(has_knn,
+                            -torch.log(mixed_p.clamp(min=1e-10)).to(torch.float64),
+                            nll[i, s:wlen])
+                    end_ptr = _knn_ptr + ns_knn
+                    if end_ptr <= _knn_buf_size:
+                        _knn_keys[_knn_ptr:end_ptr] = h_scored.half()
+                        _knn_vals[_knn_ptr:end_ptr] = tgt_knn
+                    else:
+                        first = _knn_buf_size - _knn_ptr
+                        _knn_keys[_knn_ptr:] = h_scored[:first].half()
+                        _knn_vals[_knn_ptr:] = tgt_knn[:first]
+                        _knn_keys[:ns_knn - first] = h_scored[first:].half()
+                        _knn_vals[:ns_knn - first] = tgt_knn[first:]
+                    _knn_ptr = end_ptr % _knn_buf_size
+                    _knn_fill += ns_knn
 
                 scored_nll = nll[i, s:wlen].to(torch.float64)
                 loss_sum += scored_nll.sum()
@@ -1029,6 +1162,9 @@ def eval_val_sliding(
                 tb = base_bytes_lut[tgt].to(torch.float64)
                 tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                 byte_count += tb.sum()
+
+    if _knn_enabled:
+        _knn_hook.remove()
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
@@ -1042,6 +1178,43 @@ def eval_val_sliding(
     return val_loss, bits_per_token * tokens_per_byte
 
 
+class LoRALinear(nn.Module):
+    def __init__(self, base: nn.Linear, rank: int = 4):
+        super().__init__()
+        self.base = base
+        self.lora_a = nn.Parameter(torch.randn(base.in_features, rank, device=base.weight.device, dtype=torch.float32) * 0.01)
+        self.lora_b = nn.Parameter(torch.zeros(rank, base.out_features, device=base.weight.device, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        base_out = self.base(x)
+        lora_out = (x.float() @ self.lora_a) @ self.lora_b
+        return base_out + lora_out.to(base_out.dtype)
+
+
+def inject_lora(model: nn.Module, rank: int = 4, target_names: tuple = (".c_q", ".c_k", ".c_v", ".proj")):
+    lora_params = []
+    for name, module in list(model.named_modules()):
+        if isinstance(module, CastedLinear) and any(t in name for t in target_names):
+            parent_name, attr_name = name.rsplit(".", 1)
+            parent = dict(model.named_modules())[parent_name]
+            module.weight.requires_grad_(False)
+            if module.bias is not None:
+                module.bias.requires_grad_(False)
+            lora = LoRALinear(module, rank=rank)
+            setattr(parent, attr_name, lora)
+            lora_params.extend([lora.lora_a, lora.lora_b])
+    return lora_params
+
+
+def remove_lora(model: nn.Module):
+    for name, module in list(model.named_modules()):
+        if isinstance(module, LoRALinear):
+            parent_name, attr_name = name.rsplit(".", 1)
+            parent = dict(model.named_modules())[parent_name]
+            setattr(parent, attr_name, module.base)
+            module.base.weight.requires_grad_(True)
+
+
 def ttt_adapt(args: Hyperparameters, base_model: nn.Module, device: torch.device,
               val_tokens: Tensor, rank: int = 0, world_size: int = 1,
               log_fn=None) -> None:
@@ -1049,30 +1222,45 @@ def ttt_adapt(args: Hyperparameters, base_model: nn.Module, device: torch.device
     total_seqs = (val_tokens.numel() - 1) // seq_len
     batch_seqs = args.ttt_batch_seqs
 
-    frozen_params: set[int] = set()
-    if args.ttt_freeze_blocks > 0:
-        for i, block in enumerate(base_model.blocks):
-            if i < args.ttt_freeze_blocks:
-                for p in block.parameters():
-                    p.requires_grad_(False)
-                    frozen_params.add(id(p))
+    use_lora = bool(int(os.environ.get("TTT_LORA", "0")))
+    lora_rank = int(os.environ.get("TTT_LORA_RANK", "4"))
+    lora_params = []
+
+    if use_lora:
+        for p in base_model.parameters():
+            p.requires_grad_(False)
+        lora_params = inject_lora(base_model, rank=lora_rank)
+        if log_fn:
+            n_lora = sum(p.numel() for p in lora_params)
+            log_fn(f"ttt_lora:injected rank={lora_rank} params={n_lora}")
+        ttt_params = lora_params
+        param_groups = [{'params': ttt_params, 'lr': args.ttt_lr}]
+    else:
+        frozen_params: set[int] = set()
+        if args.ttt_freeze_blocks > 0:
+            for i, block in enumerate(base_model.blocks):
+                if i < args.ttt_freeze_blocks:
+                    for p in block.parameters():
+                        p.requires_grad_(False)
+                        frozen_params.add(id(p))
+
+        per_layer_lr = bool(int(os.environ.get("TTT_PER_LAYER_LR", "1")))
+        if per_layer_lr:
+            param_groups = []
+            for name, p in base_model.named_parameters():
+                if not p.requires_grad: continue
+                lr_mul = 1.0
+                if 'mlp.proj' in name: lr_mul = 3.0
+                elif 'mlp.fc' in name: lr_mul = 0.5
+                param_groups.append({'params': [p], 'lr': args.ttt_lr * lr_mul})
+            ttt_params = [p for pg in param_groups for p in pg['params']]
+        else:
+            ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+            param_groups = [{'params': ttt_params, 'lr': args.ttt_lr}]
 
     use_adamw = bool(int(os.environ.get("TTT_ADAMW", "1")))
     cosine_ttt = bool(int(os.environ.get("TTT_COSINE", "1")))
     progressive = bool(int(os.environ.get("TTT_PROGRESSIVE", "0")))
-    per_layer_lr = bool(int(os.environ.get("TTT_PER_LAYER_LR", "1")))
-    if per_layer_lr:
-        param_groups = []
-        for name, p in base_model.named_parameters():
-            if not p.requires_grad: continue
-            lr_mul = 1.0
-            if 'mlp.proj' in name: lr_mul = 3.0
-            elif 'mlp.fc' in name: lr_mul = 0.5
-            param_groups.append({'params': [p], 'lr': args.ttt_lr * lr_mul})
-        ttt_params = [p for pg in param_groups for p in pg['params']]
-    else:
-        ttt_params = [p for p in base_model.parameters() if p.requires_grad]
-        param_groups = [{'params': ttt_params, 'lr': args.ttt_lr}]
     if use_adamw:
         optimizer = torch.optim.AdamW(param_groups, weight_decay=0.0)
     else:
@@ -1141,6 +1329,8 @@ def ttt_adapt(args: Hyperparameters, base_model: nn.Module, device: torch.device
             log_fn(f"ttt_epoch:{epoch+1}/{args.ttt_epochs} "
                    f"loss:{epoch_loss_sum.item()/max(epoch_tokens.item(),1):.4f} time:{elapsed:.1f}s")
 
+    if use_lora:
+        remove_lora(base_model)
     for p in base_model.parameters():
         p.requires_grad_(True)
 
