@@ -15,6 +15,7 @@ import sys
 import time
 import uuid
 import zlib
+import zstandard as _zstd_mlx
 from collections.abc import Callable
 from pathlib import Path
 
@@ -64,7 +65,7 @@ class Hyperparameters:
     # Disable on 32GB+ unified memory for better throughput (MLX_EAGER_EVAL=0).
     mlx_eager_eval: bool = bool(int(os.environ.get("MLX_EAGER_EVAL", "1")))
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
-    warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 3500))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
 
     # Model (defaults match the current baseline setup).
@@ -93,6 +94,9 @@ class Hyperparameters:
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    eval_stride: int = int(os.environ.get("EVAL_STRIDE", 64))
+    use_ngram_eval: bool = bool(int(os.environ.get("USE_NGRAM_EVAL", "0")))
+    ngram_order: int = int(os.environ.get("NGRAM_ORDER", "9"))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 
@@ -495,15 +499,23 @@ class GPT(nn.Module):
             loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction="sum")
         return loss_sum / float(n)
 
+    def forward_logits(self, input_ids: mx.array) -> mx.array:
+        """Returns logits [B, T, vocab] for per-token scoring."""
+        x = self(input_ids)  # [B, T, dim]
+        logits = x @ self.tok_emb.weight.astype(x.dtype).T
+        return self.softcap(logits)
+
 # ==============================================================================
 # OPTIMIZERS (MUON + ADAM SPLIT)
 # ==============================================================================
 class Muon:
     # Muon applies SGD-momentum to matrix gradients, then orthogonalizes the result before the
     # parameter update.
-    def __init__(self, keys: list[str], params: dict[str, mx.array], args: Hyperparameters):
+    def __init__(self, keys: list[str], params: dict[str, mx.array], args: Hyperparameters,
+                 weight_decay: float = 0.04):
         self.keys = keys
         self.args = args
+        self.weight_decay = weight_decay
         self.buffers = {k: mx.zeros_like(params[k]) for k in keys}
 
     def step(self, params: dict[str, mx.array], grads: dict[str, mx.array], step: int, lr_mul: float) -> dict[str, mx.array]:
@@ -522,7 +534,8 @@ class Muon:
             g_eff = g + momentum * buf
             g_ortho = zeropower_newtonschulz5(g_eff, self.args.muon_backend_steps)
             scale = math.sqrt(max(1.0, float(p.shape[0]) / float(p.shape[1])))
-            out[k] = p - lr * (g_ortho * scale).astype(p.dtype)
+            p_wd = p * (1.0 - lr * self.weight_decay) if self.weight_decay > 0 else p
+            out[k] = p_wd - lr * (g_ortho * scale).astype(p.dtype)
         return out
 
 
@@ -1039,6 +1052,11 @@ def main() -> None:
 
         train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
 
+    # EMA weight averaging (float params only — skip integer/bool buffers)
+    EMA_DECAY = 0.997
+    ema_params = {k: v.astype(mx.float32) for k, v in tree_flatten(model.parameters())
+                  if mx.issubdtype(v.dtype, mx.floating)}
+
     train_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     stop_after_step: int | None = None
@@ -1086,6 +1104,11 @@ def main() -> None:
         grads = clip_grad_tree(grads, args.grad_clip_norm)
         train_loss_value = float(train_loss.item())
         opt.step(model, grads, step=step, lr_mul=lr_mul)
+
+        # EMA update (float params only)
+        for k, v in tree_flatten(model.parameters()):
+            if k in ema_params:
+                ema_params[k] = ema_params[k] * EMA_DECAY + v.astype(mx.float32) * (1.0 - EMA_DECAY)
         mx.synchronize()
 
         step_ms = 1000.0 * (time.perf_counter() - step_t0)
@@ -1106,6 +1129,12 @@ def main() -> None:
     # We always write a raw artifact and a quantized artifact, then validate the
     # quantized roundtrip directly by loading the dequantized tensors back into the
     # model and running one final validation pass.
+    # Load EMA weights for final artifact
+    model_params_now = dict(tree_flatten(model.parameters()))
+    ema_typed = {k: ema_params[k].astype(model_params_now[k].dtype) for k in ema_params}
+    model.update(tree_unflatten(list(ema_typed.items())))
+    mx.eval(model.state)
+
     out_path = out_dir / f"{args.run_id}_mlx_model.npz"
     flat_state = {k: v for k, v in tree_flatten(model.state)}
     mx.savez(str(out_path), **flat_state)
@@ -1113,7 +1142,7 @@ def main() -> None:
 
     quant_obj, quant_stats = quantize_state_dict_int8(flat_state)
     quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
-    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_blob = _zstd_mlx.ZstdCompressor(level=22).compress(quant_raw)
     quant_serialized_bytes = len(quant_raw)
     quant_path = out_dir / f"{args.run_id}_mlx_model.int8.ptz"
     with quant_path.open("wb") as f:
@@ -1127,7 +1156,10 @@ def main() -> None:
 
     with quant_path.open("rb") as f:
         quant_blob_disk = f.read()
-    quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
+    try:
+        quant_flat = dequantize_state_dict_int8(pickle.loads(_zstd_mlx.ZstdDecompressor().decompress(quant_blob_disk)))
+    except Exception:
+        quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
     model.update(tree_unflatten(list(quant_flat.items())))
     q_t0 = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
