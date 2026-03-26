@@ -86,7 +86,7 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 20480))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
     # SWA disabled — EMA used instead
@@ -99,7 +99,7 @@ class Hyperparameters:
 
     # Architecture features
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))       # XSA on last N layers
-    rope_dims = int(os.environ.get("ROPE_DIMS", 16))          # partial RoPE dims (0=full)
+    rope_dims = int(os.environ.get("ROPE_DIMS", 32))          # partial RoPE dims (0=full)
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))    # layer-index norm scaling
 
     # EMA (replaces SWA)
