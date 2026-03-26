@@ -1,0 +1,18 @@
+{
+  "name": "Sofia Bodnar",
+  "github_id": "sofiabod",
+  "val_bpb": 1.1327,
+  "val_bpb_std": 0.0015,
+  "seeds": [1337, 42, 7],
+  "seed_results": {
+    "1337": 1.1323,
+    "42": 1.1314,
+    "7": 1.1343
+  },
+  "artifact_bytes": 15880000,
+  "training_time_seconds": 600,
+  "eval_time_seconds": 340,
+  "gpu": "H100:8",
+  "tokenizer": "sp1024",
+  "description": "7L MLP3x + BigramHash(2048) + SmearGate + AdamW TTT 5ep"
+}
