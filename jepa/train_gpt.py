@@ -112,6 +112,12 @@ class Hyperparameters:
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
 
+    ngram_enabled = env_flag("NGRAM_ENABLED", True)
+    ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", 7))
+    ngram_alpha_lo = float(os.environ.get("NGRAM_ALPHA_LO", 0.05))
+    ngram_alpha_hi = float(os.environ.get("NGRAM_ALPHA_HI", 0.55))
+    ngram_entropy_center = float(os.environ.get("NGRAM_ENTROPY_CENTER", 4.0))
+
     use_compile = env_flag("USE_COMPILE", os.name != "nt")
 
     @property
@@ -626,7 +632,6 @@ class CausalJEPA(nn.Module):
         self.jepa_predictor = nn.Sequential(
             nn.Linear(dim, ld, bias=False), nn.GELU(), nn.Linear(ld, ld, bias=False)
         )
-        self.jepa_decode_proj = nn.Linear(ld, dim, bias=False)
         self.jepa_target_proj = nn.Linear(dim, ld, bias=False)
 
         self._init_weights()
@@ -656,7 +661,6 @@ class CausalJEPA(nn.Module):
             for p in m.modules():
                 if isinstance(p, nn.Linear):
                     nn.init.xavier_uniform_(p.weight)
-        nn.init.zeros_(self.jepa_decode_proj.weight)
 
     def _ema_params(self):
         yield from self.ema_byte_emb.parameters()
@@ -696,18 +700,10 @@ class CausalJEPA(nn.Module):
                 pop_idx += 1
         return final_norm(x)
 
-    def _jepa_logits(self, hidden: Tensor) -> Tensor:
-        """Augment hidden states with JEPA predictions before computing logits.
-        Predictor output is detached so the predictor is trained only by JEPA
-        loss; decode_proj learns from CE how to use the predictor's output."""
-        pred_latent = self.jepa_predictor(hidden)
-        augmented = hidden + self.jepa_decode_proj(pred_latent.detach())
-        logits = F.linear(augmented, self.byte_emb.weight)
-        return self.logit_softcap * torch.tanh(logits / self.logit_softcap)
-
     def forward_logits(self, ids: Tensor) -> Tensor:
         hidden = self._run_backbone(ids, self.byte_emb, self.blocks, self.skip_weights, self.final_norm)
-        return self._jepa_logits(hidden)
+        logits = F.linear(hidden, self.byte_emb.weight)
+        return self.logit_softcap * torch.tanh(logits / self.logit_softcap)
 
     @torch.no_grad()
     def _ema_forward(self, ids: Tensor) -> Tensor:
@@ -715,20 +711,18 @@ class CausalJEPA(nn.Module):
 
     def forward(self, input_ids: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         hidden = self._run_backbone(input_ids, self.byte_emb, self.blocks, self.skip_weights, self.final_norm)
-
-        pred_latent = self.jepa_predictor(hidden)
-        augmented = hidden + self.jepa_decode_proj(pred_latent.detach())
-        logits = F.linear(augmented[:, :-1], self.byte_emb.weight)
+        logits = F.linear(hidden[:, :-1], self.byte_emb.weight)
         logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
         ce = F.cross_entropy(logits.float().reshape(-1, self.vocab_size), input_ids[:, 1:].reshape(-1))
 
         K = self.jepa_horizon
         if K > 0 and hidden.size(1) > K:
+            pred_latent = self.jepa_predictor(hidden[:, :-K])
             with torch.no_grad():
                 ema_h = self._ema_forward(input_ids)
                 target = self.ema_target_proj(ema_h[:, K:])
             jepa_loss = F.mse_loss(
-                F.normalize(pred_latent[:, :-K].float(), dim=-1),
+                F.normalize(pred_latent.float(), dim=-1),
                 F.normalize(target.float(), dim=-1),
             )
             total = ce + self.jepa_weight * jepa_loss
@@ -888,6 +882,110 @@ def eval_val_ttt(
     model.train()
     val_loss = float((nll_sum / tok_cnt).item())
     val_bpb = float(nll_sum.item() / (math.log(2.0) * byte_cnt.item()))
+    return val_loss, val_bpb
+
+
+# ── n-gram backoff cache ─────────────────────────────────────────────────────
+
+class NgramCache:
+    """Multi-order backoff n-gram cache built from already-scored tokens."""
+
+    def __init__(self, max_order: int, vocab_size: int):
+        self.max_order = max_order
+        self.vocab_size = vocab_size
+        self.counts: list[dict[tuple[int, ...], list[int]]] = [
+            {} for _ in range(max_order + 1)
+        ]
+
+    def update_token(self, context: list[int], token: int):
+        for order in range(2, self.max_order + 1):
+            if len(context) >= order - 1:
+                key = tuple(context[-(order - 1):])
+                bucket = self.counts[order].get(key)
+                if bucket is None:
+                    bucket = [0] * self.vocab_size
+                    self.counts[order][key] = bucket
+                bucket[token] += 1
+
+    def predict(self, context: list[int]) -> np.ndarray | None:
+        for order in range(self.max_order, 1, -1):
+            if len(context) >= order - 1:
+                key = tuple(context[-(order - 1):])
+                bucket = self.counts[order].get(key)
+                if bucket is not None:
+                    arr = np.array(bucket, dtype=np.float64)
+                    total = arr.sum()
+                    if total > 0:
+                        return arr / total
+        return None
+
+
+@torch.no_grad()
+def eval_val_ngram(
+    args: Hyperparameters,
+    model: CausalJEPA,
+    device: torch.device,
+    val_tokens: Tensor,
+    byte_lut: Tensor,
+    amp_dtype: torch.dtype,
+) -> tuple[float, float]:
+    """Sliding window eval with multi-order n-gram backoff cache."""
+    ctx_len = args.train_seq_len
+    stride = args.eval_stride
+    total = val_tokens.numel() - 1
+    alpha_lo = args.ngram_alpha_lo
+    alpha_hi = args.ngram_alpha_hi
+    h_center = args.ngram_entropy_center
+
+    cache = NgramCache(args.ngram_max_order, args.vocab_size)
+    scored_up_to = 0
+    all_tokens = val_tokens.tolist()
+
+    nll_sum = 0.0
+    byte_sum = 0.0
+    tok_count = 0
+
+    model.eval()
+    ws_list = list(range(0, total, stride))
+
+    for ws in ws_list:
+        end = min(ws + ctx_len, total)
+        wl = end - ws
+        if wl < 1:
+            continue
+        s = 0 if ws == 0 else max(wl - stride, 0)
+
+        chunk = val_tokens[ws : end + 1].to(dtype=torch.int64, device=device)
+        x = chunk[:-1].unsqueeze(0)
+        y = chunk[1:].unsqueeze(0)
+
+        with torch.autocast(device_type="cuda", dtype=amp_dtype):
+            logits = model.forward_logits(x).float()
+        log_probs = F.log_softmax(logits[0], dim=-1)
+
+        for pos in range(s, wl):
+            true_tok = y[0, pos].item()
+            lp = log_probs[pos]
+
+            ngram_pred = cache.predict(all_tokens[: ws + pos])
+            if ngram_pred is not None:
+                model_p = lp.exp().cpu().numpy().astype(np.float64)
+                model_p = np.maximum(model_p, 1e-20)
+                entropy = float(-(model_p * np.log(model_p + 1e-30)).sum())
+                alpha = alpha_lo + alpha_hi / (1.0 + math.exp(-2.0 * (entropy - h_center)))
+                blended = (1.0 - alpha) * model_p + alpha * ngram_pred
+                blended /= blended.sum()
+                token_nll = -math.log(max(blended[true_tok], 1e-30))
+            else:
+                token_nll = -lp[true_tok].item()
+
+            nll_sum += token_nll
+            tok_count += 1
+            byte_sum += byte_lut[true_tok].item()
+            cache.update_token(all_tokens[: ws + pos], true_tok)
+
+    val_loss = nll_sum / max(tok_count, 1)
+    val_bpb = nll_sum / (math.log(2.0) * max(byte_sum, 1.0))
     return val_loss, val_bpb
 
 
@@ -1162,6 +1260,15 @@ def main() -> None:
     log0(f"final_quant_roundtrip val_loss:{q_loss:.4f} val_bpb:{q_bpb:.4f} "
          f"eval_scope:{scope} val_tokens:{final_val.numel()} eval_time:{1000*(time.perf_counter()-t_qe):.0f}ms")
     log0(f"final_quant_roundtrip_exact val_loss:{q_loss:.8f} val_bpb:{q_bpb:.8f}")
+
+    if args.ngram_enabled and world_size == 1:
+        torch.cuda.synchronize()
+        t_ng = time.perf_counter()
+        ng_loss, ng_bpb = eval_val_ngram(args, base_model, device, final_val, byte_lut, amp_dtype)
+        torch.cuda.synchronize()
+        log0(f"final_ngram val_loss:{ng_loss:.4f} val_bpb:{ng_bpb:.4f} "
+             f"ngram_gain:{ng_bpb - q_bpb:.4f} ngram_time:{1000*(time.perf_counter()-t_ng):.0f}ms")
+        log0(f"final_ngram_exact val_loss:{ng_loss:.8f} val_bpb:{ng_bpb:.8f}")
 
     if args.ttt_enabled and world_size == 1:
         torch.cuda.synchronize()
