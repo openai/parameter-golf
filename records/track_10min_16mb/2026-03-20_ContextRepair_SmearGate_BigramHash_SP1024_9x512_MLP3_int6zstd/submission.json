@@ -1,0 +1,17 @@
+{
+  "author": "Brian Pridgen",
+  "github_id": "handemanai",
+  "name": "Context-Repair SmearGate+BigramHash MLP3 int6+zstd",
+  "blurb": "Dense 9-layer 512-dim GQA with SmearGate + BigramHash context features, MLP_MULT=3, int6+zstd export with fp16 embedding passthrough. Developed entirely through AI agent coordination by a surgeon with no ML engineering background. Context features independently identified through arXiv literature survey (200+ papers). Diagnosed a carried-context failure surface and repaired it with paired context features validated through controlled canary experiments.",
+  "date": "2026-03-20T22:19:00Z",
+  "track": "10min_16mb",
+  "val_loss": 2.02715519,
+  "val_bpb": 1.20059549,
+  "pre_quant_val_loss": 2.0188,
+  "pre_quant_val_bpb": 1.1956,
+  "step_stop": 12511,
+  "wallclock_seconds": 600.038,
+  "bytes_total": 14999691,
+  "bytes_model_int6_zstd": 14930876,
+  "bytes_code": 68815
+}
