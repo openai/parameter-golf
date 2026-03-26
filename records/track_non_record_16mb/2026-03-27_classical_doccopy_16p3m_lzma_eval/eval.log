@@ -1,0 +1,22 @@
+step=5000000 bpb=1.878882 tok_per_s=220,356 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=10000000 bpb=1.875413 tok_per_s=222,950 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=15000000 bpb=1.862998 tok_per_s=225,145 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=20000000 bpb=1.851216 tok_per_s=226,638 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=25000000 bpb=1.840180 tok_per_s=225,834 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=30000000 bpb=1.836590 tok_per_s=226,033 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=35000000 bpb=1.834529 tok_per_s=226,035 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=40000000 bpb=1.828494 tok_per_s=226,069 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=45000000 bpb=1.821273 tok_per_s=226,216 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=50000000 bpb=1.820081 tok_per_s=225,998 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=55000000 bpb=1.817709 tok_per_s=225,585 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+step=60000000 bpb=1.813056 tok_per_s=224,932 weights=[doc_copy_ctx2=1.000, ngram_4=0.000]
+loaded_state_bytes=15638788
+loaded_warmup_predictions=16299999
+tokens_loaded=62021846
+predictions=62021845
+total_bytes=151080891
+val_bpb=1.81114207
+elapsed_seconds=280.19
+expert_weights:
+  doc_copy_ctx2: weight=1.000000 avg_logloss_bits=4.411816
+  ngram_4: weight=0.000000 avg_logloss_bits=0.000000
