@@ -117,13 +117,15 @@ class Hyperparameters:
 
     # N-gram eval cache
     ngram_eval = bool(int(os.environ.get("NGRAM_EVAL", "0")))
-    ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", 9))
+    ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", 12))
     ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", 2))
     ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", 4194304))
     ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", 2))
-    ngram_chunk_tokens = int(os.environ.get("NGRAM_CHUNK_TOKENS", 65536))
+    ngram_chunk_tokens = int(os.environ.get("NGRAM_CHUNK_TOKENS", 256000))
     ngram_alpha_min = float(os.environ.get("NGRAM_ALPHA_MIN", 0.05))
-    ngram_alpha_max = float(os.environ.get("NGRAM_ALPHA_MAX", 0.60))
+    ngram_alpha_max = float(os.environ.get("NGRAM_ALPHA_MAX", 0.70))
+    ngram_two_pass = bool(int(os.environ.get("NGRAM_TWO_PASS", "1")))
+    ngram_rescore_chunks = int(os.environ.get("NGRAM_RESCORE_CHUNKS", 50))
     ngram_entropy_center = float(os.environ.get("NGRAM_ENTROPY_CENTER", 3.0))
     ngram_entropy_scale = float(os.environ.get("NGRAM_ENTROPY_SCALE", 2.0))
 
@@ -447,7 +449,8 @@ def eval_val_ngram(
     total_tokens = val_tokens.numel() - 1
     tokens_np = val_tokens.numpy().astype(np.int64)
     chunk_tokens = args.ngram_chunk_tokens
-    order_mults = np.array([0.3, 0.3, 0.97, 2.0, 2.0, 2.0, 2.0, 2.0], dtype=np.float64)
+    # Per-order multipliers for orders 2-12 (index 0 = order 2)
+    order_mults = np.array([0.3, 0.3, 0.97, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0], dtype=np.float64)
 
     cache = NgramEvalCache(
         max_order=args.ngram_max_order, min_order=args.ngram_min_order,
@@ -551,8 +554,106 @@ def eval_val_ngram(
         dist.all_reduce(byte_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
 
-    val_loss = float(loss_sum.item() / token_count.item())
-    val_bpb = float((loss_sum.item() / math.log(2.0)) / byte_sum.item())
+    p1_loss = float(loss_sum.item())
+    p1_bytes = float(byte_sum.item())
+    p1_bpb = float((p1_loss / math.log(2.0)) / p1_bytes)
+    log_fn(f"ngram_pass1:done bpb={p1_bpb:.6f} elapsed={time.perf_counter() - t0:.1f}s")
+
+    # --- PASS 2: Rescore cold-cache chunks with full cache ---
+    if args.ngram_two_pass and args.ngram_rescore_chunks > 0:
+        n_total_chunks = (total_tokens + chunk_tokens - 1) // chunk_tokens
+        actual_rescore = min(args.ngram_rescore_chunks, n_total_chunks)
+        log_fn(f"ngram_pass2: rescoring first {actual_rescore} chunks with full cache...")
+
+        # Rebuild segments for the first N chunks
+        p2_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+        p2_byte_sum = torch.zeros((), device=device, dtype=torch.float64)
+        p2_token_count = torch.zeros((), device=device, dtype=torch.float64)
+        # Also track pass1 values for same chunks to compute delta
+        p1_chunk_loss = torch.zeros((), device=device, dtype=torch.float64)
+        p1_chunk_bytes = torch.zeros((), device=device, dtype=torch.float64)
+
+        seg_idx_p2 = 0
+        with torch.inference_mode():
+            for ci in range(actual_rescore):
+                c_start = 1 + ci * chunk_tokens
+                c_end = min(c_start + chunk_tokens, total_tokens + 1)
+                chunk_segs = []
+                while seg_idx_p2 < len(segments) and segments[seg_idx_p2][4] < c_end:
+                    chunk_segs.append(segments[seg_idx_p2])
+                    seg_idx_p2 += 1
+                rank_segs = chunk_segs[rank::world_size]
+
+                for bi in range(0, len(rank_segs), batch_seqs):
+                    batch = rank_segs[bi:bi + batch_seqs]
+                    bsz = len(batch)
+                    x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                    y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                    for ri, (ws, vl, _, _, _, _) in enumerate(batch):
+                        end = min(ws + seq_len, total_tokens)
+                        chunk = val_tokens[ws:end + 1].to(device=device, dtype=torch.int64)
+                        x_batch[ri, :vl] = chunk[:-1]
+                        y_batch[ri, :vl] = chunk[1:]
+
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        logits = model(x_batch)
+
+                    for ri, (_, _, ls, le, ts, te) in enumerate(batch):
+                        seg_len_p2 = te - ts
+                        row_logits = logits[ri, ls:le].float()
+                        row_targets = y_batch[ri, ls:le]
+
+                        model_probs = torch.softmax(row_logits, dim=-1)
+                        seg_model_p = torch.gather(model_probs, 1, row_targets.unsqueeze(-1)).squeeze(-1)
+                        seg_model_p = seg_model_p.clamp(min=1e-10).cpu().numpy().astype(np.float64)
+
+                        log_probs = torch.log_softmax(row_logits, dim=-1)
+                        seg_entropy = -(model_probs * log_probs).sum(dim=-1).cpu().numpy()
+
+                        global_pos = np.arange(ts, te, dtype=np.int64)
+                        seg_tgt_np = row_targets.cpu().numpy().astype(np.int64)
+                        ngram_p, ng_matched, ng_orders = cache.batch_lookup(tokens_np, global_pos, seg_tgt_np)
+
+                        final_p = seg_model_p.copy()
+                        if ng_matched.any():
+                            matched_ords = ng_orders[ng_matched].astype(np.float64)
+                            centers = args.ngram_entropy_center - 0.25 * (matched_ords - cache.min_order)
+                            sig = 1.0 / (1.0 + np.exp(-args.ngram_entropy_scale * (seg_entropy[ng_matched] - centers)))
+                            alpha = args.ngram_alpha_min + (args.ngram_alpha_max - args.ngram_alpha_min) * sig
+                            mult_indices = np.clip(ng_orders[ng_matched] - cache.min_order, 0, len(order_mults) - 1)
+                            alpha = np.clip(alpha * order_mults[mult_indices], 0.0, 0.95)
+                            final_p[ng_matched] = (1.0 - alpha) * seg_model_p[ng_matched] + alpha * ngram_p[ng_matched]
+                            final_p = np.maximum(final_p, 1e-10)
+
+                        p2_loss_sum += float((-np.log(final_p)).sum())
+                        scored_x = x_batch[ri, ls:le]
+                        scored_y = y_batch[ri, ls:le]
+                        tok_bytes = base_bytes_lut[scored_y].to(torch.int16)
+                        tok_bytes += (has_leading_space_lut[scored_y] & ~is_boundary_token_lut[scored_x]).to(torch.int16)
+                        p2_byte_sum += tok_bytes.to(torch.float64).sum()
+                        p2_token_count += seg_len_p2
+
+                        # Track pass1 contribution for same tokens (model-only, no ngram for cold chunks)
+                        p1_only_loss = float((-np.log(np.maximum(seg_model_p, 1e-10))).sum())
+                        p1_chunk_loss += p1_only_loss
+                        p1_chunk_bytes += tok_bytes.to(torch.float64).sum()
+
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(p2_loss_sum, op=dist.ReduceOp.SUM)
+            dist.all_reduce(p2_byte_sum, op=dist.ReduceOp.SUM)
+            dist.all_reduce(p1_chunk_loss, op=dist.ReduceOp.SUM)
+            dist.all_reduce(p1_chunk_bytes, op=dist.ReduceOp.SUM)
+
+        # Replace pass1 cold-chunk scores with pass2 warm-cache scores
+        total_loss = p1_loss - p1_chunk_loss.item() + p2_loss_sum.item()
+        total_bytes = p1_bytes - p1_chunk_bytes.item() + p2_byte_sum.item()
+        val_bpb = float((total_loss / math.log(2.0)) / total_bytes)
+        val_loss = total_loss / token_count.item()
+        log_fn(f"ngram_pass2:done bpb={val_bpb:.6f} (p1={p1_bpb:.6f}, improvement={p1_bpb - val_bpb:+.4f}) elapsed={time.perf_counter() - t0:.1f}s")
+    else:
+        val_loss = float(loss_sum.item() / token_count.item())
+        val_bpb = p1_bpb
+
     log_fn(f"ngram_eval:done val_loss={val_loss:.6f} val_bpb={val_bpb:.6f} elapsed={time.perf_counter() - t0:.1f}s")
     return val_loss, val_bpb
 
