@@ -1,0 +1,90 @@
+W0326 18:39:05.561000 661716 torch/distributed/run.py:852] 
+W0326 18:39:05.561000 661716 torch/distributed/run.py:852] *****************************************
+W0326 18:39:05.561000 661716 torch/distributed/run.py:852] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 18:39:05.561000 661716 torch/distributed/run.py:852] *****************************************
+logs/ngram9_chunk65k_s2024.txt
+model_preset:frontier_lean run_profile:full_8gpu_600s
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27255900
+param_breakdown:{"lexical": 1114625, "skip": 2560, "upper_global": 25974872, "value_embedding": 163843}
+world_size:8 grad_accum_steps:1
+flash_attn_3_loaded:True
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+activation_mode:leaky_relu2 export_quantizer:full_gptq_int5 ttt_optimizer:adamw
+muon:banking_enabled:True bank_min_tensors:2
+moonshot lower_replace_layers:0 local_shared_blocks:4 use_unet_skips:True
+seed:2024
+shard_order:computing perplexity ranking...
+shard_order:ranked 80 shards by perplexity
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9308 val_bpb:4.1048 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9305 train_time:106ms step_avg:105.79ms
+step:2/20000 train_loss:8.7685 train_time:184ms step_avg:91.92ms
+step:3/20000 train_loss:7.9814 train_time:268ms step_avg:89.20ms
+step:4/20000 train_loss:7.1577 train_time:351ms step_avg:87.75ms
+step:5/20000 train_loss:6.9059 train_time:434ms step_avg:86.80ms
+step:6/20000 train_loss:6.7356 train_time:517ms step_avg:86.21ms
+step:7/20000 train_loss:6.7104 train_time:601ms step_avg:85.90ms
+step:8/20000 train_loss:6.5354 train_time:684ms step_avg:85.48ms
+step:9/20000 train_loss:6.2828 train_time:768ms step_avg:85.30ms
+step:10/20000 train_loss:6.0758 train_time:852ms step_avg:85.19ms
+step:500/20000 train_loss:2.3737 train_time:42512ms step_avg:85.02ms
+step:1000/20000 train_loss:1.9917 train_time:85112ms step_avg:85.11ms
+step:1500/20000 train_loss:2.1657 train_time:127594ms step_avg:85.06ms
+step:2000/20000 train_loss:2.1267 train_time:170118ms step_avg:85.06ms
+step:2500/20000 train_loss:2.1487 train_time:212705ms step_avg:85.08ms
+step:3000/20000 train_loss:2.0718 train_time:255283ms step_avg:85.09ms
+step:3500/20000 train_loss:1.9988 train_time:297870ms step_avg:85.11ms
+step:4000/20000 train_loss:1.9421 train_time:340437ms step_avg:85.11ms
+step:4000/20000 val_loss:2.0581 val_bpb:1.2189 train_time:340443ms step_avg:85.11ms
+step:4500/20000 train_loss:1.9601 train_time:383020ms step_avg:85.12ms
+step:5000/20000 train_loss:2.0226 train_time:425584ms step_avg:85.12ms
+step:5500/20000 train_loss:2.0005 train_time:468151ms step_avg:85.12ms
+step:6000/20000 train_loss:1.9240 train_time:510754ms step_avg:85.13ms
+swa:start step:6350
+step:6500/20000 train_loss:1.8993 train_time:553462ms step_avg:85.15ms
+step:7000/20000 train_loss:1.8832 train_time:596283ms step_avg:85.18ms
+step:7044/20000 val_loss:1.9275 val_bpb:1.1415 train_time:600056ms step_avg:85.19ms
+stopping_early: wallclock_cap train_time:600056ms step:7044/20000
+peak memory allocated: 20867 MiB reserved: 21208 MiB
+ema:applying best EMA (decay=0.9970 bpb=inf)
+DIAGNOSTIC post_average val_loss:1.9268 val_bpb:1.1412 eval_time:2003ms
+gptq:calibrating hessians batches:256 batch_tokens:0 seq_len:2048
+gptq:calibrated 68 layers in 3.0s
+export_grid block:128 refine:3 damp:0.0100 mse:0.03384539
+export_grid block:64 refine:3 damp:0.0100 mse:0.03384508
+export_grid block:128 refine:3 damp:0.0050 mse:0.03418556
+export_grid block:64 refine:3 damp:0.0050 mse:0.03418556
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 25952256 int5 params, 0 int6 params
+Serialized model research_export: 13238184 bytes
+Code size: 180967 bytes
+Total submission size research_export: 13419151 bytes
+final_research_export_roundtrip val_loss:1.9569 val_bpb:1.1590 eval_time:6093ms
+final_research_export_sliding skipped
+final_research_export_exact val_loss:1.95689403 val_bpb:1.15898287
+final_ngram val_loss:0.4853 val_bpb:0.2874 eval_time:408630ms max_order:9 adaptive:True
+final_ngram_exact val_loss:0.48532938 val_bpb:0.28743939
+phase_timings:{"diagnostic_eval_ms": 2003.215814998839, "ngram_eval_ms": 408886.7184510018, "quantize_ms": 23227.683171993704, "roundtrip_eval_ms": 50172.42203900241, "serialize_ms": 42339.03710600862, "skipped": {"diagnostic_eval": false, "export": false, "roundtrip_eval": false, "sliding_eval": false}, "sliding_eval_ms": 0.0}
