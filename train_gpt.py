@@ -680,18 +680,16 @@ class CausalSelfAttention(nn.Module):
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
 
-        # --- KGIIR UPGRADE: Learnable Power-Law Trajectory ---
-        # Constant init for decay is more stable for Muon
-        self.k_decay = nn.Parameter(torch.full((dim,), -1.2))
-        # importance allows the model to choose Markovian vs. Smoothing behavior
-        self.k_importance = nn.Parameter(torch.tensor([-0.5, -1.5, -2.5]))
-        # Gate starts slightly closed to let attention stabilize first
-        self.k_gate = nn.Parameter(torch.full((dim,), -1.5))
-        # -----------------------------------------------------
+        # KGIIR Control Parameters (Small 1D vectors)
+        self.k_decay = nn.Parameter(torch.zeros(dim))
+        self.k_gate = nn.Parameter(torch.zeros(dim))
 
+        # Gain for stability/norm scaling
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rope_dims = 0
+
+        # Components
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
+        self.rope_dims = 0
         self.use_xsa = False
 
         self.gated_attention = gated_attention
@@ -717,43 +715,38 @@ class CausalSelfAttention(nn.Module):
     def forward(self, x: Tensor, q_w: Tensor, k_w: Tensor, v_w: Tensor, out_w: Tensor, v_embed: Tensor | None = None,
                 v0: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
         bsz, seqlen, dim = x.shape
-        dtype = x.dtype
 
-        # --- 1. KGIIR MIXING (REFINED & FUSED) ---
-        alpha = torch.sigmoid(self.k_decay).to(dtype)
-        imp = torch.sigmoid(self.k_importance).to(dtype)
-
-        # Power-law coefficients based on importance
+        # --- FUSED KGIIR TRAJECTORY ---
+        # Mathematical fusion of the analytical IIR filter and the gating mechanism
+        alpha = torch.sigmoid(self.k_decay).to(x.dtype)
+        gate = torch.sigmoid(self.k_gate).to(x.dtype)
+        a2 = alpha * alpha
         c0 = 1.0 - alpha
-        c1 = alpha * imp[0]
-        c2 = alpha * (1.0 - imp[0]) * imp[1]
-        c3 = alpha * (1.0 - imp[0]) * (1.0 - imp[1])
 
-        # Variance normalization (strict convex combination)
-        denom = c0 + c1 + c2 + c3
-        w0, w1, w2, w3 = c0 / denom, c1 / denom, c2 / denom, c3 / denom
-
-        gate = torch.sigmoid(self.k_gate).to(dtype)
-
-        # Fuse identity bypass directly into weights for speed
-        f0 = (1.0 - gate) + (gate * w0)
-        f1, f2, f3 = gate * w1, gate * w2, gate * w3
+        # Pre-compute fused weights (w0 includes the identity residual pass)
+        g_alpha = gate * alpha
+        g_c0 = gate * c0
+        w0 = 1.0 - gate + g_c0
+        w1 = g_alpha * c0
+        w2 = g_alpha * alpha * c0
+        w3 = g_alpha * a2
 
         x_pad = F.pad(x, (0, 0, 3, 0))
-        x_mixed = x_pad[:, 3:, :] * f0
-        x_mixed.add_(x_pad[:, 2:-1, :] * f1)
-        x_mixed.add_(x_pad[:, 1:-2, :] * f2)
-        x_mixed.add_(x_pad[:, 0:-3, :] * f3)
-        # ------------------------------------------
+        x_mixed = (
+                x_pad[:, 3:, :] * w0 +
+                x_pad[:, 2:-1, :] * w1 +
+                x_pad[:, 1:-2, :] * w2 +
+                x_pad[:, 0:-3, :] * w3
+        )
+        # ------------------------------
 
-        # Projections
-        q = F.linear(x_mixed, q_w.to(dtype)).reshape(bsz, seqlen, self.num_heads, self.head_dim)
-        k = F.linear(x_mixed, k_w.to(dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        # Projections (Using the mixed context for Q, K, V)
+        q = F.linear(x_mixed, q_w.to(x.dtype)).reshape(bsz, seqlen, self.num_heads, self.head_dim)
+        k = F.linear(x_mixed, k_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v = F.linear(x_mixed, v_w.to(x.dtype))
 
-        # V projection + Value Injection
-        v = F.linear(x_mixed, v_w.to(dtype))
         if v_embed is not None:
-            v = v + v_embed.to(dtype)  # Add while shapes match [B, T, KV_DIM]
+            v = v + v_embed
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
 
         raw_v = v if self.value_residual else None
@@ -768,14 +761,14 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
 
+        # Gain application
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
 
-        # FA3 / SDPA Call
+        # FA3 Native Call (No transposes needed for B,T,H,D layout)
         if flash_attn_3_func is not None:
-            # Native layout for FA3 [B, T, H, D]
             y = flash_attn_3_func(q, k, v, causal=True)
         else:
-            # SDPA fallback needs [B, H, T, D]
+            # Full robust fallback to SDPA if FA3 setup fails
             q_s = q.transpose(1, 2).contiguous()
             k_s = k.transpose(1, 2).contiguous()
             v_s = v.transpose(1, 2).contiguous()
@@ -786,12 +779,12 @@ class CausalSelfAttention(nn.Module):
             y = self._xsa_efficient(y, v)
 
         if self.gated_attention:
-            # Gating driven by the trajectory-aware context
+            # We use x_mixed to drive the gate for better temporal awareness
             gate_val = torch.sigmoid(self.attn_gate(x_mixed)).unsqueeze(-1)
             y = y * gate_val
 
         y = y.reshape(bsz, seqlen, dim)
-        return F.linear(y, out_w.to(dtype)), raw_v
+        return F.linear(y, out_w.to(x.dtype)), raw_v
 
 class SmearGate(nn.Module):
     def __init__(self, dim: int):
