@@ -720,7 +720,7 @@ Examples:
 
     # --fast preset: balanced reduction for quick relative comparison
     if args.fast:
-        args.screen_iterations = args.screen_iterations if args.screen_iterations != 500 else 50
+        args.screen_iterations = args.screen_iterations if args.screen_iterations != 500 else 300
         args.screen_batch = args.screen_batch if args.screen_batch != 524288 else 65536
         args.screen_layers = args.screen_layers if args.screen_layers != 9 else 5
         args.seeds = args.seeds if args.seeds != "42,137,256" else "42,137"
