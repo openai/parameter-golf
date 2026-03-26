@@ -26,6 +26,8 @@ Important legality and reproducibility notes:
 | `control_verified_sota` | Verified control branch, no eval cache | green |
 | `sota_plus_ngram7` | Verified control + deterministic 7-gram backward-looking cache | green |
 | `sota_plus_ppm_multiorder` | Verified control + deterministic multi-order PPM-style backoff cache | yellow |
+| `sota_plus_ppm_entropy_fixed` | PPM backoff + fixed entropy-gated eval-time cache mixing | yellow |
+| `sota_plus_ppm_entropy_order_adaptive` | PPM backoff + order-adaptive entropy-gated eval-time cache mixing | yellow |
 | `xsaall_fullgptq_prune_plus_cache` | XSA-all + full GPTQ + selective pruning + causal cache | yellow |
 | `rotaryfix_bigram3072_legalttt` | RotaryFix + BIGRAM3072 + legal score-first TTT | green |
 
@@ -53,6 +55,22 @@ python3 research/run.py --preset sota_plus_ngram7 --scale full_run --run-name so
 python3 research/run.py --preset sota_plus_ppm_multiorder --scale smoke --run-name sota_plus_ppm_multiorder_smoke_s1337 --seed 1337 --nproc-per-node 1 --gpu-profile local_cuda
 python3 research/run.py --preset sota_plus_ppm_multiorder --scale half_run --run-name sota_plus_ppm_multiorder_half_run_s1337 --seed 1337 --nproc-per-node 1 --gpu-profile 1xh100
 python3 research/run.py --preset sota_plus_ppm_multiorder --scale full_run --run-name sota_plus_ppm_multiorder_full_run_s1337 --seed 1337 --nproc-per-node 8 --gpu-profile 8xh100
+```
+
+`sota_plus_ppm_entropy_fixed`
+
+```bash
+python3 research/run.py --preset sota_plus_ppm_entropy_fixed --scale smoke --run-name sota_plus_ppm_entropy_fixed_smoke_s1337 --seed 1337 --nproc-per-node 1 --gpu-profile local_cuda
+python3 research/run.py --preset sota_plus_ppm_entropy_fixed --scale half_run --run-name sota_plus_ppm_entropy_fixed_half_run_s1337 --seed 1337 --nproc-per-node 1 --gpu-profile 1xh100
+python3 research/run.py --preset sota_plus_ppm_entropy_fixed --scale full_run --run-name sota_plus_ppm_entropy_fixed_full_run_s1337 --seed 1337 --nproc-per-node 8 --gpu-profile 8xh100
+```
+
+`sota_plus_ppm_entropy_order_adaptive`
+
+```bash
+python3 research/run.py --preset sota_plus_ppm_entropy_order_adaptive --scale smoke --run-name sota_plus_ppm_entropy_order_adaptive_smoke_s1337 --seed 1337 --nproc-per-node 1 --gpu-profile local_cuda
+python3 research/run.py --preset sota_plus_ppm_entropy_order_adaptive --scale half_run --run-name sota_plus_ppm_entropy_order_adaptive_half_run_s1337 --seed 1337 --nproc-per-node 1 --gpu-profile 1xh100
+python3 research/run.py --preset sota_plus_ppm_entropy_order_adaptive --scale full_run --run-name sota_plus_ppm_entropy_order_adaptive_full_run_s1337 --seed 1337 --nproc-per-node 8 --gpu-profile 8xh100
 ```
 
 `xsaall_fullgptq_prune_plus_cache`
@@ -104,17 +122,18 @@ cat "$LATEST_RUN/legality_note.txt"
 
 Recommended budget-first workflow:
 
-1. Run `control_verified_sota` at `half_run` on 1xH100.
-2. Run `sota_plus_ngram7` at `half_run` on the same box and seed.
-3. Compare those two first.
-4. Promote only the better of those two immediately.
-5. If the cache branch is slow, unstable, or legality-review-hostile, run `rotaryfix_bigram3072_legalttt` next.
-6. Run `sota_plus_ppm_multiorder` only if `sota_plus_ngram7` is promising and cache overhead looks acceptable.
-7. Keep `xsaall_fullgptq_prune_plus_cache` as a high-upside yellow branch after one green finalist is already identified.
+1. Run `sota_plus_ppm_multiorder` at `half_run` on H100 first.
+2. Run `sota_plus_ppm_entropy_fixed` at `half_run` as the minimal entropy-gating baseline.
+3. Run `sota_plus_ppm_entropy_order_adaptive` at `half_run` as the next serious H100 upgrade path.
+4. Promote the best PPM variant immediately if it reproduces cleanly.
+5. Run `rotaryfix_bigram3072_legalttt` next only as the main non-cache hedge.
+6. Keep `control_verified_sota` as the canonical reference branch, not the default spend target.
+7. Treat `sota_plus_ngram7` as a lower-priority cache sanity check unless PPM becomes unstable or too slow.
+8. Keep `xsaall_fullgptq_prune_plus_cache` as a high-upside yellow branch after the PPM line is already confirmed.
 
 Recommended full-run shortlist:
 
-- Best of `control_verified_sota` vs `sota_plus_ngram7`
+- Best of `sota_plus_ppm_multiorder` vs `sota_plus_ppm_entropy_fixed` vs `sota_plus_ppm_entropy_order_adaptive`
 - `rotaryfix_bigram3072_legalttt` if cache overhead is questionable
 - `xsaall_fullgptq_prune_plus_cache` only if cheap screening is clean and byte headroom remains healthy
 
@@ -159,11 +178,13 @@ The byte budget report is emitted automatically after a successful export and in
 
 ## Recommendation
 
-If you want one branch to get the first expensive 8xH100 full run after cheap screening, make it `sota_plus_ngram7`.
+If you want one branch to get the first expensive 8xH100 full run after current H100 screening, make it `sota_plus_ppm_multiorder`.
 
 Reason:
 
-- it is the narrowest high-upside extension on top of the verified control
-- it keeps the legal story simple
-- it is materially less brittle than the full GPTQ branch
-- it gives you the cleanest read on whether backward-looking cache ideas deserve more spend
+- it is the current best validated legal H100 direction in this repo snapshot
+- it materially outperformed the earlier smoke result and the other validated cache/control branches
+- it keeps the score-first legal story intact while showing real gain from backward-looking cache plus TTT
+- it is still materially cleaner and lower-risk than the full GPTQ branch
+
+If you want the next H100 upgrade to screen against that baseline, make it `sota_plus_ppm_entropy_order_adaptive`.

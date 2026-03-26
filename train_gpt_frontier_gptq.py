@@ -18,7 +18,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from flash_attn_interface import causal_attention, configure_attention_logging, flash_attention_import_summary
 from frontier_checkpoint import atomic_json_dump, atomic_torch_save, capture_rng_state, restore_rng_state
-from frontier_cache import causal_cache_from_env
+from frontier_cache import causal_cache_config_from_env, causal_cache_from_env, format_order_entropy_centers
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
@@ -227,15 +227,24 @@ def apply_score_first_cache(
     token_stream_np: np.ndarray,
     global_positions: np.ndarray,
     scored_nll: torch.Tensor,
+    scored_entropy: torch.Tensor | None = None,
 ) -> torch.Tensor:
     if cache is None or global_positions.size == 0:
         return scored_nll
     model_probs = np.exp(-scored_nll.detach().cpu().numpy())
+    model_entropy = None if scored_entropy is None else scored_entropy.detach().cpu().numpy()
     # Legal ordering is explicit here: score the segment from already-committed history,
     # then commit the segment only after its scores have been finalized.
-    mixed_probs = cache.score_segment(token_stream_np, global_positions, model_probs)
+    mixed_probs = cache.score_segment(token_stream_np, global_positions, model_probs, model_entropy)
     cache.commit_segment(token_stream_np, global_positions)
     return torch.from_numpy(-np.log(np.clip(mixed_probs, 1e-12, 1.0))).to(dtype=torch.float64, device=scored_nll.device)
+
+
+def predictive_entropy_from_logits(scored_logits: torch.Tensor) -> torch.Tensor:
+    log_probs = F.log_softmax(scored_logits.float(), dim=-1)
+    return -(log_probs.exp() * log_probs).sum(dim=-1)
+
+
 def eval_val(
     args: Hyperparameters,
     model: nn.Module,
@@ -789,6 +798,7 @@ def eval_val_sliding_ttt(
     ttt_chunk = args.ttt_chunk_tokens
     val_np = val_tokens.cpu().numpy()
     cache = causal_cache_from_env(dict(os.environ))
+    use_cache_entropy = cache is not None and cache.config.uses_entropy
     distributed = dist.is_available() and dist.is_initialized()
     if cache is not None and distributed and rank != 0:
         dist.barrier()
@@ -872,7 +882,10 @@ def eval_val_sliding_ttt(
                     s = 0 if ws == 0 else max(wlen - stride, 0)
                     scored_nll = nll[i, s:wlen].to(torch.float64)
                     global_positions = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
-                    scored_nll = apply_score_first_cache(cache, val_np, global_positions, scored_nll)
+                    scored_entropy = None
+                    if use_cache_entropy:
+                        scored_entropy = predictive_entropy_from_logits(logits[i, s:wlen])
+                    scored_nll = apply_score_first_cache(cache, val_np, global_positions, scored_nll, scored_entropy)
                     loss_sum += scored_nll.sum()
                     token_count += float(wlen - s)
                     tgt, prev = y_batch[i, s:wlen], x_batch[i, s:wlen]
@@ -967,6 +980,7 @@ def eval_val_sliding(
     total_tokens = val_tokens.numel() - 1
     val_np = val_tokens.cpu().numpy()
     cache = causal_cache_from_env(dict(os.environ))
+    use_cache_entropy = cache is not None and cache.config.uses_entropy
     window_starts = [ws for ws in range(0, total_tokens, stride)
                      if min(ws + seq_len, total_tokens) - ws >= 1]
     distributed = dist.is_available() and dist.is_initialized()
@@ -1013,7 +1027,10 @@ def eval_val_sliding(
                 s = 0 if ws == 0 else max(wlen - stride, 0)
                 scored_nll = nll[i, s:wlen].to(torch.float64)
                 global_positions = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
-                scored_nll = apply_score_first_cache(cache, val_np, global_positions, scored_nll)
+                scored_entropy = None
+                if use_cache_entropy:
+                    scored_entropy = predictive_entropy_from_logits(logits[i, s:wlen])
+                scored_nll = apply_score_first_cache(cache, val_np, global_positions, scored_nll, scored_entropy)
                 loss_sum += scored_nll.sum()
                 token_count += float(wlen - s)
                 tgt = y_batch[i, s:wlen]
@@ -1255,7 +1272,8 @@ def main() -> None:
     args = Hyperparameters()
     if args.gptq_mode not in {"full", "lite"}:
         raise ValueError(f"GPTQ_MODE must be 'full' or 'lite', got {args.gptq_mode!r}")
-    _ = causal_cache_from_env(dict(os.environ))
+    cache_config = causal_cache_config_from_env(dict(os.environ))
+    cache_config.validate()
     zeropower_via_newtonschulz5 = zeropower_via_newtonschulz5
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
@@ -1401,12 +1419,24 @@ def main() -> None:
     vrl_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_vrl]
     log0(f"VRL:{args.vrl} active_layers:{vrl_layers}")
     log0(f"rotary_fix:{args.rotary_fix} rotary_train_seq_len:{resolved_rotary_train_seq_len()}")
+    cache_gate = cache_config.mixing
+    if cache_config.mixing == "entropy":
+        cache_gate = "fixed_entropy"
+    elif cache_config.mixing == "order_entropy":
+        cache_gate = "order_adaptive_entropy"
     log0(
         "causal_cache:"
-        f" mode={os.environ.get('CAUSAL_CACHE_MODE', 'off')}"
-        f" order={os.environ.get('CAUSAL_CACHE_MAX_ORDER', '7')}"
-        f" alpha={os.environ.get('CAUSAL_CACHE_ALPHA', '0.40')}"
-        f" mixing={os.environ.get('CAUSAL_CACHE_MIXING', 'fixed')}"
+        f" mode={cache_config.mode}"
+        f" order={cache_config.max_order}"
+        f" alpha={cache_config.alpha:.2f}"
+        f" gating={cache_gate}"
+        f" alpha_min={cache_config.alpha_min:.2f}"
+        f" alpha_max={cache_config.alpha_max:.2f}"
+        f" entropy_center={cache_config.entropy_center:.2f}"
+        f" entropy_slope={cache_config.entropy_slope:.2f}"
+        f" order_entropy_centers={format_order_entropy_centers(cache_config.order_entropy_centers or {})}"
+        f" mixing={cache_config.mixing}"
+        f" count_smoothing={cache_config.count_smoothing:.2f}"
     )
     log0(
         f"gptq_mode:{args.gptq_mode} selective_prune_enabled:{args.selective_prune_enabled} "
