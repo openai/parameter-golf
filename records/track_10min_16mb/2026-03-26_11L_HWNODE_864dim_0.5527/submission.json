@@ -1,0 +1,16 @@
+{
+  "author": "Luca Mignatti",
+  "github_id": "lucamignatti",
+  "name": "Record: 11L HWNODE (Continuous Matrix ODE) + Cubric N-gram (val_bpb=0.5527)",
+  "blurb": "Replaced standard multi-layer perceptrons (MLP) with 864-dim Hammerstein-Wiener Neural ODEs (HWNODE). This combines the Hammerstein-wiener model with Neural ODEs. This permits a neural ODE to be solved in linear time, thus expanding via a taylor series used to create N descrete unique non-linear layers  from one set of parameters.",
+  "date": "2026-03-26T00: 00: 00Z",
+  "val_loss": 2.0006,
+  "val_bpb": 1.1849,
+  "pre_quant_val_loss": 2.1143,
+  "pre_quant_val_bpb": 1.2522,
+  "int6_zstd_val_loss": 0.93328127,
+  "int6_zstd_val_bpb": 0.55274174,
+  "bytes_total": 16507081,
+  "bytes_model_int6_zstd": 16416290,
+  "bytes_code": 90791
+}
