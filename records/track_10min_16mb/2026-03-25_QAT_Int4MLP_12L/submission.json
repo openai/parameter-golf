@@ -6,5 +6,5 @@
     "hardware": "8xH100 SXM",
     "train_time_seconds": 600,
     "artifact_bytes": null,
-    "summary": "11L QAT Int4-MLP + Int6-Attn + BigramHash(4096) + SmearGate + SWA + stride=32 eval"
+    "summary": "12L QAT Int4-MLP + Int6-Attn on PR #549 stack: LeakyReLU² + TTT + Parallel Muon + XSA + Partial RoPE"
 }
