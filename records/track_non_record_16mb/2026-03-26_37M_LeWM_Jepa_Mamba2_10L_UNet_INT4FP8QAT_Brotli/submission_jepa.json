@@ -1,0 +1,11 @@
+{
+  "author": "Ciprian-Florin Ifrim",
+  "github_id": "CiprianFlorin-Ifrim",
+  "name": "32.8M ByteJEPA Mamba-2 — JEPA + SIGReg + INT4/FP8 QAT + U-Net + Brotli",
+  "blurb": "10L 640d Mamba-2 SSM with LeWorldModel-style JEPA latent prediction, per-timestep SIGReg, relu² 4x MLP (every=2), factored tied embedding (336-dim), INT4+FP8 QAT, poly softcap, 8192 BPE. 32.8M eval params (4.1M JEPA discarded). Trained 100k steps (~2.7h) unconstrained. Sliding eval stride=16 T=1.02. First SSM+JEPA entry.",
+  "date": "2026-03-26T21:00:00Z",
+  "val_loss": 3.1157,
+  "val_bpb": 1.2064,
+  "bytes_total": 15750000,
+  "bytes_code": 77000
+}
