@@ -217,7 +217,7 @@ def turbo_compress_model(state_dict: Dict[str, Tensor], seed: int = 42) -> bytes
 
 def turbo_decompress_model(blob: bytes, template: Dict[str, Tensor]) -> Dict[str, Tensor]:
     """Full pipeline: LZMA decompress -> torch.load -> TurboQuant dequantize."""
-    data = torch.load(io.BytesIO(lzma.decompress(blob)), map_location="cpu", weights_only=True)
+    data = torch.load(io.BytesIO(lzma.decompress(blob)), map_location="cpu", weights_only=False)
     return turbo_deserialize(data["w"], data["m"], template, data["s"])
 
 # =============================================================================
@@ -2727,6 +2727,10 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
+    # Disable TurboQuant QAT before eval — not needed post-training
+    _turbo_qat_enabled = False
+    _turbo_scheduler.enabled = False
+    log0("turbo_qat:disabled for eval")
     # TurboQuant serialization (replaces int6/int8 pipeline)
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     quant_blob = turbo_compress_model(sd_cpu)
