@@ -1,0 +1,15 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-26",
+  "name": "Record: Phrase Cache + Order-Adaptive N-gram + Regime Tracker + TTT (val_bpb=0.1003)",
+  "author": "royi",
+  "github": "RoyiRa",
+  "seed_results": {
+    "1337": {"val_loss": 0.16933582, "val_bpb": 0.10029048, "artifact_bytes": 15737937},
+    "42":   {"val_loss": 0.16921577, "val_bpb": 0.10021937, "artifact_bytes": 15593644},
+    "7":    {"val_loss": 0.16930557, "val_bpb": 0.10027256, "artifact_bytes": 15727111}
+  },
+  "mean_val_loss": 0.16928572,
+  "mean_val_bpb": 0.10026080,
+  "code_bytes": 139821
+}
