@@ -1,0 +1,7 @@
+{
+  "author": "Divyesh Thirukonda",
+  "github_id": "Divyesh-Thirukonda",
+  "name": "Candidate: PR315-derived frontier base with budgeted experimental branches",
+  "blurb": "Frontier-derived candidate forked from PR315's 11L XSA4 + EMA + Partial RoPE + LN Scale base. The default submission path keeps standard zstd export and TTT disabled, while a rejected custom packed codec branch and a budget-capped long-document LoRA TTT branch remain available behind explicit flags for further experimentation. Late QAT is treated as audited rather than a claimed standalone lever.",
+  "date": "2026-03-22T00:00:00Z"
+}

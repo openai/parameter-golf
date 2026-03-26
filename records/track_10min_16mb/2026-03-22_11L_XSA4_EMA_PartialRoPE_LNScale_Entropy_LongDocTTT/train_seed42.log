@@ -1,0 +1,82 @@
+logs/c63df942-d3eb-47cb-a79f-f6706f79bd1b.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26829913
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:9000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/9000 val_loss:6.9297 val_bpb:4.1042 train_time:0ms step_avg:0.01ms
+step:1/9000 train_loss:6.9321 train_time:156ms step_avg:155.70ms
+step:2/9000 train_loss:8.5421 train_time:254ms step_avg:126.89ms
+step:3/9000 train_loss:7.4642 train_time:368ms step_avg:122.55ms
+step:4/9000 train_loss:7.9443 train_time:483ms step_avg:120.71ms
+step:5/9000 train_loss:8.1023 train_time:600ms step_avg:120.03ms
+step:6/9000 train_loss:7.8003 train_time:716ms step_avg:119.35ms
+step:7/9000 train_loss:7.3989 train_time:831ms step_avg:118.71ms
+step:8/9000 train_loss:7.0551 train_time:946ms step_avg:118.26ms
+step:9/9000 train_loss:6.6821 train_time:1062ms step_avg:117.99ms
+step:10/9000 train_loss:6.3911 train_time:1178ms step_avg:117.76ms
+step:200/9000 train_loss:2.4541 train_time:24648ms step_avg:123.24ms
+step:400/9000 train_loss:2.4580 train_time:52322ms step_avg:130.80ms
+step:600/9000 train_loss:2.3663 train_time:76914ms step_avg:128.19ms
+step:800/9000 train_loss:2.2652 train_time:104013ms step_avg:130.02ms
+step:1000/9000 train_loss:2.2921 train_time:128504ms step_avg:128.50ms
+step:1000/9000 val_loss:2.2434 val_bpb:1.3287 train_time:128533ms step_avg:128.53ms
+step:1200/9000 train_loss:2.3644 train_time:155644ms step_avg:129.70ms
+step:1400/9000 train_loss:2.2002 train_time:182785ms step_avg:130.56ms
+step:1600/9000 train_loss:2.0810 train_time:207287ms step_avg:129.55ms
+step:1800/9000 train_loss:2.1574 train_time:234245ms step_avg:130.14ms
+step:2000/9000 train_loss:2.0636 train_time:258899ms step_avg:129.45ms
+step:2000/9000 val_loss:2.1271 val_bpb:1.2598 train_time:258926ms step_avg:129.46ms
+step:2200/9000 train_loss:2.1235 train_time:285729ms step_avg:129.88ms
+step:2400/9000 train_loss:2.0501 train_time:310155ms step_avg:129.23ms
+step:2600/9000 train_loss:2.0865 train_time:337421ms step_avg:129.78ms
+step:2800/9000 train_loss:2.1288 train_time:364512ms step_avg:130.18ms
+step:3000/9000 train_loss:2.1282 train_time:389134ms step_avg:129.71ms
+step:3000/9000 val_loss:2.0561 val_bpb:1.2177 train_time:389163ms step_avg:129.72ms
+step:3200/9000 train_loss:2.1291 train_time:416301ms step_avg:130.09ms
+step:3400/9000 train_loss:1.9739 train_time:440766ms step_avg:129.64ms
+step:3600/9000 train_loss:2.0374 train_time:467439ms step_avg:129.84ms
+step:3800/9000 train_loss:2.0081 train_time:491975ms step_avg:129.47ms
+step:4000/9000 train_loss:1.9050 train_time:519009ms step_avg:129.75ms
+step:4000/9000 val_loss:1.9967 val_bpb:1.1825 train_time:519037ms step_avg:129.76ms
+step:4200/9000 train_loss:2.0741 train_time:545702ms step_avg:129.93ms
+step:4400/9000 train_loss:1.9512 train_time:570228ms step_avg:129.60ms
+step:4600/9000 train_loss:1.7668 train_time:597276ms step_avg:129.84ms
+step:4625/9000 val_loss:1.9611 val_bpb:1.1614 train_time:600037ms step_avg:129.74ms
+stopping_early: wallclock_cap train_time:600037ms step:4625/9000
+peak memory allocated: 26152 MiB reserved: 26526 MiB
+ema:applying EMA weights
+Serialized model: 105783402 bytes
+Code size: 93819 bytes
+Serialized model mixed+zstd: 15639192 bytes
+Total submission size mixed+zstd: 15733011 bytes
+final_quant_roundtrip val_loss:1.9737 val_bpb:1.1689 eval_time:58700ms
+final_quant_roundtrip_exact val_loss:1.97368556 val_bpb:1.16892776
+final_quant_sliding_window val_loss:1.9347 val_bpb:1.1459 stride:64 eval_time:122166ms
+final_quant_sliding_window_exact val_loss:1.93474138 val_bpb:1.14586586
