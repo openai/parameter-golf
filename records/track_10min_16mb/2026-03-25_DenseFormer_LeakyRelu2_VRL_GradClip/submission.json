@@ -1,0 +1,30 @@
+{
+  "author": "Ashish",
+  "github_id": "grim-hitman0XX",
+  "name": "DenseFormer + LeakyReLU(0.5)^2 + VRL + XSA + GradClip",
+  "blurb": "DenseFormer depth-weighted averaging across all layers (54 params). LeakyReLU(0.5)^2 activation replacing relu^2 for better gradient flow. Value Residual Learning blends layer-0 V into all subsequent layers via learned softmax scalars. XSA on last 4 layers projects out self-value component. Gradient clipping at 0.3. All techniques add negligible parameters (<100 scalars total) while providing -0.041 BPB over baseline on 1xH100.",
+  "date": "2026-03-26T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "val_loss_std": null,
+  "val_bpb_std": null,
+  "seeds": [],
+  "seed_results": {},
+  "preliminary_1gpu": {
+    "val_loss": 2.2011,
+    "val_bpb": 1.3036,
+    "step_stop": 1504,
+    "wallclock_seconds": 600.197,
+    "eval_time_seconds": 12.251,
+    "step_avg_ms": 399.07
+  },
+  "pre_quant_val_loss": 2.1990,
+  "pre_quant_val_bpb": 1.3024,
+  "step_stop": null,
+  "wallclock_seconds": null,
+  "eval_time_seconds": null,
+  "bytes_total": null,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": null,
+  "status": "pending_8xH100_eval"
+}
