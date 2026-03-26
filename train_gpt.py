@@ -281,7 +281,7 @@ def eval_val(
 
 
 _NG_B = 1 << 22
-_NG_ORDERS = (7, 6, 5, 4, 3, 2)
+_NG_ORDERS = (9, 8, 7, 6, 5, 4, 3, 2)
 _NG_MIN = 2
 _NG_MULT = 265443576
 _NG_PAIR_MULT = 1000003
