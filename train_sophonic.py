@@ -54,10 +54,12 @@ class Hyperparameters:
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_frac = float(os.environ.get("WARMDOWN_FRAC", 0.0))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    validate_at_step_zero = bool(int(os.environ.get("VALIDATE_AT_STEP_ZERO", "0")))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
@@ -108,6 +110,7 @@ class SophonicConfig:
     rank: int = int(os.environ.get("SOPHONIC_RANK", "4"))
     k: int = int(os.environ.get("SOPHONIC_K", "4"))
     strategy: str = os.environ.get("SOPHONIC_STRATEGY", "static")
+    eval_mode: str = os.environ.get("SOPHONIC_EVAL_MODE", "full")
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -629,6 +632,18 @@ def sophonic_select_random(residuals: dict, k: int, num_layers: int) -> set[str]
     return {n for n, idx in layer_map.items() if idx in chosen}
 
 
+def sophonic_select_layers(strategy: str, residuals: dict, k: int, num_layers: int) -> set[str]:
+    """Select layers for routed precision upgrades using the configured strategy."""
+    strategy_key = strategy.strip().lower()
+    if strategy_key == "static":
+        return sophonic_select_static(residuals, k, num_layers)
+    if strategy_key in {"norm", "residual-norm", "residual_norm"}:
+        return sophonic_select_by_norm(residuals, k, num_layers)
+    if strategy_key == "random":
+        return sophonic_select_random(residuals, k, num_layers)
+    raise ValueError(f"Unsupported SOPHONIC_STRATEGY={strategy!r}; expected static, norm, or random")
+
+
 def sophonic_serialize(quant_obj: dict, residuals: dict) -> bytes:
     """Pack base weights + residuals into one compressed blob."""
     rt = {}
@@ -664,9 +679,13 @@ def sophonic_eval_suite(
     cfg = SophonicConfig()
     if not cfg.enabled:
         return
+    eval_mode = cfg.eval_mode.strip().lower()
+    if eval_mode not in {"full", "quick"}:
+        raise ValueError(f"Unsupported SOPHONIC_EVAL_MODE={cfg.eval_mode!r}; expected full or quick")
 
     log0(f"\n{'='*60}")
     log0(f"SOPHONIC EVALUATION — int{cfg.base_bits} base + rank-{cfg.rank} residuals, k={cfg.k}")
+    log0(f"mode:{eval_mode} strategy:{cfg.strategy}")
     log0(f"{'='*60}")
 
     # Quantize
@@ -706,9 +725,26 @@ def sophonic_eval_suite(
 
     bpb_base = _eval_with(f"int{cfg.base_bits} base only", None)
     bpb_all = _eval_with(f"int{cfg.base_bits} + ALL rank-{cfg.rank} corrections", set(residuals_rt.keys()))
-    bpb_static = _eval_with(f"int{cfg.base_bits} + static top-{cfg.k} deepest", sophonic_select_static(residuals_rt, cfg.k, args.num_layers))
-    bpb_norm = _eval_with(f"int{cfg.base_bits} + residual-norm top-{cfg.k}", sophonic_select_by_norm(residuals_rt, cfg.k, args.num_layers))
-    bpb_rand = _eval_with(f"int{cfg.base_bits} + random {cfg.k} layers", sophonic_select_random(residuals_rt, cfg.k, args.num_layers))
+
+    if eval_mode == "quick":
+        active_layers = sophonic_select_layers(cfg.strategy, residuals_rt, cfg.k, args.num_layers)
+        bpb_routed = _eval_with(f"int{cfg.base_bits} + {cfg.strategy} top-{cfg.k}", active_layers)
+        bpb_static = bpb_routed if cfg.strategy.strip().lower() == "static" else None
+        bpb_norm = bpb_routed if cfg.strategy.strip().lower() in {"norm", "residual-norm", "residual_norm"} else None
+        bpb_rand = bpb_routed if cfg.strategy.strip().lower() == "random" else None
+    else:
+        bpb_static = _eval_with(
+            f"int{cfg.base_bits} + static top-{cfg.k} deepest",
+            sophonic_select_static(residuals_rt, cfg.k, args.num_layers),
+        )
+        bpb_norm = _eval_with(
+            f"int{cfg.base_bits} + residual-norm top-{cfg.k}",
+            sophonic_select_by_norm(residuals_rt, cfg.k, args.num_layers),
+        )
+        bpb_rand = _eval_with(
+            f"int{cfg.base_bits} + random {cfg.k} layers",
+            sophonic_select_random(residuals_rt, cfg.k, args.num_layers),
+        )
 
     damage = bpb_base - int8_bpb
     recovery = bpb_base - bpb_all if bpb_all < bpb_base else 0.0
@@ -718,7 +754,7 @@ def sophonic_eval_suite(
 
     if bpb_all < int8_bpb:
         log0("  ✅ POSITIVE: int5 + all corrections beats uniform int8!")
-    elif bpb_static < bpb_base:
+    elif (bpb_static is not None and bpb_static < bpb_base) or (bpb_norm is not None and bpb_norm < bpb_base):
         log0("  ⚠️  PARTIAL: corrections help vs bare int5, don't beat int8. Try higher rank or int6 base.")
     else:
         log0("  ❌ NEGATIVE: corrections don't help. Check residual quality / rank.")
@@ -1047,9 +1083,18 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    if 8 % world_size != 0:
-        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-    grad_accum_steps = 8 // world_size
+    grad_accum_override = os.environ.get("GRAD_ACCUM_STEPS")
+    if grad_accum_override is not None:
+        grad_accum_steps = int(grad_accum_override)
+        if grad_accum_steps <= 0:
+            raise ValueError(f"GRAD_ACCUM_STEPS must be positive, got {grad_accum_steps}")
+    else:
+        if 8 % world_size != 0:
+            raise ValueError(
+                f"WORLD_SIZE={world_size} must divide 8 when GRAD_ACCUM_STEPS is not set "
+                "so grad_accum_steps stays integral"
+            )
+        grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
@@ -1113,6 +1158,9 @@ def main() -> None:
 
     log0(code, console=False)
     log0("=" * 100, console=False)
+
+    if not 0.0 <= args.warmdown_frac <= 1.0:
+        raise ValueError(f"WARMDOWN_FRAC must be in [0, 1], got {args.warmdown_frac}")
     log0(f"Running Python {sys.version}", console=False)
     log0(f"Running PyTorch {torch.__version__}", console=False)
     log0(
@@ -1275,8 +1323,10 @@ def main() -> None:
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"local_microstep_tokens:{local_train_tokens} local_microstep_seqs:{local_train_seqs} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
+        f"warmdown_iters:{args.warmdown_iters} warmdown_frac:{args.warmdown_frac:.3f} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log0(f"validate_at_step_zero:{args.validate_at_step_zero}")
     log0(f"seed:{args.seed}")
 
     # -----------------------------
@@ -1292,6 +1342,10 @@ def main() -> None:
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
+        if max_wallclock_ms is not None and args.warmdown_frac > 0:
+            warmdown_ms = max_wallclock_ms * args.warmdown_frac
+            remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
+            return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
         if args.warmdown_iters <= 0:
             return 1.0
         if max_wallclock_ms is None:
@@ -1343,7 +1397,11 @@ def main() -> None:
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
-        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+        should_validate = (
+            last_step
+            or (step == 0 and args.validate_at_step_zero)
+            or (args.val_loss_every > 0 and step > 0 and step % args.val_loss_every == 0)
+        )
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
