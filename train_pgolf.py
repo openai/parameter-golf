@@ -47,11 +47,11 @@ from prepare_pgolf import (
 # ---------------------------------------------------------------------------
 
 # Model architecture
-NUM_LAYERS = 8
+NUM_LAYERS = 6
 MODEL_DIM = 512
 NUM_HEADS = 8
 NUM_KV_HEADS = 4           # GQA: fewer KV heads than Q heads
-MLP_MULT = 2               # MLP hidden = MODEL_DIM * MLP_MULT
+MLP_MULT = 3               # MLP hidden = MODEL_DIM * MLP_MULT
 TIE_EMBEDDINGS = True
 ROPE_BASE = 10000
 LOGIT_SOFTCAP = 30.0
