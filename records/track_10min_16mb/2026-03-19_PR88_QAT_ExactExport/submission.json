@@ -1,0 +1,17 @@
+{
+  "author": "krammnic",
+  "github_id": "krammnic",
+  "name": "PR88 QAT Exact Export",
+  "blurb": "Some QAT tricks",
+  "date": "2026-03-19T17:06:50Z",
+  "val_loss": 1.95563614,
+  "val_bpb": 1.15824056,
+  "roundtrip_val_loss": 1.97601589,
+  "roundtrip_val_bpb": 1.17030791,
+  "step_stop": 10510,
+  "wallclock_seconds": 600.033,
+  "train_shards": 10,
+  "bytes_total": 15286883,
+  "bytes_model_int8_zlib": 15222312,
+  "bytes_code": 64571
+}
