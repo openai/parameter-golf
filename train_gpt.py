@@ -748,7 +748,14 @@ class CausalSelfAttention(nn.Module):
             k = k.repeat_interleave(repeat, dim=1)
             v = v.repeat_interleave(repeat, dim=1)
         if packed_attn_mask is not None:
-            y = F.scaled_dot_product_attention(q, k, v, attn_mask=packed_attn_mask)
+            # Some torch/GPU combinations cannot run fused SDPA kernels with non-null masks.
+            # Force math fallback here so phase-2 packed-mask attention is always available.
+            with torch.backends.cuda.sdp_kernel(
+                enable_flash=False,
+                enable_mem_efficient=False,
+                enable_math=True,
+            ):
+                y = F.scaled_dot_product_attention(q, k, v, attn_mask=packed_attn_mask)
         else:
             y = _attn_flash_or_sdpa(q, k, v, use_flash_attn, packed_cu_seqlens, max_seqlen_packed)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
