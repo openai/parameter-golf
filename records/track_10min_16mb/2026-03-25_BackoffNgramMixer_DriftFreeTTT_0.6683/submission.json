@@ -1,0 +1,20 @@
+{
+  "author": "Dean Barr",
+  "github_id": "deanbrr",
+  "submission_name": "BackoffNgramMixer + Drift-Free TTT",
+  "track": "10min_16mb",
+  "results": {
+    "seeds": {
+      "1337": {"val_bpb": 0.6663, "artifact_bytes": 15630856},
+      "42": {"val_bpb": 0.6710, "artifact_bytes": 15784856},
+      "2024": {"val_bpb": 0.6675, "artifact_bytes": 15479118}
+    },
+    "mean_val_bpb": 0.6683,
+    "std_val_bpb": 0.0024
+  },
+  "technique": "Multi-order n-gram backoff (orders 2-7) with entropy-adaptive alpha + drift-free qTTT. First combination of backoff n-gram eval cache with test-time training.",
+  "base_model": "PR #700 (RoyiRa) / PR #606 (gowtham0992)",
+  "hardware": "8x H100 SXM (RunPod)",
+  "training_time_seconds": 600,
+  "eval_time_seconds": 371
+}

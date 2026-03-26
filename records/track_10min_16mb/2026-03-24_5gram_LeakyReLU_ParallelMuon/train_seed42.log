@@ -1,0 +1,393 @@
+W0324 21:06:18.969000 67687 torch/distributed/run.py:803] 
+W0324 21:06:18.969000 67687 torch/distributed/run.py:803] *****************************************
+W0324 21:06:18.969000 67687 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0324 21:06:18.969000 67687 torch/distributed/run.py:803] *****************************************
+logs/leader_ngram_s42.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9297 val_bpb:4.1042 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9319 train_time:132ms step_avg:132.13ms
+step:2/20000 train_loss:8.6254 train_time:159ms step_avg:79.50ms
+step:3/20000 train_loss:7.7123 train_time:239ms step_avg:79.78ms
+step:4/20000 train_loss:7.2838 train_time:320ms step_avg:80.01ms
+step:5/20000 train_loss:7.1730 train_time:403ms step_avg:80.58ms
+step:6/20000 train_loss:7.0088 train_time:485ms step_avg:80.91ms
+step:7/20000 train_loss:6.9174 train_time:568ms step_avg:81.13ms
+step:8/20000 train_loss:6.8682 train_time:652ms step_avg:81.51ms
+step:9/20000 train_loss:6.5560 train_time:734ms step_avg:81.50ms
+step:10/20000 train_loss:6.2103 train_time:816ms step_avg:81.64ms
+step:500/20000 train_loss:2.3917 train_time:41539ms step_avg:83.08ms
+step:1000/20000 train_loss:2.2639 train_time:83383ms step_avg:83.38ms
+step:1500/20000 train_loss:2.2104 train_time:125256ms step_avg:83.50ms
+step:2000/20000 train_loss:2.0559 train_time:167131ms step_avg:83.57ms
+step:2500/20000 train_loss:2.1581 train_time:209054ms step_avg:83.62ms
+step:3000/20000 train_loss:2.1501 train_time:250875ms step_avg:83.62ms
+step:3500/20000 train_loss:2.1713 train_time:292678ms step_avg:83.62ms
+step:4000/20000 train_loss:1.9658 train_time:334469ms step_avg:83.62ms
+step:4000/20000 val_loss:2.0584 val_bpb:1.2191 train_time:334518ms step_avg:83.63ms
+step:4500/20000 train_loss:2.1186 train_time:376261ms step_avg:83.61ms
+step:5000/20000 train_loss:2.0945 train_time:418031ms step_avg:83.61ms
+step:5500/20000 train_loss:2.0127 train_time:459784ms step_avg:83.60ms
+step:6000/20000 train_loss:1.9397 train_time:501535ms step_avg:83.59ms
+swa:start step:6500
+step:6500/20000 train_loss:2.0800 train_time:543289ms step_avg:83.58ms
+late_qat:enabled step:6650 scale:0.1498
+step:7000/20000 train_loss:1.7851 train_time:585644ms step_avg:83.66ms
+step:7170/20000 val_loss:1.9212 val_bpb:1.1378 train_time:600118ms step_avg:83.70ms
+stopping_early: wallclock_cap train_time:600118ms step:7170/20000
+peak memory allocated: 21472 MiB reserved: 22004 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9194 val_bpb:1.1368 eval_time:1980ms
+Serialized model: 106158518 bytes
+Code size: 90381 bytes
+Serialized model int6+lzma: 15959464 bytes
+Total submission size int6+lzma: 16049845 bytes
+final_int6_roundtrip val_loss:1.9337 val_bpb:1.1453 eval_time:6257ms
+final_int6_roundtrip_exact val_loss:1.93370721 val_bpb:1.14525033
+final_int6_sliding_window val_loss:1.8941 val_bpb:1.1218 stride:64 eval_time:74429ms
+final_int6_sliding_window_exact val_loss:1.89412635 val_bpb:1.12181129
+final_int8_zlib_roundtrip_exact val_loss:1.89412635 val_bpb:1.12181129
+  dyn [  0.0%] bpb=1.146395 hit=0.0% skip=100%
+  dyn [  0.0%] bpb=1.015176 hit=0.0% skip=100%
+  dyn [  0.0%] bpb=1.121046 hit=0.0% skip=100%
+  dyn [  0.0%] bpb=1.021161 hit=0.0% skip=100%
+  dyn [  0.0%] bpb=1.550625 hit=0.0% skip=100%
+  dyn [  0.0%] bpb=1.084618 hit=0.0% skip=100%
+  dyn [  0.0%] bpb=1.151313 hit=0.0% skip=100%
+  dyn [  0.0%] bpb=1.279974 hit=0.0% skip=100%
+  dyn [  2.6%] bpb=1.070809 hit=32.3% skip=63%
+  dyn [  2.6%] bpb=1.080426 hit=31.1% skip=61%
+  dyn [  2.6%] bpb=1.132687 hit=31.1% skip=58%
+  dyn [  2.6%] bpb=1.108736 hit=30.1% skip=60%
+  dyn [  2.6%] bpb=1.075607 hit=30.2% skip=60%
+  dyn [  2.6%] bpb=1.095765 hit=30.5% skip=60%
+  dyn [  2.6%] bpb=1.096968 hit=30.5% skip=59%
+  dyn [  2.6%] bpb=1.104942 hit=30.3% skip=59%
+  dyn [  5.3%] bpb=1.095391 hit=30.2% skip=59%
+  dyn [  5.3%] bpb=1.083715 hit=30.3% skip=58%
+  dyn [  5.3%] bpb=1.133525 hit=31.1% skip=56%
+  dyn [  5.3%] bpb=1.109967 hit=30.6% skip=57%
+  dyn [  5.3%] bpb=1.099683 hit=30.1% skip=58%
+  dyn [  5.3%] bpb=1.081350 hit=29.9% skip=57%
+  dyn [  5.3%] bpb=1.115686 hit=30.3% skip=56%
+  dyn [  5.3%] bpb=1.106879 hit=29.8% skip=56%
+  dyn [  7.9%] bpb=1.123292 hit=30.5% skip=55%
+  dyn [  7.9%] bpb=1.097669 hit=29.9% skip=56%
+  dyn [  7.9%] bpb=1.105312 hit=30.3% skip=56%
+  dyn [  7.9%] bpb=1.111515 hit=31.3% skip=56%
+  dyn [  7.9%] bpb=1.101350 hit=29.9% skip=56%
+  dyn [  7.9%] bpb=1.090558 hit=29.8% skip=56%
+  dyn [  7.9%] bpb=1.113967 hit=30.2% skip=55%
+  dyn [  7.9%] bpb=1.121017 hit=30.2% skip=54%
+  dyn [ 10.6%] bpb=1.099265 hit=30.1% skip=55%
+  dyn [ 10.6%] bpb=1.087679 hit=29.7% skip=56%
+  dyn [ 10.6%] bpb=1.104362 hit=30.5% skip=55%
+  dyn [ 10.6%] bpb=1.113002 hit=31.1% skip=55%
+  dyn [ 10.6%] bpb=1.093916 hit=29.7% skip=55%
+  dyn [ 10.6%] bpb=1.115132 hit=30.2% skip=54%
+  dyn [ 10.6%] bpb=1.097432 hit=30.0% skip=55%
+  dyn [ 10.6%] bpb=1.123100 hit=30.1% skip=54%
+  dyn [ 13.2%] bpb=1.103986 hit=30.5% skip=55%
+  dyn [ 13.2%] bpb=1.083506 hit=29.8% skip=55%
+  dyn [ 13.2%] bpb=1.098438 hit=30.3% skip=54%
+  dyn [ 13.2%] bpb=1.103729 hit=30.7% skip=55%
+  dyn [ 13.2%] bpb=1.103319 hit=29.9% skip=55%
+  dyn [ 13.2%] bpb=1.111107 hit=30.3% skip=54%
+  dyn [ 13.2%] bpb=1.095756 hit=29.9% skip=54%
+  dyn [ 13.2%] bpb=1.121434 hit=30.1% skip=53%
+  dyn [ 15.8%] bpb=1.105535 hit=30.6% skip=54%
+  dyn [ 15.8%] bpb=1.088578 hit=29.7% skip=55%
+  dyn [ 15.8%] bpb=1.094209 hit=30.2% skip=54%
+  dyn [ 15.8%] bpb=1.098267 hit=30.4% skip=55%
+  dyn [ 15.8%] bpb=1.102643 hit=30.1% skip=54%
+  dyn [ 15.8%] bpb=1.112433 hit=30.3% skip=53%
+  dyn [ 15.8%] bpb=1.089923 hit=30.0% skip=54%
+  dyn [ 15.8%] bpb=1.119826 hit=30.1% skip=52%
+  dyn [ 18.5%] bpb=1.103418 hit=30.5% skip=54%
+  dyn [ 18.5%] bpb=1.095969 hit=29.9% skip=54%
+  dyn [ 18.5%] bpb=1.091054 hit=30.2% skip=54%
+  dyn [ 18.5%] bpb=1.099264 hit=30.3% skip=54%
+  dyn [ 18.5%] bpb=1.099346 hit=30.0% skip=54%
+  dyn [ 18.5%] bpb=1.114299 hit=30.4% skip=53%
+  dyn [ 18.5%] bpb=1.091518 hit=30.1% skip=53%
+  dyn [ 18.5%] bpb=1.113955 hit=30.1% skip=52%
+  dyn [ 21.1%] bpb=1.099816 hit=30.5% skip=53%
+  dyn [ 21.1%] bpb=1.097256 hit=30.0% skip=53%
+  dyn [ 21.1%] bpb=1.088149 hit=30.1% skip=54%
+  dyn [ 21.1%] bpb=1.100855 hit=30.1% skip=53%
+  dyn [ 21.1%] bpb=1.115184 hit=30.5% skip=53%
+  dyn [ 21.1%] bpb=1.111831 hit=30.5% skip=53%
+  dyn [ 21.1%] bpb=1.093308 hit=30.1% skip=53%
+  dyn [ 21.1%] bpb=1.113839 hit=30.2% skip=52%
+  dyn [ 23.8%] bpb=1.094885 hit=30.5% skip=53%
+  dyn [ 23.8%] bpb=1.094089 hit=30.0% skip=53%
+  dyn [ 23.8%] bpb=1.096150 hit=30.2% skip=53%
+  dyn [ 23.8%] bpb=1.106751 hit=30.3% skip=53%
+  dyn [ 23.8%] bpb=1.112197 hit=30.5% skip=53%
+  dyn [ 23.8%] bpb=1.106482 hit=30.4% skip=53%
+  dyn [ 23.8%] bpb=1.091562 hit=30.1% skip=53%
+  dyn [ 23.8%] bpb=1.113779 hit=30.2% skip=52%
+  dyn [ 26.4%] bpb=1.090551 hit=30.8% skip=53%
+  dyn [ 26.4%] bpb=1.097039 hit=30.1% skip=53%
+  dyn [ 26.4%] bpb=1.095216 hit=30.3% skip=53%
+  dyn [ 26.4%] bpb=1.105176 hit=30.3% skip=53%
+  dyn [ 26.4%] bpb=1.108960 hit=30.5% skip=53%
+  dyn [ 26.4%] bpb=1.104145 hit=30.4% skip=52%
+  dyn [ 26.4%] bpb=1.090409 hit=30.2% skip=53%
+  dyn [ 26.4%] bpb=1.115690 hit=30.3% skip=52%
+  dyn [ 29.1%] bpb=1.083332 hit=30.7% skip=53%
+  dyn [ 29.1%] bpb=1.098101 hit=30.2% skip=53%
+  dyn [ 29.1%] bpb=1.097787 hit=30.5% skip=53%
+  dyn [ 29.1%] bpb=1.102859 hit=30.3% skip=53%
+  dyn [ 29.1%] bpb=1.114475 hit=30.5% skip=53%
+  dyn [ 29.1%] bpb=1.104074 hit=30.5% skip=52%
+  dyn [ 29.1%] bpb=1.093336 hit=30.2% skip=53%
+  dyn [ 29.1%] bpb=1.114116 hit=30.3% skip=52%
+  dyn [ 31.7%] bpb=1.081788 hit=30.7% skip=53%
+  dyn [ 31.7%] bpb=1.099944 hit=30.2% skip=52%
+  dyn [ 31.7%] bpb=1.095882 hit=30.5% skip=53%
+  dyn [ 31.7%] bpb=1.102905 hit=30.3% skip=53%
+  dyn [ 31.7%] bpb=1.113053 hit=30.5% skip=53%
+  dyn [ 31.7%] bpb=1.104211 hit=30.5% skip=52%
+  dyn [ 31.7%] bpb=1.092468 hit=30.2% skip=53%
+  dyn [ 31.7%] bpb=1.115220 hit=30.4% skip=51%
+  dyn [ 34.3%] bpb=1.081351 hit=30.7% skip=53%
+  dyn [ 34.3%] bpb=1.101887 hit=30.3% skip=52%
+  dyn [ 34.3%] bpb=1.098988 hit=30.4% skip=53%
+  dyn [ 34.3%] bpb=1.094906 hit=30.5% skip=52%
+  dyn [ 34.3%] bpb=1.111036 hit=30.5% skip=53%
+  dyn [ 34.3%] bpb=1.100976 hit=30.5% skip=52%
+  dyn [ 34.3%] bpb=1.091717 hit=30.3% skip=53%
+  dyn [ 34.3%] bpb=1.117155 hit=30.5% skip=51%
+  dyn [ 37.0%] bpb=1.079725 hit=30.7% skip=53%
+  dyn [ 37.0%] bpb=1.101379 hit=30.4% skip=52%
+  dyn [ 37.0%] bpb=1.097947 hit=30.5% skip=53%
+  dyn [ 37.0%] bpb=1.093767 hit=30.5% skip=52%
+  dyn [ 37.0%] bpb=1.097635 hit=30.5% skip=52%
+  dyn [ 37.0%] bpb=1.110225 hit=30.5% skip=52%
+  dyn [ 37.0%] bpb=1.091211 hit=30.3% skip=52%
+  dyn [ 37.0%] bpb=1.118628 hit=30.6% skip=51%
+  dyn [ 39.6%] bpb=1.076850 hit=30.7% skip=53%
+  dyn [ 39.6%] bpb=1.099804 hit=30.4% skip=52%
+  dyn [ 39.6%] bpb=1.096944 hit=30.5% skip=53%
+  dyn [ 39.6%] bpb=1.092309 hit=30.6% skip=52%
+  dyn [ 39.6%] bpb=1.107764 hit=30.4% skip=52%
+  dyn [ 39.6%] bpb=1.095804 hit=30.5% skip=52%
+  dyn [ 39.6%] bpb=1.090671 hit=30.4% skip=52%
+  dyn [ 39.6%] bpb=1.119475 hit=30.7% skip=51%
+  dyn [ 42.3%] bpb=1.075922 hit=30.8% skip=53%
+  dyn [ 42.3%] bpb=1.098350 hit=30.4% skip=52%
+  dyn [ 42.3%] bpb=1.099021 hit=30.5% skip=53%
+  dyn [ 42.3%] bpb=1.091718 hit=30.6% skip=52%
+  dyn [ 42.3%] bpb=1.108332 hit=30.5% skip=52%
+  dyn [ 42.3%] bpb=1.096775 hit=30.5% skip=52%
+  dyn [ 42.3%] bpb=1.091047 hit=30.4% skip=52%
+  dyn [ 42.3%] bpb=1.116920 hit=30.8% skip=51%
+  dyn [ 44.9%] bpb=1.075637 hit=30.8% skip=53%
+  dyn [ 44.9%] bpb=1.098076 hit=30.4% skip=52%
+  dyn [ 44.9%] bpb=1.099078 hit=30.5% skip=53%
+  dyn [ 44.9%] bpb=1.091281 hit=30.7% skip=52%
+  dyn [ 44.9%] bpb=1.107912 hit=30.5% skip=52%
+  dyn [ 44.9%] bpb=1.095743 hit=30.6% skip=52%
+  dyn [ 44.9%] bpb=1.090369 hit=30.5% skip=52%
+  dyn [ 44.9%] bpb=1.117248 hit=30.8% skip=51%
+  dyn [ 47.5%] bpb=1.077489 hit=30.8% skip=53%
+  dyn [ 47.5%] bpb=1.098651 hit=30.5% skip=52%
+  dyn [ 47.5%] bpb=1.089799 hit=30.7% skip=52%
+  dyn [ 47.5%] bpb=1.099482 hit=30.5% skip=52%
+  dyn [ 47.5%] bpb=1.095010 hit=30.6% skip=52%
+  dyn [ 47.5%] bpb=1.110544 hit=30.5% skip=52%
+  dyn [ 47.5%] bpb=1.091407 hit=30.5% skip=52%
+  dyn [ 47.5%] bpb=1.115820 hit=30.8% skip=51%
+  dyn [ 50.2%] bpb=1.075778 hit=30.9% skip=53%
+  dyn [ 50.2%] bpb=1.094676 hit=30.5% skip=53%
+  dyn [ 50.2%] bpb=1.088979 hit=30.7% skip=52%
+  dyn [ 50.2%] bpb=1.101426 hit=30.6% skip=51%
+  dyn [ 50.2%] bpb=1.094567 hit=30.6% skip=52%
+  dyn [ 50.2%] bpb=1.108868 hit=30.6% skip=52%
+  dyn [ 50.2%] bpb=1.089713 hit=30.5% skip=52%
+  dyn [ 50.2%] bpb=1.115705 hit=30.9% skip=51%
+  dyn [ 52.8%] bpb=1.075196 hit=30.9% skip=53%
+  dyn [ 52.8%] bpb=1.101366 hit=30.7% skip=52%
+  dyn [ 52.8%] bpb=1.095618 hit=30.6% skip=52%
+  dyn [ 52.8%] bpb=1.089143 hit=30.7% skip=52%
+  dyn [ 52.8%] bpb=1.093608 hit=30.6% skip=52%
+  dyn [ 52.8%] bpb=1.109730 hit=30.6% skip=52%
+  dyn [ 52.8%] bpb=1.088265 hit=30.5% skip=52%
+  dyn [ 52.8%] bpb=1.114495 hit=30.9% skip=51%
+  dyn [ 55.5%] bpb=1.074842 hit=30.9% skip=52%
+  dyn [ 55.5%] bpb=1.101010 hit=30.7% skip=52%
+  dyn [ 55.5%] bpb=1.094165 hit=30.6% skip=52%
+  dyn [ 55.5%] bpb=1.088662 hit=30.8% skip=52%
+  dyn [ 55.5%] bpb=1.090097 hit=30.6% skip=52%
+  dyn [ 55.5%] bpb=1.111145 hit=30.7% skip=52%
+  dyn [ 55.5%] bpb=1.088298 hit=30.5% skip=52%
+  dyn [ 55.5%] bpb=1.114594 hit=30.9% skip=51%
+  dyn [ 58.1%] bpb=1.073383 hit=30.9% skip=52%
+  dyn [ 58.1%] bpb=1.101718 hit=30.8% skip=51%
+  dyn [ 58.1%] bpb=1.093348 hit=30.6% skip=52%
+  dyn [ 58.1%] bpb=1.088065 hit=30.8% skip=52%
+  dyn [ 58.1%] bpb=1.089018 hit=30.7% skip=52%
+  dyn [ 58.1%] bpb=1.110813 hit=30.7% skip=52%
+  dyn [ 58.1%] bpb=1.088679 hit=30.5% skip=52%
+  dyn [ 58.1%] bpb=1.114723 hit=30.9% skip=51%
+  dyn [ 60.8%] bpb=1.072607 hit=31.0% skip=52%
+  dyn [ 60.8%] bpb=1.100729 hit=30.8% skip=51%
+  dyn [ 60.8%] bpb=1.093437 hit=30.6% skip=52%
+  dyn [ 60.8%] bpb=1.089084 hit=30.8% skip=52%
+  dyn [ 60.8%] bpb=1.089230 hit=30.7% skip=52%
+  dyn [ 60.8%] bpb=1.088800 hit=30.6% skip=52%
+  dyn [ 60.8%] bpb=1.111109 hit=30.7% skip=52%
+  dyn [ 60.8%] bpb=1.114246 hit=31.0% skip=51%
+  dyn [ 63.4%] bpb=1.073032 hit=31.0% skip=52%
+  dyn [ 63.4%] bpb=1.101417 hit=30.9% skip=51%
+  dyn [ 63.4%] bpb=1.093411 hit=30.6% skip=52%
+  dyn [ 63.4%] bpb=1.087933 hit=30.9% skip=52%
+  dyn [ 63.4%] bpb=1.088391 hit=30.7% skip=52%
+  dyn [ 63.4%] bpb=1.089066 hit=30.6% skip=52%
+  dyn [ 63.4%] bpb=1.110831 hit=30.8% skip=52%
+  dyn [ 63.4%] bpb=1.114646 hit=31.0% skip=51%
+  dyn [ 66.0%] bpb=1.072720 hit=31.0% skip=52%
+  dyn [ 66.0%] bpb=1.102326 hit=30.9% skip=51%
+  dyn [ 66.0%] bpb=1.094147 hit=30.7% skip=52%
+  dyn [ 66.0%] bpb=1.088271 hit=30.9% skip=52%
+  dyn [ 66.0%] bpb=1.088719 hit=30.8% skip=52%
+  dyn [ 66.0%] bpb=1.089272 hit=30.7% skip=52%
+  dyn [ 66.0%] bpb=1.110932 hit=30.8% skip=52%
+  dyn [ 66.0%] bpb=1.113118 hit=31.0% skip=51%
+  dyn [ 68.7%] bpb=1.072361 hit=31.0% skip=52%
+  dyn [ 68.7%] bpb=1.101193 hit=30.9% skip=51%
+  dyn [ 68.7%] bpb=1.094733 hit=30.7% skip=52%
+  dyn [ 68.7%] bpb=1.085552 hit=30.9% skip=52%
+  dyn [ 68.7%] bpb=1.089336 hit=30.8% skip=52%
+  dyn [ 68.7%] bpb=1.090673 hit=30.7% skip=52%
+  dyn [ 68.7%] bpb=1.111455 hit=30.8% skip=51%
+  dyn [ 68.7%] bpb=1.111657 hit=31.0% skip=51%
+  dyn [ 71.3%] bpb=1.072825 hit=31.0% skip=52%
+  dyn [ 71.3%] bpb=1.099666 hit=30.9% skip=51%
+  dyn [ 71.3%] bpb=1.095875 hit=30.8% skip=52%
+  dyn [ 71.3%] bpb=1.087165 hit=31.0% skip=52%
+  dyn [ 71.3%] bpb=1.088268 hit=30.9% skip=52%
+  dyn [ 71.3%] bpb=1.090107 hit=30.7% skip=52%
+  dyn [ 71.3%] bpb=1.111084 hit=30.9% skip=51%
+  dyn [ 71.3%] bpb=1.110593 hit=31.0% skip=51%
+  dyn [ 74.0%] bpb=1.074371 hit=31.0% skip=52%
+  dyn [ 74.0%] bpb=1.098355 hit=30.9% skip=51%
+  dyn [ 74.0%] bpb=1.096816 hit=30.8% skip=52%
+  dyn [ 74.0%] bpb=1.085189 hit=31.0% skip=52%
+  dyn [ 74.0%] bpb=1.087663 hit=30.9% skip=52%
+  dyn [ 74.0%] bpb=1.090586 hit=30.7% skip=52%
+  dyn [ 74.0%] bpb=1.111190 hit=30.9% skip=51%
+  dyn [ 74.0%] bpb=1.108124 hit=31.0% skip=51%
+  dyn [ 76.6%] bpb=1.075937 hit=31.0% skip=52%
+  dyn [ 76.6%] bpb=1.098664 hit=30.9% skip=51%
+  dyn [ 76.6%] bpb=1.096260 hit=30.8% skip=52%
+  dyn [ 76.6%] bpb=1.085391 hit=31.0% skip=52%
+  dyn [ 76.6%] bpb=1.088180 hit=30.9% skip=52%
+  dyn [ 76.6%] bpb=1.088370 hit=30.7% skip=52%
+  dyn [ 76.6%] bpb=1.111024 hit=30.9% skip=51%
+  dyn [ 76.6%] bpb=1.107377 hit=31.0% skip=51%
+  dyn [ 79.2%] bpb=1.076643 hit=31.0% skip=52%
+  dyn [ 79.2%] bpb=1.099853 hit=31.0% skip=51%
+  dyn [ 79.2%] bpb=1.095714 hit=30.8% skip=52%
+  dyn [ 79.2%] bpb=1.085163 hit=31.0% skip=52%
+  dyn [ 79.2%] bpb=1.086764 hit=30.9% skip=52%
+  dyn [ 79.2%] bpb=1.088799 hit=30.7% skip=52%
+  dyn [ 79.2%] bpb=1.111398 hit=31.0% skip=51%
+  dyn [ 79.2%] bpb=1.105817 hit=31.0% skip=51%
+  dyn [ 81.9%] bpb=1.078664 hit=31.0% skip=52%
+  dyn [ 81.9%] bpb=1.099969 hit=31.0% skip=51%
+  dyn [ 81.9%] bpb=1.098554 hit=30.8% skip=52%
+  dyn [ 81.9%] bpb=1.084652 hit=31.0% skip=52%
+  dyn [ 81.9%] bpb=1.086096 hit=31.0% skip=52%
+  dyn [ 81.9%] bpb=1.088486 hit=30.8% skip=52%
+  dyn [ 81.9%] bpb=1.112018 hit=31.0% skip=51%
+  dyn [ 81.9%] bpb=1.105222 hit=31.1% skip=51%
+  dyn [ 84.5%] bpb=1.079553 hit=31.0% skip=52%
+  dyn [ 84.5%] bpb=1.099291 hit=31.0% skip=51%
+  dyn [ 84.5%] bpb=1.098125 hit=30.8% skip=52%
+  dyn [ 84.5%] bpb=1.083590 hit=31.1% skip=52%
+  dyn [ 84.5%] bpb=1.085912 hit=31.0% skip=52%
+  dyn [ 84.5%] bpb=1.088037 hit=30.8% skip=52%
+  dyn [ 84.5%] bpb=1.110185 hit=31.1% skip=51%
+  dyn [ 84.5%] bpb=1.105105 hit=31.1% skip=51%
+  dyn [ 87.2%] bpb=1.078270 hit=31.0% skip=52%
+  dyn [ 87.2%] bpb=1.098238 hit=31.0% skip=51%
+  dyn [ 87.2%] bpb=1.096919 hit=30.9% skip=52%
+  dyn [ 87.2%] bpb=1.082834 hit=31.1% skip=52%
+  dyn [ 87.2%] bpb=1.086037 hit=31.1% skip=52%
+  dyn [ 87.2%] bpb=1.088482 hit=30.8% skip=52%
+  dyn [ 87.2%] bpb=1.109583 hit=31.1% skip=51%
+  dyn [ 87.2%] bpb=1.104151 hit=31.1% skip=51%
+  dyn [ 89.8%] bpb=1.079308 hit=31.0% skip=52%
+  dyn [ 89.8%] bpb=1.098970 hit=31.0% skip=51%
+  dyn [ 89.8%] bpb=1.097527 hit=30.9% skip=52%
+  dyn [ 89.8%] bpb=1.082186 hit=31.1% skip=52%
+  dyn [ 89.8%] bpb=1.086071 hit=31.1% skip=52%
+  dyn [ 89.8%] bpb=1.088713 hit=30.9% skip=52%
+  dyn [ 89.8%] bpb=1.108995 hit=31.1% skip=51%
+  dyn [ 89.8%] bpb=1.103697 hit=31.1% skip=51%
+  dyn [ 92.5%] bpb=1.079244 hit=31.0% skip=52%
+  dyn [ 92.5%] bpb=1.098086 hit=31.1% skip=51%
+  dyn [ 92.5%] bpb=1.082212 hit=31.1% skip=52%
+  dyn [ 92.5%] bpb=1.097566 hit=30.9% skip=52%
+  dyn [ 92.5%] bpb=1.085328 hit=31.1% skip=52%
+  dyn [ 92.5%] bpb=1.088109 hit=30.9% skip=52%
+  dyn [ 92.5%] bpb=1.109026 hit=31.1% skip=51%
+  dyn [ 92.5%] bpb=1.103379 hit=31.1% skip=51%
+  dyn [ 95.1%] bpb=1.080582 hit=31.0% skip=52%
+  dyn [ 95.1%] bpb=1.098638 hit=31.1% skip=51%
+  dyn [ 95.1%] bpb=1.097709 hit=30.9% skip=52%
+  dyn [ 95.1%] bpb=1.082761 hit=31.1% skip=52%
+  dyn [ 95.1%] bpb=1.084049 hit=31.1% skip=52%
+  dyn [ 95.1%] bpb=1.087894 hit=30.9% skip=52%
+  dyn [ 95.1%] bpb=1.109309 hit=31.2% skip=51%
+  dyn [ 97.7%] bpb=1.081012 hit=31.1% skip=52%
+  dyn [ 95.1%] bpb=1.101918 hit=31.1% skip=51%
+  dyn [ 97.7%] bpb=1.098450 hit=31.1% skip=51%
+  dyn [ 97.7%] bpb=1.081253 hit=31.1% skip=52%
+  dyn [ 97.7%] bpb=1.097589 hit=31.0% skip=52%
+  dyn [ 97.7%] bpb=1.083707 hit=31.1% skip=52%
+  dyn [ 97.7%] bpb=1.089421 hit=31.0% skip=52%
+  dyn [ 97.7%] bpb=1.108737 hit=31.1% skip=51%
+  dyn [ 97.7%] bpb=1.100485 hit=31.1% skip=51%
+  ngram: 1163912/3733170 improved, 3859302 skipped  ngram: 1141980/3663763 improved, 3931392 skipped  ngram: 1166683/3741228 improved, 3851637 skipped  ngram: 1155624/3716385 improved, 3879551 skipped  ngram: 1137426/3671528 improved, 3924713 skipped  ngram: 1136839/3666511 improved, 3933000 skipped  ngram: 1139537/3668091 improved, 3927402 skipped  ngram: 1145769/3679738 improved, 3913165 skipped
+
+
+
+
+
+
+
+final_krause_eval val_loss:1.8452 val_bpb:1.0928 stride:128 eval_time:515090ms
+final_krause_eval_exact val_loss:1.84522565 val_bpb:1.09284795
