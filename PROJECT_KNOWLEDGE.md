@@ -20,11 +20,16 @@ Instead of the standard 1,024-token BPE vocabulary (which wastes ~384KB on embed
 
 All code is at: `/Users/mrbese/Projects/parameter-golf-bese/`
 
+- `tokenizer/bese_constants.py` — Shared alphabet constants (single source of truth)
 - `tokenizer/bese_tokenizer.py` — Base 38-token encoder
 - `tokenizer/bese_bpe_tokenizer.py` — Full BESE + BPE system (this is the main file)
-- `docs/bigram_analysis.md` — Letter grouping optimization
+- `scripts/train_bpe_jsonl.py` — Train BPE merges from JSONL text data
+- `scripts/export_shards.py` — Export binary shards for train_gpt.py
+- `scripts/runpod_all_in_one.py` — All-in-one RunPod script (decode, train BPE, export, train)
+- `integration/train_gpt_bese.py` — Fork of train_gpt.py supporting BESE+BPE (.json) tokenizers
 - `docs/integration_guide.md` — How to plug into parameter-golf repo
-- `docs/prior_art.md` — Literature review showing novelty
+- `docs/EXPERIMENT_RESULTS.md` — RunPod 1xH100 experiment findings
+- `docs/SUBMISSION.md` — Non-record PR checklist
 - `README.md` — Full project write-up with the discovery story
 
 ## Parameter savings
@@ -56,14 +61,31 @@ Critical for submission validity. Every token maps to a known number of UTF-8 by
 - Multi-byte UTF-8 chars = one OTHER_PUNCT_ID per byte
 - Total always matches original text's UTF-8 byte count (verified and tested)
 
+## Experiment results (March 25, 2026)
+
+Ran on RunPod 1xH100 SXM ($2.69/hr). Full details: `docs/EXPERIMENT_RESULTS.md`
+
+- Decoded 10K FineWeb docs from SP shard, trained 250 BPE merges (vocab=288), exported BESE shards
+- **Baseline (SP1024):** val_bpb = 1.3319 (1356 steps, 1B tokens, 10 shards)
+- **BESE+BPE:** val_bpb = 3.9143 (1189 steps, 12.6M tokens, 2 shards)
+- BESE result is data-starved (80x less training data than baseline) — not a fair comparison
+- Tokenizer works correctly: 100% byte checks pass, train loss drops normally, model is smaller (12.9 vs 13.6 MB)
+- Bottleneck: pure-Python BPE trainer/encoder too slow for full-scale data
+
+## Infrastructure
+
+- GitHub fork: https://github.com/mrbese/parameter-golf
+- RunPod CLI (`runpodctl`) configured for account omerbese@gmail.com
+- RunPod balance: ~$9.23 remaining
+- SSH key: `~/.runpod/ssh/RunPod-Key-Go`
+
 ## What's left to do
 
-1. Train BPE merges on real FineWeb data — `scripts/train_bpe_jsonl.py`
-2. Re-export FineWeb shards — `scripts/export_shards.py`
-3. Train with `integration/train_gpt_bese.py` (or patch upstream `train_gpt.py` per integration_guide.md)
-4. GPU smoke — `scripts/run_train_gpu_smoke.sh`; full 8×H100 eval vs baseline
-5. Combine with competition stack (XSA, EMA, SmearGate, etc.)
-6. Submit non-record PR — `docs/SUBMISSION.md`
+1. **Speed up BPE trainer/encoder** — rewrite in C/Cython, or use SentencePiece to train BPE on the BESE base token stream (critical blocker)
+2. **Re-run with equal data** — encode all 10 shards (~1B tokens) with BESE+BPE for a fair comparison
+3. **Add extra layers** — with vocab=288 (saving ~295KB), try 12-13L instead of baseline 9L
+4. Combine with competition stack (XSA, EMA, SmearGate, etc.)
+5. Submit non-record PR — `docs/SUBMISSION.md`
 
 ## Origin story (for the write-up)
 
