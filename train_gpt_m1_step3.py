@@ -669,53 +669,95 @@ class CodecBigramEmbed(nn.Module):
         return self.proj(emb) * self.scale[None, None, :]
 
 
-class NGramLogProbProjector(nn.Module):
-    """Codec Layer 2: N-gram context signal.
-    Projects unigram and bigram log-probabilities into model_dim space.
-    These are statistical priors that tell the model "this token is common/rare"
-    and "this bigram is common/rare given the previous token".
-    The 2-value feature vector [log_p_unigram, log_p_bigram] is projected to model_dim.
-    """
-    def __init__(self, model_dim: int = 512):
-        super().__init__()
-        # Projects [log_p_unigram, log_p_bigram] → model_dim
-        self.proj = nn.Linear(2, model_dim, bias=True)
-        self.scale = nn.Parameter(torch.zeros(1, dtype=torch.float32))  # start at 0, learned
-        # Buffers for n-gram tables (set after analysis)
-        self.register_buffer("unigram_logprobs", torch.zeros(1))   # (vocab_size,)
-        self.register_buffer("bigram_logprobs", torch.zeros(1, 1))  # (vocab_size, vocab_size) or sparse
+class NgramContextPredictor(nn.Module):
+    """Codec Layer 2: N-gram context features.
 
-    def set_ngram_tables(self, unigram_logprobs: Tensor, bigram_logprobs: Tensor) -> None:
-        """Called once after data analysis to populate n-gram tables."""
-        self.unigram_logprobs = unigram_logprobs.float()
-        self.bigram_logprobs = bigram_logprobs.float()
+    Computes causal unigram and bigram log-probability estimates for each
+    position and projects them into the model dimension.  The counts are
+    accumulated from the first training shard at startup and converted to
+    smoothed log-probabilities stored as non-trainable buffers.
+
+    During the forward pass we look up two values for each position t:
+      - log P(token_t)                  — unigram
+      - log P(token_t | token_{t-1})    — bigram  (0 at t=0)
+
+    These 2 floats are projected to model_dim and *added* to the residual
+    stream after the token + bigram-hash embeddings, giving the transformer
+    a cheap statistical prior about what it is currently reading.
+    """
+
+    def __init__(self, vocab_size: int, model_dim: int, num_features: int = 2):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.num_features = num_features  # [log_unigram, log_bigram]
+        # Trainable projection: maps the n-gram feature vector → model_dim
+        self.proj = nn.Linear(num_features, model_dim, bias=True)
+        self.scale = nn.Parameter(torch.zeros(1))  # starts near zero → safe init
+
+        # Non-trainable count tables (filled by build_ngram_tables)
+        self.register_buffer(
+            "unigram_logprob",
+            torch.zeros(vocab_size, dtype=torch.float32),
+            persistent=False,
+        )
+        self.register_buffer(
+            "bigram_logprob",
+            torch.zeros(vocab_size, vocab_size, dtype=torch.float32),
+            persistent=False,
+        )
+        self._tables_built = False
+
+    @torch.no_grad()
+    def build_ngram_tables(self, token_data: np.ndarray, smoothing: float = 0.5) -> None:
+        """Build unigram and bigram count tables from a numpy token array."""
+        vocab = self.vocab_size
+        # Unigram counts
+        uni_counts = np.bincount(token_data.astype(np.int64), minlength=vocab).astype(np.float64)
+        uni_counts += smoothing
+        uni_logprob = np.log(uni_counts) - np.log(uni_counts.sum())
+
+        # Bigram counts – row = prev token, col = current token
+        # Only use consecutive pairs (no shard-boundary pairs)
+        prev = token_data[:-1].astype(np.int64)
+        curr = token_data[1:].astype(np.int64)
+        bi_counts = np.zeros((vocab, vocab), dtype=np.float64)
+        np.add.at(bi_counts, (prev, curr), 1)
+        bi_counts += smoothing
+        row_sums = bi_counts.sum(axis=1, keepdims=True)
+        bi_logprob = np.log(bi_counts) - np.log(row_sums)
+
+        self.unigram_logprob.copy_(torch.from_numpy(uni_logprob.astype(np.float32)))
+        self.bigram_logprob.copy_(torch.from_numpy(bi_logprob.astype(np.float32)))
+        self._tables_built = True
 
     def forward(self, input_ids: Tensor) -> Tensor:
         """
-        input_ids: (B, T) int64
-        Returns: (B, T, model_dim) float
+        input_ids: [B, T]  (int64 or int)
+        Returns:   [B, T, model_dim]
         """
         bsz, seqlen = input_ids.shape
-        device = input_ids.device
+        ids = input_ids.long()  # [B, T]
 
-        # Unigram log-probs for every position
-        uni = self.unigram_logprobs.to(device)[input_ids]  # (B, T)
+        # Unigram log-prob for every position
+        uni = self.unigram_logprob[ids]  # [B, T]
 
-        # Bigram log-probs: for position t, p(token_t | token_{t-1})
-        # Position 0 has no previous token — use unigram as fallback
-        bi = uni.clone()
+        # Bigram log-prob: use previous token; position 0 gets unigram fallback
         if seqlen > 1:
-            prev = input_ids[:, :-1]   # (B, T-1)
-            curr = input_ids[:, 1:]    # (B, T-1)
-            bi[:, 1:] = self.bigram_logprobs.to(device)[prev, curr]
+            prev_ids = ids[:, :-1]       # [B, T-1]
+            curr_ids = ids[:, 1:]        # [B, T-1]
+            bi_vals = self.bigram_logprob[prev_ids, curr_ids]  # [B, T-1]
+            # Pad position 0 with the unigram value (no context available)
+            bi = torch.cat([uni[:, :1], bi_vals], dim=1)  # [B, T]
+        else:
+            bi = uni  # single-token sequences: bigram = unigram
 
-        # Stack into feature vector (B, T, 2)
-        features = torch.stack([uni, bi], dim=-1)  # (B, T, 2)
+        # Stack into feature matrix [B, T, 2]
+        features = torch.stack([uni, bi], dim=-1)  # [B, T, 2]
 
-        out = self.proj(features)  # (B, T, model_dim)
-        # Scale gate: starts near 0, grows as training proceeds
-        gate = torch.sigmoid(self.scale.to(dtype=out.dtype))
-        return out * gate
+        # Project to model_dim and scale (scale starts at 0 for safe init)
+        out = self.proj(features)          # [B, T, model_dim]
+        out = out * self.scale.to(out.dtype)
+        return out
 
 
 class GPT(nn.Module):
@@ -741,7 +783,7 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.codec_bigram = CodecBigramEmbed(2048, 128, model_dim)
-        self.ngram_proj = NGramLogProbProjector(model_dim)
+        self.ngram_predictor = NgramContextPredictor(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -775,7 +817,7 @@ class GPT(nn.Module):
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = x + self.codec_bigram(input_ids)   # Codec Layer 1: bigram hash embeddings
-        x = x + self.ngram_proj(input_ids)     # Codec Layer 2: n-gram log-prob signal
+        x = x + self.ngram_predictor(input_ids)  # Codec Layer 2: n-gram log-prob features
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
@@ -936,9 +978,9 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
-    # Add Codec Layer 1 + 2 params
+    # Add Codec Layer 1 + Layer 2 params
     scalar_params.extend(list(base_model.codec_bigram.parameters()))
-    scalar_params.extend(list(base_model.ngram_proj.parameters()))
+    scalar_params.extend(list(base_model.ngram_predictor.parameters()))
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
@@ -990,56 +1032,6 @@ def main() -> None:
     log0(f"seed:{args.seed}")
 
     # -----------------------------
-    # CODEC LAYER 1: Byte frequency analysis (Model 1 Step 1)
-    # CODEC LAYER 2: N-gram log-probability tables (Model 1 Step 3)
-    # Count most common byte sequences in training data; compute unigram + bigram stats.
-    # MUST run before warmup so ngram_proj buffers are populated before forward() is called.
-    # -----------------------------
-    log0("codec:analyzing byte frequencies and n-gram stats...")
-    import collections
-    shard_path = sorted(glob.glob(args.train_files))[0]
-    shard_data = np.memmap(shard_path, dtype=np.uint16, mode='r')[:100000]  # first 100K tokens
-    bigram_counts = collections.Counter()
-    unigram_counts = collections.Counter()
-    for tok in shard_data.tolist():
-        unigram_counts[tok] += 1
-    for i in range(len(shard_data) - 1):
-        bigram_counts[(int(shard_data[i]), int(shard_data[i+1]))] += 1
-    top_bigrams = bigram_counts.most_common(2048)
-    if master_process:
-        log0(f"codec:top_bigrams={len(top_bigrams)} most_common={top_bigrams[0]}")
-
-    # Build unigram log-prob table: shape (vocab_size,)
-    total_tokens = sum(unigram_counts.values()) + args.vocab_size  # add-1 smoothing
-    uni_logprobs_np = np.zeros(args.vocab_size, dtype=np.float32)
-    for tok_id in range(args.vocab_size):
-        count = unigram_counts.get(tok_id, 0) + 1  # add-1 smoothing
-        uni_logprobs_np[tok_id] = math.log(count / total_tokens)
-    unigram_logprobs = torch.from_numpy(uni_logprobs_np).to(device)
-
-    # Build bigram log-prob table: p(curr | prev) using counts
-    # Dense table at vocab_size=1024: 1024*1024*4 bytes = ~4MB — fine
-    bi_logprobs_np = np.zeros((args.vocab_size, args.vocab_size), dtype=np.float32)
-    # row = prev token; fill rows with unigram priors as fallback
-    for prev in range(args.vocab_size):
-        bi_logprobs_np[prev, :] = uni_logprobs_np
-    # Update with actual bigram conditional probabilities
-    prev_totals = collections.Counter()
-    for (p, c), cnt in bigram_counts.items():
-        prev_totals[p] += cnt
-    for (prev, curr), cnt in bigram_counts.items():
-        if prev < args.vocab_size and curr < args.vocab_size:
-            denom = prev_totals[prev] + args.vocab_size  # add-1 smoothing
-            bi_logprobs_np[prev, curr] = math.log((cnt + 1) / denom)
-    bigram_logprobs = torch.from_numpy(bi_logprobs_np).to(device)
-
-    # Inject tables into the model's ngram_proj module
-    base_model.ngram_proj.set_ngram_tables(unigram_logprobs.cpu(), bigram_logprobs.cpu())
-    if master_process:
-        log0("codec:n-gram tables built and injected into model")
-        log0("codec:frequency analysis complete")
-
-    # -----------------------------
     # DATA LOADER & MODEL WARMUP
     # -----------------------------
 
@@ -1083,8 +1075,6 @@ def main() -> None:
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
         base_model.load_state_dict(initial_model_state, strict=True)
-        # Re-inject n-gram tables (state_dict restore overwrites the buffers)
-        base_model.ngram_proj.set_ngram_tables(unigram_logprobs.cpu(), bigram_logprobs.cpu())
         for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
             opt.load_state_dict(state)
         zero_grad_all()
@@ -1092,7 +1082,29 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
-    # (N-gram analysis already done above, before warmup)
+    # -----------------------------
+    # CODEC LAYER 1: Byte frequency analysis (Model 1 Step 1)
+    # Count most common byte sequences in training data
+    # This is the foundation for the dictionary lookup table
+    # -----------------------------
+    # -----------------------------
+    # CODEC LAYER 2: N-gram table build (Model 1 Step 3)
+    # Build unigram + bigram log-prob tables from the first training shard
+    # and broadcast them to all ranks so every process uses the same prior.
+    # -----------------------------
+    log0("codec:building ngram tables...")
+    import collections
+    shard_path = sorted(glob.glob(args.train_files))[0]
+    # Read raw token data (skip 256-int header)
+    shard_raw = np.fromfile(shard_path, dtype=np.uint16)[256:][:500_000]  # first 500K tokens
+    base_model.ngram_predictor.build_ngram_tables(shard_raw)
+    if master_process:
+        bigram_counts = collections.Counter()
+        for i in range(len(shard_raw) - 1):
+            bigram_counts[(int(shard_raw[i]), int(shard_raw[i + 1]))] += 1
+        top_bigrams = bigram_counts.most_common(2048)
+        log0(f"codec:top_bigrams={len(top_bigrams)} most_common={top_bigrams[0]}")
+        log0("codec:ngram tables built unigram+bigram smoothed")
 
     # -----------------------------
     # MAIN TRAINING LOOP
