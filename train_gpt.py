@@ -311,7 +311,6 @@ def eval_val_sliding(
     total_scored_tokens = torch.zeros((), device=device, dtype=torch.float64)
     total_byte_count = torch.zeros((), device=device, dtype=torch.float64)
     ng_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
-    sse_table = torch.zeros(256 * 64, device=device)
     vt_gpu = val_tokens.to(device=device, dtype=torch.int64)
     ng_ctx, ng_pair, ng_hashes = {}, {}, {}
     for order in _NG_ORDERS:
@@ -372,15 +371,7 @@ def eval_val_sliding(
                 ix = m.nonzero(as_tuple=True)[0]; best_ng[ix[has]] = ng_p[has]; found[ix[has]] = True
             alpha = 0.05 + 0.55 / (1.0 + torch.exp(-3.0 * (aH - 3.5)))
             mixed = torch.where(found, (1 - alpha) * amp + alpha * best_ng, amp)
-            prev_tok = vt_gpu[ap - 1]
-            ctx_bin = (prev_tok % 256).long()
-            pred_bin = (mixed * 63.99).long().clamp(0, 63)
-            sse_idx = ctx_bin * 64 + pred_bin
-            correction = sse_table[sse_idx]
-            corrected = torch.sigmoid(torch.logit(mixed.clamp(1e-6, 1 - 1e-6)) + correction)
-            ng_loss_sum -= torch.log(corrected.clamp(min=1e-20)).to(torch.float64).sum()
-            with torch.no_grad():
-                sse_table.scatter_add_(0, sse_idx, 0.05 * (1.0 - corrected))
+            ng_loss_sum -= torch.log(mixed.clamp(min=1e-20)).to(torch.float64).sum()
             for order in _NG_ORDERS:
                 v = ap >= order
                 if not v.any(): continue
