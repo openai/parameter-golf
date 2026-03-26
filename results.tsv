@@ -1,1 +1,12 @@
 commit	val_bpb	quant_gap	artifact_mb	memory_gb	status	description
+1d4cc27	3.172799	-0.000172	15.6	14.4	discard	baseline 8L dim512 MLP2x, only 347 steps (batch too large)
+94782fc	2.521196	0.000036	15.6	28.0	discard	batch 131K DevBatch128, 1353 steps (no compile yet)
+ab6ce36	1.956044	0.000669	15.3	28.0	discard	WD=0.04 mom=0.99 warmdown=700 sliding eval (eval took 10min)
+6eaef17	1.549390	0.001117	14.9	15.9	discard	torch.compile + standard eval, 3252 steps (8L MLP2x)
+aa4b189	1.527175	0.000949	14.2	13.6	keep	BEST: 6L MLP3x compile WD0.04 mom0.99, 4087 steps
+0142e65	1.566529	0.000668	18.9	17.8	discard	MLP3x 8L — artifact 18.9MB, too large
+166300a	1.568257	0.000000	15.0	0.0	discard	7L MLP2.5x — worse than 6L MLP3x
+4ddc827	1.607860	0.000000	14.1	0.0	discard	batch 65K 6596 steps — too noisy
+cb359cc	1.588754	0.000892	14.3	0.0	discard	SEQ_LEN=2048 — fewer steps, worse
+13db8cc	1.714721	0.000000	0.0	0.0	discard	batch 262K — only 2316 steps, much worse
+73a0a53	0.000000	0.000000	0.0	0.0	pending	warmdown=2000 — not yet run
