@@ -1,16 +1,15 @@
 {
   "track": "10min_16mb",
   "date": "2026-03-26",
-  "name": "Record: 0.1583 BPB — Learned Mixer Head + No TTT + Matrix LR 0.03",
+  "name": "Record: 0.1582 BPB — Learned Mixer Head + No TTT + Matrix LR 0.03",
   "author": "bigbag",
   "github": "bigbag",
   "seed_results": {
-    "42": {"val_loss": 0.267132, "val_bpb": 0.158210, "artifact_bytes": 15590944},
-    "1337": {"val_loss": 0.267248, "val_bpb": 0.158279, "artifact_bytes": 15551756},
-    "2024": {"val_loss": 0.267248, "val_bpb": 0.158279, "artifact_bytes": 15551756}
+    "42": {"val_loss": 0.26713166, "val_bpb": 0.15821041, "artifact_bytes": 15590944},
+    "1337": {"val_loss": 0.267248, "val_bpb": 0.158279, "artifact_bytes": 15551756}
   },
-  "mean_val_loss": 0.267209,
-  "mean_val_bpb": 0.158256,
-  "std_val_bpb": 0.000040,
-  "code_bytes": 91966
+  "mean_val_loss": 0.267190,
+  "mean_val_bpb": 0.158245,
+  "code_bytes": 91966,
+  "notes": "Seed 2024 rerunning — previous log was truncated."
 }
