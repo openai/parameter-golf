@@ -916,6 +916,17 @@ class GPT(nn.Module):
                     nn.init.zeros_(module.weight)
                 elif module.weight.ndim == 2 and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
                     nn.init.orthogonal_(module.weight, gain=1.0)
+    def _fq_bank(self, w: Tensor) -> Tensor:
+        """Apply int6 STE fake-quant to a 2D FP32 bank slice. No-op outside training or if QAT disabled."""
+        if not (CastedLinear._qat_enabled and self.training):
+            return w
+        with torch.no_grad():
+            w32 = w.float()
+            row_max = w32.abs().amax(dim=1)
+            scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+            w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -32, 31) * scale[:, None]).to(w.dtype)
+        return w + (w_q - w).detach()
+
     def _get_ve(self, layer_idx: int, input_ids: Tensor, ve_cache: dict | None = None) -> Tensor | None:
         """Get value embedding for a specific layer using shared table + per-layer scale."""
         if self.ve_shared is None or layer_idx not in self.ve_layer_indices:
@@ -939,8 +950,8 @@ class GPT(nn.Module):
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
             x, raw_v = self.blocks[i](x, x0,
-                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
-                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
+                self._fq_bank(self.qo_bank[i]), self._fq_bank(self.kv_bank[i]), self._fq_bank(self.kv_bank[n + i]),
+                self._fq_bank(self.qo_bank[n + i]), self._fq_bank(self.mlp_up_bank[i]), self._fq_bank(self.mlp_down_bank[i]),
                 v_embed=ve, v0=v0)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
@@ -951,8 +962,8 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
             x, _ = self.blocks[bi](x, x0,
-                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
-                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
+                self._fq_bank(self.qo_bank[bi]), self._fq_bank(self.kv_bank[bi]), self._fq_bank(self.kv_bank[n + bi]),
+                self._fq_bank(self.qo_bank[n + bi]), self._fq_bank(self.mlp_up_bank[bi]), self._fq_bank(self.mlp_down_bank[bi]),
                 v_embed=ve, v0=v0)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
