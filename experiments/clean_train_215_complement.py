@@ -76,6 +76,7 @@ class Hyperparameters:
     gptq_reserve_seconds = float(os.environ.get("GPTQ_RESERVE_SECONDS", 20.0))  # Reserve for GPTQ within training budget
     use_mixer = bool(int(os.environ.get("USE_MIXER", "0")))  # Context mixer during TTT eval
     mixer_eta = float(os.environ.get("MIXER_ETA", 0.1))  # Hedge learning rate
+    complement_alpha = float(os.environ.get("COMPLEMENT_ALPHA", "0.0"))  # Complementary training (0=disabled)
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -426,6 +427,33 @@ class DistributedTokenLoader:
 # TRANSFORMER MODULES
 # -----------------------------
 
+
+class BigramWeighter:
+    """Complementary training: downweight tokens predictable by bigrams.
+    The model learns to specialize on tokens n-gram caches can't predict."""
+    def __init__(self, vocab_size: int, device: torch.device, complement_alpha: float = 0.5):
+        self.V = vocab_size
+        self.alpha = complement_alpha
+        self.bi_counts = torch.zeros(vocab_size, vocab_size, device=device, dtype=torch.float32)
+        self.bi_totals = torch.zeros(vocab_size, device=device, dtype=torch.float32)
+
+    @torch.no_grad()
+    def update(self, x: Tensor, y: Tensor):
+        xf = x.reshape(-1)
+        yf = y.reshape(-1)
+        ones = torch.ones(xf.numel(), device=xf.device, dtype=torch.float32)
+        self.bi_counts.reshape(-1).scatter_add_(0, xf * self.V + yf, ones)
+        self.bi_totals.scatter_add_(0, xf, ones)
+
+    def get_weights(self, x: Tensor, y: Tensor) -> Tensor:
+        xf = x.reshape(-1)
+        yf = y.reshape(-1)
+        total = self.bi_totals[xf]
+        count = self.bi_counts.reshape(-1)[xf * self.V + yf]
+        ngram_prob = count / (total + 1)
+        return (1.0 - self.alpha * ngram_prob).clamp(min=0.1)
+
+
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
         super().__init__()
@@ -705,7 +733,7 @@ class GPT(nn.Module):
                         with torch.no_grad():
                             module.weight.mul_(1.0 / math.sqrt(2 * num_layers))
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor, loss_weights: Tensor = None) -> Tensor:
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
@@ -732,7 +760,11 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        if loss_weights is not None:
+            per_tok_loss = F.cross_entropy(logits.float(), targets, reduction="none")
+            main_loss = (per_tok_loss * loss_weights.reshape(-1)).mean()
+        else:
+            main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
 
         if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
             _, seqlen, dim = x.shape
@@ -2090,6 +2122,11 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
+    # Complementary training: downweight bigram-predictable tokens
+    bigram_weighter = BigramWeighter(args.vocab_size, device, args.complement_alpha) if args.complement_alpha > 0 else None
+    if bigram_weighter is not None:
+        log0(f"complementary_training:enabled alpha={args.complement_alpha}")
+
     # --- MAIN TRAINING LOOP ---
 
     swa_state: dict[str, Tensor] | None = None
@@ -2154,8 +2191,14 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            # Complementary training: downweight bigram-predictable tokens
+            if bigram_weighter is not None:
+                w = bigram_weighter.get_weights(x, y)
+                bigram_weighter.update(x, y)
+            else:
+                w = None
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                loss = model(x, y, loss_weights=w)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
