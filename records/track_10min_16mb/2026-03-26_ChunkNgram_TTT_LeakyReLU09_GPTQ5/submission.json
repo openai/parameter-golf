@@ -1,0 +1,24 @@
+{
+  "author": "AayushBaniya2006",
+  "github_id": "AayushBaniya2006",
+  "name": "Chunk-Based N-gram Backoff + Score-First TTT + LeakyReLU(0.9)\u00b2 + GPTQ-Int5",
+  "blurb": "Order-9 chunk-based N-gram eval cache with entropy-adaptive alpha and per-order multipliers. Score-first TTT with LoRA. 11L 512d GQA 8/4, MLP 3.0x, XSA-4, LeakyReLU(0.9)\u00b2, BigramHash(4096), GPTQ int5. Mean of 3 seeds: val_bpb 0.29519 (std 0.00013). N-gram cache processes 1M-token chunks with all ranks sharing cache state. Training 525s on 8xH100 SXM, eval 340s.",
+  "date": "2026-03-26",
+  "val_loss": 0.49841,
+  "val_bpb": 0.29519,
+  "val_loss_std": 0.00020,
+  "val_bpb_std": 0.00013,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {
+    "1337": {"val_loss": 0.49856897, "val_bpb": 0.29528063},
+    "42": {"val_loss": 0.49816817, "val_bpb": 0.29504325},
+    "2024": {"val_loss": 0.49850693, "val_bpb": 0.29524389}
+  },
+  "pre_quant_val_bpb": 1.1408,
+  "ttt_val_bpb": 1.1488,
+  "step_stop": 6091,
+  "wallclock_seconds": 525.0,
+  "eval_time_seconds": 340.0,
+  "bytes_total": 13413539,
+  "bytes_code": 180859
+}
