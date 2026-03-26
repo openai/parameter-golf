@@ -1,43 +1,48 @@
-# Record: 11L XSA-all + Full GPTQ + Parallel Muon + Selective Pruning
+# Record: 11L XSA-all + Full GPTQ (Budget-Legal) + Parallel Muon + Selective Pruning
 
-**val_bpb: 1.1171** (3-seed mean, std 0.0006) | **15.92 MB** max artifact | 8xH100 SXM, 600s
+**val_bpb: 1.1178** (3-seed mean, std 0.0001) | **15.95 MB** max artifact | 8xH100 SXM, ~596s total compute
+
+## Update (2026-03-26)
+
+This PR was updated to fix a GPTQ budget violation identified in [issue #677](https://github.com/openai/parameter-golf/issues/677). The previous version trained for the full 600s, then ran GPTQ calibration for ~46s on top, exceeding the 600s artifact-production budget. The fix reserves 14s from the training budget for GPTQ calibration (`gptq_reserve_ms = 14000.0`), ensuring total compute (training ~586s + GPTQ ~10s = ~596s) stays within the 600s limit. All results below use the fixed code with fresh 3-seed runs.
 
 ## Results (3 seeds, 8xH100 SXM)
 
-| Seed | Steps | ms/step | Sliding BPB (s64) | val_loss | Artifact |
-|------|-------|---------|--------------------|----------|----------|
-| 1337 | ~7,100 | 84.2 | **1.1164** | 1.8851 | 15,920,050 bytes |
-| 42 | ~7,100 | 84.2 | 1.1171 | 1.8861 | 15,921,954 bytes |
-| 7 | ~7,100 | 84.2 | 1.1177 | 1.8871 | 15,914,654 bytes |
+| Seed | Steps | ms/step | Sliding BPB (s64) | val_loss | Artifact | Train Time | GPTQ Time | Total |
+|------|-------|---------|--------------------|----------|----------|------------|-----------|-------|
+| 1337 | 6,674 | ~88 | **1.1177** | 1.8871 | 15,929,433 bytes | 586,128ms | 9,786ms | 595,915ms |
+| 42 | 6,732 | ~87 | 1.1179 | 1.8875 | 15,949,353 bytes | 586,050ms | 9,792ms | 595,842ms |
+| 7 | 6,731 | ~87 | 1.1179 | 1.8875 | 15,946,145 bytes | 586,066ms | 9,823ms | 595,889ms |
 
-**Mean: 1.1171 | Std: 0.0006**
+**Mean: 1.1178 | Std: 0.0001**
 
 ## Key Techniques
 
 ### XSA on All 11 Layers
 Standard practice applies Exclusive Self-Attention to only the last 4 layers. Applying to all 11 forces cross-position information mixing from layer 0, improving representation quality. Zero new parameters — just a config change. -0.0016 BPB vs XSA-last-4 in ablation.
 
-### Full Hessian GPTQ with amax-aligned QAT
-- 256-sample calibration from training data for per-layer Hessian approximation
-- Column-wise int6 quantization with Cholesky error compensation, block size 128
+### Full Hessian GPTQ (Budget-Legal)
+- 64-batch GPU Hessian calibration from training data
+- Column-wise int6 quantization with Cholesky error compensation, block size 128, percdamp 0.01
 - QAT STE aligned to export quantizer using row-maximum (amax) clipping with [-32, 31] range
-- Late QAT at threshold 0.15
+- **Budget reservation:** `gptq_reserve_ms = 14000.0` — training stops ~14s early so GPTQ calibration fits within 600s
+- Log verification: `gptq:budget_check train:586128ms + gptq:9786ms = 595915ms (budget:600000ms)`
 
 ### Parallel Muon Optimizer with Parameter Banking
 - Weight matrices stored in contiguous parameter banks (qo_bank, kv_bank, mlp_up_bank, mlp_down_bank)
-- 3-phase overlapped optimizer step: async reduce-scatter → batched Newton-Schulz orthogonalization → async all-gather
-- Eliminates DDP double-communication overhead, achieving 84.2ms/step (~7,100 steps in 600s)
+- 3-phase overlapped optimizer step: async reduce-scatter -> batched Newton-Schulz orthogonalization -> async all-gather
+- Eliminates DDP double-communication overhead, achieving ~87ms/step (~6,700 steps in 586s)
 
-### Selective ±1 Magnitude Pruning
-Post-GPTQ, sort quantized values at ±1 by reconstruction error (scale²), zero least-impactful first until artifact fits target. Binary search for exact target size. Targets only values whose removal causes minimal reconstruction damage.
+### Selective Magnitude Pruning
+Post-GPTQ, sort quantized values at +/-1 by reconstruction error (scale^2), zero least-impactful first until artifact fits target. Binary search for exact target size.
 
 ### LZMA Compression
-LZMA preset 6 replacing zstd-22 for model serialization. Better compression ratio on int6 quantized weights.
+LZMA preset 6 replacing zstd-22. Better compression ratio on int6 quantized weights.
 
 ## Architecture
 
 - 11 transformer layers, dim=512, 8 heads, 4 KV heads (GQA)
-- 3x MLP expansion (hidden=1536) with **LeakyReLU(0.5)²** activation
+- 3x MLP expansion (hidden=1536) with **LeakyReLU(0.5)^2** activation
 - **XSA on all 11 layers** (Exclusive Self-Attention)
 - Partial RoPE (16/64 dims) + NTK-aware scaling
 - LN Scale Factor 1/sqrt(layer_idx+1)
@@ -60,30 +65,24 @@ LZMA preset 6 replacing zstd-22 for model serialization. Better compression rati
 
 ## Quantization & Compression
 
-- Full GPTQ with 256-sample Hessian calibration, block_size=128, percdamp=0.01
+- Full GPTQ with 64-batch GPU Hessian calibration, block_size=128, percdamp=0.01
 - Int6 per-row with amax clipping, range [-32, 31]
-- Selective ±1 magnitude pruning (target 15.9MB)
+- Selective magnitude pruning (target 15.9MB)
 - Small tensors + tok_emb.weight in fp16
 - LZMA preset 6 compression
 
-## Requirements
+## Compliance
 
-```bash
-pip install flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291
-pip install zstandard sentencepiece
-```
+- [x] 3 seeds, all total compute <= 600s on 8xH100 SXM (verified: max 595,915ms)
+- [x] GPTQ calibration WITHIN training budget (14s reserved, verified via `gptq:budget_check`)
+- [x] All artifacts <= 16,000,000 bytes (max: 15,949,353)
+- [x] No TTT on validation data
+- [x] No training data accessed during evaluation
+- [x] No network calls during evaluation
+- [x] Sliding window eval stride=64, consistent across seeds (std=0.0001)
 
 ## Run Command
 
 ```bash
 SEED=1337 TARGET_MB=15.9 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
-
-## Test Plan
-
-- [x] 3 seeds run on 8xH100 SXM
-- [x] All 3 seeds train in ≤600s
-- [x] All 3 seeds artifact ≤16,000,000 bytes (max: 15,921,954)
-- [x] Sliding window eval stride=64, consistent (std=0.0006)
-- [x] No test-time training on validation data
-- [x] No network calls during evaluation

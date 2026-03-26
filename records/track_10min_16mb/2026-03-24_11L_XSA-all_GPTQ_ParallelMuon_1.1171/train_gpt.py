@@ -85,6 +85,23 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
+    ngram_cache = bool(int(os.environ.get("NGRAM_CACHE", "0")))
+    ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.40"))
+    ngram_order = int(os.environ.get("NGRAM_ORDER", "7"))
+    ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
+    ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
+    ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "7"))
+    ngram_entropy = bool(int(os.environ.get("NGRAM_ENTROPY", "0")))
+    ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.05"))
+    ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.55"))
+    ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
+    ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
+    ngram_order_adaptive = bool(int(os.environ.get("NGRAM_ORDER_ADAPTIVE", "0")))
+    ngram_order_ent_slope = float(os.environ.get("NGRAM_ORDER_ENT_SLOPE", "0.25"))
+    ngram_order_alpha_mult = os.environ.get("NGRAM_ORDER_ALPHA_MULT", "")
+    ngram_order_min_count = os.environ.get("NGRAM_ORDER_MIN_COUNT", "")
+    ngram_chunk_tokens = int(os.environ.get("NGRAM_CHUNK_TOKENS", "262144"))
+    eval_diagnostics = bool(int(os.environ.get("EVAL_DIAGNOSTICS", "0")))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     """Batched Newton-Schulz orthogonalization. G: (B,M,N) or (M,N)."""
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -433,6 +450,12 @@ class TokenStream:
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
         if not self.files:
             raise FileNotFoundError(f"No files found for pattern: {pattern}")
+        shard_order = os.environ.get("SHARD_ORDER", "")
+        if shard_order:
+            order = [int(x) for x in shard_order.split(",")]
+            reordered = [self.files[i] for i in order if i < len(self.files)]
+            remaining = [f for i, f in enumerate(self.files) if i not in set(order)]
+            self.files = reordered + remaining
         self.file_idx = 0
         self.tokens = load_data_shard(self.files[0])
         self.pos = 0
@@ -924,6 +947,7 @@ def eval_val_sliding(
     stride: int,
     batch_seqs: int = 32,
     eval_seq_len: int | None = None,
+    use_ngram: bool = False,
 ) -> tuple[float, float]:
     """Sliding window evaluation: each token scored with maximum context."""
     seq_len = eval_seq_len or args.train_seq_len
@@ -937,6 +961,41 @@ def eval_val_sliding(
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    if use_ngram:
+        assert 2 <= args.ngram_min_order <= args.ngram_order
+        assert args.ngram_buckets > 0 and (args.ngram_buckets & (args.ngram_buckets - 1)) == 0, "ngram_buckets must be power of two"
+        val_np = val_tokens.cpu().numpy()
+        n_orders = args.ngram_order - args.ngram_min_order + 1
+        ctx_tables = [np.zeros((args.ngram_buckets,), dtype=np.uint32) for _ in range(n_orders)]
+        full_tables = [np.zeros((args.ngram_buckets,), dtype=np.uint32) for _ in range(n_orders)]
+        ng_mask = np.uint64(args.ngram_buckets - 1)
+        ng_primes = np.array(
+            [36313, 27191, 51647, 81929, 131071, 175447, 209591],
+            dtype=np.uint64,
+        )
+        # Parse per-order alpha multipliers (if provided)
+        order_alpha_mult = None
+        if args.ngram_order_alpha_mult:
+            order_alpha_mult = np.array([float(x) for x in args.ngram_order_alpha_mult.split(",")], dtype=np.float64)
+            assert len(order_alpha_mult) == n_orders, f"ngram_order_alpha_mult length {len(order_alpha_mult)} != n_orders {n_orders}"
+        # Parse per-order minimum count schedule (if provided)
+        if args.ngram_order_min_count:
+            order_min_count = np.array([float(x) for x in args.ngram_order_min_count.split(",")], dtype=np.float64)
+            assert len(order_min_count) == n_orders, f"ngram_order_min_count length {len(order_min_count)} != n_orders {n_orders}"
+        else:
+            order_min_count = np.full(n_orders, float(args.ngram_min_count), dtype=np.float64)
+        if rank == 0:
+            mc_str = f"min_count_by_order={args.ngram_order_min_count}" if args.ngram_order_min_count else f"min_count={args.ngram_min_count}"
+            print(
+                f"ngram_cache:enabled orders={args.ngram_min_order}-{args.ngram_order} "
+                f"entropy={int(args.ngram_entropy)} alpha={args.ngram_alpha} "
+                f"ent_base={args.ngram_ent_base} ent_range={args.ngram_ent_range} "
+                f"ent_scale={args.ngram_ent_scale} ent_thresh={args.ngram_ent_thresh} "
+                f"order_adaptive={int(args.ngram_order_adaptive)} order_ent_slope={args.ngram_order_ent_slope} "
+                f"order_alpha_mult={args.ngram_order_alpha_mult or 'none'} "
+                f"{mc_str} buckets={args.ngram_buckets}",
+                flush=True,
+            )
     base_model.eval()
     compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     with torch.inference_mode():
@@ -963,7 +1022,86 @@ def eval_val_sliding(
             for i, ws in enumerate(batch_ws):
                 wlen = wlens[i]
                 s = 0 if ws == 0 else max(wlen - stride, 0)
+                seg_len = wlen - s
+                if seg_len <= 0:
+                    continue
                 scored_nll = nll[i, s:wlen].to(torch.float64)
+                if use_ngram:
+                    seg_nll_np = scored_nll.cpu().numpy()
+                    seg_model_p = np.exp(-seg_nll_np)
+                    global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
+
+                    if args.ngram_entropy:
+                        lp = F.log_softmax(logits[i, s:wlen].float(), dim=-1)
+                        seg_ent = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
+                        alpha_per_tok = args.ngram_ent_base + args.ngram_ent_range / (
+                            1.0 + np.exp(-args.ngram_ent_scale * (seg_ent - args.ngram_ent_thresh))
+                        )
+
+                    order_data = []
+                    for oi in range(n_orders):
+                        ctx_w = args.ngram_min_order + oi - 1
+                        valid = global_j >= ctx_w
+                        if not valid.any():
+                            order_data.append(None)
+                            continue
+                        v_idx = np.nonzero(valid)[0]
+                        jv = global_j[v_idx]
+                        ctx_hash = np.zeros(len(jv), dtype=np.uint64)
+                        for k in range(ctx_w):
+                            tok = val_np[jv - (ctx_w - k)].astype(np.uint64)
+                            ctx_hash ^= tok * ng_primes[k % len(ng_primes)]
+                        ctx_key = (ctx_hash & ng_mask).astype(np.int64)
+                        tgt_np = val_np[jv].astype(np.uint64)
+                        full_key = (
+                            (ctx_hash ^ (tgt_np * ng_primes[ctx_w % len(ng_primes)])) & ng_mask
+                        ).astype(np.int64)
+                        order_data.append((v_idx, ctx_key, full_key))
+
+                    best_p_ng = np.full(seg_len, -1.0, dtype=np.float64)
+                    best_order_ng = np.full(seg_len, args.ngram_min_order - 1, dtype=np.int32)
+                    for oi in range(n_orders - 1, -1, -1):
+                        data = order_data[oi]
+                        if data is None:
+                            continue
+                        v_idx, ctx_key, full_key = data
+                        ctx_counts = ctx_tables[oi][ctx_key].astype(np.float64)
+                        full_counts = full_tables[oi][full_key].astype(np.float64)
+                        has_match = ctx_counts >= order_min_count[oi]
+                        needs_fill = has_match & (best_p_ng[v_idx] < 0.0)
+                        if needs_fill.any():
+                            fill_idx = v_idx[needs_fill]
+                            p = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(ctx_counts[needs_fill], 1.0)
+                            best_p_ng[fill_idx] = np.clip(p, 0.0, 1.0)
+                            best_order_ng[fill_idx] = args.ngram_min_order + oi
+
+                    has_match = best_p_ng >= 0.0
+                    if has_match.any():
+                        if not args.ngram_entropy:
+                            alpha = args.ngram_alpha
+                        elif not args.ngram_order_adaptive:
+                            alpha = alpha_per_tok[has_match]
+                        else:
+                            order_thresh = args.ngram_ent_thresh - args.ngram_order_ent_slope * (best_order_ng[has_match].astype(np.float64) - float(args.ngram_min_order))
+                            alpha = args.ngram_ent_base + args.ngram_ent_range / (1.0 + np.exp(-args.ngram_ent_scale * (seg_ent[has_match] - order_thresh)))
+                        # Apply per-order alpha multiplier if enabled
+                        if order_alpha_mult is not None:
+                            matched_order_idx = best_order_ng[has_match] - args.ngram_min_order
+                            alpha = alpha * order_alpha_mult[matched_order_idx]
+                        alpha = np.clip(alpha, 0.0, 0.95)
+                        seg_model_p[has_match] = (1.0 - alpha) * seg_model_p[has_match] + alpha * best_p_ng[has_match]
+                    seg_nll_np = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
+
+                    # Legal score-first update: update every order only after scoring.
+                    for oi in range(n_orders):
+                        data = order_data[oi]
+                        if data is None:
+                            continue
+                        _, ctx_key, full_key = data
+                        np.add.at(ctx_tables[oi], ctx_key, 1)
+                        np.add.at(full_tables[oi], full_key, 1)
+
+                    scored_nll = torch.from_numpy(seg_nll_np).to(dtype=torch.float64, device=device)
                 loss_sum += scored_nll.sum()
                 token_count += float(wlen - s)
                 tgt = y_batch[i, s:wlen]
@@ -971,6 +1109,218 @@ def eval_val_sliding(
                 tb = base_bytes_lut[tgt].to(torch.float64)
                 tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                 byte_count += tb.sum()
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base_model.train()
+    return val_loss, bits_per_token * tokens_per_byte
+def _build_sliding_segments(total_tokens, seq_len, stride):
+    """Return list of (ws, wlen, s, tgt_start, tgt_end) for sliding window segments.
+    tgt_start/tgt_end define the scored target position range [tgt_start, tgt_end)."""
+    segments = []
+    for ws in range(0, total_tokens, stride):
+        end = min(ws + seq_len, total_tokens)
+        wlen = end - ws
+        if wlen < 1:
+            continue
+        s = 0 if ws == 0 else max(wlen - stride, 0)
+        if wlen - s <= 0:
+            continue
+        tgt_start = ws + s + 1
+        tgt_end = ws + wlen + 1
+        segments.append((ws, wlen, s, tgt_start, tgt_end))
+    return segments
+def eval_val_sliding_chunked_ngram(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+    batch_seqs: int = 32,
+    eval_seq_len: int | None = None,
+) -> tuple[float, float]:
+    """Chunk-synchronized n-gram cache evaluator. All ranks share the same global-prefix cache."""
+    seq_len = eval_seq_len or args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+    assert args.ngram_chunk_tokens >= seq_len, \
+        f"ngram_chunk_tokens={args.ngram_chunk_tokens} < eval_seq_len={seq_len}"
+    assert (args.ngram_chunk_tokens - seq_len) % stride == 0, \
+        f"(ngram_chunk_tokens - eval_seq_len) % stride != 0"
+    segments = _build_sliding_segments(total_tokens, seq_len, stride)
+    # N-gram setup (same as eval_val_sliding)
+    assert 2 <= args.ngram_min_order <= args.ngram_order
+    assert args.ngram_buckets > 0 and (args.ngram_buckets & (args.ngram_buckets - 1)) == 0
+    val_np = val_tokens.cpu().numpy()
+    n_orders = args.ngram_order - args.ngram_min_order + 1
+    ctx_tables = [np.zeros((args.ngram_buckets,), dtype=np.uint32) for _ in range(n_orders)]
+    full_tables = [np.zeros((args.ngram_buckets,), dtype=np.uint32) for _ in range(n_orders)]
+    ng_mask = np.uint64(args.ngram_buckets - 1)
+    ng_primes = np.array([36313, 27191, 51647, 81929, 131071, 175447, 209591], dtype=np.uint64)
+    order_alpha_mult = None
+    if args.ngram_order_alpha_mult:
+        order_alpha_mult = np.array([float(x) for x in args.ngram_order_alpha_mult.split(",")], dtype=np.float64)
+        assert len(order_alpha_mult) == n_orders
+    if args.ngram_order_min_count:
+        order_min_count = np.array([float(x) for x in args.ngram_order_min_count.split(",")], dtype=np.float64)
+        assert len(order_min_count) == n_orders
+    else:
+        order_min_count = np.full(n_orders, float(args.ngram_min_count), dtype=np.float64)
+    if rank == 0:
+        mc_str = f"min_count_by_order={args.ngram_order_min_count}" if args.ngram_order_min_count else f"min_count={args.ngram_min_count}"
+        print(
+            f"ngram_chunksync chunk_tokens={args.ngram_chunk_tokens} orders={args.ngram_min_order}-{args.ngram_order} buckets={args.ngram_buckets}",
+            flush=True,
+        )
+        print(
+            f"ngram_cache:enabled orders={args.ngram_min_order}-{args.ngram_order} "
+            f"entropy={int(args.ngram_entropy)} alpha={args.ngram_alpha} "
+            f"ent_base={args.ngram_ent_base} ent_range={args.ngram_ent_range} "
+            f"ent_scale={args.ngram_ent_scale} ent_thresh={args.ngram_ent_thresh} "
+            f"order_adaptive={int(args.ngram_order_adaptive)} order_ent_slope={args.ngram_order_ent_slope} "
+            f"order_alpha_mult={args.ngram_order_alpha_mult or 'none'} "
+            f"{mc_str} buckets={args.ngram_buckets}",
+            flush=True,
+        )
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    base_model.eval()
+    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    seg_cursor = 0
+    with torch.inference_mode():
+        for chunk_start in range(1, total_tokens + 1, args.ngram_chunk_tokens):
+            chunk_end = min(chunk_start + args.ngram_chunk_tokens, total_tokens + 1)
+            # Collect segments whose scored range is fully within this chunk
+            chunk_segments = []
+            while seg_cursor < len(segments) and segments[seg_cursor][4] <= chunk_end:
+                if segments[seg_cursor][3] >= chunk_start:
+                    chunk_segments.append(segments[seg_cursor])
+                seg_cursor += 1
+            # Distribute across ranks (round-robin)
+            rank_segments = chunk_segments[rank::world_size]
+            for bi in range(0, len(rank_segments), batch_seqs):
+                batch_segs = rank_segments[bi:bi + batch_seqs]
+                bsz = len(batch_segs)
+                x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                wlens = []
+                seg_s_list = []
+                seg_ws_list = []
+                for i, (ws, wlen, s, _, _) in enumerate(batch_segs):
+                    wlens.append(wlen)
+                    seg_s_list.append(s)
+                    seg_ws_list.append(ws)
+                    chunk_data = val_tokens[ws:ws + wlen + 1].to(dtype=torch.int64, device=device)
+                    x_batch[i, :wlen] = chunk_data[:-1]
+                    y_batch[i, :wlen] = chunk_data[1:]
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    logits = compiled_logits(x_batch)
+                nll = F.cross_entropy(
+                    logits.reshape(-1, logits.size(-1)).float(),
+                    y_batch.reshape(-1),
+                    reduction="none",
+                ).reshape(bsz, seq_len)
+                for i in range(bsz):
+                    ws = seg_ws_list[i]
+                    wlen = wlens[i]
+                    s = seg_s_list[i]
+                    seg_len = wlen - s
+                    if seg_len <= 0:
+                        continue
+                    scored_nll = nll[i, s:wlen].to(torch.float64)
+                    seg_nll_np = scored_nll.cpu().numpy()
+                    seg_model_p = np.exp(-seg_nll_np)
+                    global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
+                    if args.ngram_entropy:
+                        lp = F.log_softmax(logits[i, s:wlen].float(), dim=-1)
+                        seg_ent = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
+                        alpha_per_tok = args.ngram_ent_base + args.ngram_ent_range / (
+                            1.0 + np.exp(-args.ngram_ent_scale * (seg_ent - args.ngram_ent_thresh))
+                        )
+                    order_data = []
+                    for oi in range(n_orders):
+                        ctx_w = args.ngram_min_order + oi - 1
+                        valid = global_j >= ctx_w
+                        if not valid.any():
+                            order_data.append(None)
+                            continue
+                        v_idx = np.nonzero(valid)[0]
+                        jv = global_j[v_idx]
+                        ctx_hash = np.zeros(len(jv), dtype=np.uint64)
+                        for k in range(ctx_w):
+                            tok = val_np[jv - (ctx_w - k)].astype(np.uint64)
+                            ctx_hash ^= tok * ng_primes[k % len(ng_primes)]
+                        ctx_key = (ctx_hash & ng_mask).astype(np.int64)
+                        tgt_np_arr = val_np[jv].astype(np.uint64)
+                        full_key = (
+                            (ctx_hash ^ (tgt_np_arr * ng_primes[ctx_w % len(ng_primes)])) & ng_mask
+                        ).astype(np.int64)
+                        order_data.append((v_idx, ctx_key, full_key))
+                    best_p_ng = np.full(seg_len, -1.0, dtype=np.float64)
+                    best_order_ng = np.full(seg_len, args.ngram_min_order - 1, dtype=np.int32)
+                    for oi in range(n_orders - 1, -1, -1):
+                        data = order_data[oi]
+                        if data is None:
+                            continue
+                        v_idx, ctx_key, full_key = data
+                        ctx_counts = ctx_tables[oi][ctx_key].astype(np.float64)
+                        full_counts = full_tables[oi][full_key].astype(np.float64)
+                        has_match = ctx_counts >= order_min_count[oi]
+                        needs_fill = has_match & (best_p_ng[v_idx] < 0.0)
+                        if needs_fill.any():
+                            fill_idx = v_idx[needs_fill]
+                            p = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(ctx_counts[needs_fill], 1.0)
+                            best_p_ng[fill_idx] = np.clip(p, 0.0, 1.0)
+                            best_order_ng[fill_idx] = args.ngram_min_order + oi
+                    has_match = best_p_ng >= 0.0
+                    if has_match.any():
+                        if not args.ngram_entropy:
+                            alpha = args.ngram_alpha
+                        elif not args.ngram_order_adaptive:
+                            alpha = alpha_per_tok[has_match]
+                        else:
+                            order_thresh = args.ngram_ent_thresh - args.ngram_order_ent_slope * (best_order_ng[has_match].astype(np.float64) - float(args.ngram_min_order))
+                            alpha = args.ngram_ent_base + args.ngram_ent_range / (1.0 + np.exp(-args.ngram_ent_scale * (seg_ent[has_match] - order_thresh)))
+                        if order_alpha_mult is not None:
+                            matched_order_idx = best_order_ng[has_match] - args.ngram_min_order
+                            alpha = alpha * order_alpha_mult[matched_order_idx]
+                        alpha = np.clip(alpha, 0.0, 0.95)
+                        seg_model_p[has_match] = (1.0 - alpha) * seg_model_p[has_match] + alpha * best_p_ng[has_match]
+                    seg_nll_np = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
+                    scored_nll = torch.from_numpy(seg_nll_np).to(dtype=torch.float64, device=device)
+                    loss_sum += scored_nll.sum()
+                    token_count += float(seg_len)
+                    tgt = y_batch[i, s:wlen]
+                    prev = x_batch[i, s:wlen]
+                    tb = base_bytes_lut[tgt].to(torch.float64)
+                    tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                    byte_count += tb.sum()
+            # Chunk-synchronized cache update: every rank updates with full chunk range
+            for oi in range(n_orders):
+                ctx_w = args.ngram_min_order + oi - 1
+                j_range = np.arange(max(chunk_start, ctx_w), chunk_end, dtype=np.int64)
+                if len(j_range) == 0:
+                    continue
+                ctx_hash = np.zeros(len(j_range), dtype=np.uint64)
+                for k in range(ctx_w):
+                    tok = val_np[j_range - (ctx_w - k)].astype(np.uint64)
+                    ctx_hash ^= tok * ng_primes[k % len(ng_primes)]
+                ctx_key = (ctx_hash & ng_mask).astype(np.int64)
+                tgt_arr = val_np[j_range].astype(np.uint64)
+                full_key = (
+                    (ctx_hash ^ (tgt_arr * ng_primes[ctx_w % len(ng_primes)])) & ng_mask
+                ).astype(np.int64)
+                np.add.at(ctx_tables[oi], ctx_key, 1)
+                np.add.at(full_tables[oi], full_key, 1)
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
@@ -1033,21 +1383,21 @@ def _rebank_state_dict(unbanked_sd: dict[str, Tensor], num_layers: int) -> dict[
 def gptq_calibrate(calib_model: nn.Module, train_pattern: str, rank: int, world_size: int,
                    device: torch.device, num_batches: int = 256,
                    batch_tokens: int = 786432, seq_len: int = 2048) -> dict[str, Tensor]:
-    """Collect Hessian H = X^T X using full training batches (matches PR #593)."""
+    """Collect Hessian H = X^T X using training batches. Accumulates on GPU for speed."""
     hessians: dict[str, Tensor] = {}
     hooks = []
     grad_accum_steps = max(1, 8 // world_size)
-    # Pre-initialize Hessians BEFORE inference_mode to avoid inference tensor issues
+    # Pre-initialize Hessians on GPU for fast accumulation
     for name, module in calib_model.named_modules():
         if isinstance(module, (nn.Linear, CastedLinear)):
             cols = module.weight.shape[1]
-            hessians[name] = torch.zeros(cols, cols, dtype=torch.float32, device='cpu')
+            hessians[name] = torch.zeros(cols, cols, dtype=torch.float32, device=device)
     def make_hook(name: str):
         def hook_fn(module, inp, out):
             x = inp[0].detach().float()
             if x.ndim == 3:
                 x = x.reshape(-1, x.shape[-1])
-            hessians[name] += (x.t() @ x).cpu()
+            hessians[name] += x.t() @ x
         return hook_fn
     for name, module in calib_model.named_modules():
         if isinstance(module, (nn.Linear, CastedLinear)):
@@ -1060,8 +1410,9 @@ def gptq_calibrate(calib_model: nn.Module, train_pattern: str, rank: int, world_
             calib_model(x, y)
     for h in hooks:
         h.remove()
+    # Move to CPU, normalize, and add damping
     for name in hessians:
-        hessians[name] /= num_batches
+        hessians[name] = hessians[name].cpu() / num_batches
         damp = 0.01 * torch.diag(hessians[name]).mean().clamp_min(1e-6)
         hessians[name] += damp * torch.eye(hessians[name].shape[0])
     calib_model.train()
@@ -1439,19 +1790,23 @@ def main() -> None:
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+    # Reserve time within training budget for GPTQ calibration (must fit in 600s total)
+    gptq_reserve_ms = 14000.0
+    train_budget_ms = (max_wallclock_ms - gptq_reserve_ms) if max_wallclock_ms else None
     def lr_mul(step: int, elapsed_ms: float) -> float:
         if args.warmdown_iters <= 0:
             return 1.0
-        if max_wallclock_ms is None:
+        if train_budget_ms is None:
             warmdown_start = max(args.iterations - args.warmdown_iters, 0)
             return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step < args.iterations else 1.0
         step_ms = elapsed_ms / max(step, 1)
         if step < 50:
             step_ms = min(step_ms, 150.0)  # protect against first-step compilation spike
         warmdown_ms = args.warmdown_iters * step_ms
-        remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
+        remaining_ms = max(train_budget_ms - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
-    if args.warmup_steps > 0:
+    skip_training = bool(int(os.environ.get("SKIP_TRAINING", "0")))
+    if args.warmup_steps > 0 and not skip_training:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
@@ -1487,6 +1842,8 @@ def main() -> None:
     t0 = time.perf_counter()
     step = 0
     while True:
+        if skip_training:
+            break
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
         if should_validate:
@@ -1588,137 +1945,147 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
-        reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
-        if distributed and max_wallclock_ms is not None:
+        reached_cap = train_budget_ms is not None and approx_training_time_ms >= train_budget_ms
+        if distributed and train_budget_ms is not None:
             reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
             dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
             reached_cap = bool(reached_cap_tensor.item())
         if stop_after_step is None and reached_cap:
             stop_after_step = step
-    log0(
-        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
-        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
-    )
-    # Apply EMA weights (better than SWA alone per PR#401)
-    log0("ema:applying EMA weights")
-    current_state = base_model.state_dict()
-    avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
-    base_model.load_state_dict(avg_state, strict=True)
-    torch.cuda.synchronize()
-    t_diag = time.perf_counter()
-    diag_val_loss, diag_val_bpb = eval_val(
-        args, compiled_model, rank, world_size, device, grad_accum_steps,
-        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-    )
-    torch.cuda.synchronize()
-    log0(
-        f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
-    )
-    full_state_dict = base_model.state_dict()
-    export_sd = {k: v for k, v in full_state_dict.items() if "mtp_heads" not in k}
-    excluded_mtp = sum(int(t.numel()) for k, t in full_state_dict.items() if "mtp_heads" in k)
-    if excluded_mtp > 0:
-        log0(f"export_excluding_mtp_params:{excluded_mtp}")
-    if master_process:
-        torch.save(export_sd, "final_model.pt")
-        model_bytes = os.path.getsize("final_model.pt")
+    if not skip_training:
+        log0(
+            f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+            f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+        )
+        # Apply EMA weights (better than SWA alone per PR#401)
+        log0("ema:applying EMA weights")
+        current_state = base_model.state_dict()
+        avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
+        base_model.load_state_dict(avg_state, strict=True)
+        torch.cuda.synchronize()
+        t_diag = time.perf_counter()
+        diag_val_loss, diag_val_bpb = eval_val(
+            args, compiled_model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
+        )
+        full_state_dict = base_model.state_dict()
+        export_sd = {k: v for k, v in full_state_dict.items() if "mtp_heads" not in k}
+        excluded_mtp = sum(int(t.numel()) for k, t in full_state_dict.items() if "mtp_heads" in k)
+        if excluded_mtp > 0:
+            log0(f"export_excluding_mtp_params:{excluded_mtp}")
+        if master_process:
+            torch.save(export_sd, "final_model.pt")
+            model_bytes = os.path.getsize("final_model.pt")
+            code_bytes = len(code.encode("utf-8"))
+            log0(f"Serialized model: {model_bytes} bytes")
+            log0(f"Code size: {code_bytes} bytes")
+        sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
+        # Unbank state dict for GPTQ and serialization
+        unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
+        # GPTQ calibration: build non-banked model for Hessian collection
+        log0("gptq:building calibration model...")
+        t_gptq = time.perf_counter()
+        calib_model = GPT(
+            vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
+            num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
+            tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
+            logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
+            bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
+            xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
+            ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+            use_banks=False,
+        ).to(device).bfloat16()
+        for m in calib_model.modules():
+            if isinstance(m, CastedLinear):
+                m.float()
+        restore_low_dim_params_to_fp32(calib_model)
+        calib_model.load_state_dict(
+            {k: v.to(device) for k, v in unbanked_sd.items() if k in calib_model.state_dict()},
+            strict=False,
+        )
+        log0("gptq:calibrating with 64 training batches...")
+        gptq_hessians = gptq_calibrate(calib_model, args.train_files, rank, world_size, device,
+                                        num_batches=64, batch_tokens=args.train_batch_tokens, seq_len=args.train_seq_len)
+        gptq_elapsed_s = time.perf_counter() - t_gptq
+        log0(f"gptq:calibrated {len(gptq_hessians)} layers in {gptq_elapsed_s:.1f}s")
+        total_compute_ms = training_time_ms + gptq_elapsed_s * 1000.0
+        log0(f"gptq:budget_check train:{training_time_ms:.0f}ms + gptq:{gptq_elapsed_s*1000:.0f}ms = {total_compute_ms:.0f}ms (budget:{max_wallclock_ms:.0f}ms)")
+        del calib_model
+        torch.cuda.empty_cache()
+        quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, gptq_hessians)
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model: {model_bytes} bytes")
-        log0(f"Code size: {code_bytes} bytes")
-    sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
-    # Unbank state dict for GPTQ and serialization
-    unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
-    # GPTQ calibration: build non-banked model for Hessian collection
-    log0("gptq:building calibration model...")
-    t_gptq = time.perf_counter()
-    calib_model = GPT(
-        vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
-        num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
-        tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
-        logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
-        bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
-        xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
-        ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
-        use_banks=False,
-    ).to(device).bfloat16()
-    for m in calib_model.modules():
-        if isinstance(m, CastedLinear):
-            m.float()
-    restore_low_dim_params_to_fp32(calib_model)
-    calib_model.load_state_dict(
-        {k: v.to(device) for k, v in unbanked_sd.items() if k in calib_model.state_dict()},
-        strict=False,
-    )
-    log0("gptq:calibrating with 256 full training batches...")
-    gptq_hessians = gptq_calibrate(calib_model, args.train_files, rank, world_size, device,
-                                    num_batches=256, batch_tokens=args.train_batch_tokens, seq_len=args.train_seq_len)
-    log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
-    del calib_model
-    torch.cuda.empty_cache()
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, gptq_hessians)
-    code_bytes = len(code.encode("utf-8"))
-    target_mb = float(os.environ.get("TARGET_MB", "15.9"))
-    target_bytes = int(target_mb * 1024 * 1024)
-    # Selective ±1 pruning: zero least-impactful |q|=1 entries to fit target (PR #609)
-    ones_info = []  # (tensor_key, flat_idx, error=scale²)
-    for name, info in quant_meta.items():
-        if not (isinstance(info, dict) and info.get("type") == "int6"):
-            continue
-        qk, sk = name + ".q", name + ".scale"
-        if qk not in quant_result or sk not in quant_result:
-            continue
-        q, s = quant_result[qk], quant_result[sk]
-        if s.ndim > 0:
-            ones_mask = (q.abs() == 1)
-            if ones_mask.any():
-                row_idx = torch.arange(q.shape[0]).unsqueeze(1).expand_as(q)[ones_mask]
-                flat_idx = torch.arange(q.numel()).reshape(q.shape)[ones_mask]
-                errors = s.float()[row_idx].pow(2)
-                for fi, err in zip(flat_idx.tolist(), errors.tolist()):
-                    ones_info.append((qk, fi, err))
-    ones_info.sort(key=lambda x: x[2])  # sort by error ascending (prune least impactful first)
-    def _compress_artifact(qr):
-        buf = io.BytesIO()
-        torch.save({"w": qr, "m": quant_meta}, buf)
-        raw = buf.getvalue()
-        blob = lzma.compress(raw, preset=6)
-        return len(blob) + code_bytes, blob
-    def _try_prune(n):
-        tmp = {k: v.clone() for k, v in quant_result.items()}
-        for i in range(min(n, len(ones_info))):
-            tmp[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
-        return _compress_artifact(tmp)
-    unpruned_size, quant_blob = _compress_artifact(quant_result)
-    log0(f"selective_prune: {len(ones_info)} ±1 candidates, unpruned={unpruned_size/(1024*1024):.2f}MB target={target_mb}MB")
-    if unpruned_size > target_bytes and ones_info:
-        full_size, _ = _try_prune(len(ones_info))
-        log0(f"selective_prune: full ±1 prune={full_size/(1024*1024):.2f}MB")
-        if full_size > target_bytes:
-            log0("selective_prune: even full prune not enough, applying all")
-            _, quant_blob = _try_prune(len(ones_info))
-            for i in range(len(ones_info)):
-                quant_result[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
-        else:
-            lo, hi = 0, len(ones_info)
-            while lo < hi:
-                mid = (lo + hi) // 2
-                sz, _ = _try_prune(mid)
-                if sz <= target_bytes:
-                    hi = mid
-                else:
-                    lo = mid + 1
-            log0(f"selective_prune: pruning {lo}/{len(ones_info)} ±1 values ({100*lo/len(ones_info):.1f}%) to fit {target_mb}MB")
-            _, quant_blob = _try_prune(lo)
-            for i in range(lo):
-                quant_result[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
-    if master_process:
-        with open("final_model.int6.ptz", "wb") as f:
-            f.write(quant_blob)
-        quant_file_bytes = len(quant_blob)
-        log0(f"Serialized model int6+lzma: {quant_file_bytes} bytes")
-        log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        target_mb = float(os.environ.get("TARGET_MB", "15.9"))
+        target_bytes = int(target_mb * 1024 * 1024)
+        # Selective ±1 pruning: zero least-impactful |q|=1 entries to fit target (PR #609)
+        ones_info = []  # (tensor_key, flat_idx, error=scale²)
+        for name, info in quant_meta.items():
+            if not (isinstance(info, dict) and info.get("type") == "int6"):
+                continue
+            qk, sk = name + ".q", name + ".scale"
+            if qk not in quant_result or sk not in quant_result:
+                continue
+            q, s = quant_result[qk], quant_result[sk]
+            if s.ndim > 0:
+                ones_mask = (q.abs() == 1)
+                if ones_mask.any():
+                    row_idx = torch.arange(q.shape[0]).unsqueeze(1).expand_as(q)[ones_mask]
+                    flat_idx = torch.arange(q.numel()).reshape(q.shape)[ones_mask]
+                    errors = s.float()[row_idx].pow(2)
+                    for fi, err in zip(flat_idx.tolist(), errors.tolist()):
+                        ones_info.append((qk, fi, err))
+        ones_info.sort(key=lambda x: x[2])  # sort by error ascending (prune least impactful first)
+        def _compress_artifact(qr):
+            buf = io.BytesIO()
+            torch.save({"w": qr, "m": quant_meta}, buf)
+            raw = buf.getvalue()
+            blob = lzma.compress(raw, preset=6)
+            return len(blob) + code_bytes, blob
+        def _try_prune(n):
+            tmp = {k: v.clone() for k, v in quant_result.items()}
+            for i in range(min(n, len(ones_info))):
+                tmp[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
+            return _compress_artifact(tmp)
+        unpruned_size, quant_blob = _compress_artifact(quant_result)
+        log0(f"selective_prune: {len(ones_info)} ±1 candidates, unpruned={unpruned_size/(1024*1024):.2f}MB target={target_mb}MB")
+        if unpruned_size > target_bytes and ones_info:
+            full_size, _ = _try_prune(len(ones_info))
+            log0(f"selective_prune: full ±1 prune={full_size/(1024*1024):.2f}MB")
+            if full_size > target_bytes:
+                log0("selective_prune: even full prune not enough, applying all")
+                _, quant_blob = _try_prune(len(ones_info))
+                for i in range(len(ones_info)):
+                    quant_result[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
+            else:
+                lo, hi = 0, len(ones_info)
+                while lo < hi:
+                    mid = (lo + hi) // 2
+                    sz, _ = _try_prune(mid)
+                    if sz <= target_bytes:
+                        hi = mid
+                    else:
+                        lo = mid + 1
+                log0(f"selective_prune: pruning {lo}/{len(ones_info)} ±1 values ({100*lo/len(ones_info):.1f}%) to fit {target_mb}MB")
+                _, quant_blob = _try_prune(lo)
+                for i in range(lo):
+                    quant_result[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
+        if master_process:
+            with open("final_model.int6.ptz", "wb") as f:
+                f.write(quant_blob)
+            quant_file_bytes = len(quant_blob)
+            log0(f"Serialized model int6+lzma: {quant_file_bytes} bytes")
+            log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
+            log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+    else:
+        # Eval-only: create template state dict for dequantization (shapes/dtypes match)
+        log0("SKIP_TRAINING: creating template state dict for eval")
+        _fresh_sd = base_model.state_dict()
+        _export_sd = {k: v for k, v in _fresh_sd.items() if "mtp_heads" not in k}
+        unbanked_sd = _unbank_state_dict({k: v.detach().cpu() for k, v in _export_sd.items()}, args.num_layers)
     if distributed:
         dist.barrier()
     with open("final_model.int6.ptz", "rb") as f:
@@ -1746,37 +2113,119 @@ def main() -> None:
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
     compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
-    torch.cuda.synchronize()
-    t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args, compiled_eval, rank, world_size, device, grad_accum_steps,
-        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        eval_seq_len=effective_eval_seq_len,
-    )
-    torch.cuda.synchronize()
-    log0(
-        f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
-    )
-    log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
     sw_seq_len = effective_eval_seq_len
-    if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
+    run_diagnostics = not args.ngram_cache or args.eval_diagnostics
+    if run_diagnostics:
         torch.cuda.synchronize()
-        t_slide = time.perf_counter()
-        sw_val_loss, sw_val_bpb = eval_val_sliding(
-            args, eval_model, rank, world_size, device,
+        t_qeval = time.perf_counter()
+        q_val_loss, q_val_bpb = eval_val(
+            args, compiled_eval, rank, world_size, device, grad_accum_steps,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=args.eval_stride,
-            eval_seq_len=sw_seq_len,
+            eval_seq_len=effective_eval_seq_len,
         )
         torch.cuda.synchronize()
         log0(
-            f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
-            f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
+            f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
         )
-        log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-        log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-    if args.eval_stride != 64 and 64 < sw_seq_len:
+        log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
+        if run_diagnostics:
+            torch.cuda.synchronize()
+            t_slide = time.perf_counter()
+            sw_val_loss, sw_val_bpb = eval_val_sliding(
+                args, eval_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                stride=args.eval_stride,
+                eval_seq_len=sw_seq_len,
+                use_ngram=False,
+            )
+            torch.cuda.synchronize()
+            log0(
+                f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
+                f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
+            )
+            log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+            if not args.ngram_cache:
+                log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        if args.ngram_cache:
+            # Save current n-gram args
+            saved_ng = {k: getattr(args, k) for k in [
+                'ngram_cache', 'ngram_order', 'ngram_min_order', 'ngram_min_count',
+                'ngram_buckets', 'ngram_alpha', 'ngram_entropy', 'ngram_ent_base',
+                'ngram_ent_range', 'ngram_ent_scale', 'ngram_ent_thresh',
+                'ngram_order_adaptive', 'ngram_order_ent_slope', 'ngram_order_alpha_mult',
+                'ngram_order_min_count', 'ngram_chunk_tokens',
+            ]}
+            # Pin shared n-gram settings
+            args.ngram_cache = True
+            args.ngram_order = 7
+            args.ngram_min_order = 2
+            args.ngram_min_count = 2
+            args.ngram_buckets = 4194304
+            args.ngram_alpha = 0.40
+            args.ngram_ent_base = 0.05
+            args.ngram_ent_range = 0.55
+            args.ngram_ent_scale = 2.0
+
+            # Run 1: Multi-order backoff with FIXED alpha (safest legal variant)
+            if run_diagnostics:
+                args.ngram_entropy = False
+                args.ngram_order_adaptive = False
+                args.ngram_order_alpha_mult = ""
+                args.ngram_order_min_count = ""
+                torch.cuda.synchronize()
+                t_ng_fixed = time.perf_counter()
+                ng_fixed_loss, ng_fixed_bpb = eval_val_sliding(
+                    args, eval_model, rank, world_size, device,
+                    val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                    stride=args.eval_stride,
+                    eval_seq_len=sw_seq_len,
+                    use_ngram=True,
+                )
+                torch.cuda.synchronize()
+                log0(
+                    f"final_ngram_fixed_alpha val_loss:{ng_fixed_loss:.4f} val_bpb:{ng_fixed_bpb:.4f} "
+                    f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_ng_fixed):.0f}ms"
+                )
+                log0(f"final_ngram_fixed_alpha_exact val_loss:{ng_fixed_loss:.8f} val_bpb:{ng_fixed_bpb:.8f}")
+
+            # Run 2: Chunk-synchronized entropy-adaptive 12-gram (experimental)
+            args.ngram_order = 12
+            args.ngram_min_order = 2
+            args.ngram_entropy = True
+            args.ngram_ent_thresh = 3.0
+            args.ngram_order_adaptive = True
+            args.ngram_order_ent_slope = 0.25
+            args.ngram_ent_base = 0.05
+            args.ngram_ent_range = 0.55
+            args.ngram_ent_scale = 2.0
+            args.ngram_buckets = 4194304
+            args.ngram_order_alpha_mult = "0.30,0.30,0.97,2.00,2.00,2.00,1.50,1.50,1.50,1.50,1.50"
+            args.ngram_order_min_count = "2,2,2,2,2,2,1,1,1,1,1"
+            args.ngram_chunk_tokens = 16384
+            torch.cuda.synchronize()
+            t_ng_ent = time.perf_counter()
+            ng_ent_loss, ng_ent_bpb = eval_val_sliding_chunked_ngram(
+                args, eval_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                stride=args.eval_stride,
+                eval_seq_len=sw_seq_len,
+            )
+            torch.cuda.synchronize()
+            log0(
+                f"final_ngram_entropy_order_adaptive_order_scale_12gram_hiorder_mc1_chunksync_c16384 val_loss:{ng_ent_loss:.4f} val_bpb:{ng_ent_bpb:.4f} "
+                f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_ng_ent):.0f}ms"
+            )
+            log0(f"final_ngram_entropy_order_adaptive_order_scale_12gram_hiorder_mc1_chunksync_c16384_exact val_loss:{ng_ent_loss:.8f} val_bpb:{ng_ent_bpb:.8f}")
+
+            # Restore saved n-gram args
+            for k, v in saved_ng.items():
+                setattr(args, k, v)
+
+            # Point canonical score at order-adaptive result; fixed-alpha is the invariant check
+            log0(f"final_int8_zlib_roundtrip_exact val_loss:{ng_ent_loss:.8f} val_bpb:{ng_ent_bpb:.8f}")
+    if run_diagnostics and args.eval_stride != 64 and 64 < sw_seq_len:
         torch.cuda.synchronize()
         t_slide64 = time.perf_counter()
         sw64_val_loss, sw64_val_bpb = eval_val_sliding(
@@ -1791,7 +2240,6 @@ def main() -> None:
             f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
         )
         log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-        log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":

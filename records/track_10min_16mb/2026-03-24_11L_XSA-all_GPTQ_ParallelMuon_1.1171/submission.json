@@ -1,19 +1,19 @@
 {
   "author": "Raahil Shah",
   "github_id": "raahilshah",
-  "name": "11L XSA-all + Full GPTQ + Parallel Muon + LZMA + Selective Pruning",
-  "blurb": "XSA on all 11 layers, Hessian-aware GPTQ with amax-aligned QAT, Parallel Muon optimizer with parameter banking, LZMA compression, selective ±1 magnitude pruning. LeakyReLU(0.5)² activation, EMA(0.997), Tight SWA, VE128, Partial RoPE 16/64, LN Scale, BigramHash(2048), U-Net skips.",
-  "date": "2026-03-24T00:00:00Z",
-  "val_loss": 1.88609770,
-  "val_bpb": 1.11705625,
+  "name": "11L XSA-all + Full GPTQ (budget-legal) + Parallel Muon + LZMA + Selective Pruning",
+  "blurb": "XSA on all 11 layers, Hessian-aware GPTQ with 14s budget reservation (train 586s + GPTQ 10s = 596s total), amax-aligned QAT, Parallel Muon optimizer with parameter banking, LZMA compression, selective magnitude pruning. LeakyReLU(0.5)² activation, EMA(0.997), Tight SWA, VE128, Partial RoPE 16/64, LN Scale, BigramHash(2048), U-Net skips.",
+  "date": "2026-03-26T00:00:00Z",
+  "val_loss": 1.88736798,
+  "val_bpb": 1.11780859,
   "pre_quant_val_loss": 1.9210,
-  "pre_quant_val_bpb": 1.1386,
-  "bytes_total": 15921954,
+  "pre_quant_val_bpb": 1.1377,
+  "bytes_total": 15949353,
   "seeds": {
-    "1337": {"val_bpb": 1.11643730, "val_loss": 1.88505263, "bytes_total": 15920050},
-    "42": {"val_bpb": 1.11708034, "val_loss": 1.88613838, "bytes_total": 15921954},
-    "7": {"val_bpb": 1.11765111, "val_loss": 1.88710208, "bytes_total": 15914654}
+    "1337": {"val_bpb": 1.11765772, "val_loss": 1.88711325, "bytes_total": 15929433},
+    "42": {"val_bpb": 1.11789104, "val_loss": 1.88750721, "bytes_total": 15949353},
+    "7": {"val_bpb": 1.11787700, "val_loss": 1.88748353, "bytes_total": 15946145}
   },
-  "mean_val_bpb": 1.11705625,
-  "std_val_bpb": 0.00060726
+  "mean_val_bpb": 1.11780859,
+  "std_val_bpb": 0.00010683
 }
