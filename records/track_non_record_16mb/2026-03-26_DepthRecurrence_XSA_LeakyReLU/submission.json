@@ -1,0 +1,16 @@
+{
+  "author": "Ivan Verbovoy",
+  "github_id": "iverbovoy",
+  "name": "Depth Recurrence + XSA + LeakyReLU² + GPTQ-lite + zstd-22",
+  "blurb": "3 unique blocks x 4 repeats (12 effective layers), dim=832, with Cross-Repeat Skip, XSA on last 4 layers, LeakyReLU(0.5)², GPTQ-lite quantization, SWA, Muon WD=0.04, zstd-22 compression. 4300 steps in 600s on 8xH100.",
+  "date": "2026-03-26T00:00:00Z",
+  "val_loss": 2.03711228,
+  "val_bpb": 1.20649213,
+  "roundtrip_val_loss": 2.09336895,
+  "roundtrip_val_bpb": 1.23981101,
+  "step_stop": 4300,
+  "wallclock_seconds": 600.151,
+  "bytes_total": 15873439,
+  "bytes_model_int8_zlib": 15810364,
+  "bytes_code": 63075
+}
