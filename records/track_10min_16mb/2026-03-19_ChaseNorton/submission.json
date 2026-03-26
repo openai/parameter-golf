@@ -1,0 +1,11 @@
+{
+  "author": "Chase Norton",
+  "github_id": "ChaseWNorton",
+  "name": "MLP3x + Int8 Tok Emb + Grouped LZMA + Sliding Window",
+  "blurb": "9L 512D GQA transformer with 3x MLP, grouped low-bit serialization, int8 token embedding, lzma compression, and sliding-window eval at seq_len=2048 stride=256.",
+  "date": "2026-03-19T00:00:00Z",
+  "val_loss": 1.96250243,
+  "val_bpb": 1.16230441,
+  "bytes_total": 15910904,
+  "bytes_code": 64924
+}
