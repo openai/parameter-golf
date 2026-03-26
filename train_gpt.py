@@ -1843,6 +1843,18 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
+    # --- ISOMORPHIC PERMUTATION (Lossless Compression) ---
+    for i in range(args.num_layers):
+        up = export_sd["mlp_up_bank"][i]  # [mlp_dim, model_dim]
+        down = export_sd["mlp_down_bank"][i]  # [model_dim, mlp_dim]
+
+        # Sort hidden neurons by their L1 norm magnitude
+        sort_idx = torch.argsort(up.abs().sum(dim=1))
+
+        # Apply identical permutation to both matrices
+        export_sd["mlp_up_bank"][i] = up[sort_idx, :]
+        export_sd["mlp_down_bank"][i] = down[:, sort_idx]
+    # -----------------------------------------------------
     # Unbank 3D tensors into individual 2D tensors for quantization
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
