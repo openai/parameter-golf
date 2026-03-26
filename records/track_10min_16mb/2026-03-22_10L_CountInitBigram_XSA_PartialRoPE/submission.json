@@ -1,0 +1,12 @@
+{
+  "name": "10L CountInitBigram + XSA + PartialRoPE + LN Scale",
+  "val_loss": 1.94544622,
+  "val_bpb": 1.15220588,
+  "bytes_total": 15384232,
+  "bytes_model_int6_zstd": 15322709,
+  "bytes_code": 61523,
+  "blurb": "10 layers with count-initialized exact bigram logit head (corpus log-prob residuals, int4 nibble-packed), XSA on last 4 layers, Partial RoPE (16/64 dims), LN Scale (1/sqrt(layer+1)), higher LR (0.025). SWA over 22 checkpoints, sliding window eval stride=64.",
+  "author": "Sri Harsha Gouru",
+  "github_id": "harsha-gouru",
+  "date": "2026-03-22"
+}
