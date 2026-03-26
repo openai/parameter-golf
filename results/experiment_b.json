@@ -1,0 +1,127 @@
+{
+  "experiment": "experiment_b_recurrence",
+  "status": "PASS",
+  "reason": "recurrent is stable and within 0.05 bpb of baseline; gates remained within [0.5, 2.0]",
+  "pass_criteria": {
+    "bpb_tolerance": 0.05,
+    "gate_min": 0.5,
+    "gate_max": 2.0
+  },
+  "config": {
+    "data_path": "./data/datasets/fineweb10B_sp1024/",
+    "train_files": "./data/datasets/fineweb10B_sp1024/fineweb_train_*.bin",
+    "val_files": "./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin",
+    "tokenizer_path": "./data/tokenizers/fineweb_1024_bpe.model",
+    "results_path": "./results/experiment_b.json",
+    "vocab_size": 1024,
+    "model_dim": 128,
+    "num_unique_layers": 3,
+    "num_loops": 2,
+    "total_depth": 6,
+    "num_heads": 4,
+    "num_kv_heads": 2,
+    "mlp_mult": 3,
+    "logit_softcap": 30.0,
+    "rope_base": 10000.0,
+    "qk_gain_init": 1.5,
+    "steps": 300,
+    "train_batch_tokens": 4096,
+    "seq_len": 512,
+    "val_batch_tokens": 65536,
+    "val_eval_tokens": 262144,
+    "lr": 0.0003,
+    "weight_decay": 0.01,
+    "beta1": 0.9,
+    "beta2": 0.95,
+    "grad_clip_norm": 1.0,
+    "seed": 1337
+  },
+  "baseline": {
+    "name": "baseline",
+    "steps_target": 300,
+    "steps_completed": 300,
+    "diverged": false,
+    "diverged_step": null,
+    "last_train_loss": 5.2988972663879395,
+    "val_loss_step_300": 5.224204897880554,
+    "val_bpb_step_300": 3.093644359123545,
+    "final_loop_gates_step_300": [],
+    "loop_gate_history": [],
+    "elapsed_seconds": 15.876811399999951
+  },
+  "recurrent": {
+    "name": "recurrent",
+    "steps_target": 300,
+    "steps_completed": 300,
+    "diverged": false,
+    "diverged_step": null,
+    "last_train_loss": 5.300924301147461,
+    "val_loss_step_300": 5.230985641479492,
+    "val_bpb_step_300": 3.097659747033393,
+    "final_loop_gates_step_300": [
+      1.0315150022506714,
+      0.9999418258666992
+    ],
+    "loop_gate_history": [
+      {
+        "step": 50,
+        "gates": [
+          1.0072972774505615,
+          1.0076067447662354
+        ]
+      },
+      {
+        "step": 100,
+        "gates": [
+          1.0160917043685913,
+          0.9990841746330261
+        ]
+      },
+      {
+        "step": 150,
+        "gates": [
+          1.0229506492614746,
+          1.0007537603378296
+        ]
+      },
+      {
+        "step": 200,
+        "gates": [
+          1.025921106338501,
+          0.9991957545280457
+        ]
+      },
+      {
+        "step": 250,
+        "gates": [
+          1.0288307666778564,
+          0.9987888932228088
+        ]
+      },
+      {
+        "step": 300,
+        "gates": [
+          1.0315150022506714,
+          0.9999418258666992
+        ]
+      },
+      {
+        "step": 300,
+        "gates": [
+          1.0315150022506714,
+          0.9999418258666992
+        ]
+      }
+    ],
+    "elapsed_seconds": 16.264727799999946
+  },
+  "summary": {
+    "baseline_val_bpb_step_300": 3.093644359123545,
+    "recurrent_val_bpb_step_300": 3.097659747033393,
+    "loop_gates_step_300": [
+      1.0315150022506714,
+      0.9999418258666992
+    ],
+    "recurrent_diverged": false
+  }
+}

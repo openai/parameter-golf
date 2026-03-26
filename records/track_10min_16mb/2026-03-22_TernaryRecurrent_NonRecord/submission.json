@@ -1,0 +1,12 @@
+{
+  "name": "TernaryRecurrentGPT",
+  "author": "Parswanadh",
+  "github_id": "Parswanadh",
+  "val_bpb": 1.5348,
+  "hardware": "1xL4",
+  "steps": 20000,
+  "bytes_total": 12372468,
+  "date": "2026-03-22",
+  "record": false,
+  "notes": "Reduced batch local validation. 8xH100 run pending."
+}

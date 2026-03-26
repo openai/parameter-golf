@@ -1,0 +1,36 @@
+{
+  "status": "PASS",
+  "pass": true,
+  "model_shape": {
+    "model_dim": 128,
+    "num_layers": 2,
+    "num_heads": 4,
+    "num_kv_heads": 2,
+    "mlp_mult": 3,
+    "vocab_size": 1024
+  },
+  "schedule": {
+    "normal_steps": [
+      0,
+      250
+    ],
+    "ternary_steps": [
+      251,
+      300
+    ],
+    "ternary_enable_step": 251,
+    "lr_reduction_factor_on_enable": 0.5,
+    "ternary_layers_enabled": 4
+  },
+  "metrics": {
+    "first_train_loss": 6.92994499206543,
+    "final_train_loss": 5.340732574462891,
+    "loss_went_down_overall": true,
+    "val_bpb_before_step_250": 3.165524643932953,
+    "val_bpb_after_step_300": 3.155639933625724,
+    "ternary_bpb_delta": -0.009884710307229039,
+    "ternary_bpb_abs_delta": 0.009884710307229039,
+    "diverged": false
+  },
+  "fail_reasons": []
+}

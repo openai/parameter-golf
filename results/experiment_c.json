@@ -1,0 +1,34 @@
+{
+  "config": {
+    "vocab_size": 1024,
+    "model_dim": 128,
+    "num_layers": 2,
+    "num_heads": 4,
+    "mlp_mult": 4,
+    "rope_base": 10000.0
+  },
+  "vocab_size": 1024,
+  "seq_len": 512,
+  "stride": 64,
+  "cache_max_tokens": 2048,
+  "train_steps": 500,
+  "device": "cpu",
+  "checkpoint_path": "D:\\Projects\\golf\\parameter-golf\\results\\baseline_checkpoint.pt",
+  "docs_evaluated": 50,
+  "eval_a": {
+    "name": "standard_sliding_window_no_cache",
+    "val_bpb": 4.008870341376398,
+    "windows": 656,
+    "scored_tokens": 41984
+  },
+  "eval_b": {
+    "name": "neural_cache_sliding_window",
+    "val_bpb": 4.008833172416121,
+    "windows": 656,
+    "scored_tokens": 41984
+  },
+  "delta_bpb": -3.716896027761152e-05,
+  "pass": true,
+  "status": "PASS",
+  "possible_reasons": []
+}
