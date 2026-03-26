@@ -1,0 +1,11 @@
+{
+  "author": "Takhir Adilzhanov",
+  "github_id": "takhir-iota",
+  "name": "Seq4096 Sliding Window FP16 Tok Coarsen",
+  "blurb": "A seq_len=4096 9x512 GQA run with tuned Muon hyperparameters, fp16 tok_emb export, and selective block coarsening, scored with stride-64 sliding-window evaluation under the separate evaluation budget.",
+  "date": "2026-03-19T10:33:49Z",
+  "val_loss": 1.98690144,
+  "val_bpb": 1.17675682,
+  "bytes_total": 15943260,
+  "bytes_code": 60601
+}
