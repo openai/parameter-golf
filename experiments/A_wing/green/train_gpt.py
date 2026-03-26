@@ -99,17 +99,6 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
-    # F1 capacity add-on: low-rank correction head (active at inference).
-    # Approx extra params ~= rank * (model_dim + vocab_size).
-    f1_corr_rank = int(os.environ.get("F1_CORR_RANK", 0))
-    f1_corr_scale_init = float(os.environ.get("F1_CORR_SCALE_INIT", 0.10))
-    # Post-train self-distillation: EMA teacher -> student.
-    distill_enabled = bool(int(os.environ.get("DISTILL_ENABLED", "0")))
-    distill_steps = int(os.environ.get("DISTILL_STEPS", 24))
-    distill_lr_factor = float(os.environ.get("DISTILL_LR_FACTOR", 0.02))
-    distill_temperature = float(os.environ.get("DISTILL_TEMPERATURE", 1.5))
-    distill_alpha = float(os.environ.get("DISTILL_ALPHA", 0.60))
-    distill_kl_clip = float(os.environ.get("DISTILL_KL_CLIP", 10.0))
     # Optional legal score-first hashed n-gram interpolation at eval time.
     # Multi-order backoff (2..max_order) with entropy-adaptive alpha.
     # Alpha depends only on model entropy (no target/label access).
@@ -126,7 +115,6 @@ class Hyperparameters:
     ngram_eval_max_seconds = float(os.environ.get("NGRAM_EVAL_MAX_SECONDS", 0.0))
     ngram_entropy_shift = bool(int(os.environ.get("NGRAM_ENTROPY_SHIFT", "0")))  # per-order center shift
     ngram_order_mults_str = os.environ.get("NGRAM_ORDER_MULTS", "")  # fixed per-order multipliers (comma-sep)
-    cubric_cadence = int(os.environ.get("CUBRIC_CADENCE", 0))
     compile_enabled = bool(int(os.environ.get("COMPILE_ENABLED", "1")))
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
 def maybe_torch_compile(obj, args: Hyperparameters):
@@ -731,8 +719,6 @@ class GPT(nn.Module):
         ve_layers: str = "9,10",
         mlp_act: str = "relu_sq",
         mlp_leaky_slope: float = 0.5,
-        f1_corr_rank: int = 0,
-        f1_corr_scale_init: float = 0.10,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -793,17 +779,6 @@ class GPT(nn.Module):
         )
         for head in self.mtp_heads:
             head._zero_init = True
-        # Low-rank correction path for extra capacity under size budget.
-        self.f1_corr_rank = f1_corr_rank
-        if f1_corr_rank > 0:
-            self.f1_corr_in = CastedLinear(model_dim, f1_corr_rank, bias=False)
-            self.f1_corr_out = CastedLinear(f1_corr_rank, vocab_size, bias=False)
-            self.f1_corr_out._zero_init = True
-            self.f1_corr_scale = nn.Parameter(torch.tensor(f1_corr_scale_init, dtype=torch.float32))
-        else:
-            self.f1_corr_in = None
-            self.f1_corr_out = None
-            self.f1_corr_scale = None
         if xsa_last_n > 0:
             for i in range(max(0, num_layers - xsa_last_n), num_layers):
                 self.blocks[i].attn.use_xsa = True
@@ -858,10 +833,6 @@ class GPT(nn.Module):
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x_flat)
-        if self.f1_corr_in is not None and self.f1_corr_out is not None and self.f1_corr_scale is not None:
-            corr_hidden = F.silu(self.f1_corr_in(x_flat))
-            corr_proj = self.f1_corr_out(corr_hidden)
-            logits_proj = logits_proj + self.f1_corr_scale.to(dtype=logits_proj.dtype) * corr_proj
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         if hasattr(self, '_ngram_tracker') and self._ngram_tracker is not None and self.training:
             per_tok_loss = F.cross_entropy(logits.float(), targets, reduction="none")
@@ -911,10 +882,6 @@ class GPT(nn.Module):
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
             logits_proj = self.lm_head(x)
-        if self.f1_corr_in is not None and self.f1_corr_out is not None and self.f1_corr_scale is not None:
-            corr_hidden = F.silu(self.f1_corr_in(x))
-            corr_proj = self.f1_corr_out(corr_hidden)
-            logits_proj = logits_proj + self.f1_corr_scale.to(dtype=logits_proj.dtype) * corr_proj
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 def eval_val_sliding(
     args: Hyperparameters,
@@ -1023,7 +990,7 @@ def eval_val_sliding_hashed_ngram(
     batch_seqs: int = 128,
     eval_seq_len: int | None = None,
 ) -> tuple[float, float, float]:
-    """Score-first sliding eval with chunk-based SHARED n-gram tables + cubric.
+    """Score-first sliding eval with chunk-based SHARED n-gram tables.
 
     Key design: all ranks share identical n-gram tables via bulk chunk updates.
     Each chunk's windows are distributed across ranks for scoring, then ALL ranks
@@ -1083,21 +1050,6 @@ def eval_val_sliding_hashed_ngram(
     loss_sum = 0.0
     token_count = 0.0
     byte_count = 0.0
-
-    # Cubric 3D: per (order × entropy_bin × count_bin) adaptive alpha scaling
-    _NUM_ENT_BINS = 3  # low / mid / high entropy
-    _NUM_CNT_BINS = 3  # low / mid / high count
-    _ENT_EDGES = np.array([ent_center - 1.0, ent_center + 1.0])  # [2.0, 4.0] for center=3.0
-    _CNT_EDGES = np.array([5.0, 50.0])  # low=<5, mid=5-50, high=>50 context count
-    _TOTAL_CELLS = _NUM_ENT_BINS * _NUM_CNT_BINS  # 9 cells per order = 54 total
-    _cc = getattr(args, 'cubric_cadence', 0); _con = _cc > 0; _cfired = 0
-    if _con:
-        # Warm-start: proven converged values from 4+ runs (orders 2-7)
-        # All 9 cells per order get the same warm-start, 3D cubric refines from there
-        _WARM = {2: 0.45, 3: 0.30, 4: 0.45, 5: 1.88, 6: 2.00, 7: 2.00, 8: 2.00, 9: 2.00}
-        _c_alpha_mult = {n: [_WARM.get(n, 1.0)] * _TOTAL_CELLS for n in range(min_order, max_order + 1)}
-        _c_hits = {n: [0] * _TOTAL_CELLS for n in range(min_order, max_order + 1)}
-        _c_beats = {n: [0] * _TOTAL_CELLS for n in range(min_order, max_order + 1)}
 
     base_model.eval()
     compiled_logits = maybe_torch_compile(base_model.forward_logits, args)
@@ -1164,11 +1116,8 @@ def eval_val_sliding_hashed_ngram(
                         entropy = -(probs_a * log_probs).sum(dim=-1).cpu().numpy()
                         sig = 1.0 / (1.0 + np.exp(-ent_scale * (entropy - ent_center)))
                         per_token_alpha = alpha_min + (alpha_max - alpha_min) * sig
-                        # Bin entropy for 2D cubric: 0=low, 1=mid, 2=high
-                        _ent_bins = np.digitize(entropy, _ENT_EDGES).astype(np.int32)
                     else:
                         per_token_alpha = np.full(seg_len, alpha)
-                        _ent_bins = np.ones(seg_len, dtype=np.int32)  # all mid
 
                     global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
                     p_ng = np.zeros(seg_len, dtype=np.float64)
@@ -1202,38 +1151,19 @@ def eval_val_sliding_hashed_ngram(
                             _ng_ord[hit_idx] = n
                             _ng_ctx_count[hit_idx] = ctx_counts[has_data]
 
-                    # Mix where n-gram matched (PR #809 style or cubric 3D fallback)
+                    # Mix where n-gram matched
                     if ng_matched.any():
                         m_idx = np.nonzero(ng_matched)[0]
-                        # Per-order entropy center shift (PR #809)
                         if adaptive and args.ngram_entropy_shift:
                             matched_ords = _ng_ord[m_idx].astype(np.float64)
                             shifted_centers = ent_center - 0.25 * (matched_ords - float(min_order))
                             shifted_sig = 1.0 / (1.0 + np.exp(-ent_scale * (entropy[m_idx] - shifted_centers)))
                             per_token_alpha[m_idx] = alpha_min + (alpha_max - alpha_min) * shifted_sig
                         if _fixed_order_mults is not None:
-                            # PR #809 fixed order multipliers (replaces cubric)
                             a = per_token_alpha[m_idx].copy()
                             mult_indices = _ng_ord[m_idx] - min_order
                             mult_indices = np.clip(mult_indices, 0, len(_fixed_order_mults) - 1)
                             a *= _fixed_order_mults[mult_indices]
-                            np.clip(a, 0.0, 0.95, out=a)
-                        elif _con:
-                            a = per_token_alpha[m_idx].copy()
-                            m_ent_bins = _ent_bins[m_idx]
-                            m_cnt_bins = np.digitize(_ng_ctx_count[m_idx], _CNT_EDGES).astype(np.int32)
-                            for n in range(min_order, max_order + 1):
-                                om = _ng_ord[m_idx] == n
-                                if not om.any():
-                                    continue
-                                for eb in range(_NUM_ENT_BINS):
-                                    for cb in range(_NUM_CNT_BINS):
-                                        cell = eb * _NUM_CNT_BINS + cb
-                                        mask_ecb = om & (m_ent_bins == eb) & (m_cnt_bins == cb)
-                                        if mask_ecb.any():
-                                            _c_hits[n][cell] += int(mask_ecb.sum())
-                                            _c_beats[n][cell] += int((p_ng[m_idx[mask_ecb]] > seg_model_p[m_idx[mask_ecb]]).sum())
-                                            a[mask_ecb] *= _c_alpha_mult[n][cell]
                             np.clip(a, 0.0, 0.95, out=a)
                         else:
                             a = per_token_alpha[m_idx]
@@ -1254,35 +1184,6 @@ def eval_val_sliding_hashed_ngram(
             _ngram_bulk_update(val_np, chunk_start, chunk_end + 1,
                                ctx_tables, full_tables, min_order, max_order,
                                primes, mask)
-
-            # Cubric 2D c-step: adapt per (order × entropy_bin)
-            if _con:
-                # Collect all (order, ent_bin, cnt_bin) cells with enough data
-                all_rates = []
-                for n in range(min_order, max_order + 1):
-                    for cell in range(_TOTAL_CELLS):
-                        if _c_hits[n][cell] >= 8:
-                            all_rates.append(_c_beats[n][cell] / _c_hits[n][cell])
-                if len(all_rates) >= 4:
-                    avg_rate = sum(all_rates) / len(all_rates)
-                    for n in range(min_order, max_order + 1):
-                        for cell in range(_TOTAL_CELLS):
-                            if _c_hits[n][cell] >= 8:
-                                rate = _c_beats[n][cell] / _c_hits[n][cell]
-                                if rate > avg_rate + 0.05:
-                                    _c_alpha_mult[n][cell] = min(_c_alpha_mult[n][cell] * 1.03, 2.0)
-                                elif rate < avg_rate - 0.05:
-                                    _c_alpha_mult[n][cell] = max(_c_alpha_mult[n][cell] * 0.97, 0.3)
-                _cfired += 1
-                if rank == 0 and _cfired % 8 == 0:
-                    parts = []
-                    for n in range(min_order, max_order + 1):
-                        m = _c_alpha_mult[n]
-                        avg_m = sum(m) / len(m)
-                        parts.append(f"o{n}:avg={avg_m:.2f}")
-                    print(f"cubric3d:step={_cfired} {' '.join(parts)}", flush=True)
-                _c_hits = {n: [0] * _TOTAL_CELLS for n in range(min_order, max_order + 1)}
-                _c_beats = {n: [0] * _TOTAL_CELLS for n in range(min_order, max_order + 1)}
 
             # Progress
             if rank == 0 and (ci % 10 == 0 or ci == num_chunks - 1 or ci < 3):
@@ -1314,12 +1215,6 @@ def eval_val_sliding_hashed_ngram(
             flush=True,
         )
 
-    if _con and rank == 0:
-        print(f"cubric3d:final c_steps={_cfired} cells={_TOTAL_CELLS}x{max_order-min_order+1}={_TOTAL_CELLS*(max_order-min_order+1)}", flush=True)
-        for n in range(min_order, max_order + 1):
-            m = _c_alpha_mult[n]
-            row = " ".join(f"{m[cell]:.2f}" for cell in range(_TOTAL_CELLS))
-            print(f"  o{n}: [{row}]", flush=True)
     val_loss = loss_sum / max(token_count, 1.0)
     val_bpb = val_loss / math.log(2.0) * (token_count / max(byte_count, 1.0))
     base_model.train()
@@ -1327,8 +1222,6 @@ def eval_val_sliding_hashed_ngram(
 def _classify_param(name: str) -> str:
     if "tok_emb" in name or "lm_head" in name:
         return "embed"
-    if "f1_corr_in" in name or "f1_corr_out" in name:
-        return "aux"
     if ".mlp." in name:
         return "mlp"
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
@@ -1646,8 +1539,6 @@ def main() -> None:
         ve_layers=args.ve_layers,
         mlp_act=args.mlp_act,
         mlp_leaky_slope=args.mlp_leaky_slope,
-        f1_corr_rank=args.f1_corr_rank,
-        f1_corr_scale_init=args.f1_corr_scale_init,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1671,9 +1562,6 @@ def main() -> None:
     ]
     if base_model.mtp_num_heads > 0:
         matrix_params.extend([p for p in base_model.mtp_heads.parameters() if p.ndim == 2])
-    if base_model.f1_corr_in is not None and base_model.f1_corr_out is not None:
-        matrix_params.append(base_model.f1_corr_in.weight)
-        matrix_params.append(base_model.f1_corr_out.weight)
     scalar_params = [
         p
         for name, p in block_named_params
@@ -1684,8 +1572,6 @@ def main() -> None:
     scalar_params.append(base_model.smear.gate)
     if base_model.bigram is not None:
         scalar_params.append(base_model.bigram.scale)
-    if base_model.f1_corr_scale is not None:
-        scalar_params.append(base_model.f1_corr_scale)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     tok_params = [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}]
     if base_model.bigram is not None:
@@ -1732,21 +1618,7 @@ def main() -> None:
         )
         optimizers.insert(1, optimizer_head)
     n_params = sum(p.numel() for p in base_model.parameters())
-    f1_corr_params = 0
-    if base_model.f1_corr_in is not None and base_model.f1_corr_out is not None:
-        f1_corr_params = int(base_model.f1_corr_in.weight.numel() + base_model.f1_corr_out.weight.numel())
-    est_corr_int6_bytes = 0
-    if args.f1_corr_rank > 0:
-        # int8 payload stores int6 values + per-row fp16 scales.
-        est_corr_int6_bytes = (
-            args.f1_corr_rank * (args.model_dim + args.vocab_size)
-            + 2 * (args.f1_corr_rank + args.vocab_size)
-        )
     log0(f"model_params:{n_params}")
-    log0(
-        f"f1_corr:rank={args.f1_corr_rank} params={f1_corr_params} "
-        f"est_int6_bytes~{est_corr_int6_bytes}"
-    )
     log0(f"mlp_act:{args.mlp_act} mlp_leaky_slope:{args.mlp_leaky_slope}")
     log0(f"XSA:last_{args.xsa_last_n} world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(f"num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads} embed_lr:{token_lr} matrix_lr:{args.matrix_lr}")
@@ -1913,80 +1785,6 @@ def main() -> None:
     t_gptq = time.perf_counter()
     gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
     log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
-    if args.distill_enabled and args.distill_steps > 0:
-        log0(
-            f"distill:start steps:{args.distill_steps} lr_factor:{args.distill_lr_factor} "
-            f"temp:{args.distill_temperature} alpha:{args.distill_alpha} kl_clip:{args.distill_kl_clip}"
-        )
-        current_state = base_model.state_dict()
-        teacher_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
-        teacher_model = GPT(
-            vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
-            num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
-            tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
-            logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
-            mtp_num_heads=args.mtp_num_heads, mtp_loss_weight=args.mtp_loss_weight,
-            bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
-            xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
-            ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
-            mlp_act=args.mlp_act, mlp_leaky_slope=args.mlp_leaky_slope,
-            f1_corr_rank=args.f1_corr_rank, f1_corr_scale_init=args.f1_corr_scale_init,
-        ).to(device).bfloat16()
-        for m in teacher_model.modules():
-            if isinstance(m, CastedLinear):
-                m.float()
-        restore_low_dim_params_to_fp32(teacher_model)
-        teacher_model.load_state_dict(teacher_state, strict=True)
-        teacher_model.eval()
-        for p in teacher_model.parameters():
-            p.requires_grad_(False)
-        compiled_teacher_logits = maybe_torch_compile(teacher_model.forward_logits, args)
-        model.train()
-        T = args.distill_temperature
-        alpha = args.distill_alpha
-        for d_step in range(args.distill_steps):
-            zero_grad_all()
-            for opt in optimizers:
-                for group in opt.param_groups:
-                    group["lr"] = group["base_lr"] * args.distill_lr_factor
-            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                student_logits = base_model.forward_logits(x)
-                with torch.no_grad():
-                    teacher_logits = compiled_teacher_logits(x)
-                student_log_probs = F.log_softmax(student_logits.float() / T, dim=-1)
-                teacher_probs = F.softmax(teacher_logits.float() / T, dim=-1)
-                token_kl = F.kl_div(student_log_probs, teacher_probs, reduction="none").sum(dim=-1)
-                kl_loss = token_kl.mean() * (T * T)
-                if args.distill_kl_clip > 0:
-                    kl_loss = torch.clamp(kl_loss, max=args.distill_kl_clip)
-                ce_loss = F.cross_entropy(
-                    student_logits.reshape(-1, student_logits.size(-1)).float(),
-                    y.reshape(-1),
-                    reduction="mean",
-                )
-                loss = alpha * kl_loss + (1.0 - alpha) * ce_loss
-            (loss * grad_scale).backward()
-            if world_size > 1:
-                for p in base_model.parameters():
-                    if p.grad is not None:
-                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
-            if args.grad_clip_norm > 0:
-                torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
-            for opt in optimizers:
-                opt.step()
-            zero_grad_all()
-            with torch.no_grad():
-                for name, t in base_model.state_dict().items():
-                    ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
-            if (d_step + 1) % 8 == 0 or d_step == 0:
-                log0(
-                    f"distill:step:{d_step + 1}/{args.distill_steps} "
-                    f"kl:{kl_loss.item():.4f} ce:{ce_loss.item():.4f} total:{loss.item():.4f}"
-                )
-        del teacher_model, compiled_teacher_logits
-        torch.cuda.empty_cache()
-        log0("distill:done")
     # Apply EMA weights (better than SWA alone per PR#401)
     log0("ema:applying EMA weights")
     current_state = base_model.state_dict()
@@ -2049,7 +1847,6 @@ def main() -> None:
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         mlp_act=args.mlp_act, mlp_leaky_slope=args.mlp_leaky_slope,
-        f1_corr_rank=args.f1_corr_rank, f1_corr_scale_init=args.f1_corr_scale_init,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
