@@ -889,23 +889,31 @@ def main() -> None:
     # - matrix params in transformer blocks use MATRIX_LR via Muon
     # - vectors/scalars use SCALAR_LR via Adam
     block_named_params = list(base_model.blocks.named_parameters())
-    # Model 6: Freeze ALL base weights, then unfreeze LoRA + norms + embeddings
-    # Step 1: freeze everything
+    # Model 6: Freeze MOST base weights — keep last N layers fully trainable
+    # Strategy: freeze first 6 layers (random feature extractor), train last 3 layers + LoRA + norms + embeddings
+    FROZEN_LAYERS = int(os.environ.get("FROZEN_LAYERS", "6"))
     for param in base_model.parameters():
         param.requires_grad = False
-    # Step 2: unfreeze LoRA adapters, norms, embeddings, q_gain, and lm_head
+    # Unfreeze: LoRA adapters, norms, embeddings, q_gain, lm_head, and last N layers
     for name, param in base_model.named_parameters():
         if 'lora_A' in name or 'lora_B' in name:
-            param.requires_grad = True  # LoRA low-rank matrices
+            param.requires_grad = True
         elif 'norm' in name.lower() or 'rms' in name.lower():
-            param.requires_grad = True  # RMSNorm / LayerNorm
+            param.requires_grad = True
         elif 'q_gain' in name:
-            param.requires_grad = True  # attention gain
+            param.requires_grad = True
         elif 'embed' in name or 'lm_head' in name:
-            param.requires_grad = True  # token embeddings + output head
+            param.requires_grad = True
+        elif name.startswith('blocks.'):
+            # Parse layer index from name like 'blocks.7.attn.c_q.weight'
+            parts = name.split('.')
+            if len(parts) > 1 and parts[1].isdigit():
+                layer_idx = int(parts[1])
+                if layer_idx >= FROZEN_LAYERS:
+                    param.requires_grad = True  # last layers are fully trainable
     frozen_count = sum(p.numel() for p in base_model.parameters() if not p.requires_grad)
     trainable_count = sum(p.numel() for p in base_model.parameters() if p.requires_grad)
-    log0(f"hive:frozen={frozen_count} trainable={trainable_count} ratio={frozen_count/(frozen_count+trainable_count):.1%}")
+    log0(f"hive:frozen_layers={FROZEN_LAYERS} frozen={frozen_count} trainable={trainable_count} ratio={frozen_count/(frozen_count+trainable_count):.1%}")
 
     # Only include trainable params in optimizer groups
     matrix_params = [
