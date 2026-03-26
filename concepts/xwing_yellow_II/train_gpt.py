@@ -131,6 +131,27 @@ def maybe_torch_compile(obj, args: Hyperparameters):
     if not args.compile_enabled:
         return obj
     return torch.compile(obj, dynamic=False, fullgraph=args.compile_fullgraph)
+class TrainNgramTracker:
+    """Complementary training: track bigram stats, downweight tokens n-grams can predict."""
+    def __init__(self, vocab_size: int, device: torch.device, complement_alpha: float = 0.5):
+        self.V = vocab_size
+        self.alpha = complement_alpha
+        self.bi_counts = torch.zeros(vocab_size, vocab_size, device=device, dtype=torch.float32)
+        self.bi_totals = torch.zeros(vocab_size, device=device, dtype=torch.float32)
+    @torch.no_grad()
+    def update(self, x: Tensor, y: Tensor):
+        xf = x.reshape(-1)
+        yf = y.reshape(-1)
+        ones = torch.ones(xf.numel(), device=xf.device, dtype=torch.float32)
+        self.bi_counts.reshape(-1).scatter_add_(0, xf * self.V + yf, ones)
+        self.bi_totals.scatter_add_(0, xf, ones)
+    def get_weights(self, x: Tensor, y: Tensor) -> Tensor:
+        xf = x.reshape(-1)
+        yf = y.reshape(-1)
+        total = self.bi_totals[xf]
+        count = self.bi_counts.reshape(-1)[xf * self.V + yf]
+        ngram_prob = count / (total + 1)
+        return (1.0 - self.alpha * ngram_prob).clamp(min=0.1)
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -840,7 +861,12 @@ class GPT(nn.Module):
             corr_proj = self.f1_corr_out(corr_hidden)
             logits_proj = logits_proj + self.f1_corr_scale.to(dtype=logits_proj.dtype) * corr_proj
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        if hasattr(self, '_ngram_tracker') and self._ngram_tracker is not None and self.training:
+            per_tok_loss = F.cross_entropy(logits.float(), targets, reduction="none")
+            weights = self._ngram_tracker.get_weights(input_ids, target_ids)
+            main_loss = (per_tok_loss * weights).mean()
+        else:
+            main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
         if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
             _, seqlen, dim = x.shape
             mtp_loss_sum = x.new_zeros(())
@@ -1604,6 +1630,14 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    # Complementary training: downweight tokens predictable by bigrams
+    complement_alpha = float(os.environ.get("COMPLEMENT_ALPHA", "0"))
+    if complement_alpha > 0:
+        tracker = TrainNgramTracker(args.vocab_size, device, complement_alpha=complement_alpha)
+        base_model._ngram_tracker = tracker
+        log0(f"complementary_training:alpha={complement_alpha}")
+    else:
+        base_model._ngram_tracker = None
     compiled_model = maybe_torch_compile(base_model, args)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
     block_named_params = list(base_model.blocks.named_parameters())
@@ -1800,6 +1834,8 @@ def main() -> None:
                 loss = model(x, y)
             train_loss += loss.detach()
             loss.backward()
+            if base_model._ngram_tracker is not None:
+                base_model._ngram_tracker.update(x, y)
         train_loss /= grad_accum_steps
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum

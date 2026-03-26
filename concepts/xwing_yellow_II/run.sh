@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
-# X-WING YELLOW II: 3D cubric (order × entropy × count) + orders 2-9 + speed boosts
-# 54 adaptive multipliers — the monster
+# X-WING YELLOW II: 3D cubric + complementary training + orders 2-9
+# 54 adaptive multipliers + model trained to complement n-grams — THE MONSTER
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
@@ -12,10 +12,11 @@ SEED="${SEED:-2045}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-8}"
 
 echo "============================================"
-echo "  X-WING YELLOW II (3D cubric monster)"
+echo "  X-WING YELLOW II — THE MONSTER"
 echo "  Seed: ${SEED}"
-echo "  Cubric: order × entropy × count (54 multipliers)"
-echo "  Orders: 2-9"
+echo "  3D cubric: order × entropy × count (54 mults)"
+echo "  Complementary training: alpha=0.5"
+echo "  Eval alpha: 0.20-0.75 | Orders: 2-9"
 echo "============================================"
 
 SEED="$SEED" \
@@ -30,12 +31,13 @@ ROPE_DIMS=24 \
 VAL_LOSS_EVERY=20000 \
 TRAIN_LOG_EVERY=1000 \
 SWA_EVERY=100 \
+COMPLEMENT_ALPHA=0.5 \
 NGRAM_EVAL_ORDER=9 \
 NGRAM_EVAL_MIN_ORDER=2 \
 NGRAM_EVAL_ADAPTIVE=1 \
 NGRAM_EVAL_ALPHA=0.30 \
-NGRAM_EVAL_ALPHA_MIN=0.05 \
-NGRAM_EVAL_ALPHA_MAX=0.70 \
+NGRAM_EVAL_ALPHA_MIN=0.20 \
+NGRAM_EVAL_ALPHA_MAX=0.75 \
 NGRAM_EVAL_ENTROPY_CENTER=3.0 \
 NGRAM_EVAL_ENTROPY_SCALE=2.0 \
 NGRAM_EVAL_MIN_COUNT=2 \
