@@ -1,0 +1,19 @@
+{
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "name": "AutoResearch Budgeted Two-Pass N-gram Backoff (3-seed)",
+  "blurb": "11L frontier_lean stack with legal score-first N-gram eval. Adds a budgeted two-pass tuner that auto-caps early-chunk rescoring to fit eval wallclock while preserving large pass1->pass2 gain. 3-seed mean val_bpb 0.118148 (seeds: 1337,42,2025).",
+  "date": "2026-03-26",
+  "val_bpb": 0.11814796,
+  "val_bpb_std": 0.00003754,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 0.11819909, "train_s": 600.088, "eval_s": 446.935, "bytes_total": 13422021},
+    "42": {"val_bpb": 0.11813478, "train_s": 600.013, "eval_s": 468.680, "bytes_total": 13436213},
+    "2025": {"val_bpb": 0.11811002, "train_s": 600.067, "eval_s": 446.318, "bytes_total": 13430005}
+  },
+  "artifact_bytes_max": 13436213,
+  "train_time_seconds_max": 600.088,
+  "eval_time_seconds_max": 468.680,
+  "track": "track_10min_16mb"
+}

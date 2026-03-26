@@ -1,0 +1,167 @@
+run_id=runD_seed42 seed=42 config=B_budgeted start=2026-03-26T16:01:04Z
+W0326 16:01:05.873000 246200 torch/distributed/run.py:803] 
+W0326 16:01:05.873000 246200 torch/distributed/run.py:803] *****************************************
+W0326 16:01:05.873000 246200 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 16:01:05.873000 246200 torch/distributed/run.py:803] *****************************************
+logs/runD_seed42.txt
+model_preset:frontier_lean run_profile:full_8gpu_600s
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf-repo/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024
+val_loader:shards pattern=/workspace/parameter-golf-repo/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27255900
+param_breakdown:{"lexical": 1114625, "skip": 2560, "upper_global": 25974872, "value_embedding": 163843}
+world_size:8 grad_accum_steps:1
+flash_attn_3_loaded:True
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+activation_mode:leaky_relu2 export_quantizer:full_gptq_int5 ttt_optimizer:adamw
+muon:banking_enabled:True bank_min_tensors:2
+moonshot lower_replace_layers:0 local_shared_blocks:4 use_unet_skips:True
+seed:42
+shard_order:computing perplexity ranking...
+shard_order:ranked 80 shards by perplexity
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9300 val_bpb:4.1043 train_time:0ms step_avg:0.03ms
+step:1/20000 train_loss:6.9309 train_time:107ms step_avg:107.08ms
+step:2/20000 train_loss:8.7359 train_time:186ms step_avg:93.03ms
+step:3/20000 train_loss:7.9502 train_time:272ms step_avg:90.55ms
+step:4/20000 train_loss:7.1593 train_time:356ms step_avg:88.91ms
+step:5/20000 train_loss:6.9562 train_time:441ms step_avg:88.11ms
+step:6/20000 train_loss:6.8326 train_time:525ms step_avg:87.48ms
+step:7/20000 train_loss:6.6517 train_time:610ms step_avg:87.10ms
+step:8/20000 train_loss:6.4903 train_time:694ms step_avg:86.75ms
+step:9/20000 train_loss:6.2063 train_time:779ms step_avg:86.53ms
+step:10/20000 train_loss:6.1169 train_time:863ms step_avg:86.32ms
+step:500/20000 train_loss:2.3728 train_time:43023ms step_avg:86.05ms
+step:1000/20000 train_loss:2.2396 train_time:86265ms step_avg:86.26ms
+step:1500/20000 train_loss:2.2807 train_time:129485ms step_avg:86.32ms
+step:2000/20000 train_loss:2.1031 train_time:172729ms step_avg:86.36ms
+step:2500/20000 train_loss:2.1483 train_time:215920ms step_avg:86.37ms
+step:3000/20000 train_loss:2.1032 train_time:259073ms step_avg:86.36ms
+step:3500/20000 train_loss:1.9861 train_time:302205ms step_avg:86.34ms
+step:4000/20000 train_loss:2.0430 train_time:345326ms step_avg:86.33ms
+step:4000/20000 val_loss:2.0561 val_bpb:1.2177 train_time:345331ms step_avg:86.33ms
+step:4500/20000 train_loss:2.0113 train_time:388443ms step_avg:86.32ms
+step:5000/20000 train_loss:2.0733 train_time:431551ms step_avg:86.31ms
+step:5500/20000 train_loss:1.9686 train_time:474710ms step_avg:86.31ms
+step:6000/20000 train_loss:1.9591 train_time:517832ms step_avg:86.31ms
+swa:start step:6300
+step:6500/20000 train_loss:1.7739 train_time:561097ms step_avg:86.32ms
+step:6949/20000 val_loss:1.9275 val_bpb:1.1416 train_time:600013ms step_avg:86.35ms
+stopping_early: wallclock_cap train_time:600013ms step:6949/20000
+peak memory allocated: 20674 MiB reserved: 20728 MiB
+ema:applying best EMA (decay=0.9970 bpb=inf)
+DIAGNOSTIC post_average val_loss:1.9269 val_bpb:1.1412 eval_time:2010ms
+gptq:calibrating hessians batches:256 batch_tokens:0 seq_len:2048
+gptq:calibrated 68 layers in 3.3s
+export_grid block:128 refine:3 damp:0.0100 mse:0.03411292
+export_grid block:64 refine:3 damp:0.0100 mse:0.03411288
+export_grid block:128 refine:3 damp:0.0050 mse:0.03448763
+export_grid block:64 refine:3 damp:0.0050 mse:0.03448754
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 25952256 int5 params, 0 int6 params
+Serialized model research_export: 13251612 bytes
+Code size: 184601 bytes
+Total submission size research_export: 13436213 bytes
+final_research_export_roundtrip val_loss:1.9566 val_bpb:1.1588 eval_time:11354ms
+final_research_export_sliding skipped
+final_research_export_exact val_loss:1.95658068 val_bpb:1.15879729
+  ngram_pass1_total bpb:0.2860
+  ngram_budgeted_tuner pass1_s:397.0 avg_chunk_s:1.675 available_s:175.0 requested:72 tuned:72
+  ngram_pass2: rescoring first 72 chunks with full cache (237 chunks)...
+  ngram_pass2 chunk:1 p1:1.1286 p2:0.0946 delta:+1.0340
+  ngram_pass2 chunk:2 p1:1.2903 p2:0.0972 delta:+1.1931
+  ngram_pass2 chunk:3 p1:1.3152 p2:0.0947 delta:+1.2206
+  ngram_pass2 chunk:4 p1:1.4099 p2:0.0957 delta:+1.3142
+  ngram_pass2 chunk:5 p1:1.3920 p2:0.0947 delta:+1.2973
+  ngram_pass2 chunk:6 p1:1.4010 p2:0.0958 delta:+1.3052
+  ngram_pass2 chunk:7 p1:1.4651 p2:0.0965 delta:+1.3687
+  ngram_pass2 chunk:8 p1:1.4057 p2:0.0961 delta:+1.3095
+  ngram_pass2 chunk:9 p1:1.3738 p2:0.0945 delta:+1.2793
+  ngram_pass2 chunk:10 p1:1.3397 p2:0.0976 delta:+1.2421
+  ngram_pass2 chunk:11 p1:1.3324 p2:0.0958 delta:+1.2366
+  ngram_pass2 chunk:12 p1:1.2957 p2:0.0947 delta:+1.2009
+  ngram_pass2 chunk:13 p1:1.2911 p2:0.0973 delta:+1.1939
+  ngram_pass2 chunk:14 p1:1.2104 p2:0.0961 delta:+1.1143
+  ngram_pass2 chunk:15 p1:1.1380 p2:0.0942 delta:+1.0437
+  ngram_pass2 chunk:16 p1:1.1337 p2:0.0951 delta:+1.0386
+  ngram_pass2 chunk:17 p1:1.0632 p2:0.0941 delta:+0.9691
+  ngram_pass2 chunk:18 p1:1.0323 p2:0.0947 delta:+0.9376
+  ngram_pass2 chunk:19 p1:0.9975 p2:0.0949 delta:+0.9025
+  ngram_pass2 chunk:20 p1:0.9656 p2:0.0960 delta:+0.8695
+  ngram_pass2 chunk:21 p1:0.9312 p2:0.0956 delta:+0.8356
+  ngram_pass2 chunk:22 p1:0.8961 p2:0.0958 delta:+0.8002
+  ngram_pass2 chunk:23 p1:0.8383 p2:0.0951 delta:+0.7432
+  ngram_pass2 chunk:24 p1:0.8322 p2:0.0982 delta:+0.7340
+  ngram_pass2 chunk:25 p1:0.7722 p2:0.0954 delta:+0.6768
+  ngram_pass2 chunk:26 p1:0.7254 p2:0.0938 delta:+0.6316
+  ngram_pass2 chunk:27 p1:0.7191 p2:0.0962 delta:+0.6229
+  ngram_pass2 chunk:28 p1:0.6830 p2:0.0963 delta:+0.5868
+  ngram_pass2 chunk:29 p1:0.6600 p2:0.0958 delta:+0.5642
+  ngram_pass2 chunk:30 p1:0.6333 p2:0.0958 delta:+0.5375
+  ngram_pass2 chunk:31 p1:0.5977 p2:0.0955 delta:+0.5021
+  ngram_pass2 chunk:32 p1:0.5863 p2:0.0957 delta:+0.4906
+  ngram_pass2 chunk:33 p1:0.5400 p2:0.0942 delta:+0.4458
+  ngram_pass2 chunk:34 p1:0.5437 p2:0.0962 delta:+0.4476
+  ngram_pass2 chunk:35 p1:0.5281 p2:0.0951 delta:+0.4330
+  ngram_pass2 chunk:36 p1:0.4957 p2:0.0937 delta:+0.4020
+  ngram_pass2 chunk:37 p1:0.4792 p2:0.0942 delta:+0.3849
+  ngram_pass2 chunk:38 p1:0.4704 p2:0.0958 delta:+0.3745
+  ngram_pass2 chunk:39 p1:0.4584 p2:0.0952 delta:+0.3632
+  ngram_pass2 chunk:40 p1:0.4352 p2:0.0944 delta:+0.3408
+  ngram_pass2 chunk:41 p1:0.4180 p2:0.0938 delta:+0.3242
+  ngram_pass2 chunk:42 p1:0.4030 p2:0.0940 delta:+0.3090
+  ngram_pass2 chunk:43 p1:0.3892 p2:0.0931 delta:+0.2960
+  ngram_pass2 chunk:44 p1:0.3871 p2:0.0954 delta:+0.2917
+  ngram_pass2 chunk:45 p1:0.3870 p2:0.0995 delta:+0.2875
+  ngram_pass2 chunk:46 p1:0.3553 p2:0.0939 delta:+0.2613
+  ngram_pass2 chunk:47 p1:0.3484 p2:0.0941 delta:+0.2543
+  ngram_pass2 chunk:48 p1:0.3361 p2:0.0935 delta:+0.2426
+  ngram_pass2 chunk:49 p1:0.3361 p2:0.0958 delta:+0.2403
+  ngram_pass2 chunk:50 p1:0.3162 p2:0.0941 delta:+0.2221
+  ngram_pass2 chunk:51 p1:0.3051 p2:0.0928 delta:+0.2123
+  ngram_pass2 chunk:52 p1:0.3039 p2:0.0946 delta:+0.2093
+  ngram_pass2 chunk:53 p1:0.2982 p2:0.0949 delta:+0.2033
+  ngram_pass2 chunk:54 p1:0.2856 p2:0.0935 delta:+0.1921
+  ngram_pass2 chunk:55 p1:0.2778 p2:0.0932 delta:+0.1846
+  ngram_pass2 chunk:56 p1:0.2743 p2:0.0935 delta:+0.1809
+  ngram_pass2 chunk:57 p1:0.2628 p2:0.0924 delta:+0.1704
+  ngram_pass2 chunk:58 p1:0.2639 p2:0.0937 delta:+0.1702
+  ngram_pass2 chunk:59 p1:0.2522 p2:0.0922 delta:+0.1599
+  ngram_pass2 chunk:60 p1:0.2530 p2:0.0947 delta:+0.1583
+  ngram_pass2 chunk:61 p1:0.2491 p2:0.0947 delta:+0.1544
+  ngram_pass2 chunk:62 p1:0.2436 p2:0.0942 delta:+0.1494
+  ngram_pass2 chunk:63 p1:0.2334 p2:0.0933 delta:+0.1401
+  ngram_pass2 chunk:64 p1:0.2312 p2:0.0940 delta:+0.1371
+  ngram_pass2 chunk:65 p1:0.2299 p2:0.0951 delta:+0.1348
+  ngram_pass2 chunk:66 p1:0.2268 p2:0.0945 delta:+0.1323
+  ngram_pass2 chunk:67 p1:0.2225 p2:0.0948 delta:+0.1276
+  ngram_pass2 chunk:68 p1:0.2157 p2:0.0933 delta:+0.1224
+  ngram_pass2 chunk:69 p1:0.2109 p2:0.0929 delta:+0.1180
+  ngram_pass2 chunk:70 p1:0.2086 p2:0.0934 delta:+0.1152
+  ngram_pass2 chunk:71 p1:0.2053 p2:0.0939 delta:+0.1115
+  ngram_pass2 chunk:72 p1:0.2043 p2:0.0943 delta:+0.1101
+  ngram_pass2_total bpb:0.1181 improvement:+0.1679
+final_ngram val_loss:0.1995 val_bpb:0.1181 eval_time:468680ms max_order:12 adaptive:True
+final_ngram_exact val_loss:0.19946562 val_bpb:0.11813478
+phase_timings:{"diagnostic_eval_ms": 2010.1177850156091, "ngram_eval_ms": 468925.2328069997, "quantize_ms": 21243.667276052292, "roundtrip_eval_ms": 55137.467266991735, "serialize_ms": 42741.062959015835, "skipped": {"diagnostic_eval": false, "export": false, "roundtrip_eval": false, "sliding_eval": false}, "sliding_eval_ms": 0.0}
+run_id=runD_seed42 done=2026-03-26T16:22:13Z
