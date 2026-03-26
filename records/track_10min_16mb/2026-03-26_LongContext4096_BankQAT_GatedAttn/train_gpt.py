@@ -107,7 +107,7 @@ class Hyperparameters:
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
-    bank_qat_threshold = float(os.environ.get("BANK_QAT_THRESHOLD", 0.15))
+    bank_qat_threshold = float(os.environ.get("BANK_QAT_THRESHOLD", 0.05))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
@@ -123,7 +123,7 @@ class Hyperparameters:
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
     ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "sgd").lower()
     ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 0.0))
-    target_mb = float(os.environ.get("TARGET_MB", 15.90))
+    target_mb = float(os.environ.get("TARGET_MB", 15.95))
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
     """Batched Newton-Schulz orthogonalization. G: (B,M,N) or (M,N)."""
