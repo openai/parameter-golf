@@ -1003,12 +1003,13 @@ def eval_val_ngram(
     eval_seq_len: int,
     stride: int,
     batch_seqs: int = 32,
-    ngram_order: int = 7,
-    ngram_min_order: int = 2,
+    ngram_order: int = 5,
+    ngram_min_order: int = 5,
     ngram_buckets: int = 4194304,
     ngram_min_count: int = 2,
-    ent_base: float = 0.05,
-    ent_range: float = 0.55,
+    fixed_alpha: float = 0.2,
+    ent_base: float = 0.0,
+    ent_range: float = 0.0,
     ent_scale: float = 2.0,
     ent_thresh: float = 4.0,
     log_fn=None,
@@ -1111,13 +1112,15 @@ def eval_val_ngram(
         log_fn(f"ngram: done, {has_ngram.sum()} positions with n-gram predictions")
 
     # step 3: vectorized mixing
-    # debug: report stats on n-gram probs
     if log_fn:
         dbg_mask = scored_mask & has_ngram
         ng_pt = ngram_prob_target[dbg_mask]
         log_fn(f"ngram_stats: mean_prob={ng_pt.mean():.6f} median={np.median(ng_pt):.6f} "
                f"nonzero={np.count_nonzero(ng_pt)}/{len(ng_pt)}")
-    alpha_all = ent_base + ent_range / (1.0 + np.exp(-ent_scale * (token_neural_entropy - ent_thresh)))
+    if ent_range > 0:
+        alpha_all = ent_base + ent_range / (1.0 + np.exp(-ent_scale * (token_neural_entropy - ent_thresh)))
+    else:
+        alpha_all = np.full(total_tokens, fixed_alpha, dtype=np.float64)
     mixed_nll = np.copy(token_neural_nll)
     # only mix where n-gram assigns nonzero prob to the target token
     mix_mask = scored_mask & has_ngram & (ngram_prob_target > 0)
@@ -1761,17 +1764,18 @@ def main() -> None:
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     sw_seq_len = effective_eval_seq_len
     if ngram_enabled:
-        ngram_order = int(os.environ.get("NGRAM_ORDER", "7"))
-        ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
+        ngram_order = int(os.environ.get("NGRAM_ORDER", "5"))
+        ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "5"))
         ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
         ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
-        ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.05"))
-        ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.55"))
+        ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.2"))  # fixed alpha (PR #769)
+        ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.0"))  # 0 = fixed alpha
+        ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.0"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
         ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
         torch.cuda.synchronize()
         t_ngram = time.perf_counter()
-        log0(f"ngram_eval: order={ngram_order} min_order={ngram_min_order} buckets={ngram_buckets}")
+        log0(f"ngram_eval: order={ngram_order} min_order={ngram_min_order} buckets={ngram_buckets} alpha={ngram_alpha}")
         ng_val_loss, ng_val_bpb = eval_val_ngram(
             args, eval_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
@@ -1779,6 +1783,7 @@ def main() -> None:
             stride=args.eval_stride if args.eval_stride > 0 else effective_eval_seq_len,
             ngram_order=ngram_order, ngram_min_order=ngram_min_order,
             ngram_buckets=ngram_buckets, ngram_min_count=ngram_min_count,
+            fixed_alpha=ngram_alpha,
             ent_base=ngram_ent_base, ent_range=ngram_ent_range,
             ent_scale=ngram_ent_scale, ent_thresh=ngram_ent_thresh,
             log_fn=log0,
