@@ -1,0 +1,8 @@
+{
+    "name": "Giulio Catanzariti",
+    "github_id": "sargonxg",
+    "val_bpb": "WIP — preliminary results on 1xH100, requesting 8xH100 for full eval",
+    "description": "Neurosymbolic hybrid: Ontology-Augmented Generation (OAG) combining FST structural predictor + backward-looking n-gram cache + Product Key Memory + entropy-adaptive gating. Novel paradigm: decompose prediction across specialized predictors matched to web text entropy structure.",
+    "date": "2026-03-25",
+    "status": "work-in-progress, requesting compute credits"
+}
