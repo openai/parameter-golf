@@ -1,0 +1,12 @@
+{
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "name": "E2E TTT: End-to-End Test-Time Training with Meta-Learning",
+  "blurb": "First E2E TTT submission. MAML-style meta-learning during training: inner loop does gradient descent on MLP weights using next-token prediction loss, outer loop backprops through inner steps (gradients of gradients) to optimize W0 for test-time adaptation. Standard 11L Transformer architecture unchanged. Meta-learning applied during final 20% of training. Eval uses score-first TTT + vectorized 7-gram backoff + kNN-LM.",
+  "date": "2026-03-26T00:00:00Z",
+  "val_loss": 1.76727730,
+  "val_bpb": 1.04668116,
+  "bytes_total": 13118694,
+  "bytes_code": 102886,
+  "gpu": "8xH100"
+}
