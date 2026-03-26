@@ -83,8 +83,7 @@ class Hyperparameters:
 
     jepa_weight = float(os.environ.get("JEPA_WEIGHT", 0.1))
     jepa_latent_dim = int(os.environ.get("JEPA_LATENT_DIM", 256))
-    jepa_horizon = int(os.environ.get("JEPA_HORIZON", 32))
-    jepa_decay_frac = float(os.environ.get("JEPA_DECAY_FRAC", 0.5))
+    jepa_horizon = int(os.environ.get("JEPA_HORIZON", 8))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -607,8 +606,6 @@ class CausalJEPA(nn.Module):
         self.jepa_weight = args.jepa_weight
         self.jepa_horizon = args.jepa_horizon
         self.ema_decay = args.ema_decay
-        self.register_buffer('_jepa_scale', torch.ones(()), persistent=False)
-        self._jepa_active = True
 
         dim = args.model_dim
         hd = args.head_dim
@@ -629,6 +626,7 @@ class CausalJEPA(nn.Module):
         self.jepa_predictor = nn.Sequential(
             nn.Linear(dim, ld, bias=False), nn.GELU(), nn.Linear(ld, ld, bias=False)
         )
+        self.jepa_decode_proj = nn.Linear(ld, dim, bias=False)
         self.jepa_target_proj = nn.Linear(dim, ld, bias=False)
 
         self._init_weights()
@@ -658,6 +656,7 @@ class CausalJEPA(nn.Module):
             for p in m.modules():
                 if isinstance(p, nn.Linear):
                     nn.init.xavier_uniform_(p.weight)
+        nn.init.zeros_(self.jepa_decode_proj.weight)
 
     def _ema_params(self):
         yield from self.ema_byte_emb.parameters()
@@ -697,10 +696,16 @@ class CausalJEPA(nn.Module):
                 pop_idx += 1
         return final_norm(x)
 
+    def _jepa_logits(self, hidden: Tensor) -> Tensor:
+        """Augment hidden states with JEPA predictions before computing logits."""
+        pred_latent = self.jepa_predictor(hidden)
+        augmented = hidden + self.jepa_decode_proj(pred_latent)
+        logits = F.linear(augmented, self.byte_emb.weight)
+        return self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+
     def forward_logits(self, ids: Tensor) -> Tensor:
         hidden = self._run_backbone(ids, self.byte_emb, self.blocks, self.skip_weights, self.final_norm)
-        logits = F.linear(hidden, self.byte_emb.weight)
-        return self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+        return self._jepa_logits(hidden)
 
     @torch.no_grad()
     def _ema_forward(self, ids: Tensor) -> Tensor:
@@ -708,35 +713,36 @@ class CausalJEPA(nn.Module):
 
     def forward(self, input_ids: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         hidden = self._run_backbone(input_ids, self.byte_emb, self.blocks, self.skip_weights, self.final_norm)
-        logits = F.linear(hidden[:, :-1], self.byte_emb.weight)
+
+        pred_latent = self.jepa_predictor(hidden)
+        augmented = hidden + self.jepa_decode_proj(pred_latent)
+        logits = F.linear(augmented[:, :-1], self.byte_emb.weight)
         logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
         ce = F.cross_entropy(logits.float().reshape(-1, self.vocab_size), input_ids[:, 1:].reshape(-1))
 
         K = self.jepa_horizon
-        if self._jepa_active and K > 0 and hidden.size(1) > K:
-            pred = self.jepa_predictor(hidden[:, :-K])
+        if K > 0 and hidden.size(1) > K:
             with torch.no_grad():
                 ema_h = self._ema_forward(input_ids)
                 target = self.ema_target_proj(ema_h[:, K:])
-            jepa_loss = F.mse_loss(F.normalize(pred.float(), dim=-1), F.normalize(target.float(), dim=-1))
-            total = ce + (self.jepa_weight * self._jepa_scale) * jepa_loss
+            jepa_loss = F.mse_loss(
+                F.normalize(pred_latent[:, :-K].float(), dim=-1),
+                F.normalize(target.float(), dim=-1),
+            )
+            total = ce + self.jepa_weight * jepa_loss
         else:
             jepa_loss = ce.new_zeros(())
             total = ce
         return total, ce.detach(), jepa_loss.detach()
 
     def serializable_state_dict(self) -> dict[str, Tensor]:
-        skip = ("ema_", "jepa_predictor.", "jepa_target_proj.", "rotary.")
+        skip = ("ema_", "jepa_target_proj.", "rotary.")
         return {k: v for k, v in self.state_dict().items() if not any(k.startswith(s) for s in skip)}
 
     def load_serializable(self, sd: dict[str, Tensor]):
         self.load_state_dict(sd, strict=False)
         self._sync_ema()
 
-    def set_jepa_scale(self, scale: float):
-        self._jepa_scale.fill_(scale)
-        if scale <= 1e-6 and self._jepa_active:
-            self._jepa_active = False
 
     @torch.no_grad()
     def zero_pad_emb_(self):
@@ -956,8 +962,7 @@ def main() -> None:
     zeropower_via_newtonschulz5 = maybe_compile(zeropower_via_newtonschulz5, enabled=args.use_compile)
     train_model = maybe_compile(base_model, enabled=args.use_compile)
     if distributed:
-        model = DDP(train_model, device_ids=[local_rank], broadcast_buffers=False,
-                    find_unused_parameters=True)
+        model = DDP(train_model, device_ids=[local_rank], broadcast_buffers=False)
     else:
         model = train_model
 
@@ -987,7 +992,7 @@ def main() -> None:
     log0(f"arch: dim={args.model_dim} layers={args.num_layers} heads={args.num_heads}/{args.num_kv_heads} "
          f"mlp={args.mlp_mult}x rope_dim={args.partial_rope_dim} bigram={args.bigram_vocab_size}x{args.bigram_dim} "
          f"skips={args.num_skips} softcap={args.logit_softcap} smear=1")
-    log0(f"jepa: weight={args.jepa_weight} decay_frac={args.jepa_decay_frac} latent_dim={args.jepa_latent_dim} "
+    log0(f"jepa: weight={args.jepa_weight} latent_dim={args.jepa_latent_dim} "
          f"horizon={args.jepa_horizon} ema={args.ema_decay}")
     log0(f"train: seq={args.train_seq_len} batch_tokens={args.train_batch_tokens} ga={grad_accum} "
          f"warmdown={args.warmdown_iters} warmup={args.warmup_steps}")
@@ -1069,13 +1074,6 @@ def main() -> None:
 
         elapsed = train_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed)
-        if args.jepa_decay_frac > 0 and max_wc_ms is not None:
-            js = max(0.0, 1.0 - elapsed / (args.jepa_decay_frac * max_wc_ms))
-        elif args.jepa_decay_frac > 0:
-            js = max(0.0, 1.0 - step / (args.jepa_decay_frac * args.iterations))
-        else:
-            js = 1.0
-        base_model.set_jepa_scale(js)
         zero_grad()
         t_loss = torch.zeros((), device=device)
         t_ce = torch.zeros((), device=device)
@@ -1106,8 +1104,7 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for o in optimizers:
             o.step()
-        if base_model._jepa_active:
-            base_model.update_ema()
+        base_model.update_ema()
         base_model.zero_pad_emb_()
         zero_grad()
 
@@ -1116,7 +1113,6 @@ def main() -> None:
         if args.train_log_every > 0 and (step <= 10 or step % args.train_log_every == 0):
             log0(f"step:{step}/{args.iterations} train_loss:{t_loss.item():.4f} "
                  f"train_ce:{t_ce.item():.4f} train_jepa:{t_jepa.item():.4f} "
-                 f"jepa_s:{js:.2f} "
                  f"train_time:{approx_ms:.0f}ms step_avg:{approx_ms / step:.2f}ms")
 
         cap = max_wc_ms is not None and approx_ms >= max_wc_ms
