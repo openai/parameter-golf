@@ -1,10 +1,10 @@
 {
   "author": "Bortlesboat",
   "github_id": "Bortlesboat",
-  "name": "10L Int5-MLP + BigramHash(4096) + SWA",
-  "blurb": "10 layers, d=512, GQA 8H/4KV. Mixed int5/int6 quantization + zstd-22. BigramHash(4096, dim=128). SmearGate + OrthoInit. SWA(frac=0.4). Muon WD=0.04, warmdown=3000. Sliding window eval stride=64. Mean of 3 seeds.",
+  "name": "10L Int5-MLP + BigramHash(4096) + Multi-Order N-gram Backoff + Entropy-Adaptive Alpha",
+  "blurb": "10 layers, d=512, GQA 8H/4KV. LeakyReLU(0.5)^2, Partial RoPE(16/64), LN Scale, XSA last 4, Value Residual. EMA(0.997). Mixed int5/int6 + zstd-22. Eval: multi-order hashed n-gram backoff (orders 2-7) with entropy-adaptive alpha. Mean of 3 seeds.",
   "date": "2026-03-25",
-  "val_loss": 1.9429,
-  "val_bpb": 1.1507,
-  "bytes_total": 15620994
+  "val_loss": 1.5404,
+  "val_bpb": 0.9123,
+  "bytes_total": 15320000
 }
