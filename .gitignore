@@ -9,3 +9,9 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+scripts/
+training_gui/
+training_gui_data/
+training_scripts/training_gui/
+training_scripts/
+scripts/
