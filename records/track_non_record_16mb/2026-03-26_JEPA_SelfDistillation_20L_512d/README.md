@@ -1,4 +1,4 @@
-# [Non-Record] JEPA Self-Distillation for Autoregressive LM: Negative Results
+# [Non-Record] JEPA Self-Distillation for Autoregressive LM | Controlled A/B Shows No Gain Over Vanilla CE | Negative Results
 
 **Track:** Non-record, unlimited compute, 16MB artifact
 **Author:** Manav Pandey (MVPandey)
