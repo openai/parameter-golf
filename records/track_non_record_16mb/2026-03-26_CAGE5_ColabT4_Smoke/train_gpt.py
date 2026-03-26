@@ -25,6 +25,18 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
+USE_BF16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+AMP_DTYPE = torch.bfloat16 if USE_BF16 else torch.float16
+
+def maybe_compile(fn, *args, **kwargs):
+    if os.environ.get("DISABLE_TORCH_COMPILE", "1") == "1":
+        return fn
+    try:
+        return torch.compile(fn, *args, **kwargs)
+    except Exception as e:
+        print(f"[warn] torch.compile disabled: {e}")
+        return fn
+
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -113,7 +125,7 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) ->
     was_2d = G.ndim == 2
     if was_2d:
         G = G.unsqueeze(0)
-    X = G.bfloat16()
+    X = G.to(AMP_DTYPE)
     transposed = X.size(-2) > X.size(-1)
     if transposed:
         X = X.mT
@@ -165,10 +177,10 @@ class Muon(torch.optim.Optimizer):
                 self._bank_meta.append({
                     'p': p,
                     'B': B,
-                    'padded_grad': torch.zeros(padded_B, *tail, device=dev, dtype=torch.bfloat16),
-                    'shard': torch.zeros(shard_B, *tail, device=dev, dtype=torch.bfloat16),
-                    'shard_mom': torch.zeros(shard_B, *tail, device=dev, dtype=torch.bfloat16),
-                    'full_update': torch.zeros(padded_B, *tail, device=dev, dtype=torch.bfloat16),
+                    'padded_grad': torch.zeros(padded_B, *tail, device=dev, dtype=AMP_DTYPE),
+                    'shard': torch.zeros(shard_B, *tail, device=dev, dtype=AMP_DTYPE),
+                    'shard_mom': torch.zeros(shard_B, *tail, device=dev, dtype=AMP_DTYPE),
+                    'full_update': torch.zeros(padded_B, *tail, device=dev, dtype=AMP_DTYPE),
                     'scale': max(1, p.shape[-2] / p.shape[-1]) ** 0.5,
                 })
         # Sort by size descending -- launch biggest reduce-scatters first
@@ -188,7 +200,7 @@ class Muon(torch.optim.Optimizer):
                 self._rs_futures.append(None)
                 continue
             pg = m['padded_grad']
-            pg[:m['B']].copy_(p.grad.bfloat16())
+            pg[:m['B']].copy_(p.grad.to(AMP_DTYPE))
             if pg.shape[0] > m['B']:
                 pg[m['B']:].zero_()
             fut = dist.reduce_scatter_tensor(m['shard'], pg, op=dist.ReduceOp.AVG, async_op=True)
@@ -235,7 +247,7 @@ class Muon(torch.optim.Optimizer):
                     g = m['shard']
                     buf = m['shard_mom']
                 else:
-                    g = p.grad.bfloat16()
+                    g = p.grad.to(AMP_DTYPE)
                     state = self.state[p]
                     if "momentum_buffer" not in state:
                         state["momentum_buffer"] = torch.zeros_like(g)
@@ -344,7 +356,7 @@ def eval_val(
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
             x = local[:-1].reshape(-1, seq_len)
             y = local[1:].reshape(-1, seq_len)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            with torch.autocast(device_type="cuda", dtype=AMP_DTYPE, enabled=True):
                 batch_loss = model(x, y).detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
@@ -392,7 +404,7 @@ def tensor_nbytes(t: Tensor) -> int:
 def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
     if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
         return t.float().contiguous()
-    if t.dtype in {torch.float32, torch.bfloat16}:
+    if t.dtype in {torch.float32, AMP_DTYPE}:
         passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
@@ -1115,7 +1127,7 @@ def eval_val_sliding(
     )
     alpha = float(args.ngram_eval_alpha)
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    compiled_logits = maybe_compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
@@ -1130,7 +1142,7 @@ def eval_val_sliding(
                 chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
                 x_batch[i, :wlen] = chunk[:-1]
                 y_batch[i, :wlen] = chunk[1:]
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            with torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
                 logits = compiled_logits(x_batch)
             log_probs = F.log_softmax(logits.float(), dim=-1)
             for i, ws in enumerate(batch_ws):
@@ -1251,7 +1263,7 @@ def eval_val_sliding_ttt(
                     chunk_tok = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
                     x_batch[i, :wlen] = chunk_tok[:-1]
                     y_batch[i, :wlen] = chunk_tok[1:]
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                with torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
                     logits = base_model.forward_logits(x_batch)
                 nll = F.cross_entropy(
                     logits.reshape(-1, logits.size(-1)).float(),
@@ -1292,7 +1304,7 @@ def eval_val_sliding_ttt(
                         x = local[:-1].reshape(-1, seq_len)
                         y = local[1:].reshape(-1, seq_len)
                         optimizer.zero_grad(set_to_none=True)
-                        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        with torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
                             loss = base_model(x, y)
                         loss.backward()
                         if world_size > 1:
@@ -1463,7 +1475,7 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
         orig_dtype = orig.dtype
         if info in ("passthrough", "passthrough_ctrl", "passthrough_fp16"):
             t = result[name]
-            if t.dtype == torch.float16 and orig_dtype in (torch.float32, torch.bfloat16):
+            if t.dtype == torch.float16 and orig_dtype in (torch.float32, AMP_DTYPE):
                 t = t.to(orig_dtype)
             out[name] = t
             continue
@@ -1543,6 +1555,9 @@ def main() -> None:
     effective_eval_seq_len = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
     val_seq_len = max(args.train_seq_len, effective_eval_seq_len)
     val_tokens = load_validation_tokens(args.val_files, val_seq_len)
+    colab_val_limit_tokens = int(os.environ.get("COLAB_VAL_LIMIT_TOKENS", "0"))
+    if colab_val_limit_tokens > 0 and val_tokens.numel() > colab_val_limit_tokens + 1:
+        val_tokens = val_tokens[:colab_val_limit_tokens + 1].contiguous()
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size, device
     )
@@ -1575,7 +1590,7 @@ def main() -> None:
         ve_layers=args.ve_layers,
         gated_attention=args.gated_attention,
         value_residual=args.value_residual,
-    ).to(device).bfloat16()
+    ).to(device).to(AMP_DTYPE)
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
     base_model.kv_bank.data = base_model.kv_bank.data.float()
@@ -1587,7 +1602,7 @@ def main() -> None:
     restore_low_dim_params_to_fp32(base_model)
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = maybe_compile(base_model, dynamic=False, fullgraph=True)
     model = compiled_model
 
     # Optimizer split:
@@ -1707,7 +1722,7 @@ def main() -> None:
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                with torch.autocast(device_type="cuda", dtype=AMP_DTYPE, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
             # All-reduce all grads for warmup (simple, not optimized)
@@ -1776,7 +1791,7 @@ def main() -> None:
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            with torch.autocast(device_type="cuda", dtype=AMP_DTYPE, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
@@ -1918,7 +1933,7 @@ def main() -> None:
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         gated_attention=args.gated_attention, value_residual=args.value_residual,
-    ).to(device).bfloat16()
+    ).to(device).to(AMP_DTYPE)
     eval_model.qo_bank.data = eval_model.qo_bank.data.float()
     eval_model.kv_bank.data = eval_model.kv_bank.data.float()
     eval_model.mlp_up_bank.data = eval_model.mlp_up_bank.data.float()
@@ -1928,7 +1943,7 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    compiled_eval = maybe_compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
