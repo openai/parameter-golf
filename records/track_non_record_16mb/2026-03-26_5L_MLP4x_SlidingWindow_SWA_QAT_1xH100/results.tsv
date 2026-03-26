@@ -1,0 +1,16 @@
+commit	val_bpb	quant_gap	artifact_mb	memory_gb	status	description
+d2c0159	1.505089	0.000410	14.5	14.3	discard	6L MLP3x BigramHash+SmearGate+OrthoInit+SWA+QAT
+17d7acc	1.478532	0.000213	14.4	0.0	keep	6L MLP3x MATRIX_LR=0.03
+f92685e	1.534684	0.000576	15.0	0.0	discard	BigramHash 8192 — worse
+fb66091	1.591936	0.000538	0.0	0.0	discard	warmdown 30% — too short
+a4bfcf1	1.538775	0.000000	0.0	0.0	discard	warmdown 70% — too long
+93a0d85	1.521040	0.000000	0.0	0.0	discard	MATRIX_LR=0.04 — too high
+3818a94	1.486485	0.000000	0.0	0.0	discard	EMBED_LR=0.08 — worse
+cd15609	1.492605	0.000000	16.7	0.0	discard	7L MLP3x — artifact too large
+fd0bac6	1.512156	0.000000	14.8	0.0	discard	7L dim480 MLP3x — narrower hurts
+222bd1d	1.493340	0.000000	0.0	0.0	discard	WD=0.06 SWA/25 — worse
+b941936	1.417088	0.000365	14.6	0.0	keep	5L MLP4x! wider > deeper confirmed
+c15703a	1.382720	0.000428	14.6	13.3	keep	BEST: sliding window eval EVAL_STRIDE=64
+33dca18	1.408598	0.000696	14.7	13.3	discard	MATRIX_LR=0.02 — worse than 0.03
+cf13ac1	1.391239	0.000379	14.6	13.3	discard	MATRIX_LR=0.025 — worse than 0.03
+2426a1c	1.443577	-0.000106	14.6	13.3	discard	GRAD_CLIP=0.3 — way too tight
