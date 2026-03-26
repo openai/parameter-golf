@@ -1,7 +1,7 @@
 # Parameter Golf — Model Build Log & Known Issues
 
 **Purpose:** Track what worked, what broke, and what to watch for during incremental builds.
-**Updated:** 2026-03-25 23:10 CDT
+**Updated:** 2026-03-26 07:45 CDT
 
 ---
 
@@ -227,5 +227,52 @@ RUN_ID=test DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/t
 - **Novel architectures (M3, M6-M8):** Unknown at scale. That's the point — if any of these beat transformers, it's a real finding.
 
 ---
+
+---
+
+## Incremental Build Pipeline — M4 Optimized (768d Submission) — STEP 7 ✅ COMPLETE
+
+### Full Run Results (8×H100 SXM, 2026-03-26)
+
+**Instance:** Vast.ai ID 33581568, 8×H100 80GB SXM @ $17.64/hr  
+**Script:** `train_gpt_inc_step7_h100.py` (768d, 11L, 12H, KV=4, MLP=3x, torch.compile)  
+**Wallclock:** 599s (hit cap at step 9886/20000)  
+**Step speed:** 60.59ms/step on 8×H100 (excellent!)
+
+| Checkpoint | val_loss | val_bpb |
+|-----------|----------|---------|
+| Step 1000 | 2.3370 | 1.3841 |
+| Step 2000 | 2.2647 | 1.3413 |
+| Step 3000 | 2.2345 | 1.3234 |
+| Step 4000 | 2.2182 | 1.3137 |
+| Step 5000 | 2.2086 | 1.3080 |
+| Step 6000 | 2.2079 | 1.3076 |
+| Step 7000 | 2.1974 | 1.3014 |
+| Step 8000 | 2.1893 | 1.2966 |
+| Step 9000 | 2.1569 | 1.2775 |
+| **Step 9886 (final)** | **2.0410** | **1.2088** |
+
+**After int8+zlib quantization:**
+- final_int8_zlib val_bpb: **1.2149** (roundtrip)
+- Submission size: **15,554,049 bytes** (15.55 MB — under 16MB limit ✅)
+- int8+zlib achieved 3.92× compression ratio
+- Peak GPU memory: 15,671 MiB / 16,942 MiB reserved
+
+### Key Findings
+- torch.compile WORKS on H100 and gives full speed benefit (60.59ms/step is fast)
+- Learning curve still improving at wallclock cap — more steps would score better
+- int8+zlib roundtrip costs only 0.006 bpb (1.2088 → 1.2149) — very low degradation
+- 15.55MB comfortably under 16MB budget with room for improvements
+
+### What Happened to the Instance
+- Training started at 12:19 UTC, compile took ~10min, training ran 12:29–12:39 UTC
+- Instance terminated after training completed (Vast.ai auto-stop behavior)
+- Final model file (15.5MB) was on instance — not pushed to git (instance gone)
+- Training log (submission_v1.txt) captured via SSH before instance died
+
+### Next Steps: Phase 2
+1. **Prepare actual submission:** Re-run on fresh H100 with output saved and pushed to records/
+2. **Or:** Use the val_bpb score as benchmark, move to Track B/C work
+3. **Alternative:** Build Track C (C1: PolarQuant + n-gram cache) for better projected score
 
 *Update this file after every build step, error, or discovery.*
