@@ -1,0 +1,6 @@
+torch
+numpy
+sentencepiece
+huggingface-hub
+datasets
+tqdm
