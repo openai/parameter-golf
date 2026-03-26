@@ -7,6 +7,7 @@ Hard stop: This fork extends `train_gpt.py` with a multi-phase professor/student
 from __future__ import annotations
 
 import copy
+from contextlib import nullcontext
 import glob
 import io
 import math
@@ -1110,7 +1111,14 @@ def eval_sliding_window_ttt(
     if compressor_frozen is not None:
         compressor_frozen.eval()
 
-    with torch._dynamo.disable(), torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+    dynamo_ctx = nullcontext()
+    if hasattr(torch, "_dynamo"):
+        try:
+            dynamo_ctx = torch._dynamo.disable()
+        except RuntimeError:
+            dynamo_ctx = nullcontext()
+
+    with dynamo_ctx, torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
         for s, e in my_spans:
             gpt.reset_eval_lora()
             rolling = rolling_cheat_init.to(device=device, dtype=torch.bfloat16).detach()
