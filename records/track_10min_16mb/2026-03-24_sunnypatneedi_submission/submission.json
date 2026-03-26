@@ -1,9 +1,11 @@
 {
   "name": "AdamW TTT (30ep cosine + per-layer LR) on PR #549 SOTA",
   "val_bpb": 1.0705,
-  "bytes_total": 15887537,
-  "blurb": "PR #549 SOTA base + PR #481 AdamW TTT recipe (30ep cosine decay, per-layer LR: mlp.proj 3x, mlp.fc 0.5x). Replaces weak 3ep SGD TTT with proven AdamW recipe for -0.075 bpb gain. 3-seed mean: 1.0705 (std 0.0009). All artifacts under 16MB, total eval ~589s.",
+  "artifact_bytes": 15887537,
+  "seeds": [42, 1337, 2025],
+  "track": "10min_16mb",
   "author": "sunnypatneedi",
   "github_id": "sunnypatneedi",
-  "date": "2026-03-25"
+  "date": "2026-03-25",
+  "blurb": "PR #549 SOTA base + PR #481 AdamW TTT recipe (30ep cosine decay, per-layer LR: mlp.proj 3x, mlp.fc 0.5x). Replaces weak 3ep SGD TTT with proven AdamW recipe for -0.075 bpb gain. 3-seed mean: 1.0705 (std 0.0009). All artifacts under 16MB, total eval ~589s."
 }
