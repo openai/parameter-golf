@@ -1,0 +1,23 @@
+{
+  "batch_id": "stage1_h100_family_r1",
+  "slot": "P5",
+  "name": "h11_adaptive_muon",
+  "hypothesis": "H11",
+  "family": "optimizer",
+  "role": "exploit",
+  "why": "Adaptive Muon backend-depth schedule to trade early step cost for later update quality.",
+  "env": {
+    "ADAPTIVE_MUON_BACKEND": "1",
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_BACKEND_STEPS_EARLY": "3",
+    "MUON_BACKEND_WARMUP_STEPS": "2000",
+    "NUM_HEADS": "8",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

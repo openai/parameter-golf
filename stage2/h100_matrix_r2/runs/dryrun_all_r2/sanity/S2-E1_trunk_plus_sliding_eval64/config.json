@@ -1,0 +1,46 @@
+{
+  "batch_id": "stage2_h100_matrix_r2",
+  "phase": "sanity",
+  "slot": "S2-E1",
+  "name": "trunk_plus_sliding_eval64",
+  "role": "candidate",
+  "family": "evaluation_time_context",
+  "label": "dryrun_all_r2",
+  "gpu_spec": "2",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "S2-C0",
+    "S2-E1"
+  ],
+  "compare_to": "S2-C0",
+  "why": "Tests whether eval-only context remains a first-order gain on the clean trunk.",
+  "validates": "Final BPB improves enough to justify keeping eval policy as an active frontier.",
+  "falsifies": "Sliding eval is too small or too expensive to matter in our budgeted search loop.",
+  "notes": [
+    "Compared directly against the trunk control."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_BATCH_SEQS": "128",
+    "EVAL_STRIDE": "64",
+    "MATRIX_LR": "0.02",
+    "MAX_WALLCLOCK_SECONDS": "90",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "SCALAR_LR": "0.02",
+    "TIED_EMBED_LR": "0.03",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "393216",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "4096",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

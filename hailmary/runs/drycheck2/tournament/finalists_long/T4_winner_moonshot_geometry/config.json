@@ -1,0 +1,55 @@
+{
+  "batch_id": "hailmary_r2",
+  "pack": "tournament_finalists",
+  "scope": "tournament",
+  "phase": "finalists_long",
+  "slot": "T4",
+  "name": "winner_moonshot_geometry",
+  "role": "candidate",
+  "family": "pack_winner",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patches": [
+    "weight_perturbation"
+  ],
+  "label": "drycheck2",
+  "gpu_spec": "4",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "T4"
+  ],
+  "compare_to": "T0",
+  "why": "Biases training toward flatter minima that may quantize unusually well, even if fp32 validation is neutral.",
+  "validates": "The strongest new stage3 signal transfers into the moonshot lane.",
+  "falsifies": "The stage3 result was local and does not generalize to the moonshot base.",
+  "notes": [
+    "synthetic_from=N2",
+    "winner_of=moonshot_geometry"
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "GRAD_CLIP_NORM": "0.3",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "SCALAR_LR": "0.025",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500",
+    "WEIGHT_PERTURB_SCALE": "0.01"
+  }
+}

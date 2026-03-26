@@ -1,0 +1,42 @@
+{
+  "batch_id": "stage3_mechanism_screen",
+  "phase": "sanity",
+  "slot": "H6",
+  "name": "compile_autotune_warmup5",
+  "role": "candidate",
+  "family": "SYS",
+  "label": "20260320_010921",
+  "gpu_spec": "7",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H6"
+  ],
+  "compare_to": "R0A",
+  "why": "torch.compile mode=max-autotune may find faster kernels. Reduced warmup (5 steps vs 20) saves ~15 steps worth of training time. Together they should increase steps reached in 180s.",
+  "validates": "ms/step improves by >5% or total steps increases meaningfully.",
+  "falsifies": "max-autotune has higher compile overhead that eats the kernel gains; fewer warmup steps cause instability.",
+  "patches": [
+    "compile_autotune"
+  ],
+  "notes": [
+    "Pure throughput play. Should compose with everything.",
+    "Kill: if ms/step is SLOWER (compile regression).",
+    "Promote: if ms/step improves by >5%."
+  ],
+  "env": {
+    "COMPILE_MODE": "max-autotune",
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000",
+    "WARMUP_STEPS": "5"
+  }
+}

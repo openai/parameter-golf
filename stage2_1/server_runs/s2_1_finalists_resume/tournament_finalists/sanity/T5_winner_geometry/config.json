@@ -1,0 +1,57 @@
+{
+  "batch_id": "stage2_1_frontier_portfolio_r3",
+  "pack": "tournament_finalists",
+  "scope": "tournament_finalists",
+  "phase": "sanity",
+  "slot": "T5",
+  "name": "winner_geometry",
+  "role": "candidate",
+  "family": "pack_winner",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": null,
+  "patches": [
+    "weight_perturbation"
+  ],
+  "label": "s2_1_finalists_resume",
+  "gpu_spec": "5",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "T5"
+  ],
+  "compare_to": "T0",
+  "why": "Biases training toward flatter, more quantization-robust minima without changing the base architecture.",
+  "validates": "A cheap post-step noise process can improve deployed quality even when raw fp32 quality is unchanged.",
+  "falsifies": "The stage3 win was narrow to that setup and does not transfer to the stronger frontier base.",
+  "notes": [
+    "Judge primarily on deployed metrics, not only pre-quant quality.",
+    "synthetic_from=F2",
+    "winner_of=geometry"
+  ],
+  "env": {
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "GRAD_CLIP_NORM": "0.3",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "90",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "SCALAR_LR": "0.025",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500",
+    "WEIGHT_PERTURB_SCALE": "0.01"
+  }
+}

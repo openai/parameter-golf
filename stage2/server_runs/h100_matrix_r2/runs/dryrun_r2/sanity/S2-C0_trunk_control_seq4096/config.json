@@ -1,0 +1,43 @@
+{
+  "batch_id": "stage2_h100_matrix_r2",
+  "phase": "sanity",
+  "slot": "S2-C0",
+  "name": "trunk_control_seq4096",
+  "role": "control",
+  "family": "trunk_control",
+  "label": "dryrun_r2",
+  "gpu_spec": "0",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "S2-C0"
+  ],
+  "compare_to": null,
+  "why": "Clean public training trunk control for all trunk-family screens.",
+  "validates": "The current branch can reproduce the seq4096 trunk regime on this hardware.",
+  "falsifies": "Any trunk-family screen is untrustworthy because the control itself is drifting.",
+  "notes": [
+    "Training-side trunk target is 1.20143417."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "MATRIX_LR": "0.02",
+    "MAX_WALLCLOCK_SECONDS": "90",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "SCALAR_LR": "0.02",
+    "TIED_EMBED_LR": "0.03",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "393216",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "4096",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

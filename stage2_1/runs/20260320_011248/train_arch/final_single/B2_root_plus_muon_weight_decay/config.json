@@ -1,0 +1,46 @@
+{
+  "batch_id": "stage2_1_patch_portfolio_r1",
+  "pack": "train_arch",
+  "scope": "train_arch",
+  "phase": "final_single",
+  "slot": "B2",
+  "name": "root_plus_muon_weight_decay",
+  "role": "candidate",
+  "family": "muon_weight_decay",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": "P204",
+  "patches": [
+    "muon_weight_decay"
+  ],
+  "label": "20260320_011248",
+  "gpu_spec": "0,1,2,3",
+  "nproc_per_slot": 4,
+  "lineage": [
+    "B0",
+    "B2"
+  ],
+  "compare_to": "B0",
+  "why": "Most direct bridge between training dynamics and export robustness in the survey.",
+  "validates": "Muon WD improves final score or tightens the quant gap.",
+  "falsifies": "Capacity loss dominates the regularization benefit.",
+  "notes": [
+    "Sweep 0.02, 0.03, 0.04 only after the family survives."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MODEL_DIM": "512",
+    "MUON_WEIGHT_DECAY": "0.02",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "1024",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

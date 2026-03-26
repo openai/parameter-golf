@@ -1,0 +1,41 @@
+{
+  "batch_id": "stage3_mechanism_screen",
+  "phase": "sanity",
+  "slot": "H3",
+  "name": "qat_int6",
+  "role": "candidate",
+  "family": "QAT",
+  "label": "20260320_010921",
+  "gpu_spec": "4",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H3"
+  ],
+  "compare_to": "R0A",
+  "why": "STE fake int6 quantization in the forward pass teaches the model to survive 6-bit compression. Straight-through estimator passes gradients unchanged. Reduces quant gap from ~0.015 to ~0.002. Widely adopted across top submissions.",
+  "validates": "Quant gap shrinks significantly; post-quant BPB improves even if pre-quant is slightly worse.",
+  "falsifies": "QAT hurts pre-quant quality too much to recover at export.",
+  "patches": [
+    "qat"
+  ],
+  "notes": [
+    "QAT makes pre-quant val_bpb WORSE (model trains with noise). The win is in post-quant.",
+    "Kill rule: if pre-quant val_bpb worse by >0.01, the gap is too large to recover.",
+    "Promote rule: if pre-quant within 0.005 of control (gap recovers at export)."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "QAT": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}
