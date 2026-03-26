@@ -638,6 +638,7 @@ class CausalJEPA(nn.Module):
         self.ema_skip_weights = nn.Parameter(self.skip_weights.data.clone())
         self.ema_final_norm = copy.deepcopy(self.final_norm)
         self.ema_target_proj = copy.deepcopy(self.jepa_target_proj)
+        self.jepa_target_proj.requires_grad_(False)
         for p in self._ema_params():
             p.requires_grad_(False)
 
