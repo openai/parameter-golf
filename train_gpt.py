@@ -936,6 +936,21 @@ class LongPhraseCache:
             if log_fn:
                 log_fn(f"phrase_cache: length {L} done")
 
+    def update(self, val_np: np.ndarray, start: int, end: int):
+        """incremental score-first update for a window segment."""
+        for L in self.PROBE_LENGTHS:
+            first_valid = max(L, start)
+            n_pos = end - first_valid
+            if n_pos <= 0:
+                continue
+            positions = np.arange(first_valid, end, dtype=np.int64)
+            ctx_hash = self._rolling_hash(val_np, positions, L)
+            ctx_key = (ctx_hash & self.MASK).astype(np.int64)
+            targets = val_np[(positions + 1).astype(np.int64)].astype(np.uint64)
+            full_key = ((ctx_hash ^ (targets * self.PRIMES[L % len(self.PRIMES)])) & self.MASK).astype(np.int64)
+            np.add.at(self.ctx_tables[L], ctx_key, 1)
+            np.add.at(self.full_tables[L], full_key, 1)
+
     def lookup(self, val_np: np.ndarray, positions: np.ndarray, min_count: int = 2
                ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """lookup phrase matches. returns (p_phrase, has_match, match_length)."""
@@ -1110,8 +1125,10 @@ def eval_val_ngram(
     cache = NgramCache(max_order=ngram_order, min_order=ngram_min_order,
                        num_buckets=ngram_buckets, min_count=ngram_min_count)
 
-    # prefill: pre-warm cache with all tokens before this rank's first window (PR #796)
-    # this makes distributed eval equivalent to single-GPU sequential
+    # phrase cache (single-pass score-first, same as n-gram)
+    phrase_cache = LongPhraseCache()
+
+    # prefill: pre-warm both caches with all tokens before this rank's first window
     if my_windows:
         prefill_end = my_windows[0]
         if prefill_end > 0:
@@ -1119,8 +1136,9 @@ def eval_val_ngram(
             for pf_start in range(0, prefill_end, chunk_sz):
                 pf_end = min(pf_start + chunk_sz, prefill_end)
                 cache.update(val_np, pf_start, pf_end)
+                phrase_cache.update(val_np, pf_start, pf_end)
             if log_fn:
-                log_fn(f"ngram_prefill: warmed cache with {prefill_end} tokens for rank {rank}")
+                log_fn(f"prefill: warmed caches with {prefill_end} tokens for rank {rank}")
 
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     loss_sum_neural = torch.zeros((), device=device, dtype=torch.float64)
@@ -1183,11 +1201,22 @@ def eval_val_ngram(
                 else:
                     alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
 
-                # mix
+                # mix n-gram
                 blended_p = model_p.copy()
                 if has_match.any():
                     m = has_match
                     blended_p[m] = (1.0 - alpha[m]) * model_p[m] + alpha[m] * p_ngram[m]
+
+                # phrase cache: lookup THEN update (score-first)
+                positions = np.arange(abs_start, abs_end, dtype=np.int64)
+                p_phrase, phrase_match, phrase_len = phrase_cache.lookup(val_np, positions, min_count=2)
+                phrase_cache.update(val_np, abs_start, abs_end)
+                if phrase_match.any():
+                    pa = 0.3 + (0.95 - 0.3) * (phrase_len[phrase_match].astype(np.float64) - 16.0) / 32.0
+                    pa = np.clip(pa, 0.0, 0.95)
+                    pm = phrase_match
+                    blended_p[pm] = (1.0 - pa) * blended_p[pm] + pa * p_phrase[pm]
+
                 blended_p = np.maximum(blended_p, 1e-30)
                 seg_nll = -np.log(blended_p)
 
@@ -2036,7 +2065,7 @@ def main() -> None:
         ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
         torch.cuda.synchronize()
         t_ngram = time.perf_counter()
-        ngram_two_pass = bool(int(os.environ.get("NGRAM_TWO_PASS", "1")))
+        ngram_two_pass = bool(int(os.environ.get("NGRAM_TWO_PASS", "0")))  # default single-pass for legality
         log0(f"ngram_eval: order={ngram_order} min_order={ngram_min_order} buckets={ngram_buckets} two_pass={ngram_two_pass}")
         if ngram_two_pass:
             ng_val_loss, ng_val_bpb = eval_ngram_two_pass(
