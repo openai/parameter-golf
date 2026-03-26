@@ -281,8 +281,7 @@ def eval_val(
 
 
 _NG_B = 1 << 22
-_NG_ORDER = 5
-_NG_ALPHA = 0.20
+_NG_ORDERS = (7, 6, 5, 4, 3, 2)
 _NG_MIN = 2
 _NG_MULT = 265443576
 _NG_PAIR_MULT = 1000003
@@ -312,13 +311,16 @@ def eval_val_sliding(
     total_scored_tokens = torch.zeros((), device=device, dtype=torch.float64)
     total_byte_count = torch.zeros((), device=device, dtype=torch.float64)
     ng_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
-    ng_ctx = torch.zeros(_NG_B, dtype=torch.int32, device=device)
-    ng_pair = torch.zeros(_NG_B, dtype=torch.int32, device=device)
     vt_gpu = val_tokens.to(device=device, dtype=torch.int64)
-    h5 = torch.zeros(total_tokens, dtype=torch.int64, device=device)
-    for ki in range(_NG_ORDER - 1):
-        h5[_NG_ORDER-1:] = (h5[_NG_ORDER-1:] * _NG_MULT + vt_gpu[ki:total_tokens - _NG_ORDER + 1 + ki]) % _NG_B
-    print("  5-gram hashes precomputed", flush=True)
+    ng_ctx, ng_pair, ng_hashes = {}, {}, {}
+    for order in _NG_ORDERS:
+        ng_ctx[order] = torch.zeros(_NG_B, dtype=torch.int32, device=device)
+        ng_pair[order] = torch.zeros(_NG_B, dtype=torch.int32, device=device)
+        h = torch.zeros(total_tokens, dtype=torch.int64, device=device)
+        for ki in range(order - 1):
+            h[order-1:] = (h[order-1:] * _NG_MULT + vt_gpu[ki:total_tokens - order + 1 + ki]) % _NG_B
+        ng_hashes[order] = h
+    print(f"  n-gram hashes precomputed (orders {list(_NG_ORDERS)})", flush=True)
     base_model.eval()
     num_batches = (len(my_windows) + batch_size - 1) // batch_size
     with torch.inference_mode():
@@ -337,8 +339,10 @@ def eval_val_sliding(
             per_token_loss = F.cross_entropy(
                 logits.float().reshape(-1, logits.size(-1)), y.reshape(-1), reduction="none",
             ).reshape(len(batch_windows), seq_len)
-            tgt_p = F.softmax(logits.float(), dim=-1).gather(-1, y.unsqueeze(-1)).squeeze(-1)
-            all_pos, all_tgt, all_mp = [], [], []
+            lp = F.log_softmax(logits.float(), dim=-1)
+            ent = -(lp.exp() * lp).sum(dim=-1)
+            tgt_p = lp.gather(-1, y.unsqueeze(-1)).squeeze(-1).exp()
+            all_pos, all_tgt, all_mp, all_H = [], [], [], []
             for idx, (win_start, score_start) in enumerate(batch_windows):
                 scored_loss = per_token_loss[idx, score_start:]
                 total_loss_sum += scored_loss.to(torch.float64).sum()
@@ -350,21 +354,36 @@ def eval_val_sliding(
                 total_byte_count += token_bytes.to(torch.float64).sum()
                 pos = torch.arange(score_start, seq_len, dtype=torch.int64, device=device) + win_start + 1
                 all_pos.append(pos); all_tgt.append(vt_gpu[pos]); all_mp.append(tgt_p[idx, score_start:])
+                all_H.append(ent[idx, score_start:])
             ap = torch.cat(all_pos); at = torch.cat(all_tgt); amp = torch.cat(all_mp)
-            valid = ap >= _NG_ORDER
-            ch = h5[ap[valid]]
-            cc = ng_ctx[ch].float().clamp(min=1)
-            ph = (ch * _NG_PAIR_MULT + at[valid]) % _NG_B
-            ng_p = (ng_pair[ph].float() / cc).clamp(0, 1)
-            has = ng_ctx[ch] >= _NG_MIN
-            mp_v = amp[valid]
-            mixed = torch.where(has, (1 - _NG_ALPHA) * mp_v + _NG_ALPHA * ng_p, mp_v)
+            aH = torch.cat(all_H)
+            n = ap.shape[0]
+            EPS = 1e-8
+            best_ng = torch.zeros(n, device=device); found = torch.zeros(n, dtype=torch.bool, device=device)
+            for order in _NG_ORDERS:
+                m = (ap >= order) & (~found)
+                if not m.any(): continue
+                ch = ng_hashes[order][ap[m]]
+                cc = ng_ctx[order][ch]; has = cc >= _NG_MIN
+                if not has.any(): continue
+                ph = (ch * _NG_PAIR_MULT + at[m]) % _NG_B
+                ng_p = (ng_pair[order][ph].float() / cc.float().clamp(min=1)).clamp(EPS, 1 - EPS)
+                ix = m.nonzero(as_tuple=True)[0]; best_ng[ix[has]] = ng_p[has]; found[ix[has]] = True
+            alpha = 0.05 + 0.55 / (1.0 + torch.exp(-2.0 * (aH - 4.0)))
+            mp_c = amp.clamp(EPS, 1 - EPS)
+            logit_m = torch.log(mp_c / (1 - mp_c))
+            ng_c = best_ng.clamp(EPS, 1 - EPS)
+            logit_ng = torch.log(ng_c / (1 - ng_c))
+            logit_mix = (1 - alpha) * logit_m + alpha * logit_ng
+            mixed = torch.where(found, torch.sigmoid(logit_mix), mp_c)
             ng_loss_sum -= torch.log(mixed.clamp(min=1e-20)).to(torch.float64).sum()
-            mp_inv = amp[~valid]
-            if mp_inv.numel() > 0:
-                ng_loss_sum -= torch.log(mp_inv.clamp(min=1e-20)).to(torch.float64).sum()
-            ng_ctx.scatter_add_(0, ch, torch.ones_like(ch, dtype=torch.int32))
-            ng_pair.scatter_add_(0, ph, torch.ones_like(ph, dtype=torch.int32))
+            for order in _NG_ORDERS:
+                v = ap >= order
+                if not v.any(): continue
+                ch = ng_hashes[order][ap[v]]
+                ng_ctx[order].scatter_add_(0, ch, torch.ones_like(ch, dtype=torch.int32))
+                ph = (ch * _NG_PAIR_MULT + at[v]) % _NG_B
+                ng_pair[order].scatter_add_(0, ph, torch.ones_like(ph, dtype=torch.int32))
     ng_loss_t = ng_loss_sum
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(total_loss_sum, op=dist.ReduceOp.SUM)
