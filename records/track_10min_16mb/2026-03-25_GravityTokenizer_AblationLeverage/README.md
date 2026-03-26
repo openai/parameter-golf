@@ -106,35 +106,31 @@ Consider: "The water because caused the damage."
 
 The crystallized tokens are the load-bearing walls. The byte-gas is the fill. BPE hides this distinction — it tokenizes by frequency, so common fragments get tokens regardless of structural importance. A BPE tokenization tells you "this substring appears often." A gravity tokenization tells you "this is where the model's structural commitments are."
 
-This has measurable consequences for information routing. In a preliminary attention probe, we inserted high-gravity tokens between a subject and object and measured the deflection of the direct attention path. The word "because" (a single gravity crystal, leverage 0.735) pulled 23% of the subject's attention mass into an indirect path through itself — a 20% collapse of the direct geodesic. The word "not," which the gravity tokenizer had judged structurally redundant and shattered into three bytes, produced zero deflection. Diffuse byte-gas cannot lens information. Only crystallized tokens create the gravitational wells that the attention mechanism routes through.
-
-This was measured at training step 100 — before the model has learned English. The mass distribution from the vocabulary is already shaping information geometry before the statistical details are painted. The structural lattice locks in first. The language comes after.
+This has measurable consequences for how the model allocates its computational depth. The residual velocity probe (see "Depth Efficiency Law" below) shows that crystallized tokens engage all 12 layers of the network productively, while byte-gas tokens waste 8 of 12 layers — thrashing early, going idle in the middle, and panicking at the final layer.
 
 The gravity vocabulary doesn't just compress better. It gives the transformer a skeleton to build on. BPE gives it dust.
 
-For the full theoretical framework connecting these observations to dissipative structure theory and the thermodynamics of meaning, see [GENERATIVE_CLOSURE.md](https://github.com/dcrow85/Avalanche/blob/main/GENERATIVE_CLOSURE.md) (Section VIII).
+For the full theoretical framework: [github.com/dcrow85/Avalanche](https://github.com/dcrow85/Avalanche)
 
-## Why It Works: The Vocabulary Is the Geometry
+## Why It Works: The Depth Efficiency Law
 
-The competition result and the attention probe result are the same result.
+The vocabulary determines how much of the architecture each token can actually use.
 
-A transformer's attention matrix is a bilinear form — it maps queries to keys and determines how information flows between positions. This is a metric tensor. It defines the geodesic structure of the model's information space. The token embeddings define the mass-energy distribution across that space. The forward pass computes geodesics. The residual stream is the manifold.
+We measured the **residual velocity** — the L2 norm of the representation change at each layer — for every token across the full depth of the network. High velocity means the layer is doing useful work. Low velocity means the layer is idle.
 
-When the gravity tokenizer concentrates structural importance into single crystallized tokens, it creates a curved spacetime. Information routes along the geodesics carved by the vocabulary's mass distribution. When BPE shatters structurally important concepts across multiple byte tokens, it creates a flat, featureless space where the model must build all structure internally from gradient updates alone.
+**High-leverage tokens use all 12 layers productively.** Their velocity rises smoothly from layer 0 through layer 11. Each layer builds on the last. The model spends its full depth processing these tokens.
 
-We measured this directly. At training step 100 — before the model has learned English — the attention geometry is already curving around high-gravity tokens. The word "because" (a single gravity crystal) deflects the direct attention path between subject and object by 20%, pulling information into an indirect route through itself. The word "not" (shattered into three bytes by the gravity tokenizer) produces zero deflection. Byte-gas cannot lens information.
+**Low-leverage byte-gas tokens waste most of the network.** They exhibit a U-shaped velocity profile: thrashing in early layers (the model attempts to assemble meaning from structureless bytes), going idle in middle layers (the model gives up), and panicking at the final layer (the model must produce a prediction from an unresolved representation). For these tokens, 8 of 12 layers do nothing useful.
 
-At step 11,000, the flat background has burned away entirely. The baseline direct attention collapsed from ~0.05 to ~0.015. The model no longer sends diffuse attention across empty space — it only travels along the geodesics the vocabulary carved. The mass distribution didn't deepen the dents in a flat stage. It became the stage. Background independence.
+This finding survived a rigorous length-matched control (p = 0.00005, n = 168 single-token insertions). Two independent instruments agree: the external ablation measurement (how much does loss increase when this token is removed?) and the internal velocity measurement (how uniformly does the model process this token across layers?) are reading the same property.
 
-Three specific structures emerged in the trained manifold:
+**The same physics holds at frontier scale.** We ran the identical probe on [Qwen 2.5-72B](https://github.com/dcrow85/Avalanche/blob/main/gravity-tokenizer/DEPTH_EFFICIENCY.md) — 80 layers, 151K vocabulary, 2x A100 GPUs, $3 of compute. The result: semantically rich tokens engage all 80 layers (panic ratio ~6). Single characters and fragments waste 60+ layers (panic ratio >10). The depth efficiency law scales with architecture depth. The waste just gets more expensive.
 
-- **Byte-shattered tokens are transparent.** The model cannot use them as structural anchors. To perform negation with a shattered "not," the model must burn MLP capacity to hold bytes in superposition. The vocabulary's decision to shatter a concept is a decision to deny the model a structural handle on it.
-- **Syntax is geometry.** The model routes 7x more attention through "if" (leverage 0.289) than through "an" (leverage 0.516), despite "an" being heavier by scalar mass. "If" bridges two clauses across the sequence — a topological wormhole. "An" constrains only its immediate successor — a point mass. The trained model learned to override scalar mass and route through topological structure.
-- **Causality has light-cones.** "Because" and "so" express the same causal relationship in opposite temporal directions. The attention tensor separates them perfectly: the object routes 3.4x more attention into "because" (effect seeking cause, information flowing backward), while the subject routes 2.2x more into "so" (cause projecting effect, information flowing forward). The model didn't learn grammar. It built a directed graph out of attention mass to enforce causal directionality.
+A 12-layer model with a BPE vocabulary is effectively a 3-4 layer model for the byte-gas portions of its sequence. The gravity tokenizer doesn't add layers. It makes the existing layers usable.
 
-The vocabulary that wins the compression benchmark is the vocabulary that produces the correct mass distribution for the attention geometry. The model that predicts language best is the model whose spacetime is curved correctly.
+**What didn't survive the controls:** An initial hypothesis that high-leverage tokens would "lens" horizontal attention (bending information paths the way mass bends light) was tested and killed. A length-matched control showed that 56% of the observed deflection was a RoPE positional artifact — multi-token insertions increase subject-object distance, and RoPE attenuates attention over distance. A bidirectional control (RoBERTa) confirmed that directional asymmetries in causal models were architectural stress, not learned semantic geometry. The physics of the vocabulary is vertical (layer depth utilization), not horizontal (attention routing between positions).
 
-This is not a metaphor. It is the same mathematics operating on a different substrate.
+Full probe data, scripts, and the Qwen 72B results: [github.com/dcrow85/Avalanche](https://github.com/dcrow85/Avalanche/blob/main/gravity-tokenizer/DEPTH_EFFICIENCY.md)
 
 ## Tokenizer Correctness
 
