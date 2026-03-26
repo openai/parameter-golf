@@ -1,0 +1,9 @@
+{
+  "name": "Backoff N-gram Cache + LeakyReLU(0.9)² + Distributed Pre-fill",
+  "val_bpb": 0.6678,
+  "bytes_total": 8622077,
+  "blurb": "Multi-order backoff n-gram eval cache (orders 2-7) with entropy-adaptive alpha mixing + distributed cache pre-fill for multi-GPU coherence + LeakyReLU(0.9)² activation. Backward-looking score-first: tokens scored before cache update. Pre-fill ensures each GPU rank has full history. Neural base 1.1371 BPB, n-gram cache drops to 0.6678. 8xH100 SXM, 7189 steps in 600s. Single seed (1337), additional seeds pending.",
+  "author": "ibarrajo",
+  "github_id": "ibarrajo",
+  "date": "2026-03-26"
+}
