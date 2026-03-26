@@ -61,7 +61,7 @@ SEQ_LEN = 1024             # training sequence length
 TRAIN_BATCH_TOKENS = 131072  # total tokens per optimizer step (smaller = more steps)
 DEVICE_BATCH_SIZE = 128      # micro-batch size (H100 80GB can handle large batches)
 WARMUP_STEPS = 0
-WARMDOWN_ITERS = 700        # LR warmdown iterations (wallclock-based, ~50% of 1350 steps)
+WARMDOWN_ITERS = 2000       # LR warmdown iterations (gradual decay for 4000 steps)
 
 # Optimizer
 MATRIX_LR = 0.02            # Muon LR for matrix params
