@@ -372,7 +372,7 @@ def eval_val_sliding(
             alpha = 0.05 + 0.55 / (1.0 + torch.exp(-3.0 * (aH - 3.5)))
             aPE = torch.cat(all_pe)
             pe_conf = aPE / aPE.max().clamp(min=1e-8)
-            alpha = alpha * (0.7 + 0.6 * pe_conf)
+            alpha = alpha * (0.5 + 1.0 * pe_conf)
             mixed = torch.where(found, (1 - alpha) * amp + alpha * best_ng, amp)
             ng_loss_sum -= torch.log(mixed.clamp(min=1e-20)).to(torch.float64).sum()
             for order in _NG_ORDERS:
@@ -1423,10 +1423,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{ng_bpb:.4f} "
-        f"sliding_bpb:{sw_val_bpb:.4f} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
+        f"final_sliding_window sliding_bpb:{sw_val_bpb:.4f} val_bpb:{ng_bpb:.4f} "
+        f"eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
     )
-    log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{ng_bpb:.8f} sliding_bpb:{sw_val_bpb:.8f}")
+    log0(f"final_sliding_window_exact sliding_bpb:{sw_val_bpb:.8f} val_bpb:{ng_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
