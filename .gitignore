@@ -9,3 +9,27 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+final_model*
+*.ptz
+*.ptzst
+repo_dump.txt
+flash4.pdf
+
+# Local tooling (not part of submission)
+.claude/
+.mcp.json
+CLAUDE.md
+FINDINGS.md
+modal_final_run.py
+modal_smoke_test.py
+modal_sweep.py
+smoke_test.py
+test_*.py
+sweep_engine
+sweep_engine.go
+sweep_engine.py
+sweep_engine_linux
+sweep_v5.py
+sweep_configs.py
+sweep_results.json
+dump_repo.py

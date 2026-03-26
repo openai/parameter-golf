@@ -1,0 +1,18 @@
+{
+  "name": "11L + Hadamard Rotation + VE128 + cuDNN SDPA",
+  "author": "Erick Aleman",
+  "github_id": "eacognitive",
+  "date": "2026-03-24",
+  "val_bpb": 1.1365,
+  "pre_quant_val_bpb": 1.1515,
+  "bytes_total": 15629540,
+  "bytes_code": 52010,
+  "seed_results": {
+    "1337": {"val_bpb": 1.1364, "steps": 8098, "artifact_bytes": 15618718},
+    "42": {"val_bpb": 1.1361, "steps": 8102, "artifact_bytes": 15629540},
+    "2024": {"val_bpb": 1.1370, "steps": 7960, "artifact_bytes": 15600361}
+  },
+  "mean_bpb": 1.1365,
+  "std_bpb": 0.0005,
+  "blurb": "First application of Walsh-Hadamard rotation for int6 quantization in parameter-constrained LLMs. Improves zstd compression from 1.70x to 1.76x, recovering 530KB of artifact headroom that enables Shared Value Embeddings (VE128). Demonstrates that Hadamard rotation and GPTQ are substitutes at int6 precision."
+}
