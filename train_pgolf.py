@@ -76,8 +76,8 @@ ADAM_EPS = 1e-8
 GRAD_CLIP_NORM = 1.0
 
 # Evaluation
-EVAL_STRIDE = 64            # sliding window eval for better bpb
-EVAL_BATCH_SEQS = 64        # large eval batch for H100 80GB
+EVAL_STRIDE = 0             # 0=standard eval (fast), 64=sliding window (slow but better bpb)
+EVAL_BATCH_SEQS = 64        # eval batch size
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +352,9 @@ def main():
     print(f"Model parameters: {n_params:,} ({n_params/1e6:.1f}M)")
     print(f"Architecture: {NUM_LAYERS}L, dim={MODEL_DIM}, heads={NUM_HEADS}, "
           f"kv_heads={NUM_KV_HEADS}, mlp={MLP_MULT}x")
+
+    # Compile model for speed
+    model = torch.compile(model)
 
     # Setup optimizer
     matrix_params = [p for n, p in model.blocks.named_parameters() if p.ndim == 2]
