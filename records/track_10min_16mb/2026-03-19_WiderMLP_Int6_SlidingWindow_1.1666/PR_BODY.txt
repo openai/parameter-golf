@@ -1,0 +1,29 @@
+## Submission: Wider MLP 3x + int6 Quantization + Sliding Window Eval
+
+**val_bpb: 1.1659** | **Total size: 14,855,508 bytes** (under 16MB)
+
+Three orthogonal improvements over the naive baseline:
+
+1. **Wider MLP (MLP_MULT=3.0)** — 2x→3x expansion (hidden=1536), ~0.019 BPB improvement
+2. **int6 per-row on MLP+attention** — saves ~4MB artifact space, only +0.010 BPB degradation; zstd-22 compression
+3. **Sliding window eval (stride=256)** — overlapping windows, batched forward_logits, ~0.033 BPB improvement, zero artifact cost
+
+### Run command
+
+```bash
+RUN_ID=official_v1_reach MAX_WALLCLOCK_SECONDS=600 VAL_LOSS_EVERY=0 TRAIN_LOG_EVERY=200 \
+MATRIX_LR=0.020 SCALAR_LR=0.020 TIED_EMBED_LR=0.030 \
+MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_STEPS=1500 MUON_MOMENTUM_WARMUP_START=0.92 WARMDOWN_ITERS=3000 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
+```
+
+### Key metrics
+
+| Metric | Value |
+|--------|-------|
+| Steps (10 min cap) | 12,485 |
+| int6 sliding val_bpb | **1.1659** |
+| Artifact size | 14,855,508 bytes |
+| Two seeds: 1.16658, 1.16591 (submitted: 1338) |
+
+See README.md in the submission folder for full details.
