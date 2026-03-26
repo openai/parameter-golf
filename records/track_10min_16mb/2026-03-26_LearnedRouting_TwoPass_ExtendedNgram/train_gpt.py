@@ -223,6 +223,8 @@ class Hyperparameters:
     ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", 8_388_608))
     two_pass_enabled = bool(int(os.environ.get("TWO_PASS_ENABLED", "1")))
     two_pass_rescore_chunks = int(os.environ.get("TWO_PASS_RESCORE_CHUNKS", 15))
+    gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "1")))
+    value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -378,7 +380,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate,lambda_v",
     ).split(",")
     if pattern
 )
@@ -691,7 +693,8 @@ class MLP(nn.Module):
 class Block(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  rope_base: float, qk_gain_init: float, layer_idx: int = 0,
-                 ln_scale: bool = False, dtg: bool = False):
+                 ln_scale: bool = False, dtg: bool = False,
+                 gated_attention: bool = False, value_residual: bool = False):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
@@ -701,6 +704,16 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
+        # Gated attention: per-head learned gate (PR #638/#733)
+        if gated_attention:
+            self.attn_gate = nn.Parameter(torch.ones(num_heads, dtype=torch.float32))
+        else:
+            self.attn_gate = None
+        # Value residual learning: lambda_v * x0 shortcut (PR #657/#733)
+        if value_residual:
+            self.lambda_v = nn.Parameter(torch.zeros(1, dtype=torch.float32))
+        else:
+            self.lambda_v = None
         if dtg:
             self.dtg_gate = nn.Linear(dim, 1, bias=True)
             nn.init.zeros_(self.dtg_gate.weight)
@@ -712,8 +725,18 @@ class Block(nn.Module):
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed)
+        # Gated attention: scale per head
+        if self.attn_gate is not None:
+            B, T, D = attn_out.shape
+            H = self.attn_gate.numel()
+            HD = D // H
+            attn_out = attn_out.reshape(B, T, H, HD) * self.attn_gate.to(dtype=attn_out.dtype)[None, None, :, None]
+            attn_out = attn_out.reshape(B, T, D)
         x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor)
+        # Value residual: shortcut from initial embedding
+        if self.lambda_v is not None:
+            x_out = x_out + self.lambda_v.to(dtype=x_out.dtype) * x0
         if self.dtg_gate is not None:
             gate = torch.sigmoid(self.dtg_gate(x_in.detach()))
             x_out = x_in + gate * (x_out - x_in)
@@ -726,7 +749,8 @@ class GPT(nn.Module):
                  bigram_vocab_size: int = 0, bigram_dim: int = 128, xsa_last_n: int = 0,
                  rope_dims: int = 0, ln_scale: bool = False, dtg: bool = False,
                  ve_enabled: bool = False, ve_dim: int = 128, ve_layers: str = "9,10",
-                 mixer_head: str = "none", mixer_num_experts: int = 7):
+                 mixer_head: str = "none", mixer_num_experts: int = 7,
+                 gated_attention: bool = False, value_residual: bool = False):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)
         if logit_softcap <= 0.0:
@@ -752,7 +776,8 @@ class GPT(nn.Module):
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList([
             Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base,
-                  qk_gain_init, layer_idx=i, ln_scale=ln_scale, dtg=dtg)
+                  qk_gain_init, layer_idx=i, ln_scale=ln_scale, dtg=dtg,
+                  gated_attention=gated_attention, value_residual=value_residual)
             for i in range(num_layers)
         ])
         if rope_dims > 0:
@@ -1473,6 +1498,7 @@ def main() -> None:
         dtg=args.dtg_enabled, ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         mixer_head=args.mixer_head,
         mixer_num_experts=1 + args.ngram_max_order - args.ngram_min_order + 1,
+        gated_attention=args.gated_attention, value_residual=args.value_residual,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1901,6 +1927,7 @@ def main() -> None:
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         mixer_head=args.mixer_head,
         mixer_num_experts=1 + args.ngram_max_order - args.ngram_min_order + 1,
+        gated_attention=args.gated_attention, value_residual=args.value_residual,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
