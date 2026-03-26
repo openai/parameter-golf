@@ -2,22 +2,27 @@
   "author": "Mato (Light Speed Up)",
   "github_id": "MatoTeziTanka",
   "name": "PROTEUS+STYX: LeakyReLU(0.9)² + 5-gram Eval Cache",
-  "blurb": "Slope 0.9 LeakyReLU² + backward-looking 5-gram hash cache during sliding window eval. Fixed-alpha blending (0.8 model / 0.2 cache), numpy hash tables (4M buckets), strictly backward-looking. No training data access during eval. Verified at stride=2048 (zero overlap): 0.8709 BPB. Built with PROTEUS+STYX by Light Speed Up — lightspeedup.com",
-  "date": "2026-03-25T00:00:00Z",
-  "val_bpb": 0.8508,
-  "bytes_total": 15878748,
-  "bytes_code": 54397,
+  "blurb": "Slope 0.9 LeakyReLU² + backward-looking 5-gram hash cache during sliding window eval. Fixed-alpha blending (0.8 model / 0.2 cache), numpy hash tables (4M buckets), strictly backward-looking. No training data access during eval. Verified at stride=2048 (zero overlap): 0.8709 BPB. Cross-model audited by GPT Codex (gpt-5.4). Built with PROTEUS+STYX by Light Speed Up — lightspeedup.com",
+  "date": "2026-03-26T00:00:00Z",
+  "val_bpb": 0.8495,
+  "bytes_total": 15921591,
+  "bytes_code": 72603,
   "seeds": {
-    "42":   {"val_bpb": 0.8513},
-    "1337": {"val_bpb": 0.8502},
-    "2024": {"val_bpb": 0.8510}
+    "42":   {"val_bpb": 0.8494, "artifact_bytes": 15921591},
+    "1337": {"val_bpb": 0.8482, "artifact_bytes": 15919103},
+    "2024": {"val_bpb": 0.8508, "artifact_bytes": 15905947}
   },
-  "mean_val_bpb": 0.8508,
-  "std_val_bpb": 0.0006,
+  "mean_val_bpb": 0.8495,
+  "std_val_bpb": 0.0013,
   "verification": {
     "stride_2048_bpb": 0.8709,
     "stride_2048_hit_rate": "97.9%",
     "stride_64_hit_rate": "98.2%",
-    "baseline_no_cache_bpb": 1.1314
+    "baseline_no_cache_bpb": 1.1477
+  },
+  "superseded_seeds_v1_0": {
+    "42":   {"val_bpb": 0.8513, "artifact_bytes": 16025731, "note": "over 16MB cap"},
+    "1337": {"val_bpb": 0.8502, "artifact_bytes": 15939991},
+    "2024": {"val_bpb": 0.8510, "artifact_bytes": 15910119}
   }
 }
