@@ -1,0 +1,10 @@
+{
+  "name": "core_record_candidate_evalmerge_8x",
+  "date": "2026-03-20T11:33:16Z",
+  "source": "/Users/simon/Code/parameter-golf/records/track_10min_16mb/2026-03-19_core_record_candidate/train_gpt.py",
+  "exit_code": 0,
+  "elapsed_seconds": 1093.5288672447205,
+  "step_avg_ms": 68.01,
+  "val_loss": 2.03380861,
+  "val_bpb": 1.20453674
+}

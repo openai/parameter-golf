@@ -9,3 +9,12 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+.env.local
+.pod_id
+.lane_pods
+autoresearch/logs/
+autoresearch/history.jsonl
+autoresearch/*.best.py
+autoresearch/experiments/*/train.log
+autoresearch.out
+final_model*
