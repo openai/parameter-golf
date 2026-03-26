@@ -1,8 +1,0 @@
-# Seed 42 - XSA_LAST_N=6 BIGRAM_VOCAB_SIZE=4096 on PR #700
-# 8xH100 SXM, torch 2.9.0+cu126, FA3
-# Training: ~6073 steps in 582s @ ~96ms/step
-step:0/20000 val_loss:6.9286 val_bpb:4.1035 train_time:0ms step_avg:0.01ms
-step:4000/20000 val_loss:2.0003 val_bpb:1.1847 train_time:395961ms step_avg:98.99ms
-stopping_early: wallclock_cap train_time:582064ms step:6073/20000
-final_int6_sliding_window_exact val_loss:1.90245163 val_bpb:1.12674275
-final_int6_ttt_exact val_loss:1.86483815 val_bpb:1.10446586
