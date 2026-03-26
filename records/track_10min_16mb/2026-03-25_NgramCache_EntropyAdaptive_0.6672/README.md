@@ -1,6 +1,6 @@
 # 11L + Multi-Order N-gram Backoff + Entropy-Adaptive Alpha
 
-**val_bpb: 0.6672** (seed 42) | **15.0 MB** artifact | 1xB200 (HiPerGator)
+**val_bpb: 0.6678** (3-seed mean, std 0.0008) | **15.0 MB** artifact | 1xB200 (HiPerGator)
 
 ## Technique
 
@@ -27,16 +27,14 @@ alpha = 0.05 + 0.55 * sigmoid(2 * (H - 4.0))
 - No oracle selection: alpha depends on model entropy, never on ground-truth labels
 - Single blended prediction per token, no min(NLL)
 
-## Results
+## Results (3 seeds)
 
-| Metric | Value |
-|--------|-------|
-| Pre-quant val_bpb | 1.1927 |
-| Post-quant roundtrip | 1.1577 |
-| **Post n-gram sliding (s64)** | **0.6672** |
-| Artifact size | 15,025,238 bytes |
-| Training steps | 20,000 |
-| Step avg | 538.9 ms |
+| Seed | N-gram BPB | Artifact |
+|------|-----------|----------|
+| 42 | **0.6672** | 15,025,238 |
+| 1337 | **0.6676** | 15,025,238 |
+| 7 | **0.6687** | 15,025,238 |
+| **Mean** | **0.6678 (std 0.0008)** | |
 
 ## Architecture
 
