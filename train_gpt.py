@@ -39,6 +39,13 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+
+def rms_norm_compat(x: Tensor, eps: float = 1e-6) -> Tensor:
+    """Use F.rms_norm when available, otherwise a numerically equivalent fallback."""
+    if hasattr(F, "rms_norm"):
+        return F.rms_norm(x, (x.size(-1),), eps=eps)
+    return x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + eps)
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -586,7 +593,8 @@ class RMSNorm(nn.Module):
         self.eps = eps
 
     def forward(self, x: Tensor) -> Tensor:
-        return F.rms_norm(x, (x.size(-1),), eps=self.eps)
+        eps = 1e-6 if self.eps is None else self.eps
+        return rms_norm_compat(x, eps=eps)
 
 
 class CastedLinear(nn.Linear):
@@ -727,8 +735,8 @@ class CausalSelfAttention(nn.Module):
             delta_v = x @ self.lora_v_a @ self.lora_v_b
             delta_v = delta_v.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
             v = v + delta_v
-        q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
+        q = rms_norm_compat(q)
+        k = rms_norm_compat(k)
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
@@ -920,7 +928,7 @@ class GPT(nn.Module):
         x: Tensor,
         return_pre_lm_hidden: bool = False,
     ) -> Tensor:
-        x = F.rms_norm(x, (x.size(-1),))
+        x = rms_norm_compat(x)
         x0 = x
         skips: list[Tensor] = []
         use_f = self.use_flash_attn
@@ -1361,7 +1369,16 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    # `torch.compile` (Dynamo) is not supported on some Python/PyTorch combinations.
+    # This is especially common on Python 3.12+ depending on the torch build.
+    if os.environ.get("TORCH_COMPILE", "1") not in ("0", "false", "False"):
+        try:
+            zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+        except RuntimeError as e:
+            if "Dynamo is not supported on Python 3.12" in str(e):
+                print("Skipping torch.compile (Dynamo unsupported on Python 3.12+)")
+            else:
+                raise
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -1385,12 +1402,21 @@ def main() -> None:
     # Fast math knobs
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-    from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+    # SDP enablement helpers move around across torch versions.
+    # Some builds may not expose `enable_cudnn_sdp`/etc.
+    try:
+        from torch.backends.cuda import enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+        enable_flash_sdp(True)
+        enable_mem_efficient_sdp(False)
+        enable_math_sdp(False)
+    except ImportError:
+        pass
 
-    enable_cudnn_sdp(False)
-    enable_flash_sdp(True)
-    enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    try:
+        from torch.backends.cuda import enable_cudnn_sdp
+        enable_cudnn_sdp(False)
+    except ImportError:
+        pass
 
     logfile = None
     if master_process:
@@ -1624,7 +1650,14 @@ def main() -> None:
                 torch.float32,
             )
             base_model.packed_attn_mask = packed_pm
-            base_model = torch.compile(base_model)  # type: ignore[assignment]
+            if os.environ.get("TORCH_COMPILE", "1") not in ("0", "false", "False"):
+                try:
+                    base_model = torch.compile(base_model)  # type: ignore[assignment]
+                except RuntimeError as e:
+                    if "Dynamo is not supported on Python 3.12" in str(e):
+                        print("Skipping torch.compile for transition (Dynamo unsupported on Python 3.12+)")
+                    else:
+                        raise
             model = (
                 DDP(base_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True)
                 if distributed
