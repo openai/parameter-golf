@@ -1,0 +1,18 @@
+{
+  "author": "Deyan Todorov",
+  "github_id": "dttdrv",
+  "name": "11L Int5 + 6-Expert HedgeMixer + LeakyReLU(0.9)^2 + TTT",
+  "blurb": "11-layer 512-dim, 3.5x MLP LeakyReLU(0.9)^2, 6-expert Hedge context mixer (neural+uni/bi/tri/4-gram+entropy), GPTQ int5+zstd-22, score-first TTT 4ep with Polyak averaging, GatedAttention, ValueResidual, XSA11, EMA+SWA.",
+  "date": "2026-03-26T11:08:00Z",
+  "val_bpb": 1.1105,
+  "pre_quant_val_bpb": 1.1342,
+  "step_stop": 5684,
+  "wallclock_seconds": 582,
+  "eval_time_seconds": 570,
+  "bytes_total": 15951599,
+  "bytes_code": 99037,
+  "bytes_model_int6_zstd": 15852562,
+  "gpu_config": "8xH100 SXM 80GB",
+  "batch_tokens": 786432,
+  "seed": 1337
+}
