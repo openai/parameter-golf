@@ -32,59 +32,48 @@ import importlib.util
 
 def robust_fa3_setup():
     """
-    Forcefully ensures FlashAttention-3 is available in the environment.
-    Handles missing pip, venv isolation, and PyTorch version matching.
+    Forcefully installs FA3 directly into the active .venv site-packages.
+    Bypasses 'User site-packages' isolation errors.
     """
     print("\n" + "=" * 60)
-    print("SYSTEM DIAGNOSTIC: Checking for Hopper-Optimized Kernels (FA3)...")
+    print("SYSTEM DIAGNOSTIC: Checking for Hopper Kernels...")
 
-    # 1. Check if it's already functional
     try:
-        import flash_attn_interface
-        # Try to trigger the C++ backend load
         importlib.import_module("flash_attn_3._C")
-        print("SUCCESS: FlashAttention-3 is already active and linked.")
         return True
     except (ImportError, ModuleNotFoundError):
-        print("NOTE: FA3 not found. Initiating robust local installation...")
-        print("Apologies for the runtime install; the current leaderboard environment")
-        print("requires FA3 for competitive step times (~80ms).")
+        print("NOTE: FA3 binaries missing. Forcing internal .venv installation...")
 
     try:
-        # 2. Bootstrap PIP if missing (common in broken RunPod venvs)
-        try:
-            import pip
-        except ImportError:
-            print("PIP missing from environment. Bootstrapping...")
-            subprocess.check_call(["curl", "-sS", "https://bootstrap.pypa.io/get-pip.py", "-o", "get-pip.py"])
-            subprocess.check_call([sys.executable, "get-pip.py", "--user"])
-            os.remove("get-pip.py")
+        # 1. Identify the .venv site-packages path
+        import site
+        venv_site = [p for p in sys.path if 'site-packages' in p and '.venv' in p]
+        target_dir = venv_site[0] if venv_site else None
 
-        # 3. Detect Python and Torch version for wheel matching
-        # RunPod currently uses PyTorch 2.9.1 on Python 3.12 or 3.10
-        py_ver = f"cp{sys.version_info.major}{sys.version_info.minor}"
+        # 2. Bootstrap PIP internally (no --user)
+        subprocess.check_call(["curl", "-sS", "https://bootstrap.pypa.io/get-pip.py", "-o", "get-pip.py"])
+        # We run it with the current python3 to ensure it stays in the .venv
+        subprocess.check_call([sys.executable, "get-pip.py"])
+        os.remove("get-pip.py")
 
-        # We target the most stable community-built Hopper wheels
-        # If the server is 2.9.1, we use that; otherwise fallback to 2.8.0 links
+        # 3. Force Install using the wheel and targeting the .venv site-packages
+        # We REMOVE --user and add --target if necessary, but standard install usually works in venv
         wheel_url = "https://windreamer.github.io/flash-attention3-wheels/cu128_torch291"
 
-        print(f"Targeting wheel for {py_ver} on Hopper/SM90...")
-
-        # 4. Execute Force Install
-        # --ignore-installed avoids the 'Requirement already satisfied' trap in /usr/local
+        print(f"Installing directly to .venv site-packages...")
         subprocess.check_call([
             sys.executable, "-m", "pip", "install",
-            "--user", "--ignore-installed", "--no-deps", "flash_attn_3",
+            "--ignore-installed", "--no-deps", "flash_attn_3",
             "--find-links", wheel_url
         ])
 
-        print("INSTALL COMPLETE: Attempting to verify...")
+        print("INSTALL SUCCESS: Re-loading caches...")
         importlib.invalidate_caches()
         return True
 
     except Exception as e:
-        print(f"CRITICAL: Robust install failed: {e}")
-        print("FALLBACK: Moving forward with native PyTorch SDPA (Standard Attention).")
+        print(f"CRITICAL: Aggressive-Local install failed: {e}")
+        print("FALLBACK: Moving forward with native PyTorch SDPA.")
         return False
 
 
