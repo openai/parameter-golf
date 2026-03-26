@@ -1,0 +1,11 @@
+{
+  "author": "Challenge participant",
+  "github_id": "jaksenc",
+  "name": "Family1A_TiedBlocks_1xH100_NonRecord",
+  "blurb": "Non-record Family 1A: tied transformer block weights; grad clip 1.0 + 30-step warmup; 1xH100 600s autoresearch baseline-1gpu; val_bpb ~1.514 post int8+zlib roundtrip; not claiming leaderboard SOTA.",
+  "date": "2026-03-23T14:06:19Z",
+  "val_loss": 2.55636938,
+  "val_bpb": 1.51402594,
+  "bytes_total": 2033640,
+  "bytes_code": 51784
+}
