@@ -1,0 +1,24 @@
+{
+  "author": "Simon Marcus",
+  "github_id": "simon-marcus",
+  "name": "BROADSIDE: Full-Rescore N-gram Cache",
+  "blurb": "Two-pass n-gram eval that scores ALL tokens against the complete cache, not just early chunks. Decoupled architecture: neural logits pre-computed and stored, then n-gram blending done as a separate vectorized pass. Order 2-12, 4M buckets, entropy-adaptive alpha.",
+  "date": "2026-03-26",
+  "val_loss": 0.15783006,
+  "val_bpb": 0.09347610,
+  "val_loss_std": 0.00012,
+  "val_bpb_std": 0.00007,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {
+    "1337": {"val_loss": 0.15787679, "val_bpb": 0.09350378},
+    "42":   {"val_loss": 0.15792152, "val_bpb": 0.09353027},
+    "2024": {"val_loss": 0.15769188, "val_bpb": 0.09339426}
+  },
+  "pre_quant_val_bpb": 1.1212,
+  "step_stop": 7156,
+  "wallclock_seconds": 600.0,
+  "eval_time_seconds": 158.0,
+  "bytes_total": 15966189,
+  "bytes_code": 113333,
+  "bytes_model": 15852856
+}
