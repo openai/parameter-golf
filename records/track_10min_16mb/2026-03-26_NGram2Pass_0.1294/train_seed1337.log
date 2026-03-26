@@ -1,0 +1,162 @@
+W0326 14:53:54.182000 139653457278784 torch/distributed/run.py:779] 
+W0326 14:53:54.182000 139653457278784 torch/distributed/run.py:779] *****************************************
+W0326 14:53:54.182000 139653457278784 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 14:53:54.182000 139653457278784 torch/distributed/run.py:779] *****************************************
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+logs/6cfecee4-04e0-4c9e-a994-47ada1a8142b.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+mixed_precision: 68 int5 layers, 0 int6 layers (last 0 blocks)
+model_params:33317980
+XSA:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] ws:8 gqa:8/8
+lr:embed=0.035 matrix=0.025 scalar=0.025 batch:786432 wall:600s seed:1337
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+/root/.conda/envs/loongflow_ml/lib/python3.11/site-packages/sympy/external/gmpy.py:139: UserWarning: gmpy2 version is too old to use (2.0.0 or newer required)
+  gmpy = import_module('gmpy2', min_module_version=_GMPY2_MIN_VERSION,
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9285 val_bpb:4.1035 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9306 train_time:162ms step_avg:161.90ms
+step:2/20000 train_loss:8.4527 train_time:303ms step_avg:151.36ms
+step:3/20000 train_loss:7.5029 train_time:445ms step_avg:148.29ms
+step:4/20000 train_loss:8.0895 train_time:588ms step_avg:147.09ms
+step:5/20000 train_loss:8.5233 train_time:734ms step_avg:146.75ms
+step:6/20000 train_loss:8.3595 train_time:876ms step_avg:146.06ms
+step:7/20000 train_loss:7.7353 train_time:1020ms step_avg:145.77ms
+step:8/20000 train_loss:7.2929 train_time:1159ms step_avg:144.89ms
+step:9/20000 train_loss:6.8687 train_time:1301ms step_avg:144.57ms
+step:10/20000 train_loss:6.4387 train_time:1440ms step_avg:144.02ms
+step:500/20000 train_loss:3.1214 train_time:68657ms step_avg:137.31ms
+step:1000/20000 train_loss:3.0743 train_time:137381ms step_avg:137.38ms
+step:1500/20000 train_loss:3.0380 train_time:206146ms step_avg:137.43ms
+step:2000/20000 train_loss:2.9080 train_time:274988ms step_avg:137.49ms
+late_qat:enabled step:2482 scale:0.5000
+step:2500/20000 train_loss:2.9842 train_time:343886ms step_avg:137.55ms
+step:3000/20000 train_loss:2.9303 train_time:414604ms step_avg:138.20ms
+swa:start step:3500
+step:3500/20000 train_loss:2.9340 train_time:485313ms step_avg:138.66ms
+step:4000/20000 train_loss:2.7931 train_time:556697ms step_avg:139.17ms
+step:4000/20000 val_loss:2.8162 val_bpb:1.6679 train_time:556775ms step_avg:139.19ms
+step:4178/20000 val_loss:2.8064 val_bpb:1.6621 train_time:582074ms step_avg:139.32ms
+stopping_early: wallclock_cap train_time:582074ms step:4178/20000
+peak memory allocated: 29527 MiB reserved: 29936 MiB
+ema:applying EMA weights (skipping diagnostic evals)
+gptq:calibrating with training data...
+gptq:calibrated 68 layers in 2.5s
+Serialized model: 130432180 bytes
+Code size: 127474 bytes
+pruning:3.0% magnitude pruning applied
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+Serialized model int6+zstd: 12167748 bytes
+Total submission size int6+zstd: 12295222 bytes
+/newcpfs/user/qixuan1/cc7/parameter-golf/my_submission/train_gpt.py:2395: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/newcpfs/user/qixuan1/cc7/parameter-golf/my_submission/train_gpt.py:2395: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/newcpfs/user/qixuan1/cc7/parameter-golf/my_submission/train_gpt.py:2395: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/newcpfs/user/qixuan1/cc7/parameter-golf/my_submission/train_gpt.py:2395: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/newcpfs/user/qixuan1/cc7/parameter-golf/my_submission/train_gpt.py:2395: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/newcpfs/user/qixuan1/cc7/parameter-golf/my_submission/train_gpt.py:2395: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/newcpfs/user/qixuan1/cc7/parameter-golf/my_submission/train_gpt.py:2395: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/newcpfs/user/qixuan1/cc7/parameter-golf/my_submission/train_gpt.py:2395: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+  ttt: pre-compiling forward+backward kernels...
+  ttt: pre-compile done
+final_int6_sliding_window val_loss:2.9827 val_bpb:1.7666 stride:64 eval_time:331039ms
+final_int6_sliding_window_exact val_loss:2.98274541 val_bpb:1.76655452
+TTT: skipped (TTT_ENABLED=0 — ngram eval provides primary metric)
+ngram_eval:start chunks=63 chunk_tokens=1000000 max_order=9 alpha_max=0.7 twopass=True twopass_chunks=63
+  ngram_p1_chunk [1/63] bpb=1.772752 time=7.5s
+  ngram_p1_chunk [4/63] bpb=1.851424 time=32.1s
+  ngram_p1_chunk [7/63] bpb=1.618811 time=56.5s
+  ngram_p1_chunk [10/63] bpb=1.371721 time=80.6s
+  ngram_p1_chunk [13/63] bpb=1.171607 time=104.1s
+  ngram_p1_chunk [16/63] bpb=1.017728 time=127.0s
+  ngram_p1_chunk [19/63] bpb=0.900219 time=149.6s
+  ngram_p1_chunk [22/63] bpb=0.809231 time=172.0s
+  ngram_p1_chunk [25/63] bpb=0.737000 time=194.2s
+  ngram_p1_chunk [28/63] bpb=0.679340 time=216.3s
+  ngram_p1_chunk [31/63] bpb=0.632298 time=238.2s
+  ngram_p1_chunk [34/63] bpb=0.591322 time=260.1s
+  ngram_p1_chunk [37/63] bpb=0.556559 time=281.9s
+  ngram_p1_chunk [40/63] bpb=0.526359 time=303.5s
+  ngram_p1_chunk [43/63] bpb=0.499977 time=325.3s
+  ngram_p1_chunk [46/63] bpb=0.477168 time=346.9s
+  ngram_p1_chunk [49/63] bpb=0.457568 time=368.5s
+  ngram_p1_chunk [52/63] bpb=0.439722 time=390.0s
+  ngram_p1_chunk [55/63] bpb=0.423177 time=411.7s
+  ngram_p1_chunk [58/63] bpb=0.408315 time=433.3s
+  ngram_p1_chunk [61/63] bpb=0.394767 time=455.0s
+  ngram_p1_chunk [63/63] bpb=0.390494 time=462.6s
+ngram_p2:start rescoring first 63 chunks with full cache
+ngram_p2:done time=845.4s
+ngram:done val_loss=0.218523 val_bpb=0.129422 elapsed=845.4s
+final_ngram val_loss:0.2185 val_bpb:0.1294 stride:64 eval_time:846430ms
+final_ngram_exact val_loss:0.21852333 val_bpb:0.12942182

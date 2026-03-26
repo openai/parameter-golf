@@ -1,0 +1,17 @@
+{
+  "author": "qixuan1",
+  "github_id": "qixuan1",
+  "name": "N-gram Two-Pass Score-First Evaluation",
+  "blurb": "Score-first two-pass N-gram evaluation augmenting a 33M-param int5 neural model. Pass 1: sequential score-first N-gram cache build (62M tokens, 9-gram, 4M buckets). Pass 2: rescore all 63 chunks with full warm cache. Order-Adaptive Entropy Gating (OAEG) mixes neural + N-gram predictions per order. stride=64 halves neural passes while preserving full 2048-token context. 3-seed mean: 0.1290 (std 0.0005). All artifacts under 13MB, eval ~456s on H100 (within 600s budget).",
+  "date": "2026-03-26",
+  "val_bpb": 0.12896738,
+  "val_loss": 0.21775603,
+  "bytes_total": 12542146,
+  "bytes_model_int6_zstd": 12414672,
+  "bytes_code": 127474,
+  "seeds": {
+    "1337": {"val_bpb": 0.12942182, "val_loss": 0.21852333, "bytes_total": 12295222},
+    "42":   {"val_bpb": 0.12844925, "val_loss": 0.21688118, "bytes_total": 12542146},
+    "2025": {"val_bpb": 0.12903108, "val_loss": 0.21786358, "bytes_total": 12335941}
+  }
+}
