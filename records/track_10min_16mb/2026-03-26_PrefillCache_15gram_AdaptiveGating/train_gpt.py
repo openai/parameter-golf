@@ -1,4 +1,4 @@
-"""v4_comp — Prefill + Order-Adaptive + Multi-Order Online Complementary Training"""
+"""v4_dirichlet — Empirical Bayes N-gram: Dirichlet-smoothed recursive backoff + comp training"""
 from __future__ import annotations
 import copy
 import glob
@@ -101,6 +101,8 @@ class Hyperparameters:
     _om_str = os.environ.get("NGRAM_ORDER_MULTS", "")
     ngram_order_mults = tuple(float(x) for x in _om_str.split(",") if x.strip()) if _om_str else ()
     ngram_alpha_max = float(os.environ.get("NGRAM_ALPHA_MAX", "0.95"))
+    ngram_dirichlet = bool(int(os.environ.get("NGRAM_DIRICHLET", "0")))
+    ngram_concentration = float(os.environ.get("NGRAM_CONCENTRATION", "1.0"))
     comp_enabled = bool(int(os.environ.get("COMP_ENABLED", "0")))
     comp_alpha = float(os.environ.get("COMP_ALPHA", "0.5"))
     comp_order = int(os.environ.get("COMP_ORDER", "5"))
@@ -213,9 +215,7 @@ class Muon(torch.optim.Optimizer):
                 p.add_(g, alpha=-lr)
                 curr += p.numel()
         return loss
-def build_sentencepiece_luts(
-    sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
-) -> tuple[Tensor, Tensor, Tensor]:
+def build_sentencepiece_luts(sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device) -> tuple[Tensor, Tensor, Tensor]:
     sp_vocab_size = int(sp.vocab_size())
     table_size = max(sp_vocab_size, vocab_size)
     base_bytes_np = np.zeros((table_size,), dtype=np.int16)
@@ -233,11 +233,7 @@ def build_sentencepiece_luts(
             has_leading_space_np[token_id] = True
             piece = piece[1:]
         base_bytes_np[token_id] = len(piece.encode("utf-8"))
-    return (
-        torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
-        torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
-        torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
-    )
+    return (torch.tensor(base_bytes_np, dtype=torch.int16, device=device), torch.tensor(has_leading_space_np, dtype=torch.bool, device=device), torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device))
 def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
@@ -248,26 +244,11 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
     return tokens[: usable + 1]
 def eval_val(
-    args: Hyperparameters,
-    model: nn.Module,
-    rank: int,
-    world_size: int,
-    device: torch.device,
-    grad_accum_steps: int,
-    val_tokens: Tensor,
-    base_bytes_lut: Tensor,
-    has_leading_space_lut: Tensor,
-    is_boundary_token_lut: Tensor,
-    eval_seq_len: int | None = None,
-) -> tuple[float, float]:
+    args, model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, eval_seq_len=None):
     seq_len = eval_seq_len or args.train_seq_len
     local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
     if local_batch_tokens < seq_len:
-        raise ValueError(
-            "VAL_BATCH_SIZE must provide at least one sequence per rank; "
-            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
-            f"GRAD_ACCUM_STEPS={grad_accum_steps}, seq_len={seq_len}"
-        )
+        raise ValueError(f"VAL_BATCH_SIZE too small: {args.val_batch_size}, ws={world_size}, ga={grad_accum_steps}, sl={seq_len}")
     local_batch_seqs = local_batch_tokens // seq_len
     total_seqs = (val_tokens.numel() - 1) // seq_len
     seq_start = (total_seqs * rank) // world_size
@@ -752,21 +733,7 @@ class GPT(nn.Module):
         if return_hidden:
             return logits, x
         return logits
-def eval_val_sliding(
-    args: Hyperparameters,
-    base_model: nn.Module,
-    rank: int,
-    world_size: int,
-    device: torch.device,
-    val_tokens: Tensor,
-    base_bytes_lut: Tensor,
-    has_leading_space_lut: Tensor,
-    is_boundary_token_lut: Tensor,
-    stride: int,
-    batch_seqs: int = 32,
-    eval_seq_len: int | None = None,
-) -> tuple[float, float]:
-    """Sliding window eval with multi-order n-gram backoff cache (score-first)."""
+def eval_val_sliding(args, base_model, rank, world_size, device, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride, batch_seqs=32, eval_seq_len=None):
     seq_len = eval_seq_len or args.train_seq_len
     total_tokens = val_tokens.numel() - 1
     window_starts = [ws for ws in range(0, total_tokens, stride)
@@ -789,7 +756,7 @@ def eval_val_sliding(
             [np.uint64(36313), np.uint64(27191), np.uint64(51647), np.uint64(81929),
              np.uint64(131071), np.uint64(175447), np.uint64(209591)], dtype=np.uint64)
         if rank == 0:
-            print(f"ngram_cache:enabled orders={args.ngram_min_order}-{args.ngram_order} entropy={args.ngram_entropy} alpha={args.ngram_alpha} min_count={args.ngram_min_count} buckets={args.ngram_buckets} order_mults={args.ngram_order_mults or 'none'} alpha_max={args.ngram_alpha_max}", flush=True)
+            print(f"ngram_cache:enabled orders={args.ngram_min_order}-{args.ngram_order} dirichlet={args.ngram_dirichlet} concentration={args.ngram_concentration} entropy={args.ngram_entropy} min_count={args.ngram_min_count} buckets={args.ngram_buckets} order_mults={args.ngram_order_mults or 'none'} alpha_max={args.ngram_alpha_max}", flush=True)
         if rank > 0 and len(my_windows) > 0:
             ws0 = my_windows[0]
             pre_end = ws0 + max(seq_len - stride, 0)  # last target pos scored by preceding ranks
@@ -865,40 +832,57 @@ def eval_val_sliding(
                         tgt_np = val_np[jv].astype(np.uint64)
                         full_key = ((ctx_hash ^ (tgt_np * ng_primes[ctx_w % len(ng_primes)])) & ng_mask).astype(np.int64)
                         order_data.append((v_idx, ctx_key, full_key))
-                    best_p_ng = np.full(n_seg, -1.0)
-                    best_order = np.full(n_seg, -1, dtype=np.int32)
-                    for oi in range(_n_orders - 1, -1, -1):
-                        if order_data[oi] is None:
-                            continue
-                        v_idx, ctx_key, full_key = order_data[oi]
-                        ctx_counts = ctx_tables[oi][ctx_key].astype(np.float64)
-                        full_counts = full_tables[oi][full_key].astype(np.float64)
-                        has_match = ctx_counts >= float(args.ngram_min_count)
-                        needs_fill = has_match & (best_p_ng[v_idx] < 0)
-                        if needs_fill.any():
-                            fill_idx = v_idx[needs_fill]
-                            p = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(ctx_counts[needs_fill], 1.0)
-                            best_p_ng[fill_idx] = np.clip(p, 0.0, 1.0)
-                            best_order[fill_idx] = args.ngram_min_order + oi
-                    has_match = best_p_ng >= 0
-                    if has_match.any():
-                        if args.ngram_entropy and args.ngram_ent_adapt:
-                            mo = best_order[has_match].astype(np.float64)
-                            frac = (mo - float(args.ngram_min_order)) / max(float(args.ngram_order - args.ngram_min_order), 1.0)
-                            per_center = args.ngram_ent_thresh - frac * (args.ngram_ent_thresh - args.ngram_ent_thresh_lo)
-                            alpha = args.ngram_ent_base + args.ngram_ent_range / (
-                                1.0 + np.exp(-args.ngram_ent_scale * (seg_ent[has_match] - per_center)))
-                        elif args.ngram_entropy:
-                            alpha = alpha_per_tok[has_match]
-                        else:
-                            alpha = args.ngram_alpha
-                        if args.ngram_order_mults:
-                            om = np.array(args.ngram_order_mults)
-                            oi_matched = best_order[has_match] - args.ngram_min_order
-                            oi_clamped = np.clip(oi_matched, 0, len(om) - 1)
-                            alpha = alpha * om[oi_clamped]
-                        alpha = np.clip(alpha, 0.0, args.ngram_alpha_max)
-                        seg_model_p[has_match] = (1.0 - alpha) * seg_model_p[has_match] + alpha * best_p_ng[has_match]
+                    if args.ngram_dirichlet:
+                        conc = args.ngram_concentration
+                        sm_p = seg_model_p.copy()
+                        sm_order = np.full(n_seg, -1, dtype=np.int32)
+                        for oi in range(_n_orders):
+                            if order_data[oi] is None: continue
+                            v_idx, ctx_key, full_key = order_data[oi]
+                            cc = ctx_tables[oi][ctx_key].astype(np.float64)
+                            fc = full_tables[oi][full_key].astype(np.float64)
+                            has_ctx = cc > 0
+                            if not has_ctx.any(): continue
+                            ui = v_idx[has_ctx]
+                            sm_p[ui] = (np.minimum(fc[has_ctx], cc[has_ctx]) + conc * sm_p[ui]) / (cc[has_ctx] + conc)
+                            sm_order[ui] = args.ngram_min_order + oi
+                        has_update = sm_order >= 0
+                        if has_update.any():
+                            seg_model_p[has_update] = np.clip(sm_p[has_update], 1e-12, 1.0)
+                    else:
+                        best_p_ng = np.full(n_seg, -1.0)
+                        best_order = np.full(n_seg, -1, dtype=np.int32)
+                        for oi in range(_n_orders - 1, -1, -1):
+                            if order_data[oi] is None: continue
+                            v_idx, ctx_key, full_key = order_data[oi]
+                            ctx_counts = ctx_tables[oi][ctx_key].astype(np.float64)
+                            full_counts = full_tables[oi][full_key].astype(np.float64)
+                            has_match = ctx_counts >= float(args.ngram_min_count)
+                            needs_fill = has_match & (best_p_ng[v_idx] < 0)
+                            if needs_fill.any():
+                                fill_idx = v_idx[needs_fill]
+                                p = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(ctx_counts[needs_fill], 1.0)
+                                best_p_ng[fill_idx] = np.clip(p, 0.0, 1.0)
+                                best_order[fill_idx] = args.ngram_min_order + oi
+                        has_match = best_p_ng >= 0
+                        if has_match.any():
+                            if args.ngram_entropy and args.ngram_ent_adapt:
+                                mo = best_order[has_match].astype(np.float64)
+                                frac = (mo - float(args.ngram_min_order)) / max(float(args.ngram_order - args.ngram_min_order), 1.0)
+                                per_center = args.ngram_ent_thresh - frac * (args.ngram_ent_thresh - args.ngram_ent_thresh_lo)
+                                alpha = args.ngram_ent_base + args.ngram_ent_range / (
+                                    1.0 + np.exp(-args.ngram_ent_scale * (seg_ent[has_match] - per_center)))
+                            elif args.ngram_entropy:
+                                alpha = alpha_per_tok[has_match]
+                            else:
+                                alpha = args.ngram_alpha
+                            if args.ngram_order_mults:
+                                om = np.array(args.ngram_order_mults)
+                                oi_matched = best_order[has_match] - args.ngram_min_order
+                                oi_clamped = np.clip(oi_matched, 0, len(om) - 1)
+                                alpha = alpha * om[oi_clamped]
+                            alpha = np.clip(alpha, 0.0, args.ngram_alpha_max)
+                            seg_model_p[has_match] = (1.0 - alpha) * seg_model_p[has_match] + alpha * best_p_ng[has_match]
                     seg_nll_np = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
                     for oi in range(_n_orders):
                         if order_data[oi] is None:

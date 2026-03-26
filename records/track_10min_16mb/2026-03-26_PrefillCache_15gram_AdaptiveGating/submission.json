@@ -1,8 +1,8 @@
 {
-  "name": "Complementary Training + Per-Order Multipliers + Distributed Prefill + 15-Gram + EBLS",
-  "val_bpb": 0.2880,
-  "bytes_total": 15324143,
-  "blurb": "Four stacked ideas: (1) complementary training — downweight loss on n-gram-predictable tokens so the neural model focuses where caching can't help (from @pentxayc #803); (2) per-order multipliers — bigrams 0.3x, orders 5-15 at 2.0x with alpha_max=0.95 (from @AayushBaniya2006 #809); (3) distributed cache pre-fill — each rank pre-populates 15-gram hash tables from preceding positions, making 8-GPU eval identical to sequential; (4) order-adaptive entropy gating — per-order thresholds interpolating from center=2.5 (15-grams) to center=4.5 (bigrams). Built on EBLS architecture with the community n-gram backoff framework. 3-seed mean: 0.2880 BPB (std 0.00006).",
+  "name": "Empirical Bayes N-gram Mixing (Dirichlet Smoothing)",
+  "val_bpb": 0.22923,
+  "bytes_total": 14860181,
+  "blurb": "Replaced hand-tuned per-order multipliers with Dirichlet-Multinomial posterior inference. Neural model serves as the Dirichlet prior, n-gram counts provide the likelihood, single concentration parameter c=5.0 controls the tradeoff. Applied recursively from bigram to 15-gram. 3-seed mean: 0.22923 BPB (std 0.000005).",
   "author": "Robert Sneiderman",
   "github_id": "Robby955",
   "date": "2026-03-26"
