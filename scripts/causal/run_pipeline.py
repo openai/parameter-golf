@@ -488,7 +488,7 @@ def print_leaderboard(ranked):
 
 def run_pipeline(max_cycles=4, screen_iters=500, seeds=None, dry_run=False,
                  resume_from=0, max_interventions_per_cycle=3,
-                 screen_batch=524288, screen_layers=9):
+                 screen_batch=524288, screen_layers=9, cooldown_s=30):
     """Run the full automated research pipeline.
 
     Args:
@@ -500,6 +500,7 @@ def run_pipeline(max_cycles=4, screen_iters=500, seeds=None, dry_run=False,
         max_interventions_per_cycle: Max experiments per cycle
         screen_batch: Tokens per training step for screening (default: 524288)
         screen_layers: Default layer count for screening (default: 9)
+        cooldown_s: Seconds to pause between experiments for GPU cooling (default: 30)
     """
     if seeds is None:
         seeds = [42, 137, 256]
@@ -573,7 +574,12 @@ def run_pipeline(max_cycles=4, screen_iters=500, seeds=None, dry_run=False,
                  len(batch), [b[0] for b in batch])
 
         cycle_has_confirmed = False
-        for label, treatment_config in batch:
+        for exp_idx, (label, treatment_config) in enumerate(batch):
+            # Cooldown between experiments to prevent GPU thermal throttling
+            if exp_idx > 0 and cooldown_s > 0:
+                log.info("Cooling down %ds...", cooldown_s)
+                time.sleep(cooldown_s)
+
             log.info("")
             log.info("--- Experiment: %s ---", label)
             log.info("Config: %s", treatment_config.get("description", ""))
@@ -715,7 +721,9 @@ Examples:
     parser.add_argument("--screen-layers", type=int, default=9,
                         help="Default layer count for screening (default: 9)")
     parser.add_argument("--fast", action="store_true",
-                        help="Fast screening preset: 50 iters, 65K batch, 5 layers, 2 seeds")
+                        help="Fast screening preset: 300 iters, 65K batch, 5 layers, 2 seeds")
+    parser.add_argument("--cooldown", type=int, default=30,
+                        help="Seconds to pause between experiments for GPU cooling (default: 30)")
     args = parser.parse_args()
 
     # --fast preset: balanced reduction for quick relative comparison
@@ -736,6 +744,7 @@ Examples:
         max_interventions_per_cycle=args.max_per_cycle,
         screen_batch=args.screen_batch,
         screen_layers=args.screen_layers,
+        cooldown_s=args.cooldown,
     )
 
     if report:
