@@ -1,0 +1,9 @@
+{
+  "name": "Two-Level Dirichlet Posterior Mixing (N-gram + Phrase)",
+  "val_bpb": 0.11968,
+  "bytes_total": 14905199,
+  "blurb": "Dirichlet-Multinomial posterior predictive at two levels: 15-gram backoff (c=5.0) and phrase suffix matching (probes=[20,16], c=2.0). Neural LM as hierarchical Bayesian base measure. 3-seed mean 0.11968 BPB, std 0.000003. Removing Dirichlet from phrase mixing degrades BPB 8.9x.",
+  "author": "Robert Sneiderman",
+  "github_id": "Robby955",
+  "date": "2026-03-27"
+}
