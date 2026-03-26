@@ -1,0 +1,13 @@
+{
+  "author": "Mohamed Diomande",
+  "github_id": "Diomandeee",
+  "name": "Anticipatory Transformer: Entropy-Weighted Loss + Trajectory-Scaled Attention",
+  "blurb": "Builds on SOTA stack (10L, Int5-MLP/Int6-Attn, BigramHash 10240, SmearGate, OrthoInit, MuonWD, SWA, sliding window eval, zstd-22) with two parameter-free innovations from anticipation geometry: (1) entropy-weighted training loss that upweights hard tokens (alpha=0.15), focusing gradient signal on informative positions; (2) trajectory-scaled attention that computes a per-position commitment signal from hidden state velocity, amplifying stable representations. Both are zero-parameter, zero-compression-cost additions that improve training dynamics without changing the model size or architecture.",
+  "date": "2026-03-22T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "seeds": [1337, 42, 7],
+  "seed_results": {},
+  "bytes_total": null,
+  "notes": "Pending 8xH100 validation. Innovations are independently toggleable via ENTROPY_LOSS_ENABLED and TRAJECTORY_ATTN_ENABLED env vars. Trajectory attention adds ~5% compute overhead per layer (one norm + cumsum + division). Entropy loss adds ~2% overhead (one log_softmax + reduction, shared with CE computation)."
+}
