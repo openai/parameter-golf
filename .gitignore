@@ -8,4 +8,6 @@ data/manifest.json
 data/docs_selected.jsonl
 .mypy_cache/
 .venv
-logs/
+logs/*.npz
+*.ptz
+results/model_artifacts/
