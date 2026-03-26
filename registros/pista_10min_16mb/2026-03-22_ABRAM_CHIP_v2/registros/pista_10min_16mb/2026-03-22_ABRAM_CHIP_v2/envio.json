@@ -1,0 +1,16 @@
+{
+  "model_name": "ABRAM_CHIP v2",
+  "author": "Abraham",
+  "affiliation": "H.A.S. Framework | Genoma Cognitivo",
+  "date": "2026-03-22",
+  "val_bpb": 0.5033,
+  "val_bpb_note": "simulation dataset — FineWeb validation pending compute grant",
+  "model_size_kb": 34.8,
+  "dtype": "int16",
+  "architecture": "HECR quantum state vectors with sparse relational network",
+  "tokenizer": "BPE 200 merges",
+  "context_length": 4,
+  "n_nodes": 128,
+  "category": "non-record",
+  "repo": "https://github.com/abrahaw123-cell/abram_chip"
+}
