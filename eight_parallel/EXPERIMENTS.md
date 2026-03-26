@@ -98,12 +98,11 @@ No torchrun needed — script handles single GPU when WORLD_SIZE not set.
 
 | GPU | Method | BPP | Delta vs baseline | Time | Notes |
 |-----|--------|-----|-------------------|------|-------|
-| — | Baseline (PR #834) | 0.1591 | — | 675s | On our hardware |
-| 0 | LZ Prediction | — | — | — | |
-| 1 | PPM-D | — | — | — | |
-| 2 | Online Calibration | — | — | — | |
-| 3 | Higher Order | — | — | — | |
-| 4 | Finer Chunks | — | — | — | |
-| 5 | Conformal | — | — | — | |
-| 6 | Doc Boundaries | — | — | — | |
-| 7 | CTW Bayesian | — | — | — | |
+| — | Baseline (PR #834, 8-GPU full) | 0.1591 | — | 675s | TTT_CHUNK=1M, TTT_EPOCHS=4 |
+| — | Baseline eval-only (single-GPU model) | 0.1776 | +0.019 | 568s | Fewer training steps |
+| X | 4M hash buckets (eval-only) | 0.3868 | **+0.21 WORSE** | 623s | Modified script broke routing head |
+| 1 | TTT_EPOCHS=8 (full 8-GPU) | 0.1655 | +0.006 WORSE | 703s | Overfits per chunk, slower. 4ep is optimal. |
+| 2 | PPM-D escape probs (full 8-GPU) | 0.2204 | **+0.06 WORSE** | 626s | Changed prob formula breaks trained routing head |
+| 3 | Online Calibration | — | — | — | |
+| 4 | Conformal Aggregation | — | — | — | |
+| 5 | Doc Boundary Detection | — | — | — | |
