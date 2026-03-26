@@ -969,7 +969,7 @@ def eval_val_sliding(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
     stride: int,
-    batch_seqs: int = 32,
+    batch_seqs: int = 128,
     eval_seq_len: int | None = None,
 ) -> tuple[float, float]:
     """Sliding window evaluation: each token scored with maximum context."""
@@ -1050,7 +1050,7 @@ def eval_val_sliding_hashed_ngram(
     min_count: int,
     buckets: int,
     max_seconds: float = 0.0,
-    batch_seqs: int = 32,
+    batch_seqs: int = 128,
     eval_seq_len: int | None = None,
 ) -> tuple[float, float, float]:
     """Score-first sliding eval with multi-order backoff n-gram + entropy-adaptive alpha.
@@ -1226,8 +1226,8 @@ def eval_val_sliding_hashed_ngram(
                         ctx_hash ^= tok * primes[k % len(primes)]
                     ctx_key = (ctx_hash & mask).astype(np.int64)
                     full_key = ((ctx_hash ^ (tgt_np[v_idx] * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
-                    np.add.at(ctx_tables[n], ctx_key, 1)
-                    np.add.at(full_tables[n], full_key, 1)
+                    ctx_tables[n] += np.bincount(ctx_key, minlength=len(ctx_tables[n])).astype(np.uint32)
+                    full_tables[n] += np.bincount(full_key, minlength=len(full_tables[n])).astype(np.uint32)
 
                 loss_sum += float(seg_nll.sum())
                 token_count += float(seg_len)
