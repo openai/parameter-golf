@@ -111,6 +111,17 @@ class Hyperparameters:
     ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
+    # --- N-gram cache config ---
+    ngram_cache = bool(int(os.environ.get("NGRAM_CACHE", "1")))
+    ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", 2))
+    ngram_order = int(os.environ.get("NGRAM_ORDER", 7))
+    ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", str(4 * 1024 * 1024)))  # 4M
+    ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", 1))
+    ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", 0.05))
+    ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", 0.55))
+    ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", 2.0))
+    ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", 4.0))
+
 # -----------------------------
 # INT6 QAT CONSTANTS
 # -----------------------------
@@ -730,7 +741,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor, return_logits: bool = False) -> Tensor:
         x = self.tok_emb(input_ids)
         x = x + self.bigram_hash(input_ids)
         x = self.smear_gate(x)
@@ -755,6 +766,8 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        if return_logits:
+            return logits
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
@@ -1124,13 +1137,16 @@ def eval_with_lora_ttt(
     chunk_size: int = 256,
     min_doc_tokens: int = 512,
     ttt_chunk_tokens: int = 4096,
+    args: object = None,
 ) -> tuple[float, float]:
-    """Legal Score-First LoRA TTT eval (PR #549 / PR #461 framework).
+    """Legal Score-First LoRA TTT + N-gram Cache eval.
 
-    For each 32K-token chunk:
+    For each chunk:
       Phase 1: SCORE all seqs in chunk (inference_mode, no grad)
+               + N-gram entropy-adaptive blending (backward-looking)
       Phase 2: TRAIN LoRA on chunk (multiple epochs)
     Every token scored BEFORE any weight update that uses it.
+    N-gram counts built only from previously scored tokens.
     """
     log_fn(f"lora_ttt_eval: score-first rank={lora_rank} epochs={ttt_epochs} "
            f"lr={ttt_lr} chunk_tokens={ttt_chunk_tokens}")
@@ -1147,17 +1163,37 @@ def eval_with_lora_ttt(
     total_tokens = val_tokens.numel() - 1
     n_seqs = total_tokens // seq_len
 
-    # Build chunk list (32K-token chunks)
+    # Build chunk list
     chunk_starts = list(range(0, n_seqs * seq_len, ttt_chunk_tokens))
     num_chunks = len(chunk_starts)
     log_fn(f"lora_ttt_eval: {num_chunks} chunks, {n_seqs} seqs")
 
-    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    # --- N-gram cache setup ---
+    use_ngram = args is not None and getattr(args, 'ngram_cache', False)
+    if use_ngram:
+        val_np = val_tokens.cpu().numpy()
+        n_orders = args.ngram_order - args.ngram_min_order + 1
+        ng_buckets = args.ngram_buckets
+        ctx_tables = [np.zeros(ng_buckets, dtype=np.uint32) for _ in range(n_orders)]
+        full_tables = [np.zeros(ng_buckets, dtype=np.uint32) for _ in range(n_orders)]
+        ng_mask = np.uint64(ng_buckets - 1)
+        ng_primes = np.array(
+            [np.uint64(36313), np.uint64(27191), np.uint64(51647),
+             np.uint64(81929), np.uint64(131071), np.uint64(175447),
+             np.uint64(209591)], dtype=np.uint64)
+        log_fn(f"ngram_cache: orders {args.ngram_min_order}-{args.ngram_order}, "
+               f"{ng_buckets//1024//1024}M buckets, "
+               f"entropy adaptive base={args.ngram_ent_base} range={args.ngram_ent_range}")
+
+    nll_sum = torch.zeros((), device='cpu', dtype=torch.float64)  # for n-gram blended NLL
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    # Keep loss_sum for backward compat (LoRA training uses model loss)
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
 
     optimizer = torch.optim.Adam(lora_params, lr=ttt_lr)
     t0 = time.perf_counter()
+    global_token_idx = 0  # tracks absolute position for n-gram context
 
     for ci, chunk_start in enumerate(chunk_starts):
         chunk_end = min(chunk_start + ttt_chunk_tokens, n_seqs * seq_len)
@@ -1172,11 +1208,88 @@ def eval_with_lora_ttt(
                     break
                 tokens = val_tokens[s:s+seq_len+1].to(device=device, dtype=torch.int64)
                 x, y = tokens[:-1].unsqueeze(0), tokens[1:].unsqueeze(0)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    loss = model(x, y)
-                n = float(y.numel())
-                loss_sum += loss.to(torch.float64) * n
-                token_count += n
+
+                if use_ngram:
+                    # Get logits for n-gram blending
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        logits = model(x, y, return_logits=True)
+                    # Model probability for each target token
+                    log_probs = F.log_softmax(logits.float(), dim=-1)
+                    tgt_flat = y.reshape(-1)
+                    seg_model_lp = log_probs[torch.arange(log_probs.size(0), device=device), tgt_flat]
+                    seg_model_p = seg_model_lp.exp().cpu().numpy()
+                    # Entropy per token
+                    seg_ent = -(log_probs.exp() * log_probs).sum(dim=-1).cpu().numpy()
+                    # N-gram lookup (backward-looking: only previously scored tokens)
+                    n_tok = seq_len
+                    global_j = np.arange(s + 1, s + 1 + n_tok, dtype=np.int64)  # target positions
+                    best_p_ng = np.full(n_tok, -1.0)
+                    for oi in range(n_orders - 1, -1, -1):
+                        ctx_w = args.ngram_min_order + oi - 1  # context width
+                        valid = global_j - ctx_w >= 0
+                        if not valid.any():
+                            continue
+                        v_idx = np.nonzero(valid)[0]
+                        jv = global_j[v_idx]
+                        # Compute context hash
+                        ctx_hash = np.zeros(len(jv), dtype=np.uint64)
+                        for k in range(ctx_w):
+                            tok = val_np[jv - (ctx_w - k)].astype(np.uint64)
+                            ctx_hash ^= tok * ng_primes[k % len(ng_primes)]
+                        ctx_key = (ctx_hash & ng_mask).astype(np.int64)
+                        # Full hash (context + target)
+                        tgt_np = val_np[jv].astype(np.uint64)
+                        full_key = ((ctx_hash ^ (tgt_np * ng_primes[ctx_w % len(ng_primes)])) & ng_mask).astype(np.int64)
+                        # Lookup
+                        ctx_counts = ctx_tables[oi][ctx_key].astype(np.float64)
+                        full_counts = full_tables[oi][full_key].astype(np.float64)
+                        has_match = ctx_counts >= float(args.ngram_min_count)
+                        needs_fill = has_match & (best_p_ng[v_idx] < 0)
+                        if needs_fill.any():
+                            fill_idx = v_idx[needs_fill]
+                            p = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(ctx_counts[needs_fill], 1.0)
+                            best_p_ng[fill_idx] = np.clip(p, 0.0, 1.0)
+
+                    # Entropy-adaptive alpha
+                    alpha_per_tok = args.ngram_ent_base + args.ngram_ent_range / (
+                        1.0 + np.exp(-args.ngram_ent_scale * (seg_ent - args.ngram_ent_thresh)))
+                    # Blend where n-gram matched
+                    has_ng = best_p_ng >= 0
+                    if has_ng.any():
+                        alpha = alpha_per_tok[has_ng]
+                        seg_model_p[has_ng] = (1.0 - alpha) * seg_model_p[has_ng] + alpha * best_p_ng[has_ng]
+                    # Compute NLL from blended probabilities
+                    seg_nll = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
+                    nll_sum += float(seg_nll.sum())
+
+                    # Update n-gram tables AFTER scoring (score-first compliance)
+                    for oi in range(n_orders):
+                        ctx_w = args.ngram_min_order + oi - 1
+                        valid = global_j - ctx_w >= 0
+                        if not valid.any():
+                            continue
+                        v_idx = np.nonzero(valid)[0]
+                        jv = global_j[v_idx]
+                        ctx_hash = np.zeros(len(jv), dtype=np.uint64)
+                        for k in range(ctx_w):
+                            tok = val_np[jv - (ctx_w - k)].astype(np.uint64)
+                            ctx_hash ^= tok * ng_primes[k % len(ng_primes)]
+                        ctx_key = (ctx_hash & ng_mask).astype(np.int64)
+                        tgt_np = val_np[jv].astype(np.uint64)
+                        full_key = ((ctx_hash ^ (tgt_np * ng_primes[ctx_w % len(ng_primes)])) & ng_mask).astype(np.int64)
+                        np.add.at(ctx_tables[oi], ctx_key, 1)
+                        np.add.at(full_tables[oi], full_key, 1)
+
+                    n = float(y.numel())
+                    token_count += n
+                else:
+                    # No n-gram: original loss-based scoring
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        loss = model(x, y)
+                    n = float(y.numel())
+                    loss_sum += loss.to(torch.float64) * n
+                    token_count += n
+
                 prev_ids = x.reshape(-1)
                 tgt_ids = y.reshape(-1)
                 tb = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
@@ -1204,17 +1317,27 @@ def eval_with_lora_ttt(
                     optimizer.step()
 
         if ci % 10 == 0:
-            avg = float((loss_sum / max(token_count, 1)).item())
-            log_fn(f"lora_ttt_eval: chunk {ci}/{num_chunks} loss={avg:.4f} "
-                   f"elapsed={time.perf_counter()-t0:.1f}s")
+            if use_ngram:
+                avg_nll = nll_sum / max(float(token_count.item()), 1.0)
+                log_fn(f"lora_ttt_eval: chunk {ci}/{num_chunks} nll={avg_nll:.4f} "
+                       f"elapsed={time.perf_counter()-t0:.1f}s")
+            else:
+                avg = float((loss_sum / max(token_count, 1)).item())
+                log_fn(f"lora_ttt_eval: chunk {ci}/{num_chunks} loss={avg:.4f} "
+                       f"elapsed={time.perf_counter()-t0:.1f}s")
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
         dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
 
-    avg_loss = float((loss_sum / token_count).item())
-    bits_per_token = avg_loss / math.log(2.0)
+    if use_ngram:
+        # BPB from blended NLL (n-gram + model)
+        avg_nll = nll_sum / float(token_count.item())
+        bits_per_token = avg_nll / math.log(2.0)
+    else:
+        avg_nll = float((loss_sum / token_count).item())
+        bits_per_token = avg_nll / math.log(2.0)
     tokens_per_byte = token_count.item() / byte_count.item()
     bpb = float(bits_per_token * tokens_per_byte)
 
@@ -1231,8 +1354,8 @@ def eval_with_lora_ttt(
     for param in model.parameters():
         param.requires_grad_(True)
 
-    log_fn(f"lora_ttt_eval: done — {n_docs} docs, val_loss={avg_loss:.4f} val_bpb={bpb:.4f}")
-    return avg_loss, bpb
+    log_fn(f"lora_ttt_eval: done — val_nll={avg_nll:.4f} val_bpb={bpb:.4f}")
+    return avg_nll, bpb
 
 
 # -----------------------------
@@ -1722,6 +1845,7 @@ def main() -> None:
         ttt_lr=args.ttt_lr,
         chunk_size=256,
         min_doc_tokens=512,
+        args=args,
     )
     log0(f"lora_ttt_eval val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f}")
     log0(f"lora_ttt_eval_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
