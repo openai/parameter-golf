@@ -894,91 +894,65 @@ def eval_val_sliding(
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
 class NgramCache:
-    """multi-order n-gram backoff cache using numpy arrays with chunked processing."""
-    PRIMES = np.array([36313, 27191, 50377, 69061, 82129, 93719, 104729], dtype=np.int64)
+    """multi-order n-gram cache using python dicts for zero-collision lookups.
+    keys are tuples of context tokens, values are {next_token: count} dicts."""
 
-    def __init__(self, max_order: int = 7, min_order: int = 2, num_buckets: int = 4194304,
-                 min_count: int = 2, vocab_size: int = 1024):
+    def __init__(self, max_order: int = 5, min_order: int = 5,
+                 min_count: int = 2, vocab_size: int = 1024, **kwargs):
         self.max_order = max_order
         self.min_order = min_order
-        self.num_buckets = num_buckets
         self.min_count = min_count
         self.vocab_size = vocab_size
         self.num_orders = max_order - min_order + 1
-        # count tables: [num_orders, num_buckets, vocab_size] as int16
-        # 6 * 4M * 1024 * 2 = 48GB — fits in H100 host RAM (~200GB+)
-        self.counts = np.zeros((self.num_orders, num_buckets, vocab_size), dtype=np.int16)
-        self.totals = np.zeros((self.num_orders, num_buckets), dtype=np.int32)
-
-    def _compute_hashes(self, tokens: np.ndarray, order: int) -> tuple[np.ndarray, np.ndarray]:
-        """vectorized hash for all positions for a given order."""
-        n = len(tokens) - 1
-        ctx_len = order - 1
-        if n < ctx_len:
-            return np.array([], dtype=np.int64), np.zeros(n, dtype=np.bool_)
-        hashes = np.zeros(n, dtype=np.int64)
-        valid = np.zeros(n, dtype=np.bool_)
-        for j in range(ctx_len):
-            offset = -ctx_len + 1 + j
-            if offset >= 0:
-                ctx_tokens = tokens[offset:offset + n].astype(np.int64)
-            else:
-                pad = np.zeros(-offset, dtype=np.int64)
-                ctx_tokens = np.concatenate([pad, tokens[:n + offset].astype(np.int64)])
-            hashes ^= self.PRIMES[j % len(self.PRIMES)] * ctx_tokens
-        valid[ctx_len - 1:] = True
-        hashes = hashes % self.num_buckets
-        return hashes, valid
+        # tables[oi] = {context_tuple: {token: count}}
+        self.tables: list[dict[tuple, dict[int, int]]] = [{} for _ in range(self.num_orders)]
 
     def score_and_update_sequential(self, token_ids: np.ndarray,
                                      log_fn=None) -> tuple[np.ndarray, np.ndarray]:
-        """truly sequential score-first: score position i using all counts from 0..i-1,
-        then update counts with position i's observation. uses precomputed hashes."""
+        """truly sequential score-first with exact context matching (no hash collisions)."""
         n = len(token_ids) - 1
         ngram_prob_target = np.zeros(n, dtype=np.float64)
         has_ngram = np.zeros(n, dtype=np.bool_)
-        tokens = token_ids.astype(np.int64)
-        targets = tokens[1:n + 1]
-
-        # precompute hashes for all orders (vectorized)
-        all_hashes = []
-        all_valid = []
-        for order in range(self.min_order, self.max_order + 1):
-            hashes, valid = self._compute_hashes(tokens[:n + 1], order)
-            all_hashes.append(hashes)
-            all_valid.append(valid)
-
-        counts = self.counts
-        totals = self.totals
+        tokens = token_ids.tolist()  # python list for fast slicing
+        tables = self.tables
         min_count = self.min_count
-        num_orders = self.num_orders
+        min_order = self.min_order
+        max_order = self.max_order
 
         for pos in range(n):
-            target = int(targets[pos])
+            target = tokens[pos + 1]
 
             # score: try highest order first, backoff
-            for oi in range(num_orders - 1, -1, -1):
-                if not all_valid[oi][pos]:
+            for order in range(max_order, min_order - 1, -1):
+                ctx_len = order - 1
+                if pos < ctx_len:
                     continue
-                h = int(all_hashes[oi][pos])
-                tot = int(totals[oi, h])
-                if tot >= min_count:
-                    tc = int(counts[oi, h, target])
-                    if tc > 0:
-                        ngram_prob_target[pos] = tc / tot
+                oi = order - min_order
+                ctx = tuple(tokens[pos - ctx_len + 1:pos + 1])
+                bucket = tables[oi].get(ctx)
+                if bucket is not None:
+                    total = sum(bucket.values())
+                    if total >= min_count:
+                        ngram_prob_target[pos] = bucket.get(target, 0) / total
                         has_ngram[pos] = True
-                    break
+                        break
 
             # update all orders AFTER scoring
-            for oi in range(num_orders):
-                if not all_valid[oi][pos]:
+            for order in range(min_order, max_order + 1):
+                ctx_len = order - 1
+                if pos < ctx_len:
                     continue
-                h = int(all_hashes[oi][pos])
-                counts[oi, h, target] += 1
-                totals[oi, h] += 1
+                oi = order - min_order
+                ctx = tuple(tokens[pos - ctx_len + 1:pos + 1])
+                bucket = tables[oi].get(ctx)
+                if bucket is None:
+                    tables[oi][ctx] = {target: 1}
+                else:
+                    bucket[target] = bucket.get(target, 0) + 1
 
             if log_fn and (pos + 1) % 10_000_000 == 0:
-                log_fn(f"ngram: {pos + 1}/{n} tokens processed")
+                pct_hit = has_ngram[:pos+1].mean() * 100
+                log_fn(f"ngram: {pos + 1}/{n} tokens, hit_rate={pct_hit:.1f}%")
 
         return ngram_prob_target, has_ngram
 
@@ -1115,11 +1089,14 @@ def eval_val_ngram(
     else:
         alpha_all = np.full(total_tokens, fixed_alpha, dtype=np.float64)
     mixed_nll = np.copy(token_neural_nll)
-    # only mix where n-gram assigns nonzero prob to the target token
-    mix_mask = scored_mask & has_ngram & (ngram_prob_target > 0)
+    # mix wherever n-gram cache fires (total >= min_count), even if target count is 0
+    # when p_ngram[target]=0, mixing redistributes mass: mixed = (1-α)*p_neural[target]
+    # this helps when neural model is overconfident on wrong tokens
+    mix_mask = scored_mask & has_ngram
     if log_fn:
-        log_fn(f"ngram_mix: {mix_mask.sum()} positions with nonzero n-gram target prob "
-               f"(of {(scored_mask & has_ngram).sum()} with any n-gram)")
+        nz = np.count_nonzero(ngram_prob_target[mix_mask]) if mix_mask.any() else 0
+        log_fn(f"ngram_mix: {mix_mask.sum()} positions mixed "
+               f"({nz} with nonzero target prob, {mix_mask.sum()-nz} with zero target prob)")
     if mix_mask.any():
         p_neural_mix = token_neural_prob_target[mix_mask]
         p_ngram_mix = ngram_prob_target[mix_mask]
@@ -1761,7 +1738,7 @@ def main() -> None:
         ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "5"))
         ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
         ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
-        ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.2"))  # fixed alpha (PR #769)
+        ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.05"))  # conservative fixed alpha
         ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.0"))  # 0 = fixed alpha
         ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.0"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
