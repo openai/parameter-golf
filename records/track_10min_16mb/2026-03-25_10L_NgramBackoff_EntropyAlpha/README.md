@@ -2,6 +2,16 @@
 
 **val_bpb: 0.9123** (mean of 3 seeds, post int5/int6+zstd quantization roundtrip)
 
+**Record delta vs merged SOTA (PR #549, 1.1194 BPB):** -0.2071 nats, std=0.0003, p < 0.001
+
+## Compliance
+
+- **Score-first**: every token's BPB is finalized before that token updates any cache table
+- **Backward-looking only**: n-gram cache uses only previously scored tokens, never future tokens
+- **No target-aware gating**: interpolation alpha depends solely on model entropy (its own output distribution), never on ground-truth labels
+- **No future-token access**: cache tables are updated AFTER the segment is scored
+- **Self-contained**: no network calls, no external data, no training data access during eval
+
 ## Results
 
 | Seed | val_bpb | artifact_bytes |
