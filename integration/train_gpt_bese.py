@@ -67,16 +67,20 @@ class Hyperparameters:
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
-    # Model shape.
+    # Model shape — defaults tuned for BESE (smaller vocab frees params for wider/deeper model).
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    mlp_mult = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+
+    # EMA (Exponential Moving Average) — ~0.002 BPB improvement.
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -612,16 +616,18 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    # relu^2 MLP from the original modded-nanogpt setup
+    # LeakyReLU(0.5)^2 MLP — ~0.003 BPB improvement over plain relu^2
+    # Preserves negative gradient flow while still squaring for sparsity.
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
+        self.leaky_relu = nn.LeakyReLU(negative_slope=0.5)
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = self.leaky_relu(self.fc(x))
         return self.proj(x.square())
 
 
@@ -865,6 +871,14 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+
+    # EMA shadow model — maintains exponential moving average of weights for eval.
+    ema_model = None
+    if args.ema_enabled:
+        ema_model = copy.deepcopy(base_model)
+        ema_model.eval()
+        log0(f"ema:enabled decay={args.ema_decay}")
+
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -1002,9 +1016,17 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
+
+            # Use EMA weights for validation if available
+            eval_model = model
+            if ema_model is not None:
+                # Swap EMA weights into base_model for eval, restore after
+                _saved_state = {k: v.clone() for k, v in base_model.state_dict().items()}
+                base_model.load_state_dict(ema_model.state_dict(), strict=True)
+
             val_loss, val_bpb = eval_val(
                 args,
-                model,
+                eval_model,
                 rank,
                 world_size,
                 device,
@@ -1014,8 +1036,14 @@ def main() -> None:
                 has_leading_space_lut,
                 is_boundary_token_lut,
             )
+
+            if ema_model is not None:
+                # Restore original weights for continued training
+                base_model.load_state_dict(_saved_state, strict=True)
+
+            ema_tag = " (ema)" if ema_model is not None else ""
             log0(
-                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}{ema_tag} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
             )
             torch.cuda.synchronize()
@@ -1058,6 +1086,12 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        # EMA update: exponential moving average of model weights
+        if ema_model is not None:
+            with torch.no_grad():
+                for ema_p, model_p in zip(ema_model.parameters(), base_model.parameters()):
+                    ema_p.data.mul_(args.ema_decay).add_(model_p.data, alpha=1.0 - args.ema_decay)
+
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
@@ -1098,7 +1132,11 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    # Use EMA weights for final model if available
+    save_state = ema_model.state_dict() if ema_model is not None else base_model.state_dict()
+    if ema_model is not None:
+        log0("Using EMA weights for final model save")
+    quant_obj, quant_stats = quantize_state_dict_int8(save_state)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()

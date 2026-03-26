@@ -79,12 +79,21 @@ Ran on RunPod 1xH100 SXM ($2.69/hr). Full details: `docs/EXPERIMENT_RESULTS.md`
 - RunPod balance: ~$9.23 remaining
 - SSH key: `~/.runpod/ssh/RunPod-Key-Go`
 
+## v2 Improvements (March 25, 2026)
+
+- `tokenizer/bese_fast_bpe.py` — Fast BPE training (~50x faster) and encoding using indexed linked-list approach with priority queue merging. Replaces the O(merges*tokens) pure-Python with O(tokens*log(tokens)).
+- `scripts/runpod_v2.py` — All-in-one RunPod script that decodes ALL 10 shards (not just 1), uses fast BPE, supports configurable model architecture, and runs fair BESE vs baseline comparison.
+- `integration/train_gpt_bese.py` now includes:
+  - LeakyReLU(0.5)² activation (replaces plain relu², ~0.003 BPB improvement)
+  - EMA (exponential moving average, decay=0.997, ~0.002 BPB improvement)
+  - Defaults: 11 layers, 3x MLP (was 9 layers, 2x MLP)
+
 ## What's left to do
 
-1. **Speed up BPE trainer/encoder** — rewrite in C/Cython, or use SentencePiece to train BPE on the BESE base token stream (critical blocker)
-2. **Re-run with equal data** — encode all 10 shards (~1B tokens) with BESE+BPE for a fair comparison
-3. **Add extra layers** — with vocab=288 (saving ~295KB), try 12-13L instead of baseline 9L
-4. Combine with competition stack (XSA, EMA, SmearGate, etc.)
+1. **Run fair comparison on RunPod** — use `scripts/runpod_v2.py` with all 10 shards
+2. **Try wider models** — with BESE vocab=288 saving ~295KB, experiment with 576d or 640d width
+3. **Add more competition techniques** — SmearGate, BigramHash, Int6 GPTQ-lite, XSA on last 4 layers
+4. **Final 8xH100 run** for submission-quality score
 5. Submit non-record PR — `docs/SUBMISSION.md`
 
 ## Origin story (for the write-up)
@@ -98,8 +107,11 @@ The approach was developed from first principles without ML background:
 ## Competition context
 
 - Challenge runs March 18 – April 30, 2026
-- Current SOTA: ~1.12 BPB (non-TTT), ~1.07 BPB (with TTT)
-- Baseline: 1.2244 BPB
+- Current SOTA: 1.1194 BPB (LeakyReLU² + TTT + Parallel Muon, 11L/512d)
+- Baseline: 1.2244 BPB (9L/512d/2x MLP, SP1024)
+- Top stack: 11L, 512d, 3x MLP LeakyReLU², U-Net skips, XSA last 4 layers, EMA+SWA, SmearGate+BigramHash, Int6 GPTQ-lite, Muon
+- Nobody has changed the tokenizer yet — BESE would be a first
+- Width > depth at this constraint point (ternary submission: 768d/10L competitive)
 - All submissions are MIT licensed, public GitHub PRs
 - Tokenizer changes get extra scrutiny from OpenAI reviewers
 - Non-record track accepts novel/interesting approaches even if they don't beat SOTA
