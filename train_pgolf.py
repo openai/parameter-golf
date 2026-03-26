@@ -58,8 +58,8 @@ LOGIT_SOFTCAP = 30.0
 
 # Training
 SEQ_LEN = 1024             # training sequence length
-TRAIN_BATCH_TOKENS = 524288  # total tokens per optimizer step
-DEVICE_BATCH_SIZE = 64       # micro-batch size (8 for 8GB VRAM laptop GPU)
+TRAIN_BATCH_TOKENS = 131072  # total tokens per optimizer step (smaller = more steps)
+DEVICE_BATCH_SIZE = 128      # micro-batch size (H100 80GB can handle large batches)
 WARMUP_STEPS = 0
 WARMDOWN_ITERS = 3000       # LR warmdown iterations (wallclock-based)
 
