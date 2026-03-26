@@ -1,0 +1,4 @@
+candidate_id,candidate_label,status,family,training_role,export_sweep,default_priority,launch_condition
+T0,t0_trunk_training,ready,non_qat_v5_2_trunk,first paid training,"0,4096,8192,12288",P0,always first
+T1,t1_same_family_second_seed,conditional,non_qat_v5_2_trunk,second paid training only if needed,"0,4096,8192,12288",P1,only when T0 decision is RUN_T1 or HOLD_RECHECK resolves above trigger
+D,d_donor_only_optional,conditional_strict,donor_overlay_v5_3_lineage,optional donor-only run,"0,4096,8192",P2_rare,only if strict donor gate passes and operator explicitly enables donor
