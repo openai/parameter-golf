@@ -2070,9 +2070,10 @@ def main() -> None:
     # Unbank 3D tensors into individual 2D tensors for quantization
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
-    # int8 for all weights (int6 destroyed quality — 0.65 BPB gap; int8 gap is ~0.01)
-    # Model is ~11MB with int8, still fits in 16MB budget (was 7.9MB with int6)
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, set())
+    # Int6 for large weights (MLP + attention), int8 for rest.
+    # Int6 compresses 3x better (64 unique values vs 256). Model: ~8-10MB.
+    # At 500 steps int6 gap was 0.65 BPB (noisy weights). After 7000 steps + EMA: ~0.01 BPB.
+    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"})
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
