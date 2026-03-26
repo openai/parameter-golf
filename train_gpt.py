@@ -663,76 +663,124 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor, rope_dims: int = 0) ->
     x1, x2 = x[..., :half], x[..., half:]
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
+
 class CausalSelfAttention(nn.Module):
     def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        rope_base: float,
-        qk_gain_init: float,
-        gated_attention: bool = False,
-        value_residual: bool = False,
+            self,
+            dim: int,
+            num_heads: int,
+            num_kv_heads: int,
+            rope_base: float,
+            qk_gain_init: float,
+            gated_attention: bool = False,
+            value_residual: bool = False,
     ):
         super().__init__()
-        if dim % num_heads != 0:
-            raise ValueError("model_dim must be divisible by num_heads")
-        if num_heads % num_kv_heads != 0:
-            raise ValueError("num_heads must be divisible by num_kv_heads")
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
-        if self.head_dim % 2 != 0:
-            raise ValueError("head_dim must be even for RoPE")
-        # No CastedLinear -- weights come from banks
+
+        # KGIIR Control Parameters (Small 1D vectors)
+        self.k_decay = nn.Parameter(torch.zeros(dim))
+        self.k_gate = nn.Parameter(torch.zeros(dim))
+
+        # Gain for stability/norm scaling
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rope_dims = 0  # set by GPT.__init__ for partial RoPE
+
+        # Components
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
-        self.use_xsa = False  # set by GPT.__init__ for deep layers only
-        # Gated attention and value residual (non-banked small params)
+        self.rope_dims = 0
+        self.use_xsa = False
+
         self.gated_attention = gated_attention
         if gated_attention:
             self.attn_gate = nn.Linear(dim, num_heads, bias=True)
             nn.init.zeros_(self.attn_gate.weight)
             nn.init.constant_(self.attn_gate.bias, 4.0)
+
         self.value_residual = value_residual
         if value_residual:
             self.vr_lambda = nn.Parameter(torch.tensor([0.5, 0.5], dtype=torch.float32))
+
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
-        """Efficient XSA: subtract self-value projection via GQA-aware reshape (no repeat_interleave).
-        y: [B, T, H, D], v: [B, T, Hkv, D]. H must be divisible by Hkv."""
+        """Subtract self-value projection via GQA-aware reshape."""
         B, T, H, D = y.shape
         Hkv = v.size(-2)
         group = H // Hkv
-        y_g = y.reshape(B, T, Hkv, group, D)        # [B, T, Hkv, group, D]
-        vn = F.normalize(v, dim=-1).unsqueeze(-2)    # [B, T, Hkv, 1, D] -- broadcast ready
+        y_g = y.reshape(B, T, Hkv, group, D)
+        vn = F.normalize(v, dim=-1).unsqueeze(-2)
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
-    def forward(self, x: Tensor, q_w: Tensor, k_w: Tensor, v_w: Tensor, out_w: Tensor, v_embed: Tensor | None = None, v0: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
+
+    def forward(self, x: Tensor, q_w: Tensor, k_w: Tensor, v_w: Tensor, out_w: Tensor, v_embed: Tensor | None = None,
+                v0: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
         bsz, seqlen, dim = x.shape
-        q = F.linear(x, q_w.to(x.dtype)).reshape(bsz, seqlen, self.num_heads, self.head_dim)
-        k = F.linear(x, k_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-        v = F.linear(x, v_w.to(x.dtype))
+
+        # --- FUSED KGIIR TRAJECTORY ---
+        # Mathematical fusion of the analytical IIR filter and the gating mechanism
+        alpha = torch.sigmoid(self.k_decay).to(x.dtype)
+        gate = torch.sigmoid(self.k_gate).to(x.dtype)
+        a2 = alpha * alpha
+        c0 = 1.0 - alpha
+
+        # Pre-compute fused weights (w0 includes the identity residual pass)
+        w0 = 1.0 - gate + (gate * c0)
+        w1 = gate * (alpha * c0)
+        w2 = gate * (a2 * c0)
+        w3 = gate * (a2 * alpha)
+
+        x_pad = F.pad(x, (0, 0, 3, 0))
+        x_mixed = (
+                x_pad[:, 3:, :] * w0 +
+                x_pad[:, 2:-1, :] * w1 +
+                x_pad[:, 1:-2, :] * w2 +
+                x_pad[:, 0:-3, :] * w3
+        )
+        # ------------------------------
+
+        # Projections (Using the mixed context for Q, K, V)
+        q = F.linear(x_mixed, q_w.to(x.dtype)).reshape(bsz, seqlen, self.num_heads, self.head_dim)
+        k = F.linear(x_mixed, k_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v = F.linear(x_mixed, v_w.to(x.dtype))
+
         if v_embed is not None:
             v = v + v_embed
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+
         raw_v = v if self.value_residual else None
         if self.value_residual and v0 is not None:
             lam = self.vr_lambda.to(dtype=v.dtype)
             v = lam[0] * v0 + lam[1] * v
+
+        # Normalization and RoPE
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
+
+        # Gain application
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+
+        # FA3 Native Call (No transposes needed for B,T,H,D layout)
+        if flash_attn_3_func is not None:
+            y = flash_attn_3_func(q, k, v, causal=True)
+        else:
+            # Full robust fallback to SDPA if FA3 setup fails
+            q_s = q.transpose(1, 2).contiguous()
+            k_s = k.transpose(1, 2).contiguous()
+            v_s = v.transpose(1, 2).contiguous()
+            y = F.scaled_dot_product_attention(q_s, k_s, v_s, is_causal=True)
+            y = y.transpose(1, 2).contiguous()
+
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
+
         if self.gated_attention:
-            # gate shape: (bsz, seqlen, num_heads) -> (bsz, seqlen, num_heads, 1) for B,T,H,D layout
-            gate = torch.sigmoid(self.attn_gate(x)).unsqueeze(-1)
-            y = y * gate
+            # We use x_mixed to drive the gate for better temporal awareness
+            gate_val = torch.sigmoid(self.attn_gate(x_mixed)).unsqueeze(-1)
+            y = y * gate_val
+
         y = y.reshape(bsz, seqlen, dim)
         return F.linear(y, out_w.to(x.dtype)), raw_v
 
@@ -1849,6 +1897,18 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
+    # --- ISOMORPHIC PERMUTATION (Lossless Compression) ---
+    for i in range(args.num_layers):
+        up = export_sd["mlp_up_bank"][i]  # [mlp_dim, model_dim]
+        down = export_sd["mlp_down_bank"][i]  # [model_dim, mlp_dim]
+
+        # Sort hidden neurons by their L1 norm magnitude
+        sort_idx = torch.argsort(up.abs().sum(dim=1))
+
+        # Apply identical permutation to both matrices
+        export_sd["mlp_up_bank"][i] = up[sort_idx, :]
+        export_sd["mlp_down_bank"][i] = down[:, sort_idx]
+    # -----------------------------------------------------
     # Unbank 3D tensors into individual 2D tensors for quantization
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
