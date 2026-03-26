@@ -1,0 +1,12 @@
+{
+  "author": "Tejas Saboo",
+  "github_id": "tejassaboo",
+  "name": "A40 Dev Baseline",
+  "blurb": "Single-GPU NVIDIA A40 development run of the Parameter Golf baseline on Seadragon. This is a non-record submission scaffold intended to preserve the exact log, code snapshot, and artifact-size metrics from the first successful remote CUDA run.",
+  "date": "2026-03-26T00:00:00Z",
+  "val_loss": 2.68242198,
+  "val_bpb": 1.58868139,
+  "bytes_total": 9123804,
+  "bytes_code": 50401,
+  "bytes_model_int8_zlib": 9073403
+}
