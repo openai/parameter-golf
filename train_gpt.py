@@ -56,6 +56,8 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    val_max_tokens = int(os.environ.get("VAL_MAX_TOKENS", 0))  # 0 = use full val set
+    checkpoint_every = int(os.environ.get("CHECKPOINT_EVERY", 0))  # 0 = off, N = save every N steps
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
@@ -99,6 +101,23 @@ class Hyperparameters:
     smeargate = bool(int(os.environ.get("SMEARGATE", "1")))
     unet_skips = bool(int(os.environ.get("UNET_SKIPS", "1")))
     int6_qat = bool(int(os.environ.get("INT6_QAT", "1")))
+
+    # Strong-gain features (top-5 proven).
+    rope_partial_dims = int(os.environ.get("ROPE_PARTIAL_DIMS", 16))  # 16/64 = 25% of head dims get RoPE
+    ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))  # 1/sqrt(layer+1) scaling
+    xsa_layers = int(os.environ.get("XSA_LAYERS", 4))  # XSA on last N layers (0=off)
+
+    # Depth recurrence: share middle layers to get more effective depth per parameter.
+    # RECURRENCE_REPEATS=0 means off (default). >0 means the middle shared block loops N times.
+    # RECURRENCE_UNIQUE_HEAD=2 means first 2 layers are unique (not shared).
+    # RECURRENCE_UNIQUE_TAIL=2 means last 2 layers are unique (not shared).
+    # Total effective layers = head + repeats + tail.
+    recurrence_repeats = int(os.environ.get("RECURRENCE_REPEATS", 0))
+    recurrence_unique_head = int(os.environ.get("RECURRENCE_UNIQUE_HEAD", 2))
+    recurrence_unique_tail = int(os.environ.get("RECURRENCE_UNIQUE_TAIL", 2))
+
+    # Tiny MoE: replace MLP with N small experts + top-1 router. 0=off (default).
+    moe_num_experts = int(os.environ.get("MOE_NUM_EXPERTS", 0))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -241,6 +260,10 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
     # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+    # Optional truncation for local dev (VAL_MAX_TOKENS env var).
+    max_tokens = int(os.environ.get("VAL_MAX_TOKENS", 0))
+    if max_tokens > 0 and tokens.numel() > max_tokens:
+        tokens = tokens[:max_tokens].contiguous()
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
     if usable <= 0:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
@@ -351,19 +374,49 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
+_GPTQ_LITE_PERCENTILES = [0.9999, 0.99995, 0.99999, 0.999995, 1.0]
+
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+    """Quantize a float tensor to int6/int8 with GPTQ-lite clip search.
+    
+    Tests multiple clip percentiles per row and picks the one minimizing MSE.
+    Free at eval time (-0.0006 BPB measured, #2 submission).
+    """
     t32 = t.float()
     qmax = _QUANT_MAX_VAL
+    if t32.ndim == 2 and t32.numel() > 0:
+        # GPTQ-lite: try multiple clip percentiles, pick min MSE per row.
+        abs_vals = t32.abs()
+        best_q = None
+        best_scale = None
+        best_mse = None
+        for pct in _GPTQ_LITE_PERCENTILES:
+            if pct >= 1.0:
+                clip_abs = abs_vals.amax(dim=1)
+            else:
+                clip_abs = torch.quantile(abs_vals, pct, dim=1)
+            clip_abs = clip_abs.clamp_min(1e-8)
+            scale = (clip_abs / qmax).clamp_min(1.0 / qmax)
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -qmax, qmax)
+            # Reconstruct and measure MSE per row.
+            recon = q * scale[:, None]
+            mse = (t32 - recon).square().mean(dim=1)
+            if best_mse is None:
+                best_mse = mse
+                best_q = q
+                best_scale = scale
+            else:
+                improved = mse < best_mse
+                if improved.any():
+                    best_mse = torch.where(improved, mse, best_mse)
+                    best_q = torch.where(improved[:, None], q, best_q)
+                    best_scale = torch.where(improved, scale, best_scale)
+        return best_q.to(torch.int8).contiguous(), best_scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+
     if t32.ndim == 2:
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel()
-            else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / qmax).clamp_min(1.0 / qmax)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -qmax, qmax).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        # Empty 2D tensor edge case.
+        return torch.empty_like(t32, dtype=torch.int8), torch.empty((t32.shape[0],), dtype=INT8_PER_ROW_SCALE_DTYPE)
 
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / qmax if clip_abs > 0 else 1.0, dtype=torch.float32)
@@ -624,6 +677,8 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        rope_partial_dims: int = 0,
+        use_xsa: bool = False,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -642,7 +697,12 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        # Partial RoPE: only rotate first rope_partial_dims dims of each head (0 = all dims).
+        rope_dim = rope_partial_dims if 0 < rope_partial_dims < self.head_dim else self.head_dim
+        self.rope_dim = rope_dim
+        self.rotary = Rotary(rope_dim, base=rope_base)
+        # XSA (Exclusive Self-Attention): subtract self-value from attention output.
+        self.use_xsa = use_xsa
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -652,8 +712,17 @@ class CausalSelfAttention(nn.Module):
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
+        if self.rope_dim < self.head_dim:
+            # Partial RoPE: only apply to first rope_dim dims, leave rest unrotated.
+            q_rope, q_pass = q[..., :self.rope_dim], q[..., self.rope_dim:]
+            k_rope, k_pass = k[..., :self.rope_dim], k[..., self.rope_dim:]
+            q_rope = apply_rotary_emb(q_rope, cos, sin)
+            k_rope = apply_rotary_emb(k_rope, cos, sin)
+            q = torch.cat([q_rope, q_pass], dim=-1)
+            k = torch.cat([k_rope, k_pass], dim=-1)
+        else:
+            q = apply_rotary_emb(q, cos, sin)
+            k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
             q,
@@ -663,12 +732,23 @@ class CausalSelfAttention(nn.Module):
             is_causal=True,
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
+        if self.use_xsa:
+            # Exclusive Self-Attention: subtract the self-value projection.
+            # Each token's output = weighted sum of other tokens' values (excluding self).
+            # Expand KV heads to match Q heads for subtraction.
+            if self.num_kv_heads != self.num_heads:
+                repeats = self.num_heads // self.num_kv_heads
+                v_expanded = v.repeat_interleave(repeats, dim=1)
+            else:
+                v_expanded = v
+            y = y - v_expanded
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
 class MLP(nn.Module):
-    # relu^2 MLP from the original modded-nanogpt setup
+    # LeakyReLU(0.5)² — preserves negative gradient flow, eliminates dead neurons.
+    # Ablated at -0.003 BPB vs relu² (#1 submission, PR #493).
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
@@ -677,8 +757,49 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = F.leaky_relu(self.fc(x), negative_slope=0.5)
         return self.proj(x.square())
+
+
+class MoEMLP(nn.Module):
+    """Tiny Mixture-of-Experts MLP. N small experts + top-1 router.
+    Same total param count as a single MLP, but higher per-input capacity.
+    Enabled via MOE_NUM_EXPERTS env var (0=off, uses regular MLP).
+    """
+    def __init__(self, dim: int, mlp_mult: int, num_experts: int):
+        super().__init__()
+        self.num_experts = num_experts
+        # Each expert has proportionally smaller hidden dim so total params ~ same.
+        expert_hidden = (mlp_mult * dim) // num_experts
+        self.experts = nn.ModuleList([
+            nn.ModuleDict({
+                "fc": CastedLinear(dim, expert_hidden, bias=False),
+                "proj": CastedLinear(expert_hidden, dim, bias=False),
+            })
+            for _ in range(num_experts)
+        ])
+        for e in self.experts:
+            e["proj"]._zero_init = True
+        # Lightweight router: linear projection to num_experts logits.
+        self.router = nn.Linear(dim, num_experts, bias=False)
+
+    def forward(self, x: Tensor) -> Tensor:
+        bsz, seqlen, dim = x.shape
+        # Router scores (top-1 selection).
+        logits = self.router(x.detach())  # Detach to avoid router gradients affecting representations.
+        weights = torch.softmax(logits, dim=-1)
+        indices = weights.argmax(dim=-1)  # [bsz, seqlen]
+        # Dispatch to experts.
+        out = torch.zeros_like(x)
+        for i, expert in enumerate(self.experts):
+            mask = (indices == i)
+            if not mask.any():
+                continue
+            tokens = x[mask]  # [N, dim]
+            h = F.leaky_relu(expert["fc"](tokens), negative_slope=0.5)
+            h = expert["proj"](h.square())
+            out[mask] = h
+        return out
 
 
 class Block(nn.Module):
@@ -691,23 +812,38 @@ class Block(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         use_smeargate: bool = False,
+        rope_partial_dims: int = 0,
+        use_xsa: bool = False,
+        ln_scale_factor: float = 1.0,
+        moe_num_experts: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.attn = CausalSelfAttention(
+            dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
+            rope_partial_dims=rope_partial_dims,
+            use_xsa=use_xsa,
+        )
+        self.mlp = MoEMLP(dim, mlp_mult, moe_num_experts) if moe_num_experts > 1 else MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.smear = SmearGate(dim) if use_smeargate else None
+        self.ln_scale_factor = ln_scale_factor
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        normed = self.attn_norm(x)
+        if self.ln_scale_factor != 1.0:
+            normed = normed * self.ln_scale_factor
+        attn_out = self.attn(normed)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        mlp_normed = self.mlp_norm(x)
+        if self.ln_scale_factor != 1.0:
+            mlp_normed = mlp_normed * self.ln_scale_factor
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(mlp_normed)
         if self.smear is not None:
             x = self.smear(x)
         return x
@@ -730,6 +866,13 @@ class GPT(nn.Module):
         bigramhash_buckets: int = 0,
         use_smeargate: bool = False,
         unet_skips: bool = True,
+        rope_partial_dims: int = 0,
+        ln_scale: bool = False,
+        xsa_layers: int = 0,
+        recurrence_repeats: int = 0,
+        recurrence_unique_head: int = 2,
+        recurrence_unique_tail: int = 2,
+        moe_num_experts: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -739,29 +882,68 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram_hash = BigramHash(bigramhash_buckets, model_dim) if bigramhash_buckets > 0 else None
-        if unet_skips:
-            self.num_encoder_layers = num_layers // 2
-            self.num_decoder_layers = num_layers - self.num_encoder_layers
-            self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-        else:
-            self.num_encoder_layers = num_layers
+
+        # Depth recurrence mode: head blocks + shared middle block (looped) + tail blocks.
+        self.recurrence_repeats = recurrence_repeats
+        if recurrence_repeats > 0:
+            # In recurrence mode, U-Net skips are disabled (architecture is different).
+            self.num_encoder_layers = 0
             self.num_decoder_layers = 0
             self.num_skip_weights = 0
-        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.blocks = nn.ModuleList(
-            [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
+            self.skip_weights = nn.Parameter(torch.zeros(0, dtype=torch.float32))
+            n_head = recurrence_unique_head
+            n_tail = recurrence_unique_tail
+            effective_layers = n_head + recurrence_repeats + n_tail
+
+            def make_block(layer_idx: int, eff_total: int) -> Block:
+                xsa_start_idx = eff_total - xsa_layers if xsa_layers > 0 else eff_total
+                return Block(
+                    model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
                     use_smeargate=use_smeargate,
+                    rope_partial_dims=rope_partial_dims,
+                    use_xsa=(layer_idx >= xsa_start_idx),
+                    ln_scale_factor=(1.0 / math.sqrt(layer_idx + 1)) if ln_scale else 1.0,
+                    moe_num_experts=moe_num_experts,
                 )
-                for i in range(num_layers)
-            ]
-        )
+
+            self.head_blocks = nn.ModuleList([make_block(i, effective_layers) for i in range(n_head)])
+            self.shared_block = make_block(n_head, effective_layers)  # Single block, looped
+            # Learnable gate for recurrence scaling (prevents gradient explosion).
+            self.recurrence_gate = nn.Parameter(torch.full((recurrence_repeats,), 0.5, dtype=torch.float32))
+            self.tail_blocks = nn.ModuleList([
+                make_block(n_head + recurrence_repeats + i, effective_layers) for i in range(n_tail)
+            ])
+            self.blocks = nn.ModuleList()  # Empty — not used in recurrence mode
+        else:
+            # Standard mode with U-Net skips.
+            if unet_skips:
+                self.num_encoder_layers = num_layers // 2
+                self.num_decoder_layers = num_layers - self.num_encoder_layers
+                self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+            else:
+                self.num_encoder_layers = num_layers
+                self.num_decoder_layers = 0
+                self.num_skip_weights = 0
+            self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+            xsa_start = num_layers - xsa_layers if xsa_layers > 0 else num_layers
+            self.blocks = nn.ModuleList(
+                [
+                    Block(
+                        model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
+                        use_smeargate=use_smeargate,
+                        rope_partial_dims=rope_partial_dims,
+                        use_xsa=(i >= xsa_start),
+                        ln_scale_factor=(1.0 / math.sqrt(i + 1)) if ln_scale else 1.0,
+                        moe_num_experts=moe_num_experts,
+                    )
+                    for i in range(num_layers)
+                ]
+            )
+            self.head_blocks = nn.ModuleList()
+            self.shared_block = None
+            self.recurrence_gate = None
+            self.tail_blocks = nn.ModuleList()
+
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -781,16 +963,28 @@ class GPT(nn.Module):
             x = x + self.bigram_hash(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        if self.recurrence_repeats > 0:
+            # Depth recurrence: head → shared block (looped) → tail.
+            for block in self.head_blocks:
+                x = block(x, x0)
+            for r in range(self.recurrence_repeats):
+                gate = torch.sigmoid(self.recurrence_gate[r]).to(dtype=x.dtype)
+                residual = x
+                x = self.shared_block(x, x0)
+                x = gate * x + (1.0 - gate) * residual  # Gated residual for stability
+            for block in self.tail_blocks:
+                x = block(x, x0)
+        else:
+            # Standard U-Net skip connection path.
+            skips: list[Tensor] = []
+            for i in range(self.num_encoder_layers):
+                x = self.blocks[i](x, x0)
+                skips.append(x)
+            for i in range(self.num_decoder_layers):
+                if skips:
+                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -813,7 +1007,8 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    if not int(os.environ.get("TORCHDYNAMO_DISABLE", "0")):
+        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -843,10 +1038,13 @@ def main() -> None:
     torch.backends.cudnn.allow_tf32 = True
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
 
+    # On Windows / non-Linux: Flash Attention kernels are unavailable.
+    # Fall back to math SDPA backend.
+    _use_flash = sys.platform != "win32"
     enable_cudnn_sdp(False)
-    enable_flash_sdp(True)
+    enable_flash_sdp(_use_flash)
     enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    enable_math_sdp(not _use_flash)
 
     logfile = None
     if master_process:
@@ -921,12 +1119,22 @@ def main() -> None:
         bigramhash_buckets=args.bigramhash_buckets,
         use_smeargate=args.smeargate,
         unet_skips=args.unet_skips,
+        rope_partial_dims=args.rope_partial_dims,
+        ln_scale=args.ln_scale,
+        xsa_layers=args.xsa_layers,
+        recurrence_repeats=args.recurrence_repeats,
+        recurrence_unique_head=args.recurrence_unique_head,
+        recurrence_unique_tail=args.recurrence_unique_tail,
+        moe_num_experts=args.moe_num_experts,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    if int(os.environ.get("TORCHDYNAMO_DISABLE", "0")):
+        compiled_model = base_model
+    else:
+        compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
@@ -934,7 +1142,17 @@ def main() -> None:
     # - untied lm_head (Adam) uses HEAD_LR
     # - matrix params in transformer blocks use MATRIX_LR via Muon
     # - vectors/scalars use SCALAR_LR via Adam
-    block_named_params = list(base_model.blocks.named_parameters())
+    # Collect block params from either standard blocks or recurrence blocks.
+    if args.recurrence_repeats > 0:
+        block_named_params = (
+            list(base_model.head_blocks.named_parameters())
+            + list(base_model.shared_block.named_parameters())
+            + list(base_model.tail_blocks.named_parameters())
+        )
+        if base_model.recurrence_gate is not None:
+            block_named_params.append(("recurrence_gate", base_model.recurrence_gate))
+    else:
+        block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [
         p
         for name, p in block_named_params
@@ -984,7 +1202,7 @@ def main() -> None:
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0(f"sdp_backends:cudnn=False flash={_use_flash} mem_efficient=False math={not _use_flash}")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -1002,6 +1220,16 @@ def main() -> None:
         f"smeargate:{args.smeargate} ema_decay:{args.ema_decay} unet_skips:{args.unet_skips} "
         f"warmdown_iters:{args.warmdown_iters} compression:{'zstd-22' if _HAS_ZSTD else 'zlib-9'}"
     )
+    log0(
+        f"strong_gains: leaky_relu_sq:True rope_partial_dims:{args.rope_partial_dims} "
+        f"ln_scale:{args.ln_scale} xsa_layers:{args.xsa_layers}"
+    )
+    if args.recurrence_repeats > 0:
+        eff = args.recurrence_unique_head + args.recurrence_repeats + args.recurrence_unique_tail
+        log0(
+            f"depth_recurrence: head={args.recurrence_unique_head} repeats={args.recurrence_repeats} "
+            f"tail={args.recurrence_unique_tail} effective_layers={eff}"
+        )
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
@@ -1158,6 +1386,22 @@ def main() -> None:
                     ema_state[name].mul_(decay).add_(p.data, alpha=1.0 - decay)
 
         step += 1
+
+        # Periodic checkpoint (for long runs, crash recovery).
+        if args.checkpoint_every > 0 and step % args.checkpoint_every == 0 and master_process:
+            ckpt_dir = Path("checkpoints")
+            ckpt_dir.mkdir(exist_ok=True)
+            ckpt_path = ckpt_dir / f"ckpt_step{step}.pt"
+            ckpt_data = {"step": step, "model": base_model.state_dict()}
+            if ema_state is not None:
+                ckpt_data["ema"] = {k: v.cpu() for k, v in ema_state.items()}
+            torch.save(ckpt_data, ckpt_path)
+            # Keep only latest 2 checkpoints to save disk.
+            ckpts = sorted(ckpt_dir.glob("ckpt_step*.pt"), key=lambda p: p.stat().st_mtime)
+            for old in ckpts[:-2]:
+                old.unlink(missing_ok=True)
+            log0(f"checkpoint:saved {ckpt_path} (kept {min(len(ckpts), 2)} latest)")
+
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
             args.train_log_every > 0
