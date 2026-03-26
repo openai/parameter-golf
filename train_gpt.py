@@ -971,7 +971,7 @@ def eval_val_ngram(
     stride: int,
     batch_seqs: int = 32,
     ngram_order: int = 5,
-    ngram_min_order: int = 5,
+    ngram_min_order: int = 2,
     ngram_buckets: int = 4194304,
     ngram_min_count: int = 2,
     fixed_alpha: float = 0.2,
@@ -1735,10 +1735,10 @@ def main() -> None:
     sw_seq_len = effective_eval_seq_len
     if ngram_enabled:
         ngram_order = int(os.environ.get("NGRAM_ORDER", "5"))
-        ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "5"))
+        ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
         ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
         ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
-        ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.05"))  # conservative fixed alpha
+        ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.2"))  # PR #769 value
         ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.0"))  # 0 = fixed alpha
         ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.0"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
