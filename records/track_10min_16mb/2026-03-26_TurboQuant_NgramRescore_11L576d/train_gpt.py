@@ -8,6 +8,11 @@ import os
 import random
 import subprocess
 import sys
+import warnings
+warnings.filterwarnings("ignore")
+import logging
+logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
+logging.getLogger("torch._inductor").setLevel(logging.ERROR)
 import time
 import uuid
 import zlib
@@ -244,7 +249,7 @@ class Hyperparameters:
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 11))
+    num_layers = int(os.environ.get("NUM_LAYERS", 13))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 576))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
