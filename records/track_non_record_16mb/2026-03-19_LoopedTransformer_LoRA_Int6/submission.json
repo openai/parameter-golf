@@ -1,0 +1,15 @@
+{
+  "author": "Matthew Rockwell",
+  "github_id": "MatthewHRockwell",
+  "name": "Looped Transformer + Per-Layer LoRA + Int6 + Sliding Window",
+  "blurb": "5 unique transformer blocks looped to 30 virtual layers with per-virtual-layer LoRA adapters on Q,V projections. Int6 quantization with fp16 embedding passthrough and sliding window evaluation. 1xH100 non-record run; pending 8xH100 validation.",
+  "date": "2026-03-19T00:00:00Z",
+  "val_loss": 2.5395,
+  "val_bpb": 1.4830,
+  "val_bpb_note": "Estimated with int6+sliding window. Prior int4 run: 1.50 pre-quant, 1.60 post-quant on 1xH100 (203M tokens). 8xH100 projection: ~1.20 bpb.",
+  "bytes_total": 14500000,
+  "bytes_total_note": "Estimated. Prior int4 artifact: 8,880,000 bytes. Int6 will be larger but under 16MB.",
+  "bytes_code": 39052,
+  "hardware": "1xH100 80GB (RunPod)",
+  "hardware_note": "Non-record. Needs 8xH100 for official submission."
+}
