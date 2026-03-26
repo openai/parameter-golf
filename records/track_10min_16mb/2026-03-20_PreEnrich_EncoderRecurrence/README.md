@@ -1,6 +1,6 @@
 ## EMA-GPU + Multi-Order N-gram Backoff + Pre-Enrichment + XSA
 
-**val_bpb: 0.9408** (multi-order n-gram backoff 2-11, entropy-adaptive alpha) | 14.94 MB | 8xH100 SXM, 600s
+**val_bpb: 0.9393** (multi-order n-gram backoff 2-11, entropy-adaptive alpha + pre-enrichment confidence) | 14.94 MB | 8xH100 SXM, 600s
 
 ---
 
@@ -8,7 +8,7 @@
 
 | Metric | Value |
 |---|---|
-| **N-gram eval val_bpb** | **0.9408** |
+| **val_bpb (n-gram + PE confidence)** | **0.9393** |
 | Sliding window val_bpb | 1.1478 |
 | Standard eval val_bpb (post-quant) | 1.1690 |
 | Pre-quant val_bpb | 1.1646 |
@@ -63,7 +63,11 @@ Multi-order n-gram backoff with entropy-adaptive alpha during sliding window eva
 - No oracle selection: alpha depends solely on model's own entropy, never on ground-truth
 - No cross-GPU sync: each GPU maintains its own independent cache
 
-**Improvement:** 1.1478 → 0.9408 = **-0.207 BPB**
+**Improvement:** 1.1478 → 0.9393 = **-0.209 BPB**
+
+#### Pre-Enrichment Confidence Modulation
+
+Uses the pre-enrichment layer's transformation magnitude as a confidence signal. High delta = model uncertain about this context = trust n-gram more. Low delta = model confident = trust model more. Modulates entropy-adaptive alpha by `(0.5 + 1.0 * pe_conf)`.
 
 ---
 
