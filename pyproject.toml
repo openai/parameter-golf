@@ -1,0 +1,27 @@
+[project]
+name = "parameter-golf"
+version = "0.1.0"
+description = "Parameter Golf - OpenAI Model Craft Challenge"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "tqdm",
+    "torch>=2.5.0",
+    "huggingface-hub",
+    "setuptools",
+    "typing-extensions>=4.15.0",
+    "datasets",
+    "tiktoken",
+    "sentencepiece",
+    "zstandard",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
