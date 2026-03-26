@@ -1,0 +1,1 @@
+I ran out of compute credits, which prevented a full 10-minute pass on the 8xH100 instance. The script compiles Triton kernels and runs warmup successfully, but the container consistently exited due to insufficient balance before full metrics could be collected.
