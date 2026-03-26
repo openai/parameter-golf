@@ -1112,7 +1112,7 @@ def eval_sliding_window_ttt(
         compressor_frozen.eval()
 
     dynamo_ctx = nullcontext()
-    if hasattr(torch, "_dynamo"):
+    if os.environ.get("TORCH_COMPILE", "1") not in ("0", "false", "False") and hasattr(torch, "_dynamo"):
         try:
             dynamo_ctx = torch._dynamo.disable()
         except RuntimeError:
