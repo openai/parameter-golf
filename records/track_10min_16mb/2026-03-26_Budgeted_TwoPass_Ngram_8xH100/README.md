@@ -1,10 +1,10 @@
-# AutoResearch Budgeted Two-Pass N-gram Backoff (8xH100)
+# Budgeted Two-Pass N-gram Backoff (8xH100)
 
 **3-seed mean val_bpb: 0.118148** (std 0.000038) | **max size: 13.44 MB** | **8x H100 SXM**
 
 ## Summary
 
-This submission builds from the current two-pass N-gram frontier and adds one focused autoresearch improvement:
+This submission builds from the current two-pass N-gram frontier and adds one focused budget-control improvement:
 
 1. **Budgeted two-pass tuner** (`NGRAM_BUDGETED_TUNER`): dynamically caps `NGRAM_TWO_PASS_RESCORE_CHUNKS` based on observed pass-1 throughput and remaining eval budget.
 2. **Order-12 + weighted high-order backoff** with tuned `NGRAM_EVAL_ORDER_MULTS`.
