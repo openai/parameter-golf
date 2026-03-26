@@ -1,0 +1,9 @@
+{
+  "captured_at": "2026-03-24T16:23:12Z",
+  "non_claiming": true,
+  "repo_root": "/Users/ever/Documents/GitHub/parameter-golf",
+  "host": "Mac.lan",
+  "uname": "Darwin Mac.lan 24.6.0 Darwin Kernel Version 24.6.0: Mon Jul 14 11:30:40 PDT 2025; root:xnu-11417.140.69~1/RELEASE_ARM64_T8132 arm64",
+  "python_version": "Python 3.9.6",
+  "phase": "local-smoke"
+}
