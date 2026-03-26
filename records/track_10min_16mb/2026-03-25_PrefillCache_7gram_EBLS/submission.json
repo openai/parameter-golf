@@ -1,0 +1,9 @@
+{
+  "name": "Prefill Cache + 7-Gram Entropy-Adaptive + XSA-all + EBLS",
+  "val_bpb": 0.6567,
+  "bytes_total": 15872807,
+  "blurb": "Cache pre-fill fix for distributed eval: each GPU rank pre-populates 7-gram hash tables with ALL preceding token positions (pure numpy, no NCCL). Equivalent to single-GPU sequential eval. EBLS (3 shared blocks, LoRA rank 8), XSA-all(11), LeakyReLU(0.5)^2, Val-GPTQ int6 + LZMA. Strictly causal: cache updates only after each token is scored. 3-seed mean: 0.6567 (std 0.0003).",
+  "author": "Robert Sneiderman",
+  "github_id": "Robby955",
+  "date": "2026-03-25"
+}
