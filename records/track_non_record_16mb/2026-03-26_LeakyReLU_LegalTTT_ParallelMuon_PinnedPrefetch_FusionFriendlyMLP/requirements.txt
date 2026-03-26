@@ -1,0 +1,22 @@
+# Container base: nvidia/cuda:12.4.1-devel-ubuntu22.04
+#
+# PyTorch: uses CUDA 12.4 wheels. Prefer installing torch first:
+#   pip install --upgrade pip setuptools wheel
+#   pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu124 torch
+#
+# FlashAttention3: Might not get FA3 if doesn't download from direct link. Try both:
+#   pip install --no-cache-dir flash-attn --no-build-isolation
+#   pip install --no-cache-dir "https://download.pytorch.org/whl/cu128/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl"
+# The wheel URL is Linux x86_64 only; skip or substitute on other platforms.
+
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch
+
+numpy
+sentencepiece
+zstandard
+psutil
+tqdm
+einops
+
+flash-attn
