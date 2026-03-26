@@ -8,7 +8,7 @@ This submission is not a leaderboard entry. It is a study of eval-time n-gram ca
 
 ## Results
 
-All runs use the ValCalib GPTQ base model (1.1142 BPB leaderboard score, 11L/512d, ~16MB artifact, from `records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/`). Single GPU, stride=64, FineWeb val (62M tokens).
+All runs use our ValCalib GPTQ base model ([PR #728](https://github.com/openai/parameter-golf/pull/728), 1.1142 BPB, 11L/512d, ~16MB artifact). Single GPU, stride=64, FineWeb val (62M tokens).
 
 | Config | BPB | Eval-time state | Effective model | Time |
 |--------|----:|----------------:|----------------:|-----:|
@@ -171,7 +171,7 @@ NGRAM_ENABLED=1 NGRAM_ORDER=9 NGRAM_ALPHA=0.40 \
 python3 experiments/eval_time_mixing/scripts/analyze_ngram_matches.py
 ```
 
-Base model: `train_609_val_calib.py` from `records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/`.
+Base model: `train_609_val_calib.py` from [PR #728](https://github.com/openai/parameter-golf/pull/728) (`records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/`).
 
 ## Credits
 
