@@ -1073,7 +1073,7 @@ def eval_val_sliding_ttt(
         chunk_start_tok = ci * ttt_chunk_tokens
         chunk_end_tok = min((ci + 1) * ttt_chunk_tokens, total_tokens)
         if mixer is not None:
-            mixer.update(val_tokens[chunk_start_tok:chunk_end_tok + 1])
+            mixer.update(val_tokens[chunk_start_tok:chunk_end_tok])
 
         # Swap back training weights after scoring
         if use_polyak and ci > 0:
