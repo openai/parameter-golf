@@ -11,12 +11,12 @@
 
 | Metric | Value |
 |--------|-------|
-| **val_bpb** | **1.527175** |
-| **artifact_bytes** | 14,155,978 (14.2 MB) — **under 16 MB, valid submission** |
-| **quant_gap** | 0.000949 |
-| **config** | 6L, dim=512, MLP 3x, GQA 8/4, compile, WD=0.04, Muon mom=0.99 |
-| **commit** | `aa4b189` |
-| **steps** | 4087 in 300s (~73ms/step compiled) |
+| **val_bpb** | **1.505089** |
+| **artifact_bytes** | 14,457,149 (14.5 MB) — **under 16 MB, valid submission** |
+| **quant_gap** | 0.000410 (near zero thanks to QAT) |
+| **config** | 6L, dim=512, MLP 3x, GQA 8/4, BigramHash(4096), SmearGate, OrthoInit, SWA(16 ckpts), QAT, compile |
+| **commit** | `d2c0159` |
+| **steps** | 4099 in 300s (~73ms/step compiled) |
 
 Note: This uses **standard eval** (not sliding window). Sliding window would improve bpb by ~0.03 but takes 10+ minutes on this validation set (62M tokens). For final submission, sliding window should be enabled.
 
@@ -28,6 +28,12 @@ Note: This uses **standard eval** (not sliding window). Sliding window would imp
 
 1. **torch.compile** — 2.4x speedup (220ms → 73ms/step). Single biggest infrastructure win.
 2. **MLP 3x expansion** — Better than deeper networks. 6L MLP3x (1.527) beats 8L MLP2x (1.549).
+3. **BigramHash(4096, dim=128)** — Hash table for token bigrams, adds ~589K params.
+4. **SmearGate** — Learned gate blending current + previous token, ~512 params.
+5. **Orthogonal initialization** — Better starting point for Muon optimizer.
+6. **SWA (16 checkpoints)** — Average checkpoints from warmdown phase.
+7. **QAT (int8 STE)** — Fake-quantize during training, quant gap → 0.0004 (from 0.001).
+8. **Fraction-based warmdown (50%)** — Uses wall-clock fraction, immune to compilation time inflation.
 3. **Weight decay 0.04** — Helps both generalization and quantization robustness.
 4. **Muon momentum 0.99** (warmup from 0.92 over 500 steps) — Noticeable improvement.
 5. **Batch size 131K tokens** — Sweet spot for this model. Gives ~4000 steps in 5 min.
