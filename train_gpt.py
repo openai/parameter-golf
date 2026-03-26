@@ -684,90 +684,64 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
                 param.data = param.data.float()
 
 
-class Rotary(nn.Module):
-    # Caches cos/sin tables per sequence length on the current device.
-    def __init__(self, dim: int, base: float = 10000.0):
+class MambaBlock(nn.Module):
+    """Mamba SSM block (arXiv:2312.00752, Mamba-3: arXiv:2603.15569).
+    Replaces attention with selective state space model. Linear-time in sequence length."""
+    def __init__(self, dim: int, d_state: int = 16, d_conv: int = 4, expand: int = 2):
         super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
-        self._seq_len_cached = 0
-        self._cos_cached: Tensor | None = None
-        self._sin_cached: Tensor | None = None
-
-    def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
-        if (
-            self._cos_cached is None
-            or self._sin_cached is None
-            or self._seq_len_cached != seq_len
-            or self._cos_cached.device != device
-        ):
-            t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
-            freqs = torch.outer(t, self.inv_freq.to(device))
-            self._cos_cached = freqs.cos()[None, None, :, :]
-            self._sin_cached = freqs.sin()[None, None, :, :]
-            self._seq_len_cached = seq_len
-        return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
-
-
-def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
-    half = x.size(-1) // 2
-    x1, x2 = x[..., :half], x[..., half:]
-    return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
-
-
-class CausalSelfAttention(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        rope_base: float,
-        qk_gain_init: float,
-    ):
-        super().__init__()
-        if dim % num_heads != 0:
-            raise ValueError("model_dim must be divisible by num_heads")
-        if num_heads % num_kv_heads != 0:
-            raise ValueError("num_heads must be divisible by num_kv_heads")
-        self.num_heads = num_heads
-        self.num_kv_heads = num_kv_heads
-        self.head_dim = dim // num_heads
-        if self.head_dim % 2 != 0:
-            raise ValueError("head_dim must be even for RoPE")
-        kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = CastedLinear(dim, kv_dim, bias=False)
-        self.proj = CastedLinear(dim, dim, bias=False)
-        self.proj._zero_init = True
-        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.d_inner = dim * expand
+        self.d_state = d_state
+        self.dt_rank = max(1, dim // 16)
+        # Input projection: splits into x and residual gate
+        self.in_proj = CastedLinear(dim, self.d_inner * 2, bias=False)
+        # Depthwise conv for local context
+        self.conv1d = nn.Conv1d(self.d_inner, self.d_inner, kernel_size=d_conv,
+                                bias=True, groups=self.d_inner, padding=d_conv - 1)
+        # SSM projections
+        self.x_proj = CastedLinear(self.d_inner, self.dt_rank + d_state * 2, bias=False)
+        self.dt_proj = nn.Linear(self.dt_rank, self.d_inner, bias=True)
+        # SSM state matrix (learnable log of diagonal A)
+        A = torch.arange(1, d_state + 1, dtype=torch.float32).unsqueeze(0).expand(self.d_inner, -1)
+        self.A_log = nn.Parameter(torch.log(A))
+        self.D = nn.Parameter(torch.ones(self.d_inner))
+        # Output projection
+        self.out_proj = CastedLinear(self.d_inner, dim, bias=False)
+        self.out_proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
-        cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
-        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
-        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        b, l, d = x.shape
+        # Input projection and split
+        xz = self.in_proj(x)
+        x_in, z = xz.split([self.d_inner, self.d_inner], dim=-1)
+        # Depthwise conv
+        x_in = x_in.transpose(1, 2)  # (b, d_inner, l)
+        x_in = self.conv1d(x_in)[:, :, :l]
+        x_in = x_in.transpose(1, 2)  # (b, l, d_inner)
+        x_in = F.silu(x_in)
+        # SSM parameters
+        x_dbl = self.x_proj(x_in)
+        dt, B, C = x_dbl.split([self.dt_rank, self.d_state, self.d_state], dim=-1)
+        dt = F.softplus(self.dt_proj(dt))  # (b, l, d_inner)
+        A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
+        # Selective scan (parallel via cumulative sum approximation)
+        # Discretize: deltaA = exp(dt * A), deltaB_u = dt * B * x
+        dtA = torch.einsum("bld,dn->bldn", dt, A)  # (b, l, d_inner, d_state)
+        dtA_cumsum = dtA.cumsum(dim=1)  # cumulative for parallel scan
+        # Compute decay weights between positions
+        dtB_u = torch.einsum("bld,bln,bld->bldn", dt, B, x_in)
+        # Parallel scan via exp-cumsum trick
+        decay = torch.exp(dtA_cumsum)
+        dtB_u_scaled = dtB_u * torch.exp(-dtA_cumsum)
+        y_states = (dtB_u_scaled.cumsum(dim=1) * decay)
+        # Output from state
+        y = torch.einsum("bldn,bln->bld", y_states, C)
+        y = y + x_in * self.D.to(dtype=x_in.dtype)
+        # Gate and project
+        y = y * F.silu(z)
+        return self.out_proj(y)
 
 
 class MLP(nn.Module):
-    # relu^2 MLP from the original modded-nanogpt setup
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = mlp_mult * dim
@@ -781,30 +755,19 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        rope_base: float,
-        qk_gain_init: float,
-    ):
+    """Mamba + MLP block with residual connections."""
+    def __init__(self, dim: int, d_state: int = 16, d_conv: int = 4,
+                 expand: int = 2, mlp_mult: int = 2, **_kwargs):
         super().__init__()
-        self.attn_norm = RMSNorm()
+        self.mamba_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.mamba = MambaBlock(dim, d_state=d_state, d_conv=d_conv, expand=expand)
         self.mlp = MLP(dim, mlp_mult)
-        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
-        mix = self.resid_mix.to(dtype=x.dtype)
-        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        # Mamba replaces attention — no x0 mixing needed (SSM handles sequence)
+        x = x + self.mamba(self.mamba_norm(x))
+        x = x + self.mlp(self.mlp_norm(x))
         return x
 
 
@@ -835,17 +798,7 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList(
-            [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-                for i in range(num_layers)
-            ]
+            [Block(model_dim, mlp_mult=mlp_mult) for _ in range(num_layers)]
         )
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
@@ -866,7 +819,7 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
+        # U-Net skip connections preserved
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
             skips.append(x)
@@ -1003,7 +956,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
