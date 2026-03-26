@@ -1301,13 +1301,21 @@ def eval_ngram_two_pass(
             has_match[valid_idx] = True
             matched_order[valid_idx] = order
 
-    # compute per-position alpha with per-order entropy thresholds
+    # per-order multipliers: boost higher orders, suppress low orders (PR #870/#782)
+    order_mults = {2: 0.3, 3: 0.3, 4: 0.7, 5: 1.0, 6: 1.5, 7: 2.0, 8: 2.0, 9: 2.0}
+
+    # compute per-position alpha with per-order entropy thresholds + multipliers
     alpha = np.full(n_pos, 0.05, dtype=np.float64)
-    for pos_idx in np.where(has_match)[0]:
-        order = int(matched_order[pos_idx])
-        center = ent_centers.get(order, ent_thresh)
-        sig = 1.0 / (1.0 + math.exp(-ent_scale * (all_entropy[pos_idx] - center)))
-        alpha[pos_idx] = ent_base + ent_range * sig
+    matched_idx = np.where(has_match)[0]
+    if len(matched_idx) > 0:
+        orders = matched_order[matched_idx]
+        entropies = all_entropy[matched_idx]
+        # vectorized: compute centers and multipliers
+        centers = np.array([ent_centers.get(int(o), ent_thresh) for o in orders])
+        mults = np.array([order_mults.get(int(o), 1.0) for o in orders])
+        sig = 1.0 / (1.0 + np.exp(-ent_scale * (entropies - centers)))
+        raw_alpha = (ent_base + ent_range * sig) * mults
+        alpha[matched_idx] = np.clip(raw_alpha, 0.0, 0.95)
 
     # blend
     blended_p = all_model_p.copy()
@@ -1934,7 +1942,7 @@ def main() -> None:
         ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
         ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.2"))
         ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.05"))
-        ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.55"))
+        ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.90"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
         ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
         torch.cuda.synchronize()
