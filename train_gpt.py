@@ -370,6 +370,12 @@ def eval_val_sliding(
                 ng_p = (ng_pair[order][ph].float() / cc.float().clamp(min=1)).clamp(EPS, 1 - EPS)
                 ix = m.nonzero(as_tuple=True)[0]; best_ng[ix[has]] = ng_p[has]; found[ix[has]] = True
             alpha = 0.05 + 0.55 / (1.0 + torch.exp(-3.0 * (aH - 3.5)))
+            bh_safe = ap >= 2
+            if bh_safe.any():
+                bh_idx = (vt_gpu[(ap[bh_safe]-2).clamp(min=0)] * 92821 + vt_gpu[(ap[bh_safe]-1).clamp(min=0)]) % 2048
+                bh_norm = base_model.bigram_hash.table.weight[bh_idx].norm(dim=-1)
+                bh_conf = bh_norm / bh_norm.max().clamp(min=1e-8)
+                alpha[bh_safe] = alpha[bh_safe] * (1.0 - 0.3 * bh_conf)
             mixed = torch.where(found, (1 - alpha) * amp + alpha * best_ng, amp)
             ng_loss_sum -= torch.log(mixed.clamp(min=1e-20)).to(torch.float64).sum()
             for order in _NG_ORDERS:
