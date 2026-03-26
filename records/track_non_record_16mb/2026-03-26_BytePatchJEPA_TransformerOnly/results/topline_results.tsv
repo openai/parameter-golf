@@ -1,0 +1,15 @@
+group	variant	val_bpb	note
+historical	BytePatchJEPA_PurityFirst	2.8583	earlier raw-byte JEPA with coupled exact decoder term
+historical	BytePatchJEPA_PureProbeScaling	3.0774	first clean frozen-probe milestone
+backbone_screen	transformer_rope_gqa_localglobal	2.3889800525604903	best backbone with slot_l2 fixed
+backbone_screen	transformer_rope_gqa_base	2.389990501438125	close second
+backbone_screen	transformer_rope_gqa_convstem	2.5803010001832605	clear regression
+objective_screen	slot_ema_teacher	2.3839	best objective, recovered from logs
+objective_screen	slot_cosine	2.3885	recovered from logs
+objective_screen	slot_l2	2.3888	recovered from logs
+objective_screen	slot_vicreg	2.3918	recovered from logs
+objective_screen	masked_slot_jepa	2.5098	recovered from logs
+encoder_screen	conv_patch	2.746384624395377	best short equal-budget encoder rerun
+encoder_screen	mlp_baseline	2.7525905146099565	baseline encoder under same rerun
+encoder_screen	patch_transformer	2.8835849452702482	worse than baseline
+encoder_screen	latent_queries	2.899715507869489	worse than baseline
