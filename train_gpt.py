@@ -896,7 +896,7 @@ def eval_val_sliding(
 class NgramCache:
     """n-gram cache matching PR #753/#769/#779: two flat uint32 arrays per order
     (ctx_counts, full_counts). hash context and full n-gram (context+target) separately."""
-    PRIMES = [np.uint64(p) for p in [36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377]]
+    PRIMES = [np.uint64(p) for p in [36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377, 412391, 479909, 541267, 613651, 700897, 786433]]
 
     def __init__(self, max_order: int = 7, min_order: int = 2, num_buckets: int = 4194304,
                  min_count: int = 2, **kwargs):
@@ -1180,7 +1180,8 @@ def eval_ngram_two_pass(
     total_tokens = val_tokens.numel() - 1
     seq_len = eval_seq_len
     val_np = val_tokens[:total_tokens + 1].numpy()
-    ent_centers = {9: 2.6, 8: 2.8, 7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5}
+    ent_centers = {15: 1.8, 14: 1.9, 13: 2.0, 12: 2.1, 11: 2.2, 10: 2.4,
+                   9: 2.6, 8: 2.8, 7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5}
 
     # distribute windows
     window_starts = [ws for ws in range(0, total_tokens, stride)
@@ -1302,7 +1303,8 @@ def eval_ngram_two_pass(
             matched_order[valid_idx] = order
 
     # per-order multipliers: boost higher orders, suppress low orders (PR #870/#782)
-    order_mults = {2: 0.3, 3: 0.3, 4: 0.7, 5: 1.0, 6: 1.5, 7: 2.0, 8: 2.0, 9: 2.0}
+    order_mults = {2: 0.3, 3: 0.3, 4: 0.7, 5: 1.0, 6: 1.5, 7: 2.0, 8: 2.0, 9: 2.0,
+                   10: 2.0, 11: 2.0, 12: 2.0, 13: 2.0, 14: 2.0, 15: 2.0}
 
     # compute per-position alpha with per-order entropy thresholds + multipliers
     alpha = np.full(n_pos, 0.05, dtype=np.float64)
@@ -1936,7 +1938,7 @@ def main() -> None:
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     sw_seq_len = effective_eval_seq_len
     if ngram_enabled:
-        ngram_order = int(os.environ.get("NGRAM_ORDER", "9"))
+        ngram_order = int(os.environ.get("NGRAM_ORDER", "15"))
         ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
         ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
         ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
