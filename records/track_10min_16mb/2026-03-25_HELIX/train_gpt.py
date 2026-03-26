@@ -881,232 +881,107 @@ class HELIXBlock(nn.Module):
 
         return x
 
-class GPT(nn.Module):
-    def __init__(
-        self,
-        vocab_size: int,
-        num_layers: int,
-        model_dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        tie_embeddings: bool,
-        tied_embed_init_std: float,
-        logit_softcap: float,
-        rope_base: float,
-        qk_gain_init: float,
-        mtp_num_heads: int = 0,
-        mtp_loss_weight: float = 0.1,
-        bigram_vocab_size: int = 0,
-        bigram_dim: int = 128,
-        xsa_last_n: int = 0,
-        rope_dims: int = 0,
-        ln_scale: bool = False,
-        dtg: bool = False,
-        ve_enabled: bool = False,
-        ve_dim: int = 128,
-        ve_layers: str = "9,10",
-        gated_attention: bool = False,
-        value_residual: bool = False,
-    ):
+
+class HELIX_GPT(nn.Module):
+    def __init__(self, vocab_size, num_unique_blocks, num_iterations, model_dim, num_heads, num_kv_heads, dtpa_rank, ffn_hidden, rope_dims, xsa_last_n, bigram_vocab_size, bigram_dim, tie_embeddings, tied_embed_init_std, logit_softcap, rope_base=10000.0):
         super().__init__()
-        self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
-        if logit_softcap <= 0.0:
-            raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+        self.num_unique_blocks = num_unique_blocks
+        self.num_iterations = num_iterations
+        self.model_dim = model_dim
+        self.vocab_size = vocab_size
+        self.logit_softcap = logit_softcap
+        self.num_skip = 2
+        self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim)
+        self.smear = SmearGate(model_dim)
+        self.input_norm = RMSNorm()
+        self.blocks = nn.ModuleList([HELIXBlock(dim=model_dim, n_heads=num_heads, n_kv=num_kv_heads, rank=dtpa_rank, ffn_hidden=ffn_hidden, rope_dims=rope_dims, rope_base=rope_base, use_xsa=(i >= num_unique_blocks - xsa_last_n), num_iterations=num_iterations, block_idx=i) for i in range(num_unique_blocks)])
+        self.skip_weights = nn.Parameter(torch.zeros(self.num_skip, model_dim, dtype=torch.float32))
+        self.final_norm = RMSNorm()
+        self.lm_head = None
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
-        self.logit_softcap = logit_softcap
-        self.value_residual = value_residual
-        self.mtp_num_heads = mtp_num_heads
-        self.mtp_loss_weight = mtp_loss_weight
-        self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
-        self.smear = SmearGate(model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        # Parameter banks: contiguous 3D tensors for batched optimizer
-        head_dim = model_dim // num_heads
-        kv_dim = num_kv_heads * head_dim
-        mlp_dim = int(mlp_mult * model_dim)
-        self.num_layers = num_layers
-        self.qo_bank = nn.Parameter(torch.empty(2 * num_layers, model_dim, model_dim))
-        self.kv_bank = nn.Parameter(torch.empty(2 * num_layers, kv_dim, model_dim))
-        self.mlp_up_bank = nn.Parameter(torch.empty(num_layers, mlp_dim, model_dim))
-        self.mlp_down_bank = nn.Parameter(torch.empty(num_layers, model_dim, mlp_dim))
-        self.blocks = nn.ModuleList(
-            [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                    layer_idx=i,
-                    ln_scale=ln_scale,
-                    dtg=dtg,
-                    gated_attention=gated_attention,
-                    value_residual=value_residual,
-                )
-                for i in range(num_layers)
-            ]
-        )
-        if rope_dims > 0:
-            head_dim = model_dim // num_heads
-            for block in self.blocks:
-                block.attn.rope_dims = rope_dims
-                block.attn.rotary = Rotary(head_dim, base=rope_base, train_seq_len=1024, rope_dims=rope_dims)
-        self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_enabled else []
-        kv_dim_ve = self._ve_target_dim
-        if self.ve_layer_indices:
-            self.ve_shared = ValueEmbedding(vocab_size, ve_dim, kv_dim_ve)
-            self.ve_layer_scales = nn.ParameterList(
-                [nn.Parameter(torch.ones(1, dtype=torch.float32)) for _ in self.ve_layer_indices]
-            )
-        else:
-            self.ve_shared = None
-            self.ve_layer_scales = nn.ParameterList()
-        self.value_embeds = nn.ModuleList()  # keep empty for compat
-        self.final_norm = RMSNorm()
-        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
-        if self.lm_head is not None:
-            self.lm_head._zero_init = True
-        self.mtp_heads = nn.ModuleList(
-            [CastedLinear(model_dim, vocab_size, bias=False) for _ in range(mtp_num_heads)]
-        )
-        for head in self.mtp_heads:
-            head._zero_init = True
-        if xsa_last_n > 0:
-            for i in range(max(0, num_layers - xsa_last_n), num_layers):
-                self.blocks[i].attn.use_xsa = True
+        self.mor_gate = nn.ParameterList([nn.Parameter(torch.zeros(model_dim, 1)) for _ in range(num_iterations - 1)])
+        self._current_lb_weight = 0.0
+        self.mtp_heads = nn.ModuleList([])
+        self.mtp_num_heads = 0
         self._init_weights()
-    def _init_weights(self) -> None:
-        if self.tie_embeddings:
-            nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        n = self.num_layers
-        proj_scale = 1.0 / math.sqrt(2 * n)
-        # Init banks: orthogonal, with proj layers scaled down and out/down zero-init
-        for i in range(n):
-            nn.init.orthogonal_(self.qo_bank.data[i], gain=1.0)        # Q
-            nn.init.zeros_(self.qo_bank.data[n + i])                    # Out (zero init)
-            nn.init.orthogonal_(self.kv_bank.data[i], gain=1.0)        # K
-            nn.init.orthogonal_(self.kv_bank.data[n + i], gain=1.0)    # V
-            nn.init.orthogonal_(self.mlp_up_bank.data[i], gain=1.0)    # MLP up
-            nn.init.zeros_(self.mlp_down_bank.data[i])                  # MLP down (zero init)
-            # Scale proj layers (out_proj and mlp_down are "proj" layers)
-            self.qo_bank.data[n + i].mul_(proj_scale)
-            self.mlp_down_bank.data[i].mul_(proj_scale)
-        # Init remaining nn.Linear modules (bigram proj, mtp heads, lm_head)
-        for name, module in self.named_modules():
-            if isinstance(module, nn.Linear):
-                if getattr(module, "_zero_init", False):
+    def _init_weights(self):
+        virtual_depth = self.num_unique_blocks * self.num_iterations
+        output_scale = 1.0 / math.sqrt(2 * virtual_depth)
+        for module in self.modules():
+            if isinstance(module, CastedLinear):
+                if getattr(module, '_zero_init', False):
                     nn.init.zeros_(module.weight)
-                elif module.weight.ndim == 2 and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
-                    nn.init.orthogonal_(module.weight, gain=1.0)
-    def _get_ve(self, layer_idx: int, input_ids: Tensor, ve_cache: dict | None = None) -> Tensor | None:
-        """Get value embedding for a specific layer using shared table + per-layer scale."""
-        if self.ve_shared is None or layer_idx not in self.ve_layer_indices:
-            return None
-        if ve_cache is not None and 've' not in ve_cache:
-            ve_cache['ve'] = self.ve_shared(input_ids)
-        ve_base = ve_cache['ve'] if ve_cache is not None else self.ve_shared(input_ids)
-        ve_idx = self.ve_layer_indices.index(layer_idx)
-        return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        n = self.num_layers
-        x = self.tok_emb(input_ids)
-        if self.bigram is not None:
-            x = x + self.bigram(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
-        x = self.smear(x)
-        x0 = x
-        v0 = None
-        skips: list[Tensor] = []
-        ve_cache: dict = {}
-        for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x, raw_v = self.blocks[i](x, x0,
-                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
-                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
-                v_embed=ve, v0=v0)
-            if v0 is None and raw_v is not None:
-                v0 = raw_v
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            x, _ = self.blocks[bi](x, x0,
-                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
-                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                v_embed=ve, v0=v0)
-        x = self.final_norm(x)
-        x_flat = x.reshape(-1, x.size(-1))
-        targets = target_ids.reshape(-1)
+                else:
+                    nn.init.orthogonal_(module.weight)
+                    module.weight.data.mul_(output_scale)
+        for name, param in self.named_parameters():
+            if any(x in name for x in ('A_q', 'A_k', 'A_v')):
+                n_slices = param.shape[0]
+                for i in range(n_slices):
+                    nn.init.orthogonal_(param.data[i])
+        for block_idx, block in enumerate(self.blocks):
+            lam_val = 0.8 - 0.6 * math.exp(-0.3 * block_idx)
+            block.dtpa.lam.data.fill_(lam_val)
         if self.tie_embeddings:
-            logits_proj = F.linear(x_flat, self.tok_emb.weight)
-        else:
-            if self.lm_head is None:
-                raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x_flat)
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
-        if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
-            _, seqlen, dim = x.shape
-            mtp_loss_sum = x.new_zeros(())
-            mtp_loss_count = 0
-            for k, mtp_head in enumerate(self.mtp_heads):
-                valid_t = seqlen - (k + 1)
-                if valid_t <= 0:
-                    continue
-                mtp_hidden = x[:, :valid_t, :].reshape(-1, dim)
-                mtp_targets = target_ids[:, k + 1 :].reshape(-1)
-                mtp_logits_proj = mtp_head(mtp_hidden)
-                mtp_logits = self.logit_softcap * torch.tanh(mtp_logits_proj / self.logit_softcap)
-                mtp_loss_sum = mtp_loss_sum + F.cross_entropy(mtp_logits.float(), mtp_targets, reduction="mean")
-                mtp_loss_count += 1
-            if mtp_loss_count > 0:
-                main_loss = main_loss + self.mtp_loss_weight * (mtp_loss_sum / mtp_loss_count)
-        return main_loss
-    def forward_logits(self, input_ids: Tensor) -> Tensor:
-        """Return logits (bsz, seq_len, vocab) without computing loss."""
-        n = self.num_layers
+            nn.init.normal_(self.tok_emb.weight, 0.0, self.tied_embed_init_std)
+    def _embed(self, input_ids):
         x = self.tok_emb(input_ids)
-        if self.bigram is not None:
-            x = x + self.bigram(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
+        x = x + self.bigram(input_ids)
+        x = self.input_norm(x)
         x = self.smear(x)
-        x0 = x
-        v0 = None
-        skips: list[Tensor] = []
-        ve_cache: dict = {}
-        for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x, raw_v = self.blocks[i](x, x0,
-                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
-                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
-                v_embed=ve, v0=v0)
-            if v0 is None and raw_v is not None:
-                v0 = raw_v
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            x, _ = self.blocks[bi](x, x0,
-                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
-                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                v_embed=ve, v0=v0)
+        return x
+    def _project_logits(self, x):
+        logits = F.linear(x, self.tok_emb.weight.to(x.dtype))
+        if self.logit_softcap > 0:
+            logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+        return logits
+    def _mor_aux_loss(self, gate_logits):
+        if not gate_logits:
+            return torch.tensor(0.0)
+        p0 = torch.sigmoid(gate_logits[0]).mean()
+        p1 = torch.sigmoid(gate_logits[1]).mean()
+        target = 1.0 / 3.0
+        w = self._current_lb_weight
+        return w * ((p0 - target) ** 2 + (p1 - target) ** 2)
+    def forward(self, input_ids, target_ids):
+        x = self._embed(input_ids)
+        x0 = x.clone()
+        first_iter_hidden = []
+        mor_gate_logits = []
+        for r in range(self.num_iterations):
+            for k, block in enumerate(self.blocks):
+                if r == self.num_iterations - 1 and k < self.num_skip:
+                    skip_idx = self.num_skip - 1 - k
+                    w = self.skip_weights[skip_idx].to(dtype=x.dtype)
+                    x = x + w[None, None, :] * first_iter_hidden[skip_idx]
+                x = block(x, x0, r)
+                if r == 0 and k < self.num_skip:
+                    first_iter_hidden.append(x)
+            if r < self.num_iterations - 1:
+                gate_logit = x @ self.mor_gate[r].to(dtype=x.dtype)
+                mor_gate_logits.append(gate_logit)
         x = self.final_norm(x)
-        if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
-        else:
-            logits_proj = self.lm_head(x)
-        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        logits = self._project_logits(x)
+        ce_loss = F.cross_entropy(logits.view(-1, self.vocab_size).float(), target_ids.view(-1))
+        aux_loss = self._mor_aux_loss(mor_gate_logits)
+        return ce_loss + aux_loss
+    def forward_logits(self, input_ids):
+        x = self._embed(input_ids)
+        x0 = x.clone()
+        first_iter_hidden = []
+        for r in range(self.num_iterations):
+            for k, block in enumerate(self.blocks):
+                if r == self.num_iterations - 1 and k < self.num_skip:
+                    skip_idx = self.num_skip - 1 - k
+                    w = self.skip_weights[skip_idx].to(dtype=x.dtype)
+                    x = x + w[None, None, :] * first_iter_hidden[skip_idx]
+                x = block(x, x0, r)
+                if r == 0 and k < self.num_skip:
+                    first_iter_hidden.append(x)
+        x = self.final_norm(x)
+        return self._project_logits(x)
 
 # --- Sliding window evaluation ---
 
