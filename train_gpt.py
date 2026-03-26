@@ -741,7 +741,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, return_logits: bool = False) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor, return_logits: bool = False, loss_weights: Tensor | None = None) -> Tensor:
         x = self.tok_emb(input_ids)
         x = x + self.bigram_hash(input_ids)
         x = self.smear_gate(x)
@@ -768,6 +768,9 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         if return_logits:
             return logits
+        if loss_weights is not None:
+            per_token_loss = F.cross_entropy(logits.float(), targets, reduction="none")
+            return (per_token_loss * loss_weights.reshape(-1)).sum() / loss_weights.reshape(-1).sum()
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
@@ -1555,6 +1558,25 @@ def main() -> None:
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
+    # --- N-gram aware training: token frequency weights ---
+    ngram_aware = bool(int(os.environ.get("NGRAM_AWARE", "0")))
+    token_weights_lut: Tensor | None = None
+    if ngram_aware:
+        # High-frequency tokens are easy for n-gram → lower loss weight
+        # Low-frequency tokens are n-gram blind spots → higher loss weight
+        ngram_aware_alpha = float(os.environ.get("NGRAM_AWARE_ALPHA", "0.01"))
+        log0(f"ngram_aware_training: enabled, alpha={ngram_aware_alpha}")
+        # Build frequency table from first val shard (fast proxy for train distribution)
+        freq = torch.zeros(args.vocab_size, device=device)
+        val_sample = val_tokens[:min(1_000_000, val_tokens.numel())].to(device)
+        for tok_id in range(args.vocab_size):
+            freq[tok_id] = (val_sample == tok_id).sum().float()
+        freq = freq / freq.sum()  # normalize to probability
+        # Weight: inverse frequency, softened by alpha
+        token_weights_lut = 1.0 / (1.0 + freq / ngram_aware_alpha)
+        token_weights_lut = token_weights_lut / token_weights_lut.mean()  # normalize mean=1
+        log0(f"ngram_aware_training: weight range [{token_weights_lut.min():.3f}, {token_weights_lut.max():.3f}]")
+
     def zero_grad_all() -> None:
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
@@ -1675,7 +1697,11 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                if token_weights_lut is not None:
+                    w = token_weights_lut[y.reshape(-1)].reshape(y.shape)
+                    loss = model(x, y, loss_weights=w)
+                else:
+                    loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
