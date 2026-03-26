@@ -68,6 +68,8 @@ class Hyperparameters:
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    eval_only: bool = bool(int(os.environ.get("EVAL_ONLY", "0")))
+    load_model_path: str = os.environ.get("LOAD_MODEL_PATH", "")
 
     # Model (defaults match the current baseline setup).
     vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -673,6 +675,20 @@ def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.arr
     return out
 
 
+def load_flat_state(path: str) -> dict[str, mx.array]:
+    model_path = Path(path)
+    if not model_path.is_file():
+        raise FileNotFoundError(f"Model file not found: {model_path}")
+    if model_path.suffix == ".npz":
+        with np.load(model_path, allow_pickle=False) as raw:
+            return {name: mx.array(raw[name]) for name in raw.files}
+    if model_path.suffix == ".ptz":
+        with model_path.open("rb") as f:
+            quant_blob_disk = f.read()
+        return dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
+    raise ValueError(f"Unsupported LOAD_MODEL_PATH suffix for {model_path}; expected .npz or .ptz")
+
+
 def build_sentencepiece_luts(
     sp: spm.SentencePieceProcessor, vocab_size: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -890,6 +906,47 @@ def eval_val_sliding(
     val_bpb = bits_per_token * (total_token_count / total_byte_count)
     return val_loss, val_bpb
 
+
+def run_final_eval(
+    args: Hyperparameters,
+    compiled_loss,
+    compiled_forward_logits,
+    val_tokens: np.ndarray,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    log_fn: Callable[[str], None],
+) -> tuple[float, float, float]:
+    q_t0 = time.perf_counter()
+    if 0 < args.eval_stride < args.train_seq_len:
+        log_fn(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
+        q_val_loss, q_val_bpb = eval_val_sliding(
+            args,
+            compiled_forward_logits,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            stride=args.eval_stride,
+            batch_seqs=args.eval_batch_seqs,
+            log_fn=log_fn,
+        )
+    else:
+        log_fn("final_eval_mode:standard")
+        q_val_loss, q_val_bpb = eval_val(
+            args,
+            compiled_loss,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            log_fn=log_fn,
+        )
+    q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
+    log_fn(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
+    log_fn(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    return q_val_loss, q_val_bpb, q_eval_ms
+
 # -----------------------------
 # TRAINING
 # -----------------------------
@@ -1035,6 +1092,24 @@ def main() -> None:
         f"linear_weight:{model.blocks[0].attn.c_q.weight.dtype} "
         f"skip_weights:{model.skip_weights.dtype}"
     )
+    log(f"eval_only:{args.eval_only} load_model_path:{args.load_model_path or '-'}")
+
+    if args.eval_only:
+        if not args.load_model_path:
+            raise ValueError("LOAD_MODEL_PATH is required when EVAL_ONLY=1")
+        loaded_flat = load_flat_state(args.load_model_path)
+        model.update(tree_unflatten(list(loaded_flat.items())))
+        run_final_eval(
+            args,
+            compiled_loss,
+            compiled_forward_logits,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            log,
+        )
+        return
 
     # ==============================================================================
     # TRAINING LOOP
@@ -1164,34 +1239,16 @@ def main() -> None:
         quant_blob_disk = f.read()
     quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
     model.update(tree_unflatten(list(quant_flat.items())))
-    q_t0 = time.perf_counter()
-    if 0 < args.eval_stride < args.train_seq_len:
-        log(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
-        q_val_loss, q_val_bpb = eval_val_sliding(
-            args,
-            compiled_forward_logits,
-            val_tokens,
-            base_bytes_lut,
-            has_leading_space_lut,
-            is_boundary_token_lut,
-            stride=args.eval_stride,
-            batch_seqs=args.eval_batch_seqs,
-            log_fn=log,
-        )
-    else:
-        log("final_eval_mode:standard")
-        q_val_loss, q_val_bpb = eval_val(
-            args,
-            compiled_loss,
-            val_tokens,
-            base_bytes_lut,
-            has_leading_space_lut,
-            is_boundary_token_lut,
-            log_fn=log,
-        )
-    q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
-    log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
-    log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    run_final_eval(
+        args,
+        compiled_loss,
+        compiled_forward_logits,
+        val_tokens,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+        log,
+    )
 
 
 if __name__ == "__main__":
