@@ -1,4 +1,4 @@
-# LeakyReLU^2 + Legal TTT + Parallel Muon (prefetch + fusion-friendly MLP)
+# LeakyReLU^2 + Legal TTT + Parallel Muon + systems: prefetch & fusion-friendly MLP
 
 Reference baseline: [`2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/README.md`](https://github.com/openai/parameter-golf/pull/549)
 
