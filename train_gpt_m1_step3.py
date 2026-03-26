@@ -1073,14 +1073,15 @@ def main() -> None:
         offset=256 * np.dtype("<i4").itemsize,  # skip 256-int header
     ).astype(np.int64)
     _V = args.vocab_size
-    # Unigram counts
-    _uni_counts = np.bincount(_shard_raw, minlength=_V).astype(np.float64)
-    _uni_counts += 1.0  # Laplace smoothing
+    # Unigram counts via vectorized bincount
+    _uni_counts = np.bincount(_shard_raw, minlength=_V).astype(np.float64) + 1.0  # Laplace
     _uni_logprob_np = np.log(_uni_counts / _uni_counts.sum()).astype(np.float32)
-    # Bigram counts (sparse via numpy, stored dense for small vocab=1024)
-    _bi_counts = np.zeros((_V, _V), dtype=np.float32)
-    np.add.at(_bi_counts, (_shard_raw[:-1], _shard_raw[1:]), 1.0)
-    _bi_counts += 1.0  # Laplace smoothing
+    # Bigram counts: linearize (prev, cur) -> prev*V + cur, then bincount (fully vectorized)
+    _prev = _shard_raw[:-1]
+    _cur = _shard_raw[1:]
+    _bi_flat = (_prev * _V + _cur).astype(np.int64)
+    _bi_counts_flat = np.bincount(_bi_flat, minlength=_V * _V).astype(np.float32) + 1.0  # Laplace
+    _bi_counts = _bi_counts_flat.reshape(_V, _V)
     _bi_row_sums = _bi_counts.sum(axis=1, keepdims=True)
     _bi_logprob_np = np.log(_bi_counts / _bi_row_sums).astype(np.float32)
     unigram_logprob_t = torch.from_numpy(_uni_logprob_np).to(device)
