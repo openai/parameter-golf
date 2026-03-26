@@ -1,15 +1,12 @@
 {
   "track": "10min_16mb",
-  "date": "2026-03-25",
-  "name": "Record: 5-expert Hedge Mixer + CROWN-Q + stride=64 (val_bpb=1.0541)",
-  "author": "royi",
-  "github": "RoyiRa",
+  "date": "2026-03-26",
+  "name": "LeakyReLU² + Legal TTT + Parallel Muon — systems: pinned async prefetch + compiler fusion-friendly MLP",
+  "author": "Binh-Khang Nguyen",
+  "github": "sirsaltysalmon",
   "seed_results": {
-    "1337": {"val_loss": 1.76826750, "val_bpb": 1.04727039, "artifact_bytes": 15892040},
-    "42":   {"val_loss": 1.80425782, "val_bpb": 1.06858594, "artifact_bytes": 15693903},
-    "7":    {"val_loss": 1.76688554, "val_bpb": 1.04645191, "artifact_bytes": 15664473}
   },
-  "mean_val_loss": 1.77980362,
-  "mean_val_bpb": 1.05410275,
-  "code_bytes": 97234
+  "mean_val_loss": null,
+  "mean_val_bpb": null,
+  "code_bytes": null
 }
