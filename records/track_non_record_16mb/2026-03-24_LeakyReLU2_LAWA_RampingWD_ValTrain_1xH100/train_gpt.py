@@ -665,6 +665,7 @@ def _fake_quantize_int8(w: Tensor) -> Tensor:
 _qat_enabled = False
 
 
+
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     # When QAT is enabled, adds fake-quantize noise so model learns to tolerate int8 rounding.
@@ -789,9 +790,13 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        layer_idx: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
+        # ProRes: warmup schedule for this layer (arXiv:2603.05369)
+        self.register_buffer("_prores_step", torch.zeros(1), persistent=False)
+        self._prores_warmup = 30.0 + layer_idx * 30.0  # layer 0: 30 steps, layer 9: 300 steps
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.mlp = MLP(dim, mlp_mult)
@@ -803,8 +808,10 @@ class Block(nn.Module):
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        # ProRes: deeper layers warm up slower (arXiv:2603.05369)
+        prores_scale = (self._prores_step / self._prores_warmup).clamp(max=1.0) if self.training else 1.0
+        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out * prores_scale
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x)) * prores_scale
         return x
 
 
@@ -843,6 +850,7 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    layer_idx=i,
                 )
                 for i in range(num_layers)
             ]
@@ -1212,6 +1220,9 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
+        # Update ProRes step counter on all blocks
+        for block in base_model.blocks:
+            block._prores_step.fill_(float(step))
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
         # LAWA: collect checkpoints from last 20% of training for weight averaging

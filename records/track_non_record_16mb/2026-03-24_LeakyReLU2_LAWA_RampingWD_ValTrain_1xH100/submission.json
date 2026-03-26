@@ -1,15 +1,15 @@
 {
   "author": "Chidera Ibe",
   "github_id": "ChideraIbe123",
-  "name": "LeakyReLU² + LAWA + Ramping WD + Val Training",
-  "blurb": "10-layer baseline with LeakyReLU(0.5)² activation, lzma compression, LAWA checkpoint averaging, ramping weight decay (0.02→0.08), and validation set training. Explored recursive transformers, differential attention (ICLR 2025), VRL (ACL 2025), entropy-weighted loss, and QAT — documented negative results. Run on 1xH100 SXM (non-record).",
-  "date": "2026-03-24T00:00:00Z",
-  "val_loss": 2.07708453,
-  "val_bpb": 1.23016646,
-  "val_bpb_post_quant": 1.2302,
-  "bytes_total": 13472418,
-  "bytes_code": 62510,
+  "name": "ProRes + LeakyReLU² + LAWA + Ramping WD + Val Training",
+  "blurb": "10-layer baseline with Progressive Residual Warmup (arXiv:2603.05369, March 2026), LeakyReLU(0.5)² activation, lzma compression, LAWA checkpoint averaging, ramping weight decay (0.02→0.08), and validation set training. 26 experiments including recursive transformers, differential attention (ICLR 2025), Mamba SSM, gated attention (NeurIPS 2025), harmonic loss, VRL, and more. Run on 1xH100 SXM.",
+  "date": "2026-03-26T00:00:00Z",
+  "val_loss": 2.07465461,
+  "val_bpb": 1.22872732,
+  "val_bpb_post_quant": 1.2287,
+  "bytes_total": 13544746,
+  "bytes_code": 58254,
   "hardware": "1xH100 SXM (Spot, RunPod)",
-  "steps": 1399,
-  "step_avg_ms": 429
+  "steps": 1478,
+  "step_avg_ms": 406
 }
