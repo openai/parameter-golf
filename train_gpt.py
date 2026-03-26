@@ -1812,6 +1812,10 @@ def main() -> None:
 
         if args.ema_enabled and ema_state is not None:
             for k, v in base_model.state_dict().items():
+                if k not in ema_state:
+                    # Transition can introduce new parameters (student layers 10-12).
+                    # Initialize EMA slot on first sight, then continue normal updates.
+                    ema_state[k] = v.detach().cpu().clone()
                 ema_state[k].mul_(args.ema_decay).add_(v.detach().cpu(), alpha=1.0 - args.ema_decay)
 
         step += 1
