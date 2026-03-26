@@ -1,0 +1,10 @@
+{
+    "author": "Shanmukha Chatadi",
+    "github_id": "shinegami-2002",
+    "val_bpb": "TBD (pending 8xH100 run)",
+    "date": "2026-03-25",
+    "summary": "Classical compression eval-time augmentation (n-gram backoff + match model + APM) on PR #549 base",
+    "hardware": "8xH100 SXM",
+    "training_time_seconds": 600,
+    "artifact_bytes": "TBD"
+}
