@@ -1,0 +1,11 @@
+{
+  "author": "Ethan",
+  "github_id": "FlashyFlash3011",
+  "name": "Late Bank QAT + 2048 Train / 4096 Eval",
+  "blurb": "Late int6 STE fake-quant applied to parameter bank weights (Q, K, V, O, MLP) during warmdown. Trains at 2048 context for speed (~7200 steps), evaluates at 4096 for better BPB. Full MLP (3.0x) with bank QAT improving weight compressibility under int6+lzma export.",
+  "date": "2026-03-26",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}

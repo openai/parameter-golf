@@ -58,8 +58,8 @@ class Hyperparameters:
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
-    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 4096))
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 4096))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -96,16 +96,15 @@ class Hyperparameters:
     lawa_freq = int(os.environ.get("LAWA_FREQ", 100))
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
-    # QAT_ENABLED=1 by default: model trains with 6-bit fake-quant throughout, matching int6 export.
-    # late_qat_threshold disabled (0.0) since QAT is on from the start.
-    qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "1")))
+    qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
-    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.0))
+    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
+    bank_qat_threshold = float(os.environ.get("BANK_QAT_THRESHOLD", 0.15))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
@@ -793,6 +792,8 @@ class Block(nn.Module):
         return x_out, raw_v
 
 class GPT(nn.Module):
+    _bank_qat_enabled: bool = False
+
     def __init__(
         self,
         vocab_size: int,
@@ -917,14 +918,14 @@ class GPT(nn.Module):
                 elif module.weight.ndim == 2 and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
                     nn.init.orthogonal_(module.weight, gain=1.0)
     def _fq_bank(self, w: Tensor) -> Tensor:
-        """Apply int6 STE fake-quant to a 2D FP32 bank slice. No-op outside training or if QAT disabled."""
-        if not (CastedLinear._qat_enabled and self.training):
+        """Apply int6 STE fake-quant to a 2D bank slice during warmdown. Matches export symmetric [-31,31] range."""
+        if not (GPT._bank_qat_enabled and self.training):
             return w
         with torch.no_grad():
             w32 = w.float()
             row_max = w32.abs().amax(dim=1)
             scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
-            w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -32, 31) * scale[:, None]).to(w.dtype)
+            w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -31, 31) * scale[:, None]).to(w.dtype)
         return w + (w_q - w).detach()
 
     def _get_ve(self, layer_idx: int, input_ids: Tensor, ve_cache: dict | None = None) -> Tensor | None:
@@ -1709,6 +1710,9 @@ def main() -> None:
         if args.late_qat_threshold > 0 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
             CastedLinear._qat_enabled = True
             log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+        if args.bank_qat_threshold > 0 and scale < args.bank_qat_threshold and not GPT._bank_qat_enabled:
+            GPT._bank_qat_enabled = True
+            log0(f"bank_qat:enabled step:{step} scale:{scale:.4f}")
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1825,7 +1829,7 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = lzma.compress(quant_raw, preset=6)
+    quant_blob = lzma.compress(quant_raw, preset=9)
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
