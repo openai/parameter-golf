@@ -1,0 +1,10 @@
+{
+  "author": "Bortlesboat",
+  "github_id": "Bortlesboat",
+  "name": "10L + Two-Pass Order-11 N-gram Backoff + Order-Adaptive Entropy",
+  "blurb": "10L d=512 GQA 8H/4KV, LeakyReLU(0.5)^2, Partial RoPE, LN Scale, XSA last 4, Value Residual, EMA(0.997). Two-pass eval: pass 1 builds hashed n-gram cache (orders 2-11) with order-adaptive entropy-gated alpha, pass 2 rescores early cold-cache windows with full cache. Mean of 3 seeds.",
+  "date": "2026-03-26",
+  "val_loss": 0.9898,
+  "val_bpb": 0.5863,
+  "bytes_total": 15420000
+}
