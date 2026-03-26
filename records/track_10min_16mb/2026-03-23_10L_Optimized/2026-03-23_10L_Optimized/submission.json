@@ -1,0 +1,9 @@
+{
+  "name": "10L Optimized",
+  "val_loss": 1.14765559,
+  "bytes_total": 15749040,
+  "blurb": "10 layers, mixed int5/int6, improved activations, enhanced embeddings, EMA. Mean of 1 seed.",
+  "author": "hypery11",
+  "github_id": "hypery11",
+  "date": "2026-03-23"
+}
