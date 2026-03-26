@@ -225,6 +225,8 @@ class Hyperparameters:
     two_pass_rescore_chunks = int(os.environ.get("TWO_PASS_RESCORE_CHUNKS", 15))
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "1")))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))
+    recur_layers_str = os.environ.get("RECUR_LAYERS", "4,5")
+    recur_layers = [int(x) for x in recur_layers_str.split(",") if x.strip()] if recur_layers_str else []
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -750,7 +752,8 @@ class GPT(nn.Module):
                  rope_dims: int = 0, ln_scale: bool = False, dtg: bool = False,
                  ve_enabled: bool = False, ve_dim: int = 128, ve_layers: str = "9,10",
                  mixer_head: str = "none", mixer_num_experts: int = 7,
-                 gated_attention: bool = False, value_residual: bool = False):
+                 gated_attention: bool = False, value_residual: bool = False,
+                 recur_layers: list[int] | None = None):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)
         if logit_softcap <= 0.0:
@@ -770,21 +773,57 @@ class GPT(nn.Module):
             self.alpha_head = None
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        # Depth recurrence: virtual-to-physical layer mapping
+        self.recur_layers = sorted(recur_layers) if recur_layers else []
+        if self.recur_layers:
+            cutoff = max(self.recur_layers) + 1
+            self.v2p = list(range(cutoff)) + self.recur_layers + list(range(cutoff, num_layers))
+        else:
+            self.v2p = list(range(num_layers))
+        virtual_num_layers = len(self.v2p)
+        self.virtual_num_layers = virtual_num_layers
+        self.num_encoder_layers = virtual_num_layers // 2
+        self.num_decoder_layers = virtual_num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        # Physical blocks: own the heavy CastedLinear weights
         self.blocks = nn.ModuleList([
             Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base,
                   qk_gain_init, layer_idx=i, ln_scale=ln_scale, dtg=dtg,
                   gated_attention=gated_attention, value_residual=value_residual)
             for i in range(num_layers)
         ])
+        # Virtual repeat blocks: own scalar params, share heavy weights via reference
+        # The inserted layers are at virtual positions cutoff..cutoff+len(recur_layers)-1
+        self.repeat_blocks = nn.ModuleList()
+        self._repeat_virtual_indices: list[int] = []
+        if self.recur_layers:
+            cutoff = max(self.recur_layers) + 1
+            for ri, rl in enumerate(sorted(self.recur_layers)):
+                vi = cutoff + ri  # virtual index of this repeat
+                pi = rl           # physical block it shares weights with
+                self._repeat_virtual_indices.append(vi)
+                rb = Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base,
+                           qk_gain_init, layer_idx=vi, ln_scale=ln_scale, dtg=dtg,
+                           gated_attention=gated_attention, value_residual=value_residual)
+                # Share the heavy CastedLinear weights from the physical block
+                src = self.blocks[pi]
+                rb.attn.c_q = src.attn.c_q
+                rb.attn.c_k = src.attn.c_k
+                rb.attn.c_v = src.attn.c_v
+                rb.attn.proj = src.attn.proj
+                rb.attn.rotary = src.attn.rotary
+                rb.attn.rope_dims = src.attn.rope_dims
+                rb.attn.use_xsa = src.attn.use_xsa
+                rb.mlp.fc = src.mlp.fc
+                rb.mlp.proj = src.mlp.proj
+                self.repeat_blocks.append(rb)
         if rope_dims > 0:
             head_dim = model_dim // num_heads
             for block in self.blocks:
                 block.attn.rope_dims = rope_dims
                 block.attn.rotary = Rotary(head_dim, base=rope_base, train_seq_len=1024, rope_dims=rope_dims)
+            # Repeat blocks already share rotary from physical blocks
         self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_enabled else []
         kv_dim = self._ve_target_dim
         if self.ve_layer_indices:
@@ -801,8 +840,9 @@ class GPT(nn.Module):
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         if xsa_last_n > 0:
-            for i in range(max(0, num_layers - xsa_last_n), num_layers):
-                self.blocks[i].attn.use_xsa = True
+            for i in range(max(0, virtual_num_layers - xsa_last_n), virtual_num_layers):
+                pi = self.v2p[i]
+                self.blocks[pi].attn.use_xsa = True
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -818,6 +858,29 @@ class GPT(nn.Module):
                     if ".proj." in name or name.endswith(".proj"):
                         with torch.no_grad():
                             module.weight.mul_(1.0 / math.sqrt(2 * num_layers))
+
+    def untie_recurrence(self):
+        """For TTT: clone shared CastedLinear weights so repeat layers can diverge."""
+        if not self.recur_layers:
+            return
+        for rb in self.repeat_blocks:
+            # Deep-copy the shared CastedLinear modules
+            rb.attn.c_q = copy.deepcopy(rb.attn.c_q)
+            rb.attn.c_k = copy.deepcopy(rb.attn.c_k)
+            rb.attn.c_v = copy.deepcopy(rb.attn.c_v)
+            rb.attn.proj = copy.deepcopy(rb.attn.proj)
+            rb.mlp.fc = copy.deepcopy(rb.mlp.fc)
+            rb.mlp.proj = copy.deepcopy(rb.mlp.proj)
+        self.recur_layers = []  # Mark as untied
+
+    def _get_virtual_block(self, vi: int) -> 'Block':
+        """Get the block for virtual layer index vi."""
+        if vi in self._repeat_virtual_indices:
+            ri = self._repeat_virtual_indices.index(vi)
+            return self.repeat_blocks[ri]
+        # Non-repeat: use the physical block
+        pi = self.v2p[vi]
+        return self.blocks[pi]
 
     def _get_ve(self, layer_idx: int, input_ids: Tensor, ve_cache: dict | None = None) -> Tensor | None:
         if self.ve_shared is None or layer_idx not in self.ve_layer_indices:
@@ -839,14 +902,16 @@ class GPT(nn.Module):
         ve_cache: dict = {}
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
+            block = self._get_virtual_block(i)
+            x = block(x, x0, v_embed=ve)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve)
+            block = self._get_virtual_block(bi)
+            x = block(x, x0, v_embed=ve)
         return self.final_norm(x)
 
     def _logits_from_hidden(self, h: Tensor) -> Tensor:
@@ -1040,6 +1105,12 @@ def eval_val_sliding_ttt(
     chunk_token_counts: list[float] = []
     chunk_byte_counts: list[float] = []
 
+    # Untie depth recurrence before TTT so repeat layers can specialize
+    if hasattr(base_model, 'untie_recurrence'):
+        base_model.untie_recurrence()
+        if rank == 0:
+            print(f"  Depth recurrence untied for TTT")
+
     # Freeze everything, then selectively unfreeze for TTT
     num_blocks = len(base_model.blocks)
     for p in base_model.parameters():
@@ -1060,6 +1131,13 @@ def eval_val_sliding_ttt(
         for i in range(max(0, num_blocks - ttt_freeze_blocks), num_blocks):
             for p in base_model.blocks[i].parameters():
                 p.requires_grad_(True)
+                ttt_params.append(p)
+                ttt_param_ids.add(id(p))
+    # Also unfreeze repeat_blocks (depth recurrence, now untied)
+    if hasattr(base_model, 'repeat_blocks'):
+        for p in base_model.repeat_blocks.parameters():
+            p.requires_grad_(True)
+            if id(p) not in ttt_param_ids:
                 ttt_params.append(p)
                 ttt_param_ids.add(id(p))
     for name, p in base_model.named_parameters():
@@ -1499,6 +1577,7 @@ def main() -> None:
         mixer_head=args.mixer_head,
         mixer_num_experts=1 + args.ngram_max_order - args.ngram_min_order + 1,
         gated_attention=args.gated_attention, value_residual=args.value_residual,
+        recur_layers=args.recur_layers,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1659,10 +1738,10 @@ def main() -> None:
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         ttt_epochs = int(os.environ.get("TTT_EPOCHS", "3"))
-        ttt_lr = float(os.environ.get("TTT_LR", "0.0005"))
-        ttt_freeze = int(os.environ.get("TTT_FREEZE_BLOCKS", "2"))
+        ttt_lr = float(os.environ.get("TTT_LR", "0.002"))
+        ttt_freeze = int(os.environ.get("TTT_FREEZE_BLOCKS", "11"))
         ttt_chunk = int(os.environ.get("TTT_CHUNK_TOKENS", "32768"))
-        ttt_opt = os.environ.get("TTT_OPTIMIZER", "adamw")
+        ttt_opt = os.environ.get("TTT_OPTIMIZER", "sgd")
         log0(f"TTT: epochs={ttt_epochs} lr={ttt_lr} freeze_first={ttt_freeze} chunk={ttt_chunk} opt={ttt_opt}")
         ttt_temp = args.ttt_temperature
         log0(f"TTT temperature: {ttt_temp}")
@@ -1928,6 +2007,7 @@ def main() -> None:
         mixer_head=args.mixer_head,
         mixer_num_experts=1 + args.ngram_max_order - args.ngram_min_order + 1,
         gated_attention=args.gated_attention, value_residual=args.value_residual,
+        recur_layers=args.recur_layers,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
@@ -1957,10 +2037,10 @@ def main() -> None:
     torch.cuda.synchronize()
     t_ttt = time.perf_counter()
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", "3"))
-    ttt_lr = float(os.environ.get("TTT_LR", "0.0005"))
-    ttt_freeze = int(os.environ.get("TTT_FREEZE_BLOCKS", "2"))
+    ttt_lr = float(os.environ.get("TTT_LR", "0.002"))
+    ttt_freeze = int(os.environ.get("TTT_FREEZE_BLOCKS", "11"))
     ttt_chunk = int(os.environ.get("TTT_CHUNK_TOKENS", "32768"))
-    ttt_opt = os.environ.get("TTT_OPTIMIZER", "adamw")
+    ttt_opt = os.environ.get("TTT_OPTIMIZER", "sgd")
     log0(f"TTT: epochs={ttt_epochs} lr={ttt_lr} freeze_first={ttt_freeze} chunk={ttt_chunk} opt={ttt_opt}")
     ttt_temp = args.ttt_temperature
     log0(f"TTT temperature: {ttt_temp}")
