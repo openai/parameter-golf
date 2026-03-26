@@ -257,6 +257,9 @@ def train_single_run(
         warmdown_iters=warmdown_iters,
     )
 
+    import logging as _log
+    _logger = _log.getLogger("inprocess_trainer")
+
     # --- Seed PRNG ---
     mx.random.seed(args.seed)
 
@@ -348,9 +351,6 @@ def train_single_run(
         _WARMED_ARCHITECTURES.add(arch)
 
     # --- Training loop (lines 998-1057 of train_gpt_mlx.py) ---
-    import logging as _log
-    _logger = _log.getLogger("inprocess_trainer")
-
     train_time_ms = 0.0
     val_loss = float("nan")
     val_bpb = float("nan")
