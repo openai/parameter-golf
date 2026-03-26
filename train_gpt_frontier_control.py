@@ -22,11 +22,11 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
+from flash_attn_interface import causal_attention, configure_attention_logging, flash_attention_import_summary
 from frontier_checkpoint import atomic_json_dump, atomic_torch_save, capture_rng_state, restore_rng_state
 from frontier_cache import causal_cache_from_env
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
 
 
 def resolved_rotary_train_seq_len() -> int:
@@ -751,7 +751,7 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        y = causal_attention(q, k, v, enable_gqa=(self.num_kv_heads != self.num_heads))
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self.gated_attention:
@@ -1583,6 +1583,8 @@ def main() -> None:
         if logfile is not None:
             with open(logfile, "a", encoding="utf-8") as f:
                 print(msg, file=f)
+    configure_attention_logging(log0 if master_process else None)
+    attention_summary = flash_attention_import_summary()
 
     best_val_bpb: float | None = None
     best_val_loss: float | None = None
@@ -1616,6 +1618,13 @@ def main() -> None:
     log0("=" * 100, console=False)
     log0(f"Running Python {sys.version}", console=False)
     log0(f"Running PyTorch {torch.__version__}", console=False)
+    log0(
+        "attention_runtime:"
+        f" flash_attn_available={attention_summary['flash_attn_available']}"
+        f" source={attention_summary['flash_attn_source']}"
+        f" import_error={attention_summary['flash_attn_import_error']}",
+        console=False,
+    )
     log0(
         subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
         console=False,
@@ -1773,7 +1782,7 @@ def main() -> None:
         f" mixing={os.environ.get('CAUSAL_CACHE_MIXING', 'fixed')}"
     )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False runtime_fallback=sdp_math")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "

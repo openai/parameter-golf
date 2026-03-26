@@ -93,6 +93,10 @@ After the `requirements-cloud.txt` step, confirm that `torch_version`, `torch_cu
 
 If it prints `STOP`, do not spend time on training yet.
 
+At runtime, the frontier trainers now log the selected attention backend. They
+prefer FlashAttention when the actual attention tensor dtype/device are valid,
+and otherwise log a fallback to `sdp_math` instead of crashing.
+
 Common causes:
 
 - torch was upgraded on top of the image

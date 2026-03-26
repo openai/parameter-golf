@@ -55,6 +55,7 @@ def inspect_frontier_env(*, require_flash_attn: bool = True) -> dict[str, object
     torch = torch_mod
     cuda_available = bool(torch.cuda.is_available())
     device_count = int(torch.cuda.device_count()) if cuda_available else 0
+    cuda_bf16_supported = bool(torch.cuda.is_bf16_supported()) if cuda_available and hasattr(torch.cuda, "is_bf16_supported") else None
     devices = []
     if cuda_available:
         for idx in range(device_count):
@@ -68,9 +69,21 @@ def inspect_frontier_env(*, require_flash_attn: bool = True) -> dict[str, object
             )
 
     flash_attn_mod, flash_attn_exc = _import_optional("flash_attn_interface")
-    flash_attn_ok = flash_attn_mod is not None
-    flash_attn_error = None if flash_attn_exc is None else f"{type(flash_attn_exc).__name__}: {flash_attn_exc}"
     flash_attn_path = None if flash_attn_mod is None else getattr(flash_attn_mod, "__file__", "unknown")
+    if flash_attn_mod is None:
+        flash_attn_ok = False
+        flash_attn_error = f"{type(flash_attn_exc).__name__}: {flash_attn_exc}"
+        flash_attn_source = None
+    else:
+        summary_fn = getattr(flash_attn_mod, "flash_attention_import_summary", None)
+        summary = summary_fn() if callable(summary_fn) else {}
+        flash_attn_ok = bool(summary.get("flash_attn_available"))
+        flash_attn_error = summary.get("flash_attn_import_error")
+        flash_attn_source = summary.get("flash_attn_source")
+
+    flash_attn_pkg_mod, _flash_attn_pkg_exc = _import_optional("flash_attn")
+    flash_attn_package_version = None if flash_attn_pkg_mod is None else getattr(flash_attn_pkg_mod, "__version__", "unknown")
+    flash_attn_package_path = None if flash_attn_pkg_mod is None else getattr(flash_attn_pkg_mod, "__file__", "unknown")
 
     nvcc_path, nvcc_version = _parse_nvcc_version()
     torch_cuda_version = str(torch.version.cuda or "")
@@ -117,6 +130,7 @@ def inspect_frontier_env(*, require_flash_attn: bool = True) -> dict[str, object
         "torch_cuda_version": torch_cuda_version,
         "torch_path": getattr(torch, "__file__", "unknown"),
         "cuda_available": cuda_available,
+        "cuda_bf16_supported": cuda_bf16_supported,
         "device_count": device_count,
         "devices": devices,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
@@ -125,6 +139,9 @@ def inspect_frontier_env(*, require_flash_attn: bool = True) -> dict[str, object
         "flash_attn_interface_ok": flash_attn_ok,
         "flash_attn_interface_error": flash_attn_error,
         "flash_attn_interface_path": flash_attn_path,
+        "flash_attn_source": flash_attn_source,
+        "flash_attn_package_version": flash_attn_package_version,
+        "flash_attn_package_path": flash_attn_package_path,
         "mismatch_risk": mismatch_risk,
         "issues": issues,
         "next_steps": next_steps,
@@ -144,6 +161,7 @@ def _print_summary(summary: dict[str, object]) -> None:
     print(f"torch_cuda_version: {summary.get('torch_cuda_version')}")
     print(f"torch_path: {summary.get('torch_path')}")
     print(f"cuda_available: {summary.get('cuda_available')}")
+    print(f"cuda_bf16_supported: {summary.get('cuda_bf16_supported')}")
     print(f"device_count: {summary.get('device_count')}")
     for device in summary.get("devices") or []:
         print(f"  gpu[{device['index']}]: {device['name']} ({device['total_memory_gb']} GiB)")
@@ -151,6 +169,9 @@ def _print_summary(summary: dict[str, object]) -> None:
     print(f"nvcc_version: {summary.get('nvcc_version')}")
     print(f"flash_attn_interface_ok: {summary.get('flash_attn_interface_ok')}")
     print(f"flash_attn_interface_path: {summary.get('flash_attn_interface_path')}")
+    print(f"flash_attn_source: {summary.get('flash_attn_source')}")
+    print(f"flash_attn_package_version: {summary.get('flash_attn_package_version')}")
+    print(f"flash_attn_package_path: {summary.get('flash_attn_package_path')}")
     if summary.get("flash_attn_interface_error"):
         print(f"flash_attn_interface_error: {summary.get('flash_attn_interface_error')}")
     print(f"mismatch_risk: {summary.get('mismatch_risk')}")
