@@ -1,0 +1,20 @@
+{
+  "author": "Anthony",
+  "github_id": "anthony-maio",
+  "name": "Diffusion Noised Teacher Forcing (Smoke)",
+  "blurb": "Non-record smoke run: keep standard AR val_bpb, but blend clean teacher forcing with a diffusion-inspired noisy-context auxiliary loss on fixed SP-1024 shards. A 4-step 1xGPU run validates the idea end to end and roundtrips to 4.0949 BPB well under the 16MB cap.",
+  "date": "2026-03-26T15:20:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 6.91404936,
+  "val_bpb": 4.09488948,
+  "pre_quant_val_loss": 6.9113,
+  "pre_quant_val_bpb": 4.0933,
+  "step_stop": 4,
+  "wallclock_seconds": 1.448,
+  "eval_seconds": 76.638,
+  "bytes_total": 1737911,
+  "bytes_model_int8_zlib": 1673079,
+  "bytes_code": 64832,
+  "model_params": 2101776,
+  "smoke_run": true
+}
