@@ -1,0 +1,15 @@
+{
+  "author": "Maxwell",
+  "github_id": "maxwellcipher",
+  "name": "Static phrase-memory 1xH100 grant attempt",
+  "blurb": "Controlled trigram ablation on 1xH100: tested whether TrigramHash improves a tuned backbone at 16MB scale. It doesn't. Full backbone control hit 1.2791 BPB. Slim backbone +/- trigrams showed no benefit. Clean negative result with reproduction commands.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-1xH100-16mb",
+  "val_bpb": 1.27905213,
+  "val_bpb_std": null,
+  "step_stop": 3734,
+  "wallclock_seconds": 600.0,
+  "bytes_total": 21656908,
+  "gpu": "1xH100 SXM 80GB",
+  "needs_8xh100_verification": true
+}
