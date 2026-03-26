@@ -717,7 +717,7 @@ class GPT(nn.Module):
             self.num_encoder_passes = 0
             self.num_decoder_passes = 0
             self.num_skip_weights = 0
-            self.skip_weights = nn.Parameter(torch.empty(0, dtype=torch.float32))
+            self.register_buffer("skip_weights", torch.empty(0, dtype=torch.float32))
         else:
             self.attn_res = None
             # U-Net skip connections: first half of passes are "encoder", second half "decoder".
