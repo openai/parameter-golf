@@ -1,0 +1,16 @@
+{
+  "author": "Ivan Verbovoy",
+  "github_id": "iverbovoy",
+  "name": "Progressive Depth + Depth Recurrence + XSA + LeakyReLU\u00b2",
+  "blurb": "3 unique blocks with progressive depth scheduling (2\u21923\u21924 repeats), XSA on last 4 layers, LeakyReLU(0.5)\u00b2 MLP, SWA over 18 checkpoints, GPTQ-lite int8+zstd22 compression. 5861 steps in 600s on 8xH100.",
+  "date": "2026-03-26T07:40:00Z",
+  "val_loss": 2.02277954,
+  "val_bpb": 1.19800347,
+  "roundtrip_val_loss": 2.07939783,
+  "roundtrip_val_bpb": 1.23153652,
+  "step_stop": 5861,
+  "wallclock_seconds": 600.140,
+  "bytes_total": 15875591,
+  "bytes_model_int8_zstd22": 15815371,
+  "bytes_code": 60220
+}

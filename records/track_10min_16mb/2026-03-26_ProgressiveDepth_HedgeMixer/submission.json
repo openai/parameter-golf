@@ -1,0 +1,19 @@
+{
+  "author": "Ivan Verbovoy",
+  "github_id": "iverbovoy",
+  "name": "Progressive Depth + Hedge Mixer (5-expert online ensemble)",
+  "blurb": "3 unique blocks with progressive depth scheduling (2\u21923\u21924 repeats), XSA, LeakyReLU\u00b2, Cross-Repeat Skip, SWA, int8+zstd22. Eval: 5-expert Hedge Mixer (neural + unigram + bigram + trigram + entropy) with online multiplicative weight updates. 5673 steps in 600s train, 579s eval on 8xH100.",
+  "date": "2026-03-26T15:00:00Z",
+  "val_loss": 1.93403169,
+  "val_bpb": 1.14544202,
+  "roundtrip_val_loss": 2.07744208,
+  "roundtrip_val_bpb": 1.23037822,
+  "sliding_val_loss": 2.02046173,
+  "sliding_val_bpb": 1.19663074,
+  "step_stop": 5673,
+  "wallclock_seconds": 600.218,
+  "eval_seconds": 579.109,
+  "bytes_total": 15884272,
+  "bytes_model_int8_zstd22": 15818418,
+  "bytes_code": 65854
+}
