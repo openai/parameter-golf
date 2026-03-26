@@ -760,20 +760,22 @@ class RMSNorm(nn.Module):
         self.eps = eps
     def forward(self, x: Tensor) -> Tensor:
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
+@torch.compiler.disable
+def _turbo_qat_forward(w: Tensor, x_dtype, bits: int, device) -> Tensor:
+    """TurboQuant STE — runs outside torch.compile to avoid dynamo issues."""
+    rotation = _turbo_get_rotation(w.shape[1], seed=42, device=device)
+    codebook = _turbo_cached_cb(bits, w.shape[1], device)
+    with torch.no_grad():
+        w_q = turbo_ste(w.float(), rotation, codebook).to(x_dtype)
+    return w + (w_q - w).detach()
+
 class CastedLinear(nn.Linear):
     _qat_enabled: bool = False  # Legacy flag (unused with TurboQuant)
     def forward(self, x: Tensor) -> Tensor:
         global _turbo_qat_enabled, _turbo_scheduler
         w = self.weight.to(x.dtype)
         if _turbo_qat_enabled and _turbo_scheduler.enabled and self.training and w.ndim == 2:
-            dim = w.shape[1]
-            device = w.device
-            bits = _turbo_scheduler.bits
-            rotation = _turbo_get_rotation(dim, seed=42, device=device)
-            codebook = _turbo_cached_cb(bits, dim, device)
-            with torch.no_grad():
-                w_q = turbo_ste(w.float(), rotation, codebook).to(x.dtype)
-            w = w + (w_q - w).detach()
+            w = _turbo_qat_forward(w, x.dtype, _turbo_scheduler.bits, w.device)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
