@@ -1,0 +1,96 @@
+/usr/local/lib/python3.11/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+W0324 10:28:16.078000 1189270 site-packages/torch/distributed/run.py:774] 
+W0324 10:28:16.078000 1189270 site-packages/torch/distributed/run.py:774] *****************************************
+W0324 10:28:16.078000 1189270 site-packages/torch/distributed/run.py:774] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0324 10:28:16.078000 1189270 site-packages/torch/distributed/run.py:774] *****************************************
+/usr/local/lib/python3.11/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/usr/local/lib/python3.11/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/usr/local/lib/python3.11/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/usr/local/lib/python3.11/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/usr/local/lib/python3.11/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/usr/local/lib/python3.11/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/usr/local/lib/python3.11/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/usr/local/lib/python3.11/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+logs/213b5ba9-e568-415d-a44f-1299520e0e39.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:1200.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9279 val_bpb:4.1031 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9299 train_time:236ms step_avg:235.55ms
+step:2/20000 train_loss:8.5592 train_time:425ms step_avg:212.31ms
+step:3/20000 train_loss:7.8260 train_time:615ms step_avg:204.83ms
+step:4/20000 train_loss:7.2355 train_time:804ms step_avg:200.93ms
+step:5/20000 train_loss:7.0698 train_time:993ms step_avg:198.60ms
+step:6/20000 train_loss:6.8378 train_time:1182ms step_avg:197.06ms
+step:7/20000 train_loss:6.7274 train_time:1372ms step_avg:195.96ms
+step:8/20000 train_loss:6.7558 train_time:1562ms step_avg:195.21ms
+step:9/20000 train_loss:6.4108 train_time:1751ms step_avg:194.59ms
+step:10/20000 train_loss:6.0902 train_time:1941ms step_avg:194.11ms
+step:500/20000 train_loss:2.3830 train_time:95796ms step_avg:191.59ms
+step:1000/20000 train_loss:2.2586 train_time:192458ms step_avg:192.46ms
+step:1500/20000 train_loss:2.2049 train_time:289144ms step_avg:192.76ms
+step:2000/20000 train_loss:2.0478 train_time:385814ms step_avg:192.91ms
+step:2500/20000 train_loss:2.1544 train_time:482614ms step_avg:193.05ms
+step:3000/20000 train_loss:2.1358 train_time:579478ms step_avg:193.16ms
+step:3500/20000 train_loss:2.1476 train_time:676301ms step_avg:193.23ms
+step:4000/20000 train_loss:1.9409 train_time:773081ms step_avg:193.27ms
+step:4000/20000 val_loss:2.0298 val_bpb:1.2022 train_time:773088ms step_avg:193.27ms
+step:4500/20000 train_loss:2.0857 train_time:869869ms step_avg:193.30ms
+step:5000/20000 train_loss:2.0685 train_time:966697ms step_avg:193.34ms
+step:5500/20000 train_loss:1.9775 train_time:1063505ms step_avg:193.36ms
+swa:start step:5550
+late_qat:enabled step:5680 scale:0.1500
+step:6000/20000 train_loss:1.8989 train_time:1160756ms step_avg:193.46ms
+step:6202/20000 val_loss:1.9263 val_bpb:1.1409 train_time:1200006ms step_avg:193.49ms
+stopping_early: wallclock_cap train_time:1200006ms step:6202/20000
+peak memory allocated: 20726 MiB reserved: 20774 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9247 val_bpb:1.1399 eval_time:4575ms
+Serialized model: 106178569 bytes
+Code size: 67718 bytes
+Serialized model int6+zstd: 15804269 bytes
+Total submission size int6+zstd: 15871987 bytes
+Total submission size int8+zlib: 15871987 bytes
+final_int6_roundtrip val_loss:1.9384 val_bpb:1.1480 eval_time:10033ms
+final_int6_roundtrip_exact val_loss:1.93836244 val_bpb:1.14800742
+final_int6_sliding_window val_loss:1.8984 val_bpb:1.1243 stride:64 eval_time:161636ms
+final_int6_sliding_window_exact val_loss:1.89841262 val_bpb:1.12434986
+final_int8_zlib_roundtrip_exact val_loss:1.89841262 val_bpb:1.12434986
