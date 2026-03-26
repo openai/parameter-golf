@@ -1,0 +1,9 @@
+{
+  "name": "11L BackoffNgramMixer",
+  "val_loss": 0.6671,
+  "bytes_total": 15995959,
+  "blurb": "11L XSA-all 8/8 MHA with BackoffNgramMixer (entropy-adaptive, orders 2-7). Mean 0.6671 (std 0.0003) across 3 seeds.",
+  "author": "hypery11",
+  "github_id": "hypery11",
+  "date": "2026-03-26"
+}
