@@ -1,0 +1,18 @@
+{
+  "author": "Saken Tukenov",
+  "github_id": "stukenov",
+  "name": "1x RTX 4090 Compat Smoke (50 steps)",
+  "blurb": "Finished non-record smoke run on 1x RTX 4090 using the baseline 9x512 SP-1024 architecture, one FineWeb training shard, and the full fixed validation split. Uses a small compatibility fallback in train_gpt.py to expand KV heads manually on a PyTorch 2.4 image that lacks enable_gqa support. Post-quant int8+zlib artifact remains under the 16,000,000-byte cap.",
+  "date": "2026-03-20",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 5.71391837,
+  "val_bpb": 3.38410431,
+  "pre_quant_val_loss": 5.3102,
+  "pre_quant_val_bpb": 3.1450,
+  "step_stop": 50,
+  "wallclock_seconds": 12.070,
+  "eval_time_seconds": 28.444,
+  "bytes_total": 5169053,
+  "bytes_model_int8_zlib": 5121054,
+  "bytes_code": 47999
+}
