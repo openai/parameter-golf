@@ -90,6 +90,16 @@ INTERVENTION_SEARCH_SPACE = {
         {"label": "sin", "overrides": {}, "activation": "sin"},
         {"label": "sin_sq", "overrides": {}, "activation": "sin_sq"},
     ],
+    "loss_variant": [
+        {"label": "rho1_t08", "overrides": {}, "activation": "relu_sq",
+         "loss_variant": "rho1", "loss_config": {"threshold": 0.8}},
+        {"label": "rho1_t06", "overrides": {}, "activation": "relu_sq",
+         "loss_variant": "rho1", "loss_config": {"threshold": 0.6}},
+        {"label": "adaptive_k_m5", "overrides": {}, "activation": "relu_sq",
+         "loss_variant": "adaptive_k", "loss_config": {"margin_threshold": 5.0}},
+        {"label": "adaptive_k_m3", "overrides": {}, "activation": "relu_sq",
+         "loss_variant": "adaptive_k", "loss_config": {"margin_threshold": 3.0}},
+    ],
 }
 
 # Baseline config (9L, 512-dim, default everything)
@@ -190,6 +200,8 @@ def select_interventions(dag, completed_interventions):
                     "script": "train_gpt_mlx.py",
                     "env_overrides": variant["overrides"],
                     "activation": variant.get("activation", "relu_sq"),
+                    "loss_variant": variant.get("loss_variant", "standard"),
+                    "loss_config": variant.get("loss_config"),
                     "description": f"DAG recommendation: {variable}={variant['label']}",
                 }))
 
@@ -205,6 +217,8 @@ def select_interventions(dag, completed_interventions):
                             "script": "train_gpt_mlx.py",
                             "env_overrides": variant["overrides"],
                             "activation": variant.get("activation", "relu_sq"),
+                            "loss_variant": variant.get("loss_variant", "standard"),
+                            "loss_config": variant.get("loss_config"),
                             "description": f"Sweep uncertain edge: {source_node}={variant['label']}",
                         }))
 
@@ -219,6 +233,8 @@ def select_interventions(dag, completed_interventions):
                         "script": "train_gpt_mlx.py",
                         "env_overrides": variant["overrides"],
                         "activation": variant.get("activation", "relu_sq"),
+                        "loss_variant": variant.get("loss_variant", "standard"),
+                        "loss_config": variant.get("loss_config"),
                         "description": f"Explore non-DAG variable: {variable}={variant['label']}",
                     }))
 
@@ -304,12 +320,15 @@ def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, s
             warmdown = screen_iters // 5
 
             act = treatment_config.get("activation", "relu_sq")
+            lv = treatment_config.get("loss_variant", "standard")
+            lc = treatment_config.get("loss_config")
 
             for s in seeds:
                 r = train_single_run(ctx, treatment["env_overrides"], seed=s,
                                      iterations=screen_iters, val_loss_every=val_every,
                                      warmup_steps=warmup, warmdown_iters=warmdown,
-                                     screening_mode=True, activation=act)
+                                     screening_mode=True, activation=act,
+                                     loss_variant=lv, loss_config=lc)
                 treatment_results.append(r)
 
             for s in seeds:

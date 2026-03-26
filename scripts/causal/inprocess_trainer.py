@@ -238,6 +238,8 @@ def train_single_run(
     warmdown_iters: int = 0,
     screening_mode: bool = False,
     activation: str = "relu_sq",
+    loss_variant: str = "standard",
+    loss_config: dict | None = None,
 ) -> dict[str, Any]:
     """Run a single training session in-process, matching train_gpt_mlx.py main().
 
@@ -278,6 +280,12 @@ def train_single_run(
         qk_gain_init=args.qk_gain_init,
     )
     opt = tgm.SplitOptimizers(model, args)
+
+    # --- Loss variant patch ---
+    original_loss = None
+    if loss_variant != "standard":
+        from scripts.causal.loss_variants import patch_model_loss
+        original_loss = patch_model_loss(model, loss_variant, loss_config)
 
     # --- Compiled functions ---
     compiled_loss = mx.compile(
@@ -406,6 +414,11 @@ def train_single_run(
         step += 1
 
     # --- Cleanup ---
+    # Restore original loss variant before deleting model
+    if original_loss is not None:
+        from scripts.causal.loss_variants import restore_model_loss
+        restore_model_loss(model, original_loss)
+
     # Restore original activation before deleting model
     tgm.MLP.__call__ = _ORIGINAL_MLP_CALL
 
@@ -421,6 +434,7 @@ def train_single_run(
         "train_loss_final": step_losses[-1]["train_loss"] if step_losses else float("nan"),
         "step_losses": step_losses,
         "screening_mode": screening_mode,
+        "loss_variant": loss_variant,
     }
 
 
@@ -437,6 +451,8 @@ def run_condition_inprocess(
     warmup_steps: int = 1,
     warmdown_iters: int = 0,
     screening_mode: bool = False,
+    loss_variant: str = "standard",
+    loss_config: dict | None = None,
 ) -> list[dict]:
     """Run treatment/control condition across all seeds in-process.
 
@@ -457,6 +473,8 @@ def run_condition_inprocess(
                 warmup_steps=warmup_steps,
                 warmdown_iters=warmdown_iters,
                 screening_mode=screening_mode,
+                loss_variant=loss_variant,
+                loss_config=loss_config,
             )
             results.append(result)
         except Exception as exc:
