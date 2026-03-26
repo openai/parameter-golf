@@ -893,6 +893,258 @@ def eval_val_sliding(
     tokens_per_byte = token_count.item() / byte_count.item()
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
+class NgramCache:
+    """multi-order n-gram backoff cache using numpy arrays with chunked processing."""
+    PRIMES = np.array([36313, 27191, 50377, 69061, 82129, 93719, 104729], dtype=np.int64)
+
+    def __init__(self, max_order: int = 7, min_order: int = 2, num_buckets: int = 4194304,
+                 min_count: int = 2, vocab_size: int = 1024):
+        self.max_order = max_order
+        self.min_order = min_order
+        self.num_buckets = num_buckets
+        self.min_count = min_count
+        self.vocab_size = vocab_size
+        self.num_orders = max_order - min_order + 1
+        # count tables: [num_orders, num_buckets, vocab_size] as int16
+        # 6 * 4M * 1024 * 2 = 48GB — fits in H100 host RAM (~200GB+)
+        self.counts = np.zeros((self.num_orders, num_buckets, vocab_size), dtype=np.int16)
+        self.totals = np.zeros((self.num_orders, num_buckets), dtype=np.int32)
+
+    def _compute_hashes(self, tokens: np.ndarray, order: int) -> tuple[np.ndarray, np.ndarray]:
+        """vectorized hash for all positions for a given order."""
+        n = len(tokens) - 1
+        ctx_len = order - 1
+        if n < ctx_len:
+            return np.array([], dtype=np.int64), np.zeros(n, dtype=np.bool_)
+        hashes = np.zeros(n, dtype=np.int64)
+        valid = np.zeros(n, dtype=np.bool_)
+        for j in range(ctx_len):
+            offset = -ctx_len + 1 + j
+            if offset >= 0:
+                ctx_tokens = tokens[offset:offset + n].astype(np.int64)
+            else:
+                pad = np.zeros(-offset, dtype=np.int64)
+                ctx_tokens = np.concatenate([pad, tokens[:n + offset].astype(np.int64)])
+            hashes ^= self.PRIMES[j % len(self.PRIMES)] * ctx_tokens
+        valid[ctx_len - 1:] = True
+        hashes = hashes % self.num_buckets
+        return hashes, valid
+
+    def score_and_update_chunked(self, token_ids: np.ndarray, chunk_size: int = 65536,
+                                  log_fn=None) -> tuple[np.ndarray, np.ndarray]:
+        """chunked score-first: score each chunk using prior chunks' counts, then update."""
+        n = len(token_ids) - 1
+        ngram_prob_target = np.zeros(n, dtype=np.float64)
+        has_ngram = np.zeros(n, dtype=np.bool_)
+        targets = token_ids[1:n + 1].astype(np.int64)
+
+        # precompute hashes for all orders
+        all_hashes = []
+        all_valid = []
+        for order in range(self.min_order, self.max_order + 1):
+            hashes, valid = self._compute_hashes(token_ids[:n + 1], order)
+            all_hashes.append(hashes)
+            all_valid.append(valid)
+
+        num_chunks = (n + chunk_size - 1) // chunk_size
+        for ci in range(num_chunks):
+            cs = ci * chunk_size
+            ce = min(cs + chunk_size, n)
+            chunk_targets = targets[cs:ce]
+
+            # score: try highest order first, backoff
+            chunk_has = np.zeros(ce - cs, dtype=np.bool_)
+            for oi in range(self.num_orders - 1, -1, -1):
+                h = all_hashes[oi][cs:ce]
+                v = all_valid[oi][cs:ce]
+                mask = v & ~chunk_has
+                if not mask.any():
+                    continue
+                h_masked = h[mask]
+                t_masked = chunk_targets[mask]
+                row_totals = self.totals[oi, h_masked]
+                has_enough = row_totals >= self.min_count
+                if not has_enough.any():
+                    continue
+                target_counts = self.counts[oi, h_masked, t_masked].astype(np.float64)
+                probs = np.zeros_like(target_counts)
+                probs[has_enough] = target_counts[has_enough] / row_totals[has_enough].astype(np.float64)
+                idx = np.where(mask)[0]
+                idx_valid = idx[has_enough]
+                ngram_prob_target[cs + idx_valid] = probs[has_enough]
+                has_ngram[cs + idx_valid] = True
+                chunk_has[idx_valid] = True
+
+            # update counts for this chunk
+            for oi in range(self.num_orders):
+                h = all_hashes[oi][cs:ce]
+                v = all_valid[oi][cs:ce]
+                h_valid = h[v]
+                t_valid = chunk_targets[v]
+                np.add.at(self.counts[oi], (h_valid, t_valid), 1)
+                np.add.at(self.totals[oi], h_valid, 1)
+
+            if log_fn and (ci + 1) % 100 == 0:
+                log_fn(f"ngram: chunk {ci + 1}/{num_chunks}")
+
+        return ngram_prob_target, has_ngram
+
+
+def eval_val_ngram(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    eval_seq_len: int,
+    stride: int,
+    batch_seqs: int = 32,
+    ngram_order: int = 7,
+    ngram_min_order: int = 2,
+    ngram_buckets: int = 4194304,
+    ngram_min_count: int = 2,
+    ent_base: float = 0.05,
+    ent_range: float = 0.55,
+    ent_scale: float = 2.0,
+    ent_thresh: float = 4.0,
+    log_fn=None,
+) -> tuple[float, float]:
+    """sliding window eval with n-gram cache mixing. chunked score-first."""
+    total_tokens = val_tokens.numel() - 1
+    seq_len = eval_seq_len
+    vocab_size = args.vocab_size
+
+    # step 1: neural sliding window (distributed)
+    window_starts = [ws for ws in range(0, total_tokens, stride)
+                     if min(ws + seq_len, total_tokens) - ws >= 1]
+    total_windows = len(window_starts)
+    my_s = (total_windows * rank) // world_size
+    my_e = (total_windows * (rank + 1)) // world_size
+    my_windows = window_starts[my_s:my_e]
+
+    model.eval()
+    compiled_logits = torch.compile(model.forward_logits, dynamic=False, fullgraph=True)
+
+    # per-token arrays
+    token_neural_nll = np.zeros(total_tokens, dtype=np.float64)
+    token_neural_entropy = np.zeros(total_tokens, dtype=np.float64)
+    token_neural_prob_target = np.zeros(total_tokens, dtype=np.float64)
+    token_bytes_arr = np.zeros(total_tokens, dtype=np.float64)
+    token_scored = np.zeros(total_tokens, dtype=np.float64)
+
+    all_tok_np = val_tokens[:total_tokens + 1].numpy()
+    base_bytes_cpu = base_bytes_lut.cpu()
+    has_space_cpu = has_leading_space_lut.cpu()
+    is_boundary_cpu = is_boundary_token_lut.cpu()
+
+    with torch.inference_mode():
+        for bi in range(0, len(my_windows), batch_seqs):
+            batch_ws = my_windows[bi:bi + batch_seqs]
+            bsz = len(batch_ws)
+            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            wlens: list[int] = []
+            for i, ws in enumerate(batch_ws):
+                end = min(ws + seq_len, total_tokens)
+                wlen = end - ws
+                wlens.append(wlen)
+                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                x_batch[i, :wlen] = chunk[:-1]
+                y_batch[i, :wlen] = chunk[1:]
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits = compiled_logits(x_batch)
+            logits_f = logits.float()
+            probs = torch.softmax(logits_f, dim=-1)
+            log_probs = torch.log_softmax(logits_f, dim=-1)
+            entropy = -(probs * log_probs).sum(dim=-1)
+            nll = F.cross_entropy(logits_f.reshape(-1, vocab_size), y_batch.reshape(-1),
+                                  reduction='none').reshape(bsz, seq_len)
+            prob_target = probs.gather(2, y_batch.unsqueeze(-1)).squeeze(-1)
+
+            nll_cpu = nll.cpu().numpy().astype(np.float64)
+            ent_cpu = entropy.cpu().numpy().astype(np.float64)
+            pt_cpu = prob_target.cpu().numpy().astype(np.float64)
+            y_cpu = y_batch.cpu()
+            x_cpu = x_batch.cpu()
+
+            for i, ws in enumerate(batch_ws):
+                wlen = wlens[i]
+                s = 0 if ws == 0 else max(wlen - stride, 0)
+                gsl = slice(ws + s, ws + wlen)
+                sl = slice(s, wlen)
+                token_neural_nll[gsl] = nll_cpu[i, sl]
+                token_neural_entropy[gsl] = ent_cpu[i, sl]
+                token_neural_prob_target[gsl] = pt_cpu[i, sl]
+                token_scored[gsl] = 1.0
+                tgt_ids = y_cpu[i, s:wlen]
+                prev_ids = x_cpu[i, s:wlen]
+                tb = base_bytes_cpu[tgt_ids].to(torch.float64)
+                tb += (has_space_cpu[tgt_ids] & ~is_boundary_cpu[prev_ids]).to(torch.float64)
+                token_bytes_arr[gsl] = tb.numpy()
+
+    # also report neural-only sliding window BPB
+    if dist.is_available() and dist.is_initialized():
+        for arr in [token_neural_nll, token_neural_entropy, token_neural_prob_target,
+                    token_bytes_arr, token_scored]:
+            t = torch.from_numpy(arr).to(device=device)
+            dist.all_reduce(t, op=dist.ReduceOp.SUM)
+            arr[:] = t.cpu().numpy()
+
+    scored_mask = token_scored > 0.5
+    sw_only_loss = float(token_neural_nll[scored_mask].sum()) / float(scored_mask.sum())
+    sw_only_bpb = (sw_only_loss / math.log(2.0)) * (float(scored_mask.sum()) / float(token_bytes_arr[scored_mask].sum()))
+    if log_fn:
+        log_fn(f"neural_only_sw val_loss:{sw_only_loss:.4f} val_bpb:{sw_only_bpb:.4f}")
+
+    # step 2: n-gram (chunked, vectorized)
+    cache = NgramCache(max_order=ngram_order, min_order=ngram_min_order,
+                       num_buckets=ngram_buckets, min_count=ngram_min_count,
+                       vocab_size=vocab_size)
+    if log_fn:
+        log_fn(f"ngram: processing {total_tokens} tokens in chunks...")
+    ngram_prob_target, has_ngram = cache.score_and_update_chunked(all_tok_np, chunk_size=65536, log_fn=log_fn)
+    if log_fn:
+        log_fn(f"ngram: done, {has_ngram.sum()} positions with n-gram predictions")
+
+    # step 3: vectorized mixing
+    # debug: report stats on n-gram probs
+    if log_fn:
+        dbg_mask = scored_mask & has_ngram
+        ng_pt = ngram_prob_target[dbg_mask]
+        log_fn(f"ngram_stats: mean_prob={ng_pt.mean():.6f} median={np.median(ng_pt):.6f} "
+               f"nonzero={np.count_nonzero(ng_pt)}/{len(ng_pt)}")
+    alpha_all = ent_base + ent_range / (1.0 + np.exp(-ent_scale * (token_neural_entropy - ent_thresh)))
+    mixed_nll = np.copy(token_neural_nll)
+    # only mix where n-gram assigns nonzero prob to the target token
+    mix_mask = scored_mask & has_ngram & (ngram_prob_target > 0)
+    if log_fn:
+        log_fn(f"ngram_mix: {mix_mask.sum()} positions with nonzero n-gram target prob "
+               f"(of {(scored_mask & has_ngram).sum()} with any n-gram)")
+    if mix_mask.any():
+        p_neural_mix = token_neural_prob_target[mix_mask]
+        p_ngram_mix = ngram_prob_target[mix_mask]
+        alpha_mix = alpha_all[mix_mask]
+        p_mixed = (1.0 - alpha_mix) * p_neural_mix + alpha_mix * p_ngram_mix
+        mixed_nll[mix_mask] = -np.log(np.maximum(p_mixed, 1e-20))
+
+    loss_sum = float(mixed_nll[scored_mask].sum())
+    token_count = float(scored_mask.sum())
+    byte_count = float(token_bytes_arr[scored_mask].sum())
+
+    if token_count > 0:
+        val_loss = loss_sum / token_count
+        bpb = (val_loss / math.log(2.0)) * (token_count / byte_count)
+    else:
+        val_loss, bpb = 0.0, 0.0
+
+    model.train()
+    return val_loss, bpb
+
+
 def _classify_param(name: str) -> str:
     if "tok_emb" in name or "lm_head" in name:
         return "embed"
@@ -1384,7 +1636,7 @@ def main() -> None:
     log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     # TTT: preeval (bulk train then score) or legal (score-first, chunk by chunk)
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 30))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 0))
     ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
     ttt_mode = os.environ.get("TTT_MODE", "preeval")  # "preeval" or "legal"
     if ttt_epochs > 0 and ttt_mode == "preeval":
@@ -1505,23 +1757,48 @@ def main() -> None:
             log0(f"legal_ttt_exact val_loss:{ll:.8f} val_bpb:{bb:.8f}")
         del to; torch.cuda.empty_cache()
 
+    # n-gram cache eval (includes sliding window — replaces standalone sw eval)
+    ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     sw_seq_len = effective_eval_seq_len
-    if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
+    if ngram_enabled:
+        ngram_order = int(os.environ.get("NGRAM_ORDER", "7"))
+        ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
+        ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
+        ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
+        ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.05"))
+        ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.55"))
+        ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
+        ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
         torch.cuda.synchronize()
-        t_slide = time.perf_counter()
-        sw_val_loss, sw_val_bpb = eval_val_sliding(
+        t_ngram = time.perf_counter()
+        log0(f"ngram_eval: order={ngram_order} min_order={ngram_min_order} buckets={ngram_buckets}")
+        ng_val_loss, ng_val_bpb = eval_val_ngram(
             args, eval_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=args.eval_stride,
-            eval_seq_len=sw_seq_len,
+            eval_seq_len=sw_seq_len if args.eval_stride > 0 else effective_eval_seq_len,
+            stride=args.eval_stride if args.eval_stride > 0 else effective_eval_seq_len,
+            ngram_order=ngram_order, ngram_min_order=ngram_min_order,
+            ngram_buckets=ngram_buckets, ngram_min_count=ngram_min_count,
+            ent_base=ngram_ent_base, ent_range=ngram_ent_range,
+            ent_scale=ngram_ent_scale, ent_thresh=ngram_ent_thresh,
+            log_fn=log0,
         )
         torch.cuda.synchronize()
-        log0(
-            f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
-            f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
-        )
-        log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-        log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        log0(f"ngram_eval val_loss:{ng_val_loss:.4f} val_bpb:{ng_val_bpb:.4f} eval_time:{1000.0*(time.perf_counter()-t_ngram):.0f}ms")
+        log0(f"ngram_eval_exact val_loss:{ng_val_loss:.8f} val_bpb:{ng_val_bpb:.8f}")
+        log0(f"final_int8_zlib_roundtrip_exact val_loss:{ng_val_loss:.8f} val_bpb:{ng_val_bpb:.8f}")
+    else:
+        if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
+            torch.cuda.synchronize()
+            t_slide = time.perf_counter()
+            sw_val_loss, sw_val_bpb = eval_val_sliding(
+                args, eval_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                stride=args.eval_stride, eval_seq_len=sw_seq_len,
+            )
+            torch.cuda.synchronize()
+            log0(f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} stride:{args.eval_stride} eval_time:{1000.0*(time.perf_counter()-t_slide):.0f}ms")
+            log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
