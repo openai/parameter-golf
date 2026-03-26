@@ -114,10 +114,10 @@ class Hyperparameters:
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "1")))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.001))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 1))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 2))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 4))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
@@ -1383,10 +1383,8 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
     return result, meta
 
 def _compress_blob(data: bytes) -> bytes:
-    """Compress with zstd-22 if available, else lzma-6."""
-    if _COMPRESSOR == "zstd":
-        return zstandard.ZstdCompressor(level=22).compress(data)
-    return lzma.compress(data, preset=6)
+    """Compress with lzma-9 (better than zstd for neural net int6 weights)."""
+    return lzma.compress(data, preset=9)
 
 def _decompress_blob(data: bytes) -> bytes:
     """Decompress zstd or lzma blob (auto-detect by magic bytes)."""
@@ -1889,7 +1887,7 @@ def main() -> None:
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
     quant_blob = _compress_blob(quant_raw)
-    _compressor_tag = "zstd-22" if _COMPRESSOR == "zstd" else "lzma-6"
+    _compressor_tag = "zstd-22" if _COMPRESSOR == "zstd" else "lzma-9"
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)

@@ -1,8 +1,8 @@
 {
     "author": "Ethan",
     "github_id": "FlashyFlash3011",
-    "name": "LongContext 4096 + BankQAT + GatedAttn + ValueResid + zstd-22",
-    "blurb": "4096 train+eval context. Symmetric int6 bank QAT applied to all weight banks (Q/K/V/O/MLP) during warmdown via STE, matching the export quantization format. Gated attention (per-head learned gate, sigmoid init≈1) and value residual (v0 injection, learned lambda) enabled. zstd-22 compression for smaller artifact. Budget-aware ±1 weight pruning. EMA weights. LeakyReLU(0.5)² MLP. Legal score-first TTT. XSA on last 4 layers, BigramHash(2048), VE(128) on layers 9-10.",
+    "name": "LongContext 4096 + BankQAT + GatedAttn + ValueResid + lzma-9",
+    "blurb": "4096 train+eval context. Symmetric int6 bank QAT applied to all weight banks (Q/K/V/O/MLP) during warmdown via STE, matching the export quantization format. Gated attention (per-head learned gate, sigmoid init≈1) and value residual (v0 injection, learned lambda) enabled. lzma-9 compression for smaller artifact. Budget-aware ±1 weight pruning. EMA weights. LeakyReLU(0.5)² MLP. Legal score-first TTT. XSA on last 4 layers, BigramHash(2048), VE(128) on layers 9-10.",
     "date": "2026-03-26",
     "val_loss": null,
     "val_bpb": null,
