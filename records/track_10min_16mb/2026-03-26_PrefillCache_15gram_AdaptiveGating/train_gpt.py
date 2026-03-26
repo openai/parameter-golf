@@ -1,7 +1,4 @@
-"""train_gpt_ngram_v1.py — 2026-03-25
-Based on train_gpt_submission.py (1.1198 BPB, 3-seed validated).
-NEW: Multi-order n-gram backoff cache with entropy-adaptive alpha (PR #715/#727 style).
-Expected: ~1.03-1.07 BPB depending on config. Legality: score-first, backward-looking only."""
+"""v4_comp — Prefill + Order-Adaptive + Multi-Order Online Complementary Training"""
 from __future__ import annotations
 import copy
 import glob
@@ -88,7 +85,6 @@ class Hyperparameters:
     gptq_damp_factor = float(os.environ.get("GPTQ_DAMP_FACTOR", "0.01"))
     gptq_calib_source = os.environ.get("GPTQ_CALIB_SOURCE", "val")
     swa_ema_blend = float(os.environ.get("SWA_EMA_BLEND", "0.5"))
-    # N-gram cache (eval-time only, score-first compliant)
     ngram_cache = bool(int(os.environ.get("NGRAM_CACHE", "1")))
     ngram_order = int(os.environ.get("NGRAM_ORDER", "7"))
     ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
@@ -102,6 +98,56 @@ class Hyperparameters:
     ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
     ngram_ent_adapt = bool(int(os.environ.get("NGRAM_ENT_ADAPT", "0")))
     ngram_ent_thresh_lo = float(os.environ.get("NGRAM_ENT_THRESH_LO", "2.5"))
+    _om_str = os.environ.get("NGRAM_ORDER_MULTS", "")
+    ngram_order_mults = tuple(float(x) for x in _om_str.split(",") if x.strip()) if _om_str else ()
+    ngram_alpha_max = float(os.environ.get("NGRAM_ALPHA_MAX", "0.95"))
+    comp_enabled = bool(int(os.environ.get("COMP_ENABLED", "0")))
+    comp_alpha = float(os.environ.get("COMP_ALPHA", "0.5"))
+    comp_order = int(os.environ.get("COMP_ORDER", "5"))
+    comp_warmup = int(os.environ.get("COMP_WARMUP", "200"))
+    comp_min_count = int(os.environ.get("COMP_MIN_COUNT", "3"))
+def _comp_weights(y_np, x_np, ctx_tabs, full_tabs, mask, primes, n_orders, alpha, min_count):
+    bsz, sl = y_np.shape
+    fx = x_np.reshape(-1).astype(np.uint64)
+    fy = y_np.reshape(-1).astype(np.uint64)
+    n = bsz * sl
+    best_pred = np.zeros(n, dtype=np.float64)
+    sp = np.arange(n) % sl  # position within each sequence
+    for oi in range(n_orders - 1, -1, -1):
+        cw = oi + 1
+        needs = (sp >= cw) & (best_pred == 0)
+        if not needs.any():
+            continue
+        idx = np.nonzero(needs)[0]
+        ch = np.zeros(len(idx), dtype=np.uint64)
+        for k in range(cw):
+            ch ^= fx[idx - (cw - 1 - k)] * primes[k % len(primes)]
+        ck = (ch & mask).astype(np.int64)
+        fk = ((ch ^ (fy[idx] * primes[cw % len(primes)])) & mask).astype(np.int64)
+        cc = ctx_tabs[oi][ck].astype(np.float64)
+        fc = full_tabs[oi][fk].astype(np.float64)
+        hit = cc >= min_count
+        if hit.any():
+            best_pred[idx[hit]] = np.minimum(fc[hit], cc[hit]) / np.maximum(cc[hit], 1.0)
+    return (1.0 - alpha * np.clip(best_pred, 0.0, 1.0)).astype(np.float32)
+def _comp_update(x_np, y_np, ctx_tabs, full_tabs, mask, primes, n_orders):
+    bsz, sl = y_np.shape
+    fx = x_np.reshape(-1).astype(np.uint64)
+    fy = y_np.reshape(-1).astype(np.uint64)
+    sp = np.arange(bsz * sl) % sl
+    for oi in range(n_orders):
+        cw = oi + 1
+        valid = sp >= cw
+        if not valid.any():
+            continue
+        idx = np.nonzero(valid)[0]
+        ch = np.zeros(len(idx), dtype=np.uint64)
+        for k in range(cw):
+            ch ^= fx[idx - (cw - 1 - k)] * primes[k % len(primes)]
+        ck = (ch & mask).astype(np.int64)
+        fk = ((ch ^ (fy[idx] * primes[cw % len(primes)])) & mask).astype(np.int64)
+        np.add.at(ctx_tabs[oi], ck, 1)
+        np.add.at(full_tabs[oi], fk, 1)
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -239,7 +285,7 @@ def eval_val(
             x = local[:-1].reshape(-1, seq_len)
             y = local[1:].reshape(-1, seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                batch_loss = model(x, y).detach()
+                batch_loss = model(x, y).mean().detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
@@ -674,7 +720,7 @@ class GPT(nn.Module):
         if lora:
             bsz, sl, V = logits_proj.shape[0] // target_ids.shape[1], target_ids.shape[1], logits_proj.shape[-1]
             return F.cross_entropy(logits.float(), targets, reduction="none").reshape(bsz, sl)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        return F.cross_entropy(logits.float(), targets, reduction="none")
     def forward_logits(self, input_ids: Tensor, return_hidden: bool = False):
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
@@ -720,8 +766,7 @@ def eval_val_sliding(
     batch_seqs: int = 32,
     eval_seq_len: int | None = None,
 ) -> tuple[float, float]:
-    """Sliding window eval with optional multi-order n-gram backoff cache.
-    Score-first: each token scored by model BEFORE its data enters the cache."""
+    """Sliding window eval with multi-order n-gram backoff cache (score-first)."""
     seq_len = eval_seq_len or args.train_seq_len
     total_tokens = val_tokens.numel() - 1
     window_starts = [ws for ws in range(0, total_tokens, stride)
@@ -733,7 +778,6 @@ def eval_val_sliding(
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
-    # N-gram cache setup (multi-order backoff, PR #715/#727 style)
     use_ngram = args.ngram_cache
     if use_ngram:
         val_np = val_tokens.cpu().numpy()
@@ -745,10 +789,7 @@ def eval_val_sliding(
             [np.uint64(36313), np.uint64(27191), np.uint64(51647), np.uint64(81929),
              np.uint64(131071), np.uint64(175447), np.uint64(209591)], dtype=np.uint64)
         if rank == 0:
-            print(f"ngram_cache:enabled orders={args.ngram_min_order}-{args.ngram_order} "
-                  f"entropy={args.ngram_entropy} alpha={args.ngram_alpha} "
-                  f"min_count={args.ngram_min_count} buckets={args.ngram_buckets}", flush=True)
-        # Pre-fill cache with ALL tokens preceding this rank's windows (no NCCL needed)
+            print(f"ngram_cache:enabled orders={args.ngram_min_order}-{args.ngram_order} entropy={args.ngram_entropy} alpha={args.ngram_alpha} min_count={args.ngram_min_count} buckets={args.ngram_buckets} order_mults={args.ngram_order_mults or 'none'} alpha_max={args.ngram_alpha_max}", flush=True)
         if rank > 0 and len(my_windows) > 0:
             ws0 = my_windows[0]
             pre_end = ws0 + max(seq_len - stride, 0)  # last target pos scored by preceding ranks
@@ -800,16 +841,13 @@ def eval_val_sliding(
                     seg_nll_np = scored_nll.cpu().numpy()
                     seg_model_p = np.exp(-seg_nll_np)
                     n_seg = len(seg_nll_np)
-                    # Global positions of TARGET tokens being predicted
                     global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
-                    # Entropy-adaptive alpha
                     if args.ngram_entropy:
                         with torch.no_grad():
                             lp = F.log_softmax(logits[i, s:wlen].float(), dim=-1)
                             seg_ent = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
                         alpha_per_tok = args.ngram_ent_base + args.ngram_ent_range / (
                             1.0 + np.exp(-args.ngram_ent_scale * (seg_ent - args.ngram_ent_thresh)))
-                    # Precompute hashes for all orders
                     order_data = []
                     for oi in range(_n_orders):
                         ctx_w = args.ngram_min_order + oi - 1
@@ -827,7 +865,6 @@ def eval_val_sliding(
                         tgt_np = val_np[jv].astype(np.uint64)
                         full_key = ((ctx_hash ^ (tgt_np * ng_primes[ctx_w % len(ng_primes)])) & ng_mask).astype(np.int64)
                         order_data.append((v_idx, ctx_key, full_key))
-                    # Multi-order backoff: highest order first
                     best_p_ng = np.full(n_seg, -1.0)
                     best_order = np.full(n_seg, -1, dtype=np.int32)
                     for oi in range(_n_orders - 1, -1, -1):
@@ -843,7 +880,6 @@ def eval_val_sliding(
                             p = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(ctx_counts[needs_fill], 1.0)
                             best_p_ng[fill_idx] = np.clip(p, 0.0, 1.0)
                             best_order[fill_idx] = args.ngram_min_order + oi
-                    # Mix model prob with n-gram
                     has_match = best_p_ng >= 0
                     if has_match.any():
                         if args.ngram_entropy and args.ngram_ent_adapt:
@@ -856,9 +892,14 @@ def eval_val_sliding(
                             alpha = alpha_per_tok[has_match]
                         else:
                             alpha = args.ngram_alpha
+                        if args.ngram_order_mults:
+                            om = np.array(args.ngram_order_mults)
+                            oi_matched = best_order[has_match] - args.ngram_min_order
+                            oi_clamped = np.clip(oi_matched, 0, len(om) - 1)
+                            alpha = alpha * om[oi_clamped]
+                        alpha = np.clip(alpha, 0.0, args.ngram_alpha_max)
                         seg_model_p[has_match] = (1.0 - alpha) * seg_model_p[has_match] + alpha * best_p_ng[has_match]
                     seg_nll_np = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
-                    # Score-first: update ALL order tables AFTER scoring
                     for oi in range(_n_orders):
                         if order_data[oi] is None:
                             continue
@@ -1109,10 +1150,8 @@ def main() -> None:
                 print(msg, file=f)
     log0(code, console=False)
     log0("=" * 100, console=False)
-    log0(f"Running Python {sys.version}", console=False)
-    log0(f"Running PyTorch {torch.__version__}", console=False)
+    log0(f"Python {sys.version} PyTorch {torch.__version__}", console=False)
     log0(subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout, console=False)
-    log0("=" * 100, console=False)
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed); torch.cuda.manual_seed_all(args.seed)
     if not args.tokenizer_path.endswith(".model"):
         raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
@@ -1171,8 +1210,7 @@ def main() -> None:
     log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
     vrl_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_vrl]
     log0(f"VRL:{args.vrl} active_layers:{vrl_layers}")
-    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} sdp:flash=True")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}")
     log0(f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} iterations:{args.iterations} warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}")
@@ -1192,7 +1230,6 @@ def main() -> None:
         warmdown_ms = args.warmdown_iters * step_ms
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
-    # Warmup phase
     if args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
@@ -1204,7 +1241,7 @@ def main() -> None:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_loss = model(x, y)
+                    warmup_loss = model(x, y).mean()
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -1224,6 +1261,14 @@ def main() -> None:
     ema_decay = 0.997
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    if args.comp_enabled:
+        _comp_n = args.comp_order - 1
+        _comp_ctx = [np.zeros(args.ngram_buckets, dtype=np.uint32) for _ in range(_comp_n)]
+        _comp_full = [np.zeros(args.ngram_buckets, dtype=np.uint32) for _ in range(_comp_n)]
+        _comp_mask = np.uint64(args.ngram_buckets - 1)
+        _comp_pr = np.array([np.uint64(36313), np.uint64(27191), np.uint64(51647),
+                             np.uint64(81929), np.uint64(131071)], dtype=np.uint64)
+        log0(f"comp_train:enabled orders=2-{args.comp_order} alpha={args.comp_alpha} warmup={args.comp_warmup}")
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     step = 0
@@ -1259,10 +1304,20 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            x_np = x.cpu().numpy() if args.comp_enabled else None
+            y_np = y.cpu().numpy() if args.comp_enabled else None
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                per_tok = model(x, y)
+            if args.comp_enabled and step >= args.comp_warmup:
+                w = _comp_weights(y_np, x_np, _comp_ctx, _comp_full,
+                                  _comp_mask, _comp_pr, _comp_n, args.comp_alpha, args.comp_min_count)
+                loss = (per_tok * torch.from_numpy(w).to(device=per_tok.device, dtype=per_tok.dtype)).mean()
+            else:
+                loss = per_tok.mean()
             train_loss += loss.detach()
             (loss * grad_scale).backward()
+            if args.comp_enabled:
+                _comp_update(x_np, y_np, _comp_ctx, _comp_full, _comp_mask, _comp_pr, _comp_n)
         train_loss /= grad_accum_steps
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -1304,7 +1359,6 @@ def main() -> None:
         if stop_after_step is None and reached_cap:
             stop_after_step = step
     log0(f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB")
-    # Apply averaged weights: blend SWA (if available) with EMA
     if swa_state is not None and swa_count > 0:
         blend = args.swa_ema_blend
         log0(f"swa:applying {swa_count} snapshots, blending with EMA ({blend:.2f}/{1-blend:.2f})")
@@ -1330,10 +1384,8 @@ def main() -> None:
         torch.save(export_sd, "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model: {model_bytes} bytes")
-        log0(f"Code size: {code_bytes} bytes")
+        log0(f"Serialized model: {model_bytes} bytes Code: {code_bytes} bytes")
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
-    # GPTQ: collect Hessians for calibration-based quantization
     hessians = None
     if args.gptq_enabled:
         log0(f"gptq:collecting hessians batches={args.gptq_calib_batches} source={args.gptq_calib_source}")
@@ -1341,8 +1393,7 @@ def main() -> None:
         calib_loader = DistributedTokenLoader(args.val_files if args.gptq_calib_source == "val" else args.train_files, rank, world_size, device)
         hessians = collect_hessians(base_model, calib_loader, args, device, grad_accum_steps, num_batches=args.gptq_calib_batches)
         log0(f"gptq:hessians collected layers={len(hessians)} time={time.perf_counter() - t_hess:.1f}s")
-        del calib_loader
-        torch.cuda.empty_cache()
+        del calib_loader; torch.cuda.empty_cache()
     quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"}, hessians=hessians, gptq_block_size=args.gptq_block_size, gptq_damp_factor=args.gptq_damp_factor, clip_range=args.clip_range)
     target_bytes = 16_000_000
     code_bytes = len(code.encode("utf-8"))
@@ -1435,16 +1486,14 @@ def main() -> None:
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(args, compiled_eval, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, eval_seq_len=effective_eval_seq_len)
     torch.cuda.synchronize()
-    log0(f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms")
-    log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} exact:{q_val_bpb:.8f} eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms")
     sw_seq_len = effective_eval_seq_len
     if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
         torch.cuda.synchronize()
         t_slide = time.perf_counter()
         sw_val_loss, sw_val_bpb = eval_val_sliding(args, eval_model, rank, world_size, device, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride=args.eval_stride, eval_seq_len=sw_seq_len)
         torch.cuda.synchronize()
-        log0(f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms")
-        log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        log0(f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} exact:{sw_val_bpb:.8f} stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms")
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":

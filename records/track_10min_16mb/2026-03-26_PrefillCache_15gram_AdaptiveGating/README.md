@@ -1,6 +1,6 @@
-# Record: Distributed Prefill + Order-Adaptive Entropy Gating + 15-Gram Backoff + EBLS
+# Record: Complementary Training + Per-Order Multipliers + Distributed Prefill + 15-Gram + EBLS
 
-**val_bpb: 0.4374** (3-seed mean, std 0.0003) | **~15.99 MB** | 8xH100 SXM
+**val_bpb: 0.2880** (3-seed mean, std 0.00006) | **~15.3 MB** | 8xH100 SXM
 
 ## Motivation
 
@@ -8,18 +8,18 @@ My background is in Bayesian statistics, so when I first saw the parameter golf 
 
 The n-gram cache story was more of a debugging accident. When I first got the multi-order backoff working (building on the great work from @deanbrr, @lukacf, @Asukabot0 and others), I noticed my 8-GPU eval scores were way worse than expected. Turns out ranks 1-7 were starting with empty caches — they'd never seen the tokens before their assigned window. The fix was obvious once I saw it: pre-fill each rank's hash tables with all preceding positions before scoring begins. That single change dropped BPB from 0.96 to 0.65.
 
-The order-adaptive gating came from thinking about what the entropy threshold *should* be for different n-gram orders. A 15-gram match is almost certainly right — the model saw that exact 15-token sequence before. A bigram match could be noise. So higher orders should be trusted at lower entropy. @travispchen had a similar idea in PR #798; I extended it with a continuous interpolation across all 14 orders.
+The big breakthrough came from combining two ideas from the community: @pentxayc's complementary training (PR #803) — which trains the neural model to focus on tokens that n-grams can't predict — and @AayushBaniya2006's per-order multipliers (PR #809) — which aggressively boost high-order n-gram contributions while suppressing noisy bigrams. Together these dropped BPB from 0.44 to 0.29, far more than either technique alone.
 
 ## Results (8xH100 80GB SXM, PyTorch 2.9.1+cu128)
 
 ### 3-seed validation
 
-| Seed | **Sliding + 15-gram BPB** | Artifact bytes |
-|------|---------------------------|----------------|
-| 1337 | **0.43706735** | 15,994,785 |
-| 2024 | **0.43738561** | 15,949,881 |
-| 2025 | **0.43768394** | 15,992,965 |
-| **Mean** | **0.4374 (std 0.0003)** | |
+| Seed | Steps | Train (s) | Pre-quant BPB | Roundtrip BPB | **Sliding + 15-gram BPB** | Artifact bytes |
+|------|-------|-----------|---------------|---------------|---------------------------|----------------|
+| 1337 | 3,620 | 560 | 1.1698 | 1.1745 | **0.28797872** | 15,143,631 |
+| 2024 | 3,587 | 560 | 1.1701 | 1.1749 | **0.28804071** | 15,124,675 |
+| 2025 | 3,593 | 560 | 1.1702 | 1.1751 | **0.28809874** | 15,324,143 |
+| **Mean** | | | | | **0.2880 (std 0.00006)** | |
 
 ### How we got here (ablation)
 
@@ -30,61 +30,59 @@ Each row adds one thing on top of the previous:
 | Neural model only (no cache) | 1.1425 | — | EBLS baseline after GPTQ |
 | + 7-gram backoff + prefill | 0.6565 | -0.486 | Cache + distributed prefill |
 | + extend to 15-gram | 0.6189 | -0.038 | More context helps |
-| + order-adaptive gating | **0.4374** | -0.182 | Trust high orders more |
+| + order-adaptive gating | 0.4374 | -0.182 | Trust high orders more |
+| + complementary training (alpha=0.20) | 0.3707 | -0.067 | Focus model on hard tokens |
+| **+ per-order multipliers** | **0.2880** | **-0.083** | **Boost high orders, suppress bigrams** |
 
-The -0.181 from adaptive gating was the biggest single improvement. Uniform thresholds waste most of the high-order matches by being too conservative.
+## What's in this submission
 
-## What's novel here
+### 1. Complementary Training (from @pentxayc PR #803)
 
-### 1. Distributed Cache Pre-fill
+During training, tokens that bigrams predict well get downweighted in the loss function:
 
-The problem: when evaluating on 8 GPUs with sliding windows, each rank processes a contiguous chunk of token positions. Rank 0 gets the first ~1/8, rank 7 gets the last ~1/8. Without pre-fill, rank 7 starts scoring with an empty cache — it has no n-gram statistics from the first 7/8 of the data. This is a massive handicap.
-
-The fix: before scoring begins, each rank pre-populates its n-gram hash tables with ALL token positions preceding its window, using vectorized numpy. No NCCL needed — each rank independently reads the validation tokens and hashes them.
-
-```python
-# Pseudocode: rank k fills tables for positions 0..start_of_rank_k
-for order in range(min_order, max_order+1):
-    ctx_hash = hash(val_tokens[pos-order+1:pos])
-    full_hash = hash(ctx_hash, val_tokens[pos])
-    ctx_tables[order][ctx_hash % buckets] += 1
-    full_tables[order][full_hash % buckets] += 1
+```
+weight[i] = max(0.1, 1.0 - COMP_ALPHA * P_bigram(token_i | token_{i-1}))
 ```
 
-This gives **mathematically identical** results to single-GPU sequential evaluation. It's purely a distributed implementation detail. Pre-fill takes ~22-164s depending on rank (rank 7 has the most to fill).
+This forces the neural model to specialize on tokens that n-gram caching can't handle. The bigram statistics come from training data (legal — computed during training, not eval). We use `COMP_ALPHA=0.50` with orders 2-5 and a 200-step warmup.
 
-**Impact**: 0.96 BPB without prefill → 0.65 BPB with prefill (-0.31 BPB).
+**Impact**: 0.4374 → 0.3707 (-0.067 BPB).
 
-### 2. Order-Adaptive Entropy Gating
+### 2. Per-Order Multipliers (from @AayushBaniya2006 PR #809)
 
-Standard entropy gating uses one threshold for all n-gram orders. But a 15-gram match and a bigram match are very different signals — the 15-gram is almost certainly correct while the bigram could easily be wrong.
+Not all n-gram orders are equally useful. Bigrams are noisy; 5-grams and above are gold. Per-order multipliers scale the mixing alpha:
 
-Our approach: per-order thresholds that interpolate linearly from aggressive (center=2.5 for 15-grams) to conservative (center=4.5 for bigrams):
+```
+order_mults = (0.3, 0.3, 0.97, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0)
+alpha_max = 0.95
+```
+
+Orders 2-3 (bigrams/trigrams) are suppressed to 0.3x. Orders 5-15 are boosted to 2.0x with a cap at alpha=0.95.
+
+**Impact**: 0.3707 → 0.2880 (-0.083 BPB).
+
+### 3. Distributed Cache Pre-fill (our contribution)
+
+When evaluating on 8 GPUs with sliding windows, each rank processes a contiguous chunk of token positions. Without pre-fill, rank 7 starts scoring with an empty cache — it has no n-gram statistics from the first 7/8 of the data. Pre-fill fixes this: before scoring, each rank hashes all preceding positions into its tables using vectorized numpy. No NCCL needed.
+
+This gives **mathematically identical** results to single-GPU sequential evaluation.
+
+**Impact**: 0.96 → 0.65 BPB (-0.31 BPB).
+
+### 4. Order-Adaptive Entropy Gating (inspired by @travispchen PR #798)
+
+Per-order thresholds that interpolate linearly from aggressive (center=2.5 for 15-grams) to conservative (center=4.5 for bigrams):
 
 ```
 alpha(order, H) = base + range * sigmoid(scale * (H - center(order)))
 center(order) = 4.5 - (order - 2) / (15 - 2) * (4.5 - 2.5)
 ```
 
-Inspired by @travispchen's per-order thresholds in PR #798. We generalize to continuous interpolation across all 14 orders.
+**Impact**: 0.6189 → 0.4374 (-0.182 BPB).
 
-**Impact**: 0.6189 BPB (uniform threshold) → 0.4374 BPB (-0.181 BPB).
+## Training architecture (EBLS)
 
-## Technical details
-
-### N-gram cache (eval-time, backward-looking only)
-
-Multi-order backoff cache built during sliding window evaluation. Builds on the framework from @lukacf (PR #702), @Asukabot0 (PR #727), @hypery11 (PR #788).
-
-1. **14 hash tables** for orders 2-15 (4M buckets each)
-2. **Backoff**: try highest order first, fall back on miss (need min_count=2)
-3. **Adaptive blending**: alpha varies by order and model entropy (see above)
-4. **Strictly causal**: cache updated with true token only *after* the model scores it
-5. **Distributed pre-fill**: each rank pre-populates from preceding positions
-
-### Training architecture (EBLS)
-
-The underlying model uses Empirical Bayes Layer Sharing — 3 shared transformer blocks looped 3x for 9 effective layers + 2 unique layers = 11 total. Per-virtual-layer LoRA (rank 8) provides the deviation from the shared prior. This saves enough parameters to fit everything in 16MB with int6 GPTQ + LZMA.
+3 shared transformer blocks looped 3x for 9 effective layers + 2 unique layers = 11 total. Per-virtual-layer LoRA (rank 8) provides deviation from the shared prior.
 
 | Component | Setting |
 |-----------|---------|
@@ -95,41 +93,29 @@ The underlying model uses Empirical Bayes Layer Sharing — 3 shared transformer
 | Quantization | Val-GPTQ int6 + LZMA preset 9+extreme |
 | Weight avg | EMA(0.997) + SWA(every 50 steps) |
 | XSA | All 11 layers |
-
-### N-gram hyperparameters
-
-| Parameter | Value | Why |
-|-----------|-------|-----|
-| Orders | 2-15 | Diminishing returns past 15 |
-| Buckets | 4,194,304 | Fits in memory, low collision rate |
-| Min count | 2 | Require repeated observation |
-| Entropy base/range | 0.05 / 0.55 | alpha ranges 0.05-0.60 |
-| Entropy scale | 2.0 | Sigmoid steepness |
-| Threshold (bigrams) | 4.5 | Conservative — only when model confused |
-| Threshold (15-grams) | 2.5 | Aggressive — trust long matches |
+| VRL | Layers 1-10 |
+| Params | 27,124,848 |
 
 ## Compliance
 
 - [x] Training: 560s on 8xH100 (within 600s)
 - [x] Eval: ~330s on 8xH100 (within 600s)
-- [x] Artifacts under 16,000,000 bytes (max: 15,992,965)
-- [x] Script: 1,451 lines (under 1,500)
-- [x] No TTT on validation data
-- [x] No training data access during eval
+- [x] Artifacts under 16,000,000 bytes (max: 15,324,143)
+- [x] Script: 1,500 lines (at limit)
+- [x] No training data accessed during evaluation
 - [x] No oracle/min(NLL) selection — single blended prediction per token
 - [x] Cache is strictly backward-looking (causal)
-- [x] GPTQ calibration on val data within training window
+- [x] Complementary training uses only training-data bigram statistics
+- [x] GPTQ calibration on val data within training time budget
 - [x] Pre-fill only uses val_tokens[0..pos-1] — no future data
 
-### Why pre-fill is legal
+## Legality
 
-The pre-fill is an implementation optimization, not a new information source:
+N-gram caching legality has not been formally resolved by OpenAI. @valerio-oai commented on PR #659 that it "is not illegal" and suggested entropy-based gating, but no definitive ruling has been issued. We believe our implementation is compliant — strictly backward-looking, score-first, no training data at eval time — but we respect whatever ruling is made.
 
-1. It produces **identical** n-gram tables as single-GPU sequential eval
-2. At scored position p, cache contains only positions 0..p-1
-3. Each token gets exactly one prediction (no oracle selection)
-4. Model weights are frozen — no TTT
-5. @valerio-oai [confirmed on PR #659](https://github.com/openai/parameter-golf/pull/659#issuecomment-2753280311) that n-gram caching "is not illegal" and suggested entropy-based gating as the legal path
+We also maintain a separate neural-only submission (PR #734, 1.1198 BPB) that uses no n-gram techniques.
+
+We welcome discussion on this — if there are concerns about any aspect of the approach, we're happy to address them.
 
 ## Run command
 
@@ -141,6 +127,7 @@ WARMDOWN_ITERS=4000 CLIP_RANGE=31 COMPRESSOR=lzma \
 NUM_KV_HEADS=4 EVAL_STRIDE=64 \
 GPTQ_ENABLED=1 GPTQ_CALIB_BATCHES=64 GPTQ_CALIB_SOURCE=val \
 GPTQ_BLOCK_SIZE=128 SWA_ENABLED=1 LATE_QAT_THRESHOLD=0.15 \
+COMP_ENABLED=1 COMP_ALPHA=0.20 COMP_ORDER=5 COMP_WARMUP=200 COMP_MIN_COUNT=3 \
 NGRAM_CACHE=1 NGRAM_ORDER=15 NGRAM_MIN_ORDER=2 \
 NGRAM_MIN_COUNT=2 NGRAM_BUCKETS=4194304 \
 NGRAM_ENTROPY=1 NGRAM_ENT_BASE=0.05 NGRAM_ENT_RANGE=0.55 \
@@ -152,17 +139,26 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Credits and acknowledgments
 
-This builds on a ton of community work. The n-gram eval cache idea has been iterated on by many people and I want to make sure everyone gets proper credit:
+This builds on a lot of community work. I want to make sure everyone gets proper credit:
 
-- @deanbrr ([PR #659](https://github.com/openai/parameter-golf/pull/659)) — original n-gram cache concept (closed due to oracle gate, but the core idea started everything)
-- @valerio-oai ([comment on #659](https://github.com/openai/parameter-golf/pull/659#issuecomment-2753280311)) — suggested entropy-based gating as the legal alternative
-- @newjordan ([PR #674](https://github.com/openai/parameter-golf/pull/674)) — first legal implementation with fixed-alpha mixing
-- @lukacf ([PR #702](https://github.com/openai/parameter-golf/pull/702)) — multi-order backoff + entropy-adaptive sigmoid formula (huge contribution)
-- @Asukabot0 ([PR #727](https://github.com/openai/parameter-golf/pull/727)) — scaled to 7-gram, first sub-1.0 BPB
+**Techniques we adopted (with modifications):**
+- @pentxayc ([PR #803](https://github.com/openai/parameter-golf/pull/803)) — complementary training (downweight n-gram-predictable tokens during training)
+- @AayushBaniya2006 ([PR #809](https://github.com/openai/parameter-golf/pull/809)) — per-order multipliers and alpha_max capping
+
+**N-gram cache lineage:**
+- @deanbrr ([PR #659](https://github.com/openai/parameter-golf/pull/659)) — original n-gram cache concept
+- @valerio-oai ([comment on #659](https://github.com/openai/parameter-golf/pull/659#issuecomment-2753280311)) — legality guidance + entropy gating suggestion
+- @newjordan ([PR #674](https://github.com/openai/parameter-golf/pull/674)) — first legal implementation
+- @lukacf ([PR #702](https://github.com/openai/parameter-golf/pull/702)) — multi-order backoff + entropy-adaptive sigmoid
+- @Asukabot0 ([PR #727](https://github.com/openai/parameter-golf/pull/727)) — 7-gram extension, first sub-1.0 BPB
 - @hypery11 ([PR #788](https://github.com/openai/parameter-golf/pull/788)) — 9-gram extension
 - @travispchen ([PR #798](https://github.com/openai/parameter-golf/pull/798)) — per-order entropy thresholds (directly inspired our adaptive gating)
+
+**Architecture foundations:**
 - @raahilshah ([PR #634](https://github.com/openai/parameter-golf/pull/634)) — XSA on all layers
 - @parinzee ([PR #493](https://github.com/openai/parameter-golf/pull/493)) — LeakyReLU(0.5)^2
 - @signalrush ([PR #414](https://github.com/openai/parameter-golf/pull/414)) — base GPTQ-lite + EMA + warmdown stack
 
-**Our novel contributions**: distributed cache pre-fill, 15-gram extension, order-adaptive entropy gating with continuous interpolation, and the EBLS training architecture.
+**Our novel contributions**: distributed cache pre-fill, 15-gram extension, order-adaptive entropy gating with continuous interpolation, the combination/integration of complementary training with per-order multipliers, and the EBLS training architecture (shared blocks + Bayesian shrinkage).
+
+Feedback, questions, and corrections welcome.
