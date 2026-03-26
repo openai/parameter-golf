@@ -1,0 +1,9 @@
+{
+  "name": "Order-Adaptive Entropy Gating + BackoffNgramMixer + Drift-Free TTT",
+  "val_bpb": 0.5466,
+  "bytes_total": 15994227,
+  "blurb": "Novel order-adaptive entropy gating: per-order entropy centers (order 7→3.0, order 2→4.5) replace single-threshold mixing, trusting higher n-gram orders at lower model entropy. 18% improvement over PR #779 baseline (0.6713→0.5466). BackoffNgramMixer (orders 2-7) + drift-free TTT (Q-proj only, Polyak averaging). 3-seed mean: 0.5466 (std 0.0010). All artifacts strictly under 16MB.",
+  "author": "travispchen",
+  "github_id": "travispchen",
+  "date": "2026-03-26"
+}
