@@ -83,7 +83,7 @@ SWA_MIN_STEP = 500         # don't start SWA before this step
 QAT_ENABLED = True
 
 # Evaluation
-EVAL_STRIDE = 0
+EVAL_STRIDE = 64
 EVAL_BATCH_SEQS = 64
 
 
