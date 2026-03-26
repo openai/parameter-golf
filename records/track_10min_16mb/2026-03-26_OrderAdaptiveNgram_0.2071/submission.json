@@ -1,0 +1,15 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-26",
+  "name": "Record: Order-Adaptive N-gram + TTT + Hedge Mixer + CROWN-Q (val_bpb=0.2071)",
+  "author": "royi",
+  "github": "RoyiRa",
+  "seed_results": {
+    "1337": {"val_loss": 0.34965364, "val_bpb": 0.20708513, "artifact_bytes": 15354530},
+    "42":   {"val_loss": 0.35011346, "val_bpb": 0.20735746, "artifact_bytes": 15600361},
+    "7":    {"val_loss": 0.34933731, "val_bpb": 0.20689778, "artifact_bytes": 15592207}
+  },
+  "mean_val_loss": 0.34970147,
+  "mean_val_bpb": 0.20711346,
+  "code_bytes": 132909
+}
