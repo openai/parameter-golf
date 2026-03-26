@@ -1,0 +1,16 @@
+{
+  "author": "ajh",
+  "github_id": "xexyz",
+  "name": "LeakyReLU² + XSA-all + Full GPTQ + 5-gram Backoff",
+  "blurb": "11L/512d with LeakyReLU(0.5)², XSA on all 11 layers, Hessian-based GPTQ int6+zstd-22, and 5-gram multi-order backoff with entropy-adaptive alpha during evaluation.",
+  "date": "2026-03-26",
+  "val_loss": 1.7459,
+  "val_bpb": 1.0340,
+  "val_bpb_seeds": {
+    "1337": 1.0342,
+    "42": 1.0340,
+    "7": 1.0338
+  },
+  "bytes_total": 15903061,
+  "bytes_code": 73816
+}
