@@ -933,14 +933,17 @@ def main() -> None:
         eps=args.adam_eps,
         fused=True,
     )
-    optimizer_muon = Muon(
-        matrix_params,
-        lr=args.matrix_lr,
-        momentum=args.muon_momentum,
-        backend_steps=args.muon_backend_steps,
-    )
-    for group in optimizer_muon.param_groups:
-        group["base_lr"] = args.matrix_lr
+    # Muon may have no params if all matrix weights are frozen (Hive model)
+    optimizer_muon = None
+    if matrix_params:
+        optimizer_muon = Muon(
+            matrix_params,
+            lr=args.matrix_lr,
+            momentum=args.muon_momentum,
+            backend_steps=args.muon_backend_steps,
+        )
+        for group in optimizer_muon.param_groups:
+            group["base_lr"] = args.matrix_lr
     optimizer_scalar = torch.optim.Adam(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
         betas=(args.beta1, args.beta2),
@@ -954,7 +957,9 @@ def main() -> None:
         eps=args.adam_eps,
         fused=True,
     ) if lora_params else None
-    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_scalar]
+    if optimizer_muon is not None:
+        optimizers.append(optimizer_muon)
     if optimizer_lora is not None:
         optimizers.append(optimizer_lora)
     if base_model.lm_head is not None:
