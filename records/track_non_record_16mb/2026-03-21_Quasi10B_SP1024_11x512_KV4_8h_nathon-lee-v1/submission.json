@@ -1,0 +1,15 @@
+{
+  "author": "nathon-lee",
+  "github_id": "nathon-lee",
+  "name": "11L PartialRoPE + LNScale + EMA + SWA + TTT",
+  "blurb": "Non-record submission: 11-layer 512-dim GPT with partial RoPE (16 dims), LN scale damping, SmearGate, BigramHash(4096), U-Net skip connections, mixed int5/int6 quantization + zstd-22, EMA(0.997) + SWA, SGD TTT, sliding window eval (stride=64). Tested on 1xH100 for 80 minutes (~equivalent to 8xH100 10min).",
+  "date": "2026-03-21T08:00:00Z",
+  "track": "non-record-10min-16mb",
+  "val_loss": 2.0444,
+  "val_bpb": 1.2108,
+  "step_stop": 3806,
+  "wallclock_seconds": 4800.906,
+  "bytes_total": 17396551,
+  "bytes_model_compressed": 17347056,
+  "bytes_code": 49495
+}
