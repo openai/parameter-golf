@@ -1,0 +1,131 @@
+GPU: NVIDIA H100 80GB HBM3 (79.2 GB VRAM)
+Validation tokens: 62,021,633
+Model parameters: 15,277,071 (15.3M)
+Architecture: 6L, dim=512, heads=8, kv_heads=4, mlp=3x, bigram=4096, smeargate=True, qat=True
+Batch: 131,072 tokens, micro=128x1024, accum=1
+Time budget: 300s
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/utils.py:3546: UserWarning: Mismatch dtype between input and weight: input dtype = float, weight dtype = c10::BFloat16, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return node.target(*args, **kwargs)  # type: ignore[operator]
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+step 00001 (5.2%) | loss: 31.8694 | lr_mul: 1.000 | dt: 15451ms | remaining: 285s
+step 00002 (5.3%) | loss: 26.5930 | lr_mul: 0.009 | dt: 457ms | remaining: 284s
+step 00003 (5.3%) | loss: 26.5704 | lr_mul: 0.018 | dt: 72ms | remaining: 284s
+step 00004 (5.4%) | loss: 26.6839 | lr_mul: 0.027 | dt: 73ms | remaining: 284s
+step 00005 (5.4%) | loss: 26.6148 | lr_mul: 0.035 | dt: 73ms | remaining: 284s
+step 00050 (6.5%) | loss: 6.3790 | lr_mul: 0.356 | dt: 72ms | remaining: 281s
+  swa:start step:50
+step 00100 (7.7%) | loss: 5.2936 | lr_mul: 0.595 | dt: 76ms | remaining: 277s
+step 00150 (8.9%) | loss: 4.6848 | lr_mul: 0.764 | dt: 72ms | remaining: 273s
+step 00200 (10.1%) | loss: 4.4881 | lr_mul: 0.886 | dt: 72ms | remaining: 270s
+step 00250 (11.3%) | loss: 4.3136 | lr_mul: 0.977 | dt: 76ms | remaining: 266s
+step 00300 (12.5%) | loss: 4.0358 | lr_mul: 1.000 | dt: 72ms | remaining: 262s
+step 00350 (13.7%) | loss: 3.7026 | lr_mul: 1.000 | dt: 72ms | remaining: 259s
+step 00400 (14.9%) | loss: 3.6346 | lr_mul: 1.000 | dt: 72ms | remaining: 255s
+step 00450 (16.1%) | loss: 3.4670 | lr_mul: 1.000 | dt: 72ms | remaining: 252s
+step 00500 (17.3%) | loss: 3.4703 | lr_mul: 1.000 | dt: 72ms | remaining: 248s
+step 00550 (18.5%) | loss: 3.4442 | lr_mul: 1.000 | dt: 72ms | remaining: 244s
+step 00600 (19.7%) | loss: 3.4213 | lr_mul: 1.000 | dt: 72ms | remaining: 241s
+step 00650 (20.9%) | loss: 3.2960 | lr_mul: 1.000 | dt: 72ms | remaining: 237s
+step 00700 (22.1%) | loss: 3.2491 | lr_mul: 1.000 | dt: 72ms | remaining: 234s
+step 00750 (23.3%) | loss: 3.2799 | lr_mul: 1.000 | dt: 72ms | remaining: 230s
+step 00800 (24.8%) | loss: 3.2168 | lr_mul: 1.000 | dt: 72ms | remaining: 226s
+step 00850 (26.0%) | loss: 3.3397 | lr_mul: 1.000 | dt: 72ms | remaining: 222s
+step 00900 (27.2%) | loss: 3.2664 | lr_mul: 1.000 | dt: 73ms | remaining: 218s
+step 00950 (28.4%) | loss: 3.1898 | lr_mul: 1.000 | dt: 72ms | remaining: 215s
+step 01000 (29.6%) | loss: 3.1062 | lr_mul: 1.000 | dt: 72ms | remaining: 211s
+step 01050 (30.8%) | loss: 3.0893 | lr_mul: 1.000 | dt: 72ms | remaining: 208s
+step 01100 (32.0%) | loss: 3.1374 | lr_mul: 1.000 | dt: 72ms | remaining: 204s
+step 01150 (33.2%) | loss: 3.0532 | lr_mul: 1.000 | dt: 72ms | remaining: 200s
+step 01200 (34.4%) | loss: 3.0801 | lr_mul: 1.000 | dt: 72ms | remaining: 197s
+step 01250 (35.6%) | loss: 3.0954 | lr_mul: 1.000 | dt: 72ms | remaining: 193s
+step 01300 (36.8%) | loss: 3.0460 | lr_mul: 1.000 | dt: 72ms | remaining: 190s
+step 01350 (38.0%) | loss: 3.0385 | lr_mul: 1.000 | dt: 72ms | remaining: 186s
+step 01400 (39.2%) | loss: 2.9709 | lr_mul: 1.000 | dt: 72ms | remaining: 182s
+step 01450 (40.4%) | loss: 2.9031 | lr_mul: 1.000 | dt: 72ms | remaining: 179s
+step 01500 (41.6%) | loss: 3.0005 | lr_mul: 1.000 | dt: 72ms | remaining: 175s
+step 01550 (43.0%) | loss: 2.9208 | lr_mul: 1.000 | dt: 72ms | remaining: 171s
+step 01600 (44.2%) | loss: 2.6671 | lr_mul: 1.000 | dt: 72ms | remaining: 167s
+step 01650 (45.4%) | loss: 2.8631 | lr_mul: 0.991 | dt: 72ms | remaining: 164s
+step 01700 (46.6%) | loss: 2.7070 | lr_mul: 0.972 | dt: 72ms | remaining: 160s
+step 01750 (47.9%) | loss: 2.8798 | lr_mul: 0.954 | dt: 72ms | remaining: 156s
+step 01800 (49.1%) | loss: 2.7741 | lr_mul: 0.935 | dt: 73ms | remaining: 153s
+step 01850 (50.3%) | loss: 2.9213 | lr_mul: 0.916 | dt: 72ms | remaining: 149s
+step 01900 (51.5%) | loss: 2.8323 | lr_mul: 0.896 | dt: 73ms | remaining: 146s
+step 01950 (52.7%) | loss: 2.8567 | lr_mul: 0.877 | dt: 72ms | remaining: 142s
+step 02000 (53.9%) | loss: 2.8208 | lr_mul: 0.857 | dt: 72ms | remaining: 138s
+step 02050 (55.1%) | loss: 2.7375 | lr_mul: 0.837 | dt: 72ms | remaining: 135s
+step 02100 (56.3%) | loss: 2.8829 | lr_mul: 0.817 | dt: 72ms | remaining: 131s
+step 02150 (57.5%) | loss: 2.6642 | lr_mul: 0.795 | dt: 72ms | remaining: 128s
+step 02200 (58.7%) | loss: 2.7890 | lr_mul: 0.775 | dt: 72ms | remaining: 124s
+step 02250 (59.9%) | loss: 2.7781 | lr_mul: 0.754 | dt: 72ms | remaining: 120s
+step 02300 (61.3%) | loss: 2.7986 | lr_mul: 0.725 | dt: 73ms | remaining: 116s
+step 02350 (62.6%) | loss: 2.7551 | lr_mul: 0.704 | dt: 72ms | remaining: 112s
+step 02400 (63.8%) | loss: 2.8073 | lr_mul: 0.683 | dt: 72ms | remaining: 109s
+step 02450 (65.0%) | loss: 2.7621 | lr_mul: 0.661 | dt: 72ms | remaining: 105s
+step 02500 (66.2%) | loss: 2.7787 | lr_mul: 0.640 | dt: 72ms | remaining: 102s
+step 02550 (67.4%) | loss: 2.6456 | lr_mul: 0.618 | dt: 72ms | remaining: 98s
+step 02600 (68.6%) | loss: 2.7161 | lr_mul: 0.596 | dt: 72ms | remaining: 94s
+step 02650 (69.8%) | loss: 2.6915 | lr_mul: 0.575 | dt: 72ms | remaining: 91s
+step 02700 (71.0%) | loss: 2.6176 | lr_mul: 0.553 | dt: 72ms | remaining: 87s
+step 02750 (72.2%) | loss: 2.7632 | lr_mul: 0.531 | dt: 72ms | remaining: 84s
+step 02800 (73.4%) | loss: 2.6828 | lr_mul: 0.509 | dt: 72ms | remaining: 80s
+step 02850 (74.6%) | loss: 2.7267 | lr_mul: 0.487 | dt: 72ms | remaining: 76s
+step 02900 (75.8%) | loss: 2.6856 | lr_mul: 0.464 | dt: 72ms | remaining: 73s
+step 02950 (77.0%) | loss: 2.7076 | lr_mul: 0.442 | dt: 72ms | remaining: 69s
+step 03000 (78.2%) | loss: 2.6648 | lr_mul: 0.420 | dt: 72ms | remaining: 66s
+step 03050 (79.6%) | loss: 2.5915 | lr_mul: 0.391 | dt: 72ms | remaining: 61s
+step 03100 (80.8%) | loss: 2.6752 | lr_mul: 0.368 | dt: 72ms | remaining: 57s
+step 03150 (82.0%) | loss: 2.8297 | lr_mul: 0.345 | dt: 72ms | remaining: 54s
+step 03200 (83.3%) | loss: 2.6529 | lr_mul: 0.322 | dt: 74ms | remaining: 50s
+step 03250 (84.5%) | loss: 2.5929 | lr_mul: 0.299 | dt: 72ms | remaining: 47s
+step 03300 (85.7%) | loss: 2.6404 | lr_mul: 0.276 | dt: 72ms | remaining: 43s
+step 03350 (86.9%) | loss: 2.6279 | lr_mul: 0.253 | dt: 72ms | remaining: 39s
+step 03400 (88.1%) | loss: 2.6765 | lr_mul: 0.230 | dt: 72ms | remaining: 36s
+step 03450 (89.3%) | loss: 2.6478 | lr_mul: 0.207 | dt: 72ms | remaining: 32s
+step 03500 (90.5%) | loss: 2.6023 | lr_mul: 0.184 | dt: 72ms | remaining: 28s
+step 03550 (91.7%) | loss: 2.5279 | lr_mul: 0.161 | dt: 75ms | remaining: 25s
+step 03600 (92.9%) | loss: 2.6607 | lr_mul: 0.137 | dt: 72ms | remaining: 21s
+step 03650 (94.2%) | loss: 2.6302 | lr_mul: 0.114 | dt: 72ms | remaining: 18s
+step 03700 (95.4%) | loss: 2.6925 | lr_mul: 0.091 | dt: 72ms | remaining: 14s
+step 03750 (96.6%) | loss: 2.6221 | lr_mul: 0.067 | dt: 72ms | remaining: 10s
+step 03800 (97.8%) | loss: 2.6096 | lr_mul: 0.044 | dt: 72ms | remaining: 7s
+step 03850 (99.3%) | loss: 2.6566 | lr_mul: 0.015 | dt: 72ms | remaining: 2s
+Wallclock reached at step 3881. Stopping.
+
+Training complete: 3881 steps, 300.0s
+Peak VRAM: 14322.7 MB
+SWA: applying average of 18 checkpoints
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+---
+val_bpb:          3.736239
+val_bpb_prequant: 3.734139
+quant_gap:        0.002099
+artifact_bytes:   14392968
+artifact_ok:      True
+training_seconds: 300.0
+eval_seconds:     16.1
+total_seconds:    324.8
+peak_vram_mb:     14322.7
+num_steps:        3881
+num_params_M:     15.3
+depth:            6
+swa_checkpoints:  18

@@ -1,0 +1,31 @@
+GPU: NVIDIA H100 80GB HBM3 (79.2 GB VRAM)
+Validation tokens: 62,021,633
+Model parameters: 17,049,111 (17.0M)
+Architecture: 9L, dim=512, heads=8, kv_heads=4, mlp=2x
+Batch: 524,288 tokens, micro=64x1024, accum=8
+Time budget: 30s
+/workspace/parameter-golf/.venv/lib/python3.12/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = float, weight dtype = c10::BFloat16, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+step 00001 (15.7%) | loss: 31.7812 | lr_mul: 1.000 | dt: 4713ms | remaining: 25s
+step 00002 (19.1%) | loss: 26.1610 | lr_mul: 0.002 | dt: 1024ms | remaining: 24s
+step 00003 (22.2%) | loss: 26.1615 | lr_mul: 0.003 | dt: 926ms | remaining: 23s
+step 00004 (25.3%) | loss: 26.2322 | lr_mul: 0.004 | dt: 924ms | remaining: 22s
+step 00005 (28.4%) | loss: 26.2063 | lr_mul: 0.004 | dt: 924ms | remaining: 21s
+Wallclock reached at step 29. Stopping.
+
+Training complete: 29 steps, 30.7s
+Peak VRAM: 15993.4 MB
+---
+val_bpb:          15.388925
+val_bpb_prequant: 15.400934
+quant_gap:        -0.012009
+artifact_bytes:   17375826
+artifact_ok:      False
+training_seconds: 30.7
+eval_seconds:     77.2
+total_seconds:    184.8
+peak_vram_mb:     15993.4
+num_steps:        29
+num_params_M:     17.0
+depth:            9
+WARNING: Artifact size 17,375,826 exceeds 16MB limit!
