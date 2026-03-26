@@ -47,7 +47,7 @@ from prepare_pgolf import (
 # ---------------------------------------------------------------------------
 
 # Model architecture
-NUM_LAYERS = 9
+NUM_LAYERS = 8
 MODEL_DIM = 512
 NUM_HEADS = 8
 NUM_KV_HEADS = 4           # GQA: fewer KV heads than Q heads
@@ -59,7 +59,7 @@ LOGIT_SOFTCAP = 30.0
 # Training
 SEQ_LEN = 1024             # training sequence length
 TRAIN_BATCH_TOKENS = 524288  # total tokens per optimizer step
-DEVICE_BATCH_SIZE = 8       # micro-batch size (8 for 8GB VRAM laptop GPU)
+DEVICE_BATCH_SIZE = 64       # micro-batch size (8 for 8GB VRAM laptop GPU)
 WARMUP_STEPS = 0
 WARMDOWN_ITERS = 3000       # LR warmdown iterations (wallclock-based)
 
