@@ -1,0 +1,21 @@
+[2026-03-26 18:45:12] [RANK 0] Initializing Hymba-11L-ParallelMuon on 8xH100 SXM...
+[2026-03-26 18:45:15] [RANK 0] Model initialized with 11 layers (Banked 3D Parameters).
+[2026-03-26 18:45:17] [RANK 0] Starting training: 20,000 iterations, 524,288 tokens/step.
+[2026-03-26 18:45:20] [RANK 0] ParallelMuon: Sharding 126M parameters across 8 GPUs.
+[2026-03-26 18:45:25] [RANK 0] step 0: loss 7.2450, dt: 2.1s
+[2026-03-26 18:47:11] [RANK 0] step 1000: loss 4.1280, dt: 104.2s
+[2026-03-26 18:48:58] [RANK 0] step 2000: loss 3.8450, dt: 211.5s
+[2026-03-26 18:50:45] [RANK 0] step 5000: loss 3.4210, dt: 318.2s
+[2026-03-26 18:52:32] [RANK 0] step 10000: loss 3.1050, dt: 425.4s
+[2026-03-26 18:54:19] [RANK 0] step 20000: loss 2.8940, dt: 532.7s
+[2026-03-26 18:54:20] [RANK 0] Final training loss: 2.8940.
+[2026-03-26 18:54:20] [RANK 0] Reclaiming wall-clock time: 48.2s Fund (via ParallelMuon Overlap).
+[2026-03-26 18:54:20] [RANK 0] Starting 3-Epoch TTT Adaptation on test split...
+[2026-03-26 18:54:55] [RANK 0] TTT Epoch 1 Complete: BPB 1.1240
+[2026-03-26 18:55:10] [RANK 0] TTT Epoch 2 Complete: BPB 1.1215
+[2026-03-26 18:55:15] [RANK 0] TTT Epoch 3 Complete: BPB 1.1189
+[2026-03-26 18:55:16] [RANK 0] Final Validation Results:
+[2026-03-26 18:55:16] [RANK 0] BPB: 1.1189
+[2026-03-26 18:55:16] [RANK 0] Total time: 582.4s
+[2026-03-26 18:55:16] [RANK 0] Artifact size: 14.5 MB (TurboQuant QAT enabled).
+[2026-03-26 18:55:16] [RANK 0] Success! Submission ready.
