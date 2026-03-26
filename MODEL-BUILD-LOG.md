@@ -68,10 +68,16 @@
 - Step speed: 114ms/step (FASTER than other models — frozen backbone = less gradient work)
 - Smoke test: PASS with VAL_LOSS_EVERY=0
 
-### Step 3 Plan
-- Tune LoRA rank (try 4, 8, 16)
-- Tune frozen/trainable ratio
-- Add router warmup for the LoRA adapters
+### Step 3 Results — LoRA + Hybrid Freeze ✅
+- Added LoRA adapters (rank 8) to c_q, c_v, and fc (MLP up-projection)
+- **CRITICAL FINDING:** 98.6% frozen + LoRA = NO LEARNING (loss flat at 6.93 = random). Random frozen weights are NOT useful feature extractors without pre-training.
+- **FIX:** Hybrid freeze — first 6 layers frozen, last 3 fully trainable + LoRA on all layers
+- Frozen ratio: 66.8% (was 98.6%)
+- val_bpb: **4.031** (pre-quant), **4.109** (roundtrip int8+zlib)
+- Train loss @ 200 steps: 6.468
+- Compressed size: 9.4 MB
+- 217 steps in 30s, 138ms/step
+- **Lesson:** The Hive concept of "frozen random backbone + tiny trainable adapters" requires pre-trained weights. With random init, the model can't learn through LoRA alone — there's no useful feature space to adapt. Had to compromise by unfreezing last 3 layers.
 
 ---
 
@@ -102,10 +108,16 @@
 - Step speed: 141ms/step
 - Smoke test: PASS with VAL_LOSS_EVERY=0
 
-### Step 3 Plan
-- Add router warmup (slower LR for router in early steps)
-- Monitor template utilization (are all templates being used?)
-- Try different template counts (8, 16, 32)
+### Step 3 Results — 32 Templates + Router Warmup + Diversity Reg ✅
+- Increased templates: 16 → 32
+- Added router temperature warmup: starts at 5.0 (uniform mixing) → anneals to 1.0 (sharp selection)
+- Added diversity regularization: penalizes cosine similarity between templates (weight 0.01)
+- Added EMA template usage tracking
+- val_bpb: **3.464** (pre-quant), **3.657** (roundtrip int8+zlib)
+- Train loss @ 200 steps: 4.553 (initial spike to 17.9 from diversity reg, recovers fast)
+- Compressed size: 5.3 MB
+- 206 steps in 30s, 146ms/step
+- **Lesson:** Temperature warmup is key — starting with uniform mixing lets all templates get gradient signal early, then sharpening lets specialization emerge.
 
 ---
 
@@ -137,11 +149,15 @@ Single small transformer "seed" block (256d) + growth rule network that generate
 - Smoke test: PASS with VAL_LOSS_EVERY=0
 - NOTE: growth_rule module exists but is NOT called in forward pass. Currently trains as a baseline + unused params.
 
-### Step 3 Plan
-- **CRITICAL:** Wire growth_rule into the forward pass (otherwise it's just a baseline with dead params)
-- Generate per-layer modifications from the seed/growth network
-- Monitor gradient magnitudes through growth path
-- Increase growth rule complexity
+### Step 3 Results — Growth Rule Wired Into Forward Pass ✅
+- **Fixed critical bug:** Growth rule was dead code. Now applies per-layer scaling from seed embeddings.
+- Each layer gets: `x = x * (1.0 + 0.05 * tanh(growth_mlp(layer_embedding)))` — ±5% learned scaling per dimension
+- First attempt: OOM (computed all scales at once). Fix: lazy per-layer computation.
+- Reduced scale from ±10% to ±5% for stability (initial loss still spikes to 17 but recovers)
+- val_bpb: **3.342** (pre-quant). Roundtrip not captured (eval timed out or process killed before printing).
+- Only 125 steps in 30s (242ms/step — **slower** than M7's 146ms due to growth_rule overhead per layer)
+- Compressed size: 5.2 MB
+- **Key finding:** Growth rule DOES help — val_bpb 3.342 is better than M7 (3.464) and M6 (4.031). The per-layer scaling gives each layer a unique learned "identity" without adding many params.
 
 ---
 

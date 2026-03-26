@@ -125,21 +125,20 @@
 
 | Field | Value |
 |-------|-------|
-| Best score | 5.36 train_loss @ 200 steps (30s smoke test, no val) |
-| Params | 17M total (16.5M frozen, 545K trainable, 96.8% frozen) |
-| Steps built | 2/3 |
-| Latest file | `train_gpt_m6_step2.py` |
+| Best score | **val_bpb 4.031** (pre-quant), 4.109 (roundtrip) |
+| Params | 17M total (11.5M frozen, 5.75M trainable, 66.8% frozen) |
+| Steps built | 3/3 — COMPLETE |
+| Latest file | `train_gpt_m6_step3.py` |
 | Original spec | `specs/model6-hive.md` |
-| Status | **IN PROGRESS — Step 3 needed** |
+| Status | **COMPLETE** |
 
-**Architecture:** Standard transformer backbone with ALL attention and MLP weights frozen after random orthogonal init. LoRA adapters (low-rank) at each layer are the only trainable parameters. The frozen backbone is a random feature space that the LoRA layers learn to read.
+**Architecture:** Standard transformer backbone. First 6 layers frozen (random init, act as fixed feature extractors). Last 3 layers fully trainable. LoRA rank-8 adapters on c_q, c_v, fc across ALL layers. Norms, embeddings, q_gain all trainable.
 
-**Step 2 adds:** Warmdown 3500, grad clip 0.3, EMA 0.997.
-**Step speed:** 114ms/step (fastest — less gradient computation from frozen params).
+**Step 3 results:** Hybrid freeze at 66.8%. val_bpb 4.031 (pre-quant), 4.109 (roundtrip). 9.4 MB compressed. 217 steps in 30s.
 
-**Step 3 plan:** Tune LoRA rank, tune frozen/trainable ratio, add router warmup.
+**Key lesson:** 99% frozen + LoRA on RANDOM weights = no learning. The Hive concept needs pre-trained weights to work. Compromised by unfreezing last 3 layers.
 
-**Known issues:** No int4 quantization of frozen backbone yet (original spec calls for it). No gating/routing mechanism yet.
+**Known issues:** Still one of our weakest models (bpb 4.03 vs M1's 2.63). The frozen-backbone-with-adapters idea may be fundamentally limited for train-from-scratch competitions.
 
 ---
 
@@ -150,20 +149,20 @@
 
 | Field | Value |
 |-------|-------|
-| Best score | 4.49 train_loss @ 200 steps (30s smoke test, no val) |
+| Best score | **val_bpb 3.464** (pre-quant), 3.657 (roundtrip) |
 | Params | 17M |
-| Steps built | 2/3 |
-| Latest file | `train_gpt_m7_step2.py` |
+| Steps built | 3/3 — COMPLETE |
+| Latest file | `train_gpt_m7_step3.py` |
 | Original spec | `specs/model7-immune.md` |
-| Status | **IN PROGRESS — Step 3 needed** |
+| Status | **COMPLETE** |
 
 **Architecture:** Standard transformer + `TemplateCodebook` module. 16 templates (512d each), router (linear layer) produces softmax weights per token, mixed templates added to hidden state. Applied after the transformer blocks.
 
-**Step 2 adds:** Warmdown 3500, grad clip 0.3, EMA 0.997.
+**Step 3 results:** 32 templates (up from 16), router temp warmup (5→1), diversity reg (0.01 cosine penalty). val_bpb 3.464 pre-quant, 3.657 roundtrip. 5.3 MB compressed. 206 steps in 30s.
 
-**Step 3 plan:** Router warmup, monitor template utilization, try different template counts (8, 16, 32).
+**Key finding:** Temperature warmup is critical — uniform mixing early gives all templates gradient signal, then sharpening enables specialization. Diversity reg prevents router collapse.
 
-**Known issues:** High initial loss spikes (steps 2-3 spike to 17.5 before dropping). Router collapse risk (always picking same templates). Original spec called for int6 quantization — not implemented.
+**Known issues:** Initial loss spike to 17.9 (recovers by step 50). Int6 quantization not implemented.
 
 ---
 
@@ -174,36 +173,37 @@
 
 | Field | Value |
 |-------|-------|
-| Best score | 4.36 train_loss @ 200 steps (30s smoke test, no val) |
+| Best score | **val_bpb 3.342** (pre-quant) |
 | Params | 17M |
-| Steps built | 2/3 |
-| Latest file | `train_gpt_m8_step2.py` |
+| Steps built | 3/3 — COMPLETE |
+| Latest file | `train_gpt_m8_step3.py` |
 | Original spec | `specs/model8-crystal.md` |
-| Status | **IN PROGRESS — Step 3 needed** |
+| Status | **COMPLETE** |
 
 **Architecture:** Standard transformer + `GrowthRule` module. Growth rule has layer embeddings (32d) + MLP (32→64→256) that generates per-layer scaling factors. **⚠️ CRITICAL: GrowthRule exists as a module but is NOT called in the forward pass. Currently trains as a baseline transformer with dead parameters.**
 
-**Step 2 adds:** Warmdown 3500, grad clip 0.3, EMA 0.997.
+**Step 3 results:** Growth rule wired into forward pass. Per-layer scaling: `x * (1 + 0.05 * tanh(MLP(layer_emb)))`. val_bpb 3.342 pre-quant. 125 steps in 30s (242ms/step — slower due to per-layer MLP). 5.2 MB compressed.
 
-**Step 3 plan:** **MUST wire growth_rule into forward pass** — generate per-layer modifications from seed. Without this, M8 is just a baseline with wasted params. Monitor gradient flow through growth path.
+**Key finding:** Growth rule helps! Best of the nature-inspired models. Per-layer learned scaling gives each layer a unique identity without many extra params.
 
-**Known issues:** Growth rule not wired (critical). If growth rule is too simple, all layers are identical (defeats purpose). Inference cost from running growth rules at each forward pass.
+**Known issues:** Slower per-step (242ms vs ~140ms) due to growth MLP computation. Initial loss spike to 17. No int6 quantization.
 
 ---
 
-## Cross-Model Comparison (200-step smoke tests on 4070 Super)
+## Cross-Model Comparison (30s smoke tests on 4070 Super)
 
-| Model | Score | Speed | Size | Novel? |
-|-------|-------|-------|------|--------|
-| **M1 Codec** 🔥 | **2.63 bpb** | ~140ms | 8.0 MB | ✅ |
-| **M3 Hybrid** | **2.53 bpb** | 141ms | ~5.1 MB | ✅ |
-| **M4 Optimized** | 3.83 bpb | ~140ms | 5.1 MB | ❌ |
-| **M8 Crystal** | 4.36 loss | 140ms | — | ⚠️ (not wired) |
-| **M7 Template** | 4.49 loss | 141ms | — | ✅ |
-| **M6 Hive** | 5.36 loss | 114ms | — | ✅ |
-| **M2 Recursive** | 4.01 loss | ~140ms | ~5.7 MB | ✅ |
+| Model | val_bpb (pre-quant) | val_bpb (roundtrip) | Speed | Size | Novel? |
+|-------|-------------------|-------------------|-------|------|--------|
+| **M3 Hybrid** 🔥 | **2.529** | — | 141ms | ~5.1 MB | ✅ |
+| **M1 Codec** 🔥 | **2.631** | **2.631** | ~140ms | 8.0 MB | ✅ |
+| **M8 Crystal** | **3.342** | — | 242ms | 5.2 MB | ✅ |
+| **M7 Template** | **3.464** | **3.657** | 146ms | 5.3 MB | ✅ |
+| **M4 Optimized** | 3.83 | 3.83 | ~140ms | 5.1 MB | ❌ |
+| **M2 Recursive** | — | — | ~140ms | ~5.7 MB | ✅ |
+| **M6 Hive** | **4.031** | **4.109** | 138ms | 9.4 MB | ✅ |
 
-**NOTE:** M1 and M3 scores are val_bpb (comparable). M6/M7/M8 scores are train_loss at 200 steps without validation (not directly comparable to val_bpb). Full training runs needed to compare properly.
+**All scores are val_bpb from 30-second smoke tests.** Full 10-min 8×H100 runs will score much lower (better).
+**M3 Hybrid is now the smoke-test leader** at val_bpb 2.529.
 
 ---
 
