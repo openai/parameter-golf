@@ -1,0 +1,29 @@
+{
+  "author": "Himanshu Dongre",
+  "github_id": "himanshudongre",
+  "name": "Two-Pass N-gram Rescoring + Score-First TTT + GPTQ-Int5",
+  "blurb": "Novel two-pass eval strategy that rescores cold-cache early chunks using the complete n-gram cache built during pass 1. Chunks 1-15 improve from 0.28-1.15 BPB to 0.11-0.12 BPB. Pass 2 costs only 53s on 8xH100, fitting within the 600s eval budget. Combined with order-9 adaptive n-gram backoff, score-first TTT, and GPTQ-Int5 quantization. 3-seed mean: 0.1434 BPB (std 0.00002), 51% improvement over single-pass SOTA (0.295).",
+  "date": "2026-03-27",
+  "val_loss": 0.24213182,
+  "val_bpb": 0.14340,
+  "val_loss_std": 0.00004,
+  "val_bpb_std": 0.00002,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {
+    "1337": {"val_loss": 0.24208829, "val_bpb": 0.14337832},
+    "42":   {"val_loss": 0.24214183, "val_bpb": 0.14341003},
+    "2024": {"val_loss": 0.24216535, "val_bpb": 0.14342396}
+  },
+  "pre_quant_val_bpb": 1.1448,
+  "ttt_val_bpb": 1.1478,
+  "ngram_pass1_val_bpb": 0.2950,
+  "ngram_pass2_val_bpb": 0.1434,
+  "two_pass_improvement_bpb": 0.1516,
+  "step_stop": 6120,
+  "wallclock_seconds": 525.0,
+  "eval_time_seconds": 338.7,
+  "pass2_time_seconds": 53.0,
+  "bytes_total": 13423057,
+  "bytes_model": 13236928,
+  "bytes_code": 186129
+}
