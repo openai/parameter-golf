@@ -655,17 +655,9 @@ class RMSNorm(nn.Module):
 
 
 def _fake_quantize_int8(w: Tensor) -> Tensor:
-    """STE fake quantize matching actual int8 export: per-row percentile clipping."""
-    if w.ndim == 2:
-        # Match quantize_float_tensor: per-row percentile clip at 99.99984%
-        # Use sorted-based approximation instead of torch.quantile (faster, compile-safe)
-        clip_abs = w.abs().amax(dim=-1, keepdim=True).clamp_min(1e-5)  # approximate percentile with max
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        w_clipped = w.clamp(-clip_abs, clip_abs)
-        w_q = (w_clipped / scale).round().clamp(-127, 127) * scale
-    else:
-        scale = w.abs().amax().clamp_min(1e-5) / 127.0
-        w_q = (w / scale).round().clamp(-127, 127) * scale
+    """STE fake quantize: round to int8 range in forward, pass gradient through."""
+    scale = w.abs().amax(dim=-1, keepdim=True).clamp_min(1e-5) / 127.0
+    w_q = (w / scale).round().clamp(-127, 127) * scale
     return w + (w_q - w).detach()  # STE: forward uses quantized, backward uses original
 
 
@@ -1189,11 +1181,6 @@ def main() -> None:
             break
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-        # Enable QAT after 50% of training (matched fake-quantize)
-        global _qat_enabled
-        if not _qat_enabled and max_wallclock_ms and elapsed_ms > 0.5 * max_wallclock_ms:
-            _qat_enabled = True
-            log0(f"qat:enabled step:{step} elapsed:{elapsed_ms:.0f}ms")
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
