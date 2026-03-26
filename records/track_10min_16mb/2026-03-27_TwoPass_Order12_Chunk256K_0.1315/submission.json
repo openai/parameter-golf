@@ -1,0 +1,25 @@
+{
+  "author": "quietsmile",
+  "github_id": "quietsmile",
+  "name": "Two-Pass Order-12 N-gram Backoff + 256K Chunks",
+  "blurb": "Combines two-pass n-gram rescoring (PR #846) with order-12 backoff (extended primes) and 256K token chunks. Pass 1 builds full cache at 0.2834 BPB; Pass 2 rescores first 50 cold-cache chunks using complete cache, yielding 0.1315 BPB. Alpha_max=0.70, per-order multipliers 2.0x for orders 5-12. No TTT. Purely eval-time improvements over PR #809 base architecture. 2-seed mean: 0.1315 BPB (std 0.0001).",
+  "date": "2026-03-27",
+  "val_loss": 0.22197,
+  "val_bpb": 0.13146,
+  "val_loss_std": 0.00003,
+  "val_bpb_std": 0.00002,
+  "seeds": [1337, 42],
+  "seed_results": {
+    "1337": {"val_loss": 0.22199, "val_bpb": 0.13148},
+    "42": {"val_loss": 0.22194, "val_bpb": 0.13145}
+  },
+  "pre_quant_val_bpb": 1.1454,
+  "ngram_pass1_val_bpb": 0.2834,
+  "ngram_pass2_val_bpb": 0.1315,
+  "two_pass_improvement_bpb": 0.1520,
+  "step_stop": 6200,
+  "wallclock_seconds": 525.0,
+  "eval_time_seconds": 508.0,
+  "bytes_total": 13412672,
+  "bytes_code": 195000
+}
