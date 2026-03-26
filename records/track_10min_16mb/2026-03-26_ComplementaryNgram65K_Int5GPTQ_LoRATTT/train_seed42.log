@@ -1,0 +1,523 @@
+W0326 12:39:51.344000 100312 torch/distributed/run.py:803] 
+W0326 12:39:51.344000 100312 torch/distributed/run.py:803] *****************************************
+W0326 12:39:51.344000 100312 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 12:39:51.344000 100312 torch/distributed/run.py:803] *****************************************
+logs/d6b5c142-1eaf-490e-8361-1c5a98426a5e.txt
+bpb:sp=./data/tokenizers/fineweb_1024_bpe.model
+tl:dataset:fineweb10B_sp1024 train_shards:80
+val:./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+v:opti-ms2 act:lr09sq xsa:last_4 qat:sr wd:WSD gptq:fh ttt:lora_polyak_adamw compression:lzma optimizer:PM prog_seq:enabled vrl:True gated_attn:True decoder_lr_mult:2.0 ngram:True ngram_order:9 complement_alpha:0.5 prune_pct:0.03
+comp:on alpha=0.5
+model_params:27301064
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 gas:1
+seed:42
+lr_schedule:WSD wsd_stable_frac:0.75 decay_shape:cosine qat_trigger_frac:0.85
+optimizer:PM (NS)
+ttt_config: optimizer=AdamW(LoRA) epochs=1 lr=0.003 lora_rank=8 polyak_decay=0.998 chunk=65536 grad_clip=1.0 temperature=0.98
+decoder_lr_mult:2.0 encoder_matrix_lr:0.025 decoder_matrix_lr:0.05
+gated_attn:enabled layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+value_residual:enabled layers:[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+gptq_config: samples=256 block_size=128 damp=0.01
+prune_pct:0.03
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9303 val_bpb:4.1045 train_time:0ms step_avg:0.04ms seq_len:2048
+step:1/20000 train_loss:6.9317 train_time:196ms step_avg:196.07ms seq_len:2048
+step:2/20000 train_loss:8.4864 train_time:315ms step_avg:157.48ms seq_len:2048
+step:3/20000 train_loss:7.7149 train_time:415ms step_avg:138.49ms seq_len:2048
+step:4/20000 train_loss:7.0917 train_time:514ms step_avg:128.52ms seq_len:2048
+step:5/20000 train_loss:6.8974 train_time:614ms step_avg:122.87ms seq_len:2048
+step:6/20000 train_loss:6.7654 train_time:713ms step_avg:118.84ms seq_len:2048
+step:7/20000 train_loss:6.6837 train_time:812ms step_avg:115.99ms seq_len:2048
+step:8/20000 train_loss:6.6431 train_time:909ms step_avg:113.59ms seq_len:2048
+step:9/20000 train_loss:6.3277 train_time:1008ms step_avg:112.02ms seq_len:2048
+step:10/20000 train_loss:5.9285 train_time:1106ms step_avg:110.63ms seq_len:2048
+step:500/20000 train_loss:2.3229 train_time:50503ms step_avg:101.01ms seq_len:2048
+step:1000/20000 train_loss:2.2379 train_time:102003ms step_avg:102.00ms seq_len:2048
+step:1500/20000 train_loss:2.1980 train_time:152902ms step_avg:101.93ms seq_len:2048
+step:2000/20000 train_loss:2.0515 train_time:203717ms step_avg:101.86ms seq_len:2048
+step:2500/20000 train_loss:2.1581 train_time:255203ms step_avg:102.08ms seq_len:2048
+step:3000/20000 train_loss:2.1532 train_time:306475ms step_avg:102.16ms seq_len:2048
+step:3500/20000 train_loss:2.1749 train_time:357876ms step_avg:102.25ms seq_len:2048
+step:4000/20000 train_loss:1.9868 train_time:409896ms step_avg:102.47ms seq_len:2048
+step:4000/20000 val_loss:2.0960 val_bpb:1.2414 train_time:409903ms step_avg:102.48ms seq_len:2048
+step:4500/20000 train_loss:2.1441 train_time:458408ms step_avg:101.87ms seq_len:2048
+step:5000/20000 train_loss:2.1105 train_time:508970ms step_avg:101.79ms seq_len:2048
+late_qat:enabled step:5011 scale:0.6538 elapsed_ms:510073 trigger:wallclock@0.85
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break from `Tensor.item()`, consider setting:
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4]     torch._dynamo.config.capture_scalar_outputs = True
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4] or:
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4] to include these operations in the captured graph.
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break: from user code at:
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1496, in forward
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4]     x = x + self.bigram(input_ids)
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1320, in forward
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4]     h = self.proj(h)
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1158, in forward
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4]     alpha = self._soft_round_alpha.item()
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank3]:W0326 12:49:57.054000 100383 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break from `Tensor.item()`, consider setting:
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4]     torch._dynamo.config.capture_scalar_outputs = True
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4] or:
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4] to include these operations in the captured graph.
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break: from user code at:
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1496, in forward
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4]     x = x + self.bigram(input_ids)
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1320, in forward
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4]     h = self.proj(h)
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1158, in forward
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4]     alpha = self._soft_round_alpha.item()
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank2]:W0326 12:49:57.056000 100382 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break from `Tensor.item()`, consider setting:
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4]     torch._dynamo.config.capture_scalar_outputs = True
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4] or:
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4] to include these operations in the captured graph.
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break: from user code at:
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1496, in forward
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4]     x = x + self.bigram(input_ids)
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1320, in forward
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4]     h = self.proj(h)
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1158, in forward
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4]     alpha = self._soft_round_alpha.item()
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank5]:W0326 12:49:57.067000 100385 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break from `Tensor.item()`, consider setting:
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4]     torch._dynamo.config.capture_scalar_outputs = True
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4] or:
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4] to include these operations in the captured graph.
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break: from user code at:
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1496, in forward
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4]     x = x + self.bigram(input_ids)
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1320, in forward
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4]     h = self.proj(h)
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1158, in forward
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4]     alpha = self._soft_round_alpha.item()
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank0]:W0326 12:49:57.091000 100380 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break from `Tensor.item()`, consider setting:
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4]     torch._dynamo.config.capture_scalar_outputs = True
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4] or:
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4] to include these operations in the captured graph.
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break: from user code at:
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1496, in forward
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4]     x = x + self.bigram(input_ids)
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1320, in forward
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4]     h = self.proj(h)
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1158, in forward
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4]     alpha = self._soft_round_alpha.item()
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank4]:W0326 12:49:57.093000 100384 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break from `Tensor.item()`, consider setting:
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4]     torch._dynamo.config.capture_scalar_outputs = True
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4] or:
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4] to include these operations in the captured graph.
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break: from user code at:
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1496, in forward
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4]     x = x + self.bigram(input_ids)
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1320, in forward
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4]     h = self.proj(h)
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1158, in forward
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4]     alpha = self._soft_round_alpha.item()
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank1]:W0326 12:49:57.097000 100381 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break from `Tensor.item()`, consider setting:
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4]     torch._dynamo.config.capture_scalar_outputs = True
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4] or:
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4] to include these operations in the captured graph.
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break: from user code at:
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1496, in forward
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4]     x = x + self.bigram(input_ids)
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1320, in forward
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4]     h = self.proj(h)
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1158, in forward
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4]     alpha = self._soft_round_alpha.item()
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank6]:W0326 12:49:57.737000 100386 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break from `Tensor.item()`, consider setting:
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4]     torch._dynamo.config.capture_scalar_outputs = True
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4] or:
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4] to include these operations in the captured graph.
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4] Graph break: from user code at:
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1496, in forward
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4]     x = x + self.bigram(input_ids)
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1320, in forward
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4]     h = self.proj(h)
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4]   File "/workspace/pgolf/train_gpt.py", line 1158, in forward
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4]     alpha = self._soft_round_alpha.item()
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank7]:W0326 12:49:57.741000 100387 torch/_dynamo/variables/tensor.py:1048] [0/4] 
+[rank6]:W0326 12:50:04.651000 100386 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank6]:W0326 12:50:04.651000 100386 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1373)
+[rank6]:W0326 12:50:04.651000 100386 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: self.ln_scale_factor == 0.35355339059327373              # self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,  # orkspace/pgolf/train_gpt.py:1378 in forward
+[rank6]:W0326 12:50:04.651000 100386 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank6]:W0326 12:50:04.651000 100386 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank7]:W0326 12:50:04.664000 100387 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank7]:W0326 12:50:04.664000 100387 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1373)
+[rank7]:W0326 12:50:04.664000 100387 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: self.ln_scale_factor == 0.35355339059327373              # self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,  # orkspace/pgolf/train_gpt.py:1378 in forward
+[rank7]:W0326 12:50:04.664000 100387 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank7]:W0326 12:50:04.664000 100387 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank2]:W0326 12:50:04.761000 100382 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank2]:W0326 12:50:04.761000 100382 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1373)
+[rank2]:W0326 12:50:04.761000 100382 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: self.ln_scale_factor == 0.35355339059327373              # self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,  # orkspace/pgolf/train_gpt.py:1378 in forward
+[rank2]:W0326 12:50:04.761000 100382 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank2]:W0326 12:50:04.761000 100382 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank3]:W0326 12:50:04.957000 100383 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank3]:W0326 12:50:04.957000 100383 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1373)
+[rank3]:W0326 12:50:04.957000 100383 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: self.ln_scale_factor == 0.35355339059327373              # self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,  # orkspace/pgolf/train_gpt.py:1378 in forward
+[rank3]:W0326 12:50:04.957000 100383 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank3]:W0326 12:50:04.957000 100383 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank5]:W0326 12:50:05.086000 100385 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank5]:W0326 12:50:05.086000 100385 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1373)
+[rank5]:W0326 12:50:05.086000 100385 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: self.ln_scale_factor == 0.35355339059327373              # self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,  # orkspace/pgolf/train_gpt.py:1378 in forward
+[rank5]:W0326 12:50:05.086000 100385 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank5]:W0326 12:50:05.086000 100385 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank4]:W0326 12:50:05.517000 100384 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank4]:W0326 12:50:05.517000 100384 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1373)
+[rank4]:W0326 12:50:05.517000 100384 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: self.ln_scale_factor == 0.35355339059327373              # self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,  # orkspace/pgolf/train_gpt.py:1378 in forward
+[rank4]:W0326 12:50:05.517000 100384 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank4]:W0326 12:50:05.517000 100384 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank1]:W0326 12:50:05.537000 100381 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank1]:W0326 12:50:05.537000 100381 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1373)
+[rank1]:W0326 12:50:05.537000 100381 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: self.ln_scale_factor == 0.35355339059327373              # self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,  # orkspace/pgolf/train_gpt.py:1378 in forward
+[rank1]:W0326 12:50:05.537000 100381 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank1]:W0326 12:50:05.537000 100381 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank0]:W0326 12:50:05.698000 100380 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0326 12:50:05.698000 100380 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1373)
+[rank0]:W0326 12:50:05.698000 100380 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: self.ln_scale_factor == 0.35355339059327373              # self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,  # orkspace/pgolf/train_gpt.py:1378 in forward
+[rank0]:W0326 12:50:05.698000 100380 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0326 12:50:05.698000 100380 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank5]:W0326 12:50:09.140000 100385 torch/_dynamo/convert_frame.py:1358] [4/8] torch._dynamo hit config.recompile_limit (8)
+[rank5]:W0326 12:50:09.140000 100385 torch/_dynamo/convert_frame.py:1358] [4/8]    function: 'torch_dynamo_resume_in_forward_at_1158' (/workspace/pgolf/train_gpt.py:1158)
+[rank5]:W0326 12:50:09.140000 100385 torch/_dynamo/convert_frame.py:1358] [4/8]    last reason: 4/7: tensor 'w' size mismatch at index 0. expected 512, actual 256
+[rank5]:W0326 12:50:09.140000 100385 torch/_dynamo/convert_frame.py:1358] [4/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank5]:W0326 12:50:09.140000 100385 torch/_dynamo/convert_frame.py:1358] [4/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank6]:W0326 12:50:09.179000 100386 torch/_dynamo/convert_frame.py:1358] [4/8] torch._dynamo hit config.recompile_limit (8)
+[rank6]:W0326 12:50:09.179000 100386 torch/_dynamo/convert_frame.py:1358] [4/8]    function: 'torch_dynamo_resume_in_forward_at_1158' (/workspace/pgolf/train_gpt.py:1158)
+[rank6]:W0326 12:50:09.179000 100386 torch/_dynamo/convert_frame.py:1358] [4/8]    last reason: 4/7: tensor 'w' size mismatch at index 0. expected 512, actual 256
+[rank6]:W0326 12:50:09.179000 100386 torch/_dynamo/convert_frame.py:1358] [4/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank6]:W0326 12:50:09.179000 100386 torch/_dynamo/convert_frame.py:1358] [4/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank0]:W0326 12:50:09.193000 100380 torch/_dynamo/convert_frame.py:1358] [4/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0326 12:50:09.193000 100380 torch/_dynamo/convert_frame.py:1358] [4/8]    function: 'torch_dynamo_resume_in_forward_at_1158' (/workspace/pgolf/train_gpt.py:1158)
+[rank0]:W0326 12:50:09.193000 100380 torch/_dynamo/convert_frame.py:1358] [4/8]    last reason: 4/7: tensor 'w' size mismatch at index 0. expected 512, actual 256
+[rank0]:W0326 12:50:09.193000 100380 torch/_dynamo/convert_frame.py:1358] [4/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0326 12:50:09.193000 100380 torch/_dynamo/convert_frame.py:1358] [4/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank4]:W0326 12:50:09.202000 100384 torch/_dynamo/convert_frame.py:1358] [4/8] torch._dynamo hit config.recompile_limit (8)
+[rank4]:W0326 12:50:09.202000 100384 torch/_dynamo/convert_frame.py:1358] [4/8]    function: 'torch_dynamo_resume_in_forward_at_1158' (/workspace/pgolf/train_gpt.py:1158)
+[rank4]:W0326 12:50:09.202000 100384 torch/_dynamo/convert_frame.py:1358] [4/8]    last reason: 4/7: tensor 'w' size mismatch at index 0. expected 512, actual 256
+[rank4]:W0326 12:50:09.202000 100384 torch/_dynamo/convert_frame.py:1358] [4/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank4]:W0326 12:50:09.202000 100384 torch/_dynamo/convert_frame.py:1358] [4/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank3]:W0326 12:50:09.205000 100383 torch/_dynamo/convert_frame.py:1358] [4/8] torch._dynamo hit config.recompile_limit (8)
+[rank3]:W0326 12:50:09.205000 100383 torch/_dynamo/convert_frame.py:1358] [4/8]    function: 'torch_dynamo_resume_in_forward_at_1158' (/workspace/pgolf/train_gpt.py:1158)
+[rank3]:W0326 12:50:09.205000 100383 torch/_dynamo/convert_frame.py:1358] [4/8]    last reason: 4/7: tensor 'w' size mismatch at index 0. expected 512, actual 256
+[rank3]:W0326 12:50:09.205000 100383 torch/_dynamo/convert_frame.py:1358] [4/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank3]:W0326 12:50:09.205000 100383 torch/_dynamo/convert_frame.py:1358] [4/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank1]:W0326 12:50:09.210000 100381 torch/_dynamo/convert_frame.py:1358] [4/8] torch._dynamo hit config.recompile_limit (8)
+[rank1]:W0326 12:50:09.210000 100381 torch/_dynamo/convert_frame.py:1358] [4/8]    function: 'torch_dynamo_resume_in_forward_at_1158' (/workspace/pgolf/train_gpt.py:1158)
+[rank1]:W0326 12:50:09.210000 100381 torch/_dynamo/convert_frame.py:1358] [4/8]    last reason: 4/7: tensor 'w' size mismatch at index 0. expected 512, actual 256
+[rank1]:W0326 12:50:09.210000 100381 torch/_dynamo/convert_frame.py:1358] [4/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank1]:W0326 12:50:09.210000 100381 torch/_dynamo/convert_frame.py:1358] [4/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank7]:W0326 12:50:09.238000 100387 torch/_dynamo/convert_frame.py:1358] [4/8] torch._dynamo hit config.recompile_limit (8)
+[rank7]:W0326 12:50:09.238000 100387 torch/_dynamo/convert_frame.py:1358] [4/8]    function: 'torch_dynamo_resume_in_forward_at_1158' (/workspace/pgolf/train_gpt.py:1158)
+[rank7]:W0326 12:50:09.238000 100387 torch/_dynamo/convert_frame.py:1358] [4/8]    last reason: 4/7: tensor 'w' size mismatch at index 0. expected 512, actual 256
+[rank7]:W0326 12:50:09.238000 100387 torch/_dynamo/convert_frame.py:1358] [4/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank7]:W0326 12:50:09.238000 100387 torch/_dynamo/convert_frame.py:1358] [4/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank2]:W0326 12:50:09.244000 100382 torch/_dynamo/convert_frame.py:1358] [4/8] torch._dynamo hit config.recompile_limit (8)
+[rank2]:W0326 12:50:09.244000 100382 torch/_dynamo/convert_frame.py:1358] [4/8]    function: 'torch_dynamo_resume_in_forward_at_1158' (/workspace/pgolf/train_gpt.py:1158)
+[rank2]:W0326 12:50:09.244000 100382 torch/_dynamo/convert_frame.py:1358] [4/8]    last reason: 4/7: tensor 'w' size mismatch at index 0. expected 512, actual 256
+[rank2]:W0326 12:50:09.244000 100382 torch/_dynamo/convert_frame.py:1358] [4/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank2]:W0326 12:50:09.244000 100382 torch/_dynamo/convert_frame.py:1358] [4/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+step:5437/20000 val_loss:1.9782 val_bpb:1.1716 train_time:600114ms step_avg:110.38ms seq_len:2048
+early_stop train_time:600114ms step:5437/20000
+peak_mem: 24934 MiB reserved: 25978 MiB
+steps:5437
+swa_n:4
+swa:blending EMA+SWA (0.7*EMA + 0.3*SWA, 4 SWA checkpoints)
+DIAGNOSTIC post_ema val_loss:1.9795 val_bpb:1.1724 eval_time:2094ms
+gptq:calibrating with 256 samples...
+gptq:calibration done in 1181ms, 66 layers
+Serialized model: 106893257 bytes
+Code size: 99809 bytes
+gptq:quantizing with block_size=128 percdamp=0.01 prune_pct=0.03...
+gptq:quantization done in 11203ms (gptq:66 naive:0)
+compression:lzma raw_size:27632195 compressed_size:14826304 ratio:1.86x
+Serialized model int5+lzma: 14826308 bytes
+Total submission size: 14926117 bytes
+Size budget OK: 1073883 bytes remaining
+[rank4]:W0326 12:52:39.523000 100384 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank4]:W0326 12:52:39.523000 100384 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1493)
+[rank4]:W0326 12:52:39.523000 100384 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: self._modules['blocks']._modules['0']._modules['attn']._modules['rotary']._cos_cached is None  # self._cos_cached is None  # orkspace/pgolf/train_gpt.py:1200 in forward
+[rank4]:W0326 12:52:39.523000 100384 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank4]:W0326 12:52:39.523000 100384 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank6]:W0326 12:52:39.656000 100386 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank6]:W0326 12:52:39.656000 100386 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1493)
+[rank6]:W0326 12:52:39.656000 100386 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: self._modules['blocks']._modules['0']._modules['attn']._modules['rotary']._cos_cached is None  # self._cos_cached is None  # orkspace/pgolf/train_gpt.py:1200 in forward
+[rank6]:W0326 12:52:39.656000 100386 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank6]:W0326 12:52:39.656000 100386 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank1]:W0326 12:52:39.670000 100381 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank1]:W0326 12:52:39.670000 100381 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1493)
+[rank1]:W0326 12:52:39.670000 100381 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: self._modules['blocks']._modules['0']._modules['attn']._modules['rotary']._cos_cached is None  # self._cos_cached is None  # orkspace/pgolf/train_gpt.py:1200 in forward
+[rank1]:W0326 12:52:39.670000 100381 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank1]:W0326 12:52:39.670000 100381 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank7]:W0326 12:52:39.744000 100387 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank7]:W0326 12:52:39.744000 100387 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1493)
+[rank7]:W0326 12:52:39.744000 100387 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: self._modules['blocks']._modules['0']._modules['attn']._modules['rotary']._cos_cached is None  # self._cos_cached is None  # orkspace/pgolf/train_gpt.py:1200 in forward
+[rank7]:W0326 12:52:39.744000 100387 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank7]:W0326 12:52:39.744000 100387 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank3]:W0326 12:52:39.852000 100383 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank3]:W0326 12:52:39.852000 100383 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1493)
+[rank3]:W0326 12:52:39.852000 100383 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: self._modules['blocks']._modules['0']._modules['attn']._modules['rotary']._cos_cached is None  # self._cos_cached is None  # orkspace/pgolf/train_gpt.py:1200 in forward
+[rank3]:W0326 12:52:39.852000 100383 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank3]:W0326 12:52:39.852000 100383 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank5]:W0326 12:52:39.876000 100385 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank5]:W0326 12:52:39.876000 100385 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1493)
+[rank5]:W0326 12:52:39.876000 100385 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: self._modules['blocks']._modules['0']._modules['attn']._modules['rotary']._cos_cached is None  # self._cos_cached is None  # orkspace/pgolf/train_gpt.py:1200 in forward
+[rank5]:W0326 12:52:39.876000 100385 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank5]:W0326 12:52:39.876000 100385 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank0]:W0326 12:52:40.560000 100380 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0326 12:52:40.560000 100380 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1493)
+[rank0]:W0326 12:52:40.560000 100380 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: self._modules['blocks']._modules['0']._modules['attn']._modules['rotary']._cos_cached is None  # self._cos_cached is None  # orkspace/pgolf/train_gpt.py:1200 in forward
+[rank0]:W0326 12:52:40.560000 100380 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0326 12:52:40.560000 100380 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank2]:W0326 12:52:40.976000 100382 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank2]:W0326 12:52:40.976000 100382 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/pgolf/train_gpt.py:1493)
+[rank2]:W0326 12:52:40.976000 100382 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: self._modules['blocks']._modules['0']._modules['attn']._modules['rotary']._cos_cached is None  # self._cos_cached is None  # orkspace/pgolf/train_gpt.py:1200 in forward
+[rank2]:W0326 12:52:40.976000 100382 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank2]:W0326 12:52:40.976000 100382 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+final_int5_roundtrip val_loss:1.9913 val_bpb:1.1794 eval_time:9559ms
+final_int5_roundtrip_exact val_loss:1.99134378 val_bpb:1.17938595
+eval_budget: 10s elapsed, 590s remaining
+integrated_eval: starting single-pass TTT+N-gram evaluation
+integrated_eval: LoRA rank=8 on Q,V of blocks 9-10, 28672 LoRA params, 947 chunks, polyak_decay=0.998, ngram order=2-9 adaptive=True alpha=[0.12,0.6]
+integrated_eval: chunk 5/947 model_bpb=1.148766 ngram_bpb=1.187873 delta=0.039107 t=4s
+integrated_eval: chunk 10/947 model_bpb=1.159124 ngram_bpb=1.215160 delta=0.056036 t=7s
+integrated_eval: chunk 15/947 model_bpb=1.167699 ngram_bpb=1.233252 delta=0.065553 t=10s
+integrated_eval: chunk 20/947 model_bpb=1.163665 ngram_bpb=1.234059 delta=0.070394 t=13s
+integrated_eval: chunk 25/947 model_bpb=1.162883 ngram_bpb=1.233776 delta=0.070892 t=16s
+integrated_eval: chunk 30/947 model_bpb=1.167605 ngram_bpb=1.236002 delta=0.068397 t=19s
+integrated_eval: chunk 35/947 model_bpb=1.165784 ngram_bpb=1.229355 delta=0.063571 t=22s
+integrated_eval: chunk 40/947 model_bpb=1.161885 ngram_bpb=1.218678 delta=0.056793 t=25s
+integrated_eval: chunk 45/947 model_bpb=1.161174 ngram_bpb=1.208883 delta=0.047708 t=29s
+integrated_eval: chunk 50/947 model_bpb=1.162299 ngram_bpb=1.199111 delta=0.036812 t=32s
+integrated_eval: chunk 55/947 model_bpb=1.163051 ngram_bpb=1.187190 delta=0.024139 t=35s
+integrated_eval: chunk 60/947 model_bpb=1.158536 ngram_bpb=1.169455 delta=0.010919 t=38s
+integrated_eval: chunk 65/947 model_bpb=1.158546 ngram_bpb=1.154936 delta=-0.003611 t=41s
+integrated_eval: chunk 70/947 model_bpb=1.156659 ngram_bpb=1.137579 delta=-0.019080 t=44s
+integrated_eval: chunk 75/947 model_bpb=1.156826 ngram_bpb=1.121821 delta=-0.035005 t=47s
+integrated_eval: chunk 80/947 model_bpb=1.157750 ngram_bpb=1.105855 delta=-0.051895 t=49s
+integrated_eval: chunk 85/947 model_bpb=1.159869 ngram_bpb=1.089992 delta=-0.069876 t=53s
+integrated_eval: chunk 90/947 model_bpb=1.160050 ngram_bpb=1.073030 delta=-0.087020 t=56s
+integrated_eval: chunk 95/947 model_bpb=1.163187 ngram_bpb=1.057823 delta=-0.105364 t=59s
+integrated_eval: chunk 100/947 model_bpb=1.162379 ngram_bpb=1.040291 delta=-0.122088 t=62s
+integrated_eval: chunk 105/947 model_bpb=1.161011 ngram_bpb=1.022431 delta=-0.138580 t=65s
+integrated_eval: chunk 110/947 model_bpb=1.162145 ngram_bpb=1.006158 delta=-0.155987 t=69s
+integrated_eval: chunk 115/947 model_bpb=1.161797 ngram_bpb=0.989497 delta=-0.172300 t=72s
+integrated_eval: chunk 120/947 model_bpb=1.162377 ngram_bpb=0.973677 delta=-0.188700 t=75s
+integrated_eval: chunk 125/947 model_bpb=1.161596 ngram_bpb=0.957491 delta=-0.204105 t=78s
+integrated_eval: chunk 130/947 model_bpb=1.161546 ngram_bpb=0.941809 delta=-0.219737 t=81s
+integrated_eval: chunk 135/947 model_bpb=1.160375 ngram_bpb=0.926084 delta=-0.234291 t=84s
+integrated_eval: chunk 140/947 model_bpb=1.161380 ngram_bpb=0.911305 delta=-0.250075 t=87s
+integrated_eval: chunk 145/947 model_bpb=1.161348 ngram_bpb=0.896304 delta=-0.265044 t=90s
+integrated_eval: chunk 150/947 model_bpb=1.161667 ngram_bpb=0.881907 delta=-0.279760 t=93s
+integrated_eval: chunk 155/947 model_bpb=1.162025 ngram_bpb=0.867980 delta=-0.294045 t=96s
+integrated_eval: chunk 160/947 model_bpb=1.162624 ngram_bpb=0.854486 delta=-0.308138 t=99s
+integrated_eval: chunk 165/947 model_bpb=1.162315 ngram_bpb=0.841139 delta=-0.321175 t=102s
+integrated_eval: chunk 170/947 model_bpb=1.161908 ngram_bpb=0.827937 delta=-0.333970 t=105s
+integrated_eval: chunk 175/947 model_bpb=1.162191 ngram_bpb=0.815424 delta=-0.346767 t=108s
+integrated_eval: chunk 180/947 model_bpb=1.163454 ngram_bpb=0.804483 delta=-0.358971 t=111s
+integrated_eval: chunk 185/947 model_bpb=1.163224 ngram_bpb=0.792613 delta=-0.370611 t=114s
+integrated_eval: chunk 190/947 model_bpb=1.163289 ngram_bpb=0.781142 delta=-0.382147 t=117s
+integrated_eval: chunk 195/947 model_bpb=1.163456 ngram_bpb=0.770094 delta=-0.393362 t=120s
+integrated_eval: chunk 200/947 model_bpb=1.163374 ngram_bpb=0.759395 delta=-0.403980 t=123s
+integrated_eval: chunk 205/947 model_bpb=1.162357 ngram_bpb=0.748793 delta=-0.413564 t=126s
+integrated_eval: chunk 210/947 model_bpb=1.162421 ngram_bpb=0.738701 delta=-0.423720 t=129s
+integrated_eval: chunk 215/947 model_bpb=1.163029 ngram_bpb=0.728925 delta=-0.434104 t=132s
+integrated_eval: chunk 220/947 model_bpb=1.162257 ngram_bpb=0.719175 delta=-0.443082 t=135s
+integrated_eval: chunk 225/947 model_bpb=1.162397 ngram_bpb=0.709775 delta=-0.452621 t=138s
+integrated_eval: chunk 230/947 model_bpb=1.162183 ngram_bpb=0.700648 delta=-0.461535 t=141s
+integrated_eval: chunk 235/947 model_bpb=1.161932 ngram_bpb=0.691762 delta=-0.470171 t=144s
+integrated_eval: chunk 240/947 model_bpb=1.161468 ngram_bpb=0.683366 delta=-0.478102 t=147s
+integrated_eval: chunk 245/947 model_bpb=1.161614 ngram_bpb=0.675255 delta=-0.486359 t=150s
+integrated_eval: chunk 250/947 model_bpb=1.161482 ngram_bpb=0.667176 delta=-0.494305 t=153s
+integrated_eval: chunk 255/947 model_bpb=1.160852 ngram_bpb=0.659400 delta=-0.501452 t=156s
+integrated_eval: chunk 260/947 model_bpb=1.160649 ngram_bpb=0.651977 delta=-0.508673 t=159s
+integrated_eval: chunk 265/947 model_bpb=1.161201 ngram_bpb=0.644729 delta=-0.516472 t=162s
+integrated_eval: chunk 270/947 model_bpb=1.161332 ngram_bpb=0.637493 delta=-0.523839 t=165s
+integrated_eval: chunk 275/947 model_bpb=1.160798 ngram_bpb=0.630505 delta=-0.530293 t=168s
+integrated_eval: chunk 280/947 model_bpb=1.160685 ngram_bpb=0.623690 delta=-0.536995 t=172s
+integrated_eval: chunk 285/947 model_bpb=1.160190 ngram_bpb=0.617205 delta=-0.542985 t=175s
+integrated_eval: chunk 290/947 model_bpb=1.159961 ngram_bpb=0.610883 delta=-0.549078 t=178s
+integrated_eval: chunk 295/947 model_bpb=1.159419 ngram_bpb=0.604771 delta=-0.554648 t=181s
+integrated_eval: chunk 300/947 model_bpb=1.159526 ngram_bpb=0.598771 delta=-0.560755 t=184s
+integrated_eval: chunk 305/947 model_bpb=1.159135 ngram_bpb=0.592956 delta=-0.566179 t=187s
+integrated_eval: chunk 310/947 model_bpb=1.159108 ngram_bpb=0.587235 delta=-0.571873 t=189s
+integrated_eval: chunk 315/947 model_bpb=1.158886 ngram_bpb=0.581577 delta=-0.577309 t=192s
+integrated_eval: chunk 320/947 model_bpb=1.158227 ngram_bpb=0.576024 delta=-0.582203 t=195s
+integrated_eval: chunk 325/947 model_bpb=1.157828 ngram_bpb=0.570685 delta=-0.587143 t=198s
+integrated_eval: chunk 330/947 model_bpb=1.157553 ngram_bpb=0.565546 delta=-0.592007 t=201s
+integrated_eval: chunk 335/947 model_bpb=1.157364 ngram_bpb=0.560473 delta=-0.596892 t=204s
+integrated_eval: chunk 340/947 model_bpb=1.156602 ngram_bpb=0.555438 delta=-0.601164 t=207s
+integrated_eval: chunk 345/947 model_bpb=1.156717 ngram_bpb=0.550596 delta=-0.606121 t=211s
+integrated_eval: chunk 350/947 model_bpb=1.156154 ngram_bpb=0.545810 delta=-0.610344 t=214s
+integrated_eval: chunk 355/947 model_bpb=1.155958 ngram_bpb=0.541289 delta=-0.614669 t=217s
+integrated_eval: chunk 360/947 model_bpb=1.155701 ngram_bpb=0.536864 delta=-0.618837 t=220s
+integrated_eval: chunk 365/947 model_bpb=1.155970 ngram_bpb=0.532565 delta=-0.623405 t=223s
+integrated_eval: chunk 370/947 model_bpb=1.156249 ngram_bpb=0.528337 delta=-0.627912 t=225s
+integrated_eval: chunk 375/947 model_bpb=1.155677 ngram_bpb=0.524146 delta=-0.631530 t=228s
+integrated_eval: chunk 380/947 model_bpb=1.155877 ngram_bpb=0.520180 delta=-0.635697 t=232s
+integrated_eval: chunk 385/947 model_bpb=1.155743 ngram_bpb=0.516294 delta=-0.639449 t=235s
+integrated_eval: chunk 390/947 model_bpb=1.155921 ngram_bpb=0.512499 delta=-0.643423 t=238s
+integrated_eval: chunk 395/947 model_bpb=1.155915 ngram_bpb=0.508824 delta=-0.647092 t=241s
+integrated_eval: chunk 400/947 model_bpb=1.155804 ngram_bpb=0.505051 delta=-0.650753 t=244s
+integrated_eval: chunk 405/947 model_bpb=1.155714 ngram_bpb=0.501485 delta=-0.654229 t=247s
+integrated_eval: chunk 410/947 model_bpb=1.155676 ngram_bpb=0.497929 delta=-0.657747 t=250s
+integrated_eval: chunk 415/947 model_bpb=1.155456 ngram_bpb=0.494513 delta=-0.660943 t=253s
+integrated_eval: chunk 420/947 model_bpb=1.155334 ngram_bpb=0.491193 delta=-0.664141 t=256s
+integrated_eval: chunk 425/947 model_bpb=1.155297 ngram_bpb=0.487943 delta=-0.667354 t=259s
+integrated_eval: chunk 430/947 model_bpb=1.155449 ngram_bpb=0.484783 delta=-0.670665 t=262s
+integrated_eval: chunk 435/947 model_bpb=1.155599 ngram_bpb=0.481605 delta=-0.673994 t=265s
+integrated_eval: chunk 440/947 model_bpb=1.155778 ngram_bpb=0.478624 delta=-0.677154 t=268s
+integrated_eval: chunk 445/947 model_bpb=1.155320 ngram_bpb=0.475707 delta=-0.679613 t=271s
+integrated_eval: chunk 450/947 model_bpb=1.155436 ngram_bpb=0.472861 delta=-0.682576 t=274s
+integrated_eval: chunk 455/947 model_bpb=1.155256 ngram_bpb=0.469968 delta=-0.685288 t=277s
+integrated_eval: chunk 460/947 model_bpb=1.155399 ngram_bpb=0.467142 delta=-0.688257 t=280s
+integrated_eval: chunk 465/947 model_bpb=1.155275 ngram_bpb=0.464459 delta=-0.690816 t=283s
+integrated_eval: chunk 470/947 model_bpb=1.155656 ngram_bpb=0.461694 delta=-0.693963 t=286s
+integrated_eval: chunk 475/947 model_bpb=1.156089 ngram_bpb=0.459034 delta=-0.697055 t=289s
+integrated_eval: chunk 480/947 model_bpb=1.156148 ngram_bpb=0.456273 delta=-0.699875 t=292s
+integrated_eval: chunk 485/947 model_bpb=1.156738 ngram_bpb=0.453648 delta=-0.703090 t=295s
+integrated_eval: chunk 490/947 model_bpb=1.156881 ngram_bpb=0.450989 delta=-0.705892 t=298s
+integrated_eval: chunk 495/947 model_bpb=1.156927 ngram_bpb=0.448443 delta=-0.708484 t=301s
+integrated_eval: chunk 500/947 model_bpb=1.157170 ngram_bpb=0.445916 delta=-0.711254 t=305s
+integrated_eval: chunk 505/947 model_bpb=1.157429 ngram_bpb=0.443494 delta=-0.713936 t=308s
+integrated_eval: chunk 510/947 model_bpb=1.157681 ngram_bpb=0.441070 delta=-0.716612 t=311s
+integrated_eval: chunk 515/947 model_bpb=1.158145 ngram_bpb=0.438647 delta=-0.719498 t=314s
+integrated_eval: chunk 520/947 model_bpb=1.158627 ngram_bpb=0.436269 delta=-0.722358 t=317s
+integrated_eval: chunk 525/947 model_bpb=1.158556 ngram_bpb=0.433931 delta=-0.724625 t=320s
+integrated_eval: chunk 530/947 model_bpb=1.158752 ngram_bpb=0.431625 delta=-0.727127 t=323s
+integrated_eval: chunk 535/947 model_bpb=1.158892 ngram_bpb=0.429469 delta=-0.729423 t=326s
+integrated_eval: chunk 540/947 model_bpb=1.158979 ngram_bpb=0.427233 delta=-0.731746 t=329s
+integrated_eval: chunk 545/947 model_bpb=1.159241 ngram_bpb=0.425050 delta=-0.734191 t=332s
+integrated_eval: chunk 550/947 model_bpb=1.159460 ngram_bpb=0.422931 delta=-0.736530 t=335s
+integrated_eval: chunk 555/947 model_bpb=1.159258 ngram_bpb=0.420838 delta=-0.738420 t=338s
+integrated_eval: chunk 560/947 model_bpb=1.159085 ngram_bpb=0.418764 delta=-0.740320 t=341s
+integrated_eval: chunk 565/947 model_bpb=1.158932 ngram_bpb=0.416743 delta=-0.742189 t=343s
+integrated_eval: chunk 570/947 model_bpb=1.158664 ngram_bpb=0.414715 delta=-0.743949 t=346s
+integrated_eval: chunk 575/947 model_bpb=1.158775 ngram_bpb=0.412768 delta=-0.746007 t=349s
+integrated_eval: chunk 580/947 model_bpb=1.158706 ngram_bpb=0.410775 delta=-0.747931 t=352s
+integrated_eval: chunk 585/947 model_bpb=1.158437 ngram_bpb=0.408817 delta=-0.749620 t=356s
+integrated_eval: chunk 590/947 model_bpb=1.158235 ngram_bpb=0.406896 delta=-0.751339 t=359s
+integrated_eval: chunk 595/947 model_bpb=1.158418 ngram_bpb=0.405017 delta=-0.753401 t=362s
+integrated_eval: chunk 600/947 model_bpb=1.158655 ngram_bpb=0.403190 delta=-0.755465 t=365s
+integrated_eval: chunk 605/947 model_bpb=1.158270 ngram_bpb=0.401396 delta=-0.756874 t=368s
+integrated_eval: chunk 610/947 model_bpb=1.158703 ngram_bpb=0.399703 delta=-0.759001 t=371s
+integrated_eval: chunk 615/947 model_bpb=1.158576 ngram_bpb=0.397934 delta=-0.760642 t=374s
+integrated_eval: chunk 620/947 model_bpb=1.158332 ngram_bpb=0.396159 delta=-0.762173 t=377s
+integrated_eval: chunk 625/947 model_bpb=1.157913 ngram_bpb=0.394503 delta=-0.763410 t=380s
+integrated_eval: chunk 630/947 model_bpb=1.157609 ngram_bpb=0.392839 delta=-0.764770 t=383s
+integrated_eval: chunk 635/947 model_bpb=1.157468 ngram_bpb=0.391177 delta=-0.766291 t=386s
+integrated_eval: chunk 640/947 model_bpb=1.157139 ngram_bpb=0.389490 delta=-0.767649 t=389s
+integrated_eval: chunk 645/947 model_bpb=1.156916 ngram_bpb=0.387868 delta=-0.769048 t=392s
+integrated_eval: chunk 650/947 model_bpb=1.156872 ngram_bpb=0.386278 delta=-0.770593 t=395s
+integrated_eval: chunk 655/947 model_bpb=1.156617 ngram_bpb=0.384710 delta=-0.771907 t=398s
+integrated_eval: chunk 660/947 model_bpb=1.156335 ngram_bpb=0.383125 delta=-0.773210 t=401s
+integrated_eval: chunk 665/947 model_bpb=1.156103 ngram_bpb=0.381584 delta=-0.774520 t=404s
+integrated_eval: chunk 670/947 model_bpb=1.156018 ngram_bpb=0.380079 delta=-0.775938 t=407s
+integrated_eval: chunk 675/947 model_bpb=1.155895 ngram_bpb=0.378622 delta=-0.777273 t=410s
+integrated_eval: chunk 680/947 model_bpb=1.156061 ngram_bpb=0.377238 delta=-0.778823 t=413s
+integrated_eval: chunk 685/947 model_bpb=1.156242 ngram_bpb=0.375861 delta=-0.780381 t=416s
+integrated_eval: chunk 690/947 model_bpb=1.156642 ngram_bpb=0.374539 delta=-0.782103 t=419s
+integrated_eval: chunk 695/947 model_bpb=1.156401 ngram_bpb=0.373141 delta=-0.783260 t=422s
+integrated_eval: chunk 700/947 model_bpb=1.156476 ngram_bpb=0.371796 delta=-0.784680 t=425s
+integrated_eval: chunk 705/947 model_bpb=1.156645 ngram_bpb=0.370507 delta=-0.786137 t=428s
+integrated_eval: chunk 710/947 model_bpb=1.156753 ngram_bpb=0.369179 delta=-0.787574 t=431s
+integrated_eval: chunk 715/947 model_bpb=1.156715 ngram_bpb=0.367983 delta=-0.788733 t=434s
+integrated_eval: chunk 720/947 model_bpb=1.157195 ngram_bpb=0.366718 delta=-0.790477 t=437s
+integrated_eval: chunk 725/947 model_bpb=1.157204 ngram_bpb=0.365478 delta=-0.791727 t=440s
+integrated_eval: chunk 730/947 model_bpb=1.157113 ngram_bpb=0.364250 delta=-0.792862 t=443s
+integrated_eval: chunk 735/947 model_bpb=1.157770 ngram_bpb=0.363029 delta=-0.794741 t=446s
+integrated_eval: chunk 740/947 model_bpb=1.157724 ngram_bpb=0.361816 delta=-0.795909 t=449s
+integrated_eval: chunk 745/947 model_bpb=1.158065 ngram_bpb=0.360671 delta=-0.797394 t=452s
+integrated_eval: chunk 750/947 model_bpb=1.158126 ngram_bpb=0.359521 delta=-0.798605 t=455s
+integrated_eval: chunk 755/947 model_bpb=1.158227 ngram_bpb=0.358348 delta=-0.799879 t=458s
+integrated_eval: chunk 760/947 model_bpb=1.158304 ngram_bpb=0.357221 delta=-0.801083 t=461s
+integrated_eval: chunk 765/947 model_bpb=1.158570 ngram_bpb=0.356098 delta=-0.802472 t=464s
+integrated_eval: chunk 770/947 model_bpb=1.158660 ngram_bpb=0.354941 delta=-0.803719 t=467s
+integrated_eval: chunk 775/947 model_bpb=1.158975 ngram_bpb=0.353820 delta=-0.805155 t=470s
+integrated_eval: chunk 780/947 model_bpb=1.159073 ngram_bpb=0.352696 delta=-0.806376 t=473s
+integrated_eval: chunk 785/947 model_bpb=1.159282 ngram_bpb=0.351600 delta=-0.807683 t=476s
+integrated_eval: chunk 790/947 model_bpb=1.159513 ngram_bpb=0.350542 delta=-0.808972 t=479s
+integrated_eval: chunk 795/947 model_bpb=1.159535 ngram_bpb=0.349406 delta=-0.810128 t=482s
+integrated_eval: chunk 800/947 model_bpb=1.159808 ngram_bpb=0.348311 delta=-0.811497 t=485s
+integrated_eval: chunk 805/947 model_bpb=1.160024 ngram_bpb=0.347212 delta=-0.812812 t=488s
+integrated_eval: chunk 810/947 model_bpb=1.159947 ngram_bpb=0.346187 delta=-0.813760 t=491s
+integrated_eval: chunk 815/947 model_bpb=1.160042 ngram_bpb=0.345129 delta=-0.814913 t=494s
+integrated_eval: chunk 820/947 model_bpb=1.160095 ngram_bpb=0.344078 delta=-0.816017 t=497s
+integrated_eval: chunk 825/947 model_bpb=1.160156 ngram_bpb=0.343052 delta=-0.817104 t=500s
+integrated_eval: chunk 830/947 model_bpb=1.160340 ngram_bpb=0.342034 delta=-0.818306 t=503s
+integrated_eval: chunk 835/947 model_bpb=1.160602 ngram_bpb=0.341037 delta=-0.819564 t=506s
+integrated_eval: chunk 840/947 model_bpb=1.160691 ngram_bpb=0.340029 delta=-0.820661 t=509s
+integrated_eval: chunk 845/947 model_bpb=1.160801 ngram_bpb=0.339037 delta=-0.821763 t=512s
+integrated_eval: chunk 850/947 model_bpb=1.161080 ngram_bpb=0.338054 delta=-0.823025 t=515s
+integrated_eval: chunk 855/947 model_bpb=1.161108 ngram_bpb=0.337070 delta=-0.824037 t=518s
+integrated_eval: chunk 860/947 model_bpb=1.161035 ngram_bpb=0.336115 delta=-0.824920 t=521s
+integrated_eval: chunk 865/947 model_bpb=1.161073 ngram_bpb=0.335170 delta=-0.825903 t=524s
+integrated_eval: chunk 870/947 model_bpb=1.160894 ngram_bpb=0.334217 delta=-0.826677 t=527s
+integrated_eval: chunk 875/947 model_bpb=1.160767 ngram_bpb=0.333269 delta=-0.827499 t=530s
+integrated_eval: chunk 880/947 model_bpb=1.160842 ngram_bpb=0.332350 delta=-0.828492 t=533s
+integrated_eval: chunk 885/947 model_bpb=1.160824 ngram_bpb=0.331428 delta=-0.829396 t=536s
+integrated_eval: chunk 890/947 model_bpb=1.160778 ngram_bpb=0.330538 delta=-0.830240 t=539s
+integrated_eval: chunk 895/947 model_bpb=1.160473 ngram_bpb=0.329638 delta=-0.830835 t=542s
+integrated_eval: chunk 900/947 model_bpb=1.160414 ngram_bpb=0.328748 delta=-0.831666 t=545s
+integrated_eval: chunk 905/947 model_bpb=1.160372 ngram_bpb=0.327872 delta=-0.832500 t=548s
+integrated_eval: chunk 910/947 model_bpb=1.160465 ngram_bpb=0.327000 delta=-0.833465 t=551s
+integrated_eval: chunk 915/947 model_bpb=1.160342 ngram_bpb=0.326123 delta=-0.834219 t=554s
+integrated_eval: chunk 920/947 model_bpb=1.160424 ngram_bpb=0.325311 delta=-0.835112 t=557s
+integrated_eval: chunk 925/947 model_bpb=1.160211 ngram_bpb=0.324479 delta=-0.835732 t=560s
+integrated_eval: chunk 930/947 model_bpb=1.160181 ngram_bpb=0.323635 delta=-0.836546 t=563s
+integrated_eval: chunk 935/947 model_bpb=1.160151 ngram_bpb=0.322824 delta=-0.837327 t=566s
+integrated_eval: chunk 940/947 model_bpb=1.159945 ngram_bpb=0.322014 delta=-0.837931 t=569s
+integrated_eval: chunk 945/947 model_bpb=1.159968 ngram_bpb=0.321227 delta=-0.838741 t=572s
+integrated_eval: DONE model_bpb=1.1600 ngram_bpb=0.3210 delta=-0.8390 elapsed=573s
+final_integrated model_val_loss:1.9586 model_val_bpb:1.1600
+final_integrated ngram_val_loss:0.5420 ngram_val_bpb:0.3210
+final_integrated delta_bpb:-0.8390
+final_integrated_exact model_bpb:1.16001811 ngram_bpb:0.32101837
+final_integrated_time:573942ms

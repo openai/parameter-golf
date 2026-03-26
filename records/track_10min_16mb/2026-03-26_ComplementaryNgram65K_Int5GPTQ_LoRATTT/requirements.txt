@@ -1,0 +1,3 @@
+# Non-standard dependencies beyond the competition template
+# (torch, numpy, sentencepiece, flash-attn are pre-installed)
+zstandard
