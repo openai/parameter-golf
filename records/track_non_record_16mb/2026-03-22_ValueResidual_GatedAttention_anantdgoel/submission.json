@@ -1,0 +1,18 @@
+{
+  "author": "Anant Goel",
+  "github_id": "anantdgoel",
+  "name": "Value Residual + Gated Attention ablation",
+  "blurb": "Two novel architecture modifications: Value Residual (-0.015 BPB) caches layer-0 V vectors as skip connections, Gated Attention (-0.003 BPB) adds per-head sigmoid gates. They stack additively for -0.017 BPB. PPM-C context mixing is a negative result (+0.002 BPB) on SmearGate+BigramHash models.",
+  "date": "2026-03-22",
+  "track": "non-record-16mb",
+  "val_bpb": 1.4525,
+  "pre_quant_val_bpb": 1.4525,
+  "step_stop": 1000,
+  "wallclock_seconds": 5506,
+  "hardware": "1xRTX3090 (ablations), 1xA6000 (validation)",
+  "novel_contributions": [
+    "Value Residual: layer-0 V shortcut to all layers, 18 learnable scalars, -0.015 BPB (arXiv:2410.17897)",
+    "Gated Attention: per-head sigmoid gate, ~37K params, -0.003 BPB (arXiv:2505.06708)",
+    "PPM-C context mixer: negative result, +0.002 BPB on SmearGate+BigramHash models"
+  ]
+}
