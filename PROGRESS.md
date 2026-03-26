@@ -1,6 +1,6 @@
 # Parameter Golf — Progress Chart
 
-**Last Updated:** 2026-03-25 21:00 CDT
+**Last Updated:** 2026-03-25 22:00 CDT
 
 ---
 
@@ -11,10 +11,10 @@
 | **4** | Optimized Transformer | 15/15 | ✅ ALL PASS | 3.74 bpb (roundtrip) | 5.1 MB | **COMPLETE** |
 | **1** | Codec | 5/5 | ✅ ALL PASS | 3.88 loss / 8.0 MB | 8.0 MB | **COMPLETE** |
 | **2** | Recursive (Shared Weights) | 3/3 | ✅ ALL PASS | 4.01 loss (9×512d) | ~5.7 MB | **COMPLETE** |
-| **3** | Hybrid (GatedRNN + Attention) | 2/3 | ✅ Step 2 PASS | 3.91 loss | ~5.1 MB | **IN PROGRESS** |
-| **6** | Hive (Frozen + LoRA) | 0 | ❌ NaN on Codex build | — | — | **NEEDS INCREMENTAL BUILD** |
-| **7** | Immune (Template Library) | 0 | ❌ OOM on Codex build | — | — | **NEEDS INCREMENTAL BUILD** |
-| **8** | Crystal (Seed + Growth) | 0 | ❌ Shape error on Codex build | — | — | **NEEDS INCREMENTAL BUILD** |
+| **3** | Hybrid (GatedRNN + Attention) | 3/3 | ✅ ALL PASS | 2.529 bpb (213 steps) | ~5.1 MB | **COMPLETE** |
+| **6** | Hive (Frozen + LoRA) | 1/3 | ✅ Step 1 PASS | 96.8% frozen, 545K trainable | — | **IN PROGRESS** |
+| **7** | Immune (Template Library) | 1/3 | ✅ Step 1 PASS | 17M params, ~295ms/step | — | **IN PROGRESS** |
+| **8** | Crystal (Seed + Growth) | 1/3 | ✅ Step 1 PASS | 17M params, ~295ms/step | — | **IN PROGRESS** |
 | **5** | Frankenstein (Best of all) | — | — | — | — | **AFTER ALL TESTED** |
 
 ---
@@ -83,9 +83,9 @@
 | **Codec** (dictionary + n-gram + transformer) | ✅ Working | Bigram embedding + unigram projection improves loss |
 | **Recursive** (shared weight block × N) | ✅ Working | 12× application of 1 block trains well at 512d |
 | **Hybrid** (GatedRNN + attention) | ✅ Working | 3 RNN + 6 attention layers — no degradation vs pure attention |
-| **Hive** (90% frozen + 10% LoRA) | ❌ NaN | Needs incremental build from baseline |
-| **Immune** (template library) | ❌ OOM | Needs smaller template count or H100 |
-| **Crystal** (seed + growth rules) | ❌ Shape error | Needs incremental build from baseline |
+| **Hive** (90% frozen + 10% LoRA) | ✅ Step 1 Working | 96.8% frozen, 545K trainable, trains on 4070 Super |
+| **Immune** (template library) | ✅ Step 1 Working | 17M params, loss dropping, ~295ms/step |
+| **Crystal** (seed + growth rules) | ✅ Step 1 Working | 17M params, loss dropping, ~295ms/step |
 
 ---
 
@@ -103,8 +103,8 @@ Key findings:
 
 ## Next Steps (Priority Order)
 
-1. **Finish Model 3** (1 more step — add warmdown + grad clip)
-2. **Build Models 6-8** incrementally from baseline
+1. ~~Finish Model 3~~ ✅ DONE (val_bpb 2.529)
+2. **Build Models 6-8 Step 2** (warmdown + grad clip + EMA)
 3. **Wire PolarQuant** into save/load pipeline
 4. **Apply for compute grant** with our model diversity as evidence
 5. **Scale up on H100** — test 12L/768d models
