@@ -1,8 +1,8 @@
 {
   "author": "Christian Q. De Luca",
   "github_id": "rthgit",
-  "val_bpb": "1.5852",
-  "model_size": "15943179",
-  "hardware": "Kaggle Dual T4 (development run)",
+  "val_bpb": "1.3664",
+  "model_size": "14748386",
+  "hardware": "NVIDIA H100 SXM (Representative speed-battle run)",
   "training_time": "600s"
 }

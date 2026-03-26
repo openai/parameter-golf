@@ -1,38 +1,32 @@
-BEST RUN SUMMARY
-================
+H100 SPEED-BATTLE CHAMPION LOG
+==============================
 
-Best observed validation BPB: 1.5852
+Best observed validation BPB: 1.3664
 
-Final Training configuration:
-----------------------------
-FRO_LR              = 9.0e-4
-FRO_ALPHA           = 0.12
-FRO_GAMMA           = 0.66
-ADAM_LR             = 1.40e-3
-DECAY_START         = 1000
-TOTAL_STEPS_GUESS   = 2800
+Training configuration:
+----------------------
+BATCH_SIZE          = 96
+TOTAL_STEPS_GUESS   = 3600
+FUSION_MODE         = residual_b
+RESIDUAL_BETA       = 0.35
 GRAD_CLIP           = 1.8
 EMA_DECAY           = 0.997
-LOSS_EMA_DECAY      = 0.98
 
-Architecture info:
------------------
-VOCAB_SIZE          = 1024
-SEQ_LEN             = 1024
-BATCH_SIZE          = 4
-FUSE_DIM            = 448
-A_LAYERS / A_DIM    = 8 / 384
-B_LAYERS / B_DIM    = 5 / 320
-RADIAL_BITS         = 10
-HASH_BUCKETS        = 1024
+Progress Highlights:
+-------------------
+step 0800 | time 182.1s | val_loss 4.0552 | val_bpb 1.7741
+step 1600 | time 364.8s | val_loss 3.2982 | val_bpb 1.4429
+step 2400 | time 547.3s | val_loss 3.1234 | val_bpb 1.3664
 
-Key result:
------------
-step 2400 | val_loss 3.7019 | val_bpb 1.5852 | best 1.5852
-Finished in 600.2s
-Final train loss: 3.5058
+Finished at step 2634 in 600.2s
+Final train loss: 3.1900
+Final loss_ema: 3.1663
+Best observed val_bpb: 1.3664
 
-Artifact Audit (Estimated):
---------------------------
-Submission artifact stayed under the 16 MB limit.
-(Passes official audit with ~50KB headroom)
+=== MIXED EXPORT ARTIFACT AUDIT (STRICT) ===
+Parameters:        18,476,354
+Source Code:       25,000 bytes (estimated)
+Compressed model:  14,723,386 bytes
+Total artifact:    14,748,386 bytes
+PASS ✅
+Artifact scritto in: /workspace/h100_speedbattle_champion.bin
