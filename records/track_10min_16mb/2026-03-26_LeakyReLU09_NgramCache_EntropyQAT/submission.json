@@ -1,0 +1,9 @@
+{
+  "name": "LeakyReLU(0.9)² + N-gram Eval Cache + Entropy-Reg QAT + Mixed Quant + GPTQ-lite + Score-First TTT",
+  "val_bpb": 0.9958,
+  "bytes_total": 14007046,
+  "blurb": "LeakyReLU(0.9)² activation + backward-looking 7-gram eval cache (alpha=0.2, score-first) + entropy-regularized QAT (halves quant gap) + mixed int5/int6 quantization (front3_back1_6_middle5) + per-row GPTQ-lite clip search + legal score-first TTT (3ep SGD, all blocks unfrozen). Built on PR #549 stack. 3-seed mean: 0.9958 (std 0.0017). All artifacts under 16MB, all eval under 10 min.",
+  "author": "lolrazh",
+  "github_id": "lolrazh",
+  "date": "2026-03-26"
+}
