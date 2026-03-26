@@ -335,14 +335,14 @@ def eval_val_sliding(
             x = torch.stack(x_list).to(device=device, dtype=torch.int64)
             y = torch.stack(y_list).to(device=device, dtype=torch.int64)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                logits = base_model.forward_logits(x)
+                logits, pe_delta = base_model.forward_logits(x, return_pe_delta=True)
             per_token_loss = F.cross_entropy(
                 logits.float().reshape(-1, logits.size(-1)), y.reshape(-1), reduction="none",
             ).reshape(len(batch_windows), seq_len)
             lp = F.log_softmax(logits.float(), dim=-1)
             ent = -(lp.exp() * lp).sum(dim=-1)
             tgt_p = lp.gather(-1, y.unsqueeze(-1)).squeeze(-1).exp()
-            all_pos, all_tgt, all_mp, all_H = [], [], [], []
+            all_pos, all_tgt, all_mp, all_H, all_pe = [], [], [], [], []
             for idx, (win_start, score_start) in enumerate(batch_windows):
                 scored_loss = per_token_loss[idx, score_start:]
                 total_loss_sum += scored_loss.to(torch.float64).sum()
@@ -354,7 +354,7 @@ def eval_val_sliding(
                 total_byte_count += token_bytes.to(torch.float64).sum()
                 pos = torch.arange(score_start, seq_len, dtype=torch.int64, device=device) + win_start + 1
                 all_pos.append(pos); all_tgt.append(vt_gpu[pos]); all_mp.append(tgt_p[idx, score_start:])
-                all_H.append(ent[idx, score_start:])
+                all_H.append(ent[idx, score_start:]); all_pe.append(pe_delta[idx, score_start:])
             ap = torch.cat(all_pos); at = torch.cat(all_tgt); amp = torch.cat(all_mp)
             aH = torch.cat(all_H)
             n = ap.shape[0]
@@ -370,12 +370,9 @@ def eval_val_sliding(
                 ng_p = (ng_pair[order][ph].float() / cc.float().clamp(min=1)).clamp(EPS, 1 - EPS)
                 ix = m.nonzero(as_tuple=True)[0]; best_ng[ix[has]] = ng_p[has]; found[ix[has]] = True
             alpha = 0.05 + 0.55 / (1.0 + torch.exp(-3.0 * (aH - 3.5)))
-            bh_safe = ap >= 2
-            if bh_safe.any():
-                bh_idx = (vt_gpu[(ap[bh_safe]-2).clamp(min=0)] * 92821 + vt_gpu[(ap[bh_safe]-1).clamp(min=0)]) % 2048
-                bh_norm = base_model.bigram_hash.table.weight[bh_idx].norm(dim=-1)
-                bh_conf = bh_norm / bh_norm.max().clamp(min=1e-8)
-                alpha[bh_safe] = alpha[bh_safe] * (1.0 - 0.3 * bh_conf)
+            aPE = torch.cat(all_pe)
+            pe_conf = aPE / aPE.max().clamp(min=1e-8)
+            alpha = alpha * (0.7 + 0.6 * pe_conf)
             mixed = torch.where(found, (1 - alpha) * amp + alpha * best_ng, amp)
             ng_loss_sum -= torch.log(mixed.clamp(min=1e-20)).to(torch.float64).sum()
             for order in _NG_ORDERS:
@@ -982,15 +979,18 @@ class GPT(nn.Module):
         logits = self._compute_logits(x)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
-    def forward_logits(self, input_ids: Tensor) -> Tensor:
+    def forward_logits(self, input_ids: Tensor, return_pe_delta: bool = False) -> Tensor | tuple[Tensor, Tensor]:
         x = self.tok_emb(input_ids) + self.bigram_hash(input_ids)
         x = self.smear_gate(x)
+        x_pre = x
         x = self.pre_enrich(x)
+        pe_delta = (x - x_pre).norm(dim=-1) if return_pe_delta else None
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         x = self._run_blocks(x, x0)
         x = self.final_norm(x)
-        return self._compute_logits(x)
+        logits = self._compute_logits(x)
+        return (logits, pe_delta) if return_pe_delta else logits
 
 
 # -----------------------------
