@@ -995,6 +995,8 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        if getattr(self, '_return_logits', False):
+            return logits.float().reshape(input_ids.shape[0], input_ids.shape[1], -1)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
@@ -1502,6 +1504,28 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_{quant_label}_{compress_label}_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # N-gram backoff eval (if enabled).
+    if int(os.environ.get("NGRAM_EVAL", "0")):
+        ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", "9"))
+        log0(f"ngram_eval:starting max_order={ngram_max_order}")
+        torch.cuda.synchronize()
+        t_ngram = time.perf_counter()
+        try:
+            from ngram_eval import eval_val_ngram
+            ng_val_loss, ng_val_bpb = eval_val_ngram(
+                args, base_model, model, rank, world_size, device, grad_accum_steps,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                max_order=ngram_max_order, log_fn=log0,
+            )
+            torch.cuda.synchronize()
+            log0(
+                f"ngram_eval_result val_loss:{ng_val_loss:.4f} val_bpb:{ng_val_bpb:.4f} "
+                f"eval_time:{1000.0 * (time.perf_counter() - t_ngram):.0f}ms"
+            )
+            log0(f"ngram_eval_result_exact val_loss:{ng_val_loss:.8f} val_bpb:{ng_val_bpb:.8f}")
+        except Exception as e:
+            log0(f"ngram_eval:FAILED {e}")
 
     if distributed:
         dist.destroy_process_group()
