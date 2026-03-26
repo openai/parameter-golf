@@ -1,8 +1,8 @@
 # Non-Record: 5L MLP4x + SlidingWindow + SWA + QAT (1xH100)
 
-## Score: val_bpb = 1.3827 (post-quant, sliding window eval)
+## Score: val_bpb = 1.3380 (post-quant, sliding window eval)
 
-Trained on 1xH100 80GB in 300 seconds (5-minute budget). 14.6MB artifact (int8+zlib). This is a **non-record submission** demonstrating an autonomous AI-driven exploration of 15+ experiments using the autoresearch framework.
+Trained on 1xH100 80GB in 600 seconds (10-minute budget). 14.5MB artifact (int8+zlib). This is a **non-record submission** demonstrating an autonomous AI-driven exploration of 20+ experiments using the autoresearch framework.
 
 ## Key Discovery: Width > Depth
 
@@ -59,14 +59,14 @@ Every token scored with near-full context (960+ tokens). Free -0.034 bpb improve
 
 ## Key Metrics
 
-- **val_bpb** (post-quant): **1.382720**
-- **val_bpb** (pre-quant): 1.382291
-- **quant_gap**: 0.000428
-- **artifact_bytes**: 14,621,542 (1.4MB headroom under 16MB)
+- **val_bpb** (post-quant): **1.337977**
+- **val_bpb** (pre-quant): 1.337463
+- **quant_gap**: 0.000514
+- **artifact_bytes**: 14,511,799 (1.5MB headroom under 16MB)
 - **model_params**: 15.5M
-- **training_steps**: 4,573
-- **training_time**: 300s (5 min)
-- **eval_time**: 236s (sliding window)
+- **training_steps**: 9,353
+- **training_time**: 600s (10 min)
+- **eval_time**: 227s (sliding window)
 - **peak_vram**: 13,339 MB
 - **GPU**: 1xH100 80GB HBM3
 
