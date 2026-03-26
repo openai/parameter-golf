@@ -244,7 +244,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 32))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     int6_last_n = int(os.environ.get("INT6_LAST_N", 0))  # all int5 (saves ~300KB vs int6 for last 2 blocks)
     ttt_temperature = float(os.environ.get("TTT_TEMPERATURE", 0.98))  # post-TTT temperature calibration
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
