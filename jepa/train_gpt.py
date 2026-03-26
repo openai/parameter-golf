@@ -956,7 +956,8 @@ def main() -> None:
     zeropower_via_newtonschulz5 = maybe_compile(zeropower_via_newtonschulz5, enabled=args.use_compile)
     train_model = maybe_compile(base_model, enabled=args.use_compile)
     if distributed:
-        model = DDP(train_model, device_ids=[local_rank], broadcast_buffers=False)
+        model = DDP(train_model, device_ids=[local_rank], broadcast_buffers=False,
+                    find_unused_parameters=True)
     else:
         model = train_model
 
