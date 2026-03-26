@@ -664,9 +664,6 @@ def _fake_quantize_int8(w: Tensor) -> Tensor:
 # Global flag toggled by training loop
 _qat_enabled = False
 
-# ProRes: global training step counter (arXiv:2603.05369, March 2026)
-_prores_step = 0
-_prores_total_steps = 1500  # total expected steps, set in main()
 
 
 class CastedLinear(nn.Linear):
@@ -796,8 +793,10 @@ class Block(nn.Module):
         layer_idx: int = 0,
     ):
         super().__init__()
-        self.layer_idx = layer_idx
         self.attn_norm = RMSNorm()
+        # ProRes: warmup schedule for this layer (arXiv:2603.05369)
+        self.register_buffer("_prores_step", torch.zeros(1), persistent=False)
+        self._prores_warmup = 100.0 + layer_idx * 80.0  # layer 0: 100, layer 9: 820
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.mlp = MLP(dim, mlp_mult)
@@ -808,12 +807,9 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        # ProRes: deeper layers warm up slower (arXiv:2603.05369)
-        prores_scale = 1.0
-        if self.training and _prores_total_steps > 0:
-            warmup_steps = 100 + self.layer_idx * 80  # layer 0: 100 steps, layer 9: 820 steps
-            prores_scale = min(1.0, _prores_step / max(warmup_steps, 1))
         attn_out = self.attn(self.attn_norm(x))
+        # ProRes: deeper layers warm up slower (arXiv:2603.05369)
+        prores_scale = (self._prores_step / self._prores_warmup).clamp(max=1.0) if self.training else 1.0
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out * prores_scale
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x)) * prores_scale
         return x
@@ -1224,8 +1220,9 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
-        global _prores_step
-        _prores_step = step
+        # Update ProRes step counter on all blocks
+        for block in base_model.blocks:
+            block._prores_step.fill_(float(step))
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
         # LAWA: collect checkpoints from last 20% of training for weight averaging
