@@ -1,6 +1,6 @@
-## EMA-GPU + 5-gram Eval Cache + Pre-Enrichment + XSA
+## EMA-GPU + Multi-Order N-gram Backoff + Pre-Enrichment + XSA
 
-**val_bpb: 1.0689** (5-gram n-gram cache) | 14.95 MB | 8xH100 SXM, 600s
+**val_bpb: 0.9784** (multi-order n-gram backoff 2-7, entropy-adaptive alpha) | 14.94 MB | 8xH100 SXM, 600s
 
 ---
 
@@ -8,15 +8,15 @@
 
 | Metric | Value |
 |---|---|
-| **N-gram eval val_bpb** | **1.0689** |
-| Sliding window val_bpb | 1.1476 |
-| Standard eval val_bpb (post-quant) | 1.1688 |
-| Pre-quant val_bpb | 1.1643 |
+| **N-gram eval val_bpb** | **0.9784** |
+| Sliding window val_bpb | 1.1478 |
+| Standard eval val_bpb (post-quant) | 1.1690 |
+| Pre-quant val_bpb | 1.1646 |
 | Quant gap | 0.004 |
-| Steps | 9,312 (64.4ms/step) |
+| Steps | 9,268 (64.7ms/step) |
 | Training time | 600s |
 | Peak memory | 13,058 MiB |
-| Artifact size | 14,948,991 bytes |
+| Artifact size | 14,942,971 bytes |
 | Model parameters | 25,254,992 |
 
 ---
@@ -43,27 +43,27 @@ Step time: **64.4ms** (vs 101ms before). Enables **9,312 steps** in 600s vs ~5,9
 
 ---
 
-### 5-gram Eval Cache (score-first, backward-looking)
+### Multi-Order N-gram Backoff (score-first, backward-looking)
 
-Fixed-weight hashed n-gram interpolation during sliding window eval. Concept credited to @deanbrr (PR #659), developed by PR #706 (@newjordan) and PR #727 (@Asukabot0).
+Multi-order n-gram backoff with entropy-adaptive alpha during sliding window eval. Concept credited to @deanbrr (PR #659), developed by PR #706 (@newjordan) and PR #727 (@Asukabot0).
 
 **Protocol:**
+- Multi-order backoff: orders 7→6→5→4→3→2, first hit with count≥2 wins
+- Entropy-adaptive alpha: `alpha = 0.05 + 0.55 * sigmoid(2 * (H - 4.0))`
+- High model entropy → trust n-gram more; low entropy → trust model
 - Cache built from already-scored tokens only (backward-looking)
 - Score-first: cache updated AFTER segment scoring
-- Fixed alpha=0.20: `p_final = 0.80 * p_model + 0.20 * p_ngram`
-- Single 5-gram order
-- Dual-array hash scheme: separate context count and pair count arrays (4M buckets each)
-- min_count=2 threshold
+- Dual-array hash scheme: separate context count and pair count arrays per order (4M buckets each)
 - Per-GPU independent cache, no cross-GPU sync
-- Hash table precomputed for all positions in single pass
-- Integrated into sliding window eval (single pass, ~5s n-gram overhead)
+- Hash tables precomputed for all orders in single pass
+- Integrated into sliding window eval (single pass)
 
 **Compliance:**
 - Score-first, backward-looking: n-gram counts built from previously scored tokens only
-- No oracle selection: alpha is fixed, independent of ground-truth
+- No oracle selection: alpha depends solely on model's own entropy, never on ground-truth
 - No cross-GPU sync: each GPU maintains its own independent cache
 
-**Improvement:** 1.1476 → 1.0689 = **-0.079 BPB**
+**Improvement:** 1.1478 → 0.9784 = **-0.169 BPB**
 
 ---
 
