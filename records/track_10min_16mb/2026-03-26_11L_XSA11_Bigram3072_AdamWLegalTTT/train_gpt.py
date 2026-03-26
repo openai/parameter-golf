@@ -43,8 +43,6 @@ def _resolve_flash_attn_3():
     sm = f"sm{major}{minor}"
     if mode in {"1", "on", "true", "force", "forced"}:
         return flash_attn_3_func, f"forced_{sm}"
-    # The installed FA3 wheel exposes Hopper kernels; newer architectures like sm120
-    # can import successfully but still fail at runtime with "no kernel image".
     if major != 9:
         return None, f"auto_disabled_{sm}"
     return flash_attn_3_func, sm
@@ -126,8 +124,6 @@ class Hyperparameters:
     ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 0.0))
     target_mb = float(os.environ.get("TARGET_MB", 15.90))
 
-# --- Batched Newton-Schulz orthogonalization ---
-
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
     """Batched Newton-Schulz orthogonalization. G: (B,M,N) or (M,N)."""
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -148,8 +144,6 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) ->
     if was_2d:
         X = X.squeeze(0)
     return X
-
-# --- Parallel Muon optimizer ---
 
 class Muon(torch.optim.Optimizer):
     """Parallel Muon: post-backward reduce-scatter -> local NS5 -> all-gather.
@@ -192,7 +186,6 @@ class Muon(torch.optim.Optimizer):
                     'full_update': torch.zeros(padded_B, *tail, device=dev, dtype=torch.bfloat16),
                     'scale': max(1, p.shape[-2] / p.shape[-1]) ** 0.5,
                 })
-        # Sort by size descending -- launch biggest reduce-scatters first
         self._bank_meta.sort(key=lambda m: -m['p'].numel())
         self._built = True
 
@@ -292,8 +285,6 @@ class Muon(torch.optim.Optimizer):
 
         return loss
 
-# --- Tokenizer evaluation helpers ---
-
 def build_sentencepiece_luts(
     sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
 ) -> tuple[Tensor, Tensor, Tensor]:
@@ -384,8 +375,6 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
-
-# --- Quantization helpers ---
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
@@ -500,8 +489,6 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         out[name] = out_t
     return out
 
-# --- Data loading ---
-
 def load_data_shard(file: Path) -> Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
     token_bytes = np.dtype("<u2").itemsize
@@ -556,8 +543,6 @@ class DistributedTokenLoader:
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
-
-# --- Transformer modules ---
 
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
@@ -616,8 +601,6 @@ class Rotary(nn.Module):
             self._seq_len_cached = seq_len
         cos = self._cos_cached.to(dtype=dtype)
         sin = self._sin_cached.to(dtype=dtype)
-        # Score-first TTT alternates inference-mode scoring with gradient-based adaptation.
-        # Clone cached rotary tensors before autograd use so inference tensors are not reused in backward.
         if torch.is_grad_enabled():
             cos = cos.clone()
             sin = sin.clone()
@@ -654,12 +637,10 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
-        # No CastedLinear -- weights come from banks
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rope_dims = 0  # set by GPT.__init__ for partial RoPE
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
         self.use_xsa = False  # set by GPT.__init__ for deep layers only
-        # Gated attention and value residual (non-banked small params)
         self.gated_attention = gated_attention
         if gated_attention:
             self.attn_gate = nn.Linear(dim, num_heads, bias=True)
@@ -712,7 +693,6 @@ class CausalSelfAttention(nn.Module):
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self.gated_attention:
-            # gate shape: (bsz, seqlen, num_heads) -> (bsz, seqlen, num_heads, 1) for B,T,H,D layout
             gate = torch.sigmoid(self.attn_gate(x)).unsqueeze(-1)
             y = y * gate
         y = y.reshape(bsz, seqlen, dim)
@@ -770,7 +750,6 @@ class ValueEmbedding(nn.Module):
 class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
-        # No CastedLinear -- weights come from banks
     def forward(self, x: Tensor, up_w: Tensor, down_w: Tensor) -> Tensor:
         x = F.leaky_relu(F.linear(x, up_w.to(x.dtype)), negative_slope=0.5)
         return F.linear(x.square(), down_w.to(x.dtype))
@@ -862,7 +841,6 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        # Parameter banks: contiguous 3D tensors for batched optimizer
         head_dim = model_dim // num_heads
         kv_dim = num_kv_heads * head_dim
         mlp_dim = int(mlp_mult * model_dim)
@@ -923,7 +901,6 @@ class GPT(nn.Module):
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
         n = self.num_layers
         proj_scale = 1.0 / math.sqrt(2 * n)
-        # Init banks: orthogonal, with proj layers scaled down and out/down zero-init
         for i in range(n):
             nn.init.orthogonal_(self.qo_bank.data[i], gain=1.0)        # Q
             nn.init.zeros_(self.qo_bank.data[n + i])                    # Out (zero init)
@@ -931,10 +908,8 @@ class GPT(nn.Module):
             nn.init.orthogonal_(self.kv_bank.data[n + i], gain=1.0)    # V
             nn.init.orthogonal_(self.mlp_up_bank.data[i], gain=1.0)    # MLP up
             nn.init.zeros_(self.mlp_down_bank.data[i])                  # MLP down (zero init)
-            # Scale proj layers (out_proj and mlp_down are "proj" layers)
             self.qo_bank.data[n + i].mul_(proj_scale)
             self.mlp_down_bank.data[i].mul_(proj_scale)
-        # Init remaining nn.Linear modules (bigram proj, mtp heads, lm_head)
         for name, module in self.named_modules():
             if isinstance(module, nn.Linear):
                 if getattr(module, "_zero_init", False):
@@ -1044,8 +1019,6 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
-# --- Sliding window evaluation ---
-
 def eval_val_sliding(
     args: Hyperparameters,
     base_model: nn.Module,
@@ -1128,12 +1101,8 @@ def eval_val_sliding_ttt(
     seq_len = args.train_seq_len
     total_tokens = val_tokens.numel() - 1
     ttt_chunk = args.ttt_chunk_tokens
-
-    # Pre-compute all window starts
     window_starts = [ws for ws in range(0, total_tokens, stride)
                      if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0]
-
-    # Assign each window to a chunk based on the first token it scores
     num_chunks = (total_tokens + ttt_chunk - 1) // ttt_chunk
     chunk_windows: list[list[int]] = [[] for _ in range(num_chunks)]
     for ws in window_starts:
@@ -1152,8 +1121,6 @@ def eval_val_sliding_ttt(
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
-
-    # Freeze first N blocks
     frozen_block_ids = set(range(min(args.ttt_freeze_blocks, len(base_model.blocks))))
     ttt_params = []
     for name, p in base_model.named_parameters():
@@ -1187,8 +1154,6 @@ def eval_val_sliding_ttt(
             continue
         chunk_start = ci * ttt_chunk
         chunk_end = min((ci + 1) * ttt_chunk, total_tokens)
-
-        # --- Phase 1: SCORE this chunk's windows (inference_mode) ---
         my_s = (len(windows) * rank) // world_size
         my_e = (len(windows) * (rank + 1)) // world_size
         my_windows = windows[my_s:my_e]
@@ -1224,8 +1189,6 @@ def eval_val_sliding_ttt(
                     tb = base_bytes_lut[tgt].to(torch.float64)
                     tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                     byte_count += tb.sum()
-
-        # --- Phase 2: TRAIN on this chunk (already scored = legal) ---
         is_last_chunk = (ci == num_chunks - 1)
         if not is_last_chunk and args.ttt_epochs > 0:
             base_model.train()
@@ -1280,9 +1243,6 @@ def eval_val_sliding_ttt(
     log0(f"ttt_sliding:done val_loss={val_loss:.6f} val_bpb={val_bpb:.6f} "
          f"elapsed={time.perf_counter() - t0:.1f}s")
     return val_loss, val_bpb
-
-
-# --- GPTQ-lite int6 quantization ---
 
 def _classify_param(name: str) -> str:
     if "tok_emb" in name or "lm_head" in name:
@@ -1340,7 +1300,6 @@ def _rebank_state_dict(sd: dict[str, Tensor], num_layers: int, template_sd: dict
     """Convert individual 2D tensors back into 3D bank tensors."""
     out: dict[str, Tensor] = {}
     n = num_layers
-    # Reconstruct banks from individual weight keys
     qo_slices = [None] * (2 * n)
     kv_slices = [None] * (2 * n)
     up_slices = [None] * n
@@ -1503,12 +1462,9 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
             out[name] = (q.float() * float(s.item())).to(orig_dtype)
     return out
 
-# --- Training ---
-
 def main() -> None:
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    # zeropower_via_newtonschulz5 runs eagerly with bmm -- do NOT compile
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -1605,7 +1561,6 @@ def main() -> None:
         gated_attention=args.gated_attention,
         value_residual=args.value_residual,
     ).to(device).bfloat16()
-    # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
     base_model.kv_bank.data = base_model.kv_bank.data.float()
     base_model.mlp_up_bank.data = base_model.mlp_up_bank.data.float()
@@ -1614,16 +1569,8 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
-    # and non-bank grads are manually all-reduced before Adam steps.
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model = compiled_model
-
-    # Optimizer split:
-    # - 4 parameter banks -> Muon (batched Newton-Schulz)
-    # - token embedding -> Adam
-    # - scalars/control tensors -> Adam
-    # - bigram proj, mtp heads, VE proj -> Adam (small matrix params not worth banking)
     matrix_params = [
         base_model.qo_bank, base_model.kv_bank,
         base_model.mlp_up_bank, base_model.mlp_down_bank,
@@ -1675,7 +1622,6 @@ def main() -> None:
         weight_decay=args.adam_wd,
         fused=True,
     )
-    # Non-bank params that need manual all-reduce (replicated across GPUs)
     replicated_params = list(optimizer_tok.param_groups[0]["params"])
     for pg in optimizer_tok.param_groups[1:]:
         replicated_params.extend(pg["params"])
@@ -1740,7 +1686,6 @@ def main() -> None:
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
-            # All-reduce all grads for warmup (simple, not optimized)
             if distributed:
                 for p in base_model.parameters():
                     if p.grad is not None:
@@ -1820,10 +1765,7 @@ def main() -> None:
                 group["lr"] = group["base_lr"] * scale
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
-        # === 3-phase overlapped optimizer step ===
-        # Phase 1: Launch async reduce-scatter for banks (biggest first)
         optimizer_muon.launch_reduce_scatters()
-        # Phase 2: All-reduce non-bank grads + step Adam (while bank RS is in-flight)
         if distributed:
             for p in replicated_params:
                 if p.grad is not None:
@@ -1832,10 +1774,8 @@ def main() -> None:
         optimizer_scalar.step()
         if optimizer_head is not None:
             optimizer_head.step()
-        # Phase 3: Wait for RS, local NS5, all-gather (banks processed last)
         optimizer_muon.step()
         zero_grad_all()
-        # EMA update
         with torch.no_grad():
             for name, t in base_model.state_dict().items():
                 ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
@@ -1872,7 +1812,6 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
-    # Apply weight averaging
     if args.lawa_enabled and len(lawa_queue) > 1:
         log0(f"lawa:applying LAWA averaging k={len(lawa_queue)}")
         current_state = base_model.state_dict()
@@ -1911,7 +1850,6 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
-    # Unbank 3D tensors into individual 2D tensors for quantization
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
     quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"})
@@ -1938,7 +1876,6 @@ def main() -> None:
         map_location="cpu",
     )
     deq_unbanked = dequantize_mixed_int6(quant_state["w"], quant_state["m"], unbanked_sd)
-    # Re-bank the dequantized tensors
     deq_state = _rebank_state_dict(deq_unbanked, args.num_layers, sd_cpu)
     eval_model = GPT(
         vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
@@ -2008,7 +1945,6 @@ def main() -> None:
         )
         log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
         log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-    # Legal score-first TTT (PR #461 recipe)
     if args.ttt_enabled:
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()

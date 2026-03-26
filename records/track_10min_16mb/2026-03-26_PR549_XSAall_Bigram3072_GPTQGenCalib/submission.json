@@ -1,9 +1,0 @@
-{
-  "name": "Candidate: PR549 + XSA-all + BigramHash3072 + Budget-Aware Export",
-  "val_bpb": 0.0,
-  "bytes_total": 0,
-  "blurb": "Draft candidate built from merged PR #549. Adds XSA-all defaults, BigramHash(3072,112), budget-aware export pruning, and a legal score-first TTT optimizer switch. Placeholder metadata until fresh runs are completed.",
-  "author": "TBD",
-  "github_id": "TBD",
-  "date": "2026-03-26"
-}

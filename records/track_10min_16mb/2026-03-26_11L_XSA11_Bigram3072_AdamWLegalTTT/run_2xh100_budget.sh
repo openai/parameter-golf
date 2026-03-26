@@ -1,10 +1,6 @@
-#!/usr/bin/env bash
 set -euo pipefail
 
-# Approximate the official 8xH100 / 10-minute compute budget on 2xH100 by
-# keeping the same global batch and extending the train wallclock to 40 minutes.
-
-export RUN_ID="${RUN_ID:-pr549_xsa11_bigram3072_2xh100}"
+export RUN_ID="${RUN_ID:-xsa11_bigram3072_2xh100}"
 export SEED="${SEED:-1337}"
 
 export BIGRAM_VOCAB_SIZE="${BIGRAM_VOCAB_SIZE:-3072}"

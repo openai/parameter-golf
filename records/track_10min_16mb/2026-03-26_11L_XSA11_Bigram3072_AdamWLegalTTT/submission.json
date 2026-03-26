@@ -1,0 +1,9 @@
+{
+  "name": "11L XSA11 + BigramHash3072 + AdamW Legal TTT",
+  "val_bpb": 1.11565196,
+  "bytes_total": 15983339,
+  "blurb": "11-layer 512d transformer with full-depth XSA, BigramHash(3072,112), Parameter Banking + Parallel Muon, and score-first AdamW legal TTT.",
+  "author": "someone114514",
+  "github_id": "someone114514",
+  "date": "2026-03-26"
+}
