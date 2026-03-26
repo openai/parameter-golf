@@ -1,0 +1,13 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-26",
+  "name": "Record: 10L + Multi-Order N-gram Backoff + Matrix LR 0.03 (val_bpb=0.9076)",
+  "author": "bigbag",
+  "github": "bigbag",
+  "seed_results": {
+    "42": {"val_loss": 1.53248692, "val_bpb": 0.90762747, "artifact_bytes": 15320749}
+  },
+  "mean_val_loss": 1.53248692,
+  "mean_val_bpb": 0.90762747,
+  "code_bytes": 68444
+}
