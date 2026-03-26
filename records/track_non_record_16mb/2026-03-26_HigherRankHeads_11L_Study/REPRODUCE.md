@@ -5,6 +5,7 @@ The study runner is self-contained:
 - it ensures the full `fineweb10B_sp1024` dataset is present (`80` training shards)
 - it installs or reuses a Hopper-only FA3 wheel before training
 - it runs the full 7-variant family on the intended fast path
+- it copies the fresh per-run console logs for the rerun into `logs/` inside this folder
 
 ## Run The Full Family
 
@@ -24,5 +25,3 @@ This reruns the full family:
 Expected budget:
 - `7` runs
 - about `70` minutes total on `8xH100`
-
-The runner copies per-run logs into `logs/` inside this folder.
