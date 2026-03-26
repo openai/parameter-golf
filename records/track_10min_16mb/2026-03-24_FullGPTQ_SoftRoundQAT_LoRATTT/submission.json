@@ -1,0 +1,45 @@
+{
+  "track": "10min_16mb",
+  "val_bpb": null,
+  "val_loss": null,
+  "date": "2026-03-24",
+  "author": "rajatsharma",
+  "title": "Full GPTQ + Soft-Round QAT + LoRA TTT + Entropy-Coded Compression",
+  "base": "PR #549 (LeakyReLU + Legal TTT + Parallel Muon, 1.1194 BPB)",
+  "improvements": [
+    "Full GPTQ quantization (Hessian-guided column-by-column error compensation)",
+    "Soft-Round QAT (differentiable rounding with temperature annealing)",
+    "LoRA-based TTT (rank-8 adapters on Q/K/V/O with AdamW)",
+    "Entropy-coded compression (Huffman+LZMA adaptive selection)"
+  ],
+  "architecture": {
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 2,
+    "mlp_mult": 3,
+    "activation": "LeakyReLU(0.5)^2",
+    "skip_connections": "u-net",
+    "xsa_last_n": 4,
+    "rope_dims": 16,
+    "bigram_vocab_size": 3072,
+    "value_embedding": true
+  },
+  "training": {
+    "iterations": 4600,
+    "seq_len": 1024,
+    "batch_size": 64,
+    "optimizer": "Muon + AdamW",
+    "ema_decay": 0.95,
+    "late_qat": true,
+    "soft_round": true
+  },
+  "evaluation": {
+    "ttt_mode": "lora",
+    "ttt_lora_rank": 8,
+    "ttt_epochs": 3,
+    "ttt_chunk_tokens": 32768
+  },
+  "seeds": [],
+  "notes": "Values to be populated after 8xH100 runs."
+}
