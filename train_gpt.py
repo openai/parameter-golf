@@ -894,67 +894,79 @@ def eval_val_sliding(
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
 class NgramCache:
-    """multi-order n-gram cache using python dicts for zero-collision lookups.
-    keys are tuples of context tokens, values are {next_token: count} dicts."""
+    """n-gram cache matching PR #753/#769/#779: two flat uint32 arrays per order
+    (ctx_counts, full_counts). hash context and full n-gram (context+target) separately."""
+    PRIMES = [np.uint64(p) for p in [36313, 27191, 51647, 81929, 131071, 174763, 233017]]
 
-    def __init__(self, max_order: int = 5, min_order: int = 5,
-                 min_count: int = 2, vocab_size: int = 1024, **kwargs):
+    def __init__(self, max_order: int = 7, min_order: int = 2, num_buckets: int = 4194304,
+                 min_count: int = 2, **kwargs):
         self.max_order = max_order
         self.min_order = min_order
+        self.num_buckets = num_buckets
         self.min_count = min_count
-        self.vocab_size = vocab_size
+        self.mask = np.uint64(num_buckets - 1)
         self.num_orders = max_order - min_order + 1
-        # tables[oi] = {context_tuple: {token: count}}
-        self.tables: list[dict[tuple, dict[int, int]]] = [{} for _ in range(self.num_orders)]
+        # ~32MB per order (4M * 4 bytes * 2 arrays) = ~192MB for 6 orders
+        self.ctx_counts = [np.zeros(num_buckets, dtype=np.uint32) for _ in range(self.num_orders)]
+        self.full_counts = [np.zeros(num_buckets, dtype=np.uint32) for _ in range(self.num_orders)]
 
-    def score_and_update_sequential(self, token_ids: np.ndarray,
-                                     log_fn=None) -> tuple[np.ndarray, np.ndarray]:
-        """truly sequential score-first with exact context matching (no hash collisions)."""
-        n = len(token_ids) - 1
-        ngram_prob_target = np.zeros(n, dtype=np.float64)
-        has_ngram = np.zeros(n, dtype=np.bool_)
-        tokens = token_ids.tolist()  # python list for fast slicing
-        tables = self.tables
-        min_count = self.min_count
-        min_order = self.min_order
-        max_order = self.max_order
+    def lookup(self, val_np: np.ndarray, start: int, end: int) -> tuple[np.ndarray, np.ndarray]:
+        """score positions [start, end). returns (p_ngram, has_match) for the segment."""
+        seg_len = end - start
+        p_ngram = np.zeros(seg_len, dtype=np.float64)
+        has_match = np.zeros(seg_len, dtype=np.bool_)
+        mask = self.mask
+        primes = self.PRIMES
+        # backoff: highest order first
+        for oi in range(self.num_orders - 1, -1, -1):
+            order = self.min_order + oi
+            cw = order - 1
+            first_valid = max(cw, start) - start  # first position in segment with enough context
+            n_pos = seg_len - first_valid
+            if n_pos <= 0:
+                continue
+            abs_s = start + first_valid
+            # context hash
+            ctx_hash = np.zeros(n_pos, dtype=np.uint64)
+            for k in range(cw):
+                t = val_np[abs_s - cw + k:abs_s - cw + k + n_pos].astype(np.uint64)
+                ctx_hash ^= t * np.uint64(primes[k])
+            ctx_key = (ctx_hash & mask).astype(np.int64)
+            # full hash: context + target
+            targets = val_np[abs_s + 1:abs_s + 1 + n_pos].astype(np.uint64)
+            full_key = ((ctx_hash ^ (targets * np.uint64(primes[cw]))) & mask).astype(np.int64)
+            # lookup
+            ctx_c = self.ctx_counts[oi][ctx_key]
+            full_c = self.full_counts[oi][full_key]
+            valid = (ctx_c >= self.min_count) & (full_c > 0) & ~has_match[first_valid:first_valid + n_pos]
+            if valid.any():
+                idx = np.nonzero(valid)[0]
+                p_ngram[first_valid + idx] = np.minimum(full_c[idx], ctx_c[idx]).astype(np.float64) / ctx_c[idx].astype(np.float64)
+                has_match[first_valid + idx] = True
+        return p_ngram, has_match
 
-        for pos in range(n):
-            target = tokens[pos + 1]
-
-            # score: try highest order first, backoff
-            for order in range(max_order, min_order - 1, -1):
-                ctx_len = order - 1
-                if pos < ctx_len:
-                    continue
-                oi = order - min_order
-                ctx = tuple(tokens[pos - ctx_len + 1:pos + 1])
-                bucket = tables[oi].get(ctx)
-                if bucket is not None:
-                    total = sum(bucket.values())
-                    if total >= min_count:
-                        ngram_prob_target[pos] = bucket.get(target, 0) / total
-                        has_ngram[pos] = True
-                        break
-
-            # update all orders AFTER scoring
-            for order in range(min_order, max_order + 1):
-                ctx_len = order - 1
-                if pos < ctx_len:
-                    continue
-                oi = order - min_order
-                ctx = tuple(tokens[pos - ctx_len + 1:pos + 1])
-                bucket = tables[oi].get(ctx)
-                if bucket is None:
-                    tables[oi][ctx] = {target: 1}
-                else:
-                    bucket[target] = bucket.get(target, 0) + 1
-
-            if log_fn and (pos + 1) % 10_000_000 == 0:
-                pct_hit = has_ngram[:pos+1].mean() * 100
-                log_fn(f"ngram: {pos + 1}/{n} tokens, hit_rate={pct_hit:.1f}%")
-
-        return ngram_prob_target, has_ngram
+    def update(self, val_np: np.ndarray, start: int, end: int) -> None:
+        """update cache with tokens from [start, end)."""
+        seg_len = end - start
+        mask = self.mask
+        primes = self.PRIMES
+        for oi in range(self.num_orders):
+            order = self.min_order + oi
+            cw = order - 1
+            first_valid = max(cw, start) - start
+            n_pos = seg_len - first_valid
+            if n_pos <= 0:
+                continue
+            abs_s = start + first_valid
+            ctx_hash = np.zeros(n_pos, dtype=np.uint64)
+            for k in range(cw):
+                t = val_np[abs_s - cw + k:abs_s - cw + k + n_pos].astype(np.uint64)
+                ctx_hash ^= t * np.uint64(primes[k])
+            ctx_key = (ctx_hash & mask).astype(np.int64)
+            targets = val_np[abs_s + 1:abs_s + 1 + n_pos].astype(np.uint64)
+            full_key = ((ctx_hash ^ (targets * np.uint64(primes[cw]))) & mask).astype(np.int64)
+            np.add.at(self.ctx_counts[oi], ctx_key, 1)
+            np.add.at(self.full_counts[oi], full_key, 1)
 
 
 def eval_val_ngram(
@@ -970,23 +982,26 @@ def eval_val_ngram(
     eval_seq_len: int,
     stride: int,
     batch_seqs: int = 32,
-    ngram_order: int = 5,
+    ngram_order: int = 7,
     ngram_min_order: int = 2,
     ngram_buckets: int = 4194304,
     ngram_min_count: int = 2,
     fixed_alpha: float = 0.2,
-    ent_base: float = 0.0,
-    ent_range: float = 0.0,
+    ent_base: float = 0.05,
+    ent_range: float = 0.55,
     ent_scale: float = 2.0,
     ent_thresh: float = 4.0,
     log_fn=None,
 ) -> tuple[float, float]:
-    """sliding window eval with n-gram cache mixing. chunked score-first."""
+    """sliding window eval with n-gram cache, matching PR #753/#769/#779.
+    score-first: for each window, compute neural logits, lookup cache, mix, then update."""
     total_tokens = val_tokens.numel() - 1
     seq_len = eval_seq_len
     vocab_size = args.vocab_size
+    val_np = val_tokens[:total_tokens + 1].numpy()
+    adaptive = ent_range > 0
 
-    # step 1: neural sliding window (distributed)
+    # distribute windows across ranks
     window_starts = [ws for ws in range(0, total_tokens, stride)
                      if min(ws + seq_len, total_tokens) - ws >= 1]
     total_windows = len(window_starts)
@@ -996,15 +1011,15 @@ def eval_val_ngram(
 
     model.eval()
     compiled_logits = torch.compile(model.forward_logits, dynamic=False, fullgraph=True)
+    cache = NgramCache(max_order=ngram_order, min_order=ngram_min_order,
+                       num_buckets=ngram_buckets, min_count=ngram_min_count)
 
-    # per-token arrays
-    token_neural_nll = np.zeros(total_tokens, dtype=np.float64)
-    token_neural_entropy = np.zeros(total_tokens, dtype=np.float64)
-    token_neural_prob_target = np.zeros(total_tokens, dtype=np.float64)
-    token_bytes_arr = np.zeros(total_tokens, dtype=np.float64)
-    token_scored = np.zeros(total_tokens, dtype=np.float64)
-
-    all_tok_np = val_tokens[:total_tokens + 1].numpy()
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    loss_sum_neural = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    ngram_hits = 0
+    ngram_total = 0
     base_bytes_cpu = base_bytes_lut.cpu()
     has_space_cpu = has_leading_space_lut.cpu()
     is_boundary_cpu = is_boundary_token_lut.cpu()
@@ -1026,94 +1041,66 @@ def eval_val_ngram(
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 logits = compiled_logits(x_batch)
             logits_f = logits.float()
-            probs = torch.softmax(logits_f, dim=-1)
-            log_probs = torch.log_softmax(logits_f, dim=-1)
-            entropy = -(probs * log_probs).sum(dim=-1)
-            nll = F.cross_entropy(logits_f.reshape(-1, vocab_size), y_batch.reshape(-1),
-                                  reduction='none').reshape(bsz, seq_len)
-            prob_target = probs.gather(2, y_batch.unsqueeze(-1)).squeeze(-1)
-
-            nll_cpu = nll.cpu().numpy().astype(np.float64)
-            ent_cpu = entropy.cpu().numpy().astype(np.float64)
-            pt_cpu = prob_target.cpu().numpy().astype(np.float64)
-            y_cpu = y_batch.cpu()
-            x_cpu = x_batch.cpu()
+            probs_all = torch.softmax(logits_f, dim=-1)
+            log_probs_all = torch.log_softmax(logits_f, dim=-1)
 
             for i, ws in enumerate(batch_ws):
                 wlen = wlens[i]
                 s = 0 if ws == 0 else max(wlen - stride, 0)
-                gsl = slice(ws + s, ws + wlen)
-                sl = slice(s, wlen)
-                token_neural_nll[gsl] = nll_cpu[i, sl]
-                token_neural_entropy[gsl] = ent_cpu[i, sl]
-                token_neural_prob_target[gsl] = pt_cpu[i, sl]
-                token_scored[gsl] = 1.0
-                tgt_ids = y_cpu[i, s:wlen]
-                prev_ids = x_cpu[i, s:wlen]
+                seg_len = wlen - s
+                abs_start = ws + s
+                abs_end = ws + wlen
+
+                # neural prob of target
+                seg_targets = y_batch[i, s:wlen]
+                model_p = probs_all[i, s:wlen].gather(1, seg_targets.unsqueeze(1)).squeeze(1).cpu().numpy().astype(np.float64)
+                seg_nll_neural = F.cross_entropy(logits_f[i, s:wlen], seg_targets, reduction='none').cpu().numpy().astype(np.float64)
+
+                # n-gram: lookup THEN update (score-first)
+                p_ngram, has_match = cache.lookup(val_np, abs_start, abs_end)
+                cache.update(val_np, abs_start, abs_end)
+
+                # alpha
+                if adaptive:
+                    seg_ent = (-(probs_all[i, s:wlen] * log_probs_all[i, s:wlen]).sum(dim=-1)).cpu().numpy()
+                    sig = 1.0 / (1.0 + np.exp(-ent_scale * (seg_ent - ent_thresh)))
+                    alpha = ent_base + ent_range * sig
+                else:
+                    alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
+
+                # mix
+                blended_p = model_p.copy()
+                if has_match.any():
+                    m = has_match
+                    blended_p[m] = (1.0 - alpha[m]) * model_p[m] + alpha[m] * p_ngram[m]
+                blended_p = np.maximum(blended_p, 1e-30)
+                seg_nll = -np.log(blended_p)
+
+                loss_sum += float(seg_nll.sum())
+                loss_sum_neural += float(seg_nll_neural.sum())
+                token_count += float(seg_len)
+                ngram_hits += int(has_match.sum())
+                ngram_total += seg_len
+
+                # bytes
+                tgt_ids = seg_targets.cpu()
+                prev_ids = x_batch[i, s:wlen].cpu()
                 tb = base_bytes_cpu[tgt_ids].to(torch.float64)
                 tb += (has_space_cpu[tgt_ids] & ~is_boundary_cpu[prev_ids]).to(torch.float64)
-                token_bytes_arr[gsl] = tb.numpy()
+                byte_count += float(tb.sum())
 
-    # also report neural-only sliding window BPB
     if dist.is_available() and dist.is_initialized():
-        for arr in [token_neural_nll, token_neural_entropy, token_neural_prob_target,
-                    token_bytes_arr, token_scored]:
-            t = torch.from_numpy(arr).to(device=device)
+        for t in [loss_sum, loss_sum_neural, token_count, byte_count]:
             dist.all_reduce(t, op=dist.ReduceOp.SUM)
-            arr[:] = t.cpu().numpy()
 
-    scored_mask = token_scored > 0.5
-    sw_only_loss = float(token_neural_nll[scored_mask].sum()) / float(scored_mask.sum())
-    sw_only_bpb = (sw_only_loss / math.log(2.0)) * (float(scored_mask.sum()) / float(token_bytes_arr[scored_mask].sum()))
+    val_loss = (loss_sum / token_count).item()
+    val_loss_neural = (loss_sum_neural / token_count).item()
+    bpb = (val_loss / math.log(2.0)) * (token_count.item() / byte_count.item())
+    bpb_neural = (val_loss_neural / math.log(2.0)) * (token_count.item() / byte_count.item())
+    hit_rate = ngram_hits / max(ngram_total, 1) * 100
     if log_fn:
-        log_fn(f"neural_only_sw val_loss:{sw_only_loss:.4f} val_bpb:{sw_only_bpb:.4f}")
-
-    # step 2: n-gram (chunked, vectorized)
-    cache = NgramCache(max_order=ngram_order, min_order=ngram_min_order,
-                       num_buckets=ngram_buckets, min_count=ngram_min_count,
-                       vocab_size=vocab_size)
-    if log_fn:
-        log_fn(f"ngram: processing {total_tokens} tokens sequentially...")
-    ngram_prob_target, has_ngram = cache.score_and_update_sequential(all_tok_np, log_fn=log_fn)
-    if log_fn:
-        log_fn(f"ngram: done, {has_ngram.sum()} positions with n-gram predictions")
-
-    # step 3: vectorized mixing
-    if log_fn:
-        dbg_mask = scored_mask & has_ngram
-        ng_pt = ngram_prob_target[dbg_mask]
-        log_fn(f"ngram_stats: mean_prob={ng_pt.mean():.6f} median={np.median(ng_pt):.6f} "
-               f"nonzero={np.count_nonzero(ng_pt)}/{len(ng_pt)}")
-    if ent_range > 0:
-        alpha_all = ent_base + ent_range / (1.0 + np.exp(-ent_scale * (token_neural_entropy - ent_thresh)))
-    else:
-        alpha_all = np.full(total_tokens, fixed_alpha, dtype=np.float64)
-    mixed_nll = np.copy(token_neural_nll)
-    # mix wherever n-gram cache fires (total >= min_count), even if target count is 0
-    # when p_ngram[target]=0, mixing redistributes mass: mixed = (1-α)*p_neural[target]
-    # this helps when neural model is overconfident on wrong tokens
-    mix_mask = scored_mask & has_ngram
-    if log_fn:
-        nz = np.count_nonzero(ngram_prob_target[mix_mask]) if mix_mask.any() else 0
-        log_fn(f"ngram_mix: {mix_mask.sum()} positions mixed "
-               f"({nz} with nonzero target prob, {mix_mask.sum()-nz} with zero target prob)")
-    if mix_mask.any():
-        p_neural_mix = token_neural_prob_target[mix_mask]
-        p_ngram_mix = ngram_prob_target[mix_mask]
-        alpha_mix = alpha_all[mix_mask]
-        p_mixed = (1.0 - alpha_mix) * p_neural_mix + alpha_mix * p_ngram_mix
-        mixed_nll[mix_mask] = -np.log(np.maximum(p_mixed, 1e-20))
-
-    loss_sum = float(mixed_nll[scored_mask].sum())
-    token_count = float(scored_mask.sum())
-    byte_count = float(token_bytes_arr[scored_mask].sum())
-
-    if token_count > 0:
-        val_loss = loss_sum / token_count
-        bpb = (val_loss / math.log(2.0)) * (token_count / byte_count)
-    else:
-        val_loss, bpb = 0.0, 0.0
-
+        log_fn(f"neural_only_sw val_loss:{val_loss_neural:.4f} val_bpb:{bpb_neural:.4f}")
+        log_fn(f"ngram_hit_rate:{hit_rate:.1f}% ({ngram_hits}/{ngram_total})")
     model.train()
     return val_loss, bpb
 
@@ -1734,13 +1721,13 @@ def main() -> None:
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     sw_seq_len = effective_eval_seq_len
     if ngram_enabled:
-        ngram_order = int(os.environ.get("NGRAM_ORDER", "5"))
+        ngram_order = int(os.environ.get("NGRAM_ORDER", "7"))
         ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
         ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
         ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
-        ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.2"))  # PR #769 value
-        ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.0"))  # 0 = fixed alpha
-        ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.0"))
+        ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.2"))
+        ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.05"))
+        ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.55"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
         ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
         torch.cuda.synchronize()
