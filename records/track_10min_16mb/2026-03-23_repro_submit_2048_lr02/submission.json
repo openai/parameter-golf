@@ -1,0 +1,12 @@
+{
+  "author": "Kevin O'Connor",
+  "github_id": "k-oconnor",
+  "name": "Skinny RLM 512×6, loop 2×3, seq2048, Muon LR 0.02",
+  "blurb": "Looped RLM: 6 layers with 2-block weight-tied core × 3 iterations. GQA, ReLU² MLP 3×, tied embeddings, EMBED_BITS=8 STE, LOSS_POS_WARMUP=256, MUON_WD=0.04, MATRIX_LR=0.02. Trained 6106 steps / 590s on 8×H100.",
+  "date": "2026-03-23T00:00:00Z",
+  "val_loss": 1.9840022,
+  "val_bpb": 1.17503786,
+  "bytes_total": 14903768,
+  "bytes_code": 66048,
+  "run_id": "repro_submit_2048_lr02"
+}
