@@ -1,9 +1,9 @@
 {
-  "name": "Muon Optimizer Tuning on Single H100",
-  "val_bpb": 1.3346,
+  "name": "Muon Optimizer Tuning + PR779 Full Run",
+  "val_bpb": 1.2342,
   "bytes_total": 14436546,
-  "blurb": "Muon optimizer tuning on baseline NanoGPT: MATRIX_LR=0.05, MUON_BACKEND_STEPS=6, MUON_MOMENTUM_WARMUP_STEPS=300, GRAD_CLIP_NORM=1.0, WARMDOWN_ITERS=900. Single H100 SXM 80GB, PyTorch 2.5.1. First submission — establishing baseline with Muon tuning as foundation for further improvements.",
+  "blurb": "Muon optimizer tuning on PR779 architecture, full 7200-step run on single H100 SXM 80GB. MATRIX_LR=0.05, MUON_BACKEND_STEPS=6, MUON_MOMENTUM_WARMUP_STEPS=300, GRAD_CLIP_NORM=1.0, WARMDOWN_ITERS=900. Improvement from 1.3486 baseline to 1.2342. The Pocket Rocket — first number on the board.",
   "author": "jeremyschied",
   "github_id": "jeremyschied",
-  "date": "2026-03-25"
+  "date": "2026-03-26"
 }
