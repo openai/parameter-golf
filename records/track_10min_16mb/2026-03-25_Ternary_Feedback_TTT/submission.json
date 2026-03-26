@@ -1,0 +1,11 @@
+{
+  "author": "Aki Gogikar (OneNewAI)",
+  "github_id": "akhileshgogikar",
+  "name": "Ternary Reasoner — Capsule-Feedback Universal Transformer",
+  "blurb": "Ternary Reasoner: 12L/768d ternary U-Net with iterative Hadamard-gated backward correction, recurrent capsule state, XSA, LeakyReLU², BigramHash, Partial RoPE, VRL, EMA, GPTQ-lite, n-gram cache, sliding eval, temp scaling, and legal TTT. ~87M ternary params in ~12MB.",
+  "date": "2026-03-26T00:00:00Z",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "bytes_total": 0,
+  "bytes_code": 100265
+}
