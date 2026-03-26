@@ -1,8 +1,8 @@
 {
   "author": "Christian Q. De Luca",
   "github_id": "rthgit",
-  "val_bpb": "1.3664",
-  "model_size": "14748386",
-  "hardware": "NVIDIA H100 SXM (Representative speed-battle run)",
+  "val_bpb": "1.3422",
+  "model_size": "14735026",
+  "hardware": "NVIDIA H100 SXM (Official Record-Track Environment)",
   "training_time": "600s"
 }

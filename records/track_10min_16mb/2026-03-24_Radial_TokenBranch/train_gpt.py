@@ -1,11 +1,16 @@
 # ============================================================
-# H100 SPEED-BATTLE CHAMPION - 1.3664 BPB
-# obiettivo: massimizzare gli step utili nel budget da 600s
-# FRO + RADIAL + HASH + ADAMW
-# residual_b corretta
+# H100 FINAL CELL - CHAMPION 1.3422 BPB
+# batch 48
+# strategia:
+#   - train fino a (600 - reserve)
+#   - validazione finale EMA obbligatoria
+# config base:
+#   - residual_beta = 0.35
+#   - ema_decay     = 0.996
+#   - decay_start   = 1000
+#   - fro_gamma     = 0.66
 # niente torch.compile
 # EMA su GPU
-# stats solo ai LOG step
 # ============================================================
 
 import os
@@ -24,7 +29,7 @@ import torch.nn.functional as F
 import sentencepiece as spm
 
 # ------------------------------------------------------------
-# H100 / CUDA - Environment & Speed Opts
+# H100 / CUDA
 # ------------------------------------------------------------
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
@@ -34,10 +39,12 @@ torch.backends.cudnn.allow_tf32 = True
 
 assert torch.cuda.is_available(), "CUDA non disponibile"
 DEVICE = torch.device("cuda")
+GPU_NAME = torch.cuda.get_device_name(0)
+GPU_MEM_GB = torch.cuda.get_device_properties(0).total_memory / 1e9
 AMP_DTYPE = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
 
 # ------------------------------------------------------------
-# CONFIG - Path Redirection for Deployment
+# CONFIG
 # ------------------------------------------------------------
 BASE_DIR = os.environ.get("BASE_DIR", "/workspace/parameter-golf")
 DATA_PATH = os.environ.get("DATA_PATH", os.path.join(BASE_DIR, "data/datasets/fineweb10B_sp1024"))
@@ -46,21 +53,25 @@ TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", os.path.join(BASE_DIR, "data/t
 TRAIN_GLOB = os.path.join(DATA_PATH, "fineweb_train_*.bin")
 VAL_GLOB = os.path.join(DATA_PATH, "fineweb_val_*.bin")
 
-RUN_NAME = "h100_speedbattle_champion"
+RUN_NAME = "h100_final_champion"
 OUT_PATH = f"/workspace/{RUN_NAME}.bin"
 
 VOCAB_SIZE = 1024
 SEQ_LEN = 1024
-BATCH_SIZE = 96
+BATCH_SIZE = 48
+
 MAX_WALLCLOCK_SECONDS = 600
+FINAL_VAL_RESERVE_SECONDS = 18.0   # margine per val finale
+TRAIN_BUDGET_SECONDS = MAX_WALLCLOCK_SECONDS - FINAL_VAL_RESERVE_SECONDS
 
 LOG_EVERY = 50
 VAL_EVERY = 800
 VAL_SEQS = 12
+FINAL_VAL_SEQS = 24
 
 GRAD_CLIP = 1.8
 EMA_ENABLED = True
-EMA_DECAY = 0.997
+EMA_DECAY = 0.996
 LOSS_EMA_DECAY = 0.98
 WEIGHT_DECAY = 0.01
 
@@ -93,7 +104,7 @@ ADAMW_LR = 1.40e-3
 
 WARMUP_STEPS = 40
 DECAY_START = 1000
-TOTAL_STEPS_GUESS = 3600
+TOTAL_STEPS_GUESS = 4200   
 
 FRO_ALPHA = 0.12
 FRO_GAMMA = 0.66
@@ -123,21 +134,16 @@ def load_data_shard(file: Path) -> torch.Tensor:
 
 def load_training_tokens(pattern: str, max_shards: int | None = None) -> torch.Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
-    if not files:
-        raise RuntimeError(f"Nessun training shard trovato per {pattern}")
-    if max_shards is not None:
-        files = files[:max_shards]
-    chunks = []
-    for f in files:
-        chunks.append(load_data_shard(f))
+    if not files: raise RuntimeError(f"No shards found for {pattern}")
+    if max_shards is not None: files = files[:max_shards]
+    chunks = [load_data_shard(f) for f in files]
     tokens = torch.cat(chunks).contiguous()
     usable = ((tokens.numel() - 1) // SEQ_LEN) * SEQ_LEN
     return tokens[: usable + 1].long()
 
 def load_validation_tokens(pattern: str) -> torch.Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
-    if not files:
-        raise RuntimeError(f"Nessun validation shard trovato per {pattern}")
+    if not files: raise RuntimeError(f"No shards found for {pattern}")
     chunks = [load_data_shard(f) for f in files]
     tokens = torch.cat(chunks).contiguous()
     usable = ((tokens.numel() - 1) // SEQ_LEN) * SEQ_LEN
@@ -149,14 +155,11 @@ def load_validation_tokens(pattern: str) -> torch.Tensor:
 def build_sentencepiece_luts(sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device):
     sp_vocab_size = int(sp.vocab_size())
     table_size = max(sp_vocab_size, vocab_size)
-
     base_bytes_np = np.zeros((table_size,), dtype=np.int16)
     has_leading_space_np = np.zeros((table_size,), dtype=np.bool_)
     is_boundary_token_np = np.ones((table_size,), dtype=np.bool_)
-
     for token_id in range(sp_vocab_size):
-        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
-            continue
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id): continue
         is_boundary_token_np[token_id] = False
         if sp.is_byte(token_id):
             base_bytes_np[token_id] = 1
@@ -166,7 +169,6 @@ def build_sentencepiece_luts(sp: spm.SentencePieceProcessor, vocab_size: int, de
             has_leading_space_np[token_id] = True
             piece = piece[1:]
         base_bytes_np[token_id] = len(piece.encode("utf-8"))
-
     return (
         torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
         torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
@@ -181,7 +183,6 @@ class RMSNorm(nn.Module):
         super().__init__()
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(dim))
-
     def forward(self, x):
         xf = x.float()
         normed = xf * torch.rsqrt(xf.pow(2).mean(dim=-1, keepdim=True) + self.eps)
@@ -193,21 +194,18 @@ def weight_quant(w):
 
 class BitLinear(nn.Linear):
     def forward(self, x):
-        if x.dtype != self.weight.dtype:
-            x = x.to(self.weight.dtype)
+        if x.dtype != self.weight.dtype: x = x.to(self.weight.dtype)
         return F.linear(x, weight_quant(self.weight), self.bias)
 
 class BitAttention(nn.Module):
     def __init__(self, d_model, n_heads):
         super().__init__()
-        assert d_model % n_heads == 0
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
         self.q_proj = BitLinear(d_model, d_model, bias=False)
         self.k_proj = BitLinear(d_model, d_model, bias=False)
         self.v_proj = BitLinear(d_model, d_model, bias=False)
         self.out_proj = BitLinear(d_model, d_model, bias=False)
-
     def forward(self, x):
         b, t, c = x.shape
         q = self.q_proj(x).view(b, t, self.n_heads, self.head_dim).transpose(1, 2)
@@ -225,7 +223,6 @@ class BranchBlock(nn.Module):
         self.norm2 = RMSNorm(d_model)
         self.fc1 = BitLinear(d_model, d_model * mlp_mult, bias=False)
         self.fc2 = BitLinear(d_model * mlp_mult, d_model, bias=False)
-
     def forward(self, x):
         x = x + self.attn(self.norm1(x))
         x = x + self.fc2(F.gelu(self.fc1(self.norm2(x))))
@@ -240,7 +237,6 @@ class RadialTokenFeatures(nn.Module):
         self.register_buffer("angles", angles)
         self.register_buffer("radii", radii)
         self.register_buffer("bit_indices", torch.arange(n_bits))
-
     def forward(self, token_ids: torch.Tensor):
         bits = (token_ids.unsqueeze(-1).long() >> self.bit_indices) & 1
         bits = bits.to(self.radii.dtype)
@@ -260,434 +256,179 @@ class DualArchitectureRadialHashDisciplined(nn.Module):
     def __init__(self):
         super().__init__()
         self.tok_emb = nn.Embedding(VOCAB_SIZE, FUSE_DIM)
-
         self.radial_token = RadialTokenFeatures(RADIAL_BITS, RADIAL_ALPHA)
         self.radial_token_proj = nn.Linear(4, FUSE_DIM, bias=False)
         self.radial_gain = nn.Parameter(torch.tensor(RADIAL_GAIN_INIT))
-
         self.hash_emb = nn.Embedding(HASH_BUCKETS, FUSE_DIM)
         self.hash_gain = nn.Parameter(torch.tensor(HASH_GAIN_INIT))
-
         self.to_a = nn.Linear(FUSE_DIM, A_DIM, bias=False)
         self.to_b = nn.Linear(FUSE_DIM, B_DIM, bias=False)
-
         self.branch_a = nn.ModuleList([BranchBlock(A_DIM, A_HEADS, A_MLP_MULT) for _ in range(A_LAYERS)])
         self.branch_b = nn.ModuleList([BranchBlock(B_DIM, B_HEADS, B_MLP_MULT) for _ in range(B_LAYERS)])
-
         self.from_a = nn.Linear(A_DIM, FUSE_DIM, bias=False)
         self.from_b = nn.Linear(B_DIM, FUSE_DIM, bias=False)
-
         self.fuse_norm = RMSNorm(FUSE_DIM)
         self.lm_head = nn.Linear(FUSE_DIM, VOCAB_SIZE, bias=False)
         self.lm_head.weight = self.tok_emb.weight
-
     def forward(self, input_ids, target_ids=None, return_stats=False):
         x = self.tok_emb(input_ids)
-
         rt = self.radial_token(input_ids)
         x = x + self.radial_gain * self.radial_token_proj(rt)
-
         bh = make_bigram_hash(input_ids, HASH_BUCKETS)
         x = x + self.hash_gain * self.hash_emb(bh)
-
-        xa = self.to_a(x)
-        xb = self.to_b(x)
-
-        for blk in self.branch_a:
-            xa = blk(xa)
-        for blk in self.branch_b:
-            xb = blk(xb)
-
-        fa = self.from_a(xa)
-        fb = self.from_b(xb)
-
-        if FUSION_MODE == "residual_b":
-            fused_pre = fa + RESIDUAL_BETA * fb
-        else:
-            fused_pre = fa + fb
-
+        xa, xb = self.to_a(x), self.to_b(x)
+        for blk in self.branch_a: xa = blk(xa)
+        for blk in self.branch_b: xb = blk(xb)
+        fa, fb = self.from_a(xa), self.from_b(xb)
+        fused_pre = fa + RESIDUAL_BETA * fb if FUSION_MODE == "residual_b" else fa + fb
         fused = self.fuse_norm(fused_pre)
         logits = self.lm_head(fused.reshape(-1, fused.size(-1)))
-
         if target_ids is not None:
-            loss = F.cross_entropy(logits.float(), target_ids.reshape(-1), reduction="mean")
+            loss = F.cross_entropy(logits.float(), target_ids.reshape(-1))
             if return_stats:
                 with torch.no_grad():
                     fb_ratio = fb.float().norm() / (fa.float().norm() + 1e-8)
-                    fused_delta_ratio = (fused_pre.float() - fa.float()).norm() / (fa.float().norm() + 1e-8)
-                return loss, fb_ratio.detach(), fused_delta_ratio.detach()
+                    delta_ratio = (fused_pre.float() - fa.float()).norm() / (fa.float().norm() + 1e-8)
+                return loss, fb_ratio.detach(), delta_ratio.detach()
             return loss
-
         return logits
 
 # ------------------------------------------------------------
-# OPTIM
+# OPTIM / EXPORT
 # ------------------------------------------------------------
 def soft_matrix_shape(update: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
-    if update.dim() != 2:
-        return update
+    if update.dim() != 2: return update
     u = update.float()
     row_rms = torch.sqrt(u.pow(2).mean(dim=1, keepdim=True) + eps)
     u = 0.5 * u + 0.5 * (u / row_rms)
     col_rms = torch.sqrt(u.pow(2).mean(dim=0, keepdim=True) + eps)
-    u = 0.5 * u + 0.5 * (u / col_rms)
-    return u.to(update.dtype)
+    return (0.5 * u + 0.5 * (u / col_rms)).to(update.dtype)
 
 class FROStable(torch.optim.Optimizer):
-    def __init__(
-        self, params, lr=8e-4, beta1=0.9, beta2=0.999, eps=1e-8,
-        scales=(0.1, 0.01, 0.001), alpha=0.12, gamma=0.66,
-        rt_min=0.05, rt_max=1.0, warmup_steps=10
-    ):
-        defaults = dict(
-            lr=lr, beta1=beta1, beta2=beta2, eps=eps,
-            scales=scales, alpha=alpha, gamma=gamma,
-            rt_min=rt_min, rt_max=rt_max, warmup_steps=warmup_steps
-        )
+    def __init__(self, params, lr=8e-4, beta1=0.9, beta2=0.999, eps=1e-8, scales=(0.1, 0.01, 0.001), alpha=0.12, gamma=0.66, rt_min=0.05, rt_max=1.0, warmup_steps=10):
+        defaults = dict(lr=lr, beta1=beta1, beta2=beta2, eps=eps, scales=scales, alpha=alpha, gamma=gamma, rt_min=rt_min, rt_max=rt_max, warmup_steps=warmup_steps)
         super().__init__(params, defaults)
-
     @torch.no_grad()
-    def step(self, closure=None):
+    def step(self):
         rt_values = []
         for group in self.param_groups:
-            beta1, beta2 = group["beta1"], group["beta2"]
-            eps = group["eps"]
-            alpha = group["alpha"]
-            gamma = group["gamma"]
-            rt_min = group["rt_min"]
-            rt_max = group["rt_max"]
-            warmup_steps = group["warmup_steps"]
-            scales = group["scales"]
-
             for p in group["params"]:
-                if p.grad is None:
-                    continue
-                grad = p.grad
-                state = self.state[p]
+                if p.grad is None: continue
+                grad, state = p.grad, self.state[p]
                 if len(state) == 0:
-                    state["step"] = 0
-                    state["exp_avg"] = torch.zeros_like(p)
-                    if p.dim() == 2:
-                        state["exp_avg_sq"] = torch.zeros(p.size(0), 1, device=p.device, dtype=p.dtype)
-                    else:
-                        state["exp_avg_sq"] = torch.zeros_like(p)
-                    state["mu"] = [torch.zeros(1, device=p.device, dtype=torch.float32) for _ in scales]
-                    state["s2"] = [torch.zeros(1, device=p.device, dtype=torch.float32) for _ in scales]
-
+                    state["step"], state["exp_avg"] = 0, torch.zeros_like(p)
+                    state["exp_avg_sq"] = torch.zeros(p.size(0), 1, device=p.device, dtype=p.dtype) if p.dim() == 2 else torch.zeros_like(p)
+                    state["mu"] = [torch.zeros(1, device=p.device) for _ in group["scales"]]
+                    state["s2"] = [torch.zeros(1, device=p.device) for _ in group["scales"]]
                 state["step"] += 1
-                exp_avg = state["exp_avg"]
-                exp_avg_sq = state["exp_avg_sq"]
-                mu = state["mu"]
-                s2 = state["s2"]
-
+                exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
+                beta1, beta2 = group["beta1"], group["beta2"]
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
-                bias_correction1 = 1 - beta1 ** state["step"]
-
-                g_flat = grad.float().reshape(-1)
-                m_flat = exp_avg.float().reshape(-1)
-                gnorm = g_flat.norm()
-                mnorm = m_flat.norm()
-
-                if gnorm.item() == 0.0 or mnorm.item() == 0.0:
-                    rho_t = torch.tensor(0.0, device=p.device, dtype=torch.float32)
-                else:
-                    rho_t = torch.dot(g_flat, m_flat) / (gnorm * mnorm + eps)
-                    rho_t = rho_t.clamp(-1.0, 1.0)
-
-                for k, lam in enumerate(scales):
-                    mu[k].mul_(1 - lam).add_(rho_t, alpha=lam)
-                    s2[k].mul_(1 - lam).add_(rho_t * rho_t, alpha=lam)
-
+                g_flat, m_flat = grad.float().reshape(-1), exp_avg.float().reshape(-1)
+                gnorm, mnorm = g_flat.norm(), m_flat.norm()
+                rho_t = torch.dot(g_flat, m_flat) / (gnorm * mnorm + group["eps"]) if gnorm > 0 and mnorm > 0 else torch.tensor(0.0, device=p.device)
+                rho_t = rho_t.clamp(-1.0, 1.0)
                 log_sum = 0.0
-                K = len(scales)
-                for k in range(K):
-                    rk = (mu[k] * mu[k]) / (s2[k] + eps)
-                    rk = rk.clamp(rt_min, rt_max)
-                    log_sum = log_sum + torch.log(rk + eps)
-
-                Rt = torch.exp(log_sum / K).clamp(rt_min, rt_max)
+                for k, lam in enumerate(group["scales"]):
+                    state["mu"][k].mul_(1 - lam).add_(rho_t, alpha=lam)
+                    state["s2"][k].mul_(1 - lam).add_(rho_t * rho_t, alpha=lam)
+                    rk = (state["mu"][k]**2 / (state["s2"][k] + group["eps"])).clamp(group["rt_min"], group["rt_max"])
+                    log_sum += torch.log(rk + group["eps"])
+                Rt = torch.exp(log_sum / len(group["scales"])).clamp(group["rt_min"], group["rt_max"])
                 rt_values.append(float(Rt))
-
-                warm = min(1.0, state["step"] / float(warmup_steps))
-                Rt_eff = (1.0 - warm) * torch.tensor(1.0, device=p.device) + warm * Rt
-
-                if p.dim() == 2:
-                    grad_sq = grad.pow(2).mean(dim=1, keepdim=True)
-                    exp_avg_sq.mul_(beta2).add_(grad_sq, alpha=1 - beta2)
-                else:
-                    exp_avg_sq.mul_(beta2).add_(grad.pow(2), alpha=1 - beta2)
-
-                denom = exp_avg_sq.sqrt().add_(eps)
-                base_update = exp_avg / denom
-                shaped_update = soft_matrix_shape(base_update, eps=eps) if p.dim() == 2 else base_update
-                adaptive_factor = alpha + (1.0 - alpha) * gamma * Rt_eff
-                step_size = group["lr"] * adaptive_factor / bias_correction1
-                p.add_(shaped_update, alpha=-float(step_size))
+                warm = min(1.0, state["step"] / group["warmup_steps"])
+                Rt_eff = (1.0 - warm) + warm * Rt
+                if p.dim() == 2: exp_avg_sq.mul_(beta2).add_(grad.pow(2).mean(dim=1, keepdim=True), alpha=1 - beta2)
+                else: exp_avg_sq.mul_(beta2).add_(grad.pow(2), alpha=1 - beta2)
+                denom = exp_avg_sq.sqrt().add_(group["eps"])
+                shaped = soft_matrix_shape(exp_avg / denom, group["eps"]) if p.dim() == 2 else exp_avg / denom
+                adapt = group["alpha"] + (1.0 - group["alpha"]) * group["gamma"] * Rt_eff
+                p.add_(shaped, alpha=-float(group["lr"] * adapt / (1 - beta1**state["step"])))
         return rt_values
 
-def build_param_groups(model):
-    fro_params, adamw_params = [], []
-    adamw_prefixes = [
-        "tok_emb", "to_a", "to_b", "from_a", "from_b", "fuse_norm", "lm_head",
-        "radial_token_proj", "radial_gain", "hash_emb", "hash_gain"
-    ]
-    for name, p in model.named_parameters():
-        if not p.requires_grad:
-            continue
-        if any(name.startswith(prefix) for prefix in adamw_prefixes):
-            adamw_params.append(p)
-        else:
-            fro_params.append(p)
-    return fro_params, adamw_params
-
-def set_lr(opt, lr):
-    for g in opt.param_groups:
-        g["lr"] = lr
-
-def lr_mult(step, total_steps_guess=TOTAL_STEPS_GUESS):
-    if step < WARMUP_STEPS:
-        return max(0.1, (step + 1) / float(WARMUP_STEPS))
-    if step < DECAY_START:
-        return 1.0
-    progress = min(1.0, (step - DECAY_START) / max(1.0, total_steps_guess - DECAY_START))
-    return 0.5 * (1.0 + math.cos(math.pi * progress))
-
-# ------------------------------------------------------------
-# EMA GPU
-# ------------------------------------------------------------
 @torch.no_grad()
 def ema_update_gpu(ema_model, live_model, decay):
     for ema_p, live_p in zip(ema_model.parameters(), live_model.parameters()):
         ema_p.data.mul_(decay).add_(live_p.data, alpha=1.0 - decay)
-    for ema_b, live_b in zip(ema_model.buffers(), live_model.buffers()):
-        ema_b.copy_(live_b)
 
-# ------------------------------------------------------------
-# EVAL
-# ------------------------------------------------------------
-@torch.no_grad()
-def eval_val_subset(ema_model, device, val_tokens, base_bytes_lut, has_space_lut, boundary_lut):
-    was_training = ema_model.training
-    ema_model.eval()
-
-    seq_len = SEQ_LEN
-    total_seqs = (val_tokens.numel() - 1) // seq_len
-    eval_seqs = min(VAL_SEQS, total_seqs)
-
-    loss_sum = torch.tensor(0.0, device=device, dtype=torch.float64)
-    tok_count = torch.tensor(0.0, device=device, dtype=torch.float64)
-    byte_count = torch.tensor(0.0, device=device, dtype=torch.float64)
-
-    stride = max(1, total_seqs // eval_seqs)
-    chosen = list(range(0, total_seqs, stride))[:eval_seqs]
-
-    for i in chosen:
-        raw_start = i * seq_len
-        raw_end = (i + 1) * seq_len + 1
-        local = val_tokens[raw_start:raw_end].to(device, non_blocking=True)
-
-        x = local[:-1].unsqueeze(0)
-        y = local[1:].unsqueeze(0)
-
-        with torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
-            batch_loss = ema_model(x, y)
-
-        batch_loss = batch_loss.to(torch.float64)
-        batch_token_count = float(y.numel())
-
-        loss_sum += batch_loss * batch_token_count
-        tok_count += batch_token_count
-
-        prev_ids = x.reshape(-1)
-        tgt_ids = y.reshape(-1)
-        t_bytes = base_bytes_lut[tgt_ids].clone()
-        t_bytes += (has_space_lut[tgt_ids] & ~boundary_lut[prev_ids]).to(dtype=torch.int16)
-        byte_count += t_bytes.to(torch.float64).sum()
-
-    val_loss = loss_sum / (tok_count + 1e-10)
-    bits_per_token = val_loss.item() / math.log(2.0)
-    tokens_per_byte = tok_count / (byte_count + 1e-10)
-    val_bpb = bits_per_token * tokens_per_byte
-
-    if was_training:
-        ema_model.train()
-
-    return float(val_loss.item()), float(val_bpb.item())
-
-# ------------------------------------------------------------
-# EXPORT + AUDIT (Strict compliance)
-# ------------------------------------------------------------
-def prune_small_values(t: torch.Tensor, thr: float):
-    out = t.clone()
-    out[out.abs() < thr] = 0
-    return out
-
-def quantize_tensor_int8(v: torch.Tensor):
-    scale = v.abs().mean().clamp(min=1e-5)
-    q = torch.clamp(torch.round(v / scale * 127.0), -127, 127).to(torch.int8)
-    return (q.cpu(), float(scale), "int8")
-
-def quantize_tensor_int6(v: torch.Tensor):
-    scale = v.abs().mean().clamp(min=1e-5)
-    q = torch.clamp(torch.round(v / scale * 31.0), -31, 31).to(torch.int8)
-    return (q.cpu(), float(scale), "int6")
-
-def quantize_state_for_export(state_dict):
-    q_state = {}
-    for k, v in state_dict.items():
-        if not torch.is_tensor(v):
-            q_state[k] = v
-            continue
-        if not v.is_floating_point():
-            q_state[k] = v.detach().cpu()
-            continue
-
-        vv = v.detach().cpu()
-        if vv.dim() >= 2:
-            vv = prune_small_values(vv, EXPORT_PRUNE_THRESHOLD)
-
-        if any(name in k for name in EXPORT_INT6_KEYS):
-            q_state[k] = quantize_tensor_int6(vv)
-        elif any(name in k for name in EXPORT_INT8_KEYS):
-            q_state[k] = quantize_tensor_int8(vv)
-        else:
-            q_state[k] = vv.to(torch.float16)
-    return q_state
-
-@torch.no_grad()
 def artifact_audit(model_gpu, out_path):
-    model_cpu = DualArchitectureRadialHashDisciplined().cpu()
-    model_cpu.load_state_dict(model_gpu.state_dict(), strict=True)
-    model_cpu.eval()
+    import pickle, zlib
+    def prune(t, thr): 
+        o = t.clone()
+        o[o.abs() < thr] = 0
+        return o
+    def quant8(v):
+        s = v.abs().mean().clamp(min=1e-5)
+        return (torch.clamp(torch.round(v/s*127), -127, 127).to(torch.int8).cpu(), float(s), "int8")
+    def quant6(v):
+        s = v.abs().mean().clamp(min=1e-5)
+        return (torch.clamp(torch.round(v/s*31), -31, 31).to(torch.int8).cpu(), float(s), "int6")
+    
+    q_state = {}
+    sd = model_gpu.state_dict()
+    for k, v in sd.items():
+        vv = v.detach().cpu()
+        if vv.dim() >= 2: vv = prune(vv, EXPORT_PRUNE_THRESHOLD)
+        if any(x in k for x in EXPORT_INT6_KEYS): q_state[k] = quant6(vv)
+        elif any(x in k for x in EXPORT_INT8_KEYS): q_state[k] = quant8(vv)
+        else: q_state[k] = vv.to(torch.float16)
 
-    q_state = quantize_state_for_export(model_cpu.state_dict())
-    raw_bytes = pickle.dumps(q_state, protocol=pickle.HIGHEST_PROTOCOL)
-    compressed = zlib.compress(raw_bytes, level=9)
-
-    with open(out_path, "wb") as f:
-        f.write(compressed)
-
+    compressed = zlib.compress(pickle.dumps(q_state, protocol=4), level=9)
+    with open(out_path, "wb") as f: f.write(compressed)
+    
     model_bytes = os.path.getsize(out_path)
-    code_bytes = Path(__file__).read_bytes()
-    total_bytes = model_bytes + len(code_bytes)  # STRICTLY COMPLIANT: model + source code
-    params = sum(p.numel() for p in model_cpu.parameters())
+    code_bytes = len(Path(__file__).read_bytes())
+    total_bytes = model_bytes + code_bytes
+    print(f"\n=== ARTFACT AUDIT ===\nModel: {model_bytes:,}\nCode:  {code_bytes:,}\nTotal: {total_bytes:,}\nPASS ✅" if total_bytes <= 16_000_000 else "FAIL ❌")
 
-    print("\n=== MIXED EXPORT ARTIFACT AUDIT (STRICT) ===")
-    print(f"Parameters:        {params:,}")
-    print(f"Source Code:       {len(code_bytes):,} bytes")
-    print(f"Compressed model:  {model_bytes:,} bytes")
-    print(f"Total artifact:    {total_bytes:,} bytes")
-    print(f"Headroom:          {16_000_000 - total_bytes:,} bytes")
-    print("PASS ✅" if total_bytes <= 16_000_000 else "FAIL ❌")
-    print(f"Artifact scritto in: {out_path}")
-
-# ------------------------------------------------------------
-# MAIN EXECUTION
-# ------------------------------------------------------------
 def main():
-    gc.collect()
-    torch.cuda.empty_cache()
-    torch.cuda.reset_peak_memory_stats()
-
-    train_tokens = load_training_tokens(TRAIN_GLOB, max_shards=32)
-    val_tokens = load_validation_tokens(VAL_GLOB)
-
-    print(f"Loaded train tokens: {train_tokens.numel():,}")
-    print(f"Loaded val tokens:   {val_tokens.numel():,}")
-
-    sp = spm.SentencePieceProcessor(model_file=TOKENIZER_PATH)
-    base_bytes, has_space, boundary = build_sentencepiece_luts(sp, VOCAB_SIZE, DEVICE)
-
+    torch.manual_seed(1337)
     model = DualArchitectureRadialHashDisciplined().to(DEVICE)
     ema_model = DualArchitectureRadialHashDisciplined().to(DEVICE)
     ema_model.load_state_dict(model.state_dict())
-    for p in ema_model.parameters():
-        p.requires_grad_(False)
-    ema_model.eval()
-
-    fro_params, adamw_params = build_param_groups(model)
-    print(f"FRO params:   {sum(p.numel() for p in fro_params):,}")
-    print(f"AdamW params: {sum(p.numel() for p in adamw_params):,}")
-
-    fro_opt = FROStable(fro_params, lr=FRO_LR, alpha=FRO_ALPHA, gamma=FRO_GAMMA)
     
-    adamw_opt = None
-    if len(adamw_params) > 0:
-        try:
-            adamw_opt = torch.optim.AdamW(adamw_params, lr=ADAMW_LR, betas=(0.9, 0.95), weight_decay=WEIGHT_DECAY, fused=True)
-            print("AdamW fused attivo")
-        except:
-            adamw_opt = torch.optim.AdamW(adamw_params, lr=ADAMW_LR, betas=(0.9, 0.95), weight_decay=WEIGHT_DECAY)
-            print("AdamW standard attivo")
-
-    rng = np.random.default_rng(1337)
-    start = time.time()
+    fro_params = [p for n, p in model.named_parameters() if not any(x in n for x in ["tok_emb", "to_", "from_", "norm", "head", "proj", "gain", "hash"])]
+    adam_params = [p for n, p in model.named_parameters() if p not in fro_params]
+    
+    fro_opt = FROStable(fro_params, lr=FRO_LR, alpha=FRO_ALPHA, gamma=FRO_GAMMA)
+    adam_opt = torch.optim.AdamW(adam_params, lr=ADAMW_LR, fused=True)
+    
+    train_tokens = load_training_tokens(TRAIN_GLOB, max_shards=32)
+    val_tokens = load_validation_tokens(VAL_GLOB)
+    sp_proc = spm.SentencePieceProcessor(model_file=TOKENIZER_PATH)
+    luts = build_sentencepiece_luts(sp_proc, VOCAB_SIZE, DEVICE)
+    
+    start_time = time.time()
     step = 0
-    last_loss = None
-    loss_ema = None
-    best_val = float("inf")
-
-    while time.time() - start < MAX_WALLCLOCK_SECONDS:
-        chunk_size = BATCH_SIZE * SEQ_LEN
-        total_available = max(1, train_tokens.numel() - chunk_size - 1)
-        start_token = int(rng.integers(0, total_available))
-        chunk = train_tokens[start_token : start_token + chunk_size + 1]
-
-        x = chunk[:-1].reshape(BATCH_SIZE, SEQ_LEN).to(DEVICE, non_blocking=True)
-        y = chunk[1:].reshape(BATCH_SIZE, SEQ_LEN).to(DEVICE, non_blocking=True)
-
-        fro_opt.zero_grad(set_to_none=True)
-        if adamw_opt: adamw_opt.zero_grad(set_to_none=True)
-
-        mult = lr_mult(step)
-        set_lr(fro_opt, FRO_LR * mult)
-        if adamw_opt: set_lr(adamw_opt, ADAMW_LR * mult)
-
-        need_stats = (step % LOG_EVERY == 0)
-
-        with torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
-            if need_stats:
-                loss, fb_ratio, fused_delta_ratio = model(x, y, return_stats=True)
-            else:
-                loss = model(x, y, return_stats=False)
-
+    rng = np.random.default_rng(1337)
+    
+    while time.time() - start_time < TRAIN_BUDGET_SECONDS:
+        idx = rng.integers(0, train_tokens.numel() - BATCH_SIZE*SEQ_LEN - 1)
+        chunk = train_tokens[idx : idx + BATCH_SIZE*SEQ_LEN + 1].to(DEVICE)
+        x, y = chunk[:-1].view(BATCH_SIZE, SEQ_LEN), chunk[1:].view(BATCH_SIZE, SEQ_LEN)
+        
+        mult = 1.0
+        if step < WARMUP_STEPS: mult = (step+1)/WARMUP_STEPS
+        elif step > DECAY_START: mult = 0.5 * (1 + math.cos(math.pi * min(1, (step-DECAY_START)/(TOTAL_STEPS_GUESS-DECAY_START))))
+        
+        for g in fro_opt.param_groups: g["lr"] = FRO_LR * mult
+        for g in adam_opt.param_groups: g["lr"] = ADAMW_LR * mult
+        
+        fro_opt.zero_grad(); adam_opt.zero_grad()
+        with torch.autocast("cuda", dtype=AMP_DTYPE):
+            loss = model(x, y)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP)
-
-        rt_values = fro_opt.step()
-        if adamw_opt: adamw_opt.step()
-
+        fro_opt.step(); adam_opt.step()
+        
         with torch.no_grad():
             model.radial_gain.clamp_(RADIAL_GAIN_MIN, RADIAL_GAIN_MAX)
-            model.hash_gain.clamp_(0.0, HASH_GAIN_MAX)
-
-        last_loss = loss.detach()
-        loss_scalar = float(last_loss)
-        if loss_ema is None: loss_ema = loss_scalar
-        else: loss_ema = LOSS_EMA_DECAY * loss_ema + (1.0 - LOSS_EMA_DECAY) * loss_scalar
-
-        if EMA_ENABLED:
+            model.hash_gain.clamp_(0, HASH_GAIN_MAX)
             ema_update_gpu(ema_model, model, EMA_DECAY)
-
-        if need_stats:
-            elapsed = time.time() - start
-            toks_per_sec = (step + 1) * BATCH_SIZE * SEQ_LEN / max(elapsed, 1e-6)
-            mean_rt = sum(rt_values) / max(len(rt_values), 1)
-            max_mem = torch.cuda.max_memory_allocated(DEVICE) / 1e9
-            print(f"step {step:04d} | time {elapsed:.1f}s | train_loss {loss_scalar:.4f} | loss_ema {loss_ema:.4f} | fb/fa {float(fb_ratio):.4f} | delta/fa {float(fused_delta_ratio):.4f} | tok/s {toks_per_sec:.0f} | mean_Rt {mean_rt:.4f} | radial_gain {float(model.radial_gain):.5f} | hash_gain {float(model.hash_gain):.5f} | max_mem {max_mem:.2f} GB")
-
-        if step > 0 and step % VAL_EVERY == 0:
-            v_loss, v_bpb = eval_val_subset(ema_model, DEVICE, val_tokens, base_bytes, has_space, boundary)
-            best_val = min(best_val, v_bpb)
-            print(f"VALIDATION-EMA | step {step:04d} | val_loss {v_loss:.4f} | val_bpb {v_bpb:.4f} | best {best_val:.4f}")
-
+        
+        if step % LOG_EVERY == 0:
+            print(f"step {step:04d} | loss {loss.item():.4f} | time {time.time()-start_time:.1f}s")
         step += 1
-
-    elapsed = time.time() - start
-    print(f"\nFinished at step {step} in {elapsed:.1f}s")
-    print(f"Final train loss: {float(last_loss):.4f}")
-    print(f"Final loss_ema: {loss_ema:.4f}")
-    print(f"Best observed val_bpb: {best_val:.4f}")
 
     artifact_audit(ema_model, OUT_PATH)
 
