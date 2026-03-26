@@ -249,32 +249,38 @@ def select_interventions(dag, completed_interventions):
     return deduped
 
 
-def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, seeds, dry_run=False, ctx=None):
+def run_screening_experiment(cycle_num, label, treatment_config, screen_iters, seeds,
+                             dry_run=False, ctx=None, screen_batch=65536, screen_layers=5):
     """Run a single screening experiment (short training)."""
     cycle_dir = RESULTS / f"cycle_{cycle_num}"
     cycle_dir.mkdir(parents=True, exist_ok=True)
 
-    # Add screening overrides (short training)
+    # Balanced screening overrides — scale everything down proportionally
+    # so relative comparisons remain valid while running much faster.
     treatment = json.loads(json.dumps(treatment_config))  # deep copy
-    # Set wallclock high enough to not interfere; iterations control stopping
-    screen_wallclock = max(screen_iters * 3, 300)  # at least 5 min for MLX compilation
-    treatment["env_overrides"]["MAX_WALLCLOCK_SECONDS"] = str(screen_wallclock)
-    treatment["env_overrides"]["ITERATIONS"] = str(screen_iters)
-    # Only validate at the end — full val set (62M tokens) is expensive
-    treatment["env_overrides"]["VAL_LOSS_EVERY"] = "0"  # 0 = only at last step
-    treatment["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 5, 1))
-    treatment["env_overrides"]["WARMUP_STEPS"] = "1"
-    treatment["env_overrides"]["WARMDOWN_ITERS"] = str(screen_iters // 5)
-    treatment["env_overrides"]["GRAD_ACCUM_STEPS"] = "1"
+    screen_wallclock = max(screen_iters * 3, 300)
+    # If treatment tests a specific NUM_LAYERS, keep it. Otherwise use screen_layers.
+    # Control always matches the treatment's layer count for fair comparison.
+    effective_layers = treatment["env_overrides"].get("NUM_LAYERS", str(screen_layers))
+
+    screen_overrides = {
+        "MAX_WALLCLOCK_SECONDS": str(screen_wallclock),
+        "ITERATIONS": str(screen_iters),
+        "VAL_LOSS_EVERY": "0",                                    # validate only at end
+        "TRAIN_LOG_EVERY": str(max(screen_iters // 5, 1)),
+        "WARMUP_STEPS": "1",
+        "WARMDOWN_ITERS": str(screen_iters // 5),
+        "GRAD_ACCUM_STEPS": "1",
+        "TRAIN_BATCH_TOKENS": str(screen_batch),                  # balanced reduction
+        "NUM_LAYERS": effective_layers,
+    }
+    # Treatment keeps its own overrides on top of screening defaults
+    for k, v in screen_overrides.items():
+        treatment["env_overrides"].setdefault(k, v)
 
     control = json.loads(json.dumps(BASELINE_CONFIG))
-    control["env_overrides"]["MAX_WALLCLOCK_SECONDS"] = str(screen_wallclock)
-    control["env_overrides"]["ITERATIONS"] = str(screen_iters)
-    control["env_overrides"]["VAL_LOSS_EVERY"] = "0"
-    control["env_overrides"]["TRAIN_LOG_EVERY"] = str(max(screen_iters // 5, 1))
-    control["env_overrides"]["WARMUP_STEPS"] = "1"
-    control["env_overrides"]["WARMDOWN_ITERS"] = str(screen_iters // 5)
-    control["env_overrides"]["GRAD_ACCUM_STEPS"] = "1"
+    for k, v in screen_overrides.items():
+        control["env_overrides"].setdefault(k, v)
 
     # Write configs
     treatment_path = cycle_dir / f"{label}_treatment.json"
@@ -481,7 +487,8 @@ def print_leaderboard(ranked):
 # =========================================================================
 
 def run_pipeline(max_cycles=4, screen_iters=500, seeds=None, dry_run=False,
-                 resume_from=0, max_interventions_per_cycle=3):
+                 resume_from=0, max_interventions_per_cycle=3,
+                 screen_batch=524288, screen_layers=9):
     """Run the full automated research pipeline.
 
     Args:
@@ -491,6 +498,8 @@ def run_pipeline(max_cycles=4, screen_iters=500, seeds=None, dry_run=False,
         dry_run: Use mock results instead of actual training
         resume_from: Start from this cycle number (0 = fresh start)
         max_interventions_per_cycle: Max experiments per cycle
+        screen_batch: Tokens per training step for screening (default: 524288)
+        screen_layers: Default layer count for screening (default: 9)
     """
     if seeds is None:
         seeds = [42, 137, 256]
@@ -571,7 +580,8 @@ def run_pipeline(max_cycles=4, screen_iters=500, seeds=None, dry_run=False,
 
             # Run screening experiment
             raw_runs_path = run_screening_experiment(
-                cycle, label, treatment_config, screen_iters, seeds, dry_run, ctx=ctx
+                cycle, label, treatment_config, screen_iters, seeds, dry_run, ctx=ctx,
+                screen_batch=screen_batch, screen_layers=screen_layers,
             )
             if raw_runs_path is None:
                 log.warning("Skipping %s (experiment failed)", label)
@@ -681,6 +691,12 @@ Examples:
 
   # Resume from cycle 2
   python scripts/causal/run_pipeline.py --resume-from 2
+
+  # Fast screening (balanced reduction for relative comparison)
+  python scripts/causal/run_pipeline.py --fast
+
+  # Custom balanced reduction
+  python scripts/causal/run_pipeline.py --screen-batch 65536 --screen-layers 5
 """)
     parser.add_argument("--max-cycles", type=int, default=4,
                         help="Maximum experiment cycles (default: 4)")
@@ -694,7 +710,20 @@ Examples:
                         help="Resume from this cycle number")
     parser.add_argument("--max-per-cycle", type=int, default=3,
                         help="Max interventions per cycle (default: 3)")
+    parser.add_argument("--screen-batch", type=int, default=524288,
+                        help="Tokens per training step for screening (default: 524288)")
+    parser.add_argument("--screen-layers", type=int, default=9,
+                        help="Default layer count for screening (default: 9)")
+    parser.add_argument("--fast", action="store_true",
+                        help="Fast screening preset: 50 iters, 65K batch, 5 layers, 2 seeds")
     args = parser.parse_args()
+
+    # --fast preset: balanced reduction for quick relative comparison
+    if args.fast:
+        args.screen_iterations = args.screen_iterations if args.screen_iterations != 500 else 50
+        args.screen_batch = args.screen_batch if args.screen_batch != 524288 else 65536
+        args.screen_layers = args.screen_layers if args.screen_layers != 9 else 5
+        args.seeds = args.seeds if args.seeds != "42,137,256" else "42,137"
 
     seeds = [int(s.strip()) for s in args.seeds.split(",")]
 
@@ -705,6 +734,8 @@ Examples:
         dry_run=args.dry_run,
         resume_from=args.resume_from,
         max_interventions_per_cycle=args.max_per_cycle,
+        screen_batch=args.screen_batch,
+        screen_layers=args.screen_layers,
     )
 
     if report:
