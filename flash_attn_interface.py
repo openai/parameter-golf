@@ -48,8 +48,17 @@ def flash_attention_import_summary() -> dict[str, object]:
     }
 
 
+def _is_dynamo_compiling() -> bool:
+    dynamo_mod = getattr(torch, "_dynamo", None)
+    return bool(dynamo_mod is not None and dynamo_mod.is_compiling())
+
+
+def _should_emit_runtime_log() -> bool:
+    return _ATTENTION_LOG_FN is not None and not _is_dynamo_compiling()
+
+
 def _log_once(message: str) -> None:
-    if _ATTENTION_LOG_FN is None or message in _LOGGED_MESSAGES:
+    if not _should_emit_runtime_log() or message in _LOGGED_MESSAGES:
         return
     _LOGGED_MESSAGES.add(message)
     _ATTENTION_LOG_FN(message)
@@ -122,11 +131,13 @@ def causal_attention(q: Tensor, k: Tensor, v: Tensor, *, enable_gqa: bool) -> Te
     if can_use_flash:
         try:
             y = _flash_attn_func(q, k, v, causal=True)
-            _log_once(f"attention_backend:flash_attn attention_dtype:{q.dtype}")
+            if _should_emit_runtime_log():
+                _log_once(f"attention_backend:flash_attn attention_dtype:{q.dtype}")
             return y
         except RuntimeError as exc:
             reason = f"flash_attn_runtime_error:{str(exc).strip().replace(chr(10), ' ')}"
-    _log_once(f"attention_backend:sdp_math attention_dtype:{q.dtype} fallback_reason:{reason}")
+    if _should_emit_runtime_log():
+        _log_once(f"attention_backend:sdp_math attention_dtype:{q.dtype} fallback_reason:{reason}")
     return _sdp_math_attention(q, k, v, enable_gqa=enable_gqa)
 
 
