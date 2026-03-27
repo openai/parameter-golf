@@ -140,6 +140,7 @@ class Hyperparameters:
     ema_start_fraction = _e("EMA_START_FRACTION", 0.5, float)
     gptq_lite_enabled = _e("GPTQ_LITE_ENABLED", 1, bool)
     gptq_lite_percentiles = _e("GPTQ_LITE_PERCENTILES", 5, int)
+    turbo_quant = _e("TURBO_QUANT", 0, bool)  # Hadamard rotation before ternary — hurts STE training
 
     # Optimizer
     matrix_lr = _e("MATRIX_LR", 0.025, float)
@@ -195,10 +196,44 @@ def zeropower_newtonschulz5(g, steps, eps=1e-7):
     return x.astype(g.dtype)
 
 # ---------------------------------------------------------------------------
+# TurboQuant-inspired Hadamard rotation for ternary quantization
+# ---------------------------------------------------------------------------
+_HADAMARD_CACHE = {}
+
+def _build_hadamard(n):
+    """Build normalized orthogonal Hadamard matrix H_n (H @ H^T = I).
+    TurboQuant (Zandieh et al. 2025): random rotation before scalar quantization
+    achieves near-optimal MSE. Hadamard is a deterministic rotation that distributes
+    outliers across all coordinates, reducing quantization distortion at zero param cost.
+    """
+    if n in _HADAMARD_CACHE:
+        return _HADAMARD_CACHE[n]
+    assert n > 0 and (n & (n - 1)) == 0, f"n must be power of 2, got {n}"
+    if n == 1:
+        h = mx.array([[1.0]], dtype=mx.float32)
+    else:
+        h_half = _build_hadamard(n // 2)
+        # Unnormalized: top = [H, H], bot = [H, -H]
+        top = mx.concatenate([h_half, h_half], axis=1)
+        bot = mx.concatenate([h_half, -h_half], axis=1)
+        h = mx.concatenate([top, bot], axis=0)
+    # Normalize so H @ H^T = I
+    h = h / math.sqrt(n)
+    _HADAMARD_CACHE[n] = h
+    return h
+
+# ---------------------------------------------------------------------------
 # Ternary STE quantization (for training — MLX version)
 # ---------------------------------------------------------------------------
-def ternary_ste(w, group_size=128):
-    """Ternary quantization with Straight-Through Estimator."""
+def ternary_ste(w, group_size=128, turbo=False):
+    """Ternary quantization with Straight-Through Estimator.
+
+    When turbo=True, applies Hadamard rotation before quantization (TurboQuant).
+    This provably reduces MSE by distributing weight outliers across coordinates.
+    The Hadamard matrix is deterministic and self-inverse, so:
+    - No extra parameters to store
+    - Dequant = quantize in rotated space, then inverse-rotate back
+    """
     shape = w.shape
     w_f = w.astype(mx.float32)
     # Pad if needed
@@ -207,13 +242,25 @@ def ternary_ste(w, group_size=128):
     if pad_len > 0:
         flat = mx.concatenate([flat, mx.zeros((pad_len,), dtype=mx.float32)])
     grouped = flat.reshape(-1, group_size)
+
+    if turbo and (group_size & (group_size - 1)) == 0:
+        # TurboQuant: rotate before quantization
+        H = _build_hadamard(group_size).astype(grouped.dtype)
+        grouped = grouped @ H  # Hadamard rotation
+
     scale = mx.mean(mx.abs(grouped), axis=-1, keepdims=True)
     scale = mx.maximum(scale, mx.array(1e-8))
     normalized = grouped / scale
     # Quantize to {-1, 0, +1} — round and clamp
     q = mx.clip(mx.round(normalized), -1, 1)
+    dequantized = q * scale
+
+    if turbo and (group_size & (group_size - 1)) == 0:
+        # Inverse rotation (H is self-inverse for normalized Hadamard)
+        dequantized = dequantized @ H
+
     # STE: forward uses quantized, backward uses original
-    w_ternary = (q * scale).reshape(-1)
+    w_ternary = dequantized.reshape(-1)
     if pad_len > 0:
         w_ternary = w_ternary[:w_f.size]
     w_ternary = w_ternary.reshape(shape)
@@ -223,6 +270,9 @@ def ternary_ste(w, group_size=128):
 # ---------------------------------------------------------------------------
 # Model layers
 # ---------------------------------------------------------------------------
+# Module-level flag set by GPT.__init__ from args.turbo_quant
+_TURBO_QUANT = False
+
 class TernaryLinear(nn.Module):
     """Linear layer with ternary STE quantization during forward."""
     def __init__(self, in_dim, out_dim, group_size=128):
@@ -232,7 +282,7 @@ class TernaryLinear(nn.Module):
         self._zero_init = False
 
     def __call__(self, x):
-        w = ternary_ste(self.weight, self.group_size)
+        w = ternary_ste(self.weight, self.group_size, turbo=_TURBO_QUANT)
         return x @ w.astype(x.dtype).T
 
 
@@ -643,6 +693,8 @@ class GPT(nn.Module):
     """Ternary Reasoner — MLX version."""
     def __init__(self, args: Hyperparameters):
         super().__init__()
+        global _TURBO_QUANT
+        _TURBO_QUANT = args.turbo_quant
         dim = args.model_dim
         self.args = args
         self.feedback_enabled = args.feedback_enabled
