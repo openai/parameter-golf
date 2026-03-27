@@ -638,23 +638,26 @@ class AttnRes(nn.Module):
         x_norm = F.rms_norm(x, (x.size(-1),))
         kv_norm = F.rms_norm(kv_flat, (kv_flat.size(-1),))
         
-        # Query calculation on original shape
+        # q calculation on original shape: (B, H, T, D_h)
         q_orig = self.c_q(x_norm).reshape(B, T, self.num_heads, self.head_dim).transpose(1, 2)
-        q_norm = F.rms_norm(q_orig, (q_orig.size(-1),))
-        
-        # Expand q to match interleaved layout: shape (B, H, T * P, D_h)
-        q = q_norm.unsqueeze(3).expand(-1, -1, -1, P, -1).contiguous().reshape(B, self.num_heads, T * P, self.head_dim)
-        
+        q = F.rms_norm(q_orig, (q_orig.size(-1),))
+
         k = self.c_k(kv_norm).reshape(B, T * P, self.num_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(kv_norm).reshape(B, T * P, self.num_heads, self.head_dim).transpose(1, 2)
-        
+
         k = F.rms_norm(k, (k.size(-1),))
-        
-        # Native Flash Attention handles standard causal sequence natively!
-        y_flat = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-        
-        # Extract the final pass step for each temporal time slice
-        y = y_flat[:, :, P-1::P, :].transpose(1, 2).contiguous().reshape(B, T, D)
+
+        # We want query step t to attend to all key steps (t', p') where t' < t or (t' == t and p' <= P-1).
+        # Since the kv sequence is (t0, p0), (t0, p1), ..., (t0, pP-1), (t1, p0), ...,
+        # a query at time t (which is at index t in the q sequence) should attend to keys up to index (t+1)*P - 1.
+        # This is a block-causal mask.
+        mask = torch.ones(T, T * P, device=x.device, dtype=torch.bool).tril(diagonal=0)
+        # expand mask for the P dimension: each temporal query step t sees all P historical steps for each t' <= t
+        mask = mask.repeat_interleave(P, dim=1).unsqueeze(0).unsqueeze(0) # (1, 1, T, T*P)
+
+        y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, is_causal=False)
+        y = y.transpose(1, 2).contiguous().reshape(B, T, D)
+        return x + self.attn_res_scale.to(dtype=x.dtype)[None, None, :] * self.proj(y)
         return x + self.attn_res_scale.to(dtype=x.dtype)[None, None, :] * self.proj(y)
 
 
@@ -1096,11 +1099,14 @@ def main() -> None:
 
                 # Verify roundtrip
                 buf2 = io.BytesIO(zlib.decompress(compressed))
-                quant_obj2 = torch.load(buf2, weights_only=True)
+                # Use weights_only=False to support the nested dict/strings produced by quantization
+                quant_obj2 = torch.load(buf2, weights_only=False)
                 recovered = dequantize_state_dict_int8(quant_obj2)
                 base_model.load_state_dict(recovered, strict=True)
+                
+                # Use model (DDP) for validation to ensure same device/sync behavior as training
                 val_loss2, val_bpb2 = eval_val(
-                    args, base_model, rank, world_size, device, grad_accum_steps,
+                    args, model if distributed else compiled_model, rank, world_size, device, grad_accum_steps,
                     val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
                 )
                 log0(f"final_int8_zlib_roundtrip val_loss:{val_loss2:.4f} val_bpb:{val_bpb2:.4f} size_bytes:{total_bytes}")
