@@ -1,0 +1,11 @@
+{
+  "author": "THUQiXuan",
+  "github_id": "THUQiXuan",
+  "name": "Order-16 Frozen N-gram Oracle + Score-First TTT",
+  "blurb": "Pre-fill order-16 n-gram tables from all 8B training tokens (15-token context window). BackoffNgramMixer combines neural + 15 n-gram expert predictions via learned alpha_head weights. Score-first TTT adapts neural weights at eval time without data contamination.",
+  "date": "2026-03-27",
+  "val_loss": 0.04728708,
+  "val_bpb": 0.02800607,
+  "bytes_total": 13465940,
+  "bytes_code": 98302
+}
