@@ -99,9 +99,69 @@ case "$PROFILE" in
     export SWA_START_FRAC="${SWA_START_FRAC:-0.6}"
     export SWA_STRIDE="${SWA_STRIDE:-50}"
     ;;
+  winner_locked)
+    export RUN_ID="${RUN_ID:-winner_locked}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    ;;
+  winner_ema_swa)
+    export RUN_ID="${RUN_ID:-winner_ema_swa}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export EMA_DECAY="${EMA_DECAY:-0.997}"
+    export SWA_START_FRAC="${SWA_START_FRAC:-0.6}"
+    export SWA_STRIDE="${SWA_STRIDE:-50}"
+    ;;
+  winner_wd03)
+    export RUN_ID="${RUN_ID:-winner_wd03}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.03}"
+    ;;
+  winner_wd04)
+    export RUN_ID="${RUN_ID:-winner_wd04}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    ;;
+  winner_warm3500)
+    export RUN_ID="${RUN_ID:-winner_warm3500}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export WARMDOWN_ITERS="${WARMDOWN_ITERS:-3500}"
+    ;;
+  winner_lr18)
+    export RUN_ID="${RUN_ID:-winner_lr18}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MATRIX_LR="${MATRIX_LR:-0.018}"
+    ;;
+  winner_wd03_ema)
+    export RUN_ID="${RUN_ID:-winner_wd03_ema}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.03}"
+    export EMA_DECAY="${EMA_DECAY:-0.997}"
+    export SWA_START_FRAC="${SWA_START_FRAC:-0.6}"
+    export SWA_STRIDE="${SWA_STRIDE:-50}"
+    ;;
+  winner_mlp3)
+    export RUN_ID="${RUN_ID:-winner_mlp3}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MLP_MULT="${MLP_MULT:-3}"
+    ;;
   *)
     echo "Unknown profile: $PROFILE" >&2
-    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth shared_depth_midshare copycore_v1" >&2
+    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth shared_depth_midshare copycore_v1 winner_locked winner_ema_swa winner_wd03 winner_wd04 winner_warm3500 winner_lr18 winner_wd03_ema winner_mlp3" >&2
     exit 1
     ;;
 esac

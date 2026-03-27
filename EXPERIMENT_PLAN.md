@@ -9,6 +9,71 @@ This plan is optimized for limited budget and the challenge rules.
 - Stay under the `16,000,000` byte artifact cap
 - Avoid risky dataset changes until the safe path is exhausted
 
+## Current Best
+
+- `budget_twice_eval2048_ttt1024`
+- `final_int8_zlib_roundtrip_exact val_bpb: 1.38414876`
+- `final_int8_ttt_lora val_bpb: 1.3962`
+- `Total submission size int8+zlib: 11280566 bytes`
+
+See [BEST_RESULTS.md](/Users/deividasmataciunas/Desktop/research/openai_golf/BEST_RESULTS.md).
+
+## Current Leaderboard Patterns
+
+From the official leaderboard and top record summaries, the repeated ingredients are:
+
+- `11` layers
+- `MLP 3x`
+- `EMA`
+- `weight decay 0.04`
+- `warmdown 3500`
+- `BigramHash`
+- `Partial RoPE`
+- `LN scale`
+- `QAT` / `GPTQ-lite`
+- `LeakyReLU(0.5)^2`
+
+The features we can test immediately in this repo are:
+
+- `EMA`
+- `SWA`
+- `weight decay`
+- `warmdown`
+- `MLP 3x`
+- `LeakyReLU(0.5)^2`
+- modest LR changes
+
+The features that require more code work are:
+
+- `BigramHash`
+- `Partial RoPE`
+- `LN scale`
+- `QAT` / `GPTQ-lite`
+
+## Next 80-Minute Batch
+
+Run the winner-adjacent profile pack with a strict `1000`-step gate:
+
+```bash
+bash scripts/run_top10_patterns_80m.sh
+```
+
+This batch tests:
+
+1. `winner_locked`
+2. `winner_ema_swa`
+3. `winner_wd03`
+4. `winner_wd04`
+5. `winner_warm3500`
+6. `winner_lr18`
+7. `winner_wd03_ema`
+8. `winner_mlp3`
+
+Use this as the default threshold:
+
+- `AUTO_STOP_STEP=1000`
+- `AUTO_STOP_MAX_VAL_BPB=1.395`
+
 ## 5-Run Moonshot Sequence
 
 Run these in order on remote GPUs, using the current branch and `TRAIN_SHARDS=1`:
