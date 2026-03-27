@@ -1177,20 +1177,12 @@ def build_ngram_from_shards(data_path: str, max_order: int = 13, min_order: int 
             log_fn(f"ngram_build: shard {si+1}/{len(shard_files)}, {num_tokens/1e6:.1f}M tok, {time.perf_counter()-t_shard:.1f}s")
     if log_fn:
         log_fn(f"ngram_build: done. {len(shard_files)} shards, {total_tokens/1e9:.1f}B tokens, {num_buckets} buckets")
-    # scale counts to preserve ratios within uint16 range
+    # store full int32 counts (32K buckets are small enough to store precisely)
     packed = {}
     for oi in range(num_orders):
         order = min_order + oi
-        ctx = ctx_counts[oi].astype(np.float64)
-        full = full_counts[oi].astype(np.float64)
-        # scale by max(ctx) to preserve full/ctx ratios
-        max_ctx = ctx.max()
-        if max_ctx > 65535:
-            scale = 65535.0 / max_ctx
-            ctx = (ctx * scale).astype(np.uint32)
-            full = (full * scale).astype(np.uint32)
-        packed[f"ctx_{order}"] = torch.from_numpy(np.minimum(ctx, 65535).astype(np.uint16))
-        packed[f"full_{order}"] = torch.from_numpy(np.minimum(full, 65535).astype(np.uint16))
+        packed[f"ctx_{order}"] = torch.from_numpy(ctx_counts[oi].astype(np.int32))
+        packed[f"full_{order}"] = torch.from_numpy(full_counts[oi].astype(np.int32))
     packed["meta"] = torch.tensor([max_order, min_order, num_buckets], dtype=torch.int32)
     return packed
 
@@ -1256,8 +1248,8 @@ def eval_val_ngram(
                 ctx_key = f"ctx_{order}"
                 full_key = f"full_{order}"
                 if ctx_key in prewarmed_ngram and full_key in prewarmed_ngram:
-                    cache.ctx_counts[oi] = prewarmed_ngram[ctx_key].numpy().astype(np.uint32)
-                    cache.full_counts[oi] = prewarmed_ngram[full_key].numpy().astype(np.uint32)
+                    cache.ctx_counts[oi] = prewarmed_ngram[ctx_key].numpy().astype(np.uint32).copy()
+                    cache.full_counts[oi] = prewarmed_ngram[full_key].numpy().astype(np.uint32).copy()
             if log_fn:
                 log_fn(f"prewarmed: loaded training n-gram tables (orders {art_min_order}-{art_max_order}, {art_buckets} buckets)")
         else:
@@ -2038,7 +2030,7 @@ def main() -> None:
     if ngram_artifact_enabled:
         t_build = time.perf_counter()
         ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "13"))
-        ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "524288"))
+        ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "32768"))  # 32K — match #943
         ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "80"))
         # each rank builds from a subset of shards
         all_shards = sorted(glob.glob(os.path.join(args.data_path, "fineweb_train_*.bin")))
