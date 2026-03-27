@@ -24,7 +24,10 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+except ImportError:
+    from flash_attn import flash_attn_func as flash_attn_3_func
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -1546,22 +1549,31 @@ def main() -> None:
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
-    if not args.tokenizer_path.endswith(".model"):
-        raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
-    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
-    if int(sp.vocab_size()) != args.vocab_size:
-        raise ValueError(
-            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
-        )
+    has_tokenizer = args.tokenizer_path.endswith(".model") and Path(args.tokenizer_path).exists()
+    if has_tokenizer:
+        sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+        if int(sp.vocab_size()) != args.vocab_size:
+            raise ValueError(
+                f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+            )
+    else:
+        sp = None
+        log0(f"WARNING: tokenizer not found at {args.tokenizer_path}, BPB will use estimate")
     dataset_dir = Path(args.data_path).resolve()
     actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
     effective_eval_seq_len = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
     val_seq_len = max(args.train_seq_len, effective_eval_seq_len)
     val_tokens = load_validation_tokens(args.val_files, val_seq_len)
-    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
-        sp, args.vocab_size, device
-    )
-    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    if sp is not None:
+        base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+            sp, args.vocab_size, device
+        )
+    else:
+        # Estimate: avg ~3.5 bytes per token for 1024 vocab BPE on English text
+        base_bytes_lut = torch.full((args.vocab_size,), 3.5, device=device)
+        has_leading_space_lut = torch.zeros(args.vocab_size, dtype=torch.bool, device=device)
+        is_boundary_token_lut = torch.zeros(args.vocab_size, dtype=torch.bool, device=device)
+    log0(f"val_bpb:{'enabled' if sp else 'estimated'} tokenizer_path={args.tokenizer_path}")
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
     log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
     CastedLinear._qat_enabled = args.qat_enabled
