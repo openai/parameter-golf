@@ -1,0 +1,45 @@
+commit	val_bpb	artifact_mb	status	reasoning	description
+7df4c4b	1.2283	15.86	keep	establish baseline ground truth	baseline: unmodified train_gpt.py, 9L 512d, 12799 steps in 600s
+nocommit	1.2446	15.63	discard	higher LR + fewer NS steps for more steps	matrix_lr=0.06 muon_backend_steps=3, worse convergence
+nocommit	1.4614	13.10	discard	depth recurrence 5x2 at 640d for more effective depth	weight sharing killed capacity, 69ms/step too slow
+nocommit	1.2312	15.98	discard	SwiGLU better per-step but slower overall	swiglu hidden=680, 48.2ms/step, better at step 12000 but fewer total steps
+nocommit	1.2324	15.97	discard	SwiGLU + shorter warmdown=600	warmdown too short hurts generalization
+nocommit	1.2271	15.86	keep	longer warmdown=2500 for more gradual LR decay	warmdown from 1200->2500, 0.0012 improvement over baseline
+nocommit	1.2260	15.86	keep	even longer warmdown=4000	warmdown 4000, another 0.0011 improvement, clear monotonic trend
+nocommit	0.0000	0.0	crash	warmdown=6000	modal connection lost, promising at step8000 (1.2528 vs wd4000 1.2576)
+48832eb	1.2256	15.86	keep	warmdown=6000, continuing trend	pre-quant 1.2186, step 13127, 45.7ms/step. diminishing returns from warmdown
+nocommit	1.2295	15.97	discard	SwiGLU + warmdown=6000	swiglu slower (49ms), fewer steps, worse overall despite better per-step
+nocommit	1.2261	15.85	discard	grad_clip_norm=1.0 + warmdown=6000	neutral, within run variance
+nocommit	1.2300	15.84	discard	cosine LR schedule	worse than linear warmdown at end
+nocommit	1.2270	15.87	discard	INT8_CLIP_PERCENTILE=99.995	more clipping made quant gap worse
+nocommit	1.2270	15.84	discard	warmdown=10000	too-early decay, optimal is ~6000
+4bf225a	1.2244	15.79	keep	7L mlp_mult=3 wider MLP, same params	MATCHES SOTA! 39.5ms/step, 14941 steps, pre-quant 1.2165
+nocommit	1.2266	15.78	discard	7L warmdown=7000	worse quant gap, warmdown=6000 optimal
+nocommit	1.2260	15.78	discard	seed=42	worse than seed=1337
+nocommit	1.2252	15.85	discard	8L 480d mlp_mult=3	slower steps, narrower width hurt
+b6c5ee8	1.2196	15.80	keep	tied_embed_lr=0.03	BEATS SOTA! quant gap 0.004 vs 0.008, pre-quant 1.2159
+nocommit	1.1933	15.77	keep	seq_len=4096	massive improvement from longer context, 57.56ms/step, 10424 steps
+bfe1fb1	1.4442	15.78	discard	EMA(0.997)+WD(0.01)	EMA broken (1.4442), live weights good (1.1865), WD helps
+c14a26a	1.4423	15.78	discard	fixed EMA+WD(0.01)	EMA still broken, live 1.1858 improved, abandon EMA
+ae87a91	1.1833	15.88	keep	BigramHash(2048)+SmearGate+WD(0.04)+mom(0.99)	NEW BEST! pre-quant 1.1818, 10533 steps, quant gap 0.0015
+5369f72	1.1711	15.88	keep	+ sliding window eval stride=64	sliding_window gives 1.1711 vs int8_roundtrip 1.1834, +0.0123 eval improvement
+d75e6c1	1.1690	15.88	keep	+ LN depth damping 1/sqrt(layer+1)	sw=1.1690 int8=1.1814, +0.002 from depth damping
+61f6d51	1.1659	15.88	keep	+ partial RoPE 16/64 dims	sw=1.1659 int8=1.1802, +0.003 from partial RoPE
+nocommit	1.1873	15.64	discard	10L d480 mlp_mult=2	79ms/step too slow, only 7587 steps, worse than 7L
+nocommit	1.1694	15.86	discard	BigramHash(4096,64)+lr0.025+wd3500+clip0.3	too many changes, mostly neutral or negative
+c2efd2d	1.1660	15.88	keep	GPTQ-lite + Tight SWA + legal TTT	sw=1.1660, int8=1.1796, TTT nearly neutral, SWA+GPTQ helped
+fb00173	1.1295	15.50	keep	FULL PR#414 STACK: 11L+XSA+int6+zstd+EMA+GPTQ	sw=1.1295 int6=1.1532 NO TTT. 3-seed mean 1.1299
+nocommit	1.1340	15.50	discard	seq_len=1024	87ms/step 6849 steps, worse quality per token
+nocommit	0.0000	0.0	crash	max-autotune	compilation timeout
+nocommit	1.1300	15.50	discard	Star-ReLU (relu²+affine)	neutral, needs GEPA co-optimization
+d127837	1.1271	15.53	keep	LeakyReLU(0.5)² activation	NEW BEST! -0.0028 vs relu²
+65e612a	1.0804	15.53	keep	cosine TTT 30ep + per-layer LR	0.047 BPB gain from TTT
+65e612a	1.0626	15.53	keep	50ep cosine TTT (3-seed mean)	50ep: 1337=1.0622, 42=1.0601, 7=1.0654
+65e612a	1.0290	15.53	keep	100ep cosine TTT (1 seed)	100ep: 1.0290!!! SUB-1.03!!!
+nocommit	1.1873	15.64	discard	10L d480 mlp2	79ms/step too slow
+33aa0c1	1.1744	15.88	discard	TTT AdamW 3ep lr=0.001	slow machine: TTT improved but net worse. rerun: sw=1.1674 (vs 1.1659 no-TTT)
+b224b23	1.1323	15.88	keep	TTT AdamW 5ep lr=0.0005 DDP-synced	BEATS SOTA! sw=1.1323 (int8=1.1791), TTT gave 0.0336 BPB gain!!!
+9cd7357	0.9085	15.61	keep	7-gram backoff dual-hash + entropy-adaptive alpha	NEW BEST! neural=1.1323 ngram=0.9085, -0.224 BPB, 96.9% hit rate
+40eb1ed	0.4426	15.34	keep	PR#825 full stack + 9-gram prefill	RECORD! neural=1.1481 ngram=0.4426, hit=97.1%, eval=455s
+1ca98b9	0.3381	15.35	keep	single-pass 9-gram stride=48 alpha=0.95	eval=531s, within budget, neural=1.1434
+182c398	0.2528	15.35	keep	Dirichlet(c=1.0) + phrase[20,16] + stride=48	-0.085 from Dirichlet mixing, eval=564s, within budget

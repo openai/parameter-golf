@@ -1065,6 +1065,42 @@ class NgramCache:
                 full_counts_out[first_valid + idx] = capped_full
         return p_ngram, has_match, matched_order, ctx_counts_out, full_counts_out
 
+    def lookup_hierarchical(self, val_np: np.ndarray, start: int, end: int, concentration: float, base_p: np.ndarray) -> np.ndarray:
+        """hierarchical Dirichlet mixing (CTW-style, PR #900 / Teh 2006).
+        for each position, iterate from lowest to highest order. each order's posterior
+        becomes the next order's prior: p = (c * p_prev + full_c) / (c + ctx_c).
+        returns the final blended probability array."""
+        seg_len = end - start
+        blended = base_p.copy()
+        mask = self.mask
+        primes = self.PRIMES
+        # iterate lowest to highest order — each posterior becomes next prior
+        for oi in range(self.num_orders):
+            order = self.min_order + oi
+            cw = order - 1
+            first_valid = max(cw, start) - start
+            n_pos = seg_len - first_valid
+            if n_pos <= 0:
+                continue
+            abs_s = start + first_valid
+            ctx_hash = np.zeros(n_pos, dtype=np.uint64)
+            for k in range(cw):
+                t = val_np[abs_s - cw + k:abs_s - cw + k + n_pos].astype(np.uint64)
+                ctx_hash ^= t * np.uint64(primes[k])
+            ctx_key = (ctx_hash & mask).astype(np.int64)
+            targets = val_np[abs_s + 1:abs_s + 1 + n_pos].astype(np.uint64)
+            full_key = ((ctx_hash ^ (targets * np.uint64(primes[cw]))) & mask).astype(np.int64)
+            ctx_c = self.ctx_counts[oi][ctx_key]
+            full_c = np.minimum(self.full_counts[oi][full_key], ctx_c)
+            valid = (ctx_c >= self.min_count) & (full_c > 0)
+            if valid.any():
+                idx = np.nonzero(valid)[0]
+                fc = full_c[idx].astype(np.float64)
+                cc = ctx_c[idx].astype(np.float64)
+                prev_p = blended[first_valid + idx]
+                blended[first_valid + idx] = (concentration * prev_p + fc) / (concentration + cc)
+        return blended
+
     def update(self, val_np: np.ndarray, start: int, end: int) -> None:
         """update cache with tokens from [start, end)."""
         seg_len = end - start
@@ -1194,21 +1230,19 @@ def eval_val_ngram(
                 model_p = probs_all[i, s:wlen].gather(1, seg_targets.unsqueeze(1)).squeeze(1).cpu().numpy().astype(np.float64)
                 seg_nll_neural = F.cross_entropy(logits_f[i, s:wlen], seg_targets, reduction='none').cpu().numpy().astype(np.float64)
 
-                # n-gram: lookup THEN update (score-first)
-                p_ngram, has_match, matched_order, ng_ctx_c, ng_full_c = cache.lookup(val_np, abs_start, abs_end)
-                cache.update(val_np, abs_start, abs_end)
-
-                # mix n-gram
-                blended_p = model_p.copy()
-                if has_match.any():
-                    m = has_match
-                    if dirichlet_concentration > 0:
-                        # dirichlet-multinomial posterior predictive (PR #900 / Teh 2006)
-                        # p(t|c) = (conc * p_model(t) + count(c,t)) / (conc + count(c))
-                        conc = dirichlet_concentration
-                        blended_p[m] = (conc * model_p[m] + ng_full_c[m]) / (conc + ng_ctx_c[m])
-                    else:
-                        # legacy linear interpolation with per-order entropy thresholds
+                # n-gram: score-first (lookup THEN update)
+                if dirichlet_concentration > 0:
+                    # hierarchical Dirichlet (CTW-style, PR #900 / Teh 2006)
+                    # each order's posterior becomes next order's prior
+                    blended_p = cache.lookup_hierarchical(val_np, abs_start, abs_end, dirichlet_concentration, model_p)
+                    # still need has_match for hit rate tracking
+                    _, has_match, matched_order, _, _ = cache.lookup(val_np, abs_start, abs_end)
+                else:
+                    p_ngram, has_match, matched_order, _, _ = cache.lookup(val_np, abs_start, abs_end)
+                    # legacy linear interpolation with per-order entropy thresholds
+                    blended_p = model_p.copy()
+                    if has_match.any():
+                        m = has_match
                         ent_centers = {7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5, 8: 2.8, 9: 2.6}
                         if adaptive:
                             seg_ent = (-(probs_all[i, s:wlen] * log_probs_all[i, s:wlen]).sum(dim=-1)).cpu().numpy()
@@ -1222,6 +1256,7 @@ def eval_val_ngram(
                         else:
                             alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
                         blended_p[m] = (1.0 - alpha[m]) * model_p[m] + alpha[m] * p_ngram[m]
+                cache.update(val_np, abs_start, abs_end)
 
                 # phrase cache: lookup THEN update (score-first)
                 positions = np.arange(abs_start, abs_end, dtype=np.int64)
@@ -1230,9 +1265,8 @@ def eval_val_ngram(
                 if phrase_match.any():
                     pm = phrase_match
                     if dirichlet_concentration > 0:
-                        # phrase evidence refines the n-gram-mixed estimate
-                        # lower concentration for phrases (more specific context = more trustworthy)
-                        phr_conc = dirichlet_concentration * 0.2
+                        # phrase Dirichlet with dedicated concentration (PR #900 uses c=2.0)
+                        phr_conc = min(dirichlet_concentration, 2.0)
                         blended_p[pm] = (phr_conc * blended_p[pm] + phr_full_c[pm]) / (phr_conc + phr_ctx_c[pm])
                     else:
                         pa = 0.3 + (0.95 - 0.3) * (phrase_len[phrase_match].astype(np.float64) - 16.0) / 32.0
@@ -1268,7 +1302,7 @@ def eval_val_ngram(
         log_fn(f"neural_only_sw val_loss:{val_loss_neural:.4f} val_bpb:{bpb_neural:.4f}")
         log_fn(f"ngram_hit_rate:{hit_rate:.1f}% ({ngram_hits}/{ngram_total})")
         if dirichlet_concentration > 0:
-            log_fn(f"mixing:dirichlet concentration={dirichlet_concentration:.2f} phrase_probes={LongPhraseCache.PROBE_LENGTHS}")
+            log_fn(f"mixing:hierarchical_dirichlet concentration={dirichlet_concentration:.2f} phrase_probes={LongPhraseCache.PROBE_LENGTHS}")
         else:
             log_fn(f"mixing:linear_interp adaptive={adaptive}")
     model.train()
@@ -2080,7 +2114,7 @@ def main() -> None:
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     sw_seq_len = effective_eval_seq_len
     if ngram_enabled:
-        ngram_order = int(os.environ.get("NGRAM_ORDER", "9"))
+        ngram_order = int(os.environ.get("NGRAM_ORDER", "13"))
         ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
         ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
         ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
@@ -2089,7 +2123,7 @@ def main() -> None:
         ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.90"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
         ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
-        dirichlet_conc = float(os.environ.get("DIRICHLET_CONCENTRATION", "1.0"))
+        dirichlet_conc = float(os.environ.get("DIRICHLET_CONCENTRATION", "5.0"))
         torch.cuda.synchronize()
         t_ngram = time.perf_counter()
         ngram_two_pass = bool(int(os.environ.get("NGRAM_TWO_PASS", "0")))  # default single-pass for legality
