@@ -2,7 +2,7 @@
 
 This script is standalone. It does not import any local exporter or tokenizer
 helpers. Tokenizer configs are JSON only and currently support the built-in
-pure-byte and SentencePiece tokenizer definitions in `data/tokenizer_specs.json`.
+raw-byte and SentencePiece tokenizer definitions in `data/tokenizer_specs.json`.
 """
 
 from __future__ import annotations
@@ -38,19 +38,19 @@ SP_BATCH_SIZE = max(1, int(os.environ.get("MATCHED_FINEWEB_SP_BATCH_SIZE", "1024
 @dataclass(frozen=True)
 class PureByteTokenizer:
     pad_id: int = 0
-    bos_id: int = 1
-    eos_id: int = 2
-    unk_id: int = 3
-    byte_offset: int = 4
+    bos_id: int | None = None
+    eos_id: int | None = None
+    unk_id: int | None = None
+    byte_offset: int = 0
     byte_count: int = 256
 
     @property
     def vocab_size(self) -> int:
-        return self.byte_offset + self.byte_count
+        return self.byte_count
 
     def encode(self, text: str) -> np.ndarray:
         data = text.encode("utf-8", errors="replace")
-        return np.frombuffer(data, dtype=np.uint8).astype(np.uint16, copy=False) + self.byte_offset
+        return np.frombuffer(data, dtype=np.uint8).astype(np.uint16, copy=False)
 
     def encode_batch(self, texts: list[str]) -> list[np.ndarray]:
         return [self.encode(text) for text in texts]
@@ -59,7 +59,7 @@ class PureByteTokenizer:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "tokenizer_type": "pure_byte",
+            "tokenizer_type": "raw_byte",
             "config": asdict(self),
             "vocab_size": self.vocab_size,
         }
@@ -230,12 +230,12 @@ def _iter_sentencepiece_text(docs_jsonl: Path, *, max_docs: int | None = None):
 def build_pure_byte_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tokenizers_dir: Path) -> dict[str, Any]:
     del docs_jsonl
     tok = default_pure_byte_tokenizer()
-    path = tokenizers_dir / spec.get("filename", "fineweb_pure_byte_260.json")
+    path = tokenizers_dir / spec.get("filename", "fineweb_raw_byte_256.json")
     tok.save_json(path)
     return {
-        "name": spec.get("name", "pure_byte_260"),
+        "name": spec.get("name", "raw_bytes_256"),
         "kind": "byte",
-        "dataset_suffix": spec.get("dataset_suffix", "byte260"),
+        "dataset_suffix": spec.get("dataset_suffix", "bytes"),
         "vocab_size": tok.vocab_size,
         "bos_id": tok.bos_id,
         "eos_id": tok.eos_id,
@@ -362,11 +362,18 @@ def export_shards(
                 split = split_for_doc
 
             encoded_arr = np.asarray(encoded, dtype=np.int32)
-            toks = np.empty((encoded_arr.size + 1 + int(APPEND_EOS),), dtype=np.int32)
-            toks[0] = tok["bos_id"]
-            toks[1 : 1 + encoded_arr.size] = encoded_arr
-            if APPEND_EOS:
-                toks[-1] = tok["eos_id"]
+            bos_id = tok.get("bos_id")
+            eos_id = tok.get("eos_id")
+            add_bos = bos_id is not None and int(bos_id) >= 0
+            add_eos = APPEND_EOS and eos_id is not None and int(eos_id) >= 0
+            prefix = 1 if add_bos else 0
+            suffix = 1 if add_eos else 0
+            toks = np.empty((encoded_arr.size + prefix + suffix,), dtype=np.int32)
+            if add_bos:
+                toks[0] = int(bos_id)
+            toks[prefix : prefix + encoded_arr.size] = encoded_arr
+            if add_eos:
+                toks[-1] = int(eos_id)
             if not ((0 <= toks).all() and (toks < vocab_size).all()):
                 bad = int(toks[(toks < 0) | (toks >= vocab_size)][0])
                 raise ValueError(f"token id {bad} outside declared vocab_size={vocab_size}")
@@ -440,14 +447,16 @@ def build_tokenizers(
         recommended_bigram_vocab_size = int(
             built.get("recommended_bigram_vocab_size", ((vocab_size + 127) // 128) * 128 * 5)
         )
+        bos_id = built.get("bos_id")
+        eos_id = built.get("eos_id")
         tokenizers.append(
             {
                 "name": name,
                 "kind": str(built["kind"]),
                 "dataset_name": dataset_name,
                 "vocab_size": vocab_size,
-                "bos_id": int(built["bos_id"]),
-                "eos_id": int(built["eos_id"]),
+                "bos_id": None if bos_id is None else int(bos_id),
+                "eos_id": None if eos_id is None else int(eos_id),
                 "encode": built["encode"],
                 "encode_batch": built.get("encode_batch"),
                 "recommended_bigram_vocab_size": recommended_bigram_vocab_size,
@@ -455,8 +464,8 @@ def build_tokenizers(
                     "name": name,
                     "kind": str(built["kind"]),
                     "vocab_size": vocab_size,
-                    "bos_id": int(built["bos_id"]),
-                    "eos_id": int(built["eos_id"]),
+                    "bos_id": None if bos_id is None else int(bos_id),
+                    "eos_id": None if eos_id is None else int(eos_id),
                     "recommended_bigram_vocab_size": recommended_bigram_vocab_size,
                     "source_spec": spec,
                     **(built.get("manifest") or {}),
