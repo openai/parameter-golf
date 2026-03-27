@@ -105,6 +105,9 @@ class Hyperparameters:
     polyglu_enabled = bool(int(os.environ.get("POLYGLU_ENABLED", "1")))
     polyglu_gate_dim = int(os.environ.get("POLYGLU_GATE_DIM", 16))
     polyglu_tau_min = float(os.environ.get("POLYGLU_TAU_MIN", 0.1))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+    gated_mlp = bool(int(os.environ.get("GATED_MLP", "0")))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -729,10 +732,15 @@ class ValueEmbedding(nn.Module):
         return h * self.scale.to(dtype=h.dtype)
 
 class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, gated: bool = False):
         super().__init__()
+        self.gated = gated
         # No CastedLinear -- weights come from banks
     def forward(self, x: Tensor, up_w: Tensor, down_w: Tensor) -> Tensor:
+        if self.gated:
+            h = F.linear(x, up_w.to(x.dtype))
+            gate, val = h.chunk(2, dim=-1)
+            return F.linear(F.leaky_relu(gate, negative_slope=0.5).square() * val, down_w.to(x.dtype))
         x = F.leaky_relu(F.linear(x, up_w.to(x.dtype)), negative_slope=0.5)
         return F.linear(x.square(), down_w.to(x.dtype))
 
@@ -770,13 +778,14 @@ class Block(nn.Module):
         value_residual: bool = False,
         polyglu_enabled: bool = False,
         polyglu_gate_dim: int = 16,
+        gated_mlp: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
                                         gated_attention=gated_attention, value_residual=value_residual)
-        self.mlp = PolyMLP(dim, mlp_mult, gate_dim=polyglu_gate_dim) if polyglu_enabled else MLP(dim, mlp_mult)
+        self.mlp = PolyMLP(dim, mlp_mult, gate_dim=polyglu_gate_dim) if polyglu_enabled else MLP(dim, mlp_mult, gated=gated_mlp)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -827,6 +836,7 @@ class GPT(nn.Module):
         value_residual: bool = False,
         polyglu_enabled: bool = False,
         polyglu_gate_dim: int = 16,
+        gated_mlp: bool = False,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -848,12 +858,18 @@ class GPT(nn.Module):
         # Parameter banks: contiguous 3D tensors for batched optimizer
         head_dim = model_dim // num_heads
         kv_dim = num_kv_heads * head_dim
-        mlp_dim = int(mlp_mult * model_dim)
+        if gated_mlp:
+            gated_hidden = int(mlp_mult * model_dim * 2 / 3)
+            mlp_up_dim = 2 * gated_hidden  # split into gate + value in forward
+            mlp_down_dim = gated_hidden
+        else:
+            mlp_up_dim = int(mlp_mult * model_dim)
+            mlp_down_dim = mlp_up_dim
         self.num_layers = num_layers
         self.qo_bank = nn.Parameter(torch.empty(2 * num_layers, model_dim, model_dim))
         self.kv_bank = nn.Parameter(torch.empty(2 * num_layers, kv_dim, model_dim))
-        self.mlp_up_bank = nn.Parameter(torch.empty(num_layers, mlp_dim, model_dim))
-        self.mlp_down_bank = nn.Parameter(torch.empty(num_layers, model_dim, mlp_dim))
+        self.mlp_up_bank = nn.Parameter(torch.empty(num_layers, mlp_up_dim, model_dim))
+        self.mlp_down_bank = nn.Parameter(torch.empty(num_layers, model_dim, mlp_down_dim))
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -870,6 +886,7 @@ class GPT(nn.Module):
                     value_residual=value_residual,
                     polyglu_enabled=polyglu_enabled,
                     polyglu_gate_dim=polyglu_gate_dim,
+                    gated_mlp=gated_mlp,
                 )
                 for i in range(num_layers)
             ]
@@ -1512,6 +1529,7 @@ def main() -> None:
         value_residual=args.value_residual,
         polyglu_enabled=args.polyglu_enabled,
         polyglu_gate_dim=args.polyglu_gate_dim,
+        gated_mlp=args.gated_mlp,
     ).to(device).bfloat16()
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
@@ -1680,7 +1698,7 @@ def main() -> None:
     from collections import deque
     lawa_queue: deque[dict[str, Tensor]] = deque(maxlen=args.lawa_k)
     ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
-    ema_decay = 0.997
+    ema_decay = args.ema_decay
     training_time_ms = 0.0
     stop_after_step: int | None = None
     torch.cuda.synchronize()
@@ -1818,11 +1836,13 @@ def main() -> None:
             avg_state[name] /= len(lawa_queue)
             avg_state[name] = avg_state[name].to(dtype=current_state[name].dtype)
         base_model.load_state_dict(avg_state, strict=True)
-    else:
-        log0("ema:applying EMA weights")
+    elif args.ema_enabled:
+        log0(f"ema:applying EMA weights (decay={ema_decay})")
         current_state = base_model.state_dict()
         avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
         base_model.load_state_dict(avg_state, strict=True)
+    else:
+        log0("ema:skipped (disabled)")
     torch.cuda.synchronize()
     t_diag = time.perf_counter()
     diag_val_loss, diag_val_bpb = eval_val(
@@ -1883,6 +1903,7 @@ def main() -> None:
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         gated_attention=args.gated_attention, value_residual=args.value_residual,
         polyglu_enabled=args.polyglu_enabled, polyglu_gate_dim=args.polyglu_gate_dim,
+        gated_mlp=args.gated_mlp,
     ).to(device).bfloat16()
     eval_model.qo_bank.data = eval_model.qo_bank.data.float()
     eval_model.kv_bank.data = eval_model.kv_bank.data.float()
