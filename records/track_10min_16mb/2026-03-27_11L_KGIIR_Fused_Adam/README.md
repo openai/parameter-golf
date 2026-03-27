@@ -18,7 +18,7 @@ While standard architectures use discrete token shifts (FIR-like behavior) to ha
 * **IIR (Infinite Impulse Response):** Unlike a standard windowed shift, the IIR filter allows information to persist across much longer ranges with zero additional parameter cost, using a recursive 4-tap analytical structure.
 
 ### Why it works for Parameter Golf
-In the 16MB regime, Attention heads are too valuable to waste on local syntax "bookkeeping." By offloading temporal dependencies to the KGIIR filter, I achieve a superior **Pareto frontier**—reaching a deeper semantic resolution without sacrificing the 88ms/step throughput required for the 600s sprint.
+In the 16MB regime, Attention heads are too valuable to waste on local syntax "bookkeeping." By offloading temporal dependencies to the KGIIR filter, I achieved a superior Pareto frontier—investing a marginal 5ms in step latency (83ms → 88ms) to reach a deeper semantic resolution. This trade-off allowed for a cleaner convergence within the 600s sprint that raw throughput alone could not match.
 
 ### Controlled Experiment: The BPB Drop
 To isolate the impact of KGIIR, this run was conducted as a strict controlled ablation. **The only architectural change made to the Abay Bektursun SOTA was the integration of the KGIIR trajectory layer.**
