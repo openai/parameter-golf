@@ -6,8 +6,8 @@
     "num_gpus": 8,
     "gpu_type": "H100 SXM",
     "training_time_seconds": 600,
-    "val_bpb": null,
-    "bytes_total": null,
-    "bytes_code": null,
-    "blurb": "CoDA-GQA (Constrained Orthogonal Differential Attention) from arXiv:2502.XXXXX applied to Parameter Golf. Dual SDPA with orthogonal noise query rotation + input-dependent lambda gating. First differential attention submission in the competition."
+    "val_bpb": 1.1580,
+    "bytes_total": 15705522,
+    "bytes_code": 68650,
+    "blurb": "CoDA-GQA differential attention (Maio, 2026) applied to Parameter Golf. Orthogonal noise query rotation + input-dependent lambda gating. Ablation: +0.012 bpb vs baseline due to 30% step overhead. First differential attention submission."
 }
