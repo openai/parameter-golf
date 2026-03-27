@@ -1045,13 +1045,14 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    if args.compile_model:
+        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # CUDA SETUP (single-GPU)
     # -----------------------------
 
-    grad_accum_steps = 8
+    grad_accum_steps = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
