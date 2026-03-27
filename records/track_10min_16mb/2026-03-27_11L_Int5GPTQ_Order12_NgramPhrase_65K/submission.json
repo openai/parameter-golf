@@ -1,0 +1,13 @@
+{
+  "name": "11L Int5 GPTQ + Order-12 N-gram + Phrase Cache + 65K Chunks",
+  "val_bpb": 0.0881,
+  "val_bpb_std": 0.0004,
+  "n_seeds": 3,
+  "seeds": [1337, 42, 2024],
+  "bytes_total": 13001360,
+  "blurb": "Fully-trained 11L 512d base model (pre-quant 1.14 BPB) with order-12 backoff n-gram cache, long phrase cache, entropy-adaptive alpha, temperature sharpening (T=0.85), and 65K-token chunks. Full Hessian GPTQ int5 + LZMA. Eval approach from PR #913 adapted with 65K chunk size for properly trained models where 131K exceeds eval budget. 3-seed mean 0.0881 (std 0.0004).",
+  "author": "callithyia",
+  "github_id": "callithyia",
+  "date": "2026-03-27",
+  "hardware": "8xH100 SXM (RunPod)"
+}
