@@ -45,6 +45,11 @@ for i in "${!NAMES[@]}"; do
     name="${NAMES[$i]}"
     logfile="${LOG_DIR}/${name}.log"
     LOG_FILES+=("${logfile}")
+
+    # Kill any lingering GPU workers from the previous arm
+    pkill -f "train_gpt.py" 2>/dev/null || true
+    sleep 3
+
     echo ""
     echo "--- ${name} (myelin=${MYELIN[$i]} circadian=${CIRCADIAN[$i]} clonal=${CLONAL[$i]} astrocyte=${ASTROCYTE[$i]}) ---"
     MAX_WALLCLOCK_SECONDS="${WALLCLOCK}" \
@@ -55,14 +60,15 @@ for i in "${!NAMES[@]}"; do
     CAMBRIAN_CIRCADIAN="${CIRCADIAN[$i]}" \
     CAMBRIAN_CLONAL="${CLONAL[$i]}" \
     CAMBRIAN_ASTROCYTE="${ASTROCYTE[$i]}" \
-        bash "${SCRIPT_DIR}/run.sh" 2>&1 | tee "${logfile}"
+    SKIP_FINAL_EVAL=1 \
+        bash "${SCRIPT_DIR}/run.sh" 2>&1 | tee "${logfile}" || true
     echo "    done -> ${logfile}"
 done
 
 echo ""
 echo "========================================================"
 echo "  RESULTS (vs gdn_base)"
-printf "%-16s  %-12s  %-12s  %s\n" "ARM" "VAL_BPB" "NGRAM_BPB" "DELTA"
+printf "%-16s  %-12s  %-12s  %s\n" "ARM" "EMA_BPB" "TRAIN_BPB" "DELTA_vs_BASE"
 echo "------------------------------------------------------------"
 
 baseline_bpb=""
@@ -70,23 +76,22 @@ for i in "${!NAMES[@]}"; do
     name="${NAMES[$i]}"
     logfile="${LOG_FILES[$i]}"
 
-    val_bpb=$(grep -oP 'val_bpb:\K[\d.]+' "${logfile}" 2>/dev/null | grep -v '^3\.' | tail -1 || echo "N/A")
-    ngram_bpb=$(grep -oP 'final_sliding_window_ngram9_exact val_bpb:\K[\d.]+' "${logfile}" 2>/dev/null | tail -1 \
-             || grep -oP 'final_sliding_window_ngram9_partial val_bpb:\K[\d.]+' "${logfile}" 2>/dev/null | tail -1 \
-             || echo "N/A")
+    # SKIP_FINAL_EVAL=1: use DIAGNOSTIC post_ema val_bpb as final metric
+    val_bpb=$(grep -oP 'DIAGNOSTIC post_ema val_bpb:\K[\d.]+' "${logfile}" 2>/dev/null | tail -1 || echo "N/A")
+    train_bpb=$(grep -oP 'val_bpb:\K[\d.]+' "${logfile}" 2>/dev/null | grep -v '^[3-9]\.' | tail -1 || echo "N/A")
 
     if [ "${i}" -eq 0 ]; then
-        baseline_bpb="${ngram_bpb}"
+        baseline_bpb="${val_bpb}"
         delta="(baseline)"
     else
-        if [ "${ngram_bpb}" != "N/A" ] && [ -n "${baseline_bpb}" ] && [ "${baseline_bpb}" != "N/A" ]; then
-            delta=$(python3 -c "print(f'{float(\"${ngram_bpb}\") - float(\"${baseline_bpb}\"):+.4f}')" 2>/dev/null || echo "N/A")
+        if [ "${val_bpb}" != "N/A" ] && [ -n "${baseline_bpb}" ] && [ "${baseline_bpb}" != "N/A" ]; then
+            delta=$(python3 -c "print(f'{float(\"${val_bpb}\") - float(\"${baseline_bpb}\"):+.4f}')" 2>/dev/null || echo "N/A")
         else
             delta="N/A"
         fi
     fi
 
-    printf "%-16s  %-12s  %-12s  %s\n" "${name}" "${val_bpb}" "${ngram_bpb}" "${delta}"
+    printf "%-16s  %-12s  %-12s  %s\n" "${name}" "${val_bpb}" "${train_bpb}" "${delta}"
 done
 
 echo "========================================================"
