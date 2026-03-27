@@ -1,0 +1,11 @@
+{
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "name": "Legal Neural-Only No-TTT (8xH100)",
+  "blurb": "Compliance-focused neural-only baseline: no n-gram/two-pass cache blending and no TTT. Uses frontier_lean under strict 10-minute constraints with artifact and eval guardrails.",
+  "date": "2026-03-27",
+  "val_loss": 1.95961204,
+  "val_bpb": 1.16059263,
+  "bytes_total": 13446760,
+  "bytes_code": 207992
+}
