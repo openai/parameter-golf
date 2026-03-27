@@ -48,6 +48,9 @@ class Hyperparameters:
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    num_layer_schedule = [
+        int(x) for x in os.environ.get("NUM_LAYER_SCHEDULE", "1,2,4").split(",") if x.strip()
+    ]
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
@@ -674,11 +677,8 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.active_num_layers = num_layers
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.shared_attn = CausalSelfAttention(model_dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.shared_attn_2 = CausalSelfAttention(model_dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.shared_mlp = MLP(model_dim, mlp_mult)
@@ -705,16 +705,8 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        skips: list[Tensor] = []
-
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
+        for i in range(self.active_num_layers):
             x = self.blocks[i](x, x0, self.shared_attn, self.shared_attn_2, self.shared_mlp)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0, self.shared_attn, self.shared_attn_2, self.shared_mlp)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -827,6 +819,13 @@ def main() -> None:
     # MODEL + OPTIMIZER SETUP
     # -----------------------------
 
+    if any(num_layers <= 0 or num_layers > args.num_layers for num_layers in args.num_layer_schedule):
+        raise ValueError(
+            f"NUM_LAYER_SCHEDULE entries must be in [1, {args.num_layers}], got {args.num_layer_schedule}"
+        )
+    num_layer_schedule = args.num_layer_schedule or [args.num_layers]
+    num_layer_schedule_idx = 0
+
     base_model = GPT(
         vocab_size=args.vocab_size,
         num_layers=args.num_layers,
@@ -840,6 +839,7 @@ def main() -> None:
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
     ).to(device).bfloat16()
+    base_model.active_num_layers = num_layer_schedule[num_layer_schedule_idx]
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
@@ -855,7 +855,7 @@ def main() -> None:
     block_named_params = [
         (name, p)
         for name, p in base_model.named_parameters()
-        if name != "skip_weights" and not name.startswith("tok_emb.") and not name.startswith("lm_head.")
+        if not name.startswith("tok_emb.") and not name.startswith("lm_head.")
     ]
     matrix_params = [
         p
@@ -867,8 +867,6 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
-    if base_model.skip_weights.numel() > 0:
-        scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -905,6 +903,7 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(f"num_layer_schedule:{num_layer_schedule} active_num_layers:{base_model.active_num_layers}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
@@ -926,6 +925,20 @@ def main() -> None:
     def zero_grad_all() -> None:
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
+
+    local_train_tokens = args.train_batch_tokens // (world_size * grad_accum_steps)
+    local_train_batch_size = local_train_tokens // args.train_seq_len
+    compile_x = torch.zeros((local_train_batch_size, args.train_seq_len), device=device, dtype=torch.int64)
+    compile_y = torch.zeros((local_train_batch_size, args.train_seq_len), device=device, dtype=torch.int64)
+
+    def prime_depth_compile() -> None:
+        compiled_model.train()
+        zero_grad_all()
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            compile_loss = compiled_model(compile_x, compile_y)
+        (compile_loss * grad_scale).backward()
+        zero_grad_all()
+        torch.cuda.synchronize()
 
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
@@ -985,6 +998,8 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            if last_step:
+                base_model.active_num_layers = num_layer_schedule[-1]
             val_loss, val_bpb = eval_val(
                 args,
                 model,
@@ -1001,7 +1016,14 @@ def main() -> None:
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
             )
-            torch.cuda.synchronize()
+            compiled_model.train()
+            if step > 0 and not last_step and num_layer_schedule_idx + 1 < len(num_layer_schedule):
+                num_layer_schedule_idx += 1
+                base_model.active_num_layers = num_layer_schedule[num_layer_schedule_idx]
+                log0(f"layer_schedule_advance:step:{step} active_num_layers:{base_model.active_num_layers}")
+                prime_depth_compile()
+            else:
+                torch.cuda.synchronize()
             t0 = time.perf_counter()
 
         if last_step:
