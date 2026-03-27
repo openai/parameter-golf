@@ -127,6 +127,9 @@ class Hyperparameters:
     bigram_hash_enabled = _e("BIGRAM_HASH_ENABLED", 1, bool)
     bigram_hash_buckets = _e("BIGRAM_HASH_BUCKETS", 4096, int)
     bigram_hash_dim = _e("BIGRAM_HASH_DIM", 128, int)
+    engram_num_heads = _e("ENGRAM_NUM_HEADS", 4, int)
+    engram_num_orders = _e("ENGRAM_NUM_ORDERS", 2, int)  # 2 = bigram + trigram
+    engram_inject_layer = _e("ENGRAM_INJECT_LAYER", 1, int)  # -1 = input only
     vrl_enabled = _e("VRL_ENABLED", 1, bool)
     vrl_start_layer = _e("VRL_START_LAYER", 10, int)
     ln_scale_damping = _e("LN_SCALE_DAMPING", 1, bool)
@@ -258,22 +261,102 @@ class EmbedProj(nn.Module):
         return x @ self.weight.astype(x.dtype).T
 
 
-class BigramHash(nn.Module):
-    """Deterministic bigram hashing for cheap local context injection."""
-    def __init__(self, num_buckets, hash_dim, model_dim, group_size=128):
+class EngramHash(nn.Module):
+    """Engram-inspired multi-head, multi-order n-gram memory with context gating.
+
+    Key ideas from DeepSeek Engram paper:
+    1. Multi-head hashing: K heads per n-gram order reduce collision rate
+    2. Context-aware gating: sigmoid gate from hidden state suppresses noisy lookups
+    3. Multi-order: bigrams + trigrams capture different context scales
+    4. Injection at internal layers (not just input) for richer context gating
+
+    Per-head dim = hash_dim // (num_orders * num_heads).
+    Total table params = num_orders * num_heads * buckets_per_head * per_head_dim.
+    """
+    # Distinct large primes for each (order, head) hash function
+    _PRIMES = [92821, 131071, 174763, 216091, 262147, 314159, 393241, 462841,
+               524287, 611953, 700001, 786433, 873781, 967229, 1048573, 1153381]
+
+    def __init__(self, num_buckets, hash_dim, model_dim, group_size=128,
+                 num_heads=4, num_orders=2):
         super().__init__()
-        self.num_buckets = num_buckets
-        self.table = mx.random.normal((num_buckets, hash_dim), dtype=mx.float32) * 0.02
+        self.num_heads = num_heads
+        self.num_orders = num_orders  # 1=bigram only, 2=bigram+trigram
+        self.head_dim = hash_dim // (num_orders * num_heads)
+        assert self.head_dim > 0, f"hash_dim={hash_dim} too small for {num_orders}×{num_heads} heads"
+        self.buckets_per_head = num_buckets
+
+        # Embedding tables: one per (order, head)
+        self.tables = []
+        for _ in range(num_orders * num_heads):
+            self.tables.append(
+                mx.random.normal((num_buckets, self.head_dim), dtype=mx.float32) * 0.02
+            )
+
+        # Projection from concatenated hash_dim to model_dim
         self.proj = TernaryLinear(hash_dim, model_dim, group_size=group_size)
 
-    def __call__(self, input_ids):
-        # input_ids: (B, T)
-        prev = input_ids[:, :-1]
-        curr = input_ids[:, 1:]
-        indices = (prev.astype(mx.int64) * 92821 + curr.astype(mx.int64)) % self.num_buckets
-        indices = mx.concatenate([mx.zeros((input_ids.shape[0], 1), dtype=mx.int32), indices], axis=1)
-        emb = self.table[indices]
-        return self.proj(emb)
+        # Context-aware gating (Engram Section 2.3)
+        # Gate key projection: retrieved memory -> gate space
+        self.gate_k = EmbedProj(hash_dim, model_dim)
+        # Gate is: sigmoid(RMSNorm(hidden) · RMSNorm(gate_k(memory)) / sqrt(d))
+        self.gate_scale = model_dim ** -0.5
+
+    def _hash_ngram(self, input_ids, order, head_idx):
+        """Compute hash indices for n-gram of given order using head-specific primes."""
+        B, T = input_ids.shape
+        prime_idx = order * self.num_heads + head_idx
+        p = self._PRIMES[prime_idx % len(self._PRIMES)]
+
+        if order == 0:  # bigram: (t-1, t)
+            prev = input_ids[:, :-1]
+            curr = input_ids[:, 1:]
+            h = (prev.astype(mx.int64) * p + curr.astype(mx.int64)) % self.buckets_per_head
+            h = mx.concatenate([mx.zeros((B, 1), dtype=mx.int32), h.astype(mx.int32)], axis=1)
+        elif order == 1:  # trigram: (t-2, t-1, t)
+            pp = input_ids[:, :-2]
+            prev = input_ids[:, 1:-1]
+            curr = input_ids[:, 2:]
+            h = (pp.astype(mx.int64) * (p * p) + prev.astype(mx.int64) * p
+                 + curr.astype(mx.int64)) % self.buckets_per_head
+            h = mx.concatenate([mx.zeros((B, 2), dtype=mx.int32), h.astype(mx.int32)], axis=1)
+        else:
+            raise ValueError(f"Unsupported n-gram order {order+2}")
+        return h
+
+    def retrieve(self, input_ids):
+        """Retrieve and concatenate multi-head, multi-order n-gram embeddings."""
+        parts = []
+        for order in range(self.num_orders):
+            for head in range(self.num_heads):
+                idx = self._hash_ngram(input_ids, order, head)
+                table_idx = order * self.num_heads + head
+                parts.append(self.tables[table_idx][idx])  # (B, T, head_dim)
+        return mx.concatenate(parts, axis=-1)  # (B, T, hash_dim)
+
+    def __call__(self, input_ids, hidden=None):
+        """Retrieve n-gram memory, optionally gated by hidden state.
+
+        Args:
+            input_ids: (B, T) token IDs
+            hidden: (B, T, model_dim) hidden state for context gating. If None, ungated.
+        Returns:
+            (B, T, model_dim) memory injection signal
+        """
+        memory = self.retrieve(input_ids)  # (B, T, hash_dim)
+
+        if hidden is not None:
+            # Context-aware gating (Engram paper Eq. 3-4)
+            k = self.gate_k(memory)  # (B, T, model_dim)
+            # Normalized dot-product gate
+            h_norm = rms_norm(hidden)
+            k_norm = rms_norm(k)
+            gate = mx.sigmoid(mx.sum(h_norm * k_norm, axis=-1, keepdims=True) * self.gate_scale)
+            projected = self.proj(memory)  # (B, T, model_dim)
+            return gate * projected
+        else:
+            # Ungated (input layer, no hidden state yet)
+            return self.proj(memory)
 
 
 class FeedbackPooler(nn.Module):
@@ -593,11 +676,16 @@ class GPT(nn.Module):
                 ln_scale_factor=ln_sf, xsa=layer_xsa,
             ))
 
-        # BigramHash
-        self.bigram_hash = None
+        # Engram-style multi-head n-gram memory (replaces simple BigramHash)
+        self.engram = None
+        self.engram_inject_layer = args.engram_inject_layer
         if args.bigram_hash_enabled:
-            self.bigram_hash = BigramHash(args.bigram_hash_buckets, args.bigram_hash_dim,
-                                          dim, group_size=args.bitnet_group_size)
+            self.engram = EngramHash(
+                args.bigram_hash_buckets, args.bigram_hash_dim, dim,
+                group_size=args.bitnet_group_size,
+                num_heads=args.engram_num_heads,
+                num_orders=args.engram_num_orders,
+            )
 
         # Capsule bank
         self.capsule_bank = None
@@ -633,8 +721,9 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids).astype(COMPUTE_DTYPE)
         if self.embed_proj is not None:
             x = self.embed_proj(x)
-        if self.bigram_hash is not None:
-            x = x + self.bigram_hash(input_ids).astype(x.dtype)
+        if self.engram is not None and self.engram_inject_layer < 0:
+            # Input-only injection (ungated, no hidden state yet)
+            x = x + self.engram(input_ids, hidden=None).astype(x.dtype)
         x = rms_norm(x)
         return x, x
 
@@ -662,6 +751,12 @@ class GPT(nn.Module):
 
         # Encoder pass (runs once)
         for i in range(self.num_encoder_layers):
+            # Engram injection at internal layer (context-gated)
+            if (self.engram is not None
+                    and self.engram_inject_layer >= 0
+                    and i == self.engram_inject_layer):
+                engram_out = self.engram(input_ids, hidden=x)
+                x = x + engram_out.astype(x.dtype)
             x, v_out = self.blocks[i](x, x0, v0=v0)
             if v0 is None and v_out is not None:
                 v0 = mx.stop_gradient(v_out)
@@ -816,7 +911,7 @@ class SplitOptimizers:
             and "capsule" not in k
             and k != self.embed_key
             and "embed_proj" not in k
-            and "bigram_hash.table" not in k
+            and "engram.tables" not in k
         ]
         # Koopman diagonal gets its own lower LR (stability-critical)
         self.koopman_diag_keys = [
@@ -947,7 +1042,7 @@ def quantize_for_export(model, args):
     q_sd = {}
     for name, arr in params.items():
         arr_np = np.array(arr.astype(mx.float32), dtype=np.float32)
-        if arr.ndim == 2 and arr.size > 1024 and "embed" not in name and "bigram_hash.table" not in name:
+        if arr.ndim == 2 and arr.size > 1024 and "embed" not in name and "engram.tables" not in name:
             gs = args.bitnet_group_size
             rows, cols = arr_np.shape
             
@@ -1215,7 +1310,7 @@ def main():
     log(f"model_params:{n_params} layers:{args.num_layers} dim:{args.model_dim} "
         f"heads:{args.num_heads} seq_len:{args.train_seq_len}")
     log(f"feedback:{args.feedback_enabled} passes:{args.feedback_passes} "
-        f"capsule:{args.capsule_enabled} bigram_hash:{args.bigram_hash_enabled} "
+        f"capsule:{args.capsule_enabled} engram:{args.bigram_hash_enabled}({args.engram_num_heads}h{args.engram_num_orders}o@L{args.engram_inject_layer}) "
         f"vrl:{args.vrl_enabled} xsa_start:{args.xsa_start_layer} "
         f"partial_rope:{args.partial_rope_dims} lrelu2:{args.activation_type}")
     if args.koopman_enabled and args.capsule_enabled:
