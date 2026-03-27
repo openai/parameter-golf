@@ -702,9 +702,10 @@ class GPT(nn.Module):
                     consistency_losses.append((c_pred, mx.stop_gradient(capsule_state)))
 
                 # Adaptive halting (eval only): check capsule convergence
+                # Only at pass >= 2 — always run blind (0) + first feedback (1)
                 if (not self.training and self.args.adaptive_halt_enabled
                         and prev_capsule_state is not None
-                        and correction_pass >= 1):
+                        and correction_pass >= 2):
                     # Relative capsule change
                     delta = mx.sqrt(mx.mean((capsule_state - prev_capsule_state) ** 2))
                     norm = mx.sqrt(mx.mean(capsule_state ** 2)) + 1e-8
@@ -817,15 +818,23 @@ class SplitOptimizers:
             and "embed_proj" not in k
             and "bigram_hash.table" not in k
         ]
+        # Koopman diagonal gets its own lower LR (stability-critical)
+        self.koopman_diag_keys = [
+            k for k in params if "koopman.diag" in k
+        ]
         self.scalar_keys = [
             k for k, p in params.items()
             if k not in self.matrix_keys and k != self.embed_key
+            and k not in self.koopman_diag_keys
         ]
         self.muon = Muon(self.matrix_keys, params, args)
         self.adam_embed = optim.Adam(learning_rate=args.tied_embed_lr,
                                      betas=[args.beta1, args.beta2], eps=args.adam_eps)
         self.adam_scalar = optim.Adam(learning_rate=args.scalar_lr,
                                       betas=[args.beta1, args.beta2], eps=args.adam_eps)
+        # Koopman diagonal: lower LR to protect spectral stability
+        self.adam_koopman_diag = optim.Adam(learning_rate=0.01,
+                                            betas=[args.beta1, args.beta2], eps=args.adam_eps)
 
     def step(self, model, grads_tree, step, lr_mul):
         params = dict(tree_flatten(model.parameters()))
@@ -846,6 +855,13 @@ class SplitOptimizers:
         scalar_params = {k: params[k] for k in self.scalar_keys if k in params}
         if scalar_grads:
             updated.update(self.adam_scalar.apply_gradients(scalar_grads, scalar_params))
+
+        # Koopman diagonal with lower LR
+        self.adam_koopman_diag.learning_rate = 0.01 * lr_mul
+        kd_grads = {k: grads[k] for k in self.koopman_diag_keys if k in grads}
+        kd_params = {k: params[k] for k in self.koopman_diag_keys if k in params}
+        if kd_grads:
+            updated.update(self.adam_koopman_diag.apply_gradients(kd_grads, kd_params))
 
         model.update(tree_unflatten(list(updated.items())))
 
@@ -1046,6 +1062,7 @@ def eval_val(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_
     validation batches with exponential decay. This gives the model structured
     long-range memory during eval at zero parameter cost.
     """
+    model.eval()  # Enable adaptive halting (self.training = False)
     seq_len = args.train_seq_len
     batch_seqs = max(1, args.val_batch_size // seq_len)
     total_seqs = (val_tokens.size - 1) // seq_len
@@ -1103,6 +1120,7 @@ def eval_val(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_
         bytes_np += (has_leading_space_lut[tgt_ids] & ~is_boundary_lut[prev_ids]).astype(np.int16)
         total_tokens += n
         total_bytes += float(bytes_np.sum())
+    model.train()  # Restore training mode
     val_loss = total_loss / total_tokens
     bpt = val_loss / math.log(2.0)
     val_bpb = bpt * (total_tokens / total_bytes)
@@ -1200,6 +1218,11 @@ def main():
         f"capsule:{args.capsule_enabled} bigram_hash:{args.bigram_hash_enabled} "
         f"vrl:{args.vrl_enabled} xsa_start:{args.xsa_start_layer} "
         f"partial_rope:{args.partial_rope_dims} lrelu2:{args.activation_type}")
+    if args.koopman_enabled and args.capsule_enabled:
+        log(f"koopman:rank={args.koopman_rank} diag_init={args.koopman_diag_init} "
+            f"consist_w={args.koopman_consistency_weight} "
+            f"halt:{args.adaptive_halt_enabled}@{args.adaptive_halt_threshold} "
+            f"carry:{args.capsule_carry_enabled}@{args.capsule_carry_decay}")
 
     opt = SplitOptimizers(model, args)
 
