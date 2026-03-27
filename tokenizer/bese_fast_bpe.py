@@ -154,38 +154,49 @@ def train_bpe_merges_fast(texts: list[str], num_merges: int = 250, verbose: bool
         if best_count < 2:
             break
 
-        new_id = next_id
-        merges.append((best_pair, new_id))
-
-        # Get all positions where this pair occurs
-        positions = list(pair_positions.get(best_pair, set()))
-        # Remove the pair from tracking
-        del pair_positions[best_pair]
-        del pair_counts[best_pair]
-
-        # Apply the merge at each position
-        for nid in positions:
+        # Get all positions where this pair occurs and filter stale entries
+        raw_positions = pair_positions.get(best_pair, set())
+        positions = []
+        for nid in raw_positions:
             node_a = all_nodes[nid]
-            # Validate: node must still have this pair
             if node_a.next is None:
                 continue
             node_b = all_nodes[node_a.next]
             if node_a.token != best_pair[0] or node_b.token != best_pair[1]:
                 continue
+            positions.append(nid)
+
+        # Remove the pair from tracking
+        if best_pair in pair_positions:
+            del pair_positions[best_pair]
+        if best_pair in pair_counts:
+            del pair_counts[best_pair]
+
+        # Re-check count after filtering stale positions
+        if len(positions) < 2:
+            continue
+
+        new_id = next_id
+        merges.append((best_pair, new_id))
+
+        # Apply the merge at each valid position
+        for nid in positions:
+            node_a = all_nodes[nid]
+            node_b = all_nodes[node_a.next]
 
             # Remove old pairs involving node_a and node_b from index
             # Left neighbor pair: (prev, a)
             if node_a.prev is not None:
                 prev_node = all_nodes[node_a.prev]
                 old_left_pair = (prev_node.token, node_a.token)
-                if nid_prev := node_a.prev:
-                    pair_positions.get(old_left_pair, set()).discard(nid_prev)
-                    if old_left_pair in pair_positions and not pair_positions[old_left_pair]:
-                        del pair_positions[old_left_pair]
-                    if old_left_pair in pair_counts:
-                        pair_counts[old_left_pair] = max(pair_counts[old_left_pair] - 1, 0)
-                        if pair_counts[old_left_pair] == 0:
-                            del pair_counts[old_left_pair]
+                nid_prev = node_a.prev
+                pair_positions.get(old_left_pair, set()).discard(nid_prev)
+                if old_left_pair in pair_positions and not pair_positions[old_left_pair]:
+                    del pair_positions[old_left_pair]
+                if old_left_pair in pair_counts:
+                    pair_counts[old_left_pair] = max(pair_counts[old_left_pair] - 1, 0)
+                    if pair_counts[old_left_pair] == 0:
+                        del pair_counts[old_left_pair]
 
             # Right neighbor pair: (b, next)
             if node_b.next is not None:

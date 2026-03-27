@@ -63,7 +63,7 @@ def decode_all_shards(max_docs=None):
     for shard_file in shard_files:
         header = np.fromfile(shard_file, dtype="<i4", count=256)
         n = int(header[2])
-        tokens = np.fromfile(shard_file, dtype="<u2", count=n, offset=header_bytes).tolist()
+        tokens = np.fromfile(shard_file, dtype="<u2", count=n, offset=header_bytes)
         print(f"  {shard_file.name}: {n:,} tokens", end="")
 
         docs_from_shard = []
@@ -76,7 +76,11 @@ def decode_all_shards(max_docs=None):
                         docs_from_shard.append(text)
                 current = []
             else:
-                current.append(t)
+                current.append(int(t))
+        if current:
+            text = sp.decode(current)
+            if len(text.strip()) > 50:
+                docs_from_shard.append(text)
 
         all_docs.extend(docs_from_shard)
         print(f" -> {len(docs_from_shard):,} docs (total: {len(all_docs):,})")
@@ -92,7 +96,7 @@ def decode_all_shards(max_docs=None):
     for vf in val_files:
         header = np.fromfile(vf, dtype="<i4", count=256)
         n = int(header[2])
-        tokens = np.fromfile(vf, dtype="<u2", count=n, offset=header_bytes).tolist()
+        tokens = np.fromfile(vf, dtype="<u2", count=n, offset=header_bytes)
         current = []
         for t in tokens:
             if t == bos:
@@ -102,7 +106,11 @@ def decode_all_shards(max_docs=None):
                         val_docs.append(text)
                 current = []
             else:
-                current.append(t)
+                current.append(int(t))
+        if current:
+            text = sp.decode(current)
+            if len(text.strip()) > 50:
+                val_docs.append(text)
         print(f"  {vf.name}: {n:,} tokens -> {len(val_docs):,} val docs")
 
     print(f"\n  Total: {len(all_docs):,} train docs, {len(val_docs):,} val docs")
@@ -248,13 +256,17 @@ def run_training(name, data_path, tokenizer_path, vocab_size, train_script,
     print(f"  Env: VOCAB_SIZE={vocab_size} NUM_LAYERS={num_layers} MODEL_DIM={model_dim} MLP_MULT={mlp_mult}")
 
     t0 = time.time()
-    r = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    output_lines = []
+    proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+        output_lines.append(line)
+    proc.wait()
     elapsed = time.time() - t0
 
-    output = r.stdout
-    print(output[-3000:] if len(output) > 3000 else output)
-    if r.returncode != 0:
-        print(f"STDERR (last 1500 chars):\n{r.stderr[-1500:]}")
+    output = "".join(output_lines)
+    if proc.returncode != 0:
+        print(f"\n  Process exited with code {proc.returncode}")
     print(f"\n  Wall time: {elapsed:.1f}s ({elapsed/60:.1f} min)")
 
     return output
@@ -271,10 +283,11 @@ def extract_metrics(output):
                     val_bpb = float(part.split(":")[1])
                 if part.startswith("val_loss:"):
                     val_loss = float(part.split(":")[1])
-        if "final_int8_zlib" in line and "bytes:" in line:
-            for part in line.split():
-                if part.startswith("bytes:"):
-                    model_size = int(part.split(":")[1])
+        if ("Serialized model int8+zlib" in line or "Total submission size" in line) and "bytes" in line:
+            import re
+            m = re.search(r'(\d+)\s*bytes', line)
+            if m:
+                model_size = int(m.group(1))
     return val_loss, val_bpb, model_size
 
 

@@ -822,6 +822,9 @@ def main() -> None:
     val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
 
     if tokenizer_path.suffix.lower() == ".json":
+        # NOTE: Using slow BESEBPETokenizer here is intentional -- it is only
+        # used for LUT building (build_luts_for_training), not encoding.
+        # Encoding is done by export_shards.py which uses FastBESEBPETokenizer.
         from bese_bpe_tokenizer import BESEBPETokenizer
 
         tok = BESEBPETokenizer.load(str(tokenizer_path))

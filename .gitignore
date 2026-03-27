@@ -44,3 +44,4 @@ parameter golf chat.txt
 # Upstream clone (optional local copy)
 parameter-golf/
 parameter-golf-upstream/
+.gstack/

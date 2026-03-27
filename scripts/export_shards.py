@@ -31,7 +31,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT / "tokenizer") not in sys.path:
     sys.path.insert(0, str(_ROOT / "tokenizer"))
 
-from bese_bpe_tokenizer import BESEBPETokenizer  # noqa: E402
+from bese_fast_bpe import FastBESEBPETokenizer  # noqa: E402
 
 SHARD_MAGIC = 20240520
 SHARD_VERSION = 1
@@ -63,7 +63,7 @@ def iter_docs(path: Path):
             yield json.loads(line)["text"]
 
 
-def encode_doc(tok: BESEBPETokenizer, text: str, bpt: np.ndarray) -> np.ndarray:
+def encode_doc(tok: FastBESEBPETokenizer, text: str, bpt: np.ndarray) -> np.ndarray:
     enc = tok.encode(text)
     tb = int(sum(bpt[t] for t in enc))
     ub = len(text.encode("utf-8"))
@@ -81,35 +81,39 @@ def main() -> None:
     ap.add_argument("--val-docs", type=int, default=50_000, help="First N docs for validation (default 50k)")
     ap.add_argument("--train-prefix", type=str, default="fineweb_train_")
     ap.add_argument("--val-prefix", type=str, default="fineweb_val_")
-    ap.add_argument("--start-train-after-val", action="store_true",
-                    help="Use docs after val slice for training (default: interleave val first)")
     args = ap.parse_args()
 
-    tok = BESEBPETokenizer.load(str(args.tokenizer))
+    tok = FastBESEBPETokenizer.load(str(args.tokenizer))
     bpt = tok.get_bytes_per_token_lut()
 
     print(f"Tokenizer vocab_size={tok.vocab_size}, merges={len(tok.merges)}")
 
-    all_texts = list(iter_docs(args.input))
-    if len(all_texts) < args.val_docs:
-        print(f"Warning: only {len(all_texts)} docs; adjusting val to {len(all_texts)//10 or 1}")
-        val_n = max(1, len(all_texts) // 10)
+    # Stream documents: first pass collects val docs, second pass streams training docs.
+    # This avoids loading the entire corpus into memory at once.
+    val_n = args.val_docs
+    val_texts: list[str] = []
+    doc_iter = iter_docs(args.input)
+
+    for text in doc_iter:
+        val_texts.append(text)
+        if len(val_texts) >= val_n:
+            break
+
+    if len(val_texts) < val_n:
+        print(f"Warning: only {len(val_texts)} docs; adjusting val to {len(val_texts)//10 or 1}")
+        actual_val_n = max(1, len(val_texts) // 10)
+        # Remaining val texts become training texts
+        overflow_texts = val_texts[actual_val_n:]
+        val_texts = val_texts[:actual_val_n]
     else:
-        val_n = args.val_docs
-
-    val_texts = all_texts[:val_n]
-    train_texts = all_texts[val_n:] if args.start_train_after_val else [t for i, t in enumerate(all_texts) if i >= val_n]
-
-    def build_token_buffer(texts: list[str]) -> np.ndarray:
-        chunks: list[np.ndarray] = []
-        for text in texts:
-            chunks.append(encode_doc(tok, text, bpt))
-        if not chunks:
-            return np.array([], dtype=np.uint16)
-        return np.concatenate([c.astype(np.uint16) for c in chunks])
+        overflow_texts = []
 
     print(f"Encoding {len(val_texts)} validation docs...")
-    val_tokens = build_token_buffer(val_texts)
+    val_chunks: list[np.ndarray] = []
+    for text in val_texts:
+        val_chunks.append(encode_doc(tok, text, bpt))
+    val_tokens = np.concatenate(val_chunks) if val_chunks else np.array([], dtype=np.uint16)
+    del val_chunks  # free memory
     print(f"Val tokens: {val_tokens.shape[0]:,}")
 
     out = args.output_dir
@@ -117,12 +121,18 @@ def main() -> None:
 
     val_path = out / f"{args.val_prefix}0.bin"
     write_shard(val_path, val_tokens)
+    del val_tokens  # free memory
     print(f"Wrote {val_path}")
 
-    print(f"Encoding training stream from {len(train_texts)} docs...")
+    # Stream training docs: chain any overflow from val split with remaining docs from file
+    import itertools
+    train_iter = itertools.chain(overflow_texts, doc_iter)
+
+    print("Encoding training stream...")
     shard_idx = 0
     current: list[np.ndarray] = []
     current_count = 0
+    train_doc_count = 0
 
     def flush_train():
         nonlocal shard_idx, current, current_count
@@ -136,14 +146,16 @@ def main() -> None:
         current = []
         current_count = 0
 
-    for text in train_texts:
+    for text in train_iter:
         arr = encode_doc(tok, text, bpt)
         current.append(arr)
         current_count += arr.shape[0]
+        train_doc_count += 1
         if current_count >= args.shard_tokens:
             flush_train()
 
     flush_train()
+    print(f"Processed {train_doc_count} training docs.")
 
     manifest = {
         "tokenizer_name": args.tokenizer.stem,
@@ -151,7 +163,7 @@ def main() -> None:
         "vocab_size": tok.vocab_size,
         "shard_magic": SHARD_MAGIC,
         "val_docs": len(val_texts),
-        "train_docs": len(train_texts),
+        "train_docs": train_doc_count,
     }
     (out / "bese_shard_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"Done. Manifest: {out / 'bese_shard_manifest.json'}")

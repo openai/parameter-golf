@@ -48,7 +48,7 @@ def decode_shards():
     header_bytes = 256 * np.dtype("<i4").itemsize
     header = np.fromfile(shard, dtype="<i4", count=256)
     n = int(header[2])
-    tokens = np.fromfile(shard, dtype="<u2", count=n, offset=header_bytes).tolist()
+    tokens = np.fromfile(shard, dtype="<u2", count=n, offset=header_bytes)
     print(f"  Loaded {n:,} tokens")
 
     docs = []
@@ -63,7 +63,11 @@ def decode_shards():
                         break
             current = []
         else:
-            current.append(t)
+            current.append(int(t))
+    if current and len(docs) < MAX_DOCS:
+        text = sp.decode(current)
+        if len(text.strip()) > 50:
+            docs.append(text)
 
     out = BESE_DIR / "decoded_docs.jsonl"
     with out.open("w") as f:
@@ -167,16 +171,19 @@ def run_baseline():
             "TRAIN_LOG_EVERY": "200",
         }
     )
-    r = subprocess.run(
+    output_lines = []
+    proc = subprocess.Popen(
         ["torchrun", "--standalone", "--nproc_per_node=1", str(PG_DIR / "train_gpt.py")],
         env=env,
-        capture_output=True,
-        text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
-    print(r.stdout[-2000:] if len(r.stdout) > 2000 else r.stdout)
-    if r.returncode != 0:
-        print("STDERR:", r.stderr[-1000:])
-    return r.stdout
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+        output_lines.append(line)
+    proc.wait()
+    if proc.returncode != 0:
+        print(f"\n  Process exited with code {proc.returncode}")
+    return "".join(output_lines)
 
 
 def run_bese(tok_path):
@@ -198,7 +205,8 @@ def run_bese(tok_path):
             "BESE_TOKENIZER_ROOT": str(BESE_DIR / "tokenizer"),
         }
     )
-    r = subprocess.run(
+    output_lines = []
+    proc = subprocess.Popen(
         [
             "torchrun",
             "--standalone",
@@ -206,13 +214,15 @@ def run_bese(tok_path):
             str(BESE_DIR / "integration" / "train_gpt_bese.py"),
         ],
         env=env,
-        capture_output=True,
-        text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
-    print(r.stdout[-2000:] if len(r.stdout) > 2000 else r.stdout)
-    if r.returncode != 0:
-        print("STDERR:", r.stderr[-1000:])
-    return r.stdout
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+        output_lines.append(line)
+    proc.wait()
+    if proc.returncode != 0:
+        print(f"\n  Process exited with code {proc.returncode}")
+    return "".join(output_lines)
 
 
 def extract_bpb(output):
