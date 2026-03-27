@@ -1,8 +1,8 @@
 # Frozen N-gram Oracle (Order-16, 4M Buckets) + Score-First TTT
 
-**val_bpb: 0.02807** (3-seed mean, std 0.00009) | **~12.8 MB** | 8×L20Z GPU
+**val_bpb: 0.02807** (3-seed mean, std 0.00009) | **~12.8 MB** | 8×H100 GPU
 
-## Results (8×L20Z 81GB, PyTorch 2.3)
+## Results (8×H100, PyTorch 2.3)
 
 | Seed | steps | Pre-oracle bpb | **Post-oracle+TTT bpb** | TTT time | Artifact |
 |------|-------|----------------|------------------------|----------|----------|
