@@ -18,7 +18,7 @@ set -euo pipefail
 # Legal basis: all cache updates are score-first causal on val data only.
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 export PYTHONPATH="${REPO_ROOT}/flash-attention/hopper:${PYTHONPATH:-}"
 
@@ -60,6 +60,8 @@ MTP_NUM_HEADS=0 \
 TRIGRAM=1 \
 LATE_QAT_THRESHOLD=0 \
 MATRIX_LR=0.03 \
+TORCHDYNAMO_OPTIMIZE_DDP=0 \
+COMPILE_FULLGRAPH=0 \
 NGRAM_EVAL_ORDER=9 \
 NGRAM_EVAL_MIN_ORDER=2 \
 NGRAM_EVAL_ADAPTIVE=1 \
