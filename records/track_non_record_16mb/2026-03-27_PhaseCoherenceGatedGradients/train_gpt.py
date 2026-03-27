@@ -89,6 +89,39 @@ class Hyperparameters:
     picgd_finetune_enabled = bool(int(os.environ.get("PICGD_FINETUNE_ENABLED", "1")))
     picgd_finetune_seconds = float(os.environ.get("PICGD_FINETUNE_SECONDS", 120.0))
     sdp_allow_math_fallback = bool(int(os.environ.get("SDP_ALLOW_MATH_FALLBACK", "1")))
+    cache_eval_enabled = bool(int(os.environ.get("CACHE_EVAL_ENABLED", "1")))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
+    ngram_cache = bool(int(os.environ.get("NGRAM_CACHE", "1")))
+    ngram_order = int(os.environ.get("NGRAM_ORDER", "7"))
+    ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
+    ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.40"))
+    ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
+    ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
+    ngram_entropy = bool(int(os.environ.get("NGRAM_ENTROPY", "1")))
+    ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.05"))
+    ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.55"))
+    ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
+    ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
+    ngram_ent_adapt = bool(int(os.environ.get("NGRAM_ENT_ADAPT", "0")))
+    ngram_ent_thresh_lo = float(os.environ.get("NGRAM_ENT_THRESH_LO", "2.5"))
+    _ngram_order_mults_str = os.environ.get("NGRAM_ORDER_MULTS", "")
+    ngram_order_mults = (
+        tuple(float(x) for x in _ngram_order_mults_str.split(",") if x.strip())
+        if _ngram_order_mults_str.strip()
+        else ()
+    )
+    ngram_alpha_max = float(os.environ.get("NGRAM_ALPHA_MAX", "0.95"))
+    ngram_dirichlet = bool(int(os.environ.get("NGRAM_DIRICHLET", "0")))
+    ngram_concentration = float(os.environ.get("NGRAM_CONCENTRATION", "1.0"))
+    ngram_per_order_conc = os.environ.get("NGRAM_PER_ORDER_CONC", "")
+    ngram_temperature = float(os.environ.get("NGRAM_TEMPERATURE", "1.0"))
+    phrase_cache = bool(int(os.environ.get("PHRASE_CACHE", "0")))
+    phrase_buckets = int(os.environ.get("PHRASE_BUCKETS", "4194304"))
+    phrase_probe_lengths = os.environ.get("PHRASE_PROBE_LENGTHS", "48,36,28,20,16")
+    phrase_alpha = float(os.environ.get("PHRASE_ALPHA", "0.90"))
+    phrase_min_count = int(os.environ.get("PHRASE_MIN_COUNT", "1"))
+    phrase_dirichlet = bool(int(os.environ.get("PHRASE_DIRICHLET", "1")))
+    phrase_concentration = float(os.environ.get("PHRASE_CONCENTRATION", "2.0"))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -362,6 +395,311 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+    batch_seqs: int = 32,
+    eval_seq_len: int | None = None,
+) -> tuple[float, float]:
+    seq_len = eval_seq_len or args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+    window_starts = [ws for ws in range(0, total_tokens, stride) if min(ws + seq_len, total_tokens) - ws >= 1]
+    total_windows = len(window_starts)
+    my_s = (total_windows * rank) // world_size
+    my_e = (total_windows * (rank + 1)) // world_size
+    my_windows = window_starts[my_s:my_e]
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    use_ngram = args.ngram_cache
+    use_phrase = args.phrase_cache and use_ngram
+    val_np = val_tokens.cpu().numpy() if use_ngram else None
+
+    if use_ngram:
+        num_orders = args.ngram_order - args.ngram_min_order + 1
+        ctx_tables = [np.zeros((args.ngram_buckets,), dtype=np.uint32) for _ in range(num_orders)]
+        full_tables = [np.zeros((args.ngram_buckets,), dtype=np.uint32) for _ in range(num_orders)]
+        ng_mask = np.uint64(args.ngram_buckets - 1)
+        ng_primes = np.array(
+            [
+                np.uint64(36313),
+                np.uint64(27191),
+                np.uint64(51647),
+                np.uint64(81929),
+                np.uint64(131071),
+                np.uint64(175447),
+                np.uint64(209591),
+            ],
+            dtype=np.uint64,
+        )
+        if rank > 0 and my_windows:
+            ws0 = my_windows[0]
+            pre_end = ws0 + max(seq_len - stride, 0)
+            for oi in range(num_orders):
+                ctx_width = args.ngram_min_order + oi - 1
+                positions = np.arange(max(ctx_width, 1), pre_end + 1, dtype=np.int64)
+                if len(positions) == 0:
+                    continue
+                ctx_hash = np.zeros(len(positions), dtype=np.uint64)
+                for k in range(ctx_width):
+                    ctx_hash ^= val_np[positions - (ctx_width - k)].astype(np.uint64) * ng_primes[k % len(ng_primes)]
+                ctx_key = (ctx_hash & ng_mask).astype(np.int64)
+                tgt = val_np[positions].astype(np.uint64)
+                full_key = ((ctx_hash ^ (tgt * ng_primes[ctx_width % len(ng_primes)])) & ng_mask).astype(np.int64)
+                np.add.at(ctx_tables[oi], ctx_key, 1)
+                np.add.at(full_tables[oi], full_key, 1)
+
+    if use_phrase:
+        phrase_probes = [int(x) for x in args.phrase_probe_lengths.split(",") if x.strip()]
+        phrase_mask = np.uint64(args.phrase_buckets - 1)
+        phrase_primes = np.array(
+            [
+                np.uint64(p)
+                for p in [
+                    36313, 27191, 51647, 81929, 131071, 175447, 209591, 263167, 314821, 376951, 450359, 524287,
+                    611953, 720899, 832003, 941083, 1048573, 1153199, 1258291, 1363369, 1468463, 1573559, 1678663,
+                    1783739, 1888837, 1993891, 2098963, 2204051, 2309141, 2414237, 2519327, 2624419, 2729501, 2834593,
+                    2939671, 3044753, 3149861, 3254923, 3359993, 3465061, 3570133, 3675199, 3780271, 3885349, 3990413,
+                    4095479, 4200551, 4305617,
+                ]
+            ],
+            dtype=np.uint64,
+        )
+        ph_ctx = [np.zeros((args.phrase_buckets,), dtype=np.uint32) for _ in phrase_probes]
+        ph_full = [np.zeros((args.phrase_buckets,), dtype=np.uint32) for _ in phrase_probes]
+        if rank > 0 and my_windows:
+            ws0 = my_windows[0]
+            pre_end = ws0 + max(seq_len - stride, 0)
+            for pi, pl in enumerate(phrase_probes):
+                positions = np.arange(pl, pre_end + 1, dtype=np.int64)
+                if len(positions) == 0:
+                    continue
+                phrase_hash = np.zeros(len(positions), dtype=np.uint64)
+                for k in range(pl):
+                    phrase_hash ^= val_np[positions - pl + k].astype(np.uint64) * phrase_primes[k % len(phrase_primes)]
+                ctx_key = (phrase_hash & phrase_mask).astype(np.int64)
+                tgt = val_np[positions].astype(np.uint64)
+                full_key = ((phrase_hash ^ (tgt * phrase_primes[pl % len(phrase_primes)])) & phrase_mask).astype(np.int64)
+                np.add.at(ph_ctx[pi], ctx_key, 1)
+                np.add.at(ph_full[pi], full_key, 1)
+    else:
+        phrase_probes = []
+        phrase_mask = np.uint64(0)
+        phrase_primes = np.empty((0,), dtype=np.uint64)
+        ph_ctx = []
+        ph_full = []
+
+    base_model.eval()
+    with torch.inference_mode():
+        for bi in range(0, len(my_windows), batch_seqs):
+            batch_ws = my_windows[bi : bi + batch_seqs]
+            bsz = len(batch_ws)
+            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            window_lengths: list[int] = []
+            for i, ws in enumerate(batch_ws):
+                end = min(ws + seq_len, total_tokens)
+                wlen = end - ws
+                window_lengths.append(wlen)
+                chunk = val_tokens[ws : end + 1].to(dtype=torch.int64, device=device)
+                x_batch[i, :wlen] = chunk[:-1]
+                y_batch[i, :wlen] = chunk[1:]
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = base_model.forward_logits(x_batch)
+            if args.ngram_temperature != 1.0:
+                logits = logits / args.ngram_temperature
+            nll = F.cross_entropy(
+                logits.reshape(-1, logits.size(-1)).float(),
+                y_batch.reshape(-1),
+                reduction="none",
+            ).reshape(bsz, seq_len)
+            for i, ws in enumerate(batch_ws):
+                wlen = window_lengths[i]
+                start = 0 if ws == 0 else max(wlen - stride, 0)
+                seg_len = wlen - start
+                if seg_len <= 0:
+                    continue
+                scored_nll = nll[i, start:wlen].to(torch.float64)
+                if use_ngram:
+                    seg_nll_np = scored_nll.cpu().numpy()
+                    seg_model_p = np.exp(-seg_nll_np)
+                    n_seg = len(seg_nll_np)
+                    global_j = np.arange(ws + start + 1, ws + wlen + 1, dtype=np.int64)
+                    if args.ngram_entropy:
+                        with torch.no_grad():
+                            lp = F.log_softmax(logits[i, start:wlen].float(), dim=-1)
+                            seg_ent = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
+                        alpha_per_tok = args.ngram_ent_base + args.ngram_ent_range / (
+                            1.0 + np.exp(-args.ngram_ent_scale * (seg_ent - args.ngram_ent_thresh))
+                        )
+                    order_data = []
+                    for oi in range(num_orders):
+                        ctx_width = args.ngram_min_order + oi - 1
+                        valid = global_j >= ctx_width
+                        if not valid.any():
+                            order_data.append(None)
+                            continue
+                        v_idx = np.nonzero(valid)[0]
+                        jv = global_j[v_idx]
+                        ctx_hash = np.zeros(len(jv), dtype=np.uint64)
+                        for k in range(ctx_width):
+                            tok = val_np[jv - (ctx_width - k)].astype(np.uint64)
+                            ctx_hash ^= tok * ng_primes[k % len(ng_primes)]
+                        ctx_key = (ctx_hash & ng_mask).astype(np.int64)
+                        tgt = val_np[jv].astype(np.uint64)
+                        full_key = ((ctx_hash ^ (tgt * ng_primes[ctx_width % len(ng_primes)])) & ng_mask).astype(np.int64)
+                        order_data.append((v_idx, ctx_key, full_key))
+                    if args.ngram_dirichlet:
+                        if args.ngram_per_order_conc:
+                            per_order_conc = [float(x) for x in args.ngram_per_order_conc.split(",") if x.strip()]
+                            if len(per_order_conc) != num_orders:
+                                raise ValueError(
+                                    f"NGRAM_PER_ORDER_CONC has {len(per_order_conc)} values, need {num_orders}"
+                                )
+                        else:
+                            per_order_conc = [args.ngram_concentration] * num_orders
+                        smoothed_p = seg_model_p.copy()
+                        matched_order = np.full(n_seg, -1, dtype=np.int32)
+                        for oi in range(num_orders):
+                            if order_data[oi] is None:
+                                continue
+                            v_idx, ctx_key, full_key = order_data[oi]
+                            ctx_counts = ctx_tables[oi][ctx_key].astype(np.float64)
+                            full_counts = full_tables[oi][full_key].astype(np.float64)
+                            has_ctx = ctx_counts > 0
+                            if not has_ctx.any():
+                                continue
+                            ui = v_idx[has_ctx]
+                            conc = per_order_conc[oi]
+                            smoothed_p[ui] = (
+                                np.minimum(full_counts[has_ctx], ctx_counts[has_ctx]) + conc * smoothed_p[ui]
+                            ) / (ctx_counts[has_ctx] + conc)
+                            matched_order[ui] = args.ngram_min_order + oi
+                        has_update = matched_order >= 0
+                        if has_update.any():
+                            seg_model_p[has_update] = np.clip(smoothed_p[has_update], 1e-12, 1.0)
+                    else:
+                        best_p_ng = np.full(n_seg, -1.0)
+                        best_order = np.full(n_seg, -1, dtype=np.int32)
+                        for oi in range(num_orders - 1, -1, -1):
+                            if order_data[oi] is None:
+                                continue
+                            v_idx, ctx_key, full_key = order_data[oi]
+                            ctx_counts = ctx_tables[oi][ctx_key].astype(np.float64)
+                            full_counts = full_tables[oi][full_key].astype(np.float64)
+                            has_match = ctx_counts >= float(args.ngram_min_count)
+                            needs_fill = has_match & (best_p_ng[v_idx] < 0)
+                            if needs_fill.any():
+                                fill_idx = v_idx[needs_fill]
+                                p_ng = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(
+                                    ctx_counts[needs_fill], 1.0
+                                )
+                                best_p_ng[fill_idx] = np.clip(p_ng, 0.0, 1.0)
+                                best_order[fill_idx] = args.ngram_min_order + oi
+                        has_match = best_p_ng >= 0
+                        if has_match.any():
+                            if args.ngram_entropy and args.ngram_ent_adapt:
+                                matched = best_order[has_match].astype(np.float64)
+                                frac = (matched - float(args.ngram_min_order)) / max(
+                                    float(args.ngram_order - args.ngram_min_order),
+                                    1.0,
+                                )
+                                per_center = args.ngram_ent_thresh - frac * (
+                                    args.ngram_ent_thresh - args.ngram_ent_thresh_lo
+                                )
+                                alpha = args.ngram_ent_base + args.ngram_ent_range / (
+                                    1.0 + np.exp(-args.ngram_ent_scale * (seg_ent[has_match] - per_center))
+                                )
+                            elif args.ngram_entropy:
+                                alpha = alpha_per_tok[has_match]
+                            else:
+                                alpha = args.ngram_alpha
+                            if args.ngram_order_mults:
+                                om = np.array(args.ngram_order_mults)
+                                oi_matched = best_order[has_match] - args.ngram_min_order
+                                oi_clamped = np.clip(oi_matched, 0, len(om) - 1)
+                                alpha = alpha * om[oi_clamped]
+                            alpha = np.clip(alpha, 0.0, args.ngram_alpha_max)
+                            seg_model_p[has_match] = (1.0 - alpha) * seg_model_p[has_match] + alpha * best_p_ng[has_match]
+                    if use_phrase:
+                        for pi, pl in enumerate(phrase_probes):
+                            valid = global_j >= pl
+                            if not valid.any():
+                                continue
+                            vi = np.nonzero(valid)[0]
+                            jv = global_j[vi]
+                            phrase_hash = np.zeros(len(jv), dtype=np.uint64)
+                            for k in range(pl):
+                                phrase_hash ^= val_np[jv - pl + k].astype(np.uint64) * phrase_primes[k % len(phrase_primes)]
+                            ctx_key = (phrase_hash & phrase_mask).astype(np.int64)
+                            tgt = val_np[jv].astype(np.uint64)
+                            full_key = ((phrase_hash ^ (tgt * phrase_primes[pl % len(phrase_primes)])) & phrase_mask).astype(np.int64)
+                            ctx_counts = ph_ctx[pi][ctx_key].astype(np.float64)
+                            full_counts = ph_full[pi][full_key].astype(np.float64)
+                            has_ctx = ctx_counts >= args.phrase_min_count
+                            if not has_ctx.any():
+                                continue
+                            ui = vi[has_ctx]
+                            if args.phrase_dirichlet:
+                                conc = args.phrase_concentration
+                                seg_model_p[ui] = (
+                                    np.minimum(full_counts[has_ctx], ctx_counts[has_ctx]) + conc * seg_model_p[ui]
+                                ) / (ctx_counts[has_ctx] + conc)
+                            else:
+                                phrase_p = np.minimum(full_counts[has_ctx], ctx_counts[has_ctx]) / np.maximum(
+                                    ctx_counts[has_ctx], 1.0
+                                )
+                                alpha = args.phrase_alpha
+                                seg_model_p[ui] = (1.0 - alpha) * seg_model_p[ui] + alpha * np.clip(phrase_p, 0.0, 1.0)
+                        seg_model_p = np.clip(seg_model_p, 1e-12, 1.0)
+                    seg_nll_np = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
+                    for oi in range(num_orders):
+                        if order_data[oi] is None:
+                            continue
+                        v_idx, ctx_key, full_key = order_data[oi]
+                        np.add.at(ctx_tables[oi], ctx_key, 1)
+                        np.add.at(full_tables[oi], full_key, 1)
+                    if use_phrase:
+                        for pi, pl in enumerate(phrase_probes):
+                            positions = np.arange(max(ws + start + 1, pl), ws + wlen + 1, dtype=np.int64)
+                            if len(positions) == 0:
+                                continue
+                            phrase_hash = np.zeros(len(positions), dtype=np.uint64)
+                            for k in range(pl):
+                                phrase_hash ^= val_np[positions - pl + k].astype(np.uint64) * phrase_primes[k % len(phrase_primes)]
+                            ctx_key = (phrase_hash & phrase_mask).astype(np.int64)
+                            tgt = val_np[positions].astype(np.uint64)
+                            full_key = ((phrase_hash ^ (tgt * phrase_primes[pl % len(phrase_primes)])) & phrase_mask).astype(np.int64)
+                            np.add.at(ph_ctx[pi], ctx_key, 1)
+                            np.add.at(ph_full[pi], full_key, 1)
+                    scored_nll = torch.from_numpy(seg_nll_np).to(dtype=torch.float64, device=device)
+                loss_sum += scored_nll.sum()
+                token_count += float(seg_len)
+                tgt = y_batch[i, start:wlen]
+                prev = x_batch[i, start:wlen]
+                token_bytes = base_bytes_lut[tgt].to(torch.float64)
+                token_bytes += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                byte_count += token_bytes.sum()
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base_model.train()
+    return val_loss, bits_per_token * tokens_per_byte
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -927,19 +1265,13 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(
-        self,
-        input_ids: Tensor,
-        target_ids: Tensor,
-        return_picgd_stats: bool = True,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    def _forward_hidden(self, input_ids: Tensor) -> Tensor:
         n = self.num_layers
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](
                 x,
@@ -966,8 +1298,28 @@ class GPT(nn.Module):
                 self.mlp_up_bank[block_idx],
                 self.mlp_down_bank[block_idx],
             )
+        return self.final_norm(x)
 
-        x = self.final_norm(x)
+    def _project_logits(self, x: Tensor) -> Tensor:
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            logits_proj = self.lm_head(x)
+        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
+        x = self._forward_hidden(input_ids)
+        return self._project_logits(x)
+
+    def forward(
+        self,
+        input_ids: Tensor,
+        target_ids: Tensor,
+        return_picgd_stats: bool = True,
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        x = self._forward_hidden(input_ids)
         if self.picgd_enabled and return_picgd_stats:
             sampled_x = x[:, :: self.picgd_token_stride, :]
             sampled_target_ids = target_ids[:, :: self.picgd_token_stride]
@@ -981,13 +1333,7 @@ class GPT(nn.Module):
             gate = x.new_ones(())
         x = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
-        if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
-        else:
-            if self.lm_head is None:
-                raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        logits = self._project_logits(x)
         loss = F.cross_entropy(logits.float(), targets, reduction="mean")
         return loss, coherence, gate
 
@@ -1209,6 +1555,24 @@ def main() -> None:
         f"mlp_activation:leaky_relu_squared negative_slope:{args.mlp_leaky_slope} "
         f"ln_scale:{args.ln_scale}"
     )
+    log0(
+        f"cache_eval:enabled={args.cache_eval_enabled} eval_stride:{args.eval_stride} "
+        f"ngram_cache:{args.ngram_cache} phrase_cache:{args.phrase_cache}"
+    )
+    if args.cache_eval_enabled and args.ngram_cache:
+        log0(
+            f"ngram_cache_config:orders:{args.ngram_min_order}-{args.ngram_order} "
+            f"dirichlet:{args.ngram_dirichlet} concentration:{args.ngram_concentration} "
+            f"temperature:{args.ngram_temperature} entropy:{args.ngram_entropy} "
+            f"min_count:{args.ngram_min_count} buckets:{args.ngram_buckets}"
+        )
+    if args.cache_eval_enabled and args.phrase_cache:
+        log0(
+            f"phrase_cache_config:probes:{args.phrase_probe_lengths} "
+            f"dirichlet:{args.phrase_dirichlet} concentration:{args.phrase_concentration} "
+            f"alpha:{args.phrase_alpha} min_count:{args.phrase_min_count} "
+            f"buckets:{args.phrase_buckets}"
+        )
     attention_impl = (
         "native_gqa"
         if base_model.blocks and base_model.blocks[0].attn.use_native_gqa
@@ -1491,6 +1855,28 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    if args.cache_eval_enabled and args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
+        torch.cuda.synchronize()
+        t_cache_eval = time.perf_counter()
+        cache_val_loss, cache_val_bpb = eval_val_sliding(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            stride=args.eval_stride,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_int8_cache_eval val_loss:{cache_val_loss:.4f} val_bpb:{cache_val_bpb:.4f} "
+            f"exact:{cache_val_bpb:.8f} stride:{args.eval_stride} "
+            f"ngram_cache:{args.ngram_cache} phrase_cache:{args.phrase_cache} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_cache_eval):.0f}ms"
+        )
 
     if distributed:
         dist.destroy_process_group()
