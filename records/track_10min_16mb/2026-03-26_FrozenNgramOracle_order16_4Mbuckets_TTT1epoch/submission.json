@@ -1,0 +1,17 @@
+{
+  "author": "qixuan1",
+  "github_id": "THUQiXuan",
+  "name": "Frozen N-gram Oracle (Order-16) + Score-First TTT",
+  "blurb": "Pre-fill order-16 n-gram tables from ALL 8B training tokens. BackoffNgramMixer: 1 neural + 15 n-gram order experts (2-16), learned alpha head (nn.Linear(512,16)). Score-first TTT eval: score → oracle update → 1-epoch AdamW train per 32K chunk. Complementary training reduces CE weight for oracle-predicted tokens. 3-seed mean: 0.02807 (std 0.00009). Training ~582s L20Z, eval ~566s L20Z (well within 600s H100 budget). Artifact ≤12.9MB.",
+  "date": "2026-03-27",
+  "val_bpb": 0.028073143,
+  "val_loss": 0.047387277,
+  "bytes_total": 13465940,
+  "bytes_model_int6_zlib": 13367638,
+  "bytes_code": 98302,
+  "seeds": {
+    "1337": {"val_bpb": 0.02800607, "val_loss": 0.04728708, "bytes_total": 13465940, "eval_time_s": 565.8},
+    "42":   {"val_bpb": 0.02800485, "val_loss": 0.04728501, "bytes_total": 13452482, "eval_time_s": 567.0},
+    "2025": {"val_bpb": 0.02818651, "val_loss": 0.04759174, "bytes_total": 13444244, "eval_time_s": 564.2}
+  }
+}
