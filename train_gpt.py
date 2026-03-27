@@ -896,7 +896,7 @@ def eval_val_sliding(
 class LongPhraseCache:
     """variable-length suffix matcher for verbatim repetition (PR #880).
     probes at lengths [48,36,28,20,16] using rolling hashes."""
-    PROBE_LENGTHS = [20, 16]  # trimmed probes for single-pass (within eval budget)
+    PROBE_LENGTHS = [28, 20, 16]  # extended probes for better phrase matching
     PRIMES = [np.uint64(p) for p in [
         36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377,
         412391, 479909, 541267, 613651, 700897, 786433, 850001, 921587,
@@ -1232,11 +1232,13 @@ def eval_val_ngram(
 
                 # n-gram: score-first (lookup THEN update)
                 if dirichlet_concentration > 0:
-                    # hierarchical Dirichlet (CTW-style, PR #900 / Teh 2006)
-                    # each order's posterior becomes next order's prior
-                    blended_p = cache.lookup_hierarchical(val_np, abs_start, abs_end, dirichlet_concentration, model_p)
-                    # still need has_match for hit rate tracking
-                    _, has_match, matched_order, _, _ = cache.lookup(val_np, abs_start, abs_end)
+                    # flat Dirichlet mixing (best of exp71-73 sweep)
+                    p_ngram, has_match, matched_order, ng_ctx_c, ng_full_c = cache.lookup(val_np, abs_start, abs_end)
+                    blended_p = model_p.copy()
+                    if has_match.any():
+                        m = has_match
+                        conc = dirichlet_concentration
+                        blended_p[m] = (conc * model_p[m] + ng_full_c[m]) / (conc + ng_ctx_c[m])
                 else:
                     p_ngram, has_match, matched_order, _, _ = cache.lookup(val_np, abs_start, abs_end)
                     # legacy linear interpolation with per-order entropy thresholds
@@ -1265,8 +1267,8 @@ def eval_val_ngram(
                 if phrase_match.any():
                     pm = phrase_match
                     if dirichlet_concentration > 0:
-                        # phrase Dirichlet — lower concentration trusts phrase evidence more
-                        phr_conc = dirichlet_concentration * 0.5
+                        # phrase Dirichlet with lower concentration (phrases are more specific)
+                        phr_conc = dirichlet_concentration * 0.2
                         blended_p[pm] = (phr_conc * blended_p[pm] + phr_full_c[pm]) / (phr_conc + phr_ctx_c[pm])
                     else:
                         pa = 0.3 + (0.95 - 0.3) * (phrase_len[phrase_match].astype(np.float64) - 16.0) / 32.0
@@ -2123,7 +2125,7 @@ def main() -> None:
         ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.90"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
         ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
-        dirichlet_conc = float(os.environ.get("DIRICHLET_CONCENTRATION", "0.5"))
+        dirichlet_conc = float(os.environ.get("DIRICHLET_CONCENTRATION", "1.0"))
         torch.cuda.synchronize()
         t_ngram = time.perf_counter()
         ngram_two_pass = bool(int(os.environ.get("NGRAM_TWO_PASS", "0")))  # default single-pass for legality

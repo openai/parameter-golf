@@ -44,3 +44,4 @@ b224b23	1.1323	15.88	keep	TTT AdamW 5ep lr=0.0005 DDP-synced	BEATS SOTA! sw=1.13
 1ca98b9	0.3381	15.35	keep	single-pass 9-gram stride=48 alpha=0.95	eval=531s, within budget, neural=1.1434
 182c398	0.2528	15.35	keep	Dirichlet(c=1.0) + phrase[20,16] + stride=48	-0.085 from Dirichlet mixing, eval=564s, within budget
 49aaca9	0.2532	15.67	discard	hierarchical Dirichlet c=5.0 + order-13	no improvement, eval=627s OVER BUDGET
+1a8ee89	0.2534	15.26	discard	hierarchical Dirichlet c=0.5 order-9	slightly worse than c=1.0, eval=532s
