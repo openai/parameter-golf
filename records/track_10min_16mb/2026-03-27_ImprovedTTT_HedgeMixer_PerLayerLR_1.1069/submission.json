@@ -1,0 +1,11 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "Improved TTT + HedgeMixer: Per-Layer LR Groups + Cosine Schedule",
+  "blurb": "Improves test-time training on the XSA-all + HedgeMixer backbone with per-layer LR groups (3x for output projections, 0.5x for input), cosine schedule, and reduced block freezing. 3-seed mean 1.1069 BPB on 8xH100 in under 600s eval.",
+  "date": "2026-03-27",
+  "val_loss": 1.84911627,
+  "val_bpb": 1.10693380,
+  "bytes_total": 15661730,
+  "bytes_code": 102023
+}

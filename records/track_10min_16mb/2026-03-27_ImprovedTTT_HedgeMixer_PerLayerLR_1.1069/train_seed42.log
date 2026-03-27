@@ -1,0 +1,324 @@
+W0327 12:43:35.703000 3370083 torch/distributed/run.py:803] 
+W0327 12:43:35.703000 3370083 torch/distributed/run.py:803] *****************************************
+W0327 12:43:35.703000 3370083 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0327 12:43:35.703000 3370083 torch/distributed/run.py:803] *****************************************
+logs/7da068eb-2be6-4ac5-9828-ef5ca65c8db5.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+mixed_precision: 68 int5 layers, 0 int6 layers (last 0 blocks)
+model_params:33317980
+XSA:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] ws:8 gqa:8/8
+lr:embed=0.035 matrix=0.025 scalar=0.025 batch:786432 wall:600s seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9301 val_bpb:4.1044 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9309 train_time:148ms step_avg:147.83ms
+step:2/20000 train_loss:8.7072 train_time:240ms step_avg:120.13ms
+step:3/20000 train_loss:7.7698 train_time:336ms step_avg:111.96ms
+step:4/20000 train_loss:7.2986 train_time:432ms step_avg:108.02ms
+step:5/20000 train_loss:7.0365 train_time:528ms step_avg:105.69ms
+step:6/20000 train_loss:6.9493 train_time:624ms step_avg:104.02ms
+step:7/20000 train_loss:6.8511 train_time:720ms step_avg:102.86ms
+step:8/20000 train_loss:6.7336 train_time:816ms step_avg:101.94ms
+step:9/20000 train_loss:6.3601 train_time:911ms step_avg:101.27ms
+step:10/20000 train_loss:6.0333 train_time:1007ms step_avg:100.74ms
+step:500/20000 train_loss:2.3602 train_time:49053ms step_avg:98.11ms
+step:1000/20000 train_loss:2.2446 train_time:98224ms step_avg:98.22ms
+step:1500/20000 train_loss:2.1898 train_time:147436ms step_avg:98.29ms
+step:2000/20000 train_loss:2.0308 train_time:196732ms step_avg:98.37ms
+step:2500/20000 train_loss:2.1354 train_time:246047ms step_avg:98.42ms
+step:3000/20000 train_loss:2.1145 train_time:295339ms step_avg:98.45ms
+step:3500/20000 train_loss:2.1198 train_time:344639ms step_avg:98.47ms
+step:4000/20000 train_loss:1.9076 train_time:393933ms step_avg:98.48ms
+step:4000/20000 val_loss:1.9989 val_bpb:1.1839 train_time:393938ms step_avg:98.48ms
+late_qat:enabled step:4160 scale:0.5000
+step:4500/20000 train_loss:2.0536 train_time:444418ms step_avg:98.76ms
+step:5000/20000 train_loss:2.0258 train_time:495348ms step_avg:99.07ms
+swa:start step:5200
+step:5500/20000 train_loss:1.9367 train_time:546538ms step_avg:99.37ms
+step:5847/20000 val_loss:1.9052 val_bpb:1.1283 train_time:582008ms step_avg:99.54ms
+stopping_early: wallclock_cap train_time:582008ms step:5847/20000
+peak memory allocated: 26197 MiB reserved: 26810 MiB
+ema:applying EMA weights (skipping diagnostic evals)
+gptq:calibrating with training data...
+gptq:calibrated 68 layers in 1.9s
+Serialized model: 130432585 bytes
+Code size: 102023 bytes
+pruning:3.0% magnitude pruning applied
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+mixed_precision: 33161216 int5 params, 0 int6 params
+Serialized model int6+zstd: 15271875 bytes
+Total submission size int6+zstd: 15373898 bytes
+  ttt: pre-compiling forward+backward kernels...
+  ttt: pre-compile done
+final_int6_sliding_window val_loss:1.9020 val_bpb:1.1265 stride:64 eval_time:86040ms
+final_int6_sliding_window_exact val_loss:1.90203961 val_bpb:1.12649798
+TTT: epochs=3 lr=0.0005 freeze_first=1 chunk=32768 opt=adamw
+TTT temperature: 0.98
+PPM alpha: 0.85, Byte-weighted TTT: True
+  Logistic context mixer enabled: eta=0.1
+  Adaptive LR enabled: max_mult=3.0
+ttt:start chunks=1893 chunk_tokens=32768 windows=969088 stride=64 lr=0.0005 epochs=3 opt=adamw freeze_first=1
+ttt:params unfrozen=2895884 frozen=30422096
+  ttt_lr_group: mult=3.0 params=1179648 lr=0.001500
+  ttt_lr_group: mult=0.5 params=917504 lr=0.000250
+  ttt_lr_group: mult=1.0 params=798732 lr=0.000500
+  Polyak averaging enabled: decay=0.998
+  Temperature calibration enabled: range=(0.85, 1.15) steps=7
+    ttt_train [1] seqs=16 start_train...
+    ttt_train [1] epoch=1/3 batches=2 ...
+      step done ep=1 bs=0 loss=2.3159
+    ttt_train [1] epoch=2/3 batches=2 ...
+      step done ep=2 bs=0 loss=2.2563
+    ttt_train [1] epoch=3/3 batches=2 ...
+      step done ep=3 bs=0 loss=2.2435
+    temp_cal [1] best_temp=1.0000 nll=2.129989
+  ttt_chunk [1/1893] bpb=1.164187 temp=1.0000 time=0.4s
+    ttt_train [2] seqs=16 start_train...
+    ttt_train [2] epoch=1/3 batches=2 ...
+      step done ep=1 bs=0 loss=2.7173
+    ttt_train [2] epoch=2/3 batches=2 ...
+      step done ep=2 bs=0 loss=2.7081
+    ttt_train [2] epoch=3/3 batches=2 ...
+      step done ep=3 bs=0 loss=2.6952
+    temp_cal [2] best_temp=1.0000 nll=2.067856
+  ttt_chunk [2/1893] bpb=1.244435 temp=1.0000 time=0.6s
+    ttt_train [3] seqs=16 start_train...
+    ttt_train [3] epoch=1/3 batches=2 ...
+      step done ep=1 bs=0 loss=1.8600
+    ttt_train [3] epoch=2/3 batches=2 ...
+      step done ep=2 bs=0 loss=1.8508
+    ttt_train [3] epoch=3/3 batches=2 ...
+      step done ep=3 bs=0 loss=1.8388
+    temp_cal [3] best_temp=1.0000 nll=1.712339
+  ttt_chunk [3/1893] bpb=1.188142 temp=1.0000 time=0.9s
+    temp_cal [4] best_temp=1.0000 nll=2.123355
+  ttt_chunk [4/1893] bpb=1.172389 temp=1.0000 time=1.1s
+    temp_cal [5] best_temp=1.0000 nll=1.959810
+  ttt_chunk [5/1893] bpb=1.153229 temp=1.0000 time=1.4s
+  ttt_chunk [11/1893] bpb=1.091513 temp=1.0000 time=2.8s
+  ttt_chunk [21/1893] bpb=1.060305 temp=1.0000 time=5.3s
+  ttt_chunk [31/1893] bpb=1.052815 temp=1.0000 time=7.8s
+  ttt_chunk [41/1893] bpb=1.037397 temp=1.0000 time=10.3s
+  ttt_chunk [51/1893] bpb=1.031546 temp=1.0000 time=12.7s
+  ttt_chunk [61/1893] bpb=1.036672 temp=1.0000 time=15.2s
+  ttt_chunk [71/1893] bpb=1.035009 temp=1.0000 time=17.7s
+  ttt_chunk [81/1893] bpb=1.033974 temp=1.0000 time=20.2s
+  ttt_chunk [91/1893] bpb=1.035277 temp=1.0000 time=22.6s
+  ttt_chunk [101/1893] bpb=1.039017 temp=1.0000 time=25.1s
+  ttt_chunk [111/1893] bpb=1.042216 temp=1.0000 time=27.6s
+  ttt_chunk [121/1893] bpb=1.036455 temp=1.0000 time=30.1s
+  ttt_chunk [131/1893] bpb=1.037331 temp=1.0000 time=32.5s
+  ttt_chunk [141/1893] bpb=1.043429 temp=1.0000 time=35.0s
+  ttt_chunk [151/1893] bpb=1.046071 temp=1.0000 time=37.5s
+  ttt_chunk [161/1893] bpb=1.046149 temp=1.0000 time=40.0s
+  ttt_chunk [171/1893] bpb=1.051164 temp=1.0000 time=42.4s
+  ttt_chunk [181/1893] bpb=1.054225 temp=1.0000 time=44.9s
+  ttt_chunk [191/1893] bpb=1.062205 temp=1.0000 time=47.4s
+  ttt_chunk [201/1893] bpb=1.061715 temp=1.0000 time=49.9s
+  ttt_chunk [211/1893] bpb=1.060833 temp=1.0000 time=52.3s
+  ttt_chunk [221/1893] bpb=1.063465 temp=1.0000 time=54.8s
+  ttt_chunk [231/1893] bpb=1.063243 temp=1.0000 time=57.3s
+  ttt_chunk [241/1893] bpb=1.064592 temp=1.0000 time=59.8s
+  ttt_chunk [251/1893] bpb=1.064948 temp=1.0000 time=62.3s
+  ttt_chunk [261/1893] bpb=1.063343 temp=1.0000 time=64.7s
+  ttt_chunk [271/1893] bpb=1.063182 temp=1.0000 time=67.2s
+  ttt_chunk [281/1893] bpb=1.065565 temp=1.0000 time=69.7s
+  ttt_chunk [291/1893] bpb=1.068206 temp=1.0000 time=72.2s
+  ttt_chunk [301/1893] bpb=1.069842 temp=1.0000 time=74.6s
+  ttt_chunk [311/1893] bpb=1.072752 temp=1.0000 time=77.1s
+  ttt_chunk [321/1893] bpb=1.075677 temp=1.0000 time=79.6s
+  ttt_chunk [331/1893] bpb=1.076538 temp=1.0000 time=82.1s
+  ttt_chunk [341/1893] bpb=1.076514 temp=1.0000 time=84.6s
+  ttt_chunk [351/1893] bpb=1.079602 temp=1.0000 time=87.0s
+  ttt_chunk [361/1893] bpb=1.080474 temp=1.0000 time=89.5s
+  ttt_chunk [371/1893] bpb=1.080706 temp=1.0000 time=92.0s
+  ttt_chunk [381/1893] bpb=1.081705 temp=1.0000 time=94.5s
+  ttt_chunk [391/1893] bpb=1.082266 temp=1.0000 time=96.9s
+  ttt_chunk [401/1893] bpb=1.081044 temp=1.0000 time=99.4s
+  ttt_chunk [411/1893] bpb=1.080667 temp=1.0000 time=101.9s
+  ttt_chunk [421/1893] bpb=1.080591 temp=1.0000 time=104.4s
+  ttt_chunk [431/1893] bpb=1.081233 temp=1.0000 time=106.8s
+  ttt_chunk [441/1893] bpb=1.082275 temp=1.0000 time=109.3s
+  ttt_chunk [451/1893] bpb=1.083376 temp=1.0000 time=111.8s
+  ttt_chunk [461/1893] bpb=1.083031 temp=1.0000 time=114.3s
+  ttt_chunk [471/1893] bpb=1.084379 temp=1.0000 time=116.7s
+  ttt_chunk [481/1893] bpb=1.084759 temp=1.0000 time=119.2s
+  ttt_chunk [491/1893] bpb=1.084333 temp=1.0000 time=121.7s
+  ttt_chunk [501/1893] bpb=1.084466 temp=1.0000 time=124.2s
+  ttt_chunk [511/1893] bpb=1.084462 temp=1.0000 time=126.6s
+  ttt_chunk [521/1893] bpb=1.082728 temp=1.0000 time=129.1s
+  ttt_chunk [531/1893] bpb=1.084506 temp=1.0000 time=131.6s
+  ttt_chunk [541/1893] bpb=1.085411 temp=1.0000 time=134.1s
+  ttt_chunk [551/1893] bpb=1.085003 temp=1.0000 time=136.6s
+  ttt_chunk [561/1893] bpb=1.086099 temp=1.0000 time=139.0s
+  ttt_chunk [571/1893] bpb=1.085754 temp=1.0000 time=141.5s
+  ttt_chunk [581/1893] bpb=1.085510 temp=1.0000 time=144.0s
+  ttt_chunk [591/1893] bpb=1.085479 temp=1.0000 time=146.5s
+  ttt_chunk [601/1893] bpb=1.086484 temp=1.0000 time=148.9s
+  ttt_chunk [611/1893] bpb=1.086955 temp=1.0000 time=151.4s
+  ttt_chunk [621/1893] bpb=1.087349 temp=1.0000 time=153.9s
+  ttt_chunk [631/1893] bpb=1.088560 temp=1.0000 time=156.4s
+  ttt_chunk [641/1893] bpb=1.088779 temp=1.0000 time=158.9s
+  ttt_chunk [651/1893] bpb=1.089334 temp=1.0000 time=161.3s
+  ttt_chunk [661/1893] bpb=1.089250 temp=1.0000 time=163.8s
+  ttt_chunk [671/1893] bpb=1.090044 temp=1.0000 time=166.3s
+  ttt_chunk [681/1893] bpb=1.091130 temp=1.0000 time=168.8s
+  ttt_chunk [691/1893] bpb=1.092553 temp=1.0000 time=171.3s
+  ttt_chunk [701/1893] bpb=1.092444 temp=1.0000 time=173.7s
+  ttt_chunk [711/1893] bpb=1.092857 temp=1.0000 time=176.2s
+  ttt_chunk [721/1893] bpb=1.092885 temp=1.0000 time=178.7s
+  ttt_chunk [731/1893] bpb=1.093343 temp=1.0000 time=181.2s
+  ttt_chunk [741/1893] bpb=1.093811 temp=1.0000 time=183.6s
+  ttt_chunk [751/1893] bpb=1.094036 temp=1.0000 time=186.1s
+  ttt_chunk [761/1893] bpb=1.094308 temp=1.0000 time=188.6s
+  ttt_chunk [771/1893] bpb=1.094376 temp=1.0000 time=191.1s
+  ttt_chunk [781/1893] bpb=1.095475 temp=1.0000 time=193.6s
+  ttt_chunk [791/1893] bpb=1.095370 temp=1.0000 time=196.0s
+  ttt_chunk [801/1893] bpb=1.096032 temp=1.0000 time=198.5s
+  ttt_chunk [811/1893] bpb=1.096162 temp=1.0000 time=201.0s
+  ttt_chunk [821/1893] bpb=1.096307 temp=1.0000 time=203.5s
+  ttt_chunk [831/1893] bpb=1.096450 temp=1.0000 time=205.9s
+  ttt_chunk [841/1893] bpb=1.096130 temp=1.0000 time=208.4s
+  ttt_chunk [851/1893] bpb=1.096267 temp=1.0000 time=210.9s
+  ttt_chunk [861/1893] bpb=1.096283 temp=1.0000 time=213.4s
+  ttt_chunk [871/1893] bpb=1.096913 temp=1.0000 time=215.9s
+  ttt_chunk [881/1893] bpb=1.097387 temp=1.0000 time=218.3s
+  ttt_chunk [891/1893] bpb=1.097235 temp=1.0000 time=220.8s
+  ttt_chunk [901/1893] bpb=1.097234 temp=1.0000 time=223.3s
+  ttt_chunk [911/1893] bpb=1.097603 temp=1.0000 time=225.8s
+  ttt_chunk [921/1893] bpb=1.098335 temp=1.0000 time=228.3s
+  ttt_chunk [931/1893] bpb=1.098547 temp=1.0000 time=230.7s
+  ttt_chunk [941/1893] bpb=1.098537 temp=1.0000 time=233.2s
+  ttt_chunk [951/1893] bpb=1.099187 temp=1.0000 time=235.7s
+  ttt_chunk [961/1893] bpb=1.099561 temp=1.0000 time=238.1s
+  ttt_chunk [971/1893] bpb=1.100691 temp=1.0000 time=240.6s
+  ttt_chunk [981/1893] bpb=1.101026 temp=1.0000 time=243.1s
+  ttt_chunk [991/1893] bpb=1.101313 temp=1.0000 time=245.6s
+  ttt_chunk [1001/1893] bpb=1.101531 temp=1.0000 time=248.0s
+  ttt_chunk [1011/1893] bpb=1.101513 temp=1.0000 time=250.5s
+  ttt_chunk [1021/1893] bpb=1.102054 temp=1.0000 time=253.0s
+  ttt_chunk [1031/1893] bpb=1.102706 temp=1.0000 time=255.5s
+  ttt_chunk [1041/1893] bpb=1.102611 temp=1.0000 time=258.0s
+  ttt_chunk [1051/1893] bpb=1.102593 temp=1.0000 time=260.4s
+  ttt_chunk [1061/1893] bpb=1.102847 temp=1.0000 time=262.9s
+  ttt_chunk [1071/1893] bpb=1.103633 temp=1.0000 time=265.4s
+  ttt_chunk [1081/1893] bpb=1.104084 temp=1.0000 time=267.9s
+  ttt_chunk [1091/1893] bpb=1.104920 temp=1.0000 time=270.3s
+  ttt_chunk [1101/1893] bpb=1.105105 temp=1.0000 time=272.8s
+  ttt_chunk [1111/1893] bpb=1.105088 temp=1.0000 time=275.3s
+  ttt_chunk [1121/1893] bpb=1.105014 temp=1.0000 time=277.8s
+  ttt_chunk [1131/1893] bpb=1.105041 temp=1.0000 time=280.3s
+  ttt_chunk [1141/1893] bpb=1.104921 temp=1.0000 time=282.7s
+  ttt_chunk [1151/1893] bpb=1.105053 temp=1.0000 time=285.2s
+  ttt_chunk [1161/1893] bpb=1.104825 temp=1.0000 time=287.7s
+  ttt_chunk [1171/1893] bpb=1.105294 temp=1.0000 time=290.2s
+  ttt_chunk [1181/1893] bpb=1.104675 temp=1.0000 time=292.6s
+  ttt_chunk [1191/1893] bpb=1.104645 temp=1.0000 time=295.1s
+  ttt_chunk [1201/1893] bpb=1.105123 temp=1.0000 time=297.6s
+  ttt_chunk [1211/1893] bpb=1.104748 temp=1.0000 time=300.1s
+  ttt_chunk [1221/1893] bpb=1.104533 temp=1.0000 time=302.6s
+  ttt_chunk [1231/1893] bpb=1.104379 temp=1.0000 time=305.1s
+  ttt_chunk [1241/1893] bpb=1.104134 temp=1.0000 time=307.5s
+  ttt_chunk [1251/1893] bpb=1.103648 temp=1.0000 time=310.0s
+  ttt_chunk [1261/1893] bpb=1.103694 temp=1.0000 time=312.5s
+  ttt_chunk [1271/1893] bpb=1.103399 temp=1.0000 time=315.0s
+  ttt_chunk [1281/1893] bpb=1.103295 temp=1.0000 time=317.4s
+  ttt_chunk [1291/1893] bpb=1.103139 temp=1.0000 time=319.9s
+  ttt_chunk [1301/1893] bpb=1.102630 temp=1.0000 time=322.4s
+  ttt_chunk [1311/1893] bpb=1.102342 temp=1.0000 time=324.9s
+  ttt_chunk [1321/1893] bpb=1.102076 temp=1.0000 time=327.4s
+  ttt_chunk [1331/1893] bpb=1.102093 temp=1.0000 time=329.8s
+  ttt_chunk [1341/1893] bpb=1.102047 temp=1.0500 time=332.3s
+  ttt_chunk [1351/1893] bpb=1.102014 temp=1.0000 time=334.8s
+  ttt_chunk [1361/1893] bpb=1.102133 temp=1.0000 time=337.3s
+  ttt_chunk [1371/1893] bpb=1.102026 temp=1.0000 time=339.8s
+  ttt_chunk [1381/1893] bpb=1.102048 temp=1.0000 time=342.2s
+  ttt_chunk [1391/1893] bpb=1.101688 temp=1.0000 time=344.7s
+  ttt_chunk [1401/1893] bpb=1.101683 temp=1.0000 time=347.2s
+  ttt_chunk [1411/1893] bpb=1.101845 temp=1.0000 time=349.7s
+  ttt_chunk [1421/1893] bpb=1.102162 temp=1.0000 time=352.1s
+  ttt_chunk [1431/1893] bpb=1.101872 temp=1.0000 time=354.6s
+  ttt_chunk [1441/1893] bpb=1.102386 temp=1.0000 time=357.1s
+  ttt_chunk [1451/1893] bpb=1.102754 temp=1.0000 time=359.6s
+  ttt_chunk [1461/1893] bpb=1.102356 temp=1.0000 time=362.0s
+  ttt_chunk [1471/1893] bpb=1.103446 temp=1.0000 time=364.5s
+  ttt_chunk [1481/1893] bpb=1.103038 temp=1.0000 time=367.0s
+  ttt_chunk [1491/1893] bpb=1.102884 temp=1.0000 time=369.5s
+  ttt_chunk [1501/1893] bpb=1.102833 temp=1.0000 time=371.9s
+  ttt_chunk [1511/1893] bpb=1.102831 temp=1.0000 time=374.4s
+  ttt_chunk [1521/1893] bpb=1.102894 temp=1.0000 time=376.9s
+  ttt_chunk [1531/1893] bpb=1.102383 temp=1.0000 time=379.4s
+  ttt_chunk [1541/1893] bpb=1.102278 temp=1.0000 time=381.9s
+  ttt_chunk [1551/1893] bpb=1.102636 temp=1.0000 time=384.3s
+  ttt_chunk [1561/1893] bpb=1.102669 temp=1.0000 time=386.8s
+  ttt_chunk [1571/1893] bpb=1.102568 temp=1.0000 time=389.3s
+  ttt_chunk [1581/1893] bpb=1.102710 temp=1.0000 time=391.8s
+  ttt_chunk [1591/1893] bpb=1.102624 temp=1.0000 time=394.2s
+  ttt_chunk [1601/1893] bpb=1.102840 temp=1.0000 time=396.7s
+  ttt_chunk [1611/1893] bpb=1.102818 temp=1.0000 time=399.2s
+  ttt_chunk [1621/1893] bpb=1.102435 temp=1.0000 time=401.7s
+  ttt_chunk [1631/1893] bpb=1.102757 temp=1.0000 time=404.2s
+  ttt_chunk [1641/1893] bpb=1.102789 temp=1.0000 time=406.6s
+  ttt_chunk [1651/1893] bpb=1.102763 temp=1.0000 time=409.1s
+  ttt_chunk [1661/1893] bpb=1.102656 temp=1.0000 time=411.6s
+  ttt_chunk [1671/1893] bpb=1.103092 temp=1.0000 time=414.1s
+  ttt_chunk [1681/1893] bpb=1.103241 temp=1.0000 time=416.5s
+  ttt_chunk [1691/1893] bpb=1.103056 temp=1.0000 time=419.0s
+  ttt_chunk [1701/1893] bpb=1.103218 temp=1.0000 time=421.5s
+  ttt_chunk [1711/1893] bpb=1.103239 temp=1.0000 time=424.0s
+  ttt_chunk [1721/1893] bpb=1.103214 temp=1.0000 time=426.4s
+  ttt_chunk [1731/1893] bpb=1.103094 temp=1.0000 time=428.9s
+  ttt_chunk [1741/1893] bpb=1.102914 temp=1.0000 time=431.4s
+  ttt_chunk [1751/1893] bpb=1.102754 temp=1.0000 time=433.9s
+  ttt_chunk [1761/1893] bpb=1.102888 temp=1.0000 time=436.3s
+  ttt_chunk [1771/1893] bpb=1.102752 temp=1.0000 time=438.8s
+  ttt_chunk [1781/1893] bpb=1.102767 temp=1.0000 time=441.3s
+  ttt_chunk [1791/1893] bpb=1.102341 temp=1.0000 time=443.8s
+  ttt_chunk [1801/1893] bpb=1.102214 temp=1.0000 time=446.2s
+  ttt_chunk [1811/1893] bpb=1.102087 temp=1.0000 time=448.7s
+  ttt_chunk [1821/1893] bpb=1.102158 temp=1.0000 time=451.2s
+  ttt_chunk [1831/1893] bpb=1.101547 temp=1.0000 time=453.7s
+  ttt_chunk [1841/1893] bpb=1.101460 temp=1.0000 time=456.2s
+  ttt_chunk [1851/1893] bpb=1.101196 temp=1.0000 time=458.6s
+  ttt_chunk [1861/1893] bpb=1.100801 temp=1.0000 time=461.1s
+  ttt_chunk [1871/1893] bpb=1.100761 temp=1.0000 time=463.6s
+  ttt_chunk [1881/1893] bpb=1.100261 temp=1.0000 time=466.0s
+  ttt_chunk [1891/1893] bpb=1.099988 temp=1.0000 time=468.5s
+  ttt_chunk [1893/1893] bpb=1.100012 temp=1.0000 time=468.9s
+ttt:done val_loss=1.849554 val_bpb=1.095413 elapsed=468.9s
+final_int6_ttt val_loss:1.8496 val_bpb:1.0954 stride:64 eval_time:469489ms
+final_int6_ttt_exact val_loss:1.84955356 val_bpb:1.09541270
