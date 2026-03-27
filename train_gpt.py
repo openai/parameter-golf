@@ -114,7 +114,7 @@ class Hyperparameters:
     # --- N-gram cache config ---
     ngram_cache = bool(int(os.environ.get("NGRAM_CACHE", "1")))
     ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", 2))
-    ngram_order = int(os.environ.get("NGRAM_ORDER", 7))
+    ngram_order = int(os.environ.get("NGRAM_ORDER", 10))
     ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", str(4 * 1024 * 1024)))  # 4M
     ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", 1))
     ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", 0.05))
@@ -1558,23 +1558,46 @@ def main() -> None:
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
-    # --- N-gram aware training: token frequency weights ---
+    # --- Complementary training: bigram-weighted loss ---
+    complement_alpha = float(os.environ.get("COMPLEMENT_ALPHA", "0"))
+    ngram_tracker = None
+    if complement_alpha > 0:
+        log0(f"complementary_training: enabled, alpha={complement_alpha}")
+        bi_counts = torch.zeros(args.vocab_size, args.vocab_size, device=device)
+        bi_totals = torch.zeros(args.vocab_size, device=device)
+
+        def get_complement_weights(x: Tensor, y: Tensor) -> Tensor:
+            """Per-token weights: down-weight tokens bigram predicts well."""
+            xf = x.reshape(-1)
+            yf = y.reshape(-1)
+            total = bi_totals[xf]
+            count = bi_counts[xf, yf]
+            ngram_prob = count / (total + 1)
+            return (1.0 - complement_alpha * ngram_prob).clamp(min=0.1)
+
+        def update_bigram_counts(x: Tensor, y: Tensor) -> None:
+            """Update bigram statistics after each batch."""
+            xf = x.reshape(-1)
+            yf = y.reshape(-1)
+            bi_counts[xf, yf] += 1
+            bi_totals[xf] += 1
+
+        ngram_tracker = (get_complement_weights, update_bigram_counts)
+        log0(f"complementary_training: bigram matrix {args.vocab_size}x{args.vocab_size}")
+
+    # Legacy: static frequency weighting (v10 compat)
     ngram_aware = bool(int(os.environ.get("NGRAM_AWARE", "0")))
     token_weights_lut: Tensor | None = None
-    if ngram_aware:
-        # High-frequency tokens are easy for n-gram → lower loss weight
-        # Low-frequency tokens are n-gram blind spots → higher loss weight
+    if ngram_aware and complement_alpha <= 0:
         ngram_aware_alpha = float(os.environ.get("NGRAM_AWARE_ALPHA", "0.01"))
-        log0(f"ngram_aware_training: enabled, alpha={ngram_aware_alpha}")
-        # Build frequency table from first val shard (fast proxy for train distribution)
+        log0(f"ngram_aware_training: enabled (legacy), alpha={ngram_aware_alpha}")
         freq = torch.zeros(args.vocab_size, device=device)
         val_sample = val_tokens[:min(1_000_000, val_tokens.numel())].to(device)
         for tok_id in range(args.vocab_size):
             freq[tok_id] = (val_sample == tok_id).sum().float()
-        freq = freq / freq.sum()  # normalize to probability
-        # Weight: inverse frequency, softened by alpha
+        freq = freq / freq.sum()
         token_weights_lut = 1.0 / (1.0 + freq / ngram_aware_alpha)
-        token_weights_lut = token_weights_lut / token_weights_lut.mean()  # normalize mean=1
+        token_weights_lut = token_weights_lut / token_weights_lut.mean()
         log0(f"ngram_aware_training: weight range [{token_weights_lut.min():.3f}, {token_weights_lut.max():.3f}]")
 
     def zero_grad_all() -> None:
@@ -1697,7 +1720,12 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                if token_weights_lut is not None:
+                if ngram_tracker is not None:
+                    get_w, update_bi = ngram_tracker
+                    w = get_w(x, y)
+                    loss = model(x, y, loss_weights=w)
+                    update_bi(x, y)
+                elif token_weights_lut is not None:
                     w = token_weights_lut[y.reshape(-1)].reshape(y.shape)
                     loss = model(x, y, loss_weights=w)
                 else:
