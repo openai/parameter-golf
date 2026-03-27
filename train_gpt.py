@@ -111,7 +111,8 @@ class Hyperparameters:
     # N-gram cache evaluation
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "0")))
     ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", 7))
-    ngram_alpha = float(os.environ.get("NGRAM_ALPHA", 0.15))
+    ngram_alpha = float(os.environ.get("NGRAM_ALPHA", 0.50))
+    ngram_nll_threshold = float(os.environ.get("NGRAM_NLL_THRESHOLD", 2.5))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -1134,65 +1135,77 @@ def eval_val_sliding(
 def apply_ngram_cache(
     model_nll: np.ndarray, val_tokens: Tensor,
     base_bytes_lut: Tensor, has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
-    ngram_max_order: int = 7, ngram_alpha: float = 0.15,
-    adaptive_alpha: bool = True, log0=print,
+    ngram_max_order: int = 7, ngram_alpha: float = 0.50,
+    adaptive_alpha: bool = True, nll_threshold: float = 2.5, log0=print,
 ) -> tuple[float, float]:
     """CPU-only N-gram backoff interpolation on pre-computed per-position model NLL.
+    Uses uint16 bytes() keys for fast hashing (~2x faster than tuple keys).
     model_nll: numpy float64 array, -1 for unscored positions.
     adaptive_alpha: if True, alpha scales with model uncertainty (higher NLL -> higher alpha).
     Legal: each position's cache built from previously scored tokens only."""
-    from collections import defaultdict
     total_tokens = model_nll.shape[0]
     val_np = val_tokens.cpu().numpy().astype(np.int64)
+    # Convert tokens to uint16 bytes for fast context keys (vocab_size=1024 fits in uint16)
+    val_u16 = val_np.astype(np.uint16)
     bytes_lut = base_bytes_lut.cpu().numpy().astype(np.float64)
     space_lut = has_leading_space_lut.cpu().numpy()
     boundary_lut = is_boundary_token_lut.cpu().numpy()
     t0 = time.perf_counter()
-    caches: list[dict] = [defaultdict(lambda: defaultdict(int)) for _ in range(ngram_max_order + 1)]
+    max_order = ngram_max_order
+    # Cache: bytes_key → {target_token: count, -1: total_count}
+    caches: list[dict] = [{} for _ in range(max_order + 1)]
     loss_sum = 0.0
     byte_sum = 0.0
     n_scored = 0
     n_hits = 0
-    # For adaptive alpha: alpha = base_alpha * clamp(model_nll / nll_threshold, 0.1, 2.0)
-    # High model NLL (uncertain) → more trust in N-gram; low NLL (confident) → less trust
-    nll_threshold = 2.5  # rough median NLL for well-trained models
+    inv_thresh = 1.0 / nll_threshold
+    _exp = math.exp
+    _log = math.log
     for pos in range(total_tokens):
-        if model_nll[pos] < 0:
+        nll = model_nll[pos]
+        if nll < 0.0:
             continue
         n_scored += 1
         target = int(val_np[pos + 1])
         # Multi-order backoff: try highest order first
         ngram_prob = 0.0
-        for order in range(ngram_max_order, 1, -1):
+        for order in range(max_order, 1, -1):
             if pos + 1 < order:
                 continue
-            ctx = tuple(val_np[pos + 2 - order:pos + 1].tolist())
+            ctx = val_u16[pos + 2 - order:pos + 1].tobytes()
             if ctx in caches[order]:
                 counts = caches[order][ctx]
-                total_c = sum(counts.values())
+                total_c = counts[-1]
                 ngram_prob = counts.get(target, 0) / total_c
                 break
-        if ngram_prob > 0:
+        if ngram_prob > 0.0:
             if adaptive_alpha:
-                alpha = ngram_alpha * min(2.0, max(0.1, model_nll[pos] / nll_threshold))
+                alpha = ngram_alpha * min(2.0, max(0.1, nll * inv_thresh))
             else:
                 alpha = ngram_alpha
-            model_p = math.exp(-model_nll[pos])
-            combined_p = max((1 - alpha) * model_p + alpha * ngram_prob, 1e-30)
-            loss_sum += -math.log(combined_p)
+            model_p = _exp(-nll)
+            combined_p = (1.0 - alpha) * model_p + alpha * ngram_prob
+            if combined_p < 1e-30:
+                combined_p = 1e-30
+            loss_sum -= _log(combined_p)
             n_hits += 1
         else:
-            loss_sum += model_nll[pos]
+            loss_sum += nll
         tb = bytes_lut[target]
         if space_lut[target] and not boundary_lut[int(val_np[pos])]:
             tb += 1.0
         byte_sum += tb
         # Update cache (backward-looking: this position now scored)
-        for order in range(2, ngram_max_order + 1):
+        for order in range(2, max_order + 1):
             if pos + 1 < order:
                 continue
-            ctx = tuple(val_np[pos + 2 - order:pos + 1].tolist())
-            caches[order][ctx][target] += 1
+            ctx = val_u16[pos + 2 - order:pos + 1].tobytes()
+            if ctx in caches[order]:
+                counts = caches[order][ctx]
+                counts[target] = counts.get(target, 0) + 1
+                counts[-1] += 1
+            else:
+                caches[order][ctx] = {target: 1, -1: 1}
         if n_scored % 5_000_000 == 0:
             log0(f"ngram: {n_scored} scored, {n_hits} hits ({100*n_hits/n_scored:.1f}%), time={time.perf_counter()-t0:.0f}s")
     elapsed = time.perf_counter() - t0
@@ -2073,10 +2086,11 @@ def main() -> None:
         ng_loss, ng_bpb = apply_ngram_cache(
             ngram_nll, val_tokens,
             base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            ngram_max_order=args.ngram_max_order, ngram_alpha=args.ngram_alpha, log0=log0,
+            ngram_max_order=args.ngram_max_order, ngram_alpha=args.ngram_alpha,
+            nll_threshold=args.ngram_nll_threshold, log0=log0,
         )
         log0(f"ngram_cache val_loss:{ng_loss:.4f} val_bpb:{ng_bpb:.4f} "
-             f"order:{args.ngram_max_order} alpha:{args.ngram_alpha} "
+             f"order:{args.ngram_max_order} alpha:{args.ngram_alpha} threshold:{args.ngram_nll_threshold} "
              f"eval_time:{1000.0 * (time.perf_counter() - t_ng):.0f}ms")
         log0(f"ngram_cache_exact val_loss:{ng_loss:.8f} val_bpb:{ng_bpb:.8f}")
     if distributed:

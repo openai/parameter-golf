@@ -51,11 +51,14 @@ MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 \
 MUON_MOMENTUM_WARMUP_STEPS=1500 WARMDOWN_ITERS=3500 \
 ITERATIONS=9000 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 \
 POLYGLU_ENABLED=0 \
-NGRAM_ENABLED=1 NGRAM_MAX_ORDER=7 NGRAM_ALPHA=0.15 \
+NGRAM_ENABLED=1 NGRAM_MAX_ORDER=7 NGRAM_ALPHA=0.50 \
+NGRAM_NLL_THRESHOLD=2.5 \
 SEED=1337 RUN_ID=ngram_seed1337 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
-Note: TTT is disabled when using N-gram cache (both are eval-time techniques that fit in 10 min budget independently, but not together). N-gram cache provides ~0.05-0.15 BPB improvement.
+Note: N-gram cache replaces TTT — gives ~20x more BPB improvement (tested: N-gram -0.05 vs TTT -0.0025).
+N-gram uses entropy-adaptive alpha (alpha * clamp(nll/threshold, 0.1, 2.0)) with strict backoff.
+Eval budget: ~2 min sliding window (8GPU) + ~7 min N-gram cache (CPU) = ~9 min total.
 
 ### Step 4: Verify Artifact Size
 ```bash

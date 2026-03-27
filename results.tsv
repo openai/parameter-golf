@@ -7,3 +7,8 @@ dcc5273	1.3907	1.3655	21.1	keep	higher LR: matrix=0.035 scalar=0.035 embed=0.05 
 dcc5273	1.3895	1.3732	21.1	discard	even higher LR: 0.045/0.045/0.06 — overshoots pre-quant slightly
 dcc5273	1.3533	1.3786	21.1	keep	N-gram cache order=9 alpha=0.30 on 500K subset: -0.025 BPB improvement!
 c41dcdd	1.3336	1.3763	21.1	keep	N-gram ADAPTIVE alpha=0.30 order=7 on 500K: -0.043 BPB (nearly 2x fixed!)
+exp09	1.2884	1.2683	21.1	keep	10min 1GPU: 954 steps, LR=0.035/0.035/0.05, warmdown=500
+exp09	1.2322	1.2771	21.1	keep	10min model + N-gram alpha=0.50 t=2.5 o=7 on 2M: -0.045 BPB
+sweep	1.3272	1.3845	21.1	keep	alpha sweep winner: a=0.50 t=2.5 o=7 on 2M (5min model): -0.057 BPB
+sweep	1.3266	1.3845	21.1	info	per-order alpha boost=0.30: -0.058 (marginal over a=0.50)
+exp10	1.2915	1.2727	21.1	discard	LR=0.040: overshoots even on 10min 1GPU (+0.003 vs LR=0.035)
