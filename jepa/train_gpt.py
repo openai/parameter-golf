@@ -50,7 +50,7 @@ class Hyperparameters:
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 200))
     max_val_tokens = int(os.environ.get("MAX_VAL_TOKENS", 131_072))
     final_max_val_tokens = int(os.environ.get("FINAL_MAX_VAL_TOKENS", 131_072))
-    final_full_val = env_flag("FINAL_FULL_VAL", False)
+    final_full_val = env_flag("FINAL_FULL_VAL", True)
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 20))
 
     iterations = int(os.environ.get("ITERATIONS", 200_000))
