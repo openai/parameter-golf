@@ -1,0 +1,11 @@
+{
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "name": "Legal Neural-Only No-TTT Alt (8xH100)",
+  "blurb": "Compliance-focused neural-only alternative with frontier_candidate scaling, no n-gram/two-pass cache blending, and no TTT under strict 10-minute/16MB constraints.",
+  "date": "2026-03-27",
+  "val_loss": 1.95453440,
+  "val_bpb": 1.15758536,
+  "bytes_total": 14921440,
+  "bytes_code": 207992
+}
