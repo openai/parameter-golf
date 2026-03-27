@@ -51,3 +51,4 @@ fc5f627	0.2417	15.39	keep	flat Dirichlet c=1.0 + phrase[36,28,20,16]	NEW BEST! p
 e608af8	0.2307	15.32	discard	order-13 flat Dirichlet + phrase[36,28,20,16]	-0.011 from orders but eval=673s OVER BUDGET
 f5c8cde	0.2284	14.92	discard	stride=64 order-13 phrase[48,36,28,20,16]	NEW BEST BPB but eval=601s (1s over budget)
 c9c53a6	0.2285	15.33	keep	stride=72 order-13 phrase[48,36,28,20,16]	LEGAL BEST! eval=567s, 33s spare
+838ad4f	0.1518	13.43	keep	PACKED NGRAM ARTIFACT 2L/128d + 40 shards order-9	PARADIGM SHIFT! eval=372s, 100% hit
