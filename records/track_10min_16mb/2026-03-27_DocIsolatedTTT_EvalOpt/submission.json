@@ -1,0 +1,8 @@
+{
+  "author": "vivekvarikuti",
+  "github_id": "vivekvar-dl",
+  "val_bpb": null,
+  "summary": "Document-Isolated TTT + Eval Optimizations on PR #549 stack. Resets TTT state at document boundaries to prevent cross-document contamination. Temperature scaling at eval time.",
+  "date": "2026-03-27",
+  "base_pr": 549
+}
