@@ -10,9 +10,11 @@ import subprocess
 import sys
 import warnings
 warnings.filterwarnings("ignore")
+os.environ["TORCHDYNAMO_VERBOSE"] = "0"
 import logging
-logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
-logging.getLogger("torch._inductor").setLevel(logging.ERROR)
+logging.getLogger("torch._dynamo").setLevel(logging.CRITICAL)
+logging.getLogger("torch._inductor").setLevel(logging.CRITICAL)
+logging.getLogger("torch._dynamo.convert_frame").setLevel(logging.CRITICAL)
 import time
 import uuid
 import zlib
