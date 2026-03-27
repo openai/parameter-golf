@@ -133,6 +133,10 @@ TTT and LoRA adaptation follow the same principle as the n-gram cache — build 
 
 ## Proposal
 
+### 0. Enforce causality explicitly
+
+The competition assumes causality but does not enforce it. The FAQ says you can only train on tokens "you've already evaluated your model on," but the eval harness does not verify this. Two-pass rescoring (PRs #846, #853, #868, #870, #881, #888) violates causality: pass 2 rescores token #100 using a cache built from tokens #101 through #62M. This should be an explicit, enforced constraint, not an honor-system rule.
+
 ### 1. Verify the distribution sums to 1
 
 The most fundamental fix. Require the model to produce a full probability vector over all K tokens at every scored position. The eval script verifies `sum(probs) ≈ 1.0` before scoring:
