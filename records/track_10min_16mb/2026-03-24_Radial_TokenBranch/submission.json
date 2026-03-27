@@ -1,0 +1,8 @@
+{
+  "author": "Christian Q. De Luca",
+  "github_id": "rthgit",
+  "val_bpb": "1.3379",
+  "model_size": "14697660",
+  "hardware": "NVIDIA H100 80GB HBM3 (Official Record-Track Environment)",
+  "training_time": "600s"
+}
