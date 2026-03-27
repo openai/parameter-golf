@@ -29,6 +29,8 @@ Optional environment variables for `run`:
   TRAIN_SEQ_LEN
   EVAL_STRIDE
   EVAL_BATCH_SEQS
+  MUON_WEIGHT_DECAY
+  ADAM_WEIGHT_DECAY
   SEED
   OUT_DIR
 EOF
@@ -126,6 +128,8 @@ cmd_run() {
     local val_loss_every="${VAL_LOSS_EVERY:-0}"
     local val_batch_size="${VAL_BATCH_SIZE:-8192}"
     local eval_batch_seqs="${EVAL_BATCH_SEQS:-32}"
+    local muon_weight_decay="${MUON_WEIGHT_DECAY:-0.0}"
+    local adam_weight_decay="${ADAM_WEIGHT_DECAY:-0.0}"
     local seed="${SEED:-1337}"
     local run_id="${RUN_ID:-mlx_${mode}_$(date +%Y%m%d_%H%M%S)}"
     local eval_stride
@@ -151,6 +155,8 @@ cmd_run() {
     echo "train_seq_len=${train_seq_len}"
     echo "eval_stride=${eval_stride}"
     echo "eval_batch_seqs=${eval_batch_seqs}"
+    echo "muon_weight_decay=${muon_weight_decay}"
+    echo "adam_weight_decay=${adam_weight_decay}"
 
     RUN_ID="${run_id}" \
     DATA_PATH="${data_path}" \
@@ -162,6 +168,8 @@ cmd_run() {
     TRAIN_SEQ_LEN="${train_seq_len}" \
     EVAL_STRIDE="${eval_stride}" \
     EVAL_BATCH_SEQS="${eval_batch_seqs}" \
+    MUON_WEIGHT_DECAY="${muon_weight_decay}" \
+    ADAM_WEIGHT_DECAY="${adam_weight_decay}" \
     SEED="${seed}" \
     python3 train_gpt_mlx.py
 }

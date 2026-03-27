@@ -92,6 +92,8 @@ class Hyperparameters:
     tied_embed_lr: float = float(os.environ.get("TIED_EMBED_LR", 0.03))
     matrix_lr: float = float(os.environ.get("MATRIX_LR", 0.02))
     scalar_lr: float = float(os.environ.get("SCALAR_LR", 0.02))
+    muon_weight_decay: float = float(os.environ.get("MUON_WEIGHT_DECAY", 0.0))
+    adam_weight_decay: float = float(os.environ.get("ADAM_WEIGHT_DECAY", 0.0))
     muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps: int = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -478,6 +480,7 @@ class Muon:
         else:
             momentum = self.args.muon_momentum
         lr = self.args.matrix_lr * lr_mul
+        decay_mul = max(1.0 - lr * self.args.muon_weight_decay, 0.0)
         out: dict[str, mx.array] = {}
         for k in self.keys:
             p = params[k]
@@ -487,7 +490,7 @@ class Muon:
             g_eff = g + momentum * buf
             g_ortho = zeropower_newtonschulz5(g_eff, self.args.muon_backend_steps)
             scale = math.sqrt(max(1.0, float(p.shape[0]) / float(p.shape[1])))
-            out[k] = p - lr * (g_ortho * scale).astype(p.dtype)
+            out[k] = p * decay_mul - lr * (g_ortho * scale).astype(p.dtype)
         return out
 
 
@@ -525,6 +528,12 @@ class SplitOptimizers:
             bias_correction=True,
         )
 
+    def _decayed_params(self, params: dict[str, mx.array], lr: float) -> dict[str, mx.array]:
+        if self.args.adam_weight_decay <= 0.0:
+            return params
+        decay_mul = max(1.0 - lr * self.args.adam_weight_decay, 0.0)
+        return {k: p * decay_mul for k, p in params.items()}
+
     def step(self, model: GPT, grads_tree: dict, step: int, lr_mul: float) -> None:
         params = dict(tree_flatten(model.parameters()))
         grads = dict(tree_flatten(grads_tree))
@@ -532,17 +541,20 @@ class SplitOptimizers:
 
         updated.update(self.muon.step(params, grads, step=step, lr_mul=lr_mul))
 
-        self.adam_embed.learning_rate = self.args.tied_embed_lr * lr_mul
+        embed_lr = self.args.tied_embed_lr * lr_mul
+        self.adam_embed.learning_rate = embed_lr
+        embed_params = self._decayed_params({self.embed_key: params[self.embed_key]}, embed_lr)
         updated.update(
             self.adam_embed.apply_gradients(
                 {self.embed_key: grads[self.embed_key]},
-                {self.embed_key: params[self.embed_key]},
+                embed_params,
             )
         )
 
-        self.adam_scalar.learning_rate = self.args.scalar_lr * lr_mul
+        scalar_lr = self.args.scalar_lr * lr_mul
+        self.adam_scalar.learning_rate = scalar_lr
         scalar_grads = {k: grads[k] for k in self.scalar_keys}
-        scalar_params = {k: params[k] for k in self.scalar_keys}
+        scalar_params = self._decayed_params({k: params[k] for k in self.scalar_keys}, scalar_lr)
         updated.update(self.adam_scalar.apply_gradients(scalar_grads, scalar_params))
 
         model.update(tree_unflatten(list(updated.items())))
@@ -1083,6 +1095,7 @@ def main() -> None:
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
         f"embed_lr:{args.tied_embed_lr} "
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
+        f"muon_weight_decay:{args.muon_weight_decay} adam_weight_decay:{args.adam_weight_decay} "
         f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
     )
     log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
