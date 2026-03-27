@@ -63,7 +63,7 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layer_schedule = {
         int(k): int(v)
-        for item in os.environ.get("NUM_LAYER_SCHEDULE", "0:1,600:4").split(",")
+        for item in os.environ.get("NUM_LAYER_SCHEDULE", "0:2,600:8").split(",")
         if item.strip()
         for k, v in [item.split(":", 1)]
     }
