@@ -1,0 +1,30 @@
+model_params:4234268
+seed:2024
+step:0/20000 val_loss:6.9296 val_bpb:4.1041
+step:500/20000 train_loss:2.6533 train_time:17784ms step_avg:35.57ms
+step:4000/20000 val_loss:2.3690 val_bpb:1.4031
+step:8000/20000 val_loss:2.3436 val_bpb:1.3880
+step:12000/20000 val_loss:2.3358 val_bpb:1.3834
+turbo_qat:enabled step:14148 bits:4 scale:0.4233
+swa:start step:14750
+step:15408/20000 val_loss:2.2441 val_bpb:1.3291 train_time:599962ms step_avg:38.94ms
+stopping_early: wallclock_cap train_time:599962ms step:15408/20000
+peak memory allocated: 6334 MiB reserved: 6406 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.2402 val_bpb:1.3268 eval_time:550ms
+Serialized model fp16+lzma: 7320536 bytes
+Total submission size fp16+lzma: 7466448 bytes
+final_int6_roundtrip_exact val_loss:2.24102839 val_bpb:1.32726325
+final_int6_sliding_window_exact val_loss:2.20100770 val_bpb:1.30356419
+final_int8_zlib_roundtrip_exact val_loss:2.20100770 val_bpb:1.30356419
+cachemoney: Pass 1 done val_bpb=1.323624 tokens_scored=7754688 time=53.3s
+cachemoney: n-gram cache built in 110.3s
+cachemoney: phrase cache built in 94.8s
+dup_detect: no document boundaries found
+alpha_calib: best alpha_high=0.99 entropy_thresh=3.0 calib_nll=0.1350 (on 387734 tokens)
+cachemoney: alpha calibrated in 1.0s
+rescore: ngram=7754688/7754688 (100.0%) phrase=7754673/7754688 (100.0%)
+cachemoney: Pass 2 done val_bpb=0.080379 improvement=1.243245 time=78.9s
+cachemoney: total time=338.3s
+ngram_two_pass_exact val_loss:0.13571703 val_bpb:0.08037948
+final_int8_zlib_roundtrip_exact val_loss:0.13571703 val_bpb:0.08037948
