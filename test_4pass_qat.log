@@ -41,3 +41,15 @@ step:8/50 train_loss:6.8826 train_time:25148ms step_avg:3143.55ms
 step:9/50 train_loss:6.5374 train_time:28300ms step_avg:3144.44ms
 step:10/50 train_loss:6.1407 train_time:31445ms step_avg:3144.50ms
 step:20/50 train_loss:4.7836 train_time:62947ms step_avg:3147.35ms
+step:25/50 val_loss:4.3985 val_bpb:2.6051 train_time:78763ms step_avg:3150.51ms h_norms=['12132.8', '10932.9', '9995.3', '9323.7', '8882.5', '8488.8', '8191.2', '8002.8', '7969.0', '8058.7', '8126.2', '7929.0', '7834.6', '7885.5', '8052.5', '7921.9', '7788.9', '7759.4', '7870.9', '8096.2'] growth=['0.889', '0.901', '0.914', '0.933', '0.953', '0.956', '0.965', '0.977', '0.996', '1.011', '0.967', '0.976', '0.988', '1.006', '1.021', '0.974', '0.983', '0.996', '1.014', '1.029']
+step:30/50 train_loss:4.2134 train_time:94516ms step_avg:3150.53ms
+step:40/50 train_loss:3.9354 train_time:126096ms step_avg:3152.40ms
+step:50/50 train_loss:3.7653 train_time:157849ms step_avg:3156.98ms
+step:50/50 val_loss:3.7283 val_bpb:2.2081 train_time:157883ms step_avg:3157.66ms h_norms=['19485.3', '16686.2', '14563.5', '13010.1', '11889.3', '11357.6', '10866.1', '10420.7', '10135.7', '9955.0', '10905.5', '10559.7', '10219.8', '10021.9', '9904.3', '10582.1', '10345.6', '10085.3', '9954.8', '9885.5'] growth=['0.843', '0.856', '0.873', '0.893', '0.914', '0.955', '0.957', '0.959', '0.973', '0.982', '0.971', '0.968', '0.968', '0.981', '0.988', '0.985', '0.978', '0.975', '0.987', '0.993']
+peak memory allocated: 66515 MiB reserved: 67880 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:5.9490 val_bpb:3.5233 eval_time:83476ms
+Serialized model: 106023671 bytes
+Code size: 99082 bytes
+Serialized model int6+lzma: 4795396 bytes
+Total submission size int6+lzma: 4894478 bytes
