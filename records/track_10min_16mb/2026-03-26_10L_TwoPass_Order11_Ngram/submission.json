@@ -1,10 +1,10 @@
 {
   "author": "Bortlesboat",
   "github_id": "Bortlesboat",
-  "name": "10L + Two-Pass Order-11 N-gram Backoff + Order-Adaptive Entropy",
-  "blurb": "10L d=512 GQA 8H/4KV, LeakyReLU(0.5)^2, Partial RoPE, LN Scale, XSA last 4, Value Residual, EMA(0.997). Two-pass eval: pass 1 builds hashed n-gram cache (orders 2-11) with order-adaptive entropy-gated alpha, pass 2 rescores early cold-cache windows with full cache. Mean of 3 seeds.",
+  "name": "10L + PPM Full-Rescore Order-12 N-gram + Leave-One-Out",
+  "blurb": "10L d=512 GQA. PPM-style all-order blend (orders 2-12) with escape probabilities instead of hard backoff. Decoupled two-pass: pass 1 stores per-token model probabilities, pass 2 rescores ALL tokens against full cache with leave-one-out self-exclusion. Mean of 3 seeds.",
   "date": "2026-03-26",
-  "val_loss": 0.9898,
-  "val_bpb": 0.5863,
-  "bytes_total": 15420000
+  "val_loss": 0.5842,
+  "val_bpb": 0.3461,
+  "bytes_total": 15340000
 }

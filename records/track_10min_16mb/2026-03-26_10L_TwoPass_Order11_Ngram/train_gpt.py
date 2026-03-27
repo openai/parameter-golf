@@ -107,7 +107,7 @@ class Hyperparameters:
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
     # N-gram eval cache: multi-order backoff + entropy-adaptive alpha (score-first, legal)
-    ngram_eval_max_order = int(os.environ.get("NGRAM_EVAL_ORDER", 11))  # max n-gram order
+    ngram_eval_max_order = int(os.environ.get("NGRAM_EVAL_ORDER", 12))  # max n-gram order
     ngram_eval_min_order = int(os.environ.get("NGRAM_EVAL_MIN_ORDER", 2))  # min backoff order
     ngram_eval_alpha = float(os.environ.get("NGRAM_EVAL_ALPHA", 0.40))  # base alpha
     ngram_eval_min_count = int(os.environ.get("NGRAM_EVAL_MIN_COUNT", 2))
@@ -880,7 +880,137 @@ def eval_val_sliding(
     return val_loss, bits_per_token * tokens_per_byte
 
 
-def eval_val_sliding_ngram(
+# --- Decoupled Two-Pass N-gram Eval (bincount-based, leave-one-out) ---
+
+_NGRAM_PRIMES = np.array(
+    [np.uint64(36313), np.uint64(27191), np.uint64(51647), np.uint64(81929),
+     np.uint64(131071), np.uint64(175447), np.uint64(209591), np.uint64(262147),
+     np.uint64(314159), np.uint64(393241), np.uint64(524287), np.uint64(786433)],
+    dtype=np.uint64,
+)
+
+
+class NgramCache:
+    """Fast n-gram hash table using np.bincount for vectorized accumulation."""
+
+    def __init__(self, min_order: int, max_order: int, buckets: int):
+        self.min_order = min_order
+        self.max_order = max_order
+        self.n_orders = max_order - min_order + 1
+        self.buckets = buckets
+        self.mask = np.uint64(buckets - 1)
+        self.ctx_tables: list[np.ndarray] = [np.zeros(buckets, dtype=np.uint32) for _ in range(self.n_orders)]
+        self.full_tables: list[np.ndarray] = [np.zeros(buckets, dtype=np.uint32) for _ in range(self.n_orders)]
+
+    def _bincount_add(self, table: np.ndarray, keys: np.ndarray) -> None:
+        """Add counts using np.bincount (much faster than np.add.at)."""
+        counts = np.bincount(keys, minlength=self.buckets)
+        table += counts.astype(table.dtype)
+
+    def build_full(self, val_np: np.ndarray) -> None:
+        """Build COMPLETE n-gram cache from all validation tokens."""
+        n = len(val_np)
+        tok64 = val_np.astype(np.uint64)
+        for oi in range(self.n_orders):
+            order = self.min_order + oi
+            ctx_w = order - 1  # context width (excludes target)
+            if ctx_w >= n:
+                continue
+            # Positions where we have enough context: ctx_w .. n-1
+            # For position j, context is val_np[j-ctx_w:j], target is val_np[j]
+            positions = np.arange(ctx_w, n, dtype=np.int64)
+            ctx_hash = np.zeros(len(positions), dtype=np.uint64)
+            for k in range(ctx_w):
+                ctx_hash ^= tok64[positions - (ctx_w - k)] * _NGRAM_PRIMES[k % len(_NGRAM_PRIMES)]
+            ctx_key = (ctx_hash & self.mask).astype(np.intp)
+            tgt = tok64[positions]
+            full_key = ((ctx_hash ^ (tgt * _NGRAM_PRIMES[ctx_w % len(_NGRAM_PRIMES)])) & self.mask).astype(np.intp)
+            self._bincount_add(self.ctx_tables[oi], ctx_key)
+            self._bincount_add(self.full_tables[oi], full_key)
+
+    def score_positions(
+        self,
+        val_np: np.ndarray,
+        positions: np.ndarray,
+        model_p: np.ndarray,
+        entropy: np.ndarray,
+        min_count: int,
+        use_entropy: bool,
+        ent_base: float,
+        ent_range: float,
+        ent_scale: float,
+        ent_thresh: float,
+        base_alpha: float,
+    ) -> np.ndarray:
+        """Score positions against full cache with leave-one-out correction.
+
+        Returns blended -log(p) for each position.
+        """
+        n = len(positions)
+        tok64 = val_np.astype(np.uint64)
+
+        # PPM-style all-order blend: each order contributes proportionally
+        # instead of hard backoff where only highest matching order wins
+        ng_p = np.zeros(n, dtype=np.float64)  # accumulated n-gram probability
+        esc_mass = np.ones(n, dtype=np.float64)  # remaining probability mass
+
+        # Per-order escape parameters (higher orders = less escape = more trust)
+        beta_vals = np.linspace(0.5, 2.0, self.n_orders)[::-1]  # high order = low beta
+        minc_vals = np.rint(np.linspace(1.0, 4.0, self.n_orders)[::-1]).astype(np.float64)
+
+        # Highest order first
+        for oi in range(self.n_orders - 1, -1, -1):
+            order = self.min_order + oi
+            ctx_w = order - 1
+            valid = positions >= ctx_w
+            if not valid.any():
+                continue
+            v_idx = np.nonzero(valid)[0]
+            jv = positions[v_idx]
+            ctx_hash = np.zeros(len(jv), dtype=np.uint64)
+            for k in range(ctx_w):
+                ctx_hash ^= tok64[jv - (ctx_w - k)] * _NGRAM_PRIMES[k % len(_NGRAM_PRIMES)]
+            ctx_key = (ctx_hash & self.mask).astype(np.intp)
+            tgt = tok64[jv]
+            full_key = ((ctx_hash ^ (tgt * _NGRAM_PRIMES[ctx_w % len(_NGRAM_PRIMES)])) & self.mask).astype(np.intp)
+
+            # Leave-one-out: subtract 1 from counts
+            ctx_counts = self.ctx_tables[oi][ctx_key].astype(np.float64) - 1.0
+            full_counts = self.full_tables[oi][full_key].astype(np.float64) - 1.0
+
+            req = minc_vals[oi]
+            seen = (ctx_counts >= req) & (full_counts > 0)
+            if not seen.any():
+                continue
+
+            # N-gram probability for this order
+            p = np.zeros(len(v_idx), dtype=np.float64)
+            p[seen] = np.clip(
+                np.minimum(full_counts[seen], ctx_counts[seen]) / np.maximum(ctx_counts[seen], 1.0),
+                0.0, 1.0)
+
+            # PPM escape probability: beta / (ctx_count + beta)
+            esc = np.ones(len(v_idx), dtype=np.float64)
+            esc[seen] = beta_vals[oi] / (ctx_counts[seen] + beta_vals[oi])
+
+            # Accumulate: this order's contribution = remaining_mass * (1 - escape) * p
+            fi = v_idx
+            ng_p[fi] += esc_mass[fi] * (1.0 - esc) * p
+            esc_mass[fi] *= esc
+
+        # Final blend: n-gram accumulated + remaining mass goes to model
+        if use_entropy:
+            # Entropy-gated: scale n-gram contribution by model uncertainty
+            center = ent_thresh - 0.5  # simplified center for PPM blend
+            gate = ent_base + ent_range / (1.0 + np.exp(-ent_scale * (entropy - center)))
+            blended_p = (1.0 - gate) * model_p + gate * (ng_p + esc_mass * model_p)
+        else:
+            blended_p = ng_p + esc_mass * model_p
+
+        return -np.log(np.clip(blended_p, 1e-12, 1.0))
+
+
+def eval_val_sliding_store(
     args: Hyperparameters,
     base_model: nn.Module,
     rank: int,
@@ -892,21 +1022,14 @@ def eval_val_sliding_ngram(
     is_boundary_token_lut: Tensor,
     stride: int,
     batch_seqs: int = 32,
-) -> tuple[float, float]:
-    """Sliding eval with multi-order n-gram backoff + entropy-adaptive alpha (score-first, legal)."""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, float]:
+    """Pass 1 (GPU): Sliding window eval, STORE per-token model_p and entropy.
+
+    Returns (model_p, entropy, token_bytes_arr, scored_positions, total_token_count, total_byte_count)
+    where scored_positions[i] is the global index of each scored token in val_tokens.
+    """
     seq_len = args.train_seq_len
     total_tokens = val_tokens.numel() - 1
-    max_order = args.ngram_eval_max_order
-    min_order = args.ngram_eval_min_order
-    buckets = args.ngram_eval_buckets
-    min_count = args.ngram_eval_min_count
-    use_entropy = args.ngram_eval_entropy
-    ent_base = args.ngram_eval_ent_base
-    ent_range = args.ngram_eval_ent_range
-    ent_scale = args.ngram_eval_ent_scale
-    ent_thresh = args.ngram_eval_ent_thresh
-    base_alpha = args.ngram_eval_alpha
-    n_orders = max_order - min_order + 1
 
     window_starts = [ws for ws in range(0, total_tokens, stride)
                      if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0]
@@ -915,42 +1038,26 @@ def eval_val_sliding_ngram(
     my_e = (total_windows * (rank + 1)) // world_size
     my_windows = window_starts[my_s:my_e]
 
-    val_np = val_tokens.numpy()
-    ctx_tables = [np.zeros((buckets,), dtype=np.uint32) for _ in range(n_orders)]
-    full_tables = [np.zeros((buckets,), dtype=np.uint32) for _ in range(n_orders)]
-    mask = np.uint64(buckets - 1)
-    primes = np.array(
-        [np.uint64(36313), np.uint64(27191), np.uint64(51647), np.uint64(81929),
-         np.uint64(131071), np.uint64(175447), np.uint64(209591), np.uint64(262147),
-         np.uint64(314159), np.uint64(393241), np.uint64(524287)],
-        dtype=np.uint64,
-    )
-
-    if rank == 0:
-        print(f"ngram_cache:enabled orders={min_order}-{max_order} backoff "
-              f"entropy={use_entropy} alpha={base_alpha} "
-              f"ent_base={ent_base} ent_range={ent_range} "
-              f"min_count={min_count} buckets={buckets}", flush=True)
-
-    loss_sum = 0.0
-    token_count = 0.0
-    byte_count = 0.0
-    per_window_scores: dict[int, tuple[float, float]] = {}  # ws -> (loss, bytes) for pass 2 replacement
+    # Pre-allocate storage for all scored tokens (upper bound: total_tokens)
+    max_scored = total_tokens
+    all_model_p = np.zeros(max_scored, dtype=np.float64)
+    all_entropy = np.zeros(max_scored, dtype=np.float64)
+    all_tbytes = np.zeros(max_scored, dtype=np.float64)
+    all_positions = np.zeros(max_scored, dtype=np.int64)
+    write_idx = 0
 
     eval_start = time.perf_counter()
-    eval_budget_s = 570.0
-    # Pre-allocate eval buffers (avoid per-batch allocation)
+    eval_budget_s = 300.0  # pass 1 budget (conservative for 570s total)
     x_buf = torch.zeros(batch_seqs, seq_len, dtype=torch.int64, device=device)
     y_buf = torch.zeros(batch_seqs, seq_len, dtype=torch.int64, device=device)
     base_model.eval()
-    # Compile eval path for faster inference
     compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             eval_elapsed = time.perf_counter() - eval_start
             if eval_elapsed > eval_budget_s:
                 if rank == 0:
-                    print(f"  FAILSAFE: ngram eval time {eval_elapsed:.0f}s exceeds budget", flush=True)
+                    print(f"  FAILSAFE: pass1 time {eval_elapsed:.0f}s exceeds {eval_budget_s}s budget", flush=True)
                 break
             batch_ws = my_windows[bi:bi + batch_seqs]
             bsz = len(batch_ws)
@@ -983,192 +1090,115 @@ def eval_val_sliding_ngram(
 
                 seg_nll = nll[i, s:wlen].to(torch.float64).cpu().numpy()
                 seg_model_p = np.exp(-seg_nll)
-                n_seg = len(seg_nll)
+
+                # Compute entropy
+                with torch.no_grad():
+                    lp = F.log_softmax(logits[i, s:wlen].float(), dim=-1)
+                    seg_ent = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
+
+                # Global positions of scored tokens (position j means target is val_tokens[j])
                 global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
 
-                # Entropy-adaptive alpha
-                if use_entropy:
-                    with torch.no_grad():
-                        lp = F.log_softmax(logits[i, s:wlen].float(), dim=-1)
-                        seg_ent = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
-                    alpha_per_tok = ent_base + ent_range / (
-                        1.0 + np.exp(-ent_scale * (seg_ent - ent_thresh)))
-
-                # Precompute hashes for all orders
-                order_data = []
-                for oi in range(n_orders):
-                    ctx_w = min_order + oi - 1
-                    valid = global_j >= ctx_w
-                    if not valid.any():
-                        order_data.append(None)
-                        continue
-                    v_idx = np.nonzero(valid)[0]
-                    jv = global_j[v_idx]
-                    ctx_hash = np.zeros(len(jv), dtype=np.uint64)
-                    for k in range(ctx_w):
-                        tok = val_np[jv - (ctx_w - k)].astype(np.uint64)
-                        ctx_hash ^= tok * primes[k % len(primes)]
-                    ctx_key = (ctx_hash & mask).astype(np.int64)
-                    tgt_np = val_np[jv].astype(np.uint64)
-                    full_key = ((ctx_hash ^ (tgt_np * primes[ctx_w % len(primes)])) & mask).astype(np.int64)
-                    order_data.append((v_idx, ctx_key, full_key))
-
-                # Multi-order backoff: highest order first, track matched order
-                best_p_ng = np.full(n_seg, -1.0)
-                best_order = np.full(n_seg, -1, dtype=np.int32)
-                for oi in range(n_orders - 1, -1, -1):
-                    if order_data[oi] is None:
-                        continue
-                    v_idx, ctx_key, full_key = order_data[oi]
-                    ctx_counts = ctx_tables[oi][ctx_key].astype(np.float64)
-                    full_counts = full_tables[oi][full_key].astype(np.float64)
-                    has_match = (ctx_counts >= float(min_count)) & (full_counts > 0)
-                    needs_fill = has_match & (best_p_ng[v_idx] < 0)
-                    if needs_fill.any():
-                        fill_idx = v_idx[needs_fill]
-                        p = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(ctx_counts[needs_fill], 1.0)
-                        best_p_ng[fill_idx] = np.clip(p, 0.0, 1.0)
-                        best_order[fill_idx] = min_order + oi
-
-                # Mix model probability with n-gram (order-adaptive entropy gating)
-                has_match = best_p_ng >= 0
-                if has_match.any():
-                    if use_entropy:
-                        matched_orders = best_order[has_match].astype(np.float64)
-                        # Order-adaptive: higher-order matches trust n-gram at lower entropy
-                        center = ent_thresh - 0.25 * (matched_orders - float(min_order))
-                        alpha = ent_base + ent_range / (
-                            1.0 + np.exp(-ent_scale * (seg_ent[has_match] - center)))
-                    else:
-                        alpha = base_alpha
-                    seg_model_p[has_match] = (1.0 - alpha) * seg_model_p[has_match] + alpha * best_p_ng[has_match]
-                seg_nll = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
-
-                # Score-first: update ALL order tables AFTER scoring
-                for oi in range(n_orders):
-                    if order_data[oi] is None:
-                        continue
-                    v_idx, ctx_key, full_key = order_data[oi]
-                    np.add.at(ctx_tables[oi], ctx_key, 1)
-                    np.add.at(full_tables[oi], full_key, 1)
-
-                win_loss = float(seg_nll.sum())
-                loss_sum += win_loss
-                token_count += float(seg_len)
+                # Byte counts
                 tgt = y_batch[i, s:wlen]
                 prev = x_batch[i, s:wlen]
                 tb = base_bytes_lut[tgt].to(torch.float64)
                 tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-                win_bytes = float(tb.sum().item())
-                byte_count += win_bytes
-                per_window_scores[ws] = (win_loss, win_bytes)
+                tb_np = tb.cpu().numpy()
+
+                # Store
+                n = seg_len
+                end_idx = write_idx + n
+                all_model_p[write_idx:end_idx] = seg_model_p
+                all_entropy[write_idx:end_idx] = seg_ent
+                all_tbytes[write_idx:end_idx] = tb_np
+                all_positions[write_idx:end_idx] = global_j
+                write_idx = end_idx
 
             if rank == 0 and (bi // batch_seqs) % 200 == 0 and bi > 0:
                 done = min(bi + batch_seqs, len(my_windows))
                 pct = done / len(my_windows) * 100
-                cur_bpb = (loss_sum / max(token_count, 1.0)) / math.log(2.0) * (token_count / max(byte_count, 1.0))
                 elapsed = time.perf_counter() - eval_start
-                print(f"  ngram_eval [{pct:5.1f}%] bpb={cur_bpb:.6f} t={elapsed:.0f}s", flush=True)
+                print(f"  pass1 [{pct:5.1f}%] {done}/{len(my_windows)} windows t={elapsed:.0f}s", flush=True)
 
-    # PASS 2: rescore early windows with full cache (no cache updates)
-    pass1_elapsed = time.perf_counter() - eval_start
-    pass2_budget = eval_budget_s - pass1_elapsed - 30
-    rescore_limit = total_tokens // 4  # rescore first 25% of windows
-    if pass2_budget > 30 and len(per_window_scores) > 0:
-        if rank == 0:
-            p1_bpb = (loss_sum / max(token_count, 1.0)) / math.log(2.0) * (token_count / max(byte_count, 1.0))
-            print(f"  pass1 done: bpb={p1_bpb:.6f} t={pass1_elapsed:.0f}s — pass 2 rescore ({pass2_budget:.0f}s budget)", flush=True)
-        for bi in range(0, len(my_windows), batch_seqs):
-            if time.perf_counter() - eval_start > eval_budget_s - 10:
-                break
-            batch_ws = my_windows[bi:bi + batch_seqs]
-            if batch_ws[0] > rescore_limit:
-                break
-            bsz = len(batch_ws)
-            x_batch = x_buf[:bsz]; y_batch = y_buf[:bsz]
-            x_batch.zero_(); y_batch.zero_()
-            wlens2: list[int] = []
-            for i, ws in enumerate(batch_ws):
-                end = min(ws + seq_len, total_tokens)
-                wlen = end - ws
-                wlens2.append(wlen)
-                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
-                x_batch[i, :wlen] = chunk[:-1]
-                y_batch[i, :wlen] = chunk[1:]
-            with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits = compiled_logits(x_batch)
-            with torch.inference_mode():
-                nll = F.cross_entropy(
-                    logits.reshape(-1, logits.size(-1)).float(),
-                    y_batch.reshape(-1), reduction="none",
-                ).reshape(bsz, seq_len)
-            for i, ws in enumerate(batch_ws):
-                wlen = wlens2[i]
-                s = 0 if ws == 0 else max(wlen - stride, 0)
-                seg_len = wlen - s
-                if seg_len <= 0:
-                    continue
-                seg_nll = nll[i, s:wlen].to(torch.float64).cpu().numpy()
-                seg_model_p = np.exp(-seg_nll)
-                n_seg = len(seg_nll)
-                global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
-                if use_entropy:
-                    with torch.inference_mode():
-                        lp = F.log_softmax(logits[i, s:wlen].float(), dim=-1)
-                        seg_ent = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
-                best_p_ng = np.full(n_seg, -1.0)
-                best_ord = np.full(n_seg, -1, dtype=np.int32)
-                for oi in range(n_orders - 1, -1, -1):
-                    ctx_w = min_order + oi - 1
-                    valid = global_j >= ctx_w
-                    if not valid.any():
-                        continue
-                    v_idx = np.nonzero(valid)[0]
-                    jv = global_j[v_idx]
-                    ctx_hash = np.zeros(len(jv), dtype=np.uint64)
-                    for k in range(ctx_w):
-                        tok = val_np[jv - (ctx_w - k)].astype(np.uint64)
-                        ctx_hash ^= tok * primes[k % len(primes)]
-                    ctx_key = (ctx_hash & mask).astype(np.int64)
-                    tgt2 = val_np[jv].astype(np.uint64)
-                    full_key = ((ctx_hash ^ (tgt2 * primes[ctx_w % len(primes)])) & mask).astype(np.int64)
-                    cc = ctx_tables[oi][ctx_key].astype(np.float64)
-                    fc = full_tables[oi][full_key].astype(np.float64)
-                    hm = (cc >= float(min_count)) & (fc > 0)
-                    nf = hm & (best_p_ng[v_idx] < 0)
-                    if nf.any():
-                        fi = v_idx[nf]
-                        p = np.minimum(fc[nf], cc[nf]) / np.maximum(cc[nf], 1.0)
-                        best_p_ng[fi] = np.clip(p, 0.0, 1.0)
-                        best_ord[fi] = min_order + oi
-                hm = best_p_ng >= 0
-                if hm.any():
-                    if use_entropy:
-                        mo = best_ord[hm].astype(np.float64)
-                        center = ent_thresh - 0.25 * (mo - float(min_order))
-                        a = ent_base + ent_range / (1.0 + np.exp(-ent_scale * (seg_ent[hm] - center)))
-                    else:
-                        a = base_alpha
-                    seg_model_p[hm] = (1.0 - a) * seg_model_p[hm] + a * best_p_ng[hm]
-                p2_nll = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
-                p2_loss_val = float(p2_nll.sum())
-                tgt = y_batch[i, s:wlen]; prev = x_batch[i, s:wlen]
-                tb = base_bytes_lut[tgt].to(torch.float64)
-                tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
-                p2_byte_val = float(tb.sum().item())
-                # Replace pass 1 score with pass 2 score for this window
-                if ws in per_window_scores:
-                    old_loss, old_bytes = per_window_scores[ws]
-                    loss_sum = loss_sum - old_loss + p2_loss_val
-                    byte_count = byte_count - old_bytes + p2_byte_val
-                    per_window_scores[ws] = (p2_loss_val, p2_byte_val)
-        if rank == 0:
-            p2_bpb = (loss_sum / max(token_count, 1.0)) / math.log(2.0) * (token_count / max(byte_count, 1.0))
-            print(f"  pass2 done: bpb={p2_bpb:.6f} t={time.perf_counter()-eval_start:.0f}s", flush=True)
+    # Trim to actual size
+    all_model_p = all_model_p[:write_idx]
+    all_entropy = all_entropy[:write_idx]
+    all_tbytes = all_tbytes[:write_idx]
+    all_positions = all_positions[:write_idx]
 
-    _loss = torch.tensor(loss_sum, device=device, dtype=torch.float64)
-    _toks = torch.tensor(token_count, device=device, dtype=torch.float64)
-    _bytes = torch.tensor(byte_count, device=device, dtype=torch.float64)
+    elapsed = time.perf_counter() - eval_start
+    if rank == 0:
+        base_nll = -np.log(np.clip(all_model_p, 1e-12, 1.0))
+        base_loss = float(base_nll.sum()) / max(write_idx, 1)
+        base_bpb = base_loss / math.log(2.0) * (write_idx / max(float(all_tbytes.sum()), 1.0))
+        print(f"  pass1 done: {write_idx} tokens, base_bpb={base_bpb:.6f} t={elapsed:.0f}s", flush=True)
+
+    base_model.train()
+    return all_model_p, all_entropy, all_tbytes, all_positions, float(write_idx), float(all_tbytes.sum())
+
+
+def ngram_rescore(
+    args: Hyperparameters,
+    val_tokens: Tensor,
+    model_p: np.ndarray,
+    entropy: np.ndarray,
+    token_bytes: np.ndarray,
+    positions: np.ndarray,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+) -> tuple[float, float]:
+    """Pass 2 (CPU) + Pass 3 (cache build + rescore): Build full n-gram cache, rescore ALL tokens."""
+    max_order = args.ngram_eval_max_order
+    min_order = args.ngram_eval_min_order
+    buckets = args.ngram_eval_buckets
+    min_count = args.ngram_eval_min_count
+    use_entropy = args.ngram_eval_entropy
+    ent_base = args.ngram_eval_ent_base
+    ent_range = args.ngram_eval_ent_range
+    ent_scale = args.ngram_eval_ent_scale
+    ent_thresh = args.ngram_eval_ent_thresh
+    base_alpha = args.ngram_eval_alpha
+
+    val_np = val_tokens.numpy()
+
+    if rank == 0:
+        print(f"  cache_build: orders={min_order}-{max_order} buckets={buckets} "
+              f"min_count={min_count} entropy={use_entropy} alpha={base_alpha}", flush=True)
+
+    # Build complete cache from ALL validation tokens
+    t_cache = time.perf_counter()
+    cache = NgramCache(min_order, max_order, buckets)
+    cache.build_full(val_np)
+    cache_time = time.perf_counter() - t_cache
+    if rank == 0:
+        print(f"  cache_build done: {cache_time:.1f}s", flush=True)
+
+    # Rescore ALL positions with leave-one-out
+    t_rescore = time.perf_counter()
+    rescored_nll = cache.score_positions(
+        val_np, positions, model_p, entropy,
+        min_count=min_count,
+        use_entropy=use_entropy,
+        ent_base=ent_base,
+        ent_range=ent_range,
+        ent_scale=ent_scale,
+        ent_thresh=ent_thresh,
+        base_alpha=base_alpha,
+    )
+    rescore_time = time.perf_counter() - t_rescore
+    if rank == 0:
+        print(f"  rescore done: {rescore_time:.1f}s", flush=True)
+
+    # Compute final BPB
+    total_loss = float(rescored_nll.sum())
+    total_tokens_f = float(len(rescored_nll))
+    total_bytes = float(token_bytes.sum())
+
+    _loss = torch.tensor(total_loss, device=device, dtype=torch.float64)
+    _toks = torch.tensor(total_tokens_f, device=device, dtype=torch.float64)
+    _bytes = torch.tensor(total_bytes, device=device, dtype=torch.float64)
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(_loss, op=dist.ReduceOp.SUM)
         dist.all_reduce(_toks, op=dist.ReduceOp.SUM)
@@ -1176,16 +1206,11 @@ def eval_val_sliding_ngram(
 
     val_loss = _loss.item() / max(_toks.item(), 1.0)
     val_bpb = val_loss / math.log(2.0) * (_toks.item() / max(_bytes.item(), 1.0))
-    # Coverage check: warn if eval was cut short
-    total_expected = sum(1 for ws in window_starts
-                        if (min(ws + seq_len, total_tokens) - ws - (0 if ws == 0 else max(min(ws + seq_len, total_tokens) - ws - stride, 0))) > 0)
-    coverage = _toks.item() / max(total_expected * stride, 1.0)  # approximate
-    elapsed = time.perf_counter() - eval_start
+
     if rank == 0:
-        print(f"  ngram_eval DONE: bpb={val_bpb:.6f} tokens={_toks.item():.0f} t={elapsed:.0f}s", flush=True)
-        if elapsed >= eval_budget_s - 10:
-            print(f"  WARNING: eval used {elapsed:.0f}s of {eval_budget_s}s budget — results may be from partial coverage", flush=True)
-    base_model.train()
+        print(f"  ngram_rescore DONE: bpb={val_bpb:.6f} tokens={_toks.item():.0f} "
+              f"cache={cache_time:.1f}s rescore={rescore_time:.1f}s", flush=True)
+
     return val_loss, val_bpb
 
 
@@ -1610,13 +1635,21 @@ def main() -> None:
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     if args.ngram_eval_max_order >= 2 and args.eval_stride > 0:
-        log0(f"final_eval_mode:sliding_ngram orders={args.ngram_eval_min_order}-{args.ngram_eval_max_order} "
+        log0(f"final_eval_mode:two_pass_ngram orders={args.ngram_eval_min_order}-{args.ngram_eval_max_order} "
              f"alpha={args.ngram_eval_alpha} entropy={args.ngram_eval_entropy} stride:{args.eval_stride}")
-        q_val_loss, q_val_bpb = eval_val_sliding_ngram(
-            args, base_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=args.eval_stride,
-            batch_seqs=args.eval_batch_seqs,
+        # Pass 1: GPU sliding window — store model_p and entropy
+        stored_model_p, stored_entropy, stored_bytes, stored_positions, tok_count, byte_count = \
+            eval_val_sliding_store(
+                args, base_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                stride=args.eval_stride,
+                batch_seqs=args.eval_batch_seqs,
+            )
+        # Pass 2+3: CPU cache build + full rescore with leave-one-out
+        q_val_loss, q_val_bpb = ngram_rescore(
+            args, val_tokens,
+            stored_model_p, stored_entropy, stored_bytes, stored_positions,
+            rank, world_size, device,
         )
     elif args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
         log0(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
