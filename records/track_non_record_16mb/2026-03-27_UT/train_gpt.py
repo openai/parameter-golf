@@ -950,11 +950,17 @@ def main() -> None:
 
     def prime_depth_compile(num_layers: int) -> None:
         base_model.active_num_layers = num_layers
-        compiled_model.train()
+        model.train()
         zero_grad_all()
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-            compile_loss = compiled_model(compile_x, compile_y)
-        (compile_loss * grad_scale).backward()
+        if distributed:
+            with model.no_sync():
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    compile_loss = model(compile_x, compile_y)
+                (compile_loss * grad_scale).backward()
+        else:
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                compile_loss = model(compile_x, compile_y)
+            (compile_loss * grad_scale).backward()
         zero_grad_all()
         torch.cuda.synchronize()
 
