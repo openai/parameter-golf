@@ -266,7 +266,8 @@ def run_training(name, data_path, tokenizer_path, vocab_size, train_script,
 
     output = "".join(output_lines)
     if proc.returncode != 0:
-        print(f"\n  Process exited with code {proc.returncode}")
+        print(f"\n  ERROR: Process exited with code {proc.returncode}")
+        raise RuntimeError(f"Training '{name}' failed with exit code {proc.returncode}")
     print(f"\n  Wall time: {elapsed:.1f}s ({elapsed/60:.1f} min)")
 
     return output
@@ -356,7 +357,10 @@ def main():
     if not args.baseline_only:
         # Determine BESE tokenizer path
         if tok_path is None:
-            tok_path = sorted(TOK_DIR.glob("bese_bpe_*.json"))[-1]
+            candidates = sorted(TOK_DIR.glob("bese_bpe_*.json"))
+            if not candidates:
+                raise FileNotFoundError(f"No BESE tokenizer found in {TOK_DIR}. Run without --skip-decode first.")
+            tok_path = candidates[-1]
         from bese_fast_bpe import FastBESEBPETokenizer
         tok = FastBESEBPETokenizer.load(str(tok_path))
 

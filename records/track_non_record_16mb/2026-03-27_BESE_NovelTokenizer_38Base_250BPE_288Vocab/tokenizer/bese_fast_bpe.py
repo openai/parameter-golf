@@ -15,6 +15,7 @@ On 10K FineWeb docs (~40M base tokens), this reduces BPE training from
 from __future__ import annotations
 
 import json
+import heapq
 import numpy as np
 from collections import defaultdict
 from pathlib import Path
@@ -235,7 +236,7 @@ def train_bpe_merges_fast(texts: list[str], num_merges: int = 250, verbose: bool
         if verbose and (merge_num < 20 or merge_num % 50 == 0 or merge_num == num_merges - 1):
             # Count remaining tokens (approximate)
             print(
-                f"  Merge {merge_num + 1:4d}: ({best_pair[0]:3d},{best_pair[1]:3d}) -> {new_id - 1:4d}"
+                f"  Merge {merge_num + 1:4d}: ({best_pair[0]:3d},{best_pair[1]:3d}) -> {new_id:4d}"
                 f"  count={best_count:6d}"
             )
 
@@ -285,7 +286,6 @@ def encode_fast(text: str, merges: list, _merge_priority=None) -> np.ndarray:
     next_arr = list(range(1, n + 1))   # next[i] = i+1, n = sentinel
     next_arr[-1] = n  # sentinel
 
-    import heapq
     # Priority queue: (priority, position_id, pair_at_creation)
     # pair_at_creation is used to validate the entry is still current
     heap = []
@@ -335,8 +335,7 @@ def encode_fast(text: str, merges: list, _merge_priority=None) -> np.ndarray:
     result = []
     pos = 0
     while pos < n:
-        if tokens[pos] is not None:
-            result.append(tokens[pos])
+        result.append(tokens[pos])
         nxt = next_arr[pos]
         if nxt <= pos:
             break  # safety

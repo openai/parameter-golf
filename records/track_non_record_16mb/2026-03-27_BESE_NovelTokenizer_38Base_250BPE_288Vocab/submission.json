@@ -1,10 +1,19 @@
 {
   "name": "BESE: Base-Efficient Subword Encoding — Novel 38-Token Structured Alphabet + BPE",
-  "val_bpb": 3.9143,
-  "val_bpb_note": "Measured on 1/80th of training data (12.6M tokens vs 1B baseline). See README for analysis.",
-  "bytes_total": 12900000,
-  "blurb": "Novel two-layer tokenizer: 38-token linguistically structured alphabet (frequency-optimized single/group encodings, bigram-analyzed context disambiguation, case-insensitive) + 250 BPE merges = 288 vocab. Saves ~295KB of embedding parameters vs 1024-vocab baseline, enough for 2-3 extra transformer layers. Tokenizer verified byte-accurate (100/100 docs). High BPB due to 80x data starvation (12.6M vs 1B tokens), not tokenizer flaw — train loss drops normally (5.69->1.22). Full-data run pending.",
   "author": "Omer Bese",
   "github_id": "mrbese",
-  "date": "2026-03-27"
+  "val_bpb": 3.9143,
+  "val_bpb_note": "Measured on 1/80th of training data (12.6M tokens vs 1B baseline). See README for analysis.",
+  "date": "2026-03-27",
+  "summary": "Novel two-layer tokenizer: 38-token linguistically structured alphabet + 250 BPE merges = 288 vocab. Saves ~295KB of embedding parameters vs 1024-vocab baseline, enough for 2-3 extra transformer layers.",
+  "hardware": "1xH100 SXM (data-starved run; 8xH100 full-data run pending)",
+  "training_time_seconds": 600,
+  "compressed_model_bytes": 12900000,
+  "code_bytes": 0,
+  "total_artifact_bytes": 12900000,
+  "vocab_size": 288,
+  "num_layers": 11,
+  "model_dim": 512,
+  "tokenizer": "BESE+BPE (custom)",
+  "notes": "Novel tokenizer submission — non-record track. High BPB is due to 80x data starvation, not tokenizer flaw. Train loss drops normally (5.69->1.22). Full-data run pending compute credits."
 }
