@@ -2252,9 +2252,8 @@ def eval_ngram_single_pass(
                 # Use score_range over the full token array with the chunk bounds
                 # But score_range returns results indexed from start, so we need
                 # to score a contiguous range and pick our positions
-                ngram_prob_chunk, matched_order_chunk = cache.score_range(
+                ngram_prob_chunk, _ng_match_chunk, matched_order_chunk = cache.score_range(
                     tokens_np, c_start + 1, c_end + 1,
-                    min_count=args.ngram_min_count,
                 )
                 # Map our positions to indices within the score_range output
                 # score_range(tokens_np, c_start+1, c_end+1) returns array of
@@ -2277,7 +2276,7 @@ def eval_ngram_single_pass(
                 matched = matched_order >= 0
                 alpha = np.zeros(N, dtype=np.float32)
                 if np.any(matched):
-                    order_idx = (matched_order[matched] - cache.min_order).astype(np.int32)
+                    order_idx = (matched_order[matched] - 2).astype(np.int32)
                     centers = args.ngram_entropy_center - 0.25 * order_idx.astype(np.float32)
                     sig = 1.0 / (1.0 + np.exp(-args.ngram_entropy_scale * (all_ent[matched] - centers)))
                     raw_alpha = args.ngram_alpha_min + (args.ngram_alpha_max - args.ngram_alpha_min) * sig
