@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import glob
+import inspect
 import io
 import math
 import os
@@ -89,6 +90,7 @@ class Hyperparameters:
     picgd_beta = float(os.environ.get("PICGD_BETA", 4.0))
     picgd_min_gate = float(os.environ.get("PICGD_MIN_GATE", 0.25))
     picgd_eps = float(os.environ.get("PICGD_EPS", 1e-6))
+    picgd_token_stride = int(os.environ.get("PICGD_TOKEN_STRIDE", 16))
     sdp_allow_math_fallback = bool(int(os.environ.get("SDP_ALLOW_MATH_FALLBACK", "1")))
 
 # -----------------------------
@@ -312,6 +314,11 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+
+try:
+    SDPA_SUPPORTS_ENABLE_GQA = "enable_gqa" in inspect.signature(F.scaled_dot_product_attention).parameters
+except (TypeError, ValueError):
+    SDPA_SUPPORTS_ENABLE_GQA = False
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -598,6 +605,7 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.use_native_gqa = self.num_kv_heads != self.num_heads and SDPA_SUPPORTS_ENABLE_GQA
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -610,17 +618,27 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        if self.num_kv_heads != self.num_heads:
-            repeats = self.num_heads // self.num_kv_heads
-            k = k.repeat_interleave(repeats, dim=1)
-            v = v.repeat_interleave(repeats, dim=1)
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-        )
+        if self.use_native_gqa:
+            y = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=None,
+                is_causal=True,
+                enable_gqa=True,
+            )
+        else:
+            if self.num_kv_heads != self.num_heads:
+                repeats = self.num_heads // self.num_kv_heads
+                k = k.repeat_interleave(repeats, dim=1)
+                v = v.repeat_interleave(repeats, dim=1)
+            y = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=None,
+                is_causal=True,
+            )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -685,12 +703,15 @@ class GPT(nn.Module):
         picgd_beta: float,
         picgd_min_gate: float,
         picgd_eps: float,
+        picgd_token_stride: int,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         if not 0.0 < picgd_min_gate <= 1.0:
             raise ValueError(f"picgd_min_gate must be in (0, 1], got {picgd_min_gate}")
+        if picgd_token_stride <= 0:
+            raise ValueError(f"picgd_token_stride must be positive, got {picgd_token_stride}")
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
@@ -698,6 +719,7 @@ class GPT(nn.Module):
         self.picgd_beta = picgd_beta
         self.picgd_min_gate = picgd_min_gate
         self.picgd_eps = picgd_eps
+        self.picgd_token_stride = picgd_token_stride
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -751,8 +773,10 @@ class GPT(nn.Module):
 
         x = self.final_norm(x)
         if self.picgd_enabled and return_picgd_stats:
-            ref = F.rms_norm(self.tok_emb(target_ids), (x.size(-1),))
-            coherence = compute_phase_coherence(x, ref, self.picgd_eps)
+            sampled_x = x[:, :: self.picgd_token_stride, :]
+            sampled_target_ids = target_ids[:, :: self.picgd_token_stride]
+            ref = F.rms_norm(self.tok_emb(sampled_target_ids), (sampled_x.size(-1),))
+            coherence = compute_phase_coherence(sampled_x, ref, self.picgd_eps)
             gate = self.picgd_min_gate + (1.0 - self.picgd_min_gate) * torch.sigmoid(self.picgd_beta * coherence.detach())
             coherence = coherence.detach()
             gate = gate.detach()
@@ -889,6 +913,7 @@ def main() -> None:
         picgd_beta=args.picgd_beta,
         picgd_min_gate=args.picgd_min_gate,
         picgd_eps=args.picgd_eps,
+        picgd_token_stride=args.picgd_token_stride,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -961,8 +986,15 @@ def main() -> None:
     )
     log0(
         f"picgd:enabled={args.picgd_enabled} beta:{args.picgd_beta} "
-        f"min_gate:{args.picgd_min_gate} eps:{args.picgd_eps}"
+        f"min_gate:{args.picgd_min_gate} eps:{args.picgd_eps} "
+        f"token_stride:{args.picgd_token_stride}"
     )
+    attention_impl = (
+        "native_gqa"
+        if base_model.blocks and base_model.blocks[0].attn.use_native_gqa
+        else ("kv_repeat_fallback" if args.num_kv_heads != args.num_heads else "standard_sdpa")
+    )
+    log0(f"attention_impl:{attention_impl}")
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
