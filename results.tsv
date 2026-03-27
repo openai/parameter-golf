@@ -12,3 +12,4 @@ exp09	1.2322	1.2771	21.1	keep	10min model + N-gram alpha=0.50 t=2.5 o=7 on 2M: -
 sweep	1.3272	1.3845	21.1	keep	alpha sweep winner: a=0.50 t=2.5 o=7 on 2M (5min model): -0.057 BPB
 sweep	1.3266	1.3845	21.1	info	per-order alpha boost=0.30: -0.058 (marginal over a=0.50)
 exp10	1.2915	1.2727	21.1	discard	LR=0.040: overshoots even on 10min 1GPU (+0.003 vs LR=0.035)
+exp11	1.2011	1.2665	21.6	BEST	10min 1GPU + N-gram FULL VAL SET: -0.065 BPB! (54.6% hit, 525s)
