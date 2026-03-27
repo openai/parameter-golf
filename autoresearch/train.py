@@ -112,7 +112,7 @@ NONUNIFORM_IMPORTANT_BITS = 6
 NONUNIFORM_UNIMPORTANT_BITS = 5
 NONUNIFORM_IMPORTANT_FRAC = 0.0  # all layers at int5 (11L MLP3x needs aggressive compression)
 # Hadamard rotation before quantization: makes weight distributions uniform, better compression
-HADAMARD_ROTATE = True
+HADAMARD_ROTATE = False
 # FFT int4: FFT per row → quantize all coefficients at int4 → iFFT reconstructs ≈ int8
 FFT_KEEP_FRAC = 1.0           # 1.0 = keep all freqs, <1.0 = sparse (drop weak frequencies)
 
