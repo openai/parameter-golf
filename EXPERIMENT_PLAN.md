@@ -11,10 +11,10 @@ This plan is optimized for limited budget and the challenge rules.
 
 ## Current Best
 
-- `budget_twice_eval2048_ttt1024`
-- `final_int8_zlib_roundtrip_exact val_bpb: 1.38414876`
-- `final_int8_ttt_lora val_bpb: 1.3962`
-- `Total submission size int8+zlib: 11280566 bytes`
+- `top10_winner_wd04`
+- `final_int8_zlib_roundtrip_exact val_bpb: 1.37843732`
+- `final_int8_ttt_lora val_bpb: 1.3908`
+- `Total submission size int8+zlib: 11219666 bytes`
 
 See [BEST_RESULTS.md](/Users/deividasmataciunas/Desktop/research/openai_golf/BEST_RESULTS.md).
 
@@ -52,13 +52,26 @@ The features that require more code work are:
 
 ## Next 80-Minute Batch
 
+The latest tournament established `winner_wd04` as the new protected baseline. The next pack should stay tightly centered on this branch rather than reopening broader exploration.
+
+Recommended next batch:
+
+1. `winner_wd04` locked baseline
+2. `winner_wd04 + warmdown 3500`
+3. `winner_wd04 + matrix_lr 0.018`
+4. `winner_wd04 + EMA/SWA`
+5. `winner_wd04 + warmdown 3500 + matrix_lr 0.018`
+6. `winner_wd04 + scalar_lr tweak`
+7. `winner_wd04 + tied_embed_lr tweak`
+8. `winner_wd04 + small z-loss`
+
 Run the winner-adjacent profile pack with a strict `1000`-step gate:
 
 ```bash
 bash scripts/run_top10_patterns_80m.sh
 ```
 
-This batch tests:
+The current committed pack tests:
 
 1. `winner_locked`
 2. `winner_ema_swa`
@@ -69,10 +82,10 @@ This batch tests:
 7. `winner_wd03_ema`
 8. `winner_mlp3`
 
-Use this as the default threshold:
+Use this as the default threshold for winner-adjacent searches:
 
 - `AUTO_STOP_STEP=1000`
-- `AUTO_STOP_MAX_VAL_BPB=1.395`
+- `AUTO_STOP_MAX_VAL_BPB=1.390`
 
 ## 5-Run Moonshot Sequence
 
