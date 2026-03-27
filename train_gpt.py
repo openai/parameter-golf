@@ -1126,13 +1126,15 @@ class NgramCache:
 
 
 def build_ngram_from_shards(data_path: str, max_order: int = 13, min_order: int = 2,
-                            num_buckets: int = 524288, log_fn=None) -> dict:
-    """build n-gram hash tables from ALL training shards.
+                            num_buckets: int = 524288, max_shards: int = 0, log_fn=None) -> dict:
+    """build n-gram hash tables from training shards.
     returns dict of numpy arrays to store in artifact."""
     shard_pattern = os.path.join(data_path, "fineweb_train_*.bin")
     shard_files = sorted(glob.glob(shard_pattern))
     if not shard_files:
         raise FileNotFoundError(f"No training shards: {shard_pattern}")
+    if max_shards > 0:
+        shard_files = shard_files[:max_shards]
     num_orders = max_order - min_order + 1
     mask = np.uint64(num_buckets - 1)
     primes = NgramCache.PRIMES
@@ -1141,28 +1143,34 @@ def build_ngram_from_shards(data_path: str, max_order: int = 13, min_order: int 
     full_counts = [np.zeros(num_buckets, dtype=np.uint32) for _ in range(num_orders)]
     total_tokens = 0
     for si, shard_file in enumerate(shard_files):
+        t_shard = time.perf_counter()
         header = np.fromfile(shard_file, dtype="<i4", count=256)
         num_tokens = int(header[2])
         tokens = np.fromfile(shard_file, dtype="<u2", count=num_tokens,
                              offset=256 * np.dtype("<i4").itemsize)
         total_tokens += num_tokens
+        # process in chunks to limit memory
+        chunk_sz = 1_000_000
         for oi in range(num_orders):
             order = min_order + oi
             cw = order - 1
             if num_tokens <= cw + 1:
                 continue
-            n_pos = num_tokens - cw - 1
-            ctx_hash = np.zeros(n_pos, dtype=np.uint64)
-            for k in range(cw):
-                t = tokens[cw - cw + k:cw - cw + k + n_pos].astype(np.uint64)
-                ctx_hash ^= t * np.uint64(primes[k])
-            ctx_key = (ctx_hash & mask).astype(np.int64)
-            targets = tokens[cw + 1:cw + 1 + n_pos].astype(np.uint64)
-            full_key = ((ctx_hash ^ (targets * np.uint64(primes[cw]))) & mask).astype(np.int64)
-            np.add.at(ctx_counts[oi], ctx_key, 1)
-            np.add.at(full_counts[oi], full_key, 1)
-        if log_fn and (si + 1) % 10 == 0:
-            log_fn(f"ngram_build: {si+1}/{len(shard_files)} shards, {total_tokens/1e9:.1f}B tokens")
+            for c_start in range(cw, num_tokens - 1, chunk_sz):
+                c_end = min(c_start + chunk_sz, num_tokens - 1)
+                n_pos = c_end - c_start
+                ctx_hash = np.zeros(n_pos, dtype=np.uint64)
+                for k in range(cw):
+                    t = tokens[c_start - cw + k:c_start - cw + k + n_pos].astype(np.uint64)
+                    ctx_hash ^= t * np.uint64(primes[k])
+                ctx_key = (ctx_hash & mask).astype(np.int64)
+                targets = tokens[c_start + 1:c_start + 1 + n_pos].astype(np.uint64)
+                full_key = ((ctx_hash ^ (targets * np.uint64(primes[cw]))) & mask).astype(np.int64)
+                # bincount is much faster than np.add.at
+                ctx_counts[oi] += np.bincount(ctx_key, minlength=num_buckets).astype(np.uint32)
+                full_counts[oi] += np.bincount(full_key, minlength=num_buckets).astype(np.uint32)
+        if log_fn:
+            log_fn(f"ngram_build: shard {si+1}/{len(shard_files)}, {num_tokens/1e6:.1f}M tok, {time.perf_counter()-t_shard:.1f}s")
     if log_fn:
         log_fn(f"ngram_build: done. {len(shard_files)} shards, {total_tokens/1e9:.1f}B tokens, {num_buckets} buckets")
     # cap at uint16 range for compact storage
@@ -2020,12 +2028,13 @@ def main() -> None:
     packed_ngram = None
     if ngram_artifact_enabled and master_process:
         t_build = time.perf_counter()
-        ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "13"))
+        ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "9"))
         ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "524288"))
+        ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "20"))
         log0(f"ngram_artifact: building from training shards, order={ngram_art_order}, buckets={ngram_art_buckets}")
         packed_ngram = build_ngram_from_shards(
             args.data_path, max_order=ngram_art_order, min_order=2,
-            num_buckets=ngram_art_buckets, log_fn=log0,
+            num_buckets=ngram_art_buckets, max_shards=ngram_art_max_shards, log_fn=log0,
         )
         log0(f"ngram_artifact: built in {time.perf_counter() - t_build:.0f}s")
 
