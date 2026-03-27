@@ -119,17 +119,16 @@ model forward:                                │
 ## Tested Levers
 1. ~~LATE_QAT_THRESHOLD=0~~ (v2) — **WASH**, EMA/SWA smoothed the noise anyway
 2. ~~TRIGRAM=1~~ (v2) — **WASH**, shared table pulled in conflicting directions
-3. ~~MTP_NUM_HEADS=2~~ (v3) — never ran (skipped for Synapse)
-4. ~~Synapse v1 (CPU bridge)~~ (v4) — **DEAD**, 15ms overhead, worse per-step
-5. ~~Synapse v2 (GPU-native)~~ (v5) — **DEAD**, worse on both base AND ngram. Concept disproven.
-6. ~~VALUE_RESIDUAL=1~~ — **WORSE** (+0.0012 sliding at 200s)
+3. ~~WARMDOWN_ITERS (2000/3500/5000)~~ (200s sweep, 2026-03-27) — **WINNER: 2000** (1.3504 vs 1.3775 vs 1.4111 cap BPB)
+4. ~~SWA_EVERY 50 vs 100~~ (200s sweep, 2026-03-27) — **EDGE: 100** (1.3773 vs 1.3778 cap BPB)
+5. ~~Synapse v1 (CPU bridge)~~ (v4) — **DEAD**, 15ms overhead, worse per-step
+6. ~~Synapse v2 (GPU-native)~~ (v5) — **DEAD**, worse on both base AND ngram. Concept disproven.
+7. ~~VALUE_RESIDUAL=1~~ — **WORSE** (+0.0012 sliding at 200s)
 
 ## Untested Levers
-1. VALUE_RESIDUAL=1 — deep layers access first-layer values via sigmoid gate
-2. GATED_ATTENTION=1 — learned per-head attention gating
-3. ROPE_DIMS 16 vs 24 — A/B test in progress
-4. SWA_EVERY 50 vs 100 — A/B test
-5. WARMDOWN_ITERS tuning (currently 3500, ~50% of training)
+1. GATED_ATTENTION=1 — learned per-head attention gating
+2. MTP_NUM_HEADS=2 — vanilla MTP (moderate overhead expected)
+3. ROPE_DIMS 16 vs 24 — old SOTA used 24, needs clean modern A/B in current harness
 
 ## A/B Tests (200s wallclock, directional signal only)
 
@@ -137,6 +136,11 @@ model forward:                                │
 |------|-------------|----------|-------------|------------|-------|----------|
 | ROPE_DIMS=16 (control) | 1.2053 | 1.2079 | 1.1847 | 0.4702 | 2292 | baseline |
 | ROPE_DIMS=24 (test) | PENDING | — | — | — | — | old SOTA value |
+| WARMDOWN_ITERS=2000 | 1.3504 | 1.3979 | skipped | skipped | 1036 | 200s/seed1337 |
+| WARMDOWN_ITERS=3500 | 1.3775 | 1.4344 | skipped | skipped | 1034 | 200s/seed1337 |
+| WARMDOWN_ITERS=5000 | 1.4111 | 1.4764 | skipped | skipped | 1032 | 200s/seed1337 |
+| SWA_EVERY=50 | 1.3778 | 1.4354 | skipped | skipped | 1032 | 200s/seed1337 |
+| SWA_EVERY=100 | 1.3773 | 1.4335 | skipped | skipped | 1037 | 200s/seed1337 |
 
 ## Checkpoints
 - `checkpoints/final_model_ratrod_green_v1_1.1129.pt` — saved on pod

@@ -16,7 +16,14 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+except ImportError:
+    flash_attn_3_func = None
+
+if os.environ.get("TORCHDYNAMO_SUPPRESS_ERRORS", "0") == "1":
+    import torch._dynamo
+    torch._dynamo.config.suppress_errors = True
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -98,6 +105,15 @@ class Hyperparameters:
     ngram_entropy_shift = bool(int(os.environ.get("NGRAM_ENTROPY_SHIFT", "0")))
     ngram_order_mults_str = os.environ.get("NGRAM_ORDER_MULTS", "")
     cubric_cadence = int(os.environ.get("CUBRIC_CADENCE", 0))
+    skip_final_eval = bool(int(os.environ.get("SKIP_FINAL_EVAL", "0")))
+    compile_enabled = bool(int(os.environ.get("COMPILE_ENABLED", "1")))
+    compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
+
+
+def maybe_compile(fn_or_module, *, enabled: bool, fullgraph: bool):
+    if not enabled:
+        return fn_or_module
+    return torch.compile(fn_or_module, dynamic=False, fullgraph=fullgraph)
 
 class TrainNgramTracker:
     """Complementary training: track bigram stats, downweight tokens n-grams can predict."""
@@ -580,7 +596,22 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        if flash_attn_3_func is not None:
+            q_attn, k_attn, v_attn = q, k, v
+            if q_attn.dtype not in (torch.float16, torch.bfloat16):
+                q_attn = q_attn.to(torch.bfloat16)
+                k_attn = k_attn.to(torch.bfloat16)
+                v_attn = v_attn.to(torch.bfloat16)
+            y = flash_attn_3_func(q_attn, k_attn, v_attn, causal=True)
+        else:
+            qh = q.transpose(1, 2)
+            kh = k.transpose(1, 2)
+            vh = v.transpose(1, 2)
+            if self.num_heads != self.num_kv_heads:
+                repeat = self.num_heads // self.num_kv_heads
+                kh = kh.repeat_interleave(repeat, dim=1)
+                vh = vh.repeat_interleave(repeat, dim=1)
+            y = F.scaled_dot_product_attention(qh, kh, vh, is_causal=True).transpose(1, 2)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self.gated_attention:
@@ -1048,7 +1079,11 @@ def eval_val_sliding_hashed_ngram(
         _c_beats = {n: [0] * _TOTAL_CELLS for n in range(min_order, max_order + 1)}
 
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=False)
+    compiled_logits = maybe_compile(
+        base_model.forward_logits,
+        enabled=args.compile_enabled,
+        fullgraph=False,
+    )
     t0 = time.perf_counter()
     deadline = (t0 + max_seconds) if max_seconds > 0.0 else None
     cutoff_hit = False
@@ -1302,7 +1337,11 @@ def eval_val_sliding(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    compiled_logits = maybe_compile(
+        base_model.forward_logits,
+        enabled=args.compile_enabled,
+        fullgraph=args.compile_fullgraph,
+    )
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
@@ -1468,7 +1507,11 @@ def main() -> None:
         base_model._ngram_tracker = None
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = maybe_compile(
+        base_model,
+        enabled=args.compile_enabled,
+        fullgraph=args.compile_fullgraph,
+    )
     model = compiled_model
 
     # Optimizer split:
@@ -1564,6 +1607,7 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log0(f"compile:enabled={int(args.compile_enabled)} fullgraph={int(args.compile_fullgraph)}")
     log0(f"seed:{args.seed}")
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     def zero_grad_all() -> None:
@@ -1765,82 +1809,85 @@ def main() -> None:
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
     sw_seq_len = effective_eval_seq_len
-    if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
-        torch.cuda.synchronize()
-        t_slide = time.perf_counter()
-        sw_val_loss, sw_val_bpb = eval_val_sliding(
-            args, base_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=args.eval_stride,
-            eval_seq_len=sw_seq_len,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"final_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
-            f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
-        )
-        log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-    if args.eval_stride != 64 and 64 < sw_seq_len:
-        torch.cuda.synchronize()
-        t_slide64 = time.perf_counter()
-        sw64_val_loss, sw64_val_bpb = eval_val_sliding(
-            args, base_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=64,
-            eval_seq_len=sw_seq_len,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"final_sliding_window_s64 val_loss:{sw64_val_loss:.4f} val_bpb:{sw64_val_bpb:.4f} "
-            f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
-        )
-        log0(f"final_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-    if args.ngram_eval_order >= 2:
-        if distributed:
-            dist.barrier()
-        torch.cuda.synchronize()
-        t_ng = time.perf_counter()
-        ng_loss, ng_bpb, ng_coverage = eval_val_sliding_hashed_ngram(
-            args,
-            base_model,
-            rank,
-            world_size,
-            device,
-            val_tokens,
-            base_bytes_lut,
-            has_leading_space_lut,
-            is_boundary_token_lut,
-            stride=args.eval_stride,
-            order=args.ngram_eval_order,
-            alpha=args.ngram_eval_alpha,
-            min_count=args.ngram_eval_min_count,
-            buckets=args.ngram_eval_buckets,
-            max_seconds=args.ngram_eval_max_seconds,
-            eval_seq_len=sw_seq_len,
-        )
-        if rank == 0:
+    if args.skip_final_eval:
+        log0("final_eval:skipped sliding/ngram by SKIP_FINAL_EVAL=1")
+    else:
+        if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
             torch.cuda.synchronize()
-            ng_eval_ms = 1000.0 * (time.perf_counter() - t_ng)
-            if ng_coverage >= 0.999999:
-                log0(
-                    f"final_sliding_window_ngram{args.ngram_eval_order} val_loss:{ng_loss:.4f} "
-                    f"val_bpb:{ng_bpb:.4f} eval_time:{ng_eval_ms:.0f}ms"
-                )
-                log0(
-                    f"final_sliding_window_ngram{args.ngram_eval_order}_exact "
-                    f"val_loss:{ng_loss:.8f} val_bpb:{ng_bpb:.8f}"
-                )
-            else:
-                log0(
-                    f"final_sliding_window_ngram{args.ngram_eval_order}_partial val_loss:{ng_loss:.4f} "
-                    f"val_bpb:{ng_bpb:.4f} coverage:{ng_coverage:.4f} eval_time:{ng_eval_ms:.0f}ms"
-                )
-                log0(
-                    f"final_sliding_window_ngram{args.ngram_eval_order}_partial_exact "
-                    f"val_loss:{ng_loss:.8f} val_bpb:{ng_bpb:.8f} coverage:{ng_coverage:.8f}"
-                )
-        if distributed:
-            dist.barrier()
+            t_slide = time.perf_counter()
+            sw_val_loss, sw_val_bpb = eval_val_sliding(
+                args, base_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                stride=args.eval_stride,
+                eval_seq_len=sw_seq_len,
+            )
+            torch.cuda.synchronize()
+            log0(
+                f"final_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
+                f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
+            )
+            log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        if args.eval_stride != 64 and 64 < sw_seq_len:
+            torch.cuda.synchronize()
+            t_slide64 = time.perf_counter()
+            sw64_val_loss, sw64_val_bpb = eval_val_sliding(
+                args, base_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                stride=64,
+                eval_seq_len=sw_seq_len,
+            )
+            torch.cuda.synchronize()
+            log0(
+                f"final_sliding_window_s64 val_loss:{sw64_val_loss:.4f} val_bpb:{sw64_val_bpb:.4f} "
+                f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
+            )
+            log0(f"final_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+        if args.ngram_eval_order >= 2:
+            if distributed:
+                dist.barrier()
+            torch.cuda.synchronize()
+            t_ng = time.perf_counter()
+            ng_loss, ng_bpb, ng_coverage = eval_val_sliding_hashed_ngram(
+                args,
+                base_model,
+                rank,
+                world_size,
+                device,
+                val_tokens,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+                stride=args.eval_stride,
+                order=args.ngram_eval_order,
+                alpha=args.ngram_eval_alpha,
+                min_count=args.ngram_eval_min_count,
+                buckets=args.ngram_eval_buckets,
+                max_seconds=args.ngram_eval_max_seconds,
+                eval_seq_len=sw_seq_len,
+            )
+            if rank == 0:
+                torch.cuda.synchronize()
+                ng_eval_ms = 1000.0 * (time.perf_counter() - t_ng)
+                if ng_coverage >= 0.999999:
+                    log0(
+                        f"final_sliding_window_ngram{args.ngram_eval_order} val_loss:{ng_loss:.4f} "
+                        f"val_bpb:{ng_bpb:.4f} eval_time:{ng_eval_ms:.0f}ms"
+                    )
+                    log0(
+                        f"final_sliding_window_ngram{args.ngram_eval_order}_exact "
+                        f"val_loss:{ng_loss:.8f} val_bpb:{ng_bpb:.8f}"
+                    )
+                else:
+                    log0(
+                        f"final_sliding_window_ngram{args.ngram_eval_order}_partial val_loss:{ng_loss:.4f} "
+                        f"val_bpb:{ng_bpb:.4f} coverage:{ng_coverage:.4f} eval_time:{ng_eval_ms:.0f}ms"
+                    )
+                    log0(
+                        f"final_sliding_window_ngram{args.ngram_eval_order}_partial_exact "
+                        f"val_loss:{ng_loss:.8f} val_bpb:{ng_bpb:.8f} coverage:{ng_coverage:.8f}"
+                    )
+            if distributed:
+                dist.barrier()
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
