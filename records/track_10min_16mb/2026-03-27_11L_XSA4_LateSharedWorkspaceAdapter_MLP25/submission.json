@@ -1,0 +1,23 @@
+{
+  "author": "ymrohit",
+  "github_id": "ymrohit",
+  "name": "11L XSA4 Late Shared Workspace Adapter (LSWA-64x4) + MLP2.5",
+  "blurb": "Late Shared Workspace Adapter (LSWA) adds a shared token-to-workspace-to-token writeback path only in late decoder blocks on top of the public March 23 11-layer record lineage, while keeping the trunk close to the donor. This snapshot keeps the novel part focused: same 11x512 banked backbone, same XSA-last-4 recipe, same bigram and VE paths, but with LSWA-64x4, MLP_MULT=2.5, and a simplified no-TTT/no-EMA exact-eval deployment. Best included legal seed is 1.08568610 exact post-quant val_bpb at 15,900,041 bytes.",
+  "date": "2026-03-27T18:00:00Z",
+  "val_loss": 1.83313551,
+  "val_bpb": 1.08568610,
+  "bytes_total": 15900041,
+  "bytes_model_int6_lzma": 15812992,
+  "bytes_code": 87049,
+  "seed": 2025,
+  "seeds": [2025, 13, 1313],
+  "included_seed_mean_val_loss": 1.86711938,
+  "included_seed_mean_val_bpb": 1.10581327,
+  "included_seed_std_val_loss": 0.02950683,
+  "included_seed_std_val_bpb": 0.01747561,
+  "seed_results": {
+    "2025": {"val_loss": 1.83313551, "val_bpb": 1.08568610, "bytes_total": 15900041, "step_stop": 7197, "wallclock_seconds": 598.084},
+    "13": {"val_loss": 1.88199587, "val_bpb": 1.11462396, "bytes_total": 15814869, "step_stop": 7212, "wallclock_seconds": 598.070},
+    "1313": {"val_loss": 1.88622677, "val_bpb": 1.11712974, "bytes_total": 15895409, "step_stop": 7200, "wallclock_seconds": 598.050}
+  }
+}
