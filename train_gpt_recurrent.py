@@ -1109,7 +1109,6 @@ def main() -> None:
         # Training step
         model.train()
         torch.cuda.synchronize()
-        t0 = time.perf_counter()
 
         zero_grad_all()
         train_loss_accum = torch.zeros((), device=device)
