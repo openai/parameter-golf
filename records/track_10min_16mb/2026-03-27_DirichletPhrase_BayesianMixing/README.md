@@ -55,9 +55,9 @@ Equal weight to the observation and the prior. Phrase matches are specific enoug
 
 | Seed | Steps | Train (s) | Roundtrip BPB | **Sliding + Phrase BPB** | Eval (s) | Artifact bytes |
 |------|-------|-----------|---------------|--------------------------|----------|----------------|
-| 1337 | 3,428 | 560 | 1.1809 | **0.11806661** | ~436 | ~14,900,000 |
-| 2024 | 3,392 | 560 | 1.1807 | **0.11807046** | ~455 | ~14,840,000 |
-| 2025 | 3,419 | 560 | 1.1794 | **0.11806153** | ~441 | ~14,800,000 |
+| 1337 | 3,428 | 560 | 1.1809 | **0.11806661** | 447 | 14,752,175 |
+| 2024 | 3,392 | 560 | 1.1807 | **0.11807046** | 442 | 14,890,027 |
+| 2025 | 3,419 | 560 | 1.1794 | **0.11806153** | 448 | 14,854,291 |
 | **Mean** | | | | **0.11807 (std 0.0000045)** | | |
 
 ### Concentration landscape (n-gram level, seed 1337, no phrase cache)
@@ -150,8 +150,8 @@ Our Bayesian Online Concentration Learning (OBCL) diagnostic maintains a posteri
 ## Compliance
 
 - [x] Training: 560s on 8xH100 (within 600s)
-- [x] Eval: 436s (within 600s)
-- [x] Artifact: ~14,900,000 bytes (within 16,000,000)
+- [x] Eval: 448s worst case (within 600s)
+- [x] Artifact: 14,890,027 bytes worst case (within 16,000,000)
 - [x] No training data accessed during evaluation
 - [x] No oracle/min(NLL) selection
 - [x] All caches strictly backward-looking (causal)
