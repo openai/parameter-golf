@@ -1130,31 +1130,28 @@ def eval_val_sliding_ngram(
     stride: int, batch_seqs: int = 32, eval_seq_len: int | None = None,
     ngram_max_order: int = 7, ngram_alpha: float = 0.15, log0=print,
 ) -> tuple[float, float]:
-    """Sliding window eval with multi-order N-gram backoff cache interpolation.
-    Processes tokens sequentially: each token scored by model + N-gram cache
-    built from ALL previously scored tokens (legal: backward-looking only)."""
+    """Two-pass N-gram cache eval: (1) sliding window model inference → store per-position
+    model NLL, (2) sequential N-gram backoff interpolation on CPU.
+    Legal: each position scored before its data enters the cache."""
+    from collections import defaultdict
     seq_len = eval_seq_len or args.train_seq_len
     total_tokens = val_tokens.numel() - 1
-    vocab_size = args.vocab_size
-    val_cpu = val_tokens.cpu().tolist()  # fast indexed access
+    val_np = val_tokens.cpu().numpy().astype(np.int64)
+    bytes_lut = base_bytes_lut.cpu().numpy().astype(np.float64)
+    space_lut = has_leading_space_lut.cpu().numpy()
+    boundary_lut = is_boundary_token_lut.cpu().numpy()
 
+    # --- Pass 1: sliding window model inference → per-position model NLL ---
     window_starts = [ws for ws in range(0, total_tokens, stride)
                      if min(ws + seq_len, total_tokens) - ws >= 1]
-    # N-gram cache must be sequential (single process), no distributed split
-    my_windows = window_starts
-
-    loss_sum = 0.0
-    token_count = 0
-    byte_count = 0.0
-    # Multi-order N-gram cache: order -> {context_tuple -> {next_token -> count}}
-    caches: list[dict] = [{} for _ in range(ngram_max_order + 1)]  # index 0,1 unused; 2..max_order used
-    scored_positions = set()
+    model_nll = np.full(total_tokens, -1.0, dtype=np.float64)  # -1 = unscored
     base_model.eval()
     compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     t_start = time.perf_counter()
+    log0(f"ngram_pass1: {len(window_starts)} windows, stride={stride}")
     with torch.inference_mode():
-        for bi in range(0, len(my_windows), batch_seqs):
-            batch_ws = my_windows[bi:bi + batch_seqs]
+        for bi in range(0, len(window_starts), batch_seqs):
+            batch_ws = window_starts[bi:bi + batch_seqs]
             bsz = len(batch_ws)
             x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
             y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
@@ -1168,59 +1165,103 @@ def eval_val_sliding_ngram(
                 y_batch[i, :wlen] = chunk[1:]
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 logits = compiled_logits(x_batch)
-            # Compute model log-softmax for scored positions
             log_probs = F.log_softmax(logits.float(), dim=-1)
             for i, ws in enumerate(batch_ws):
                 wlen = wlens[i]
                 s = 0 if ws == 0 else max(wlen - stride, 0)
                 for t in range(s, wlen):
-                    pos = ws + t  # absolute position (predicting val_cpu[pos+1])
-                    if pos in scored_positions:
-                        continue
-                    scored_positions.add(pos)
-                    target = val_cpu[pos + 1]
-                    model_log_p = log_probs[i, t, target].item()
-                    # Multi-order backoff N-gram lookup
-                    ngram_prob = 0.0
-                    for order in range(ngram_max_order, 1, -1):
-                        if pos + 1 >= order:
-                            ctx = tuple(val_cpu[pos + 2 - order:pos + 1])
-                            cache = caches[order]
-                            if ctx in cache:
-                                counts = cache[ctx]
-                                total = sum(counts.values())
-                                ngram_prob = counts.get(target, 0) / total
-                                break
-                    # Interpolate
-                    if ngram_prob > 0:
-                        model_p = math.exp(model_log_p)
-                        combined_p = max((1 - ngram_alpha) * model_p + ngram_alpha * ngram_prob, 1e-30)
-                        nll = -math.log(combined_p)
-                    else:
-                        nll = -model_log_p
-                    loss_sum += nll
-                    token_count += 1
-                    # Byte count
-                    prev_tok = val_cpu[pos]
-                    tb = base_bytes_lut[target].item()
-                    if has_leading_space_lut[target].item() and not is_boundary_token_lut[prev_tok].item():
-                        tb += 1.0
-                    byte_count += tb
-                    # Update caches with this scored token
-                    for order in range(2, ngram_max_order + 1):
-                        if pos + 1 >= order:
-                            ctx = tuple(val_cpu[pos + 2 - order:pos + 1])
-                            cache = caches[order]
-                            if ctx not in cache:
-                                cache[ctx] = {}
-                            cache[ctx][target] = cache[ctx].get(target, 0) + 1
-            if bi % (batch_seqs * 50) == 0 and bi > 0:
-                elapsed = time.perf_counter() - t_start
-                pct = 100 * bi / len(my_windows) * batch_seqs
-                log0(f"ngram_eval: {pct:.1f}% tokens:{token_count} cache_sizes:{[len(c) for c in caches[2:]]} time:{elapsed:.0f}s")
-    val_loss = loss_sum / max(token_count, 1)
+                    pos = ws + t
+                    if model_nll[pos] < 0:  # not yet scored
+                        target = int(val_np[pos + 1])
+                        model_nll[pos] = -log_probs[i, t, target].item()
+    pass1_time = time.perf_counter() - t_start
+    scored_mask = model_nll >= 0
+    n_scored = int(scored_mask.sum())
+    log0(f"ngram_pass1_done: {n_scored} tokens scored in {pass1_time:.1f}s")
+
+    # --- Pass 2: sequential N-gram backoff on CPU ---
+    t2 = time.perf_counter()
+    # Precompute rolling hashes for each order using polynomial hashing
+    B = np.int64(1031)  # prime base > vocab_size
+    hashes = {}  # order -> np.array of int64 hashes for each position
+    for order in range(2, ngram_max_order + 1):
+        ctx_len = order - 1
+        if total_tokens < ctx_len:
+            continue
+        # h[pos] = hash of val_np[pos+2-order:pos+1] (context predicting val_np[pos+1])
+        # = val_np[pos+2-order]*B^(ctx_len-1) + ... + val_np[pos]*B^0
+        h = np.zeros(total_tokens, dtype=np.int64)
+        # Compute initial hash for position ctx_len-1
+        pw = np.int64(1)
+        for j in range(ctx_len):
+            h[ctx_len - 1] += val_np[j] * pw
+            pw *= B
+        # Rolling: h[pos] = (h[pos-1] - val_np[pos-ctx_len] * B^(ctx_len-1)) * B + val_np[pos]
+        # But we want: remove oldest, shift, add newest
+        # h[pos] = (h[pos-1] - val_np[pos-ctx_len] * top_power) * B + val_np[pos]
+        # Wait, this is for h = oldest * B^(n-1) + ... + newest * B^0
+        # Actually let me just compute: h = newest * B^(n-1) + ... + oldest * B^0
+        # So h[pos] = val_np[pos]*B^(ctx_len-1) + val_np[pos-1]*B^(ctx_len-2) + ... + val_np[pos-ctx_len+1]*B^0
+        # h[pos] = val_np[pos]*B^(ctx_len-1) + (h[pos-1] - val_np[pos-ctx_len]*B^0) / B
+        # This doesn't work well with integer division. Let me use a different ordering.
+        # Simpler: h[pos] = val_np[pos-ctx_len+1]*B^(ctx_len-1) + ... + val_np[pos]*B^0
+        # h[pos] = h[pos-1]*B - val_np[pos-ctx_len]*B^ctx_len + val_np[pos]
+        top_pow = B ** np.int64(ctx_len)
+        for pos in range(ctx_len, total_tokens):
+            if pos == ctx_len:
+                h_val = np.int64(0)
+                for j in range(ctx_len):
+                    h_val = h_val * B + val_np[pos - ctx_len + 1 + j]
+                h[pos] = h_val
+            else:
+                h[pos] = h[pos - 1] * B - val_np[pos - ctx_len] * top_pow + val_np[pos]
+        hashes[order] = h
+
+    # Sequential N-gram interpolation
+    caches: list[dict] = [defaultdict(lambda: defaultdict(int)) for _ in range(ngram_max_order + 1)]
+    loss_sum = 0.0
+    byte_sum = 0.0
+    n_ngram_hits = 0
+    for pos in range(total_tokens):
+        if model_nll[pos] < 0:
+            continue  # not scored by model
+        target = int(val_np[pos + 1])
+        # Multi-order backoff lookup
+        ngram_prob = 0.0
+        for order in range(ngram_max_order, 1, -1):
+            if order not in hashes or pos < order - 1:
+                continue
+            h = int(hashes[order][pos])
+            cache = caches[order]
+            if h in cache:
+                counts = cache[h]
+                total_count = sum(counts.values())
+                ngram_prob = counts.get(target, 0) / total_count
+                break
+        # Interpolate
+        if ngram_prob > 0:
+            model_p = math.exp(-model_nll[pos])
+            combined_p = max((1 - ngram_alpha) * model_p + ngram_alpha * ngram_prob, 1e-30)
+            loss_sum += -math.log(combined_p)
+            n_ngram_hits += 1
+        else:
+            loss_sum += model_nll[pos]
+        # Byte count
+        tb = bytes_lut[target]
+        if space_lut[target] and not boundary_lut[int(val_np[pos])]:
+            tb += 1.0
+        byte_sum += tb
+        # Update caches for ALL orders (backward-looking: this position is now "scored")
+        for order in range(2, ngram_max_order + 1):
+            if order not in hashes or pos < order - 1:
+                continue
+            h = int(hashes[order][pos])
+            caches[order][h][target] += 1
+    pass2_time = time.perf_counter() - t2
+    log0(f"ngram_pass2_done: hits={n_ngram_hits}/{n_scored} ({100*n_ngram_hits/max(n_scored,1):.1f}%) time={pass2_time:.1f}s")
+    val_loss = loss_sum / max(n_scored, 1)
     bits_per_token = val_loss / math.log(2.0)
-    tokens_per_byte = token_count / max(byte_count, 1.0)
+    tokens_per_byte = n_scored / max(byte_sum, 1.0)
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
 
