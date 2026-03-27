@@ -1,9 +1,0 @@
-{
-  "name": "CacheMoney: Cache-First + Online Alpha Calibration (6L/256d FP16)",
-  "val_bpb": 0.0804,
-  "bytes_total": 7466788,
-  "blurb": "6L/256d/4h/2kv/3x MLP (4.2M params, FP16, zero quant penalty). Two-pass full-rescore n-gram cache (orders 2-16, 16M buckets) + phrase cache (lengths 64/48/32/16, 8M buckets). Leave-one-out scoring, greedy backoff with PR 913's alpha curves, temperature sharpening (T=0.85), sequential blend. Online alpha calibration: grid search on 5% calibration set finds optimal alpha_high=0.99, entropy_thresh=3.0. No TTT. 339s eval time.",
-  "author": "koltondrake",
-  "github_id": "haikosys",
-  "date": "2026-03-27"
-}
