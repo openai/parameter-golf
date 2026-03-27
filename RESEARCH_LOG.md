@@ -25,14 +25,15 @@ Focus : Scheduled Sampling
 - How does this fit? While the traditional scheduled sampling works as a downward curve, I tried a U-Shap approach wherein we try to balance treacher forcing and sampling together. We start with a 100% teacher forcing, go down to a 50% teacher forcing midpoint and then work upwards to 100% till we reach the final step. 
 - How does this fit with LeakyRelu and Trigram Hash? I was worried the mid step with high % of prediction tokens will start a chain of activation of wrong tokens but I realised that before we have reached the next step, the error would be corrected. 
 <img width="692" height="190" alt="Screenshot 2026-03-27 at 2 24 04 PM" src="https://github.com/user-attachments/assets/6ed8cb8e-d22a-4ce1-be2a-35030ccb7d2f" />
+
 - Result of running a smoke test on my machine with a batch of 500 
 
 
 
 Key insights: 
-1/ Where is the model not communicating when it should be? That gap is always an opportunity.
-2/ On a larger scale, when is complicated too complicated? 
-3/ Which idea should be picked? How does one work within these resource constraints? 
-4/ It is important to have a near identical environment in your local machine. 
+- Where is the model not communicating when it should be? That gap is always an opportunity.
+- On a larger scale, when is complicated too complicated? 
+- Which idea should be picked? How does one work within these resource constraints? 
+- It is important to have a near identical environment in your local machine. 
 
 Next: implement anchor MLP, smoke test locally and if it beats my score of 2.3, we run it on the GPU. 
