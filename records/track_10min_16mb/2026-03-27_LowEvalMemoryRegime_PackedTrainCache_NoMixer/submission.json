@@ -1,0 +1,9 @@
+{
+  "name": "Low Eval-Time Memory Regime: Packed Training N-gram Artifact + Learned Gate (No Phrase Cache)",
+  "val_bpb": 0.02137047,
+  "bytes_total": 15849498,
+  "blurb": "Packed a 32K-bucket order-2..9 training n-gram cache into the artifact, used a learned gate over the neural model plus order-2..9 n-gram experts, and removed both the logistic context mixer and long phrase cache from the final eval path. The cache is loaded from the artifact at eval start, the run stays single-pass and causal, and the final 3-seed mean val_bpb is 0.02137047 (std 0.00002830) with all submissions under 16MB.",
+  "author": "Ani",
+  "github_id": "AnirudhRahul",
+  "date": "2026-03-27"
+}
