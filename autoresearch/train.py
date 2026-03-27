@@ -62,7 +62,7 @@ EMBED_LR = 0.3
 HEAD_LR = 0.008
 TIED_EMBED_LR = 0.03
 TIED_EMBED_INIT_STD = 0.005
-MATRIX_LR = 0.12
+MATRIX_LR = 0.10
 SCALAR_LR = 0.08
 MUON_MOMENTUM = 0.90
 MUON_BACKEND_STEPS = 5
@@ -112,7 +112,7 @@ FACTORED_RANK = 384           # rank of factorization (lower = more compression,
 # Non-uniform quantization: important layers get more bits, unimportant fewer
 NONUNIFORM_IMPORTANT_BITS = 6
 NONUNIFORM_UNIMPORTANT_BITS = 5
-NONUNIFORM_IMPORTANT_FRAC = 0.0  # all layers at int5 (11L MLP3x needs aggressive compression)
+NONUNIFORM_IMPORTANT_FRAC = 0.2  # top 20% (~2 layers) at int6; partial RoPE saves ~380KB creating headroom
 # Hadamard rotation before quantization: makes weight distributions uniform, better compression
 HADAMARD_ROTATE = False
 # FFT int4: FFT per row → quantize all coefficients at int4 → iFFT reconstructs ≈ int8
