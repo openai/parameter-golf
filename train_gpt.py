@@ -48,6 +48,8 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("ROUNDTRIP_EVAL_STRIDE", os.environ.get("EVAL_STRIDE", "0")))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     skip_final_eval = bool(int(os.environ.get("SKIP_FINAL_EVAL", "0")))
+    auto_stop_step = int(os.environ.get("AUTO_STOP_STEP", 0))
+    auto_stop_max_val_bpb = float(os.environ.get("AUTO_STOP_MAX_VAL_BPB", 0.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -1266,6 +1268,8 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    if args.auto_stop_step > 0 and args.auto_stop_max_val_bpb > 0:
+        log0(f"auto_stop_step:{args.auto_stop_step} auto_stop_max_val_bpb:{args.auto_stop_max_val_bpb:.4f}")
     log0(f"seed:{args.seed}")
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
@@ -1317,6 +1321,7 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    stop_reason: str | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1333,12 +1338,16 @@ def main() -> None:
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
             )
+            if stop_after_step is None and args.auto_stop_step > 0 and args.auto_stop_max_val_bpb > 0 and step >= args.auto_stop_step and val_bpb > args.auto_stop_max_val_bpb:
+                stop_after_step, stop_reason = step, "quality_gate"
+                log0(f"auto_stop_triggered: step:{step} val_bpb:{val_bpb:.4f} threshold:{args.auto_stop_max_val_bpb:.4f}")
+                last_step = True
             torch.cuda.synchronize()
             t0 = time.perf_counter()
 
         if last_step:
             if stop_after_step is not None and step < args.iterations:
-                log0(f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}")
+                log0(f"stopping_early: {stop_reason or 'wallclock_cap'} train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}")
             break
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -1406,7 +1415,7 @@ def main() -> None:
             dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
             reached_cap = bool(reached_cap_tensor.item())
         if stop_after_step is None and reached_cap:
-            stop_after_step = step
+            stop_after_step, stop_reason = step, "wallclock_cap"
 
     log0(
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
