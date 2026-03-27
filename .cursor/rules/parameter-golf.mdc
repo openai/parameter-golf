@@ -1,0 +1,33 @@
+---
+description: Parameter Golf challenge guardrails — artifact limits, metric integrity, and safe tinkering
+alwaysApply: true
+---
+
+# Parameter Golf — project guardrails
+
+Follow these constraints when editing `train_gpt.py`, `train_gpt_mlx.py`, `records/`, or data/tokenizer pipelines so work stays valid, comparable, and aligned with the [official challenge](https://github.com/openai/parameter-golf).
+
+## Submission and evaluation (must not violate)
+
+- **Artifact size**: Counted submission = UTF-8 bytes of training code (expected in `train_gpt.py`) + **compressed model**; total **≤ 16,000,000 bytes** (decimal 16 MB, not MiB).
+- **Training time (record track)**: Leaderboard records must finish training in **≤ ~10 minutes on 8× H100 (SXM)**. Local/dev runs may exceed this; do not assume long runs transfer to a record.
+- **Evaluation time**: Eval must also stay within stated limits (10 minutes on 8× H100 in addition to training); avoid eval pipelines that cannot meet this if targeting submission.
+- **No cheating on val**: Do not use validation or training data in ways that leak answers into the score (e.g. hiding val in the artifact, network/dataset access at eval). Respect challenge FAQ on **test-time training** (only on tokens already evaluated, per official wording).
+- **Reproducibility**: For SOTA claims, preserve **run logs**, **seeds**, and enough runs for statistical requirements (**≥ 0.005 nats** over prior SOTA at **p < 0.01**). For all experiments, log `RUN_ID`, `SEED`, relevant env vars, and git commit when possible.
+
+## Metric and data integrity
+
+- **`val_bpb`**: Do not change tokenizer, validation split, or byte accounting without verifying **`val_bpb`** still matches the challenge definition. Tokenizer/dataset changes require extra proof and review.
+- **Controlled comparisons**: When benchmarking improvements, hold **`DATA_PATH`**, **tokenizer**, **`VOCAB_SIZE`**, and val setup fixed unless the experiment is explicitly about changing one of them.
+- **Which score to optimize**: The training script logs multiple finals (e.g. int8+zlib roundtrip vs TTT). Pick **one primary metric line** per experiment and keep it consistent so optimization targets the right number.
+
+## Engineering habits
+
+- **Baseline vs experiments**: Prefer keeping **root `train_gpt.py`** as a readable baseline; put risky or submission-specific code under **`records/<track>/...`** or a branch when appropriate.
+- **Configuration**: Prefer **environment variables** (see `Hyperparameters` in `train_gpt.py`) over hardcoding constants so sweeps and remote reruns stay clean.
+- **Wallclock**: Default **`MAX_WALLCLOCK_SECONDS`** is ~600. For long local runs set **`MAX_WALLCLOCK_SECONDS=0`** so training is not cut off unexpectedly.
+- **Dependencies**: New packages are allowed for exploration; submissions may need them **declared** (e.g. `requirements.txt` in the record folder per README). Pin versions when adding deps.
+
+## Intended design space (safe to explore)
+
+Architecture, optimizers, schedules, quantization, compression formats that fit the artifact, and other creative approaches **within** the rules above—including anything the challenge README lists as in-scope.
