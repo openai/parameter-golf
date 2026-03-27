@@ -1,16 +1,16 @@
 # Normalized N-gram + Bayesian First-Match + Pre-Enrichment + XSA
 
-> **Status: Active development** — Score-first TTT integration in progress.
+> **Update (Mar 27 honest rerun)** — the original `0.3922` number was not produced by a truly normalized full-vocab scorer. In `eval_val_sliding()`, the code gathered the gold token from the `[chunk, 1024]` table and divided by `ctx_count + beta`, instead of normalizing by the summed mass `pair_counts.sum(...) + beta`. After fixing that denominator and rerunning on 8xH100, the normalized n-gram path scores **1.5134 BPB**, worse than the neural sliding-window baseline.
 
-val_bpb: **0.3922** (full-vocab 1024-token normalized n-gram, Bayesian first-match, fixed 0.5 blend)
-| 1.1478 (sliding window) | 14.94 MB | 8xH100 SXM
-
-| Metric | PR #810 (standard) | This PR (normalized) |
+| Metric | Original claim | Honest rerun with fixed normalization |
 |---|---|---|
-| val_bpb | 0.2722 | **0.3922** |
-| Sliding BPP | 1.1478 | 1.1478 |
-| N-gram gain over neural | -0.876 BPP | -0.756 BPP |
-| **Collision premium** | — | **0.120 BPP** |
+| val_bpb (normalized n-gram path) | 0.3922 | **1.5134** |
+| Sliding BPP (neural path) | 1.1478 | **1.1474** |
+| Post-quant val_bpb | 1.1690 | **1.1686** |
+| Eval time | 193,472ms | **198,246ms** |
+| Artifact size | 14,942,971 bytes | **14,941,134 bytes** |
+
+The original sections below are kept for provenance, but their headline metric claims are superseded by the honest rerun above.
 
 ## Progress
 
@@ -24,17 +24,30 @@ full-vocab 1024-token normalized distributions. The 0.12 BPP increase is the
 **collision premium** — the portion of n-gram gain that comes from inflated
 pseudo-probabilities rather than genuine statistical signal.
 
-## Key Finding: The Collision Premium
+## What Was Wrong
 
-Standard n-gram scoring computes `p = pair_count / ctx_count`. With 4M hash buckets:
-- Both counts are inflated by unrelated entries hashing to the same bucket
-- The pair bucket is queried specifically for the target token being scored
-- This creates an information leak through the collision structure
+The implementation did materialize `pair_counts = ng_pair[order][pair_h]` for all 1024 tokens, but it never turned those counts into a normalized distribution. Instead it did:
 
-**Evidence:**
-- 256M-bucket experiment (near collision-free): n-gram gain drops to near-zero (1.1123 vs 1.1109 float base)
-- This submission (1024-token normalization): 0.3922 vs 0.2722 = **0.120 BPP collision premium**
-- The remaining 0.756 BPP gain (1.1478 → 0.3922) is genuine n-gram signal
+```python
+pair_c = ng_pair[order][pair_h].float()  # [chunk, 1024]
+raw_correct = pair_c.gather(1, gold_idx).squeeze(1)
+p_local = (raw_correct + beta * p_neural) / (ctx_count + beta)
+```
+
+That is still a gold-token scalar path. A proper full-vocab posterior needs the denominator to be the total mass over the candidate vocabulary:
+
+```python
+pair_total = pair_c.sum(dim=1)
+p_local = (raw_correct + beta * p_neural) / (pair_total + beta)
+```
+
+After making that change and rerunning:
+
+- normalized n-gram path: `1.51343368` BPB
+- sliding neural baseline: `1.14740867` BPB
+- post-quant validation: `1.16864138` BPB
+
+So the original reported gain disappears once the normalization is actually enforced.
 
 
 ## Key Contributions
@@ -106,12 +119,11 @@ Tunable env vars: `CTW_BETA=2.0`, `CTW_BLEND=0.5`, `NG_MIN=1`
 
 | Metric | Value |
 |---|---|
-| val_bpb (normalized n-gram) | 0.3922 |
-| Sliding window val_bpb | 1.1478 |
-| Post-quant val_bpb (standard) | 1.1690 |
-| Collision premium vs PR #810 | 0.120 BPP |
-| Eval time | 193,472ms |
-| Artifact size | 14,942,971 bytes |
+| val_bpb (normalized n-gram, honest rerun) | 1.5134 |
+| Sliding window val_bpb | 1.1474 |
+| Post-quant val_bpb | 1.1686 |
+| Eval time | 198,246ms |
+| Artifact size | 14,941,134 bytes |
 | Model parameters | 25,254,992 |
 
 ## Credits
