@@ -74,11 +74,11 @@ ADAM_EPS = 1e-8
 GRAD_CLIP_NORM = 0.0
 
 # ── SOTA Technique Flags ─────────────────────────────────────────────────────
-ACTIVATION = "silu"           # "silu" | "relu_sq" | "leaky_relu_sq"
+ACTIVATION = "leaky_relu_sq"  # "silu" | "relu_sq" | "leaky_relu_sq"
 SMEAR_GATE_ENABLED = True     # blend each token with previous token's embedding
 ORTHOGONAL_INIT = True        # orthogonal init for weight matrices (SOTA uses this)
 SWA_ENABLED = False           # SWA consistently degrades by 0.008 with warmdown schedule
-EMA_ENABLED = True            # Exponential moving average of weights (decay=0.997), different from SWA
+EMA_ENABLED = False           # REJECTED: all-warmdown schedule means last step is best; EMA averages sub-optimal states
 EMA_DECAY = 0.997             # EMA window ≈ 1/(1-decay) = 333 steps
 SWA_START_FRAC = 0.10
 SWA_EVERY = 30
