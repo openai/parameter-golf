@@ -5,9 +5,12 @@
   "author": "bigbag",
   "github": "bigbag",
   "seed_results": {
-    "42": {"val_loss": 1.53248692, "val_bpb": 0.90762747, "artifact_bytes": 15320749}
+    "42": {"val_loss": 1.53248692, "val_bpb": 0.90762747, "artifact_bytes": 15320749},
+    "1337": {"val_loss": 1.53170230, "val_bpb": 0.90716278, "artifact_bytes": 15261004},
+    "2024": {"val_loss": 1.53213554, "val_bpb": 0.90741937, "artifact_bytes": 15457538}
   },
-  "mean_val_loss": 1.53248692,
-  "mean_val_bpb": 0.90762747,
+  "mean_val_loss": 1.53210825,
+  "mean_val_bpb": 0.90740321,
+  "std_val_bpb": 0.00023,
   "code_bytes": 68444
 }

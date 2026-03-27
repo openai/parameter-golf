@@ -1,12 +1,15 @@
 # Record: 10L + Multi-Order N-gram Backoff + Matrix LR 0.03
 
-**val_bpb = 0.9076** (seed 42, additional seeds pending) | **15.32 MB** | 8xH100 SXM, 600s
+**val_bpb = 0.9074** (3-seed mean, std 0.0002) | **15.32-15.46 MB** | 8xH100 SXM, 600s
 
 ## Results
 
 | Seed | Steps | ms/step | Pre-quant BPB | **N-gram BPB** | Artifact |
 |------|-------|---------|---------------|----------------|----------|
 | 42 | 6,693 | 89.6 | 1.1528 | **0.9076** | 15,320,749 |
+| 1337 | 6,605 | 90.9 | 1.1521 | **0.9072** | 15,261,004 |
+| 2024 | 6,607 | 90.8 | 1.1520 | **0.9074** | 15,457,538 |
+| **Mean** | | | | **0.9074 ± 0.0002** | |
 
 ## Key Change from PR #802
 
