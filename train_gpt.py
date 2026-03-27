@@ -1126,15 +1126,19 @@ class NgramCache:
 
 
 def build_ngram_from_shards(data_path: str, max_order: int = 13, min_order: int = 2,
-                            num_buckets: int = 524288, max_shards: int = 0, log_fn=None) -> dict:
+                            num_buckets: int = 524288, max_shards: int = 0,
+                            shard_list: list | None = None, log_fn=None) -> dict:
     """build n-gram hash tables from training shards.
-    returns dict of numpy arrays to store in artifact."""
-    shard_pattern = os.path.join(data_path, "fineweb_train_*.bin")
-    shard_files = sorted(glob.glob(shard_pattern))
-    if not shard_files:
-        raise FileNotFoundError(f"No training shards: {shard_pattern}")
-    if max_shards > 0:
-        shard_files = shard_files[:max_shards]
+    returns dict of torch tensors to store in artifact."""
+    if shard_list is not None:
+        shard_files = shard_list
+    else:
+        shard_pattern = os.path.join(data_path, "fineweb_train_*.bin")
+        shard_files = sorted(glob.glob(shard_pattern))
+        if not shard_files:
+            raise FileNotFoundError(f"No training shards: {shard_pattern}")
+        if max_shards > 0:
+            shard_files = shard_files[:max_shards]
     num_orders = max_order - min_order + 1
     mask = np.uint64(num_buckets - 1)
     primes = NgramCache.PRIMES
@@ -2023,19 +2027,35 @@ def main() -> None:
     if excluded_mtp > 0:
         log0(f"export_excluding_mtp_params:{excluded_mtp}")
 
-    # build packed n-gram tables from training data (on rank 0 only)
+    # build packed n-gram tables from training data (all ranks in parallel)
     ngram_artifact_enabled = bool(int(os.environ.get("NGRAM_ARTIFACT", "1")))
     packed_ngram = None
-    if ngram_artifact_enabled and master_process:
+    if ngram_artifact_enabled:
         t_build = time.perf_counter()
         ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "9"))
         ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "524288"))
-        ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "20"))
-        log0(f"ngram_artifact: building from training shards, order={ngram_art_order}, buckets={ngram_art_buckets}")
-        packed_ngram = build_ngram_from_shards(
+        ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "40"))
+        # each rank builds from a subset of shards
+        all_shards = sorted(glob.glob(os.path.join(args.data_path, "fineweb_train_*.bin")))
+        if ngram_art_max_shards > 0:
+            all_shards = all_shards[:ngram_art_max_shards]
+        my_shards = [s for i, s in enumerate(all_shards) if i % world_size == rank]
+        log0(f"ngram_artifact: building order={ngram_art_order}, buckets={ngram_art_buckets}, shards={len(all_shards)} (rank {rank}: {len(my_shards)})")
+        local_packed = build_ngram_from_shards(
             args.data_path, max_order=ngram_art_order, min_order=2,
-            num_buckets=ngram_art_buckets, max_shards=ngram_art_max_shards, log_fn=log0,
+            num_buckets=ngram_art_buckets, max_shards=0,
+            log_fn=log0 if master_process else None,
+            shard_list=my_shards,
         )
+        # all-reduce counts across ranks (convert to int32 for reduction, then back to uint16)
+        if distributed:
+            for key in list(local_packed.keys()):
+                if key == "meta":
+                    continue
+                t = local_packed[key].to(torch.int32).to(device)
+                dist.all_reduce(t, op=dist.ReduceOp.SUM)
+                local_packed[key] = t.cpu().clamp(max=65535).to(torch.uint16)
+        packed_ngram = local_packed
         log0(f"ngram_artifact: built in {time.perf_counter() - t_build:.0f}s")
 
     if master_process:
