@@ -1,0 +1,13 @@
+{
+    "name": "CoDA_GQA_DifferentialAttention",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "track": "non_record_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "val_bpb": null,
+    "bytes_total": null,
+    "bytes_code": null,
+    "blurb": "CoDA-GQA (Constrained Orthogonal Differential Attention) from arXiv:2502.XXXXX applied to Parameter Golf. Dual SDPA with orthogonal noise query rotation + input-dependent lambda gating. First differential attention submission in the competition."
+}
