@@ -1,0 +1,95 @@
+W0327 21:08:47.998000 58668 torch/distributed/run.py:803] 
+W0327 21:08:47.998000 58668 torch/distributed/run.py:803] *****************************************
+W0327 21:08:47.998000 58668 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0327 21:08:47.998000 58668 torch/distributed/run.py:803] *****************************************
+logs/liora_seed42.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9297 val_bpb:4.1042 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9319 train_time:125ms step_avg:125.30ms
+step:2/20000 train_loss:8.6254 train_time:160ms step_avg:80.16ms
+step:3/20000 train_loss:7.7122 train_time:243ms step_avg:80.98ms
+step:4/20000 train_loss:7.2838 train_time:334ms step_avg:83.53ms
+step:5/20000 train_loss:7.1731 train_time:419ms step_avg:83.85ms
+step:6/20000 train_loss:7.0088 train_time:503ms step_avg:83.89ms
+step:7/20000 train_loss:6.9172 train_time:587ms step_avg:83.92ms
+step:8/20000 train_loss:6.8683 train_time:674ms step_avg:84.20ms
+step:9/20000 train_loss:6.5561 train_time:758ms step_avg:84.24ms
+step:10/20000 train_loss:6.2103 train_time:843ms step_avg:84.27ms
+step:500/20000 train_loss:2.3911 train_time:42044ms step_avg:84.09ms
+step:1000/20000 train_loss:2.2665 train_time:84092ms step_avg:84.09ms
+step:1500/20000 train_loss:2.2108 train_time:126169ms step_avg:84.11ms
+step:2000/20000 train_loss:2.0548 train_time:168298ms step_avg:84.15ms
+step:2500/20000 train_loss:2.1609 train_time:210450ms step_avg:84.18ms
+step:3000/20000 train_loss:2.1520 train_time:252599ms step_avg:84.20ms
+step:3500/20000 train_loss:2.1702 train_time:294743ms step_avg:84.21ms
+step:4000/20000 train_loss:1.9631 train_time:336875ms step_avg:84.22ms
+step:4000/20000 val_loss:2.0556 val_bpb:1.2175 train_time:336934ms step_avg:84.23ms
+step:4500/20000 train_loss:2.1172 train_time:379014ms step_avg:84.23ms
+step:5000/20000 train_loss:2.0980 train_time:421289ms step_avg:84.26ms
+step:5500/20000 train_loss:2.0116 train_time:463426ms step_avg:84.26ms
+step:6000/20000 train_loss:1.9379 train_time:505550ms step_avg:84.26ms
+swa:start step:6450
+step:6500/20000 train_loss:2.0767 train_time:550314ms step_avg:84.66ms
+late_qat:enabled step:6561 scale:0.1498
+step:7000/20000 train_loss:1.7846 train_time:599147ms step_avg:85.59ms
+step:7008/20000 val_loss:1.9231 val_bpb:1.1390 train_time:600107ms step_avg:85.63ms
+stopping_early: wallclock_cap train_time:600107ms step:7008/20000
+peak memory allocated: 21472 MiB reserved: 22004 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9211 val_bpb:1.1378 eval_time:2018ms
+Serialized model: 106158518 bytes
+Code size: 94280 bytes
+[LIORA] Frequency-weighted quantization for: tok_emb.weight (shape=torch.Size([1024, 512]), using 100 top tokens)
+[LIORA] Frequency-weighted quantization for: tok_emb.weight (shape=torch.Size([1024, 512]), using 100 top tokens)
+[LIORA] Frequency-weighted quantization for: tok_emb.weight (shape=torch.Size([1024, 512]), using 100 top tokens)
+[LIORA] Frequency-weighted quantization for: tok_emb.weight (shape=torch.Size([1024, 512]), using 100 top tokens)
+[LIORA] Frequency-weighted quantization for: tok_emb.weight (shape=torch.Size([1024, 512]), using 100 top tokens)
+[LIORA] Frequency-weighted quantization for: tok_emb.weight (shape=torch.Size([1024, 512]), using 100 top tokens)
+[LIORA] Frequency-weighted quantization for: tok_emb.weight (shape=torch.Size([1024, 512]), using 100 top tokens)
+[LIORA] Frequency-weighted quantization for: tok_emb.weight (shape=torch.Size([1024, 512]), using 100 top tokens)
+Serialized model int6+lzma: 15752488 bytes
+Total submission size int6+lzma: 15846768 bytes
+[LIORA] Dequantized tok_emb.weight: 100 top + 924 rare tokens
+[LIORA] Dequantized tok_emb.weight: 100 top + 924 rare tokens
+[LIORA] Dequantized tok_emb.weight: 100 top + 924 rare tokens
+[LIORA] Dequantized tok_emb.weight: 100 top + 924 rare tokens
+[LIORA] Dequantized tok_emb.weight: 100 top + 924 rare tokens
+[LIORA] Dequantized tok_emb.weight: 100 top + 924 rare tokens
+[LIORA] Dequantized tok_emb.weight: 100 top + 924 rare tokens
+[LIORA] Dequantized tok_emb.weight: 100 top + 924 rare tokens
+final_int6_roundtrip val_loss:1.9356 val_bpb:1.1464 eval_time:6636ms
+final_int6_roundtrip_exact val_loss:1.93561650 val_bpb:1.14638112
+final_int6_sliding_window val_loss:1.8960 val_bpb:1.1229 stride:64 eval_time:74695ms
+final_int6_sliding_window_exact val_loss:1.89595687 val_bpb:1.12289543
+final_int8_zlib_roundtrip_exact val_loss:1.89595687 val_bpb:1.12289543
