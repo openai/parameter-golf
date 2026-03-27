@@ -1662,24 +1662,20 @@ class NgramCache:
             self.full_tables[n] += full_counts[:self.buckets].astype(np.uint32)
 
     def score_range(self, tokens_np, start, end):
-        """Interpolated multi-order scoring (NOT greedy backoff).
-        Computes probability at ALL matching orders, blends them weighted by
-        log(count) * order^2. Better than greedy: a reliable low-order match
-        contributes alongside a flaky high-order match."""
+        """Greedy backoff with leave-one-out correction.
+        Highest matching order wins. Subtract 1 from counts to remove
+        self-inclusion bias in two-pass full cache builds."""
         val_u64 = tokens_np.astype(np.uint64)
         N = end - start
-        # Accumulate weighted sum of probabilities across all orders
-        weighted_p_sum = np.zeros(N, dtype=np.float64)
-        weight_sum = np.zeros(N, dtype=np.float64)
-        best_order = np.zeros(N, dtype=np.int32)  # highest matching order (for alpha)
-        best_count = np.zeros(N, dtype=np.float64)  # count at best order (for confidence)
+        best_p = np.zeros(N, dtype=np.float64)
         has_match = np.zeros(N, dtype=bool)
+        match_orders = np.zeros(N, dtype=np.int32)
         n_primes = len(_NGRAM_PRIMES)
         target_pos = np.arange(start, end)
         tgt_u64 = val_u64[target_pos]
         for n in range(self.max_order, 1, -1):
             ctx_w = n - 1
-            eligible = target_pos >= ctx_w
+            eligible = (target_pos >= ctx_w) & ~has_match
             if not eligible.any():
                 continue
             idx = np.where(eligible)[0]
@@ -1689,46 +1685,37 @@ class NgramCache:
             for k in range(ctx_w):
                 ctx_hash ^= val_u64[pos - ctx_w + k] * _NGRAM_PRIMES[k % n_primes]
             ctx_key = (ctx_hash & self.mask).astype(np.intp)
-            ctx_counts = self.ctx_tables[n][ctx_key]
-            sufficient = ctx_counts >= self.min_count
+            ctx_counts = self.ctx_tables[n][ctx_key].astype(np.float64)
+            # Leave-one-out: subtract 1 to exclude self-observation
+            ctx_loo = np.maximum(ctx_counts - 1.0, 0.0)
+            sufficient = ctx_loo >= self.min_count
             if not sufficient.any():
                 continue
             s_idx = idx[sufficient]
-            s_ctx = ctx_counts[sufficient].astype(np.float64)
+            s_ctx_loo = ctx_loo[sufficient]
             full_key = ((ctx_hash[sufficient] ^ (tgt[sufficient] * _NGRAM_PRIMES[ctx_w % n_primes])) & self.mask).astype(np.intp)
             s_full = self.full_tables[n][full_key].astype(np.float64)
-            has_target = s_full > 0
+            # Leave-one-out on full counts too
+            s_full_loo = np.maximum(s_full - 1.0, 0.0)
+            has_target = s_full_loo > 0
             if has_target.any():
                 pi = s_idx[has_target]
-                p_ng = np.clip(np.minimum(s_full[has_target], s_ctx[has_target]) /
-                               np.maximum(s_ctx[has_target], 1.0), 0.0, 1.0)
-                # Weight: higher orders and higher counts are more trustworthy
-                w = np.log1p(s_ctx[has_target]) * (n * n)
-                weighted_p_sum[pi] += p_ng * w
-                weight_sum[pi] += w
-                # Track highest matching order and its count
-                update_best = n > best_order[pi]
-                best_order[pi] = np.where(update_best, n, best_order[pi])
-                best_count[pi] = np.where(update_best, s_ctx[has_target], best_count[pi])
+                p_ng = np.minimum(s_full_loo[has_target], s_ctx_loo[has_target]) / np.maximum(s_ctx_loo[has_target], 1.0)
+                best_p[pi] = np.clip(p_ng, 0.0, 1.0)
+                match_orders[pi] = n
                 has_match[pi] = True
-        # Final interpolated probability
-        interp_p = np.where(weight_sum > 0, weighted_p_sum / weight_sum, 0.0)
-        return interp_p, has_match, best_order, best_count
+        return best_p, has_match, match_orders
 
-    def get_alpha(self, entropy, match_orders, match_counts):
-        """Count-weighted + order-adaptive alpha.
-        High counts = trust cache more. Singletons = trust less."""
+    def get_alpha(self, entropy, match_orders):
+        """PR 913's proven order-adaptive alpha. High orders trusted more."""
         order_frac = (match_orders - 2).astype(np.float64) / max(self.max_order - 2, 1)
         thresh_high = self.entropy_thresh + 1.0
         thresh_low = max(self.entropy_thresh - 2.0, 1.5)
         per_order_thresh = thresh_high - order_frac * (thresh_high - thresh_low)
         sig = 1.0 / (1.0 + np.exp(-2.0 * (entropy - per_order_thresh)))
         base_alpha = self.alpha_low + (self.alpha_high - self.alpha_low) * sig
-        # Order multiplier: order 2 -> 0.3x, order max -> 2.0x
-        order_mult = 0.3 + order_frac * 1.7
-        # Count confidence: log scale, singleton=low, high count=high
-        count_conf = np.clip(np.log1p(match_counts) / 8.0, 0.3, 1.0)
-        return np.clip(base_alpha * order_mult * count_conf, 0.0, 0.99)
+        mult = 0.3 + order_frac * 1.7  # order 2 -> 0.3x, order max -> 2.0x
+        return np.clip(base_alpha * mult, 0.0, 0.99)
 
 
 def eval_val_sliding_store(
@@ -1854,14 +1841,13 @@ def ngram_rescore(
     if N == 0:
         return 0.0, 0.0
 
-    # --- Stage 1: Interpolated n-gram scoring ---
-    ngram_prob_all, ng_match_all, ng_orders_all, ng_counts_all = cache.score_range(
+    # --- Stage 1: Greedy backoff n-gram scoring with leave-one-out ---
+    ngram_prob_all, ng_match_all, ng_orders_all = cache.score_range(
         tokens_np, 0, len(tokens_np)
     )
     ngram_prob = ngram_prob_all[positions]
     ng_match = ng_match_all[positions]
     ng_orders = ng_orders_all[positions]
-    ng_counts = ng_counts_all[positions]
 
     # Start with model_p
     p_blend = model_p.copy().astype(np.float64)
@@ -1869,7 +1855,7 @@ def ngram_rescore(
     # Blend n-gram on top of neural (stage 1)
     n_ngram = int(ng_match.sum())
     if n_ngram > 0:
-        alpha = cache.get_alpha(entropy[ng_match], ng_orders[ng_match], ng_counts[ng_match])
+        alpha = cache.get_alpha(entropy[ng_match], ng_orders[ng_match])
         p_blend[ng_match] = (1.0 - alpha) * p_blend[ng_match] + alpha * ngram_prob[ng_match]
 
     # --- Stage 2: Phrase on top (PR 913's sequential approach) ---
@@ -1947,7 +1933,7 @@ def eval_ngram_two_pass(
     cache = NgramCache(
         max_order=args.ngram_max_order,
         buckets=args.ngram_num_buckets,
-        min_count=1,  # singletons matter
+        min_count=1,  # leave-one-out handles self-inclusion
         alpha_high=0.95,
     )
     cache.build_full(tokens_np)
