@@ -945,19 +945,54 @@ class ParallelSlotByteDecoder(nn.Module):
 
 
 class TinyCausalDecoderBlock(nn.Module):
-    def __init__(self, dim: int, num_heads: int, mlp_mult: float):
+    def __init__(self, dim: int, num_heads: int, mlp_mult: float, use_cross_attention: bool = False):
         super().__init__()
         self.attn_norm = RMSNorm(dim)
+        self.cross_norm = RMSNorm(dim) if use_cross_attention else None
         self.mlp_norm = RMSNorm(dim)
         self.attn = JEPACausalSelfAttention(dim, num_heads)
+        self.cross_attn = CrossAttention(dim, num_heads) if use_cross_attention else None
         self.mlp = SwiGLUMLP(dim, hidden=int(dim * mlp_mult))
         self.attn_scale = nn.Parameter(torch.ones(dim))
+        self.cross_scale = nn.Parameter(torch.ones(dim)) if use_cross_attention else None
         self.mlp_scale = nn.Parameter(torch.ones(dim))
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, cond: Tensor | None = None) -> Tensor:
         x = x + self.attn_scale.to(x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
+        if self.cross_attn is not None:
+            if cond is None:
+                raise RuntimeError("decoder block requires cond when cross attention is enabled")
+            x = x + self.cross_scale.to(x.dtype)[None, None, :] * self.cross_attn(self.cross_norm(x), cond)
         x = x + self.mlp_scale.to(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
+
+
+class SlotByteBridge(nn.Module):
+    def __init__(self, patch_size: int, dim: int, num_heads: int, num_layers: int):
+        super().__init__()
+        self.patch_size = patch_size
+        self.byte_queries = nn.Parameter(torch.zeros(patch_size, dim))
+        self.context_seed = nn.Linear(dim, dim, bias=False)
+        self.blocks = nn.ModuleList([
+            TinyCausalDecoderBlock(dim, num_heads, mlp_mult=2.0, use_cross_attention=True)
+            for _ in range(max(num_layers, 1))
+        ])
+        self.final_norm = RMSNorm(dim)
+        self.out_proj = nn.Linear(dim, dim, bias=False)
+        nn.init.normal_(self.byte_queries, std=0.02)
+        for module in (self.context_seed, self.out_proj):
+            nn.init.xavier_uniform_(module.weight)
+
+    def forward(self, context_token: Tensor, cond: Tensor) -> Tensor:
+        B, P, _ = context_token.shape
+        x = self.byte_queries.to(context_token.dtype)[None, None, :, :].expand(B, P, -1, -1)
+        x = x + self.context_seed(context_token).unsqueeze(2)
+        x = x.view(B * P, self.patch_size, -1)
+        cond = cond.view(B * P, cond.size(2), -1)
+        for block in self.blocks:
+            x = block(x, cond)
+        x = self.out_proj(self.final_norm(x))
+        return x.view(B, P, self.patch_size, -1)
 
 
 class SlotAutoregressiveByteDecoder(nn.Module):
@@ -970,22 +1005,35 @@ class SlotAutoregressiveByteDecoder(nn.Module):
         num_layers: int,
         num_heads: int,
         mlp_mult: float,
+        bridge_layers: int,
     ):
         super().__init__()
         self.vocab_size = vocab_size
         self.stride = stride
-        self.slot_proj = nn.Linear(slot_dim, decoder_dim, bias=False)
+        self.context_proj = nn.Linear(slot_dim, decoder_dim, bias=False)
         self.byte_emb = nn.Embedding(vocab_size, decoder_dim)
         self.start_token = nn.Parameter(torch.zeros(decoder_dim))
-        self.pos_emb = nn.Parameter(torch.zeros(stride + 1, decoder_dim))
+        self.pos_emb = nn.Parameter(torch.zeros(stride, decoder_dim))
+        self.latent_bridge = (
+            SlotByteBridge(stride, decoder_dim, num_heads, bridge_layers)
+            if bridge_layers > 0
+            else None
+        )
+        if self.latent_bridge is not None:
+            self.bridge_scale = nn.Parameter(torch.ones(decoder_dim))
+        else:
+            self.register_parameter("bridge_scale", None)
         self.blocks = nn.ModuleList(
-            [TinyCausalDecoderBlock(decoder_dim, num_heads, mlp_mult) for _ in range(max(num_layers, 1))]
+            [
+                TinyCausalDecoderBlock(decoder_dim, num_heads, mlp_mult, use_cross_attention=True)
+                for _ in range(max(num_layers, 1))
+            ]
         )
         self.norm = RMSNorm(decoder_dim)
         self.out_proj = nn.Linear(decoder_dim, vocab_size, bias=False)
         nn.init.normal_(self.start_token, std=0.02)
         nn.init.normal_(self.pos_emb, std=0.02)
-        nn.init.xavier_uniform_(self.slot_proj.weight)
+        nn.init.xavier_uniform_(self.context_proj.weight)
 
     def forward(self, slot_context: Tensor, ids: Tensor) -> Tensor:
         B, T = ids.shape
@@ -1002,13 +1050,17 @@ class SlotAutoregressiveByteDecoder(nn.Module):
             )
         else:
             byte_inputs = self.start_token.to(slot_context.dtype)[None, None, None, :].expand(B, P, 1, -1)
-        slot_token = self.slot_proj(slot_context).unsqueeze(2)
-        x = torch.cat((slot_token, byte_inputs), dim=2)
+        x = byte_inputs
         x = x + self.pos_emb.to(x.dtype)[None, None, :, :]
-        x = x.view(B * P, S + 1, -1)
+        cond = self.context_proj(slot_context).unsqueeze(2)
+        if self.latent_bridge is not None:
+            bridge = self.latent_bridge(cond[:, :, 0], cond)
+            x = x + self.bridge_scale.to(x.dtype)[None, None, None, :] * bridge
+        x = x.view(B * P, S, -1)
+        cond = cond.view(B * P, 1, -1)
         for block in self.blocks:
-            x = block(x)
-        logits = self.out_proj(self.norm(x[:, 1:])).view(B, P * S, self.vocab_size)
+            x = block(x, cond)
+        logits = self.out_proj(self.norm(x)).view(B, P * S, self.vocab_size)
         return logits[:, :T]
 
 
@@ -1069,7 +1121,7 @@ class CompressedUTByteModel(nn.Module):
         self.compress_stride = args.compress_stride
         self.ut_steps = max(args.ut_steps, 1)
         self.decoder_type = args.decoder_type
-        self.has_jepa_stage = True
+        self.has_jepa_stage = args.train_stage in {"jepa", "joint"}
         self.pred_dim = args.pred_dim if args.pred_dim > 0 else max(args.model_dim // 2, 1)
         self.jepa_weight = args.jepa_weight
         self.ce_aux_weight = args.ce_aux_weight
@@ -1099,19 +1151,21 @@ class CompressedUTByteModel(nn.Module):
             train_len=max_slots,
         )
         self.encoder_norm = RMSNorm(args.model_dim)
-        pred_rope_dim = args.partial_rope_dim if args.partial_rope_dim > 0 else (self.pred_dim // max(args.pred_heads, 1))
-        self.predictor = CompressedUTPredictor(
-            in_dim=args.model_dim,
-            pred_dim=self.pred_dim,
-            out_dim=args.model_dim,
-            num_steps=args.pred_steps,
-            num_heads=args.pred_heads,
-            num_kv_heads=args.pred_kv_heads,
-            mlp_mult=args.pred_mlp_mult,
-            rope_dim=pred_rope_dim,
-            rope_base=args.rope_base,
-            train_len=max_slots,
-        )
+        self.predictor: CompressedUTPredictor | None = None
+        if self.has_jepa_stage:
+            pred_rope_dim = args.partial_rope_dim if args.partial_rope_dim > 0 else (self.pred_dim // max(args.pred_heads, 1))
+            self.predictor = CompressedUTPredictor(
+                in_dim=args.model_dim,
+                pred_dim=self.pred_dim,
+                out_dim=args.model_dim,
+                num_steps=args.pred_steps,
+                num_heads=args.pred_heads,
+                num_kv_heads=args.pred_kv_heads,
+                mlp_mult=args.pred_mlp_mult,
+                rope_dim=pred_rope_dim,
+                rope_base=args.rope_base,
+                train_len=max_slots,
+            )
         if args.decoder_type == "parallel":
             self.decoder = ParallelSlotByteDecoder(args.model_dim, args.vocab_size, args.compress_stride)
         else:
@@ -1123,6 +1177,7 @@ class CompressedUTByteModel(nn.Module):
                 num_layers=args.decoder_layers,
                 num_heads=args.decoder_heads,
                 mlp_mult=args.decoder_mlp_mult,
+                bridge_layers=args.decoder_bridge_layers,
             )
         nn.init.normal_(self.encoder_step_embed, std=0.02)
         nn.init.normal_(self.encoder_bos, std=0.02)
@@ -1244,6 +1299,8 @@ class CompressedUTByteModel(nn.Module):
 
         predictor_in = slots[:, :-1]
         target = slots[:, 1:].detach()
+        if self.predictor is None:
+            raise RuntimeError(f"TRAIN_STAGE={self.train_stage!r} requires a predictor for slot objectives")
         pred = self.predictor(predictor_in) if predictor_in.size(1) > 0 else target
         target_mask = self._slot_target_mask(ids.size(0), ids.size(1), slots.size(1), ids.device)
         jepa_loss = (
@@ -2127,8 +2184,8 @@ def main() -> None:
         log0(
             f"frontend: conv_kernels={','.join(str(k) for k in args.conv_kernels)} "
             f"conv_dilations={','.join(str(d) for d in args.conv_dilations)} decoder={args.decoder_type} "
-            f"dec_dim={args.decoder_dim} dec_layers={args.decoder_layers} dec_heads={args.decoder_heads} "
-            f"mlp={args.mlp_mult}x dec_mlp={args.decoder_mlp_mult}x"
+            f"dec_dim={args.decoder_dim} dec_layers={args.decoder_layers} dec_bridge={args.decoder_bridge_layers} "
+            f"dec_heads={args.decoder_heads} mlp={args.mlp_mult}x dec_mlp={args.decoder_mlp_mult}x"
         )
         if args.train_stage in {"jepa", "joint"}:
             pred_dim = args.pred_dim if args.pred_dim > 0 else max(args.model_dim // 2, 1)
