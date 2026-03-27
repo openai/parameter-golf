@@ -26,11 +26,22 @@ Focus : Scheduled Sampling
 - How does this fit with LeakyRelu and Trigram Hash? I was worried the mid step with high % of prediction tokens will start a chain of activation of wrong tokens but I realised that before we have reached the next step, the error would be corrected. 
 <img width="692" height="190" alt="Screenshot 2026-03-27 at 2 24 04 PM" src="https://github.com/user-attachments/assets/6ed8cb8e-d22a-4ce1-be2a-35030ccb7d2f" />
 
-- Result of running a smoke test on my machine with a batch of 500 
+- Result of running a smoke test on my machine with a batch of 500 : 
+   Result of running something new like this on my machine: Steps: 500
+  step 1: 6.94 ← random guessing
+  step 2: 18.83 ← relatively higher spike! 
+  step 3: 17.11 ↓ recovering
+  .
+  .
+  .
+  step 200: 4.77 ↓ improving
+ 
+ val_bpb: 2.367 (worse than my initial run), but apparently inconclusive because the step size might be too small. 
+ 
+ Fix: We can try starting scheduled sampling after a good amount of learning. Maybe after the first 100 steps. Let's see how that runs.
 
 
-
-Key insights: 
+## Key insights
 - Where is the model not communicating when it should be? That gap is always an opportunity.
 - On a larger scale, when is complicated too complicated? 
 - Which idea should be picked? How does one work within these resource constraints? 
