@@ -1,19 +1,15 @@
 {
-  "val_bpb_mean": 1.1093,
-  "val_bpb_std": 0.0045,
-  "seeds": [42, 1337, 2025],
+  "val_bpb": 1.1360,
+  "seeds": [1337],
   "val_bpb_per_seed": {
-    "42": 1.10479056,
-    "1337": 1.10915711,
-    "2025": 1.11382724
+    "1337": 1.13599509
   },
   "artifact_size_bytes_per_seed": {
-    "42": 15748212,
-    "1337": 15665617,
-    "2025": 15649856
+    "1337": 15869829
   },
   "training_time_seconds": 600,
-  "eval_time_seconds": 543,
+  "eval_time_seconds": 125,
   "hardware": "8xH100 SXM 80GB",
-  "author": "aruniyer"
+  "author": "aruniyer",
+  "status": "draft"
 }
