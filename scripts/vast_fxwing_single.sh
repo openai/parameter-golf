@@ -74,7 +74,8 @@ echo "==> Searching for 1x${GPU} offers (on-demand, <= \$${MAX_PRICE}/hr)..."
 OFFER_JSON="$(vastai search offers "gpu_name=${GPU} num_gpus=1 reliability>${MIN_RELIABILITY} rentable=True" -t on-demand -o dph_total --raw 2>/dev/null)"
 [[ -n "${OFFER_JSON}" && "${OFFER_JSON}" != "[]" ]] || { echo "ERROR: No ${GPU} offers found"; exit 1; }
 
-OFFER_ROW="$(echo "${OFFER_JSON}" | jq -c --arg max "${MAX_PRICE}" 'map(select((.dph_total // 1e9) <= ($max|tonumber))) | .[0]')"
+# 33510639 = 103.42.50.244 — SSH never connects (blacklisted after 3 failures)
+OFFER_ROW="$(echo "${OFFER_JSON}" | jq -c --arg max "${MAX_PRICE}" 'map(select((.dph_total // 1e9) <= ($max|tonumber) and (.ask_contract_id // .id) != 33510639)) | .[0]')"
 [[ -n "${OFFER_ROW}" && "${OFFER_ROW}" != "null" ]] || { echo "ERROR: No offers at or below \$${MAX_PRICE}/hr for ${GPU}"; exit 1; }
 
 OFFER_ID="$(echo "${OFFER_ROW}"   | jq -r '(.ask_contract_id // .id)')"
@@ -123,10 +124,11 @@ SSH_CMD="ssh -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new -i ${SSH_K
 SCP_CMD="scp -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new -i ${SSH_KEY} -P ${SSH_PORT}"
 
 echo "==> Testing SSH (${SSH_HOST}:${SSH_PORT})..."
-for i in 1 2 3 4 5 6 7 8; do
+for i in $(seq 1 24); do
   if ${SSH_CMD} "echo OK" 2>/dev/null | grep -q OK; then break; fi
-  sleep 5
-  [[ $i -eq 8 ]] && { echo "ERROR: SSH not ready after 40s"; exit 1; }
+  echo "    SSH not ready yet (attempt ${i}/24)..."
+  sleep 10
+  [[ $i -eq 24 ]] && { echo "ERROR: SSH not ready after 240s"; exit 1; }
 done
 
 # ── Setup repo ────────────────────────────────────────────────────────────────
