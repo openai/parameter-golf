@@ -6,7 +6,7 @@ Short convolutions are highly effective in this regime, providing strong improve
 
 We introduce **Mixture of Convolutions (MoC)**, where each token constructs its own convolutional kernel as a mixture over a small shared set of basis kernels.
 
-This enables **token-adaptive local operators** while preserving the stability of short convolutions.
+This enables **token-adaptive local operators** while preserving the parameter efficiency and training stability of standard short convolution.
 
 ---
 
