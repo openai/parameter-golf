@@ -47,7 +47,7 @@ NUM_KV_HEADS = 4
 MLP_MULT = 3
 TIE_EMBEDDINGS = True
 ROPE_BASE = 10000.0
-ROPE_DIM = 16                    # number of head dims to apply rotary to (0=full, 16=partial like SOTA)
+ROPE_DIM = 8                     # number of head dims to apply rotary to (0=full, 16=partial like SOTA)
 LOGIT_SOFTCAP = 8.0
 QK_GAIN_INIT = 1.5
 
@@ -74,7 +74,7 @@ ADAM_EPS = 1e-8
 GRAD_CLIP_NORM = 0.0
 
 # ── SOTA Technique Flags ─────────────────────────────────────────────────────
-ACTIVATION = "leaky_relu_sq"  # "silu" | "relu_sq" | "leaky_relu_sq"
+ACTIVATION = "silu"           # "silu" | "relu_sq" | "leaky_relu_sq"
 SMEAR_GATE_ENABLED = True     # blend each token with previous token's embedding
 ORTHOGONAL_INIT = True        # orthogonal init for weight matrices (SOTA uses this)
 SWA_ENABLED = False           # SWA consistently degrades by 0.008 with warmdown schedule
