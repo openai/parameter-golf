@@ -41,6 +41,7 @@ def env_flag(name: str, default: bool) -> bool:
 
 class Hyperparameters:
     model_family = os.environ.get("MODEL_FAMILY", "two_stage_jepa").strip().lower()
+    compressed_ut_family = model_family in {"compressed_ut", "utcompress", "ut_byte_ce"}
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_bytes")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
@@ -65,7 +66,7 @@ class Hyperparameters:
     bos_id = int(os.environ.get("BOS_ID", 0))
     byte_offset = int(os.environ.get("BYTE_OFFSET", 0))
     byte_count = int(os.environ.get("BYTE_COUNT", 256))
-    byte_dim = int(os.environ.get("BYTE_DIM", 256))
+    byte_dim = int(os.environ.get("BYTE_DIM", 384 if compressed_ut_family else 256))
     compress_stride = int(os.environ.get("COMPRESS_STRIDE", 4))
     ut_steps = int(os.environ.get("UT_STEPS", 4))
     decoder_type = os.environ.get("DECODER_TYPE", "slot_ar").strip().lower()
@@ -80,16 +81,16 @@ class Hyperparameters:
     ce_aux_weight = float(os.environ.get("CE_AUX_WEIGHT", 0.1))
     joint_ce_weight = float(os.environ.get("JOINT_CE_WEIGHT", 1.0))
 
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    model_dim = int(os.environ.get("MODEL_DIM", 1024 if compressed_ut_family else 512))
     num_layers = int(os.environ.get("NUM_LAYERS", 12))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
-    partial_rope_dim = int(os.environ.get("PARTIAL_ROPE_DIM", 16))
+    mlp_mult = float(os.environ.get("MLP_MULT", 4.0 if compressed_ut_family else 3.0))
+    partial_rope_dim = int(os.environ.get("PARTIAL_ROPE_DIM", 32 if compressed_ut_family else 16))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 96 if compressed_ut_family else 64))
 
     train_stage = os.environ.get("TRAIN_STAGE", "jepa").strip().lower()
     load_model_path = os.environ.get("LOAD_MODEL_PATH", "").strip()
@@ -111,10 +112,10 @@ class Hyperparameters:
     sigreg_weight = float(os.environ.get("SIGREG_WEIGHT", 0.05))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
-    decoder_dim = int(os.environ.get("DECODER_DIM", 256))
-    decoder_layers = int(os.environ.get("DECODER_LAYERS", 3))
+    decoder_dim = int(os.environ.get("DECODER_DIM", 192 if compressed_ut_family else 256))
+    decoder_layers = int(os.environ.get("DECODER_LAYERS", 1 if compressed_ut_family else 3))
     decoder_heads = int(os.environ.get("DECODER_HEADS", 4))
-    decoder_mlp_mult = float(os.environ.get("DECODER_MLP_MULT", 2.0))
+    decoder_mlp_mult = float(os.environ.get("DECODER_MLP_MULT", 4.0 if compressed_ut_family else 2.0))
     decoder_bridge_layers = int(os.environ.get("DECODER_BRIDGE_LAYERS", 1))
 
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -136,6 +137,15 @@ class Hyperparameters:
 
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 16))
+    ttt_enabled = env_flag("TTT_ENABLED", False)
+    ttt_lr = float(os.environ.get("TTT_LR", 5e-4))
+    ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 0.0))
+    ttt_beta1 = float(os.environ.get("TTT_BETA1", 0.9))
+    ttt_beta2 = float(os.environ.get("TTT_BETA2", 0.999))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 1))
+    ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
+    ttt_scope = os.environ.get("TTT_SCOPE", "decoder").strip().lower()
+    ttt_grad_clip_norm = float(os.environ.get("TTT_GRAD_CLIP_NORM", 1.0))
 
     use_compile = env_flag("USE_COMPILE", os.name != "nt")
 
@@ -1268,6 +1278,14 @@ class CompressedUTByteModel(nn.Module):
         total = (loss * mask).sum() / mask.sum().clamp_min(1.0)
         return total, total.detach()
 
+    def _ce_logits(self, ids: Tensor, *, backbone_no_grad: bool = False) -> Tensor:
+        ctx = torch.no_grad() if backbone_no_grad else torch.enable_grad()
+        with ctx:
+            slots, _pad = self._encode_slots(ids)
+            slot_context = self._shift_slots(slots)
+        logits = self._decode_from_context(slot_context, ids)
+        return self.args.logit_softcap * torch.tanh(logits / self.args.logit_softcap)
+
     def forward_logits(
         self,
         ids: Tensor,
@@ -1276,19 +1294,19 @@ class CompressedUTByteModel(nn.Module):
         return_jepa_state: bool = False,
     ) -> Tensor | tuple[Tensor, JEPAState | None]:
         del jepa_state
-        slots, _pad = self._encode_slots(ids)
-        context_prev = self._shift_slots(slots)
-        logits = self._decode_from_context(context_prev, ids)
-        logits = self.args.logit_softcap * torch.tanh(logits / self.args.logit_softcap)
+        logits = self._ce_logits(ids)
         if return_jepa_state:
             return logits, None
         return logits
 
-    def forward_ce(self, ids: Tensor) -> tuple[Tensor, Tensor]:
-        slots, _pad = self._encode_slots(ids)
-        logits = self._decode_from_context(self._shift_slots(slots), ids)
-        logits = self.args.logit_softcap * torch.tanh(logits / self.args.logit_softcap)
+    def forward_ce(self, ids: Tensor, *, backbone_no_grad: bool = False) -> tuple[Tensor, Tensor]:
+        logits = self._ce_logits(ids, backbone_no_grad=backbone_no_grad)
         return self._ce_from_logits(logits, ids)
+
+    def forward_ttt(self, ids: Tensor, *, scope: str) -> Tensor:
+        if scope != "decoder":
+            raise ValueError(f"Compressed UT TTT supports only TTT_SCOPE='decoder', got {scope!r}")
+        return self.forward_ce(ids, backbone_no_grad=True)[0]
 
     def _forward_slot_objective(self, ids: Tensor, *, ce_weight: float) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         slots, _pad = self._encode_slots(ids)
@@ -1834,6 +1852,11 @@ class CausalJEPA(nn.Module):
         total = (loss * mask).sum() / mask.sum().clamp_min(1.0)
         return total, total.detach()
 
+    def forward_ttt(self, ids: Tensor, *, scope: str) -> Tensor:
+        if scope != "decoder":
+            raise ValueError(f"Causal JEPA TTT supports only TTT_SCOPE='decoder', got {scope!r}")
+        return self.forward_decoder(ids)[0]
+
     def forward_logits(
         self,
         ids: Tensor,
@@ -2002,6 +2025,100 @@ def eval_val_sliding(
 
     val_loss = float((loss_sum / tok_count.clamp_min(1.0)).item())
     val_bpb = float(loss_sum.item() / (math.log(2.0) * byte_cnt.clamp_min(1.0).item()))
+    model.train()
+    return val_loss, val_bpb
+
+
+def select_ttt_named_parameters(model: nn.Module, scope: str) -> list[tuple[str, nn.Parameter]]:
+    named = list(model.named_parameters())
+    if scope == "decoder":
+        return [(name, param) for name, param in named if name.startswith("decoder.")]
+    if scope == "all":
+        return named
+    raise ValueError(f"Unsupported TTT_SCOPE={scope!r}")
+
+
+def eval_val_ttt_score_first(
+    args: Hyperparameters,
+    model: nn.Module,
+    device: torch.device,
+    val_tokens: Tensor,
+    byte_lut: Tensor,
+    amp_dtype: torch.dtype,
+) -> tuple[float, float]:
+    named_ttt_params = select_ttt_named_parameters(model, args.ttt_scope)
+    if not named_ttt_params:
+        raise ValueError(f"No parameters selected for TTT_SCOPE={args.ttt_scope!r}")
+    for param in model.parameters():
+        param.requires_grad_(False)
+    for _, param in named_ttt_params:
+        param.requires_grad_(True)
+    optimizer = torch.optim.AdamW(
+        [param for _, param in named_ttt_params],
+        lr=args.ttt_lr,
+        betas=(args.ttt_beta1, args.ttt_beta2),
+        eps=args.adam_eps,
+        weight_decay=args.ttt_weight_decay,
+        fused=False,
+    )
+
+    total_tokens = val_tokens.numel()
+    if total_tokens <= 1:
+        raise ValueError("Validation split too short for TTT eval")
+    ctx_len = max(int(args.train_seq_len), 2)
+    stride = max(int(args.eval_stride), 1)
+    chunk_tokens = max(int(args.ttt_chunk_tokens), ctx_len)
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    tok_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    for chunk_start in range(0, total_tokens, chunk_tokens):
+        chunk_end = min(chunk_start + chunk_tokens, total_tokens)
+        history_start = max(0, chunk_start - ctx_len + 1)
+        with torch.inference_mode():
+            for ws in range(history_start, chunk_end, stride):
+                we = min(ws + ctx_len, total_tokens)
+                if we - ws <= 1:
+                    continue
+                x = val_tokens[ws:we].to(device=device, dtype=torch.int64, non_blocking=True).unsqueeze(0)
+                with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=device.type == "cuda"):
+                    logits = model.forward_logits(x)
+                nll = F.cross_entropy(
+                    logits.reshape(-1, model.vocab_size).float(),
+                    x.reshape(-1),
+                    reduction="none",
+                ).view(-1).to(torch.float64)
+                score_start = max(max((we - ws) - stride, 1), chunk_start - ws)
+                score_end = min(we - ws, chunk_end - ws)
+                if score_end <= score_start:
+                    continue
+                scored_tokens = x[0, score_start:score_end]
+                loss_sum += nll[score_start:score_end].sum()
+                tok_count += float(score_end - score_start)
+                byte_count += byte_lut[scored_tokens].to(torch.float64).sum()
+
+        model.train()
+        for _ in range(max(args.ttt_epochs, 1)):
+            for ws in range(chunk_start, chunk_end, ctx_len):
+                seg_end = min(ws + ctx_len, chunk_end)
+                seg_start = max(0, ws - 1)
+                if seg_end - seg_start <= 1:
+                    continue
+                ids = val_tokens[seg_start:seg_end].to(device=device, dtype=torch.int64, non_blocking=True).unsqueeze(0)
+                optimizer.zero_grad(set_to_none=True)
+                with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=device.type == "cuda"):
+                    loss = model.forward_ttt(ids, scope=args.ttt_scope)
+                loss.backward()
+                if args.ttt_grad_clip_norm > 0:
+                    torch.nn.utils.clip_grad_norm_([param for _, param in named_ttt_params], args.ttt_grad_clip_norm)
+                optimizer.step()
+                model.zero_pad_emb_()
+        model.eval()
+
+    val_loss = float((loss_sum / tok_count.clamp_min(1.0)).item())
+    val_bpb = float(loss_sum.item() / (math.log(2.0) * byte_count.clamp_min(1.0).item()))
     model.train()
     return val_loss, val_bpb
 
@@ -2208,6 +2325,11 @@ def main() -> None:
          f"warmdown={args.warmdown_iters} warmup={args.warmup_steps}")
     log0(f"eval: stride={args.eval_stride} int6={int(args.int6_enabled)} "
          f"zstd={int(args.use_zstd)} seed={args.seed}")
+    if args.ttt_enabled:
+        log0(
+            f"ttt: scope={args.ttt_scope} lr={args.ttt_lr:g} wd={args.ttt_weight_decay:g} "
+            f"epochs={args.ttt_epochs} chunk_tokens={args.ttt_chunk_tokens} clip={args.ttt_grad_clip_norm:g}"
+        )
 
     loader = DistributedLoader(args.train_files, rank, world_size, device)
 
@@ -2427,6 +2549,24 @@ def main() -> None:
     log0(f"final_quant_roundtrip val_loss:{q_loss:.4f} val_bpb:{q_bpb:.4f} "
          f"eval_scope:{scope} val_tokens:{final_val.numel()} eval_time:{1000*(time.perf_counter()-t_qe):.0f}ms")
     log0(f"final_quant_roundtrip_exact val_loss:{q_loss:.8f} val_bpb:{q_bpb:.8f}")
+
+    if args.ttt_enabled:
+        if distributed:
+            dist.barrier()
+            if not master:
+                dist.destroy_process_group()
+                return
+            dist.destroy_process_group()
+        torch.cuda.synchronize()
+        t_ttt = time.perf_counter()
+        ttt_loss, ttt_bpb = eval_val_ttt_score_first(args, base_model, device, final_val, byte_lut, amp_dtype)
+        torch.cuda.synchronize()
+        log0(
+            f"final_ttt_score_first val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} "
+            f"eval_scope:{scope} val_tokens:{final_val.numel()} eval_time:{1000*(time.perf_counter()-t_ttt):.0f}ms"
+        )
+        log0(f"final_ttt_score_first_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
+        return
 
     if distributed:
         dist.destroy_process_group()
