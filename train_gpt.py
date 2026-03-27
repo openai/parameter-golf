@@ -1268,8 +1268,7 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
-    if args.auto_stop_step > 0 and args.auto_stop_max_val_bpb > 0:
-        log0(f"auto_stop_step:{args.auto_stop_step} auto_stop_max_val_bpb:{args.auto_stop_max_val_bpb:.4f}")
+    if args.auto_stop_step > 0 and args.auto_stop_max_val_bpb > 0: log0(f"auto_stop_step:{args.auto_stop_step} auto_stop_max_val_bpb:{args.auto_stop_max_val_bpb:.4f}")
     log0(f"seed:{args.seed}")
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
@@ -1317,7 +1316,6 @@ def main() -> None:
         if distributed:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
-
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
@@ -1417,10 +1415,11 @@ def main() -> None:
         if stop_after_step is None and reached_cap:
             stop_after_step, stop_reason = step, "wallclock_cap"
 
-    log0(
-        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
-        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
-    )
+    log0(f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB")
+    if stop_reason == "quality_gate":
+        log0("quality_gate_exit: skipping export and final eval")
+        if distributed: dist.destroy_process_group()
+        return
     final_state = swa_state if swa_state is not None else ema_state if ema_state is not None else export_state_dict(base_model)
     if master_process:
         torch.save(final_state, "final_model.pt")
