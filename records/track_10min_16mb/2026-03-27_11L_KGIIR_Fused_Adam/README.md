@@ -1,7 +1,7 @@
 # Kinematic Gated IIR (KGIIR) Trajectory Mixing
 
 **Author:** Adam Jacuch  
-**Base Architecture:** [Abay Bektursun](https://github.com/abaybektursun)
+**Base Architecture:** [Abay Bektursun](https://github.com/abaybektursun)  
 **Validation BPB:** 1.11837  
 **Throughput:** 88ms / step (8xH100)
 
