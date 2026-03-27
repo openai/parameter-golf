@@ -1,9 +1,0 @@
-{
-  "name": "TurboQuant + Full-Rescore N-gram Cache (13L/576d/3.5x)",
-  "val_bpb": 0.1653,
-  "bytes_total": 15352887,
-  "blurb": "13L/576d/8h/4kv/3.5x MLP (44.2M params) with TurboQuant rotation-based Lloyd-Max codebook quantization (2/3/4-bit mixed, progressive QAT). Two-pass full-rescore n-gram cache (orders 2-12, 16M buckets) from PR #870. 3-seed mean val_bpb: 0.1653 (std 0.0010). EMA(0.997), Muon+AdamW, LeakyReLU(0.5)^2, XSA last 4, BigramHash(2048), partial RoPE(16), U-Net skips, SmearGate. No TTT.",
-  "author": "koltondrake",
-  "github_id": "haikosys",
-  "date": "2026-03-27"
-}
