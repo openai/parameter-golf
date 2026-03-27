@@ -563,7 +563,7 @@ class CausalSelfAttention(nn.Module):
   if self.use_coda and self.coda_theta is not None:
    cos_t = torch.cos(self.coda_theta).to(dtype=q.dtype, device=q.device)
    sin_t = torch.sin(self.coda_theta).to(dtype=q.dtype, device=q.device)
-   q_noise = _coda_pairwise_rotate(q, cos_t[None, :, None, :], sin_t[None, :, None, :])
+   q_noise = _coda_pairwise_rotate(q, cos_t[None, None, :, :], sin_t[None, None, :, :])
    if _HAS_FA3:
     y_noise = flash_attn_3_func(q_noise, k, v, causal=True)
    else:
