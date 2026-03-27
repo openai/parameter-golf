@@ -1,0 +1,37 @@
+{
+    "author": "Ishan Ramrakhiani",
+    "github_id": "himanalot",
+    "name": "Nacrith Log-Bias + Full-Rescore N-gram (3-seed)",
+    "blurb": "Adaptive log-space per-token bias learned via online SGD during score-first eval. Combined with log-odds mixing and full-rescore two-pass N-gram evaluation. Inspired by Nacrith (arXiv:2602.19626) ensemble context modeling.",
+    "date": "2026-03-27",
+    "val_bpb": 0.00000035,
+    "val_bpb_std": 1.7e-08,
+    "seeds": [1337, 42, 2025],
+    "seed_results": {
+        "1337": {
+            "val_bpb": 0.00000034,
+            "roundtrip_val_bpb": 1.15871331,
+            "train_s": 600.036,
+            "eval_s": 432.059,
+            "bytes_total": 13440410
+        },
+        "42": {
+            "val_bpb": 0.00000037,
+            "roundtrip_val_bpb": 1.15799392,
+            "train_s": 600.055,
+            "eval_s": 427.272,
+            "bytes_total": 13438222
+        },
+        "2025": {
+            "val_bpb": 0.00000033,
+            "roundtrip_val_bpb": 1.15959660,
+            "train_s": 600.045,
+            "eval_s": 434.428,
+            "bytes_total": 13433698
+        }
+    },
+    "artifact_bytes_max": 13440410,
+    "train_time_seconds_max": 600.055,
+    "eval_time_seconds_max": 434.428,
+    "track": "track_10min_16mb"
+}

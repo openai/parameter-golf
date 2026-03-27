@@ -1,0 +1,6 @@
+numpy
+sentencepiece
+torch>=2.10.0
+zstandard
+flash-attn
+liger-kernel
