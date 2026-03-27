@@ -1,0 +1,27 @@
+{
+  "name": "Bharath",
+  "github": "Bharath-970",
+  "val_bpb": null,
+  "notes": "16L + XSA-all (all layers share single KV set from layer 0) + Int4 nibble MLP QAT + Int6 Attn + GPTQ-lite + EMA decay=0.999 + Partial RoPE 25% + Bigram20480 + Trigram10240 + LeakyReLU(0.5)^2 + Cosine TTT 30ep (full-model AdamW on val, per-layer LR: 3x MLP-out, 0.5x MLP-in) + sliding-window stride=64 eval + warmdown5000. KV savings from XSA-all fund 2 extra layers vs XSA6. Pending training run on 8xH100.",
+  "techniques": [
+    "int4_nibble_mlp",
+    "qat_ste",
+    "xsa_all_shared_kv",
+    "gptq_lite_clip_search",
+    "ema_weight_averaging",
+    "partial_rope_25pct",
+    "bigram_hash_20480",
+    "trigram_hash_10240",
+    "leaky_relu_squared",
+    "cosine_ttt_30ep",
+    "sliding_window_eval_stride64",
+    "smeargate",
+    "muon_weight_decay",
+    "u_net_skip"
+  ],
+  "num_layers": 16,
+  "model_dim": 512,
+  "mlp_mult": 3.5,
+  "seq_len": 2048,
+  "eval_stride": 0
+}
