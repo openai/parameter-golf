@@ -35,9 +35,11 @@ All-reduce sync cost: 1.6–2.0s total. The first three configs fit within the 6
 
 Alpha sweep (8-GPU, backoff 2-7): α=0.20 → 0.6180, α=0.40 → 0.4941, α=0.60 → 0.4263, α=0.80 → 0.3942. Higher alpha is monotonically better — the opposite of PR #727's finding (0.9674 BPB). With a global cache, the n-gram is reliable enough that the model should defer to it more, not less. The best alpha (0.80) exceeds the time budget, so in practice α=0.40–0.60 is the operating range.
 
-### Hash collision analysis
+### Hash collision analysis — the reported BPB scores are inflated
 
-We swept bucket counts from 1M to 256M expecting more buckets = fewer collisions = better accuracy. The opposite happened:
+**Update:** our original explanation of the collision mechanism was incomplete. Credit to @Eppie ([comment](https://github.com/openai/parameter-golf/issues/677#issuecomment-4139902162)) for identifying the probability validity issue, and to Mirco on Discord for the `P(cache_bin)` formulation.
+
+We swept bucket counts from 1M to 256M:
 
 | Buckets | BPB | Table memory |
 |--------:|----:|---------:|
@@ -46,7 +48,13 @@ We swept bucket counts from 1M to 256M expecting more buckets = fewer collisions
 | 64M | 1.0629 | 3 GB |
 | 256M | 1.1123 | 12 GB |
 
-With 256M buckets, the table is so sparse that most n-grams have count=1 and fail the `min_count ≥ 2` threshold. Collisions at smaller table sizes merge similar n-grams together, artificially boosting counts above threshold. The hash table is functioning as a lossy count-min sketch, not an exact lookup. [Standard literature](https://en.wikipedia.org/wiki/Count%E2%80%93min_sketch) treats collisions as error to minimize. The BPB improvement depends on this interaction between hash density and the count threshold.
+The hash ratio `full_table[hash(ctx, tok)] / ctx_table[hash(ctx)]` is not a conditional probability. The two tables use different hash functions mapping to the same number of buckets. With 1M buckets and 62M tokens, each bucket averages ~62 entries in both tables. The ratio of two similarly-populated buckets approaches 1.0. This is `P(cache_bin)` — a collision-aggregated hash ratio, not `P(tok | ctx)`.
+
+The blend `(1-α) * p_model + α * P(cache_bin)` with `P(cache_bin) ≈ 1.0` pushes the correct token's probability up. But the blend is only computed for the correct token. If you computed it for all 1024 tokens, each would also get `P(cache_bin) ≈ 1.0`. The distribution would sum to far more than 1. After renormalization, the n-gram contribution washes out.
+
+The 1-bucket extreme makes this obvious: `P(cache_bin) = T/T = 1.0` for every lookup. Perfect (fake) score.
+
+The reported BPB numbers are not achievable by a valid compressor. With collision-free tables and proper normalization, n-grams would provide at most a modest improvement from genuine corpus repetition.
 
 ### What the n-gram cache is
 
