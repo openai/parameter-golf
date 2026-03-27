@@ -1,0 +1,11 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "SGD Momentum 0.95 TTT + HedgeMixer + Per-Layer LR",
+  "blurb": "Built on PR #720 by @agalimova. SGD TTT with momentum=0.95 (vs 0.9), per-layer LR groups, cosine schedule. 3-seed mean 1.0362 BPB, lower variance than momentum=0.9.",
+  "date": "2026-03-27",
+  "val_loss": 1.75643533,
+  "val_bpb": 1.03619517,
+  "bytes_total": 15672158,
+  "bytes_code": 102023
+}
