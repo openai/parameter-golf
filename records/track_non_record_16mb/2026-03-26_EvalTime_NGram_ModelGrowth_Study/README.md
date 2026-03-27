@@ -92,6 +92,8 @@ This creates a gap between what the competition measures and what matters in pra
 | **Time budget** | 600 seconds for 62M tokens | < 200ms per request |
 | **Hardware** | 8x H100 80GB (640 GB VRAM) | Often 1 GPU, sometimes CPU |
 | **Model size** | 16 MB artifact; eval-time state unconstrained | Total model must fit deployment target |
+| **Causality** | Assumed, not enforced | Physical fact |
+| **Distribution validity** | Not checked | Required for generation |
 
 Each dimension matters:
 
@@ -104,6 +106,10 @@ Each dimension matters:
 **4. Real-world evaluation.** In production, a language model scores individual prompts. Each query arrives independently. There is no corpus-level repetition to exploit. The n-gram cache's power comes entirely from within-corpus repetition. On a stream of independent queries, the cache starts empty for each request and provides no benefit.
 
 **5. Inference speed.** The n-gram cache roughly doubles eval time (606s → 1,079s for backoff 2-7). The overhead is constant per token — it doesn't get worse as the cache fills — but a flat 2x slowdown matters when your latency budget is 50–200ms. You pay the per-token cost on every request, but you only get the BPB benefit after millions of tokens of contiguous corpus. On a 500-token prompt, you get the slowdown without the payoff.
+
+**6. Causality is not optional.** In real-world inference, causality is a physical fact — you can't use tokens you haven't generated yet. In the competition, it's an assumption that isn't enforced. Two-pass rescoring scores every token twice: once to build a cache, then again using that cache. Pass 2 rescores token #100 with a cache containing tokens #101 through #62M. No real system works this way.
+
+**7. Probabilities must sum to 1.** A language model assigns a probability to every possible next token. Those probabilities must sum to 1 — that's what makes them probabilities. Current n-gram implementations blend a hash ratio into the correct token's probability without adjusting the other 1,023 tokens. The distribution sums to far more than 1. The BPB metric trusts that it's receiving a valid probability, but it isn't. In deployment, a model that outputs invalid distributions can't be used for generation, sampling, or compression.
 
 ### The core tension
 
@@ -133,13 +139,15 @@ TTT and LoRA adaptation follow the same principle as the n-gram cache — build 
 
 ## Proposal
 
-### 0. Enforce causality explicitly
+#### The two essential fixes:
 
-The competition assumes causality but the rules don't state it as an explicit requirement. The FAQ says you can only train on tokens "you've already evaluated your model on," but this is guidance, not a formal rule. Two-pass rescoring (PRs #846, #853, #868, #870, #881, #888) violates causality: pass 2 rescores token #100 using a cache built from tokens #101 through #62M. Causality should be a stated rule, not an implicit assumption.
+### 1. Make causality an explicit rule
 
-### 1. Verify the distribution sums to 1
+The competition assumes causality but the rules don't state it as a formal requirement. The FAQ says you can only train on tokens "you've already evaluated your model on," but this is guidance, not a formal rule. Two-pass rescoring (PRs #846, #853, #868, #870, #881, #888) violates causality: pass 2 rescores token #100 using a cache built from tokens #101 through #62M. Causality should be a stated rule, not an implicit assumption.
 
-The most fundamental fix. Require the model to produce a full probability vector over all K tokens at every scored position. The eval script verifies `sum(probs) ≈ 1.0` before scoring:
+### 2. Verify the distribution sums to 1
+
+Require the model to produce a full probability vector over all K tokens at every scored position. The eval script verifies `sum(probs) ≈ 1.0` before scoring:
 
 ```python
 probs = model.predict(context)        # shape: [vocab_size]
@@ -151,17 +159,21 @@ One `torch.sum` per position. Cost: 1–2 seconds for 62M tokens. Negligible.
 
 This catches every invalid distribution: hash-ratio inflation (sum ≈ 410), single-token hacks (sum = K), any post-softmax modification that doesn't renormalize. It passes everything valid: softmax outputs, linear interpolation of valid distributions, Dirichlet-Multinomial, TTT, LoRA, GPTQ. Not n-gram specific. A general invariant the eval should enforce.
 
-### 2. Cap auxiliary eval-time state
+These two fixes solve the immediate problem. But they leave a structural gap: nothing prevents the model from growing unboundedly during eval with valid distributions and preserved causality. Someone could train a second, larger model during eval via self-distillation (outputs go through softmax, score-first, valid and causal). Or load 8 copies of the model and ensemble them via divergent TTT. Or store 63 GB of hidden states and use cross-attention as a neural cache. All valid. All causal. All far beyond 16 MB.
 
-Even with valid distributions, the model can grow unboundedly at eval time. Constrain **auxiliary state**: tensors that accumulate during eval and are not derivable from the artifact alone (hash tables, TTT LoRA deltas, anything that persists across batches). Not model weights (deterministic decompression of artifact), not KV cache (recomputed each window), not activations (transient).
+#### Worth considering if the competition wants to reflect deployment:
+
+### 3. Cap auxiliary eval-time state
+
+Constrain **auxiliary state**: tensors that accumulate during eval and are not derivable from the artifact alone (hash tables, TTT LoRA deltas, anything that persists across batches). Not model weights (deterministic decompression of artifact), not KV cache (recomputed each window), not activations (transient).
 
 A cap of auxiliary state ≤ 32 MB preserves everything currently approved (TTT LoRA at ~2 MB) while constraining techniques that grow the effective model by 10–250x.
 
-### 3. Cap per-token overhead
+### 4. Cap per-token overhead
 
-Eval-time techniques must not increase per-token latency by more than 50% over the base model forward pass. Base LM on 8×H100 takes 110s. A 1.5× cap means 165s max. The n-gram cache takes 401s (3.6×). Catches two-pass rescoring mechanically.
+Eval-time techniques must not increase per-token latency by more than 50% over the base model forward pass. Base LM on 8×H100 takes 110s. A 1.5× cap means 165s max. The n-gram cache takes 401s (3.6×).
 
-All three fixes preserve everything currently approved.
+All fixes preserve everything currently approved. Fixes 1 and 2 are the most urgent. Fixes 3 and 4 address the structural problem that persists even with honest scores.
 
 ---
 
