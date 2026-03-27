@@ -54,21 +54,23 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 5))
+    model_dim = int(os.environ.get("MODEL_DIM", 640))
+    num_heads = int(os.environ.get("NUM_HEADS", 10))
     mlp_mult = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    z_loss_weight = float(os.environ.get("Z_LOSS_WEIGHT", 1e-4))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -77,14 +79,14 @@ class Hyperparameters:
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
-    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     use_ngram_eval = bool(int(os.environ.get("USE_NGRAM_EVAL", "0")))
     ngram_order = int(os.environ.get("NGRAM_ORDER", "9"))
@@ -723,9 +725,11 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 class Rotary(nn.Module):
     # Caches cos/sin tables per sequence length on the current device.
-    def __init__(self, dim: int, base: float = 10000.0):
+    # rope_dims controls partial RoPE: only the first rope_dims dims get rotated.
+    def __init__(self, dim: int, base: float = 10000.0, rope_dims: int = 0):
         super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        self.rope_dims = rope_dims if rope_dims > 0 else dim
+        inv_freq = 1.0 / (base ** (torch.arange(0, self.rope_dims, 2, dtype=torch.float32) / self.rope_dims))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
@@ -747,6 +751,13 @@ class Rotary(nn.Module):
 
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    rd = cos.size(-1)  # rope_dims // 2
+    if rd * 2 < x.size(-1):
+        # Partial RoPE: only rotate the first rope_dims dimensions
+        x_rope, x_pass = x[..., :rd*2], x[..., rd*2:]
+        x1, x2 = x_rope[..., :rd], x_rope[..., rd:]
+        x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+        return torch.cat((x_rope, x_pass), dim=-1)
     half = x.size(-1) // 2
     x1, x2 = x[..., :half], x[..., half:]
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
@@ -760,6 +771,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        rope_dims: int = 0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -778,7 +790,7 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(self.head_dim, base=rope_base, rope_dims=rope_dims)
         self.use_xsa: bool = False  # enabled externally for last N layers
 
     def _xsa(self, y: Tensor, v: Tensor) -> Tensor:
@@ -831,6 +843,32 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
+class ValueEmbedding(nn.Module):
+    """Re-inject token identity into attention values at deep layers."""
+    def __init__(self, vocab_size: int, ve_dim: int, kv_dim: int):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, ve_dim)
+        nn.init.zeros_(self.embed.weight)
+        self.proj = nn.Linear(ve_dim, kv_dim, bias=False)
+        nn.init.zeros_(self.proj.weight)
+        self.scale = nn.Parameter(torch.tensor(0.1, dtype=torch.float32))
+
+    def forward(self, token_ids: Tensor) -> Tensor:
+        return self.proj(self.embed(token_ids.long())) * self.scale.to(dtype=self.proj.weight.dtype)
+
+
+class SmearGate(nn.Module):
+    """Learned blend of current and previous token — cheap bigram signal."""
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gate = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        g = torch.sigmoid(self.gate.to(dtype=x.dtype))[None, None, :]
+        x_prev = F.pad(x[:, :-1], (0, 0, 1, 0))
+        return (1.0 - g) * x + g * x_prev
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -840,11 +878,12 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        rope_dims: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims=rope_dims)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -896,6 +935,8 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        rope_dims: int = 0,
+        z_loss_weight: float = 0.0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -903,8 +944,16 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.z_loss_weight = z_loss_weight
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram_hash = BigramHashEmbedding(hash_size=10240, proj_dim=128, model_dim=model_dim)
+        self.smear_gate = SmearGate(model_dim)
+        self.vocab_bias = nn.Parameter(torch.zeros(vocab_size, dtype=torch.float32))
+        kv_dim = (model_dim // num_heads) * num_kv_heads
+        self.value_embeds = nn.ModuleDict()
+        # Value embeddings on last 2 layers (like top entries: layers num_layers-2, num_layers-1)
+        for li in [num_layers - 2, num_layers - 1]:
+            self.value_embeds[str(li)] = ValueEmbedding(vocab_size, 128, kv_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -918,6 +967,7 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    rope_dims=rope_dims,
                 )
                 for i in range(num_layers)
             ]
@@ -940,14 +990,14 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def _body(self, input_ids: Tensor) -> Tensor:
+        """Shared encoder-decoder body, returns pre-logit hidden states."""
         x = self.tok_emb(input_ids)
         x = x + self.bigram_hash(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
+        x = self.smear_gate(x)
         x0 = x
         skips: list[Tensor] = []
-
-        # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
             skips.append(x)
@@ -955,36 +1005,26 @@ class GPT(nn.Module):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
+        return self.final_norm(x)
 
-        x = self.final_norm(x).reshape(-1, x.size(-1))
+    def _logits(self, x: Tensor) -> Tensor:
+        w = self.tok_emb.weight if self.tie_embeddings else self.lm_head.weight
+        logits_proj = x @ w.to(dtype=x.dtype).T + self.vocab_bias.to(dtype=x.dtype)
+        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        x = self._body(input_ids).reshape(-1, self.tok_emb.weight.size(1))
         targets = target_ids.reshape(-1)
-        if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
-        else:
-            if self.lm_head is None:
-                raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        logits = self._logits(x)
+        ce = F.cross_entropy(logits.float(), targets, reduction="mean")
+        if self.z_loss_weight > 0:
+            lse = torch.logsumexp(logits.float(), dim=-1)
+            ce = ce + self.z_loss_weight * (lse ** 2).mean()
+        return ce
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
-        """Returns raw logits [B, T, vocab] for per-token scoring (sliding window / N-gram eval)."""
-        x = self.tok_emb(input_ids)
-        x = x + self.bigram_hash(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
-        x0 = x
-        skips: list[Tensor] = []
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
-        x = self.final_norm(x)
-        w = self.tok_emb.weight if self.tie_embeddings else self.lm_head.weight
-        logits = x @ w.to(dtype=x.dtype).T
-        return self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+        """Returns raw logits [B, T, vocab] for per-token scoring."""
+        return self._logits(self._body(input_ids))
 
 
 # -----------------------------
@@ -1098,6 +1138,8 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        rope_dims=args.rope_dims,
+        z_loss_weight=args.z_loss_weight,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
