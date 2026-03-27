@@ -130,6 +130,9 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
+    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.05 if compressed_ut_family else 0.0))
+    export_ema_enabled = env_flag("EXPORT_EMA_ENABLED", compressed_ut_family)
+    export_ema_decay = float(os.environ.get("EXPORT_EMA_DECAY", 0.997))
 
     int6_enabled = env_flag("INT6_ENABLED", True)
     use_zstd = env_flag("USE_ZSTD", True)
@@ -226,11 +229,16 @@ CONTROL_PATTERNS = tuple(
 )
 INT_KEEP_FLOAT_MAX = 65_536
 INT_CLIP_Q = 0.9999984
-INT_CLIP_CANDIDATES = (1.0, 0.95, 0.9, 0.85, 0.8)
+INT_CLIP_Q_CANDIDATES = (INT_CLIP_Q, 0.9999968, 0.9999936, 0.9999872)
+INT_CLIP_CANDIDATES = (1.0, 0.975, 0.95, 0.925, 0.9, 0.875, 0.85, 0.825, 0.8, 0.75)
 
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
+
+
+def is_int_quantized_tensor(name: str, tensor: Tensor) -> bool:
+    return tensor.is_floating_point() and "byte_emb" not in name and tensor.numel() > INT_KEEP_FLOAT_MAX
 
 
 def compress_bytes(payload: bytes, use_zstd: bool, zstd_level: int) -> tuple[bytes, str]:
@@ -270,34 +278,119 @@ def dequantize_scale_vector(sq: Tensor, meta: Tensor) -> Tensor:
 def quantize_float_tensor(t: Tensor, levels: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        base = torch.quantile(t32.abs(), INT_CLIP_Q, dim=1) if t32.numel() else torch.empty((t32.shape[0],))
         best_q = best_s = best_err = None
-        for mult in INT_CLIP_CANDIDATES:
-            clip = (base * mult).clamp_min(1.0 / levels)
-            clipped = torch.clamp(t32, -clip[:, None], clip[:, None])
-            s = (clip / levels).clamp_min(1.0 / levels)
-            q = torch.clamp(torch.round(clipped / s[:, None]), -levels, levels).to(torch.int8)
-            err = ((q.float() * s[:, None]) - t32).pow(2).mean(dim=1)
-            if best_err is None:
-                best_q, best_s, best_err = q, s, err
-            else:
-                better = err < best_err
-                best_q = torch.where(better[:, None], q, best_q)
-                best_s = torch.where(better, s, best_s)
-                best_err = torch.where(better, err, best_err)
+        abs_t = t32.abs()
+        for clip_q in INT_CLIP_Q_CANDIDATES:
+            base = torch.quantile(abs_t, clip_q, dim=1) if t32.numel() else torch.empty((t32.shape[0],))
+            for mult in INT_CLIP_CANDIDATES:
+                clip = (base * mult).clamp_min(1.0 / levels)
+                clipped = torch.clamp(t32, -clip[:, None], clip[:, None])
+                s = (clip / levels).clamp_min(1.0 / levels)
+                q = torch.clamp(torch.round(clipped / s[:, None]), -levels, levels).to(torch.int8)
+                err = ((q.float() * s[:, None]) - t32).pow(2).mean(dim=1)
+                if best_err is None:
+                    best_q, best_s, best_err = q, s, err
+                else:
+                    better = err < best_err
+                    best_q = torch.where(better[:, None], q, best_q)
+                    best_s = torch.where(better, s, best_s)
+                    best_err = torch.where(better, err, best_err)
         return best_q.contiguous(), best_s.to(torch.float16).contiguous()
 
-    base = float(torch.quantile(t32.abs().flatten(), INT_CLIP_Q).item()) if t32.numel() else 0.0
     best_q = best_s = best_err = None
-    for mult in INT_CLIP_CANDIDATES:
-        clip = base * mult
-        s = torch.tensor(clip / levels if clip > 0 else 1.0, dtype=torch.float32)
-        clipped = torch.clamp(t32, -clip, clip) if clip > 0 else torch.zeros_like(t32)
-        q = torch.clamp(torch.round(clipped / s), -levels, levels).to(torch.int8)
-        err = torch.mean(((q.float() * s) - t32).pow(2))
-        if best_err is None or err < best_err:
-            best_q, best_s, best_err = q, s, err
+    for clip_q in INT_CLIP_Q_CANDIDATES:
+        base = float(torch.quantile(t32.abs().flatten(), clip_q).item()) if t32.numel() else 0.0
+        for mult in INT_CLIP_CANDIDATES:
+            clip = base * mult
+            s = torch.tensor(clip / levels if clip > 0 else 1.0, dtype=torch.float32)
+            clipped = torch.clamp(t32, -clip, clip) if clip > 0 else torch.zeros_like(t32)
+            q = torch.clamp(torch.round(clipped / s), -levels, levels).to(torch.int8)
+            err = torch.mean(((q.float() * s) - t32).pow(2))
+            if best_err is None or err < best_err:
+                best_q, best_s, best_err = q, s, err
     return best_q.contiguous(), best_s
+
+
+def dequantize_quantized_tensor(q: Tensor, s: Tensor, dtype: torch.dtype) -> Tensor:
+    if s.ndim > 0:
+        view = (q.shape[0], *([1] * (q.ndim - 1)))
+        return (q.float() * s.float().view(view)).to(dtype).contiguous()
+    return (q.float() * float(s.item())).to(dtype).contiguous()
+
+
+def build_qat_named_parameters(model: nn.Module) -> list[tuple[str, nn.Parameter]]:
+    serializable = set(model.serializable_state_dict().keys())
+    return [
+        (name, param)
+        for name, param in model.named_parameters()
+        if name in serializable and is_int_quantized_tensor(name, param.detach())
+    ]
+
+
+@torch.no_grad()
+def snap_qat_parameters_(
+    named_params: list[tuple[str, nn.Parameter]],
+    *,
+    int6: bool,
+) -> list[Tensor]:
+    levels = 31 if int6 else 127
+    originals: list[Tensor] = []
+    for _name, param in named_params:
+        originals.append(param.detach().clone())
+        q, s = quantize_float_tensor(param.detach(), levels=levels)
+        param.copy_(dequantize_quantized_tensor(q, s, param.dtype))
+    return originals
+
+
+@torch.no_grad()
+def restore_qat_parameters_(named_params: list[tuple[str, nn.Parameter]], originals: list[Tensor]):
+    for (_name, param), original in zip(named_params, originals):
+        param.copy_(original)
+
+
+def build_export_ema_state(model: nn.Module) -> dict[str, Tensor]:
+    serializable = set(model.serializable_state_dict().keys())
+    return {
+        name: param.detach().clone()
+        for name, param in model.named_parameters()
+        if name in serializable
+    }
+
+
+@torch.no_grad()
+def update_export_ema_state_(ema_state: dict[str, Tensor], model: nn.Module, decay: float):
+    for name, param in model.named_parameters():
+        if name in ema_state:
+            ema_state[name].lerp_(param.detach(), 1.0 - decay)
+
+
+def materialize_export_state_dict(model: nn.Module, ema_state: dict[str, Tensor] | None) -> dict[str, Tensor]:
+    sd = {k: v.detach().cpu().clone() for k, v in model.serializable_state_dict().items()}
+    if ema_state is None:
+        return sd
+    for name, tensor in ema_state.items():
+        if name in sd:
+            sd[name] = tensor.detach().cpu().clone()
+    return sd
+
+
+def strict_load_serializable_state(module: nn.Module, sd: dict[str, Tensor]):
+    expected = module.serializable_state_dict()
+    expected_keys = set(expected)
+    actual_keys = set(sd)
+    missing = sorted(expected_keys - actual_keys)
+    extra = sorted(actual_keys - expected_keys)
+    if missing or extra:
+        msg = []
+        if missing:
+            msg.append(f"missing={missing[:8]}")
+        if extra:
+            msg.append(f"extra={extra[:8]}")
+        raise KeyError("Serializable state mismatch: " + " ".join(msg))
+    merged = module.state_dict()
+    for name in expected:
+        merged[name] = sd[name]
+    module.load_state_dict(merged, strict=True)
 
 
 def quantize_state_dict(sd: dict[str, Tensor], int6: bool):
@@ -321,7 +414,7 @@ def quantize_state_dict(sd: dict[str, Tensor], int6: bool):
             passthrough[name] = t
             stats["payload_bytes"] += tensor_nbytes(t)
             continue
-        if "byte_emb" in name or t.numel() <= INT_KEEP_FLOAT_MAX:
+        if not is_int_quantized_tensor(name, t):
             if any(p in name for p in CONTROL_PATTERNS):
                 kept = t.float().contiguous()
             elif t.dtype in {torch.float32, torch.bfloat16}:
@@ -387,6 +480,24 @@ def dequantize_state_dict(obj: dict) -> dict[str, Tensor]:
             out_t = out_t.to(getattr(torch, od)).contiguous()
         out[name] = out_t
     return out
+
+
+def export_aligned_roundtrip_state_dict(sd: dict[str, Tensor], *, int6: bool) -> dict[str, Tensor]:
+    qobj, _ = quantize_state_dict(sd, int6=int6)
+    return dequantize_state_dict(qobj)
+
+
+def eval_with_serializable_state(model: nn.Module, eval_sd: dict[str, Tensor] | None, fn):
+    if eval_sd is None:
+        return fn()
+    restore_sd = {k: v.detach().cpu().clone() for k, v in model.serializable_state_dict().items()}
+    strict_load_serializable_state(model, eval_sd)
+    model.zero_pad_emb_()
+    try:
+        return fn()
+    finally:
+        strict_load_serializable_state(model, restore_sd)
+        model.zero_pad_emb_()
 
 
 # ── data loading ─────────────────────────────────────────────────────────────
@@ -1351,7 +1462,7 @@ class CompressedUTByteModel(nn.Module):
         return dict(self.state_dict())
 
     def load_serializable(self, sd: dict[str, Tensor]):
-        self.load_state_dict(sd, strict=False)
+        strict_load_serializable_state(self, sd)
 
     @torch.no_grad()
     def zero_pad_emb_(self):
@@ -1902,7 +2013,7 @@ class CausalJEPA(nn.Module):
         return {k: v for k, v in self.state_dict().items() if not any(k.startswith(s) for s in skip)}
 
     def load_serializable(self, sd: dict[str, Tensor]):
-        self.load_state_dict(sd, strict=False)
+        strict_load_serializable_state(self, sd)
 
     @torch.no_grad()
     def zero_pad_emb_(self):
@@ -2326,6 +2437,11 @@ def main() -> None:
          f"warmdown={args.warmdown_iters} warmup={args.warmup_steps}")
     log0(f"eval: stride={args.eval_stride} int6={int(args.int6_enabled)} "
          f"zstd={int(args.use_zstd)} seed={args.seed}")
+    if args.train_stage != "jepa":
+        log0(
+            f"export: ema={int(args.export_ema_enabled)} ema_decay={args.export_ema_decay:g} "
+            f"late_qat={args.late_qat_threshold:g}"
+        )
     if args.ttt_enabled:
         log0(
             f"ttt: scope={args.ttt_scope} lr={args.ttt_lr:g} wd={args.ttt_weight_decay:g} "
@@ -2352,6 +2468,15 @@ def main() -> None:
         wd_ms = args.warmdown_iters * step_ms
         rem = max(max_wc_ms - elapsed_ms, 0.0)
         return rem / max(wd_ms, 1e-9) if rem <= wd_ms else 1.0
+
+    def late_qat_active(step: int, elapsed_ms: float) -> bool:
+        if args.late_qat_threshold <= 0:
+            return False
+        if max_wc_ms is not None:
+            start_ms = max_wc_ms * max(1.0 - args.late_qat_threshold, 0.0)
+            return elapsed_ms >= start_ms
+        start_step = int(args.iterations * max(1.0 - args.late_qat_threshold, 0.0))
+        return step >= start_step
 
     # Warmup (prime optimizer momentum buffers, then reset)
     if args.warmup_steps > 0:
@@ -2382,6 +2507,10 @@ def main() -> None:
         zero_grad()
         loader = DistributedLoader(args.train_files, rank, world_size, device)
 
+    export_ema_state = build_export_ema_state(base_model) if args.train_stage != "jepa" and args.export_ema_enabled else None
+    qat_named_params = build_qat_named_parameters(base_model) if args.train_stage != "jepa" and args.late_qat_threshold > 0 else []
+    qat_logged = False
+
     train_ms = 0.0
     stop_step: int | None = None
     torch.cuda.synchronize()
@@ -2396,8 +2525,21 @@ def main() -> None:
             train_ms += 1000.0 * (time.perf_counter() - t0)
             ev = final_val if last else periodic_val
             scope = "final" if last else "periodic"
+            eval_sd = None
+            if args.train_stage != "jepa":
+                if last:
+                    eval_sd = materialize_export_state_dict(base_model, export_ema_state)
+                elif bool(qat_named_params) and late_qat_active(step, train_ms):
+                    eval_sd = export_aligned_roundtrip_state_dict(
+                        materialize_export_state_dict(base_model, None),
+                        int6=args.int6_enabled,
+                    )
             if args.train_stage in {"jepa", "joint"}:
-                vl, vs, vslot, vstab, vreg = eval_val_jepa(args, base_model, rank, world_size, device, ev, amp_dtype)
+                vl, vs, vslot, vstab, vreg = eval_with_serializable_state(
+                    base_model,
+                    eval_sd,
+                    lambda: eval_val_jepa(args, base_model, rank, world_size, device, ev, amp_dtype),
+                )
                 if args.model_family in {"compressed_ut", "utcompress", "ut_byte_ce"}:
                     log0(
                         f"step:{step}/{args.iterations} val_jepa:{vs:.4f} val_ce:{vslot:.4f} "
@@ -2413,7 +2555,11 @@ def main() -> None:
                         f"train_time:{train_ms:.0f}ms step_avg:{train_ms / max(step, 1):.2f}ms"
                     )
             else:
-                vl, vb = eval_val_sliding(args, base_model, rank, world_size, device, ev, byte_lut, amp_dtype)
+                vl, vb = eval_with_serializable_state(
+                    base_model,
+                    eval_sd,
+                    lambda: eval_val_sliding(args, base_model, rank, world_size, device, ev, byte_lut, amp_dtype),
+                )
                 log0(f"step:{step}/{args.iterations} val_loss:{vl:.4f} val_bpb:{vb:.4f} "
                      f"val_scope:{scope} val_tokens:{ev.numel()} "
                      f"train_time:{train_ms:.0f}ms step_avg:{train_ms / max(step, 1):.2f}ms")
@@ -2427,12 +2573,17 @@ def main() -> None:
 
         elapsed = train_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed)
+        qat_active = bool(qat_named_params) and late_qat_active(step, elapsed)
+        if qat_active and not qat_logged:
+            log0(f"late_qat_activated: step:{step} elapsed_ms:{elapsed:.0f} tensors:{len(qat_named_params)}")
+            qat_logged = True
         zero_grad()
         t_loss = torch.zeros((), device=device)
         t_a = torch.zeros((), device=device)
         t_b = torch.zeros((), device=device)
         t_c = torch.zeros((), device=device)
         t_d = torch.zeros((), device=device)
+        qat_originals = snap_qat_parameters_(qat_named_params, int6=args.int6_enabled) if qat_active else None
         for ms in range(grad_accum):
             if distributed:
                 model.require_backward_grad_sync = ms == grad_accum - 1
@@ -2450,6 +2601,8 @@ def main() -> None:
         t_b /= grad_accum
         t_c /= grad_accum
         t_d /= grad_accum
+        if qat_originals is not None:
+            restore_qat_parameters_(qat_named_params, qat_originals)
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         mm = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -2466,6 +2619,8 @@ def main() -> None:
             o.step()
         if args.train_stage in {"jepa", "joint"}:
             base_model.update_teacher()
+        if export_ema_state is not None:
+            update_export_ema_state_(export_ema_state, base_model, args.export_ema_decay)
         base_model.zero_pad_emb_()
         zero_grad()
 
@@ -2515,11 +2670,12 @@ def main() -> None:
             dist.destroy_process_group()
         return
 
+    export_sd = materialize_export_state_dict(base_model, export_ema_state)
     if master:
-        torch.save(base_model.serializable_state_dict(), "final_model.pt")
+        torch.save(export_sd, "final_model.pt")
         log0(f"Serialized model: {os.path.getsize('final_model.pt')} bytes")
 
-    qobj, qstats = quantize_state_dict(base_model.serializable_state_dict(), int6=args.int6_enabled)
+    qobj, qstats = quantize_state_dict(export_sd, int6=args.int6_enabled)
     buf = io.BytesIO()
     torch.save(qobj, buf)
     raw = buf.getvalue()
