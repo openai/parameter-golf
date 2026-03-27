@@ -1134,10 +1134,12 @@ def eval_val_sliding(
 def apply_ngram_cache(
     model_nll: np.ndarray, val_tokens: Tensor,
     base_bytes_lut: Tensor, has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
-    ngram_max_order: int = 7, ngram_alpha: float = 0.15, log0=print,
+    ngram_max_order: int = 7, ngram_alpha: float = 0.15,
+    adaptive_alpha: bool = True, log0=print,
 ) -> tuple[float, float]:
     """CPU-only N-gram backoff interpolation on pre-computed per-position model NLL.
     model_nll: numpy float64 array, -1 for unscored positions.
+    adaptive_alpha: if True, alpha scales with model uncertainty (higher NLL -> higher alpha).
     Legal: each position's cache built from previously scored tokens only."""
     from collections import defaultdict
     total_tokens = model_nll.shape[0]
@@ -1151,6 +1153,9 @@ def apply_ngram_cache(
     byte_sum = 0.0
     n_scored = 0
     n_hits = 0
+    # For adaptive alpha: alpha = base_alpha * clamp(model_nll / nll_threshold, 0.1, 2.0)
+    # High model NLL (uncertain) → more trust in N-gram; low NLL (confident) → less trust
+    nll_threshold = 2.5  # rough median NLL for well-trained models
     for pos in range(total_tokens):
         if model_nll[pos] < 0:
             continue
@@ -1168,8 +1173,12 @@ def apply_ngram_cache(
                 ngram_prob = counts.get(target, 0) / total_c
                 break
         if ngram_prob > 0:
+            if adaptive_alpha:
+                alpha = ngram_alpha * min(2.0, max(0.1, model_nll[pos] / nll_threshold))
+            else:
+                alpha = ngram_alpha
             model_p = math.exp(-model_nll[pos])
-            combined_p = max((1 - ngram_alpha) * model_p + ngram_alpha * ngram_prob, 1e-30)
+            combined_p = max((1 - alpha) * model_p + alpha * ngram_prob, 1e-30)
             loss_sum += -math.log(combined_p)
             n_hits += 1
         else:
