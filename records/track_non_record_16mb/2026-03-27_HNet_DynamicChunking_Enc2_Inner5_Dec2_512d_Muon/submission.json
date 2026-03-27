@@ -1,0 +1,18 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-27",
+  "name": "H-Net Dynamic Sequence Chunking (Enc2-Inner5-Dec2, 512d)",
+  "author": "Tim Shen",
+  "github_id": "TimS-ml",
+  "blurb": "First H-Net (hierarchical dynamic chunking) submission: learned boundary detection downsamples sequences into variable-length chunks processed by an inner transformer, then upsamples back via associative scan. 17.5M params, enc=2 inner=5 dec=2 at 512d with GQA+RoPE+Muon.",
+  "val_bpb": null,
+  "val_loss": null,
+  "pre_quant_val_bpb": null,
+  "pre_quant_val_loss": null,
+  "step_stop": null,
+  "wallclock_seconds": null,
+  "bytes_total": null,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": null,
+  "gpu": "1xRTX4090"
+}
