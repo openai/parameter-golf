@@ -1,0 +1,16 @@
+{
+  "author": "Tim Pietrusky",
+  "github_id": "TimPietrusky",
+  "name": "Order-16 Frozen N-gram Oracle + Learned Gate + Complementary Training + TTT",
+  "blurb": "Order-16 n-gram oracle pre-filled from training data with learned per-token per-order mixing gate, complementary training (downweight easy tokens), and score-first TTT with adaptive temperature. Based on PR #925 architecture with NGRAM_MAX_ORDER=16.",
+  "date": "2026-03-27T00:00:00Z",
+  "val_bpb": 0.02742,
+  "val_bpb_std": 0.00003,
+  "hardware": "8xH100 SXM",
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 0.02744},
+    "42": {"val_bpb": 0.02739},
+    "2025": {"val_bpb": 0.02744}
+  }
+}
