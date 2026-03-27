@@ -101,6 +101,8 @@ This balance appears to be critical for good performance.
 
 All runs are trained for 10k steps under identical settings across three seeds.
 
+MLP expansion is adjusted to keep models within the parameter budget: baseline uses 2.00×, short convolution (k=1) uses 1.99×, and MoC (k=8) uses 1.93×.
+
 | Model | Seed | Pre-quant BPB ↓ | Post-quant BPB ↓ | Size (bytes) |
 |-------|------|----------------:|-----------------:|-------------:|
 | Baseline | 1337 | 1.2262 | 1.2328 | 15861272 |
