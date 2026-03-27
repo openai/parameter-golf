@@ -2033,8 +2033,6 @@ def select_ttt_named_parameters(model: nn.Module, scope: str) -> list[tuple[str,
     named = list(model.named_parameters())
     if scope == "decoder":
         return [(name, param) for name, param in named if name.startswith("decoder.")]
-    if scope == "all":
-        return named
     raise ValueError(f"Unsupported TTT_SCOPE={scope!r}")
 
 
@@ -2080,18 +2078,21 @@ def eval_val_ttt_score_first(
         with torch.inference_mode():
             for ws in range(history_start, chunk_end, stride):
                 we = min(ws + ctx_len, total_tokens)
-                if we - ws <= 1:
+                wl = we - ws
+                if wl <= 1:
                     continue
-                x = val_tokens[ws:we].to(device=device, dtype=torch.int64, non_blocking=True).unsqueeze(0)
+                x = torch.zeros(1, ctx_len, dtype=torch.int64, device=device)
+                x[0, :wl] = val_tokens[ws:we].to(device=device, dtype=torch.int64, non_blocking=True)
                 with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=device.type == "cuda"):
                     logits = model.forward_logits(x)
                 nll = F.cross_entropy(
                     logits.reshape(-1, model.vocab_size).float(),
                     x.reshape(-1),
                     reduction="none",
-                ).view(-1).to(torch.float64)
-                score_start = max(max((we - ws) - stride, 1), chunk_start - ws)
-                score_end = min(we - ws, chunk_end - ws)
+                ).view(ctx_len).to(torch.float64)
+                base_start = 1 if ws == 0 else max(wl - stride, 0)
+                score_start = max(base_start, chunk_start - ws)
+                score_end = min(wl, chunk_end - ws)
                 if score_end <= score_start:
                     continue
                 scored_tokens = x[0, score_start:score_end]
@@ -2119,7 +2120,7 @@ def eval_val_ttt_score_first(
 
     val_loss = float((loss_sum / tok_count.clamp_min(1.0)).item())
     val_bpb = float(loss_sum.item() / (math.log(2.0) * byte_count.clamp_min(1.0).item()))
-    model.train()
+    model.eval()
     return val_loss, val_bpb
 
 
