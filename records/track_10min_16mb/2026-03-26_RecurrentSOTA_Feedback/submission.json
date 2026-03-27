@@ -1,0 +1,9 @@
+{
+  "name": "Recurrent Depth: 2-Pass Train + 4-Pass Eval with Error Feedback",
+  "val_bpb": "<3-seed mean -- fill after runs>",
+  "bytes_total": "<fill after runs>",
+  "blurb": "Depth recurrence with contractive hidden states (ResidualScale + Jacobian proxy) and quantization error feedback. Train 2-pass core (layers 4-6), eval 4-pass with TTT (freeze=0). Solves PR #363's quantization error amplification via learned error correction. Built on PR #414 stack + PR #399 Parallel Muon.",
+  "author": "abaybektursun",
+  "github_id": "abaybektursun",
+  "date": "2026-03-27"
+}

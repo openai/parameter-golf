@@ -116,7 +116,7 @@ class Hyperparameters:
     num_passes = int(os.environ.get("NUM_PASSES", 1))
     core_quant_bits = int(os.environ.get("CORE_QUANT_BITS", 6))
     core_quant_enabled = bool(int(os.environ.get("CORE_QUANT_ENABLED", "0")))
-    eval_passes = int(os.environ.get("EVAL_PASSES", 0))
+    lora_rank = int(os.environ.get("LORA_RANK", 0))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -838,6 +838,7 @@ class GPT(nn.Module):
         core_quant_enabled: bool = False,
         residual_scale: nn.Module | None = None,
         interpass_rmsnorm: bool = True,
+        lora_rank: int = 0,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)
@@ -859,6 +860,7 @@ class GPT(nn.Module):
         self.num_core = self.core_end - core_start
         self.num_tail = num_layers - self.core_end
         self.residual_scale = residual_scale
+        self.lora_rank = lora_rank
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
@@ -873,6 +875,21 @@ class GPT(nn.Module):
         self.kv_bank = nn.Parameter(torch.empty(2 * num_layers, kv_dim, model_dim))
         self.mlp_up_bank = nn.Parameter(torch.empty(num_layers, mlp_dim, model_dim))
         self.mlp_down_bank = nn.Parameter(torch.empty(num_layers, model_dim, mlp_dim))
+        # Per-pass LoRA adapters for recurrent core (scaled B @ A added to bank weights)
+        self._lora_scale = 1.0 / math.sqrt(lora_rank) if lora_rank > 0 else 1.0
+        self.register_buffer('_lora_step_mul', torch.ones((), dtype=torch.float32), persistent=False)
+        if lora_rank > 0 and self.num_core > 0 and num_passes > 1:
+            nc, np_, r = self.num_core, num_passes, lora_rank
+            for wname, in_d, out_d in [
+                ("q", model_dim, model_dim), ("out", model_dim, model_dim),
+                ("k", model_dim, kv_dim),    ("v", model_dim, kv_dim),
+                ("up", model_dim, mlp_dim),  ("down", mlp_dim, model_dim),
+            ]:
+                A = nn.Parameter(torch.empty(np_, nc, r, in_d))
+                nn.init.normal_(A, mean=0.0, std=0.01)
+                B = nn.Parameter(torch.zeros(np_, nc, out_d, r))
+                setattr(self, f"lora_A_{wname}", A)
+                setattr(self, f"lora_B_{wname}", B)
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -1005,6 +1022,15 @@ class GPT(nn.Module):
                 h_prev = x
                 ve = self._get_ve(j, input_ids, ve_cache)
                 q_w, k_w, v_w, out_w, up_w, down_w = self._get_bank_weights(j)
+                if self.lora_rank > 0:
+                    ci = j - self.core_start
+                    s = self._lora_scale * self._lora_step_mul
+                    q_w   = q_w   + s * (self.lora_B_q[k, ci]   @ self.lora_A_q[k, ci])
+                    k_w   = k_w   + s * (self.lora_B_k[k, ci]   @ self.lora_A_k[k, ci])
+                    v_w   = v_w   + s * (self.lora_B_v[k, ci]   @ self.lora_A_v[k, ci])
+                    out_w = out_w + s * (self.lora_B_out[k, ci]  @ self.lora_A_out[k, ci])
+                    up_w  = up_w  + s * (self.lora_B_up[k, ci]   @ self.lora_A_up[k, ci])
+                    down_w = down_w + s * (self.lora_B_down[k, ci] @ self.lora_A_down[k, ci])
                 x, raw_v = self.blocks[j](x, x0, q_w, k_w, v_w, out_w, up_w, down_w,
                     v_embed=ve, v0=v0)
                 if v0 is None and raw_v is not None:
@@ -1466,6 +1492,14 @@ def parse_args() -> argparse.Namespace:
     g.add_argument("--residual-scale-init", type=float, default=0.5)
     g.add_argument("--jacobian-proxy-weight", type=float, default=0.01)
     g.add_argument("--no-interpass-rmsnorm", action="store_true")
+    g.add_argument("--lora-rank", type=int, default=0)
+    g.add_argument("--lora-warmup-steps", type=int, default=0,
+                   help="Linearly ramp LoRA scale from 0 to 1 over this many steps.")
+    g = parser.add_argument_group("eval-only")
+    g.add_argument("--eval-only-passes", type=int, default=None,
+                   help="Skip training; load final_model.pt and run TTT eval with this many passes.")
+    g.add_argument("--eval-only-checkpoint", type=str, default="final_model.pt",
+                   help="Checkpoint path for --eval-only-passes mode.")
     return parser.parse_args()
 
 def main() -> None:
@@ -1574,6 +1608,7 @@ def main() -> None:
         core_quant_enabled=args.core_quant_enabled,
         residual_scale=None,
         interpass_rmsnorm=not cli.no_interpass_rmsnorm,
+        lora_rank=cli.lora_rank or args.lora_rank,
     ).to(device).bfloat16()
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
@@ -1612,9 +1647,55 @@ def main() -> None:
             residual_scale = ResidualScale(args.num_passes, cli.residual_scale_init).to(device)
             base_model.residual_scale = residual_scale
             extra_scalar_params.extend(residual_scale.parameters())
+    lora_params: list[nn.Parameter] = []
+    if base_model.lora_rank > 0:
+        lora_params = [p for n, p in base_model.named_parameters() if "lora_" in n]
+        for p in lora_params:
+            p.data = p.data.float()
+        log0(f"lora: rank={base_model.lora_rank} params={sum(p.numel() for p in lora_params)}")
     log0(f"recurrence: core_start={args.core_start} core_end={args.core_end} "
          f"num_passes={args.num_passes} stem={base_model.num_stem} "
          f"core={base_model.num_core} tail={base_model.num_tail}")
+
+    # --- Eval-only mode: load checkpoint, override passes, run TTT, exit ---
+    if cli.eval_only_passes is not None:
+        ckpt_path = cli.eval_only_checkpoint
+        log0(f"eval_only: loading checkpoint {ckpt_path}")
+        ckpt_sd = torch.load(ckpt_path, map_location=device, weights_only=True)
+        base_model.load_state_dict(ckpt_sd, strict=True)
+        base_model.qo_bank.data = base_model.qo_bank.data.float()
+        base_model.kv_bank.data = base_model.kv_bank.data.float()
+        base_model.mlp_up_bank.data = base_model.mlp_up_bank.data.float()
+        base_model.mlp_down_bank.data = base_model.mlp_down_bank.data.float()
+        for module in base_model.modules():
+            if isinstance(module, CastedLinear):
+                module.float()
+        restore_low_dim_params_to_fp32(base_model)
+        target_passes = cli.eval_only_passes
+        trained_passes = base_model.num_passes
+        log0(f"eval_only: overriding num_passes {trained_passes} -> {target_passes}")
+        base_model.num_passes = target_passes
+        if base_model.residual_scale is not None:
+            old_scales = base_model.residual_scale.scales.data
+            if target_passes != old_scales.shape[0]:
+                new_scales = torch.full((target_passes,), cli.residual_scale_init,
+                                        dtype=torch.float32, device=old_scales.device)
+                copy_len = min(target_passes, old_scales.shape[0])
+                new_scales[:copy_len] = old_scales[:copy_len]
+                base_model.residual_scale.scales = nn.Parameter(new_scales)
+                log0(f"eval_only: ResidualScale padded/trimmed {old_scales.shape[0]} -> {target_passes}")
+        base_model.eval()
+        log0(f"eval_only: running TTT with {target_passes} passes")
+        ttt_loss, ttt_bpb = eval_val_sliding_ttt(
+            args, base_model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            stride=args.eval_stride, log0=log0,
+        )
+        log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f}")
+        log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
+        if distributed:
+            dist.destroy_process_group()
+        return
 
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
@@ -1693,9 +1774,23 @@ def main() -> None:
             fused=True,
         )
         replicated_params.append(base_model.lm_head.weight)
+    optimizer_lora = None
+    if lora_params:
+        lora_lr = args.scalar_lr * 0.1
+        optimizer_lora = torch.optim.AdamW(
+            [{"params": lora_params, "lr": lora_lr, "base_lr": lora_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.adam_eps,
+            weight_decay=args.adam_wd,
+            fused=True,
+        )
+        replicated_params.extend(lora_params)
+        log0(f"lora_optimizer: lr={lora_lr} (scalar_lr * 0.1)")
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
     if optimizer_head is not None:
         optimizers.append(optimizer_head)
+    if optimizer_lora is not None:
+        optimizers.append(optimizer_lora)
     n_params = sum(p.numel() for p in base_model.parameters())
     mtp_params = sum(p.numel() for p in base_model.mtp_heads.parameters())
     log0(f"model_params:{n_params}")
@@ -1846,6 +1941,8 @@ def main() -> None:
             CastedLinear._qat_enabled = True
             base_model.core_quant_enabled = True
             log0(f"late_qat:enabled step:{step} scale:{scale:.4f} core_quant:on")
+        if base_model.lora_rank > 0 and cli.lora_warmup_steps > 0:
+            base_model._lora_step_mul.fill_(min(step / cli.lora_warmup_steps, 1.0))
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1877,6 +1974,8 @@ def main() -> None:
         optimizer_scalar.step()
         if optimizer_head is not None:
             optimizer_head.step()
+        if optimizer_lora is not None:
+            optimizer_lora.step()
         # Phase 3: Wait for RS, local NS5, all-gather (banks processed last)
         optimizer_muon.step()
         zero_grad_all()
@@ -1973,18 +2072,6 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
-    # Override passes for eval phase (train cheap, eval deep)
-    eval_num_passes = args.eval_passes if args.eval_passes > 0 else args.num_passes
-    if eval_num_passes != args.num_passes:
-        log0(f"eval_override: num_passes {args.num_passes} -> {eval_num_passes}")
-        base_model.num_passes = eval_num_passes
-        if base_model.residual_scale is not None:
-            old_s = base_model.residual_scale.scales.data
-            new_s = torch.full((eval_num_passes,), cli.residual_scale_init,
-                               dtype=torch.float32, device=old_s.device)
-            copy_len = min(eval_num_passes, old_s.shape[0])
-            new_s[:copy_len] = old_s[:copy_len]
-            base_model.residual_scale.scales = nn.Parameter(new_s)
     # Unbank 3D tensors into individual 2D tensors for quantization
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
@@ -2023,11 +2110,12 @@ def main() -> None:
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         gated_attention=args.gated_attention, value_residual=args.value_residual,
         core_start=args.core_start, core_end=args.core_end,
-        num_passes=eval_num_passes,
+        num_passes=args.num_passes,
         interpass_rmsnorm=not cli.no_interpass_rmsnorm,
+        lora_rank=cli.lora_rank or args.lora_rank,
     ).to(device).bfloat16()
     if residual_scale is not None:
-        eval_rs = ResidualScale(eval_num_passes, cli.residual_scale_init).to(device)
+        eval_rs = ResidualScale(args.num_passes, cli.residual_scale_init).to(device)
         eval_model.residual_scale = eval_rs
     eval_model.qo_bank.data = eval_model.qo_bank.data.float()
     eval_model.kv_bank.data = eval_model.kv_bank.data.float()
