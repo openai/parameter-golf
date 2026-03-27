@@ -103,6 +103,7 @@ class Hyperparameters:
     ngram_alpha_max = float(os.environ.get("NGRAM_ALPHA_MAX", "0.95"))
     ngram_dirichlet = bool(int(os.environ.get("NGRAM_DIRICHLET", "0")))
     ngram_concentration = float(os.environ.get("NGRAM_CONCENTRATION", "1.0"))
+    ngram_per_order_conc = os.environ.get("NGRAM_PER_ORDER_CONC", "")
     ngram_temperature = float(os.environ.get("NGRAM_TEMPERATURE", "1.0"))
     phrase_cache = bool(int(os.environ.get("PHRASE_CACHE", "0")))
     phrase_buckets = int(os.environ.get("PHRASE_BUCKETS", "4194304"))
@@ -110,7 +111,7 @@ class Hyperparameters:
     phrase_alpha = float(os.environ.get("PHRASE_ALPHA", "0.90"))
     phrase_min_count = int(os.environ.get("PHRASE_MIN_COUNT", "1"))
     phrase_dirichlet = bool(int(os.environ.get("PHRASE_DIRICHLET", "1")))
-    phrase_concentration = float(os.environ.get("PHRASE_CONCENTRATION", "1.0"))
+    phrase_concentration = float(os.environ.get("PHRASE_CONCENTRATION", "2.0"))
     comp_enabled = bool(int(os.environ.get("COMP_ENABLED", "0")))
     comp_alpha = float(os.environ.get("COMP_ALPHA", "0.5"))
     comp_order = int(os.environ.get("COMP_ORDER", "5"))
@@ -874,7 +875,11 @@ def eval_val_sliding(args, base_model, rank, world_size, device, val_tokens, bas
                         full_key = ((ctx_hash ^ (tgt_np * ng_primes[ctx_w % len(ng_primes)])) & ng_mask).astype(np.int64)
                         order_data.append((v_idx, ctx_key, full_key))
                     if args.ngram_dirichlet:
-                        conc = args.ngram_concentration
+                        if args.ngram_per_order_conc:
+                            _poc = [float(x) for x in args.ngram_per_order_conc.split(",")]
+                            assert len(_poc) == _n_orders, f"PER_ORDER_CONC has {len(_poc)} values, need {_n_orders}"
+                        else:
+                            _poc = [args.ngram_concentration] * _n_orders
                         sm_p = seg_model_p.copy()
                         sm_order = np.full(n_seg, -1, dtype=np.int32)
                         for oi in range(_n_orders):
@@ -885,6 +890,7 @@ def eval_val_sliding(args, base_model, rank, world_size, device, val_tokens, bas
                             has_ctx = cc > 0
                             if not has_ctx.any(): continue
                             ui = v_idx[has_ctx]
+                            conc = _poc[oi]
                             sm_p[ui] = (np.minimum(fc[has_ctx], cc[has_ctx]) + conc * sm_p[ui]) / (cc[has_ctx] + conc)
                             sm_order[ui] = args.ngram_min_order + oi
                         has_update = sm_order >= 0
