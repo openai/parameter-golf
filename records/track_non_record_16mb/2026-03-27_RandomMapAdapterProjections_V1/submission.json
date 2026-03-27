@@ -1,0 +1,13 @@
+{
+    "name": "RandomMapAdapterProjections_V1",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "track": "non_record_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "val_bpb": 1.6542,
+    "bytes_total": 1207916,
+    "bytes_code": 66044,
+    "blurb": "Random Linear Map Adapters: seed-regenerated random bases + rank-32 LoRA adapters. 1.21MB artifact (14.79MB headroom under 16MB cap). First random-map submission in competition. V1 baseline — higher rank and MLP relaxation are clear next steps."
+}
