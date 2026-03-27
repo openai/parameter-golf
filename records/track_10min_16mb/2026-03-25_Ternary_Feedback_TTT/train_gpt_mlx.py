@@ -108,6 +108,21 @@ class Hyperparameters:
     capsule_num = _e("CAPSULE_NUM", 16, int)
     capsule_dim = _e("CAPSULE_DIM", 64, int)
 
+    # Koopman dynamics in capsule space
+    koopman_enabled = _e("KOOPMAN_ENABLED", 1, bool)
+    koopman_rank = _e("KOOPMAN_RANK", 4, int)
+    koopman_diag_init = _e("KOOPMAN_DIAG_INIT", 0.9, float)  # critical damping
+    koopman_consistency_weight = _e("KOOPMAN_CONSISTENCY_WEIGHT", 0.005, float)
+
+    # Adaptive halting (eval only)
+    adaptive_halt_enabled = _e("ADAPTIVE_HALT_ENABLED", 1, bool)
+    adaptive_halt_threshold = _e("ADAPTIVE_HALT_THRESHOLD", 0.05, float)
+    max_eval_passes = _e("MAX_EVAL_PASSES", 3, int)
+
+    # Cross-window capsule carry (eval only)
+    capsule_carry_enabled = _e("CAPSULE_CARRY_ENABLED", 1, bool)
+    capsule_carry_decay = _e("CAPSULE_CARRY_DECAY", 0.8, float)
+
     # Features
     bigram_hash_enabled = _e("BIGRAM_HASH_ENABLED", 1, bool)
     bigram_hash_buckets = _e("BIGRAM_HASH_BUCKETS", 4096, int)
@@ -152,6 +167,7 @@ class Hyperparameters:
 CTP = (
     "attn_scale", "mlp_scale", "resid_mix", "q_gain", "skip_weights",
     "vocab_bias", "add_gate", "mul_gate", "recurrent_gate", "vrl_alpha", "gate",
+    "koopman",  # Koopman dynamics params go to scalar Adam for stability
 )
 
 # ---------------------------------------------------------------------------
@@ -311,9 +327,52 @@ class FeedbackAdapter(nn.Module):
         return x * (1.0 + gate_m * mx.tanh(mul_term)) + gate_a * add_term
 
 
+class KoopmanDynamics(nn.Module):
+    """Diagonal + low-rank stable linear dynamics in capsule space.
+
+    Predicts next-pass capsule state from current state:
+        c_pred = D ⊙ c + U(V^T c)
+        c_new  = α ⊙ c_observed + (1-α) ⊙ c_pred
+
+    First-principles design:
+        - D initialized at 0.9 (critical damping, ρ(D)=0.9 < 1)
+        - UV initialized small (spectral perturbation << 1-ρ(D))
+        - α at sigmoid(0)=0.5 (maximum-entropy prior between prediction and observation)
+        - Stability guaranteed at init: ρ(D + UV^T) ≤ 0.9 + ε
+    """
+    def __init__(self, capsule_dim, rank=4, diag_init=0.9):
+        super().__init__()
+        self.diag = mx.full((capsule_dim,), diag_init, dtype=mx.float32)
+        init_scale = 0.01 / max(rank ** 0.5, 1.0)
+        self.U = mx.random.normal((capsule_dim, rank), dtype=mx.float32) * init_scale
+        self.V = mx.random.normal((capsule_dim, rank), dtype=mx.float32) * init_scale
+        self.alpha = mx.zeros((capsule_dim,), dtype=mx.float32)  # sigmoid -> 0.5
+
+    def predict(self, c):
+        """Predict next-pass capsule state. c: (B, N, capsule_dim)"""
+        # Diagonal evolution
+        c_diag = self.diag.astype(c.dtype) * c  # (B, N, D)
+        # Low-rank coupling: U @ (V^T @ c^T)^T = (c @ V) @ U^T
+        c_lowrank = (c @ self.V.astype(c.dtype)) @ self.U.astype(c.dtype).T  # (B, N, D)
+        return c_diag + c_lowrank
+
+    def blend(self, c_observed, c_prev):
+        """Blend observed capsules with predicted evolution from previous state."""
+        c_pred = self.predict(c_prev)
+        alpha = mx.sigmoid(self.alpha).astype(c_observed.dtype)
+        return alpha * c_observed + (1.0 - alpha) * c_pred, c_pred
+
+
 class CapsuleBank(nn.Module):
-    """Structured semantic state carriers with recurrent gate."""
-    def __init__(self, model_dim, capsule_num, capsule_dim):
+    """Structured semantic state carriers with Koopman-driven recurrent dynamics.
+
+    Upgrade from simple gated blending to predictive latent dynamics:
+    - Koopman module predicts where capsule state should evolve
+    - Blend prediction with fresh observation from current pass
+    - Returns c_pred for consistency loss (auxiliary training signal)
+    """
+    def __init__(self, model_dim, capsule_num, capsule_dim,
+                 koopman_enabled=True, koopman_rank=4, koopman_diag_init=0.9):
         super().__init__()
         self.capsule_num = capsule_num
         self.capsule_dim = capsule_dim
@@ -322,23 +381,37 @@ class CapsuleBank(nn.Module):
         self.write_proj = EmbedProj(capsule_dim, model_dim)
         self.recurrent_gate = mx.zeros((capsule_dim,), dtype=mx.float32)
         self.gate = mx.zeros((model_dim,), dtype=mx.float32)
+        # Koopman dynamics (first-principles innovation)
+        self.koopman = None
+        if koopman_enabled:
+            self.koopman = KoopmanDynamics(capsule_dim, rank=koopman_rank,
+                                           diag_init=koopman_diag_init)
 
     def __call__(self, x, prev_capsules=None):
+        """Returns (corrected_x, capsule_state, c_pred_for_loss).
+        c_pred is None on first pass or when Koopman is disabled."""
         B, T, D = x.shape
         x_proj = self.read_proj(rms_norm(x))  # (B, T, capsule_dim)
         # Soft-assignment to prototypes
         scores = mx.einsum("btd,nd->btn", x_proj, self.prototypes.astype(x_proj.dtype))
         attn = mx.softmax(scores / (self.capsule_dim ** 0.5), axis=1)  # (B, T, N)
         capsules = mx.einsum("btn,btd->bnd", attn, x_proj)  # (B, N, capsule_dim)
-        # Recurrent update
+
+        c_pred = None  # For consistency loss
         if prev_capsules is not None:
-            rg = mx.sigmoid(self.recurrent_gate).astype(capsules.dtype)
-            capsules = rg * capsules + (1.0 - rg) * prev_capsules
+            if self.koopman is not None:
+                # Koopman-driven update: predict + blend
+                capsules, c_pred = self.koopman.blend(capsules, prev_capsules)
+            else:
+                # Fallback: simple gated blending
+                rg = mx.sigmoid(self.recurrent_gate).astype(capsules.dtype)
+                capsules = rg * capsules + (1.0 - rg) * prev_capsules
+
         # Write back
         readout = mx.einsum("btn,bnd->btd", attn, capsules)
         correction = self.write_proj(readout)
         g = mx.tanh(self.gate).astype(x.dtype)
-        return x + g * correction, capsules
+        return x + g * correction, capsules, c_pred
 
 
 def apply_rotary_emb(x, cos, sin):
@@ -491,6 +564,7 @@ class GPT(nn.Module):
         self.args = args
         self.feedback_enabled = args.feedback_enabled
         self.feedback_passes = args.feedback_passes
+        self._train_feedback_passes = args.feedback_passes
 
         # Embedding
         self.tok_emb = Embedding(args.vocab_size, args.embed_dim if args.embed_dim > 0 else dim)
@@ -528,7 +602,12 @@ class GPT(nn.Module):
         # Capsule bank
         self.capsule_bank = None
         if args.capsule_enabled:
-            self.capsule_bank = CapsuleBank(dim, args.capsule_num, args.capsule_dim)
+            self.capsule_bank = CapsuleBank(
+                dim, args.capsule_num, args.capsule_dim,
+                koopman_enabled=args.koopman_enabled,
+                koopman_rank=args.koopman_rank,
+                koopman_diag_init=args.koopman_diag_init,
+            )
 
         # Feedback
         self.feedback_pooler = None
@@ -539,6 +618,10 @@ class GPT(nn.Module):
                 FeedbackAdapter(dim, args.feedback_dim)
                 for _ in range(self.num_decoder_layers)
             ]
+
+    def set_feedback_passes(self, num_passes):
+        """Switch feedback pass count (for train vs eval)."""
+        self.feedback_passes = num_passes
 
     def softcap(self, logits):
         c = self.logit_softcap
@@ -565,8 +648,14 @@ class GPT(nn.Module):
                 x = self.feedback_adapters[i](x, sketch)
         return x
 
-    def __call__(self, input_ids):
-        """Core Ternary Reasoner forward: encode -> [correct]^N -> decode."""
+    def __call__(self, input_ids, carry_capsules=None):
+        """Core KoopCaps-HRM forward: encode → [correct]^N → decode.
+
+        Returns: (hidden, capsule_state, consistency_losses)
+        - hidden: final hidden states for logit projection
+        - capsule_state: for cross-window carry
+        - consistency_losses: list of (c_pred, c_actual) for aux loss
+        """
         x, x0 = self._apply_embedding(input_ids)
         skips = []
         v0 = None
@@ -578,33 +667,63 @@ class GPT(nn.Module):
                 v0 = mx.stop_gradient(v_out)
             skips.append(x)
 
-        # Capsule init
+        # Capsule init — use carry_capsules for cross-window persistence
+        # Average carry across batch dim and broadcast to match current batch
         capsule_state = None
+        if carry_capsules is not None:
+            B_curr = x.shape[0]
+            # Average carry state across old batch → (1, N, D), broadcast to new batch
+            carry_avg = mx.mean(carry_capsules, axis=0, keepdims=True)  # (1, N, D)
+            capsule_state = mx.broadcast_to(carry_avg, (B_curr, carry_avg.shape[1], carry_avg.shape[2]))
         if self.capsule_bank is not None:
-            x, capsule_state = self.capsule_bank(x, prev_capsules=None)
+            x, capsule_state, _ = self.capsule_bank(x, prev_capsules=capsule_state)
 
         encoded = x
 
-        # Iterative correction loop
+        # Iterative correction loop with Koopman dynamics + adaptive halting
         sketch = None
-        for correction_pass in range(self.feedback_passes + 1):
+        consistency_losses = []  # (c_pred, c_actual) pairs for aux loss
+        prev_capsule_state = None
+
+        num_passes = self.feedback_passes
+        for correction_pass in range(num_passes + 1):
             if correction_pass > 0 and self.feedback_enabled and self.feedback_pooler is not None:
                 sketch = self.feedback_pooler(rms_norm(x))
             else:
                 sketch = None
 
             if self.capsule_bank is not None and correction_pass > 0:
-                encoded, capsule_state = self.capsule_bank(encoded, prev_capsules=capsule_state)
+                prev_capsule_state = capsule_state
+                encoded, capsule_state, c_pred = self.capsule_bank(
+                    encoded, prev_capsules=capsule_state
+                )
+                # Collect consistency loss pair
+                if c_pred is not None:
+                    consistency_losses.append((c_pred, mx.stop_gradient(capsule_state)))
+
+                # Adaptive halting (eval only): check capsule convergence
+                if (not self.training and self.args.adaptive_halt_enabled
+                        and prev_capsule_state is not None
+                        and correction_pass >= 1):
+                    # Relative capsule change
+                    delta = mx.sqrt(mx.mean((capsule_state - prev_capsule_state) ** 2))
+                    norm = mx.sqrt(mx.mean(capsule_state ** 2)) + 1e-8
+                    relative_delta = delta / norm
+                    # Halt if converged (materialize to check)
+                    mx.eval(relative_delta)
+                    if float(relative_delta.item()) < self.args.adaptive_halt_threshold:
+                        # Capsule has converged — skip remaining passes
+                        break
 
             x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0)
 
             if not self.feedback_enabled or self.feedback_pooler is None:
                 break
 
-        return rms_norm(x)
+        return rms_norm(x), capsule_state, consistency_losses
 
-    def loss(self, input_ids, target_ids):
-        x = self(input_ids)
+    def loss(self, input_ids, target_ids, carry_capsules=None):
+        x, capsule_state, consistency_losses = self(input_ids, carry_capsules=carry_capsules)
         x = x.reshape(-1, x.shape[-1])
         y = target_ids.reshape(-1)
         # Tied embeddings
@@ -613,7 +732,17 @@ class GPT(nn.Module):
             x = x @ self.embed_proj_rev.weight.astype(x.dtype).T
         logits = x @ w.T + self.vocab_bias.astype(x.dtype)
         logits = self.softcap(logits)
-        return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
+        ce_loss = nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
+
+        # Capsule consistency auxiliary loss (Koopman dynamics training signal)
+        if consistency_losses and self.args.koopman_consistency_weight > 0:
+            consist_sum = mx.array(0.0, dtype=mx.float32)
+            for c_pred, c_actual in consistency_losses:
+                consist_sum = consist_sum + mx.mean((c_pred - c_actual) ** 2)
+            consist_loss = consist_sum / len(consistency_losses)
+            ce_loss = ce_loss + self.args.koopman_consistency_weight * consist_loss
+
+        return ce_loss
 
 
 # ---------------------------------------------------------------------------
@@ -623,13 +752,17 @@ class EMAHelper:
     def __init__(self, model, decay=0.997):
         self.decay = decay
         self.shadow = {k: mx.array(v) for k, v in tree_flatten(model.parameters())}
+        self._ever_updated = False  # Track whether EMA has ever been updated
 
     def update(self, model):
         d = self.decay
+        self._ever_updated = True
         for k, v in tree_flatten(model.parameters()):
             self.shadow[k] = d * self.shadow[k] + (1.0 - d) * v
 
     def apply(self, model):
+        if not self._ever_updated:
+            return  # Don't overwrite with un-updated shadow (stale init weights)
         self.original = {k: mx.array(v) for k, v in tree_flatten(model.parameters())}
         model.update(tree_unflatten(list(self.shadow.items())))
 
@@ -716,6 +849,13 @@ class SplitOptimizers:
 
         model.update(tree_unflatten(list(updated.items())))
 
+        # Stability constraint: clamp Koopman diagonal to (-0.999, 0.999)
+        # This is a hard constraint from dynamical systems theory: ρ(A) must be < 1
+        if (model.capsule_bank is not None
+                and model.capsule_bank.koopman is not None):
+            clamped = mx.clip(model.capsule_bank.koopman.diag, -0.999, 0.999)
+            model.capsule_bank.koopman.diag = clamped
+
 
 # ---------------------------------------------------------------------------
 # Ternary serialization (base-3 packing + LZMA)
@@ -736,6 +876,53 @@ def pack_ternary_base3(q_np):
     return packed.astype(np.uint8), n
 
 
+def _gptq_lite_ternary(arr_np, gs, num_percentiles=5):
+    """GPTQ-lite: per-row clip percentile search before ternary quantization.
+    
+    For each row, try clipping at different percentiles and pick the one
+    that minimizes reconstruction MSE. This gives better ternary approximation.
+    """
+    rows, cols = arr_np.shape
+    pad_cols = (gs - cols % gs) % gs
+    if pad_cols > 0:
+        arr_padded = np.pad(arr_np, ((0, 0), (0, pad_cols)), mode='constant')
+    else:
+        arr_padded = arr_np.copy()
+    
+    best_q = np.zeros_like(arr_padded, dtype=np.int8).reshape(-1, gs)
+    best_scale = np.zeros((arr_padded.size // gs, 1), dtype=np.float32)
+    best_mse = np.full(rows, np.inf, dtype=np.float32)
+    
+    # Percentiles to try: 100% (no clip), 99%, 97%, 95%, 90%
+    percentiles = np.linspace(100.0, 90.0, num_percentiles)
+    
+    for pct in percentiles:
+        clipped = arr_padded.copy()
+        for r in range(rows):
+            if pct < 100.0:
+                threshold = np.percentile(np.abs(arr_padded[r]), pct)
+                clipped[r] = np.clip(clipped[r], -threshold, threshold)
+        
+        grouped = clipped.reshape(-1, gs)
+        scale = np.mean(np.abs(grouped), axis=-1, keepdims=True)
+        scale = np.maximum(scale, 1e-8)
+        q = np.clip(np.round(grouped / scale), -1, 1).astype(np.int8)
+        
+        # Reconstruct and measure per-row MSE
+        recon = (q.astype(np.float32) * scale).reshape(rows, -1)
+        mse = np.mean((arr_padded - recon) ** 2, axis=1)
+        
+        # Update best per row
+        for r in range(rows):
+            if mse[r] < best_mse[r]:
+                best_mse[r] = mse[r]
+                row_groups = arr_padded.shape[1] // gs
+                best_q[r * row_groups:(r + 1) * row_groups] = q[r * row_groups:(r + 1) * row_groups]
+                best_scale[r * row_groups:(r + 1) * row_groups] = scale[r * row_groups:(r + 1) * row_groups]
+    
+    return best_q, best_scale, pad_cols
+
+
 def quantize_for_export(model, args):
     """Quantize model to ternary + float, serialize to LZMA blob."""
     params = dict(tree_flatten(model.parameters()))
@@ -745,16 +932,24 @@ def quantize_for_export(model, args):
     for name, arr in params.items():
         arr_np = np.array(arr.astype(mx.float32), dtype=np.float32)
         if arr.ndim == 2 and arr.size > 1024 and "embed" not in name and "bigram_hash.table" not in name:
-            # Ternary quantize
             gs = args.bitnet_group_size
             rows, cols = arr_np.shape
-            pad_cols = (gs - cols % gs) % gs
-            if pad_cols > 0:
-                arr_np = np.pad(arr_np, ((0, 0), (0, pad_cols)), mode='constant')
-            grouped = arr_np.reshape(-1, gs)
-            scale = np.mean(np.abs(grouped), axis=-1, keepdims=True)
-            scale = np.maximum(scale, 1e-8)
-            q = np.clip(np.round(grouped / scale), -1, 1).astype(np.int8)
+            
+            if args.gptq_lite_enabled and args.gptq_lite_percentiles > 1:
+                # GPTQ-lite: clip percentile search for better ternary approximation
+                q, scale, pad_cols = _gptq_lite_ternary(
+                    arr_np, gs, num_percentiles=args.gptq_lite_percentiles
+                )
+            else:
+                # Plain ternary quantization
+                pad_cols = (gs - cols % gs) % gs
+                if pad_cols > 0:
+                    arr_np = np.pad(arr_np, ((0, 0), (0, pad_cols)), mode='constant')
+                grouped = arr_np.reshape(-1, gs)
+                scale = np.mean(np.abs(grouped), axis=-1, keepdims=True)
+                scale = np.maximum(scale, 1e-8)
+                q = np.clip(np.round(grouped / scale), -1, 1).astype(np.int8)
+            
             packed, n_trits = pack_ternary_base3(q)
             scale_f16 = scale.astype(np.float16)
             q_sd[name] = {"type": "ternary", "packed": packed, "scale": scale_f16,
@@ -845,12 +1040,23 @@ def build_luts(sp, vocab_size):
 
 
 def eval_val(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_lut, log_fn=None):
+    """Validation with cross-window capsule carry.
+
+    When capsule_carry_enabled, capsule state persists across sequential
+    validation batches with exponential decay. This gives the model structured
+    long-range memory during eval at zero parameter cost.
+    """
     seq_len = args.train_seq_len
     batch_seqs = max(1, args.val_batch_size // seq_len)
     total_seqs = (val_tokens.size - 1) // seq_len
     total_loss = 0.0
     total_tokens = 0.0
     total_bytes = 0.0
+    # Cross-window capsule carry state
+    carry_capsules = None
+    decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
+    use_carry = args.capsule_carry_enabled and args.capsule_enabled
+
     for start in range(0, total_seqs, batch_seqs):
         end = min(start + batch_seqs, total_seqs)
         raw_s = start * seq_len
@@ -860,8 +1066,35 @@ def eval_val(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_
         y_np = chunk[1:].reshape(-1, seq_len)
         x = mx.array(x_np, dtype=mx.int32)
         y = mx.array(y_np, dtype=mx.int32)
-        loss = model.loss(x, y).astype(mx.float32)
-        mx.eval(loss)
+
+        if use_carry:
+            # Forward pass to get capsule state for carry
+            hidden, capsule_state, _ = model(x, carry_capsules=carry_capsules)
+            # Compute loss from hidden
+            hidden_flat = hidden.reshape(-1, hidden.shape[-1])
+            y_flat = y.reshape(-1)
+            w = model.tok_emb.weight.astype(hidden_flat.dtype)
+            if model.embed_proj_rev is not None:
+                hidden_flat = hidden_flat @ model.embed_proj_rev.weight.astype(hidden_flat.dtype).T
+            logits = hidden_flat @ w.T + model.vocab_bias.astype(hidden_flat.dtype)
+            logits = model.softcap(logits)
+            loss = nn.losses.cross_entropy(logits.astype(mx.float32), y_flat, reduction="mean")
+            mx.eval(loss)
+            # Update carry with exponential decay — average across batch for size-independence
+            if capsule_state is not None:
+                # Reduce to (1, N, D) for batch-independent carry
+                cs_avg = mx.mean(capsule_state, axis=0, keepdims=True)
+                if carry_capsules is not None:
+                    carry_capsules = mx.stop_gradient(
+                        decay * carry_capsules + (1.0 - decay) * cs_avg
+                    )
+                else:
+                    carry_capsules = mx.stop_gradient(cs_avg)
+                mx.eval(carry_capsules)
+        else:
+            loss = model.loss(x, y).astype(mx.float32)
+            mx.eval(loss)
+
         n = float(y.size)
         total_loss += float(loss.item()) * n
         prev_ids = x_np.ravel()
@@ -1006,10 +1239,16 @@ def main():
 
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
             train_time_ms += 1000.0 * (time.perf_counter() - t0)
+            # Switch to eval-time feedback passes
+            if args.feedback_enabled:
+                model.set_feedback_passes(args.eval_feedback_passes)
             val_loss, val_bpb = eval_val(model, args, val_tokens, base_bytes_lut,
                                          has_leading_space_lut, is_boundary_lut, log_fn=log)
             log(f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{train_time_ms:.0f}ms")
+            # Restore training-time feedback passes
+            if args.feedback_enabled:
+                model.set_feedback_passes(model._train_feedback_passes)
             t0 = time.perf_counter()
 
         if last_step:
@@ -1061,10 +1300,13 @@ def main():
             if approx_ms >= max_wallclock_ms:
                 stop_after_step = step
 
-    # Apply EMA before serialization
+    # Apply EMA before serialization (only if it was actually updated)
     if ema is not None:
-        ema.apply(model)
-        log("EMA shadow weights applied")
+        if ema._ever_updated:
+            ema.apply(model)
+            log("EMA shadow weights applied")
+        else:
+            log("EMA shadow was never updated (short run) — using trained weights directly")
 
     # Serialize
     blob = quantize_for_export(model, args)

@@ -104,9 +104,21 @@ class Hyperparameters:
     # Shared block recurrence: use N unique blocks and tile them across num_layers positions
     shared_blocks = _e("SHARED_BLOCKS", 0, int)  # 0 = off (all unique), 2-3 = shared block count
     # Capsule bank
-    capsule_enabled = _e("CAPSULE_ENABLED", 0, bool)
+    capsule_enabled = _e("CAPSULE_ENABLED", 1, bool)
     capsule_num = _e("CAPSULE_NUM", 16, int)
     capsule_dim = _e("CAPSULE_DIM", 64, int)
+    # Koopman dynamics in capsule space
+    koopman_enabled = _e("KOOPMAN_ENABLED", 1, bool)
+    koopman_rank = _e("KOOPMAN_RANK", 4, int)
+    koopman_diag_init = _e("KOOPMAN_DIAG_INIT", 0.9, float)
+    koopman_consistency_weight = _e("KOOPMAN_CONSISTENCY_WEIGHT", 0.005, float)
+    # Adaptive halting (eval only)
+    adaptive_halt_enabled = _e("ADAPTIVE_HALT_ENABLED", 1, bool)
+    adaptive_halt_threshold = _e("ADAPTIVE_HALT_THRESHOLD", 0.05, float)
+    max_eval_passes = _e("MAX_EVAL_PASSES", 3, int)
+    # Cross-window capsule carry (eval only)
+    capsule_carry_enabled = _e("CAPSULE_CARRY_ENABLED", 1, bool)
+    capsule_carry_decay = _e("CAPSULE_CARRY_DECAY", 0.8, float)
     # N-gram eval cache
     ngram_cache_enabled = _e("NGRAM_CACHE_ENABLED", 0, bool)
     ngram_max_order = _e("NGRAM_MAX_ORDER", 5, int)
@@ -149,6 +161,7 @@ CTP = (
     "attn_scale", "attn_scales", "mlp_scale", "mlp_scales", "resid_mix", "resid_mixes",
     "q_gain", "skip_weight", "skip_weights", "vocab_bias", "add_gate", "mul_gate",
     "recurrent_gate", "vrl_alpha",
+    "koopman",  # Koopman dynamics params go to scalar Adam for stability
 )
 
 # ---------------------------------------------------------------------------
@@ -735,58 +748,84 @@ class FeedbackAdapter(nn.Module):
         return x * (1.0 + gate_m * torch.tanh(mul_term)) + gate_a * add_term
 
 
-class CapsuleBank(nn.Module):
-    """Structured semantic state carriers for the Ternary Reasoner.
+class KoopmanDynamics(nn.Module):
+    """Diagonal + low-rank stable linear dynamics in capsule space.
 
-    Capsules are NOT just an attention gimmick. They serve a specific architectural
-    role: they compress the token stream into a small set of structured semantic
-    slots that persist across feedback iterations. This makes the backward
-    correction loop informed by global structure, not just local activations.
+    Predicts next-pass capsule state from current state:
+        c_pred = D ⊙ c + U(V^T c)
+        c_new  = α ⊙ c_observed + (1-α) ⊙ c_pred
 
-    Design:
-      1. Read: project tokens into capsule space, soft-assign to prototypes
-      2. Pool: aggregate token info into N_caps compact slots
-      3. Update: optionally integrate with previous capsule state (recurrent)
-      4. Write: broadcast capsule-level corrections back to token positions
-
-    The capsule state is returned separately so it can be carried across
-    feedback passes (iterative refinement).
+    First-principles design:
+        - D initialized at 0.9 (critical damping, ρ(D)=0.9 < 1)
+        - UV initialized small (spectral perturbation << 1-ρ(D))
+        - α at sigmoid(0)=0.5 (maximum-entropy prior)
+        - Stability guaranteed at init: ρ(D + UV^T) ≤ 0.9 + ε
     """
-    def __init__(self, model_dim: int, capsule_num: int, capsule_dim: int, fp_storage: str | bool):
+    def __init__(self, capsule_dim: int, rank: int = 4, diag_init: float = 0.9):
+        super().__init__()
+        self.diag = nn.Parameter(torch.full((capsule_dim,), diag_init, dtype=torch.float32))
+        init_scale = 0.01 / max(rank ** 0.5, 1.0)
+        self.U = nn.Parameter(torch.randn(capsule_dim, rank) * init_scale)
+        self.V = nn.Parameter(torch.randn(capsule_dim, rank) * init_scale)
+        self.alpha = nn.Parameter(torch.zeros(capsule_dim, dtype=torch.float32))
+
+    def predict(self, c: Tensor) -> Tensor:
+        """Predict next-pass capsule state. c: (B, N, capsule_dim)"""
+        c_diag = self.diag.to(dtype=c.dtype) * c
+        c_lowrank = (c @ self.V.to(dtype=c.dtype)) @ self.U.to(dtype=c.dtype).T
+        return c_diag + c_lowrank
+
+    def blend(self, c_observed: Tensor, c_prev: Tensor) -> tuple[Tensor, Tensor]:
+        """Blend observed capsules with predicted evolution. Returns (blended, c_pred)."""
+        c_pred = self.predict(c_prev)
+        alpha = torch.sigmoid(self.alpha).to(dtype=c_observed.dtype)
+        return alpha * c_observed + (1.0 - alpha) * c_pred, c_pred
+
+
+class CapsuleBank(nn.Module):
+    """Structured semantic state carriers with Koopman-driven recurrent dynamics.
+
+    Upgrade from simple gated blending to predictive latent dynamics:
+    - Koopman module predicts where capsule state should evolve
+    - Blend prediction with fresh observation from current pass
+    - Returns c_pred for consistency loss (auxiliary training signal)
+    """
+    def __init__(self, model_dim: int, capsule_num: int, capsule_dim: int, fp_storage: str | bool,
+                 koopman_enabled: bool = True, koopman_rank: int = 4, koopman_diag_init: float = 0.9):
         super().__init__()
         self.capsule_num = capsule_num
         self.capsule_dim = capsule_dim
-        # Learned prototype slots — define the semantic "topics" capsules attend to
         self.prototypes = nn.Parameter(torch.randn(capsule_num, capsule_dim) * 0.02)
-        # Read: token → capsule space
         self.read_proj = QATLinear(model_dim, capsule_dim, bias=False, fp_storage=fp_storage)
-        # Write: capsule → token space
         self.write_proj = QATLinear(capsule_dim, model_dim, bias=False, fp_storage=fp_storage)
         self.write_proj._zero_init = True
-        # Recurrent gate: blend new capsule state with previous iteration's state
         self.recurrent_gate = nn.Parameter(torch.zeros(capsule_dim, dtype=torch.float32))
-        # Output gate
         self.gate = nn.Parameter(torch.zeros(model_dim, dtype=torch.float32))
+        # Koopman dynamics
+        self.koopman = None
+        if koopman_enabled:
+            self.koopman = KoopmanDynamics(capsule_dim, rank=koopman_rank, diag_init=koopman_diag_init)
 
-    def forward(self, x: Tensor, prev_capsules: Tensor | None = None) -> tuple[Tensor, Tensor]:
-        """Returns (corrected_x, capsule_state) so state persists across iterations."""
+    def forward(self, x: Tensor, prev_capsules: Tensor | None = None) -> tuple[Tensor, Tensor, Tensor | None]:
+        """Returns (corrected_x, capsule_state, c_pred_for_loss)."""
         bsz, seqlen, dim = x.shape
-        # Project tokens to capsule space
         x_proj = self.read_proj(F.rms_norm(x, (dim,)))
-        # Soft-assignment: each token attends to each capsule prototype
         scores = torch.einsum("btd,nd->btn", x_proj, self.prototypes.to(x_proj.dtype))
-        attn = torch.softmax(scores / (self.capsule_dim ** 0.5), dim=1)  # (B, T, N)
-        # Pool tokens into capsule slots
-        capsules = torch.einsum("btn,btd->bnd", attn, x_proj)  # (B, N, C_dim)
-        # Recurrent update: blend with previous capsule state if available
+        attn = torch.softmax(scores / (self.capsule_dim ** 0.5), dim=1)
+        capsules = torch.einsum("btn,btd->bnd", attn, x_proj)
+
+        c_pred = None
         if prev_capsules is not None:
-            rg = torch.sigmoid(self.recurrent_gate).to(dtype=capsules.dtype)
-            capsules = rg * capsules + (1 - rg) * prev_capsules
-        # Broadcast capsule corrections back to token positions
+            if self.koopman is not None:
+                capsules, c_pred = self.koopman.blend(capsules, prev_capsules)
+            else:
+                rg = torch.sigmoid(self.recurrent_gate).to(dtype=capsules.dtype)
+                capsules = rg * capsules + (1 - rg) * prev_capsules
+
         readout = torch.einsum("btn,bnd->btd", attn, capsules)
         correction = self.write_proj(readout)
         g = torch.tanh(self.gate).to(dtype=x.dtype)
-        return x + g * correction, capsules
+        return x + g * correction, capsules, c_pred
 
 
 class Block(nn.Module):
@@ -967,10 +1006,15 @@ class GPT(nn.Module):
         if bigram_hash_enabled:
             self.bigram_hash = BigramHash(bigram_hash_buckets, bigram_hash_dim, model_dim, fp_storage=fp_storage)
 
-        # Capsule bank — lightweight semantic routing between encoder and decoder
+        # Capsule bank — with Koopman-driven predictive dynamics
         self.capsule_bank = None
         if capsule_enabled:
-            self.capsule_bank = CapsuleBank(model_dim, capsule_num, capsule_dim, fp_storage=feedback_fp_storage)
+            self.capsule_bank = CapsuleBank(
+                model_dim, capsule_num, capsule_dim, fp_storage=feedback_fp_storage,
+                koopman_enabled=Hyperparameters.koopman_enabled,
+                koopman_rank=Hyperparameters.koopman_rank,
+                koopman_diag_init=Hyperparameters.koopman_diag_init,
+            )
 
         self.feedback_pooler = None
         self.feedback_adapters = None
@@ -1039,21 +1083,15 @@ class GPT(nn.Module):
                 x = self.feedback_adapters[i](x, sketch)
         return x
 
-    def _compute_hidden(self, input_ids: Tensor) -> Tensor:
-        """Core Ternary Reasoner forward: encode → [correct]^N → decode.
+    def _compute_hidden(self, input_ids: Tensor, carry_capsules: Tensor | None = None) -> tuple[Tensor, list, Tensor | None]:
+        """Core KoopCaps-HRM forward: encode → [correct]^N → decode.
 
-        The iterative correction loop is the defining architectural feature:
-          Pass 0: blind decoder pass (no feedback, no capsule history)
-          Pass 1..N: decoder receives backward semantic sketch from previous pass,
-                     capsule state accumulates across iterations,
-                     Hadamard-gated adapters apply structured corrections.
-
-        This is not a standard transformer forward. It is hierarchical
-        iterative refinement with backward semantic flow.
+        Returns (hidden, consistency_losses, capsule_state) where consistency_losses
+        is a list of (c_pred, c_actual) pairs for the Koopman dynamics auxiliary loss.
         """
         x, x0 = self._apply_embedding(input_ids)
         skips: list[Tensor] = []
-        v0 = None  # VRL: first-layer values, captured once
+        v0 = None
 
         # --- Encoder pass (runs once) ---
         for i in range(self.num_encoder_layers):
@@ -1063,38 +1101,49 @@ class GPT(nn.Module):
                     v0 = v_out.detach()
             skips.append(x)
 
-        # Capsule state initialization (persists across correction iterations)
+        # Capsule state initialization — use carry_capsules for cross-window persistence
         capsule_state = None
+        if carry_capsules is not None:
+            B_curr = x.shape[0]
+            carry_avg = carry_capsules.mean(dim=0, keepdim=True).expand(B_curr, -1, -1)
+            capsule_state = carry_avg
         if self.capsule_bank is not None:
-            x, capsule_state = self.capsule_bank(x, prev_capsules=None)
+            x, capsule_state, _ = self.capsule_bank(x, prev_capsules=capsule_state)
 
         encoded = x
         num_passes = self.feedback_passes
 
-        # --- Iterative correction loop ---
-        # Pass 0: blind (no sketch), establishes initial decoder output
-        # Pass 1..N: backward semantic flow — sketch from previous output
-        #            corrects the next decoder pass via Hadamard-gated adapters
+        # --- Iterative correction loop with Koopman dynamics ---
         sketch = None
-        for correction_pass in range(num_passes + 1):  # 0=blind, 1..N=corrected
+        consistency_losses = []
+        prev_capsule_state = None
+
+        for correction_pass in range(num_passes + 1):
             if correction_pass > 0 and self.feedback_enabled and self.feedback_pooler is not None:
-                # Compress previous decoder output into semantic sketch
                 sketch = self.feedback_pooler(self.final_norm(x))
             else:
                 sketch = None
 
-            # Update capsule state with current representation (iterative accumulation)
             if self.capsule_bank is not None and correction_pass > 0:
-                encoded, capsule_state = self.capsule_bank(encoded, prev_capsules=capsule_state)
+                prev_capsule_state = capsule_state
+                encoded, capsule_state, c_pred = self.capsule_bank(encoded, prev_capsules=capsule_state)
+                if c_pred is not None:
+                    consistency_losses.append((c_pred, capsule_state.detach()))
 
-            # Decoder pass with backward correction
+                # Adaptive halting (eval only)
+                if (not self.training and Hyperparameters.adaptive_halt_enabled
+                        and prev_capsule_state is not None and correction_pass >= 1):
+                    delta = torch.sqrt(torch.mean((capsule_state - prev_capsule_state) ** 2))
+                    norm = torch.sqrt(torch.mean(capsule_state ** 2)) + 1e-8
+                    if (delta / norm).item() < Hyperparameters.adaptive_halt_threshold:
+                        break
+
             x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0)
 
-            # Early exit if feedback is disabled — no point iterating
             if not self.feedback_enabled or self.feedback_pooler is None:
                 break
 
-        return self.final_norm(x)
+        return self.final_norm(x), consistency_losses, capsule_state
 
     def _compute_logits(self, x: Tensor) -> Tensor:
         if self.tie_embeddings:
@@ -1113,14 +1162,27 @@ class GPT(nn.Module):
         return s * torch.clamp(x_sc * (1.0 - x2 / 3.0 + x2 * x2 / 15.0), -1.0, 1.0)
 
     def forward_logits(self, input_ids: Tensor, temperature: float = 1.0) -> Tensor:
-        hidden = self._compute_hidden(input_ids)
+        hidden, _, _ = self._compute_hidden(input_ids)
         logits = self._softcap(self._compute_logits(hidden.reshape(-1, hidden.size(-1))))
         if temperature != 1.0:
             logits = logits / temperature
         return logits.reshape(input_ids.size(0), input_ids.size(1), -1)
 
+    def forward_logits_with_carry(self, input_ids: Tensor, carry_capsules: Tensor | None = None,
+                                   temperature: float = 1.0) -> tuple[Tensor, Tensor | None]:
+        """Forward pass that accepts and returns capsule state for cross-window carry."""
+        hidden, _, capsule_state = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+        logits = self._softcap(self._compute_logits(hidden.reshape(-1, hidden.size(-1))))
+        if temperature != 1.0:
+            logits = logits / temperature
+        return logits.reshape(input_ids.size(0), input_ids.size(1), -1), capsule_state
+
     def forward(self, input_ids: Tensor, target_ids: Tensor, reduction: str = "mean", temperature: float = 1.0) -> Tensor:
-        logits = self.forward_logits(input_ids, temperature=temperature).reshape(-1, self.vocab_bias.numel())
+        hidden, consistency_losses, _ = self._compute_hidden(input_ids)
+        logits = self._softcap(self._compute_logits(hidden.reshape(-1, hidden.size(-1))))
+        if temperature != 1.0:
+            logits = logits / temperature
+        logits = logits.reshape(-1, self.vocab_bias.numel())
         targets = target_ids.reshape(-1)
         if reduction == "none":
             return F.cross_entropy(logits.float(), targets, reduction="none").reshape(input_ids.shape)
@@ -1128,9 +1190,15 @@ class GPT(nn.Module):
         lse = torch.logsumexp(logits_f, dim=-1)
         target_logits = logits_f.gather(1, targets.unsqueeze(1)).squeeze(1)
         ce_loss = (lse - target_logits).mean()
-        # Z-loss regularization only during training; excluded during eval to avoid inflating BPB
+        # Z-loss regularization only during training
         if self.training:
             ce_loss = ce_loss + 1e-4 * (lse ** 2).mean()
+        # Capsule consistency auxiliary loss (Koopman dynamics training signal)
+        if self.training and consistency_losses and Hyperparameters.koopman_consistency_weight > 0:
+            consist_sum = torch.tensor(0.0, device=input_ids.device)
+            for c_pred, c_actual in consistency_losses:
+                consist_sum = consist_sum + F.mse_loss(c_pred, c_actual)
+            ce_loss = ce_loss + Hyperparameters.koopman_consistency_weight * consist_sum / len(consistency_losses)
         return ce_loss
 
 # ---------------------------------------------------------------------------
@@ -1217,8 +1285,14 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
     all_starts = list(range(0, total_tokens, stride))
     my_starts = [s for idx, s in enumerate(all_starts) if idx % world_size == rank and min(s + seq_len, total_tokens) - s >= 1]
 
+    use_carry = args.capsule_carry_enabled and args.capsule_enabled
+    decay = args.capsule_carry_decay
+
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    # Use carry-aware path if capsule carry is enabled, otherwise compiled path
+    compiled_logits = None if use_carry else torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    carry_capsules = None
+
     with torch.inference_mode():
         for i in range(0, len(my_starts), batch_size):
             batch_starts = my_starts[i:i + batch_size]
@@ -1234,7 +1308,18 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
                 x_batch[j, :wlen] = chunk[:-1]
                 y_batch[j, :wlen] = chunk[1:]
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits = compiled_logits(x_batch, temperature=temperature)
+                if use_carry:
+                    logits, capsule_state = base_model.forward_logits_with_carry(
+                        x_batch, carry_capsules=carry_capsules, temperature=temperature)
+                    # Update carry state with exponential decay
+                    if capsule_state is not None:
+                        cs_avg = capsule_state.mean(dim=0, keepdim=True).detach()
+                        if carry_capsules is not None:
+                            carry_capsules = (decay * carry_capsules + (1.0 - decay) * cs_avg).detach()
+                        else:
+                            carry_capsules = cs_avg.detach()
+                else:
+                    logits = compiled_logits(x_batch, temperature=temperature)
             nll = F.cross_entropy(
                 logits.reshape(-1, logits.size(-1)).float(),
                 y_batch.reshape(-1),
@@ -1873,6 +1958,12 @@ def main() -> None:
                 g["lr"] = g["base_lr"] * scale
             opt.step()
         zero_grad_all()
+
+        # Stability constraint: clamp Koopman diagonal to (-0.999, 0.999)
+        if (hasattr(base_model, 'capsule_bank') and base_model.capsule_bank is not None
+                and base_model.capsule_bank.koopman is not None):
+            with torch.no_grad():
+                base_model.capsule_bank.koopman.diag.clamp_(-0.999, 0.999)
 
         # EMA update (only after start_fraction of training)
         if ema is not None:
