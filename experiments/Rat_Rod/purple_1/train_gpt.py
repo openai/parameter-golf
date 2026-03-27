@@ -111,6 +111,14 @@ class Hyperparameters:
     # Purple-1: Dirichlet-Multinomial smoothing (PR #900 — replaces linear alpha)
     ngram_dirichlet = bool(int(os.environ.get("NGRAM_DIRICHLET", "0")))
     ngram_dirichlet_conc = float(os.environ.get("NGRAM_DIRICHLET_CONC", "5.0"))
+    # Purple-1: variable-length phrase suffix cache (PR #880/900 — +0.1 BPB, legal)
+    phrase_cache_enabled = bool(int(os.environ.get("PHRASE_CACHE", "1")))
+    phrase_buckets = int(os.environ.get("PHRASE_BUCKETS", 4_194_304))
+    phrase_probe_lengths_str = os.environ.get("PHRASE_PROBE_LENGTHS", "48,36,28,20,16")
+    phrase_concentration = float(os.environ.get("PHRASE_CONCENTRATION", "2.0"))
+    phrase_min_count = int(os.environ.get("PHRASE_MIN_COUNT", "1"))
+    # Purple-1: regime tracker (PR #880 — scales cache trust for repetitive vs novel text)
+    regime_tracker_enabled = bool(int(os.environ.get("REGIME_TRACKER", "1")))
     skip_final_eval = bool(int(os.environ.get("SKIP_FINAL_EVAL", "0")))
     compile_enabled = bool(int(os.environ.get("COMPILE_ENABLED", "1")))
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
@@ -991,6 +999,40 @@ def _ngram_bulk_update(val_np, start, end, ctx_tables, full_tables,
         full_tables[order] += np.bincount(full_key, minlength=len(full_tables[order])).astype(np.uint32)
 
 
+class RegimeTracker:
+    """Adapts phrase cache concentration based on content repetitiveness (PR #880).
+
+    High match rate (boilerplate/code) → lower concentration → trust cache more.
+    Low match rate (novel prose) → higher concentration → trust neural more.
+    Multiplier range: [0.7, 1.5].
+    """
+    def __init__(self, window: int = 4096):
+        self._max = max(1, window // 64)
+        self._match: list[float] = []
+        self._div: list[float] = []
+        self.mult = 1.0
+
+    def update(self, n_match: int, n_total: int, tokens: np.ndarray) -> None:
+        if n_total == 0:
+            return
+        self._match.append(n_match / n_total)
+        if len(tokens) > 0:
+            self._div.append(float(len(np.unique(tokens))) / len(tokens))
+        if len(self._match) > self._max:
+            self._match.pop(0)
+        if len(self._div) > self._max:
+            self._div.pop(0)
+        if len(self._match) >= 3:
+            r_match = float(np.mean(self._match[-10:]))
+            r_div = float(np.mean(self._div[-10:])) if self._div else 0.5
+            rep = r_match * (1.0 - r_div * 0.5)
+            self.mult = 0.7 + 0.8 * float(np.clip(rep, 0.0, 1.0))
+
+    def effective_concentration(self, base_c: float) -> float:
+        """Divide base_c by mult: repetitive text → lower c → more cache weight."""
+        return base_c / self.mult
+
+
 def _build_training_ngram_oracle(
     data_path: str,
     min_order: int,
@@ -1126,6 +1168,38 @@ def eval_val_sliding_hashed_ngram(
     elif oracle_state is not None and rank == 0:
         print(f"oracle:bucket_mismatch oracle_buckets={oracle_state.get('buckets')} "
               f"eval_buckets={buckets} (no seeding)", flush=True)
+
+    # Phrase cache (PR #880 / PR #900): variable-length suffix matching, score-first
+    # 48 distinct primes — one per context position up to max probe length
+    _PHRASE_PRIMES = np.array([
+        np.uint64(36313),   np.uint64(27191),   np.uint64(51647),   np.uint64(81929),
+        np.uint64(131071),  np.uint64(174763),  np.uint64(233017),  np.uint64(295759),
+        np.uint64(393241),  np.uint64(524287),  np.uint64(655373),  np.uint64(786433),
+        np.uint64(917503),  np.uint64(1048583), np.uint64(1179649), np.uint64(1310723),
+        np.uint64(1441793), np.uint64(1572869), np.uint64(1703939), np.uint64(1835009),
+        np.uint64(1966081), np.uint64(2097169), np.uint64(2228231), np.uint64(2359297),
+        np.uint64(2490373), np.uint64(2621447), np.uint64(2752519), np.uint64(2883593),
+        np.uint64(3014657), np.uint64(3145739), np.uint64(3276803), np.uint64(3407873),
+        np.uint64(3538951), np.uint64(3670021), np.uint64(3801089), np.uint64(3932161),
+        np.uint64(4063241), np.uint64(4194319), np.uint64(4325399), np.uint64(4456481),
+        np.uint64(4587569), np.uint64(4718609), np.uint64(4849681), np.uint64(4980751),
+        np.uint64(5111809), np.uint64(5242883), np.uint64(5373961), np.uint64(5505047),
+    ], dtype=np.uint64)
+    _use_phrase = getattr(args, 'phrase_cache_enabled', False)
+    _phrase_probes = (
+        [int(x) for x in args.phrase_probe_lengths_str.split(",") if x.strip()]
+        if _use_phrase and getattr(args, 'phrase_probe_lengths_str', '') else []
+    )
+    _pb = int(getattr(args, 'phrase_buckets', 4_194_304))
+    _pm = np.uint64(_pb - 1)
+    _pmc = int(getattr(args, 'phrase_min_count', 1))
+    _ph_ctx  = [np.zeros(_pb, dtype=np.uint32) for _ in _phrase_probes]
+    _ph_full = [np.zeros(_pb, dtype=np.uint32) for _ in _phrase_probes]
+    _regime = RegimeTracker() if getattr(args, 'regime_tracker_enabled', False) else None
+    if _use_phrase and rank == 0:
+        print(f"phrase_cache:probes={_phrase_probes} buckets={_pb} "
+              f"conc={getattr(args, 'phrase_concentration', 2.0)} "
+              f"regime={_regime is not None}", flush=True)
 
     loss_sum = 0.0
     token_count = 0.0
@@ -1298,6 +1372,40 @@ def eval_val_sliding_hashed_ngram(
                                 a = per_token_alpha[m_idx]
                             seg_model_p[m_idx] = (1.0 - a) * seg_model_p[m_idx] + a * p_ng[m_idx]
 
+                    # Phrase cache: variable-length suffix lookup + Dirichlet blend (PR #880/900)
+                    # Applied after n-gram mixing, still within score-first protocol.
+                    if _use_phrase and _phrase_probes:
+                        base_pc = getattr(args, 'phrase_concentration', 2.0)
+                        eff_c = (_regime.effective_concentration(base_pc)
+                                 if _regime is not None else base_pc)
+                        _regime_matches = 0
+                        for pi, pl in enumerate(_phrase_probes):
+                            eligible = global_j >= pl
+                            if not eligible.any():
+                                continue
+                            ei = np.where(eligible)[0]
+                            gj = global_j[ei]
+                            tgt_u = val_np[gj].astype(np.uint64)
+                            ph = np.zeros(len(gj), dtype=np.uint64)
+                            for k in range(pl):
+                                ph ^= val_np[gj - pl + k].astype(np.uint64) * _PHRASE_PRIMES[k % len(_PHRASE_PRIMES)]
+                            ck = (ph & _pm).astype(np.int64)
+                            fk = ((ph ^ (tgt_u * _PHRASE_PRIMES[pl % len(_PHRASE_PRIMES)])) & _pm).astype(np.int64)
+                            cc = _ph_ctx[pi][ck].astype(np.float64)
+                            fc = _ph_full[pi][fk].astype(np.float64)
+                            has_ctx = cc >= _pmc
+                            if not has_ctx.any():
+                                continue
+                            ui = ei[has_ctx]
+                            # Dirichlet: p = (count + c * neural) / (ctx + c)
+                            seg_model_p[ui] = (
+                                np.minimum(fc[has_ctx], cc[has_ctx]) + eff_c * seg_model_p[ui]
+                            ) / (cc[has_ctx] + eff_c)
+                            _regime_matches += int(has_ctx.sum())
+                        seg_model_p = np.clip(seg_model_p, 1e-12, 1.0)
+                        if _regime is not None:
+                            _regime.update(_regime_matches, seg_len, val_np[global_j])
+
                     seg_nll = -np.log(np.clip(seg_model_p, 1e-12, 1.0))
                     loss_sum += float(seg_nll.sum())
                     token_count += float(seg_len)
@@ -1313,6 +1421,22 @@ def eval_val_sliding_hashed_ngram(
             _ngram_bulk_update(val_np, chunk_start, chunk_end + 1,
                                ctx_tables, full_tables, min_order, max_order,
                                primes, mask)
+
+            # Phase 2b: score-first phrase table update (same chunk range)
+            if _use_phrase and _phrase_probes:
+                for pi, pl in enumerate(_phrase_probes):
+                    first = max(chunk_start, pl)
+                    if first > chunk_end:
+                        continue
+                    positions = np.arange(first, chunk_end + 1, dtype=np.int64)
+                    tgt_u = val_np[positions].astype(np.uint64)
+                    ph = np.zeros(len(positions), dtype=np.uint64)
+                    for k in range(pl):
+                        ph ^= val_np[positions - pl + k].astype(np.uint64) * _PHRASE_PRIMES[k % len(_PHRASE_PRIMES)]
+                    ck = (ph & _pm).astype(np.int64)
+                    fk = ((ph ^ (tgt_u * _PHRASE_PRIMES[pl % len(_PHRASE_PRIMES)])) & _pm).astype(np.int64)
+                    _ph_ctx[pi]  += np.bincount(ck, minlength=_pb).astype(np.uint32)
+                    _ph_full[pi] += np.bincount(fk, minlength=_pb).astype(np.uint32)
 
             # Cubric 2D c-step: adapt per (order x entropy_bin)
             if _con:
