@@ -812,6 +812,7 @@ class GatedDeltaNet(nn.Module):
             nn.init.zeros_(self.astrocyte_net[-1].weight)
             nn.init.zeros_(self.astrocyte_net[-1].bias)
 
+    @torch.compiler.disable
     def forward(self, x: Tensor) -> Tensor:
         B, T, D = x.shape
         H, d = self.num_heads, self.head_dim
