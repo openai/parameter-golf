@@ -11,7 +11,8 @@ Push base model BPB from 1.11 → 1.08 on 8xH100, 600s wallclock, no GPTQ.
 | **Rat Rod Green v1** | **1.1129** | **1.1364** | **0.4489** | **6882** | **87.20** | Parallel Muon, XSA=11, Bigram=2048, RoPE=16, SWA=50, no GPTQ, no complementary |
 | Rat Rod Green v2 | 1.1132 | 1.1367 | 0.4490 | 6875 | 87.28 | v1 + TRIGRAM=1, LATE_QAT_THRESHOLD=0 — **WASH** |
 | Rat Rod Green v3 | PENDING | — | — | — | — | v1 base + MTP_NUM_HEADS=2 (vanilla MTP) |
-| **Rat Rod Green v4 "Synapse"** | **PENDING** | — | — | — | — | HS-MTP + CPU N-gram Bridge |
+| Rat Rod Green v4 "Synapse" | ~1.14+ | 1.1702 | — | 5872 | 102.20 | HS-MTP + CPU Bridge — **DEAD** (15ms overhead) |
+| Rat Rod Green v5 "Synapse v2" | 1.1296 | 1.1529 | 0.4534 | 6819 | 88.01 | GPU-native hash bridge — **DEAD** (worse on both metrics) |
 
 ## v1 Full Log Metrics (2026-03-27)
 ```
@@ -118,8 +119,10 @@ model forward:                                │
 ## Tested Levers
 1. ~~LATE_QAT_THRESHOLD=0~~ (v2) — **WASH**, EMA/SWA smoothed the noise anyway
 2. ~~TRIGRAM=1~~ (v2) — **WASH**, shared table pulled in conflicting directions
-3. ~~MTP_NUM_HEADS=2~~ (v3) — PENDING result (vanilla MTP)
-4. **Synapse HS-MTP** (v4) — PENDING result
+3. ~~MTP_NUM_HEADS=2~~ (v3) — never ran (skipped for Synapse)
+4. ~~Synapse v1 (CPU bridge)~~ (v4) — **DEAD**, 15ms overhead, worse per-step
+5. ~~Synapse v2 (GPU-native)~~ (v5) — **DEAD**, worse on both base AND ngram. Concept disproven.
+6. ~~VALUE_RESIDUAL=1~~ — **WORSE** (+0.0012 sliding at 200s)
 
 ## Untested Levers
 1. VALUE_RESIDUAL=1 — deep layers access first-layer values via sigmoid gate
