@@ -896,7 +896,7 @@ def eval_val_sliding(
 class LongPhraseCache:
     """variable-length suffix matcher for verbatim repetition (PR #880).
     probes at lengths [48,36,28,20,16] using rolling hashes."""
-    PROBE_LENGTHS = [28, 20, 16]  # extended probes for better phrase matching
+    PROBE_LENGTHS = [36, 28, 20, 16]  # extended probes for more phrase matching
     PRIMES = [np.uint64(p) for p in [
         36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377,
         412391, 479909, 541267, 613651, 700897, 786433, 850001, 921587,
