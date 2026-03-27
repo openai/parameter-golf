@@ -44,7 +44,7 @@ NUM_LAYERS = 11
 MODEL_DIM = 512
 NUM_HEADS = 8
 NUM_KV_HEADS = 4
-MLP_MULT = 3
+MLP_MULT = 3.25  # wider MLP uses ~450KB headroom (15.0 → ~15.45MB), 8% more capacity
 TIE_EMBEDDINGS = True
 ROPE_BASE = 10000.0
 ROPE_DIM = 16                    # number of head dims to apply rotary to (0=full, 16=partial like SOTA)
@@ -112,7 +112,7 @@ FACTORED_RANK = 384           # rank of factorization (lower = more compression,
 # Non-uniform quantization: important layers get more bits, unimportant fewer
 NONUNIFORM_IMPORTANT_BITS = 6
 NONUNIFORM_UNIMPORTANT_BITS = 5
-NONUNIFORM_IMPORTANT_FRAC = 0.2  # top 20% (~2 layers) at int6; partial RoPE saves ~380KB creating headroom
+NONUNIFORM_IMPORTANT_FRAC = 0.0  # all layers at int5 (mixed quant hurts zstd, frac=0.2 was OVER)
 # Hadamard rotation before quantization: makes weight distributions uniform, better compression
 HADAMARD_ROTATE = False
 # FFT int4: FFT per row → quantize all coefficients at int4 → iFFT reconstructs ≈ int8

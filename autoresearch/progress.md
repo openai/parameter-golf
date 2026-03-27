@@ -30,7 +30,8 @@
 | EMA(0.997) | 1.3197 | 1.3239 | 14.8 | WORSE — all-warmdown means last step is best |
 | leaky_relu_sq | 1.3135 | 1.3193 | 14.8 | WORSE — 214ms/step (+18%), fewer steps kill gains |
 | ROPE_DIM=8 | 1.3073 | 1.3138 | 15.2 | WORSE — 16 confirmed optimal |
-| **MATRIX_LR=0.12** | running | — | — | — |
+| MATRIX_LR=0.12 | 1.3047 | 1.3109 | 14.6 | WORSE — LR=0.10 confirmed optimal |
+| **nonuniform frac=0.2** | running | — | — | — |
 
 ## Key Findings
 1. **SiLU >> ReluSquared.** relu_sq is ~23ms/step slower, fewer total steps negate per-step gains.
