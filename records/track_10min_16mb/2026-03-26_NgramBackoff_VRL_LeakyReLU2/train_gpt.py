@@ -884,6 +884,32 @@ class GPT(nn.Module):
   else:
    logits_proj = self.lm_head(x)
   return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+ def forward_logits_raw(self, input_ids: Tensor) -> Tensor:
+  x = self.tok_emb(input_ids)
+  if self.bigram is not None:
+   x = x + self.bigram(input_ids)
+  x = F.rms_norm(x, (x.size(-1),))
+  x = self.smear(x)
+  x0 = x
+  skips: list[Tensor] = []
+  ve_cache: dict = {}
+  v_first: Tensor | None = None
+  for i in range(self.num_encoder_layers):
+   ve = self._get_ve(i, input_ids, ve_cache)
+   x, v_raw = self.blocks[i](x, x0, v_embed=ve, v_first=v_first if self.vrl_enabled else None)
+   if i == 0 and self.vrl_enabled:
+    v_first = v_raw
+   skips.append(x)
+  for i in range(self.num_decoder_layers):
+   bi = self.num_encoder_layers + i
+   if skips:
+    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+   ve = self._get_ve(bi, input_ids, ve_cache)
+   x, _ = self.blocks[bi](x, x0, v_embed=ve, v_first=v_first if self.vrl_enabled else None)
+  x = self.final_norm(x)
+  if self.tie_embeddings:
+   return F.linear(x, self.tok_emb.weight)
+  return self.lm_head(x)
 def eval_val_sliding(
  args: Hyperparameters,
  base_model: nn.Module,
@@ -910,7 +936,11 @@ def eval_val_sliding(
  token_count = torch.zeros((), device=device, dtype=torch.float64)
  byte_count = torch.zeros((), device=device, dtype=torch.float64)
  base_model.eval()
- compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+ use_fused = _HAS_FUSED_CE and bool(int(os.environ.get("USE_FUSED_CE", "1")))
+ if use_fused:
+  compiled_logits = torch.compile(base_model.forward_logits_raw, dynamic=False, fullgraph=True)
+ else:
+  compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
  with torch.inference_mode():
   for bi in range(0, len(my_windows), batch_seqs):
    batch_ws = my_windows[bi:bi + batch_seqs]
@@ -927,11 +957,14 @@ def eval_val_sliding(
     y_batch[i, :wlen] = chunk[1:]
    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
     logits = compiled_logits(x_batch)
-   nll = F.cross_entropy(
-    logits.reshape(-1, logits.size(-1)).float(),
-    y_batch.reshape(-1),
-    reduction="none",
-   ).reshape(bsz, seq_len)
+   if use_fused:
+    nll = fused_softcap_ce(logits.reshape(-1, logits.size(-1)), y_batch.reshape(-1)).reshape(bsz, seq_len)
+   else:
+    nll = F.cross_entropy(
+     logits.reshape(-1, logits.size(-1)).float(),
+     y_batch.reshape(-1),
+     reduction="none",
+    ).reshape(bsz, seq_len)
    for i, ws in enumerate(batch_ws):
     wlen = wlens[i]
     s = 0 if ws == 0 else max(wlen - stride, 0)
@@ -1346,6 +1379,7 @@ def main() -> None:
  log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
  log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
  log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+ log0(f"fused_softcap_ce:{_HAS_FUSED_CE}")
  log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
  log0(
   f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
