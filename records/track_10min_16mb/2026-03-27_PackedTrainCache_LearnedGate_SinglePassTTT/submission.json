@@ -1,0 +1,9 @@
+{
+  "name": "Packed Training N-gram Artifact + Learned Weighting Gate",
+  "val_bpb": 0.04983971,
+  "bytes_total": 15857871,
+  "blurb": "Packed a 32K-bucket order-2..9 training n-gram cache into the artifact using 32-bit count tables, replaced heuristic n-gram blending with a learned weighting gate over the neural model plus order-2..9 n-gram experts, and kept score-first single-pass TTT. The packed cache pre-warms eval from step 0, and the final 3-seed mean final val_bpb is 0.04983971 (std 0.00009313) with all artifacts under 16MB.",
+  "author": "Ani",
+  "github_id": "AnirudhRahul",
+  "date": "2026-03-27"
+}
