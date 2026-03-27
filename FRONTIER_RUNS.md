@@ -1,6 +1,6 @@
 # Frontier Runs
 
-This repo is now wired for five legal frontier presets through `research/run.py`.
+This repo is now wired for the current legal frontier presets through `research/run.py`.
 
 For RunPod / PyTorch-image setup, use [CLOUD_SETUP.md](CLOUD_SETUP.md) before launching these presets.
 
@@ -28,6 +28,7 @@ Important legality and reproducibility notes:
 | `sota_plus_ppm_multiorder` | Verified control + deterministic multi-order PPM-style backoff cache | yellow |
 | `sota_plus_ppm_entropy_fixed` | PPM backoff + fixed entropy-gated eval-time cache mixing | yellow |
 | `sota_plus_ppm_entropy_order_adaptive` | PPM backoff + order-adaptive entropy-gated eval-time cache mixing | yellow |
+| `sota_plus_ppm_dirichlet` | PPM backoff + single-pass Dirichlet posterior predictive mixing | yellow |
 | `xsaall_fullgptq_prune_plus_cache` | XSA-all + full GPTQ + selective pruning + causal cache | yellow |
 | `rotaryfix_bigram3072_legalttt` | RotaryFix + BIGRAM3072 + legal score-first TTT | green |
 
@@ -73,6 +74,14 @@ python3 research/run.py --preset sota_plus_ppm_entropy_order_adaptive --scale ha
 python3 research/run.py --preset sota_plus_ppm_entropy_order_adaptive --scale full_run --run-name sota_plus_ppm_entropy_order_adaptive_full_run_s1337 --seed 1337 --nproc-per-node 8 --gpu-profile 8xh100
 ```
 
+`sota_plus_ppm_dirichlet`
+
+```bash
+python3 research/run.py --preset sota_plus_ppm_dirichlet --scale smoke --run-name sota_plus_ppm_dirichlet_smoke_s1337 --seed 1337 --nproc-per-node 1 --gpu-profile local_cuda
+python3 research/run.py --preset sota_plus_ppm_dirichlet --scale half_run --run-name sota_plus_ppm_dirichlet_half_run_s1337 --seed 1337 --nproc-per-node 1 --gpu-profile 1xh100
+python3 research/run.py --preset sota_plus_ppm_dirichlet --scale full_run --run-name sota_plus_ppm_dirichlet_full_run_s1337 --seed 1337 --nproc-per-node 8 --gpu-profile 8xh100
+```
+
 `xsaall_fullgptq_prune_plus_cache`
 
 ```bash
@@ -100,6 +109,12 @@ Compare runs:
 ```bash
 python3 research/compare_runs.py --family frontier --status all --limit 20
 python3 research/compare_runs.py --family frontier --scale half_run --status all --json
+```
+
+Preflight an expensive distributed launch without starting training:
+
+```bash
+python3 research/run.py --preset sota_plus_ppm_entropy_fixed --scale full_run --run-name sota_plus_ppm_entropy_fixed_full_run_preflight --seed 1337 --nproc-per-node 8 --gpu-profile 8xh100 --preflight-only
 ```
 
 Inspect progress:
@@ -131,6 +146,7 @@ python3 scripts/submission_readiness.py --run-dir research/results/runs/<timesta
 - Preserve the stabilized H100 path. Keep FlashAttention working and do not reintroduce `torch.compile` into the frontier trainers.
 - Treat `sota_plus_ppm_entropy_fixed` as the default branch for serious runs.
 - Current branch of record: `sota_plus_ppm_entropy_fixed` at `legal_ttt val_bpb = 2.506169`.
+- For one higher-upside legal 8xH100 compliance attempt, test `sota_plus_ppm_dirichlet` against the same stabilized trainer path before changing anything else.
 - For cache sweeps, trust the resolved startup `causal_cache:` line in the trainer log, or the launcher's `resolved_cache:` dry-run output. Run name and shell env alone are not sufficient.
 - Avoid tiny entropy-only knob sweeps unless they are bundled with a larger hypothesis.
 
@@ -228,3 +244,5 @@ Reason:
 - it is the current best validated legal half-run branch in this repo snapshot
 - it is clearly better than plain multiorder and current order-adaptive entropy results
 - recent center / slope sweeps are near saturation, so the next gains should come from scaling or larger structural changes rather than more tiny entropy tuning
+
+For one bounded legal 8xH100 experiment that changes only the cache mixer, use `sota_plus_ppm_dirichlet` and keep `sota_plus_ppm_entropy_fixed` as the rollback branch of record.

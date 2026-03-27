@@ -107,9 +107,10 @@ class CausalCacheConfig:
             raise ValueError(f"CAUSAL_CACHE_MIN_COUNT must be >= 1, got {self.min_count}")
         if self.buckets <= 0 or self.buckets & (self.buckets - 1):
             raise ValueError(f"CAUSAL_CACHE_BUCKETS must be a positive power of two, got {self.buckets}")
-        if self.mixing not in {"fixed", "count", "entropy", "order_entropy"}:
+        if self.mixing not in {"fixed", "count", "entropy", "order_entropy", "dirichlet"}:
             raise ValueError(
-                f"CAUSAL_CACHE_MIXING must be fixed, count, entropy, or order_entropy, got {self.mixing!r}"
+                "CAUSAL_CACHE_MIXING must be fixed, count, entropy, order_entropy, "
+                f"or dirichlet, got {self.mixing!r}"
             )
         if self.count_smoothing <= 0.0:
             raise ValueError(f"CAUSAL_CACHE_COUNT_SMOOTHING must be > 0, got {self.count_smoothing}")
@@ -136,10 +137,14 @@ class CausalCacheConfig:
 
 def format_cache_config(config: CausalCacheConfig) -> str:
     cache_gate = config.mixing
+    posterior_strength = ""
     if config.mixing == "entropy":
         cache_gate = "fixed_entropy"
     elif config.mixing == "order_entropy":
         cache_gate = "order_adaptive_entropy"
+    elif config.mixing == "dirichlet":
+        cache_gate = "dirichlet_posterior"
+        posterior_strength = f" posterior_strength={config.count_smoothing:.2f}"
     return (
         "causal_cache:"
         f" mode={config.mode}"
@@ -151,6 +156,7 @@ def format_cache_config(config: CausalCacheConfig) -> str:
         f" entropy_center={config.entropy_center:.2f}"
         f" entropy_slope={config.entropy_slope:.2f}"
         f" order_entropy_centers={format_order_entropy_centers(config.order_entropy_centers or {})}"
+        f"{posterior_strength}"
         f" mixing={config.mixing}"
         f" count_smoothing={config.count_smoothing:.2f}"
     )
@@ -251,6 +257,49 @@ class ScoreFirstCausalCache:
             table.fill(0)
         self._pending_positions = None
 
+    def _hashed_keys(
+        self,
+        token_stream: np.ndarray,
+        positions: np.ndarray,
+        order: int,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        ctx_width = order - 1
+        ctx_hash = np.zeros(len(positions), dtype=np.uint64)
+        for offset in range(ctx_width):
+            tok = token_stream[positions - (ctx_width - offset)].astype(np.uint64)
+            ctx_hash ^= tok * _HASH_PRIMES[offset % len(_HASH_PRIMES)]
+        ctx_key = (ctx_hash & self.mask).astype(np.int64)
+        tgt = token_stream[positions].astype(np.uint64)
+        full_key = ((ctx_hash ^ (tgt * _HASH_PRIMES[ctx_width % len(_HASH_PRIMES)])) & self.mask).astype(np.int64)
+        return ctx_key, full_key
+
+    def _dirichlet_posterior_segment(
+        self,
+        token_stream: np.ndarray,
+        global_target_positions: np.ndarray,
+        model_target_probs: np.ndarray,
+    ) -> np.ndarray:
+        posterior = np.array(model_target_probs, copy=True, dtype=np.float64)
+        prior_strength = float(self.config.count_smoothing)
+        for order in self.config.orders:
+            ctx_width = order - 1
+            valid = global_target_positions >= ctx_width
+            if not valid.any():
+                continue
+            idx = np.nonzero(valid)[0]
+            positions = global_target_positions[idx]
+            ctx_key, full_key = self._hashed_keys(token_stream, positions, order)
+            ctx_counts = self.ctx_tables[order][ctx_key].astype(np.float64)
+            full_counts = self.full_tables[order][full_key].astype(np.float64)
+            can_update = ctx_counts >= float(self.config.min_count)
+            if not can_update.any():
+                continue
+            chosen = idx[can_update]
+            posterior[chosen] = (
+                full_counts[can_update] + prior_strength * posterior[chosen]
+            ) / (ctx_counts[can_update] + prior_strength)
+        return np.clip(posterior, 0.0, 1.0)
+
     def score_segment(
         self,
         token_stream: np.ndarray,
@@ -269,6 +318,10 @@ class ScoreFirstCausalCache:
                 raise RuntimeError("entropy-gated cache mixing received mismatched entropy and probability shapes")
 
         mixed = np.array(model_target_probs, copy=True, dtype=np.float64)
+        if self.config.mixing == "dirichlet":
+            mixed = self._dirichlet_posterior_segment(token_stream, global_target_positions, mixed)
+            self._pending_positions = np.array(global_target_positions, copy=True, dtype=np.int64)
+            return mixed
         best_ng = np.zeros_like(mixed)
         best_ctx_count = np.zeros_like(mixed)
         best_order = np.zeros_like(global_target_positions, dtype=np.int16)
@@ -281,13 +334,7 @@ class ScoreFirstCausalCache:
                 continue
             idx = np.nonzero(valid)[0]
             positions = global_target_positions[idx]
-            ctx_hash = np.zeros(len(positions), dtype=np.uint64)
-            for offset in range(ctx_width):
-                tok = token_stream[positions - (ctx_width - offset)].astype(np.uint64)
-                ctx_hash ^= tok * _HASH_PRIMES[offset % len(_HASH_PRIMES)]
-            ctx_key = (ctx_hash & self.mask).astype(np.int64)
-            tgt = token_stream[positions].astype(np.uint64)
-            full_key = ((ctx_hash ^ (tgt * _HASH_PRIMES[ctx_width % len(_HASH_PRIMES)])) & self.mask).astype(np.int64)
+            ctx_key, full_key = self._hashed_keys(token_stream, positions, order)
 
             ctx_counts = self.ctx_tables[order][ctx_key].astype(np.float64)
             full_counts = self.full_tables[order][full_key].astype(np.float64)
@@ -340,13 +387,7 @@ class ScoreFirstCausalCache:
             if not valid.any():
                 continue
             positions = global_target_positions[valid]
-            ctx_hash = np.zeros(len(positions), dtype=np.uint64)
-            for offset in range(ctx_width):
-                tok = token_stream[positions - (ctx_width - offset)].astype(np.uint64)
-                ctx_hash ^= tok * _HASH_PRIMES[offset % len(_HASH_PRIMES)]
-            ctx_key = (ctx_hash & self.mask).astype(np.int64)
-            tgt = token_stream[positions].astype(np.uint64)
-            full_key = ((ctx_hash ^ (tgt * _HASH_PRIMES[ctx_width % len(_HASH_PRIMES)])) & self.mask).astype(np.int64)
+            ctx_key, full_key = self._hashed_keys(token_stream, positions, order)
             np.add.at(self.ctx_tables[order], ctx_key, 1)
             np.add.at(self.full_tables[order], full_key, 1)
 

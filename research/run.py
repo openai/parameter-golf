@@ -49,6 +49,13 @@ FINAL_BPB_MISSING = 10**9
 DYNAMIC_ENV_KEYS = {"RUN_ID", "LOG_DIR", "ARTIFACT_DIR", "OUT_DIR"}
 ALL_PRESETS: dict[str, Preset] = {**PRESETS, **FRONTIER_PRESETS}
 ALL_SCALES: dict[str, RunScale] = {**RUN_SCALES, **FRONTIER_SCALES}
+KNOWN_GPU_PROFILES = {
+    "local_mlx",
+    "local_cuda",
+    "1xh100",
+    "8xh100",
+    "8xh100_sxm",
+}
 
 
 TRAIN_LINE_RE = re.compile(
@@ -113,14 +120,80 @@ def timestamp_slug() -> str:
     return datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
 
 
+def visible_cuda_device_count(raw: str | None) -> int | None:
+    if raw is None:
+        return None
+    raw = raw.strip()
+    if not raw:
+        return None
+    return len([item for item in raw.split(",") if item.strip()])
+
+
 def build_command(preset: Preset, nproc_per_node: int | None) -> list[str]:
     entrypoint = str(ROOT / preset.entrypoint)
     if preset.launch_mode == "python":
         return [sys.executable, entrypoint]
     if preset.launch_mode == "torchrun":
-        torchrun = shutil.which("torchrun") or "torchrun"
-        return [torchrun, "--standalone", f"--nproc_per_node={nproc_per_node}", entrypoint]
+        launcher = resolved_torchrun_launcher()
+        return [*launcher, "--standalone", f"--nproc_per_node={nproc_per_node}", entrypoint]
     raise ValueError(f"Unsupported launch mode {preset.launch_mode!r}")
+
+
+def resolved_torchrun_launcher() -> list[str]:
+    torchrun = shutil.which("torchrun")
+    if torchrun is not None:
+        return [torchrun]
+    return [sys.executable, "-m", "torch.distributed.run"]
+
+
+def validate_launch_inputs(
+    *,
+    preset: Preset,
+    nproc_per_node: int | None,
+    gpu_profile: str | None,
+    preflight: dict[str, object],
+) -> dict[str, object]:
+    validation: dict[str, object] = {
+        "gpu_profile": gpu_profile,
+        "gpu_profile_known": gpu_profile in KNOWN_GPU_PROFILES if gpu_profile else True,
+        "launch_mode": preset.launch_mode,
+        "nproc_per_node": nproc_per_node,
+    }
+    if preset.launch_mode != "torchrun":
+        return validation
+
+    launcher = resolved_torchrun_launcher()
+    validation["torchrun_launcher"] = launcher
+
+    if nproc_per_node is None or nproc_per_node < 1:
+        raise RuntimeError("torchrun presets require nproc_per_node >= 1")
+
+    expected_nproc = {"1xh100": 1, "8xh100": 8, "8xh100_sxm": 8}.get(gpu_profile or "")
+    if expected_nproc is not None and nproc_per_node != expected_nproc:
+        raise RuntimeError(
+            f"gpu_profile={gpu_profile!r} expects nproc_per_node={expected_nproc}, got {nproc_per_node}"
+        )
+
+    visible_devices = visible_cuda_device_count(os.environ.get("CUDA_VISIBLE_DEVICES"))
+    validation["visible_cuda_device_count"] = visible_devices
+    if visible_devices is not None and visible_devices < nproc_per_node:
+        raise RuntimeError(
+            f"CUDA_VISIBLE_DEVICES exposes only {visible_devices} devices, but nproc_per_node={nproc_per_node}"
+        )
+
+    frontier_env = preflight.get("frontier_env") if isinstance(preflight, dict) else None
+    detected_devices = None
+    if isinstance(frontier_env, dict):
+        maybe_count = frontier_env.get("device_count")
+        if isinstance(maybe_count, int):
+            detected_devices = maybe_count
+    validation["detected_cuda_device_count"] = detected_devices
+    if preset.target == "cuda" and detected_devices is not None and detected_devices < nproc_per_node:
+        raise RuntimeError(
+            f"Frontier preflight detected only {detected_devices} CUDA devices, but nproc_per_node={nproc_per_node}"
+        )
+
+    return validation
 
 
 def checkpoint_filename_for(preset: Preset) -> str:
@@ -505,8 +578,9 @@ def main() -> None:
     parser.add_argument("--nproc-per-node", type=int, help="Override torchrun process count for CUDA presets.")
     parser.add_argument("--resume-run-dir", help="Resume from an existing run directory created by this launcher.")
     parser.add_argument("--notes", help="Optional short note saved into run metadata.")
-    parser.add_argument("--gpu-profile", help="Optional hardware/profile tag such as local_mlx, 1xh100, or 8xh100_sxm.")
+    parser.add_argument("--gpu-profile", help="Optional hardware/profile tag such as local_mlx, local_cuda, 1xh100, 8xh100, or 8xh100_sxm.")
     parser.add_argument("--skip-checks", action="store_true", help="Skip dependency and dataset preflight checks.")
+    parser.add_argument("--preflight-only", action="store_true", help="Run dependency, dataset, and distributed-launch validation without starting training.")
     parser.add_argument("--dry-run", action="store_true", help="Resolve the command and write metadata without launching.")
     parser.add_argument("--list", action="store_true", help="List available presets.")
     parser.add_argument("--list-scales", action="store_true", help="List available run scales.")
@@ -606,6 +680,24 @@ def main() -> None:
             min_train_shards=preset.min_train_shards,
             seq_len=int(resolved_env.get("TRAIN_SEQ_LEN", "1024")),
         )
+    launch_validation = validate_launch_inputs(
+        preset=preset,
+        nproc_per_node=nproc_per_node,
+        gpu_profile=args.gpu_profile,
+        preflight=preflight,
+    )
+    if args.preflight_only:
+        print(f"run_dir: {run_dir}")
+        print(f"preset: {preset.name}")
+        if scale is not None:
+            print(f"scale: {scale.name}")
+        if any(key.startswith("CAUSAL_CACHE_") for key in resolved_env):
+            print("resolved_cache: " + format_cache_config(resolved_cache_config))
+        print("launch_validation: " + json.dumps(launch_validation, sort_keys=True))
+        print("command: " + " ".join(command))
+        if resume_run_dir is None and run_dir.exists() and not any(run_dir.iterdir()):
+            run_dir.rmdir()
+        return
 
     run_spec = {
         "timestamp": iso_now(),
@@ -630,6 +722,7 @@ def main() -> None:
         "resolved_env": resolved_env,
         "resolved_cache_config": cache_config_record(resolved_cache_config),
         "nproc_per_node": nproc_per_node,
+        "launch_validation": launch_validation,
         "git_commit": git_commit(),
         "git_dirty": git_is_dirty(),
         "preflight": preflight,
@@ -647,6 +740,7 @@ def main() -> None:
         print(f"scale: {scale.name}")
     if any(key.startswith("CAUSAL_CACHE_") for key in resolved_env):
         print("resolved_cache: " + format_cache_config(resolved_cache_config))
+    print("launch_validation: " + json.dumps(launch_validation, sort_keys=True))
     print("command: " + " ".join(command))
     if args.dry_run:
         return
