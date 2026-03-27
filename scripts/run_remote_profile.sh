@@ -87,9 +87,21 @@ case "$PROFILE" in
     export SHARED_DEPTH_GAIN="${SHARED_DEPTH_GAIN:-0.05}"
     export SHARED_DEPTH_EDGE_UNIQUE="${SHARED_DEPTH_EDGE_UNIQUE:-2}"
     ;;
+  copycore_v1)
+    export RUN_ID="${RUN_ID:-copycore_v1}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export MLP_MULT="${MLP_MULT:-3}"
+    export MLP_ACT="${MLP_ACT:-leaky2}"
+    export LEAKY_RELU_SLOPE="${LEAKY_RELU_SLOPE:-0.5}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export WARMDOWN_ITERS="${WARMDOWN_ITERS:-3500}"
+    export EMA_DECAY="${EMA_DECAY:-0.997}"
+    export SWA_START_FRAC="${SWA_START_FRAC:-0.6}"
+    export SWA_STRIDE="${SWA_STRIDE:-50}"
+    ;;
   *)
     echo "Unknown profile: $PROFILE" >&2
-    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth shared_depth_midshare" >&2
+    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth shared_depth_midshare copycore_v1" >&2
     exit 1
     ;;
 esac

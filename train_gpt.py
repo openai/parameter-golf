@@ -93,6 +93,11 @@ class Hyperparameters:
     shared_depth_n = int(os.environ.get("SHARED_DEPTH_N", 0))
     shared_depth_gain = float(os.environ.get("SHARED_DEPTH_GAIN", 0.0))
     shared_depth_edge_unique = int(os.environ.get("SHARED_DEPTH_EDGE_UNIQUE", 0))
+    mlp_act = os.environ.get("MLP_ACT", "relu2").lower()
+    leaky_relu_slope = float(os.environ.get("LEAKY_RELU_SLOPE", 0.5))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.0))
+    swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.0))
+    swa_stride = int(os.environ.get("SWA_STRIDE", 50))
 
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.01))
@@ -547,6 +552,9 @@ def load_exported_state_dict(module: nn.Module, state_dict: dict[str, Tensor]) -
     if bad_missing or unexpected:
         raise RuntimeError(f"Export reload mismatch missing={bad_missing} unexpected={list(unexpected)}")
 
+def clone_export_state(module: nn.Module) -> dict[str, Tensor]:
+    return {k: v.detach().clone() for k, v in export_state_dict(module).items()}
+
 class Rotary(nn.Module):
     def __init__(self, dim: int, base: float = 10000.0, train_seq_len: int = 1024, scaling: str = "ntk", scale: float = 1.0):
         super().__init__()
@@ -659,15 +667,16 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, act: str = "relu2", leaky_relu_slope: float = 0.5):
         super().__init__()
         hidden = mlp_mult * dim
+        self.act, self.leaky_relu_slope = act, leaky_relu_slope
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = F.leaky_relu(self.fc(x), negative_slope=self.leaky_relu_slope) if self.act == "leaky2" else torch.relu(self.fc(x))
         return self.proj(x.square())
 class DeltaMixer(nn.Module):
     def __init__(self, dim: int):
@@ -698,6 +707,8 @@ class Block(nn.Module):
         rope_scaling: str,
         rope_scale: float,
         hybrid_delta: bool,
+        mlp_act: str,
+        leaky_relu_slope: float,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -705,7 +716,7 @@ class Block(nn.Module):
         self.use_delta = hybrid_delta
         self.attn = DeltaMixer(dim) if hybrid_delta else CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, train_seq_len, rope_scaling, rope_scale)
         self.attn_twice_alpha = attn_twice_alpha
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, mlp_act, leaky_relu_slope)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -725,8 +736,6 @@ class Block(nn.Module):
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
-
-
 class GPT(nn.Module):
     def __init__(
         self,
@@ -755,6 +764,8 @@ class GPT(nn.Module):
         shared_depth_n: int,
         shared_depth_gain: float,
         shared_depth_edge_unique: int,
+        mlp_act: str,
+        leaky_relu_slope: float,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -791,6 +802,8 @@ class GPT(nn.Module):
                     rope_scaling,
                     rope_scale,
                     hybrid_delta_every > 0 and (i + 1) % hybrid_delta_every == 0,
+                    mlp_act,
+                    leaky_relu_slope,
                 )
                 for i in range(max(self.block_map) + 1)
             ]
@@ -1185,6 +1198,8 @@ def main() -> None:
         shared_depth_n=args.shared_depth_n,
         shared_depth_gain=args.shared_depth_gain,
         shared_depth_edge_unique=args.shared_depth_edge_unique,
+        mlp_act=args.mlp_act,
+        leaky_relu_slope=args.leaky_relu_slope,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1211,44 +1226,18 @@ def main() -> None:
     if base_model.pass_scales is not None:
         scalar_params.append(base_model.pass_scales)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
-    optimizer_tok = torch.optim.Adam(
-        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        fused=True,
-    )
-    optimizer_muon = Muon(
-        matrix_params,
-        lr=args.matrix_lr,
-        momentum=args.muon_momentum,
-        backend_steps=args.muon_backend_steps,
-        update_balance=args.muon_update_balance,
-    )
+    optimizer_tok = torch.optim.Adam([{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}], betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
+    optimizer_muon = Muon(matrix_params, lr=args.matrix_lr, momentum=args.muon_momentum, backend_steps=args.muon_backend_steps, update_balance=args.muon_update_balance)
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
-    optimizer_scalar = torch.optim.Adam(
-        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        fused=True,
-    )
+    optimizer_scalar = torch.optim.Adam([{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}], betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
     if len(base_model.mtp_heads) > 0:
         mtp_lr = args.head_lr if args.head_lr > 0 else args.scalar_lr
-        optimizer_mtp = torch.optim.Adam(
-            [{"params": list(base_model.mtp_heads.parameters()), "lr": mtp_lr, "base_lr": mtp_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.adam_eps,
-            fused=True,
-        )
+        optimizer_mtp = torch.optim.Adam([{"params": list(base_model.mtp_heads.parameters()), "lr": mtp_lr, "base_lr": mtp_lr}], betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
         optimizers.append(optimizer_mtp)
     if base_model.lm_head is not None:
-        optimizer_head = torch.optim.Adam(
-            [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.adam_eps,
-            fused=True,
-        )
+        optimizer_head = torch.optim.Adam([{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}], betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
         optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
@@ -1285,6 +1274,9 @@ def main() -> None:
             opt.zero_grad(set_to_none=True)
 
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+    ema_state = clone_export_state(base_model) if args.ema_decay > 0 else None
+    swa_state, swa_count = None, 0
+    swa_start_step = int(args.iterations * args.swa_start_frac) if args.swa_start_frac > 0 else args.iterations + 1
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
         if args.warmdown_iters <= 0:
@@ -1296,7 +1288,6 @@ def main() -> None:
         warmdown_ms = args.warmdown_iters * step_ms
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
-
     if args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
@@ -1337,18 +1328,7 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = eval_val(
-                args,
-                model,
-                rank,
-                world_size,
-                device,
-                grad_accum_steps,
-                val_tokens,
-                base_bytes_lut,
-                has_leading_space_lut,
-                is_boundary_token_lut,
-            )
+            val_loss, val_bpb = eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
             log0(
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
@@ -1358,10 +1338,7 @@ def main() -> None:
 
         if last_step:
             if stop_after_step is not None and step < args.iterations:
-                log0(
-                    f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
-                    f"step:{step}/{args.iterations}"
-                )
+                log0(f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}")
             break
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -1396,6 +1373,19 @@ def main() -> None:
                 shrink = 1.0 - args.muon_weight_decay * optimizer_muon.param_groups[0]["lr"]
                 for p in matrix_params:
                     p.mul_(shrink)
+        if ema_state is not None:
+            with torch.no_grad():
+                for name, tensor in export_state_dict(base_model).items():
+                    ema_state[name].lerp_(tensor.detach(), 1.0 - args.ema_decay)
+        if step >= swa_start_step and (step - swa_start_step) % max(args.swa_stride, 1) == 0:
+            cur = export_state_dict(base_model)
+            swa_count += 1
+            if swa_state is None:
+                swa_state = {k: v.detach().clone() for k, v in cur.items()}
+            else:
+                with torch.no_grad():
+                    for name, tensor in cur.items():
+                        swa_state[name].add_(tensor.detach() - swa_state[name], alpha=1.0 / swa_count)
         zero_grad_all()
 
         step += 1
@@ -1422,15 +1412,16 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+    final_state = swa_state if swa_state is not None else ema_state if ema_state is not None else export_state_dict(base_model)
     if master_process:
-        torch.save(export_state_dict(base_model), "final_model.pt")
+        torch.save(final_state, "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(export_state_dict(base_model))
+    quant_obj, quant_stats = quantize_state_dict_int8(final_state)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
