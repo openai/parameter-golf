@@ -108,6 +108,10 @@ class Hyperparameters:
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
     ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
     gated_mlp = bool(int(os.environ.get("GATED_MLP", "0")))
+    # N-gram cache evaluation
+    ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "0")))
+    ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", 7))
+    ngram_alpha = float(os.environ.get("NGRAM_ALPHA", 0.15))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -1119,6 +1123,108 @@ def eval_val_sliding(
     return val_loss, bits_per_token * tokens_per_byte
 
 
+def eval_val_sliding_ngram(
+    args: Hyperparameters, base_model: nn.Module, rank: int, world_size: int,
+    device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
+    stride: int, batch_seqs: int = 32, eval_seq_len: int | None = None,
+    ngram_max_order: int = 7, ngram_alpha: float = 0.15, log0=print,
+) -> tuple[float, float]:
+    """Sliding window eval with multi-order N-gram backoff cache interpolation.
+    Processes tokens sequentially: each token scored by model + N-gram cache
+    built from ALL previously scored tokens (legal: backward-looking only)."""
+    seq_len = eval_seq_len or args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+    vocab_size = args.vocab_size
+    val_cpu = val_tokens.cpu().tolist()  # fast indexed access
+
+    window_starts = [ws for ws in range(0, total_tokens, stride)
+                     if min(ws + seq_len, total_tokens) - ws >= 1]
+    # N-gram cache must be sequential (single process), no distributed split
+    my_windows = window_starts
+
+    loss_sum = 0.0
+    token_count = 0
+    byte_count = 0.0
+    # Multi-order N-gram cache: order -> {context_tuple -> {next_token -> count}}
+    caches: list[dict] = [{} for _ in range(ngram_max_order + 1)]  # index 0,1 unused; 2..max_order used
+    scored_positions = set()
+    base_model.eval()
+    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    t_start = time.perf_counter()
+    with torch.inference_mode():
+        for bi in range(0, len(my_windows), batch_seqs):
+            batch_ws = my_windows[bi:bi + batch_seqs]
+            bsz = len(batch_ws)
+            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            wlens: list[int] = []
+            for i, ws in enumerate(batch_ws):
+                end = min(ws + seq_len, total_tokens)
+                wlen = end - ws
+                wlens.append(wlen)
+                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                x_batch[i, :wlen] = chunk[:-1]
+                y_batch[i, :wlen] = chunk[1:]
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits = compiled_logits(x_batch)
+            # Compute model log-softmax for scored positions
+            log_probs = F.log_softmax(logits.float(), dim=-1)
+            for i, ws in enumerate(batch_ws):
+                wlen = wlens[i]
+                s = 0 if ws == 0 else max(wlen - stride, 0)
+                for t in range(s, wlen):
+                    pos = ws + t  # absolute position (predicting val_cpu[pos+1])
+                    if pos in scored_positions:
+                        continue
+                    scored_positions.add(pos)
+                    target = val_cpu[pos + 1]
+                    model_log_p = log_probs[i, t, target].item()
+                    # Multi-order backoff N-gram lookup
+                    ngram_prob = 0.0
+                    for order in range(ngram_max_order, 1, -1):
+                        if pos + 1 >= order:
+                            ctx = tuple(val_cpu[pos + 2 - order:pos + 1])
+                            cache = caches[order]
+                            if ctx in cache:
+                                counts = cache[ctx]
+                                total = sum(counts.values())
+                                ngram_prob = counts.get(target, 0) / total
+                                break
+                    # Interpolate
+                    if ngram_prob > 0:
+                        model_p = math.exp(model_log_p)
+                        combined_p = max((1 - ngram_alpha) * model_p + ngram_alpha * ngram_prob, 1e-30)
+                        nll = -math.log(combined_p)
+                    else:
+                        nll = -model_log_p
+                    loss_sum += nll
+                    token_count += 1
+                    # Byte count
+                    prev_tok = val_cpu[pos]
+                    tb = base_bytes_lut[target].item()
+                    if has_leading_space_lut[target].item() and not is_boundary_token_lut[prev_tok].item():
+                        tb += 1.0
+                    byte_count += tb
+                    # Update caches with this scored token
+                    for order in range(2, ngram_max_order + 1):
+                        if pos + 1 >= order:
+                            ctx = tuple(val_cpu[pos + 2 - order:pos + 1])
+                            cache = caches[order]
+                            if ctx not in cache:
+                                cache[ctx] = {}
+                            cache[ctx][target] = cache[ctx].get(target, 0) + 1
+            if bi % (batch_seqs * 50) == 0 and bi > 0:
+                elapsed = time.perf_counter() - t_start
+                pct = 100 * bi / len(my_windows) * batch_seqs
+                log0(f"ngram_eval: {pct:.1f}% tokens:{token_count} cache_sizes:{[len(c) for c in caches[2:]]} time:{elapsed:.0f}s")
+    val_loss = loss_sum / max(token_count, 1)
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count / max(byte_count, 1.0)
+    base_model.train()
+    return val_loss, bits_per_token * tokens_per_byte
+
+
 def eval_val_sliding_ttt(
     args: Hyperparameters, base_model: nn.Module, rank: int, world_size: int,
     device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
@@ -1979,6 +2085,22 @@ def main() -> None:
         log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} "
              f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
         log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
+    # N-gram cache evaluation (multi-order backoff)
+    if args.ngram_enabled:
+        torch.cuda.synchronize()
+        t_ng = time.perf_counter()
+        ng_stride = args.eval_stride if args.eval_stride > 0 else 64
+        ng_loss, ng_bpb = eval_val_sliding_ngram(
+            args, eval_model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            stride=ng_stride, ngram_max_order=args.ngram_max_order,
+            ngram_alpha=args.ngram_alpha, eval_seq_len=sw_seq_len, log0=log0,
+        )
+        torch.cuda.synchronize()
+        log0(f"ngram_cache val_loss:{ng_loss:.4f} val_bpb:{ng_bpb:.4f} "
+             f"order:{args.ngram_max_order} alpha:{args.ngram_alpha} "
+             f"eval_time:{1000.0 * (time.perf_counter() - t_ng):.0f}ms")
+        log0(f"ngram_cache_exact val_loss:{ng_loss:.8f} val_bpb:{ng_bpb:.8f}")
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
