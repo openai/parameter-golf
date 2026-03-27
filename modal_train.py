@@ -23,6 +23,7 @@ image = (
         "datasets",
         "tiktoken",
         "sentencepiece",
+        "zstandard",
     )
     .apt_install("git")
     .run_commands(
@@ -37,12 +38,18 @@ image = (
 @app.function(
     image=image,
     gpu="H100:8",
-    timeout=1200,
+    timeout=3600,
 )
 def train(env_overrides: dict[str, str] | None = None):
     """8xh100 training"""
     import os
     import subprocess
+
+    # try to install flash-attn at runtime (may timeout)
+    subprocess.run(
+        ["pip", "install", "flash-attn", "--no-build-isolation", "-q"],
+        capture_output=True, timeout=120,
+    )
 
     os.chdir("/opt/parameter-golf")
 

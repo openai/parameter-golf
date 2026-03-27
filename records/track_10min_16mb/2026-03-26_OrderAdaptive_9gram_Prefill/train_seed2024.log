@@ -1,0 +1,83 @@
+Note that running a local entrypoint in detached mode only keeps the last triggered Modal function alive after the parent process has been killed or disconnected.
+✓ Initialized. View run at 
+https://modal.com/apps/sentra/main/ap-OLAKKCyKauOvZ9KVLuQ4g7
+✓ Created objects.
+├── 🔨 Created mount /Users/sonia/Documents/GitHub/parameter-golf/modal_train.py
+├── 🔨 Created mount train_gpt.py
+└── 🔨 Created function train.
+launching 8xh100 training...
+logs/modal_run.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:33055836
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:8
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:2024
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9296 val_bpb:4.1041 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9308 train_time:252ms step_avg:251.81ms
+step:2/20000 train_loss:8.7500 train_time:371ms step_avg:185.74ms
+step:3/20000 train_loss:7.9277 train_time:497ms step_avg:165.58ms
+step:4/20000 train_loss:7.0539 train_time:619ms step_avg:154.87ms
+step:5/20000 train_loss:7.1168 train_time:742ms step_avg:148.41ms
+step:6/20000 train_loss:7.1305 train_time:869ms step_avg:144.78ms
+step:7/20000 train_loss:6.9710 train_time:992ms step_avg:141.71ms
+step:8/20000 train_loss:6.8330 train_time:1117ms step_avg:139.60ms
+step:9/20000 train_loss:6.4500 train_time:1243ms step_avg:138.06ms
+step:10/20000 train_loss:6.1037 train_time:1365ms step_avg:136.54ms
+step:500/20000 train_loss:2.3653 train_time:63049ms step_avg:126.10ms
+step:1000/20000 train_loss:2.2428 train_time:125693ms step_avg:125.69ms
+step:1500/20000 train_loss:2.1849 train_time:188105ms step_avg:125.40ms
+step:2000/20000 train_loss:2.0219 train_time:250626ms step_avg:125.31ms
+step:2500/20000 train_loss:2.1118 train_time:313137ms step_avg:125.25ms
+step:3000/20000 train_loss:2.0866 train_time:375613ms step_avg:125.20ms
+late_qat:enabled step:3044 scale:0.4998
+step:3500/20000 train_loss:2.0905 train_time:438046ms step_avg:125.16ms
+step:4000/20000 train_loss:1.8721 train_time:500443ms step_avg:125.11ms
+step:4000/20000 val_loss:1.9618 val_bpb:1.1619 train_time:500448ms step_avg:125.11ms
+swa:start step:4100
+step:4500/20000 train_loss:2.0070 train_time:569218ms step_avg:126.49ms
+step:4716/20000 val_loss:1.9219 val_bpb:1.1382 train_time:599995ms step_avg:127.23ms
+stopping_early: wallclock_cap train_time:599995ms step:4716/20000
+peak memory allocated: 26194 MiB reserved: 26372 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9209 val_bpb:1.1376 eval_time:2991ms
+Serialized model: 129902601 bytes
+Code size: 86628 bytes
+Serialized model int6+zstd: 15014743 bytes
+Total submission size int6+zstd: 15101371 bytes
+Total submission size int8+zlib: 15101371 bytes
+ngram_eval: order=9 min_order=2 buckets=4194304 alpha=0.2
+neural_only_sw val_loss:1.9391 val_bpb:1.1485
+ngram_hit_rate:97.1% (7527926/7754720)
+ngram_eval val_loss:0.7438 val_bpb:0.4405 eval_time:501837ms
+ngram_eval_exact val_loss:0.74376946 val_bpb:0.44050363
+final_int8_zlib_roundtrip_exact val_loss:0.74376946 val_bpb:0.44050363
+training finished with exit code: 0
+✓ App completed. View run at 
+https://modal.com/apps/sentra/main/ap-OLAKKCyKauOvZ9KVLuQ4g7

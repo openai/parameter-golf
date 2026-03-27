@@ -49,14 +49,14 @@ class Hyperparameters:
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 300.0))  # 5 min train, save 5 min for ngram build
+    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 2))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 2))
-    model_dim = int(os.environ.get("MODEL_DIM", 128))
-    num_heads = int(os.environ.get("NUM_HEADS", 4))
-    mlp_mult = float(os.environ.get("MLP_MULT", 2))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    num_heads = int(os.environ.get("NUM_HEADS", 8))
+    mlp_mult = float(os.environ.get("MLP_MULT", 3.5))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -74,7 +74,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 128))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 32))
     mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 0))
     mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.2))
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
@@ -83,14 +83,14 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 0))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))  # disabled for tiny model
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on all layers (PR #825)
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.5))
-    ve_enabled = bool(int(os.environ.get("VE_ENABLED", "0")))
+    ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
@@ -893,99 +893,10 @@ def eval_val_sliding(
     tokens_per_byte = token_count.item() / byte_count.item()
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
-class LongPhraseCache:
-    """variable-length suffix matcher for verbatim repetition (PR #880).
-    probes at lengths [48,36,28,20,16] using rolling hashes."""
-    PROBE_LENGTHS = [48, 36, 28, 20, 16]  # full probes, stride=64 saves eval time
-    PRIMES = [np.uint64(p) for p in [
-        36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377,
-        412391, 479909, 541267, 613651, 700897, 786433, 850001, 921587,
-        982451, 1048573, 1114111, 1179641, 1245169, 1310719, 1376257,
-        1441793, 1507321, 1572869, 1638391, 1703933, 1769473, 1835009,
-        1900543, 1966079, 2031617, 2097143, 2162689, 2228223, 2293759,
-        2359291, 2424833, 2490367, 2555903, 2621431, 2686979, 2752511,
-        2818049, 2883577, 2949121,
-    ]]  # 48 primes for longest probe
-    BUCKETS = 4194304
-    MASK = np.uint64(BUCKETS - 1)
-
-    def __init__(self):
-        self.ctx_tables = {L: np.zeros(self.BUCKETS, dtype=np.uint32) for L in self.PROBE_LENGTHS}
-        self.full_tables = {L: np.zeros(self.BUCKETS, dtype=np.uint32) for L in self.PROBE_LENGTHS}
-
-    def _rolling_hash(self, val_np: np.ndarray, positions: np.ndarray, length: int) -> np.ndarray:
-        h = np.zeros(len(positions), dtype=np.uint64)
-        for k in range(length):
-            toks = val_np[(positions - length + k).astype(np.int64)].astype(np.uint64)
-            h ^= toks * self.PRIMES[k]
-        return h
-
-    def build_full(self, val_np: np.ndarray, log_fn=None):
-        """build phrase cache from all tokens."""
-        n = len(val_np) - 1
-        for L in self.PROBE_LENGTHS:
-            if n <= L:
-                continue
-            positions = np.arange(L, n, dtype=np.int64)
-            ctx_hash = self._rolling_hash(val_np, positions, L)
-            ctx_key = (ctx_hash & self.MASK).astype(np.int64)
-            targets = val_np[positions + 1].astype(np.uint64)
-            full_key = ((ctx_hash ^ (targets * self.PRIMES[L % len(self.PRIMES)])) & self.MASK).astype(np.int64)
-            np.add.at(self.ctx_tables[L], ctx_key, 1)
-            np.add.at(self.full_tables[L], full_key, 1)
-            if log_fn:
-                log_fn(f"phrase_cache: length {L} done")
-
-    def update(self, val_np: np.ndarray, start: int, end: int):
-        """incremental score-first update for a window segment."""
-        for L in self.PROBE_LENGTHS:
-            first_valid = max(L, start)
-            n_pos = end - first_valid
-            if n_pos <= 0:
-                continue
-            positions = np.arange(first_valid, end, dtype=np.int64)
-            ctx_hash = self._rolling_hash(val_np, positions, L)
-            ctx_key = (ctx_hash & self.MASK).astype(np.int64)
-            targets = val_np[(positions + 1).astype(np.int64)].astype(np.uint64)
-            full_key = ((ctx_hash ^ (targets * self.PRIMES[L % len(self.PRIMES)])) & self.MASK).astype(np.int64)
-            np.add.at(self.ctx_tables[L], ctx_key, 1)
-            np.add.at(self.full_tables[L], full_key, 1)
-
-    def lookup(self, val_np: np.ndarray, positions: np.ndarray, min_count: int = 2
-               ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """lookup phrase matches. returns (p_phrase, has_match, match_length, ctx_counts, full_counts)."""
-        n_pos = len(positions)
-        p_phrase = np.zeros(n_pos, dtype=np.float64)
-        has_match = np.zeros(n_pos, dtype=np.bool_)
-        match_length = np.zeros(n_pos, dtype=np.int32)
-        ctx_counts = np.zeros(n_pos, dtype=np.float64)
-        full_counts = np.zeros(n_pos, dtype=np.float64)
-        for L in self.PROBE_LENGTHS:  # longest first
-            valid = (positions >= L) & ~has_match
-            if not valid.any():
-                continue
-            pos_valid = positions[valid]
-            ctx_hash = self._rolling_hash(val_np, pos_valid, L)
-            ctx_key = (ctx_hash & self.MASK).astype(np.int64)
-            targets = val_np[(pos_valid + 1).astype(np.int64)].astype(np.uint64)
-            full_key = ((ctx_hash ^ (targets * self.PRIMES[L % len(self.PRIMES)])) & self.MASK).astype(np.int64)
-            ctx_c = self.ctx_tables[L][ctx_key]
-            full_c = np.minimum(self.full_tables[L][full_key], ctx_c)
-            eligible = (ctx_c >= min_count) & (full_c > 0)
-            if eligible.any():
-                valid_idx = np.where(valid)[0][eligible]
-                p_phrase[valid_idx] = full_c[eligible].astype(np.float64) / ctx_c[eligible].astype(np.float64)
-                has_match[valid_idx] = True
-                match_length[valid_idx] = L
-                ctx_counts[valid_idx] = ctx_c[eligible].astype(np.float64)
-                full_counts[valid_idx] = full_c[eligible].astype(np.float64)
-        return p_phrase, has_match, match_length, ctx_counts, full_counts
-
-
 class NgramCache:
     """n-gram cache matching PR #753/#769/#779: two flat uint32 arrays per order
     (ctx_counts, full_counts). hash context and full n-gram (context+target) separately."""
-    PRIMES = [np.uint64(p) for p in [36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377, 412391, 479909, 541267, 613651, 700897, 786433]]
+    PRIMES = [np.uint64(p) for p in [36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377]]
 
     def __init__(self, max_order: int = 7, min_order: int = 2, num_buckets: int = 4194304,
                  min_count: int = 2, **kwargs):
@@ -999,41 +910,12 @@ class NgramCache:
         self.ctx_counts = [np.zeros(num_buckets, dtype=np.uint32) for _ in range(self.num_orders)]
         self.full_counts = [np.zeros(num_buckets, dtype=np.uint32) for _ in range(self.num_orders)]
 
-    def build_full(self, val_np: np.ndarray, log_fn=None):
-        """build complete cache from all tokens at once (for two-pass rescoring)."""
-        n = len(val_np) - 1
-        mask = self.mask
-        primes = self.PRIMES
-        for oi in range(self.num_orders):
-            order = self.min_order + oi
-            cw = order - 1
-            if n <= cw:
-                continue
-            valid_start = cw
-            n_pos = n - valid_start
-            # context hash
-            ctx_hash = np.zeros(n_pos, dtype=np.uint64)
-            for k in range(cw):
-                t = val_np[valid_start - cw + k:valid_start - cw + k + n_pos].astype(np.uint64)
-                ctx_hash ^= t * np.uint64(primes[k])
-            ctx_key = (ctx_hash & mask).astype(np.int64)
-            # full hash
-            targets = val_np[valid_start + 1:valid_start + 1 + n_pos].astype(np.uint64)
-            full_key = ((ctx_hash ^ (targets * np.uint64(primes[cw]))) & mask).astype(np.int64)
-            # bincount-based bulk add
-            np.add.at(self.ctx_counts[oi], ctx_key, 1)
-            np.add.at(self.full_counts[oi], full_key, 1)
-            if log_fn:
-                log_fn(f"ngram_build: order {order} done, {n_pos} positions")
-
-    def lookup(self, val_np: np.ndarray, start: int, end: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """score positions [start, end). returns (p_ngram, has_match, matched_order, ctx_counts, full_counts)."""
+    def lookup(self, val_np: np.ndarray, start: int, end: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """score positions [start, end). returns (p_ngram, has_match, matched_order)."""
         seg_len = end - start
         p_ngram = np.zeros(seg_len, dtype=np.float64)
         has_match = np.zeros(seg_len, dtype=np.bool_)
         matched_order = np.zeros(seg_len, dtype=np.int32)
-        ctx_counts_out = np.zeros(seg_len, dtype=np.float64)
-        full_counts_out = np.zeros(seg_len, dtype=np.float64)
         mask = self.mask
         primes = self.PRIMES
         # backoff: highest order first
@@ -1057,49 +939,10 @@ class NgramCache:
             valid = (ctx_c >= self.min_count) & (full_c > 0) & ~has_match[first_valid:first_valid + n_pos]
             if valid.any():
                 idx = np.nonzero(valid)[0]
-                capped_full = np.minimum(full_c[idx], ctx_c[idx]).astype(np.float64)
-                p_ngram[first_valid + idx] = capped_full / ctx_c[idx].astype(np.float64)
+                p_ngram[first_valid + idx] = np.minimum(full_c[idx], ctx_c[idx]).astype(np.float64) / ctx_c[idx].astype(np.float64)
                 has_match[first_valid + idx] = True
                 matched_order[first_valid + idx] = order
-                ctx_counts_out[first_valid + idx] = ctx_c[idx].astype(np.float64)
-                full_counts_out[first_valid + idx] = capped_full
-        return p_ngram, has_match, matched_order, ctx_counts_out, full_counts_out
-
-    def lookup_hierarchical(self, val_np: np.ndarray, start: int, end: int, concentration: float, base_p: np.ndarray) -> np.ndarray:
-        """hierarchical Dirichlet mixing (CTW-style, PR #900 / Teh 2006).
-        for each position, iterate from lowest to highest order. each order's posterior
-        becomes the next order's prior: p = (c * p_prev + full_c) / (c + ctx_c).
-        returns the final blended probability array."""
-        seg_len = end - start
-        blended = base_p.copy()
-        mask = self.mask
-        primes = self.PRIMES
-        # iterate lowest to highest order — each posterior becomes next prior
-        for oi in range(self.num_orders):
-            order = self.min_order + oi
-            cw = order - 1
-            first_valid = max(cw, start) - start
-            n_pos = seg_len - first_valid
-            if n_pos <= 0:
-                continue
-            abs_s = start + first_valid
-            ctx_hash = np.zeros(n_pos, dtype=np.uint64)
-            for k in range(cw):
-                t = val_np[abs_s - cw + k:abs_s - cw + k + n_pos].astype(np.uint64)
-                ctx_hash ^= t * np.uint64(primes[k])
-            ctx_key = (ctx_hash & mask).astype(np.int64)
-            targets = val_np[abs_s + 1:abs_s + 1 + n_pos].astype(np.uint64)
-            full_key = ((ctx_hash ^ (targets * np.uint64(primes[cw]))) & mask).astype(np.int64)
-            ctx_c = self.ctx_counts[oi][ctx_key]
-            full_c = np.minimum(self.full_counts[oi][full_key], ctx_c)
-            valid = (ctx_c >= self.min_count) & (full_c > 0)
-            if valid.any():
-                idx = np.nonzero(valid)[0]
-                fc = full_c[idx].astype(np.float64)
-                cc = ctx_c[idx].astype(np.float64)
-                prev_p = blended[first_valid + idx]
-                blended[first_valid + idx] = (concentration * prev_p + fc) / (concentration + cc)
-        return blended
+        return p_ngram, has_match, matched_order
 
     def update(self, val_np: np.ndarray, start: int, end: int) -> None:
         """update cache with tokens from [start, end)."""
@@ -1125,68 +968,6 @@ class NgramCache:
             np.add.at(self.full_counts[oi], full_key, 1)
 
 
-def build_ngram_from_shards(data_path: str, max_order: int = 13, min_order: int = 2,
-                            num_buckets: int = 524288, max_shards: int = 0,
-                            shard_list: list | None = None, log_fn=None) -> dict:
-    """build n-gram hash tables from training shards.
-    returns dict of torch tensors to store in artifact."""
-    if shard_list is not None:
-        shard_files = shard_list
-    else:
-        shard_pattern = os.path.join(data_path, "fineweb_train_*.bin")
-        shard_files = sorted(glob.glob(shard_pattern))
-        if not shard_files:
-            raise FileNotFoundError(f"No training shards: {shard_pattern}")
-        if max_shards > 0:
-            shard_files = shard_files[:max_shards]
-    num_orders = max_order - min_order + 1
-    mask = np.uint64(num_buckets - 1)
-    primes = NgramCache.PRIMES
-    # use uint32 during building, convert to uint16 for storage
-    ctx_counts = [np.zeros(num_buckets, dtype=np.uint32) for _ in range(num_orders)]
-    full_counts = [np.zeros(num_buckets, dtype=np.uint32) for _ in range(num_orders)]
-    total_tokens = 0
-    for si, shard_file in enumerate(shard_files):
-        t_shard = time.perf_counter()
-        header = np.fromfile(shard_file, dtype="<i4", count=256)
-        num_tokens = int(header[2])
-        tokens = np.fromfile(shard_file, dtype="<u2", count=num_tokens,
-                             offset=256 * np.dtype("<i4").itemsize)
-        total_tokens += num_tokens
-        # process in chunks to limit memory
-        chunk_sz = 1_000_000
-        for oi in range(num_orders):
-            order = min_order + oi
-            cw = order - 1
-            if num_tokens <= cw + 1:
-                continue
-            for c_start in range(cw, num_tokens - 1, chunk_sz):
-                c_end = min(c_start + chunk_sz, num_tokens - 1)
-                n_pos = c_end - c_start
-                ctx_hash = np.zeros(n_pos, dtype=np.uint64)
-                for k in range(cw):
-                    t = tokens[c_start - cw + k:c_start - cw + k + n_pos].astype(np.uint64)
-                    ctx_hash ^= t * np.uint64(primes[k])
-                ctx_key = (ctx_hash & mask).astype(np.int64)
-                targets = tokens[c_start + 1:c_start + 1 + n_pos].astype(np.uint64)
-                full_key = ((ctx_hash ^ (targets * np.uint64(primes[cw]))) & mask).astype(np.int64)
-                # bincount is much faster than np.add.at
-                ctx_counts[oi] += np.bincount(ctx_key, minlength=num_buckets).astype(np.uint32)
-                full_counts[oi] += np.bincount(full_key, minlength=num_buckets).astype(np.uint32)
-        if log_fn:
-            log_fn(f"ngram_build: shard {si+1}/{len(shard_files)}, {num_tokens/1e6:.1f}M tok, {time.perf_counter()-t_shard:.1f}s")
-    if log_fn:
-        log_fn(f"ngram_build: done. {len(shard_files)} shards, {total_tokens/1e9:.1f}B tokens, {num_buckets} buckets")
-    # store full int32 counts (32K buckets are small enough to store precisely)
-    packed = {}
-    for oi in range(num_orders):
-        order = min_order + oi
-        packed[f"ctx_{order}"] = torch.from_numpy(ctx_counts[oi].astype(np.int32))
-        packed[f"full_{order}"] = torch.from_numpy(full_counts[oi].astype(np.int32))
-    packed["meta"] = torch.tensor([max_order, min_order, num_buckets], dtype=torch.int32)
-    return packed
-
-
 def eval_val_ngram(
     args: Hyperparameters,
     model: nn.Module,
@@ -1209,14 +990,10 @@ def eval_val_ngram(
     ent_range: float = 0.55,
     ent_scale: float = 2.0,
     ent_thresh: float = 4.0,
-    dirichlet_concentration: float = 0.0,
-    prewarmed_ngram: dict | None = None,
     log_fn=None,
 ) -> tuple[float, float]:
     """sliding window eval with n-gram cache, matching PR #753/#769/#779.
-    score-first: for each window, compute neural logits, lookup cache, mix, then update.
-    if dirichlet_concentration > 0, uses Dirichlet-Multinomial posterior predictive mixing
-    (PR #900 / CTW / Teh 2006) instead of linear interpolation."""
+    score-first: for each window, compute neural logits, lookup cache, mix, then update."""
     total_tokens = val_tokens.numel() - 1
     seq_len = eval_seq_len
     vocab_size = args.vocab_size
@@ -1236,30 +1013,8 @@ def eval_val_ngram(
     cache = NgramCache(max_order=ngram_order, min_order=ngram_min_order,
                        num_buckets=ngram_buckets, min_count=ngram_min_count)
 
-    # load pre-warmed n-gram tables from artifact if available
-    if prewarmed_ngram is not None:
-        meta = prewarmed_ngram["meta"]
-        art_max_order = int(meta[0])
-        art_min_order = int(meta[1])
-        art_buckets = int(meta[2])
-        if art_buckets == ngram_buckets:
-            for oi in range(cache.num_orders):
-                order = cache.min_order + oi
-                ctx_key = f"ctx_{order}"
-                full_key = f"full_{order}"
-                if ctx_key in prewarmed_ngram and full_key in prewarmed_ngram:
-                    cache.ctx_counts[oi] = prewarmed_ngram[ctx_key].numpy().astype(np.uint32).copy()
-                    cache.full_counts[oi] = prewarmed_ngram[full_key].numpy().astype(np.uint32).copy()
-            if log_fn:
-                log_fn(f"prewarmed: loaded training n-gram tables (orders {art_min_order}-{art_max_order}, {art_buckets} buckets)")
-        else:
-            if log_fn:
-                log_fn(f"prewarmed: SKIPPED (bucket mismatch: artifact={art_buckets} vs eval={ngram_buckets})")
-
-    # phrase cache (single-pass score-first, same as n-gram)
-    phrase_cache = LongPhraseCache()
-
-    # prefill: pre-warm both caches with all tokens before this rank's first window
+    # prefill: pre-warm cache with all tokens before this rank's first window (PR #796)
+    # this makes distributed eval equivalent to single-GPU sequential
     if my_windows:
         prefill_end = my_windows[0]
         if prefill_end > 0:
@@ -1267,9 +1022,8 @@ def eval_val_ngram(
             for pf_start in range(0, prefill_end, chunk_sz):
                 pf_end = min(pf_start + chunk_sz, prefill_end)
                 cache.update(val_np, pf_start, pf_end)
-                phrase_cache.update(val_np, pf_start, pf_end)
             if log_fn:
-                log_fn(f"prefill: warmed caches with {prefill_end} tokens for rank {rank}")
+                log_fn(f"ngram_prefill: warmed cache with {prefill_end} tokens for rank {rank}")
 
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     loss_sum_neural = torch.zeros((), device=device, dtype=torch.float64)
@@ -1313,48 +1067,30 @@ def eval_val_ngram(
                 model_p = probs_all[i, s:wlen].gather(1, seg_targets.unsqueeze(1)).squeeze(1).cpu().numpy().astype(np.float64)
                 seg_nll_neural = F.cross_entropy(logits_f[i, s:wlen], seg_targets, reduction='none').cpu().numpy().astype(np.float64)
 
-                # n-gram: score-first (lookup THEN update)
-                if dirichlet_concentration > 0:
-                    # hierarchical Dirichlet CTW mixing (PR #943 approach)
-                    blended_p = cache.lookup_hierarchical(val_np, abs_start, abs_end, dirichlet_concentration, model_p)
-                    # track hits for logging
-                    _, has_match, matched_order, _, _ = cache.lookup(val_np, abs_start, abs_end)
-                else:
-                    p_ngram, has_match, matched_order, _, _ = cache.lookup(val_np, abs_start, abs_end)
-                    # legacy linear interpolation with per-order entropy thresholds
-                    blended_p = model_p.copy()
-                    if has_match.any():
-                        m = has_match
-                        ent_centers = {7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5, 8: 2.8, 9: 2.6}
-                        if adaptive:
-                            seg_ent = (-(probs_all[i, s:wlen] * log_probs_all[i, s:wlen]).sum(dim=-1)).cpu().numpy()
-                            alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
-                            for pos_idx in range(seg_len):
-                                if has_match[pos_idx]:
-                                    order = int(matched_order[pos_idx])
-                                    center = ent_centers.get(order, ent_thresh)
-                                    sig = 1.0 / (1.0 + np.exp(-ent_scale * (seg_ent[pos_idx] - center)))
-                                    alpha[pos_idx] = ent_base + ent_range * sig
-                        else:
-                            alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
-                        blended_p[m] = (1.0 - alpha[m]) * model_p[m] + alpha[m] * p_ngram[m]
+                # n-gram: lookup THEN update (score-first)
+                p_ngram, has_match, matched_order = cache.lookup(val_np, abs_start, abs_end)
                 cache.update(val_np, abs_start, abs_end)
 
-                # phrase cache: lookup THEN update (score-first)
-                positions = np.arange(abs_start, abs_end, dtype=np.int64)
-                p_phrase, phrase_match, phrase_len, phr_ctx_c, phr_full_c = phrase_cache.lookup(val_np, positions, min_count=2)
-                phrase_cache.update(val_np, abs_start, abs_end)
-                if phrase_match.any():
-                    pm = phrase_match
-                    if dirichlet_concentration > 0:
-                        # phrase Dirichlet with lower concentration (phrases are more specific)
-                        phr_conc = dirichlet_concentration * 0.2
-                        blended_p[pm] = (phr_conc * blended_p[pm] + phr_full_c[pm]) / (phr_conc + phr_ctx_c[pm])
-                    else:
-                        pa = 0.3 + (0.95 - 0.3) * (phrase_len[phrase_match].astype(np.float64) - 16.0) / 32.0
-                        pa = np.clip(pa, 0.0, 0.95)
-                        blended_p[pm] = (1.0 - pa) * blended_p[pm] + pa * p_phrase[pm]
+                # per-order entropy thresholds (PR #825)
+                ent_centers = {7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5, 8: 2.8, 9: 2.6}
+                if adaptive:
+                    seg_ent = (-(probs_all[i, s:wlen] * log_probs_all[i, s:wlen]).sum(dim=-1)).cpu().numpy()
+                    # per-position alpha based on matched order's entropy center
+                    alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
+                    for pos_idx in range(seg_len):
+                        if has_match[pos_idx]:
+                            order = int(matched_order[pos_idx])
+                            center = ent_centers.get(order, ent_thresh)
+                            sig = 1.0 / (1.0 + np.exp(-ent_scale * (seg_ent[pos_idx] - center)))
+                            alpha[pos_idx] = ent_base + ent_range * sig
+                else:
+                    alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
 
+                # mix
+                blended_p = model_p.copy()
+                if has_match.any():
+                    m = has_match
+                    blended_p[m] = (1.0 - alpha[m]) * model_p[m] + alpha[m] * p_ngram[m]
                 blended_p = np.maximum(blended_p, 1e-30)
                 seg_nll = -np.log(blended_p)
 
@@ -1383,214 +1119,6 @@ def eval_val_ngram(
     if log_fn:
         log_fn(f"neural_only_sw val_loss:{val_loss_neural:.4f} val_bpb:{bpb_neural:.4f}")
         log_fn(f"ngram_hit_rate:{hit_rate:.1f}% ({ngram_hits}/{ngram_total})")
-        if dirichlet_concentration > 0:
-            log_fn(f"mixing:hierarchical_dirichlet concentration={dirichlet_concentration:.2f} phrase_probes={LongPhraseCache.PROBE_LENGTHS}")
-        else:
-            log_fn(f"mixing:linear_interp adaptive={adaptive}")
-    model.train()
-    return val_loss, bpb
-
-
-def eval_ngram_two_pass(
-    args: Hyperparameters,
-    model: nn.Module,
-    rank: int,
-    world_size: int,
-    device: torch.device,
-    val_tokens: Tensor,
-    base_bytes_lut: Tensor,
-    has_leading_space_lut: Tensor,
-    is_boundary_token_lut: Tensor,
-    eval_seq_len: int,
-    stride: int,
-    batch_seqs: int = 32,
-    ngram_order: int = 9,
-    ngram_min_order: int = 2,
-    ngram_buckets: int = 16777216,
-    ngram_min_count: int = 2,
-    ent_base: float = 0.05,
-    ent_range: float = 0.55,
-    ent_scale: float = 2.0,
-    ent_thresh: float = 4.0,
-    dirichlet_concentration: float = 0.0,
-    prewarmed_ngram: dict | None = None,
-    log_fn=None,
-) -> tuple[float, float]:
-    """two-pass n-gram eval (PR #870/#943 approach).
-    pass 1: store model_p + entropy per scored position.
-    build full cache from all val tokens (+ merge with pre-warmed artifact tables).
-    pass 2: rescore all positions with full cache using hierarchical Dirichlet."""
-    total_tokens = val_tokens.numel() - 1
-    seq_len = eval_seq_len
-    val_np = val_tokens[:total_tokens + 1].numpy()
-    ent_centers = {15: 1.8, 14: 1.9, 13: 2.0, 12: 2.1, 11: 2.2, 10: 2.4,
-                   9: 2.6, 8: 2.8, 7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5}
-
-    # distribute windows
-    window_starts = [ws for ws in range(0, total_tokens, stride)
-                     if min(ws + seq_len, total_tokens) - ws >= 1]
-    total_windows = len(window_starts)
-    my_s = (total_windows * rank) // world_size
-    my_e = (total_windows * (rank + 1)) // world_size
-    my_windows = window_starts[my_s:my_e]
-
-    model.eval()
-    compiled_logits = torch.compile(model.forward_logits, dynamic=False, fullgraph=True)
-    base_bytes_cpu = base_bytes_lut.cpu()
-    has_space_cpu = has_leading_space_lut.cpu()
-    is_boundary_cpu = is_boundary_token_lut.cpu()
-
-    # pass 1: store model_p, entropy, bytes per scored position
-    stored_positions = []
-    stored_model_p = []
-    stored_entropy = []
-    stored_bytes = []
-
-    if log_fn:
-        log_fn(f"two_pass: pass 1 — storing model predictions for {len(my_windows)} windows")
-
-    with torch.inference_mode():
-        for bi in range(0, len(my_windows), batch_seqs):
-            batch_ws = my_windows[bi:bi + batch_seqs]
-            bsz = len(batch_ws)
-            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-            wlens: list[int] = []
-            for i, ws in enumerate(batch_ws):
-                end = min(ws + seq_len, total_tokens)
-                wlen = end - ws
-                wlens.append(wlen)
-                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
-                x_batch[i, :wlen] = chunk[:-1]
-                y_batch[i, :wlen] = chunk[1:]
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits = compiled_logits(x_batch)
-            logits_f = logits.float()
-            probs_all = torch.softmax(logits_f, dim=-1)
-            log_probs_all = torch.log_softmax(logits_f, dim=-1)
-
-            for i, ws in enumerate(batch_ws):
-                wlen = wlens[i]
-                s = 0 if ws == 0 else max(wlen - stride, 0)
-                seg_targets = y_batch[i, s:wlen]
-                model_p = probs_all[i, s:wlen].gather(1, seg_targets.unsqueeze(1)).squeeze(1).cpu().numpy().astype(np.float64)
-                seg_ent = (-(probs_all[i, s:wlen] * log_probs_all[i, s:wlen]).sum(dim=-1)).cpu().numpy().astype(np.float64)
-                # positions (global target token indices)
-                positions = np.arange(ws + s, ws + wlen, dtype=np.int64)
-                # bytes
-                tgt_ids = seg_targets.cpu()
-                prev_ids = x_batch[i, s:wlen].cpu()
-                tb = base_bytes_cpu[tgt_ids].to(torch.float64)
-                tb += (has_space_cpu[tgt_ids] & ~is_boundary_cpu[prev_ids]).to(torch.float64)
-
-                stored_positions.append(positions)
-                stored_model_p.append(model_p)
-                stored_entropy.append(seg_ent)
-                stored_bytes.append(tb.numpy())
-
-    # concatenate all stored data
-    all_positions = np.concatenate(stored_positions)
-    all_model_p = np.concatenate(stored_model_p)
-    all_entropy = np.concatenate(stored_entropy)
-    all_bytes = np.concatenate(stored_bytes)
-
-    if log_fn:
-        neural_loss = -np.log(np.maximum(all_model_p, 1e-30)).mean()
-        neural_bpb = (neural_loss / math.log(2.0)) * (len(all_model_p) / all_bytes.sum())
-        log_fn(f"two_pass: pass 1 done, {len(all_model_p)} positions, neural_bpb={neural_bpb:.4f}")
-
-    # build full cache from ALL val tokens (+ merge with pre-warmed artifact)
-    if log_fn:
-        log_fn(f"two_pass: building full cache ({total_tokens} tokens, {ngram_order}-gram, {ngram_buckets} buckets)")
-    cache = NgramCache(max_order=ngram_order, min_order=ngram_min_order,
-                       num_buckets=ngram_buckets, min_count=ngram_min_count)
-    # load pre-warmed tables from artifact if available
-    if prewarmed_ngram is not None:
-        meta = prewarmed_ngram["meta"]
-        art_buckets = int(meta[2])
-        if art_buckets == ngram_buckets:
-            for oi in range(cache.num_orders):
-                order = cache.min_order + oi
-                ctx_key = f"ctx_{order}"
-                full_key = f"full_{order}"
-                if ctx_key in prewarmed_ngram:
-                    cache.ctx_counts[oi] = prewarmed_ngram[ctx_key].numpy().astype(np.uint32).copy()
-                    cache.full_counts[oi] = prewarmed_ngram[full_key].numpy().astype(np.uint32).copy()
-            if log_fn:
-                log_fn(f"two_pass: pre-warmed with training n-gram tables")
-    cache.build_full(val_np, log_fn=log_fn)  # add val tokens ON TOP of pre-warmed
-
-    # pass 2: rescore all stored positions using full cache
-    if log_fn:
-        log_fn(f"two_pass: pass 2 — rescoring {len(all_positions)} positions with full cache")
-
-    # pass 2: hierarchical Dirichlet CTW scoring over all positions
-    n_pos = len(all_positions)
-    conc = dirichlet_concentration if dirichlet_concentration > 0 else 5.0
-    blended_p = all_model_p.copy()
-    mask = cache.mask
-    primes = cache.PRIMES
-    has_match = np.zeros(n_pos, dtype=np.bool_)
-
-    # iterate lowest to highest order — hierarchical CTW
-    for oi in range(cache.num_orders):
-        order = cache.min_order + oi
-        cw = order - 1
-        valid = (all_positions >= cw)
-        if not valid.any():
-            continue
-        pos_valid = all_positions[valid]
-        ctx_hash = np.zeros(len(pos_valid), dtype=np.uint64)
-        for k in range(cw):
-            t = val_np[(pos_valid - cw + k).astype(np.int64)].astype(np.uint64)
-            ctx_hash ^= t * np.uint64(primes[k])
-        ctx_key = (ctx_hash & mask).astype(np.int64)
-        targets = val_np[(pos_valid + 1).astype(np.int64)].astype(np.uint64)
-        full_key = ((ctx_hash ^ (targets * np.uint64(primes[cw]))) & mask).astype(np.int64)
-        ctx_c = cache.ctx_counts[oi][ctx_key]
-        full_c = np.minimum(cache.full_counts[oi][full_key], ctx_c)
-        eligible = (ctx_c >= ngram_min_count) & (full_c > 0)
-        if eligible.any():
-            valid_idx = np.where(valid)[0][eligible]
-            fc = full_c[eligible].astype(np.float64)
-            cc = ctx_c[eligible].astype(np.float64)
-            prev_p = blended_p[valid_idx]
-            blended_p[valid_idx] = (conc * prev_p + fc) / (conc + cc)
-            has_match[valid_idx] = True
-
-    # phrase cache: second layer of blending for long verbatim repetitions
-    if log_fn:
-        log_fn(f"two_pass: building phrase cache...")
-    phrase_cache = LongPhraseCache()
-    phrase_cache.build_full(val_np, log_fn=log_fn)
-    p_phrase, phrase_match, phrase_len, _, _ = phrase_cache.lookup(val_np, all_positions, min_count=2)
-    if phrase_match.any():
-        # alpha based on match length: longer = higher trust (up to 0.99 for 48-token match)
-        base_alpha = 0.3
-        phrase_alpha = base_alpha + (0.99 - base_alpha) * (phrase_len[phrase_match].astype(np.float64) - 16.0) / 32.0
-        phrase_alpha = np.clip(phrase_alpha, 0.0, 0.99)
-        pm = phrase_match
-        blended_p[pm] = (1.0 - phrase_alpha) * blended_p[pm] + phrase_alpha * p_phrase[pm]
-        if log_fn:
-            log_fn(f"phrase_cache: {phrase_match.sum()} matches, mean_len={phrase_len[phrase_match].mean():.1f}")
-
-    blended_p = np.maximum(blended_p, 1e-30)
-    blended_nll = -np.log(blended_p)
-
-    # aggregate
-    loss_sum_t = torch.tensor(float(blended_nll.sum()), device=device, dtype=torch.float64)
-    token_count_t = torch.tensor(float(n_pos), device=device, dtype=torch.float64)
-    byte_count_t = torch.tensor(float(all_bytes.sum()), device=device, dtype=torch.float64)
-    if dist.is_available() and dist.is_initialized():
-        dist.all_reduce(loss_sum_t, op=dist.ReduceOp.SUM)
-        dist.all_reduce(token_count_t, op=dist.ReduceOp.SUM)
-        dist.all_reduce(byte_count_t, op=dist.ReduceOp.SUM)
-
-    val_loss = (loss_sum_t / token_count_t).item()
-    bpb = (val_loss / math.log(2.0)) * (token_count_t.item() / byte_count_t.item())
-    hit_rate = has_match.sum() / max(n_pos, 1) * 100
-    if log_fn:
-        log_fn(f"two_pass: hit_rate={hit_rate:.1f}%, val_loss={val_loss:.4f}, val_bpb={bpb:.4f}")
     model.train()
     return val_loss, bpb
 
@@ -2015,38 +1543,6 @@ def main() -> None:
     excluded_mtp = sum(int(t.numel()) for k, t in full_state_dict.items() if "mtp_heads" in k)
     if excluded_mtp > 0:
         log0(f"export_excluding_mtp_params:{excluded_mtp}")
-
-    # build packed n-gram tables from training data (all ranks in parallel)
-    ngram_artifact_enabled = bool(int(os.environ.get("NGRAM_ARTIFACT", "1")))
-    packed_ngram = None
-    if ngram_artifact_enabled:
-        t_build = time.perf_counter()
-        ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "13"))
-        ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "131072"))  # 128K — use artifact headroom
-        ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "80"))
-        # each rank builds from a subset of shards
-        all_shards = sorted(glob.glob(os.path.join(args.data_path, "fineweb_train_*.bin")))
-        if ngram_art_max_shards > 0:
-            all_shards = all_shards[:ngram_art_max_shards]
-        my_shards = [s for i, s in enumerate(all_shards) if i % world_size == rank]
-        log0(f"ngram_artifact: building order={ngram_art_order}, buckets={ngram_art_buckets}, shards={len(all_shards)} (rank {rank}: {len(my_shards)})")
-        local_packed = build_ngram_from_shards(
-            args.data_path, max_order=ngram_art_order, min_order=2,
-            num_buckets=ngram_art_buckets, max_shards=0,
-            log_fn=log0 if master_process else None,
-            shard_list=my_shards,
-        )
-        # all-reduce counts across ranks (convert to int32 for reduction, then back to uint16)
-        if distributed:
-            for key in list(local_packed.keys()):
-                if key == "meta":
-                    continue
-                t = local_packed[key].to(torch.int32).to(device)
-                dist.all_reduce(t, op=dist.ReduceOp.SUM)
-                local_packed[key] = t.cpu().clamp(max=65535).to(torch.uint16)
-        packed_ngram = local_packed
-        log0(f"ngram_artifact: built in {time.perf_counter() - t_build:.0f}s")
-
     if master_process:
         torch.save(export_sd, "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
@@ -2055,12 +1551,8 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
-    # pack model + n-gram tables into single artifact
-    artifact_dict = {"w": quant_result, "m": quant_meta}
-    if packed_ngram is not None:
-        artifact_dict["ngram"] = packed_ngram
     quant_buf = io.BytesIO()
-    torch.save(artifact_dict, quant_buf)
+    torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
     quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw) if _COMPRESSOR == "zstd" else zlib.compress(quant_raw, 9)
     if master_process:
@@ -2070,9 +1562,7 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
         log0(f"Total submission size int6+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
-        if packed_ngram is not None:
-            ngram_bytes = sum(v.nbytes for v in packed_ngram.values())
-            log0(f"ngram_artifact: raw={ngram_bytes} bytes ({ngram_bytes/1e6:.1f}MB)")
+        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
     if distributed:
         dist.barrier()
     with open("final_model.int6.ptz", "rb") as f:
@@ -2222,62 +1712,34 @@ def main() -> None:
             log0(f"legal_ttt_exact val_loss:{ll:.8f} val_bpb:{bb:.8f}")
         del to; torch.cuda.empty_cache()
 
-    # load pre-warmed n-gram tables from artifact (if present)
-    prewarmed_ngram = quant_state.get("ngram", None)
-    if prewarmed_ngram is not None:
-        meta = prewarmed_ngram["meta"]
-        log0(f"ngram_artifact: loaded pre-warmed tables, orders {int(meta[1])}-{int(meta[0])}, buckets={int(meta[2])}")
-
     # n-gram cache eval (includes sliding window — replaces standalone sw eval)
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     sw_seq_len = effective_eval_seq_len
     if ngram_enabled:
-        ngram_order = int(os.environ.get("NGRAM_ORDER", "13"))  # match artifact order
+        ngram_order = int(os.environ.get("NGRAM_ORDER", "9"))
         ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
-        # use artifact bucket count if available, otherwise default
-        art_buckets = int(prewarmed_ngram["meta"][2]) if prewarmed_ngram is not None else 4194304
-        ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", str(art_buckets)))
+        ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
         ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
         ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.2"))
         ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.05"))
-        ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.90"))
+        ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.55"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
         ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
-        dirichlet_conc = float(os.environ.get("DIRICHLET_CONCENTRATION", "5.0"))
         torch.cuda.synchronize()
         t_ngram = time.perf_counter()
-        ngram_two_pass = bool(int(os.environ.get("NGRAM_TWO_PASS", "1")))  # two-pass full rescore (PR #943 approach)
-        log0(f"ngram_eval: order={ngram_order} min_order={ngram_min_order} buckets={ngram_buckets} two_pass={ngram_two_pass} dirichlet={dirichlet_conc}")
-        if ngram_two_pass:
-            ng_val_loss, ng_val_bpb = eval_ngram_two_pass(
-                args, eval_model, rank, world_size, device,
-                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                eval_seq_len=sw_seq_len if args.eval_stride > 0 else effective_eval_seq_len,
-                stride=args.eval_stride if args.eval_stride > 0 else effective_eval_seq_len,
-                ngram_order=ngram_order, ngram_min_order=ngram_min_order,
-                ngram_buckets=ngram_buckets,
-                ngram_min_count=ngram_min_count,
-                ent_base=ngram_ent_base, ent_range=ngram_ent_range,
-                ent_scale=ngram_ent_scale, ent_thresh=ngram_ent_thresh,
-                dirichlet_concentration=dirichlet_conc,
-                prewarmed_ngram=prewarmed_ngram,
-                log_fn=log0,
-            )
-        else:
-            ng_val_loss, ng_val_bpb = eval_val_ngram(
-                args, eval_model, rank, world_size, device,
-                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                eval_seq_len=sw_seq_len if args.eval_stride > 0 else effective_eval_seq_len,
-                stride=args.eval_stride if args.eval_stride > 0 else effective_eval_seq_len,
-                ngram_order=ngram_order, ngram_min_order=ngram_min_order,
-                ngram_buckets=ngram_buckets, ngram_min_count=ngram_min_count,
-                fixed_alpha=ngram_alpha,
-                ent_base=ngram_ent_base, ent_range=ngram_ent_range,
-                dirichlet_concentration=dirichlet_conc,
-                prewarmed_ngram=prewarmed_ngram,
-                ent_scale=ngram_ent_scale, ent_thresh=ngram_ent_thresh,
-                log_fn=log0,
-            )
+        log0(f"ngram_eval: order={ngram_order} min_order={ngram_min_order} buckets={ngram_buckets} alpha={ngram_alpha}")
+        ng_val_loss, ng_val_bpb = eval_val_ngram(
+            args, eval_model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            eval_seq_len=sw_seq_len if args.eval_stride > 0 else effective_eval_seq_len,
+            stride=args.eval_stride if args.eval_stride > 0 else effective_eval_seq_len,
+            ngram_order=ngram_order, ngram_min_order=ngram_min_order,
+            ngram_buckets=ngram_buckets, ngram_min_count=ngram_min_count,
+            fixed_alpha=ngram_alpha,
+            ent_base=ngram_ent_base, ent_range=ngram_ent_range,
+            ent_scale=ngram_ent_scale, ent_thresh=ngram_ent_thresh,
+            log_fn=log0,
+        )
         torch.cuda.synchronize()
         log0(f"ngram_eval val_loss:{ng_val_loss:.4f} val_bpb:{ng_val_bpb:.4f} eval_time:{1000.0*(time.perf_counter()-t_ngram):.0f}ms")
         log0(f"ngram_eval_exact val_loss:{ng_val_loss:.8f} val_bpb:{ng_val_bpb:.8f}")

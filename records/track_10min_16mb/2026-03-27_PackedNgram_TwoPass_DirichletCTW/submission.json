@@ -1,0 +1,11 @@
+{
+    "author": "sofiabod",
+    "github_id": "sofiabod",
+    "name": "Packed N-gram Artifact + Two-Pass Full Rescore + Hierarchical Dirichlet CTW",
+    "blurb": "Pre-compute order-13 n-gram tables from training shards, pack in artifact. Two-pass eval: pass 1 scores + builds val cache, pass 2 rescores all positions with full cache using hierarchical Dirichlet CTW mixing (c=5.0). 2-layer 128d neural model (vestigial). Cache does 95%+ of the work.",
+    "date": "2026-03-27",
+    "val_loss": 0.14018531,
+    "val_bpb": 0.08302574,
+    "bytes_total": 5758349,
+    "bytes_code": 107000
+}

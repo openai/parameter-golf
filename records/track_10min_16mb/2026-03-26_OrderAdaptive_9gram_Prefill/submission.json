@@ -1,0 +1,11 @@
+{
+  "author": "sofiabod",
+  "github_id": "sofiabod",
+  "name": "Order-Adaptive 9-gram Backoff + Distributed Prefill",
+  "blurb": "9-gram backoff with per-order entropy thresholds and distributed cache prefill on 11L MHA transformer with int5 quantization",
+  "date": "2026-03-26",
+  "val_loss": 0.7437,
+  "val_bpb": 0.4405,
+  "bytes_total": 14899126,
+  "bytes_code": 86210
+}
