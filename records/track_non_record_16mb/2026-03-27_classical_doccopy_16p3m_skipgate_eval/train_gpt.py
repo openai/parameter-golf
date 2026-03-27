@@ -7,8 +7,7 @@ import math
 import pickle
 import time
 import zlib
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
+from collections import defaultdict
 from pathlib import Path
 import numpy as np
 import sentencepiece as spm
@@ -93,6 +92,22 @@ def build_sequence_keys(tokens: np.ndarray, context_len: int, base: int, seed: i
     keys = np.zeros((tokens.size,), dtype=np.uint64)
     keys[context_len:] = hashes ^ np.uint64(seed)
     return keys
+def build_skip_sequence_keys(tokens: np.ndarray, offsets: tuple[int, ...], base: int, seed: int, mask: int) -> np.ndarray | None:
+    if not offsets:
+        return None
+    max_offset = max(offsets)
+    if tokens.size <= max_offset:
+        return None
+    span = tokens.size - max_offset
+    values = tokens.astype(np.uint64, copy=False) + np.uint64(1)
+    hashes = np.full((span,), np.uint64(seed), dtype=np.uint64)
+    base_u64 = np.uint64(base)
+    mask_u64 = np.uint64(mask)
+    for offset in offsets:
+        hashes = (hashes * base_u64 + values[max_offset - offset : tokens.size - offset]) & mask_u64
+    keys = np.zeros((tokens.size,), dtype=np.uint64)
+    keys[max_offset:] = hashes
+    return keys
 def pack_u10_tokens(tokens: np.ndarray) -> tuple[bytes, int]:
     size = int(tokens.size)
     if size == 0:
@@ -168,18 +183,6 @@ class Expert:
     def load_state_dict(self, state: dict | None) -> None:
         del state
         return None
-@dataclass
-class DiscountCountTable:
-    context_totals: dict[int, int] = field(default_factory=dict)
-    pair_counts: dict[int, int] = field(default_factory=dict)
-    n1: dict[int, int] = field(default_factory=dict)
-    n2: dict[int, int] = field(default_factory=dict)
-    n3p: dict[int, int] = field(default_factory=dict)
-@dataclass
-class FollowerCountTable:
-    context_totals: dict[int, int] = field(default_factory=dict)
-    pair_counts: dict[int, int] = field(default_factory=dict)
-    followers: dict[int, list[int]] = field(default_factory=dict)
 class UnigramExpert(Expert):
     supports_online_sequence = True
     def __init__(self, vocab_size: int, alpha: float = 0.5):
@@ -447,376 +450,6 @@ class HashedNgramExpert(Expert):
             for ctx, tok in zip(context_key_list, token_list, strict=True):
                 followers.setdefault(ctx, []).append(tok)
             self.followers = followers
-class ModifiedKneserNeyExpert(Expert):
-    def __init__(
-        self,
-        max_context: int,
-        vocab_size: int,
-        base_unigram: Expert,
-        unigram_alpha: float = 1.0,
-        discounts: tuple[float, float, float] = (0.7, 1.0, 1.3),
-        seed: int = 1469598103934665603,
-        base: int = 1099511628211,
-    ):
-        if max_context < 1:
-            raise ValueError("ModifiedKneserNeyExpert requires max_context >= 1")
-        self.name = f"mkn_{max_context + 1}"
-        self.context_len = max_context
-        self.max_context = max_context
-        self.vocab_size = vocab_size
-        self.base_unigram = base_unigram
-        self.unigram_alpha = unigram_alpha
-        self.discount1, self.discount2, self.discount3p = discounts
-        self.seed = seed
-        self.base = base
-        self.mask = (1 << 64) - 1
-        self.token_shift = max(1, (vocab_size - 1).bit_length())
-        self.base_pows = [0] * (self.max_context + 1)
-        for context_len in range(1, self.max_context + 1):
-            self.base_pows[context_len] = pow(self.base, context_len - 1, 1 << 64)
-        self.tables = [DiscountCountTable() for _ in range(self.max_context + 1)]
-        self.unigram_continuations = np.zeros((vocab_size,), dtype=np.uint32)
-        self.total_unigram_continuations = 0
-        self.sequence_keys: list[np.ndarray | None] = [None] * (self.max_context + 1)
-    def set_sequence(self, tokens: np.ndarray, position_offset: int = 0) -> None:
-        del position_offset
-        for context_len in range(1, self.max_context + 1):
-            self.sequence_keys[context_len] = build_sequence_keys(tokens, context_len, self.base, self.seed, self.mask)
-    def _context_key(self, context_len: int, pos: int) -> int | None:
-        if pos < context_len:
-            return None
-        keys = self.sequence_keys[context_len]
-        if keys is None:
-            return None
-        return int(keys[pos])
-    def _pair_key(self, context_key: int, token: int) -> int:
-        return (context_key << self.token_shift) | token
-    def _discount_for_count(self, count: int) -> float:
-        if count <= 0:
-            return 0.0
-        if count == 1:
-            return self.discount1
-        if count == 2:
-            return self.discount2
-        return self.discount3p
-    def _increment_table(self, context_len: int, context_key: int, token: int) -> bool:
-        table = self.tables[context_len]
-        pair_key = self._pair_key(context_key, token)
-        prev = table.pair_counts.get(pair_key, 0)
-        table.pair_counts[pair_key] = prev + 1
-        table.context_totals[context_key] = table.context_totals.get(context_key, 0) + 1
-        if prev == 0:
-            table.n1[context_key] = table.n1.get(context_key, 0) + 1
-            return True
-        if prev == 1:
-            table.n1[context_key] -= 1
-            table.n2[context_key] = table.n2.get(context_key, 0) + 1
-            return False
-        if prev == 2:
-            table.n2[context_key] -= 1
-            table.n3p[context_key] = table.n3p.get(context_key, 0) + 1
-            return False
-        return False
-    def prob(
-        self,
-        tokens: np.ndarray,
-        pos: int,
-        token: int,
-        cache: list[float] | None = None,
-    ) -> float:
-        prob = self.base_unigram.cached_prob(tokens, pos, token, cache)
-        if self.total_unigram_continuations > 0:
-            prob = (
-                float(self.unigram_continuations[token]) + self.unigram_alpha * prob
-            ) / (float(self.total_unigram_continuations) + self.unigram_alpha)
-        max_depth = min(self.max_context, pos)
-        for context_len in range(1, max_depth + 1):
-            context_key = self._context_key(context_len, pos)
-            if context_key is None:
-                continue
-            table = self.tables[context_len]
-            total = float(table.context_totals.get(context_key, 0))
-            if total <= 0.0:
-                continue
-            count = table.pair_counts.get(self._pair_key(context_key, token), 0)
-            discount = self._discount_for_count(count)
-            discounted = max(float(count) - discount, 0.0) / total
-            backoff_mass = (
-                self.discount1 * float(table.n1.get(context_key, 0))
-                + self.discount2 * float(table.n2.get(context_key, 0))
-                + self.discount3p * float(table.n3p.get(context_key, 0))
-            ) / total
-            backoff_mass = min(max(backoff_mass, 0.0), 1.0)
-            prob = discounted + backoff_mass * prob
-        return prob
-    def update(self, tokens: np.ndarray, pos: int, token: int) -> None:
-        max_depth = min(self.max_context, pos)
-        propagate = True
-        for context_len in range(max_depth, 0, -1):
-            if not propagate:
-                break
-            context_key = self._context_key(context_len, pos)
-            if context_key is None:
-                continue
-            propagate = self._increment_table(context_len, context_key, token)
-        if propagate:
-            self.total_unigram_continuations += 1
-            self.unigram_continuations[token] += 1
-    def state_dict(self) -> dict:
-        tables = []
-        for table in self.tables:
-            tables.append(
-                {
-                    "context_totals": dict(table.context_totals),
-                    "pair_counts": dict(table.pair_counts),
-                    "n1": dict(table.n1),
-                    "n2": dict(table.n2),
-                    "n3p": dict(table.n3p),
-                }
-            )
-        return {
-            "tables": tables,
-            "unigram_continuations": self.unigram_continuations.copy(),
-            "total_unigram_continuations": self.total_unigram_continuations,
-        }
-    def load_state_dict(self, state: dict | None) -> None:
-        if state is None:
-            return
-        self.tables = []
-        for saved in state["tables"]:
-            self.tables.append(
-                DiscountCountTable(
-                    context_totals={int(key): int(value) for key, value in saved["context_totals"].items()},
-                    pair_counts={int(key): int(value) for key, value in saved["pair_counts"].items()},
-                    n1={int(key): int(value) for key, value in saved["n1"].items()},
-                    n2={int(key): int(value) for key, value in saved["n2"].items()},
-                    n3p={int(key): int(value) for key, value in saved["n3p"].items()},
-                )
-            )
-        self.unigram_continuations = np.array(state["unigram_continuations"], dtype=np.uint32, copy=True)
-        self.total_unigram_continuations = int(state["total_unigram_continuations"])
-class PPMExpert(Expert):
-    def __init__(
-        self,
-        max_context: int,
-        vocab_size: int,
-        single_counting: bool = True,
-        seed: int = 1469598103934665603,
-        base: int = 1099511628211,
-    ):
-        if max_context < 1:
-            raise ValueError("PPMExpert requires max_context >= 1")
-        self.name = f"ppm_c_{max_context + 1}"
-        self.context_len = max_context
-        self.max_context = max_context
-        self.vocab_size = vocab_size
-        self.single_counting = single_counting
-        self.seed = seed
-        self.base = base
-        self.mask = (1 << 64) - 1
-        self.token_shift = max(1, (vocab_size - 1).bit_length())
-        self.base_pows = [0] * (self.max_context + 1)
-        for context_len in range(1, self.max_context + 1):
-            self.base_pows[context_len] = pow(self.base, context_len - 1, 1 << 64)
-        self.tables = [FollowerCountTable() for _ in range(self.max_context + 1)]
-        self.sequence_keys: list[np.ndarray | None] = [None] * (self.max_context + 1)
-        self.unigram_counts = np.zeros((vocab_size,), dtype=np.uint32)
-        self.total_unigrams = 0
-        self.total_distinct_unigrams = 0
-        self.unigram_seen = np.zeros((vocab_size,), dtype=np.bool_)
-        self.unigram_tokens: list[int] = []
-    def set_sequence(self, tokens: np.ndarray, position_offset: int = 0) -> None:
-        del position_offset
-        for context_len in range(1, self.max_context + 1):
-            self.sequence_keys[context_len] = build_sequence_keys(tokens, context_len, self.base, self.seed, self.mask)
-    def _context_key(self, context_len: int, pos: int) -> int | None:
-        if pos < context_len:
-            return None
-        keys = self.sequence_keys[context_len]
-        if keys is None:
-            return None
-        return int(keys[pos])
-    def _pair_key(self, context_key: int, token: int) -> int:
-        return (context_key << self.token_shift) | token
-    def _prob_zero_order(self, token: int, excluded: set[int]) -> float:
-        available_total = 0
-        available_distinct = 0
-        token_count = 0
-        for follower in self.unigram_tokens:
-            if follower in excluded:
-                continue
-            count = int(self.unigram_counts[follower])
-            available_total += count
-            available_distinct += 1
-            if follower == token:
-                token_count = count
-        if available_distinct == 0:
-            remaining = self.vocab_size - self.total_distinct_unigrams
-            return 1.0 / max(remaining, 1)
-        denom = float(available_total + available_distinct)
-        if token_count > 0:
-            return float(token_count) / denom
-        remaining = self.vocab_size - self.total_distinct_unigrams
-        if remaining <= 0:
-            return 1.0 / self.vocab_size
-        return (float(available_distinct) / denom) * (1.0 / float(remaining))
-    def _prob_order(self, context_len: int, pos: int, token: int, excluded: set[int]) -> float:
-        if context_len <= 0:
-            return self._prob_zero_order(token, excluded)
-        context_key = self._context_key(context_len, pos)
-        if context_key is None:
-            return self._prob_order(context_len - 1, pos, token, excluded)
-        table = self.tables[context_len]
-        followers = table.followers.get(context_key)
-        if not followers:
-            return self._prob_order(context_len - 1, pos, token, excluded)
-        available_total = 0
-        available_distinct = 0
-        token_count = 0
-        for follower in followers:
-            if follower in excluded:
-                continue
-            count = table.pair_counts[self._pair_key(context_key, follower)]
-            available_total += count
-            available_distinct += 1
-            if follower == token:
-                token_count = count
-        if available_distinct == 0:
-            excluded.update(followers)
-            return self._prob_order(context_len - 1, pos, token, excluded)
-        denom = float(available_total + available_distinct)
-        if token_count > 0:
-            return float(token_count) / denom
-        excluded.update(followers)
-        return (float(available_distinct) / denom) * self._prob_order(context_len - 1, pos, token, excluded)
-    def prob(
-        self,
-        tokens: np.ndarray,
-        pos: int,
-        token: int,
-        cache: list[float] | None = None,
-    ) -> float:
-        del tokens
-        max_depth = min(self.max_context, pos)
-        return self._prob_order(max_depth, pos, token, excluded=set())
-    def update(self, tokens: np.ndarray, pos: int, token: int) -> None:
-        del tokens
-        max_depth = min(self.max_context, pos)
-        min_update = 0
-        if self.single_counting:
-            min_update = -1
-            for context_len in range(max_depth, 0, -1):
-                context_key = self._context_key(context_len, pos)
-                if context_key is None:
-                    continue
-                if self.tables[context_len].pair_counts.get(self._pair_key(context_key, token), 0) > 0:
-                    min_update = context_len
-                    break
-            if min_update < 0 and self.unigram_counts[token] > 0:
-                min_update = 0
-            if min_update < 0:
-                min_update = 0
-        for context_len in range(max_depth, 0, -1):
-            if self.single_counting and context_len < min_update:
-                break
-            context_key = self._context_key(context_len, pos)
-            if context_key is None:
-                continue
-            table = self.tables[context_len]
-            pair_key = self._pair_key(context_key, token)
-            prev = table.pair_counts.get(pair_key, 0)
-            if prev == 0:
-                table.followers.setdefault(context_key, []).append(token)
-            table.pair_counts[pair_key] = prev + 1
-            table.context_totals[context_key] = table.context_totals.get(context_key, 0) + 1
-        if not self.single_counting or min_update == 0:
-            if not self.unigram_seen[token]:
-                self.unigram_seen[token] = True
-                self.unigram_tokens.append(token)
-                self.total_distinct_unigrams += 1
-            self.unigram_counts[token] += 1
-            self.total_unigrams += 1
-    def state_dict(self) -> dict:
-        tables = []
-        for table in self.tables:
-            tables.append(
-                {
-                    "context_totals": dict(table.context_totals),
-                    "pair_counts": dict(table.pair_counts),
-                    "followers": {key: list(value) for key, value in table.followers.items()},
-                }
-            )
-        return {
-            "tables": tables,
-            "unigram_counts": self.unigram_counts.copy(),
-            "total_unigrams": self.total_unigrams,
-            "total_distinct_unigrams": self.total_distinct_unigrams,
-            "unigram_seen": self.unigram_seen.copy(),
-            "unigram_tokens": list(self.unigram_tokens),
-        }
-    def load_state_dict(self, state: dict | None) -> None:
-        if state is None:
-            return
-        self.tables = []
-        for saved in state["tables"]:
-            self.tables.append(
-                FollowerCountTable(
-                    context_totals={int(key): int(value) for key, value in saved["context_totals"].items()},
-                    pair_counts={int(key): int(value) for key, value in saved["pair_counts"].items()},
-                    followers={int(key): [int(token) for token in value] for key, value in saved["followers"].items()},
-                )
-            )
-        self.unigram_counts = np.array(state["unigram_counts"], dtype=np.uint32, copy=True)
-        self.total_unigrams = int(state["total_unigrams"])
-        self.total_distinct_unigrams = int(state["total_distinct_unigrams"])
-        self.unigram_seen = np.array(state["unigram_seen"], dtype=np.bool_, copy=True)
-        self.unigram_tokens = [int(token) for token in state["unigram_tokens"]]
-class SlidingWindowExpert(Expert):
-    supports_online_sequence = True
-    def __init__(
-        self,
-        vocab_size: int,
-        window: int,
-        backoff: Expert,
-        alpha: float = 1.0,
-        reset_token: int | None = None,
-        name_prefix: str = "cache",
-    ):
-        self.name = f"{name_prefix}_{window}"
-        self.vocab_size = vocab_size
-        self.window = window
-        self.backoff = backoff
-        self.alpha = alpha
-        self.reset_token = reset_token
-        self.counts = np.zeros((vocab_size,), dtype=np.uint32)
-        self.items: deque[int] = deque()
-    def begin_sequence(self, position_offset: int = 0) -> None:
-        del position_offset
-        self.reset_state()
-    def prob(
-        self,
-        tokens: np.ndarray,
-        pos: int,
-        token: int,
-        cache: list[float] | None = None,
-    ) -> float:
-        base_prob = self.backoff.cached_prob(tokens, pos, token, cache)
-        total = float(len(self.items))
-        hit_count = float(self.counts[token])
-        return (hit_count + self.alpha * base_prob) / (total + self.alpha)
-    def update(self, tokens: np.ndarray, pos: int, token: int) -> None:
-        del tokens, pos
-        if self.reset_token is not None and token == self.reset_token:
-            self.reset_state()
-            return
-        self.items.append(token)
-        self.counts[token] += 1
-        if len(self.items) > self.window:
-            old = self.items.popleft()
-            self.counts[old] -= 1
-    def reset_state(self) -> None:
-        self.counts.fill(0)
-        self.items.clear()
 class RecentMatchExpert(Expert):
     def __init__(
         self,
@@ -914,111 +547,117 @@ class RecentMatchExpert(Expert):
             entries.pop(0)
     def reset_state(self) -> None:
         self.index.clear()
+class SkipRecentMatchExpert(Expert):
+    def __init__(self, offsets: tuple[int, ...], max_gap: int, max_matches: int, max_stored_matches: int, backoff: Expert, alpha: float = 1.0, decay_power: float = 0.6, reset_token: int | None = None, name_prefix: str = "skip_copy"):
+        ordered_offsets = tuple(sorted(int(offset) for offset in offsets))
+        if not ordered_offsets: raise ValueError("SkipRecentMatchExpert requires at least one offset")
+        self.offsets = ordered_offsets; self.name = f"{name_prefix}_{'-'.join(str(offset) for offset in ordered_offsets)}"; self.context_len = max(ordered_offsets)
+        self.max_gap = max_gap; self.max_matches = max_matches; self.backoff = backoff; self.alpha = alpha; self.decay_power = decay_power; self.reset_token = reset_token
+        self.index: dict[int, list[tuple[int, int]]] = {}; self.max_stored_matches = max_stored_matches
+        self.seed = 1469598103934665603 ^ (self.context_len << 9) ^ len(ordered_offsets); self.base = 1099511628211; self.mask = (1 << 64) - 1
+        self.sequence_keys: np.ndarray | None = None; self.position_offset = 0
+        self.decay_weights = np.power(np.arange(1, self.max_gap + 2, dtype=np.float64), -self.decay_power)
+    def set_sequence(self, tokens: np.ndarray, position_offset: int = 0) -> None:
+        self.position_offset = position_offset
+        self.sequence_keys = build_skip_sequence_keys(tokens=tokens, offsets=self.offsets, base=self.base, seed=self.seed, mask=self.mask)
+    def prob(self, tokens: np.ndarray, pos: int, token: int, cache: list[float] | None = None) -> float:
+        base_prob = self.backoff.cached_prob(tokens, pos, token, cache); del tokens
+        if self.sequence_keys is None or pos < self.context_len: return base_prob
+        matches = self.index.get(int(self.sequence_keys[pos]))
+        if not matches: return base_prob
+        absolute_pos = self.position_offset + pos; min_pos = absolute_pos - self.max_gap; weighted_hits = weighted_total = 0.0; used = 0
+        for hit_pos, next_token in reversed(matches):
+            if hit_pos < min_pos: break
+            gap = absolute_pos - hit_pos; weight = float(self.decay_weights[gap]); weighted_total += weight
+            if next_token == token: weighted_hits += weight
+            used += 1
+            if used >= self.max_matches: break
+        return base_prob if weighted_total == 0.0 else (weighted_hits + self.alpha * base_prob) / (weighted_total + self.alpha)
+    def update(self, tokens: np.ndarray, pos: int, token: int) -> None:
+        if self.reset_token is not None and token == self.reset_token: self.reset_state(); return
+        del tokens
+        if self.sequence_keys is None or pos < self.context_len: return
+        key = int(self.sequence_keys[pos]); entries = self.index.get(key)
+        if entries is None: entries = []; self.index[key] = entries
+        absolute_pos = self.position_offset + pos; entries.append((absolute_pos, token)); min_pos = absolute_pos - self.max_gap
+        while entries and entries[0][0] < min_pos: entries.pop(0)
+        while len(entries) > self.max_stored_matches: entries.pop(0)
+    def reset_state(self) -> None:
+        self.index.clear()
 class AdaptiveMixer:
-    def __init__(self, experts: list[Expert], eta: float, share: float, min_prob: float):
-        if not experts:
-            raise ValueError("Need at least one expert")
-        self.experts = experts
-        self.eta = eta
-        self.share = share
-        self.min_prob = min_prob
-        self.weights = np.full((len(experts),), 1.0 / len(experts), dtype=np.float64)
-        self.prior = self.weights.copy()
-        self.expert_logloss = np.zeros((len(experts),), dtype=np.float64)
-        self.fixed_weights = eta == 0.0 and share == 0.0
-        self.fixed_active = np.arange(len(experts), dtype=np.int64)
-        self.supports_online_sequence = all(expert.supports_online_sequence for expert in experts)
-        self.graph_experts = iter_expert_graph(self.experts)
-        for idx, expert in enumerate(self.graph_experts):
-            expert.cache_slot = idx
-        self.cache_size = len(self.graph_experts)
-        self.set_weights(self.weights)
+    def __init__(self, experts: list[Expert], eta: float, share: float, min_prob: float, instantaneous_eta: float = 0.0):
+        if not experts: raise ValueError("Need at least one expert")
+        self.experts = experts; self.eta = eta; self.share = share; self.min_prob = min_prob; self.instantaneous_eta = instantaneous_eta
+        self.weights = np.full((len(experts),), 1.0 / len(experts), dtype=np.float64); self.prior = self.weights.copy(); self.expert_logloss = np.zeros((len(experts),), dtype=np.float64)
+        self.fixed_weights = eta == 0.0 and share == 0.0; self.fixed_active = np.arange(len(experts), dtype=np.int64); self.active = self.fixed_active.copy()
+        self.supports_online_sequence = all(expert.supports_online_sequence for expert in experts); self.graph_experts = iter_expert_graph(self.experts)
+        for idx, expert in enumerate(self.graph_experts): expert.cache_slot = idx
+        self.cache_size = len(self.graph_experts); self.set_weights(self.weights)
     def set_weights(self, weights: np.ndarray) -> None:
-        normalized = np.array(weights, dtype=np.float64, copy=True)
-        total = float(normalized.sum())
-        if total <= 0.0 or not np.isfinite(total):
-            raise ValueError("weights must sum to a positive finite value")
-        normalized /= total
-        self.weights = normalized
-        self.prior = normalized.copy()
-        if self.fixed_weights:
-            self.fixed_active = np.flatnonzero(normalized > 0.0)
-            if self.fixed_active.size == 0:
-                raise ValueError("fixed-weight mixer needs at least one positive-weight expert")
+        normalized = np.array(weights, dtype=np.float64, copy=True); total = float(normalized.sum())
+        if total <= 0.0 or not np.isfinite(total): raise ValueError("weights must sum to a positive finite value")
+        normalized /= total; self.weights = normalized; self.prior = normalized.copy(); self.active = np.flatnonzero(normalized > 0.0)
+        if self.active.size == 0: raise ValueError("mixer needs at least one positive-weight expert")
+        if self.fixed_weights: self.fixed_active = self.active.copy()
     def step(self, tokens: np.ndarray, pos: int, token: int) -> float:
         prob_cache = [math.nan] * self.cache_size
         if self.fixed_weights:
             if self.fixed_active.size == 1:
-                idx = int(self.fixed_active[0])
-                mix_prob = max(self.min_prob, self.experts[idx].cached_prob(tokens, pos, token, prob_cache))
-                self.expert_logloss[idx] += -math.log2(mix_prob)
+                idx = int(self.fixed_active[0]); mix_prob = max(self.min_prob, self.experts[idx].cached_prob(tokens, pos, token, prob_cache)); self.expert_logloss[idx] += -math.log2(mix_prob)
             else:
-                mix_prob = 0.0
-                for idx in self.fixed_active:
-                    prob = max(self.min_prob, self.experts[idx].cached_prob(tokens, pos, token, prob_cache))
-                    mix_prob += float(self.weights[idx] * prob)
-                    self.expert_logloss[idx] += -math.log2(prob)
-                mix_prob = max(mix_prob, self.min_prob)
+                active = self.fixed_active
+                if self.instantaneous_eta > 0.0:
+                    numerator = denominator = 0.0
+                    for idx in active:
+                        prob = max(self.min_prob, self.experts[int(idx)].cached_prob(tokens, pos, token, prob_cache)); self.expert_logloss[idx] += -math.log2(prob)
+                        base = float(self.weights[idx]) * (prob ** self.instantaneous_eta); denominator += base; numerator += base * prob
+                    mix_prob = max(numerator / denominator if denominator > 0.0 else self.min_prob, self.min_prob)
+                else:
+                    mix_prob = 0.0
+                    for idx in active:
+                        prob = max(self.min_prob, self.experts[int(idx)].cached_prob(tokens, pos, token, prob_cache)); mix_prob += float(self.weights[idx] * prob); self.expert_logloss[idx] += -math.log2(prob)
+                    mix_prob = max(mix_prob, self.min_prob)
         else:
-            probs = np.empty((len(self.experts),), dtype=np.float64)
-            for idx, expert in enumerate(self.experts):
-                probs[idx] = max(self.min_prob, expert.cached_prob(tokens, pos, token, prob_cache))
-            mix_prob = float(np.dot(self.weights, probs))
-            mix_prob = max(mix_prob, self.min_prob)
-            self.expert_logloss += -np.log2(probs)
-        if not self.fixed_weights:
-            posterior = self.weights * np.power(probs, self.eta)
-            total = float(posterior.sum())
+            active = self.active; probs = np.empty((active.size,), dtype=np.float64)
+            for active_pos, idx in enumerate(active): probs[active_pos] = max(self.min_prob, self.experts[int(idx)].cached_prob(tokens, pos, token, prob_cache))
+            mix_weights = self.weights[active]
+            if self.instantaneous_eta > 0.0:
+                dynamic_weights = mix_weights * np.power(probs, self.instantaneous_eta); total = float(dynamic_weights.sum())
+                if np.isfinite(total) and total > 0.0: mix_weights = dynamic_weights / total
+            mix_prob = max(float(np.dot(mix_weights, probs)), self.min_prob); self.expert_logloss[active] += -np.log2(probs)
+            posterior = self.weights[active] * np.power(probs, self.eta); total = float(posterior.sum())
             if not np.isfinite(total) or total <= 0.0:
-                posterior = self.prior.copy()
+                self.weights = self.prior.copy()
             else:
-                posterior /= total
-            self.weights = (1.0 - self.share) * posterior + self.share * self.prior
+                posterior /= total; self.weights = self.prior.copy(); self.weights[active] = (1.0 - self.share) * posterior + self.share * self.prior[active]
         for expert in self.experts:
-            if not expert.frozen_updates:
-                expert.update(tokens, pos, token)
+            if not expert.frozen_updates: expert.update(tokens, pos, token)
         return mix_prob
     def observe(self, tokens: np.ndarray, pos: int, token: int) -> None:
         for expert in self.experts:
-            if not expert.frozen_updates:
-                expert.update(tokens, pos, token)
+            if not expert.frozen_updates: expert.update(tokens, pos, token)
     def reset_weights(self) -> None:
-        self.weights = self.prior.copy()
-        self.expert_logloss.fill(0.0)
+        self.weights = self.prior.copy(); self.expert_logloss.fill(0.0)
     def reset_ephemeral_state(self) -> None:
-        for expert in self.experts:
-            expert.reset_state()
+        for expert in self.experts: expert.reset_state()
     def begin_sequence(self, position_offset: int = 0) -> None:
-        for expert in self.experts:
-            expert.begin_sequence(position_offset=position_offset)
+        for expert in self.experts: expert.begin_sequence(position_offset=position_offset)
     def prime(self, token: int) -> None:
-        for expert in self.experts:
-            expert.prime(token)
+        for expert in self.experts: expert.prime(token)
     def set_sequence(self, tokens: np.ndarray, position_offset: int = 0) -> None:
         del position_offset
-        for expert in self.experts:
-            expert.set_sequence(tokens)
+        for expert in self.experts: expert.set_sequence(tokens)
     def set_sequence_with_offset(self, tokens: np.ndarray, position_offset: int = 0) -> None:
-        for expert in self.experts:
-            expert.set_sequence(tokens, position_offset=position_offset)
+        for expert in self.experts: expert.set_sequence(tokens, position_offset=position_offset)
     def state_dict(self) -> dict:
-        return {
-            "expert_names": [expert.name for expert in self.experts],
-            "weights": self.weights.copy(),
-            "prior": self.prior.copy(),
-            "expert_logloss": self.expert_logloss.copy(),
-            "experts": [expert.state_dict() for expert in self.experts],
-        }
+        return {"expert_names": [expert.name for expert in self.experts], "weights": self.weights.copy(), "prior": self.prior.copy(), "expert_logloss": self.expert_logloss.copy(), "experts": [expert.state_dict() for expert in self.experts]}
     def load_state_dict(self, state: dict) -> None:
-        expected_names = [expert.name for expert in self.experts]
-        saved_names = list(state["expert_names"])
-        if saved_names != expected_names:
-            raise ValueError(f"State expert mismatch: saved={saved_names} current={expected_names}")
-        self.weights = np.array(state["weights"], dtype=np.float64, copy=True)
-        self.prior = np.array(state["prior"], dtype=np.float64, copy=True)
+        expected_names = [expert.name for expert in self.experts]; saved_names = list(state["expert_names"])
+        if saved_names != expected_names: raise ValueError(f"State expert mismatch: saved={saved_names} current={expected_names}")
+        self.weights = np.array(state["weights"], dtype=np.float64, copy=True); self.prior = np.array(state["prior"], dtype=np.float64, copy=True); self.active = np.flatnonzero(self.prior > 0.0)
+        if self.fixed_weights: self.fixed_active = self.active.copy()
         self.expert_logloss = np.array(state["expert_logloss"], dtype=np.float64, copy=True)
-        for expert, expert_state in zip(self.experts, state["experts"], strict=True):
-            expert.load_state_dict(expert_state)
+        for expert, expert_state in zip(self.experts, state["experts"], strict=True): expert.load_state_dict(expert_state)
 class CompositeLMExpert(Expert):
     def __init__(self, prob_expert: Expert, components: list[Expert]):
         self.name = prob_expert.name
@@ -1069,92 +708,12 @@ def build_experts(args: argparse.Namespace, vocab_size: int) -> list[Expert]:
     unigram = UnigramExpert(vocab_size=vocab_size, alpha=args.unigram_alpha)
     unigram.is_lm_expert = True
     lm_components: list[Expert] = [unigram]
-    experts: list[Expert] = []
-    if args.ppm:
-        max_context = max(args.ngram_contexts) if args.ngram_contexts else 1
-        lm_backoff = PPMExpert(
-            max_context=max_context,
-            vocab_size=vocab_size,
-            single_counting=bool(args.ppm_single_counting),
-        )
-        lm_backoff.is_lm_expert = True
-        lm_components.append(lm_backoff)
-    elif args.modified_kn:
-        discounts = args.mkn_discounts
-        if len(discounts) == 1:
-            discounts = [discounts[0], discounts[0], discounts[0]]
-        if len(discounts) != 3:
-            raise ValueError("--mkn-discounts must provide either 1 or 3 values")
-        max_context = max(args.ngram_contexts) if args.ngram_contexts else 1
-        lm_backoff = ModifiedKneserNeyExpert(
-            max_context=max_context,
-            vocab_size=vocab_size,
-            base_unigram=unigram,
-            unigram_alpha=args.mkn_unigram_alpha,
-            discounts=(discounts[0], discounts[1], discounts[2]),
-        )
-        lm_backoff.is_lm_expert = True
-        lm_components.append(lm_backoff)
-    else:
-        bigram = BigramExpert(
-            vocab_size=vocab_size,
-            backoff=unigram,
-            alpha=args.bigram_alpha,
-            discount=args.absolute_discount,
-            use_continuation_unigram=bool(args.continuation_unigram),
-        )
-        bigram.is_lm_expert = True
-        lm_components.append(bigram)
-        lm_backoff = bigram
-        for context_len in args.ngram_contexts:
-            ngram = HashedNgramExpert(
-                context_len=context_len,
-                vocab_size=vocab_size,
-                backoff=lm_backoff,
-                alpha=args.ngram_alpha,
-                discount=args.absolute_discount,
-                count_scale_limit=args.ngram_count_scale_limit,
-                prune_min_count=args.ngram_prune_min_count,
-            )
-            ngram.is_lm_expert = True
-            lm_components.append(ngram)
-            lm_backoff = ngram
-    if args.mix_backoff_experts:
-        experts.extend(lm_components)
-    else:
-        experts.append(CompositeLMExpert(prob_expert=lm_backoff, components=lm_components))
-    for window in args.cache_windows:
-        experts.append(
-            SlidingWindowExpert(
-                vocab_size=vocab_size,
-                window=window,
-                backoff=lm_backoff,
-                alpha=args.cache_alpha,
-            )
-        )
-    for window in args.doc_cache_windows:
-        experts.append(
-            SlidingWindowExpert(
-                vocab_size=vocab_size,
-                window=window,
-                backoff=lm_backoff,
-                alpha=args.cache_alpha,
-                reset_token=args.doc_reset_token,
-                name_prefix="doc_cache",
-            )
-        )
-    for context_len in args.copy_contexts:
-        experts.append(
-            RecentMatchExpert(
-                context_len=context_len,
-                max_gap=args.copy_window,
-                max_matches=args.copy_max_matches,
-                max_stored_matches=args.copy_store_limit,
-                backoff=lm_backoff,
-                alpha=args.copy_alpha,
-                decay_power=args.copy_decay_power,
-            )
-        )
+    bigram = BigramExpert(vocab_size=vocab_size, backoff=unigram, alpha=args.bigram_alpha, discount=args.absolute_discount, use_continuation_unigram=bool(args.continuation_unigram))
+    bigram.is_lm_expert = True; lm_components.append(bigram); lm_backoff = bigram
+    for context_len in args.ngram_contexts:
+        ngram = HashedNgramExpert(context_len=context_len, vocab_size=vocab_size, backoff=lm_backoff, alpha=args.ngram_alpha, discount=args.absolute_discount, count_scale_limit=args.ngram_count_scale_limit, prune_min_count=args.ngram_prune_min_count)
+        ngram.is_lm_expert = True; lm_components.append(ngram); lm_backoff = ngram
+    experts: list[Expert] = [CompositeLMExpert(prob_expert=lm_backoff, components=lm_components)]
     for context_len in args.doc_copy_contexts:
         experts.append(
             RecentMatchExpert(
@@ -1169,11 +728,33 @@ def build_experts(args: argparse.Namespace, vocab_size: int) -> list[Expert]:
                 name_prefix="doc_copy_ctx",
             )
         )
+    for offsets in args.doc_skip_copy_contexts:
+        experts.append(
+            SkipRecentMatchExpert(
+                offsets=offsets,
+                max_gap=args.copy_window,
+                max_matches=args.copy_max_matches,
+                max_stored_matches=args.copy_store_limit,
+                backoff=lm_backoff,
+                alpha=args.copy_alpha,
+                decay_power=args.copy_decay_power,
+                reset_token=args.doc_reset_token,
+                name_prefix="doc_skip_copy",
+            )
+        )
     return experts
 def parse_csv_ints(raw: str) -> list[int]:
     if not raw.strip():
         return []
     return [int(piece) for piece in raw.split(",") if piece.strip()]
+def parse_skip_contexts(raw: str) -> list[tuple[int, ...]]:
+    if not raw.strip():
+        return []
+    contexts: list[tuple[int, ...]] = []
+    for piece in raw.split(","):
+        offsets = tuple(int(bit) for bit in piece.strip().split("-") if bit.strip())
+        if offsets: contexts.append(offsets)
+    return contexts
 def parse_csv_floats(raw: str) -> list[float]:
     if not raw.strip():
         return []
@@ -1246,40 +827,25 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--report-every", type=int, default=100_000)
     parser.add_argument("--eta", type=float, default=0.7, help="Exponentiated-gradient update strength.")
     parser.add_argument("--share", type=float, default=0.03, help="Fixed-share reset rate for expert weights.")
+    parser.add_argument("--instantaneous-eta", type=float, default=0.0)
     parser.add_argument("--min-prob", type=float, default=1e-12)
     parser.add_argument("--unigram-alpha", type=float, default=0.5)
     parser.add_argument("--bigram-alpha", type=float, default=4.0)
     parser.add_argument("--ngram-alpha", type=float, default=1.0)
     parser.add_argument("--ngram-count-scale-limit", type=int, default=0)
     parser.add_argument("--ngram-prune-min-count", type=int, default=0)
-    parser.add_argument(
-        "--mix-backoff-experts",
-        type=int,
-        default=1,
-        help="If set, include unigram/bigram/intermediate n-grams as separate experts in the adaptive mixture.",
-    )
     parser.add_argument("--absolute-discount", type=float, default=0.0)
     parser.add_argument("--continuation-unigram", type=int, default=1)
-    parser.add_argument("--ppm", type=int, default=0)
-    parser.add_argument("--ppm-single-counting", type=int, default=1)
-    parser.add_argument("--modified-kn", type=int, default=0)
-    parser.add_argument("--mkn-unigram-alpha", type=float, default=1.0)
-    parser.add_argument("--mkn-discounts", type=parse_csv_floats, default=parse_csv_floats("0.7,1.0,1.3"))
-    parser.add_argument("--cache-alpha", type=float, default=1.0)
     parser.add_argument("--copy-alpha", type=float, default=1.0)
     parser.add_argument("--copy-decay-power", type=float, default=0.6)
     parser.add_argument("--ngram-contexts", type=parse_csv_ints, default=parse_csv_ints("2,3,4"))
-    parser.add_argument("--cache-windows", type=parse_csv_ints, default=parse_csv_ints("64,512,4096,32768"))
-    parser.add_argument("--copy-contexts", type=parse_csv_ints, default=parse_csv_ints("2,4,8,12"))
-    parser.add_argument("--doc-cache-windows", type=parse_csv_ints, default=parse_csv_ints(""))
     parser.add_argument("--doc-copy-contexts", type=parse_csv_ints, default=parse_csv_ints(""))
+    parser.add_argument("--doc-skip-copy-contexts", type=parse_skip_contexts, default=parse_skip_contexts(""))
     parser.add_argument("--doc-reset-token", type=int, default=1)
     parser.add_argument("--copy-window", type=int, default=200_000)
     parser.add_argument("--copy-max-matches", type=int, default=32)
     parser.add_argument("--copy-store-limit", type=int, default=32)
     parser.add_argument("--expert-weights", type=parse_csv_floats, default=parse_csv_floats(""))
-    parser.add_argument("--freeze-lm-updates", type=int, default=0)
-    parser.add_argument("--freeze-ngram-updates", type=int, default=0)
     parser.add_argument("--eval-chunk-tokens", type=int, default=0)
     return parser
 def max_required_context(experts: list[Expert]) -> int:
@@ -1383,7 +949,7 @@ def main() -> None:
     args.tokenizer_path = resolve_repo_path(args.tokenizer_path)
     start = time.perf_counter()
     experts = build_experts(args, args.vocab_size)
-    mixer = AdaptiveMixer(experts=experts, eta=args.eta, share=args.share, min_prob=args.min_prob)
+    mixer = AdaptiveMixer(experts=experts, eta=args.eta, share=args.share, min_prob=args.min_prob, instantaneous_eta=args.instantaneous_eta)
     loaded_state_bytes = 0
     loaded_warmup_seen = 0
     if args.load_state:
@@ -1401,12 +967,6 @@ def main() -> None:
                 f"--expert-weights length mismatch: got {weights.size}, expected {len(mixer.experts)}"
             )
         mixer.set_weights(weights)
-    if args.freeze_lm_updates or args.freeze_ngram_updates:
-        for expert in iter_expert_graph(mixer.experts):
-            if args.freeze_lm_updates and expert.is_lm_expert:
-                expert.frozen_updates = True
-            if args.freeze_ngram_updates and expert.name.startswith("ngram_"):
-                expert.frozen_updates = True
     if args.skip_validation:
         if loaded_state_bytes:
             print(f"loaded_state_bytes={loaded_state_bytes}")
