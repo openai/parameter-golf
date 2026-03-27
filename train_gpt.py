@@ -1265,8 +1265,8 @@ def eval_val_ngram(
                 if phrase_match.any():
                     pm = phrase_match
                     if dirichlet_concentration > 0:
-                        # phrase Dirichlet with dedicated concentration (PR #900 uses c=2.0)
-                        phr_conc = min(dirichlet_concentration, 2.0)
+                        # phrase Dirichlet — lower concentration trusts phrase evidence more
+                        phr_conc = dirichlet_concentration * 0.5
                         blended_p[pm] = (phr_conc * blended_p[pm] + phr_full_c[pm]) / (phr_conc + phr_ctx_c[pm])
                     else:
                         pa = 0.3 + (0.95 - 0.3) * (phrase_len[phrase_match].astype(np.float64) - 16.0) / 32.0
@@ -2114,7 +2114,7 @@ def main() -> None:
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     sw_seq_len = effective_eval_seq_len
     if ngram_enabled:
-        ngram_order = int(os.environ.get("NGRAM_ORDER", "13"))
+        ngram_order = int(os.environ.get("NGRAM_ORDER", "9"))
         ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
         ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))
         ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
@@ -2123,7 +2123,7 @@ def main() -> None:
         ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.90"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
         ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
-        dirichlet_conc = float(os.environ.get("DIRICHLET_CONCENTRATION", "5.0"))
+        dirichlet_conc = float(os.environ.get("DIRICHLET_CONCENTRATION", "0.5"))
         torch.cuda.synchronize()
         t_ngram = time.perf_counter()
         ngram_two_pass = bool(int(os.environ.get("NGRAM_TWO_PASS", "0")))  # default single-pass for legality
