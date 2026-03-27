@@ -47,7 +47,7 @@ NUM_KV_HEADS = 4
 MLP_MULT = 3
 TIE_EMBEDDINGS = True
 ROPE_BASE = 10000.0
-ROPE_DIM = 8                     # number of head dims to apply rotary to (0=full, 16=partial like SOTA)
+ROPE_DIM = 16                    # number of head dims to apply rotary to (0=full, 16=partial like SOTA)
 LOGIT_SOFTCAP = 8.0
 QK_GAIN_INIT = 1.5
 
@@ -62,7 +62,7 @@ EMBED_LR = 0.3
 HEAD_LR = 0.008
 TIED_EMBED_LR = 0.03
 TIED_EMBED_INIT_STD = 0.005
-MATRIX_LR = 0.10
+MATRIX_LR = 0.12
 SCALAR_LR = 0.08
 MUON_MOMENTUM = 0.90
 MUON_BACKEND_STEPS = 5

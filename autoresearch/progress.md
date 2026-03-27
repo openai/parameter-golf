@@ -28,7 +28,8 @@
 | warmdown=9000 | 1.3047 | 1.3108 | 15.0 | WORSE than warmdown=7000 |
 | Hadamard rotation | 1.3018 | 1.3075 | 16.0 | OVER — quality better but +1MB size |
 | EMA(0.997) | 1.3197 | 1.3239 | 14.8 | WORSE — all-warmdown means last step is best |
-| **leaky_relu_sq** | running | — | — | — |
+| leaky_relu_sq | 1.3135 | 1.3193 | 14.8 | WORSE — 214ms/step (+18%), fewer steps kill gains |
+| **ROPE_DIM=8** | running | — | — | — |
 
 ## Key Findings
 1. **SiLU >> ReluSquared.** relu_sq is ~23ms/step slower, fewer total steps negate per-step gains.
