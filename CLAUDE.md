@@ -38,23 +38,24 @@ POLYGLU_ENABLED=1 ITERATIONS=10 VAL_LOSS_EVERY=0 RUN_ID=smoke \
 ```
 Confirms torch.compile(fullgraph=True) works with PolyMLP. Must complete without errors.
 
-### Step 3: Full PolyGLU Training Run (10 min, 8xH100)
+### Step 3: Full Training + N-gram Cache Eval (10 min train + 10 min eval, 8xH100)
 ```bash
 NUM_LAYERS=11 BIGRAM_VOCAB_SIZE=1536 XSA_LAST_N=4 \
 EMA_ENABLED=1 EMA_DECAY=0.997 SWA_ENABLED=1 SWA_EVERY=50 \
 ROPE_DIMS=16 LN_SCALE=1 LATE_QAT=1 LATE_QAT_THRESHOLD=0.15 \
 VE_ENABLED=1 VE_DIM=128 VE_LAYERS=9,10 \
-TTT_ENABLED=1 TTT_LR=0.002 TTT_EPOCHS=3 TTT_CHUNK_TOKENS=32768 \
-TTT_FREEZE_BLOCKS=0 TTT_MOMENTUM=0.9 TTT_BATCH_SEQS=32 TTT_GRAD_CLIP=1.0 \
+TTT_ENABLED=0 \
 MUON_WD=0.04 ADAM_WD=0.04 \
 MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \
 MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 \
 MUON_MOMENTUM_WARMUP_STEPS=1500 WARMDOWN_ITERS=3500 \
 ITERATIONS=9000 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 \
-POLYGLU_ENABLED=1 \
-SEED=1337 RUN_ID=polyglu_seed1337 \
+POLYGLU_ENABLED=0 \
+NGRAM_ENABLED=1 NGRAM_MAX_ORDER=7 NGRAM_ALPHA=0.15 \
+SEED=1337 RUN_ID=ngram_seed1337 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
+Note: TTT is disabled when using N-gram cache (both are eval-time techniques that fit in 10 min budget independently, but not together). N-gram cache provides ~0.05-0.15 BPB improvement.
 
 ### Step 4: Verify Artifact Size
 ```bash

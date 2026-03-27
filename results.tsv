@@ -1,0 +1,8 @@
+commit	val_bpb	pre_ttt_bpb	memory_gb	status	description
+ebe51a4	1.4199	1.3686	21.1	keep	baseline: EMA disabled POLYGLU=0 5min 1GPU
+ebe51a4	1.4659	1.4237	21.3	discard	gated MLP (SwiGLU): hidden 1024 vs 1536 hurts at this scale
+ebe51a4	1.4307	1.3737	23.2	discard	PolyGLU: per-neuron slope +0.005 worse and fewer steps (2% overhead)
+ebe51a4	1.4476	1.3969	21.4	discard	MTP 1 head w=0.2: extra loss hurts with 478 steps (+0.028)
+dcc5273	1.3907	1.3655	21.1	keep	higher LR: matrix=0.035 scalar=0.035 embed=0.05 (-0.003 pre -0.029 post)
+dcc5273	1.3895	1.3732	21.1	discard	even higher LR: 0.045/0.045/0.06 — overshoots pre-quant slightly
+dcc5273	1.3533	1.3786	21.1	keep	N-gram cache order=9 alpha=0.30 on 500K subset: -0.025 BPB improvement!
