@@ -1,0 +1,11 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "SGD TTT + HedgeMixer: Per-Layer LR Groups on PR #720 Backbone",
+  "blurb": "Built on PR #720 by @agalimova. Switches TTT from AdamW to SGD (lr=0.002, momentum=0.9) with per-layer LR groups (3x proj, 0.5x fc), cosine schedule, and zero frozen blocks. 3-seed mean 1.0450 BPB on 8xH100 in under 600s eval.",
+  "date": "2026-03-27",
+  "val_loss": 1.76441249,
+  "val_bpb": 1.04498723,
+  "bytes_total": 15672158,
+  "bytes_code": 102023
+}
