@@ -49,7 +49,7 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     num_layer_schedule = [
-        int(x) for x in os.environ.get("NUM_LAYER_SCHEDULE", "1,2,4").split(",") if x.strip()
+        int(x) for x in os.environ.get("NUM_LAYER_SCHEDULE", "").split(",") if x.strip()
     ]
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
@@ -64,7 +64,6 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 2))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 768))
     num_heads = int(os.environ.get("NUM_HEADS", 16))
@@ -819,16 +818,17 @@ def main() -> None:
     # MODEL + OPTIMIZER SETUP
     # -----------------------------
 
-    if any(num_layers <= 0 or num_layers > args.num_layers for num_layers in args.num_layer_schedule):
+    num_layer_schedule = args.num_layer_schedule or [1, 2, 4]
+    max_num_layers = max(num_layer_schedule)
+    if any(num_layers <= 0 or num_layers > max_num_layers for num_layers in num_layer_schedule):
         raise ValueError(
-            f"NUM_LAYER_SCHEDULE entries must be in [1, {args.num_layers}], got {args.num_layer_schedule}"
+            f"NUM_LAYER_SCHEDULE entries must be positive, got {num_layer_schedule}"
         )
-    num_layer_schedule = args.num_layer_schedule or [args.num_layers]
     num_layer_schedule_idx = 0
 
     base_model = GPT(
         vocab_size=args.vocab_size,
-        num_layers=args.num_layers,
+        num_layers=max_num_layers,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
