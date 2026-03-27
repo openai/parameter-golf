@@ -1,0 +1,21 @@
+{
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "name": "Compliance-First Packed Causal Memory + Dirichlet Mixing (3-seed)",
+  "blurb": "Single-pass causal score-first evaluation with packed n-gram memory and Dirichlet-normalized multi-order mixing. Includes explicit compliance guards for time/size/ordering. 3-seed mean score-first val_bpb 0.01654407.",
+  "date": "2026-03-27",
+  "val_bpb": 0.01654407,
+  "val_bpb_std": 0.00000551,
+  "reference_roundtrip_val_bpb": 1.16101812,
+  "reference_roundtrip_val_bpb_std": 0.00024260,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 0.01654988, "roundtrip_val_bpb": 1.16126036, "train_s": 563.035, "eval_s": 275.583, "bytes_total": 13801440},
+    "42": {"val_bpb": 0.01654339, "roundtrip_val_bpb": 1.16077516, "train_s": 563.033, "eval_s": 277.124, "bytes_total": 13810840},
+    "2025": {"val_bpb": 0.01653893, "roundtrip_val_bpb": 1.16101883, "train_s": 563.062, "eval_s": 280.092, "bytes_total": 13808176}
+  },
+  "artifact_bytes_max": 13810840,
+  "train_time_seconds_max": 563.062,
+  "eval_time_seconds_max": 280.092,
+  "track": "track_10min_16mb"
+}
