@@ -2038,7 +2038,7 @@ def main() -> None:
     if ngram_artifact_enabled:
         t_build = time.perf_counter()
         ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "13"))
-        ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "262144"))
+        ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "524288"))
         ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "80"))
         # each rank builds from a subset of shards
         all_shards = sorted(glob.glob(os.path.join(args.data_path, "fineweb_train_*.bin")))
