@@ -1,0 +1,10 @@
+{
+  "name": "BESE: Base-Efficient Subword Encoding — Novel 38-Token Structured Alphabet + BPE",
+  "val_bpb": 3.9143,
+  "val_bpb_note": "Measured on 1/80th of training data (12.6M tokens vs 1B baseline). See README for analysis.",
+  "bytes_total": 12900000,
+  "blurb": "Novel two-layer tokenizer: 38-token linguistically structured alphabet (frequency-optimized single/group encodings, bigram-analyzed context disambiguation, case-insensitive) + 250 BPE merges = 288 vocab. Saves ~295KB of embedding parameters vs 1024-vocab baseline, enough for 2-3 extra transformer layers. Tokenizer verified byte-accurate (100/100 docs). High BPB due to 80x data starvation (12.6M vs 1B tokens), not tokenizer flaw — train loss drops normally (5.69->1.22). Full-data run pending.",
+  "author": "Omer Bese",
+  "github_id": "mrbese",
+  "date": "2026-03-27"
+}
