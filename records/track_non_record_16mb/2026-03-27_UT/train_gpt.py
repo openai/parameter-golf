@@ -635,12 +635,19 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor, attn: CausalSelfAttention, mlp: MLP) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        x0: Tensor,
+        attn: CausalSelfAttention,
+        attn_2: CausalSelfAttention,
+        mlp: MLP,
+    ) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        attn_out = attn(self.attn_norm_2(x))
+        attn_out = attn_2(self.attn_norm_2(x))
         x = x + self.attn_scale_2.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp(self.mlp_norm(x))
         return x
@@ -673,6 +680,7 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.shared_attn = CausalSelfAttention(model_dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.shared_attn_2 = CausalSelfAttention(model_dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.shared_mlp = MLP(model_dim, mlp_mult)
         self.blocks = nn.ModuleList(
             [
@@ -701,12 +709,12 @@ class GPT(nn.Module):
 
         # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0, self.shared_attn, self.shared_mlp)
+            x = self.blocks[i](x, x0, self.shared_attn, self.shared_attn_2, self.shared_mlp)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0, self.shared_attn, self.shared_mlp)
+            x = self.blocks[self.num_encoder_layers + i](x, x0, self.shared_attn, self.shared_attn_2, self.shared_mlp)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
