@@ -1,0 +1,9 @@
+{
+  "name": "Order-20 Dirichlet Posterior + Per-Order OBCL + Phrase Cache (3-seed)",
+  "val_bpb": 0.1155,
+  "bytes_total": 15077877,
+  "blurb": "Extended n-gram backoff to order 20 (from 15). Two-level Dirichlet-Multinomial posterior mixing with per-order OBCL concentrations and phrase suffix matching. 3-seed mean: 0.11545 (std 0.0000010). Improvement over PR #948 (order 15, 0.11556) confirmed via 1xH100 ablation.",
+  "author": "Nathan Maine",
+  "github_id": "NathanMaine",
+  "date": "2026-03-27"
+}
