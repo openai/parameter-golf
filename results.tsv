@@ -48,3 +48,4 @@ b224b23	1.1323	15.88	keep	TTT AdamW 5ep lr=0.0005 DDP-synced	BEATS SOTA! sw=1.13
 cd10ecb	0.2463	15.39	keep	flat Dirichlet c=1.0 + phrase[28,20,16]	NEW BEST! phrase[28] adds -0.007, eval=529s
 fc5f627	0.2417	15.39	keep	flat Dirichlet c=1.0 + phrase[36,28,20,16]	NEW BEST! phrase[36] adds -0.005, eval=548s
 1b32847	0.2380	15.65	keep	flat Dirichlet c=1.0 + phrase[48,36,28,20,16]	NEW BEST! -0.004, eval=586s (14s spare)
+e608af8	0.2307	15.32	discard	order-13 flat Dirichlet + phrase[36,28,20,16]	-0.011 from orders but eval=673s OVER BUDGET

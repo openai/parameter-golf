@@ -74,7 +74,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 48))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 0))
     mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.2))
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
@@ -896,7 +896,7 @@ def eval_val_sliding(
 class LongPhraseCache:
     """variable-length suffix matcher for verbatim repetition (PR #880).
     probes at lengths [48,36,28,20,16] using rolling hashes."""
-    PROBE_LENGTHS = [36, 28, 20, 16]  # trimmed to fit with order-13
+    PROBE_LENGTHS = [48, 36, 28, 20, 16]  # full probes, stride=64 saves eval time
     PRIMES = [np.uint64(p) for p in [
         36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377,
         412391, 479909, 541267, 613651, 700897, 786433, 850001, 921587,
