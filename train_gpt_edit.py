@@ -610,13 +610,24 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+<<<<<<< HEAD
+        if self.num_kv_heads != self.num_heads:
+            repeats = self.num_heads // self.num_kv_heads
+            k = k.repeat_interleave(repeats, dim=1)
+            v = v.repeat_interleave(repeats, dim=1)
+=======
+>>>>>>> e335f2c98cb5a2eb6e1761a6779d4c56110db155
         y = F.scaled_dot_product_attention(
             q,
             k,
             v,
             attn_mask=None,
             is_causal=True,
+<<<<<<< HEAD
+            enable_gqa=False,
+=======
             enable_gqa=(self.num_kv_heads != self.num_heads),
+>>>>>>> e335f2c98cb5a2eb6e1761a6779d4c56110db155
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
