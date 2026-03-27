@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a private fork of OpenAI's **Parameter Golf** challenge: train the best language model fitting in a **16MB artifact** (compressed model + code) in **under 10 minutes on 8xH100s**, evaluated by **bits-per-byte (BPB)** on the FineWeb validation set (lower is better).
 
-Our differentiating strategy is **PolyGLU** (Polychromatic Gated Linear Unit) — a per-neuron activation routing mechanism integrated into the `PolyMLP` class in `train_gpt.py`. Each neuron dynamically selects among K=4 candidate activations (relu², tanh, SiLU, GELU) via Gumbel-Softmax routing. See `private_fork_references/polyglu_reference/` for the paper and design rationale.
+Our differentiating strategy is **PolyGLU** (Polychromatic Gated Linear Unit) — a per-neuron activation specialization mechanism integrated into the `PolyMLP` class in `train_gpt.py`. In the current implementation, each neuron learns its own negative slope for LeakyReLU² via `sigmoid(routing_alpha)`, allowing per-neuron activation specialization with near-zero overhead (~3%). See `private_fork_references/polyglu_reference/` for the paper and design rationale.
 
 **Origin remote**: `https://github.com/danielxmed/parameter-golf.git` (private fork — never push to `openai/parameter-golf`)
 
@@ -33,52 +33,53 @@ python3 data/cached_challenge_fineweb.py --variant sp1024
 
 ### Step 2: Quick Smoke Test (< 2 min, single GPU)
 ```bash
-ITERATIONS=10 VAL_LOSS_EVERY=0 RUN_ID=smoke \
+POLYGLU_ENABLED=1 ITERATIONS=10 VAL_LOSS_EVERY=0 RUN_ID=smoke \
   torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```
 Confirms torch.compile(fullgraph=True) works with PolyMLP. Must complete without errors.
 
 ### Step 3: Full PolyGLU Training Run (10 min, 8xH100)
 ```bash
-NUM_LAYERS=11 MLP_MULT=3 RUN_ID=polyglu_seed1337 SEED=1337 \
-  torchrun --standalone --nproc_per_node=8 train_gpt.py
+NUM_LAYERS=11 BIGRAM_VOCAB_SIZE=1536 XSA_LAST_N=4 \
+EMA_ENABLED=1 EMA_DECAY=0.997 SWA_ENABLED=1 SWA_EVERY=50 \
+ROPE_DIMS=16 LN_SCALE=1 LATE_QAT=1 LATE_QAT_THRESHOLD=0.15 \
+VE_ENABLED=1 VE_DIM=128 VE_LAYERS=9,10 \
+TTT_ENABLED=1 TTT_LR=0.002 TTT_EPOCHS=3 TTT_CHUNK_TOKENS=32768 \
+TTT_FREEZE_BLOCKS=0 TTT_MOMENTUM=0.9 TTT_BATCH_SEQS=32 TTT_GRAD_CLIP=1.0 \
+MUON_WD=0.04 ADAM_WD=0.04 \
+MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \
+MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 \
+MUON_MOMENTUM_WARMUP_STEPS=1500 WARMDOWN_ITERS=3500 \
+ITERATIONS=9000 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 \
+POLYGLU_ENABLED=1 \
+SEED=1337 RUN_ID=polyglu_seed1337 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 ### Step 4: Verify Artifact Size
 ```bash
-# Artifact limit is 16,000,000 bytes (decimal 16MB, NOT 16 MiB)
 CODE_BYTES=$(wc -c < train_gpt.py)
-MODEL_BYTES=$(wc -c < final_model.int8.ptz)
+MODEL_FILE=$(ls final_model.*.ptz 2>/dev/null | head -1)
+MODEL_BYTES=$(wc -c < "$MODEL_FILE")
 TOTAL=$((CODE_BYTES + MODEL_BYTES))
 echo "code=${CODE_BYTES} model=${MODEL_BYTES} total=${TOTAL} limit=16000000"
 [ "$TOTAL" -lt 16000000 ] && echo "OK: under limit" || echo "FAIL: over limit"
 ```
 
 ### Step 5: Multi-Seed Validation (for submission)
-Submissions require p<0.01 statistical significance. Run 3 seeds:
-```bash
-NUM_LAYERS=11 MLP_MULT=3 RUN_ID=polyglu_seed1337 SEED=1337 \
-  torchrun --standalone --nproc_per_node=8 train_gpt.py
-
-NUM_LAYERS=11 MLP_MULT=3 RUN_ID=polyglu_seed42 SEED=42 \
-  torchrun --standalone --nproc_per_node=8 train_gpt.py
-
-NUM_LAYERS=11 MLP_MULT=3 RUN_ID=polyglu_seed2025 SEED=2025 \
-  torchrun --standalone --nproc_per_node=8 train_gpt.py
-```
+Run 3 seeds (replace SEED and RUN_ID in the Step 3 command):
+- `SEED=1337 RUN_ID=polyglu_seed1337`
+- `SEED=42 RUN_ID=polyglu_seed42`
+- `SEED=2025 RUN_ID=polyglu_seed2025`
 
 ### Step 6: Baseline Comparison (optional, for ablation)
-```bash
-POLYGLU_ENABLED=0 NUM_LAYERS=11 MLP_MULT=3 RUN_ID=baseline_seed1337 SEED=1337 \
-  torchrun --standalone --nproc_per_node=8 train_gpt.py
-```
+Same command as Step 3 but with `POLYGLU_ENABLED=0`.
 
 ### Step 7: Check Results
 ```bash
 grep "val_bpb" logs/polyglu_seed1337.txt
 grep "val_bpb" logs/polyglu_seed42.txt
 grep "val_bpb" logs/polyglu_seed2025.txt
-grep "tau:" logs/polyglu_seed1337.txt | tail -3   # confirm tau annealed to ~0.1
 ```
 
 ## Submission Preparation
