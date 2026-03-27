@@ -2032,7 +2032,7 @@ def main() -> None:
     packed_ngram = None
     if ngram_artifact_enabled:
         t_build = time.perf_counter()
-        ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "13"))
+        ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "15"))
         ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "262144"))
         ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "80"))
         # each rank builds from a subset of shards
@@ -2243,7 +2243,7 @@ def main() -> None:
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     sw_seq_len = effective_eval_seq_len
     if ngram_enabled:
-        ngram_order = int(os.environ.get("NGRAM_ORDER", "13"))
+        ngram_order = int(os.environ.get("NGRAM_ORDER", "15"))
         ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
         # use artifact bucket count if available, otherwise default
         art_buckets = int(prewarmed_ngram["meta"][2]) if prewarmed_ngram is not None else 4194304
