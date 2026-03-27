@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-27",
+  "name": "Cache Is All You Need: 622KB artifact, 0.0887 BPB",
+  "author": "royi",
+  "github": "RoyiRa",
+  "seed_results": {
+    "1337": {"val_loss": 0.14914263, "val_bpb": 0.08833078, "artifact_bytes": 621760},
+    "42":   {"val_loss": 0.15051787, "val_bpb": 0.08914528, "artifact_bytes": 621760},
+    "7":    {"val_loss": 0.14975049, "val_bpb": 0.08869079, "artifact_bytes": 621760}
+  },
+  "mean_val_loss": 0.14980366,
+  "mean_val_bpb": 0.08872228,
+  "code_bytes": 63357,
+  "note": "Competition baseline train_gpt.py (1126 lines) + ngram_cache.py (295 lines). 2L 128d vanilla GPT. 96% of 16MB budget unused."
+}
