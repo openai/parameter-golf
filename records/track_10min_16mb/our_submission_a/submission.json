@@ -1,9 +1,0 @@
-{
-  "name": "LeakyReLU² + TTT + BigramHash(20480) + MLP3.5x",
-  "val_bpb": null,
-  "bytes_total": null,
-  "blurb": "Built on PR #549 stack (LeakyReLU(0.5)² + Legal TTT + Parallel Muon). Added BigramHash(20480) for richer bigram features and MLP 3.5x for more capacity. Both improvements validated across 5 rounds of experiments on RTX 4090.",
-  "author": "deepchand",
-  "github_id": "deepchand",
-  "date": "2026-03-27"
-}

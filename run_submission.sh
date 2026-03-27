@@ -1,9 +1,9 @@
 #!/bin/bash
-# Run Option B submission on 8xH100 — 3 seeds for statistical significance
+# Run submission on 8xH100 — 3 seeds for statistical significance
 set -e
 cd /workspace/parameter-golf
 
-SCRIPT="records/track_10min_16mb/our_submission_b/train_gpt.py"
+SCRIPT="records/track_10min_16mb/2026-03-27_LeakyReLU2_EMA_QAT_BigramHash20K_MLP35x/train_gpt.py"
 COMMON="NUM_LAYERS=11 BIGRAM_VOCAB_SIZE=20480 MLP_MULT=3.5 \
 EMA_ENABLED=1 EMA_DECAY=0.997 SWA_ENABLED=0 \
 ROPE_DIMS=16 LN_SCALE=1 LATE_QAT_THRESHOLD=0.15 \
