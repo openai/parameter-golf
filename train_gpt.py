@@ -736,7 +736,7 @@ class CausalSelfAttention(nn.Module):
             q = q + delta_q
         if self.eval_lora_rank > 0 and getattr(self, "lora_v_a", None) is not None:
             delta_v = x @ self.lora_v_a @ self.lora_v_b
-            delta_v = delta_v.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+            delta_v = delta_v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
             v = v + delta_v
         q = rms_norm_compat(q)
         k = rms_norm_compat(k)
