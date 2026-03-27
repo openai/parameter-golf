@@ -140,7 +140,8 @@ class Hyperparameters:
     ema_start_fraction = _e("EMA_START_FRACTION", 0.5, float)
     gptq_lite_enabled = _e("GPTQ_LITE_ENABLED", 1, bool)
     gptq_lite_percentiles = _e("GPTQ_LITE_PERCENTILES", 5, int)
-    turbo_quant = _e("TURBO_QUANT", 0, bool)  # Hadamard rotation before ternary — hurts STE training
+    turbo_quant_export = _e("TURBO_QUANT_EXPORT", 1, bool)  # Hadamard rotation at export for lower MSE
+    turbo_quant_train = _e("TURBO_QUANT_TRAIN", 0, bool)   # Hadamard rotation during training STE (adds overhead)
 
     # Optimizer
     matrix_lr = _e("MATRIX_LR", 0.025, float)
@@ -270,7 +271,7 @@ def ternary_ste(w, group_size=128, turbo=False):
 # ---------------------------------------------------------------------------
 # Model layers
 # ---------------------------------------------------------------------------
-# Module-level flag set by GPT.__init__ from args.turbo_quant
+# Module-level flag set by GPT.__init__ from args.turbo_quant_train
 _TURBO_QUANT = False
 
 class TernaryLinear(nn.Module):
@@ -694,7 +695,7 @@ class GPT(nn.Module):
     def __init__(self, args: Hyperparameters):
         super().__init__()
         global _TURBO_QUANT
-        _TURBO_QUANT = args.turbo_quant
+        _TURBO_QUANT = args.turbo_quant_train
         dim = args.model_dim
         self.args = args
         self.feedback_enabled = args.feedback_enabled
@@ -1086,19 +1087,68 @@ def _gptq_lite_ternary(arr_np, gs, num_percentiles=5):
     return best_q, best_scale, pad_cols
 
 
+def _build_hadamard_np(n):
+    """Build normalized orthogonal Hadamard matrix in numpy. H @ H.T = I."""
+    assert n > 0 and (n & (n - 1)) == 0, f"n must be power of 2, got {n}"
+    if n == 1:
+        return np.array([[1.0]], dtype=np.float32)
+    h_half = _build_hadamard_np(n // 2)
+    top = np.concatenate([h_half, h_half], axis=1)
+    bot = np.concatenate([h_half, -h_half], axis=1)
+    h = np.concatenate([top, bot], axis=0)
+    return h / np.sqrt(n)
+
+_HADAMARD_NP_CACHE = {}
+def _get_hadamard_np(n):
+    if n not in _HADAMARD_NP_CACHE:
+        _HADAMARD_NP_CACHE[n] = _build_hadamard_np(n)
+    return _HADAMARD_NP_CACHE[n]
+
+
+def _turbo_ternary_quantize(arr_np, gs):
+    """TurboQuant-style ternary quantization: Hadamard rotate → quantize → store rotated.
+
+    At inference, the load path inverse-rotates (H is self-inverse) to recover dense weights.
+    Storage is still ternary (base-3 packed), but quantization MSE is provably lower because
+    Hadamard distributes outliers uniformly across coordinates.
+    """
+    rows, cols = arr_np.shape
+    pad_cols = (gs - cols % gs) % gs
+    if pad_cols > 0:
+        arr_np = np.pad(arr_np, ((0, 0), (0, pad_cols)), mode='constant')
+    grouped = arr_np.reshape(-1, gs)
+
+    # TurboQuant: Hadamard rotation before scalar quantization
+    H = _get_hadamard_np(gs)
+    grouped_rotated = grouped @ H
+
+    # Quantize in rotated space
+    scale = np.mean(np.abs(grouped_rotated), axis=-1, keepdims=True)
+    scale = np.maximum(scale, 1e-8)
+    q = np.clip(np.round(grouped_rotated / scale), -1, 1).astype(np.int8)
+
+    return q, scale, pad_cols
+
+
 def quantize_for_export(model, args):
     """Quantize model to ternary + float, serialize to LZMA blob."""
     params = dict(tree_flatten(model.parameters()))
     # Force-evaluate all parameters before numpy conversion to avoid lazy graph recomputation
     mx.eval(*params.values())
+    use_turbo = args.turbo_quant_export
     q_sd = {}
     for name, arr in params.items():
         arr_np = np.array(arr.astype(mx.float32), dtype=np.float32)
         if arr.ndim == 2 and arr.size > 1024 and "embed" not in name and "engram.tables" not in name:
             gs = args.bitnet_group_size
             rows, cols = arr_np.shape
-            
-            if args.gptq_lite_enabled and args.gptq_lite_percentiles > 1:
+            turbo_used = False
+
+            if use_turbo and (gs & (gs - 1)) == 0:
+                # TurboQuant: Hadamard rotation for near-optimal ternary quantization
+                q, scale, pad_cols = _turbo_ternary_quantize(arr_np, gs)
+                turbo_used = True
+            elif args.gptq_lite_enabled and args.gptq_lite_percentiles > 1:
                 # GPTQ-lite: clip percentile search for better ternary approximation
                 q, scale, pad_cols = _gptq_lite_ternary(
                     arr_np, gs, num_percentiles=args.gptq_lite_percentiles
@@ -1112,11 +1162,14 @@ def quantize_for_export(model, args):
                 scale = np.mean(np.abs(grouped), axis=-1, keepdims=True)
                 scale = np.maximum(scale, 1e-8)
                 q = np.clip(np.round(grouped / scale), -1, 1).astype(np.int8)
-            
+
             packed, n_trits = pack_ternary_base3(q)
             scale_f16 = scale.astype(np.float16)
-            q_sd[name] = {"type": "ternary", "packed": packed, "scale": scale_f16,
-                          "shape": (rows, cols), "n_trits": n_trits, "pad_cols": pad_cols}
+            entry = {"type": "ternary", "packed": packed, "scale": scale_f16,
+                     "shape": (rows, cols), "n_trits": n_trits, "pad_cols": pad_cols}
+            if turbo_used:
+                entry["turbo"] = True  # load path must inverse-Hadamard after dequant
+            q_sd[name] = entry
         else:
             q_sd[name] = {"type": "float", "data": arr_np.astype(np.float16)}
     blob = pickle.dumps(q_sd, protocol=pickle.HIGHEST_PROTOCOL)
@@ -1370,6 +1423,7 @@ def main():
             f"consist_w={args.koopman_consistency_weight} "
             f"halt:{args.adaptive_halt_enabled}@{args.adaptive_halt_threshold} "
             f"carry:{args.capsule_carry_enabled}@{args.capsule_carry_decay}")
+    log(f"turbo_quant: train={args.turbo_quant_train} export={args.turbo_quant_export}")
 
     opt = SplitOptimizers(model, args)
 
