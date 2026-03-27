@@ -1,10 +1,11 @@
 numpy
 tqdm
-torch
+torch>=2.5.0
 huggingface-hub
-kernels
-setuptools
-typing-extensions==4.15.0
 datasets
 tiktoken
 sentencepiece
+zstandard
+mlx
+typing-extensions
+zstandard
