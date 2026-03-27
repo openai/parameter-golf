@@ -1949,29 +1949,38 @@ def online_alpha_calibrate(cache, phrase_cache, tokens_np, model_p, entropy,
     best_ah = cache.alpha_high
     best_et = cache.entropy_thresh
 
-    # Grid search over alpha_high and entropy_thresh
+    # Pre-compute scores ONCE for calibration positions only
+    # Find min/max of calib_pos to score a tight range
+    pos_min = int(calib_pos.min())
+    pos_max = int(calib_pos.max()) + 1
+    ng_p_full, ng_m_full, ng_o_full = cache.score_range(tokens_np, pos_min, pos_max)
+    # Map calib_pos into the scored range
+    calib_offset = calib_pos - pos_min
+    ng_p_c = ng_p_full[calib_offset]
+    ng_m_c = ng_m_full[calib_offset]
+    ng_o_c = ng_o_full[calib_offset]
+
+    ph_p_c = None
+    ph_m_c = None
+    ph_l_c = None
+    if phrase_cache is not None:
+        ph_p_full, ph_m_full, ph_l_full = phrase_cache.score_range(tokens_np, pos_min, pos_max)
+        ph_p_c = ph_p_full[calib_offset]
+        ph_m_c = ph_m_full[calib_offset]
+        ph_l_c = ph_l_full[calib_offset]
+
+    # Grid search — only recomputes alpha (cheap), not score_range (expensive)
     for ah in [0.85, 0.90, 0.93, 0.95, 0.97, 0.99]:
         for et in [3.0, 3.5, 4.0, 4.5, 5.0]:
             cache.alpha_high = ah
             cache.entropy_thresh = et
-            # Quick score on calibration set
-            ng_p, ng_m, ng_o = cache.score_range(tokens_np, 0, len(tokens_np))
-            ng_p_c = ng_p[calib_pos]
-            ng_m_c = ng_m[calib_pos]
-            ng_o_c = ng_o[calib_pos]
             p_test = calib_mp.copy().astype(np.float64)
             if ng_m_c.any():
                 a = cache.get_alpha(calib_ent[ng_m_c], ng_o_c[ng_m_c])
                 p_test[ng_m_c] = (1.0 - a) * p_test[ng_m_c] + a * ng_p_c[ng_m_c]
-            # Add phrase
-            if phrase_cache is not None:
-                ph_p, ph_m, ph_l = phrase_cache.score_range(tokens_np, 0, len(tokens_np))
-                ph_p_c = ph_p[calib_pos]
-                ph_m_c = ph_m[calib_pos]
-                ph_l_c = ph_l[calib_pos]
-                if ph_m_c.any():
-                    pa = phrase_cache.get_alpha(ph_l_c[ph_m_c], calib_ent[ph_m_c])
-                    p_test[ph_m_c] = (1.0 - pa) * p_test[ph_m_c] + pa * ph_p_c[ph_m_c]
+            if ph_m_c is not None and ph_m_c.any():
+                pa = phrase_cache.get_alpha(ph_l_c[ph_m_c], calib_ent[ph_m_c])
+                p_test[ph_m_c] = (1.0 - pa) * p_test[ph_m_c] + pa * ph_p_c[ph_m_c]
             nll = -np.log(np.maximum(p_test, 1e-12)).mean()
             if nll < best_nll:
                 best_nll = nll
