@@ -182,4 +182,4 @@ The architecture of v4.0 has been fully validated through short smoke tests (e.g
 
 ## 📬 Contact
 
-For questions, collaboration opportunities, or to report issues, please reach out to **research@atomlogic.ai** or open an issue on this repository.
+For questions, collaboration opportunities, or to report issues, please reach out to **antonukegor594@gmail.com** or open an issue on this repository.
