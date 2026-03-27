@@ -11,7 +11,7 @@ This submission introduces **Kinematic Gated IIR (KGIIR)** trajectory mixing. Th
 ### What is KGIIR?
 **KGIIR** stands for **Kinematic Gated Infinite Impulse Response** mixing. 
 
-While standard architectures use discrete token shifts (FIR-like behavior) to handle local context, KGIIR treats the hidden state as a continuous physical signal with **Kinematic Momentum**. 
+While standard architectures use discrete token shifts (FIR-like behavior) to handle local context, KGIIR complements these by treating the hidden state as a continuous physical signal with **Kinematic Momentum**.
 
 * **Kinematic:** It models the "velocity" of information across the sequence, ensuring that the influence of a token flows smoothly through the layers rather than jumping between discrete steps.
 * **Gated:** Every dimension of the model has a per-channel learnable gate, allowing the network to dynamically decide whether to trust the current token or the momentum of the previous trajectory.
@@ -21,7 +21,7 @@ While standard architectures use discrete token shifts (FIR-like behavior) to ha
 In the 16MB regime, Attention heads are too valuable to waste on local syntax "bookkeeping." By offloading temporal dependencies to the KGIIR filter, I achieved a superior Pareto frontier—investing a marginal 5ms in step latency (83ms → 88ms) to reach a deeper semantic resolution. This trade-off allowed for a cleaner convergence within the 600s sprint that raw throughput alone could not match.
 
 ### Controlled Experiment: The BPB Drop
-To isolate the impact of KGIIR, this run was conducted as a strict controlled ablation. **The only architectural change made to the Abay Bektursun SOTA was the integration of the KGIIR trajectory layer.**
+To isolate the impact of KGIIR, this run was conducted as a strict controlled ablation. **The only architectural change made to the Abay Bektursun SOTA was the integration of the KGIIR trajectory layer alongside existing temporal shifts.**
 
 * **Abay Bektursun SOTA BPB:** 1.11923
 * **KGIIR Augmented BPB:** **1.11837**
