@@ -1,0 +1,11 @@
+{
+  "author": "Ciprian-Florin Ifrim",
+  "github_id": "CiprianFlorin-Ifrim",
+  "name": "74.3M Ternary U-Net — BitNet b1.58 + SmearGate + EMBED_DIM=312 + NeoMuon + 4x relu2 MLP + FP8 QAT + Base-3 LZMA + Smear",
+  "blurb": "10L 768d ternary U-Net transformer with relu2 4x MLP, SmearGate, factored tied embedding (312-dim), BF16 scale storage, FP8 QAT, poly5 softcap, YaRN 2048, NeoMuon optimizer. 74.3M params in 15.95MB. Trained 100k steps (~3h) unconstrained. Sliding eval stride=16 T=0.90.",
+  "date": "2026-03-27T17:00:00Z",
+  "val_loss": 2.8641,
+  "val_bpb": 1.1090,
+  "bytes_total": 15953260,
+  "bytes_code": 76908
+}
