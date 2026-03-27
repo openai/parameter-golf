@@ -2032,6 +2032,9 @@ def main() -> None:
     log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
     sw_seq_len = effective_eval_seq_len
     ngram_nll = None  # initialized here so N-gram block can check it
+    ngram_thread = None
+    ngram_result = [None]
+    t_ng = time.perf_counter()
     if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
         # Allocate NLL storage if N-gram is enabled (reuses sliding window inference)
         ngram_nll = np.full(val_tokens.numel() - 1, -1.0, dtype=np.float64) if args.ngram_enabled else None
@@ -2051,6 +2054,20 @@ def main() -> None:
         )
         log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
         log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        # Launch N-gram in background thread (CPU-only, overlaps with any remaining GPU evals)
+        if args.ngram_enabled and ngram_nll is not None:
+            import threading
+            t_ng = time.perf_counter()
+            def _run_ngram():
+                ngram_result[0] = apply_ngram_cache(
+                    ngram_nll, val_tokens,
+                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                    ngram_max_order=args.ngram_max_order, ngram_alpha=args.ngram_alpha,
+                    nll_threshold=args.ngram_nll_threshold, log0=log0,
+                )
+            ngram_thread = threading.Thread(target=_run_ngram, daemon=True)
+            ngram_thread.start()
+            log0("ngram: started background thread (CPU-only, overlaps with remaining evals)")
     if args.eval_stride != 64 and 64 < sw_seq_len:
         torch.cuda.synchronize()
         t_slide64 = time.perf_counter()
@@ -2081,14 +2098,20 @@ def main() -> None:
              f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
         log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
     # N-gram cache evaluation (multi-order backoff, CPU-only pass reusing sliding window NLL)
+    # Uses threading to overlap CPU-only N-gram with GPU sliding window eval
     if args.ngram_enabled and ngram_nll is not None:
-        t_ng = time.perf_counter()
-        ng_loss, ng_bpb = apply_ngram_cache(
-            ngram_nll, val_tokens,
-            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            ngram_max_order=args.ngram_max_order, ngram_alpha=args.ngram_alpha,
-            nll_threshold=args.ngram_nll_threshold, log0=log0,
-        )
+        if ngram_thread is not None:
+            log0("ngram: waiting for background thread to finish...")
+            ngram_thread.join()
+            ng_loss, ng_bpb = ngram_result[0]
+        else:
+            t_ng = time.perf_counter()
+            ng_loss, ng_bpb = apply_ngram_cache(
+                ngram_nll, val_tokens,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                ngram_max_order=args.ngram_max_order, ngram_alpha=args.ngram_alpha,
+                nll_threshold=args.ngram_nll_threshold, log0=log0,
+            )
         log0(f"ngram_cache val_loss:{ng_loss:.4f} val_bpb:{ng_bpb:.4f} "
              f"order:{args.ngram_max_order} alpha:{args.ngram_alpha} threshold:{args.ngram_nll_threshold} "
              f"eval_time:{1000.0 * (time.perf_counter() - t_ng):.0f}ms")
