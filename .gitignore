@@ -8,15 +8,4 @@ data/manifest.json
 data/docs_selected.jsonl
 .mypy_cache/
 .venv
-logs/final_model.*
-*.ptz
-*.pt
-run_exp*.sh
-run_round*.sh
-run_missing*.sh
-run_slide*.sh
-finish_and_shutdown.sh
-train_exp.py
 logs/
-records/track_10min_16mb/our_submission/
-records/track_10min_16mb/our_submission_a/
