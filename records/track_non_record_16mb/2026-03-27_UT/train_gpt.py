@@ -853,16 +853,6 @@ def main() -> None:
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    model: nn.Module = (
-        DDP(
-            compiled_model,
-            device_ids=[local_rank],
-            broadcast_buffers=False,
-            find_unused_parameters=schedule_changes_num_layers,
-        )
-        if distributed
-        else compiled_model
-    )
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -950,17 +940,11 @@ def main() -> None:
 
     def prime_depth_compile(num_layers: int) -> None:
         base_model.active_num_layers = num_layers
-        model.train()
+        compiled_model.train()
         zero_grad_all()
-        if distributed:
-            with model.no_sync():
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    compile_loss = model(compile_x, compile_y)
-                (compile_loss * grad_scale).backward()
-        else:
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                compile_loss = model(compile_x, compile_y)
-            (compile_loss * grad_scale).backward()
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            compile_loss = compiled_model(compile_x, compile_y)
+        (compile_loss * grad_scale).backward()
         zero_grad_all()
         torch.cuda.synchronize()
 
@@ -980,20 +964,19 @@ def main() -> None:
     # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
     # initial weights/optimizer state so measured training starts from the true init.
     if args.warmup_steps > 0:
-        initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
-        initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         for num_layers in dict.fromkeys(schedule_layers):
             prime_depth_compile(num_layers)
         base_model.active_num_layers = schedule_layers[current_schedule_idx]
-        model.train()
+        initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
+        initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
+    if args.warmup_steps > 0:
+        compiled_model.train()
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
-                if distributed:
-                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_loss = model(x, y)
+                    warmup_loss = compiled_model(x, y)
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -1005,9 +988,17 @@ def main() -> None:
             opt.load_state_dict(state)
         zero_grad_all()
         base_model.active_num_layers = schedule_layers[current_schedule_idx]
-        if distributed:
-            model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    model: nn.Module = (
+        DDP(
+            compiled_model,
+            device_ids=[local_rank],
+            broadcast_buffers=False,
+            find_unused_parameters=schedule_changes_num_layers,
+        )
+        if distributed
+        else compiled_model
+    )
 
     # -----------------------------
     # MAIN TRAINING LOOP
