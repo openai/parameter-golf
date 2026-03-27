@@ -859,8 +859,8 @@ class GatedDeltaNet(nn.Module):
 
             # --- Astrocyte: apply gate from previous seam to beta (skip chunk 0) ---
             if self.use_astrocyte and ci > 0:
-                # _astro_gate: (B, 1) → scale bci (B, H, C)
-                bci = bci * (0.5 + _astro_gate.unsqueeze(1).unsqueeze(2))
+                # _astro_gate: (B, 1) → view as (B, 1, 1) to broadcast with bci (B, H, C)
+                bci = bci * (0.5 + _astro_gate.view(B, 1, 1))
 
             # Within-chunk recurrence (unrolled at compile time — C=64 static)
             chunk_outs = []
