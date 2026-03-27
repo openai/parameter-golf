@@ -896,7 +896,7 @@ def eval_val_sliding(
 class LongPhraseCache:
     """variable-length suffix matcher for verbatim repetition (PR #880).
     probes at lengths [48,36,28,20,16] using rolling hashes."""
-    PROBE_LENGTHS = []  # disabled — too slow in single-pass
+    PROBE_LENGTHS = [20, 16]  # trimmed probes for single-pass (within eval budget)
     PRIMES = [np.uint64(p) for p in [
         36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377,
         412391, 479909, 541267, 613651, 700897, 786433, 850001, 921587,
@@ -952,12 +952,14 @@ class LongPhraseCache:
             np.add.at(self.full_tables[L], full_key, 1)
 
     def lookup(self, val_np: np.ndarray, positions: np.ndarray, min_count: int = 2
-               ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """lookup phrase matches. returns (p_phrase, has_match, match_length)."""
+               ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """lookup phrase matches. returns (p_phrase, has_match, match_length, ctx_counts, full_counts)."""
         n_pos = len(positions)
         p_phrase = np.zeros(n_pos, dtype=np.float64)
         has_match = np.zeros(n_pos, dtype=np.bool_)
         match_length = np.zeros(n_pos, dtype=np.int32)
+        ctx_counts = np.zeros(n_pos, dtype=np.float64)
+        full_counts = np.zeros(n_pos, dtype=np.float64)
         for L in self.PROBE_LENGTHS:  # longest first
             valid = (positions >= L) & ~has_match
             if not valid.any():
@@ -975,7 +977,9 @@ class LongPhraseCache:
                 p_phrase[valid_idx] = full_c[eligible].astype(np.float64) / ctx_c[eligible].astype(np.float64)
                 has_match[valid_idx] = True
                 match_length[valid_idx] = L
-        return p_phrase, has_match, match_length
+                ctx_counts[valid_idx] = ctx_c[eligible].astype(np.float64)
+                full_counts[valid_idx] = full_c[eligible].astype(np.float64)
+        return p_phrase, has_match, match_length, ctx_counts, full_counts
 
 
 class NgramCache:
@@ -1022,12 +1026,14 @@ class NgramCache:
             if log_fn:
                 log_fn(f"ngram_build: order {order} done, {n_pos} positions")
 
-    def lookup(self, val_np: np.ndarray, start: int, end: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """score positions [start, end). returns (p_ngram, has_match, matched_order)."""
+    def lookup(self, val_np: np.ndarray, start: int, end: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """score positions [start, end). returns (p_ngram, has_match, matched_order, ctx_counts, full_counts)."""
         seg_len = end - start
         p_ngram = np.zeros(seg_len, dtype=np.float64)
         has_match = np.zeros(seg_len, dtype=np.bool_)
         matched_order = np.zeros(seg_len, dtype=np.int32)
+        ctx_counts_out = np.zeros(seg_len, dtype=np.float64)
+        full_counts_out = np.zeros(seg_len, dtype=np.float64)
         mask = self.mask
         primes = self.PRIMES
         # backoff: highest order first
@@ -1051,10 +1057,13 @@ class NgramCache:
             valid = (ctx_c >= self.min_count) & (full_c > 0) & ~has_match[first_valid:first_valid + n_pos]
             if valid.any():
                 idx = np.nonzero(valid)[0]
-                p_ngram[first_valid + idx] = np.minimum(full_c[idx], ctx_c[idx]).astype(np.float64) / ctx_c[idx].astype(np.float64)
+                capped_full = np.minimum(full_c[idx], ctx_c[idx]).astype(np.float64)
+                p_ngram[first_valid + idx] = capped_full / ctx_c[idx].astype(np.float64)
                 has_match[first_valid + idx] = True
                 matched_order[first_valid + idx] = order
-        return p_ngram, has_match, matched_order
+                ctx_counts_out[first_valid + idx] = ctx_c[idx].astype(np.float64)
+                full_counts_out[first_valid + idx] = capped_full
+        return p_ngram, has_match, matched_order, ctx_counts_out, full_counts_out
 
     def update(self, val_np: np.ndarray, start: int, end: int) -> None:
         """update cache with tokens from [start, end)."""
@@ -1102,10 +1111,13 @@ def eval_val_ngram(
     ent_range: float = 0.55,
     ent_scale: float = 2.0,
     ent_thresh: float = 4.0,
+    dirichlet_concentration: float = 0.0,
     log_fn=None,
 ) -> tuple[float, float]:
     """sliding window eval with n-gram cache, matching PR #753/#769/#779.
-    score-first: for each window, compute neural logits, lookup cache, mix, then update."""
+    score-first: for each window, compute neural logits, lookup cache, mix, then update.
+    if dirichlet_concentration > 0, uses Dirichlet-Multinomial posterior predictive mixing
+    (PR #900 / CTW / Teh 2006) instead of linear interpolation."""
     total_tokens = val_tokens.numel() - 1
     seq_len = eval_seq_len
     vocab_size = args.vocab_size
@@ -1183,39 +1195,49 @@ def eval_val_ngram(
                 seg_nll_neural = F.cross_entropy(logits_f[i, s:wlen], seg_targets, reduction='none').cpu().numpy().astype(np.float64)
 
                 # n-gram: lookup THEN update (score-first)
-                p_ngram, has_match, matched_order = cache.lookup(val_np, abs_start, abs_end)
+                p_ngram, has_match, matched_order, ng_ctx_c, ng_full_c = cache.lookup(val_np, abs_start, abs_end)
                 cache.update(val_np, abs_start, abs_end)
-
-                # per-order entropy thresholds (PR #825)
-                ent_centers = {7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5, 8: 2.8, 9: 2.6}
-                if adaptive:
-                    seg_ent = (-(probs_all[i, s:wlen] * log_probs_all[i, s:wlen]).sum(dim=-1)).cpu().numpy()
-                    # per-position alpha based on matched order's entropy center
-                    alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
-                    for pos_idx in range(seg_len):
-                        if has_match[pos_idx]:
-                            order = int(matched_order[pos_idx])
-                            center = ent_centers.get(order, ent_thresh)
-                            sig = 1.0 / (1.0 + np.exp(-ent_scale * (seg_ent[pos_idx] - center)))
-                            alpha[pos_idx] = ent_base + ent_range * sig
-                else:
-                    alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
 
                 # mix n-gram
                 blended_p = model_p.copy()
                 if has_match.any():
                     m = has_match
-                    blended_p[m] = (1.0 - alpha[m]) * model_p[m] + alpha[m] * p_ngram[m]
+                    if dirichlet_concentration > 0:
+                        # dirichlet-multinomial posterior predictive (PR #900 / Teh 2006)
+                        # p(t|c) = (conc * p_model(t) + count(c,t)) / (conc + count(c))
+                        conc = dirichlet_concentration
+                        blended_p[m] = (conc * model_p[m] + ng_full_c[m]) / (conc + ng_ctx_c[m])
+                    else:
+                        # legacy linear interpolation with per-order entropy thresholds
+                        ent_centers = {7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5, 8: 2.8, 9: 2.6}
+                        if adaptive:
+                            seg_ent = (-(probs_all[i, s:wlen] * log_probs_all[i, s:wlen]).sum(dim=-1)).cpu().numpy()
+                            alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
+                            for pos_idx in range(seg_len):
+                                if has_match[pos_idx]:
+                                    order = int(matched_order[pos_idx])
+                                    center = ent_centers.get(order, ent_thresh)
+                                    sig = 1.0 / (1.0 + np.exp(-ent_scale * (seg_ent[pos_idx] - center)))
+                                    alpha[pos_idx] = ent_base + ent_range * sig
+                        else:
+                            alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
+                        blended_p[m] = (1.0 - alpha[m]) * model_p[m] + alpha[m] * p_ngram[m]
 
                 # phrase cache: lookup THEN update (score-first)
                 positions = np.arange(abs_start, abs_end, dtype=np.int64)
-                p_phrase, phrase_match, phrase_len = phrase_cache.lookup(val_np, positions, min_count=2)
+                p_phrase, phrase_match, phrase_len, phr_ctx_c, phr_full_c = phrase_cache.lookup(val_np, positions, min_count=2)
                 phrase_cache.update(val_np, abs_start, abs_end)
                 if phrase_match.any():
-                    pa = 0.3 + (0.95 - 0.3) * (phrase_len[phrase_match].astype(np.float64) - 16.0) / 32.0
-                    pa = np.clip(pa, 0.0, 0.95)
                     pm = phrase_match
-                    blended_p[pm] = (1.0 - pa) * blended_p[pm] + pa * p_phrase[pm]
+                    if dirichlet_concentration > 0:
+                        # phrase evidence refines the n-gram-mixed estimate
+                        # lower concentration for phrases (more specific context = more trustworthy)
+                        phr_conc = dirichlet_concentration * 0.2
+                        blended_p[pm] = (phr_conc * blended_p[pm] + phr_full_c[pm]) / (phr_conc + phr_ctx_c[pm])
+                    else:
+                        pa = 0.3 + (0.95 - 0.3) * (phrase_len[phrase_match].astype(np.float64) - 16.0) / 32.0
+                        pa = np.clip(pa, 0.0, 0.95)
+                        blended_p[pm] = (1.0 - pa) * blended_p[pm] + pa * p_phrase[pm]
 
                 blended_p = np.maximum(blended_p, 1e-30)
                 seg_nll = -np.log(blended_p)
@@ -1245,6 +1267,10 @@ def eval_val_ngram(
     if log_fn:
         log_fn(f"neural_only_sw val_loss:{val_loss_neural:.4f} val_bpb:{bpb_neural:.4f}")
         log_fn(f"ngram_hit_rate:{hit_rate:.1f}% ({ngram_hits}/{ngram_total})")
+        if dirichlet_concentration > 0:
+            log_fn(f"mixing:dirichlet concentration={dirichlet_concentration:.2f} phrase_probes={LongPhraseCache.PROBE_LENGTHS}")
+        else:
+            log_fn(f"mixing:linear_interp adaptive={adaptive}")
     model.train()
     return val_loss, bpb
 
@@ -1429,7 +1455,7 @@ def eval_ngram_two_pass(
         log_fn(f"two_pass: building phrase cache...")
     phrase_cache = LongPhraseCache()
     phrase_cache.build_full(val_np, log_fn=log_fn)
-    p_phrase, phrase_match, phrase_len = phrase_cache.lookup(val_np, all_positions, min_count=2)
+    p_phrase, phrase_match, phrase_len, _, _ = phrase_cache.lookup(val_np, all_positions, min_count=2)
     if phrase_match.any():
         # alpha based on match length: longer = higher trust (up to 0.99 for 48-token match)
         base_alpha = 0.3
@@ -2063,10 +2089,11 @@ def main() -> None:
         ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.90"))
         ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
         ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
+        dirichlet_conc = float(os.environ.get("DIRICHLET_CONCENTRATION", "1.0"))
         torch.cuda.synchronize()
         t_ngram = time.perf_counter()
         ngram_two_pass = bool(int(os.environ.get("NGRAM_TWO_PASS", "0")))  # default single-pass for legality
-        log0(f"ngram_eval: order={ngram_order} min_order={ngram_min_order} buckets={ngram_buckets} two_pass={ngram_two_pass}")
+        log0(f"ngram_eval: order={ngram_order} min_order={ngram_min_order} buckets={ngram_buckets} two_pass={ngram_two_pass} dirichlet={dirichlet_conc}")
         if ngram_two_pass:
             ng_val_loss, ng_val_bpb = eval_ngram_two_pass(
                 args, eval_model, rank, world_size, device,
@@ -2090,6 +2117,7 @@ def main() -> None:
                 ngram_buckets=ngram_buckets, ngram_min_count=ngram_min_count,
                 fixed_alpha=ngram_alpha,
                 ent_base=ngram_ent_base, ent_range=ngram_ent_range,
+                dirichlet_concentration=dirichlet_conc,
                 ent_scale=ngram_ent_scale, ent_thresh=ngram_ent_thresh,
                 log_fn=log0,
             )
