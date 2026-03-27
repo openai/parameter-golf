@@ -133,31 +133,31 @@ TTT and LoRA adaptation follow the same principle as the n-gram cache — build 
 
 ## Proposal
 
-### 1. Cap auxiliary eval-time state
+### 1. Verify the distribution sums to 1
 
-An important distinction: when a 16 MB int6+compressed artifact loads into VRAM, it decompresses into ~50–100 MB of bf16 weights. Add activations, KV cache, and CUDA overhead, and the base model alone uses several hundred MB of GPU memory. So "cap total GPU memory" doesn't work — the decompressed model already exceeds any reasonable cap.
+The most fundamental fix. Require the model to produce a full probability vector over all K tokens at every scored position. The eval script verifies `sum(probs) ≈ 1.0` before scoring:
 
-The right thing to constrain is **auxiliary state**: tensors that accumulate across the evaluation and are not derivable from the artifact alone. This includes:
+```python
+probs = model.predict(context)        # shape: [vocab_size]
+assert abs(probs.sum() - 1.0) < 1e-4  # verify
+nll = -torch.log(probs[correct_token])
+```
 
-- N-gram hash tables (192–256 MB) — built from scored tokens
-- TTT LoRA deltas (~2 MB) — built from scored tokens
-- Any other state that persists across batches and grows with the corpus
+One `torch.sum` per position. Cost: 1–2 seconds for 62M tokens. Negligible.
 
-This does NOT include:
+This catches every invalid distribution: hash-ratio inflation (sum ≈ 410), single-token hacks (sum = K), any post-softmax modification that doesn't renormalize. It passes everything valid: softmax outputs, linear interpolation of valid distributions, Dirichlet-Multinomial, TTT, LoRA, GPTQ. Not n-gram specific. A general invariant the eval should enforce.
 
-- Model weights (deterministic decompression of the artifact)
-- KV cache (recomputed each sliding window, does not accumulate)
-- Activations (transient, discarded after each forward pass)
+### 2. Cap auxiliary eval-time state
 
-A cap of, say, auxiliary state ≤ 32 MB would preserve everything currently approved (TTT LoRA deltas at ~2 MB, KV cache is excluded) while constraining the techniques that grow the effective model by 10–250x. Enforcement: sum the sizes of all non-model tensors that persist across batches.
+Even with valid distributions, the model can grow unboundedly at eval time. Constrain **auxiliary state**: tensors that accumulate during eval and are not derivable from the artifact alone (hash tables, TTT LoRA deltas, anything that persists across batches). Not model weights (deterministic decompression of artifact), not KV cache (recomputed each window), not activations (transient).
 
-### 2. Cap per-token overhead
+A cap of auxiliary state ≤ 32 MB preserves everything currently approved (TTT LoRA at ~2 MB) while constraining techniques that grow the effective model by 10–250x.
 
-Require that eval-time techniques do not increase per-token latency by more than 50% over the base model forward pass on the same hardware. Not an absolute number — a ratio. Hardware-agnostic and easy to measure: run eval with and without the technique.
+### 3. Cap per-token overhead
 
-Base LM on 8×H100 takes 110s. A 1.5× cap means 165s max. The n-gram cache takes 401s (3.6×). KV cache, TTT, LoRA are all within 1.5×. This also catches two-pass rescoring mechanically.
+Eval-time techniques must not increase per-token latency by more than 50% over the base model forward pass. Base LM on 8×H100 takes 110s. A 1.5× cap means 165s max. The n-gram cache takes 401s (3.6×). Catches two-pass rescoring mechanically.
 
-Both proposals preserve everything currently approved and only constrain techniques that grow the model by 10–250x during evaluation.
+All three fixes preserve everything currently approved.
 
 ---
 
