@@ -984,6 +984,54 @@ def blend_with_learned_ngram_gate_np(
     return np.clip((weights * expert_p).sum(axis=1), 1e-12, 1.0)
 
 
+def renormalize_target_probs_with_background(
+    target_probs: np.ndarray,
+    background_probs: Tensor,
+    target_tokens: np.ndarray,
+    *,
+    verify: bool = True,
+) -> np.ndarray:
+    """Embed target-only adjusted probabilities into a valid full distribution.
+
+    The n-gram / phrase / LSH path only adjusts the target token probability. To
+    recover a proper distribution that sums to 1, keep that adjusted target mass
+    and rescale the base model's non-target mass proportionally.
+    """
+    if len(target_probs) == 0:
+        return target_probs
+    eps = 1e-12
+    target = torch.from_numpy(np.clip(target_probs, eps, 1.0)).to(
+        device=background_probs.device,
+        dtype=background_probs.dtype,
+    )
+    tgt = torch.from_numpy(target_tokens.astype(np.int64, copy=False)).to(
+        device=background_probs.device,
+        dtype=torch.int64,
+    )
+    final_probs = background_probs.clone()
+    final_probs.scatter_(1, tgt[:, None], 0.0)
+    other_mass = final_probs.sum(dim=-1, keepdim=True)
+    target_mass = (1.0 - target).unsqueeze(1)
+    scale = torch.where(
+        other_mass > eps,
+        target_mass / other_mass.clamp(min=eps),
+        torch.zeros_like(other_mass),
+    )
+    final_probs.mul_(scale)
+    no_tail = (other_mass.squeeze(1) <= eps)
+    if no_tail.any():
+        fill = (target_mass[no_tail] / max(final_probs.size(-1) - 1, 1)).to(final_probs.dtype)
+        final_probs[no_tail] = fill
+        final_probs[no_tail].scatter_(1, tgt[no_tail, None], 0.0)
+    final_probs.scatter_(1, tgt[:, None], target[:, None])
+    if verify:
+        sums = final_probs.sum(dim=-1)
+        max_err = float((sums - 1.0).abs().max().item())
+        if max_err > 1e-4:
+            raise RuntimeError(f"Final probability distribution does not sum to 1 (max_err={max_err:.3e})")
+    return final_probs.gather(1, tgt[:, None]).squeeze(1).detach().cpu().numpy().astype(np.float64)
+
+
 def _compute_segment_ngram_probs(
     *,
     base_probs: np.ndarray,
@@ -2108,6 +2156,7 @@ def eval_val_sliding_ttt(
                     ).reshape(bsz, seq_len)
 
                 # Entropy for phrase alpha / heuristic fallback.
+                _lp = None
                 _entropy_batch = None
                 if ngram_cache is not None:
                     if expert_nll is not None:
@@ -2181,6 +2230,18 @@ def eval_val_sliding_ttt(
                     if sharpen_gamma > 0:
                         active_boost = np.clip(1.0 + sharpen_gamma * np.clip(active_probs - 0.5, 0.0, None), 1.0, 2.0)
                         active_probs = np.clip(active_probs * active_boost, 1e-12, 1.0)
+
+                    if seg_len > 0 and os.environ.get("RENORMALIZE_FINAL_PROBS", "1") == "1":
+                        if _lp is not None:
+                            background_probs = _lp[i, s:wlen].exp()
+                        else:
+                            background_probs = F.softmax(logits_scaled[i, s:wlen].float(), dim=-1)
+                        active_probs = renormalize_target_probs_with_background(
+                            active_probs,
+                            background_probs=background_probs,
+                            target_tokens=tgt_toks if ngram_cache is not None else y_batch[i, s:wlen].detach().cpu().numpy(),
+                            verify=os.environ.get("VERIFY_FINAL_PROBS", "1") == "1",
+                        )
 
                     active_nll_np = -np.log(np.clip(active_probs, 1e-12, 1.0))
                     scored_nll = torch.from_numpy(active_nll_np).to(device=nll.device, dtype=torch.float64)
@@ -3295,43 +3356,43 @@ pre-compile done
 prefilling frozen n-gram oracle from training shards...
 prefill_sharded:enabled local_shards=10/80 chunk=10000000
 prefill_sharded:all_reduce_counts
-prefilled_oracle tokens:8,000,000,000 time:5113ms (counted in wallclock)
-step:1/20000 train_loss:7.0284 train_time:17121ms step_avg:17121.40ms
-late_qat:enabled step:1 scale:0.0134
-step:2/20000 train_loss:8.8278 train_time:17325ms step_avg:8662.57ms
-step:3/20000 train_loss:8.8524 train_time:17428ms step_avg:5809.19ms
-step:4/20000 train_loss:8.7494 train_time:17529ms step_avg:4382.13ms
-step:5/20000 train_loss:8.5555 train_time:17629ms step_avg:3525.76ms
-step:6/20000 train_loss:8.3186 train_time:17730ms step_avg:2954.92ms
-step:7/20000 train_loss:7.9689 train_time:17830ms step_avg:2547.19ms
-step:8/20000 train_loss:7.6544 train_time:17931ms step_avg:2241.40ms
-step:9/20000 train_loss:7.1861 train_time:18032ms step_avg:2003.52ms
-step:10/20000 train_loss:6.8807 train_time:18133ms step_avg:1813.26ms
-step:500/20000 train_loss:2.3739 train_time:68301ms step_avg:136.60ms
-step:1000/20000 train_loss:2.2443 train_time:119672ms step_avg:119.67ms
-step:1500/20000 train_loss:2.1894 train_time:171132ms step_avg:114.09ms
-step:2000/20000 train_loss:2.0325 train_time:222719ms step_avg:111.36ms
-step:2500/20000 train_loss:2.1269 train_time:274313ms step_avg:109.73ms
-step:3000/20000 train_loss:2.1068 train_time:325913ms step_avg:108.64ms
-step:3500/20000 train_loss:2.1105 train_time:377469ms step_avg:107.85ms
-step:4000/20000 train_loss:1.8959 train_time:429062ms step_avg:107.27ms
-step:4500/20000 train_loss:2.0433 train_time:480629ms step_avg:106.81ms
-swa:start step:4800
-step:5000/20000 train_loss:2.0169 train_time:532385ms step_avg:106.48ms
-step:5477/20000 val_loss:1.9096 val_bpb:1.1310 train_time:582028ms step_avg:106.27ms
-stopping_early: wallclock_cap train_time:582028ms step:5477/20000
+prefilled_oracle tokens:8,000,000,000 time:5185ms (counted in wallclock)
+step:1/20000 train_loss:7.0284 train_time:17138ms step_avg:17138.19ms
+late_qat:enabled step:1 scale:0.0135
+step:2/20000 train_loss:8.8278 train_time:17317ms step_avg:8658.70ms
+step:3/20000 train_loss:8.8522 train_time:17420ms step_avg:5806.66ms
+step:4/20000 train_loss:8.7486 train_time:17521ms step_avg:4380.37ms
+step:5/20000 train_loss:8.5535 train_time:17623ms step_avg:3524.54ms
+step:6/20000 train_loss:8.3151 train_time:17724ms step_avg:2953.99ms
+step:7/20000 train_loss:7.9640 train_time:17825ms step_avg:2546.38ms
+step:8/20000 train_loss:7.6484 train_time:17926ms step_avg:2240.71ms
+step:9/20000 train_loss:7.1794 train_time:18027ms step_avg:2002.96ms
+step:10/20000 train_loss:6.8738 train_time:18128ms step_avg:1812.77ms
+step:500/20000 train_loss:2.3764 train_time:68573ms step_avg:137.15ms
+step:1000/20000 train_loss:2.2408 train_time:120296ms step_avg:120.30ms
+step:1500/20000 train_loss:2.1909 train_time:172078ms step_avg:114.72ms
+step:2000/20000 train_loss:2.0300 train_time:223922ms step_avg:111.96ms
+step:2500/20000 train_loss:2.1227 train_time:275821ms step_avg:110.33ms
+step:3000/20000 train_loss:2.1032 train_time:327716ms step_avg:109.24ms
+step:3500/20000 train_loss:2.1116 train_time:379624ms step_avg:108.46ms
+step:4000/20000 train_loss:1.8984 train_time:431522ms step_avg:107.88ms
+step:4500/20000 train_loss:2.0397 train_time:483420ms step_avg:107.43ms
+swa:start step:4750
+step:5000/20000 train_loss:2.0164 train_time:535565ms step_avg:107.11ms
+step:5444/20000 val_loss:1.9102 val_bpb:1.1313 train_time:582026ms step_avg:106.91ms
+stopping_early: wallclock_cap train_time:582026ms step:5444/20000
 peak memory allocated: 26203 MiB reserved: 26550 MiB
 ema:applying EMA weights (skipping diagnostic evals)
 gptq:calibrating from cached training batches seqs:128
 gptq:calibrated 67 layers in 0.4s
 Serialized model: 128615687 bytes
-Code size: 160896 bytes
+Code size: 163592 bytes
 Artifact n-gram export: orders=2..9 buckets=32768 raw_bytes=2097152
 pruning:5.0% magnitude pruning applied
-Serialized model int6+zstd: 15201862 bytes
-Total submission size int6+zstd: 15362758 bytes
+Serialized model int6+zstd: 15083362 bytes
+Total submission size int6+zstd: 15246954 bytes
 TTT: epochs=0 lr=0.0001 freeze_first=2 chunk=131072 opt=adamw
 TTT temperature: 0.85
 PPM alpha: 0.85, Byte-weighted TTT: True
-final_int6_ttt val_loss:0.0361 val_bpb:0.0214 stride:64 eval_time:389761ms
-final_int6_ttt_exact val_loss:0.03606858 val_bpb:0.02136190
+final_int6_ttt val_loss:0.0361 val_bpb:0.0214 stride:64 eval_time:436776ms
+final_int6_ttt_exact val_loss:0.03611109 val_bpb:0.02138708

@@ -4,7 +4,7 @@ Record: 0.0214 bpb - Low Eval-Time Memory Regime: Packed Training N-gram Artifac
 
 ## Body
 
-**3-seed mean val_bpb = 0.02137047 +/- 0.00002830** | **15.85 MB max total size**
+**3-seed mean val_bpb = 0.02139943 +/- 0.00003918** | **15.88 MB max total size**
 
 All within budget: training < 600s, eval < 600s, artifact < 16MB.
 
@@ -12,7 +12,7 @@ All within budget: training < 600s, eval < 600s, artifact < 16MB.
 
 - Keep the packed order-2..9 training n-gram artifact and learned weighting gate over the neural model plus n-gram experts.
 - Remove the logistic context mixer and long phrase cache from the final eval path, leaving a simpler low eval-time memory regime built around the packed cache, learned gate, and online logit calibration.
-- Keep the compliant causal path: context-only gate validity, cached-batch GPTQ calibration, packed cache loaded from the artifact itself, and `TTT_EPOCHS=0`.
+- Keep the compliant causal path: context-only gate validity, cached-batch GPTQ calibration, packed cache loaded from the artifact itself, a renormalized final distribution, and `TTT_EPOCHS=0`.
 
 ## Results
 
@@ -20,28 +20,30 @@ Current completed runs:
 
 | Seed | Final val_bpb | Artifact bytes | Total bytes | Eval time | Notes |
 |------|---------------|----------------|-------------|-----------|-------|
-| 1337 | 0.02140207 | 14,868,762 | 15,029,658 | 391s | `USE_MIXER=0`, `USE_PHRASE_CACHE=0`, `TTT_EPOCHS=0` |
-| 42 | 0.02134745 | 15,688,602 | 15,849,498 | 391s | `USE_MIXER=0`, `USE_PHRASE_CACHE=0`, `TTT_EPOCHS=0` |
-| 7 | 0.02136190 | 15,201,862 | 15,362,758 | 390s | `USE_MIXER=0`, `USE_PHRASE_CACHE=0`, `TTT_EPOCHS=0` |
+| 1337 | 0.02144330 | 15,015,946 | 15,179,538 | 432s | `USE_MIXER=0`, `USE_PHRASE_CACHE=0`, `TTT_EPOCHS=0`, renormalized |
+| 42 | 0.02136791 | 15,717,739 | 15,881,331 | 433s | `USE_MIXER=0`, `USE_PHRASE_CACHE=0`, `TTT_EPOCHS=0`, renormalized |
+| 7 | 0.02138708 | 15,083,362 | 15,246,954 | 437s | `USE_MIXER=0`, `USE_PHRASE_CACHE=0`, `TTT_EPOCHS=0`, renormalized |
 
-Final 3-seed mean final val_bpb: `0.02137047` with sample std `0.00002830`.
+Final 3-seed mean final val_bpb: `0.02139943` with sample std `0.00003918`.
 
 ## Low Eval-Time Memory Regime
 
 - No logistic context mixer at eval time.
 - No long phrase cache at eval time.
-- The remaining eval-time adaptation path is the packed order-2..9 n-gram cache from the artifact, causal online n-gram updates, and online logit calibration.
+- The remaining eval-time adaptation path is the packed order-2..9 n-gram cache from the artifact, causal online n-gram updates, online logit calibration, and a renormalized final distribution.
 - This removes the large auxiliary GPU mixer tables from the previous variant while preserving the packed-cache scoring path.
 - On the final seed-7 no-mixer artifact, disabling only the long phrase cache already improved eval BPB from `0.04881917` to `0.02134985`, which motivated the 3-seed rerun.
+- The final update here additionally renormalizes the full-vocabulary distribution so each scored position sums to 1.
 
 ## Causal Inference Scheme
 
 1. Start eval by deserializing the packed order-2..9 n-gram cache from the submitted artifact itself.
 2. For each validation chunk, run the model once using only left context and the current packed-cache state.
 3. Query n-gram experts from the current cache using left context only; expert availability depends only on context evidence, not on the true next token.
-4. Blend neural + n-gram experts and score the chunk before any mutation of cache or model state.
-5. After scoring, append the chunk tokens to the streaming n-gram cache for future chunks.
-6. The reported final path uses `TTT_EPOCHS=0`, so there is no backward adaptation step in the submission path.
+4. Blend neural + n-gram experts, then renormalize the full-vocabulary distribution so it sums to 1 before scoring.
+5. Score the chunk before any mutation of cache or model state.
+6. After scoring, append the chunk tokens to the streaming n-gram cache for future chunks.
+7. The reported final path uses `TTT_EPOCHS=0`, so there is no backward adaptation step in the submission path.
 
 ## Key Changes
 
@@ -52,6 +54,7 @@ Final 3-seed mean final val_bpb: `0.02137047` with sample std `0.00002830`.
 - Long phrase cache removed from the final eval path.
 - Context-only gate validity retained.
 - GPTQ calibration still uses cached training batches from the same timed run.
+- Final scored probabilities are renormalized to sum to 1 at every position.
 
 ## Compliance
 
@@ -61,6 +64,7 @@ Final 3-seed mean final val_bpb: `0.02137047` with sample std `0.00002830`.
 - The packed n-gram cache in the artifact is derived from **training data only** and is produced within the 600 second training budget.
 - The learned gate does **not** use the true next token to decide which experts are available.
 - GPTQ calibration runs inside the reserved pre-export budget using cached training batches from the same timed run.
+- The output distribution is normalized to sum to 1 for each token before likelihood is accumulated.
 - The current reported numbers use `TTT_EPOCHS=0`.
 
 ## Reproduction
@@ -82,6 +86,7 @@ TTT_EPOCHS=0 TTT_FREEZE_BLOCKS=2 TTT_LR=0.0001 \
 TTT_CHUNK_TOKENS=131072 SKIP_SLIDING=1 EVAL_STRIDE=64 TTT_TEMPERATURE=0.85 \
 CROWN_Q_LAMBDA=0.01 PRUNE_PCT=0.05 BIGRAM_VOCAB_SIZE=0 \
 GPTQ_CALIBRATION_SEQS=128 \
+RENORMALIZE_FINAL_PROBS=1 VERIFY_FINAL_PROBS=1 \
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```

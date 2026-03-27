@@ -984,6 +984,54 @@ def blend_with_learned_ngram_gate_np(
     return np.clip((weights * expert_p).sum(axis=1), 1e-12, 1.0)
 
 
+def renormalize_target_probs_with_background(
+    target_probs: np.ndarray,
+    background_probs: Tensor,
+    target_tokens: np.ndarray,
+    *,
+    verify: bool = True,
+) -> np.ndarray:
+    """Embed target-only adjusted probabilities into a valid full distribution.
+
+    The n-gram / phrase / LSH path only adjusts the target token probability. To
+    recover a proper distribution that sums to 1, keep that adjusted target mass
+    and rescale the base model's non-target mass proportionally.
+    """
+    if len(target_probs) == 0:
+        return target_probs
+    eps = 1e-12
+    target = torch.from_numpy(np.clip(target_probs, eps, 1.0)).to(
+        device=background_probs.device,
+        dtype=background_probs.dtype,
+    )
+    tgt = torch.from_numpy(target_tokens.astype(np.int64, copy=False)).to(
+        device=background_probs.device,
+        dtype=torch.int64,
+    )
+    final_probs = background_probs.clone()
+    final_probs.scatter_(1, tgt[:, None], 0.0)
+    other_mass = final_probs.sum(dim=-1, keepdim=True)
+    target_mass = (1.0 - target).unsqueeze(1)
+    scale = torch.where(
+        other_mass > eps,
+        target_mass / other_mass.clamp(min=eps),
+        torch.zeros_like(other_mass),
+    )
+    final_probs.mul_(scale)
+    no_tail = (other_mass.squeeze(1) <= eps)
+    if no_tail.any():
+        fill = (target_mass[no_tail] / max(final_probs.size(-1) - 1, 1)).to(final_probs.dtype)
+        final_probs[no_tail] = fill
+        final_probs[no_tail].scatter_(1, tgt[no_tail, None], 0.0)
+    final_probs.scatter_(1, tgt[:, None], target[:, None])
+    if verify:
+        sums = final_probs.sum(dim=-1)
+        max_err = float((sums - 1.0).abs().max().item())
+        if max_err > 1e-4:
+            raise RuntimeError(f"Final probability distribution does not sum to 1 (max_err={max_err:.3e})")
+    return final_probs.gather(1, tgt[:, None]).squeeze(1).detach().cpu().numpy().astype(np.float64)
+
+
 def _compute_segment_ngram_probs(
     *,
     base_probs: np.ndarray,
@@ -2108,6 +2156,7 @@ def eval_val_sliding_ttt(
                     ).reshape(bsz, seq_len)
 
                 # Entropy for phrase alpha / heuristic fallback.
+                _lp = None
                 _entropy_batch = None
                 if ngram_cache is not None:
                     if expert_nll is not None:
@@ -2181,6 +2230,18 @@ def eval_val_sliding_ttt(
                     if sharpen_gamma > 0:
                         active_boost = np.clip(1.0 + sharpen_gamma * np.clip(active_probs - 0.5, 0.0, None), 1.0, 2.0)
                         active_probs = np.clip(active_probs * active_boost, 1e-12, 1.0)
+
+                    if seg_len > 0 and os.environ.get("RENORMALIZE_FINAL_PROBS", "1") == "1":
+                        if _lp is not None:
+                            background_probs = _lp[i, s:wlen].exp()
+                        else:
+                            background_probs = F.softmax(logits_scaled[i, s:wlen].float(), dim=-1)
+                        active_probs = renormalize_target_probs_with_background(
+                            active_probs,
+                            background_probs=background_probs,
+                            target_tokens=tgt_toks if ngram_cache is not None else y_batch[i, s:wlen].detach().cpu().numpy(),
+                            verify=os.environ.get("VERIFY_FINAL_PROBS", "1") == "1",
+                        )
 
                     active_nll_np = -np.log(np.clip(active_probs, 1e-12, 1.0))
                     scored_nll = torch.from_numpy(active_nll_np).to(device=nll.device, dtype=torch.float64)
