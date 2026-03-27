@@ -1,0 +1,9 @@
+{
+  "name": "Two-Level Dirichlet Posterior + Per-Order OBCL + Phrase Cache (3-seed)",
+  "val_bpb": 0.11556,
+  "bytes_total": 15077877,
+  "blurb": "Two-level Dirichlet-Multinomial posterior mixing with per-order OBCL concentrations (50.0 for bigrams to 1.86 for 14-grams) and phrase suffix matching (probes at 20,16 tokens). 15-gram backoff with neural base measure. Complementary training (alpha=0.50). EBLS architecture (3 shared x 3 loops + 2 unique = 11L). GPTQ int6 + LZMA. 3-seed mean: 0.11556 (std 0.0000057). Based on techniques from PRs #414, #900, #846.",
+  "author": "Nathan Maine",
+  "github_id": "NathanMaine",
+  "date": "2026-03-27"
+}
