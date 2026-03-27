@@ -13,6 +13,8 @@ Push base model BPB from 1.11 → 1.08 on 8xH100, 600s wallclock, no GPTQ.
 | Rat Rod Green v3 | PENDING | — | — | — | — | v1 base + MTP_NUM_HEADS=2 (vanilla MTP) |
 | Rat Rod Green v4 "Synapse" | ~1.14+ | 1.1702 | — | 5872 | 102.20 | HS-MTP + CPU Bridge — **DEAD** (15ms overhead) |
 | Rat Rod Green v5 "Synapse v2" | 1.1296 | 1.1529 | 0.4534 | 6819 | 88.01 | GPU-native hash bridge — **DEAD** (worse on both metrics) |
+| Rat Rod Green v6 | PENDING | — | — | — | — | v1 + WARMDOWN_ITERS=2000 (not yet run at 600s) |
+| Rat Rod Green v7 | 1.1169 | 1.1405 | 0.4500 | 6873 | 87.31 | v1 + WD=2000 + COMPLEMENT_ALPHA=0.5 — **WORSE** (+0.004 sliding vs v1) |
 
 ## v1 Full Log Metrics (2026-03-27)
 ```
@@ -125,6 +127,7 @@ model forward:                                │
 6. ~~Synapse v2 (GPU-native)~~ (v5) — **DEAD**, worse on both base AND ngram. Concept disproven.
 7. ~~VALUE_RESIDUAL=1~~ — **WORSE** (+0.0012 sliding at 200s)
 8. ~~Siphon (ensemble loss training)~~ — **DEAD**, sliding +0.151, ngram +0.017. Model can't learn under ensemble objective.
+9. ~~COMPLEMENT_ALPHA=0.5~~ (v7, 600s) — **WORSE**, sliding +0.004, ngram +0.001 vs v1. Bigram weighting doesn't help our n-gram system.
 
 ## Untested Levers
 1. GATED_ATTENTION=1 — learned per-head attention gating
