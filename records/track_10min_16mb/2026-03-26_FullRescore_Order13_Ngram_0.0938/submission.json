@@ -1,0 +1,18 @@
+{
+  "author": "Tim Pietrusky",
+  "github_id": "TimPietrusky",
+  "name": "Order-13 Full-Rescore N-gram + 11L Int6 GPTQ + EMA + LeakyReLU(0.5)^2",
+  "blurb": "Two-pass order-13 entropy-adaptive n-gram backoff with full-rescore on 11L gated-attention + value-residual model. Int6 GPTQ (descending actorder, dead column handling) + lzma compression. EMA(0.997), warmdown 3500, matrix_lr 0.05, LeakyReLU(0.5)^2, XSA-all, partial RoPE, VE(128).",
+  "date": "2026-03-26T00:00:00Z",
+  "val_bpb": 0.09391,
+  "val_bpb_std": 0.00002,
+  "pre_ngram_val_bpb": 1.124,
+  "hardware": "8xH100 SXM",
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 0.09391, "eval_time_s": 247},
+    "42": {"val_bpb": 0.09393, "eval_time_s": 246},
+    "2025": {"val_bpb": 0.09389, "eval_time_s": 250}
+  },
+  "model_params": 29988041
+}

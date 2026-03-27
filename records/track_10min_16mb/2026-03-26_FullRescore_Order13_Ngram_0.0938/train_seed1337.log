@@ -1,0 +1,147 @@
+W0327 00:28:29.313000 1776788 torch/distributed/run.py:803] 
+W0327 00:28:29.313000 1776788 torch/distributed/run.py:803] *****************************************
+W0327 00:28:29.313000 1776788 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0327 00:28:29.313000 1776788 torch/distributed/run.py:803] *****************************************
+logs/e1673340-dd65-45c4-93a7-490b2b38f79d.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:29988041
+XSA:last_0 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+matrix_lr:0.05 mlp_activation:leaky_relu_sq leaky_slope:0.5
+ema_enabled:True ema_decay:0.997 swa_enabled:False
+gptq_enabled:True quant_bits:6 prune_pct:0.05
+gated_attention:True value_residual:True
+ttt_enabled:False ttt_lr:0.002 ttt_momentum:0.9 ttt_sgd_epochs:3 ttt_chunk_size:256 ttt_unfreeze_layers:4
+warmdown_iters:3500 bigram_vocab_size:1024
+late_qat_threshold:0.15
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/10800 val_loss:6.9289 val_bpb:4.1037 train_time:0ms step_avg:0.01ms
+step:1/10800 train_loss:6.9302 train_time:162ms step_avg:161.59ms
+step:2/10800 train_loss:8.9983 train_time:281ms step_avg:140.66ms
+step:3/10800 train_loss:7.4075 train_time:378ms step_avg:126.10ms
+step:4/10800 train_loss:6.6797 train_time:475ms step_avg:118.76ms
+step:5/10800 train_loss:6.1067 train_time:572ms step_avg:114.41ms
+step:6/10800 train_loss:5.8744 train_time:670ms step_avg:111.64ms
+step:7/10800 train_loss:5.6919 train_time:766ms step_avg:109.47ms
+step:8/10800 train_loss:5.5069 train_time:863ms step_avg:107.86ms
+step:9/10800 train_loss:5.3087 train_time:959ms step_avg:106.60ms
+step:10/10800 train_loss:5.1199 train_time:1056ms step_avg:105.65ms
+step:200/10800 train_loss:2.3127 train_time:19768ms step_avg:98.84ms
+step:400/10800 train_loss:2.3858 train_time:39669ms step_avg:99.17ms
+step:600/10800 train_loss:2.3083 train_time:59548ms step_avg:99.25ms
+step:800/10800 train_loss:2.2027 train_time:79495ms step_avg:99.37ms
+step:1000/10800 train_loss:2.2379 train_time:99387ms step_avg:99.39ms
+step:1000/10800 val_loss:2.1899 val_bpb:1.2970 train_time:99392ms step_avg:99.39ms
+step:1200/10800 train_loss:2.3100 train_time:119345ms step_avg:99.45ms
+step:1400/10800 train_loss:2.1394 train_time:139297ms step_avg:99.50ms
+step:1600/10800 train_loss:2.0332 train_time:159122ms step_avg:99.45ms
+step:1800/10800 train_loss:2.1198 train_time:179009ms step_avg:99.45ms
+step:2000/10800 train_loss:2.0460 train_time:198839ms step_avg:99.42ms
+step:2000/10800 val_loss:2.1110 val_bpb:1.2502 train_time:198843ms step_avg:99.42ms
+step:2200/10800 train_loss:2.1411 train_time:218723ms step_avg:99.42ms
+step:2400/10800 train_loss:2.0504 train_time:238553ms step_avg:99.40ms
+step:2600/10800 train_loss:2.0979 train_time:258518ms step_avg:99.43ms
+step:2800/10800 train_loss:2.1401 train_time:278471ms step_avg:99.45ms
+step:3000/10800 train_loss:2.1439 train_time:298294ms step_avg:99.43ms
+step:3000/10800 val_loss:2.0723 val_bpb:1.2273 train_time:298298ms step_avg:99.43ms
+step:3200/10800 train_loss:2.1449 train_time:318201ms step_avg:99.44ms
+step:3400/10800 train_loss:1.9931 train_time:338034ms step_avg:99.42ms
+step:3600/10800 train_loss:2.0622 train_time:357937ms step_avg:99.43ms
+step:3800/10800 train_loss:2.0377 train_time:377772ms step_avg:99.41ms
+step:4000/10800 train_loss:1.9369 train_time:397657ms step_avg:99.41ms
+step:4000/10800 val_loss:2.0269 val_bpb:1.2004 train_time:397661ms step_avg:99.42ms
+step:4200/10800 train_loss:2.1118 train_time:417539ms step_avg:99.41ms
+step:4400/10800 train_loss:1.9904 train_time:437378ms step_avg:99.40ms
+step:4600/10800 train_loss:1.7999 train_time:457243ms step_avg:99.40ms
+step:4800/10800 train_loss:2.3839 train_time:477046ms step_avg:99.38ms
+step:5000/10800 train_loss:2.0557 train_time:496923ms step_avg:99.38ms
+step:5000/10800 val_loss:1.9772 val_bpb:1.1710 train_time:496927ms step_avg:99.39ms
+step:5200/10800 train_loss:1.9933 train_time:516742ms step_avg:99.37ms
+step:5400/10800 train_loss:1.9995 train_time:536611ms step_avg:99.37ms
+late_qat:enabled step:5513 scale:0.1499
+step:5600/10800 train_loss:1.8995 train_time:556502ms step_avg:99.38ms
+step:5800/10800 train_loss:1.9352 train_time:576342ms step_avg:99.37ms
+step:6000/10800 train_loss:1.8928 train_time:596227ms step_avg:99.37ms
+step:6000/10800 val_loss:1.9249 val_bpb:1.1401 train_time:596231ms step_avg:99.37ms
+step:6039/10800 val_loss:1.9243 val_bpb:1.1396 train_time:600091ms step_avg:99.37ms
+stopping_early: wallclock_cap train_time:600091ms step:6039/10800
+peak memory allocated: 23479 MiB reserved: 23764 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9241 val_bpb:1.1395 eval_time:2285ms
+Serialized model: 118165771 bytes
+Code size: 90547 bytes
+pruning:5.0% magnitude pruning applied
+gptq:calibrating with training data (bits=6, clip_range=31)...
+gptq:calibrated 79 layers in 7.9s
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+gptq:attempt 0 artifact=15953696 bytes (limit=15900000)
+gptq:retry 1 with prune_pct=0.060
+gptq:calibrating with training data (bits=6, clip_range=31)...
+gptq:calibrated 79 layers in 7.9s
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+gptq:attempt 1 artifact=15927060 bytes (limit=15900000)
+gptq:retry 2 with prune_pct=0.070
+gptq:calibrating with training data (bits=6, clip_range=31)...
+gptq:calibrated 79 layers in 7.9s
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+gptq:attempt 2 artifact=16070940 bytes (limit=15900000)
+gptq:retry 3 with prune_pct=0.080
+gptq:calibrating with training data (bits=6, clip_range=31)...
+gptq:calibrated 79 layers in 7.8s
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+quantize: 67 GPTQ layers, 0 naive layers, clip_range=31
+gptq:attempt 3 artifact=16067252 bytes (limit=15900000)
+Serialized model int6+lzma: 16067252 bytes
+Total submission size int6+lzma: 16157799 bytes
+ngram:starting n=13 alpha_max=0.6 stride=128
+ngram:val_loss:0.1586 val_bpb:0.0939 eval_time:249799ms
+ngram_exact:val_loss:0.15856779 val_bpb:0.09391278
