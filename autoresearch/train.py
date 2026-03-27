@@ -44,7 +44,7 @@ NUM_LAYERS = 11
 MODEL_DIM = 512
 NUM_HEADS = 8
 NUM_KV_HEADS = 4
-MLP_MULT = 3.25  # wider MLP uses ~450KB headroom (15.0 → ~15.45MB), 8% more capacity
+MLP_MULT = 3.125  # hidden=1600, ~15.6MB, best fit within 16MB (3.25 was 1.3003 but 16.2MB OVER)
 TIE_EMBEDDINGS = True
 ROPE_BASE = 10000.0
 ROPE_DIM = 16                    # number of head dims to apply rotary to (0=full, 16=partial like SOTA)

@@ -31,7 +31,9 @@
 | leaky_relu_sq | 1.3135 | 1.3193 | 14.8 | WORSE — 214ms/step (+18%), fewer steps kill gains |
 | ROPE_DIM=8 | 1.3073 | 1.3138 | 15.2 | WORSE — 16 confirmed optimal |
 | MATRIX_LR=0.12 | 1.3047 | 1.3109 | 14.6 | WORSE — LR=0.10 confirmed optimal |
-| **nonuniform frac=0.2** | running | — | — | — |
+| nonuniform frac=0.2 | 1.3043 | 1.3100 | 15.6 | OVER — mixed quant hurts zstd |
+| MLP3.25 (hidden=1664) | 1.3003 | 1.3068 | 16.2 | OVER by 202KB — best quality ever! |
+| **MLP3.125 (hidden=1600)** | running | — | — | — |
 
 ## Key Findings
 1. **SiLU >> ReluSquared.** relu_sq is ~23ms/step slower, fewer total steps negate per-step gains.
