@@ -1145,8 +1145,8 @@ def main() -> None:
                 for name, t in base_model.state_dict().items():
                     ema_state[name].mul_(args.ema_decay).add_(t.detach().float(), alpha=1.0 - args.ema_decay)
 
-        # Late QAT: enable quantization-aware training during warmdown
-        if args.late_qat_threshold > 0 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
+        # Late QAT: enable quantization-aware training during warmdown (not before step 100)
+        if args.late_qat_threshold > 0 and step > 100 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
             CastedLinear._qat_enabled = True
             log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
 
