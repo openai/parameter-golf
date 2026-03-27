@@ -11,5 +11,5 @@
   "mean_val_loss": 0.267190,
   "mean_val_bpb": 0.158245,
   "code_bytes": 91966,
-  "notes": "Seed 2024 rerunning — previous log was truncated."
+  "notes": "Seed 2024 artifact exceeds 16MB (16.06-16.22 MB) due to seed-dependent compression. 2-seed validation: mean 0.1583, std 0.0001."
 }

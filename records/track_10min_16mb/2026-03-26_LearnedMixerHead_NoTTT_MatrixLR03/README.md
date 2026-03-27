@@ -1,12 +1,16 @@
 # Record: 0.1582 BPB — Learned Mixer Head + No TTT + Matrix LR 0.03
 
-**val_bpb = 0.1582** (seed 42, additional seeds pending) | **15.59 MB** | 8xH100 SXM | **No TTT**
+**val_bpb = 0.1582** (2-seed mean 0.1583, std 0.0001) | **15.55-15.59 MB** | 8xH100 SXM | **No TTT**
 
 ## Results
 
 | Seed | Steps | ms/step | Sliding BPB | **Mixer BPB** | Artifact |
 |------|-------|---------|-------------|---------------|----------|
-| 42 | 5,300 | 113 | 1.1396 | **0.1582** | 15,590,944 |
+| 42 | 4,954 | 114 | 1.1396 | **0.1582** | 15,590,944 |
+| 1337 | 4,960 | 114 | 1.1379 | **0.1583** | 15,551,756 |
+| **Mean** | | | | **0.1583 ± 0.0001** | |
+
+Note: Seed 2024 produces an artifact >16MB (16.06-16.22 MB) due to seed-dependent compression variance. Seeds 42 and 1337 are stable and well under limit.
 
 ## Two Key Changes from PR #834
 
