@@ -78,6 +78,8 @@ ACTIVATION = "silu"           # "silu" | "relu_sq" | "leaky_relu_sq"
 SMEAR_GATE_ENABLED = True     # blend each token with previous token's embedding
 ORTHOGONAL_INIT = True        # orthogonal init for weight matrices (SOTA uses this)
 SWA_ENABLED = False           # SWA consistently degrades by 0.008 with warmdown schedule
+EMA_ENABLED = True            # Exponential moving average of weights (decay=0.997), different from SWA
+EMA_DECAY = 0.997             # EMA window ≈ 1/(1-decay) = 333 steps
 SWA_START_FRAC = 0.10
 SWA_EVERY = 30
 INT6_QUANT = True             # use int6 for MLP+attention (vs int8 for all)
@@ -1275,6 +1277,11 @@ def main():
     swa_state = None
     swa_count = 0
 
+    # EMA state (CPU float32 copy updated every step)
+    ema_state = None
+    if EMA_ENABLED:
+        ema_state = {name: t.detach().cpu().float().clone() for name, t in base_model.state_dict().items()}
+
     # Training loop
     training_time_ms = 0.0
     stop_after_step = None
@@ -1355,6 +1362,12 @@ def main():
 
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
+        # EMA: update running exponential average of weights
+        if EMA_ENABLED and ema_state is not None:
+            with torch.no_grad():
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(EMA_DECAY).add_(t.detach().cpu().float(), alpha=1.0 - EMA_DECAY)
+
         # SWA: collect checkpoints during warmdown
         if SWA_ENABLED and scale < SWA_START_FRAC and step % SWA_EVERY == 0:
             if swa_state is None:
@@ -1393,6 +1406,16 @@ def main():
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
         )
         log0(f"swa:post_eval val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}")
+
+    # Apply EMA weights if enabled
+    if EMA_ENABLED and ema_state is not None:
+        base_model.load_state_dict({k: v.to(device) for k, v in ema_state.items()}, strict=True)
+        val_loss_raw, val_bpb_raw = val_loss, val_bpb  # keep pre-EMA for reference
+        val_loss, val_bpb = eval_val(
+            model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+        log0(f"ema:applied decay={EMA_DECAY} pre_ema_bpb={val_bpb_raw:.4f} post_ema_bpb={val_bpb:.4f} delta={val_bpb - val_bpb_raw:+.4f}")
 
     # ── Post-training compression ──────────────────────────────────────────────
     # Merge LoRA → prune → SVD compress → then measure size
