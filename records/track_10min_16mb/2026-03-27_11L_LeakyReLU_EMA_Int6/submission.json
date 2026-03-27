@@ -1,0 +1,12 @@
+{
+  "author": "Glorry Sibomana",
+  "github_id": "WHITELOTUS0",
+  "name": "11L LeakyReLU(0.5)^2 + EMA + Int6 + Tuned Hyperparams",
+  "blurb": "11 layers 3x MLP with LeakyReLU(0.5)^2 activation, EMA(0.997) weight averaging, int6+zstd-22 quantization, seq_len 2048 with NTK RoPE, Muon momentum 0.99, grad clip 0.3, warmdown 3000",
+  "date": "2026-03-27T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null,
+  "status": "awaiting_h100_validation"
+}
