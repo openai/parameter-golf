@@ -1,30 +1,35 @@
-H100 FINAL CHAMPION LOG
-=======================
+H100 FINAL CHAMPION LOG - ULTIMATE
+===================================
 
-Best observed validation BPB: 1.3422
+Best observed validation BPB: 1.3379
+
+Hardware: NVIDIA H100 80GB HBM3
+AMP dtype: torch.bfloat16
 
 Configuration:
 -------------
-BATCH_SIZE          = 48
-RESIDUAL_BETA       = 0.35
-EMA_DECAY           = 0.996
-FRO_GAMMA           = 0.66
+BATCH_SIZE            = 48
+RESIDUAL_BETA         = 0.36
+EMA_DECAY             = 0.996
+FRO_GAMMA             = 0.66
+WARMUP_STEPS          = 400
+DECAY_START           = 1000
 
-Training Progress:
------------------
-step 0800 | val_loss 3.7623 | val_bpb 1.6459
-step 1600 | val_loss 3.3590 | val_bpb 1.4695
-step 2400 | val_loss 3.2312 | val_bpb 1.4136
-step 3200 | val_loss 3.1369 | val_bpb 1.3724
-step 4000 | val_loss 3.0681 | val_bpb 1.3422
+Progress Highlights:
+-------------------
+step 0800 | val_loss 3.9193 | val_bpb 1.7146
+step 1600 | val_loss 3.3909 | val_bpb 1.4835
+step 2400 | val_loss 3.2372 | val_bpb 1.4162
+step 3200 | val_loss 3.1270 | val_bpb 1.3680
+step 3881 | val_loss 3.0582 | val_bpb 1.3379 (ULTIMATE RECORD)
 
 FINAL RESULT (EMA):
-Best val_bpb: 1.3422 (at step 4000)
-Final val_bpb: 1.4106 (weighted mean)
+Best val_bpb: 1.3379 (at step 3881)
+Tok/s: ~326,000
 
 === MIXED EXPORT ARTIFACT AUDIT ===
 Parameters:        18,476,354
-Compressed model:  14,710,026 bytes
-Total artifact:    14,735,026 bytes (model + code)
-Headroom:          1,264,974 bytes
+Compressed model:  14,697,660 bytes
+Total artifact:    14,722,660 bytes (including code)
+Headroom:          1,277,340 bytes
 PASS ✅

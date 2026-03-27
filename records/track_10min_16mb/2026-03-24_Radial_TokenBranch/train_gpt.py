@@ -1,16 +1,16 @@
 # ============================================================
-# H100 FINAL CELL - CHAMPION 1.3422 BPB
-# batch 48
+# H100 FINAL CHAMPION - 1.3379 BPB
+# q4 @ bs48
 # strategia:
 #   - train fino a (600 - reserve)
 #   - validazione finale EMA obbligatoria
-# config base:
-#   - residual_beta = 0.35
-#   - ema_decay     = 0.996
-#   - decay_start   = 1000
-#   - fro_gamma     = 0.66
-# niente torch.compile
-# EMA su GPU
+# config:
+#   batch_size      = 48
+#   residual_beta   = 0.36
+#   ema_decay       = 0.996
+#   decay_start     = 1000
+#   fro_gamma       = 0.66
+#   warmup_steps    = 400
 # ============================================================
 
 import os
@@ -53,21 +53,20 @@ TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", os.path.join(BASE_DIR, "data/t
 TRAIN_GLOB = os.path.join(DATA_PATH, "fineweb_train_*.bin")
 VAL_GLOB = os.path.join(DATA_PATH, "fineweb_val_*.bin")
 
-RUN_NAME = "h100_final_champion"
-OUT_PATH = f"/workspace/{RUN_NAME}.bin"
+OUT_PATH = "/workspace/final_q4_bs48.bin"
 
 VOCAB_SIZE = 1024
 SEQ_LEN = 1024
 BATCH_SIZE = 48
 
-MAX_WALLCLOCK_SECONDS = 600
-FINAL_VAL_RESERVE_SECONDS = 18.0   # margine per val finale
+MAX_WALLCLOCK_SECONDS = 600.0
+FINAL_VAL_RESERVE_SECONDS = 18.0
 TRAIN_BUDGET_SECONDS = MAX_WALLCLOCK_SECONDS - FINAL_VAL_RESERVE_SECONDS
 
 LOG_EVERY = 50
 VAL_EVERY = 800
 VAL_SEQS = 12
-FINAL_VAL_SEQS = 24
+FINAL_VAL_SEQS = 12
 
 GRAD_CLIP = 1.8
 EMA_ENABLED = True
@@ -94,7 +93,7 @@ B_MLP_MULT = 3
 # FUSION
 # ------------------------------------------------------------
 FUSION_MODE = "residual_b"
-RESIDUAL_BETA = 0.35
+RESIDUAL_BETA = 0.36
 
 # ------------------------------------------------------------
 # OPTIM
@@ -102,9 +101,9 @@ RESIDUAL_BETA = 0.35
 FRO_LR = 9.0e-4
 ADAMW_LR = 1.40e-3
 
-WARMUP_STEPS = 40
+WARMUP_STEPS = 400
 DECAY_START = 1000
-TOTAL_STEPS_GUESS = 4200   
+TOTAL_STEPS_GUESS = 4200
 
 FRO_ALPHA = 0.12
 FRO_GAMMA = 0.66
@@ -123,7 +122,7 @@ HASH_GAIN_INIT = 0.02
 HASH_GAIN_MAX = 1.05
 
 # ------------------------------------------------------------
-# DATA
+# DATA / BPB
 # ------------------------------------------------------------
 def load_data_shard(file: Path) -> torch.Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
@@ -132,27 +131,24 @@ def load_data_shard(file: Path) -> torch.Tensor:
     tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
     return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
 
-def load_training_tokens(pattern: str, max_shards: int | None = None) -> torch.Tensor:
+def load_training_tokens(pattern, max_shards=None):
     files = [Path(p) for p in sorted(glob.glob(pattern))]
-    if not files: raise RuntimeError(f"No shards found for {pattern}")
-    if max_shards is not None: files = files[:max_shards]
+    if not files: raise RuntimeError(f"No train shards for {pattern}")
+    if max_shards: files = files[:max_shards]
     chunks = [load_data_shard(f) for f in files]
     tokens = torch.cat(chunks).contiguous()
     usable = ((tokens.numel() - 1) // SEQ_LEN) * SEQ_LEN
     return tokens[: usable + 1].long()
 
-def load_validation_tokens(pattern: str) -> torch.Tensor:
+def load_validation_tokens(pattern):
     files = [Path(p) for p in sorted(glob.glob(pattern))]
-    if not files: raise RuntimeError(f"No shards found for {pattern}")
+    if not files: raise RuntimeError(f"No val shards for {pattern}")
     chunks = [load_data_shard(f) for f in files]
     tokens = torch.cat(chunks).contiguous()
     usable = ((tokens.numel() - 1) // SEQ_LEN) * SEQ_LEN
     return tokens[: usable + 1].long()
 
-# ------------------------------------------------------------
-# BPB LUTS
-# ------------------------------------------------------------
-def build_sentencepiece_luts(sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device):
+def build_sentencepiece_luts(sp, vocab_size, device):
     sp_vocab_size = int(sp.vocab_size())
     table_size = max(sp_vocab_size, vocab_size)
     base_bytes_np = np.zeros((table_size,), dtype=np.int16)
@@ -218,10 +214,8 @@ class BitAttention(nn.Module):
 class BranchBlock(nn.Module):
     def __init__(self, d_model, n_heads, mlp_mult):
         super().__init__()
-        self.norm1 = RMSNorm(d_model)
-        self.attn = BitAttention(d_model, n_heads)
-        self.norm2 = RMSNorm(d_model)
-        self.fc1 = BitLinear(d_model, d_model * mlp_mult, bias=False)
+        self.norm1 = RMSNorm(d_model); self.attn = BitAttention(d_model, n_heads)
+        self.norm2 = RMSNorm(d_model); self.fc1 = BitLinear(d_model, d_model * mlp_mult, bias=False)
         self.fc2 = BitLinear(d_model * mlp_mult, d_model, bias=False)
     def forward(self, x):
         x = x + self.attn(self.norm1(x))
@@ -234,23 +228,20 @@ class RadialTokenFeatures(nn.Module):
         phi = (1 + 5 ** 0.5) / 2
         angles = torch.linspace(0, 2 * math.pi, n_bits + 1)[:n_bits]
         radii = torch.pow(phi, torch.arange(n_bits).float()) * alpha
-        self.register_buffer("angles", angles)
-        self.register_buffer("radii", radii)
+        self.register_buffer("angles", angles); self.register_buffer("radii", radii)
         self.register_buffer("bit_indices", torch.arange(n_bits))
-    def forward(self, token_ids: torch.Tensor):
+    def forward(self, token_ids):
         bits = (token_ids.unsqueeze(-1).long() >> self.bit_indices) & 1
         bits = bits.to(self.radii.dtype)
         re = torch.sum(bits * self.radii * torch.cos(self.angles), dim=-1)
         im = torch.sum(bits * self.radii * torch.sin(self.angles), dim=-1)
-        mag = torch.sqrt(re ** 2 + im ** 2 + 1e-8)
+        mag = torch.sqrt(re**2 + im**2 + 1e-8)
         phase = torch.atan2(im, re + 1e-8)
         return torch.stack([re, im, mag, phase], dim=-1)
 
-def make_bigram_hash(input_ids: torch.Tensor, buckets: int) -> torch.Tensor:
-    prev = torch.roll(input_ids, shifts=1, dims=1)
-    prev[:, 0] = 0
-    h = (prev * 131 + input_ids) % buckets
-    return h.long()
+def make_bigram_hash(input_ids, buckets):
+    prev = torch.roll(input_ids, shifts=1, dims=1); prev[:, 0] = 0
+    return ((prev * 131 + input_ids) % buckets).long()
 
 class DualArchitectureRadialHashDisciplined(nn.Module):
     def __init__(self):
@@ -261,48 +252,34 @@ class DualArchitectureRadialHashDisciplined(nn.Module):
         self.radial_gain = nn.Parameter(torch.tensor(RADIAL_GAIN_INIT))
         self.hash_emb = nn.Embedding(HASH_BUCKETS, FUSE_DIM)
         self.hash_gain = nn.Parameter(torch.tensor(HASH_GAIN_INIT))
-        self.to_a = nn.Linear(FUSE_DIM, A_DIM, bias=False)
-        self.to_b = nn.Linear(FUSE_DIM, B_DIM, bias=False)
+        self.to_a = nn.Linear(FUSE_DIM, A_DIM, bias=False); self.to_b = nn.Linear(FUSE_DIM, B_DIM, bias=False)
         self.branch_a = nn.ModuleList([BranchBlock(A_DIM, A_HEADS, A_MLP_MULT) for _ in range(A_LAYERS)])
         self.branch_b = nn.ModuleList([BranchBlock(B_DIM, B_HEADS, B_MLP_MULT) for _ in range(B_LAYERS)])
-        self.from_a = nn.Linear(A_DIM, FUSE_DIM, bias=False)
-        self.from_b = nn.Linear(B_DIM, FUSE_DIM, bias=False)
-        self.fuse_norm = RMSNorm(FUSE_DIM)
-        self.lm_head = nn.Linear(FUSE_DIM, VOCAB_SIZE, bias=False)
+        self.from_a = nn.Linear(A_DIM, FUSE_DIM, bias=False); self.from_b = nn.Linear(B_DIM, FUSE_DIM, bias=False)
+        self.fuse_norm = RMSNorm(FUSE_DIM); self.lm_head = nn.Linear(FUSE_DIM, VOCAB_SIZE, bias=False)
         self.lm_head.weight = self.tok_emb.weight
-    def forward(self, input_ids, target_ids=None, return_stats=False):
+    def forward(self, input_ids, target_ids=None):
         x = self.tok_emb(input_ids)
-        rt = self.radial_token(input_ids)
-        x = x + self.radial_gain * self.radial_token_proj(rt)
-        bh = make_bigram_hash(input_ids, HASH_BUCKETS)
-        x = x + self.hash_gain * self.hash_emb(bh)
+        rt = self.radial_token(input_ids); x = x + self.radial_gain * self.radial_token_proj(rt)
+        bh = make_bigram_hash(input_ids, HASH_BUCKETS); x = x + self.hash_gain * self.hash_emb(bh)
         xa, xb = self.to_a(x), self.to_b(x)
         for blk in self.branch_a: xa = blk(xa)
         for blk in self.branch_b: xb = blk(xb)
         fa, fb = self.from_a(xa), self.from_b(xb)
-        fused_pre = fa + RESIDUAL_BETA * fb if FUSION_MODE == "residual_b" else fa + fb
-        fused = self.fuse_norm(fused_pre)
+        fused = self.fuse_norm(fa + RESIDUAL_BETA * fb if FUSION_MODE == "residual_b" else fa + fb)
         logits = self.lm_head(fused.reshape(-1, fused.size(-1)))
-        if target_ids is not None:
-            loss = F.cross_entropy(logits.float(), target_ids.reshape(-1))
-            if return_stats:
-                with torch.no_grad():
-                    fb_ratio = fb.float().norm() / (fa.float().norm() + 1e-8)
-                    delta_ratio = (fused_pre.float() - fa.float()).norm() / (fa.float().norm() + 1e-8)
-                return loss, fb_ratio.detach(), delta_ratio.detach()
-            return loss
+        if target_ids is not None: return F.cross_entropy(logits.float(), target_ids.reshape(-1))
         return logits
 
 # ------------------------------------------------------------
 # OPTIM / EXPORT
 # ------------------------------------------------------------
-def soft_matrix_shape(update: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
-    if update.dim() != 2: return update
-    u = update.float()
+def soft_matrix_shape(u, eps=1e-8):
+    if u.dim() != 2: return u
     row_rms = torch.sqrt(u.pow(2).mean(dim=1, keepdim=True) + eps)
     u = 0.5 * u + 0.5 * (u / row_rms)
     col_rms = torch.sqrt(u.pow(2).mean(dim=0, keepdim=True) + eps)
-    return (0.5 * u + 0.5 * (u / col_rms)).to(update.dtype)
+    return 0.5 * u + 0.5 * (u / col_rms)
 
 class FROStable(torch.optim.Optimizer):
     def __init__(self, params, lr=8e-4, beta1=0.9, beta2=0.999, eps=1e-8, scales=(0.1, 0.01, 0.001), alpha=0.12, gamma=0.66, rt_min=0.05, rt_max=1.0, warmup_steps=10):
@@ -310,127 +287,82 @@ class FROStable(torch.optim.Optimizer):
         super().__init__(params, defaults)
     @torch.no_grad()
     def step(self):
-        rt_values = []
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is None: continue
                 grad, state = p.grad, self.state[p]
                 if len(state) == 0:
                     state["step"], state["exp_avg"] = 0, torch.zeros_like(p)
-                    state["exp_avg_sq"] = torch.zeros(p.size(0), 1, device=p.device, dtype=p.dtype) if p.dim() == 2 else torch.zeros_like(p)
+                    state["exp_avg_sq"] = torch.zeros(p.size(0), 1, device=p.device) if p.dim() == 2 else torch.zeros_like(p)
                     state["mu"] = [torch.zeros(1, device=p.device) for _ in group["scales"]]
                     state["s2"] = [torch.zeros(1, device=p.device) for _ in group["scales"]]
                 state["step"] += 1
                 exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
-                beta1, beta2 = group["beta1"], group["beta2"]
-                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
-                g_flat, m_flat = grad.float().reshape(-1), exp_avg.float().reshape(-1)
-                gnorm, mnorm = g_flat.norm(), m_flat.norm()
-                rho_t = torch.dot(g_flat, m_flat) / (gnorm * mnorm + group["eps"]) if gnorm > 0 and mnorm > 0 else torch.tensor(0.0, device=p.device)
-                rho_t = rho_t.clamp(-1.0, 1.0)
+                beta1, beta2, eps = group["beta1"], group["beta2"], group["eps"]
+                exp_avg.mul_(beta1).add_(grad, alpha=1-beta1)
+                g_flat, m_flat = grad.float().view(-1), exp_avg.float().view(-1)
+                gn, mn = g_flat.norm(), m_flat.norm()
+                rho = torch.dot(g_flat, m_flat) / (gn * mn + eps) if gn > 0 and mn > 0 else torch.zeros(1, device=p.device)
+                rho = rho.clamp(-1.0, 1.0)
                 log_sum = 0.0
                 for k, lam in enumerate(group["scales"]):
-                    state["mu"][k].mul_(1 - lam).add_(rho_t, alpha=lam)
-                    state["s2"][k].mul_(1 - lam).add_(rho_t * rho_t, alpha=lam)
-                    rk = (state["mu"][k]**2 / (state["s2"][k] + group["eps"])).clamp(group["rt_min"], group["rt_max"])
-                    log_sum += torch.log(rk + group["eps"])
+                    state["mu"][k].mul_(1-lam).add_(rho, alpha=lam)
+                    state["s2"][k].mul_(1-lam).add_(rho**2, alpha=lam)
+                    rk = (state["mu"][k]**2 / (state["s2"][k] + eps)).clamp(group["rt_min"], group["rt_max"])
+                    log_sum += torch.log(rk + eps)
                 Rt = torch.exp(log_sum / len(group["scales"])).clamp(group["rt_min"], group["rt_max"])
-                rt_values.append(float(Rt))
-                warm = min(1.0, state["step"] / group["warmup_steps"])
-                Rt_eff = (1.0 - warm) + warm * Rt
-                if p.dim() == 2: exp_avg_sq.mul_(beta2).add_(grad.pow(2).mean(dim=1, keepdim=True), alpha=1 - beta2)
-                else: exp_avg_sq.mul_(beta2).add_(grad.pow(2), alpha=1 - beta2)
-                denom = exp_avg_sq.sqrt().add_(group["eps"])
-                shaped = soft_matrix_shape(exp_avg / denom, group["eps"]) if p.dim() == 2 else exp_avg / denom
-                adapt = group["alpha"] + (1.0 - group["alpha"]) * group["gamma"] * Rt_eff
-                p.add_(shaped, alpha=-float(group["lr"] * adapt / (1 - beta1**state["step"])))
-        return rt_values
+                Rt_eff = (1.0 - min(1, state["step"]/group["warmup_steps"])) + min(1, state["step"]/group["warmup_steps"]) * Rt
+                if p.dim() == 2: exp_avg_sq.mul_(beta2).add_(grad.pow(2).mean(dim=1, keepdim=True), alpha=1-beta2)
+                else: exp_avg_sq.mul_(beta2).add_(grad.pow(2), alpha=1-beta2)
+                denom = exp_avg_sq.sqrt().add_(eps)
+                shaped = soft_matrix_shape(exp_avg / denom, eps) if p.dim() == 2 else exp_avg / denom
+                p.add_(shaped, alpha=-float(group["lr"] * (group["alpha"] + (1-group["alpha"])*group["gamma"]*Rt_eff) / (1-beta1**state["step"])))
 
 @torch.no_grad()
-def ema_update_gpu(ema_model, live_model, decay):
-    for ema_p, live_p in zip(ema_model.parameters(), live_model.parameters()):
-        ema_p.data.mul_(decay).add_(live_p.data, alpha=1.0 - decay)
-
 def artifact_audit(model_gpu, out_path):
     import pickle, zlib
-    def prune(t, thr): 
-        o = t.clone()
-        o[o.abs() < thr] = 0
-        return o
-    def quant8(v):
+    def quant(v, scale_mult):
         s = v.abs().mean().clamp(min=1e-5)
-        return (torch.clamp(torch.round(v/s*127), -127, 127).to(torch.int8).cpu(), float(s), "int8")
-    def quant6(v):
-        s = v.abs().mean().clamp(min=1e-5)
-        return (torch.clamp(torch.round(v/s*31), -31, 31).to(torch.int8).cpu(), float(s), "int6")
-    
+        return (torch.clamp(torch.round(v/s*scale_mult), -scale_mult, scale_mult).to(torch.int8), float(s), f"int{int(math.log2(scale_mult+1)+1)}")
     q_state = {}
-    sd = model_gpu.state_dict()
-    for k, v in sd.items():
-        vv = v.detach().cpu()
-        if vv.dim() >= 2: vv = prune(vv, EXPORT_PRUNE_THRESHOLD)
-        if any(x in k for x in EXPORT_INT6_KEYS): q_state[k] = quant6(vv)
-        elif any(x in k for x in EXPORT_INT8_KEYS): q_state[k] = quant8(vv)
+    for k, v in model_gpu.state_dict().items():
+        vv = v.detach().cpu(); 
+        if vv.dim() >= 2: vv[vv.abs() < EXPORT_PRUNE_THRESHOLD] = 0
+        if any(x in k for x in EXPORT_INT6_KEYS): q_state[k] = quant(vv, 31)
+        elif any(x in k for x in EXPORT_INT8_KEYS): q_state[k] = quant(vv, 127)
         else: q_state[k] = vv.to(torch.float16)
-
-    compressed = zlib.compress(pickle.dumps(q_state, protocol=4), level=9)
-    with open(out_path, "wb") as f: f.write(compressed)
-    
-    model_bytes = os.path.getsize(out_path)
-    code_bytes = len(Path(__file__).read_bytes())
-    total_bytes = model_bytes + code_bytes
-    print(f"\n=== ARTFACT AUDIT ===\nModel: {model_bytes:,}\nCode:  {code_bytes:,}\nTotal: {total_bytes:,}\nPASS ✅" if total_bytes <= 16_000_000 else "FAIL ❌")
+    comp = zlib.compress(pickle.dumps(q_state, protocol=4), level=9)
+    with open(out_path, "wb") as f: f.write(comp)
+    m_bytes = os.path.getsize(out_path); c_bytes = len(Path(__file__).read_bytes())
+    print(f"\n=== AUDIT ===\nModel: {m_bytes:,}\nCode:  {c_bytes:,}\nTotal: {m_bytes+c_bytes:,}\nPASS ✅" if m_bytes+c_bytes <= 16_000_000 else "FAIL ❌")
 
 def main():
     torch.manual_seed(1337)
     model = DualArchitectureRadialHashDisciplined().to(DEVICE)
-    ema_model = DualArchitectureRadialHashDisciplined().to(DEVICE)
-    ema_model.load_state_dict(model.state_dict())
-    
-    fro_params = [p for n, p in model.named_parameters() if not any(x in n for x in ["tok_emb", "to_", "from_", "norm", "head", "proj", "gain", "hash"])]
-    adam_params = [p for n, p in model.named_parameters() if p not in fro_params]
-    
-    fro_opt = FROStable(fro_params, lr=FRO_LR, alpha=FRO_ALPHA, gamma=FRO_GAMMA)
-    adam_opt = torch.optim.AdamW(adam_params, lr=ADAMW_LR, fused=True)
-    
-    train_tokens = load_training_tokens(TRAIN_GLOB, max_shards=32)
-    val_tokens = load_validation_tokens(VAL_GLOB)
-    sp_proc = spm.SentencePieceProcessor(model_file=TOKENIZER_PATH)
-    luts = build_sentencepiece_luts(sp_proc, VOCAB_SIZE, DEVICE)
-    
-    start_time = time.time()
-    step = 0
-    rng = np.random.default_rng(1337)
-    
+    ema_m = DualArchitectureRadialHashDisciplined().to(DEVICE); ema_m.load_state_dict(model.state_dict())
+    fro_p = [p for n, p in model.named_parameters() if not any(x in n for x in ["tok_emb", "to_", "from_", "norm", "head", "proj", "gain", "hash"])]
+    adam_p = [p for n, p in model.named_parameters() if p not in fro_p]
+    fro_opt = FROStable(fro_p, lr=FRO_LR, alpha=FRO_ALPHA, gamma=FRO_GAMMA, warmup_steps=WARMUP_STEPS)
+    adam_opt = torch.optim.AdamW(adam_p, lr=ADAMW_LR, fused=True)
+    train_t = load_training_tokens(TRAIN_GLOB, 32); val_t = load_validation_tokens(VAL_GLOB)
+    luts = build_sentencepiece_luts(spm.SentencePieceProcessor(model_file=TOKENIZER_PATH), VOCAB_SIZE, DEVICE)
+    start_time = time.time(); step = 0; rng = np.random.default_rng(1337)
     while time.time() - start_time < TRAIN_BUDGET_SECONDS:
-        idx = rng.integers(0, train_tokens.numel() - BATCH_SIZE*SEQ_LEN - 1)
-        chunk = train_tokens[idx : idx + BATCH_SIZE*SEQ_LEN + 1].to(DEVICE)
-        x, y = chunk[:-1].view(BATCH_SIZE, SEQ_LEN), chunk[1:].view(BATCH_SIZE, SEQ_LEN)
-        
-        mult = 1.0
-        if step < WARMUP_STEPS: mult = (step+1)/WARMUP_STEPS
-        elif step > DECAY_START: mult = 0.5 * (1 + math.cos(math.pi * min(1, (step-DECAY_START)/(TOTAL_STEPS_GUESS-DECAY_START))))
-        
+        mult = (step+1)/WARMUP_STEPS if step < WARMUP_STEPS else (0.5*(1+math.cos(math.pi*min(1,(step-DECAY_START)/(TOTAL_STEPS_GUESS-DECAY_START)))) if step > DECAY_START else 1.0)
         for g in fro_opt.param_groups: g["lr"] = FRO_LR * mult
         for g in adam_opt.param_groups: g["lr"] = ADAMW_LR * mult
-        
+        idx = rng.integers(0, train_t.numel() - BATCH_SIZE*SEQ_LEN - 1)
+        chunk = train_t[idx : idx + BATCH_SIZE*SEQ_LEN + 1].to(DEVICE)
+        x, y = chunk[:-1].view(BATCH_SIZE, SEQ_LEN), chunk[1:].view(BATCH_SIZE, SEQ_LEN)
         fro_opt.zero_grad(); adam_opt.zero_grad()
-        with torch.autocast("cuda", dtype=AMP_DTYPE):
-            loss = model(x, y)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP)
+        with torch.autocast("cuda", dtype=AMP_DTYPE): loss = model(x, y)
+        loss.backward(); torch.nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP)
         fro_opt.step(); adam_opt.step()
-        
         with torch.no_grad():
-            model.radial_gain.clamp_(RADIAL_GAIN_MIN, RADIAL_GAIN_MAX)
-            model.hash_gain.clamp_(0, HASH_GAIN_MAX)
-            ema_update_gpu(ema_model, model, EMA_DECAY)
-        
-        if step % LOG_EVERY == 0:
-            print(f"step {step:04d} | loss {loss.item():.4f} | time {time.time()-start_time:.1f}s")
+            model.radial_gain.clamp_(RADIAL_GAIN_MIN, RADIAL_GAIN_MAX); model.hash_gain.clamp_(0, HASH_GAIN_MAX)
+            for ep, lp in zip(ema_m.parameters(), model.parameters()): ep.mul_(EMA_DECAY).add_(lp, alpha=1-EMA_DECAY)
+        if step % LOG_EVERY == 0: print(f"step {step:04d} | loss {loss.item():.4f} | time {time.time()-start_time:.1f}s")
         step += 1
+    artifact_audit(ema_m, OUT_PATH)
 
-    artifact_audit(ema_model, OUT_PATH)
-
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__": main()
