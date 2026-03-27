@@ -4,8 +4,11 @@
   "name": "GatedDeltaNet SSM — fla library, 12L 384d",
   "blurb": "Gated DeltaNet selective state space model using flash-linear-attention Triton kernels. Delta-rule state update replaces attention. 12 layers, 384d, Muon optimizer, bigram embeddings, z-loss.",
   "date": "2026-03-28T00:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
   "val_loss": 2.1793,
   "val_bpb": 1.2907,
+  "pre_quant_val_loss": 2.1581,
+  "pre_quant_val_bpb": 1.2781,
   "bytes_total": 15790644,
   "bytes_code": 53144
 }
