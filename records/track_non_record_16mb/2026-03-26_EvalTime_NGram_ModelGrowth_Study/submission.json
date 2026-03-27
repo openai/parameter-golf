@@ -1,8 +1,8 @@
 {
   "author": "abaybektursun",
   "github_id": "abaybektursun",
-  "name": "Eval-Time N-gram Mixing and the Unbounded Model Growth Problem",
-  "blurb": "Study of eval-time n-gram caching: a strictly causal technique that reduces BPB from 1.11 to 0.38 while growing the effective model from 16MB to 272MB at eval time. Presents results, analyzes the gap between competition setup and real-world inference constraints, and proposes rule clarifications.",
+  "name": "The N-gram BPB Scores Are Not Real",
+  "blurb": "N-gram caching claims sub-0.5 BPB but the scores come from an invalid probability distribution (sums to ~410, not 1). The hash ratio P(cache_bin) is not a conditional probability. Bucket sweep confirms: collision-free tables give baseline-level BPB. Proposes distribution verification and causality enforcement.",
   "date": "2026-03-26",
   "track": "non_record_study",
   "val_bpb_neural_only": 1.1109,
@@ -11,7 +11,7 @@
   "artifact_bytes": 15866156,
   "eval_time_state_bytes_best": 268435456,
   "effective_model_bytes_best": 284301612,
-  "base_model_pr": 549,
+  "base_model_pr": 728,
   "base_model_record": "records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072",
   "hardware": "1xH100 80GB SXM (single-GPU experiments)",
   "experiments_run": [
