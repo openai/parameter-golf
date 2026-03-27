@@ -1028,11 +1028,12 @@ class GPT(nn.Module):
                 ps.extend([attn.lora_q_a, attn.lora_q_b, attn.lora_v_a, attn.lora_v_b])
                 continue
             d = attn.c_q.in_features
+            kv_dim = attn.c_v.out_features
             attn.eval_lora_rank = rank
             attn.register_parameter("lora_q_a", nn.Parameter(torch.zeros(d, rank, device=device)))
             attn.register_parameter("lora_q_b", nn.Parameter(torch.zeros(rank, d, device=device)))
             attn.register_parameter("lora_v_a", nn.Parameter(torch.zeros(d, rank, device=device)))
-            attn.register_parameter("lora_v_b", nn.Parameter(torch.zeros(rank, d, device=device)))
+            attn.register_parameter("lora_v_b", nn.Parameter(torch.zeros(rank, kv_dim, device=device)))
             ps.extend([attn.lora_q_a, attn.lora_q_b, attn.lora_v_a, attn.lora_v_b])
         return ps
 
