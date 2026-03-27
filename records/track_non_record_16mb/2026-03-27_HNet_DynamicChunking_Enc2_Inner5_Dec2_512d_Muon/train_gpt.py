@@ -44,7 +44,7 @@ class Hyperparameters:
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 200))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
@@ -52,7 +52,7 @@ class Hyperparameters:
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 512))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -71,7 +71,7 @@ class Hyperparameters:
     hnet_dim_qk = int(os.environ.get("HNET_DIM_QK", 128))
     hnet_boundary_threshold = float(os.environ.get("HNET_BOUNDARY_THRESHOLD", 0.5))
     hnet_target_avg_token_length = float(
-        os.environ.get("HNET_TARGET_AVG_TOKEN_LENGTH", 6.0)
+        os.environ.get("HNET_TARGET_AVG_TOKEN_LENGTH", 8.0)
     )
     hnet_ratio_loss_weight = float(os.environ.get("HNET_RATIO_LOSS_WEIGHT", 0.03))
     hnet_learning_rate_difference = float(
@@ -95,7 +95,7 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
 
 
 # -----------------------------
