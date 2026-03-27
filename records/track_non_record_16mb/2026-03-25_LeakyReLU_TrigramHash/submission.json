@@ -1,0 +1,8 @@
+{
+  "val_bpb": 1.3762,
+  "val_loss": 2.3237,
+  "model_size_bytes": 11538710,
+  "iterations": 7000,
+  "hardware": "1xA100",
+  "base": "PR #414 by signalrush"
+}
