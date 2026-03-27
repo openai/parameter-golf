@@ -1,0 +1,43 @@
+{
+  "name": "JoeProAI",
+  "github_id": "JoeProAI",
+  "val_bpb": 1.13256182,
+  "val_loss": 1.91228074,
+  "compressed_size_bytes": 16265723,
+  "training_time_seconds": 2222,
+  "techniques": [
+    "int5_quantization_per_row",
+    "zstd_22_compression",
+    "bigram_hash_embedding",
+    "swiglu_mlp",
+    "xsa_attention_all_layers",
+    "u_net_skip_connections",
+    "muon_optimizer",
+    "score_first_legal_ttt",
+    "adamw_ttt_mlp_only",
+    "weight_pruning_015",
+    "fp16_embedding_passthrough",
+    "warmdown_6000"
+  ],
+  "architecture": {
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "mlp_hidden": 1536,
+    "bigram_buckets": 4096,
+    "bigram_embed_dim": 128,
+    "vocab_size": 256,
+    "tie_embeddings": false
+  },
+  "hyperparameters": {
+    "matrix_lr": 0.025,
+    "muon_momentum": 0.95,
+    "warmdown_iters": 6000,
+    "prune_pct": 0.15,
+    "ttt_adamw_lr": 0.0004,
+    "ttt_epochs": 1,
+    "ttt_mlp_only": true
+  },
+  "notes": "11-layer U-Net GPT with SwiGLU MLP, XSA on all layers, int5 QAT with per-row scale, score-first legal TTT (AdamW, MLP-only). Trained 600s on 8xH100.",
+  "date": "2026-03-26"
+}
