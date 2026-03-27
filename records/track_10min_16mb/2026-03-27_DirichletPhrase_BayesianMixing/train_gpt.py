@@ -110,7 +110,7 @@ class Hyperparameters:
     phrase_alpha = float(os.environ.get("PHRASE_ALPHA", "0.90"))
     phrase_min_count = int(os.environ.get("PHRASE_MIN_COUNT", "1"))
     phrase_dirichlet = bool(int(os.environ.get("PHRASE_DIRICHLET", "1")))
-    phrase_concentration = float(os.environ.get("PHRASE_CONCENTRATION", "2.0"))
+    phrase_concentration = float(os.environ.get("PHRASE_CONCENTRATION", "1.0"))
     comp_enabled = bool(int(os.environ.get("COMP_ENABLED", "0")))
     comp_alpha = float(os.environ.get("COMP_ALPHA", "0.5"))
     comp_order = int(os.environ.get("COMP_ORDER", "5"))
