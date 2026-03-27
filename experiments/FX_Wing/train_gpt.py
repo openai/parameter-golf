@@ -136,6 +136,7 @@ class Hyperparameters:
     crawler_loops = int(os.environ.get("CRAWLER_LOOPS", 2))        # how many times shared blocks fire
     crawler_mlp_mult = float(os.environ.get("CRAWLER_MLP_MULT", 4.0))  # MLP width multiplier for crawler
     inst_dim = int(os.environ.get("INST_DIM", "32"))          # instruction bottleneck dim per loop (0=disabled, use legacy loop_pos)
+    crawler_quant_int8 = bool(int(os.environ.get("CRAWLER_QUANT_INT8", "0")))  # use int8 for shared crawler block (multi-context quant resilience)
     # Purple-1: Dirichlet-Multinomial smoothing (PR #900 — replaces linear alpha)
     ngram_dirichlet = bool(int(os.environ.get("NGRAM_DIRICHLET", "0")))
     ngram_dirichlet_conc = float(os.environ.get("NGRAM_DIRICHLET_CONC", "5.0"))
@@ -164,6 +165,11 @@ class Hyperparameters:
     mixer_prefill_pos_chunk = int(os.environ.get("MIXER_PREFILL_POS_CHUNK", 1_000_000))
     compile_enabled = bool(int(os.environ.get("COMPILE_ENABLED", "1")))
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
+    # Workaround for torch.compile + DDP higher-order-op backend issue on H100 runs.
+    # Keeps compile enabled while avoiding the DDPOptimizer path that throws NotImplementedError.
+    torchdynamo_optimize_ddp = bool(int(os.environ.get("TORCHDYNAMO_OPTIMIZE_DDP", "0")))
+    # FX paths can leave some params unused in specific phases; enable DDP unused-param tracking by default.
+    ddp_find_unused_parameters = bool(int(os.environ.get("DDP_FIND_UNUSED_PARAMETERS", "1")))
 def maybe_torch_compile(obj, args: Hyperparameters):
     if not args.compile_enabled:
         return obj
@@ -630,6 +636,11 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
+        # Some pod images route this path through fp32; flash-attn kernels require fp16/bf16.
+        if q.is_cuda and (q.dtype not in (torch.float16, torch.bfloat16) or k.dtype not in (torch.float16, torch.bfloat16) or v.dtype not in (torch.float16, torch.bfloat16)):
+            q = q.to(torch.bfloat16)
+            k = k.to(torch.bfloat16)
+            v = v.to(torch.bfloat16)
         y = flash_attn_3_func(q, k, v, causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
@@ -2373,7 +2384,8 @@ def gptq_calibrate(model: nn.Module, train_pattern: str, device: torch.device,
         hessians[name] /= max(n_seen[name], 1)
     return hessians
 def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
-                              hessians: dict[str, Tensor]) -> tuple[dict, dict]:
+                              hessians: dict[str, Tensor],
+                              crawler_int8: bool = False) -> tuple[dict, dict]:
     """Like mixed_quantize_int6 but uses GPTQ for int6 categories when Hessian available."""
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
@@ -2388,6 +2400,13 @@ def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
         if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
             result[name] = t.float()
             meta[name] = "passthrough_ctrl"
+            continue
+        # Crawler reservoir: shared block used K times — give it int8 range (±127) for multi-context resilience
+        if crawler_int8 and name.startswith("crawler_blocks.") and t.is_floating_point() and t.numel() > 65536:
+            q, s = quantize_float_tensor(t)  # int8 ±127 — wider range for shared weights serving K loop contexts
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int8"}
             continue
         if cat in int6_cats and t.ndim == 2:
             module_name = name.rsplit(".weight", 1)[0] if name.endswith(".weight") else name
@@ -2488,12 +2507,15 @@ def main() -> None:
     global zeropower_via_newtonschulz5
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    if args.compile_enabled:
-        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    dynamo = getattr(torch, "_dynamo", None)
+    if args.compile_enabled and distributed and dynamo is not None:
+        dynamo.config.optimize_ddp = args.torchdynamo_optimize_ddp
+    if args.compile_enabled:
+        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
     if 8 % world_size != 0:
@@ -2678,7 +2700,16 @@ def main() -> None:
                 f"in {prefill_s:.1f}s mode={prefill_mode}"
             )
     compiled_model = maybe_torch_compile(base_model, args)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    model: nn.Module = (
+        DDP(
+            compiled_model,
+            device_ids=[local_rank],
+            broadcast_buffers=False,
+            find_unused_parameters=args.ddp_find_unused_parameters,
+        )
+        if distributed
+        else compiled_model
+    )
     block_named_params = _get_block_named_params(base_model)
     matrix_params = [
         p
@@ -2773,7 +2804,14 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
-    log0(f"compile:enabled={int(args.compile_enabled)} fullgraph={int(args.compile_fullgraph)}")
+    optimize_ddp_flag = "na"
+    if dynamo is not None:
+        optimize_ddp_flag = str(int(bool(getattr(dynamo.config, "optimize_ddp", False))))
+    log0(
+        f"compile:enabled={int(args.compile_enabled)} fullgraph={int(args.compile_fullgraph)} "
+        f"optimize_ddp={optimize_ddp_flag}"
+    )
+    log0(f"ddp:find_unused_parameters={int(args.ddp_find_unused_parameters)}")
     log0(f"seed:{args.seed}")
     if args.ngram_eval_order >= 2:
         log0(
@@ -3034,7 +3072,10 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     # GPTQ quantization using Hessians collected during training phase (no training data access here)
-    quant_result, quant_meta = mixed_quantize_int6_gptq(sd_cpu, {"mlp", "attn", "aux"}, gptq_hessians)
+    quant_result, quant_meta = mixed_quantize_int6_gptq(
+        sd_cpu, {"mlp", "attn", "aux"}, gptq_hessians,
+        crawler_int8=args.crawler_quant_int8,
+    )
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()

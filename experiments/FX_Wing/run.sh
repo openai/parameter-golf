@@ -91,6 +91,7 @@ NUM_FLAT_LAYERS=4 \
 NUM_CRAWLER_LAYERS=1 \
 CRAWLER_LOOPS=4 \
 INST_DIM=32 \
+CRAWLER_QUANT_INT8=1 \
 torchrun --standalone --nproc_per_node="${NPROC_PER_NODE}" \
     "${SCRIPT_DIR}/train_gpt.py" \
     2>&1 | tee "logs/fxwing_s${SEED}_$(date +%Y%m%d_%H%M%S).log"
