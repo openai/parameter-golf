@@ -1,0 +1,9 @@
+{
+  "name": "HELIX: D-TPA + MoR + Peri-LN",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "HELIX architecture: 5 unique HELIXBlocks × 3 MoR iterations (15 virtual layers), d=768. D-TPA (Differential Tensor Product Attention, 399K/block vs 2359K GQA), SwiGLU(hidden=1536), Peri-LN (sandwich norm), U-Net skip connections, MoR load-balancing aux loss. Projections: LeakyReLU replaced by SwiGLU; attention: rank-4 factored QKV with differential noise cancellation. int6+lzma artifact.",
+  "author": "helix-team",
+  "github_id": "helix-team",
+  "date": "2026-03-25"
+}
