@@ -2,9 +2,6 @@
 
 **val_bpb: TBD** (Pure Hyperdimensional Computing - no learned weights)
 
-# Need to fix the Issue below:
-0(1) verification and correction is taking a really long time. I wasn't sure if there was an issue with how it handles int64 tokens?
-
 ## Run Command
 
 ```bash
@@ -97,6 +94,146 @@ Custom CUDA kernels compiled via CuPy `RawKernel`:
 version shards `uint64_count` across `blockIdx.y` so each block uses at most
 `MAX_CUDA_THREADS = 1024` threads. In practice `sparse_encode` is preferred and
 `tensor_core_full_encode` serves as a dense fallback.
+
+**Hadamard kernel fix (2026-03-28):** The `sparse_verify_and_correct` kernel originally
+used a simplified position vector computation (`pos_val = hadamard_idx + 1`) that did NOT
+match the CPU's Sylvester Hadamard implementation. This caused the GPU verification to
+produce incorrect results, leading to endless correction loops. The fix implements the
+correct Sylvester Hadamard formula: `H[i,j] = (-1)^(popcount(i & j))`, where each uint64
+element is computed by iterating over all 64 bits and setting bit `b` to 1 if
+`popcount(hadamard_idx & (elem_idx * 64 + b))` is even. This ensures GPU-CPU parity
+and enables correct O(1) verification.
+
+### Unified Ternary-from-Binary Representation (2026-03-28)
+
+**Problem:** The codebase previously used two separate representations:
+- **Binary Hadamard** (`hadamard_row_packed`): Used for position/token vectors in instant projection
+- **Ternary Hypervectors** (`seed_to_ternary_hypervector`): Used for recipe storage with {-1, 0, +1} via two vectors
+
+The two-vector ternary encoding required 2× memory and 2× computation.
+
+**Solution:** Binary Hadamard vectors can provide ternary semantics through popcount-based confidence measurement:
+
+| popcount | sign | confidence | interpretation |
+|----------|------|------------|----------------|
+| 0        | -1   | 1.0        | Strong -1 |
+| 16       | -1   | 0.5        | Moderate -1 |
+| 32       | 0    | 0.0        | Neutral/Unknown |
+| 48       | +1   | 0.5        | Moderate +1 |
+| 64       | +1   | 1.0        | Strong +1 |
+
+**Mathematical Foundation:**
+- XOR in binary space is isomorphic to multiplication in sign space
+- `confidence = |popcount - 32| / 32` measures signal strength
+- Neutral state (0) emerges naturally when bundled signals are balanced
+
+**New Components:**
+- `sparse_verify_with_confidence` kernel: GPU kernel computing popcount-based confidence
+- `BinaryTernaryVector` class: Wrapper providing ternary-like API over binary representation
+- `binary_to_ternary_confidence()`: Core function for confidence computation
+- `instant_learn_with_confidence()`: Learning with confidence-based storage decisions
+
+**Benefits:**
+- 50% memory reduction (1 vector instead of 2)
+- 50% compute reduction (1 XOR instead of 2 per binding)
+- Preserved ternary semantics via confidence measurement
+- Enables instant learning from projections with quality assessment
+
+See `plans/ternary_from_binary_hadamard.md` for full mathematical derivation.
+
+### Guaranteed O(1) Semantic Instant Learning (2026-03-28)
+
+**Key Insight:** The Hadamard group property `H[i] XOR H[j] = H[i XOR j]` combined with token-addressed windows enables guaranteed O(1) semantic learning.
+
+**Mathematical Foundation:**
+
+The Sylvester Hadamard matrix has a crucial algebraic property: the XOR of any two rows is itself a Hadamard row:
+
+```
+H[i] XOR H[j] = H[i XOR j]
+```
+
+This means:
+1. **Binding is reversible**: `token_A XOR token_B = relationship_vector` uniquely identifies the pair
+2. **Ring closure**: `(idx_A & mask) XOR (idx_B & mask) = (idx_A XOR idx_B) & mask`
+3. **O(1) relationship query**: Given any two tokens, their relationship is a single dict lookup
+
+**Dual-Vector Architecture:**
+
+| Vector Type | Addressing | Purpose |
+|-------------|------------|---------|
+| **Syntactic** | Position-addressed (`pos % dim`) | Word order, grammar |
+| **Semantic** | Token-addressed (`token_id & mask`) | Meaning, relationships |
+
+**Token-Addressed Windows:**
+
+```python
+# Instead of: window = position % dim
+# Use:        window = token_id & mask  # mask = (dim - 1)
+
+# This guarantees:
+# 1. Same token always writes same window
+# 2. Different tokens write different windows (orthogonal)
+# 3. Relationship query is O(1): relationship_idx = token_A ^ token_B
+```
+
+**O(1) Relationship Query:**
+
+```python
+def query_relationship(self, token_A: int, token_B: int) -> Optional[SemanticRelationship]:
+    """O(1) query - no vector operations needed!"""
+    rel_idx = token_A ^ token_B  # XOR gives unique relationship index
+    return self.relationships.get(rel_idx)  # Single dict lookup
+```
+
+**Storage Efficiency:**
+
+| Component | Size | Notes |
+|-----------|------|-------|
+| `SemanticRelationship` | ~16 bytes | token_pair, count, confidence |
+| Relationship dict | O(R) | R = number of unique relationships |
+| Token context matrix | O(V × W) | V = vocab, W = window size |
+
+**Relationship Types Detectable:**
+
+| Type | Detection Method | Example |
+|------|------------------|---------|
+| **Co-occurrence** | Count > threshold | "bank" ↔ "river" |
+| **Synonym** | High similarity in context | "fast" ↔ "quick" |
+| **Antonym** | XOR to known antonym row | "hot" ↔ "cold" |
+| **Hypernym** | Context inclusion | "dog" → "animal" |
+| **Positional** | Position offset pattern | "not" ↔ following word |
+
+**New Components:**
+
+- `DualVectorProjection` class: Manages syntactic + semantic vectors
+- `SemanticRelationship` dataclass: O(1) relationship storage (~16 bytes)
+- `instant_semantic_learn()` function: One-pass corpus learning
+- `query_relationship()`: O(1) relationship lookup via XOR index
+
+**Performance:**
+
+| Operation | Time | Memory |
+|-----------|------|--------|
+| Learn relationship | O(1) | 16 bytes |
+| Query relationship | O(1) | 0 |
+| Project corpus | O(N) | O(V × W) |
+| Get token context | O(1) | 0 |
+
+**Usage Example:**
+
+```python
+# Initialize dual-vector projection
+dvp = DualVectorProjection(dim=DEFAULT_HDC_DIM, window_size=64)
+
+# Project corpus - learns relationships automatically
+dvp.project_corpus(tokens)
+
+# Query relationship - O(1) lookup
+rel = dvp.query_relationship(token_A=42, token_B=1337)
+if rel and rel.confidence > 0.8:
+    print(f"Strong relationship: count={rel.co_occurrence_count}")
+```
 
 ### Multi-GPU Distributed Training
 
@@ -472,59 +609,124 @@ Example reasoning trace:
 "iter=12: acc=0.85→0.851 (STUCK) → EXPLORE"
 ```
 
-### Deterministic Reasoning Traces (Seed-Derived)
+### Semantic Reasoning Traces (2026-03-28)
 
-Since everything in HDC is deterministic from the seed, reasoning traces can be fully
-reconstructed from the seed and recipe history. The `DeterministicReasoningTrace` class
-enables:
+The new `SemanticReasoningTrace` system replaces the previous "search diagnostics" approach
+with genuine semantic evidence tracking. Instead of describing "the optimizer's struggle,"
+traces now describe "actual semantic evidence consulted and how confident the model was."
 
-| Feature | Description |
-|---------|-------------|
-| **Full reproducibility** | Same seed → same trace |
-| **Compact storage** | Only store seed + recipe IDs, not full trace |
-| **Verification** | Reconstruct and compare traces |
+#### Key Components
+
+**`RelationshipEvidence`** - Evidence for a semantic relationship between two tokens:
 
 ```python
 @dataclass
-class DeterministicReasoningTrace:
-    seed_hash: bytes              # BLAKE3 hash of the dataset seed
-    iteration: int                # Which iteration this trace is for
-    recipe_ids_applied: List[str] # Recipe IDs applied in order
-    position_hashes: List[int]    # combined_hash values for positions corrected
-    convergence_signal: str       # Signal detected at this iteration
-    trajectory_action: str       # Action taken
+class RelationshipEvidence:
+    token_A: str           # First token in relationship
+    token_B: str           # Second token in relationship
+    rel_window: int        # (idx_A XOR idx_B) & mask - unique relationship identifier
+    confidence: float      # |popcount - 32| / 32 - signal strength
+    direction: int         # +1 or -1 (from popcount > 32 or < 32)
+    rel_type: str         # SYNONYM, IS-A, PRECEDES, ANTONYM, ASSOCIATES-WITH, UNRELATED, AMBIGUOUS
+    corpus_signal: str    # "strong", "moderate", "weak", "contradictory"
 ```
 
-**Compact Format** (stored in `MetaResidualRecipe.deterministic_trace`):
-```
-"seed_hex:iter:recipe_ids:pos_hashes:signal:action"
-```
+**`SemanticReasoningTrace`** - Complete reasoning trace for a prediction:
 
-**Example**:
 ```python
-# Create deterministic trace from seed
+@dataclass
+class SemanticReasoningTrace:
+    context_tokens: List[str]              # Input context
+    predicted_token: str                   # Model prediction
+    primary_relationship: RelationshipEvidence  # Strongest evidence
+    evidence_chain: List[RelationshipEvidence]  # Supporting evidence
+    confidence: float                      # Overall confidence
+    signal: ConvergenceSignal              # BREAKTHROUGH, CONVERGING, STUCK, etc.
+    uncertainty_source: str                # Why uncertain (if applicable)
+    contradicting_evidence: List[RelationshipEvidence]  # Counter-evidence
+```
+
+#### Relationship Type Inference
+
+The `infer_relationship_type()` function classifies relationships based on signal properties:
+
+| Confidence | Direction | Signal | Inferred Type |
+|------------|-----------|--------|---------------|
+| > 0.8 | +1 | Strong | SYNONYM |
+| > 0.6 | +1 | Moderate | IS-A |
+| > 0.4 | +1 | Weak | PRECEDES |
+| > 0.6 | -1 | Moderate | ANTONYM |
+| < 0.2 | any | Weak | UNRELATED |
+| mixed | mixed | Contradictory | AMBIGUOUS |
+
+#### Human-Readable Output
+
+```python
+trace = SemanticReasoningTrace.derive_from_semantic_vec(
+    context_tokens=["the", "quick", "brown", "fox"],
+    predicted_token="jumps",
+    semantic_vec=semantic_vector,
+    hadamard_index_fn=model.hadamard_index,
+    mask=0xFFFFF,
+    dim=DEFAULT_HDC_DIM,
+    iteration=5
+)
+
+print(trace.to_human_readable())
+# === Semantic Reasoning Trace ===
+# Context: ["the", "quick", "brown", "fox"]
+# Predicting: "jumps"
+#
+# Primary Evidence:
+#   "quick" → "jumps"
+#   rel_window=0x1a2b  confidence=0.85  direction=+1
+#   corpus_signal=STRONG
+#   interpretation: "quick" PRECEDES "jumps"
+#
+# Supporting Evidence Chain:
+#   [1] "brown" → "fox"
+#       confidence=0.72  direction=+1
+#       interpretation: IS-A
+#
+# Epistemic State: CONVERGING
+#   All evidence directions agree → high certainty
+#
+# Decision: predict "jumps" with confidence 0.85
+```
+
+#### Compact Storage Format
+
+Traces can be stored compactly in `MetaResidualRecipe.deterministic_trace`:
+
+```
+"ctx:the,quick,brown,fox|pred:jumps|ev:quick→jumps:0x1a2b:0.85:+1:PRECEDES:strong|sig:CONVERGING|conf:0.85"
+```
+
+#### Backward Compatibility
+
+The legacy `DeterministicReasoningTrace` name is aliased to `SemanticReasoningTrace`:
+
+```python
+# Legacy API still works
 det_trace = DeterministicReasoningTrace.derive_from_seed(
     seed=42,
     iteration=5,
-    recipes=[recipe1, recipe2],
-    positions_corrected=[12345, 67890],
-    signal=ConvergenceSignal.STUCK,
-    action=TrajectoryAction.EXPLORE
+    recipes=[],
+    positions_corrected=[12345],
+    signal=ConvergenceSignal.CONTINUE,
+    action=TrajectoryAction.CORRECT
 )
-
-# Store compact form
-recipe.deterministic_trace = det_trace.to_compact()
-
-# Reconstruct later
-restored = DeterministicReasoningTrace.from_compact(recipe.deterministic_trace)
-print(restored.to_human_readable())
-# === Reasoning Trace (seed-derived, hash=0x1a2b3c4d...) ===
-# Iteration: 5
-# Signal: STUCK → Action: EXPLORE
-# Recipes applied (2):
-#   [1] stuck_12345abc...
-#   [2] stuck_67890def...
 ```
+
+#### Benefits Over Previous System
+
+| Aspect | Old (Search Diagnostics) | New (Semantic Reasoning) |
+|--------|--------------------------|---------------------------|
+| **Focus** | Optimizer struggle | Semantic evidence |
+| **Evidence** | Search iterations | Relationship chain |
+| **Uncertainty** | Hidden | Explicitly acknowledged |
+| **Interpretability** | Low | High |
+| **Debugging** | Difficult | Clear evidence trail |
 
 ---
 
@@ -553,6 +755,11 @@ HDCLanguageModel (hdc_dim=2^20, vocab_size=1024, sparse_window=64)
 ├── SelfObservation (metacognition)
 │   ├── Convergence signal detection
 │   └── Trajectory action selection
+├── CreativeCoherenceManager (NEW)
+│   ├── CoherenceTrajectory tracking via XOR composition
+│   ├── O(1) coherence evaluation via popcount
+│   ├── Echo detection for long-range coherence
+│   └── Creative scoring (coherence vs surprise balance)
 ├── PositionHash (NEW)
 │   ├── Hash-based position identifier
 │   └── O(1) combined_hash lookup
@@ -682,7 +889,268 @@ elif state.trajectory_action == TrajectoryAction.RESTART:
     current_estimate = initial_estimate.copy()
 ```
 
-## Metacognitive Residual Learning
+## Proactive Semantic Metacognition (NEW)
+
+The new semantic layer fundamentally changes what metacognition is for:
+
+### Reactive vs Proactive Metacognition
+
+| Aspect | Old (Reactive) | New (Proactive) |
+|--------|---------------|-----------------|
+| **Timing** | Watches iteration-by-iteration | Confidence known BEFORE prediction |
+| **Detection** | After similarity drops | Before prediction attempt |
+| **Action** | Apply correction after failure | Route to appropriate path immediately |
+| **Cost** | O(iterations) per prediction | O(1) confidence check |
+
+### SemanticSelfObservation
+
+The new `SemanticSelfObservation` class provides INSTANTANEOUS confidence assessment
+based on the semantic vector's popcount-derived signals:
+
+```python
+# Initialize semantic layer
+model.initialize_semantic_layer()
+model.project_corpus_semantic(training_tokens)
+
+# O(1) confidence check for any token pair
+signal_type, confidence, direction = model.query_semantic_relationship(token_A, token_B)
+
+# Signal types:
+# - BREAKTHROUGH: High confidence (>0.8) - strong corpus signal
+# - CONVERGING: Moderate confidence (0.5-0.8) - usable signal
+# - OSCILLATING: Near-random with ambiguity - contradictory contexts
+# - STUCK: Low confidence (<0.2) - genuinely unseen relationship
+```
+
+### SemanticRelationshipRecipe (9 bytes vs ~50 bytes)
+
+The new recipe format is dramatically more compact:
+
+```python
+SemanticRelationshipRecipe(
+    rel_window=42,      # (idx_A XOR idx_B) & mask — 4 bytes
+    confidence=0.85,    # popcount-derived — 4 bytes
+    direction=1,        # +1 or -1 — 1 byte
+    rel_type="semantic" # relationship type
+)
+# Total: 9 bytes vs ~50 bytes for MetaResidualRecipe
+```
+
+### Unified Prediction Pipeline
+
+```python
+# Proactive routing based on pre-computed confidence
+predicted_token, confidence, routing_path = model.predict_with_semantic_routing(
+    context_tokens,
+    temperature=1.0
+)
+
+# Routing paths:
+# - "semantic_high_confidence": Strong corpus signal, return immediately
+# - "semantic_moderate": Moderate signal, use with caution
+# - "syntactic_tiebreaker": Contradictory contexts, use syntactic
+# - "fallback_unseen": Genuinely unseen, honest admission
+```
+
+### SemanticCoverageObserver
+
+Monitors coverage and confidence distribution across the semantic landscape:
+
+```python
+report = model.get_semantic_coverage_report()
+print(f"Coverage: {report.coverage*100:.1f}%")
+print(f"Dead zones: {len(report.dead_zones)} windows with low confidence")
+print(f"Mean confidence: {report.mean_confidence:.3f}")
+```
+
+**Dead zones** identify relationships the corpus doesn't contain evidence for —
+enabling honest "I don't know" responses instead of confident hallucinations.
+
+---
+
+## Creative Coherence (2026-03-28)
+
+The `CreativeCoherenceManager` enables the model to generate creative outputs while maintaining
+semantic coherence through trajectory tracking and echo detection.
+
+### Core Concept
+
+Creative coherence balances two competing objectives:
+1. **Coherence**: Staying semantically consistent with the context
+2. **Surprise**: Introducing novel, creative elements
+
+The system tracks a "trajectory" through semantic space using XOR-composed window indices,
+enabling O(1) coherence evaluation at each generation step.
+
+### CoherenceTrajectory Dataclass
+
+```python
+@dataclass
+class CoherenceTrajectory:
+    semantic_idx: int = 0      # XOR-composed semantic window index
+    temporal_idx: int = 0      # XOR-composed temporal window index
+    confidence: float = 0.0    # Current coherence confidence [0, 1]
+    tension: float = 0.0       # Creative tension (deviation from expected)
+    hop_count: int = 0         # Number of hops taken
+    echo_detected: bool = False  # Long-range coherence echo flag
+    echo_distance: int = 0     # Distance to detected echo (0 if none)
+```
+
+#### Key Methods
+
+| Method | Purpose | Complexity |
+|--------|---------|------------|
+| `hop()` | Advance trajectory with XOR composition | O(1) |
+| `check_echo()` | Detect long-range coherence echoes | O(history) |
+| `coherence_score()` | Combine confidence and tension | O(1) |
+| `creative_score()` | Balance coherence with surprise | O(1) |
+
+### CreativeCoherenceManager Class
+
+The manager evaluates candidate tokens for creative generation:
+
+```python
+manager = CreativeCoherenceManager(
+    dim=DEFAULT_HDC_DIM,
+    semantic_vec=semantic_vector,
+    coherence_threshold=0.7,
+    creative_tension_target=0.3
+)
+
+# Evaluate next token choice
+trajectory, coherence, creative_score = manager.evaluate_next_hop(
+    current_token=token_id,
+    candidate_token=candidate_id,
+    position=position,
+    hadamard_index_fn=model.hadamard_index
+)
+
+# Rank multiple candidates by creative score
+ranked = manager.rank_candidates(
+    current_token=token_id,
+    candidates=[c1, c2, c3],
+    position=position,
+    hadamard_index_fn=model.hadamard_index,
+    mode="creative"  # or "coherence" for conservative mode
+)
+```
+
+### O(1) Coherence Evaluation
+
+Coherence is computed via popcount on XOR distances:
+
+```python
+# Semantic relationship via XOR
+sem_rel = hadamard_index(token_A) ^ hadamard_index(token_B)
+
+# Temporal relationship via XOR
+temp_rel = position_A ^ position_B
+
+# Coherence via popcount (W = sparse window size = 64)
+coherence = 1.0 - (popcount(sem_rel ^ temp_rel) / W)
+```
+
+**Translation Invariance**: The circular encoder ensures `window(p) XOR window(q) = window(p XOR q)`,
+meaning coherence is position-invariant for the same semantic relationships.
+
+### Echo Detection
+
+Long-range coherence echoes occur when the trajectory revisits similar semantic states:
+
+```python
+# Check for echoes in trajectory history
+is_echo = trajectory.check_echo(
+    history=previous_trajectories,
+    echo_threshold=0.9  # 90% similarity threshold
+)
+
+if is_echo:
+    print(f"Echo detected at distance {trajectory.echo_distance}")
+    # Echo indicates a coherent return to earlier semantic state
+```
+
+Echoes are desirable in creative generation — they indicate thematic consistency
+and structural coherence over long sequences.
+
+### Creative Scoring
+
+The creative score balances coherence with surprise:
+
+```python
+creative_score = coherence * (1 - surprise_weight) + tension * surprise_weight
+```
+
+| Parameter | Effect |
+|-----------|--------|
+| `surprise_weight=0.0` | Pure coherence (conservative) |
+| `surprise_weight=0.3` | Balanced creativity (default) |
+| `surprise_weight=0.5` | Equal coherence and surprise |
+| `surprise_weight=1.0` | Pure surprise (chaotic) |
+
+### Integration with HDCLanguageModel
+
+```python
+# Initialize creative coherence (automatic with semantic layer)
+model.initialize_semantic_layer()
+model.project_corpus_semantic(training_tokens)
+
+# Predict with creative coherence
+predicted_token, coherence, creative_score = model.predict_with_creative_coherence(
+    context_tokens=context,
+    temperature=1.0,
+    surprise_weight=0.3
+)
+
+# Detect creative opportunities (high tension, low coherence)
+is_opportunity, tension = model.detect_creative_opportunity()
+
+# Get statistics
+stats = model.get_creative_coherence_stats()
+print(f"Mean coherence: {stats['mean_coherence']:.3f}")
+print(f"Echo count: {stats['echo_count']}")
+
+# Reset for new generation
+model.reset_creative_trajectory()
+```
+
+### Performance Characteristics
+
+| Operation | Complexity | Notes |
+|-----------|------------|-------|
+| `evaluate_next_hop()` | O(1) | Single XOR + popcount |
+| `rank_candidates()` | O(k) | k = number of candidates |
+| `check_echo()` | O(n) | n = trajectory history length |
+| `creative_score()` | O(1) | Simple arithmetic |
+
+### Usage Example
+
+```python
+# Creative text generation
+context = ["the", "quick", "brown", "fox"]
+model.reset_creative_trajectory()
+
+for _ in range(10):  # Generate 10 tokens
+    token, coherence, creative = model.predict_with_creative_coherence(
+        context_tokens=context,
+        surprise_weight=0.3
+    )
+    context.append(token)
+    
+    # Check for creative opportunities
+    is_opportunity, tension = model.detect_creative_opportunity()
+    if is_opportunity:
+        print(f"Creative opportunity at position {len(context)}: tension={tension:.3f}")
+
+# Get final statistics
+stats = model.get_creative_coherence_stats()
+print(f"Generated {stats['hop_count']} tokens")
+print(f"Mean coherence: {stats['mean_coherence']:.3f}")
+print(f"Echoes detected: {stats['echo_count']}")
+```
+
+---
+
+## Metacognitive Residual Learning (Legacy)
 
 When STUCK is detected, the model learns a **MetaResidualRecipe** — a shortcut that
 jumps directly to the correct answer in future predictions.
@@ -989,6 +1457,9 @@ This indicates a seed sequence mismatch — the recipe's reconstructed vector di
 | MetaResidualRecipe | Sparse shift-invariant shortcut learning | ✅ Active |
 | MetaResidualRecipeStorage | O(1) residual lookup by state hash | ✅ Active |
 | SelfObservation | Metacognitive convergence detection | ✅ Active |
+| **CoherenceTrajectory** | XOR-composed trajectory tracking for creative generation | ✅ NEW |
+| **CreativeCoherenceManager** | O(1) coherence evaluation with echo detection | ✅ NEW |
+| **predict_with_creative_coherence()** | Creative generation with coherence/surprise balance | ✅ NEW |
 | **PositionHash** | Hash-based position identifier for O(1) lookup | ✅ Active |
 | **batch_project_dataset()** | Project entire dataset into bundled vector | ✅ Active |
 | **decode_position()** | Decode single position from bundled vector | ✅ Active |
