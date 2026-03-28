@@ -1,0 +1,31 @@
+{
+    "author": "Anubhav",
+    "github_id": "",
+    "val_bpb": null,
+    "val_loss": null,
+    "artifact_size_bytes": null,
+    "hardware": "8xH100 SXM",
+    "training_time_seconds": null,
+    "seed": 1337,
+    "description": "Non-record: First CTW-based Parameter Golf entry. Sparse M-ary Context Tree Weighting provides Bayesian-optimal eval-time augmentation at zero artifact cost, mixed with full SOTA neural stack (LeakyReLU², XSA4, EMA, GPTQ-lite, VRL). CTW replaces heuristic n-gram alpha with provably minimax-optimal weighting.",
+    "techniques": [
+        "CTW eval-time augmentation (sparse lazy M-ary, depth=4, KT estimator)",
+        "Log-odds mixing (PAQ-style) between neural and CTW distributions",
+        "Value Residual Learning (VRL, 22 params)",
+        "11 layers, 512d, 8H/4KV GQA, 3x MLP",
+        "LeakyReLU²(0.5) activation",
+        "XSA on last 4 layers (GQA-aware)",
+        "SmearGate + BigramHash(2048)",
+        "Partial RoPE (16/64), LN Scale",
+        "EMA(0.997) GPU-side + Tight SWA(50)",
+        "GPTQ-lite (training budget, not eval)",
+        "Int6 per-row (MLP+attn), Int8 (embeddings)",
+        "zstd-22 compression",
+        "Late QAT (STE fake-quant)",
+        "Sliding window eval (stride=64)",
+        "TTT with AdamW (not SGD — per PR #601 finding)",
+        "Muon (lr=0.025, WD=0.04, momentum warmup 0.92->0.99)"
+    ],
+    "novel_contribution": "Context Tree Weighting — first CTW entry in Parameter Golf",
+    "base_submission": "PR #549 (abaybektursun stack)"
+}

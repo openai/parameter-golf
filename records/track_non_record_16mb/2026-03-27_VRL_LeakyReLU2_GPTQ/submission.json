@@ -1,0 +1,25 @@
+{
+    "name": "Anubhav",
+    "github_id": "",
+    "val_bpb": null,
+    "track": "10min_16mb",
+    "hardware": "8xH100 SXM",
+    "description": "11L SOTA Fork: LeakyReLU² + XSA-last4 + EMA + GPTQ-lite + SmearGate + BigramHash + Late QAT + Sliding Window Eval",
+    "techniques": [
+        "11 layers, 512d, 3x MLP, GQA",
+        "LeakyReLU²(0.5) activation",
+        "XSA on last 4 layers (GQA-aware)",
+        "EMA (decay=0.997, GPU-side)",
+        "Tight SWA (every 50 steps, warmdown)",
+        "GPTQ-lite (5-percentile clip search)",
+        "Int6 per-row quantization (MLP/attn)",
+        "Int8 per-row quantization (embeddings)",
+        "Late QAT (STE fake-quant at LR<0.15)",
+        "SmearGate + BigramHash(2048)",
+        "Partial RoPE (16/64 dims)",
+        "OrthoInit for projections",
+        "Sliding window eval (stride=64)",
+        "U-Net skip connections",
+        "zstd level 22 compression"
+    ]
+}
