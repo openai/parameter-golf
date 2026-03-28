@@ -1,7 +1,9 @@
 {
   "name": "Fielding Johnston",
   "github": "fielding",
-  "val_bpb": 1.1522,
+  "val_bpb": 1.1553,
+  "val_bpb_baseline": 1.1522,
+  "val_bpb_note": "1.1553 is best distillation config (soft KL alpha=0.1); 1.1522 is no-distillation baseline",
   "artifact_bytes": 15358321,
   "hardware": "4xH200 (non-record, unlimited compute track)",
   "training_time_seconds": 600,
