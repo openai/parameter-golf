@@ -1,0 +1,11 @@
+{
+  "author": "Yevhen Shramov",
+  "github_id": "shram86",
+  "name": "Vocab768 LinearPhaseInit GatedXSA EMA LateQAT",
+  "blurb": "SP-768 tokenizer export with tied embeddings, linear phase-mix init, gated XSA on the last 2 layers, EMA, and late matrix-only QAT. Final score uses the int6+zstd roundtrip metric under the 16,000,000-byte cap.",
+  "date": "2026-03-28T10:25:33Z",
+  "val_loss": 1.87181421,
+  "val_bpb": 1.21149167,
+  "bytes_total": 15082805,
+  "bytes_code": 61461
+}
