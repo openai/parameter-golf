@@ -1,0 +1,9 @@
+{
+  "author": "Daniel Wahnich",
+  "github_id": "manfromnowhere143",
+  "name": "Aweb GDN — Gated DeltaNet + EMA + Warmdown + Proper BPB + TTT",
+  "blurb": "8L GDN (7 DeltaNet + 1 Attention), 384d, SiLU, EMA(0.997), cosine warmdown, per-row int8 + LZMA, proper SentencePiece BPB eval, Score-First TTT.",
+  "date": "2026-03-28T00:00:00Z",
+  "val_bpb": null,
+  "bytes_total": null
+}
