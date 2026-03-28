@@ -1,0 +1,10 @@
+{
+  "author": "NothingLiva",
+  "github_id": "NothingLiva",
+  "val_bpb": 1.12176827,
+  "val_loss": 1.89405372,
+  "bytes_total": 15807424,
+  "gpu_config": "8xH100 SXM",
+  "date": "2026-03-27T00:00:00Z",
+  "description": "Adaptive Precision Embedding Quantization: Top 100 tokens (53% of text) get int8 precision, remaining 924 tokens get int6. Based on PR #549 stack."
+}
