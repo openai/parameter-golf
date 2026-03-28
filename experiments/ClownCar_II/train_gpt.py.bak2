@@ -106,7 +106,6 @@ class Hyperparameters:
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.5))
-    skip_gptq = bool(int(os.environ.get("SKIP_GPTQ", "0")))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
@@ -3145,14 +3144,10 @@ def main() -> None:
     )
     # GPTQ calibration: collect Hessians from training data DURING training phase
     # (must happen before training ends to comply with eval-time data access rules)
-    if not args.skip_gptq:
-        log0("gptq:calibrating with training data...")
-        t_gptq = time.perf_counter()
-        gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
-        log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
-    else:
-        log0("gptq:SKIP_GPTQ=1 — skipping calibration, using naive int6")
-        gptq_hessians = {}
+    log0("gptq:calibrating with training data...")
+    t_gptq = time.perf_counter()
+    gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
+    log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
     if args.distill_enabled and args.distill_steps > 0:
         log0(
             f"distill:start steps:{args.distill_steps} lr_factor:{args.distill_lr_factor} "
@@ -3245,14 +3240,10 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     # GPTQ quantization using Hessians collected during training phase (no training data access here)
-    if args.skip_gptq:
-        log0("gptq:SKIP_GPTQ=1 — using naive int6")
-        quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn", "aux"})
-    else:
-        quant_result, quant_meta = mixed_quantize_int6_gptq(
-            sd_cpu, {"mlp", "attn", "aux"}, gptq_hessians,
-            crawler_int8=args.crawler_quant_int8,
-        )
+    quant_result, quant_meta = mixed_quantize_int6_gptq(
+        sd_cpu, {"mlp", "attn", "aux"}, gptq_hessians,
+        crawler_int8=args.crawler_quant_int8,
+    )
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
