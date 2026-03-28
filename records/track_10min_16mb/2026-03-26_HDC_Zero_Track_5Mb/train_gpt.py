@@ -310,16 +310,17 @@ extern "C" __global__ void sparse_encode_parallel(
 // Processes positions in chunks to avoid grid dimension limits
 // Grid: (min(chunk_size, remaining),) blocks
 // Block: (window_size,) threads
+// FIXED: Use long long for seq_len and chunk_offset to handle >2B tokens
 extern "C" __global__ void sparse_encode_chunked(
     const long long* __restrict__ token_ids,           // (batch, seq)
     const unsigned long long* __restrict__ token_matrix, // (vocab, uint64_count)
     unsigned long long* __restrict__ output,            // (batch, uint64_count)
-    int batch_size, int seq_len, int vocab_size, int uint64_count, int window_size,
-    int chunk_offset  // Starting position offset for this chunk
+    int batch_size, long long seq_len, int vocab_size, int uint64_count, int window_size,
+    long long chunk_offset  // Starting position offset for this chunk
 ) {
     int block_id = blockIdx.x;
     int batch_idx = 0;  // For single-batch processing
-    int pos = chunk_offset + block_id;
+    long long pos = chunk_offset + (long long)block_id;
     
     if (pos >= seq_len) return;
     
@@ -331,8 +332,8 @@ extern "C" __global__ void sparse_encode_chunked(
     if (token_id < 0) token_id = 0;
     if (token_id >= vocab_size) token_id = vocab_size - 1;
     
-    // Circular shift
-    int shift = pos % uint64_count;
+    // Circular shift (pos % uint64_count is safe since uint64_count is small)
+    int shift = (int)(pos % (long long)uint64_count);
     int elem_idx = (shift + win_thread) % uint64_count;
     
     // Get token vector element and XOR into output
@@ -2068,9 +2069,9 @@ def instant_batch_project_dataset(
                     chunked_kernel(
                         grid, block,
                         (token_ids_gpu, token_matrix, dataset_vec_gpu,
-                         np.int32(1), np.int32(N),
+                         np.int32(1), np.int64(N),
                          np.int32(vocab_size), np.int32(uint64_count),
-                         np.int32(W), np.int32(chunk_start))
+                         np.int32(W), np.int64(chunk_start))
                     )
                     
                     # Synchronize after each chunk

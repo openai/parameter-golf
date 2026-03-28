@@ -2,6 +2,9 @@
 
 **val_bpb: TBD** (Pure Hyperdimensional Computing - no learned weights)
 
+# Need to fix the Issue below:
+0(1) verification and correction is taking a really long time. I wasn't sure if there was an issue with how it handles int64 tokens?
+
 ## Run Command
 
 ```bash
@@ -11,8 +14,12 @@ pip install -r requirements.txt
 # Setup (once)
 python data/cached_challenge_fineweb.py
 
+Runpod Command: cd /workspace/parameter-golf-hdc && python data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80 #The Contest Shards.
+
 # Multi-seed training (recommended for statistical significance)
 python train_gpt.py --multi_seed --seeds 42 7 1337
+
+Runpod Command:  cd /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb && python train_gpt.py --instant_projection --multi_seed --seeds 42 7 1337 --max_batch_iterations 10 --target_accuracy 0.99 --data_path ../../../data/datasets/fineweb10B_sp1024 --tokenizer_path ../../../data/tokenizers/fineweb_1024_bpe.model
 
 # Single run (development/testing)
 python train_gpt.py --seed 42
