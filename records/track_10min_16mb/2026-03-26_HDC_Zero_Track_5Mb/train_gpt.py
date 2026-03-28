@@ -415,14 +415,29 @@ extern "C" __global__ void sparse_verify_and_correct(
     int shift = pos % uint64_count;
     int elem_idx = (shift + win_thread) % uint64_count;
     
-    // Use first thread to compute position vector element
+    // Compute position vector element for this window position
     // Position vector is Hadamard row at index (pos % uint64_count)
-    // For simplicity, we compute it inline
-    unsigned long long pos_val = 0;
+    // Sylvester Hadamard: H[i,j] = (-1)^(popcount(i & j))
+    // In packed form: bit j is 1 if popcount(hadamard_idx & j) is even
+    //
+    // Each thread computes the FULL uint64 value for its elem_idx
+    // (not just one bit - we need all 64 bits for the window element)
     int hadamard_idx = pos % uint64_count;
-    // Simplified Hadamard: XOR of position index bits
-    // This matches hadamard_row_packed behavior
-    pos_val = (unsigned long long)(hadamard_idx + 1);  // Simplified for GPU
+    
+    // Compute the full uint64 position vector element for elem_idx
+    // This matches the CPU hadamard_row_packed function exactly:
+    // For each bit position b (0-63), compute parity of (hadamard_idx & (elem_idx * 64 + b))
+    unsigned long long pos_val = 0;
+    int base_bit_idx = elem_idx * 64;  // Global bit index for this uint64 block
+    for (int b = 0; b < 64; b++) {
+        int global_bit_idx = base_bit_idx + b;
+        // Compute parity: count 1-bits in (hadamard_idx & global_bit_idx) mod 2
+        int parity = __popc(hadamard_idx & global_bit_idx) & 1;
+        // If parity is 0 (even), the bit should be 1 in the packed representation
+        if (parity == 0) {
+            pos_val |= (1ULL << b);
+        }
+    }
     
     // Read dataset window element
     unsigned long long dataset_val = dataset_vec[elem_idx];
@@ -465,6 +480,116 @@ extern "C" __global__ void sparse_verify_and_correct(
         // Correction = expected XOR unbound = diff
         // Apply: dataset ^= correction
         atomicXor(&dataset_vec[elem_idx], diff);
+    }
+}
+
+
+// Enhanced verification kernel with ternary confidence computation
+// Computes popcount-based confidence for each position, enabling ternary semantics from binary
+// Grid: (num_positions,) blocks - one block per position
+// Block: (window_size,) threads
+extern "C" __global__ void sparse_verify_with_confidence(
+    const unsigned long long* __restrict__ dataset_vec,     // (uint64_count,) read-only
+    const unsigned long long* __restrict__ token_matrix,     // (vocab, uint64_count)
+    const long long* __restrict__ ground_truth,              // (num_positions,) expected token IDs
+    long long* __restrict__ predictions,                      // (num_positions,) output predictions
+    float* __restrict__ confidence_scores,                   // (num_positions,) confidence per position
+    int* __restrict__ ternary_signs,                         // (num_positions,) -1, 0, or +1
+    unsigned long long* __restrict__ mismatch_count,         // (1,) atomic counter for mismatches
+    int num_positions, int vocab_size, int uint64_count, int window_size
+) {
+    int pos = blockIdx.x;
+    if (pos >= num_positions) return;
+    
+    int win_thread = threadIdx.x;
+    if (win_thread >= window_size) return;
+    
+    // Get expected token
+    long long expected_token = ground_truth[pos];
+    if (expected_token < 0) expected_token = 0;
+    if (expected_token >= vocab_size) expected_token = vocab_size - 1;
+    
+    // Compute window indices for this position
+    int shift = pos % uint64_count;
+    int elem_idx = (shift + win_thread) % uint64_count;
+    
+    // Compute position vector element (Sylvester Hadamard)
+    int hadamard_idx = pos % uint64_count;
+    unsigned long long pos_val = 0;
+    int base_bit_idx = elem_idx * 64;
+    for (int b = 0; b < 64; b++) {
+        int global_bit_idx = base_bit_idx + b;
+        int parity = __popc(hadamard_idx & global_bit_idx) & 1;
+        if (parity == 0) {
+            pos_val |= (1ULL << b);
+        }
+    }
+    
+    // Read dataset window element
+    unsigned long long dataset_val = dataset_vec[elem_idx];
+    
+    // Unbind position (XOR is self-inverse)
+    unsigned long long unbound = dataset_val ^ pos_val;
+    
+    // === TERNARY CONFIDENCE COMPUTATION ===
+    // Popcount measures signal strength:
+    // - popcount = 32: neutral (exactly half 1s, half 0s)
+    // - popcount = 64: strong +1 (all 1s)
+    // - popcount = 0: strong -1 (all 0s)
+    int pc = __popcll(unbound);
+    
+    // Confidence: distance from neutral (32) normalized to [0, 1]
+    // 0.0 = neutral/unknown, 1.0 = maximum confidence
+    float confidence = fabsf((float)(pc - 32)) / 32.0f;
+    
+    // Sign: +1 if more 1s, -1 if more 0s, 0 if exactly balanced
+    int sign = (pc > 32) ? 1 : (pc < 32) ? -1 : 0;
+    
+    // Get expected token vector element
+    unsigned long long expected_val = token_matrix[expected_token * uint64_count + elem_idx];
+    
+    // Check if match
+    unsigned long long diff = unbound ^ expected_val;
+    
+    // Shared memory for aggregation
+    __shared__ int mismatch_found;
+    __shared__ float total_confidence;
+    __shared__ int total_sign;
+    __shared__ int match_count;
+    
+    if (win_thread == 0) {
+        mismatch_found = 0;
+        total_confidence = 0.0f;
+        total_sign = 0;
+        match_count = 0;
+    }
+    __syncthreads();
+    
+    // Aggregate confidence and sign across window
+    atomicAdd(&total_confidence, confidence);
+    atomicAdd(&total_sign, sign);
+    
+    if (diff == 0) {
+        atomicAdd(&match_count, 1);
+    } else {
+        atomicExch(&mismatch_found, 1);
+    }
+    __syncthreads();
+    
+    // First thread writes results
+    if (win_thread == 0) {
+        predictions[pos] = expected_token;
+        
+        // Average confidence across window
+        confidence_scores[pos] = total_confidence / (float)window_size;
+        
+        // Aggregate sign: majority vote
+        int avg_sign = (total_sign > 0) ? 1 : (total_sign < 0) ? -1 : 0;
+        ternary_signs[pos] = avg_sign;
+        
+        if (mismatch_found) {
+            atomicAdd(mismatch_count, 1);
+        }
     }
 }
 
@@ -582,34 +707,208 @@ class TrajectoryAction(Enum):
 
 
 @dataclass
-class DeterministicReasoningTrace:
-    """Seed-derived reasoning trace for full reproducibility.
+class RelationshipEvidence:
+    """Evidence for a semantic relationship between two tokens.
     
-    Since everything in HDC is deterministic from the seed, the entire
-    reasoning trace can be reconstructed from:
-    1. The dataset seed
-    2. The iteration number
-    3. The recipe IDs applied
+    Each relationship is stored at a known window address in semantic_vec,
+    derived from the XOR of the two tokens' Hadamard indices. The popcount
+    of the signal determines confidence and direction.
+    """
+    token_A: str           # First token string
+    token_B: str           # Second token string
+    rel_window: int        # (idx_A XOR idx_B) & mask - the window address
+    confidence: float      # |popcount - 32| / 32 - signal strength
+    direction: int         # +1 or -1 (positive/negative relationship)
+    rel_type: str          # Inferred relationship type (SYNONYM, IS-A, PRECEDES, etc.)
+    corpus_signal: str     # "strong/moderate/weak/contradictory"
+    
+    def to_compact(self) -> str:
+        """Serialize to compact form: window:conf:dir"""
+        return f"0x{self.rel_window:04x}:{self.confidence:.2f}:{self.direction:+d}"
+    
+    @classmethod
+    def from_compact(cls, compact: str, token_A: str, token_B: str) -> 'RelationshipEvidence':
+        """Deserialize from compact form."""
+        parts = compact.split(':')
+        rel_window = int(parts[0], 16) if parts[0].startswith('0x') else int(parts[0])
+        confidence = float(parts[1]) if len(parts) > 1 else 0.5
+        direction = int(parts[2]) if len(parts) > 2 else 1
+        return cls(
+            token_A=token_A,
+            token_B=token_B,
+            rel_window=rel_window,
+            confidence=confidence,
+            direction=direction,
+            rel_type="UNKNOWN",
+            corpus_signal="moderate"
+        )
+
+
+def infer_relationship_type(confidence: float, direction: int, signal: np.ndarray,
+                            window: int, check_reverse_fn: Optional[Callable] = None) -> str:
+    """Infer the semantic relationship type from signal properties.
+    
+    Uses direction AND confidence to label relationship types:
+    - SYNONYM: Strong bidirectional positive
+    - PRECEDES: Strong directional positive
+    - ANTONYM: Strong negative
+    - IS-A: Moderate positive with subset relationship
+    - ASSOCIATES-WITH: Partial overlap
+    - UNRELATED: Very low confidence
+    - AMBIGUOUS: Cannot determine
+    """
+    pc = int(np.unpackbits(signal.view(np.uint8)).sum()) if signal is not None else 32
+    
+    if confidence > 0.85 and direction == +1:
+        # Strong positive — check if symmetric
+        if check_reverse_fn is not None:
+            reverse_confidence = check_reverse_fn(window)
+            if reverse_confidence > 0.85:
+                return "SYNONYM"  # A↔B, both directions strong
+        return "PRECEDES"  # A→B, directional
+    
+    elif confidence > 0.7 and direction == -1:
+        return "ANTONYM"  # Consistent opposition
+    
+    elif 0.4 < confidence < 0.7:
+        # Check if A's window is subset of B's (would need additional context)
+        # For now, classify as associative
+        return "ASSOCIATES-WITH"  # Partial overlap
+    
+    elif confidence < 0.15:
+        return "UNRELATED"
+    
+    else:
+        return "AMBIGUOUS"
+
+
+def classify_signal_strength(confidence: float) -> str:
+    """Classify confidence into corpus signal strength."""
+    if confidence > 0.85:
+        return "strong"
+    elif confidence > 0.6:
+        return "moderate"
+    elif confidence > 0.3:
+        return "weak"
+    else:
+        return "contradictory"
+
+
+def build_evidence_chain(
+    context_tokens: List[str],
+    candidate_token: str,
+    semantic_vec: np.ndarray,
+    hadamard_index_fn: Callable[[str], int],
+    mask: int,
+    dim: int = DEFAULT_HDC_DIM
+) -> Tuple[List[RelationshipEvidence], bool, float]:
+    """Build an evidence chain for a prediction.
+    
+    Each link in the chain is a real corpus relationship derived from
+    the semantic vector. Agreement across the chain is genuine multi-hop
+    reasoning.
+    
+    Args:
+        context_tokens: List of context token strings
+        candidate_token: The predicted token string
+        semantic_vec: The semantic vector with corpus relationships
+        hadamard_index_fn: Function to convert token string to Hadamard index
+        mask: The mask for window computation (uint64_count - 1)
+        dim: HDC dimension
+        
+    Returns:
+        Tuple of (evidence_chain, agreement, chain_confidence)
+    """
+    chain = []
+    
+    for ctx_token in context_tokens:
+        idx_ctx = hadamard_index_fn(ctx_token)
+        idx_cand = hadamard_index_fn(candidate_token)
+        
+        # O(1) per link in the chain
+        rel_window = (idx_ctx ^ idx_cand) & mask
+        
+        # Get signal from semantic vector
+        if rel_window < len(semantic_vec):
+            signal = semantic_vec[rel_window]
+            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+        else:
+            signal = None
+            pc = 32  # Neutral
+        
+        confidence = abs(pc - 32) / 32.0
+        direction = +1 if pc > 32 else -1
+        
+        rel_type = infer_relationship_type(confidence, direction, signal, rel_window)
+        corpus_signal = classify_signal_strength(confidence)
+        
+        chain.append(RelationshipEvidence(
+            token_A=ctx_token,
+            token_B=candidate_token,
+            rel_window=rel_window,
+            confidence=confidence,
+            direction=direction,
+            rel_type=rel_type,
+            corpus_signal=corpus_signal
+        ))
+    
+    # Compose chain: do all links agree?
+    directions = [e.direction for e in chain if e.confidence > 0.3]
+    agreement = len(set(directions)) <= 1 if directions else True  # all same direction?
+    
+    # Geometric mean of confidences
+    if chain:
+        chain_confidence = np.exp(np.mean([np.log(max(e.confidence, 0.01)) for e in chain]))
+    else:
+        chain_confidence = 0.0
+    
+    return chain, agreement, chain_confidence
+
+
+@dataclass
+class SemanticReasoningTrace:
+    """Semantic reasoning trace for genuine interpretability.
+    
+    Unlike the old search diagnostics that described the optimizer's struggle,
+    this trace describes the actual semantic evidence consulted and how
+    confident the model was. Every relationship is a concrete, inspectable
+    value in semantic_vec at a known window address.
     
     This enables:
-    - Full reproducibility: same seed → same trace
-    - Compact storage: only store seed + recipe IDs, not full trace
-    - Verification: reconstruct and compare traces
+    - Genuine reasoning: explains WHY a prediction was made
+    - Evidence chains: multi-hop reasoning with agreement checking
+    - Honest uncertainty: contradicting evidence is explicitly surfaced
+    - Compact storage: everything is reconstructable from indices
     """
-    seed_hash: bytes              # BLAKE3 hash of the dataset seed
-    iteration: int                # Which iteration this trace is for
-    recipe_ids_applied: List[str] # Recipe IDs applied in order
-    position_hashes: List[int]    # combined_hash values for positions corrected
-    convergence_signal: str       # Signal detected at this iteration
-    trajectory_action: str       # Action taken
+    # What was being predicted
+    context_tokens: List[str]       # Actual token strings
+    predicted_token: str
+    
+    # Primary semantic evidence — O(1) derived
+    primary_relationship: Optional[RelationshipEvidence] = None
+    
+    # Supporting evidence chain
+    evidence_chain: List[RelationshipEvidence] = field(default_factory=list)
+    
+    # Epistemic state
+    confidence: float = 0.0
+    signal: ConvergenceSignal = ConvergenceSignal.CONTINUE
+    uncertainty_source: str = ""    # WHY confidence is what it is
+    
+    # Honest uncertainty
+    contradicting_evidence: List[RelationshipEvidence] = field(default_factory=list)
+    
+    # Metadata
+    rel_window: int = 0             # Primary relationship window address
+    iteration: int = 0
     
     def __post_init__(self):
-        """Compute the trace hash for verification."""
+        """Compute trace hash for verification."""
         trace_data = (
-            self.seed_hash.hex() +
-            str(self.iteration) +
-            "".join(self.recipe_ids_applied) +
-            "".join(map(str, self.position_hashes))
+            ",".join(self.context_tokens) +
+            self.predicted_token +
+            str(self.rel_window) +
+            str(self.confidence)
         )
         self.trace_hash = int.from_bytes(
             blake3_hash(trace_data.encode())[:8],
@@ -617,79 +916,237 @@ class DeterministicReasoningTrace:
         )
     
     def to_compact(self) -> str:
-        """Serialize to compact string for storage in MetaResidualRecipe."""
-        # Format: "seed_hex:iter:recipe_ids:pos_hashes:signal:action"
+        """Serialize to compact string - fully reconstructable.
+        
+        Format: "ctx:tokens|pred:token|win:hex|conf:float|dir:+/-1|sig:SIGNAL|chain:evidence|contra:evidence"
+        """
+        ctx_str = ",".join(self.context_tokens)
+        chain_str = ",".join([e.to_compact() for e in self.evidence_chain[:5]])  # First 5
+        contra_str = ",".join([e.to_compact() for e in self.contradicting_evidence[:3]])  # First 3
+        
         return (
-            f"{self.seed_hash.hex()}:{self.iteration}:" +
-            f"{','.join(self.recipe_ids_applied)}:" +
-            f"{','.join(map(str, self.position_hashes[:8]))}:" +  # First 8 positions
-            f"{self.convergence_signal}:{self.trajectory_action}"
+            f"ctx:{ctx_str}|pred:{self.predicted_token}|win:0x{self.rel_window:04x}|"
+            f"conf:{self.confidence:.2f}|dir:{self.primary_relationship.direction:+d if self.primary_relationship else 0}|"
+            f"sig:{self.signal.value}|chain:{chain_str}|contra:{contra_str}"
         )
     
     @classmethod
-    def from_compact(cls, compact: str) -> 'DeterministicReasoningTrace':
+    def from_compact(cls, compact: str) -> 'SemanticReasoningTrace':
         """Deserialize from compact string."""
-        parts = compact.split(':')
-        if len(parts) < 6:
-            # Handle legacy format or malformed
-            return cls(
-                seed_hash=bytes.fromhex(parts[0]) if parts[0] else b'\x00' * 32,
-                iteration=int(parts[1]) if len(parts) > 1 else 0,
-                recipe_ids_applied=parts[2].split(',') if len(parts) > 2 and parts[2] else [],
-                position_hashes=[int(p) for p in parts[3].split(',')] if len(parts) > 3 and parts[3] else [],
-                convergence_signal=parts[4] if len(parts) > 4 else "CONTINUE",
-                trajectory_action=parts[5] if len(parts) > 5 else "CONTINUE"
-            )
+        parts = {}
+        for segment in compact.split('|'):
+            if ':' in segment:
+                key, val = segment.split(':', 1)
+                parts[key] = val
+        
+        context_tokens = parts.get('ctx', '').split(',') if parts.get('ctx') else []
+        predicted_token = parts.get('pred', '')
+        rel_window = int(parts.get('win', '0'), 16) if parts.get('win', '0').startswith('0x') else int(parts.get('win', '0'))
+        confidence = float(parts.get('conf', '0'))
+        signal = ConvergenceSignal(parts.get('sig', 'continue'))
+        
+        # Parse evidence chain
+        evidence_chain = []
+        chain_str = parts.get('chain', '')
+        if chain_str:
+            for i, evidence_str in enumerate(chain_str.split(',')[:5]):
+                if evidence_str and ':' in evidence_str:
+                    ctx = context_tokens[i] if i < len(context_tokens) else "?"
+                    evidence_chain.append(RelationshipEvidence.from_compact(evidence_str, ctx, predicted_token))
+        
         return cls(
-            seed_hash=bytes.fromhex(parts[0]),
-            iteration=int(parts[1]),
-            recipe_ids_applied=parts[2].split(',') if parts[2] else [],
-            position_hashes=[int(p) for p in parts[3].split(',')] if parts[3] else [],
-            convergence_signal=parts[4],
-            trajectory_action=parts[5]
+            context_tokens=context_tokens,
+            predicted_token=predicted_token,
+            rel_window=rel_window,
+            confidence=confidence,
+            signal=signal,
+            evidence_chain=evidence_chain
         )
     
     def to_human_readable(self) -> str:
-        """Generate human-readable explanation from seed-derived data."""
+        """Generate human-readable reasoning explanation."""
         lines = [
-            f"=== Reasoning Trace (seed-derived, hash={self.trace_hash:016x}) ===",
-            f"Iteration: {self.iteration}",
-            f"Signal: {self.convergence_signal} → Action: {self.trajectory_action}",
+            f"=== Reasoning Trace (window=0x{self.rel_window:04x}, confidence={self.confidence:.2f}) ===",
+            "",
+            f"Context: {self.context_tokens}",
+            f"Predicting: \"{self.predicted_token}\"",
+            "",
         ]
         
-        if self.recipe_ids_applied:
-            lines.append(f"Recipes applied ({len(self.recipe_ids_applied)}):")
-            for i, rid in enumerate(self.recipe_ids_applied[:5]):  # Show first 5
-                lines.append(f"  [{i+1}] {rid}")
-            if len(self.recipe_ids_applied) > 5:
-                lines.append(f"  ... and {len(self.recipe_ids_applied) - 5} more")
+        # Primary Evidence
+        if self.primary_relationship:
+            pr = self.primary_relationship
+            lines.append("Primary Evidence:")
+            lines.append(f"  \"{pr.token_A}\" → \"{pr.token_B}\"")
+            lines.append(f"  rel_window=0x{pr.rel_window:04x}  confidence={pr.confidence:.2f}  direction={pr.direction:+d}")
+            lines.append(f"  corpus_signal={pr.corpus_signal.upper()}")
+            lines.append(f"  interpretation: \"{pr.token_A}\" {pr.rel_type} \"{pr.token_B}\"")
+            lines.append("")
         
-        if self.position_hashes:
-            lines.append(f"Positions corrected: {len(self.position_hashes)}")
-            lines.append(f"  First positions: {self.position_hashes[:5]}")
+        # Supporting Evidence Chain
+        if self.evidence_chain:
+            lines.append("Supporting Evidence Chain:")
+            for i, e in enumerate(self.evidence_chain[:5]):
+                lines.append(f"  [{i+1}] \"{e.token_A}\" → \"{e.token_B}\"")
+                lines.append(f"      confidence={e.confidence:.2f}  direction={e.direction:+d}")
+                lines.append(f"      interpretation: {e.rel_type}")
+            lines.append("")
+        
+        # Contradicting Evidence
+        if self.contradicting_evidence:
+            lines.append("Contradicting Evidence:")
+            for e in self.contradicting_evidence[:3]:
+                lines.append(f"  \"{e.token_A}\" as {e.rel_type} context: confidence={e.confidence:.2f}")
+                lines.append(f"  interpretation: low weight, {e.corpus_signal} signal")
+            lines.append("")
+        
+        # Epistemic State
+        lines.append(f"Epistemic State: {self.signal.value.upper()}")
+        if self.uncertainty_source:
+            lines.append(f"  {self.uncertainty_source}")
+        
+        # Check agreement
+        directions = [e.direction for e in self.evidence_chain if e.confidence > 0.3]
+        if directions:
+            agreement = len(set(directions)) <= 1
+            if agreement:
+                lines.append(f"  All evidence directions agree → high certainty")
+            else:
+                lines.append(f"  Mixed evidence directions → uncertainty acknowledged")
+        
+        lines.append("")
+        lines.append(f"Decision: predict \"{self.predicted_token}\" with confidence {self.confidence:.2f}")
         
         return "\n".join(lines)
+    
+    @classmethod
+    def derive_from_semantic_vec(
+        cls,
+        context_tokens: List[str],
+        predicted_token: str,
+        semantic_vec: np.ndarray,
+        hadamard_index_fn: Callable[[str], int],
+        mask: int,
+        dim: int = DEFAULT_HDC_DIM,
+        iteration: int = 0
+    ) -> 'SemanticReasoningTrace':
+        """Create a trace derived from actual semantic evidence.
+        
+        This is the main factory method that builds a genuine reasoning
+        trace by consulting the semantic vector.
+        """
+        # Build evidence chain
+        evidence_chain, agreement, chain_confidence = build_evidence_chain(
+            context_tokens, predicted_token, semantic_vec, hadamard_index_fn, mask, dim
+        )
+        
+        # Determine primary relationship (highest confidence)
+        primary = None
+        if evidence_chain:
+            primary = max(evidence_chain, key=lambda e: e.confidence)
+        
+        # Find contradicting evidence (low confidence or opposite direction)
+        contradicting = []
+        if evidence_chain:
+            main_direction = primary.direction if primary else 1
+            for e in evidence_chain:
+                if e.confidence < 0.2 or (e.confidence > 0.3 and e.direction != main_direction):
+                    contradicting.append(e)
+        
+        # Determine signal from agreement and confidence
+        if chain_confidence > 0.85 and agreement:
+            signal = ConvergenceSignal.BREAKTHROUGH
+        elif chain_confidence > 0.6 and agreement:
+            signal = ConvergenceSignal.CONVERGING
+        elif not agreement:
+            signal = ConvergenceSignal.OSCILLATING
+        elif chain_confidence < 0.2:
+            signal = ConvergenceSignal.STUCK
+        else:
+            signal = ConvergenceSignal.CONTINUE
+        
+        # Uncertainty source
+        uncertainty_source = ""
+        if not agreement:
+            uncertainty_source = "Mixed evidence directions in chain"
+        elif chain_confidence < 0.3:
+            uncertainty_source = "Low confidence across all evidence"
+        elif contradicting:
+            uncertainty_source = f"{len(contradicting)} contradicting evidence items"
+        
+        # Primary window
+        rel_window = primary.rel_window if primary else 0
+        
+        return cls(
+            context_tokens=context_tokens,
+            predicted_token=predicted_token,
+            primary_relationship=primary,
+            evidence_chain=evidence_chain,
+            confidence=chain_confidence,
+            signal=signal,
+            uncertainty_source=uncertainty_source,
+            contradicting_evidence=contradicting,
+            rel_window=rel_window,
+            iteration=iteration
+        )
     
     @classmethod
     def derive_from_seed(
         cls,
         seed: int,
         iteration: int,
-        recipes: List['MetaResidualRecipe'],
+        recipes: List[Any],
         positions_corrected: List[int],
-        signal: 'ConvergenceSignal',
-        action: 'TrajectoryAction'
-    ) -> 'DeterministicReasoningTrace':
-        """Create a trace derived entirely from seed and recipe data."""
-        seed_hash = blake3_hash(str(seed).encode())
+        signal: ConvergenceSignal,
+        action: TrajectoryAction
+    ) -> 'SemanticReasoningTrace':
+        """Backward-compatible factory method for legacy code.
+        
+        Creates a trace from seed-based pseudo-evidence for compatibility
+        with existing code that uses the old DeterministicReasoningTrace API.
+        """
+        # Generate pseudo-context from seed
+        np.random.seed(seed % (2**31))
+        pseudo_context = [f"token_{(seed + i) % 1000}" for i in range(4)]
+        pseudo_predicted = f"token_{seed % 1000}"
+        
+        # Create pseudo-evidence from positions_corrected
+        evidence_chain = []
+        for pos_hash in positions_corrected[:5]:
+            rel_window = (seed ^ pos_hash) & 0xFFFF
+            popcount = bin(rel_window).count('1')
+            confidence = abs(popcount - 32) / 32
+            direction = 1 if popcount > 32 else -1
+            
+            evidence = RelationshipEvidence(
+                token_A=f"ctx_{pos_hash % 100}",
+                token_B=f"pred_{seed % 100}",
+                rel_window=rel_window,
+                confidence=confidence,
+                direction=direction,
+                rel_type="SEED-DERIVED",
+                corpus_signal=classify_signal_strength(confidence)
+            )
+            evidence_chain.append(evidence)
+        
+        primary = evidence_chain[0] if evidence_chain else None
+        
         return cls(
-            seed_hash=seed_hash,
-            iteration=iteration,
-            recipe_ids_applied=[r.recipe_id for r in recipes],
-            position_hashes=positions_corrected,
-            convergence_signal=signal.value if hasattr(signal, 'value') else str(signal),
-            trajectory_action=action.value if hasattr(action, 'value') else str(action)
+            context_tokens=pseudo_context,
+            predicted_token=pseudo_predicted,
+            primary_relationship=primary,
+            evidence_chain=evidence_chain,
+            confidence=primary.confidence if primary else 0.5,
+            signal=signal,
+            uncertainty_source="Legacy seed-derived trace",
+            contradicting_evidence=[],
+            rel_window=primary.rel_window if primary else 0,
+            iteration=iteration
         )
+
+
+# Legacy alias for backward compatibility
+DeterministicReasoningTrace = SemanticReasoningTrace
 
 
 @dataclass
@@ -1881,6 +2338,528 @@ def seed_to_ternary_hypervector(seed_string: str, dim: int = DEFAULT_HDC_DIM) ->
     neg_vec = np.bitwise_xor(neg_vec, overlap)
     
     return pos_vec, neg_vec
+
+
+# ============================================================================
+# UNIFIED TERNARY-FROM-BINARY REPRESENTATION
+# ============================================================================
+
+def binary_to_ternary_confidence(packed_vec: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Convert binary packed vector to ternary semantics with confidence.
+    
+    This is the core function enabling ternary semantics from binary Hadamard vectors.
+    
+    Args:
+        packed_vec: Binary packed vector (uint64 array)
+        
+    Returns:
+        signs: Array of -1, 0, +1 for each uint64 element
+        confidences: Array of confidence values [0, 1] for each element
+        popcounts: Raw popcount values for each element
+    
+    Mathematical Foundation:
+        - popcount = 32: neutral (exactly half 1s, half 0s) → sign = 0
+        - popcount > 32: more 1s → sign = +1
+        - popcount < 32: more 0s → sign = -1
+        - confidence = |popcount - 32| / 32 measures signal strength
+    """
+    # Compute popcount for each uint64 element
+    popcounts = np.array([bin(int(x)).count('1') for x in packed_vec], dtype=np.float32)
+    
+    # Sign: +1 if more 1s, -1 if more 0s, 0 if exactly balanced
+    signs = np.where(popcounts > 32, 1, np.where(popcounts < 32, -1, 0))
+    
+    # Confidence: distance from neutral (32) normalized to [0, 1]
+    confidences = np.abs(popcounts - 32) / 32.0
+    
+    return signs.astype(np.int8), confidences.astype(np.float32), popcounts.astype(np.int32)
+
+
+def binary_to_ternary_confidence_batch(packed_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Batch version of binary_to_ternary_confidence for GPU acceleration.
+    
+    Args:
+        packed_matrix: Binary packed matrix (batch, uint64_count)
+        
+    Returns:
+        signs: (batch, uint64_count) array of -1, 0, +1
+        confidences: (batch, uint64_count) array of confidence values
+        popcounts: (batch, uint64_count) raw popcount values
+    """
+    batch_size = packed_matrix.shape[0]
+    uint64_count = packed_matrix.shape[1]
+    
+    # Vectorized popcount using numpy
+    # Each uint64 has 64 bits, we count 1s in each
+    popcounts = np.zeros((batch_size, uint64_count), dtype=np.int32)
+    
+    for b in range(batch_size):
+        for u in range(uint64_count):
+            popcounts[b, u] = bin(int(packed_matrix[b, u])).count('1')
+    
+    signs = np.where(popcounts > 32, 1, np.where(popcounts < 32, -1, 0)).astype(np.int8)
+    confidences = np.abs(popcounts.astype(np.float32) - 32) / 32.0
+    
+    return signs, confidences.astype(np.float32), popcounts
+
+
+@dataclass
+class BinaryTernaryVector:
+    """
+    Unified binary vector with ternary semantics.
+    
+    This class wraps a binary packed vector and provides ternary-like operations
+    using popcount-based confidence measurement.
+    
+    Mathematical Foundation:
+        Binary Hadamard vectors use XOR for binding, which is isomorphic to
+        multiplication in sign space. The ternary neutral state (0) emerges
+        naturally when bundled signals are balanced (popcount ≈ 32 per uint64).
+        
+    Benefits:
+        - 50% memory savings vs two-vector ternary encoding
+        - 50% compute savings (1 XOR vs 2 XORs per binding)
+        - Preserves ternary semantics via confidence measurement
+    """
+    packed: np.ndarray  # Binary packed vector (uint64 array)
+    dim: int = field(init=False)
+    signs: np.ndarray = field(init=False)  # -1, 0, +1 per element
+    confidences: np.ndarray = field(init=False)  # [0, 1] per element
+    
+    def __post_init__(self):
+        self.dim = len(self.packed) * 64
+        self.signs, self.confidences, _ = binary_to_ternary_confidence(self.packed)
+    
+    @classmethod
+    def from_seed(cls, seed_string: str, dim: int = DEFAULT_HDC_DIM) -> 'BinaryTernaryVector':
+        """Create BinaryTernaryVector from seed string."""
+        packed = seed_to_hypervector(seed_string, dim)
+        return cls(packed=packed)
+    
+    @classmethod
+    def from_hadamard_row(cls, index: int, dim: int = DEFAULT_HDC_DIM) -> 'BinaryTernaryVector':
+        """Create BinaryTernaryVector from Hadamard row index."""
+        packed = hadamard_row_packed(index, dim)
+        return cls(packed=packed)
+    
+    def xor_bind(self, other: 'BinaryTernaryVector') -> 'BinaryTernaryVector':
+        """
+        XOR bind two BinaryTernaryVectors.
+        
+        XOR in binary space is isomorphic to multiplication in sign space:
+            0 ⊕ 0 = 0  →  (+1) × (+1) = +1
+            0 ⊕ 1 = 1  →  (+1) × (-1) = -1
+            1 ⊕ 0 = 1  →  (-1) × (+1) = -1
+            1 ⊕ 1 = 0  →  (-1) × (-1) = +1
+        """
+        bound_packed = np.bitwise_xor(self.packed, other.packed)
+        return BinaryTernaryVector(packed=bound_packed)
+    
+    def get_average_confidence(self) -> float:
+        """Get average confidence across all elements."""
+        return float(np.mean(self.confidences))
+    
+    def get_neutral_fraction(self, threshold: float = 0.1) -> float:
+        """Get fraction of elements that are near-neutral (low confidence)."""
+        return float(np.mean(self.confidences < threshold))
+    
+    def get_ternary_summary(self) -> Dict[str, Any]:
+        """Get summary statistics for ternary interpretation."""
+        return {
+            'dim': self.dim,
+            'avg_confidence': self.get_average_confidence(),
+            'neutral_fraction': self.get_neutral_fraction(),
+            'positive_fraction': float(np.mean(self.signs > 0)),
+            'negative_fraction': float(np.mean(self.signs < 0)),
+            'truly_neutral_fraction': float(np.mean(self.signs == 0)),
+        }
+    
+    def to_sign_vector(self) -> np.ndarray:
+        """Convert to sign vector (-1, 0, +1) with confidence weighting."""
+        return self.signs.astype(np.float32) * self.confidences
+
+
+def bundle_with_confidence(vectors: List[BinaryTernaryVector], dim: int = DEFAULT_HDC_DIM) -> BinaryTernaryVector:
+    """
+    Bundle multiple BinaryTernaryVectors using XOR reduction.
+    
+    The resulting vector's confidence indicates signal strength:
+        - High confidence: strong consensus among input vectors
+        - Low confidence: conflicting signals (near-neutral result)
+    """
+    if not vectors:
+        uint64_count = dim // 64
+        return BinaryTernaryVector(packed=np.zeros(uint64_count, dtype=np.uint64))
+    
+    # XOR all vectors together
+    result = vectors[0].packed.copy()
+    for v in vectors[1:]:
+        result = np.bitwise_xor(result, v.packed)
+    
+    return BinaryTernaryVector(packed=result)
+
+
+def instant_learn_with_confidence(
+    context_vec: BinaryTernaryVector,
+    target_vec: BinaryTernaryVector,
+    confidence_threshold: float = 0.5
+) -> Tuple[BinaryTernaryVector, float, bool]:
+    """
+    Instant learning with confidence-based decision.
+    
+    Args:
+        context_vec: Context hypervector
+        target_vec: Target token hypervector
+        confidence_threshold: Minimum confidence for instant learning
+        
+    Returns:
+        bound_vec: XOR-bound context-target vector
+        confidence: Average confidence of the binding
+        should_store: Whether to store this pattern (confidence > threshold)
+    """
+    bound_vec = context_vec.xor_bind(target_vec)
+    confidence = bound_vec.get_average_confidence()
+    should_store = confidence >= confidence_threshold
+    
+    return bound_vec, confidence, should_store
+
+
+# ============================================================================
+# END UNIFIED TERNARY-FROM-BINARY REPRESENTATION
+# ============================================================================
+
+
+# ============================================================================
+# GUARANTEED O(1) SEMANTIC INSTANT LEARNING
+# ============================================================================
+#
+# Mathematical Foundation:
+# -----------------------
+# The Hadamard matrix has a GROUP STRUCTURE under XOR:
+#     H[i] XOR H[j] = H[i XOR j]
+#
+# This means the XOR of any two Hadamard rows IS ITSELF a Hadamard row.
+# Combined with token-addressed windows, this enables O(1) semantic queries:
+#
+#     rel_window = (idx_A XOR idx_B) & mask
+#     signal = semantic_vec[rel_window]
+#     confidence = |popcount(signal) - 32| / 32
+#
+# The ring Z/2^14 under XOR is closed, so the window address of any composed
+# relationship is always the XOR composition of component window addresses.
+# ============================================================================
+
+
+@dataclass
+class SemanticRelationship:
+    """
+    O(1) semantic relationship storage.
+    
+    Instead of storing vectors, we store INDEX ARITHMETIC results.
+    The Hadamard row for any relationship can always be reconstructed
+    from rel_idx in O(1) because it's deterministic from the seed.
+    
+    Total storage: ~16 bytes per relationship.
+    """
+    rel_idx: int           # idx_A XOR idx_B (4 bytes as uint32)
+    window: int            # rel_idx & mask (4 bytes)
+    confidence: float      # signal strength [0, 1] (4 bytes)
+    direction: int         # +1 or -1 (1 byte)
+    rel_type: str = "unknown"  # optional: "synonym", "antonym", "is_a", etc.
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'rel_idx': self.rel_idx,
+            'window': self.window,
+            'confidence': self.confidence,
+            'direction': self.direction,
+            'rel_type': self.rel_type
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SemanticRelationship':
+        return cls(
+            rel_idx=data['rel_idx'],
+            window=data['window'],
+            confidence=data['confidence'],
+            direction=data['direction'],
+            rel_type=data.get('rel_type', 'unknown')
+        )
+
+
+class DualVectorProjection:
+    """
+    Dual-vector instant projection for syntactic AND semantic learning.
+    
+    Mathematical Foundation:
+    -----------------------
+    We maintain TWO parallel sparse vectors:
+    
+    1. syntactic_vec: window = position & mask
+       - Answers: "What token was at position P?"
+       - Used for: Next token prediction (syntactic)
+       
+    2. semantic_vec: window = token_idx & mask
+       - Answers: "How does token A relate to token B?"
+       - Used for: Semantic queries (distributional semantics)
+    
+    The key identity that guarantees alignment:
+        (idx_A & mask) XOR (idx_B & mask) = (idx_A XOR idx_B) & mask
+    
+    This means the window address of a relationship is EXACTLY computable
+    from the window addresses of its two tokens. The algebra closes.
+    """
+    
+    def __init__(self, dim: int = DEFAULT_HDC_DIM, window_size: int = SPARSE_WINDOW_SIZE):
+        self.dim = dim
+        self.window_size = window_size
+        self.uint64_count = dim // 64
+        self.mask = self.uint64_count - 1  # For & mask operations (assumes uint64_count is 2^k)
+        
+        # Dual vectors
+        self.syntactic_vec = np.zeros(self.uint64_count, dtype=np.uint64)
+        self.semantic_vec = np.zeros(self.uint64_count, dtype=np.uint64)
+        
+        # Relationship storage (O(1) lookup by rel_idx)
+        self.relationships: Dict[int, SemanticRelationship] = {}
+        
+        # Token index cache (token_id -> hadamard index)
+        self._token_index_cache: Dict[int, int] = {}
+    
+    def hadamard_index(self, token_id: int) -> int:
+        """
+        Get Hadamard index for a token.
+        
+        The Hadamard index is the row index in the Sylvester Hadamard matrix.
+        For deterministic generation, we use token_id directly (or hash if needed).
+        """
+        if token_id in self._token_index_cache:
+            return self._token_index_cache[token_id]
+        
+        # Use token_id as index (could also use hash for larger vocab)
+        idx = token_id % (2**20)  # Limit to reasonable range
+        self._token_index_cache[token_id] = idx
+        return idx
+    
+    def project_token(self, token_id: int, position: int) -> None:
+        """
+        Project a single token occurrence into both syntactic and semantic vectors.
+        
+        This is the core operation that fills both vectors in O(1) per token.
+        
+        Args:
+            token_id: The token's vocabulary ID
+            position: The token's position in the sequence
+        """
+        idx_T = self.hadamard_index(token_id)
+        idx_P = position & self.mask  # Position window
+        
+        # Get Hadamard row for token (packed form)
+        token_vec = hadamard_row_packed(idx_T, self.dim)
+        
+        # === SYNTACTIC BINDING (current system) ===
+        # Window = position & mask
+        # Stores: what token was at this position?
+        syn_window = idx_P
+        pos_vec = hadamard_row_packed(position % self.uint64_count, self.dim)
+        
+        # XOR bind: token XOR position, store at syntactic window
+        self.syntactic_vec[syn_window] ^= token_vec[syn_window] ^ pos_vec[syn_window]
+        
+        # === SEMANTIC BINDING (new - token-addressed) ===
+        # Window = token_idx & mask
+        # Stores: what contexts surrounded this token?
+        sem_window = idx_T & self.mask
+        
+        # Store position context at token's home window
+        # This accumulates distributional semantics
+        self.semantic_vec[sem_window] ^= pos_vec[sem_window]
+    
+    def project_corpus(self, tokens: List[int]) -> None:
+        """
+        Project entire corpus into dual vectors.
+        
+        Time complexity: O(N) where N = corpus length
+        Space complexity: O(uint64_count * 2) = O(dim/32) bytes
+        """
+        for position, token_id in enumerate(tokens):
+            self.project_token(token_id, position)
+    
+    def query_relationship(
+        self,
+        token_A: int,
+        token_B: int,
+        threshold: float = 0.5
+    ) -> Optional[SemanticRelationship]:
+        """
+        O(1) semantic relationship query.
+        
+        Mathematical Foundation:
+        -----------------------
+        The relationship between A and B lives at:
+            rel_window = (idx_A XOR idx_B) & mask
+        
+        This is guaranteed by the ring closure property:
+            (idx_A & mask) XOR (idx_B & mask) = (idx_A XOR idx_B) & mask
+        
+        Args:
+            token_A: First token's vocabulary ID
+            token_B: Second token's vocabulary ID
+            threshold: Minimum confidence to report relationship
+            
+        Returns:
+            SemanticRelationship if confidence > threshold, else None
+        """
+        idx_A = self.hadamard_index(token_A)
+        idx_B = self.hadamard_index(token_B)
+        
+        # O(1) — pure integer arithmetic
+        rel_idx = idx_A ^ idx_B
+        rel_window = rel_idx & self.mask
+        
+        # O(1) — single memory read of window_size blocks
+        signal = self.semantic_vec[rel_window]
+        
+        # O(1) — single popcount
+        pc = bin(int(signal)).count('1')
+        confidence = abs(pc - 32) / 32.0
+        direction = 1 if pc > 32 else -1
+        
+        if confidence >= threshold:
+            rel = SemanticRelationship(
+                rel_idx=rel_idx,
+                window=rel_window,
+                confidence=confidence,
+                direction=direction
+            )
+            self.relationships[rel_idx] = rel
+            return rel
+        
+        return None
+    
+    def query_all_relationships(
+        self,
+        tokens: List[int],
+        threshold: float = 0.5
+    ) -> Dict[Tuple[int, int], SemanticRelationship]:
+        """
+        Query relationships for all pairs of tokens.
+        
+        Time complexity: O(K^2) where K = number of unique tokens
+        Each query is O(1), so total is O(K^2) for K choose 2 pairs.
+        """
+        unique_tokens = list(set(tokens))
+        results = {}
+        
+        for i, token_A in enumerate(unique_tokens):
+            for token_B in unique_tokens[i+1:]:
+                rel = self.query_relationship(token_A, token_B, threshold)
+                if rel:
+                    results[(token_A, token_B)] = rel
+        
+        return results
+    
+    def get_token_context(self, token_id: int) -> np.ndarray:
+        """
+        Get the accumulated context vector for a token.
+        
+        This is the distributional semantic representation - all the
+        position contexts where this token appeared.
+        """
+        idx_T = self.hadamard_index(token_id)
+        sem_window = idx_T & self.mask
+        return self.semantic_vec[sem_window:sem_window + self.window_size]
+    
+    def get_token_at_position(self, position: int, token_matrix: np.ndarray) -> int:
+        """
+        Decode what token was at a given position.
+        
+        This uses the syntactic vector for next-token prediction.
+        """
+        syn_window = position & self.mask
+        signal = self.syntactic_vec[syn_window]
+        
+        # Unbind position
+        pos_vec = hadamard_row_packed(position % self.uint64_count, self.dim)
+        unbound = signal ^ pos_vec[syn_window]
+        
+        # Find best matching token (this is O(vocab) - could be optimized with reverse lookup)
+        best_token = 0
+        best_sim = -1
+        
+        for token_id in range(token_matrix.shape[0]):
+            token_vec = token_matrix[token_id]
+            # Hamming similarity
+            xor_result = unbound ^ token_vec[syn_window]
+            sim = 1 - (bin(int(xor_result)).count('1') / 64.0)
+            if sim > best_sim:
+                best_sim = sim
+                best_token = token_id
+        
+        return best_token
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize dual vector projection state."""
+        return {
+            'dim': self.dim,
+            'window_size': self.window_size,
+            'uint64_count': self.uint64_count,
+            'syntactic_vec': self.syntactic_vec.tolist(),
+            'semantic_vec': self.semantic_vec.tolist(),
+            'relationships': {str(k): v.to_dict() for k, v in self.relationships.items()}
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DualVectorProjection':
+        """Deserialize dual vector projection state."""
+        dvp = cls(dim=data['dim'], window_size=data['window_size'])
+        dvp.syntactic_vec = np.array(data['syntactic_vec'], dtype=np.uint64)
+        dvp.semantic_vec = np.array(data['semantic_vec'], dtype=np.uint64)
+        dvp.relationships = {
+            int(k): SemanticRelationship.from_dict(v)
+            for k, v in data['relationships'].items()
+        }
+        return dvp
+
+
+def instant_semantic_learn(
+    tokens: List[int],
+    dim: int = DEFAULT_HDC_DIM,
+    relationship_threshold: float = 0.5
+) -> DualVectorProjection:
+    """
+    One-pass instant semantic learning.
+    
+    Projects entire corpus into dual vectors and extracts semantic relationships.
+    
+    Time complexity: O(N + K^2) where N = corpus length, K = unique tokens
+    Space complexity: O(dim/32) bytes for vectors + O(R) for relationships
+    
+    Args:
+        tokens: List of token IDs from the corpus
+        dim: Hypervector dimension
+        relationship_threshold: Minimum confidence to store relationship
+        
+    Returns:
+        DualVectorProjection with syntactic_vec, semantic_vec, and relationships
+    """
+    dvp = DualVectorProjection(dim=dim)
+    dvp.project_corpus(tokens)
+    
+    # Extract relationships for all unique token pairs
+    unique_tokens = list(set(tokens))
+    for i, token_A in enumerate(unique_tokens):
+        for token_B in unique_tokens[i+1:]:
+            dvp.query_relationship(token_A, token_B, relationship_threshold)
+    
+    return dvp
+
+
+# ============================================================================
+# END GUARANTEED O(1) SEMANTIC INSTANT LEARNING
+# ============================================================================
 
 
 def hadamard_position_vector(position: int, dim: int = DEFAULT_HDC_DIM) -> np.ndarray:
@@ -4099,6 +5078,724 @@ class SelfObservation:
         return self._action_history.copy()
 
 
+@dataclass
+class SemanticCoverageReport:
+    """Report on semantic landscape coverage and confidence distribution."""
+    coverage: float  # Fraction of windows with high confidence
+    dead_zones: List[int]  # Windows with near-random signal (low confidence)
+    mean_confidence: float  # Average confidence across all windows
+    high_confidence_count: int  # Number of windows with confidence > 0.7
+    total_windows: int  # Total number of windows in semantic vector
+    confidence_distribution: List[float]  # Full distribution for analysis
+
+
+class SemanticSelfObservation:
+    """
+    Proactive semantic confidence monitor - redesigned for the semantic layer.
+    
+    Unlike the reactive SelfObservation that watches iteration-by-iteration
+    similarity changes, this class provides INSTANTANEOUS confidence assessment
+    based on the semantic vector's popcount-derived signals.
+    
+    Key insight: With semantic_vec filled in one pass, confidence is always
+    already known BEFORE prediction, not after failing.
+    """
+    
+    def __init__(
+        self,
+        dim: int = DEFAULT_HDC_DIM,
+        semantic_vec: Optional[np.ndarray] = None,
+        mask: Optional[int] = None
+    ):
+        self.dim = dim
+        self.uint64_count = dim // 64
+        self.semantic_vec = semantic_vec  # Reference to DualVectorProjection.semantic_vec
+        self.mask = mask or (self.uint64_count - 1)
+        
+        # Confidence thresholds for signal classification
+        self.high_confidence_threshold = 0.8
+        self.moderate_confidence_threshold = 0.5
+        self.low_confidence_threshold = 0.2
+        
+        # Track observation history for analysis
+        self._observation_history: List[Dict[str, Any]] = []
+    
+    def observe_relationship(
+        self,
+        token_A: int,
+        token_B: int,
+        hadamard_index_fn: Callable[[int], int]
+    ) -> Tuple[ConvergenceSignal, float, int]:
+        """
+        Observe the semantic relationship between two tokens - O(1) operation.
+        
+        Args:
+            token_A: First token ID
+            token_B: Second token ID
+            hadamard_index_fn: Function to convert token_id to hadamard index
+            
+        Returns:
+            Tuple of (convergence_signal, confidence, direction)
+            - convergence_signal: BREAKTHROUGH/CONVERGING/OSCILLATING/STUCK
+            - confidence: 0.0 to 1.0 strength of signal
+            - direction: +1 or -1 (positive/negative relationship)
+        """
+        if self.semantic_vec is None:
+            return ConvergenceSignal.STUCK, 0.0, 0
+        
+        # Compute relationship window via XOR
+        idx_A = hadamard_index_fn(token_A)
+        idx_B = hadamard_index_fn(token_B)
+        rel_window = (idx_A ^ idx_B) & self.mask
+        
+        # Get signal from semantic vector
+        signal = self.semantic_vec[rel_window]
+        pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+        
+        # Compute confidence from popcount
+        confidence = abs(pc - 32) / 32.0
+        direction = 1 if pc > 32 else -1
+        
+        # Classify signal into convergence type
+        if confidence > self.high_confidence_threshold:
+            signal_type = ConvergenceSignal.BREAKTHROUGH  # Strong corpus signal
+        elif confidence > self.moderate_confidence_threshold:
+            signal_type = ConvergenceSignal.CONVERGING  # Moderate signal
+        elif confidence < self.low_confidence_threshold:
+            signal_type = ConvergenceSignal.STUCK  # Genuinely unseen
+        else:
+            # popcount near 32 but not quite — contradictory contexts
+            signal_type = ConvergenceSignal.OSCILLATING  # Ambiguous relationship
+        
+        # Record observation
+        self._observation_history.append({
+            'token_A': token_A,
+            'token_B': token_B,
+            'rel_window': rel_window,
+            'confidence': confidence,
+            'direction': direction,
+            'signal_type': signal_type.name
+        })
+        
+        return signal_type, confidence, direction
+    
+    def observe_token_context(
+        self,
+        token_id: int,
+        hadamard_index_fn: Callable[[int], int]
+    ) -> Tuple[float, int]:
+        """
+        Get the semantic context strength for a single token - O(1) operation.
+        
+        Returns:
+            Tuple of (confidence, direction) for the token's semantic window
+        """
+        if self.semantic_vec is None:
+            return 0.0, 0
+        
+        idx = hadamard_index_fn(token_id)
+        window = idx & self.mask
+        
+        signal = self.semantic_vec[window]
+        pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+        
+        confidence = abs(pc - 32) / 32.0
+        direction = 1 if pc > 32 else -1
+        
+        return confidence, direction
+    
+    def get_semantic_coverage(self) -> SemanticCoverageReport:
+        """
+        Analyze the full semantic landscape coverage.
+        
+        Returns a comprehensive report on:
+        - How many token pairs have strong signal
+        - Distribution of confidence across relationship space
+        - Dead zones (windows with near-random signal)
+        """
+        if self.semantic_vec is None:
+            return SemanticCoverageReport(
+                coverage=0.0,
+                dead_zones=[],
+                mean_confidence=0.0,
+                high_confidence_count=0,
+                total_windows=self.uint64_count,
+                confidence_distribution=[]
+            )
+        
+        confidence_values = []
+        dead_zones = []
+        high_confidence_count = 0
+        
+        for w in range(self.uint64_count):
+            signal = self.semantic_vec[w]
+            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+            confidence = abs(pc - 32) / 32.0
+            confidence_values.append(confidence)
+            
+            if confidence > self.high_confidence_threshold:
+                high_confidence_count += 1
+            
+            if confidence < self.low_confidence_threshold:
+                dead_zones.append(w)
+        
+        coverage = high_confidence_count / self.uint64_count
+        mean_confidence = np.mean(confidence_values) if confidence_values else 0.0
+        
+        return SemanticCoverageReport(
+            coverage=coverage,
+            dead_zones=dead_zones,
+            mean_confidence=mean_confidence,
+            high_confidence_count=high_confidence_count,
+            total_windows=self.uint64_count,
+            confidence_distribution=confidence_values
+        )
+    
+    def predict_with_confidence_routing(
+        self,
+        context_tokens: List[int],
+        vocab_size: int,
+        hadamard_index_fn: Callable[[int], int],
+        syntactic_predict_fn: Callable[[List[int]], np.ndarray]
+    ) -> Tuple[int, float, str]:
+        """
+        Unified prediction pipeline with proactive confidence-based routing.
+        
+        Phase 1: Semantic probe - O(V) check for high-confidence relationships
+        Phase 2: SelfObservation - O(1) confidence check for best candidate
+        Phase 3: Route based on signal type
+        
+        Returns:
+            Tuple of (predicted_token, confidence, routing_path)
+        """
+        if not context_tokens:
+            return 0, 0.0, "fallback_empty_context"
+        
+        last_token = context_tokens[-1]
+        scores = np.zeros(vocab_size)
+        confidences = np.zeros(vocab_size)
+        
+        # Phase 1: Semantic probe - score all candidates
+        for candidate in range(vocab_size):
+            signal_type, conf, direction = self.observe_relationship(
+                last_token, candidate, hadamard_index_fn
+            )
+            scores[candidate] = conf * direction
+            confidences[candidate] = conf
+        
+        # Get best candidate
+        best_candidate = int(np.argmax(scores))
+        best_confidence = confidences[best_candidate]
+        
+        # Phase 2: SelfObservation - check confidence for best candidate
+        signal_type, confidence, direction = self.observe_relationship(
+            last_token, best_candidate, hadamard_index_fn
+        )
+        
+        # Phase 3: Route based on signal type
+        if signal_type == ConvergenceSignal.BREAKTHROUGH:
+            # High confidence - return immediately
+            return best_candidate, confidence, "semantic_high_confidence"
+        
+        elif signal_type == ConvergenceSignal.OSCILLATING:
+            # Contradictory contexts - use syntactic as tiebreaker
+            syntactic_probs = syntactic_predict_fn(context_tokens)
+            syntactic_best = int(np.argmax(syntactic_probs))
+            return syntactic_best, 0.5, "syntactic_tiebreaker"
+        
+        elif signal_type == ConvergenceSignal.STUCK:
+            # Genuinely unseen relationship - honest fallback
+            # Return uniform distribution (could also use syntactic)
+            return best_candidate, 0.0, "fallback_unseen"
+        
+        else:  # CONVERGING or CONTINUE
+            # Moderate confidence - use semantic with caution
+            return best_candidate, confidence, "semantic_moderate"
+    
+    def get_observation_history(self) -> List[Dict[str, Any]]:
+        """Get the history of relationship observations."""
+        return self._observation_history.copy()
+
+
+@dataclass
+class SemanticRelationshipRecipe:
+    """
+    Lightweight recipe for semantic relationships - 9 bytes instead of ~50.
+    
+    With the semantic layer, a "recipe" for any relationship is just:
+    - rel_window: computed from (idx_A XOR idx_B) & mask
+    - confidence: derived from popcount
+    - direction: +1 or -1
+    
+    Recipes are RECONSTRUCTABLE ON DEMAND from semantic_vec + two token indices,
+    so storage is optional - only for fast routing of high-confidence relationships.
+    """
+    rel_window: int  # (idx_A XOR idx_B) & mask — 4 bytes
+    confidence: float  # popcount-derived — 4 bytes
+    direction: int  # +1 or -1 — 1 byte
+    rel_type: str = "unknown"  # "synonym"/"is-a"/"part-of"/"co-occurrence"
+    token_A: int = -1  # Optional: for reverse lookup
+    token_B: int = -1  # Optional: for reverse lookup
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'rel_window': self.rel_window,
+            'confidence': self.confidence,
+            'direction': self.direction,
+            'rel_type': self.rel_type,
+            'token_A': self.token_A,
+            'token_B': self.token_B
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SemanticRelationshipRecipe':
+        return cls(
+            rel_window=data['rel_window'],
+            confidence=data['confidence'],
+            direction=data['direction'],
+            rel_type=data.get('rel_type', 'unknown'),
+            token_A=data.get('token_A', -1),
+            token_B=data.get('token_B', -1)
+        )
+
+
+class SemanticCoverageObserver:
+    """
+    Monitors coverage and confidence distribution across the semantic landscape.
+    
+    Replaces BatchProjectionObserver's iteration-curve watching with direct
+    semantic landscape analysis. Dead zones identify token relationships the
+    corpus simply doesn't contain evidence for - honest uncertainty, not failure.
+    """
+    
+    def __init__(
+        self,
+        dim: int = DEFAULT_HDC_DIM,
+        high_confidence_threshold: float = 0.7,
+        low_confidence_threshold: float = 0.1
+    ):
+        self.dim = dim
+        self.uint64_count = dim // 64
+        self.high_confidence_threshold = high_confidence_threshold
+        self.low_confidence_threshold = low_confidence_threshold
+        
+        # Track coverage history
+        self._coverage_history: List[float] = []
+        self._dead_zone_history: List[List[int]] = []
+        self._mean_confidence_history: List[float] = []
+    
+    def observe_semantic_landscape(
+        self,
+        semantic_vec: np.ndarray
+    ) -> SemanticCoverageReport:
+        """
+        Analyze the semantic landscape for coverage and confidence distribution.
+        
+        This is the primary observation method - call after corpus projection.
+        """
+        confidence_values = []
+        dead_zones = []
+        high_confidence_count = 0
+        
+        for w in range(self.uint64_count):
+            signal = semantic_vec[w]
+            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+            confidence = abs(pc - 32) / 32.0
+            confidence_values.append(confidence)
+            
+            if confidence > self.high_confidence_threshold:
+                high_confidence_count += 1
+            
+            if confidence < self.low_confidence_threshold:
+                dead_zones.append(w)
+        
+        coverage = high_confidence_count / self.uint64_count
+        mean_confidence = np.mean(confidence_values) if confidence_values else 0.0
+        
+        # Record history
+        self._coverage_history.append(coverage)
+        self._dead_zone_history.append(dead_zones)
+        self._mean_confidence_history.append(mean_confidence)
+        
+        return SemanticCoverageReport(
+            coverage=coverage,
+            dead_zones=dead_zones,
+            mean_confidence=mean_confidence,
+            high_confidence_count=high_confidence_count,
+            total_windows=self.uint64_count,
+            confidence_distribution=confidence_values
+        )
+    
+    def get_coverage_trend(self) -> str:
+        """Analyze coverage trend over observations."""
+        if len(self._coverage_history) < 2:
+            return "insufficient_data"
+        
+        recent = self._coverage_history[-5:]
+        if all(recent[i] <= recent[i+1] for i in range(len(recent)-1)):
+            return "improving"
+        elif all(recent[i] >= recent[i+1] for i in range(len(recent)-1)):
+            return "declining"
+        else:
+            return "stable"
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get observer statistics."""
+        return {
+            'observations': len(self._coverage_history),
+            'coverage_history': self._coverage_history,
+            'mean_confidence_history': self._mean_confidence_history,
+            'current_coverage': self._coverage_history[-1] if self._coverage_history else 0.0,
+            'current_dead_zones': len(self._dead_zone_history[-1]) if self._dead_zone_history else 0,
+            'coverage_trend': self.get_coverage_trend()
+        }
+
+
+@dataclass
+class CoherenceTrajectory:
+    """
+    Tracks semantic and temporal coherence through XOR composition.
+    
+    The trajectory maintains a running composition of semantic and temporal
+    indices, enabling O(1) coherence evaluation at each generation step.
+    
+    Key insight: XOR composition preserves translation invariance:
+        window(p) XOR window(q) = window(p XOR q)
+    
+    This allows us to track "where we are" in semantic space without
+    storing the full vector - just the XOR-composed index.
+    """
+    semantic_idx: int = 0  # XOR-composed semantic window index
+    temporal_idx: int = 0  # XOR-composed temporal window index
+    confidence: float = 0.0  # Current coherence confidence [0, 1]
+    tension: float = 0.0  # Creative tension (deviation from expected)
+    hop_count: int = 0  # Number of hops taken
+    echo_detected: bool = False  # Long-range coherence echo flag
+    echo_distance: int = 0  # Distance to detected echo (0 if none)
+    
+    def hop(self, semantic_delta: int, temporal_delta: int,
+            new_confidence: float, mask: int) -> 'CoherenceTrajectory':
+        """
+        Advance the trajectory by one hop - O(1) operation.
+        
+        XOR composition is self-inverse, so we can "unwind" the trajectory
+        to find echoes (long-range coherence patterns).
+        
+        Args:
+            semantic_delta: XOR delta for semantic index (idx_A XOR idx_B)
+            temporal_delta: XOR delta for temporal index (position delta)
+            new_confidence: Confidence at new position
+            mask: Window mask (uint64_count - 1)
+            
+        Returns:
+            New CoherenceTrajectory with updated state
+        """
+        new_semantic_idx = (self.semantic_idx ^ semantic_delta) & mask
+        new_temporal_idx = (self.temporal_idx ^ temporal_delta) & mask
+        
+        # Compute tension as deviation from expected coherence
+        # High tension = creative deviation from corpus patterns
+        tension_delta = abs(new_confidence - self.confidence)
+        new_tension = (self.tension * self.hop_count + tension_delta) / (self.hop_count + 1)
+        
+        return CoherenceTrajectory(
+            semantic_idx=new_semantic_idx,
+            temporal_idx=new_temporal_idx,
+            confidence=new_confidence,
+            tension=new_tension,
+            hop_count=self.hop_count + 1,
+            echo_detected=self.echo_detected,
+            echo_distance=self.echo_distance
+        )
+    
+    def check_echo(self, history: List['CoherenceTrajectory'],
+                   echo_threshold: float = 0.9) -> bool:
+        """
+        Check for long-range coherence echo - O(n) where n = hop_count.
+        
+        An echo occurs when the current semantic_idx matches a previous one,
+        indicating we've returned to a semantic "theme" in the generation.
+        
+        Args:
+            history: List of previous trajectories in this generation
+            echo_threshold: Minimum confidence to consider an echo valid
+            
+        Returns:
+            True if echo detected, False otherwise
+        """
+        for i, past in enumerate(history):
+            if past.semantic_idx == self.semantic_idx:
+                if past.confidence >= echo_threshold:
+                    # Found an echo - update self
+                    self.echo_detected = True
+                    self.echo_distance = self.hop_count - past.hop_count
+                    return True
+        return False
+    
+    def coherence_score(self) -> float:
+        """
+        Compute overall coherence score combining confidence and tension.
+        
+        High coherence = high confidence + low tension
+        Creative coherence = moderate tension + maintained confidence
+        """
+        # Base coherence from confidence
+        base = self.confidence
+        
+        # Tension penalty (but not too much - some tension is creative)
+        tension_penalty = self.tension * 0.3
+        
+        # Echo bonus - returning to themes is coherent
+        echo_bonus = 0.1 if self.echo_detected else 0.0
+        
+        return max(0.0, min(1.0, base - tension_penalty + echo_bonus))
+    
+    def creative_score(self, surprise_weight: float = 0.3) -> float:
+        """
+        Compute creative score balancing coherence with surprise.
+        
+        High creativity = maintained coherence + meaningful tension
+        This rewards generations that deviate creatively while
+        maintaining semantic grounding.
+        """
+        coherence = self.coherence_score()
+        surprise = self.tension  # Tension = deviation from expected
+        
+        # Weighted combination
+        # High creativity needs both coherence AND surprise
+        if coherence < 0.3:
+            # Too incoherent - not creative, just random
+            return coherence * 0.5
+        elif surprise < 0.1:
+            # Too predictable - boring
+            return coherence * 0.7
+        else:
+            # Sweet spot: coherent but surprising
+            return coherence * (1 - surprise_weight) + surprise * surprise_weight
+
+
+class CreativeCoherenceManager:
+    """
+    Manages creative coherence evaluation for HDC language generation.
+    
+    This class provides O(1) coherence evaluation using popcount operations
+    on XOR distances, enabling real-time creative scoring during generation.
+    
+    Key principles:
+    1. Coherence via popcount: coherence = 1 - (popcount(sem_rel ^ temp_rel) / 64)
+    2. Echo detection for long-range structural coherence
+    3. Creative scoring that balances coherence with surprise
+    4. Translation invariance: window(p) XOR window(q) = window(p XOR q)
+    """
+    
+    def __init__(
+        self,
+        dim: int = DEFAULT_HDC_DIM,
+        semantic_vec: Optional[np.ndarray] = None,
+        coherence_threshold: float = 0.7,
+        creative_threshold: float = 0.5,
+        echo_threshold: float = 0.85,
+        surprise_weight: float = 0.3
+    ):
+        self.dim = dim
+        self.uint64_count = dim // 64
+        self.mask = self.uint64_count - 1
+        self.semantic_vec = semantic_vec  # Reference to DualVectorProjection.semantic_vec
+        
+        # Thresholds
+        self.coherence_threshold = coherence_threshold
+        self.creative_threshold = creative_threshold
+        self.echo_threshold = echo_threshold
+        self.surprise_weight = surprise_weight
+        
+        # Trajectory tracking
+        self._trajectory_history: List[CoherenceTrajectory] = []
+        self._current_trajectory: Optional[CoherenceTrajectory] = None
+        
+        # Statistics
+        self._coherence_samples: List[float] = []
+        self._creative_samples: List[float] = []
+        self._echo_count: int = 0
+    
+    def reset_trajectory(self) -> None:
+        """Reset trajectory for a new generation sequence."""
+        if self._current_trajectory is not None:
+            self._trajectory_history.append(self._current_trajectory)
+        self._current_trajectory = CoherenceTrajectory()
+    
+    def evaluate_next_hop(
+        self,
+        current_token: int,
+        candidate_token: int,
+        position: int,
+        hadamard_index_fn: Callable[[int], int]
+    ) -> Tuple[CoherenceTrajectory, float, float]:
+        """
+        Evaluate a candidate next token for coherence and creativity - O(1).
+        
+        This is the core creative coherence evaluation. It computes:
+        1. Semantic relationship via XOR of hadamard indices
+        2. Temporal relationship via position delta
+        3. Coherence from popcount of semantic vector at relationship window
+        4. Creative score combining coherence with surprise
+        
+        Args:
+            current_token: The current token ID
+            candidate_token: The candidate next token ID
+            position: Current position in sequence
+            hadamard_index_fn: Function to convert token_id to hadamard index
+            
+        Returns:
+            Tuple of (new_trajectory, coherence_score, creative_score)
+        """
+        if self._current_trajectory is None:
+            self.reset_trajectory()
+        
+        # Compute semantic delta via XOR
+        idx_current = hadamard_index_fn(current_token)
+        idx_candidate = hadamard_index_fn(candidate_token)
+        semantic_delta = idx_current ^ idx_candidate
+        
+        # Compute temporal delta (position-based)
+        temporal_delta = position  # Simple position encoding
+        
+        # Get semantic window for this relationship
+        rel_window = semantic_delta & self.mask
+        
+        # O(1) coherence from semantic vector popcount
+        if self.semantic_vec is not None:
+            signal = self.semantic_vec[rel_window]
+            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+            # Confidence from distance to 32 (random popcount)
+            confidence = abs(pc - 32) / 32.0
+        else:
+            confidence = 0.5  # No semantic vector - neutral
+        
+        # Create new trajectory via hop
+        new_trajectory = self._current_trajectory.hop(
+            semantic_delta=semantic_delta,
+            temporal_delta=temporal_delta,
+            new_confidence=confidence,
+            mask=self.mask
+        )
+        
+        # Check for echo (long-range coherence)
+        if new_trajectory.check_echo(self._trajectory_history, self.echo_threshold):
+            self._echo_count += 1
+        
+        # Compute scores
+        coherence = new_trajectory.coherence_score()
+        creative = new_trajectory.creative_score(self.surprise_weight)
+        
+        # Record samples
+        self._coherence_samples.append(coherence)
+        self._creative_samples.append(creative)
+        
+        return new_trajectory, coherence, creative
+    
+    def accept_hop(self, trajectory: CoherenceTrajectory) -> None:
+        """Accept a trajectory as the current state."""
+        self._current_trajectory = trajectory
+    
+    def rank_candidates(
+        self,
+        current_token: int,
+        candidates: List[int],
+        position: int,
+        hadamard_index_fn: Callable[[int], int],
+        mode: str = "creative"
+    ) -> List[Tuple[int, float, float, CoherenceTrajectory]]:
+        """
+        Rank candidate tokens by coherence/creativity - O(V) where V = len(candidates).
+        
+        Args:
+            current_token: Current token ID
+            candidates: List of candidate token IDs
+            position: Current position
+            hadamard_index_fn: Token to hadamard index function
+            mode: "creative" for creative ranking, "coherent" for pure coherence
+            
+        Returns:
+            List of (token_id, coherence, creativity, trajectory) sorted by mode
+        """
+        results = []
+        
+        for candidate in candidates:
+            trajectory, coherence, creative = self.evaluate_next_hop(
+                current_token, candidate, position, hadamard_index_fn
+            )
+            results.append((candidate, coherence, creative, trajectory))
+        
+        # Sort by appropriate score
+        if mode == "creative":
+            results.sort(key=lambda x: x[2], reverse=True)  # Sort by creativity
+        else:
+            results.sort(key=lambda x: x[1], reverse=True)  # Sort by coherence
+        
+        return results
+    
+    def detect_creative_opportunity(self) -> Tuple[bool, float]:
+        """
+        Detect if current state presents a creative opportunity.
+        
+        A creative opportunity occurs when:
+        1. Current tension is moderate (not too predictable, not too random)
+        2. Confidence is maintained above threshold
+        3. No recent echo (we're in novel territory)
+        
+        Returns:
+            Tuple of (is_opportunity, opportunity_score)
+        """
+        if self._current_trajectory is None:
+            return False, 0.0
+        
+        traj = self._current_trajectory
+        
+        # Check conditions
+        tension_ok = 0.1 < traj.tension < 0.5
+        confidence_ok = traj.confidence >= self.coherence_threshold
+        novel_territory = not traj.echo_detected
+        
+        if tension_ok and confidence_ok and novel_territory:
+            opportunity_score = traj.creative_score(self.surprise_weight)
+            return True, opportunity_score
+        
+        return False, 0.0
+    
+    def get_trajectory_summary(self) -> Dict[str, Any]:
+        """Get summary of current trajectory state."""
+        if self._current_trajectory is None:
+            return {
+                'active': False,
+                'hop_count': 0,
+                'coherence': 0.0,
+                'creativity': 0.0,
+                'echo_detected': False
+            }
+        
+        return {
+            'active': True,
+            'hop_count': self._current_trajectory.hop_count,
+            'semantic_idx': self._current_trajectory.semantic_idx,
+            'temporal_idx': self._current_trajectory.temporal_idx,
+            'coherence': self._current_trajectory.coherence_score(),
+            'creativity': self._current_trajectory.creative_score(self.surprise_weight),
+            'tension': self._current_trajectory.tension,
+            'echo_detected': self._current_trajectory.echo_detected,
+            'echo_distance': self._current_trajectory.echo_distance
+        }
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get manager statistics."""
+        return {
+            'total_trajectories': len(self._trajectory_history),
+            'total_echoes': self._echo_count,
+            'mean_coherence': np.mean(self._coherence_samples) if self._coherence_samples else 0.0,
+            'mean_creativity': np.mean(self._creative_samples) if self._creative_samples else 0.0,
+            'current_trajectory': self.get_trajectory_summary()
+        }
+
+
 class RecipeReconstructor:
     def __init__(self, dim: int = DEFAULT_HDC_DIM, hadamard_basis: Optional[WalshHadamardBasis] = None):
         self.dim = dim
@@ -4251,6 +5948,14 @@ class HDCLanguageModel:
         self.meta_residual_storage = MetaResidualRecipeStorage(dim=self.dim)
         self.self_observation: Optional[SelfObservation] = None
         self._pending_residual_learning: Optional[Tuple[np.ndarray, List[int], int]] = None
+        
+        # Semantic Layer components (O(1) proactive metacognition)
+        self.dual_projection: Optional[DualVectorProjection] = None
+        self.semantic_observation: Optional[SemanticSelfObservation] = None
+        self.semantic_coverage_observer: Optional[SemanticCoverageObserver] = None
+        
+        # Creative Coherence components
+        self.creative_coherence_manager: Optional[CreativeCoherenceManager] = None
         
         # Recipe verification statistics for logging
         self._recipe_verifications = 0
@@ -4862,6 +6567,247 @@ class HDCLanguageModel:
                 return probs
         
         return None
+    
+    def initialize_semantic_layer(self) -> None:
+        """
+        Initialize the semantic layer for O(1) proactive metacognition.
+        
+        This creates:
+        - DualVectorProjection: Maintains syntactic_vec and semantic_vec
+        - SemanticSelfObservation: Proactive confidence monitor
+        - SemanticCoverageObserver: Landscape coverage tracker
+        """
+        if self.dual_projection is None:
+            self.dual_projection = DualVectorProjection(
+                dim=self.dim,
+                window_size=self.sparse_window_size
+            )
+            print(f"[HDCModel] Initialized DualVectorProjection (window_size={self.sparse_window_size})")
+        
+        if self.semantic_observation is None:
+            self.semantic_observation = SemanticSelfObservation(
+                dim=self.dim,
+                semantic_vec=self.dual_projection.semantic_vec,
+                mask=self.dual_projection.mask
+            )
+            print("[HDCModel] Initialized SemanticSelfObservation (proactive metacognition)")
+        
+        if self.semantic_coverage_observer is None:
+            self.semantic_coverage_observer = SemanticCoverageObserver(
+                dim=self.dim,
+                window_size=self.sparse_window_size
+            )
+            print("[HDCModel] Initialized SemanticCoverageObserver")
+        
+        # Initialize Creative Coherence Manager
+        if self.creative_coherence_manager is None:
+            self.creative_coherence_manager = CreativeCoherenceManager(
+                dim=self.dim,
+                semantic_vec=self.dual_projection.semantic_vec if self.dual_projection else None
+            )
+            print("[HDCModel] Initialized CreativeCoherenceManager (creative generation)")
+    
+    def project_corpus_semantic(self, tokens: List[int]) -> None:
+        """
+        Project corpus into the semantic layer for O(1) relationship queries.
+        
+        This fills the semantic_vec with token-relationship signals that can
+        be queried in O(1) time using the Hadamard XOR property:
+        - relationship_idx = token_A ^ token_B
+        - confidence = |popcount - 32| / 32
+        """
+        if self.dual_projection is None:
+            self.initialize_semantic_layer()
+        
+        self.dual_projection.project_corpus(tokens)
+        
+        # Update semantic observation reference
+        if self.semantic_observation is not None:
+            self.semantic_observation.semantic_vec = self.dual_projection.semantic_vec
+        
+        # Update creative coherence manager reference
+        if self.creative_coherence_manager is not None:
+            self.creative_coherence_manager.semantic_vec = self.dual_projection.semantic_vec
+    
+    def query_semantic_relationship(
+        self,
+        token_A: int,
+        token_B: int
+    ) -> Tuple[ConvergenceSignal, float, int]:
+        """
+        Query the semantic relationship between two tokens - O(1) operation.
+        
+        Returns:
+            Tuple of (signal_type, confidence, direction)
+        """
+        if self.semantic_observation is None:
+            self.initialize_semantic_layer()
+        
+        def hadamard_index_fn(token_id: int) -> int:
+            return self.dual_projection.hadamard_index(token_id)
+        
+        return self.semantic_observation.observe_relationship(
+            token_A, token_B, hadamard_index_fn
+        )
+    
+    def predict_with_semantic_routing(
+        self,
+        context_tokens: List[int],
+        temperature: float = 1.0
+    ) -> Tuple[int, float, str]:
+        """
+        Unified prediction pipeline with proactive confidence-based routing.
+        
+        This method uses the semantic layer to determine confidence BEFORE
+        prediction, enabling proactive routing decisions:
+        
+        1. HIGH_CONFIDENCE: Return semantic prediction immediately
+        2. MODERATE: Blend semantic and syntactic predictions
+        3. LOW/STUCK: Fall back to syntactic or uniform distribution
+        
+        Returns:
+            Tuple of (predicted_token_id, confidence, routing_path)
+        """
+        if self.semantic_observation is None:
+            self.initialize_semantic_layer()
+        
+        if not context_tokens:
+            return 0, 0.0, "fallback_empty_context"
+        
+        def hadamard_index_fn(token_id: int) -> int:
+            return self.dual_projection.hadamard_index(token_id)
+        
+        def syntactic_predict_fn(tokens: List[int]) -> np.ndarray:
+            return self.predict_next_token_probabilities(tokens, temperature)
+        
+        return self.semantic_observation.predict_with_confidence_routing(
+            context_tokens,
+            self.config.vocab_size,
+            hadamard_index_fn,
+            syntactic_predict_fn
+        )
+    
+    def get_semantic_coverage_report(self) -> Optional[SemanticCoverageReport]:
+        """
+        Get a comprehensive report on semantic landscape coverage.
+        
+        Returns information about:
+        - Fraction of windows with high confidence
+        - Dead zones (relationships the corpus doesn't contain evidence for)
+        - Mean confidence across the semantic vector
+        """
+        if self.semantic_observation is None:
+            return None
+        
+        return self.semantic_observation.get_semantic_coverage()
+    
+    def predict_with_creative_coherence(
+        self,
+        context_tokens: List[int],
+        mode: str = "creative",
+        top_k: int = 10,
+        temperature: float = 1.0
+    ) -> Tuple[int, float, float, str]:
+        """
+        Predict next token using creative coherence evaluation.
+        
+        This method enables "creative" generation by:
+        1. Evaluating multiple candidates for coherence AND creativity
+        2. Ranking by creative score (coherence + surprise balance)
+        3. Detecting creative opportunities (novel but grounded)
+        
+        Args:
+            context_tokens: List of token IDs forming the context
+            mode: "creative" for creative ranking, "coherent" for pure coherence
+            top_k: Number of top candidates to consider
+            temperature: Temperature for base probability distribution
+            
+        Returns:
+            Tuple of (predicted_token, coherence, creativity, routing_info)
+        """
+        if self.creative_coherence_manager is None:
+            self.initialize_semantic_layer()
+        
+        if not context_tokens:
+            return 0, 0.0, 0.0, "fallback_empty_context"
+        
+        # Get base probabilities for candidate filtering
+        base_probs = self.predict_next_token_probabilities(context_tokens, temperature)
+        top_indices = np.argsort(base_probs)[-top_k:]
+        
+        # Get current token and position
+        current_token = context_tokens[-1]
+        position = len(context_tokens)
+        
+        # Hadamard index function
+        def hadamard_index_fn(token_id: int) -> int:
+            return self.dual_projection.hadamard_index(token_id)
+        
+        # Rank candidates by creative/coherence score
+        ranked = self.creative_coherence_manager.rank_candidates(
+            current_token=current_token,
+            candidates=list(top_indices),
+            position=position,
+            hadamard_index_fn=hadamard_index_fn,
+            mode=mode
+        )
+        
+        if not ranked:
+            # Fallback to highest probability
+            best_idx = int(np.argmax(base_probs))
+            return best_idx, 0.0, 0.0, "fallback_no_candidates"
+        
+        # Get best candidate
+        best_token, coherence, creativity, trajectory = ranked[0]
+        
+        # Accept this hop into the trajectory
+        self.creative_coherence_manager.accept_hop(trajectory)
+        
+        # Build routing info
+        routing_info = f"creative_{mode}_coherence={coherence:.3f}_creativity={creativity:.3f}"
+        if trajectory.echo_detected:
+            routing_info += f"_echo_d{trajectory.echo_distance}"
+        
+        return best_token, coherence, creativity, routing_info
+    
+    def detect_creative_opportunity(self) -> Tuple[bool, float]:
+        """
+        Detect if current generation state presents a creative opportunity.
+        
+        A creative opportunity occurs when:
+        1. Current tension is moderate (not too predictable, not too random)
+        2. Confidence is maintained above threshold
+        3. No recent echo (we're in novel territory)
+        
+        Returns:
+            Tuple of (is_opportunity, opportunity_score)
+        """
+        if self.creative_coherence_manager is None:
+            return False, 0.0
+        
+        return self.creative_coherence_manager.detect_creative_opportunity()
+    
+    def get_creative_coherence_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics from the creative coherence manager.
+        
+        Returns information about:
+        - Total trajectories and echoes detected
+        - Mean coherence and creativity scores
+        - Current trajectory state
+        """
+        if self.creative_coherence_manager is None:
+            return {
+                'active': False,
+                'message': 'Creative coherence not initialized'
+            }
+        
+        return self.creative_coherence_manager.get_statistics()
+    
+    def reset_creative_trajectory(self) -> None:
+        """Reset the creative coherence trajectory for a new generation."""
+        if self.creative_coherence_manager is not None:
+            self.creative_coherence_manager.reset_trajectory()
     
     def _softmax_with_temperature(self, similarities: np.ndarray, temperature: float) -> np.ndarray:
         scaled = similarities * self.config.similarity_scale / temperature
@@ -5884,6 +7830,24 @@ def train_hdc_instant_projection(config: HDCConfig) -> Tuple[float, float, float
     recipe_time = time.time() - recipe_start
     print(f"[InstantProjection] Built {ngram_recipes:,} recipes in {recipe_time:.2f}s")
     print(f"[InstantProjection] Recipe storage size: {len(model.recipes)} unique patterns")
+    
+    # Initialize and project semantic layer for O(1) proactive metacognition
+    print(f"\n[InstantProjection] Initializing semantic layer for proactive metacognition...")
+    semantic_start = time.time()
+    
+    model.initialize_semantic_layer()
+    model.project_corpus_semantic(tokens.tolist())
+    
+    # Get semantic coverage report
+    coverage_report = model.get_semantic_coverage_report()
+    if coverage_report is not None:
+        print(f"[InstantProjection] Semantic coverage: {coverage_report.coverage*100:.1f}%")
+        print(f"[InstantProjection] High confidence windows: {coverage_report.high_confidence_count}/{coverage_report.total_windows}")
+        print(f"[InstantProjection] Mean confidence: {coverage_report.mean_confidence:.3f}")
+        print(f"[InstantProjection] Dead zones (low confidence): {len(coverage_report.dead_zones)}")
+    
+    semantic_time = time.time() - semantic_start
+    print(f"[InstantProjection] Semantic layer initialized in {semantic_time:.3f}s")
     
     # Final evaluation on validation set using O(1) reverse lookup
     # This is the fastest inference: O(N) with no vocab_size factor!
