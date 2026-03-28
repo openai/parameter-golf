@@ -76,11 +76,15 @@ export NCCL_P2P_LEVEL=NVL
 # Increase file descriptor limit (Pegasus OMP shared memory workaround)
 ulimit -n 4000 2>/dev/null || true
 
-# Install missing deps inside container (fast via Pegasus PyPI cache)
-pip install --quiet --no-cache --index-url http://pypi-cache/index --trusted-host pypi-cache \
-    sentencepiece zstandard 2>/dev/null \
-  || pip install --quiet sentencepiece zstandard 2>/dev/null \
-  || true
+# Install missing deps inside container — only rank 0 to avoid pip race
+if [ "${SLURM_PROCID:-0}" = "0" ]; then
+    pip install --quiet --no-cache --index-url http://pypi-cache/index --trusted-host pypi-cache \
+        sentencepiece zstandard 2>/dev/null \
+      || pip install --quiet sentencepiece zstandard 2>/dev/null \
+      || true
+fi
+# Wait for rank 0 to finish installing
+sleep 5
 
 cd '"${REPO_PATH}"'
 
@@ -137,6 +141,7 @@ else
     # salloc mode: assumes you already have an allocation
     srun -K \
         --gpu-bind=none \
+        --mem=0 \
         ${CONTAINER_ARGS} \
         bash -c "${INNER_CMD}" \
         2>&1 | tee "${LOG_PATH}"
