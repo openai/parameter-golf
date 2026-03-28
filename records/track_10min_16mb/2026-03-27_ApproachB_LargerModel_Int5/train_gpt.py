@@ -94,7 +94,7 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
-    prune_pct = float(os.environ.get("PRUNE_PCT", 0.03))
+    prune_pct = float(os.environ.get("PRUNE_PCT", 0.05))  # 5% to guarantee <16MB across all seeds
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -1567,8 +1567,7 @@ def main() -> None:
         ttt_chunk = int(os.environ.get("TTT_CHUNK_TOKENS", "131072"))
         ttt_opt = os.environ.get("TTT_OPTIMIZER", "adamw")
         log0(f"TTT: epochs={ttt_epochs} lr={ttt_lr} freeze_first={ttt_freeze} chunk={ttt_chunk} opt={ttt_opt}")
-        # Run TTT at T=1.0 (neutral), then apply T=0.98 for final scoring
-        eval_model.inference_temp.fill_(1.0)
+        # TTT s_0: score each chunk BEFORE training on it (the only legal score)
         ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
             args, eval_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
@@ -1577,27 +1576,11 @@ def main() -> None:
             ttt_chunk_tokens=ttt_chunk, ttt_optimizer=ttt_opt,
         )
         torch.cuda.synchronize()
-        log0(
-            f"final_ttt_T1.0 val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
-            f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
-        )
-        # Post-TTT: apply T=0.98 and re-score with sliding window
-        eval_model.inference_temp.fill_(0.98)
-        torch.cuda.synchronize()
-        t_tcal = time.perf_counter()
-        tcal_val_loss, tcal_val_bpb = eval_val_sliding(
-            args, eval_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=args.eval_stride, eval_seq_len=sw_seq_len,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"final_ttt_T0.98 val_loss:{tcal_val_loss:.4f} val_bpb:{tcal_val_bpb:.4f} "
-            f"eval_time:{1000.0 * (time.perf_counter() - t_tcal):.0f}ms"
-        )
-        log0(f"final_ttt_T0.98_exact val_loss:{tcal_val_loss:.8f} val_bpb:{tcal_val_bpb:.8f}")
+        ttt_elapsed = time.perf_counter() - t_ttt
+        log0(f"final_ttt_s0 val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f}")
+        log0(f"final_ttt_s0_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
         total_eval_time = time.perf_counter() - t_slide
-        log0(f"total_eval_time:{total_eval_time:.1f}s")
+        log0(f"total_eval_time:{total_eval_time:.1f}s (sliding:{(t_ttt - t_slide):.1f}s ttt:{ttt_elapsed:.1f}s)")
         assert total_eval_time < 600.0, f"EVAL EXCEEDED 600s BUDGET: {total_eval_time:.1f}s"
     if distributed:
         dist.destroy_process_group()
