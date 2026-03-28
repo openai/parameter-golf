@@ -21,7 +21,7 @@ However, different features may benefit from different activation behavior. For 
 
 - some channels may benefit from strong suppression of negative inputs (ReLU-like behavior)  
 - others may benefit from more magnitude-based responses, activating on large inputs regardless of sign  
-- others may benefit from allowing negative inputs to contribute with inverted sign  
+- others may benefit from allowing negative inputs to contribute instead of being suppressed  
 
 Static activations impose the same behavior across all neurons, which is unnecessarily restrictive.
 
