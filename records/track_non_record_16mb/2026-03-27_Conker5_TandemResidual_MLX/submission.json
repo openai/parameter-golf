@@ -1,0 +1,16 @@
+{
+  "author": "asuramaya",
+  "github_id": "asuramaya",
+  "name": "Conker-5 Tandem Residual Exact Experts (MLX, non-record)",
+  "blurb": "Non-record unlimited-compute submission. Tandem-trained Conker-3 + sparse exact residual experts (exact1/2/3, delim2, special2, number2, markup2, attr2) with gate-only learned selection, trained 1000 steps on MLX and packaged as int6+zlib.",
+  "date": "2026-03-28T01:59:42Z",
+  "val_loss": 0.97165083,
+  "val_bpb": 0.57546632,
+  "pre_quant_val_loss": 0.96546806,
+  "pre_quant_val_bpb": 0.57180453,
+  "int6_zlib_val_loss": 0.97165083,
+  "int6_zlib_val_bpb": 0.57546632,
+  "bytes_total": 3811521,
+  "bytes_model_int6_zlib": 3720359,
+  "bytes_code": 91162
+}

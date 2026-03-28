@@ -1,0 +1,25 @@
+{
+  "seed": 43,
+  "params": 177364117,
+  "train_time_sec": 98.21330881118774,
+  "slice_train_loss": 0.964509379863739,
+  "slice_test_loss": 0.9543131530284882,
+  "slice_test_bpb": 0.5651979688672092,
+  "full_pre_loss": 0.9654680556270661,
+  "full_pre_bpb": 0.5718045301114086,
+  "full_pre_tokens": 62021632,
+  "full_quant_loss": 0.9716508324277588,
+  "full_quant_bpb": 0.5754663185700726,
+  "full_quant_tokens": 62021632,
+  "packed_stats": {
+    "bits": 6.0,
+    "payload_bytes_est": 6801706.0,
+    "payload_mb_est": 6.486612319946289,
+    "quantized_params": 8601600,
+    "kept_params": 168597
+  },
+  "artifact_bytes_raw": 8956303,
+  "artifact_bytes_zlib": 3720359,
+  "bytes_code": 91162,
+  "bytes_total": 3811521
+}

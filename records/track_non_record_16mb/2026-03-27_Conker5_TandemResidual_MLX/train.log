@@ -1,0 +1,18 @@
+run_id:conker5_tandem_nonrecord
+data_path:/private/tmp/parameter-golf/data/datasets/fineweb10B_sp1024
+seed:43 seq_len:256 batch_size:16 steps:1000 lr:0.0005
+params:177364117
+step:100/1000 train_loss:1.7999 best:1.1858 tok_s:41802
+step:200/1000 train_loss:1.2338 best:1.0508 tok_s:41866
+step:300/1000 train_loss:1.1370 best:0.9376 tok_s:41646
+step:400/1000 train_loss:1.1048 best:0.9376 tok_s:41621
+step:500/1000 train_loss:1.0926 best:0.9376 tok_s:41678
+step:600/1000 train_loss:1.0307 best:0.9130 tok_s:41726
+step:700/1000 train_loss:1.0343 best:0.8901 tok_s:41738
+step:800/1000 train_loss:1.0007 best:0.8315 tok_s:41741
+step:900/1000 train_loss:0.9973 best:0.8315 tok_s:41716
+step:1000/1000 train_loss:0.9540 best:0.8172 tok_s:41705
+slice_eval train_loss:0.9645 test_loss:0.9543 test_bpb:0.5652 train_time:98.2s
+full_eval_pre loss:0.9655 bpb:0.5718 tokens:62021632
+full_eval_int6 loss:0.9717 bpb:0.5755 tokens:62021632 artifact_bytes:3720359
+wrote:submission.json results.json conker5_tandem_nonrecord.int6.ptz
