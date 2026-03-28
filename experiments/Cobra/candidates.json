@@ -1,0 +1,74 @@
+[
+  {
+    "name": "c0_base_ref",
+    "description": "Cobra base-quality reference (COMPLEMENT_ALPHA=0, n-gram eval disabled).",
+    "profile": "profiles/cobra_base_quality.env",
+    "overrides": {}
+  },
+  {
+    "name": "c1_green1_recipe",
+    "description": "Train like GREEN_1 (complementary training on) but still no n-gram eval for Cobra timing.",
+    "profile": "profiles/cobra_base_quality.env",
+    "overrides": {
+      "COMPLEMENT_ALPHA": "0.5"
+    }
+  },
+  {
+    "name": "c2_complement_025",
+    "description": "Mid-strength complementary training.",
+    "profile": "profiles/cobra_base_quality.env",
+    "overrides": {
+      "COMPLEMENT_ALPHA": "0.25"
+    }
+  },
+  {
+    "name": "c3_swa_80",
+    "description": "Slightly denser SWA snapshots.",
+    "profile": "profiles/cobra_base_quality.env",
+    "overrides": {
+      "SWA_EVERY": "80"
+    }
+  },
+  {
+    "name": "c4_swa_120",
+    "description": "Sparser SWA snapshots.",
+    "profile": "profiles/cobra_base_quality.env",
+    "overrides": {
+      "SWA_EVERY": "120"
+    }
+  },
+  {
+    "name": "c5_wd_0035",
+    "description": "Lower decay pair.",
+    "profile": "profiles/cobra_base_quality.env",
+    "overrides": {
+      "MUON_WD": "0.035",
+      "ADAM_WD": "0.035"
+    }
+  },
+  {
+    "name": "c6_wd_0045",
+    "description": "Higher decay pair.",
+    "profile": "profiles/cobra_base_quality.env",
+    "overrides": {
+      "MUON_WD": "0.045",
+      "ADAM_WD": "0.045"
+    }
+  },
+  {
+    "name": "c7_lateqat_045",
+    "description": "Earlier late-QAT ramp trigger.",
+    "profile": "profiles/cobra_base_quality.env",
+    "overrides": {
+      "LATE_QAT_THRESHOLD": "0.45"
+    }
+  },
+  {
+    "name": "c8_lateqat_055",
+    "description": "Later late-QAT ramp trigger.",
+    "profile": "profiles/cobra_base_quality.env",
+    "overrides": {
+      "LATE_QAT_THRESHOLD": "0.55"
+    }
+  }
+]

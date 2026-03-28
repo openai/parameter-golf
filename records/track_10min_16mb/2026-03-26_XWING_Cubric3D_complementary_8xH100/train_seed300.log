@@ -1,0 +1,120 @@
+============================================
+  X-WING YELLOW II — THE MONSTER
+  Seed: 300
+  3D cubric: order × entropy × count (54 mults)
+  Complementary training: alpha=0.5
+  Eval alpha: 0.20-0.75 | Orders: 2-9
+============================================
+W0326 04:40:46.217000 211893 torch/distributed/run.py:803]
+W0326 04:40:46.217000 211893 torch/distributed/run.py:803] *****************************************
+W0326 04:40:46.217000 211893 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+W0326 04:40:46.217000 211893 torch/distributed/run.py:803] *****************************************
+logs/1c1f9bfa-928e-4bf9-ac68-3871d8996883.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+complementary_training:alpha=0.5
+model_params:26928220
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:leaky_relu_sq mlp_leaky_slope:0.5
+XSA:last_4 world_size:8 grad_accum_steps:1
+num_heads:8 num_kv_heads:4 embed_lr:0.035 matrix_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 fullgraph=0
+seed:300
+ngram_eval:order=9 alpha=0.3 min_count=2 buckets=8388608
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9327 val_bpb:4.1059 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9337 train_time:147ms step_avg:146.80ms
+step:2/20000 train_loss:8.6739 train_time:230ms step_avg:114.91ms
+step:3/20000 train_loss:7.8308 train_time:316ms step_avg:105.30ms
+step:4/20000 train_loss:7.0679 train_time:402ms step_avg:100.54ms
+step:5/20000 train_loss:6.8781 train_time:488ms step_avg:97.56ms
+step:6/20000 train_loss:6.7646 train_time:575ms step_avg:95.77ms
+step:7/20000 train_loss:6.6175 train_time:660ms step_avg:94.33ms
+step:8/20000 train_loss:6.5525 train_time:746ms step_avg:93.22ms
+step:9/20000 train_loss:6.2961 train_time:832ms step_avg:92.40ms
+step:10/20000 train_loss:5.9846 train_time:917ms step_avg:91.75ms
+step:1000/20000 train_loss:2.2309 train_time:87923ms step_avg:87.92ms
+step:2000/20000 train_loss:2.0271 train_time:176004ms step_avg:88.00ms
+step:3000/20000 train_loss:2.1235 train_time:264103ms step_avg:88.03ms
+step:4000/20000 train_loss:1.9370 train_time:352169ms step_avg:88.04ms
+step:5000/20000 train_loss:2.0637 train_time:440259ms step_avg:88.05ms
+late_qat:enabled step:5065 scale:0.4999
+step:6000/20000 train_loss:1.9062 train_time:528222ms step_avg:88.04ms
+swa:start step:6200
+step:6814/20000 val_loss:1.9223 val_bpb:1.1385 train_time:600073ms step_avg:88.06ms
+stopping_early: wallclock_cap train_time:600073ms step:6814/20000
+peak memory allocated: 20677 MiB reserved: 20716 MiB
+gptq:calibrating with training data...
+gptq:calibrated 68 layers in 3.5s
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9207 val_bpb:1.1375 eval_time:2075ms
+Serialized model: 106047497 bytes
+Code size: 104697 bytes
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+Serialized model int6+zstd: 15555233 bytes
+Total submission size int6+zstd: 15659930 bytes
+Total submission size int8+zlib: 15659930 bytes
+final_int6_roundtrip val_loss:1.9303 val_bpb:1.1432 eval_time:37052ms
+final_int6_roundtrip_exact val_loss:1.93031471 val_bpb:1.14324110
+final_int6_sliding_window val_loss:1.8903 val_bpb:1.1196 stride:64 eval_time:95816ms
+final_int6_sliding_window_exact val_loss:1.89033012 val_bpb:1.11956294
+final_int8_zlib_roundtrip_exact val_loss:1.89033012 val_bpb:1.11956294
+ngram_eval:chunks=60 chunk_tokens=1048576 windows=969088 shared_tables=True
+ngram_eval:chunk [1/60] bpb=1.129515 t=15s
+ngram_eval:chunk [2/60] bpb=1.165073 t=19s
+ngram_eval:chunk [3/60] bpb=1.167624 t=23s
+cubric3d:step=8 o2:avg=0.42 o3:avg=0.30 o4:avg=0.44 o5:avg=1.91 o6:avg=1.93 o7:avg=1.92 o8:avg=1.91 o9:avg=1.95
+ngram_eval:chunk [11/60] bpb=1.044160 t=51s
+cubric3d:step=16 o2:avg=0.39 o3:avg=0.30 o4:avg=0.44 o5:avg=1.80 o6:avg=1.80 o7:avg=1.80 o8:avg=1.80 o9:avg=1.85
+ngram_eval:chunk [21/60] bpb=0.811698 t=83s
+cubric3d:step=24 o2:avg=0.39 o3:avg=0.30 o4:avg=0.46 o5:avg=1.70 o6:avg=1.71 o7:avg=1.70 o8:avg=1.71 o9:avg=1.74
+ngram_eval:chunk [31/60] bpb=0.666677 t=112s
+cubric3d:step=32 o2:avg=0.39 o3:avg=0.30 o4:avg=0.45 o5:avg=1.65 o6:avg=1.68 o7:avg=1.66 o8:avg=1.64 o9:avg=1.65
+cubric3d:step=40 o2:avg=0.39 o3:avg=0.30 o4:avg=0.45 o5:avg=1.64 o6:avg=1.67 o7:avg=1.64 o8:avg=1.59 o9:avg=1.59
+ngram_eval:chunk [41/60] bpb=0.574203 t=139s
+cubric3d:step=48 o2:avg=0.39 o3:avg=0.30 o4:avg=0.45 o5:avg=1.64 o6:avg=1.67 o7:avg=1.65 o8:avg=1.60 o9:avg=1.54
+ngram_eval:chunk [51/60] bpb=0.515402 t=165s
+cubric3d:step=56 o2:avg=0.39 o3:avg=0.30 o4:avg=0.45 o5:avg=1.64 o6:avg=1.67 o7:avg=1.64 o8:avg=1.60 o9:avg=1.51
+ngram_eval:chunk [60/60] bpb=0.481137 t=199s
+cubric3d:final c_steps=60 cells=9x8=72
+  o2: [0.44 0.40 0.30 0.45 0.42 0.30 0.45 0.45 0.34]
+  o3: [0.30 0.30 0.30 0.30 0.30 0.30 0.31 0.30 0.30]
+  o4: [0.46 0.30 0.30 0.66 0.42 0.30 0.51 0.70 0.41]
+  o5: [1.87 0.88 0.91 2.00 1.94 1.15 2.00 2.00 2.00]
+  o6: [1.94 0.73 0.96 2.00 2.00 1.39 2.00 2.00 2.00]
+  o7: [1.87 0.44 1.05 2.00 2.00 1.39 2.00 2.00 2.00]
+  o8: [2.00 0.36 0.71 2.00 2.00 1.26 2.00 2.00 2.00]
+  o9: [2.00 0.40 0.49 2.00 2.00 0.51 2.00 2.00 2.00]
+final_int6_sliding_window_ngram9 val_loss:0.8140 val_bpb:0.4821 eval_time:204025ms
+final_int6_sliding_window_ngram9_exact val_loss:0.81402600 val_bpb:0.48211332
+============================================
+  DONE
+============================================
