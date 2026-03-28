@@ -1,0 +1,23 @@
+{
+  "name": "Elar Wei",
+  "github": "Elarwei001",
+  "approach": "LatentLM + TurboQuant + LeWM-style training",
+  "status": "work_in_progress",
+  "val_bpb": null,
+  "target_bpb": "<1.10",
+  "artifact_size_mb": null,
+  "target_size_mb": "<16",
+  "date": "2026-03-28",
+  "techniques": [
+    "Latent space prediction (LeWM-inspired)",
+    "TurboQuant 3-bit quantization",
+    "SIGReg regularization",
+    "Tied encoder/decoder",
+    "AutoResearch-style automated search"
+  ],
+  "novelty": [
+    "First JEPA/latent-space approach on leaderboard",
+    "First TurboQuant application to Parameter Golf",
+    "2x parameter budget via 3-bit vs Int6"
+  ]
+}
