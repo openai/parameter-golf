@@ -1,14 +1,26 @@
 {
-    "name": "Anubhav",
-    "github_id": "",
+    "author": "Anubhav",
+    "github_id": "AnubhavBharadwaaj",
     "val_bpb": null,
-    "track": "10min_16mb",
+    "val_loss": null,
+    "artifact_size_bytes": null,
     "hardware": "8xH100 SXM",
-    "description": "11L SOTA Fork: LeakyReLU² + XSA-last4 + EMA + GPTQ-lite + SmearGate + BigramHash + Late QAT + Sliding Window Eval",
+    "training_time_seconds": null,
+    "seed": 1337,
+    "smoke_test": {
+        "hardware": "1xA40",
+        "iterations": 500,
+        "val_bpb": 2.9408,
+        "artifact_bytes": 5599664,
+        "quantization_gap_bpb": 0.0020,
+        "notes": "500 steps on 2 shards, not representative of final score"
+    },
+    "description": "Non-record: Full SOTA stack fork with VRL. Smoke-tested on 1xA40. Awaiting 8xH100 validation.",
     "techniques": [
-        "11 layers, 512d, 3x MLP, GQA",
+        "11 layers, 512d, 3x MLP, GQA (8H/4KV)",
         "LeakyReLU²(0.5) activation",
         "XSA on last 4 layers (GQA-aware)",
+        "Value Residual Learning (VRL, 22 params)",
         "EMA (decay=0.997, GPU-side)",
         "Tight SWA (every 50 steps, warmdown)",
         "GPTQ-lite (5-percentile clip search)",
@@ -20,6 +32,8 @@
         "OrthoInit for projections",
         "Sliding window eval (stride=64)",
         "U-Net skip connections",
-        "zstd level 22 compression"
-    ]
+        "zstd level 22 compression",
+        "Muon (lr=0.025, WD=0.04, momentum warmup 0.92->0.99)"
+    ],
+    "base_submission": "PR #549 (abaybektursun stack)"
 }
