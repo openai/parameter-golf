@@ -1,13 +1,18 @@
 #!/bin/bash
 set -euo pipefail
-# MEDUSA: ClownCar_II base — EMA disabled, GPTQ disabled (naive int6)
+# CLOWNCAR_VII: ClownCar_II base — EMA disabled, loop-aware GPTQ
 #
 # Same arch as ClownCar_II. Two changes only:
-#   SKIP_EMA=1  — use live model weights at end of training (no EMA averaging)
-#   SKIP_GPTQ=1 — skip GPTQ calibration, fall back to naive int6
+#   SKIP_EMA=1       — use live model weights (CC_II EMA dragged 0.47 → 0.73 BPB)
+#   LOOP_AWARE_GPTQ=1 — 2-phase GPTQ: flat Hessians (phase1) then crawler Hessians
+#                       with quantized-flat activations (phase2). Crawler GPTQ now
+#                       compensates against the real drifted inputs it sees at inference.
 #
-# Motivation: CC_II post-EMA degraded 0.4723 → 0.7278 BPB (EMA lagging warmdown).
-# This run captures the live 0.47 model directly.
+# Hypothesis: Medusa (naive int6, no EMA) got 1.51 BPB roundtrip because:
+#   1. naive int6 sent crawler weights through int6 (not int8) — 4x error amplification
+#   2. GPTQ Hessians for crawler calibrated on fp16 inter-loop activations, not
+#      quantized-flat activations — crawler fixed-point unravels under distribution shift
+# Fix: re-enable GPTQ with loop-aware 2-phase calibration.
 #
 # Baseline: ClownCar_II sliding window 1.0427 BPB (int6+GPTQ, EMA applied)
 
@@ -57,11 +62,11 @@ print('  chunk_delta_rule OK — CANONICAL kernel active')
 " 2>/dev/null || echo "  WARNING: fla.ops not found — will fall back to Python DeltaNet loop (slow, non-canonical)"
 
 echo "============================================"
-echo "  MEDUSA — live weights, no EMA, naive int6"
+echo "  CLOWNCAR_VII — live weights, loop-aware GPTQ"
 echo "  Seed: ${SEED}"
 echo "  inst_dim=32 FLOW | 4 flat + 1 crawler x 4 loops"
 echo "  DELTA_NET_HEADS=4 | chunk_delta_rule | short_conv=True"
-echo "  SKIP_EMA=1 | SKIP_GPTQ=1 | ngram eval DISABLED"
+echo "  SKIP_EMA=1 | LOOP_AWARE_GPTQ=1 | ngram eval DISABLED"
 echo "============================================"
 
 SEED="$SEED" \
@@ -86,7 +91,7 @@ INST_DIM=32 \
 CRAWLER_QUANT_INT8=1 \
 DELTA_NET_HEADS=4 \
 SKIP_EMA=1 \
-SKIP_GPTQ=1 \
+LOOP_AWARE_GPTQ=1 \
 torchrun --standalone --nproc_per_node="${NPROC_PER_NODE}" \
     "${SCRIPT_DIR}/train_gpt.py" \
     2>&1 | tee "logs/medusa_s${SEED}_$(date +%Y%m%d_%H%M%S).log"

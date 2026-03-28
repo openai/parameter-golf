@@ -2546,6 +2546,88 @@ def gptq_calibrate(model: nn.Module, train_pattern: str, device: torch.device,
     for name in hessians:
         hessians[name] /= max(n_seen[name], 1)
     return hessians
+def gptq_calibrate_loop_aware(model: nn.Module, train_pattern: str, device: torch.device,
+                               n_samples: int = 256, seq_len: int = 2048) -> dict[str, Tensor]:
+    """Two-phase loop-aware GPTQ calibration for the crawler architecture.
+
+    The crawler's shared blocks are called crawler_loops times per forward pass.
+    Standard GPTQ calibration sees fp16 inter-loop activations, but after flat layers
+    are quantized the crawler receives drifted inputs — causing fixed-point unraveling.
+
+    Phase 1: Standard Hessian collection for ALL layers (flat layers already correct).
+    Phase 2: Temporarily patch flat_blocks with their GPTQ-quantized weights, then
+             re-collect Hessians for crawler_blocks / delta_net / loop_inst only.
+             The crawler now sees the actual quantized-flat activations it will face
+             at inference time, so GPTQ can compensate against the real input distribution.
+    Merge: flat layers keep Phase 1 Hessians; crawler layers get Phase 2 Hessians.
+    """
+    CRAWLER_PREFIXES = ("crawler_blocks.", "delta_net.", "loop_inst")
+    # Phase 1: standard calibration for all layers
+    print("gptq_loop_aware:phase1 collecting all-layer Hessians...", flush=True)
+    hessians_p1 = gptq_calibrate(model, train_pattern, device, n_samples, seq_len)
+    # Patch flat_blocks in-place with GPTQ-quantized weights so Phase 2 sees realistic activations
+    originals: dict[str, Tensor] = {}
+    patched_count = 0
+    for name, module in model.named_modules():
+        if not isinstance(module, (nn.Linear, CastedLinear)):
+            continue
+        if any(name.startswith(p) for p in CRAWLER_PREFIXES):
+            continue  # leave crawler layers at fp16 — they're what we're calibrating
+        if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
+            continue  # skip control tensors
+        if name not in hessians_p1:
+            continue
+        W = module.weight.data
+        if W.ndim != 2 or W.numel() <= 65536:
+            continue
+        H = hessians_p1[name].to(W.device)
+        q, scale = gptq_quantize_weight(W.float().cpu(), H.cpu())
+        originals[name] = W.clone()
+        module.weight.data = (q.float() * scale[:, None]).to(dtype=W.dtype, device=W.device)
+        patched_count += 1
+    print(f"gptq_loop_aware:patched {patched_count} flat layers with GPTQ weights", flush=True)
+    # Phase 2: collect crawler Hessians with quantized flat activations
+    print("gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...", flush=True)
+    hessians_p2: dict[str, Tensor] = {}
+    n_seen_p2: dict[str, int] = {}
+    hooks_p2 = []
+    def make_hook_p2(name: str):
+        def hook_fn(module, inp, out):
+            x = inp[0].detach().float()
+            if x.ndim == 3:
+                x = x.reshape(-1, x.shape[-1])
+            if name not in hessians_p2:
+                hessians_p2[name] = torch.zeros(x.shape[1], x.shape[1], device=x.device, dtype=torch.float32)
+                n_seen_p2[name] = 0
+            hessians_p2[name].addmm_(x.t(), x)
+            n_seen_p2[name] += x.shape[0]
+        return hook_fn
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Linear, CastedLinear)) and any(name.startswith(p) for p in CRAWLER_PREFIXES):
+            hooks_p2.append(module.register_forward_hook(make_hook_p2(name)))
+    stream = TokenStream(train_pattern)
+    model.eval()
+    with torch.no_grad():
+        for _ in range(n_samples):
+            tokens = stream.take(seq_len + 1).to(device=device, dtype=torch.int64)
+            x = tokens[:-1].unsqueeze(0)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                model.forward_logits(x)
+    for h in hooks_p2:
+        h.remove()
+    for name in hessians_p2:
+        hessians_p2[name] /= max(n_seen_p2[name], 1)
+    print(f"gptq_loop_aware:phase2 collected {len(hessians_p2)} crawler Hessians", flush=True)
+    # Restore original flat layer weights
+    for name, module in model.named_modules():
+        if name in originals:
+            module.weight.data = originals[name]
+    print(f"gptq_loop_aware:restored {len(originals)} flat layer weights", flush=True)
+    # Merge: crawler gets Phase 2 Hessians, flat layers keep Phase 1
+    merged = {**hessians_p1}
+    merged.update(hessians_p2)
+    print(f"gptq_loop_aware:merged {len(merged)} Hessians ({len(hessians_p2)} crawler from phase2)", flush=True)
+    return merged
 def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
                               hessians: dict[str, Tensor],
                               crawler_int8: bool = False) -> tuple[dict, dict]:
@@ -3148,6 +3230,11 @@ def main() -> None:
     if skip_gptq:
         log0("gptq:SKIPPED (SKIP_GPTQ=1) — will use naive int6")
         gptq_hessians = {}
+    elif int(os.environ.get("LOOP_AWARE_GPTQ", "0")):
+        log0("gptq:loop-aware 2-phase calibration...")
+        t_gptq = time.perf_counter()
+        gptq_hessians = gptq_calibrate_loop_aware(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
+        log0(f"gptq:loop-aware calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
     else:
         log0("gptq:calibrating with training data...")
         t_gptq = time.perf_counter()
