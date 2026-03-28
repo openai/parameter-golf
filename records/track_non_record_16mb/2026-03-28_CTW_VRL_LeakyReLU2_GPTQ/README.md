@@ -76,6 +76,41 @@ RUN_ID=anubhav_ctw_v1 SEED=1337 \
   torchrun --standalone --nproc_per_node=8 \
     records/track_non_record_16mb/2026-03-28_CTW_VRL_LeakyReLU2_GPTQ/train_gpt.py
 ```
+### Logs of the run
+
+Total parameters: 26,829,912
+
+Starting training: batch=131,072 tokens, seq_len=2048, warmdown=3500
+Step 1: Late QAT activated (lr_scale=0.0500)
+step=1/500 | loss=6.9312 | lr=0.0500 | 92285ms/step | 0s/1200s | ETA=20.0min | qat=ON
+step=2/500 | loss=6.7275 | lr=0.1000 | 46943ms/step | 92s/1200s | ETA=18.5min | qat=ON
+step=3/500 | loss=6.1427 | lr=0.1500 | 31823ms/step | 94s/1200s | ETA=18.4min | qat=ON
+step=4/500 | loss=5.8644 | lr=0.2000 | 24261ms/step | 95s/1200s | ETA=18.4min | qat=ON
+step=5/500 | loss=5.9709 | lr=0.2500 | 19725ms/step | 97s/1200s | ETA=18.4min | qat=ON
+step=25/500 | loss=5.3123 | lr=0.0448 | 5209ms/step | 129s/1200s | ETA=17.9min | qat=ON
+step=50/500 | loss=5.1736 | lr=0.0402 | 3398ms/step | 168s/1200s | ETA=17.2min | qat=ON
+step=75/500 | loss=5.0655 | lr=0.0359 | 2794ms/step | 208s/1200s | ETA=16.5min | qat=ON
+step=100/500 | loss=5.1499 | lr=0.0319 | 2490ms/step | 247s/1200s | ETA=15.9min | qat=ON
+step=125/500 | loss=4.9813 | lr=0.0281 | 1584ms/step | 287s/1200s | ETA=9.9min | qat=ON
+step=150/500 | loss=4.9898 | lr=0.0245 | 1585ms/step | 327s/1200s | ETA=9.2min | qat=ON
+step=175/500 | loss=5.0093 | lr=0.0211 | 1588ms/step | 367s/1200s | ETA=8.6min | qat=ON
+step=200/500 | loss=4.9182 | lr=0.0180 | 1590ms/step | 406s/1200s | ETA=8.0min | qat=ON
+step=225/500 | loss=4.8912 | lr=0.0152 | 1593ms/step | 446s/1200s | ETA=7.3min | qat=ON
+step=250/500 | loss=4.9016 | lr=0.0125 | 1593ms/step | 486s/1200s | ETA=6.6min | qat=ON
+step=275/500 | loss=4.9626 | lr=0.0102 | 1590ms/step | 526s/1200s | ETA=6.0min | qat=ON
+step=300/500 | loss=4.8947 | lr=0.0080 | 1590ms/step | 565s/1200s | ETA=5.3min | qat=ON
+step=325/500 | loss=4.8771 | lr=0.0062 | 1590ms/step | 605s/1200s | ETA=4.6min | qat=ON
+step=350/500 | loss=4.8561 | lr=0.0045 | 1589ms/step | 645s/1200s | ETA=4.0min | qat=ON
+step=375/500 | loss=4.8868 | lr=0.0031 | 1589ms/step | 685s/1200s | ETA=3.3min | qat=ON
+step=400/500 | loss=4.8844 | lr=0.0020 | 1588ms/step | 724s/1200s | ETA=2.6min | qat=ON
+step=425/500 | loss=4.8747 | lr=0.0011 | 1588ms/step | 764s/1200s | ETA=2.0min | qat=ON
+step=450/500 | loss=4.8459 | lr=0.0005 | 1588ms/step | 804s/1200s | ETA=1.3min | qat=ON
+step=475/500 | loss=4.8406 | lr=0.0001 | 1589ms/step | 844s/1200s | ETA=0.7min | qat=ON
+step=500/500 | loss=4.8392 | lr=0.0000 | 1592ms/step | 884s/1200s | ETA=0.0min | qat=ON
+
+Applying EMA weights...
+Applying SWA (10 checkpoints)...
+  eval:   0.0% (0/969057) | 0.0s
 
 ## References
 
