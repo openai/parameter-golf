@@ -1,7 +1,8 @@
 # JEPA-LM: When Synthetic Success Doesn't Transfer to Real Language
 
-**Non-Record Submission (Research Contribution / Negative Result)**
+**PR #1012 | Non-Record Submission (Research Contribution / Negative Result)**
 **Author:** Himanshu Dongre ([@himanshudongre](https://github.com/himanshudongre))
+**Companion:** [S4D-Lin SSM Hybrid PR #1013](https://github.com/openai/parameter-golf/pull/1013) (where this research led next)
 **Compute:** $0 (all experiments on Mac Mini M4, MPS backend)
 **Status:** Negative result -- JEPA provides no meaningful benefit for real language modeling at this scale
 
