@@ -1,0 +1,16 @@
+{
+  "author": "Anurag M",
+  "github_id": "techleadershipofanurag",
+  "name": "Probatum Baseline — QAT + LeakyReLU² + EMA",
+  "blurb": "Non-record baseline submission adapting quantization-aware training and distillation techniques from the Probatum Code project to the 16MB parameter golf constraint. Starting from stock 9x512 config with planned improvements in QAT, activation functions, and optimizer tuning.",
+  "date": "2026-03-28T04:30:00Z",
+  "track": "non-record-10min-16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "step_stop": null,
+  "wallclock_seconds": null,
+  "bytes_total": null,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": null,
+  "status": "WIP"
+}
