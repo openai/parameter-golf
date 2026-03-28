@@ -1,12 +1,12 @@
 {
   "author": "Aram Dovlatyan",
-  "github_id": "aramdovlatyan",
-  "name": "McGilchrist Register Token (negative result)",
-  "blurb": "Adds a learnable 'register' bottleneck token per block — a global synthesis slot inspired by McGilchrist's hemispheric attention theory. Register attends to all sequence tokens, then injects a summary back via cross-attention. Non-record: artifact 17.1MB > 16MB limit; per-step loss is better but overhead costs ~660 training steps.",
-  "date": "2026-03-21",
-  "val_loss": 1.96142134,
-  "val_bpb": 1.16166728,
-  "bytes_total": 17132420,
-  "bytes_code": 55528,
-  "notes": "At equal step counts, register outperforms baseline by ~0.006 bpb. But 19ms/step overhead reduces steps from ~4917 to 4259 in the 10-min window, erasing the gain. Artifact also exceeds 16MB limit. Next: bf16 cumsum reduces overhead; need to reduce model size."
+  "github_id": "aramdov",
+  "name": "McGilchrist Register Token",
+  "blurb": "Causal cumulative mean + FiLM conditioning per block — a 'right hemisphere' global context signal inspired by McGilchrist's hemispheric asymmetry thesis. The running mean is a holistic document summary; FiLM projects it into per-dimension scale+shift to modulate each block output. Zero-initialized so training starts identical to SOTA. Non-record: artifact 16.86MB > 16MB limit due to untied lm_head addition; v4 removes that.",
+  "date": "2026-03-28",
+  "val_loss": 1.96646608,
+  "val_bpb": 1.16465346,
+  "bytes_total": 16855808,
+  "bytes_code": 55529,
+  "notes": "Three runs to resolve bugs: (1) zstd fell back to zlib [fixed: pip install zstandard on pod cold start], (2) 2x batch tokens halved step count to 2304 [fixed: reverted to 786K], (3) untied embeddings inflated artifact by ~855KB [to fix in v4]. Final run: 4505 steps at 133ms/step, zstd-22 active, 24.9GB VRAM/GPU. Per-step mechanism works — artifact overage is untied lm_head, not the register mechanism."
 }
