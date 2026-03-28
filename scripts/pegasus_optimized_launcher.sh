@@ -76,6 +76,12 @@ export NCCL_P2P_LEVEL=NVL
 # Increase file descriptor limit (Pegasus OMP shared memory workaround)
 ulimit -n 4000 2>/dev/null || true
 
+# Install missing deps inside container (fast via Pegasus PyPI cache)
+pip install --quiet --no-cache --index-url http://pypi-cache/index --trusted-host pypi-cache \
+    sentencepiece zstandard 2>/dev/null \
+  || pip install --quiet sentencepiece zstandard 2>/dev/null \
+  || true
+
 cd '"${REPO_PATH}"'
 
 RUN_ID='"${RUN_ID}"' \

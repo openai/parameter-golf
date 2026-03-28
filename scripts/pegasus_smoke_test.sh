@@ -57,6 +57,12 @@ export LOCAL_RANK=0 RANK=0 WORLD_SIZE=1
 export MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 OMP_NUM_THREADS=1 USE_OPENMP=1
 ulimit -n 4000 2>/dev/null || true
 
+# Install missing deps inside container (fast via Pegasus PyPI cache)
+pip install --quiet --no-cache --index-url http://pypi-cache/index --trusted-host pypi-cache \
+    sentencepiece zstandard 2>/dev/null \
+  || pip install --quiet sentencepiece zstandard 2>/dev/null \
+  || true
+
 cd '"${REPO_PATH}"'
 
 MAX_WALLCLOCK_SECONDS=90 \
