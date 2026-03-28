@@ -239,6 +239,29 @@ case "$CONFIG" in
     torchrun --standalone --nproc_per_node=8 train_gpt_v2.py
     ;;
 
+  v8_static)
+    echo "=== Phase 8 H100: VE + static_graph DDP (test VE overhead fix) ==="
+    # Same as v7_ve but DDP(static_graph=True) — tests if overhead drops from 137ms to ~110ms
+    # If step_avg drops: ~5200 steps vs 4380, potential +0.006 BPB
+    export RUN_ID=v8_static_seed${SEED:-1} SEED=${SEED:-1} \
+           NUM_LAYERS=12 MLP_QUANT_BITS=4 XSA_LAST_N=4 EMA_ENABLED=1 SWA_ENABLED=0 \
+           ROPE_DIMS=16 LN_SCALE=1 LATE_QAT_THRESHOLD=0.9 TTT_ENABLED=1 \
+           LATE_QAT_FRAC=0.65 VAL_LOSS_EVERY=1000 \
+           VALUE_EMBED_LAYERS=2 VALUE_EMBED_DIM=128
+    torchrun --standalone --nproc_per_node=8 train_gpt_v2.py
+    ;;
+
+  v7_ve_small)
+    echo "=== Phase 7 H100: 12L + Value Embeddings small (VE_DIM=64, last 1 layer) ==="
+    # Half VE overhead, ~50-75% of quality gain. If 27ms overhead is embed-size-driven, this helps.
+    export RUN_ID=v7_ve_small_seed${SEED:-1} SEED=${SEED:-1} \
+           NUM_LAYERS=12 MLP_QUANT_BITS=4 XSA_LAST_N=4 EMA_ENABLED=1 SWA_ENABLED=0 \
+           ROPE_DIMS=16 LN_SCALE=1 LATE_QAT_THRESHOLD=0.9 TTT_ENABLED=1 \
+           LATE_QAT_FRAC=0.65 VAL_LOSS_EVERY=1000 \
+           VALUE_EMBED_LAYERS=1 VALUE_EMBED_DIM=64
+    torchrun --standalone --nproc_per_node=8 train_gpt_v2.py
+    ;;
+
   v5_rownorm)
     echo "=== Phase 5 H100: Rownorm backend — DEPRECATED, rownorm hurt quality ==="
     echo "Use v6_parallel instead."
@@ -268,7 +291,9 @@ case "$CONFIG" in
     echo "Phase 2:   11l | 12l | seq4096 | kv2 | bigram20k | noqat | 11l_kv2_b6k"
     echo "Phase 3:   v3_abl | proxy_v3 | v3_h100"
     echo "Phase 4:   proxy_v4 | v4_h100  (EMA+LateQAT fix, threshold=0.9)"
-    echo "Phase 6:   v6_parallel  (Parallel Muon: async RS + sharded NS5 + all-gather)"
+    echo "Phase 6:   v6_parallel  (Parallel Muon: DEPRECATED)"
+    echo "Phase 7:   v7_ve | v7_ve_small  (Value Embeddings)"
+    echo "Phase 8:   v8_static  (VE + DDP static_graph, overhead fix test)"
     exit 1
     ;;
 esac

@@ -1,12 +1,13 @@
 # 12L INT4 bQAT + EMA Fix + Value Embeddings
 
-**val_bpb: 1.1588** (seed 1, full TTT) | **16.29 MB** | 8×H100 SXM
+**val_bpb: 1.1574** (seed 2, full TTT) | **16.41 MB** | 8×H100 SXM
 
 ## Results (8×H100 80GB SXM)
 
 | Seed | step_avg | steps | Pre-quant val/bpb | Post-quant bpb | Post-TTT bpb | Artifact |
 |------|----------|-------|-------------------|----------------|--------------|----------|
-| 1    | ~137ms   | ~4380 | 1.1754            | 1.1643         | **1.1588**   | 16,290,425 |
+| 1    | ~137ms   | ~4380 | 1.1754            | 1.1643         | 1.1588       | 16,290,425 |
+| 2    | ~148ms   | —     | 1.1736            | 1.1624         | **1.1574**   | 16,408,223 |
 
 ## Architecture
 
@@ -46,24 +47,27 @@ The shared embedding allows all VE layers to benefit from a single (vocab, 128) 
 |-----|-------|-----------|------------|---------|
 | v4_h100 seed 1 | 5021 | 1.1683 | 1.1703 | ~1.165 |
 | v4_h100 seed 3 | — | 1.1729 | 1.2002 | 1.1594 |
-| **v7_ve seed 1** | ~4380 | 1.1754 | **1.1643** | **1.1588** |
+| v7_ve seed 1 | ~4380 | 1.1754 | 1.1643 | 1.1588 |
+| **v7_ve seed 2** | — | 1.1736 | **1.1624** | **1.1574** |
 
-Note: v7_ve's post_quant (1.1643) is better than its pre-quant checkpoint (1.1754) because the model continued improving during QAT after the last val checkpoint.
+Note: v7_ve's post_quant is better than its pre-quant checkpoint because the model continued improving during QAT after the last val checkpoint.
 
-## Size Budget
+## Size Budget (seed 2)
 
 | Component | Bytes |
 |-----------|-------|
-| Base model (int4/int6/zstd) | ~15,967,640 |
-| Value embeddings (int8/int4/zstd) | ~322,785 |
-| **Total** | **16,290,425** |
+| Total artifact | 16,408,223 |
 
-Budget: 16,777,216 bytes (16MB) — **486,791 bytes (475KB) margin**
+Budget: 16,777,216 bytes (16MB) — **368,993 bytes (361KB) margin**
 
 ## Run Command
 
 ```bash
-SEED=1 VALUE_EMBED_LAYERS=2 VALUE_EMBED_DIM=128 \
+# Best result (seed 2):
+SEED=2 bash run.sh v7_ve
+
+# Or manually:
+SEED=2 VALUE_EMBED_LAYERS=2 VALUE_EMBED_DIM=128 \
 LATE_QAT_FRAC=0.65 VAL_LOSS_EVERY=1000 \
 NUM_LAYERS=12 MLP_QUANT_BITS=4 XSA_LAST_N=4 EMA_ENABLED=1 SWA_ENABLED=0 \
 ROPE_DIMS=16 LN_SCALE=1 LATE_QAT_THRESHOLD=0.9 TTT_ENABLED=1 \

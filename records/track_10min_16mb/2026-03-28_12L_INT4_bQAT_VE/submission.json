@@ -1,8 +1,8 @@
 {
   "name": "12L INT4 bQAT + EMA Fix + Value Embeddings",
-  "val_bpb": 1.1588,
-  "bytes_total": 16290425,
-  "blurb": "12-layer INT4 MLP+bigram QAT + U-Net skips + XSA(last 4) + EMA(0.997) with QAT-reset fix + LeakyReLU² + RoPE16 + LN Scale + resid_mix + Legal TTT + Value Embeddings (ve_dim=128, last 2 layers). Value embeddings reinject token identity into V at layers 10-11, improving quality per step. Step_avg ~137ms, ~4380 steps in 10 min. Post-quant degradation very clean (1.1643 from 1.1754 pre-quant). 8×H100 seed 1: ttt_bpb=1.15875.",
+  "val_bpb": 1.1574,
+  "bytes_total": 16408223,
+  "blurb": "12-layer INT4 MLP+bigram QAT + U-Net skips + XSA(last 4) + EMA(0.997) with QAT-reset fix + LeakyReLU² + RoPE16 + LN Scale + resid_mix + Legal TTT + Value Embeddings (ve_dim=128, last 2 layers). Value embeddings reinject token identity into V at layers 10-11. Best result: seed 2, ttt_bpb=1.15738. Post-quant degradation clean (1.1624 from pre-quant). 8×H100 seed 2: ttt_bpb=1.15738.",
   "author": "Harsh Soni",
   "github_id": "SoHarshh",
   "date": "2026-03-28"

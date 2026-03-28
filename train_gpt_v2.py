@@ -1346,7 +1346,7 @@ def main() -> None:
 
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     if distributed:
-        model: nn.Module = DDP(compiled_model, device_ids=[device.index])
+        model: nn.Module = DDP(compiled_model, device_ids=[device.index], static_graph=True)
     else:
         model = compiled_model
 
