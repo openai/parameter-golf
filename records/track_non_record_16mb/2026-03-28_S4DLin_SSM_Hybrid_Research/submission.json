@@ -1,0 +1,10 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-28",
+  "name": "S4D-Lin SSM Hybrid: Fixing Why Mamba Failed in Parameter Golf",
+  "author": "Himanshu Dongre",
+  "github_id": "himanshudongre",
+  "val_bpb": 1.1682,
+  "val_loss": 1.9725,
+  "bytes_total": 13198249
+}
