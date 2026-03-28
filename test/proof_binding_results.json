@@ -1,0 +1,16 @@
+{
+  "corpus_size": 200000,
+  "vocab_size": 1024,
+  "eval_positions": 20000,
+  "n_rare_patterns": 200,
+  "n_common_patterns": 2012,
+  "bpt_uniform": 10.0,
+  "bpt_fixed": 1.05112555353109,
+  "bpt_binding": 0.6867999088334543,
+  "delta": 0.3643256446976356,
+  "binding_wins": true,
+  "rare_bpt_fixed": 1.5187034617754755,
+  "rare_bpt_binding": 0.9756332263981349,
+  "common_bpt_fixed": 1.0867415914546195,
+  "common_bpt_binding": 0.7204188698633794
+}
