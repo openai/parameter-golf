@@ -1,0 +1,9 @@
+{
+  "name": "Extended Compute Scaling Analysis (20K–50K steps)",
+  "val_bpb": 1.0853,
+  "bytes_total": 14348646,
+  "blurb": "Scaling analysis of the PR #549 SOTA stack (LeakyReLU² + TTT + Parallel Muon) under extended compute on 4×A100 MIG. 50K steps (~11.5 hours training) achieves 1.0853 BPB post-TTT with 14.35MB artifact. Includes compute scaling curve (artifact size and BPB vs steps) showing warmdown-driven compression recovery and diminishing returns beyond ~30K steps.",
+  "author": "Jundong Hu",
+  "github_id": "OnlyJundong",
+  "date": "2026-03-28"
+}
