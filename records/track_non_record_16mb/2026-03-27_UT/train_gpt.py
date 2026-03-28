@@ -63,14 +63,14 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layer_schedule = {
         int(k): int(v)
-        for item in os.environ.get("NUM_LAYER_SCHEDULE", "0:2,3000:4,5000:6").split(",")
+        for item in os.environ.get("NUM_LAYER_SCHEDULE", "0:2,1000:6").split(",")
         if item.strip()
         for k, v in [item.split(":", 1)]
     }
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 768))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
+    model_dim = int(os.environ.get("MODEL_DIM", 640))
     num_heads = int(os.environ.get("NUM_HEADS", 16))
-    mlp_mult = int(os.environ.get("MLP_MULT", 12))
+    mlp_mult = int(os.environ.get("MLP_MULT", 16))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "0")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -1033,7 +1033,11 @@ def main() -> None:
 
     step = 0
     while True:
-        while current_schedule_idx + 1 < len(schedule_steps) and step >= schedule_steps[current_schedule_idx + 1]:
+        should_advance_schedule = current_schedule_idx + 1 < len(schedule_steps) and step >= schedule_steps[current_schedule_idx + 1]
+        last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
+        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+
+        while should_advance_schedule and not should_validate:
             torch.cuda.synchronize()
             chunk_ms = 1000.0 * (time.perf_counter() - t0)
             training_time_ms += chunk_ms
@@ -1054,9 +1058,7 @@ def main() -> None:
                 )
                 model.train()
             t0 = time.perf_counter()
-        last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
-
-        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+            should_advance_schedule = current_schedule_idx + 1 < len(schedule_steps) and step >= schedule_steps[current_schedule_idx + 1]
         if should_validate:
             torch.cuda.synchronize()
             chunk_ms = 1000.0 * (time.perf_counter() - t0)
@@ -1081,6 +1083,22 @@ def main() -> None:
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{phase_training_time_ms / phase_steps:.2f}ms"
             )
+            while current_schedule_idx + 1 < len(schedule_steps) and step >= schedule_steps[current_schedule_idx + 1]:
+                current_schedule_idx += 1
+                base_model.active_num_layers = schedule_layers[current_schedule_idx]
+                phase_training_time_ms = 0.0
+                phase_start_step = step
+                log0(f"layer_schedule_advance:step:{step} active_num_layers:{base_model.active_num_layers}")
+                next_ddp_find_unused_parameters = use_find_unused_parameters(current_schedule_idx)
+                if distributed and next_ddp_find_unused_parameters != ddp_find_unused_parameters:
+                    ddp_find_unused_parameters = next_ddp_find_unused_parameters
+                    model = DDP(
+                        compiled_model,
+                        device_ids=[local_rank],
+                        broadcast_buffers=False,
+                        find_unused_parameters=ddp_find_unused_parameters,
+                    )
+                    model.train()
             torch.cuda.synchronize()
             t0 = time.perf_counter()
 
