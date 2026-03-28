@@ -1,12 +1,12 @@
-# Non-Record Submission: 1.1957 BPB — AutoResearch R3 (1×RTX 4090)
+# Non-Record Submission: 1.1974 BPB — AutoResearch R3 (1×RTX 4090)
 
-**Score:** 1.1957 BPB  
+**Score:** 1.1974 BPB  
 **Parameters:** 100.9M  
 **Hardware:** 1× NVIDIA RTX 4090 (24GB)  
-**Training time:** 300.3s (5 min budget)  
-**Total time (incl. eval):** 394.4s  
-**Steps:** 408  
-**MFU:** 4.42%  
+**Training time:** 300.2s (5 min budget)  
+**Total time (incl. eval):** 406.2s  
+**Steps:** 404  
+**MFU:** 4.38%  
 **Peak VRAM:** 18.6 GB  
 
 ## Architecture
@@ -25,7 +25,9 @@
 
 ## Key Insight
 
-Reducing batch size from 2^19 (default) to 2^16 increased training steps from 63 to 408 within the same 5-minute budget. The 6.5x increase in gradient updates dramatically improved convergence, dropping val_bpb from 1.476 to 1.196. This was the single biggest improvement found across 3 rounds of automated hyperparameter search.
+Reducing batch size from 2^19 (default) to 2^16 increased training steps from ~63 to ~404 within the same 5-minute budget. The 6.4x increase in gradient updates dramatically improved convergence, dropping val_bpb from 1.476 to 1.197. This was the single biggest improvement found across 3 rounds of automated hyperparameter search.
+
+Note: Due to non-deterministic GPU training, scores vary ±0.002 between runs. Best observed: 1.1957, this reproducible run: 1.1974.
 
 ## Method
 
