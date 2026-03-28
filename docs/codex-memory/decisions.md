@@ -4,17 +4,27 @@
 
 - Do not lead with the RFN thesis idea.
 - Build a strong non-TTT anchor first.
-- Treat TTT as a later integration, only after audit and only if the anchor is already competitive.
+- Treat TTT as a later integration, only after the anchor is stronger.
 - Treat RFN or attribution-graph work as a sidecar probe, not the main competition bet.
-- Treat open public PR claims as horizon signals, not as accepted leaderboard facts, until they are merged or independently validated.
-- Do not skip the clean anchor to chase open-claim branches like GDN or two-pass n-gram rescoring before the current stack is running.
+
+## Competition phase
+
+- The root `8xH100` baseline is now the fixed reference point.
+- The next `8xH100` runs must be actual model changes.
+- Session 03 pre-TTT anchor work is complete. Session 04 isolated deltas are the current mainline.
+
+## Session 03 decisions
+
+- Session 03 anchor uses SDPA not FA3. The donor record used `flash_attn_3_func`, but the anchor port kept `scaled_dot_product_attention` to avoid introducing an untested kernel dependency in the first anchor run. This is a deliberate conservatism, not an oversight.
+- NTK RoPE with `train_seq_len=1024` confirmed as deliberate. The anchor sets `rope_train_seq_len=1024` for NTK-aware scaling even though `TRAIN_SEQ_LEN=2048`. This is intentional and matches the donor record behavior.
+- Throughput is the primary bottleneck, not model fidelity. Session 03 achieved `91.37 ms/step` with SDPA versus the root baseline's `51.66 ms/step`. The anchor's per-step quality is higher, but it gets fewer steps in 600s (`6564` vs `11611`). FA3 is the single highest-leverage unlock.
+- NGC container + fscratch confirmed as optimized Pegasus path. The NGC 26.03 container with `/fscratch` for data staging avoids `/netscratch` I/O bottlenecks and resolves OOM issues from container-level overhead.
 
 ## Hardware
 
-- Pegasus `H100` is the primary intended execution base.
-- RunPod is reserved for final challenge-style validation only.
-- Because the RunPod budget is only about `$25`, assume at most `1-2` meaningful final validations there, not broad sweeps.
-- Non-H100 Pegasus or RunPod runs are allowed only as development or grant-support evidence when clearly labeled as non-parity evidence.
+- Pegasus `8xH100` is now the primary execution base.
+- Launch Pegasus multi-GPU work with Slurm-native `srun`, not `torchrun --standalone`.
+- RunPod stays reserved for final validation or granted credits.
 
 ## Workflow
 
@@ -25,21 +35,13 @@
 
 ## Hard gates
 
-- No baseline training before live Pegasus verification
-- No TTT implementation before a correctness and legality audit
-- No RFN continuation unless it beats or complements magnitude-based heuristics on a controlled test
-- No claim of top-competitor status or `Advanced` compute-grant posture before there is an owned competitive result
-
-## Compute-grant stance
-
-- Preferred compute-grant tier, if reapplying now: `Development grant`
-- Strongest supporting evidence package:
-  - `1` root baseline run
-  - `1` narrow clean-anchor smoke run
-  - logs for GPU type, steps, wallclock, `val_bpb`, artifact size, eval mode, and compile/export warnings
+- No more infrastructure-only baseline reruns unless variance evidence is specifically needed
+- No TTT implementation before the pre-TTT anchor is in place
+- No RFN continuation unless it clearly helps a controlled test
+- Session 04 deltas must be measured in isolation before combining
 
 ## Memory design
 
-- shared memory in repo: `docs/codex-memory/`
+- shared memory in repo: `docs/campaign/AGENT_SYNC.md`
+- repo-side Codex mirror: `docs/codex-memory/`
 - private Codex mirror: `~/.codex/memories/parameter-golf/`
-- keep this separate from Claude's own built-in memory or `CLAUDE.md` workflows

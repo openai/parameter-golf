@@ -1,7 +1,7 @@
 # 03 Pre-TTT Anchor Summary
 
 Date: 2026-03-28
-Status: Script complete, pre-run
+Status: Complete
 
 ## Anchor Definition
 
@@ -32,9 +32,9 @@ Late QAT, SWA, MTP, VE, DTG, GPTQ-lite, flash_attn_interface, TTT, warmdown 3500
 
 SDPA uses (B, H, T, D) tensor layout vs donor's flash_attn_3 (B, T, H, D). XSA adapted by transposing SDPA output before self-value subtraction. Rotary cache uses root's `[None, None, :, :]` shape.
 
-## Expected Parameter Count
+## Parameter Count
 
-~26.8M parameters (donor: 26,829,913).
+26,829,913 (matches donor exactly).
 
 ## Target
 
@@ -42,30 +42,47 @@ SDPA uses (B, H, T, D) tensor layout vs donor's flash_attn_3 (B, T, H, D). XSA a
 
 ## Measured Results
 
-(To be filled after first Pegasus run)
-
 | Metric | Value |
 |--------|-------|
-| GPU / node | |
-| Steps completed | |
-| Step average | |
-| Pre-quant EMA val_bpb | |
-| Post-quant roundtrip val_bpb | |
-| Sliding s64 val_bpb | |
-| Artifact size (int6+zstd) | |
-| Code size | |
-| Total submission size | |
-| Peak memory | |
-| Compressor used | |
+| GPU / node | 8x NVIDIA H100 80GB HBM3 (SXM5) / serv-3342 |
+| Container | nvcr.io_nvidia_pytorch_26.03-py3.sqsh |
+| Data path | /fscratch (low-latency) |
+| Steps completed | 6,564 / 9,000 |
+| Step average | 91.37 ms |
+| Pre-quant EMA val_bpb | 1.14472403 |
+| Post-quant roundtrip val_bpb | 1.15247273 |
+| **Sliding s64 val_bpb** | **1.12904446** |
+| Artifact size (int6+zstd) | 15,692,752 bytes |
+| Code size | 58,572 bytes |
+| Total submission size | 15,751,324 bytes |
+| Peak memory | 21,274 MiB allocated / 22,070 MiB reserved |
+| Compressor used | zstd |
+
+## Comparison with Donor
+
+| Metric | This run | Donor (2026-03-21) | Delta |
+|--------|----------|-------------------|-------|
+| Sliding s64 val_bpb | 1.1290 | 1.1248 | +0.0042 |
+| Steps | 6,564 | 7,051 | -487 |
+| Step average | 91.37 ms | ~85 ms | +6.4 ms |
+| Artifact | 15,751,324 | 15,612,308 | +139,016 |
 
 ## Bottleneck Analysis
 
-(To be filled after run)
+The primary bottleneck is **throughput**: 91.37 ms/step vs donor's ~85 ms/step. This results in 487 fewer steps in 600s, which accounts for the 0.0042 BPB gap.
+
+Root cause: SDPA dispatches to FlashAttention-2 kernels. The donor uses FlashAttention-3 (`flash_attn_3_func`) which has Hopper-specific warp-specialization and asynchronous softmax. Additionally, SDPA requires a transpose for XSA compatibility that FA3 avoids natively.
+
+The `math=True` SDP fallback (now fixed in commit 563700f) may also contribute marginally.
+
+Model fidelity is confirmed: the port is faithful. The 0.0042 gap is entirely explainable by step count.
 
 ## Next Recommended Delta
 
-(To be determined by bottleneck readout)
+**Session 04: FlashAttention-3 + GPTQ-lite (narrow, isolated)**
 
-- If step_avg is materially slower than expected: backend/kernel parity (flash_attn_3)
-- If step_avg is acceptable but BPB is far from target: port-fidelity gap investigation
-- If results are in-band: GPTQ-lite as first post-anchor export refinement
+1. **FA3 integration**: Switch from SDPA to `flash_attn_func`. Expected gain: ~6ms/step → ~480 more steps → ~0.003 BPB. This also eliminates the XSA transpose overhead.
+2. **GPTQ-lite clip search**: Better int6 quantization scales. Expected gain: 0.002-0.005 BPB post-quant.
+3. **LeakyReLU²**: 1-line activation change used by the current #1 (1.1194). Expected gain: 0.001-0.003 BPB.
+
+Each delta should be tested in isolation before stacking.

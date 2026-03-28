@@ -1,150 +1,90 @@
 # Project State
 
-Date: 2026-03-27
+Date: 2026-03-28
 
 ## Objective
 
 Primary:
-- determine quickly whether there is a realistic path to a respectable Parameter Golf submission from this environment
+- use the verified Pegasus `8xH100` path to advance from the Session 03 anchor into Session 04 isolated deltas
+- move from the first competition-phase anchor to targeted throughput and fidelity improvements
 
 Secondary:
-- if yes, reproduce a strong public pre-TTT stack, test narrow deltas, and only then consider TTT or RFN-inspired ideas
+- keep the Session 03 anchor as the new fixed reference
+- preserve exact launch, logging, artifact, and evaluation discipline
 
 Stretch:
-- top-5 leaderboard ambition, but not assumed
+- reach a clearly improved `8xH100` result that justifies a stronger compute request or leaderboard-adjacent claim
 
 ## Current campaign state
 
-- Codex created the campaign scaffolding under `docs/campaign/`
-- Codex added a focused local skill bundle for this project into `~/.codex/skills/`:
-  - `research-engineer`
-  - `gptq`
-  - `model-pruning`
-  - `transformer-lens-interpretability`
-- Claude executed Session 01 and wrote:
-  - `docs/campaign/artifacts/01_lineage_and_environment_audit.md`
-- Codex completed the read-only pre-TTT anchor diff analysis and wrote:
-  - `docs/campaign/artifacts/03a_pre_ttt_anchor_diff_analysis.md`
-- Codex completed the root-script read-only port-gap audit and wrote:
-  - `docs/campaign/artifacts/03b_root_train_gpt_port_gap_audit.md`
-- Session 02 prompt was strengthened to require live Pegasus verification before any training
-- Codex now has a configured `basic-memory` MCP server for `parameter-golf-codex`
-- Claude also created:
-  - `docs/campaign/sessions/06_attribution_graph_sidecar_probe.md` (reframed Session 06)
-  - Claude's own plan at `~/.claude/plans/enumerated-drifting-crayon.md`
-  - Claude memory at `~/.claude/projects/-home-amay-Work-parameter-golf/memory/`
+- campaign scaffolding exists under `docs/campaign/`
+- shared handoff file is `docs/campaign/AGENT_SYNC.md`
+- evidence summary is `docs/campaign/artifacts/2026-03-28_a100_evidence_summary.md`
+- coordination entry points exist:
+  - `AGENTS.md`
+  - `CLAUDE.md`
+- Session 03 anchor run is complete
 
-## Public-state note checked on 2026-03-27
+## Verified hardware state
 
-Merged public fact from `main`:
+- Pegasus `A100-80GB` path works
+- Pegasus `1xH100` path works
+- Pegasus `8xH100` path works when launched with Slurm-native `srun`
+- Pegasus `8xH100` path does **not** work reliably with `torchrun --standalone` on `serv-3342`
+- NGC 26.03 container on Pegasus confirmed working with fscratch setup
 
-- `README.md` still lists the `2026-03-22` run (`1.1228`) as the top merged non-TTT result
-- the top merged overall result remains the `2026-03-23` TTT run (`1.1194`)
+## Locked baseline facts
 
-Open public PR claims exist beyond that merged state, but they are not accepted leaderboard facts:
+- `1xA100` 600s baseline post-roundtrip exact: `val_bpb=1.37140771`
+- `1xH100` 600s baseline post-roundtrip exact: `val_bpb=1.30594735`
+- `8xH100` 600s baseline post-roundtrip exact: `val_bpb=1.23368511`
+- `8xH100` baseline step average: `51.66 ms`
+- `8xH100` baseline artifact size: `15871532` bytes
 
-- PR `#693` claims `1.1186` non-TTT
-- PR `#875` claims `1.0226` non-TTT with pure neural GDN
-- PR `#910` is an open proposal with expected `~1.114-1.117`, not measured proof
-- PR `#893` is a two-pass n-gram rescoring branch, not the pre-TTT anchor path
+## Current measured anchors
 
-Interpretation:
+- `8xH100` root baseline: `val_bpb=1.23368511` (step_avg `51.66 ms`, artifact `15871532` bytes)
+- `8xH100` Session 03 anchor:
+  - sliding s64 val_bpb: `1.12904446`
+  - pre-quant EMA val_bpb: `1.14472403`
+  - int6 roundtrip val_bpb: `1.15247273`
+  - steps: `6564`, step_avg: `91.37 ms`
+  - artifact: `15751324` bytes (model `15692752` + code `58572`)
+  - GPU: `8xH100 SXM5`, `serv-3342`, NGC 26.03 container
 
-- the merged leaderboard has not yet moved beyond the `03-22` non-TTT anchor lineage
-- the frontier may already be moving in open PRs, but fresh sessions should treat those as horizon signals, not as locked ground truth
+## Launcher lesson
 
-## Live Pegasus verification (PARTIAL as of 2026-03-27)
+Use:
+- Slurm-shaped allocation with `--ntasks=8 --gpus-per-task=1 --gpu-bind=none --cpus-per-task=6`
+- Slurm-native `srun`
+- env mapping inside the launch:
+  - `LOCAL_RANK=$SLURM_LOCALID`
+  - `RANK=$SLURM_PROCID`
+  - `WORLD_SIZE=$SLURM_NTASKS`
 
-Completed:
-- `sinfo`: H100/H100-RP/H100-SEE all show 8 GPUs per node, state=mix
-- `sacctmgr`: empty output (no immediate rejection, actual limits unverified)
-- `sshare`: user is in `compute-account`, zero recent usage
-- V100 allocation succeeded (glendale) but PyTorch 2.11 does not support CC 7.0 — V100 not usable
-- **A100-80GB allocation succeeded (serv-3333) — baseline smoke test PASSED**
-  - 200 steps, train loss 6.93→3.68, val_bpb 2.14 (expected high for 200 steps)
-  - int8+zlib export: 7.0 MB, all pipelines working end-to-end
-  - AMP_DTYPE auto-detection confirmed (bf16 on A100)
-- H100 allocation: queued but never allocated (cluster saturated during test window)
+Do not use:
+- `torchrun --standalone` for Pegasus `8xH100`
 
-Still pending:
-- 8-GPU H100 SXM allocation and nvidia-smi verification
-- NVSwitch topology verification
+## What has been demonstrated
 
-## Important current reality
-
-- Pegasus docs say the `H100` partition is `H100-SXM5`, 8 GPUs per node, NVSwitch
-- A100-80GB smoke test proves the account, environment, and training pipeline work
-- H100 parity gate still not satisfied — need one successful H100 allocation
-- non-H100 development runs are valid grant-support evidence
-
-## What has happened
-
-- partial Pegasus verification artifact exists: `docs/campaign/artifacts/02a_pegasus_verification.md`
-- 1 successful baseline smoke run on A100-80GB (200 steps, export pipeline confirmed)
-- repo cloned to `/netscratch/ayach/parameter-golf` with V100-compat patch applied
-- dataset downloaded (sp1024, 1 train shard)
+- end-to-end training, evaluation, compression, and roundtrip validation
+- controlled negative results (`LowerLR`, `Warmdown3600`)
+- small A100 seed spread
+- first challenge-shaped root baseline on real `8xH100`
+- Session 03 pre-TTT anchor port: sliding s64 val_bpb `1.12904446` on `8xH100`
+- int6+zstd roundtrip under the 16MB cap with `248676` bytes headroom
+- throughput bottleneck identified: SDPA vs FA3, not model fidelity
+- NGC container + fscratch confirmed as optimized Pegasus path
 
 ## What has not happened yet
 
-- no H100 SXM allocation or verification
-- no full baseline run (13,000+ steps for val_bpb ~1.22)
-- no pre-TTT anchor of your own
-- no RFN or attribution-graph probe
+- no FA3 integration (primary throughput unlock)
+- no GPTQ-lite compression delta
+- no LeakyReLU^2 activation delta
+- no top-tier leaderboard-adjacent result yet
 
-## Compute-grant posture
+## Best next move
 
-- if reapplying for OpenAI/Runpod compute, prefer the `Development grant` tier, not `Advanced competitor`
-- strongest application shape is:
-  - `1` root baseline evidence run
-  - `1` narrow clean-anchor smoke run
-  - logs with GPU type, steps, wallclock, final `val_bpb`, artifact size, eval mode, and compile/export warnings
-- until there is an owned competitive result, do not overclaim leaderboard position
-
-## Latest locked Session 03 conclusion
-
-- root `train_gpt.py` is a cleaner donor skeleton than the public record scripts, but it is not a near-anchor
-- Session 03 must port multiple feature clusters, not just tune env vars
-- stable core to port:
-  - 11L / 512 / 8 heads / 4 KV heads with U-Net skip stack
-  - 3x relu^2 MLP
-  - SmearGate + BigramHash (`2048 x 128`)
-  - XSA on the last 4 layers
-  - EMA
-  - partial RoPE `16/64`
-  - layerwise LN scale
-  - mixed int6 export + zstd
-  - stride-64 sliding eval
-- explicitly exclude from the first anchor port:
-  - GPTQ-lite
-  - VE
-  - DTG
-  - tight SWA
-  - late QAT
-  - MTP
-  - any TTT path
-
-## Shared campaign files
-
-- `docs/campaign/README.md`
-- `docs/campaign/PROMPT_TEMPLATE.md`
-- `docs/campaign/PEGASUS_H100_RUNBOOK.md`
-- `docs/campaign/sessions/01_lineage_and_environment_audit.md`
-- `docs/campaign/sessions/02_pegasus_baseline_ladder.md`
-- `docs/campaign/sessions/03_pre_ttt_anchor_port.md`
-- `docs/campaign/sessions/04_targeted_delta_sweep.md`
-- `docs/campaign/sessions/05_ttt_correctness_audit.md`
-- `docs/campaign/sessions/06_rfn_sidecar_probe.md`
-- `docs/campaign/sessions/07_go_no_go_review.md`
-
-## Current best next move
-
-- primary path:
-  - run only the Pegasus live verification block from Session 02
-  - do not start challenge-style baseline or anchor training until that passes
-- while Pegasus remains saturated:
-  - use `docs/campaign/artifacts/03a_pre_ttt_anchor_diff_analysis.md` as the source of truth for the Session 03 anchor shape
-  - use `docs/campaign/artifacts/03b_root_train_gpt_port_gap_audit.md` as the source of truth for which root `train_gpt.py` code paths Session 03 should actually touch
-  - keep the next decision narrow: clean `2026-03-21`-style anchor first, or promote GPTQ-lite as the first post-anchor delta after anchor verification
-- allowed secondary path if the explicit goal is compute-grant evidence rather than H100 parity:
-  - run the `03b` evidence package on Pegasus `H200`, Pegasus `A100-80GB`, or remaining Runpod quick-start credit
-  - treat those logs as development evidence only, not as leaderboard-parity validation
+- start a fresh Codex session from `docs/codex-memory/BOOTSTRAP.md`
+- execute Session 04: FA3 integration, GPTQ-lite, LeakyReLU^2 as isolated deltas
+- focus on throughput unlock (FA3) as the highest-leverage single change

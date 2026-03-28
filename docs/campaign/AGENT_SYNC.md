@@ -4,30 +4,33 @@ Date: 2026-03-28
 
 ## Current Objective
 
-Turn the completed Pegasus `A100-80GB` evidence runs into a short, defensible compute-grant evidence note.
+Start the competition phase from a verified `8xH100` root baseline on Pegasus.
 
-This is not yet an H100-parity validation campaign.
+The immediate goal is no longer baseline bring-up. The immediate goal is to spend available `8xH100` time on the first real model changes, starting with the Session 03 pre-TTT anchor path.
 
 ## In Scope
 
-- Summarize the completed `A100-80GB` smoke run
-- Summarize the completed `600s` root baseline run
-- Summarize the completed `600s` `LowerLR` comparison run
-- Produce a short grant-ready evidence note with exact measured metrics
+- Port or reconstruct the strongest clean pre-TTT anchor into a self-contained competition branch or record folder
+- Use the verified Pegasus `8xH100` Slurm-native launch path for real model changes
+- Preserve exact launcher, artifact, and metric logging discipline from the baseline phase
+- Submit or update the compute request using the current evidence package when useful
 
 ## Out Of Scope
 
-- Claiming H100 parity
-- Starting the Session 03 anchor port
+- Claiming top-tier competitiveness from the root baseline alone
+- More root-baseline reruns unless needed for variance
 - Treating RFN as the mainline strategy
 - Spending RunPod budget except for final validation later
-- Arbitrary trainer edits unrelated to hardware compatibility or the current baseline/comparison plan
+- Arbitrary trainer edits unrelated to the anchor port or a tightly scoped comparison
 
 ## Current Hardware Stance
 
-- Parity target: Pegasus `H100`
-- Active development target: Pegasus `A100-80GB`
-- Development fallback: other Pegasus GPUs only when A100/H100 are unavailable
+- Parity target: Pegasus `8xH100` on one node
+- Active development target: Pegasus `H100` when available, otherwise `A100-80GB`
+- Current measured evidence tiers:
+  - `A100-80GB`: solid development evidence
+  - `1xH100`: early parity-adjacent evidence
+  - `8xH100`: operationally verified baseline evidence
 
 ## Status Snapshot
 
@@ -37,9 +40,15 @@ This is not yet an H100-parity validation campaign.
 - A100 `600s` `LowerLR` comparison: complete
 - A100 `600s` baseline seed-42 reproducibility run: complete
 - A100 `600s` warmdown-only variant: complete
+- `1xH100` `600s` root baseline: complete
+- `8xH100` `600s` root baseline: complete
 - Current best measured A100 result: root baseline (`val_bpb=1.37140771`)
-- Baseline seed spread is small (`+0.00319322` BPB from seed `1337` to seed `42`)
-- Immediate next deliverable: written summary, not another rerun
+- Current best measured H100 result: `1xH100` root baseline (`val_bpb=1.30594735`)
+- Current best measured `8xH100` result: root baseline (`val_bpb=1.23368511`)
+- Baseline seed spread on A100 is small (`+0.00319322` BPB from seed `1337` to seed `42`)
+- `8xH100` launch via `torchrun --standalone` is blocked by rendezvous timeout on `serv-3342`
+- `8xH100` launch via Slurm-native `srun` works on `serv-3342`
+- Immediate next deliverable: Session 03 competition-phase handoff and first anchor-change run, not more baseline reruns
 
 ## Canonical Workspaces
 
@@ -156,39 +165,78 @@ Schedule read:
 - It does reduce artifact size by `2095472` bytes versus the root baseline, but size was not the bottleneck.
 - Current evidence says the root schedule should remain the A100 anchor.
 
+Date: 2026-03-28
+Node: `serv-3343`
+GPU: `NVIDIA H100 80GB HBM3`
+Run: `h100_baseline_600s`
+
+Measured outputs:
+
+- Train setup: `10` shards, `600s` wallclock cap
+- `amp_dtype: bf16`
+- Stopped at `1795` steps in `600092 ms`
+- Pre-roundtrip eval: `val_loss=2.2028`, `val_bpb=1.3046`
+- Post-roundtrip exact eval: `val_loss=2.20503740`, `val_bpb=1.30594735`
+- Post-roundtrip eval time: `10931 ms`
+- Peak memory: `10303 MiB allocated`, `10730 MiB reserved`
+- Total submission size `int8+zlib`: `14684525` bytes
+
+H100 read:
+
+- The exact same root baseline improves materially moving from `1xA100` to `1xH100`.
+- Step average drops from about `661.65 ms` on A100 to about `334.31 ms` on H100.
+- Post-roundtrip `val_bpb` improves by `-0.06546036` versus the best A100 baseline.
+- Artifact size remains under the `16,000,000` byte challenge cap.
+
+Date: 2026-03-28
+Node: `serv-3342`
+GPU: `8x NVIDIA H100 80GB HBM3`
+Runs: `h100_8gpu_baseline_600s` attempt, `nccl_test.py` smoke, `h100_8gpu_baseline_600s`
+
+Observed behavior:
+
+- All `8` GPUs are visible in the allocation.
+- `torchrun --standalone --nproc_per_node=8 train_gpt.py` never prints `logs/h100_8gpu_baseline_600s.txt`.
+- Minimal `8`-rank `nccl_test.py` under `torchrun --standalone` also hangs before any rank prints.
+- `torch.distributed.elastic` reports `RendezvousTimeoutError`.
+- A fresh Slurm-shaped allocation with `--ntasks=8 --gpus-per-task=1 --gpu-bind=none --cpus-per-task=6` succeeds on the same node.
+- Slurm-native smoke using `srun --gpu-bind=none` prints `rank 0..7 ok` and `rank 0..7 barrier ok`.
+- Slurm-native trainer launch reaches `11611` steps in `599780 ms`.
+- Final post-roundtrip exact eval from `8xH100` root baseline: `val_bpb=1.23368511`.
+- Peak memory: `10184 MiB allocated`, `10358 MiB reserved`.
+- Total submission size `int8+zlib`: `15871532` bytes.
+
+Interpretation:
+
+- This is not currently a model-code failure.
+- The specific blocked path is `torchrun --standalone` rendezvous on `serv-3342`.
+- Slurm-native `srun --ntasks=8 --gpus-per-task=1 --gpu-bind=none` is currently the working launch path for `8xH100` jobs on Pegasus.
+- The root baseline is now challenge-shaped and reproducibly under the artifact cap on real `8xH100`.
+
 ## Next Actions
 
-### 1. Extract comparable evidence lines
+### 1. Freeze the baseline facts
 
-```bash
-grep -E "amp_dtype:|step:.*val_loss:|stopping_early:|peak memory|Serialized model int8\\+zlib|Total submission size int8\\+zlib|final_int8_zlib_roundtrip" /netscratch/$USER/a100-*.log
-```
+- Root `8xH100` baseline is the reference point:
+  - `val_bpb=1.23368511`
+  - `step_avg=51.66 ms`
+  - `artifact=15871532 bytes`
+- Launcher lesson is locked:
+  - do not use `torchrun --standalone` on Pegasus `8xH100`
+  - use Slurm-native `srun --gpu-bind=none` with `LOCAL_RANK=$SLURM_LOCALID`, `RANK=$SLURM_PROCID`, `WORLD_SIZE=$SLURM_NTASKS`
 
-### 2. Write grant-ready summary
+### 2. Start the competition phase
 
-The summary should include:
+First real move:
 
-- the successful `A100-SXM4-80GB` smoke run
-- the `600s` baseline result
-- the `600s` `LowerLR` comparison result
-- the `600s` baseline seed-42 reproducibility result
-- the `600s` warmdown-only negative result
-- the conclusion that baseline currently beats `LowerLR` on this setup
-- the conclusion that baseline seed sensitivity appears small on this setup
-- the conclusion that extending warmdown alone is harmful on this setup
-- the fact that artifact sizes are already under the challenge cap
+- Execute Session 03 pre-TTT anchor port work
+- Keep the first `8xH100` competition run to one coherent change set, not a grab bag
+- Save all new runs as additive artifacts with exact commands and logs
 
-### 3. Optional next experiment only after the summary exists
+### 3. Grant/application stance
 
-If another controlled A100 run is needed, do not repeat `LowerLR`.
-Pick a different single-change variant.
-
-Candidate next variants after the summary:
-
-- a pure artifact-size tradeoff variant
-- an eval-side control, only if kept clearly separate from training-side comparisons
-
-Warmdown-only has now been tested and should not be repeated unless coupled to another materially different change.
+- Current evidence is already strong enough for a fresh `Development grant` request.
+- Consider a higher tier only after a clearly improved `8xH100` run that is genuinely leaderboard-adjacent.
 
 ## Evidence Required From Each Run
 
@@ -202,5 +250,17 @@ Warmdown-only has now been tested and should not be repeated unless coupled to a
 
 ## Decision Rule
 
-The two-run A100 baseline/comparison pair now exists.
-Do not broaden scope further until it is summarized into a short grant-ready evidence note.
+The evidence package is now:
+
+- `A100` smoke
+- `A100` baseline
+- `A100` `LowerLR` negative control
+- `A100` seed-repeat reproducibility check
+- `A100` warmdown negative control
+- `1xH100` baseline
+- `8xH100` `torchrun --standalone` rendezvous blocker
+- `8xH100` Slurm-native NCCL smoke success
+- `8xH100` Slurm-native trainer success
+
+Do not spend more time on repeated `torchrun --standalone` retries or more root-baseline reruns.
+If a fresh session starts now, it should begin from the verified `8xH100` baseline and move immediately into actual model changes.

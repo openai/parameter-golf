@@ -1,130 +1,74 @@
 # Next Session
 
+## Phase
+
+**Session 03 anchor is COMPLETE. Session 04 isolated deltas start now.**
+
 ## Immediate next action
 
-**Pegasus verification is PARTIAL.** Account access confirmed, but GPU allocation not yet tested (cluster saturated on 2026-03-27).
+**Session 04: Isolated Deltas** — FA3 integration, GPTQ-lite, LeakyReLU^2 as independent, measured changes on top of the Session 03 anchor.
 
-Read-only anchor analysis is now complete:
-- `docs/campaign/artifacts/03a_pre_ttt_anchor_diff_analysis.md`
-- `docs/campaign/artifacts/03b_root_train_gpt_port_gap_audit.md`
+## Prerequisites (all satisfied)
 
-Fresh sessions should treat those two docs as the current source of truth before touching Session 03.
+- Session 03 anchor verified: sliding s64 val_bpb `1.12904446`, 6564 steps, 91.37ms/step
+- Throughput bottleneck identified: SDPA is the limiter, not model fidelity
+- NGC container + fscratch path confirmed on Pegasus
+- Launcher lesson locked: use `srun --ntasks=8 --gpus-per-task=1 --gpu-bind=none`, NOT torchrun
+- int6+zstd roundtrip artifact: `15751324` bytes, headroom `248676` bytes
 
-Current read-only conclusion:
-- prefer a clean `2026-03-21`-style anchor for Session 03
-- treat `2026-03-22` GPTQ-lite as a likely first post-anchor refinement, not part of the smallest credible anchor
-- do not treat late QAT, DTG, VE, or tight SWA as anchor defaults without new validation
-- treat the repo-root `train_gpt.py` as the cleaner donor skeleton, but not a near-anchor; Session 03 must port multiple feature clusters, not just tune env vars
+## Session 04 implementation order
 
-Public-state note checked on 2026-03-27:
-- merged `main` README still lists `2026-03-22` (`1.1228`) as the top merged non-TTT result
-- PR `#693` and PR `#875` are stronger open non-TTT claims, but remain unmerged
-- PR `#910` is expected-result-only, not measured proof
-- PR `#893` is a two-pass n-gram branch, not the pre-TTT anchor path
-- do not pivot Session 03 solely because of open PR claims
+### Delta 1: FA3 integration (throughput unlock)
 
-Locked Session 03 implementation order:
-1. freeze anchor constants in the new Session 03 script
-2. port SmearGate + BigramHash into the root token path
-3. port partial RoPE + XSA + LN scale into attention/block/GPT wiring
-4. add Muon/Adam weight decay and EMA
-5. replace root int8+zlib export with mixed int6 + zstd roundtrip
-6. add stride-64 sliding eval and final anchor logging
-7. verify GPTQ-lite, VE, DTG, SWA, late QAT, MTP, and TTT all remain out of scope
+1. Replace SDPA attention with `flash_attn_3_func` in the Session 03 script
+2. Verify compile compatibility with `torch.compile(fullgraph=True)`
+3. Measure step_avg improvement (target: significant reduction from `91.37 ms`)
+4. Measure val_bpb to confirm no regression
+5. This is the highest-leverage single change
 
-Fresh Codex sessions can use these installed local skills if helpful:
-- `research-engineer` for rigorous diff analysis and critique
-- `gptq` for quantization-specific context
-- `model-pruning` for compression-side comparisons
-- `transformer-lens-interpretability` for future sidecar/mech-interp work
+### Delta 2: GPTQ-lite compression
 
-Remaining verification steps:
-1. Retry `salloc -p H100 --nodes=1 --gpus=1 --time=00:10:00` during off-peak hours
-2. Run `nvidia-smi -L` and `nvidia-smi topo -m` once allocated
-3. Update `docs/campaign/artifacts/02a_pegasus_verification.md` with results
-4. Only then proceed to baseline training from Session 02
+1. Add GPTQ-lite quantization to the export path
+2. Measure roundtrip val_bpb improvement vs int6+zstd baseline
+3. Measure artifact size change
+4. Keep as isolated delta: do not combine with other changes in the same run
 
-If Pegasus remains saturated and the explicit goal shifts to compute-grant evidence rather than H100 parity, the fallback development package is already specified in `03b`:
-1. `1` root baseline evidence run
-2. `1` narrow clean-anchor smoke run
-3. preferred hardware order: Pegasus `H200`, Pegasus `A100-80GB`, then remaining Runpod quick-start credit
-4. capture GPU type, steps, wallclock, final `val_bpb`, artifact size, eval mode, and compile/export warnings
+### Delta 3: LeakyReLU^2 activation
 
-Those fallback runs are useful for a `Development grant` application, but they do not satisfy the H100 parity gate.
+1. Replace relu^2 MLP activation with LeakyReLU^2
+2. Measure val_bpb impact
+3. Keep as isolated delta
 
-## Required artifact
+### Measurement discipline
 
-Create:
-- `docs/campaign/artifacts/02a_pegasus_verification.md`
+- Each delta is a separate run with one change
+- Compare against Session 03 anchor as the fixed reference
+- Record: GPU, steps, step_avg, sliding s64 val_bpb, pre-quant EMA val_bpb, int6 roundtrip val_bpb, artifact size
+- Only combine deltas after each is measured in isolation
 
-It must capture:
-- partition availability
-- account access to H100-class partitions
-- QoS and fairshare clues
-- whether `--nodes=1 --gpus=8` allocation is possible
-- actual `nvidia-smi -L` output on an allocated node
-- actual `nvidia-smi topo -m` output on an allocated node
+## Target
 
-## Commands to run on Pegasus
+Session 04 combined best val_bpb: improve on `1.12904446` sliding s64, primarily through more steps via FA3 throughput
+
+## Launcher template for 8xH100 on Pegasus (NGC container)
 
 ```bash
-sinfo -N -p H100,H100-RP,H100-SEE,H100-PCI -o "%P %N %G %t %c %m"
-scontrol show partition H100
-scontrol show partition H100-RP
-scontrol show partition H100-SEE
-sshare -u "$USER"
-sacctmgr show assoc where user="$USER" format=Account,User,Partition,QOS,GrpTRES,MaxTRES,MaxJobs
+salloc -p H100 --nodes=1 --ntasks=8 --gpus-per-task=1 --gpu-bind=none --cpus-per-task=6 --time=02:00:00
 
-salloc -p H100 --nodes=1 --gpus=8 --time=00:05:00 --gpu-bind=none
-hostname
-nvidia-smi -L
-nvidia-smi topo -m
-exit
+srun --gpu-bind=none bash -c '
+export LOCAL_RANK=$SLURM_LOCALID
+export RANK=$SLURM_PROCID
+export WORLD_SIZE=$SLURM_NTASKS
+export NCCL_IB_DISABLE=1
+cd /netscratch/ayach/parameter-golf
+RUN_ID=<run_id> \
+DATA_PATH=./data/datasets/fineweb10B_sp1024 \
+TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
+VOCAB_SIZE=1024 \
+AMP_DTYPE=auto \
+MAX_WALLCLOCK_SECONDS=600 \
+VAL_LOSS_EVERY=200 \
+TRAIN_LOG_EVERY=50 \
+python3 -u train_gpt.py
+' 2>&1 | tee /netscratch/ayach/<run_id>.log
 ```
-
-If `sacctmgr` is unavailable to your user, continue anyway.
-
-If `H100` does not schedule, try:
-- `H100-RP`
-- `H100-SEE`
-
-## Stop conditions
-
-Stop and reassess before training if:
-- your account cannot access H100-class partitions
-- you cannot get 8 GPUs on one node
-- QoS blocks short 8-GPU jobs
-- allocated hardware is not the expected H100 SXM class
-
-Stop and reassess before pivoting strategy if:
-- an open PR becomes merged and clearly changes the non-TTT frontier
-- you are tempted to skip the clean anchor and jump straight to GDN, two-pass n-gram rescoring, or other open-claim branches without first owning the current stack
-
-## Allowed interim work while Pegasus is saturated
-
-- read `docs/campaign/artifacts/03a_pre_ttt_anchor_diff_analysis.md` before touching Session 03
-- read `docs/campaign/artifacts/03b_root_train_gpt_port_gap_audit.md` before implementing Session 03 from the root script
-- read `docs/codex-memory/session-handoff.md` in fresh sessions before resuming
-- documentation updates under `docs/campaign/artifacts/`
-- preparation for Session 03 without implementing or training anything
-- if explicitly needed for a compute-grant application, prepare or run the two-run development evidence package from `03b`, but label it non-parity evidence
-
-## First development evidence package after verification or if H100 remains blocked
-
-Run 1:
-- root baseline evidence run
-- preferred hardware order: Pegasus H200, Pegasus A100-80GB, then remaining Runpod quick-start fallback
-
-Run 2:
-- narrow clean-anchor smoke port
-- preferred hardware order: Pegasus H200, Pegasus A100-80GB, then remaining Runpod quick-start fallback
-
-For both runs, capture:
-- GPU type
-- steps completed
-- wallclock
-- final `val_bpb`
-- artifact size
-- eval mode
-- compile warnings
-- export warnings
