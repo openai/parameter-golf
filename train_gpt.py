@@ -1118,7 +1118,9 @@ def eval_sliding_window_ttt(
         p.requires_grad = False
     for p in lora_params:
         p.requires_grad = True
-    lora_opt = torch.optim.AdamW(lora_params, lr=1e-4, fused=True)
+    if not lora_params:
+        raise RuntimeError("eval_sliding_window_ttt: init_eval_lora returned no LoRA parameters")
+    lora_opt = torch.optim.AdamW(lora_params, lr=1e-4, fused=False)
 
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -1161,7 +1163,8 @@ def eval_sliding_window_ttt(
                     for _ in range(args.ttt_steps):
                         lora_opt.zero_grad(set_to_none=True)
                         with torch.enable_grad():
-                            loss_t = gpt(prev_x, prev_y, train_compressor=False)
+                            with torch.autocast(device_type="cuda", enabled=False):
+                                loss_t = gpt(prev_x, prev_y, train_compressor=False)
                         loss_t.backward()
                         lora_opt.step()
                     gpt.eval()
@@ -1179,7 +1182,10 @@ def eval_sliding_window_ttt(
                         h = gpt.forward_hidden_with_cheat_prefix(x)
                         rolling = compressor_frozen(h)[0].detach()
                 w += stride
-                prev_x, prev_y = x, y
+                # x/y were just used as inputs inside inference_mode; reusing the same Tensor
+                # objects for TTT on the next stride can yield a loss with no grad_fn on some
+                # PyTorch builds. Fresh clones are safe (token ids only; cheap).
+                prev_x, prev_y = x.clone(), y.clone()
 
     for p in gpt.parameters():
         p.requires_grad = True
