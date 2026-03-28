@@ -6,7 +6,7 @@
   "val_bpb": 1.18817,
   "val_bpb_seeds": [1.18817],
   "seeds": [1337],
-  "status": "non_record_preliminary",
+  "status": "non_record_pending_validation",
   "blurb": "Forked from PR #549 (abaybektursun, 1.1194 SOTA). Adds: (1) VRL (Value Residual Learning, arxiv:2410.17897) on all 11 layers — layer-0 V output blended via learned sigmoid gates; (2) Full GPTQ (Hessian Cholesky int6 error compensation, 256 calib batches); (3) BigramHash 1536→3072; (4) Tight SWA preferred over EMA. NOTE: run on instance without torch.compile support — only 2002 training steps (300ms/step uncompiled vs SOTA 83ms/step compiled). Artifact 18.8MB exceeds 16MB limit due to low-entropy weights at 2002 steps. Preliminary result — proper rerun with torch.compile pending.",
   "architecture": "11L_512dim_8h_4kv_XSA4_PartialRoPE16_LNScale_VE128_VRL_LeakyReLU_ParallelMuon",
   "base_submission": "PR #549 (abaybektursun, 1.1194)",
