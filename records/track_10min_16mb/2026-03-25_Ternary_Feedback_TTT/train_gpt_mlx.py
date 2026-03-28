@@ -69,13 +69,13 @@ class Hyperparameters:
     val_loss_every = _e("VAL_LOSS_EVERY", 0, int)
     val_batch_size = _e("VAL_BATCH_SIZE", 65536, int)
     max_val_tokens = _e("MAX_VAL_TOKENS", 0, int)  # 0=no limit (use all val data)
-    train_log_every = _e("TRAIN_LOG_EVERY", 100, int)
-    train_batch_tokens = _e("TRAIN_BATCH_TOKENS", 32768, int)
+    train_log_every = _e("TRAIN_LOG_EVERY", 1000, int)
+    train_batch_tokens = _e("TRAIN_BATCH_TOKENS", 786432, int)
     grad_accum_steps = _e("GRAD_ACCUM_STEPS", 4, int)
-    train_seq_len = _e("TRAIN_SEQ_LEN", 1024, int)
+    train_seq_len = _e("TRAIN_SEQ_LEN", 2048, int)
     warmup_steps = _e("WARMUP_STEPS", 5, int)
     warmdown_fraction = _e("WARMDOWN_FRACTION", 0.5, float)
-    max_wallclock_seconds = _e("MAX_WALLCLOCK_SECONDS", 600.0, float)
+    max_wallclock_seconds = _e("MAX_WALLCLOCK_SECONDS", 599.0, float)
     mlx_max_microbatch_tokens = _e("MLX_MAX_MICROBATCH_TOKENS", 8192, int)
     mlx_eager_eval = _e("MLX_EAGER_EVAL", 1, bool)
 
@@ -102,6 +102,7 @@ class Hyperparameters:
     feedback_sketch_tokens = _e("FEEDBACK_SKETCH_TOKENS", 4, int)
     feedback_passes = _e("FEEDBACK_PASSES", 1, int)
     eval_feedback_passes = _e("EVAL_FEEDBACK_PASSES", 2, int)
+    feedback_every = _e("FEEDBACK_EVERY", 1, int)
 
     # Capsule
     capsule_enabled = _e("CAPSULE_ENABLED", 1, bool)
@@ -142,6 +143,24 @@ class Hyperparameters:
     gptq_lite_percentiles = _e("GPTQ_LITE_PERCENTILES", 5, int)
     turbo_quant_export = _e("TURBO_QUANT_EXPORT", 1, bool)  # Hadamard rotation at export for lower MSE
     turbo_quant_train = _e("TURBO_QUANT_TRAIN", 0, bool)   # Hadamard rotation during training STE (adds overhead)
+    sliding_eval = _e("SLIDING_EVAL", 1, bool)
+    sliding_eval_stride = _e("SLIDING_EVAL_STRIDE", 64, int)
+    sliding_batch_size = _e("SLIDING_BATCH_SIZE", 32, int)
+    temp_scaling = _e("TEMP_SCALING", 1, bool)
+    shared_blocks = _e("SHARED_BLOCKS", 0, int)
+    ngram_cache_enabled = _e("NGRAM_CACHE_ENABLED", 0, bool)
+    ngram_max_order = _e("NGRAM_MAX_ORDER", 5, int)
+    ngram_alpha_base = _e("NGRAM_ALPHA_BASE", 0.05, float)
+    ngram_alpha_scale = _e("NGRAM_ALPHA_SCALE", 0.55, float)
+    ngram_entropy_center = _e("NGRAM_ENTROPY_CENTER", 4.0, float)
+    ttt_enabled = _e("TTT_ENABLED", 0, bool)
+    ttt_lr = _e("TTT_LR", 0.002, float)
+    ttt_epochs = _e("TTT_EPOCHS", 1, int)
+    ttt_chunk_tokens = _e("TTT_CHUNK_TOKENS", 32768, int)
+    ttt_scope = _e("TTT_SCOPE", "feedback")
+    ttt_momentum = _e("TTT_MOMENTUM", 0.9, float)
+    ttt_batch_seqs = _e("TTT_BATCH_SEQS", 32, int)
+    ttt_grad_clip = _e("TTT_GRAD_CLIP", 1.0, float)
 
     # Optimizer
     matrix_lr = _e("MATRIX_LR", 0.025, float)
@@ -149,6 +168,8 @@ class Hyperparameters:
     tied_embed_lr = _e("TIED_EMBED_LR", 0.035, float)
     muon_momentum = _e("MUON_MOMENTUM", 0.95, float)
     muon_backend_steps = _e("MUON_BACKEND_STEPS", 5, int)
+    muon_wd = _e("MUON_WD", 0.04, float)
+    adam_wd = _e("ADAM_WD", 0.04, float)
     muon_momentum_warmup_start = _e("MUON_MOMENTUM_WARMUP_START", 0.85, float)
     muon_momentum_warmup_steps = _e("MUON_MOMENTUM_WARMUP_STEPS", 1500, int)
     beta1 = _e("BETA1", 0.9, float)
@@ -172,6 +193,7 @@ class Hyperparameters:
 CTP = (
     "attn_scale", "mlp_scale", "resid_mix", "q_gain", "skip_weights",
     "vocab_bias", "add_gate", "mul_gate", "recurrent_gate", "vrl_alpha", "gate",
+    "per_layer_attn_scales", "per_layer_mlp_scales", "per_layer_resid_mixes",
     "koopman",  # Koopman dynamics params go to scalar Adam for stability
 )
 
@@ -548,6 +570,12 @@ class CapsuleBank(nn.Module):
         return x + g * correction, capsules, c_pred
 
 
+class RMSNormNoWeight:
+    """RMSNorm without learnable parameters — zero-cost normalization."""
+    def __call__(self, x, eps=1e-6):
+        return rms_norm(x, eps=eps)
+
+
 def apply_rotary_emb(x, cos, sin):
     half = x.shape[-1] // 2
     x1, x2 = x[..., :half], x[..., half:]
@@ -701,6 +729,7 @@ class GPT(nn.Module):
         self.feedback_enabled = args.feedback_enabled
         self.feedback_passes = args.feedback_passes
         self._train_feedback_passes = args.feedback_passes
+        self.shared_blocks = args.shared_blocks
 
         # Embedding
         self.tok_emb = Embedding(args.vocab_size, args.embed_dim if args.embed_dim > 0 else dim)
@@ -716,18 +745,36 @@ class GPT(nn.Module):
         self.logit_softcap = args.logit_softcap
 
         # Blocks
-        self.blocks = []
-        for i in range(args.num_layers):
-            layer_vrl = args.vrl_enabled and i >= args.vrl_start_layer
-            ln_sf = 1.0 / (i + 1) ** 0.5 if args.ln_scale_damping else 1.0
-            layer_xsa = args.xsa_start_layer >= 0 and i >= args.xsa_start_layer
-            self.blocks.append(Block(
+        def make_block(layer_idx: int) -> Block:
+            layer_vrl = args.vrl_enabled and layer_idx >= args.vrl_start_layer
+            ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if args.ln_scale_damping else 1.0
+            layer_xsa = args.xsa_start_layer >= 0 and layer_idx >= args.xsa_start_layer
+            return Block(
                 dim, args.num_heads, args.num_kv_heads, args.mlp_mult,
                 args.rope_base, args.qk_gain_init, group_size=args.bitnet_group_size,
                 activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope,
                 partial_rope_dims=args.partial_rope_dims, vrl_enabled=layer_vrl,
                 ln_scale_factor=ln_sf, xsa=layer_xsa,
-            ))
+            )
+
+        if args.shared_blocks > 0:
+            self.blocks = None
+            self.shared_block_bank = [make_block(0) for _ in range(args.shared_blocks)]
+            self.per_layer_attn_scales = [mx.ones((dim,), dtype=mx.float32) for _ in range(args.num_layers)]
+            self.per_layer_mlp_scales = [mx.ones((dim,), dtype=mx.float32) for _ in range(args.num_layers)]
+            self.per_layer_resid_mixes = [
+                mx.array(np.stack([np.ones(dim, dtype=np.float32), np.zeros(dim, dtype=np.float32)]))
+                for _ in range(args.num_layers)
+            ]
+            self._block_map = [i % args.shared_blocks for i in range(args.num_layers)]
+        else:
+            self.blocks = [make_block(i) for i in range(args.num_layers)]
+            self.shared_block_bank = None
+            self.per_layer_attn_scales = None
+            self.per_layer_mlp_scales = None
+            self.per_layer_resid_mixes = None
+            self._block_map = None
+        self.final_norm = RMSNormNoWeight()
 
         # Engram-style multi-head n-gram memory (replaces simple BigramHash)
         self.engram = None
@@ -780,12 +827,24 @@ class GPT(nn.Module):
         x = rms_norm(x)
         return x, x
 
+    def _run_block(self, layer_idx, x, x0, v0=None):
+        if self.blocks is not None:
+            return self.blocks[layer_idx](x, x0, v0=v0)
+
+        block = self.shared_block_bank[self._block_map[layer_idx]]
+        mix = self.per_layer_resid_mixes[layer_idx].astype(x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        attn_out, v_out = block.attn(block.attn_norm(x), v0=v0)
+        x = x + self.per_layer_attn_scales[layer_idx].astype(x.dtype)[None, None, :] * attn_out
+        x = x + self.per_layer_mlp_scales[layer_idx].astype(x.dtype)[None, None, :] * block.mlp(block.mlp_norm(x))
+        return x, v_out
+
     def _decoder_pass(self, x, x0, skips, sketch, v0):
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if i < self.num_skip_weights:
                 x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips[-(i + 1)]
-            x, _ = self.blocks[bi](x, x0, v0=v0)
+            x, _ = self._run_block(bi, x, x0, v0=v0)
             if self.feedback_adapters is not None and sketch is not None:
                 x = self.feedback_adapters[i](x, sketch)
         return x
@@ -810,7 +869,7 @@ class GPT(nn.Module):
                     and i == self.engram_inject_layer):
                 engram_out = self.engram(input_ids, hidden=x)
                 x = x + engram_out.astype(x.dtype)
-            x, v_out = self.blocks[i](x, x0, v0=v0)
+            x, v_out = self._run_block(i, x, x0, v0=v0)
             if v0 is None and v_out is not None:
                 v0 = mx.stop_gradient(v_out)
             skips.append(x)
@@ -834,9 +893,11 @@ class GPT(nn.Module):
         prev_capsule_state = None
 
         num_passes = self.feedback_passes
+        if not self.training and self.args.max_eval_passes > 0:
+            num_passes = min(num_passes, self.args.max_eval_passes)
         for correction_pass in range(num_passes + 1):
             if correction_pass > 0 and self.feedback_enabled and self.feedback_pooler is not None:
-                sketch = self.feedback_pooler(rms_norm(x))
+                sketch = self.feedback_pooler(self.final_norm(x))
             else:
                 sketch = None
 
@@ -869,22 +930,44 @@ class GPT(nn.Module):
             if not self.feedback_enabled or self.feedback_pooler is None:
                 break
 
-        return rms_norm(x), capsule_state, consistency_losses
+        return self.final_norm(x), capsule_state, consistency_losses
 
-    def loss(self, input_ids, target_ids, carry_capsules=None):
-        x, capsule_state, consistency_losses = self(input_ids, carry_capsules=carry_capsules)
-        x = x.reshape(-1, x.shape[-1])
-        y = target_ids.reshape(-1)
-        # Tied embeddings
+    def _hidden_to_logits(self, x, temperature=1.0):
         w = self.tok_emb.weight.astype(x.dtype)
         if self.embed_proj_rev is not None:
             x = x @ self.embed_proj_rev.weight.astype(x.dtype).T
         logits = x @ w.T + self.vocab_bias.astype(x.dtype)
         logits = self.softcap(logits)
-        ce_loss = nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
+        if temperature != 1.0:
+            logits = logits / temperature
+        return logits
+
+    def forward_logits(self, input_ids, temperature=1.0):
+        hidden, _, _ = self(input_ids)
+        logits = self._hidden_to_logits(hidden.reshape(-1, hidden.shape[-1]), temperature=temperature)
+        return logits.reshape(input_ids.shape[0], input_ids.shape[1], -1)
+
+    def forward_logits_with_carry(self, input_ids, carry_capsules=None, temperature=1.0):
+        hidden, capsule_state, _ = self(input_ids, carry_capsules=carry_capsules)
+        logits = self._hidden_to_logits(hidden.reshape(-1, hidden.shape[-1]), temperature=temperature)
+        return logits.reshape(input_ids.shape[0], input_ids.shape[1], -1), capsule_state
+
+    def loss(self, input_ids, target_ids, carry_capsules=None, reduction="mean", temperature=1.0):
+        hidden, capsule_state, consistency_losses = self(input_ids, carry_capsules=carry_capsules)
+        x = hidden.reshape(-1, hidden.shape[-1])
+        y = target_ids.reshape(-1)
+        logits = self._hidden_to_logits(x, temperature=temperature).astype(mx.float32)
+        if reduction == "none":
+            return nn.losses.cross_entropy(logits, y, reduction="none").reshape(target_ids.shape)
+
+        lse = mx.logsumexp(logits, axis=-1)
+        target_logits = mx.take_along_axis(logits, y[:, None], axis=1).squeeze(-1)
+        ce_loss = mx.mean(lse - target_logits)
+        if self.training:
+            ce_loss = ce_loss + 1e-4 * mx.mean(lse * lse)
 
         # Capsule consistency auxiliary loss (Koopman dynamics training signal)
-        if consistency_losses and self.args.koopman_consistency_weight > 0:
+        if self.training and consistency_losses and self.args.koopman_consistency_weight > 0:
             consist_sum = mx.array(0.0, dtype=mx.float32)
             for c_pred, c_actual in consistency_losses:
                 consist_sum = consist_sum + mx.mean((c_pred - c_actual) ** 2)
@@ -947,7 +1030,8 @@ class Muon:
             g_eff = g + momentum * buf
             g_ortho = zeropower_newtonschulz5(g_eff, self.args.muon_backend_steps)
             scale = math.sqrt(max(1.0, float(p.shape[0]) / float(p.shape[1])))
-            out[k] = p - lr * (g_ortho * scale).astype(p.dtype)
+            decayed = p * (1.0 - lr * self.args.muon_wd) if self.args.muon_wd > 0 else p
+            out[k] = decayed - lr * (g_ortho * scale).astype(p.dtype)
         return out
 
 
@@ -984,6 +1068,12 @@ class SplitOptimizers:
         self.adam_koopman_diag = optim.Adam(learning_rate=0.01,
                                             betas=[args.beta1, args.beta2], eps=args.adam_eps)
 
+    def _decay_params(self, params, lr):
+        if self.args.adam_wd <= 0:
+            return params
+        mul = 1.0 - lr * self.args.adam_wd
+        return {k: p * mul for k, p in params.items()}
+
     def step(self, model, grads_tree, step, lr_mul):
         params = dict(tree_flatten(model.parameters()))
         grads = dict(tree_flatten(grads_tree))
@@ -1002,14 +1092,20 @@ class SplitOptimizers:
         scalar_grads = {k: grads[k] for k in self.scalar_keys if k in grads}
         scalar_params = {k: params[k] for k in self.scalar_keys if k in params}
         if scalar_grads:
-            updated.update(self.adam_scalar.apply_gradients(scalar_grads, scalar_params))
+            updated.update(self.adam_scalar.apply_gradients(
+                scalar_grads,
+                self._decay_params(scalar_params, self.args.scalar_lr * lr_mul),
+            ))
 
         # Koopman diagonal with lower LR
         self.adam_koopman_diag.learning_rate = 0.01 * lr_mul
         kd_grads = {k: grads[k] for k in self.koopman_diag_keys if k in grads}
         kd_params = {k: params[k] for k in self.koopman_diag_keys if k in params}
         if kd_grads:
-            updated.update(self.adam_koopman_diag.apply_gradients(kd_grads, kd_params))
+            updated.update(self.adam_koopman_diag.apply_gradients(
+                kd_grads,
+                self._decay_params(kd_params, 0.01 * lr_mul),
+            ))
 
         model.update(tree_unflatten(list(updated.items())))
 
@@ -1255,17 +1351,45 @@ def build_luts(sp, vocab_size):
     return base_bytes, has_leading_space, is_boundary
 
 
-def eval_val(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_lut, log_fn=None):
-    """Validation with cross-window capsule carry.
+def ce_from_logits(logits, target_ids, reduction="mean"):
+    return nn.losses.cross_entropy(
+        logits.reshape(-1, logits.shape[-1]).astype(mx.float32),
+        target_ids.reshape(-1),
+        reduction=reduction,
+    ).reshape(target_ids.shape) if reduction == "none" else nn.losses.cross_entropy(
+        logits.reshape(-1, logits.shape[-1]).astype(mx.float32),
+        target_ids.reshape(-1),
+        reduction=reduction,
+    )
 
-    When capsule_carry_enabled, capsule state persists across sequential
-    validation batches with exponential decay. This gives the model structured
-    long-range memory during eval at zero parameter cost.
-    """
-    model.eval()  # Enable adaptive halting (self.training = False)
+
+def set_eval_mode(model, eval_feedback_passes):
+    prev_training = model.training
+    prev_feedback_passes = model.feedback_passes
+    model.eval()
+    if model.feedback_enabled:
+        model.set_feedback_passes(
+            eval_feedback_passes if eval_feedback_passes > 0 else model._train_feedback_passes
+        )
+    return prev_training, prev_feedback_passes
+
+
+def restore_mode(model, prev_training, prev_feedback_passes):
+    model.set_feedback_passes(prev_feedback_passes)
+    if prev_training:
+        model.train()
+    else:
+        model.eval()
+
+
+def eval_val(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_lut,
+             log_fn=None, temperature=1.0):
+    """Validation with optional capsule carry and calibrated logits."""
+    prev_training, prev_feedback_passes = set_eval_mode(model, args.eval_feedback_passes)
     seq_len = args.train_seq_len
     batch_seqs = max(1, args.val_batch_size // seq_len)
     total_seqs = (val_tokens.size - 1) // seq_len
+    total_batches = max((total_seqs + batch_seqs - 1) // batch_seqs, 1)
     total_loss = 0.0
     total_tokens = 0.0
     total_bytes = 0.0
@@ -1285,17 +1409,10 @@ def eval_val(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_
         y = mx.array(y_np, dtype=mx.int32)
 
         if use_carry:
-            # Forward pass to get capsule state for carry
-            hidden, capsule_state, _ = model(x, carry_capsules=carry_capsules)
-            # Compute loss from hidden
-            hidden_flat = hidden.reshape(-1, hidden.shape[-1])
-            y_flat = y.reshape(-1)
-            w = model.tok_emb.weight.astype(hidden_flat.dtype)
-            if model.embed_proj_rev is not None:
-                hidden_flat = hidden_flat @ model.embed_proj_rev.weight.astype(hidden_flat.dtype).T
-            logits = hidden_flat @ w.T + model.vocab_bias.astype(hidden_flat.dtype)
-            logits = model.softcap(logits)
-            loss = nn.losses.cross_entropy(logits.astype(mx.float32), y_flat, reduction="mean")
+            logits, capsule_state = model.forward_logits_with_carry(
+                x, carry_capsules=carry_capsules, temperature=temperature
+            )
+            loss = ce_from_logits(logits, y, reduction="mean").astype(mx.float32)
             mx.eval(loss)
             # Update carry with exponential decay — average across batch for size-independence
             if capsule_state is not None:
@@ -1309,7 +1426,8 @@ def eval_val(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_
                     carry_capsules = mx.stop_gradient(cs_avg)
                 mx.eval(carry_capsules)
         else:
-            loss = model.loss(x, y).astype(mx.float32)
+            logits = model.forward_logits(x, temperature=temperature)
+            loss = ce_from_logits(logits, y, reduction="mean").astype(mx.float32)
             mx.eval(loss)
 
         n = float(y.size)
@@ -1320,11 +1438,424 @@ def eval_val(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_
         bytes_np += (has_leading_space_lut[tgt_ids] & ~is_boundary_lut[prev_ids]).astype(np.int16)
         total_tokens += n
         total_bytes += float(bytes_np.sum())
-    model.train()  # Restore training mode
+        if log_fn is not None and total_batches > 1 and (
+            start == 0 or end == total_seqs or (start // batch_seqs + 1) % 25 == 0
+        ):
+            log_fn(f"val_progress:{start // batch_seqs + 1}/{total_batches}")
+    restore_mode(model, prev_training, prev_feedback_passes)
     val_loss = total_loss / total_tokens
     bpt = val_loss / math.log(2.0)
     val_bpb = bpt * (total_tokens / total_bytes)
     return val_loss, val_bpb
+
+
+def eval_val_sliding(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_lut,
+                     stride=64, temperature=1.0):
+    prev_training, prev_feedback_passes = set_eval_mode(model, args.eval_feedback_passes)
+    seq_len = args.train_seq_len
+    batch_size = max(1, args.sliding_batch_size)
+    total_tokens = val_tokens.size - 1
+    total_loss = 0.0
+    total_tok_count = 0.0
+    total_byte_count = 0.0
+    all_starts = [s for s in range(0, total_tokens, stride) if min(s + seq_len, total_tokens) - s >= 1]
+
+    use_carry = args.capsule_carry_enabled and args.capsule_enabled
+    decay = args.capsule_carry_decay
+    carry_capsules = None
+
+    for i in range(0, len(all_starts), batch_size):
+        batch_starts = all_starts[i:i + batch_size]
+        bsz = len(batch_starts)
+        x_batch = np.zeros((bsz, seq_len), dtype=np.int32)
+        y_batch = np.zeros((bsz, seq_len), dtype=np.int32)
+        wlens = []
+        for j, start in enumerate(batch_starts):
+            end = min(start + seq_len, total_tokens)
+            wlen = end - start
+            wlens.append(wlen)
+            chunk = val_tokens[start:end + 1]
+            x_batch[j, :wlen] = chunk[:-1]
+            y_batch[j, :wlen] = chunk[1:]
+
+        x = mx.array(x_batch, dtype=mx.int32)
+        y = mx.array(y_batch, dtype=mx.int32)
+        if use_carry:
+            logits, capsule_state = model.forward_logits_with_carry(
+                x, carry_capsules=carry_capsules, temperature=temperature
+            )
+            if capsule_state is not None:
+                cs_avg = mx.mean(capsule_state, axis=0, keepdims=True)
+                if carry_capsules is not None:
+                    carry_capsules = mx.stop_gradient(decay * carry_capsules + (1.0 - decay) * cs_avg)
+                else:
+                    carry_capsules = mx.stop_gradient(cs_avg)
+                mx.eval(carry_capsules)
+        else:
+            logits = model.forward_logits(x, temperature=temperature)
+
+        nll = ce_from_logits(logits, y, reduction="none")
+        mx.eval(nll)
+        nll_np = np.array(nll.astype(mx.float32), dtype=np.float32)
+        for j, start in enumerate(batch_starts):
+            wlen = wlens[j]
+            score_from = 0 if start == 0 else max(wlen - stride, 0)
+            scored = nll_np[j, score_from:wlen]
+            sx = x_batch[j, score_from:wlen]
+            sy = y_batch[j, score_from:wlen]
+            total_loss += float(scored.astype(np.float64).sum())
+            total_tok_count += float(wlen - score_from)
+            tok_bytes = base_bytes_lut[sy].astype(np.int16, copy=True)
+            tok_bytes += (has_leading_space_lut[sy] & ~is_boundary_lut[sx]).astype(np.int16)
+            total_byte_count += float(tok_bytes.astype(np.float64).sum())
+
+    restore_mode(model, prev_training, prev_feedback_passes)
+    val_loss = total_loss / max(total_tok_count, 1.0)
+    val_bpb = (val_loss / math.log(2.0)) * (total_tok_count / max(total_byte_count, 1.0))
+    return val_loss, val_bpb
+
+
+def find_temp(model, args, calibration_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_lut):
+    best_t, best_loss = 1.0, float("inf")
+    for t in (0.90, 0.95, 1.00, 1.05, 1.10):
+        loss, _ = eval_val(
+            model, args, calibration_tokens, base_bytes_lut,
+            has_leading_space_lut, is_boundary_lut, temperature=t,
+        )
+        if loss < best_loss:
+            best_loss = loss
+            best_t = t
+    return best_t
+
+
+class NgramCache:
+    """Dynamic n-gram cache built from already-scored tokens."""
+
+    def __init__(self, max_order=5, alpha_base=0.05, alpha_scale=0.55, entropy_center=4.0):
+        self.max_order = max_order
+        self.alpha_base = alpha_base
+        self.alpha_scale = alpha_scale
+        self.entropy_center = entropy_center
+        self.counts = [{} for _ in range(max_order + 1)]
+        self.total_counts = [{} for _ in range(max_order + 1)]
+
+    def update(self, tokens):
+        for order in range(2, self.max_order + 1):
+            for i in range(len(tokens) - order + 1):
+                ctx = tuple(tokens[i:i + order - 1])
+                nxt = int(tokens[i + order - 1])
+                if ctx not in self.counts[order]:
+                    self.counts[order][ctx] = {}
+                    self.total_counts[order][ctx] = 0
+                self.counts[order][ctx][nxt] = self.counts[order][ctx].get(nxt, 0) + 1
+                self.total_counts[order][ctx] += 1
+
+    def predict(self, context, vocab_size):
+        for order in range(self.max_order, 1, -1):
+            if len(context) < order - 1:
+                continue
+            ctx = tuple(context[-(order - 1):])
+            if ctx in self.counts[order]:
+                total = self.total_counts[order][ctx]
+                probs = np.zeros((vocab_size,), dtype=np.float32)
+                for tok, count in self.counts[order][ctx].items():
+                    if tok < vocab_size:
+                        probs[tok] = count / total
+                if probs.sum() > 0:
+                    probs = (probs + 1e-8) / (probs.sum() + 1e-8 * vocab_size)
+                    return np.log(probs).astype(np.float32, copy=False)
+        return None
+
+    def entropy_alpha(self, neural_logprobs):
+        probs = np.exp(neural_logprobs)
+        entropy = float(-(probs * neural_logprobs).sum())
+        return self.alpha_base + self.alpha_scale * (
+            1.0 / (1.0 + math.exp(-2.0 * (entropy - self.entropy_center)))
+        )
+
+
+def eval_val_ngram_cache(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_lut,
+                         temperature=1.0):
+    prev_training, prev_feedback_passes = set_eval_mode(model, args.eval_feedback_passes)
+    ngram_cache = NgramCache(
+        max_order=args.ngram_max_order,
+        alpha_base=args.ngram_alpha_base,
+        alpha_scale=args.ngram_alpha_scale,
+        entropy_center=args.ngram_entropy_center,
+    )
+    seq_len = args.train_seq_len
+    total_tokens = val_tokens.size - 1
+    loss_sum = 0.0
+    byte_sum = 0.0
+    tok_count = 0
+    scored_tokens = []
+    
+    use_carry = args.capsule_carry_enabled and args.capsule_enabled
+    decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
+    carry_capsules = None
+
+    for pos in range(0, total_tokens, seq_len):
+        end = min(pos + seq_len, total_tokens)
+        wlen = end - pos
+        chunk = val_tokens[pos:end + 1]
+        x_np = chunk[:-1][None, :]
+        y_np = chunk[1:][None, :]
+        x = mx.array(x_np, dtype=mx.int32)
+        if use_carry:
+            logits, capsule_state = model.forward_logits_with_carry(
+                x, carry_capsules=carry_capsules, temperature=temperature
+            )
+            logits = logits.squeeze(0).astype(mx.float32)
+            if capsule_state is not None:
+                cs_avg = mx.mean(capsule_state, axis=0, keepdims=True)
+                if carry_capsules is not None:
+                    carry_capsules = mx.stop_gradient(decay * carry_capsules + (1.0 - decay) * cs_avg)
+                else:
+                    carry_capsules = mx.stop_gradient(cs_avg)
+                mx.eval(carry_capsules)
+        else:
+            logits = model.forward_logits(x, temperature=temperature).squeeze(0).astype(mx.float32)
+        log_probs = logits - mx.logsumexp(logits, axis=-1, keepdims=True)
+        mx.eval(log_probs)
+        log_probs_np = np.array(log_probs, dtype=np.float32)
+        for t_idx in range(wlen):
+            target_tok = int(y_np[0, t_idx])
+            neural_lp = log_probs_np[t_idx]
+            ngram_lp = ngram_cache.predict(scored_tokens[-(args.ngram_max_order - 1):], args.vocab_size)
+            if ngram_lp is not None:
+                alpha = ngram_cache.entropy_alpha(neural_lp)
+                mixed = np.logaddexp(
+                    neural_lp + math.log(1.0 - alpha + 1e-10),
+                    ngram_lp + math.log(alpha + 1e-10),
+                )
+                token_nll = -float(mixed[target_tok])
+            else:
+                token_nll = -float(neural_lp[target_tok])
+            loss_sum += token_nll
+            tok_b = int(base_bytes_lut[target_tok])
+            prev_tok = int(x_np[0, t_idx])
+            if has_leading_space_lut[target_tok] and not is_boundary_lut[prev_tok]:
+                tok_b += 1
+            byte_sum += tok_b
+            tok_count += 1
+            scored_tokens.append(target_tok)
+        ngram_cache.update(chunk[1:].tolist())
+
+    restore_mode(model, prev_training, prev_feedback_passes)
+    val_loss = loss_sum / max(tok_count, 1)
+    val_bpb = (val_loss / math.log(2.0)) * (tok_count / max(byte_sum, 1.0))
+    return val_loss, val_bpb
+
+
+def collect_ttt_param_names(model, scope):
+    if scope != "feedback":
+        raise ValueError(f"Unsupported TTT_SCOPE={scope}")
+    params = dict(tree_flatten(model.parameters()))
+    selected = []
+    for name in params:
+        allow = (
+            name.startswith("feedback_pooler.")
+            or name.startswith("feedback_adapters.")
+            or name == "skip_weights"
+            or name.startswith("capsule_bank.")
+        )
+        if name.startswith("blocks."):
+            parts = name.split(".")
+            if len(parts) >= 3:
+                block_idx = int(parts[1])
+                leaf = parts[2]
+                if block_idx >= model.num_encoder_layers and leaf in {"attn_scale", "mlp_scale"}:
+                    allow = True
+        if name.startswith("per_layer_attn_scales.") or name.startswith("per_layer_mlp_scales."):
+            idx = int(name.split(".")[1])
+            if idx >= model.num_encoder_layers:
+                allow = True
+        if allow:
+            selected.append(name)
+    return selected
+
+
+def snapshot_parameters(model):
+    return {k: mx.array(v) for k, v in tree_flatten(model.parameters())}
+
+
+def restore_parameters(model, snapshot):
+    model.update(tree_unflatten(list(snapshot.items())))
+
+
+def clip_named_grads(grads_flat, selected_names, max_norm):
+    if max_norm <= 0:
+        return grads_flat
+    total_sq = 0.0
+    names = [name for name in selected_names if name in grads_flat]
+    for name in names:
+        total_sq += float(mx.sum(grads_flat[name].astype(mx.float32) ** 2).item())
+    if total_sq <= 0.0:
+        return grads_flat
+    total_norm = math.sqrt(total_sq)
+    if total_norm <= max_norm:
+        return grads_flat
+    scale = max_norm / (total_norm + 1e-12)
+    for name in names:
+        grads_flat[name] = grads_flat[name] * scale
+    return grads_flat
+
+
+def sgd_momentum_step(model, selected_names, grads_flat, velocity, lr, momentum):
+    params = dict(tree_flatten(model.parameters()))
+    updated = {}
+    touched = []
+    for name in selected_names:
+        if name not in grads_flat or name not in params:
+            continue
+        grad = grads_flat[name]
+        vel = momentum * velocity.get(name, mx.zeros_like(params[name])) + grad
+        velocity[name] = vel
+        updated[name] = params[name] - lr * vel.astype(params[name].dtype)
+        touched.append(name)
+    if updated:
+        model.update(tree_unflatten(list(updated.items())))
+        mx.eval(*[updated[name] for name in touched])
+
+
+def eval_val_sliding_ttt(model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_lut,
+                         stride=64, batch_seqs=32, temperature=1.0, log_fn=None):
+    prev_training, prev_feedback_passes = set_eval_mode(model, args.eval_feedback_passes)
+    original_params = snapshot_parameters(model)
+    selected_names = collect_ttt_param_names(model, args.ttt_scope)
+    if not selected_names:
+        restore_mode(model, prev_training, prev_feedback_passes)
+        raise RuntimeError("TTT enabled but no parameters matched TTT_SCOPE")
+    velocity = {name: mx.zeros_like(original_params[name]) for name in selected_names}
+    total_tokens = val_tokens.size - 1
+    
+    use_carry = args.capsule_carry_enabled and args.capsule_enabled
+    decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
+    carry_capsules = None
+
+    seq_len = args.train_seq_len
+    ttt_chunk = args.ttt_chunk_tokens
+    window_starts = [
+        ws for ws in range(0, total_tokens, stride)
+        if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0
+    ]
+    num_chunks = (total_tokens + ttt_chunk - 1) // ttt_chunk
+    chunk_windows = [[] for _ in range(num_chunks)]
+    for ws in window_starts:
+        end = min(ws + seq_len, total_tokens)
+        wlen = end - ws
+        score_from = 0 if ws == 0 else max(wlen - stride, 0)
+        chunk_idx = min((ws + score_from) // ttt_chunk, num_chunks - 1)
+        chunk_windows[chunk_idx].append(ws)
+
+    if log_fn is not None:
+        log_fn(
+            f"ttt_sliding:start chunks={num_chunks} chunk_tokens={ttt_chunk} stride={stride} "
+            f"ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} scope={args.ttt_scope}"
+        )
+        log_fn(f"ttt_sliding:params unfrozen={sum(int(original_params[n].size) for n in selected_names)}")
+
+    loss_sum = 0.0
+    token_count = 0.0
+    byte_count = 0.0
+    loss_grad_fn = nn.value_and_grad(model, lambda x, y: model.loss(x, y, temperature=temperature))
+    t0 = time.perf_counter()
+
+    try:
+        for ci in range(num_chunks):
+            windows = chunk_windows[ci]
+            if not windows:
+                continue
+            chunk_start = ci * ttt_chunk
+            chunk_end = min((ci + 1) * ttt_chunk, total_tokens)
+
+            model.eval()
+            for bi in range(0, len(windows), batch_seqs):
+                batch_ws = windows[bi:bi + batch_seqs]
+                bsz = len(batch_ws)
+                x_batch = np.zeros((bsz, seq_len), dtype=np.int32)
+                y_batch = np.zeros((bsz, seq_len), dtype=np.int32)
+                wlens = []
+                for i, ws in enumerate(batch_ws):
+                    end = min(ws + seq_len, total_tokens)
+                    wlen = end - ws
+                    wlens.append(wlen)
+                    chunk = val_tokens[ws:end + 1]
+                    x_batch[i, :wlen] = chunk[:-1]
+                    y_batch[i, :wlen] = chunk[1:]
+
+                x = mx.array(x_batch, dtype=mx.int32)
+                y = mx.array(y_batch, dtype=mx.int32)
+                if use_carry:
+                    logits, capsule_state = model.forward_logits_with_carry(
+                        x, carry_capsules=carry_capsules, temperature=temperature
+                    )
+                    if capsule_state is not None:
+                        cs_avg = mx.mean(capsule_state, axis=0, keepdims=True)
+                        if carry_capsules is not None:
+                            carry_capsules = mx.stop_gradient(decay * carry_capsules + (1.0 - decay) * cs_avg)
+                        else:
+                            carry_capsules = mx.stop_gradient(cs_avg)
+                        mx.eval(carry_capsules)
+                else:
+                    logits = model.forward_logits(x, temperature=temperature)
+                
+                nll = ce_from_logits(logits, y, reduction="none")
+                mx.eval(nll)
+                nll_np = np.array(nll.astype(mx.float32), dtype=np.float32)
+                for i, ws in enumerate(batch_ws):
+                    wlen = wlens[i]
+                    score_from = 0 if ws == 0 else max(wlen - stride, 0)
+                    scored = nll_np[i, score_from:wlen]
+                    sx = x_batch[i, score_from:wlen]
+                    sy = y_batch[i, score_from:wlen]
+                    loss_sum += float(scored.astype(np.float64).sum())
+                    token_count += float(wlen - score_from)
+                    tok_bytes = base_bytes_lut[sy].astype(np.int16, copy=True)
+                    tok_bytes += (has_leading_space_lut[sy] & ~is_boundary_lut[sx]).astype(np.int16)
+                    byte_count += float(tok_bytes.astype(np.float64).sum())
+
+            if ci == num_chunks - 1 or args.ttt_epochs <= 0:
+                continue
+
+            model.train()
+            chunk_seqs = (chunk_end - chunk_start) // seq_len
+            if chunk_seqs <= 0:
+                continue
+            cosine_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
+            for _ in range(args.ttt_epochs):
+                for bs in range(0, chunk_seqs, args.ttt_batch_seqs):
+                    be = min(bs + args.ttt_batch_seqs, chunk_seqs)
+                    start_tok = chunk_start + bs * seq_len
+                    end_tok = chunk_start + be * seq_len + 1
+                    if end_tok > val_tokens.size:
+                        continue
+                    local = val_tokens[start_tok:end_tok]
+                    x = mx.array(local[:-1].reshape(-1, seq_len), dtype=mx.int32)
+                    y = mx.array(local[1:].reshape(-1, seq_len), dtype=mx.int32)
+                    loss_grad_fn_carry = nn.value_and_grad(model, lambda x, y: model.loss(x, y, temperature=temperature, carry_capsules=carry_capsules))
+                    loss, grads = loss_grad_fn_carry(x, y) if use_carry else loss_grad_fn(x, y)
+                    grads_flat = clip_named_grads(dict(tree_flatten(grads)), selected_names, args.ttt_grad_clip)
+                    sgd_momentum_step(model, selected_names, grads_flat, velocity, cosine_lr, args.ttt_momentum)
+                    mx.eval(loss)
+
+            if log_fn is not None and (ci % 10 == 0 or ci == num_chunks - 1):
+                elapsed = time.perf_counter() - t0
+                running_loss = loss_sum / max(token_count, 1.0)
+                running_bpb = running_loss / math.log(2.0) * (token_count / max(byte_count, 1.0)) if token_count > 0 else 0.0
+                log_fn(f"  ttt_chunk [{ci+1}/{num_chunks}] bpb={running_bpb:.6f} time={elapsed:.1f}s")
+
+        val_loss = loss_sum / max(token_count, 1.0)
+        val_bpb = val_loss / math.log(2.0) * (token_count / max(byte_count, 1.0))
+        if log_fn is not None:
+            log_fn(
+                f"ttt_sliding:done val_loss={val_loss:.6f} val_bpb={val_bpb:.6f} "
+                f"elapsed={time.perf_counter() - t0:.1f}s"
+            )
+        return val_loss, val_bpb
+    finally:
+        restore_parameters(model, original_params)
+        restore_mode(model, prev_training, prev_feedback_passes)
 
 
 def load_validation_tokens(pattern, seq_len, max_tokens=0):
@@ -1415,24 +1946,45 @@ def main():
     log(f"model_params:{n_params} layers:{args.num_layers} dim:{args.model_dim} "
         f"heads:{args.num_heads} seq_len:{args.train_seq_len}")
     log(f"feedback:{args.feedback_enabled} passes:{args.feedback_passes} "
+        f"every:{args.feedback_every} eval_passes:{args.eval_feedback_passes} "
         f"capsule:{args.capsule_enabled} engram:{args.bigram_hash_enabled}({args.engram_num_heads}h{args.engram_num_orders}o@L{args.engram_inject_layer}) "
         f"vrl:{args.vrl_enabled} xsa_start:{args.xsa_start_layer} "
-        f"partial_rope:{args.partial_rope_dims} lrelu2:{args.activation_type}")
+        f"partial_rope:{args.partial_rope_dims} lrelu2:{args.activation_type} "
+        f"shared_blocks:{args.shared_blocks}")
     if args.koopman_enabled and args.capsule_enabled:
         log(f"koopman:rank={args.koopman_rank} diag_init={args.koopman_diag_init} "
             f"consist_w={args.koopman_consistency_weight} "
             f"halt:{args.adaptive_halt_enabled}@{args.adaptive_halt_threshold} "
             f"carry:{args.capsule_carry_enabled}@{args.capsule_carry_decay}")
+    log(
+        f"optimizer: matrix_lr={args.matrix_lr} scalar_lr={args.scalar_lr} "
+        f"embed_lr={args.tied_embed_lr} muon_wd={args.muon_wd} adam_wd={args.adam_wd}"
+    )
+    log(
+        f"eval: sliding={args.sliding_eval}@{args.sliding_eval_stride} "
+        f"temp_scaling={args.temp_scaling} ttt={args.ttt_enabled} "
+        f"ngram_cache={args.ngram_cache_enabled}"
+    )
     log(f"turbo_quant: train={args.turbo_quant_train} export={args.turbo_quant_export}")
 
     opt = SplitOptimizers(model, args)
 
-    # Compiled functions
-    compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
-    compiled_loss_and_grad = mx.compile(
-        nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
-        inputs=model.state, outputs=model.state,
-    )
+    # Compile training graphs lazily per feedback-pass variant. `self.training` and
+    # `feedback_passes` are Python-side control-flow knobs, so one graph cannot safely
+    # serve train/eval/no-feedback modes.
+    train_loss_and_grad_cache = {}
+
+    def get_train_loss_and_grad(feedback_passes):
+        passes = max(int(feedback_passes), 0)
+        if passes not in train_loss_and_grad_cache:
+            model.train()
+            model.set_feedback_passes(passes)
+            train_loss_and_grad_cache[passes] = mx.compile(
+                nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
+                inputs=model.state,
+                outputs=model.state,
+            )
+        return train_loss_and_grad_cache[passes]
 
     # EMA
     ema = EMAHelper(model, args.ema_decay) if args.ema_enabled else None
@@ -1463,16 +2015,12 @@ def main():
 
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
             train_time_ms += 1000.0 * (time.perf_counter() - t0)
-            # Switch to eval-time feedback passes
-            if args.feedback_enabled:
-                model.set_feedback_passes(args.eval_feedback_passes)
-            val_loss, val_bpb = eval_val(model, args, val_tokens, base_bytes_lut,
-                                         has_leading_space_lut, is_boundary_lut, log_fn=log)
+            val_loss, val_bpb = eval_val(
+                model, args, val_tokens, base_bytes_lut,
+                has_leading_space_lut, is_boundary_lut, log_fn=log,
+            )
             log(f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{train_time_ms:.0f}ms")
-            # Restore training-time feedback passes
-            if args.feedback_enabled:
-                model.set_feedback_passes(model._train_feedback_passes)
             t0 = time.perf_counter()
 
         if last_step:
@@ -1480,6 +2028,16 @@ def main():
 
         elapsed_ms = train_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        use_feedback = (
+            args.feedback_enabled
+            and args.feedback_passes > 0
+            and max(args.feedback_every, 1) > 0
+            and step % max(args.feedback_every, 1) == 0
+        )
+        active_feedback_passes = model._train_feedback_passes if use_feedback else 0
+        compiled_loss_and_grad = get_train_loss_and_grad(active_feedback_passes)
+        model.train()
+        model.set_feedback_passes(active_feedback_passes)
 
         step_t0 = time.perf_counter()
         accum = None
@@ -1531,6 +2089,57 @@ def main():
             log("EMA shadow weights applied")
         else:
             log("EMA shadow was never updated (short run) — using trained weights directly")
+
+    final_val_loss, final_val_bpb = eval_val(
+        model, args, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_lut, log_fn=log
+    )
+    log(f"final_eval val_loss:{final_val_loss:.4f} val_bpb:{final_val_bpb:.4f}")
+
+    opt_temp = 1.0
+    if args.temp_scaling:
+        t_temp = time.perf_counter()
+        calibration_tokens = np.ascontiguousarray(train_loader.stream.take(65536))
+        opt_temp = find_temp(
+            model, args, calibration_tokens, base_bytes_lut,
+            has_leading_space_lut, is_boundary_lut,
+        )
+        temp_time_ms = 1000.0 * (time.perf_counter() - t_temp)
+        log(f"temp_scaling optimal_T:{opt_temp:.2f} eval_time:{temp_time_ms:.0f}ms")
+
+    if args.sliding_eval:
+        t_sliding = time.perf_counter()
+        sw_loss, sw_bpb = eval_val_sliding(
+            model, args, val_tokens, base_bytes_lut, has_leading_space_lut,
+            is_boundary_lut, stride=args.sliding_eval_stride, temperature=opt_temp,
+        )
+        sliding_time_ms = 1000.0 * (time.perf_counter() - t_sliding)
+        log(
+            f"final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} "
+            f"(stride={args.sliding_eval_stride}, T={opt_temp:.2f}) eval_time:{sliding_time_ms:.0f}ms"
+        )
+
+    if args.ttt_enabled:
+        t_ttt = time.perf_counter()
+        ttt_loss, ttt_bpb = eval_val_sliding_ttt(
+            model, args, val_tokens, base_bytes_lut, has_leading_space_lut,
+            is_boundary_lut, stride=args.sliding_eval_stride,
+            batch_seqs=args.ttt_batch_seqs, temperature=opt_temp, log_fn=log,
+        )
+        ttt_time_ms = 1000.0 * (time.perf_counter() - t_ttt)
+        log(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} eval_time:{ttt_time_ms:.0f}ms")
+        log(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
+
+    if args.ngram_cache_enabled:
+        t_ngram = time.perf_counter()
+        ngram_loss, ngram_bpb = eval_val_ngram_cache(
+            model, args, val_tokens, base_bytes_lut, has_leading_space_lut,
+            is_boundary_lut, temperature=opt_temp,
+        )
+        ngram_time_ms = 1000.0 * (time.perf_counter() - t_ngram)
+        log(
+            f"ngram_cache val_loss:{ngram_loss:.4f} val_bpb:{ngram_bpb:.4f} "
+            f"(order={args.ngram_max_order}) eval_time:{ngram_time_ms:.0f}ms"
+        )
 
     # Serialize
     blob = quantize_for_export(model, args)

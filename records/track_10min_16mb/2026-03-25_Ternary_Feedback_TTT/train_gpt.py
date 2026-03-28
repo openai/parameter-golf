@@ -125,10 +125,18 @@ class Hyperparameters:
     ngram_alpha_base = _e("NGRAM_ALPHA_BASE", 0.05, float)
     ngram_alpha_scale = _e("NGRAM_ALPHA_SCALE", 0.55, float)
     ngram_entropy_center = _e("NGRAM_ENTROPY_CENTER", 4.0, float)
-    # BigramHash embeddings
+    # EngramHash / BigramHash embeddings
     bigram_hash_enabled = _e("BIGRAM_HASH_ENABLED", 1, bool)
     bigram_hash_buckets = _e("BIGRAM_HASH_BUCKETS", 4096, int)
     bigram_hash_dim = _e("BIGRAM_HASH_DIM", 128, int)
+    engram_num_heads = _e("ENGRAM_NUM_HEADS", 4, int)
+    engram_num_orders = _e("ENGRAM_NUM_ORDERS", 2, int)  # 2 = bigram + trigram
+    engram_inject_layer = _e("ENGRAM_INJECT_LAYER", 1, int)  # -1 = input only
+    # Feedback interleaving: run feedback only every N steps (1=always, 4=every 4th step)
+    feedback_every = _e("FEEDBACK_EVERY", 1, int)
+    # TurboQuant Hadamard rotation
+    turbo_quant_export = _e("TURBO_QUANT_EXPORT", 1, bool)
+    turbo_quant_train = _e("TURBO_QUANT_TRAIN", 0, bool)
     # Value Residual Learning (deep layers)
     vrl_enabled = _e("VRL_ENABLED", 1, bool)
     vrl_start_layer = _e("VRL_START_LAYER", 10, int)
@@ -245,6 +253,14 @@ def q_sd(state_dict: dict, group_size: int = 64, fp_storage=False, ternary_metho
             pad = (group_size - t.shape[1] % group_size) % group_size
             t_padded = F.pad(t, (0, pad)) if pad > 0 else t
             t_grouped = t_padded.reshape(-1, group_size)
+
+            # TurboQuant: Hadamard rotation before quantization for lower MSE
+            turbo_used = False
+            if Hyperparameters.turbo_quant_export and (group_size & (group_size - 1)) == 0:
+                H = _build_hadamard_pt(group_size, t_grouped.device)
+                t_grouped = t_grouped @ H
+                turbo_used = True
+
             scale = t_grouped.abs().mean(-1, keepdim=True).clamp(min=1e-8).half().float()
             q = (t_grouped / scale).round().clamp(-1, 1).to(torch.int8)
 
@@ -255,13 +271,16 @@ def q_sd(state_dict: dict, group_size: int = 64, fp_storage=False, ternary_metho
                 packed_bytes, n_trits = pack_ternary_bitmask(q)
                 entry_type = "ternary_bitmask"
 
-            quantized[name] = {
+            entry = {
                 "type": entry_type, "packed": packed_bytes,
                 "scale": scale.half().squeeze(-1),
                 "shape": list(t.shape), "padded_cols": t_padded.shape[1],
                 "group_size": group_size, "n_trits": n_trits,
                 "orig_shape": t_orig_shape,
             }
+            if turbo_used:
+                entry["turbo"] = True  # load path must inverse-Hadamard after dequant
+            quantized[name] = entry
             stats["ternary_params"] += t.numel()
             stats["ternary_bytes"] += len(packed_bytes) + scale.numel() * 2
         elif fp_storage == "fp4" and t.ndim == 2:
@@ -289,10 +308,16 @@ def deq_sd(quantized: dict, target_dtype=torch.bfloat16):
             else:
                 q = unpack_ternary_bitmask(entry["packed"], entry["n_trits"])
 
-            q = q.float().reshape(-1, entry["group_size"])
+            gs = entry["group_size"]
+            q = q.float().reshape(-1, gs)
             scale = entry["scale"].float().unsqueeze(-1)
             q_absmean = q.abs().mean(-1, keepdim=True).clamp(min=1e-8)
-            t = (q * (scale / q_absmean)).reshape(-1, entry["padded_cols"])
+            t = q * (scale / q_absmean)
+            # TurboQuant: inverse-Hadamard rotation to recover original-space weights
+            if entry.get("turbo") and (gs & (gs - 1)) == 0:
+                H = _build_hadamard_pt(gs, t.device)
+                t = t @ H  # H is self-inverse
+            t = t.reshape(-1, entry["padded_cols"])
             shape = entry["shape"]
             result = t[:shape[0], :shape[1]].to(target_dtype)
             orig = entry.get("orig_shape")
@@ -502,6 +527,27 @@ class QATEmbedding(nn.Embedding):
         return F.embedding(input, w_qat, self.padding_idx, self.max_norm,
                            self.norm_type, self.scale_grad_by_freq, self.sparse)
 
+_TURBO_QUANT_TRAIN = False  # Set by main() from args.turbo_quant_train
+_HADAMARD_CACHE_PT: dict[int, Tensor] = {}
+
+def _build_hadamard_pt(n: int, device: torch.device) -> Tensor:
+    """Build normalized orthogonal Hadamard matrix. TurboQuant insight: rotation before
+    scalar quantization achieves near-optimal MSE by distributing outliers."""
+    key = (n, device)
+    if key in _HADAMARD_CACHE_PT:
+        return _HADAMARD_CACHE_PT[key]
+    assert n > 0 and (n & (n - 1)) == 0, f"n must be power of 2, got {n}"
+    if n == 1:
+        h = torch.tensor([[1.0]], device=device)
+    else:
+        h_half = _build_hadamard_pt(n // 2, device)
+        h = torch.cat([torch.cat([h_half, h_half], dim=1),
+                        torch.cat([h_half, -h_half], dim=1)], dim=0)
+    h = h / (n ** 0.5)
+    _HADAMARD_CACHE_PT[key] = h
+    return h
+
+
 class TernaryLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=False, group_size=64):
         super().__init__(in_features, out_features, bias=bias)
@@ -511,9 +557,15 @@ class TernaryLinear(nn.Linear):
         w = self.weight.bfloat16()
         g = self.group_size
         w_g = w.reshape(-1, g)
+        if _TURBO_QUANT_TRAIN and (g & (g - 1)) == 0:
+            H = _build_hadamard_pt(g, w.device)
+            w_g = w_g @ H
         scale = w_g.abs().mean(-1, keepdim=True).clamp(min=1e-8)
         q = (w_g / scale).round().clamp(-1, 1)
-        w_ternary = w + ((q * scale).reshape(w.shape) - w).detach()
+        dequant = q * scale
+        if _TURBO_QUANT_TRAIN and (g & (g - 1)) == 0:
+            dequant = dequant @ H  # Self-inverse
+        w_ternary = w + (dequant.reshape(w.shape) - w).detach()
         return F.linear(x, w_ternary,
                         self.bias.to(x.dtype) if self.bias is not None else None)
 
@@ -530,26 +582,72 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
                 param.data = param.data.float()
 
 
-class BigramHash(nn.Module):
-    """Deterministic bigram hashing for cheap local context injection.
-    Maps consecutive token pairs via XOR hash into a fixed-size embedding table,
-    projects to model dim, and adds to residual. Zero inference cost beyond a lookup + linear."""
-    def __init__(self, num_buckets: int, hash_dim: int, model_dim: int, fp_storage: str | bool):
-        super().__init__()
-        self.num_buckets = num_buckets
-        self.table = QATEmbedding(num_buckets, hash_dim, fp_storage=fp_storage)
-        self.proj = QATLinear(hash_dim, model_dim, bias=False, fp_storage=fp_storage)
+class EngramHash(nn.Module):
+    """Engram-inspired multi-head, multi-order n-gram memory with context gating.
 
-    def forward(self, input_ids: Tensor) -> Tensor:
-        # input_ids: (B, T) — compute bigram hash for positions 1..T-1
-        prev = input_ids[:, :-1]
-        curr = input_ids[:, 1:]
-        # Deterministic hash: prev * 92821 + curr mod num_buckets
-        indices = ((prev.long() * 92821 + curr.long()) % self.num_buckets).clamp(0, self.num_buckets - 1)
-        # Pad position 0 with zero hash (no previous token)
-        indices = F.pad(indices, (1, 0), value=0)
-        emb = self.table(indices)
-        return self.proj(emb)
+    Key ideas from DeepSeek Engram paper:
+    1. Multi-head hashing: K heads per n-gram order reduce collision rate
+    2. Context-aware gating: sigmoid gate from hidden state suppresses noisy lookups
+    3. Multi-order: bigrams + trigrams capture different context scales
+    4. Injection at internal layers (not just input) for richer context gating
+    """
+    _PRIMES = [92821, 131071, 174763, 216091, 262147, 314159, 393241, 462841,
+               524287, 611953, 700001, 786433, 873781, 967229, 1048573, 1153381]
+
+    def __init__(self, num_buckets: int, hash_dim: int, model_dim: int,
+                 fp_storage: str | bool, num_heads: int = 4, num_orders: int = 2):
+        super().__init__()
+        self.num_heads = num_heads
+        self.num_orders = num_orders
+        self.head_dim = hash_dim // (num_orders * num_heads)
+        assert self.head_dim > 0, f"hash_dim={hash_dim} too small for {num_orders}x{num_heads} heads"
+        self.buckets_per_head = num_buckets
+        # Embedding tables: one per (order, head)
+        self.tables = nn.ModuleList([
+            QATEmbedding(num_buckets, self.head_dim, fp_storage=fp_storage)
+            for _ in range(num_orders * num_heads)
+        ])
+        self.proj = QATLinear(hash_dim, model_dim, bias=False, fp_storage=fp_storage)
+        # Context-aware gating
+        self.gate_k = nn.Linear(hash_dim, model_dim, bias=False)
+        self.gate_scale = model_dim ** -0.5
+
+    def _hash_ngram(self, input_ids: Tensor, order: int, head_idx: int) -> Tensor:
+        B, T = input_ids.shape
+        p = self._PRIMES[(order * self.num_heads + head_idx) % len(self._PRIMES)]
+        if order == 0:  # bigram
+            prev = input_ids[:, :-1].long()
+            curr = input_ids[:, 1:].long()
+            h = (prev * p + curr) % self.buckets_per_head
+            h = F.pad(h, (1, 0), value=0)
+        elif order == 1:  # trigram
+            pp = input_ids[:, :-2].long()
+            prev = input_ids[:, 1:-1].long()
+            curr = input_ids[:, 2:].long()
+            h = (pp * (p * p) + prev * p + curr) % self.buckets_per_head
+            h = F.pad(h, (2, 0), value=0)
+        else:
+            raise ValueError(f"Unsupported n-gram order {order+2}")
+        return h.int()
+
+    def retrieve(self, input_ids: Tensor) -> Tensor:
+        parts = []
+        for order in range(self.num_orders):
+            for head in range(self.num_heads):
+                idx = self._hash_ngram(input_ids, order, head)
+                table_idx = order * self.num_heads + head
+                parts.append(self.tables[table_idx](idx))
+        return torch.cat(parts, dim=-1)
+
+    def forward(self, input_ids: Tensor, hidden: Tensor | None = None) -> Tensor:
+        memory = self.retrieve(input_ids)
+        if hidden is not None:
+            k = self.gate_k(memory)
+            h_norm = F.normalize(hidden.float(), dim=-1)
+            k_norm = F.normalize(k.float(), dim=-1)
+            gate = torch.sigmoid((h_norm * k_norm).sum(dim=-1, keepdim=True) * self.gate_scale)
+            return gate.to(memory.dtype) * self.proj(memory)
+        return self.proj(memory)
 
 
 class Rotary(nn.Module):
@@ -931,6 +1029,9 @@ class GPT(nn.Module):
         bigram_hash_enabled: bool = False,
         bigram_hash_buckets: int = 4096,
         bigram_hash_dim: int = 128,
+        engram_num_heads: int = 4,
+        engram_num_orders: int = 2,
+        engram_inject_layer: int = 1,
         xsa_start_layer: int = -1,
     ):
         super().__init__()
@@ -1001,10 +1102,15 @@ class GPT(nn.Module):
 
         self.final_norm = RMSNorm()
 
-        # BigramHash — cheap local context injection
-        self.bigram_hash = None
+        # EngramHash — Engram-inspired multi-head n-gram memory with context gating
+        self.engram = None
+        self.engram_inject_layer = engram_inject_layer
         if bigram_hash_enabled:
-            self.bigram_hash = BigramHash(bigram_hash_buckets, bigram_hash_dim, model_dim, fp_storage=fp_storage)
+            self.engram = EngramHash(
+                bigram_hash_buckets, bigram_hash_dim, model_dim,
+                fp_storage=fp_storage, num_heads=engram_num_heads,
+                num_orders=engram_num_orders,
+            )
 
         # Capsule bank — with Koopman-driven predictive dynamics
         self.capsule_bank = None
@@ -1051,9 +1157,9 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids).float()
         if self.embed_proj is not None:
             x = self.embed_proj(x)
-        # Add bigram hash if enabled
-        if self.bigram_hash is not None:
-            x = x + self.bigram_hash(input_ids)
+        # Engram input injection (ungated, no hidden state yet)
+        if self.engram is not None and self.engram_inject_layer < 0:
+            x = x + self.engram(input_ids, hidden=None)
         x = F.rms_norm(x, (x.size(-1),))
         return x, x
 
@@ -1095,6 +1201,11 @@ class GPT(nn.Module):
 
         # --- Encoder pass (runs once) ---
         for i in range(self.num_encoder_layers):
+            # Engram injection at internal layer (context-gated)
+            if (self.engram is not None
+                    and self.engram_inject_layer >= 0
+                    and i == self.engram_inject_layer):
+                x = x + self.engram(input_ids, hidden=x)
             for _ in range(max(1, self.training_depth_recurrence)):
                 x, v_out = self._run_block(i, x, x0, v0=v0)
                 if v0 is None and v_out is not None:
@@ -1177,8 +1288,9 @@ class GPT(nn.Module):
             logits = logits / temperature
         return logits.reshape(input_ids.size(0), input_ids.size(1), -1), capsule_state
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, reduction: str = "mean", temperature: float = 1.0) -> Tensor:
-        hidden, consistency_losses, _ = self._compute_hidden(input_ids)
+    def forward(self, input_ids: Tensor, target_ids: Tensor, reduction: str = "mean",
+                temperature: float = 1.0, carry_capsules: Tensor | None = None) -> Tensor:
+        hidden, consistency_losses, _ = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
         logits = self._softcap(self._compute_logits(hidden.reshape(-1, hidden.size(-1))))
         if temperature != 1.0:
             logits = logits / temperature
@@ -1411,6 +1523,9 @@ def eval_val_sliding_ttt(
         f"ttt_sliding:start chunks={num_chunks} chunk_tokens={ttt_chunk} stride={stride} "
         f"ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} scope={args.ttt_scope}"
     )
+    use_carry = args.capsule_carry_enabled and args.capsule_enabled
+    decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
+    carry_capsules = None
     original_grad, ttt_params = collect_ttt_params(base_model, args.ttt_scope)
     log0(f"ttt_sliding:params unfrozen={sum(p.numel() for p in ttt_params)}")
     if not ttt_params:
@@ -1448,7 +1563,17 @@ def eval_val_sliding_ttt(
                         x_batch[i, :wlen] = chunk[:-1]
                         y_batch[i, :wlen] = chunk[1:]
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        logits = base_model.forward_logits(x_batch, temperature=temperature)
+                        if use_carry:
+                            logits, capsule_state = base_model.forward_logits_with_carry(
+                                x_batch, carry_capsules=carry_capsules, temperature=temperature)
+                            if capsule_state is not None:
+                                cs_avg = capsule_state.mean(dim=0, keepdim=True)
+                                if carry_capsules is not None:
+                                    carry_capsules = (decay * carry_capsules + (1.0 - decay) * cs_avg).detach()
+                                else:
+                                    carry_capsules = cs_avg.detach()
+                        else:
+                            logits = base_model.forward_logits(x_batch, temperature=temperature)
                     nll = F.cross_entropy(
                         logits.reshape(-1, logits.size(-1)).float(),
                         y_batch.reshape(-1),
@@ -1492,7 +1617,7 @@ def eval_val_sliding_ttt(
                     y = local[1:].reshape(-1, seq_len)
                     optimizer.zero_grad(set_to_none=True)
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        loss = base_model(x, y, temperature=temperature)
+                        loss = base_model(x, y, temperature=temperature, carry_capsules=carry_capsules) if use_carry else base_model(x, y, temperature=temperature)
                     loss.backward()
                     if world_size > 1:
                         for p in ttt_params:
@@ -1669,6 +1794,9 @@ def main() -> None:
         global ns_orth
         ns_orth = torch.compile(ns_orth)
 
+    global _TURBO_QUANT_TRAIN
+    _TURBO_QUANT_TRAIN = args.turbo_quant_train
+
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -1737,6 +1865,8 @@ def main() -> None:
         vrl_start_layer=args.vrl_start_layer, ln_scale_damping=args.ln_scale_damping,
         bigram_hash_enabled=args.bigram_hash_enabled,
         bigram_hash_buckets=args.bigram_hash_buckets, bigram_hash_dim=args.bigram_hash_dim,
+        engram_num_heads=args.engram_num_heads, engram_num_orders=args.engram_num_orders,
+        engram_inject_layer=args.engram_inject_layer,
         xsa_start_layer=args.xsa_start_layer,
     ).to(device).bfloat16()
 
@@ -1764,9 +1894,15 @@ def main() -> None:
                         if not any(eh in n for eh in _excl)]
     matrix_params: list[Tensor] = []
     scalar_params: list[Tensor] = []
+    koopman_diag_params: list[Tensor] = []
     for name, param in all_other_params:
-        if param.ndim == 2 and not any(pat in name for pat in CTP) and "feedback" not in name and "capsule" not in name:
+        is_matrix = param.ndim == 2 and not any(pat in name for pat in CTP)
+        # Architecture-aware optimizer: explicitly send linear read/write capsule projections and Koopman matrices to Muon
+        if is_matrix and "feedback" not in name and ("capsule" not in name or "read_proj" in name or "write_proj" in name or "koopman" in name):
             matrix_params.append(param)
+        elif "koopman" in name and "diag" in name:
+            # Koopman diagonal gets separate Adam with lower LR for stability
+            koopman_diag_params.append(param)
         else:
             scalar_params.append(param)
 
@@ -1790,7 +1926,15 @@ def main() -> None:
         [{"params": [base_model.lm_head.weight], "lr": 0.0, "base_lr": 0.0}],
         betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
 
-    optimizers = [opt for opt in [opt_tok, opt_muon, opt_scalar, opt_head] if opt is not None]
+    # Koopman diagonal: separate Adam with lower LR (0.01) for stability
+    opt_koopman = None
+    if koopman_diag_params:
+        koopman_lr = 0.01
+        opt_koopman = torch.optim.Adam(
+            [{"params": koopman_diag_params, "lr": koopman_lr, "base_lr": koopman_lr}],
+            betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
+
+    optimizers = [opt for opt in [opt_tok, opt_muon, opt_scalar, opt_head, opt_koopman] if opt is not None]
 
     # --- EMA ---
     ema = None  # initialized after warmup
@@ -1909,6 +2053,17 @@ def main() -> None:
         zero_grad_all()
         train_loss.zero_()
 
+        # Feedback interleaving: skip feedback on some steps for speed
+        _orig_fp = base_model.feedback_passes
+        use_feedback = (
+            args.feedback_enabled
+            and args.feedback_passes > 0
+            and max(args.feedback_every, 1) > 0
+            and step % max(args.feedback_every, 1) == 0
+        )
+        if not use_feedback:
+            base_model.feedback_passes = 0
+
         for micro in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro == grad_accum_steps - 1
@@ -1919,6 +2074,9 @@ def main() -> None:
             train_loss.add_(loss.detach())
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
+
+        # Restore original feedback passes
+        base_model.feedback_passes = _orig_fp
 
         # Gradient clipping
         if args.grad_clip_norm > 0:
@@ -1947,7 +2105,7 @@ def main() -> None:
                 log0(f"step:{step} untied lm_head (head_lr={args.head_lr})")
 
         # Muon momentum warmup
-        if args.matrix_optimizer != "adam":
+        if args.matrix_optimizer not in ("adamw", "adam"):
             frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
             for g in opt_muon.param_groups:
                 g["momentum"] = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -2048,6 +2206,8 @@ def main() -> None:
                                      val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
     log0(f"final_ternary_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f}")
 
+    final_loss, final_bpb = q_val_loss, q_val_bpb
+
     opt_temp = 1.0
     if args.temp_scaling:
         torch.cuda.synchronize()
@@ -2071,6 +2231,7 @@ def main() -> None:
         sliding_time_ms = 1000.0 * (time.perf_counter() - t_sliding)
         log0(f"final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} "
              f"(stride={args.sliding_eval_stride}, T={opt_temp:.2f}) eval_time:{sliding_time_ms:.0f}ms")
+        final_loss, final_bpb = sw_loss, sw_bpb
 
     if args.ttt_enabled:
         torch.cuda.synchronize()
@@ -2084,6 +2245,7 @@ def main() -> None:
         ttt_time_ms = 1000.0 * (time.perf_counter() - t_ttt)
         log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} eval_time:{ttt_time_ms:.0f}ms")
         log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
+        final_loss, final_bpb = ttt_loss, ttt_bpb
 
     # --- N-gram cache evaluation (single-rank, sequential) ---
     if args.ngram_cache_enabled and master_process:
@@ -2102,6 +2264,9 @@ def main() -> None:
         ngram_tok_count = 0
         scored_tokens: list[int] = []
         base_model.eval()
+        use_carry = args.capsule_carry_enabled and args.capsule_enabled
+        decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
+        carry_capsules = None
         # Process validation sequentially, building cache as we go
         with torch.inference_mode():
             for pos in range(0, total_tokens_ng, seq_len):
@@ -2111,7 +2276,17 @@ def main() -> None:
                 x_ng = chunk[:-1].unsqueeze(0)
                 y_ng = chunk[1:].unsqueeze(0)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    logits_ng = base_model.forward_logits(x_ng, temperature=opt_temp)
+                    if use_carry:
+                        logits_ng, capsule_state = base_model.forward_logits_with_carry(
+                            x_ng, carry_capsules=carry_capsules, temperature=opt_temp)
+                        if capsule_state is not None:
+                            cs_avg = capsule_state.mean(dim=0, keepdim=True)
+                            if carry_capsules is not None:
+                                carry_capsules = (decay * carry_capsules + (1.0 - decay) * cs_avg).detach()
+                            else:
+                                carry_capsules = cs_avg.detach()
+                    else:
+                        logits_ng = base_model.forward_logits(x_ng, temperature=opt_temp)
                 log_probs_ng = F.log_softmax(logits_ng.squeeze(0).float(), dim=-1)
                 for t_idx in range(wlen):
                     target_tok = y_ng[0, t_idx].item()
@@ -2145,6 +2320,27 @@ def main() -> None:
         ngram_time_ms = 1000.0 * (time.perf_counter() - t_ngram)
         log0(f"ngram_cache val_loss:{ngram_val_loss:.4f} val_bpb:{ngram_bpb:.4f} "
              f"(order={args.ngram_max_order}) eval_time:{ngram_time_ms:.0f}ms")
+        final_loss, final_bpb = ngram_val_loss, ngram_bpb
+
+    if master_process:
+        import json
+        import os
+        artifact_bytes = os.path.getsize("final_model.ternary.ptz") if os.path.exists("final_model.ternary.ptz") else 0
+        c_code_bytes = len(code.encode("utf-8")) if 'code' in locals() else 0
+        total_bytes = artifact_bytes + c_code_bytes
+        
+        with open("submission.json", "w") as f:
+            json.dump({
+                "author": "Aki Gogikar (OneNewAI)",
+                "github_id": "akhileshgogikar",
+                "name": "KoopCaps-HRM Ternary Reasoner",
+                "blurb": "KoopCaps-HRM: Ternary Reasoner with Koopman-driven capsule dynamics, adaptive halting, and cross-window capsule carry. 12L/768d ternary U-Net with iterative Hadamard-gated backward correction, predictive capsule state (D+UV^T stable linear dynamics), entropy-based evaluation adaptive depth, XSA, LeakyReLU², BigramHash, Partial RoPE, VRL, EMA, GPTQ-lite, n-gram cache, sliding eval, temp scaling, and legal TTT. ~87M ternary params in ~12MB.",
+                "date": "2026-03-27T00:00:00Z",
+                "val_loss": round(final_loss, 4),
+                "val_bpb": round(final_bpb, 4),
+                "bytes_total": total_bytes,
+                "bytes_code": c_code_bytes
+            }, f, indent=2)
 
     if distributed:
         dist.destroy_process_group()
