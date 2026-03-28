@@ -1386,6 +1386,9 @@ class CanonicalDeltaNet(nn.Module):
         q = F.normalize(q.reshape(B, T, H, Dh), dim=-1)   # [B, T, H, Dh]
         k = F.normalize(k.reshape(B, T, H, Dh), dim=-1)
         v = v.reshape(B, T, H, Dh)
+        # chunk_delta_rule requires q/k/v/beta to share dtype — mixed precision can diverge
+        dtype = x.dtype
+        q, k, v, beta = q.to(dtype), k.to(dtype), v.to(dtype), beta.to(dtype)
         # Chunked CUDA delta rule — parallel over sequence, correct over loops
         o, new_state = _fla_chunk_delta_rule(
             q=q, k=k, v=v, beta=beta,
