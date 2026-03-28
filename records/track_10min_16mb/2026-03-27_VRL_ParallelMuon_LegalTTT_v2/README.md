@@ -1,21 +1,23 @@
 # 11L VRL + BigramHash3072 + Parallel Muon + Legal SGD TTT v2
 
-**val_bpb = 1.1264** (mean of 3 seeds, post int6+zstd quantization + legal TTT) | **15.83 MB** | 8×H100 SXM
+**val_bpb = 1.1269** (mean of 2 valid seeds, post int6+zstd quantization + legal TTT) | **15.8 MB** | 8×H100 SXM
 
-## 3-Seed Results
+## Results
 
 | Seed | Steps | Pre-quant bpb | Post-quant bpb | Post-TTT bpb | Artifact bytes | Valid |
 |------|-------|---------------|----------------|--------------|----------------|-------|
 | 1337 | 6170 | 1.1443 | 1.1524 | 1.1268 | 15,828,109 | Yes |
-| 42 | 6177 | 1.1428 | 1.1506 | 1.1253 | 15,828,109 | Yes |
 | 45 | 6182 | 1.1435 | 1.1528 | 1.1270 | 15,813,731 | Yes |
+| 42 | 6177 | 1.1428 | 1.1506 | 1.1253 | 16,645,615 | No (over 16MB) |
+| 2025 | 6183 | 1.1430 | 1.1510 | 1.1255 | 17,005,574 | No (over 16MB) |
+| 7 | 6182 | 1.1435 | 1.1515 | 1.1259 | 16,993,924 | No (over 16MB) |
 
-Mean post-TTT bpb: **1.1264**
+Mean post-TTT bpb (valid seeds): **1.1269**
 
 ## Changes from PR #549 (SOTA 1.1194)
 
 ### Added
-1. **VRL (Value Residual Learning)** — Layer 0's V output blended into all subsequent layers via learned per-layer sigmoid gates (arxiv:2410.17897).
+1. **VRL (Value Residual Learning)** — Layer 0's V output blended into all subsequent layers via learned per-layer gates (arxiv:2410.17897).
 2. **BigramHash 3072** — Doubled from 1536 (+free -0.0009 bpb per PR #549 ablation).
 3. **Tight SWA over EMA** — When SWA snapshots exist, use snapshot average.
 4. **zstd-22 compression** — Replacing lzma preset 6. Better compression ratio.
@@ -39,7 +41,7 @@ Attention:  XSA last 4 layers, Partial RoPE (16/64), FA3/FA2/SDPA
 Position:   NTK-aware RoPE, train_seq=2048
 Norm:       RMSNorm, LN Scale 1/sqrt(L+1)
 Skip:       U-Net encoder/decoder, learned skip weights
-VRL:        Sigmoid-gated V0 blend on layers 1-10
+VRL:        Learned-gate V0 blend on layers 1-10
 VE:         Value Embedding (dim=128) on layers 9,10
 
 Optimizer:  Parallel Muon (batched NS5, parameter banking)
@@ -62,7 +64,6 @@ torchrun --standalone --nproc_per_node=8 \
 Multi-seed:
 ```bash
 SEED=1337 torchrun --standalone --nproc_per_node=8 train_gpt.py
-SEED=42   torchrun --standalone --nproc_per_node=8 train_gpt.py
 SEED=45   torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
