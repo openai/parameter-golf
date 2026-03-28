@@ -1,0 +1,75 @@
+{
+  "author": "copilot-phase1-variant",
+  "github_id": "openai-parameter-golf",
+  "submission_variant": "Phase 1.2 - 12L Leaner Architecture (480 hidden)",
+  "date_created": "2026-03-28",
+  "challenge_track": "track_10min_16mb",
+  "val_bpb": "TBD_AFTER_TRAINING",
+  "hyperparameters": {
+    "model_architecture": {
+      "num_layers": 12,
+      "model_dim": 480,
+      "num_heads": 8,
+      "num_kv_heads": 4,
+      "mlp_mult": 3.0,
+      "vocab_size": 1024,
+      "seq_len": 2048,
+      "tie_embeddings": true,
+      "xsa_last_n": 4,
+      "bigram_enabled": true,
+      "smeargate_enabled": true,
+      "param_reduction": "~2-3% width savings offset by +1 layer"
+    },
+    "quantization": {
+      "type": "int6_ste_qat",
+      "int_bits": 6,
+      "clip_range": 31,
+      "int_levels": 63,
+      "compression": "zstd-22"
+    },
+    "training": {
+      "batch_tokens_per_step": 786432,
+      "iterations": 20000,
+      "warmup_steps": 20,
+      "warmdown_iters": 1200,
+      "max_wallclock_seconds": 600,
+      "optimizer": "Muon + Adam split",
+      "matrix_lr": 0.04,
+      "scalar_lr": 0.04,
+      "tied_embed_lr": 0.05,
+      "muon_momentum": 0.95,
+      "muon_wd": 0.02,
+      "adam_wd": 0.01,
+      "ema_enabled": true,
+      "ema_decay": 0.997
+    }
+  },
+  "notes": [
+    "Phase 1.2 variant: depth vs width tradeoff (12L/480 vs 11L/512)",
+    "Hypothesis: deeper transformer captures more patterns; width reduction saves params",
+    "Identical training recipe to best record (1.1271)",
+    "Only changes: +1 layer, -32 hidden dim",
+    "Target: ≤1.1200 if depth helps, or validate that 11L is sweet spot"
+  ],
+  "expected_performance": {
+    "best_case": "≤1.1180",
+    "target_case": "1.1200-1.1230",
+    "acceptable_case": "≤1.1270",
+    "fallback_baseline": "1.1271 (11L/512 record)"
+  },
+  "artifact_size_budget": {
+    "max_bytes": 16000000,
+    "model_bytes_target": 14900000,
+    "code_bytes_target": 66000,
+    "overhead_bytes": 100000
+  },
+  "changes_from_best_record": [
+    "NUM_LAYERS: 11 → 12",
+    "MODEL_DIM: 512 → 480",
+    "All other settings identical to 1.1271 record"
+  ],
+  "files_included": [
+    "train_gpt.py (12L variant, cloned from 1.1271 with layer/dim changes)",
+    "final_model.int6.ptz (int6 quantized weights)"
+  ]
+}
