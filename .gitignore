@@ -8,4 +8,9 @@ data/manifest.json
 data/docs_selected.jsonl
 .mypy_cache/
 .venv
-logs/
+logs/# Test scripts (not needed for submission)
+sweep_*.py
+test_*.py
+cached_nll_*.npy
+*.pyc
+__pycache__/
