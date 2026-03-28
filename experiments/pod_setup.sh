@@ -31,12 +31,19 @@ if [ -d "${WORKSPACE}/.git" ]; then
     git fetch origin "${BRANCH}" --quiet
     git checkout -B "${BRANCH}" "origin/${BRANCH}" --force
     git clean -fd --quiet
+elif [ -d "${WORKSPACE}" ]; then
+    echo "[1/6] Existing non-git workspace detected, using in-place files..."
+    cd "${WORKSPACE}"
 else
     echo "[1/6] Cloning repo..."
     git clone -b "${BRANCH}" "${REPO_URL}" "${WORKSPACE}"
     cd "${WORKSPACE}"
 fi
-echo "  HEAD: $(git log --oneline -1)"
+if [ -d "${WORKSPACE}/.git" ]; then
+    echo "  HEAD: $(git log --oneline -1)"
+else
+    echo "  HEAD: non-git workspace (no commit metadata)"
+fi
 
 # =============================================================================
 # 2. Verify base environment (system Python + PyTorch must already exist)
@@ -69,8 +76,18 @@ echo "[3/6] Installing pip packages..."
 pip install --upgrade pip -q 2>&1 | tail -1
 
 pip install numpy tqdm huggingface-hub kernels setuptools \
-    "typing-extensions==4.15.0" datasets tiktoken sentencepiece -q 2>&1 | tail -1
+    "typing-extensions==4.15.0" datasets tiktoken sentencepiece attr -q 2>&1 | tail -1
 echo "  Core packages OK"
+
+# flash-linear-attention (provides fla.ops.delta_rule / chunk_delta_rule)
+if python3 -c "from fla.ops.delta_rule import chunk_delta_rule" 2>/dev/null; then
+    echo "  fla already installed"
+else
+    echo "  Installing flash-linear-attention..."
+    pip install flash-linear-attention -q 2>&1 | tail -3
+    python3 -c "from fla.ops.delta_rule import chunk_delta_rule; print('  fla OK — chunk_delta_rule available')" \
+        || echo "  WARNING: fla install failed — DeltaNet will fall back to Python loop"
+fi
 
 # =============================================================================
 # 4. zstandard (CRITICAL: prevents artifact size inflation)
@@ -200,6 +217,12 @@ try:
     print(f"sentencepiece: OK")
 except ImportError:
     print("sentencepiece: MISSING!")
+
+try:
+    from fla.ops.delta_rule import chunk_delta_rule
+    print(f"fla           : chunk_delta_rule OK")
+except ImportError:
+    print("fla           : MISSING — DeltaNet will use slow Python loop!")
 
 train = sorted(glob.glob("./data/datasets/fineweb10B_sp1024/fineweb_train_*.bin"))
 val   = sorted(glob.glob("./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin"))
