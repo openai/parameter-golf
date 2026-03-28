@@ -1,0 +1,45 @@
+============================================
+  REFERENCE: Yellow II (no warm-start) seed 1337 = 0.4896 BPB
+  This is NOT the submission variant. Included for ablation reference.
+============================================
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+Serialized model int6+zstd: 15632349 bytes
+Total submission size int6+zstd: 15736871 bytes
+Total submission size int8+zlib: 15736871 bytes
+final_int6_roundtrip val_loss:1.9306 val_bpb:1.1434 eval_time:6856ms
+final_int6_roundtrip_exact val_loss:1.93055044 val_bpb:1.14338071
+final_int6_sliding_window val_loss:1.8905 val_bpb:1.1197 stride:64 eval_time:74718ms
+final_int6_sliding_window_exact val_loss:1.89054804 val_bpb:1.11969200
+final_int8_zlib_roundtrip_exact val_loss:1.89054804 val_bpb:1.11969200
+ngram_eval:chunks=60 chunk_tokens=1048576 windows=969088 shared_tables=True
+ngram_eval:chunk [1/60] bpb=1.129854 t=4s
+ngram_eval:chunk [2/60] bpb=1.188448 t=8s
+ngram_eval:chunk [3/60] bpb=1.184841 t=11s
+cubric3d:step=8 o2:avg=0.93 o3:avg=0.85 o4:avg=0.98 o5:avg=1.03 o6:avg=1.05 o7:avg=1.04 o8:avg=1.04 o9:avg=1.07
+ngram_eval:chunk [11/60] bpb=1.029792 t=39s
+cubric3d:step=16 o2:avg=0.87 o3:avg=0.69 o4:avg=0.97 o5:avg=1.11 o6:avg=1.13 o7:avg=1.13 o8:avg=1.13 o9:avg=1.17
+ngram_eval:chunk [21/60] bpb=0.806964 t=70s
+cubric3d:step=24 o2:avg=0.86 o3:avg=0.62 o4:avg=0.96 o5:avg=1.23 o6:avg=1.27 o7:avg=1.25 o8:avg=1.27 o9:avg=1.29
+ngram_eval:chunk [31/60] bpb=0.667829 t=99s
+cubric3d:step=32 o2:avg=0.86 o3:avg=0.62 o4:avg=0.94 o5:avg=1.25 o6:avg=1.33 o7:avg=1.31 o8:avg=1.28 o9:avg=1.31
+cubric3d:step=40 o2:avg=0.86 o3:avg=0.62 o4:avg=0.94 o5:avg=1.25 o6:avg=1.33 o7:avg=1.29 o8:avg=1.26 o9:avg=1.28
+ngram_eval:chunk [41/60] bpb=0.579080 t=126s
+cubric3d:step=48 o2:avg=0.86 o3:avg=0.62 o4:avg=0.94 o5:avg=1.25 o6:avg=1.33 o7:avg=1.29 o8:avg=1.26 o9:avg=1.26
+ngram_eval:chunk [51/60] bpb=0.522630 t=153s
+cubric3d:step=56 o2:avg=0.86 o3:avg=0.62 o4:avg=0.94 o5:avg=1.25 o6:avg=1.33 o7:avg=1.29 o8:avg=1.29 o9:avg=1.28
+ngram_eval:chunk [60/60] bpb=0.488889 t=176s
+cubric3d:final c_steps=60 cells=9x8=72
+  o2: [0.97 0.91 0.60 1.00 0.91 0.61 1.00 1.00 0.72]
+  o3: [0.65 0.50 0.47 0.72 0.58 0.53 0.71 0.69 0.72]
+  o4: [0.97 0.47 0.48 1.47 0.86 0.53 1.23 1.60 0.83]
+  o5: [0.97 0.47 0.50 2.00 1.70 0.53 1.80 1.86 1.38]
+  o6: [1.02 0.39 0.48 2.00 2.00 0.63 2.00 2.00 1.43]
+  o7: [0.88 0.30 0.54 2.00 2.00 0.65 2.00 2.00 1.27]
+  o8: [1.29 0.30 0.36 2.00 2.00 0.69 2.00 2.00 1.03]
+  o9: [1.41 0.30 0.34 2.00 2.00 0.30 2.00 2.00 1.30]
+final_int6_sliding_window_ngram9 val_loss:0.8267 val_bpb:0.4896 eval_time:182179ms
+final_int6_sliding_window_ngram9_exact val_loss:0.82666522 val_bpb:0.48959900
+============================================
+  DONE
+============================================
