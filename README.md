@@ -163,6 +163,8 @@ For dataset export, tokenizer export, and docs-cache rebuild instructions, see [
 
 Evaluation will be in the RunPod environment with all packages installed. `requirements.txt` is provided as a reference if you want to self-setup.
 
+For a Karpathy-style autonomous loop (agent edits a copy of the trainer, fixed runs, `results.tsv`), see [`agent_lab/README.md`](agent_lab/README.md) and [`agent_lab/program.md`](agent_lab/program.md).
+
 ## FAQ
 
 **What exactly counts toward the 16MB artifact size?**

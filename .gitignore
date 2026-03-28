@@ -9,3 +9,16 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+
+# Agent lab harness (agent loop artifacts)
+agent_lab/results.tsv
+agent_lab/run.log
+agent_lab/final_model.pt
+agent_lab/final_model.int8.ptz
+
+# Training artifacts (torchrun cwd = repo root)
+/final_model.pt
+/final_model.int8.ptz
+
+.agents/
+skills-lock.json
