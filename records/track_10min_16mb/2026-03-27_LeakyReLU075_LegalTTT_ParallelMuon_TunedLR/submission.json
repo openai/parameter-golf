@@ -1,0 +1,15 @@
+{
+  "name": "LeakyReLU(0.75)² + Legal TTT + Parallel Muon + Tuned LR",
+  "val_bpb": 1.1185,
+  "val_bpb_seeds": [1.1183, 1.1194, 1.1179],
+  "bytes_total": 15956063,
+  "author": "Michael Winczuk",
+  "github_id": "michaelwinczuk",
+  "date": "2026-03-27",
+  "description": "Systematic sweep of LeakyReLU negative_slope found 0.75 beats SOTA default of 0.5 by 0.008 BPB. One-line change + minor LR/warmdown tuning. Discovered via multi-agent think tank swarm.",
+  "changes_from_sota": [
+    "negative_slope: 0.5 -> 0.75",
+    "MATRIX_LR: 0.025 -> 0.027",
+    "WARMDOWN_ITERS: 3500 -> 3700"
+  ]
+}
