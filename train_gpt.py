@@ -730,12 +730,16 @@ class CausalSelfAttention(nn.Module):
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         if self.eval_lora_rank > 0 and getattr(self, "lora_q_a", None) is not None:
-            r = self.eval_lora_rank
-            delta_q = x @ self.lora_q_a @ self.lora_q_b
+            # LoRA params default to fp32; activations are often bf16 under autocast / .bfloat16().
+            lqa = self.lora_q_a.to(dtype=x.dtype)
+            lqb = self.lora_q_b.to(dtype=x.dtype)
+            delta_q = x @ lqa @ lqb
             delta_q = delta_q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
             q = q + delta_q
         if self.eval_lora_rank > 0 and getattr(self, "lora_v_a", None) is not None:
-            delta_v = x @ self.lora_v_a @ self.lora_v_b
+            lva = self.lora_v_a.to(dtype=x.dtype)
+            lvb = self.lora_v_b.to(dtype=x.dtype)
+            delta_v = x @ lva @ lvb
             delta_v = delta_v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
             v = v + delta_v
         q = rms_norm_compat(q)
