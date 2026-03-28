@@ -1,0 +1,9 @@
+{
+  "name": "N-gram Cache with Entropy-Adaptive Alpha",
+  "val_bpb": 1.0945,
+  "bytes_total": 15988183,
+  "blurb": "Order-7 N-gram cache with entropy-adaptive alpha replaces TTT for ~20x more BPB improvement. Cache interpolates N-gram predictions with model logits using alpha scaled by clamped per-token NLL (alpha * clamp(nll/threshold, 0.1, 2.0)), achieving -0.032 BPB over sliding window eval. Built on PR #414 stack with EMA(0.997) + SWA(50) + GPTQ-lite int6 + lzma. 3-seed mean: 1.0945 (std 0.0001). All artifacts under 16MB, all eval under 10 min.",
+  "author": "danielxmed",
+  "github_id": "danielxmed",
+  "date": "2026-03-28"
+}
