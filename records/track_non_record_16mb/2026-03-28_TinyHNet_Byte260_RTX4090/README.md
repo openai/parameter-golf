@@ -95,6 +95,33 @@ python train_hnet.py
 
 ## Files
 
-- `train_hnet.py` -- Complete training script (self-contained, ~1050 lines)
+- `train_hnet.py` -- Complete self-contained training script
 - `submission.json` -- Submission metadata
 - `README.md` -- This file
+
+## Data Preparation
+
+The byte260 shards are not published on HF. To generate them, decode sp1024 shards back to text via SentencePiece, then re-encode as byte260 tokens. A simple converter:
+
+```python
+# Requires: sp1024 shards + fineweb_1024_bpe.model already present
+import sentencepiece as spm, numpy as np, glob
+from pathlib import Path
+
+sp = spm.SentencePieceProcessor(model_file="data/tokenizers/fineweb_1024_bpe.model")
+BYTE_OFFSET, BOS_ID, MAGIC = 4, 1, 20240520
+
+for src in sorted(glob.glob("data/datasets/fineweb10B_sp1024/fineweb_*.bin")):
+    header = np.fromfile(src, dtype="<i4", count=256)
+    tokens = np.fromfile(src, dtype="<u2", count=int(header[2]), offset=1024)
+    text = sp.decode([int(t) for t in tokens if t >= 4])
+    byte_tokens = np.array([BOS_ID] + [b + BYTE_OFFSET for b in text.encode("utf-8")], dtype="<u2")
+    dst = Path(src.replace("sp1024", "byte260"))
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    hdr = np.zeros(256, dtype="<i4"); hdr[0], hdr[1], hdr[2] = MAGIC, 1, len(byte_tokens)
+    with open(dst, "wb") as f: f.write(hdr.tobytes()); f.write(byte_tokens.tobytes())
+```
+
+## Note on DDP
+
+The `forward_with_aux()` call bypasses DDP wrapping intentionally -- this submission targets single-GPU training only. For multi-GPU, the forward call should go through the DDP wrapper with aux loss support added to `forward()`.
