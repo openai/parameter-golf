@@ -71,7 +71,7 @@ class Hyperparameters:
     hnet_dim_qk = int(os.environ.get("HNET_DIM_QK", 128))
     hnet_boundary_threshold = float(os.environ.get("HNET_BOUNDARY_THRESHOLD", 0.5))
     hnet_target_avg_token_length = float(
-        os.environ.get("HNET_TARGET_AVG_TOKEN_LENGTH", 8.0)
+        os.environ.get("HNET_TARGET_AVG_TOKEN_LENGTH", 9.0)
     )
     hnet_ratio_loss_weight = float(os.environ.get("HNET_RATIO_LOSS_WEIGHT", 0.03))
     hnet_learning_rate_difference = float(

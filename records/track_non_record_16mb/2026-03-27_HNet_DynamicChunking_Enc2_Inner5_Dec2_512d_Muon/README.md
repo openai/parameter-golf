@@ -1,190 +1,72 @@
 # H-Net with Dynamic Sequence Chunking
 
-**Non-Record Submission (Research Contribution) | First H-Net Architecture in Parameter Golf**
-**Author:** Tim Shen ([@TimS-ml](https://github.com/TimS-ml))
-**Hardware:** 1x RTX 4090 (24 GB)
-**Architecture:** H-Net (Enc=2, Inner=5, Dec=2) at 512d, 17.5M params
-
----
+**Non-Record Submission (Research Contribution) | First H-Net Architecture in Parameter Golf**  
+**Author:** Tim Shen ([@TimS-ml](https://github.com/TimS-ml))  
 
 ## Summary
 
-This submission introduces **H-Net (Hierarchical Network) with Dynamic Sequence Chunking** to Parameter Golf -- the first submission to use learned hierarchical sequence compression. Instead of processing all 1024 tokens through every layer, H-Net learns to detect natural boundaries in the token sequence, downsamples to chunk representatives, processes the compressed sequence through a deeper inner transformer, then upsamples back to full resolution.
+First implementation of **H-Net (Hierarchical Network) with Dynamic Sequence Chunking** in Parameter Golf. H-Net learns content-dependent boundaries in the sequence, compresses the input into a shorter latent chunk sequence, runs most of its modeling capacity in that compressed space, and then upsamples back to full resolution for autoregressive prediction.
 
-The core idea: not all tokens need the same compute. Boundary tokens (e.g., sentence starts, topic shifts) carry more structural information and deserve deeper processing, while interior tokens can be reconstructed from their chunk context.
-
-**Key metric: val_bpb = `TODO` (pending full training run)**
-
----
+This implementation adapts the chunking mechanism from the [lucidrains reference](https://github.com/lucidrains/h-net-dynamic-chunking) and rewrites the transformer stack to match the competition baseline: **GQA + RoPE + ReLU-squared + CastedLinear + RMSNorm + Muon/Adam**.
 
 ## Architecture
 
-### H-Net Overview
+H-Net splits the model into five parts:
 
-```
-Input tokens (B, 1024)
-    |
-    v
-[Embedding + RMSNorm]
-    |
-    v
-[Encoder: 2x TransformerBlock]     -- full sequence (1024 tokens)
-    |
-    v
-[DynamicSequenceChunker]            -- learns boundaries, downsamples to ~170 chunks
-    |                                   (target_avg_token_length=6.0)
-    v
-[Inner: 5x TransformerBlock]        -- compressed sequence (~170 tokens)
-    |
-    v
-[Upsample via associative scan]     -- back to 1024 tokens
-    |
-    v
-[Decoder: 2x TransformerBlock]      -- full sequence (1024 tokens)
-    |
-    v
-[LM Head + softcap]
-```
+**Encoder** (full resolution) -> **DynamicSequenceChunker** (learned downsampling) -> **Inner** (compressed sequence) -> **Upsample** -> **Decoder** (full resolution)
 
-### Dynamic Sequence Chunking (from H-Net paper)
-
-The chunker learns to detect token boundaries using cosine distance between adjacent token representations projected to a query-key space:
-
-1. **Boundary detection**: Project tokens to queries and keys (`dim_qk=128`). Compute `prob = (1 - cos_sim(q_i, k_{i-1})) / 2`. Tokens with `prob > 0.5` are boundaries.
-2. **Downsampling**: Extract boundary tokens, scale by their boundary probability. Apply `frac_gradient` for learning rate modulation.
-3. **Inner processing**: The compressed sequence (~170 tokens for 1024 input with `target_avg_token_length=6.0`) goes through the inner transformer.
-4. **Upsampling**: Associative scan smooths the inner output, `repeat_interleave` expands chunks back to full length. A residual projection from the encoder output is added.
-5. **Auxiliary ratio loss**: Regularizes boundary frequency toward the target average chunk length using a straight-through estimator.
-
-Reference implementation: [lucidrains/h-net-dynamic-chunking](https://github.com/lucidrains/h-net-dynamic-chunking)
-
-### Transformer Blocks
-
-Each block follows the modded-nanogpt pattern:
-
-- **Attention**: GQA with 8 query heads, 4 KV heads, RoPE, QK-norm via `rms_norm`, learnable `q_gain`
-- **MLP**: ReLU-squared activation (`relu(x)^2`) with 2x expansion
-- **Residual**: Learnable `attn_scale`, `mlp_scale`, and `resid_mix` (blends current state with original input)
-- **Precision**: CastedLinear (fp32 weights, bf16 compute), RMSNorm without learnable params
-- **Init**: Zero-init on output projections for stable training
-
-### Optimizer
-
-- **Muon** for matrix parameters: lr=0.04, momentum=0.95, 5 Newton-Schulz steps
-- **Adam** for token embeddings (tied): lr=0.05, betas=(0.9, 0.95)
-- **Adam** for scalars/vectors: lr=0.04
-- **Warmdown**: 1200 iterations with wallclock-aware schedule
-- **Grad accum**: 8 micro-steps, 524K tokens/batch
-
-### Quantization
-
-- Int8 per-row with clipping at 99.99984th percentile
-- Small tensors (<65K elements) kept as fp16
-- zlib compression (level 9)
-- Full roundtrip validation after quantization
-
----
-
-## Configuration
-
-| Parameter | Value |
-|-----------|-------|
-| `model_dim` | 512 |
-| `num_heads` | 8 |
-| `num_kv_heads` | 4 |
-| `mlp_mult` | 2 |
-| `hnet_enc_layers` | 2 |
-| `hnet_inner_layers` | 5 |
-| `hnet_dec_layers` | 2 |
-| `hnet_dim_qk` | 128 |
-| `hnet_boundary_threshold` | 0.5 |
-| `hnet_target_avg_token_length` | 6.0 |
-| `hnet_ratio_loss_weight` | 0.03 |
-| `hnet_learning_rate_difference` | 0.75 |
-| `vocab_size` | 1024 |
-| `train_seq_len` | 1024 |
-| `logit_softcap` | 30.0 |
-| `tie_embeddings` | True |
-| Total parameters | 17,451,208 |
-
----
-
-## Why H-Net for Parameter Golf
-
-### The Thesis
-
-Standard transformers apply uniform compute across all sequence positions. H-Net exploits the observation that natural language has hierarchical structure -- some tokens (content words, sentence boundaries) carry more information than others (articles, prepositions within a phrase). By learning to identify and compress chunks, the inner transformer processes a ~6x shorter sequence, enabling:
-
-1. **Deeper processing per chunk**: 5 inner layers operate on ~170 tokens instead of 1024
-2. **Compute efficiency**: Attention is O(n^2), so processing 170 tokens costs ~36x less attention compute than 1024
-3. **Learned compression**: The boundary detector adapts to the data, unlike fixed-window approaches
-
-### Differences from Reference
-
-Our implementation adapts the H-Net chunking mechanism to the parameter-golf competitive stack:
-
-| Aspect | Reference (lucidrains) | Ours |
-|--------|----------------------|------|
-| Encoder/Decoder | LocalTransformer (windowed attn) | Full causal attention + GQA |
-| Inner network | TwoSimplicialTransformer | Standard causal attention |
-| Position encoding | Learned absolute | RoPE per-layer |
-| MLP activation | Standard FFN | ReLU-squared |
-| Normalization | `nn.RMSNorm` (learnable) | `F.rms_norm` (no learnable params) |
-| Residual projection | Kaiming-uniform init | Zero-init |
-| Implementation | Vectorized nested_tensor | Python loops (compile-friendly path WIP) |
-
-These choices integrate H-Net with proven competition techniques (Muon optimizer, CastedLinear, modded-nanogpt blocks) rather than using the reference's research-oriented components.
-
----
+The chunker predicts boundaries using cosine distance in a projected QK space and downsamples a 512-token sequence into a much shorter latent sequence. In the strongest artifact-eligible setting here, the best results came from allocating more depth to the encoder/decoder interface than to a purely inner-heavy transformer. Empirically, **layout matters more than width**, and more aggressive compression continued to help when paired with the stronger layout.
 
 ## Results
 
-> **Pending full training run.** Partial results from development:
->
-> | Run | Steps | val_bpb | Notes |
-> |-----|-------|---------|-------|
-> | 15-min scout | 200 | 1.9466 | Early convergence, ~3.1s/step |
->
-> The model is training correctly (loss decreasing steadily) but H-Net's per-step overhead from Python-loop chunking makes it slower than flat transformers. Full results will be added after a complete training run.
+### Simulated 8xH100 10-minute run
+1xH100 80-minute run with x8 gradient_accumulation_steps, bpb: 1.4054; 1.4129 (int8+zlib). Artifact (int8+zlib): 11.9 MB.
 
----
 
-## Reproducing
+### 1xH100 10-minute reference runs
 
-```bash
-# From the repository root:
-pip install -r records/track_non_record_16mb/2026-03-27_HNet_DynamicChunking_Enc2_Inner5_Dec2_512d_Muon/requirements.txt
+These runs are **single-GPU ablations**, included to show the behavior of H-Net under the competition stack. They are useful for architecture analysis, but are **not directly comparable to official leaderboard submissions**, which are defined around 8xH100 / 10-minute training and a 16 MB artifact budget.
 
-# Download data (if not already present):
-python data/cached_challenge_fineweb.py --variant sp1024 --train-shards 20
+| Setting | model_dim | target_avg_len | layout | val_bpb | final_bpb | Note |
+|---------|-----------|----------------|--------|---------|-----------|------|
+| Best raw 1xH100 run | 640 | 10 | 2,5,2 | 1.4489 | 1.4552 | Best single-GPU result so far; exceeds current 16 MB record budget |
+| Best budget-oriented 1xH100 run | 512 | 9 | 2,5,2 | 1.4601 | 1.4640 | Strongest current run in the smaller compressed-artifact setting |
+| Layout comparison | 640 | 9 | 2,5,2 | 1.4514 | 1.4579 | Strong outer-interface layout |
+| Layout comparison | 640 | 9 | 1,7,1 | 1.4887 | 1.4942 | Deeper inner trunk, worse result |
 
-# Run training (default 10-min budget):
-CUDA_VISIBLE_DEVICES=0 \
-python records/track_non_record_16mb/2026-03-27_HNet_DynamicChunking_Enc2_Inner5_Dec2_512d_Muon/train_gpt.py
+### Main observations from the 1xH100 runs
 
-# Extended run (e.g., 60 min):
-CUDA_VISIBLE_DEVICES=0 \
-MAX_WALLCLOCK_SECONDS=3600 \
-python records/track_non_record_16mb/2026-03-27_HNet_DynamicChunking_Enc2_Inner5_Dec2_512d_Muon/train_gpt.py
-```
+- **Layout mattered more than width.** Moving from `1,7,1` to `2,5,2` produced a much larger gain than moving from `d512` to `d640`.
+- **More aggressive compression kept helping** on the stronger layout: for `2,5,2`, increasing `target_avg_len` from 7 -> 8 -> 9 -> 10 steadily improved the 1xH100 result.
+- **The bottleneck appears to be the chunking / reconstruction interface, not just inner-model capacity.** Giving more depth to the encoder / decoder side was consistently better than concentrating depth in the inner transformer alone.
+- Repeated runs showed the same qualitative pattern, suggesting that this is a real architectural effect rather than a one-off seed artifact.
 
----
 
-## Files
+## DDP and Multi-GPU Training
 
-| File | Description |
-|------|-------------|
-| `README.md` | This file |
-| `submission.json` | Leaderboard metadata (results pending) |
-| `train_gpt.py` | Self-contained training script (1473 lines) |
-| `requirements.txt` | Python dependencies |
+**Work in progress.**
 
----
+H-Net's DynamicSequenceChunker produces variable-length inner sequences per sample, which complicates standard PyTorch DDP because batches across ranks no longer have uniform shapes. I am currently running longer experiments in this direction and will update this section once there is a stable multi-GPU training path.
 
-## Future Work
+Possible directions under investigation:
 
-- **torch.compile support**: Replace Python loops in chunker with vectorized nested_tensor ops for ~2-3x speedup
-- **Hyperparameter tuning**: Adjust `target_avg_token_length`, layer distribution (enc/inner/dec ratio), and learning rates
-- **Int6 + lzma quantization**: Match the compression scheme from our x-transformers experiments (best: 1.210 bpb at 180-min)
-- **Sliding-window evaluation**: Add stride-64 eval for better BPB
-- **Batch size tuning**: Smaller batches showed gains in x-transformers track (327K tokens optimal)
+- **Padding-based batching**: pad inner sequences to the batch maximum
+- **Bucket-based batching**: group samples with similar chunk counts
+- **Ragged / nested tensor approaches**: promising long-term direction, but not yet mature enough for a clean competition implementation
+
+## Next Steps
+
+Near-term work is focused on three directions:
+
+- validating the best compression settings under longer runs
+- finishing a practical multi-GPU training path for 8xH100-compatible experiments
+- combining H-Net with more aggressive quantization so wider models can fit within the record budget
+
+Even in its current single-GPU form, this submission shows that **dynamic hierarchical sequence modeling is viable inside the Parameter Golf stack** and produces consistent, interpretable scaling trends.
+
+## Credits
+
+- Nawrot et al. (2024), *Dynamic Chunking for End-to-End Hierarchical Sequence Modeling*
+- [lucidrains/h-net-dynamic-chunking](https://github.com/lucidrains/h-net-dynamic-chunking)
+- modded-nanogpt / Parameter Golf community stack
+- OpenAI for hosting the competition
