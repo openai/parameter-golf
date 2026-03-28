@@ -1,0 +1,18 @@
+{
+  "author": "Clement Tham",
+  "github_id": "monkeyKingProgrammer",
+  "name": "11L 16h Local 4060 Ti LeakyTTT",
+  "blurb": "Unlimited compute local run on a single RTX 4060 Ti of the 11-layer LeakyReLU^2 + Parallel Muon + XSA4 + Partial RoPE + LN scale + EMA + legal TTT stack. Timed training stopped at 7,998 steps after 16 hours; final legal score-first TTT evaluation reached 1.15377788 val_bpb under the 16,000,000-byte artifact cap.",
+  "date": "2026-03-28T00:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.94810047,
+  "val_bpb": 1.15377788,
+  "pre_quant_val_loss": 1.9826,
+  "pre_quant_val_bpb": 1.1742,
+  "step_stop": 7998,
+  "wallclock_seconds": 57602.615,
+  "bytes_total": 15807729,
+  "bytes_model_int6_lzma": 15710900,
+  "bytes_code": 96829,
+  "notes": "Review and edit locally before PR. Sliding-window int6 eval reached 1.15520389 val_bpb; final legal_ttt_exact reached 1.15377788."
+}
