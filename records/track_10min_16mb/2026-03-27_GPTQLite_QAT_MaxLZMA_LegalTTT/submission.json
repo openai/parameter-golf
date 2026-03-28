@@ -1,0 +1,9 @@
+{
+  "name": "Ultimate: GatedAttn + ValueResidual + Full QAT + lzma-9 + BigramHash(2048)",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "LeakyReLU(0.5)² + GatedAttention(PR#841) + ValueResidual(PR#841) + Full QAT from step 1 + lzma-9 compression + BigramHash(2048) + Legal score-first TTT (3ep SGD, all blocks unfrozen) + Parameter Banking + Parallel Muon (PR#399). Built on PR#414 + PR#399 + PR#841 stack. Target: <1.1144 BPB.",
+  "author": "FlashyFlash3011",
+  "github_id": "FlashyFlash3011",
+  "date": "2026-03-27"
+}
