@@ -454,7 +454,16 @@ def eval_val_sliding_ttt(
          f"elapsed={time.perf_counter() - t0:.1f}s")
     return val_loss, val_bpb
 _INT6_MODE = bool(int(os.environ.get("INT6_QAT", "1")))
-_QUANT_MAX_VAL = 31 if _INT6_MODE else 127
+_INT3_MODE = bool(int(os.environ.get("INT3_QUANT", "0")))  # Ternary quantization
+if _INT3_MODE:
+    _QUANT_MAX_VAL = 3  # Ternary: -3, -2, -1, 0, 1, 2, 3
+    _QUANT_BITS = 3
+elif _INT6_MODE:
+    _QUANT_MAX_VAL = 31
+    _QUANT_BITS = 6
+else:
+    _QUANT_MAX_VAL = 127
+    _QUANT_BITS = 8
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
@@ -557,7 +566,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
     obj: dict[str, object] = {
-        "__quant_format__": f"int{6 if _INT6_MODE else 8}_clean_per_row_v1",
+        "__quant_format__": f"int{_QUANT_BITS}_clean_per_row_v1",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -1386,7 +1395,7 @@ def main() -> None:
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
-    quant_label = f"int{6 if _INT6_MODE else 8}"
+    quant_label = f"int{_QUANT_BITS}"
     compress_label = "zstd" if _HAS_ZSTD else "zlib"
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
     quant_buf = io.BytesIO()
