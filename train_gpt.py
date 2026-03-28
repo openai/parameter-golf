@@ -1086,6 +1086,8 @@ def eval_sliding_window_ttt(
     my_spans = doc_spans
 
     gpt = getattr(base_model, "_orig_mod", base_model)
+    if isinstance(model, DDP):
+        assert model.module is base_model, "eval_sliding_window_ttt: base_model must match DDP.module"
     lora_params = gpt.init_eval_lora(args.lora_rank, device)
     for p in gpt.parameters():
         p.requires_grad = False
@@ -1097,8 +1099,9 @@ def eval_sliding_window_ttt(
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    m = model.module if isinstance(model, DDP) else model
-    m.eval()
+    # Forward must run on the inner GPT, not the torch.compile wrapper: LoRA is registered
+    # on _orig_mod after compile; calling the compiled wrapper yields a loss with no grad_fn.
+    gpt.eval()
     gpt.use_cheat_prefix = True
     gpt.use_flash_attn = False
     gpt.packed_cu_seqlens = None
@@ -1131,16 +1134,16 @@ def eval_sliding_window_ttt(
                 y = vt[w + 1 : w + content_len + 1].to(device=device, dtype=torch.int64).unsqueeze(0)
                 gpt.cheat_sheet_prefix.copy_(rolling)
                 if prev_x is not None and prev_y is not None:
-                    m.train()
+                    gpt.train()
                     for _ in range(args.ttt_steps):
                         lora_opt.zero_grad(set_to_none=True)
                         with torch.enable_grad():
-                            loss_t = m(prev_x, prev_y, train_compressor=False)
+                            loss_t = gpt(prev_x, prev_y, train_compressor=False)
                         loss_t.backward()
                         lora_opt.step()
-                    m.eval()
+                    gpt.eval()
                 with torch.inference_mode():
-                    batch_loss = m(x, y, train_compressor=False).detach()
+                    batch_loss = gpt(x, y, train_compressor=False).detach()
                 val_loss_sum += batch_loss.to(torch.float64) * float(y.numel())
                 val_token_count += float(y.numel())
                 prev_ids = x.reshape(-1)
@@ -1170,7 +1173,7 @@ def eval_sliding_window_ttt(
     val_loss = val_loss_sum / val_token_count
     bits_per_token = val_loss.item() / math.log(2.0)
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
-    m.train()
+    gpt.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 
