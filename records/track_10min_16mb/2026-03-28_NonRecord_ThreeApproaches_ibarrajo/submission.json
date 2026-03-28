@@ -1,0 +1,14 @@
+{
+    "author": "ibarrajo",
+    "github_id": "ibarrajo",
+    "name": "Non-record: Three approaches — VRL+GPTQ base, d=576 int5 + legal TTT, GEPA int5",
+    "blurb": "Three approaches tested: (A) Fork #569 VRL+LeakyReLU²+GPTQ int5 no-TTT = 1.1317, (B) Fork #576 d=576 33.6M int5 + legal score-first TTT (s_0 only) = 1.1188, (C) GEPA int5 + TTT — artifact over 16MB. Lessons: int5 penalty on d=512 arch is ~0.014; legal s_0-only TTT gives ~0.006 BPB; GEPA doesn't fit at int5 without more aggressive pruning.",
+    "date": "2026-03-28",
+    "val_bpb": 1.1188,
+    "results": {
+        "approach_a_int5_no_ttt": {"val_bpb": 1.1317, "artifact_bytes": "under_16MB", "notes": "int5 penalty too high on d=512"},
+        "approach_b_no_ttt": {"val_bpb": 1.1249, "artifact_bytes": 15288826},
+        "approach_b_s0_ttt": {"val_bpb": 1.1188, "artifact_bytes": 15288826, "notes": "s_0 only, no re-scoring"},
+        "approach_c_gepa": {"val_bpb": "N/A", "notes": "artifact 16.3MB over limit at int5+3% prune+lzma"}
+    }
+}
