@@ -1,0 +1,15 @@
+{
+  "name": "Fielding Johnston",
+  "github": "fielding",
+  "val_bpb": 1.1522,
+  "artifact_bytes": 15358321,
+  "hardware": "4xH200 (non-record, unlimited compute track)",
+  "training_time_seconds": 600,
+  "key_techniques": [
+    "knowledge_distillation",
+    "cached_teacher_logits",
+    "soft_kl_divergence",
+    "hard_distillation_top1",
+    "negative_result"
+  ]
+}
