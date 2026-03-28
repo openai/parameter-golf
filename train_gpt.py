@@ -455,7 +455,11 @@ def eval_val_sliding_ttt(
     return val_loss, val_bpb
 _INT6_MODE = bool(int(os.environ.get("INT6_QAT", "1")))
 _INT3_MODE = bool(int(os.environ.get("INT3_QUANT", "0")))  # Ternary quantization
-if _INT3_MODE:
+_QUANT_OVERRIDE = int(os.environ.get("QUANT_BITS", "0"))  # Override: 3,4,5,6,8
+if _QUANT_OVERRIDE > 0:
+    _QUANT_BITS = _QUANT_OVERRIDE
+    _QUANT_MAX_VAL = (1 << (_QUANT_BITS - 1)) - 1  # e.g. int5 -> 15, int4 -> 7
+elif _INT3_MODE:
     _QUANT_MAX_VAL = 3  # Ternary: -3, -2, -1, 0, 1, 2, 3
     _QUANT_BITS = 3
 elif _INT6_MODE:
