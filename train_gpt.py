@@ -1048,6 +1048,9 @@ class GPT(nn.Module):
                     attn.lora_v_b.zero_()
 
 
+_PGOLF_TTT_MIRROR_ATTR = "_pgolf_ttt_eager_mirror"
+
+
 def _unwrap_torch_compile(module: nn.Module) -> nn.Module:
     m = module
     while hasattr(m, "_orig_mod"):
@@ -1055,16 +1058,18 @@ def _unwrap_torch_compile(module: nn.Module) -> nn.Module:
     return m
 
 
-def _gpt_lm_loss_eager(
-    gpt: nn.Module, input_ids: Tensor, target_ids: Tensor, train_compressor: bool
-) -> Tensor:
-    """LM loss for eval TTT using the class ``forward`` implementation.
+def _eager_mirror_for_eval(inner: nn.Module, device: torch.device) -> nn.Module:
+    """One uncached deepcopy of ``inner`` (never ``torch.compile``d); sync weights each eval.
 
-    After ``torch.compile``, ``gpt(...)`` may still execute a graph traced *before*
-    ``init_eval_lora`` added parameters, so the loss has no ``grad_fn``. Dispatching
-    via ``type(gpt).forward(...)`` runs eager Python forward so LoRA grads exist.
+    Compiled ``forward`` can ignore LoRA added after trace; TTT instead adapts LoRA on this
+    eager mirror only, without mutating the training module.
     """
-    return type(gpt).forward(gpt, input_ids, target_ids, train_compressor)
+    mirror = getattr(inner, _PGOLF_TTT_MIRROR_ATTR, None)
+    if mirror is None:
+        mirror = copy.deepcopy(inner).to(device=device)
+        setattr(inner, _PGOLF_TTT_MIRROR_ATTR, mirror)
+    mirror.load_state_dict(inner.state_dict(), strict=False)
+    return mirror
 
 
 # === EVALUATION: SLIDING WINDOW + TTT ===
@@ -1104,9 +1109,10 @@ def eval_sliding_window_ttt(
         doc_spans = [(0, n)]
     my_spans = doc_spans
 
-    gpt = _unwrap_torch_compile(base_model)
+    inner = _unwrap_torch_compile(base_model)
     if isinstance(model, DDP):
         assert model.module is base_model, "eval_sliding_window_ttt: base_model must match DDP.module"
+    gpt = _eager_mirror_for_eval(inner, device)
     lora_params = gpt.init_eval_lora(args.lora_rank, device)
     for p in gpt.parameters():
         p.requires_grad = False
@@ -1155,12 +1161,12 @@ def eval_sliding_window_ttt(
                     for _ in range(args.ttt_steps):
                         lora_opt.zero_grad(set_to_none=True)
                         with torch.enable_grad():
-                            loss_t = _gpt_lm_loss_eager(gpt, prev_x, prev_y, train_compressor=False)
+                            loss_t = gpt(prev_x, prev_y, train_compressor=False)
                         loss_t.backward()
                         lora_opt.step()
                     gpt.eval()
                 with torch.inference_mode():
-                    batch_loss = _gpt_lm_loss_eager(gpt, x, y, train_compressor=False).detach()
+                    batch_loss = gpt(x, y, train_compressor=False).detach()
                 val_loss_sum += batch_loss.to(torch.float64) * float(y.numel())
                 val_token_count += float(y.numel())
                 prev_ids = x.reshape(-1)
@@ -1170,7 +1176,7 @@ def eval_sliding_window_ttt(
                 val_byte_count += token_bytes.to(torch.float64).sum()
                 if compressor_frozen is not None:
                     with torch.inference_mode():
-                        h = type(gpt).forward_hidden_with_cheat_prefix(gpt, x)
+                        h = gpt.forward_hidden_with_cheat_prefix(x)
                         rolling = compressor_frozen(h)[0].detach()
                 w += stride
                 prev_x, prev_y = x, y
