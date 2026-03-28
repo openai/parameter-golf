@@ -1,0 +1,13 @@
+{
+    "author": "Syed-M-Zeeshan",
+    "github_id": "Syed-M-Zeeshan",
+    "name": "LeakyReLU² + BigramHash + Int5/Int6 + Sliding Window + EMA + AdamW TTT",
+    "blurb": "Non-record 1×H100 submission. 11L 512d MLP-3x with LeakyReLU(0.5)², BigramHash(1536), mixed Int5/Int6 quantization, FP16 tied embeddings, EMA(0.997), AdamW pre-quant TTT, LZMA compression, sliding window eval (stride=64). Best 1×H100 result: val_bpb 1.3036 (sliding window) at 1090 steps in 10min. Projected 8×H100: ~1.17-1.19 BPB.",
+    "date": "2026-03-28T19:00:00Z",
+    "val_loss": 2.2010,
+    "val_bpb": 1.3036,
+    "bytes_total": 15893048,
+    "bytes_code": 46821,
+    "hardware": "1×H100 80GB",
+    "note": "Non-record: tested on 1×H100 only due to credit limitations. Awaiting 8×H100 credits for official record attempt."
+}
