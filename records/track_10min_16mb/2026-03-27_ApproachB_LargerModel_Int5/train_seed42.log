@@ -1,0 +1,9 @@
+# Approach B - Seed 42 (fixed code, 590s training + GPTQ within budget)
+stopping_early: wallclock_cap train_time:590012ms step:6025/20000
+gptq:calibrated 68 layers in 3.7s (total train+gptq: 593.7s / 600s)
+Total submission size int6+zstd: 15303508 bytes
+artifact_headroom: 696492 bytes remaining
+final_int6_sliding_window val_loss:1.8993 val_bpb:1.1249 stride:64
+final_ttt_T1.0 val_loss:1.8887 val_bpb:1.1186 stride:64 eval_time:294753ms
+final_ttt_T0.98 val_loss:1.8833 val_bpb:1.1154 eval_time:82325ms
+final_ttt_T0.98_exact val_loss:1.88328661 val_bpb:1.11539136
