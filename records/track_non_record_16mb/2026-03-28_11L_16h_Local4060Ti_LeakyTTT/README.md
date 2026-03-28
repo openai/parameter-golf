@@ -2,7 +2,7 @@
 
 **val_bpb = 1.15377788** (legal score-first TTT) | **15.81 MB** total artifact | **1x RTX 4060 Ti 16GB**, Windows, 16h wallclock
 
-This record captures a local unlimited-compute non-record submission. It is not intended to satisfy the 10-minute `8xH100` constraint for the main leaderboard. The goal of this run was to test how far the 11-layer LeakyReLU^2 + Parallel Muon + XSA4 + Partial RoPE + LN scale + EMA + legal TTT stack can be pushed on a single consumer GPU while still fitting under the `16,000,000` byte artifact cap.
+This record captures a local unlimited-compute non-record submission using a local RTX4060 Ti 16GB GPU only. It is not intended to satisfy the 10-minute `8xH100` constraint for the main leaderboard. The goal of this run was to test how far the 11-layer LeakyReLU^2 + Parallel Muon + XSA4 + Partial RoPE + LN scale + EMA + legal TTT stack can be pushed on a single low end consumer GPU while still fitting under the `16,000,000` byte artifact cap.
 
 ### Summary
 
