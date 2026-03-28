@@ -106,19 +106,18 @@ MLP expansion is adjusted to keep models within the parameter budget: baseline u
 | Model | Seed | Pre-quant BPB ↓ | Post-quant BPB ↓ | Size (bytes) |
 |-------|------|----------------:|-----------------:|-------------:|
 | Baseline | 1337 | 1.2262 | 1.2328 | 15861272 |
-| Short Conv (k=1) | 1337 | 1.2197 | 1.2256 | 15867630 |
-| MoC (k=8) | 1337 | **1.2152** | **1.2212** | 16166020 |
+| Short Conv (k=1) | 1337 | 1.2201 | 1.2261 | 15866404 |
+| MoC (k=8) | 1337 | **1.2148** | **1.2213** | 15883078 |
 | Baseline | 42 | 1.2276 | 1.2343 | 15856563 |
-| Short Conv (k=1) | 42 | 1.2193 | 1.2258 | 15862618 |
-| MoC (k=8) | 42 | **1.2172** | **1.2242** | 16159828 |
+| Short Conv (k=1) | 42 | 1.2199 | 1.2263 | 15864705 |
+| MoC (k=8) | 42 | **1.2171** | **1.2235** | 15884351 |
 | Baseline | 2025 | 1.2253 | 1.2321 | 15853892 |
-| Short Conv (k=1) | 2025 | 1.2199 | 1.2263 | 15864923 |
-| MoC (k=8) | 2025 | **1.2162** | **1.2225** | 16159008 |
+| Short Conv (k=1) | 2025 | 1.2202 | 1.2270 | 15863930 |
+| MoC (k=8) | 2025 | **1.2147** | **1.2208** | 15878813 |
 | **Average (Baseline)** | — | 1.2264 | 1.2331 | 15857242 |
-| **Average (Short Conv)** | — | 1.2196 | 1.2259 | 15865057 |
-| **Average (MoC)** | — | **1.2162** | **1.2226** | 16161619 |
+| **Average (Short Conv)** | — | 1.2201 | 1.2264 | 15865013 |
+| **Average (MoC)** | — | **1.2155** | **1.2219** | 15882081 |
 
-> Note: convolution weights were not correctly quantized in these runs due to an implementation issue. We are currently rerunning experiments with proper quantization and will update post-quant results and sizes.
 
 Short convolution provides a large improvement over baseline, and MoC improves further by replacing the static kernel with a token-adaptive mixture over basis kernels.
 
