@@ -1,0 +1,130 @@
+✓ Initialized. View run at 
+https://modal.com/apps/sentra/main/ap-Ax4nPxjwAfOIUSIpVof5lT
+✓ Created objects.
+├── 🔨 Created mount /Users/sonia/Documents/GitHub/parameter-golf/modal_train.py
+├── 🔨 Created mount train_gpt.py
+└── 🔨 Created function train.
+launching 8xh100 training...
+logs/modal_run.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:361736
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_0 active_layers:[]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:4 num_kv_heads:2
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:300.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9307 val_bpb:4.1047 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9308 train_time:176ms step_avg:176.07ms
+late_qat:enabled step:1 scale:0.4775
+step:2/20000 train_loss:6.1908 train_time:192ms step_avg:95.86ms
+step:3/20000 train_loss:5.9820 train_time:206ms step_avg:68.51ms
+step:4/20000 train_loss:5.8899 train_time:216ms step_avg:54.11ms
+step:5/20000 train_loss:5.7409 train_time:233ms step_avg:46.54ms
+step:6/20000 train_loss:5.7417 train_time:243ms step_avg:40.56ms
+step:7/20000 train_loss:5.6841 train_time:256ms step_avg:36.53ms
+step:8/20000 train_loss:5.6412 train_time:265ms step_avg:33.09ms
+step:9/20000 train_loss:5.6080 train_time:279ms step_avg:31.00ms
+step:10/20000 train_loss:5.5244 train_time:292ms step_avg:29.23ms
+step:500/20000 train_loss:3.1973 train_time:6650ms step_avg:13.30ms
+step:1000/20000 train_loss:3.1113 train_time:13218ms step_avg:13.22ms
+step:1500/20000 train_loss:3.0486 train_time:19909ms step_avg:13.27ms
+step:2000/20000 train_loss:2.9344 train_time:26511ms step_avg:13.26ms
+step:2500/20000 train_loss:2.9833 train_time:33124ms step_avg:13.25ms
+step:3000/20000 train_loss:3.0294 train_time:39641ms step_avg:13.21ms
+step:3500/20000 train_loss:3.0339 train_time:46224ms step_avg:13.21ms
+step:4000/20000 train_loss:2.8694 train_time:52784ms step_avg:13.20ms
+step:4000/20000 val_loss:2.9683 val_bpb:1.7580 train_time:52789ms step_avg:13.20ms
+step:4500/20000 train_loss:3.0209 train_time:59385ms step_avg:13.20ms
+step:5000/20000 train_loss:3.0281 train_time:65981ms step_avg:13.20ms
+step:5500/20000 train_loss:2.9762 train_time:72674ms step_avg:13.21ms
+step:6000/20000 train_loss:2.8793 train_time:79768ms step_avg:13.29ms
+step:6500/20000 train_loss:3.0400 train_time:86472ms step_avg:13.30ms
+step:7000/20000 train_loss:2.8070 train_time:93128ms step_avg:13.30ms
+step:7500/20000 train_loss:2.9510 train_time:99635ms step_avg:13.28ms
+step:8000/20000 train_loss:2.9207 train_time:106268ms step_avg:13.28ms
+step:8000/20000 val_loss:2.9476 val_bpb:1.7457 train_time:106269ms step_avg:13.28ms
+step:8500/20000 train_loss:2.8894 train_time:112921ms step_avg:13.28ms
+step:9000/20000 train_loss:2.9682 train_time:119552ms step_avg:13.28ms
+step:9500/20000 train_loss:3.0233 train_time:126219ms step_avg:13.29ms
+step:10000/20000 train_loss:2.9755 train_time:132870ms step_avg:13.29ms
+step:10500/20000 train_loss:3.1160 train_time:139439ms step_avg:13.28ms
+step:11000/20000 train_loss:2.8644 train_time:145897ms step_avg:13.26ms
+step:11500/20000 train_loss:2.8460 train_time:152398ms step_avg:13.25ms
+step:12000/20000 train_loss:2.9365 train_time:158908ms step_avg:13.24ms
+step:12000/20000 val_loss:2.9427 val_bpb:1.7428 train_time:158910ms step_avg:13.24ms
+step:12500/20000 train_loss:2.7699 train_time:165314ms step_avg:13.23ms
+step:13000/20000 train_loss:2.8892 train_time:171949ms step_avg:13.23ms
+step:13500/20000 train_loss:3.0435 train_time:178477ms step_avg:13.22ms
+step:14000/20000 train_loss:2.6771 train_time:184965ms step_avg:13.21ms
+step:14500/20000 train_loss:3.0804 train_time:191516ms step_avg:13.21ms
+step:15000/20000 train_loss:2.9659 train_time:197969ms step_avg:13.20ms
+step:15500/20000 train_loss:2.9288 train_time:204501ms step_avg:13.19ms
+step:16000/20000 train_loss:3.1404 train_time:211000ms step_avg:13.19ms
+step:16000/20000 val_loss:2.9386 val_bpb:1.7404 train_time:211001ms step_avg:13.19ms
+step:16500/20000 train_loss:3.0453 train_time:217559ms step_avg:13.19ms
+step:17000/20000 train_loss:2.9205 train_time:224196ms step_avg:13.19ms
+step:17500/20000 train_loss:2.9824 train_time:230844ms step_avg:13.19ms
+step:18000/20000 train_loss:2.8406 train_time:237382ms step_avg:13.19ms
+step:18500/20000 train_loss:2.8673 train_time:243905ms step_avg:13.18ms
+step:19000/20000 train_loss:2.7791 train_time:250447ms step_avg:13.18ms
+step:19500/20000 train_loss:3.0083 train_time:256941ms step_avg:13.18ms
+step:20000/20000 train_loss:2.9730 train_time:263556ms step_avg:13.18ms
+step:20000/20000 val_loss:2.9210 val_bpb:1.7300 train_time:263561ms step_avg:13.18ms
+peak memory allocated: 1113 MiB reserved: 1148 MiB
+ema:applying EMA weights
+ngram_artifact: building order=13, buckets=131072, shards=80 (rank 0: 10)
+ngram_build: shard 1/10, 100.0M tok, 34.3s
+ngram_build: shard 2/10, 100.0M tok, 35.3s
+ngram_build: shard 3/10, 100.0M tok, 32.7s
+ngram_build: shard 4/10, 100.0M tok, 30.4s
+ngram_build: shard 5/10, 100.0M tok, 31.4s
+ngram_build: shard 6/10, 100.0M tok, 34.3s
+ngram_build: shard 7/10, 100.0M tok, 35.3s
+ngram_build: shard 8/10, 100.0M tok, 32.9s
+ngram_build: shard 9/10, 100.0M tok, 30.0s
+ngram_build: shard 10/10, 100.0M tok, 30.4s
+ngram_build: done. 10 shards, 1.0B tokens, 131072 buckets
+ngram_artifact: built in 345s
+Serialized model: 1192722 bytes
+Code size: 114277 bytes
+Serialized model int6+zstd: 5645446 bytes
+Total submission size int6+zstd: 5759723 bytes
+ngram_artifact: raw=6291468 bytes (6.3MB)
+ngram_artifact: loaded pre-warmed tables, orders 2-13, buckets=131072
+ngram_eval: order=13 min_order=2 buckets=131072 two_pass=False dirichlet=5.0
+prewarmed: loaded training n-gram tables (orders 2-13, 131072 buckets)
+neural_only_sw val_loss:2.8434 val_bpb:1.6840
+ngram_hit_rate:100.0% (7754623/7754624)
+mixing:hierarchical_dirichlet concentration=5.00 phrase_probes=[48, 36, 28, 20, 16]
+ngram_eval val_loss:0.1908 val_bpb:0.1130 eval_time:354162ms
+ngram_eval_exact val_loss:0.19079647 val_bpb:0.11300056
+final_int8_zlib_roundtrip_exact val_loss:0.19079647 val_bpb:0.11300056
+training finished with exit code: 0
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/sentra/main/ap-Ax4nPxjwAfOIUSIpVof5lT

@@ -1,0 +1,11 @@
+{
+    "author": "sofiabod",
+    "github_id": "sofiabod",
+    "name": "Single-Pass Packed N-gram + Hierarchical Dirichlet CTW",
+    "blurb": "Pre-compute order-13 n-gram tables from 80 training shards, pack in artifact (128K buckets, uint16). Single-pass score-first eval with hierarchical Dirichlet CTW mixing (per-order concentrations). 2-layer 128d neural model (vestigial). No two-pass, no self-inclusion.",
+    "date": "2026-03-28",
+    "val_loss": 0.19079649,
+    "val_bpb": 0.11300056,
+    "bytes_total": 5757313,
+    "bytes_code": 107000
+}
