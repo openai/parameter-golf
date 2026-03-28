@@ -26,7 +26,9 @@ Design is inspired by [karpathy/autoresearch](https://github.com/karpathy/autore
      > agent_lab/run.log 2>&1
    ```
 
-4. **Point your agent at `program.md`** and start the loop (branch, baseline run, then edit → commit → run → log → keep/reset).
+4. **Point your agent at `program.md`** and the Cursor skill **[`.cursor/skills/agent-lab/SKILL.md`](../.cursor/skills/agent-lab/SKILL.md)** (workflow + what to update after each run).
+
+5. **Journal / learning:** see **`docs/build-logs/`** for dated narrative logs (pedagogy + diary + code deltas), e.g. [`docs/build-logs/2026-03-28-agent-lab.md`](../docs/build-logs/2026-03-28-agent-lab.md).
 
 ## What lives here
 
@@ -34,6 +36,9 @@ Design is inspired by [karpathy/autoresearch](https://github.com/karpathy/autore
 |------|------|
 | `program.md` | Instructions for the LLM (setup, loop, grep patterns, constraints). |
 | `train_gpt.py` | Editable copy of the baseline training script; **do not edit root `train_gpt.py` for agent-lab runs** unless you intend to change the shared baseline. |
+| `experiments.tsv` | **Structured experiment registry** — stable IDs `AL-YYYYMMDD-NNN`, parent commit, hypothesis, **verdict**, metrics (for humans + agents). **Commit this** when you add rows. |
+| `COMMIT_CONVENTIONS.md` | **Conventional Commits** (`feat(agent-lab):` …) and **rich commit body** template (`Exp:`, `Hypothesis:`, …). |
+| `CHALLENGE_TIMELIMITS.md` | Official **train** and **eval** time limits for leaderboard (both ~10 min on **8×H100**). |
 
 `results.tsv` and `run.log` are gitignored; create them per `program.md`.
 

@@ -1,0 +1,6 @@
+exp_id	date	parent_commit	commit	hypothesis	verdict	primary_metric	val_bpb	memory_gb	status	notes
+AL-20260328-000	2026-03-28	—	—	cu13 torch fails CUDA init on host; cu124 wheel fixes driver mismatch	correct	n/a	n/a	n/a	n/a	env-only; see build log
+AL-20260328-001	2026-03-28	—	df152a4	baseline reproduces stable final_int8_ttt_lora on 1 shard	n/a	final_int8_ttt_lora	1.6099	11.9	keep	first full run; train ~10min + TTT eval ~23min on 3090
+AL-20260328-002	2026-03-28	df152a4	d9ca661	fewer KV heads → faster steps + lower KV traffic → better bpb in 600s	correct	final_int8_ttt_lora	1.5921	11.4	keep	356 vs 342 steps; NUM_KV_HEADS 4→2 default
+AL-20260328-003	2026-03-28	d9ca661	262d70f	half global batch → 2× optimizer steps in same wall → better bpb	correct	final_int8_ttt_lora	1.4239	6.0	keep	695 steps; TRAIN_BATCH_TOKENS 524288→262144 default
+AL-20260328-004	2026-03-28	262d70f	bab9bf7	higher Muon matrix LR escapes slow directions faster in fixed wall	correct	final_int8_ttt_lora	1.4129	5.9	keep	MATRIX_LR 0.04→0.06 default

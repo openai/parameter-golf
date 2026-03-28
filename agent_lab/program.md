@@ -9,7 +9,8 @@ Do not change tokenizer/byte accounting, validation split, or `eval_val` semanti
 3. Read: repo [`README.md`](../README.md), this folder [`README.md`](README.md), **`agent_lab/train_gpt.py`** (only file you edit).
 4. Ensure `DATA_PATH` shards and `TOKENIZER_PATH` exist; else tell human to run `python3 data/cached_challenge_fineweb.py` per main README.
 5. Create **`agent_lab/results.tsv`** with header only (see Logging).
-6. After human confirms, start the loop.
+6. Read **`agent_lab/experiments.tsv`** (what’s already been tried; stable IDs **`AL-YYYYMMDD-NNN`**).
+7. After human confirms, start the loop.
 
 ## Experimentation
 
@@ -56,9 +57,10 @@ Use your chosen `final_*` line. Memory: `peak memory allocated: <N> MiB` → GB 
 Append to **`agent_lab/results.tsv`** (tabs, not commas):
 
 ```
-commit	val_bpb	memory_gb	status	description
+exp_id	commit	val_bpb	memory_gb	status	description
 ```
 
+- `exp_id`: optional; use **`AL-YYYYMMDD-NNN`** to match [`experiments.tsv`](experiments.tsv)  
 - `commit`: 7-char hash  
 - `val_bpb`: from primary metric; `0.000000` if crash  
 - `memory_gb`: one decimal; `0.0` if crash  
@@ -67,13 +69,19 @@ commit	val_bpb	memory_gb	status	description
 
 Do not commit `results.tsv`.
 
+**Also append [`agent_lab/experiments.tsv`](experiments.tsv)** (tracked): one row per experiment with `exp_id`, parent commit, hypothesis, **verdict** (`correct` / `wrong` / `partial` / `n_a`), metric, `val_bpb`, notes.
+
+**Commits:** use **Conventional Commits** with scope `agent-lab` and a **rich body** (`Exp:`, `Parent:`, `Hypothesis:`, `Result:`). See [`COMMIT_CONVENTIONS.md`](COMMIT_CONVENTIONS.md). Official train **and** eval time limits for leaderboard: [`CHALLENGE_TIMELIMITS.md`](CHALLENGE_TIMELIMITS.md).
+
+**Human journal / pedagogy:** update **`docs/build-logs/<date>-agent-lab.md`** with thoughts, what changed in code, and lessons — not only numbers.
+
 ## Loop
 
 Branch: `agent_lab/<tag>` or `agent_lab/<tag>-gpu0`.
 
 1. Note branch/commit.
 2. Change **`agent_lab/train_gpt.py`** (one idea).
-3. `git add agent_lab/train_gpt.py && git commit -m "..."`
+3. `git add agent_lab/train_gpt.py && git commit` — subject **`feat(agent-lab): …`** (see [`COMMIT_CONVENTIONS.md`](COMMIT_CONVENTIONS.md))
 4. `torchrun ... agent_lab/train_gpt.py > agent_lab/run.log 2>&1` (no `tee`; full redirect).
 5. `grep '^final_int8_ttt_lora\|^peak memory allocated' agent_lab/run.log` (adjust grep if you chose the zlib metric).
 6. Empty primary line → likely crash → `tail -n 80 agent_lab/run.log`; fix trivial errors or log `crash` and revert.
