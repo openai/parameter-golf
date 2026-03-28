@@ -2,16 +2,16 @@
     "author": "ibarrajo",
     "github_id": "ibarrajo",
     "name": "33.6M Int5 GPTQ + Score-First TTT + Temp Calibration",
-    "blurb": "Train larger (33.6M params, d=576, MLP 3.5x=1792), quantize harder (int5 GPTQ, clip [-16,15]). Legal score-first backward-looking TTT (AdamW, cosine LR, 3 epochs, last 2 blocks). Post-TTT temperature calibration T=0.98. 3-seed mean: 1.1145 BPB (std 0.0003).",
+    "blurb": "Train larger (33.6M params, d=576, MLP 3.5x=1792), quantize harder (int5 GPTQ). Legal score-first TTT (AdamW, cosine LR, 3 epochs) + T=0.98 temp calibration. GPTQ calibration within 600s training budget. 3-seed mean: 1.1150 BPB (std 0.0003).",
     "date": "2026-03-27",
-    "val_bpb": 1.1145,
-    "val_loss": 1.8819,
-    "bytes_total": 15885838,
+    "val_bpb": 1.1150,
+    "val_loss": 1.8827,
+    "bytes_total": 15824161,
     "seeds": {
-        "1337": {"val_bpb": 1.1142},
-        "42": {"val_bpb": 1.1148},
-        "2025": {"val_bpb": 1.1144}
+        "1337": {"val_bpb": 1.1148, "bytes_total": 15288826, "train_plus_gptq_s": 593.9},
+        "42": {"val_bpb": 1.1154, "bytes_total": 15303508, "train_plus_gptq_s": 593.7},
+        "2025": {"val_bpb": 1.1148, "bytes_total": 15824161, "train_plus_gptq_s": 593.9}
     },
-    "mean_val_bpb": 1.1145,
+    "mean_val_bpb": 1.1150,
     "std_val_bpb": 0.0003
 }
