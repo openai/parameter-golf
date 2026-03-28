@@ -1,0 +1,29 @@
+{
+  "val_bpb": 1.1556,
+  "val_loss": 1.9511,
+  "eval_method": "sliding_window",
+  "eval_stride": 64,
+  "quantization": "int6",
+  "compression": "zstd-22",
+  "artifact_size_bytes": 15878809,
+  "model_params": 22368840,
+  "train_steps": 12047,
+  "train_time_seconds": 600,
+  "hardware": "8xH100-80GB-SXM",
+  "seed": 1337,
+  "techniques": [
+    "SmearGate",
+    "Orthogonal Init",
+    "Muon Weight Decay",
+    "Int6 STE QAT",
+    "MLP 3x",
+    "Sliding Window Eval",
+    "Bigram Hash Embedding",
+    "U-Net Skip Connections",
+    "Muon Momentum Warmup",
+    "zstd-22 Compression"
+  ],
+  "post_quant_standard_val_bpb": 1.1891,
+  "post_quant_standard_val_loss": 2.0077,
+  "quantization_gap_bpb": 0.0001
+}
