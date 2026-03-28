@@ -573,6 +573,7 @@ class CausalSelfAttention(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         rope_dims: int = 0,
+        rope_train_seq_len: int = 1024,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -591,7 +592,12 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024, rope_dims=rope_dims)
+        self.rotary = Rotary(
+            self.head_dim,
+            base=rope_base,
+            train_seq_len=rope_train_seq_len,
+            rope_dims=rope_dims,
+        )
         self.use_xsa = False
 
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
@@ -692,13 +698,22 @@ class Block(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         rope_dims: int = 0,
+        rope_train_seq_len: int = 1024,
         layer_idx: int = 0,
         ln_scale: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims=rope_dims)
+        self.attn = CausalSelfAttention(
+            dim,
+            num_heads,
+            num_kv_heads,
+            rope_base,
+            qk_gain_init,
+            rope_dims=rope_dims,
+            rope_train_seq_len=rope_train_seq_len,
+        )
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -733,6 +748,7 @@ class GPT(nn.Module):
         bigram_dim: int = 128,
         xsa_last_n: int = 0,
         rope_dims: int = 0,
+        rope_train_seq_len: int = 1024,
         ln_scale: bool = False,
     ):
         super().__init__()
@@ -758,6 +774,7 @@ class GPT(nn.Module):
                     rope_base,
                     qk_gain_init,
                     rope_dims=rope_dims,
+                    rope_train_seq_len=rope_train_seq_len,
                     layer_idx=i,
                     ln_scale=ln_scale,
                 )
@@ -1043,6 +1060,7 @@ def main() -> None:
         bigram_dim=args.bigram_dim,
         xsa_last_n=args.xsa_last_n,
         rope_dims=args.rope_dims,
+        rope_train_seq_len=args.rope_train_seq_len,
         ln_scale=args.ln_scale,
     ).to(device=device, dtype=LOWP_DTYPE)
     for module in base_model.modules():
@@ -1370,7 +1388,8 @@ def main() -> None:
         tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
-        xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
+        xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims,
+        rope_train_seq_len=args.rope_train_seq_len, ln_scale=args.ln_scale,
     ).to(device).bfloat16()
     for m in eval_model.modules():
         if isinstance(m, CastedLinear):
