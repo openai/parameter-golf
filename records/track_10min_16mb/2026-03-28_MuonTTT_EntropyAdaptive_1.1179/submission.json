@@ -1,0 +1,25 @@
+{
+  "record_name": "Muon TTT + Entropy-Adaptive Epochs + GQA + CROWN-Q",
+  "val_bpb_mean": 0.1179,
+  "val_bpb_std": 0.0005,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": 1.1173,
+    "42": 1.1181,
+    "2025": 1.1183
+  },
+  "hardware": "8xH100 SXM 80GB",
+  "train_time_seconds": 600,
+  "eval_time_seconds": 595,
+  "artifact_bytes": 15950000,
+  "techniques": [
+    "Muon TTT (Newton-Schulz orthogonalized updates)",
+    "Entropy-adaptive epoch selection",
+    "GQA (8 heads, 4 KV heads)",
+    "CROWN-Q soft-round QAT",
+    "LeakyReLU(0.5)^2 activation",
+    "EMA + SWA",
+    "Int6 GPTQ + LZMA compression",
+    "Score-first legal TTT"
+  ]
+}
