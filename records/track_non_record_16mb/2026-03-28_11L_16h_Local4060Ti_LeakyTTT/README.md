@@ -1,4 +1,4 @@
-This record captures a local unlimited-compute non-record submission built from the modified root `train_gpt_stack.py` snapshot included in this folder.
+This record captures a local unlimited-compute non-record submission built from the modified root `train_gpt_stack.py` snapshot included in this folder, with a `train_gpt.py` entrypoint copy for record-folder reproducibility.
 
 This run is not intended to satisfy the 10-minute cutoff for the main leaderboard. It was trained locally on a single RTX 4060 Ti for a 16-hour wallclock cap, while still fitting under the `16,000,000` byte artifact cap.
 
@@ -57,7 +57,7 @@ EVAL_STRIDE=64 \
 VAL_LOSS_EVERY=4000 \
 TRAIN_LOG_EVERY=50 \
 SEED=1337 \
-python train_gpt_stack.py
+python train_gpt.py
 ```
 
 Key metrics (from `stack16h_base_s1337.txt`):
@@ -88,5 +88,5 @@ Included files:
 - `README.md`
 - `submission.json`
 - `train_gpt.py`
-- `train_gpt_stack.py`
+- `train_gpt_stack.py` (same code snapshot, preserved under its original local filename)
 - full train log from `stack16h_base_s1337.txt`
