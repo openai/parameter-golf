@@ -91,7 +91,7 @@ class Hyperparameters:
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))
     swa_every = int(os.environ.get("SWA_EVERY", 200))
     ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
-    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.995))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
 
 # -----------------------------
