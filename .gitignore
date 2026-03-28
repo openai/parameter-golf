@@ -16,5 +16,9 @@ agent_lab/run.log
 agent_lab/final_model.pt
 agent_lab/final_model.int8.ptz
 
+# Training artifacts (torchrun cwd = repo root)
+/final_model.pt
+/final_model.int8.ptz
+
 .agents/
 skills-lock.json
