@@ -803,26 +803,10 @@ class Block(nn.Module):
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
-        # Deep Delta Learning: rank-1 residual transform (arXiv:2601.00417, Jan 2026)
-        self.delta_proj = nn.Linear(dim, dim, bias=False)
-        self.delta_gate = nn.Linear(dim, 1, bias=False)
-        nn.init.zeros_(self.delta_proj.weight)
-        nn.init.zeros_(self.delta_gate.weight)
-
-    def _delta_transform(self, x: Tensor) -> Tensor:
-        """DDL: apply (I - β·k·kᵀ) to x — can erase redundant directions."""
-        # Per-token k and beta (no mean pooling — keeps shapes compatible)
-        k = F.normalize(self.delta_proj(x), dim=-1)  # (b, seq, dim)
-        beta = torch.sigmoid(self.delta_gate(x))  # (b, seq, 1)
-        # x - β * (x · k) * k  (rank-1 perturbation of identity)
-        proj = (x * k).sum(dim=-1, keepdim=True)  # (b, seq, 1)
-        return x - beta * proj * k
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        # DDL: transform residual before adding block output
-        x = self._delta_transform(x)
         attn_out = self.attn(self.attn_norm(x))
         # ProRes: deeper layers warm up slower (arXiv:2603.05369)
         prores_scale = (self._prores_step / self._prores_warmup).clamp(max=1.0) if self.training else 1.0

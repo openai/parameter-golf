@@ -665,7 +665,6 @@ def _fake_quantize_int8(w: Tensor) -> Tensor:
 _qat_enabled = False
 
 
-
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     # When QAT is enabled, adds fake-quantize noise so model learns to tolerate int8 rounding.
@@ -790,44 +789,22 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
-        layer_idx: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
-        # ProRes: warmup schedule for this layer (arXiv:2603.05369)
-        self.register_buffer("_prores_step", torch.zeros(1), persistent=False)
-        self._prores_warmup = 30.0 + layer_idx * 30.0  # layer 0: 30 steps, layer 9: 300 steps
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
-        # Deep Delta Learning: rank-1 residual transform (arXiv:2601.00417, Jan 2026)
-        self.delta_proj = nn.Linear(dim, dim, bias=False)
-        self.delta_gate = nn.Linear(dim, 1, bias=False)
-        nn.init.zeros_(self.delta_proj.weight)
-        nn.init.zeros_(self.delta_gate.weight)
-
-    def _delta_transform(self, x: Tensor) -> Tensor:
-        """DDL: apply (I - β·k·kᵀ) to x — can erase redundant directions."""
-        # Per-token k and beta (no mean pooling — keeps shapes compatible)
-        k = F.normalize(self.delta_proj(x), dim=-1)  # (b, seq, dim)
-        beta = torch.sigmoid(self.delta_gate(x))  # (b, seq, 1)
-        # x - β * (x · k) * k  (rank-1 perturbation of identity)
-        proj = (x * k).sum(dim=-1, keepdim=True)  # (b, seq, 1)
-        return x - beta * proj * k
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        # DDL: transform residual before adding block output
-        x = self._delta_transform(x)
         attn_out = self.attn(self.attn_norm(x))
-        # ProRes: deeper layers warm up slower (arXiv:2603.05369)
-        prores_scale = (self._prores_step / self._prores_warmup).clamp(max=1.0) if self.training else 1.0
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out * prores_scale
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x)) * prores_scale
+        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
 
@@ -866,7 +843,6 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
-                    layer_idx=i,
                 )
                 for i in range(num_layers)
             ]
@@ -1236,9 +1212,6 @@ def main() -> None:
         zero_grad_all()
 
         step += 1
-        # Update ProRes step counter on all blocks
-        for block in base_model.blocks:
-            block._prores_step.fill_(float(step))
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
         # LAWA: collect checkpoints from last 20% of training for weight averaging
@@ -1342,6 +1315,101 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
+    # 5-gram eval cache: accumulate n-gram stats and mix with model predictions
+    if master_process:
+        torch.cuda.synchronize()
+        t_ngram = time.perf_counter()
+        from collections import defaultdict
+        ngram_order = 5
+        ngram_counts: dict[tuple, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+        tokens_list = val_tokens.tolist()
+        total_tokens_val = len(tokens_list)
+        ngram_log_losses = 0.0
+        ngram_token_count = 0
+        ngram_byte_count = 0.0
+        mix_alpha = 0.3  # how much to trust n-gram cache
+
+        # Run standard model eval to get per-token logprobs, then mix with n-gram
+        model.eval()
+        seq_len = args.train_seq_len
+        total_seqs = (total_tokens_val - 1) // seq_len
+        with torch.inference_mode():
+            for seq_idx in range(total_seqs):
+                start = seq_idx * seq_len
+                end = start + seq_len + 1
+                local = val_tokens[start:end].to(device=device, dtype=torch.int64)
+                x = local[:-1].unsqueeze(0)
+                y = local[1:].unsqueeze(0)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    # Get logits from model
+                    xemb = base_model.tok_emb(x)
+                    xemb = F.rms_norm(xemb, (xemb.size(-1),))
+                    x0 = xemb
+                    skips_eval: list[Tensor] = []
+                    for i in range(base_model.num_encoder_layers):
+                        xemb = base_model.blocks[i](xemb, x0)
+                        skips_eval.append(xemb)
+                    for i in range(base_model.num_decoder_layers):
+                        if skips_eval:
+                            xemb = xemb + base_model.skip_weights[i].to(dtype=xemb.dtype)[None, None, :] * skips_eval.pop()
+                        xemb = base_model.blocks[base_model.num_encoder_layers + i](xemb, x0)
+                    xemb = base_model.final_norm(xemb)
+                    logits_proj = F.linear(xemb, base_model.tok_emb.weight) if base_model.tie_embeddings else base_model.lm_head(xemb)
+                    logits = base_model.logit_softcap * torch.tanh(logits_proj / base_model.logit_softcap)
+
+                log_probs = F.log_softmax(logits.float().squeeze(0), dim=-1)  # (seq_len, vocab)
+                targets = y.squeeze(0)  # (seq_len,)
+
+                for pos in range(seq_len):
+                    token_pos = start + pos
+                    target_tok = targets[pos].item()
+                    model_lp = log_probs[pos, target_tok].item()
+
+                    # Check n-gram cache for prediction
+                    ngram_lp = None
+                    for n in range(ngram_order, 0, -1):
+                        if token_pos >= n:
+                            ctx = tuple(tokens_list[token_pos - n + 1:token_pos + 1])
+                            counts = ngram_counts.get(ctx)
+                            if counts and sum(counts.values()) >= 2:
+                                total = sum(counts.values())
+                                prob = counts.get(target_tok, 0) / total
+                                if prob > 0:
+                                    ngram_lp = math.log(prob)
+                                    break
+
+                    # Mix model and n-gram predictions (safety: n-gram can only help)
+                    if ngram_lp is not None:
+                        mixed_lp = math.log(math.exp(model_lp) * (1 - mix_alpha) + math.exp(ngram_lp) * mix_alpha)
+                        final_lp = max(mixed_lp, model_lp)  # safety gate: never worsen
+                    else:
+                        final_lp = model_lp
+
+                    ngram_log_losses += -final_lp
+                    ngram_token_count += 1
+
+                    # BPB byte counting
+                    prev_tok = tokens_list[token_pos]
+                    tb = base_bytes_lut[target_tok].item()
+                    if has_leading_space_lut[target_tok].item() and not is_boundary_token_lut[prev_tok].item():
+                        tb += 1
+                    ngram_byte_count += tb
+
+                    # Update n-gram cache with this token
+                    for n in range(1, ngram_order + 1):
+                        if token_pos >= n:
+                            ctx = tuple(tokens_list[token_pos - n + 1:token_pos + 1])
+                            ngram_counts[ctx][target_tok] += 1
+
+        ngram_val_loss = ngram_log_losses / ngram_token_count
+        ngram_bits_per_token = ngram_val_loss / math.log(2.0)
+        ngram_tokens_per_byte = ngram_token_count / ngram_byte_count
+        ngram_bpb = ngram_bits_per_token * ngram_tokens_per_byte
+        log0(
+            f"ngram_cache_eval val_loss:{ngram_val_loss:.4f} val_bpb:{ngram_bpb:.4f} "
+            f"order:{ngram_order} alpha:{mix_alpha} eval_time:{1000.0 * (time.perf_counter() - t_ngram):.0f}ms"
+        )
+
     # Sliding window eval for better BPB
     if 0 < args.eval_stride < args.train_seq_len:
         torch.cuda.synchronize()
@@ -1376,3 +1444,89 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.11.10 (main, Sep  7 2024, 18:35:41) [GCC 11.4.0]
+Running PyTorch 2.11.0+cu130
+Wed Mar 25 02:42:30 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   32C    P0             91W /  700W |    1185MiB /  81559MiB |      1%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:18897488
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9363 val_bpb:4.1080 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9357 train_time:406ms step_avg:405.75ms
+step:2/20000 train_loss:16.5890 train_time:813ms step_avg:406.50ms
+step:3/20000 train_loss:8.5616 train_time:1224ms step_avg:407.88ms
+step:4/20000 train_loss:6.5349 train_time:1660ms step_avg:415.11ms
+step:5/20000 train_loss:6.7262 train_time:2067ms step_avg:413.46ms
+step:6/20000 train_loss:6.6159 train_time:2505ms step_avg:417.51ms
+step:7/20000 train_loss:6.3393 train_time:2913ms step_avg:416.11ms
+step:8/20000 train_loss:6.1260 train_time:3315ms step_avg:414.36ms
+step:9/20000 train_loss:6.0273 train_time:3720ms step_avg:413.33ms
+step:10/20000 train_loss:5.9230 train_time:4148ms step_avg:414.80ms
+step:200/20000 train_loss:2.7626 train_time:85471ms step_avg:427.36ms
+step:400/20000 train_loss:2.4977 train_time:170317ms step_avg:425.79ms
+step:600/20000 train_loss:2.3468 train_time:256456ms step_avg:427.43ms
+step:800/20000 train_loss:2.3270 train_time:341204ms step_avg:426.50ms
+lawa:collection_started step:808
+step:1000/20000 train_loss:2.1751 train_time:428653ms step_avg:428.65ms
+step:1000/20000 val_loss:2.1652 val_bpb:1.2824 train_time:428855ms step_avg:428.86ms
+step:1200/20000 train_loss:2.0603 train_time:514586ms step_avg:428.82ms
+step:1399/20000 val_loss:2.0281 val_bpb:1.2012 train_time:600027ms step_avg:428.90ms
+stopping_early: wallclock_cap train_time:600027ms step:1399/20000
+peak memory allocated: 11461 MiB reserved: 11820 MiB
+lawa:averaging 12 checkpoints
+Serialized model: 74578915 bytes
+Code size: 62510 bytes
+Total submission size: 74641425 bytes
+Serialized model int8+zlib: 13409908 bytes (payload:19030336 raw_torch:19080377 payload_ratio:3.92x)
+Total submission size int8+zlib: 13472418 bytes
+final_int8_zlib_roundtrip val_loss:2.0771 val_bpb:1.2302 eval_time:12157ms
+final_int8_zlib_roundtrip_exact val_loss:2.07708453 val_bpb:1.23016646
