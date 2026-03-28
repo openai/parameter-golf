@@ -26,9 +26,32 @@ This submission applies techniques from building compact on-device coding models
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
+## MLX Local Results (M2 Pro, 16GB)
+
+Pipeline validation run on Apple Silicon (MLX framework, single GPU):
+
+```
+RUN_ID=mlx_smoke ITERATIONS=200 TRAIN_BATCH_TOKENS=8192 VAL_LOSS_EVERY=0 VAL_BATCH_SIZE=8192 python3 train_gpt_mlx.py
+```
+
+| Metric | Value |
+|--------|-------|
+| Steps completed | 200/200 |
+| Pre-quant val_loss | 3.9667 |
+| Pre-quant val_bpb | 2.3493 |
+| Post-quant val_loss (int8+zlib) | 3.9682 |
+| Post-quant val_bpb (int8+zlib) | **2.3502** |
+| Compressed model size | 10,518,128 bytes (10.0 MB) |
+| Code size | 47,686 bytes |
+| Total artifact | 10,565,814 bytes (well under 16MB) |
+| Train time | 137.8s (689ms/step, 11,711 tok/s) |
+| Compression ratio | 3.91x |
+
+**Note:** This is a minimal 200-step run (1.6M total training tokens) for pipeline validation only. The full 8×H100 baseline runs 13,000+ steps with 524K tokens/step (7.2B total tokens) and achieves ~1.22 BPB. The MLX run confirms the full train → quantize → eval pipeline works end-to-end.
+
 ## Status
 
-**[WIP]** — Training run pending. Results and train.log will be added after RunPod execution.
+**[WIP]** — MLX local baseline complete. Full 8×H100 RunPod run pending.
 
 ## Background
 
