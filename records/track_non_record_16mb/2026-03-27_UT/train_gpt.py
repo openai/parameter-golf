@@ -70,7 +70,7 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 768))
     num_heads = int(os.environ.get("NUM_HEADS", 16))
-    mlp_mult = int(os.environ.get("MLP_MULT", 16))
+    mlp_mult = int(os.environ.get("MLP_MULT", 12))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "0")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
