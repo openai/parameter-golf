@@ -1,0 +1,26 @@
+{
+  "author": "naazimsnh02",
+  "github_id": "naazimsnh02",
+  "val_bpb": 0.431094,
+  "blurb": "Complementary Training + Backoff N-gram Mixer + Legal Score-First TTT",
+  "model_params": 26993766,
+  "artifact_bytes": 15962841,
+  "gpu": "8xH100 SXM 80GB",
+  "seeds": [
+    {"seed": 1337, "val_bpb": 0.431107, "artifact_bytes": 15916181},
+    {"seed": 42,   "val_bpb": 0.431062, "artifact_bytes": 15962841},
+    {"seed": 2024, "val_bpb": 0.431112, "artifact_bytes": 15958961}
+  ],
+  "techniques": [
+    "Complementary training (COMPLEMENT_ALPHA=0.5)",
+    "BackoffNgramMixer (orders 2-10, 4M flat hash buckets)",
+    "Entropy-adaptive alpha (0.20 + 0.55*sigmoid(2*(H-3.0)))",
+    "AdamW TTT (lr=5e-4, 3 epochs, freeze 2 blocks, Polyak 0.998)",
+    "VRL (Value Residual Learning)",
+    "LeakyReLU(0.5)^2",
+    "XSA-4 (last 4 layers)",
+    "Int6 mixed quantization + lzma",
+    "Sliding window eval stride=64"
+  ],
+  "run_command": "VRL_ENABLED=1 LEAKY_RELU=1 TTT_ENABLED=1 TTT_OPTIMIZER=adamw TTT_LR=0.0005 TTT_EPOCHS=3 TTT_FREEZE_BLOCKS=2 TTT_TEMPERATURE=0.98 USE_HEDGE_MIXER=1 NGRAM_ORDER=10 NGRAM_BUCKETS=4194304 ALPHA_BASE=0.20 ALPHA_RANGE=0.55 ALPHA_CENTER=3.0 COMPLEMENT_ALPHA=0.5 SEED=42 torchrun --standalone --nproc_per_node=8 train_gpt.py"
+}
