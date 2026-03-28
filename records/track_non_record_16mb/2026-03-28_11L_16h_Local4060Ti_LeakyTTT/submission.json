@@ -14,5 +14,5 @@
   "bytes_total": 15807729,
   "bytes_model_int6_lzma": 15710900,
   "bytes_code": 96829,
-  "notes": "Review and edit locally before PR. Sliding-window int6 eval reached 1.15520389 val_bpb; final legal_ttt_exact reached 1.15377788."
+  "notes": "Sliding-window int6 eval reached 1.15520389 val_bpb; final legal_ttt_exact reached 1.15377788."
 }

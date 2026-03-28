@@ -1,11 +1,5 @@
 This record captures a local unlimited-compute non-record submission built from the modified root `train_gpt_stack.py` snapshot included in this folder.
 
-Status:
-- Training completed.
-- Sliding-window evaluation completed.
-- Legal score-first TTT completed.
-- This folder is now complete enough for review and editing before any PR.
-
 This run is not intended to satisfy the 10-minute cutoff for the main leaderboard. It was trained locally on a single RTX 4060 Ti for a 16-hour wallclock cap, while still fitting under the `16,000,000` byte artifact cap.
 
 Configuration:
@@ -90,14 +84,9 @@ Training volume:
 - Total train tokens seen: `2,096,627,712`
 - Fraction of default published 8B-token training export seen: `0.2621 epochs`
 
-Files to include before PR:
+Included files:
 - `README.md`
 - `submission.json`
+- `train_gpt.py`
 - `train_gpt_stack.py`
 - full train log from `stack16h_base_s1337.txt`
-
-Local notes before PR:
-1. Replace `author` and any wording you want in `submission.json`.
-2. Edit this `README.md` however you want.
-3. Review the copied `train_gpt_stack.py` snapshot and the copied log.
-4. Commit this folder in your fork and open a PR to `openai/parameter-golf`.
