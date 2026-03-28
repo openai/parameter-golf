@@ -1,16 +1,74 @@
-This record captures a local unlimited-compute non-record submission built from the modified root `train_gpt_stack.py` snapshot included in this folder, with a `train_gpt.py` entrypoint copy for record-folder reproducibility.
+## Record: 11L 16h Local 4060 Ti LeakyTTT (val_bpb: 1.1538)
 
-This run is not intended to satisfy the 10-minute cutoff for the main leaderboard. It was trained locally on a single RTX 4060 Ti for a 16-hour wallclock cap, while still fitting under the `16,000,000` byte artifact cap.
+**val_bpb = 1.15377788** (legal score-first TTT) | **15.81 MB** total artifact | **1x RTX 4060 Ti 16GB**, Windows, 16h wallclock
 
-Configuration:
-- Track: `non-record`, unlimited compute, still under the `16,000,000` byte artifact cap
-- Hardware: `1x RTX 4060 Ti 16GB`, Windows, local run
-- Layout: `VOCAB_SIZE=1024 NUM_LAYERS=11 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=4`
-- Stack: `LeakyReLU(0.5)^2`, `Parallel Muon`, `XSA last 4`, `Partial RoPE 16/64`, `Layerwise LN scale`, `Warmdown 3500`, `BigramHash 1536`, `VE128 layers 9,10`, `EMA(0.997)`, `SWA every 50`, `Legal Score-First TTT`
-- Batching: `TRAIN_BATCH_TOKENS=262144 TRAIN_SEQ_LEN=2048`
-- Evaluation: `EVAL_STRIDE=64`, legal score-first TTT with `chunk=32768`, `lr=0.002`, `epochs=3`
+This record captures a local unlimited-compute non-record submission. It is not intended to satisfy the 10-minute `8xH100` constraint for the main leaderboard. The goal of this run was to test how far the 11-layer LeakyReLU^2 + Parallel Muon + XSA4 + Partial RoPE + LN scale + EMA + legal TTT stack can be pushed on a single consumer GPU while still fitting under the `16,000,000` byte artifact cap.
 
-Command (track-relevant params):
+### Summary
+
+- Timed training stopped at `7998/9000` steps due to the 16-hour wallclock cap
+- Post-EMA diagnostic score: `1.1742 val_bpb`
+- Post-int6 roundtrip score: `1.17922533 val_bpb`
+- Post-int6 sliding-window score: `1.15520389 val_bpb`
+- Final legal score-first TTT score: `1.15377788 val_bpb`
+- Total submission size: `15,807,729` bytes
+
+### Stack
+
+- 11 layers, `512d`, `8` heads, `4` KV heads
+- LeakyReLU(0.5)^2 MLP
+- Parallel Muon
+- XSA on the last 4 layers
+- Partial RoPE (`16/64`)
+- Layerwise LN scale
+- BigramHash `1536`
+- VE128 on layers `9,10`
+- EMA(`0.997`)
+- SWA every `50`
+- Legal score-first TTT
+- int6 + lzma export
+- Sliding-window evaluation with stride `64`
+
+### Results
+
+| Metric | Value |
+|--------|-------|
+| Stop step | `7998/9000` |
+| In-training periodic eval | `1.1751 val_bpb` |
+| Post-EMA diagnostic | `1.1742 val_bpb` |
+| Int6 roundtrip | `1.17922533 val_bpb` |
+| Int6 sliding-window | `1.15520389 val_bpb` |
+| **Legal TTT final** | **`1.15377788 val_bpb`** |
+| Artifact bytes | `15,710,900` |
+| Code bytes | `96,829` |
+| **Total bytes** | **`15,807,729`** |
+
+### Legal TTT
+
+Backward-looking, score-first TTT was applied after the int6 sliding-window evaluation:
+
+- `1,893` chunks
+- chunk size `32,768` tokens
+- SGD with `lr=0.002`, `momentum=0.9`
+- `3` epochs per chunk
+- all blocks unfrozen
+- gradient clip `1.0`
+
+Terminal lines:
+
+```text
+ttt_sliding:done val_loss=1.948100 val_bpb=1.153778 elapsed=21509.2s
+legal_ttt_exact val_loss:1.94810047 val_bpb:1.15377788
+```
+
+### Training Volume
+
+- Global batch: `262,144` tokens/step
+- Total train tokens seen: `2,096,627,712`
+- Fraction of default published `8B`-token training export seen: `0.2621 epochs`
+
+### Command
+
 ```bash
 RUN_ID=stack16h_base_s1337 \
 DATA_PATH=./data/datasets/fineweb10B_sp1024 \
@@ -60,33 +118,10 @@ SEED=1337 \
 python train_gpt.py
 ```
 
-Key metrics (from `stack16h_base_s1337.txt`):
-- Timed training stopped at `7998/9000` steps due to the wallclock cap.
-- In-training periodic eval at stop: `val_loss:1.9840`, `val_bpb:1.1751`
-- Post-EMA diagnostic eval: `val_loss:1.9826`, `val_bpb:1.1742`
-- Post-int6 roundtrip eval: `val_loss:1.99107258`, `val_bpb:1.17922533`
-- Post-int6 sliding-window eval: `val_loss:1.95050821`, `val_bpb:1.15520389`
-- Final legal score-first TTT eval: `val_loss:1.94810047`, `val_bpb:1.15377788`
-- Legal TTT eval time: `21,509.768s`
-- Total submission size int6+lzma: `15,807,729` bytes
-- Peak memory: `11,699 MiB allocated`, `12,102 MiB reserved`
+### Included Files
 
-Legal score-first TTT:
-- Chunks: `1,893`
-- Chunk size: `32,768` tokens
-- Running score bottomed around the mid-run `1.1518-1.1520` region, then finished at `1.15377788`
-- Terminal lines:
-  - `ttt_sliding:done val_loss=1.948100 val_bpb=1.153778 elapsed=21509.2s`
-  - `legal_ttt_exact val_loss:1.94810047 val_bpb:1.15377788`
-
-Training volume:
-- Global batch: `262,144` tokens/step
-- Total train tokens seen: `2,096,627,712`
-- Fraction of default published 8B-token training export seen: `0.2621 epochs`
-
-Included files:
 - `README.md`
 - `submission.json`
 - `train_gpt.py`
-- `train_gpt_stack.py` (same code snapshot, preserved under its original local filename)
-- full train log from `stack16h_base_s1337.txt`
+- `train_gpt_stack.py`
+- `stack16h_base_s1337.txt`
