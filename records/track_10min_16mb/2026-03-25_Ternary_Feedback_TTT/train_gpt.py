@@ -861,17 +861,32 @@ class KoopmanDynamics(nn.Module):
     """
     def __init__(self, capsule_dim: int, rank: int = 4, diag_init: float = 0.9):
         super().__init__()
+        self.capsule_dim = capsule_dim
         self.diag = nn.Parameter(torch.full((capsule_dim,), diag_init, dtype=torch.float32))
         init_scale = 0.01 / max(rank ** 0.5, 1.0)
         self.U = nn.Parameter(torch.randn(capsule_dim, rank) * init_scale)
         self.V = nn.Parameter(torch.randn(capsule_dim, rank) * init_scale)
-        self.alpha = nn.Parameter(torch.zeros(capsule_dim, dtype=torch.float32))
+        self.alpha = nn.Parameter(torch.full((capsule_dim,), -5.0, dtype=torch.float32))  # sigmoid(-5)≈0.007: capsules start OFF
+        # Precompute Hadamard for capsule dim (must be power of 2)
+        self._use_hadamard = (capsule_dim & (capsule_dim - 1)) == 0 and capsule_dim >= 2
+        if self._use_hadamard:
+            H = _build_hadamard_pt(capsule_dim, torch.device('cpu'))
+            self.register_buffer('_H', H)
+
+    def _rotate(self, c: Tensor) -> Tensor:
+        """Hadamard rotate: spreads capsule info uniformly across dims."""
+        if self._use_hadamard:
+            return c @ self._H.to(dtype=c.dtype, device=c.device)
+        return c
 
     def predict(self, c: Tensor) -> Tensor:
-        """Predict next-pass capsule state. c: (B, N, capsule_dim)"""
-        c_diag = self.diag.to(dtype=c.dtype) * c
-        c_lowrank = (c @ self.V.to(dtype=c.dtype)) @ self.U.to(dtype=c.dtype).T
-        return c_diag + c_lowrank
+        """Predict next-pass capsule state. c: (B, N, capsule_dim)
+        Hadamard-rotate → diagonal+low-rank evolve → rotate back."""
+        c_rot = self._rotate(c)
+        c_diag = self.diag.to(dtype=c_rot.dtype) * c_rot
+        c_lowrank = (c_rot @ self.V.to(dtype=c_rot.dtype)) @ self.U.to(dtype=c_rot.dtype).T
+        c_evolved = c_diag + c_lowrank
+        return self._rotate(c_evolved)  # H is self-inverse
 
     def blend(self, c_observed: Tensor, c_prev: Tensor) -> tuple[Tensor, Tensor]:
         """Blend observed capsules with predicted evolution. Returns (blended, c_pred)."""

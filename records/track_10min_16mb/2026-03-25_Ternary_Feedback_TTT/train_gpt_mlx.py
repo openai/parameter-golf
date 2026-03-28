@@ -498,19 +498,35 @@ class KoopmanDynamics(nn.Module):
     """
     def __init__(self, capsule_dim, rank=4, diag_init=0.9):
         super().__init__()
+        self.capsule_dim = capsule_dim
         self.diag = mx.full((capsule_dim,), diag_init, dtype=mx.float32)
         init_scale = 0.01 / max(rank ** 0.5, 1.0)
         self.U = mx.random.normal((capsule_dim, rank), dtype=mx.float32) * init_scale
         self.V = mx.random.normal((capsule_dim, rank), dtype=mx.float32) * init_scale
-        self.alpha = mx.zeros((capsule_dim,), dtype=mx.float32)  # sigmoid -> 0.5
+        self.alpha = mx.full((capsule_dim,), -5.0, dtype=mx.float32)  # sigmoid(-5)≈0.007: capsules start OFF
+        # Precompute Hadamard for capsule dim (must be power of 2)
+        self._use_hadamard = (capsule_dim & (capsule_dim - 1)) == 0 and capsule_dim >= 2
+        if self._use_hadamard:
+            self._H = _build_hadamard(capsule_dim)
+
+    def _rotate(self, c):
+        """Hadamard rotate: spreads capsule info uniformly across dims."""
+        if self._use_hadamard:
+            return c @ self._H.astype(c.dtype)
+        return c
 
     def predict(self, c):
-        """Predict next-pass capsule state. c: (B, N, capsule_dim)"""
+        """Predict next-pass capsule state. c: (B, N, capsule_dim)
+        Hadamard-rotate → diagonal+low-rank evolve → rotate back.
+        This ensures the diagonal operates on variance-equalized dims."""
+        c_rot = self._rotate(c)
         # Diagonal evolution
-        c_diag = self.diag.astype(c.dtype) * c  # (B, N, D)
-        # Low-rank coupling: U @ (V^T @ c^T)^T = (c @ V) @ U^T
-        c_lowrank = (c @ self.V.astype(c.dtype)) @ self.U.astype(c.dtype).T  # (B, N, D)
-        return c_diag + c_lowrank
+        c_diag = self.diag.astype(c_rot.dtype) * c_rot  # (B, N, D)
+        # Low-rank coupling
+        c_lowrank = (c_rot @ self.V.astype(c_rot.dtype)) @ self.U.astype(c_rot.dtype).T
+        c_evolved = c_diag + c_lowrank
+        # Rotate back (H is self-inverse)
+        return self._rotate(c_evolved)
 
     def blend(self, c_observed, c_prev):
         """Blend observed capsules with predicted evolution from previous state."""
