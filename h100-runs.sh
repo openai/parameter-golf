@@ -96,6 +96,33 @@ cp final_model.int6.ptz /workspace/artifact_runC_13L576d_seq1024.ptz 2>/dev/null
 echo "Run C complete. Check log for BPB."
 echo ""
 
+# ============================================================
+# RUN D: Best Local Config (MHA) + Seq2048 + TTT=7
+# ============================================================
+# The best local config (BPB 1.628) used full MHA (8 KV heads)
+# but was NEVER tested on H100. All H100 runs used GQA.
+# Combining MHA with seq2048 could be the best overall.
+# Risk: artifact may exceed 16MB (was 19.4MB locally at 5000 steps)
+# but H100 trains longer + we can try compression locally.
+echo "=== RUN D: 11L/512d MHA + Seq2048 + TTT=7 (best local config) ==="
+RUN_ID="rund_11L512d_mha_seq2048" \
+NUM_LAYERS=11 MODEL_DIM=512 NUM_HEADS=8 NUM_KV_HEADS=8 \
+TRAIN_SEQ_LEN=2048 \
+ITERATIONS=12000 WARMDOWN_ITERS=3500 WARMUP_STEPS=20 \
+MATRIX_LR=0.025 \
+BIGRAMHASH_BUCKETS=4096 \
+SMEARGATE=1 UNET_SKIPS=1 INT6_QAT=1 TIE_EMBEDDINGS=1 \
+ROPE_PARTIAL_DIMS=0 LN_SCALE=1 XSA_LAYERS=4 \
+EMA_DECAY=0.997 \
+TTT_ENABLED=1 TTT_EPOCHS=7 TTT_LR=0.002 TTT_CHUNK_TOKENS=32768 TTT_BATCH_SEQS=32 \
+EVAL_STRIDE=64 \
+MAX_WALLCLOCK_SECONDS=600 \
+python train_gpt.py 2>&1 | tee /workspace/rund_11L512d_mha_seq2048.log
+
+cp final_model.int6.ptz /workspace/artifact_runD_11L512d_mha_seq2048.ptz 2>/dev/null || true
+echo "Run D complete. Check log for BPB."
+echo ""
+
 echo "=== ALL RUNS COMPLETE ==="
 echo "Check artifacts in /workspace/artifact_run*.ptz"
 echo "Logs in /workspace/run*.log"
