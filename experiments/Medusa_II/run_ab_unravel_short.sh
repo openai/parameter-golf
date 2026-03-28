@@ -8,13 +8,10 @@ export PYTHONPATH="${REPO_ROOT}/flash-attention/hopper:${PYTHONPATH:-}"
 
 SEED="${SEED:-1337}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-8}"
-AB_MAX_WALLCLOCK_SECONDS="${AB_MAX_WALLCLOCK_SECONDS:-180}"
-AB_EMA_START_STEP="${AB_EMA_START_STEP:-0}"
 AB_GPTQ_CALIB_SAMPLES="${AB_GPTQ_CALIB_SAMPLES:-64}"
 AB_GPTQ_CALIB_SEQ_LEN="${AB_GPTQ_CALIB_SEQ_LEN:-1024}"
-AB_VAL_TOKEN_CAP="${AB_VAL_TOKEN_CAP:-2097152}"
+AB_VAL_TOKEN_CAP="${AB_VAL_TOKEN_CAP:-62021632}"
 AB_INCLUDE_NO_LOOP_AWARE="${AB_INCLUDE_NO_LOOP_AWARE:-0}"
-AB_EXIT_ONLY="${AB_EXIT_ONLY:-0}"
 AB_INIT_MODEL_PATH="${AB_INIT_MODEL_PATH:-}"
 AB_CASES="${AB_CASES:-A,B,C}"
 
@@ -22,32 +19,32 @@ mkdir -p logs
 ts="$(date +%Y%m%d_%H%M%S)"
 
 echo "============================================"
-echo "  MEDUSA_II short A/B for unravel debugging"
+echo "  MEDUSA_II finish-only A/B for unravel debugging"
 echo "  seed=${SEED} nproc=${NPROC_PER_NODE}"
-echo "  wallclock=${AB_MAX_WALLCLOCK_SECONDS}s ema_start=${AB_EMA_START_STEP}"
 echo "  gptq_calib_samples=${AB_GPTQ_CALIB_SAMPLES} gptq_calib_seq_len=${AB_GPTQ_CALIB_SEQ_LEN}"
 echo "  val_token_cap=${AB_VAL_TOKEN_CAP}"
-echo "  exit_only=${AB_EXIT_ONLY} init_model_path=${AB_INIT_MODEL_PATH:-<none>}"
+echo "  exit_only=1 init_model_path=${AB_INIT_MODEL_PATH:-<none>}"
 echo "  cases=${AB_CASES}"
 echo "============================================"
 
-if [[ "${AB_EXIT_ONLY}" == "1" && -z "${AB_INIT_MODEL_PATH}" ]]; then
-  echo "AB_EXIT_ONLY=1 requires AB_INIT_MODEL_PATH to be set"
+if [[ -z "${AB_INIT_MODEL_PATH}" ]]; then
+  echo "AB_INIT_MODEL_PATH is required (finish-only mode)."
   exit 2
 fi
 
 run_case() {
   local case_name="$1"
   shift
-  local log="logs/medusa2_ab_short_${case_name}_s${SEED}_${ts}.log"
+  local log="logs/medusa2_ab_finish_${case_name}_s${SEED}_${ts}.log"
+  local summary_pattern="gptq:calibration config|DIAGNOSTIC post_ema|final_int6_roundtrip_exact|final_int6_sliding_window_exact|final_int8_zlib_roundtrip_exact"
   echo
   echo ">>> CASE ${case_name}"
   echo ">>> LOG  ${log}"
 
   env \
     SEED="${SEED}" \
-    MAX_WALLCLOCK_SECONDS="${AB_MAX_WALLCLOCK_SECONDS}" \
-    WARMDOWN_ITERS=500 \
+    MAX_WALLCLOCK_SECONDS=0 \
+    WARMDOWN_ITERS=0 \
     COMPLEMENT_ALPHA=0 \
     XSA_LAST_N=11 \
     BIGRAM_VOCAB_SIZE=2048 \
@@ -66,13 +63,13 @@ run_case() {
     INST_DIM=32 \
     CRAWLER_QUANT_INT8=1 \
     DELTA_NET_HEADS=4 \
-    EMA_START_STEP="${AB_EMA_START_STEP}" \
+    EMA_START_STEP=0 \
     EMA_DECAY=0.99 \
     LOOP_AWARE_GPTQ=1 \
     GPTQ_CALIB_SAMPLES="${AB_GPTQ_CALIB_SAMPLES}" \
     GPTQ_CALIB_SEQ_LEN="${AB_GPTQ_CALIB_SEQ_LEN}" \
     VAL_TOKEN_CAP="${AB_VAL_TOKEN_CAP}" \
-    EXIT_ONLY="${AB_EXIT_ONLY}" \
+    EXIT_ONLY=1 \
     INIT_MODEL_PATH="${AB_INIT_MODEL_PATH}" \
     "$@" \
     torchrun --standalone --nproc_per_node="${NPROC_PER_NODE}" \
@@ -80,7 +77,11 @@ run_case() {
       2>&1 | tee "${log}"
 
   echo ">>> SUMMARY ${case_name}"
-  rg -n "gptq:calibration config|DIAGNOSTIC post_ema|final_int6_roundtrip_exact|final_int6_sliding_window_exact" "${log}" || true
+  if command -v rg >/dev/null 2>&1; then
+    rg -n "${summary_pattern}" "${log}" || true
+  else
+    grep -nE "${summary_pattern}" "${log}" || true
+  fi
 }
 
 if [[ "${AB_CASES}" == *"A"* ]]; then
@@ -105,5 +106,5 @@ fi
 
 echo
 echo "============================================"
-echo "  SHORT A/B DONE"
+echo "  FINISH-ONLY A/B DONE"
 echo "============================================"
