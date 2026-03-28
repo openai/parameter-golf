@@ -1,0 +1,59 @@
+{
+  "github_id": "aerosta",
+  "name": "11L XSA + Mixed INT6 + Adaptive N-gram Cache (2->7 backoff)",
+  "status": "ready_for_submission",
+  "date": "2026-03-27T00:00:00Z",
+  "hardware": "8xH100 SXM",
+  "num_seeds": 3,
+  "val_loss": 1.62612106,
+  "val_bpb": 0.96308303,
+  "best_val_bpb": 0.96269931,
+  "best_seed": 2024,
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.62623055,
+      "val_bpb": 0.96314788,
+      "pre_quant_val_bpb": 1.1369,
+      "sliding_window_val_bpb": 1.12124241,
+      "bytes_total": 15879364,
+      "step_stop": 6892
+    },
+    "42": {
+      "val_loss": 1.62665946,
+      "val_bpb": 0.96340191,
+      "pre_quant_val_bpb": 1.1369,
+      "sliding_window_val_bpb": 1.12125743,
+      "bytes_total": 15884280,
+      "step_stop": 6894
+    },
+    "2024": {
+      "val_loss": 1.62547316,
+      "val_bpb": 0.96269931,
+      "pre_quant_val_bpb": 1.1362,
+      "sliding_window_val_bpb": 1.12043283,
+      "bytes_total": 15884064,
+      "step_stop": 6897
+    }
+  },
+  "pre_quant_val_loss": 1.91930000,
+  "pre_quant_val_bpb": 1.13666667,
+  "sliding_window_val_loss": 1.89271864,
+  "sliding_window_val_bpb": 1.12097756,
+  "step_stop_mean": 6894.33333333,
+  "wallclock_seconds_mean": 600.08833333,
+  "eval_time_seconds_mean": 211.53500000,
+  "bytes_total_mean": 15882569.33333333,
+  "bytes_total_best": 15879364,
+  "bytes_model_int6_lzma_mean": 15785477.33333333,
+  "code_bytes": 97092,
+  "techniques": [
+    "11L transformer",
+    "XSA all layers",
+    "EMA",
+    "Post-training mixed INT6 quantization",
+    "INT6 + LZMA",
+    "Score-first adaptive n-gram cache",
+    "N-gram backoff 2-7",
+    "Sigmoid raw-entropy mixing"
+  ]
+}

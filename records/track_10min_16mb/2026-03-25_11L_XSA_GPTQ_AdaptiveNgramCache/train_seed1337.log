@@ -1,0 +1,85 @@
+W0327 21:40:36.989000 5593 torch/distributed/run.py:803] 
+W0327 21:40:36.989000 5593 torch/distributed/run.py:803] *****************************************
+W0327 21:40:36.989000 5593 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0327 21:40:36.989000 5593 torch/distributed/run.py:803] *****************************************
+logs/e4823f4b-77d9-475b-9523-83b9ff0aaf06.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+ngram_eval:min_order=2 order=7 alpha=0.4 adaptive_alpha=1 adaptive_mode=sigmoid_raw_entropy alpha_min=0.05 alpha_max=0.6 entropy_center=4.0 entropy_scale=2.0 min_count=2 buckets=4194304
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9309 val_bpb:4.1049 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9317 train_time:131ms step_avg:131.07ms
+step:2/20000 train_loss:8.6729 train_time:171ms step_avg:85.62ms
+step:3/20000 train_loss:7.5836 train_time:258ms step_avg:85.83ms
+step:4/20000 train_loss:7.3017 train_time:344ms step_avg:86.10ms
+step:5/20000 train_loss:7.2500 train_time:432ms step_avg:86.45ms
+step:6/20000 train_loss:7.1165 train_time:522ms step_avg:87.01ms
+step:7/20000 train_loss:6.9428 train_time:609ms step_avg:87.00ms
+step:8/20000 train_loss:6.8207 train_time:699ms step_avg:87.39ms
+step:9/20000 train_loss:6.4418 train_time:787ms step_avg:87.40ms
+step:10/20000 train_loss:6.0547 train_time:873ms step_avg:87.32ms
+step:500/20000 train_loss:2.3767 train_time:42967ms step_avg:85.93ms
+step:1000/20000 train_loss:2.2546 train_time:86176ms step_avg:86.18ms
+step:1500/20000 train_loss:2.2044 train_time:129461ms step_avg:86.31ms
+step:2000/20000 train_loss:2.0494 train_time:172858ms step_avg:86.43ms
+step:2500/20000 train_loss:2.1550 train_time:216319ms step_avg:86.53ms
+step:3000/20000 train_loss:2.1452 train_time:259756ms step_avg:86.59ms
+step:3500/20000 train_loss:2.1649 train_time:303193ms step_avg:86.63ms
+step:4000/20000 train_loss:1.9553 train_time:346640ms step_avg:86.66ms
+step:4000/20000 val_loss:2.0471 val_bpb:1.2124 train_time:346698ms step_avg:86.67ms
+step:4500/20000 train_loss:2.1052 train_time:390211ms step_avg:86.71ms
+step:5000/20000 train_loss:2.0902 train_time:433754ms step_avg:86.75ms
+step:5500/20000 train_loss:2.0013 train_time:477462ms step_avg:86.81ms
+step:6000/20000 train_loss:1.9255 train_time:521194ms step_avg:86.87ms
+swa:start step:6250
+late_qat:enabled step:6376 scale:0.1500
+step:6500/20000 train_loss:2.0659 train_time:565337ms step_avg:86.97ms
+step:6892/20000 val_loss:1.9213 val_bpb:1.1379 train_time:600063ms step_avg:87.07ms
+stopping_early: wallclock_cap train_time:600063ms step:6892/20000
+peak memory allocated: 22860 MiB reserved: 23042 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9197 val_bpb:1.1369 eval_time:2067ms
+Serialized model: 106158518 bytes
+Code size: 97092 bytes
+gptq:using post-training mixed int6 quantization without train-data calibration
+selective_prune: 4095296 ±1 candidates, unpruned=15.19MB target=15.149MB
+selective_prune: full ±1 prune=14.16MB
+selective_prune: pruning 322196/4095296 ±1 values (7.9%) to fit 15.149MB
+Serialized model int6+lzma: 15782272 bytes
+Total submission size int6+lzma: 15879364 bytes
+final_int6_roundtrip val_loss:1.9327 val_bpb:1.1447 eval_time:20201ms
+final_int6_roundtrip_exact val_loss:1.93271342 val_bpb:1.14466175
+final_int6_sliding_window val_loss:1.8932 val_bpb:1.1212 stride:64 eval_time:98406ms
+final_int6_sliding_window_exact val_loss:1.89316583 val_bpb:1.12124241
+final_int8_zlib_roundtrip_exact val_loss:1.89316583 val_bpb:1.12124241
+final_int6_sliding_window_ngram_backoff2to7_adapt val_loss:1.6262 val_bpb:0.9631 eval_time:115549ms
+final_int6_sliding_window_ngram_backoff2to7_adapt_exact val_loss:1.62623055 val_bpb:0.96314788
