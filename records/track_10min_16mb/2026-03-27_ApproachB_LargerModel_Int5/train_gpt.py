@@ -51,7 +51,7 @@ class Hyperparameters:
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 590.0))  # Reserve 10s for GPTQ calibration within 600s total
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
@@ -94,7 +94,7 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
-    prune_pct = float(os.environ.get("PRUNE_PCT", 0.02))
+    prune_pct = float(os.environ.get("PRUNE_PCT", 0.03))
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -1498,11 +1498,14 @@ def main() -> None:
                 v[v.abs() < thresh] = 0.0
         if master_process:
             log0(f"pruning:{args.prune_pct*100:.1f}% magnitude pruning applied")
-    # GPTQ calibration
+    # GPTQ calibration — WITHIN training budget (590s train + ~5s calibration < 600s total)
     log0("gptq:calibrating with training data...")
     t_gptq = time.perf_counter()
     gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
-    log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
+    gptq_elapsed = time.perf_counter() - t_gptq
+    total_train_plus_gptq = approx_training_time_ms / 1000.0 + gptq_elapsed
+    log0(f"gptq:calibrated {len(gptq_hessians)} layers in {gptq_elapsed:.1f}s (total train+gptq: {total_train_plus_gptq:.1f}s / 600s)")
+    assert total_train_plus_gptq < 600.0, f"GPTQ calibration exceeded 600s budget: {total_train_plus_gptq:.1f}s"
     quant_result, quant_meta = mixed_quantize_int6_gptq(sd_cpu, {"mlp", "attn"}, gptq_hessians)
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
@@ -1515,6 +1518,8 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
         log0(f"Total submission size int6+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
+        assert quant_file_bytes + code_bytes < 16_000_000, f"ARTIFACT OVER BUDGET: {quant_file_bytes + code_bytes} > 16,000,000"
+        log0(f"artifact_headroom: {16_000_000 - (quant_file_bytes + code_bytes)} bytes remaining")
     if distributed:
         dist.barrier()
     with open("final_model.int6.ptz", "rb") as f:
@@ -1591,6 +1596,9 @@ def main() -> None:
             f"eval_time:{1000.0 * (time.perf_counter() - t_tcal):.0f}ms"
         )
         log0(f"final_ttt_T0.98_exact val_loss:{tcal_val_loss:.8f} val_bpb:{tcal_val_bpb:.8f}")
+        total_eval_time = time.perf_counter() - t_slide
+        log0(f"total_eval_time:{total_eval_time:.1f}s")
+        assert total_eval_time < 600.0, f"EVAL EXCEEDED 600s BUDGET: {total_eval_time:.1f}s"
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
