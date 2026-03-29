@@ -869,14 +869,8 @@ class CausalSelfAttention(nn.Module):
             k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
 
-        # TurboQuant KV cache compression — reduces memory bandwidth during eval
-        layer_idx = getattr(self, '_layer_idx', -1)
-        if _turboquant_caches is not None and layer_idx >= 0 and layer_idx in _turboquant_caches:
-            cache = _turboquant_caches[layer_idx]
-            cache.clear()
-            cache.compress(k, v)
-            k, v = cache.get_kv()
-            k, v = k.to(q.dtype), v.to(q.dtype)
+        # TurboQuant: disabled inline. Useful for sequential KV accumulation (TTT chunks,
+        # XSA cross-sequence) on large models. Wire into TTT loop for final H100 submission.
 
         # XSA: Cross-Sequence Attention
         # Note: XSA is eval-time only. During torch.compile training, _xsa_enabled is False.
@@ -1820,11 +1814,6 @@ def main() -> None:
     if args.enable_optrot:
         restored_sd = reverse_optrot(restored_sd)
     base_model.load_state_dict(restored_sd, strict=(args.mtp_num_heads == 0))
-    # Activate TurboQuant for standard eval (disabled before TTT due to batch size issues)
-    if args.enable_turboquant:
-        global _turboquant_caches
-        head_dim = args.model_dim // args.num_heads
-        _turboquant_caches = {i: TurboQuantCache(head_dim, args.turboquant_bits) for i in range(args.num_layers)}
     # Activate XSA for eval-time cross-sequence attention
     if args.xsa_last_n > 0:
         num_blocks = len(base_model.blocks)
