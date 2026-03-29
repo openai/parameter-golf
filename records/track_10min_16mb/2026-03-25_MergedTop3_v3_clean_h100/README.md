@@ -1,6 +1,6 @@
-# MergedTop3_v3 clean H100 rerun
+# 11L XSA4 + EMA + BigramHash + GPTQ-lite
 
-This folder contains a clean single-seed `track_10min_16mb` submission based on a merged top-stack recipe:
+This folder contains a `track_10min_16mb` submission built from the March 20-22 public 11-layer stack:
 
 - 11 layers
 - XSA on the last 4 layers
@@ -17,9 +17,9 @@ This folder contains a clean single-seed `track_10min_16mb` submission based on 
 - GPTQ-lite clip search
 - `WARMDOWN_ITERS=3500`
 
-## Clean run result
+## Run result
 
-Fresh uninterrupted `8x H100` run completed on 2026-03-25 with:
+Single-seed `8x H100` run completed on 2026-03-25 with:
 
 - `step_stop=5347`
 - `train_time=580.213s`
@@ -46,5 +46,5 @@ This run stayed under both required caps:
 
 ## Notes
 
-- This is a clean single-seed run, not a multi-seed statistical record claim.
+- This is a single-seed run, not a multi-seed statistical record claim.
 - `train_seed1337.log` is the original remote run log recovered after the run.

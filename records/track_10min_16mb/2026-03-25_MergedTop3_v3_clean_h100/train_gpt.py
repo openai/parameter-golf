@@ -1,9 +1,9 @@
 """
-MergedTop3_v3 clean H100 rerun:
-- top3 backbone as the default record recipe
-- top2 zero-parameter tweaks: Partial RoPE + layerwise LN scale
-- top1 post-training tweak: GPTQ-lite int6 clip search
-- strict wallclock buffer for a clean uninterrupted 8x H100 attempt
+11-layer XSA4 + EMA + BigramHash run.
+
+This keeps the public 11-layer stack, adds Partial RoPE and layerwise LN scale,
+uses GPTQ-lite clip search for the int6 export path, and leaves a wallclock
+buffer for a clean 8x H100 run.
 """
 
 from __future__ import annotations
