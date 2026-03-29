@@ -67,12 +67,19 @@ Update:
 - an export-only replay mode is now landed so the next step can reuse the saved `final_model.pt` without retraining
 - a debug-only replay flag now exists: `EXPORT_SKIP_SLIDING_EVAL=1`
 - that flag skips the slow sliding-window submission eval and is intended for same-checkpoint A/B replay work only
+- replay ablations were then measured on the same checkpoint:
+  - `replay_ref`: `1.82064983 -> 2.15605819`, gap `+0.33540836`
+  - `replay_noact`: `1.82064982 -> 2.21586588`, gap `+0.39521606`
+  - `replay_noact_full`: `1.82064982 -> 2.21590301`, gap `+0.39525319`
+- all three replay variants still show `66/66` layers worse than both naive baselines
+- `actorder=False` is worse, and `block_size=d_col` does not materially change the result
+- the next likely bug site is upstream Hessian construction / interpretation, not actorder or block partitioning
 
 Do this next:
-1. run export-only replay from the saved `final_model.pt`
-2. inspect `gptq_layer_diagnostics.json`
-3. if needed, run `actorder=False` / `block_size=d_col` ablations on the same checkpoint
-4. only then rerun `1xH100`
+1. compare `collect_hessians` and Hessian preparation against PRs `#634`, `#1019`, and `#1060`
+2. focus on matrix orientation, normalization, damping, and dead-column handling
+3. keep replaying from the same `final_model.pt` while debugging
+4. only after the gap is sane, rerun `1xH100`
 
 ## Source Of Truth Files
 

@@ -130,7 +130,7 @@ Node: `serv-3340`
   - percentile-naive int6
 - verification in this shell is limited to `py_compile`; no real checkpoint exists in the repo, and this local shell does not have `torch`
 
-### 2026-03-29 replay harness (not rerun from repo shell)
+### 2026-03-29 replay harness
 
 The file now supports export-only replay from an existing checkpoint:
 
@@ -143,9 +143,38 @@ The file now supports export-only replay from an existing checkpoint:
 
 This is specifically to avoid spending more training time when the export path is still wrong.
 
+### 2026-03-29 same-checkpoint replay results
+
+Replay reference (`actorder=1`, `block_size=128`):
+
+- pre-quant EMA exact `1.82064983`
+- roundtrip exact `2.15605819`
+- gap `+0.33540836`
+- `gptq_diag`: worse than legacy row-max on `66/66`, worse than percentile-naive on `66/66`
+
+Replay no-actorder (`actorder=0`, `block_size=128`):
+
+- pre-quant EMA exact `1.82064982`
+- roundtrip exact `2.21586588`
+- gap `+0.39521606`
+- `gptq_diag`: worse than legacy row-max on `66/66`, worse than percentile-naive on `66/66`
+
+Replay no-actorder full-block (`actorder=0`, `block_size=1536`):
+
+- pre-quant EMA exact `1.82064982`
+- roundtrip exact `2.21590301`
+- gap `+0.39525319`
+- `gptq_diag`: worse than legacy row-max on `66/66`, worse than percentile-naive on `66/66`
+
+Interpretation:
+
+- Disabling `actorder` makes the result worse, so `actorder` is not the root cause.
+- Expanding `block_size` to full-width is effectively identical to `block_size=128` once `actorder=0`, so block partitioning is not the root cause either.
+- The remaining bug is systematic and still points upstream of the inner loop, most likely in Hessian construction / interpretation rather than clip search, actorder, or block slicing.
+
 ### Next move
 
-1. Run export-only replay on the saved checkpoint from the latest smoke.
-2. Inspect `gptq_layer_diagnostics*.json`.
-3. If GPTQ is still worse than naive on all or most layers, ablate `actorder=False` and `block_size=d_col` on that same checkpoint.
+1. Compare `collect_hessians` and the PR Hessian path line-by-line against PRs `#634`, `#1019`, and `#1060`.
+2. Focus on matrix orientation, normalization, damping placement, and any dead-column handling.
+3. Keep using export-only replay on the same `final_model.pt` while debugging.
 4. Only after the roundtrip gap is sane, rerun `1xH100`, then `8xH100`.

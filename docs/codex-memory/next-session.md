@@ -44,7 +44,13 @@ What is still missing is the **runtime check on a real checkpoint**.
 Update:
 - that runtime check was run once on server
 - result: GPTQ was worse than both naive baselines on `66/66` layers
-- next step is now replay ablations from the saved `final_model.pt`, not another training rerun
+- replay ablations were then run from the saved `final_model.pt`
+- `replay_ref`: `1.82064983 -> 2.15605819`, gap `+0.33540836`
+- `replay_noact`: `1.82064982 -> 2.21586588`, gap `+0.39521606`
+- `replay_noact_full`: `1.82064982 -> 2.21590301`, gap `+0.39525319`
+- all replay variants still show `66/66` layers worse than both naive baselines
+- `actorder=False` is worse, and `block_size=d_col` does not materially change the result
+- next step is now Hessian-path comparison against the PRs, not another replay ablation or training rerun
 
 ## Required workflow
 
@@ -58,20 +64,17 @@ Update:
 
 ## Concrete debug order
 
-1. Run the export-only A/B on a real checkpoint:
+1. Compare `collect_hessians` and Hessian preparation against PRs `#1060`, `#1019`, and `#634`:
+   - matrix orientation
+   - sample accumulation semantics
+   - normalization / scaling
+   - damping placement
+   - dead-column handling
+2. Keep using the replay diagnostics as the fixed same-checkpoint baseline:
    - legacy row-max int6 reconstruction MSE per layer
    - percentile-naive int6 reconstruction MSE per layer
    - GPTQ reconstruction MSE per layer
-2. Inspect `gptq_layer_diagnostics.json`:
-   - layers where GPTQ is worse than legacy row-max
-   - layers where GPTQ is worse than percentile-naive
-   - `worst_block_start`
-   - `max_block_mse`
-3. Run an ablation only if needed:
-   - `actorder=False`
-   - `block_size=d_col`
-   - optionally reduce calibration samples to probe whether the issue is stable
-4. After correctness is restored:
+3. After correctness is restored:
    - keep the landed PR-style 5-percentile search
    - keep the landed symmetric `[-31, 31]` clamp
    - keep the tightened hook target filtering

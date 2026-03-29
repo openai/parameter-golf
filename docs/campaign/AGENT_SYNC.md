@@ -149,7 +149,13 @@ Safest current conclusion:
 - A PR-grounded repair is now landed locally, but it has **not** been runtime-verified on a real checkpoint yet.
 - The first proof point is still export-only A/B, not more retraining.
 - The first replay after the repair still failed: `gptq_diag` showed GPTQ worse than both naive baselines on all `66/66` layers.
-- That result makes the bug look systematic and points upstream of the inner loop, most likely Hessian construction / interpretation.
+- Same-checkpoint replay ablations are now measured:
+  - replay_ref (`actorder=1`, `block_size=128`): `1.82064983 -> 2.15605819`, gap `+0.33540836`
+  - replay_noact (`actorder=0`, `block_size=128`): `1.82064982 -> 2.21586588`, gap `+0.39521606`
+  - replay_noact_full (`actorder=0`, `block_size=1536`): `1.82064982 -> 2.21590301`, gap `+0.39525319`
+- All three replay variants still show `worse_than_legacy_rowmax=66` and `worse_than_percentile_naive=66`.
+- `actorder=False` is worse, and full-width blocks are effectively identical to `block_size=128` once `actorder=False`.
+- That makes the remaining bug look systematic and upstream of the inner loop, most likely Hessian construction / interpretation rather than actorder or block slicing.
 - An export-only replay mode is now landed so the next checks can reuse a saved `final_model.pt` instead of retraining.
 
 ## Immediate Next Actions
@@ -158,15 +164,14 @@ Safest current conclusion:
    - First debug on the same export path.
 
 2. **Run export-only diagnostics in this order:**
-   - run replay from a saved `final_model.pt`
+   - use the completed replay results above as the current baseline
    - inspect `gptq_layer_diagnostics*.json` from the repaired export path
-   - check layer names where GPTQ is worse than:
-     - legacy row-max int6
-     - percentile-naive int6
-   - if needed, ablate `actorder=False` and `block_size=d_col`
+   - compare `collect_hessians` and Hessian math against the working PR code
+   - focus on orientation, normalization, damping, and dead-column handling
 
 3. **Do not keep hand-debugging the old rewrite.**
    - the PR-grounded loop transplant is already in the local file
+   - the next candidate transplant is the Hessian collection / preparation path, not more loop tinkering
 
 4. **After correctness is restored:**
    - keep the PR-style 5-percentile search

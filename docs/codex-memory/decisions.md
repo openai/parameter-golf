@@ -101,6 +101,13 @@
 - Because no saved checkpoint exists in the repo and this local shell lacks `torch`, the repair is currently code-reviewed and syntax-checked only. The next gate remains same-checkpoint export-only verification.
 - The first server replay after that repair still showed `worse_than_legacy_rowmax=66` and `worse_than_percentile_naive=66`.
 - That makes the remaining bug look systematic, not like a small number of bad layers.
+- Same-checkpoint replay ablations are now measured:
+  - `replay_ref`: `1.82064983 -> 2.15605819`, gap `+0.33540836`
+  - `replay_noact`: `1.82064982 -> 2.21586588`, gap `+0.39521606`
+  - `replay_noact_full`: `1.82064982 -> 2.21590301`, gap `+0.39525319`
+- `actorder=False` made the result worse, so `actorder` is not the root cause.
+- `block_size=1536` was effectively identical to `block_size=128` once `actorder=False`, so block partitioning is not the root cause either.
+- The next debug target should move upstream to Hessian construction / interpretation and away from more inner-loop or block-size tuning.
 - Export-only replay mode is now part of the Session 05b toolchain so future ablations can load `final_model.pt` directly and vary:
   - `GPTQ_ACTORDER`
   - `GPTQ_BLOCK_SIZE`
