@@ -235,9 +235,10 @@ def persist_run_outputs(run_id: str) -> Path:
 
 def resolve_remote_script(script: str) -> str:
     script_path = Path(script)
-    if script_path == Path(REQUESTED_SCRIPT):
-        return str(REMOTE_TRAIN_SCRIPT)
-    if script_path.is_absolute() and script_path.resolve() == LOCAL_SCRIPT_PATH:
+    if script_path.is_absolute():
+        return str(script_path)
+    resolved_local = resolve_local_script_path(script)
+    if resolved_local == LOCAL_SCRIPT_PATH:
         return str(REMOTE_TRAIN_SCRIPT)
     raise ValueError(
         f"Script {script!r} was not mounted into the Modal image. "
@@ -380,6 +381,7 @@ def main(
     extra_env: str = "",
 ) -> None:
     resolved_run_id = run_id or os.environ.get("RUN_ID", f"modal-{uuid.uuid4().hex[:8]}")
+    resolved_script = resolve_remote_script(script)
     env = {key: os.environ[key] for key in FORWARDED_ENV_KEYS if key in os.environ}
     for item in parse_extra_env(extra_env):
         if "=" not in item:
@@ -398,7 +400,7 @@ def main(
 
     result = run_job.remote(
         resolved_run_id,
-        script,
+        resolved_script,
         nproc_per_node,
         command.strip(),
         env,
