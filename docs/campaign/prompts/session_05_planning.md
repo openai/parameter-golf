@@ -53,7 +53,7 @@ Produce a ranked Session 05 implementation plan that improves leaderboard odds b
 - Explain likely contributors to `91.37 ms` vs `83.4 ms`
 - Rank by portability and expected impact
 - Specifically answer: is FA3 the first thing to try?
-- Check if `flash_attn_interface` / `flash_attn` is available in NGC 26.03 container or installable
+- Verify whether `flash_attn_interface` / `flash_attn` is already present in the Pegasus NGC 26.03 container path; if not, estimate portability cost and risk — do not turn this into a package-install session
 - Identify the tensor layout change needed (SDPA uses `B,H,T,D`, FA3 uses `B,T,H,D`)
 
 ### 2. Pre-TTT stack-gap audit
@@ -83,14 +83,16 @@ One concise ranked plan saved to `docs/campaign/artifacts/05_ttt_correctness_aud
 
 ## Tools and skills
 
-Use these tools during the audit:
+Use these if available in your session (prefer but do not require):
 
 - **`/research-engineer`** skill — for structured audit with scientific rigor
-- **`deepwiki` MCP** — `mcp__deepwiki__ask_question` with repo `amrayach/parameter-golf` for codebase questions
-- **`context7` MCP** — for PyTorch / flash_attn library docs if needed
-- **`claude-mem` MCP** — `mcp__plugin_claude-mem_mcp-search__search` to check past decisions and observations
-- **`serena` MCP** — `mcp__plugin_serena_serena__find_symbol` for symbol-level code navigation
-- Use **parallel Agent subagents** (subagent_type=Explore) for comparing code sections across files simultaneously
+- **`deepwiki` MCP** — for codebase questions against `amrayach/parameter-golf`
+- **`context7` MCP** — for PyTorch / flash_attn library docs
+- **MCP search tools** — for checking past decisions and observations if available
+- **Code navigation MCPs** — for symbol-level exploration if available
+- **Parallel Agent subagents** (subagent_type=Explore) — for comparing code sections across files simultaneously
+
+If any MCP or skill is not available, fall back to Grep, Glob, and Read tools.
 
 ## Git conventions
 
