@@ -1,51 +1,85 @@
-# brelt wip on 2xh100 for 20 minutes
+# brelt on 2xh100 for 20 minutes
 
-this is a non-record wip package for **brelt**, a byte-level recurrent latent architecture.
+this package contains a non-record wip run of **brelt** and a same-budget run of the original challenge baseline.
 
-the point here is not to claim a leaderboard result yet.
-the point is to preserve a real high-compute scaling run, keep the exact code and logs in one place, and show that the architecture already has real signs of life even though it is still unfinished.
-
-the main brelt repo, where the broader development is happening, lives here:
+the main brelt repository is here:
 
 - https://github.com/guilhhotina/brelt
 
-that repo is the living project
-this folder is the frozen package for this specific run
+this folder is the frozen package for this specific run.
 
-## what brelt is trying to do
+## architecture
 
-brelt is built around one core bet:
+brelt is a byte-level recurrent latent model.
 
-> a model should not have to think over the full visible byte or token sequence at one flat resolution all the time
+the visible input is a byte stream.
+a local encoder reads bytes and produces local states.
+a learned segmentation module groups bytes into patches.
+each patch is committed into a latent span state.
+a recurrent global latent core mixes those span states.
+a bridge projects the global latent states back into local space.
+a local decoder produces byte predictions.
 
-instead, it tries to:
+the exact `train_gpt.py` snapshot used for this run is included in this folder.
 
-- read raw bytes
-- compress local spans into patch latents
-- run recurrent global mixing over a much shorter internal sequence
-- decode back to byte predictions
-- stay robust under aggressive quantization and tiny artifact budgets
+## components used in this run
 
-in other words, brelt is trying to learn a shorter internal sequence and spend most of the expensive computation there
+- raw byte input reconstructed from the challenge dataset shards
+- local byte encoder
+- learned patch segmentation
+- patch commit into span latents
+- recurrent global latent mixing with shared depth
+- bridge back to byte-local space
+- byte-level decoder and byte-level training objective
+- int8 + zlib export path
+- rotation of weight matrices before quantization
 
-## what this package is
+## ideas used in the architecture
 
-this package captures a **2xh100 / 20-minute** non-record run of brelt, plus a same-budget run of the original challenge baseline for comparison
+### byte-level latent modeling
 
-it is not a record attempt
-the official main track is **10 minutes on 8xh100**
-this is a scaling and diagnosis package
+brelt uses bytes as the causal interface and compresses local spans into latent states.
+this part is closest to byte latent transformer style modeling.
 
-## setup
+reference:
+
+- https://arxiv.org/abs/2412.09871
+
+### shared recurrent depth
+
+the global latent core reuses the same block recurrently instead of using a fully unique deep stack.
+this part is closest to universal transformer style shared depth.
+
+reference:
+
+- https://arxiv.org/abs/1807.03819
+
+### rate-distortion / mdl style pressure
+
+the training setup tries to make the latent stream economically useful.
+latent states should reduce byte prediction cost enough to justify their own modeling cost.
+this is the idea behind the rate controller, latent-rate terms, and segmentation control.
+
+### quantization as part of the training target
+
+the final artifact is expected to survive int8 + zlib compression.
+this run used rotation of weight matrices before quantization in the export path.
+
+reference:
+
+- https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/
+
+## run setup
 
 - track: `non-record-16mb`
 - hardware: `2xh100`
 - wallclock: `1200s`
 - dataset: `fineweb10B_sp1024`
 - train shards: `80`
-- validation: full `fineweb_val_*` split
-- code snapshot: `train_gpt.py` in this folder
-- baseline comparison: original root `train_gpt.py` from the challenge repo, run later on the same machine and budget
+- validation: `fineweb_val_*`
+- world size: `2`
+- brelt code snapshot: `train_gpt.py` in this folder
+- baseline comparison: original root `train_gpt.py` from the challenge repo
 
 ## command used for brelt
 
@@ -53,7 +87,9 @@ this is a scaling and diagnosis package
 PYTORCH_ALLOC_CONF=expandable_segments:True WARMUP_STEPS=5 VAL_LOSS_EVERY=0 TRAIN_LOG_EVERY=25 MAX_WALLCLOCK_SECONDS=1200 RUN_ID=brelt_h100_full BRELT_PROFILE=full ENABLE_COMPILE=0 DATA_PATH=/workspace/parameter-golf/data/datasets/fineweb10B_sp1024 TOKENIZER_PATH=/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model torchrun --standalone --nproc_per_node=2 train_gpt.py
 ```
 
-## brelt result
+## results
+
+### brelt
 
 from `brelt_h100_full.log`:
 
@@ -67,9 +103,7 @@ from `brelt_h100_full.log`:
 - serialized model int8+zlib: `13825009 bytes`
 - total submission size int8+zlib: `13924361 bytes`
 
-## same-budget baseline comparison
-
-the same machine then ran the **original challenge baseline** with no architectural edits, only the same wallclock budget and logging setup
+### same-budget original baseline
 
 from `baseline_h100_original.log`:
 
@@ -82,46 +116,60 @@ from `baseline_h100_original.log`:
 - serialized model int8+zlib: `15803968 bytes`
 - total submission size int8+zlib: `15851654 bytes`
 
-## why this still matters
+## training signals collected
 
-this run did **not** beat the original baseline on the same 2xh100 budget
+### brelt training log
 
-but it still proved a few important things:
+these fields were logged during training:
 
-- recurrent global latent mixing does scale and stays trainable
-- brelt can use large h100 compute and memory without conceptually collapsing
-- the architecture is no longer just an interesting toy
-- the failure mode under scale is much clearer now
+- `train_loss`
+- `train_main_loss`
+- `train_bpb`
+- `active_layers`
+- `patches`
+- `super`
+- `max_patches`
+- `max_super`
+- `avg_patch_len`
+- `boundary_rate`
+- `hard_boundary_rate`
+- `boundary_bias`
+- `latent_rate`
+- `dual_lambda`
+- `lr_scale`
+- `compute_proxy`
+- `max_compute_proxy`
+- `seen_gb`
+- `throughput_mib_s`
+- `train_time`
+- `step_avg`
 
-that failure mode is basically this:
+selected brelt checkpoints from the log:
 
-- segmentation opens too far
-- patch count climbs toward ~190
-- the latent stream becomes too cheap
-- too much compute gets spent on fragmentation instead of useful abstraction
+- step 50: `train_bpb=3.0702`, `patches=94.2`, `latent_rate=0.0056`, `compute_proxy=7995.9`
+- step 100: `train_bpb=2.4546`, `patches=138.7`, `latent_rate=0.0010`, `compute_proxy=17150.0`
+- step 150: `train_bpb=2.2533`, `patches=191.5`, `latent_rate=0.0008`, `compute_proxy=29820.5`
+- step 200: `train_bpb=2.1672`, `patches=187.8`, `latent_rate=0.0005`, `compute_proxy=28783.9`
+- step 225: `train_bpb=2.0566`, `patches=188.7`, `latent_rate=0.0004`, `compute_proxy=29080.9`
+- step 300: `train_bpb=2.0200`, `patches=191.3`, `latent_rate=0.0005`, `compute_proxy=29791.3`
+- step 400: `train_bpb=1.9712`, `patches=186.5`, `latent_rate=0.0011`, `compute_proxy=28402.8`
 
-that is bad for this run, but very good for iteration
-it turns the next version from guessing into diagnosis-driven work
+### baseline training log
 
-## why this is being submitted as wip
+from `baseline_h100_original.log`:
 
-the main repo is where the day-to-day architecture work is happening
+- step 50: `train_loss=4.0518`, `step_avg=169.34ms`
+- step 100: `train_loss=3.3492`, `step_avg=169.72ms`
+- step 200: `train_loss=2.7883`, `step_avg=169.68ms`
+- step 400: `train_loss=2.3708`, `step_avg=169.99ms`
+- final int8+zlib roundtrip: `val_bpb=1.24289631`
 
-this package exists to make one thing easy:
+## files in this package
 
-- review the exact code used
-- inspect the exact logs
-- understand the current scaling behavior
-- keep the experiment archived in the challenge repo
-
-the plan is to come back with a real record attempt later, once the scaling pathology above is addressed properly
-
-## included files
-
-- `README.md` — this summary
-- `submission.json` — metadata for the non-record package
-- `train_gpt.py` — exact brelt code snapshot used for the run
-- `brelt_h100_full.log` — exact brelt training log
-- `baseline_h100_original.log` — exact baseline training log on the same machine and budget
-- `early_baseline.log` — short early baseline probe captured before reordering the runs to put brelt first
-- `requirements.txt` — dependency snapshot used by the challenge repo environment
+- `README.md`
+- `submission.json`
+- `train_gpt.py`
+- `brelt_h100_full.log`
+- `baseline_h100_original.log`
+- `early_baseline.log`
+- `requirements.txt`
