@@ -1,64 +1,75 @@
-# Non-Record Submission: Compiled LeakyReLU2 + Slide64 Eval (1xRTX4090)
+# Compiled LeakyReLU2 + Slide64 Eval (1xRTX4090)
 
-This is a non-record submission for the 16MB track documenting a single-GPU 600-second confirmation run on **1x RTX 4090**. The submission keeps the compiled leaky 9-layer proxy fixed and changes only the evaluation strategy: instead of scoring disjoint 1024-token chunks, it scores the validation set with a sliding window at `EVAL_STRIDE=64`.
+**val_bpb: 1.3321** | **14.86 MB** | **1x RTX 4090** | **600s train + 991s eval**
 
-The final post-quant roundtrip score is **1.33207082 val_bpb** with a total submission artifact size of **14,864,024 bytes**, which is under the 16MB cap.
+This is a non-record 16MB submission documenting a single-GPU confirmation run where the compiled leaky 9-layer proxy is kept fixed and only the evaluation strategy changes. Instead of scoring disjoint 1024-token chunks, the submitted run uses sliding-window evaluation with `EVAL_STRIDE=64`.
 
-This is **not** a leaderboard record claim. The run was not executed on the official 8xH100 setup, and the sliding-window evaluation is much slower than flat evaluation on a single 4090. The point of this submission is to document a reproducible, interesting non-record result and the surrounding sweep that established the eval-side win on this branch.
+This is not a leaderboard record claim. The run was not executed on the official 8xH100 setup, and the eval path is too expensive on a single 4090 to claim contest-ready timing. The point of this submission is to document a reproducible, interesting result and the surrounding March 27 sweep that showed the eval-side win clearly on this branch.
 
-## Key Idea
+## Results
+
+| Run | Eval mode | Pre-quant bpb | Post-quant bpb | Gain vs flat | Eval time | Artifact |
+| --- | --- | --- | --- | --- | --- | --- |
+| `baseline_leaky_wd450_lr028_evalctl_compiled_tb131072_uc600` | flat | `1.3628` | `1.36461125` | baseline | `27.916s` | `14,851,789` |
+| `baseline_leaky_wd450_lr028_slide64_compiled_tb131072_uc600` | slide64 | `1.3303` | **`1.33207082`** | **-0.0325** | `990.944s` | `14,864,024` |
+| `baseline_leaky_wd450_lr028_slide64_dociso_compiled_tb131072_uc600` | slide64 + doc isolation | `1.3390` | `1.34040978` | `-0.0242` | `1009.880s` | `14,861,683` |
+
+The submitted run is `baseline_leaky_wd450_lr028_slide64_compiled_tb131072_uc600`.
+
+## Key Idea: Score With More Context
 
 The training setup is the same compiled leaky baseline used for the current 1x4090 proxy:
 
-1. `MLP_ACTIVATION=leakyrelu2`
-2. `LEAKY_SLOPE=0.5`
-3. `TRAIN_BATCH_TOKENS=131072`
-4. `WARMDOWN_ITERS=450`
-5. `MATRIX_LR=0.028`
-6. `SCALAR_LR=0.028`
-7. `torch.compile` enabled
+- `MLP_ACTIVATION=leakyrelu2`
+- `LEAKY_SLOPE=0.5`
+- `TRAIN_BATCH_TOKENS=131072`
+- `WARMDOWN_ITERS=450`
+- `MATRIX_LR=0.028`
+- `SCALAR_LR=0.028`
+- `torch.compile` enabled
 
-The only scoring change for the best run is:
+The only scoring change for the submitted run is:
 
-1. `EVAL_STRIDE=64`
-2. `EVAL_BATCH_SEQS=32`
+```python
+EVAL_STRIDE = 64
+EVAL_BATCH_SEQS = 32
+```
 
-With `TRAIN_SEQ_LEN=1024`, each validation token is scored once but with much richer left context than the flat baseline.
+With `TRAIN_SEQ_LEN=1024`, each validation token is still scored once, but it is usually scored with much richer left context than in the flat baseline. On this branch, that alone was enough to turn the same 600-second training run from `1.36461125` to `1.33207082` post-quant.
 
-## Best Run
+## Training Architecture
 
-Run ID:
+| Component | Setting |
+| --- | --- |
+| Layers | 9 |
+| Width | 512 |
+| Heads / KV heads | 8 / 4 |
+| MLP | 2x with `leakyrelu2` |
+| Tokenizer | SentencePiece 1024 |
+| Batch | `131072` tokens |
+| Sequence length | `1024` |
+| Wallclock | `600s` |
+| Warmdown | `450` |
+| Optimizer | Muon + Adam, no extra weight decay |
+| Compile | enabled |
 
-- `baseline_leaky_wd450_lr028_slide64_compiled_tb131072_uc600`
+### Best Run Metrics
 
-Key metrics from `train.log`:
-
-- `final_int8_zlib_roundtrip_exact val_bpb`: **1.33207082**
-- `final_int8_zlib_roundtrip_exact val_loss`: **2.24914289**
-- pre-quant eval at stop: **1.3303 val_bpb**, **2.2462 val_loss**
-- `step_stop`: **2301**
-- `wallclock_seconds`: **600.007**
-- `eval_time_seconds`: **990.944**
-- `Total submission size int8+zlib`: **14,864,024 bytes**
-- `Serialized model int8+zlib`: **14,801,183 bytes**
-- `Code size`: **62,841 bytes**
-- peak memory: **2664 MiB allocated / 3224 MiB reserved**
+| Metric | Value |
+| --- | --- |
+| `final_int8_zlib_roundtrip_exact val_bpb` | **`1.33207082`** |
+| `final_int8_zlib_roundtrip_exact val_loss` | `2.24914289` |
+| `step_stop` | `2301` |
+| `wallclock_seconds` | `600.007` |
+| `eval_time_seconds` | `990.944` |
+| `Serialized model int8+zlib` | `14,801,183` |
+| `Code size` | `62,841` |
+| `Total submission size int8+zlib` | `14,864,024` |
+| Peak memory | `2664 MiB allocated / 3224 MiB reserved` |
 
 The `train_gpt.py` included in this folder is the exact source snapshot embedded at the top of the submitted run log.
 
-## Flat Control vs Slide64
-
-The most relevant comparison on this branch is the same training setup evaluated two ways:
-
-| Run | Eval mode | Post-quant val_bpb | Eval time |
-| --- | --- | --- | --- |
-| `baseline_leaky_wd450_lr028_evalctl_compiled_tb131072_uc600` | flat | `1.36461125` | `27.916s` |
-| `baseline_leaky_wd450_lr028_slide64_compiled_tb131072_uc600` | slide64 | **`1.33207082`** | `990.944s` |
-| `baseline_leaky_wd450_lr028_slide64_dociso_compiled_tb131072_uc600` | slide64 + doc isolation | `1.34040978` | `1009.880s` |
-
-So on this compiled leaky proxy, the score win is large and clear, but the runtime cost is also large. That makes this a good non-record submission and a useful reference point for later contest-hardware validation.
-
-## Exact Configuration
+## Run Command
 
 ```bash
 RUN_ID=baseline_leaky_wd450_lr028_slide64_compiled_tb131072_uc600
@@ -97,7 +108,7 @@ Other logged settings of note:
 
 ## Sweep Context
 
-This folder also includes `results.tsv`, the broader experiment table from the March 27 sweep. The main takeaways around this run were:
+This folder also includes `results.tsv`, the broader March 27 experiment table from the same pod workflow. The main takeaways around this run were:
 
 1. Sliding-window evaluation was the first clear 600-second win that held on this branch.
 2. A stricter document-isolated variant still improved over the flat control, but not as much as the plain slide64 run.
