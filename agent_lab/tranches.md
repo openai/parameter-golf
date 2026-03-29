@@ -186,7 +186,7 @@ With the current `10`-layer line, are we getting more value from extra transform
 
 ## T-20260329-C: Width Winner Size Recovery
 
-**Status:** active
+**Status:** completed
 
 **Goal**  
 Take the raw width-biased near-miss, [`AL-20260329-010`](./experiments.tsv), and learn which byte cuts preserve the score best while recovering challenge-valid size.
@@ -231,6 +231,7 @@ Can the `9L / MLP3 / 131072 / kv2` branch be pulled under `16 MB`, and which str
 - [`AL-20260329-012`](./experiments.tsv) (`C1-E3`, `9L / MLP2 / 512 / 131072 / kv2`) produced a much stronger answer: `1.3838`, 14.73 MB, valid, and the new best frontier. This suggests the third MLP notch was the wrong place to spend bytes once the high-step regime was already in place.
 - [`AL-20260329-013`](./experiments.tsv) (`C1-E2`, `9L / MLP3 / DIM448 / 131072 / kv2`) showed that stronger global shrinking can recover much more of the width branch than `DIM480` did. It finished at `1.3915` and 14.19 MB. Useful, but still clearly behind `9L / MLP2`.
 - [`AL-20260329-014`](./experiments.tsv) (`C1-E4`, `8L / MLP3 / 512 / 131072 / kv2`) answered the “drop a layer instead” question. It finished at `1.3921`, but the artifact was still 16.29 MB, so the one-layer cut was not enough and was less effective than dropping one MLP notch.
+- [`AL-20260329-015`](./experiments.tsv) (`C1-E5`, `8L / MLP3 / DIM480 / 131072 / kv2`) showed that two lighter cuts together are better than either fallback cut alone. It landed at `1.3906` and 14.42 MB. Valid, solid, but still not close enough to threaten the `9L / MLP2` winner.
 
 **Current reading**
 
@@ -238,17 +239,17 @@ Can the `9L / MLP3 / 131072 / kv2` branch be pulled under `16 MB`, and which str
 - among global dim trims, `DIM448` is the first one that looks respectable
 - one MLP-notch cut is currently dominating the dim-trim approach on both score and size
 - dropping one layer alone is not the clean byte-saving move
-- the final tranche-C run should answer whether combining the layer cut with a mild dim trim teaches anything beyond the new `9L / MLP2` winner
+- the combined-light-cuts backup is worth remembering, but the clear tranche result is that `9L / MLP2 / 131072` is the right survivor to optimize next
 
 ## T-20260329-D: Slim Winner Optimization Recovery
 
-**Status:** draft only; rewrite after tranche C closes
+**Status:** active
 
 **Goal**  
-Take the most promising smaller candidates from tranche C and ask whether optimization or step-recovery can recover the score lost to size-saving cuts.
+Take the two real tranche-C survivors and ask whether optimization or step-recovery can improve them further, with most of the attention on the new `9L / MLP2` winner.
 
 **Main question**  
-If a slimmer width-oriented model becomes valid but slightly weaker, can learning dynamics recover the difference?
+Is the new valid winner still step-limited or slightly under-tuned, and can the best fallback line be made genuinely competitive?
 
 **Fixed controls**
 
@@ -260,19 +261,24 @@ If a slimmer width-oriented model becomes valid but slightly weaker, can learnin
 
 **Why this tranche exists**
 
-- B1 showed that width was partly step-starved
-- a smaller valid width model might still need different training dynamics than the original depth-biased winner
-- score recovery is now likely to come from optimization, not another blind architectural sweep
+- tranche C already identified the structural winner
+- B1 and tranche C both suggest strong interactions between shape and step count
+- the next informative question is now optimization, not another broad structural sweep
+
+**Anchors**
+
+- primary winner: [`AL-20260329-012`](./experiments.tsv) at `1.3838`, 14.73 MB
+- fallback survivor: [`AL-20260329-015`](./experiments.tsv) at `1.3906`, 14.42 MB
 
 **Planned experiments**
 
 | ID | Shape | Goal | Hypothesis | What it teaches |
 |---|---|---|---|---|
-| `D1-E1` | `9L / MLP3 / DIM480 / batch 98304 / kv2` | More steps on the mild dim-trim candidate | The `DIM480` candidate may keep its width advantage better with even more updates | Whether the most direct size-recovery shape is still step-starved |
-| `D1-E2` | `9L / MLP3 / DIM480 / batch 131072 / kv2 / MATRIX_LR=0.065` | Higher matrix LR on the mild dim-trim candidate | Smaller valid width models may want slightly more aggressive matrix updates | Whether score loss is mostly optimization mismatch |
-| `D1-E3` | `9L / MLP2 / DIM512 / batch 98304 / kv2` | More steps on the one-notch MLP trim | The slimmer MLP candidate may need extra updates more than extra capacity | Whether the MLP cut can be compensated by step count |
-| `D1-E4` | `8L / MLP3 / DIM512 / batch 98304 / kv2` | More steps on the one-layer trim | The one-layer-trim candidate may recover best if we fully lean into the saved compute | Whether sacrificing depth makes sense only when the saved compute is reused |
-| `D1-E5` | `8L / MLP3 / DIM480 / batch 98304 / kv2` | Recover score on the doubly-trimmed candidate | A two-cut candidate may only become competitive once it fully cashes in the compute savings | Whether a smaller valid width model can punch above its apparent size |
+| `D1-E1` | `9L / MLP2 / batch 98304 / kv2` | More steps on the winner | The new winner may still be slightly step-limited inside 600s | Whether the frontier improves by cashing in more updates |
+| `D1-E2` | `9L / MLP2 / batch 131072 / kv2 / MATRIX_LR=0.065` | Slightly higher matrix LR on the winner | The winner may want more aggressive matrix motion without changing its step count | Whether the remaining loss is optimizer mismatch rather than capacity |
+| `D1-E3` | `9L / MLP2 / batch 98304 / kv2 / MATRIX_LR=0.065` | Interaction test on the winner | Extra steps and slightly higher LR may only work together | Whether the winner still has a two-knob optimization gain available |
+| `D1-E4` | `8L / MLP3 / DIM480 / batch 98304 / kv2` | More steps on the best fallback | The smaller backup may look weak only because it has not fully cashed in its saved compute | Whether the fallback line deserves to stay alive |
+| `D1-E5` | `8L / MLP3 / DIM480 / batch 98304 / kv2 / MATRIX_LR=0.065` | Interaction test on the fallback | The backup line may need both more steps and stronger updates to become interesting | Whether the backup is only one combo away from relevance |
 
 **Decision rule for D**
 

@@ -42,25 +42,30 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - The cleaner byte cut is not a global dim trim. `9L / MLP2 / 131072` kept the high-step regime, stayed well under the size cap, and moved the valid frontier to `1.3838`.
 - If a global dim trim is necessary, `DIM448` is the meaningful point, not `DIM480`: it recovered most of the lost score and stayed very small, but it still did not beat the `9L / MLP2` survivor.
 - Dropping one layer is not the cleaner size move here. `8L / MLP3 / 131072` kept decent quality, but it was still over the cap, so the layer cut saved fewer useful bytes than the MLP-notch cut.
+- The best fallback after the winner is the combined-light-cuts line, `8L / MLP3 / DIM480 / 131072`. It is valid and stronger than the other fallback trims, but it still sits well behind `9L / MLP2 / 131072`.
 
 ## Open Questions
 
 - Is `9L / MLP2 / 131072` already the right frontier shape, or can another structural trim beat it?
-- Do the remaining tranche-C runs teach anything useful beyond the new winner, especially about whether one less layer is a cleaner size cut than one less MLP notch?
-- After tranche C closes, does the new winner want more steps, a small LR retune, or another minor size-capacity trade?
+- Does the winner `9L / MLP2 / 131072` still want more steps, a small LR retune, or both together?
+- Is the backup `8L / MLP3 / DIM480 / 131072` merely smaller, or can optimization make it genuinely competitive?
+- Which of those two survivors deserves to anchor the next architecture tranche after optimization is explored?
 
 ## Next Planned Runs
 
-- Tranche C asks one question:
-  Can width-oriented near-misses be made valid by trimming the right structure, not just shrinking everything?
-- Completed:
-- `C1-E1`: `9L / MLP3 / DIM480 / 131072 / kv2` -> valid but weak
-- `C1-E3`: `9L / MLP2 / 512 / 131072 / kv2` -> new best valid frontier
-- `C1-E2`: `9L / MLP3 / DIM448 / 131072 / kv2` -> valid and much stronger than `DIM480`, but still behind `9L / MLP2`
-- `C1-E4`: `8L / MLP3 / 512 / 131072 / kv2` -> respectable score, but still invalid at 16.29 MB
-- Remaining:
-- `C1-E5`: `8L / MLP3 / DIM480 / 131072 / kv2`
-- Tranche D will be rewritten after tranche C finishes so the follow-up runs target the actual survivors instead of the stale draft.
+- Tranche C is complete.
+- Best survivor:
+- `9L / MLP2 / 512 / 131072 / kv2` -> `1.3838`, valid, current frontier
+- Best fallback:
+- `8L / MLP3 / DIM480 / 131072 / kv2` -> `1.3906`, valid, smaller but clearly weaker
+- Tranche D now asks:
+  can optimization improve the two actual survivors, especially the new `9L / MLP2` winner?
+- Planned tranche-D runs:
+- `D1-E1`: `9L / MLP2 / 512 / 98304 / kv2`
+- `D1-E2`: `9L / MLP2 / 512 / 131072 / kv2 / MATRIX_LR=0.065`
+- `D1-E3`: `9L / MLP2 / 512 / 98304 / kv2 / MATRIX_LR=0.065`
+- `D1-E4`: `8L / MLP3 / DIM480 / 98304 / kv2`
+- `D1-E5`: `8L / MLP3 / DIM480 / 98304 / kv2 / MATRIX_LR=0.065`
 
 ## Go Deeper
 

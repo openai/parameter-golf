@@ -50,6 +50,7 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - [`AL-20260329-012`](./experiments.tsv) says a one-notch MLP trim is a much cleaner byte cut; it produced the new best valid frontier at `1.3838`
 - [`AL-20260329-013`](./experiments.tsv) says global dim trimming is not hopeless, but even the stronger `DIM448` version still loses to the one-notch MLP trim
 - [`AL-20260329-014`](./experiments.tsv) says cutting one whole layer is also a weaker byte-saving mechanism than cutting one MLP notch
+- [`AL-20260329-015`](./experiments.tsv) says two lighter cuts together are a respectable backup, but still clearly weaker than the one-notch MLP trim
 
 ### I-20260329-012 - Smaller Valid Width Models Need Different Training Dynamics
 
@@ -61,6 +62,7 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - Related tranche: [`T-20260329-D`](./tranches.md#t-20260329-d-slim-winner-optimization-recovery)
 - Evidence so far:
 - [`AL-20260329-012`](./experiments.tsv) shows one size-recovered width-oriented survivor is already strong enough to deserve direct optimization follow-ups instead of more blind structural cuts
+- [`AL-20260329-015`](./experiments.tsv) keeps a second valid survivor alive, so tranche D can compare “optimize the winner” versus “rescue the backup”
 
 ### I-20260329-004 - Schedule or Optimizer Retune For 10L
 
