@@ -1,0 +1,76 @@
+W0328 20:32:37.654000 731 torch/distributed/run.py:803] 
+W0328 20:32:37.654000 731 torch/distributed/run.py:803] *****************************************
+W0328 20:32:37.654000 731 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0328 20:32:37.654000 731 torch/distributed/run.py:803] *****************************************
+val_tokens:62021633 val_sequences:60568
+grad_accum:2 micro_seqs:32
+MaskedDiffusionLM mask_rate:[0.15,0.85] mask_loss_only:True mask_weight:2.0 bidirectional_train:True masked_eval:True eval_mask_passes:8 eval_mask_rate:0.5
+vocab_size:1024+1(MASK) num_layers:9 model_dim:512 tie_embeddings:True
+step:0/20000 val_loss:6.9305 val_bpb:4.1411 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9315 train_time:28479ms step_avg:28479.35ms
+step:2/20000 train_loss:6.3667 train_time:28546ms step_avg:14273.21ms
+step:3/20000 train_loss:6.3635 train_time:28610ms step_avg:9536.77ms
+step:4/20000 train_loss:6.3412 train_time:28674ms step_avg:7168.55ms
+step:5/20000 train_loss:6.3098 train_time:28738ms step_avg:5747.68ms
+step:6/20000 train_loss:6.2163 train_time:28803ms step_avg:4800.43ms
+step:7/20000 train_loss:6.1439 train_time:28873ms step_avg:4124.65ms
+step:8/20000 train_loss:6.1229 train_time:28937ms step_avg:3617.07ms
+step:9/20000 train_loss:6.1208 train_time:29001ms step_avg:3222.28ms
+step:10/20000 train_loss:6.0869 train_time:29064ms step_avg:2906.43ms
+step:200/20000 train_loss:5.9583 train_time:41282ms step_avg:206.41ms
+step:400/20000 train_loss:4.4271 train_time:54130ms step_avg:135.32ms
+step:600/20000 train_loss:3.8834 train_time:66935ms step_avg:111.56ms
+step:800/20000 train_loss:3.6665 train_time:79774ms step_avg:99.72ms
+step:1000/20000 train_loss:3.7710 train_time:92612ms step_avg:92.61ms
+step:1000/20000 val_loss:3.0055 val_bpb:1.7971 train_time:92615ms step_avg:92.61ms
+step:1200/20000 train_loss:3.6602 train_time:105455ms step_avg:87.88ms
+step:1400/20000 train_loss:3.2075 train_time:118293ms step_avg:84.49ms
+step:1600/20000 train_loss:3.0345 train_time:131191ms step_avg:81.99ms
+step:1800/20000 train_loss:3.4333 train_time:144005ms step_avg:80.00ms
+step:2000/20000 train_loss:3.4987 train_time:156828ms step_avg:78.41ms
+step:2000/20000 val_loss:2.6420 val_bpb:1.5792 train_time:156831ms step_avg:78.42ms
+step:2200/20000 train_loss:3.2776 train_time:169631ms step_avg:77.11ms
+step:2400/20000 train_loss:3.3796 train_time:182458ms step_avg:76.02ms
+step:2600/20000 train_loss:3.0240 train_time:195314ms step_avg:75.12ms
+step:2800/20000 train_loss:2.8875 train_time:208157ms step_avg:74.34ms
+step:3000/20000 train_loss:3.2224 train_time:221013ms step_avg:73.67ms
+step:3000/20000 val_loss:2.5143 val_bpb:1.5019 train_time:221015ms step_avg:73.67ms
+step:3200/20000 train_loss:3.1191 train_time:233876ms step_avg:73.09ms
+step:3400/20000 train_loss:3.0382 train_time:246659ms step_avg:72.55ms
+step:3600/20000 train_loss:3.2007 train_time:259476ms step_avg:72.08ms
+step:3800/20000 train_loss:2.9976 train_time:272300ms step_avg:71.66ms
+step:4000/20000 train_loss:2.9607 train_time:285124ms step_avg:71.28ms
+step:4000/20000 val_loss:2.4289 val_bpb:1.4519 train_time:285126ms step_avg:71.28ms
+step:4200/20000 train_loss:3.0317 train_time:297949ms step_avg:70.94ms
+step:4400/20000 train_loss:3.3083 train_time:310805ms step_avg:70.64ms
+step:4600/20000 train_loss:3.0518 train_time:323713ms step_avg:70.37ms
+step:4800/20000 train_loss:3.1423 train_time:336524ms step_avg:70.11ms
+step:5000/20000 train_loss:2.9900 train_time:349309ms step_avg:69.86ms
+step:5000/20000 val_loss:2.3721 val_bpb:1.4176 train_time:349311ms step_avg:69.86ms
+step:5200/20000 train_loss:2.8920 train_time:362118ms step_avg:69.64ms
+step:5400/20000 train_loss:2.8306 train_time:374934ms step_avg:69.43ms
+step:5600/20000 train_loss:3.1285 train_time:387757ms step_avg:69.24ms
+step:5800/20000 train_loss:2.8615 train_time:400578ms step_avg:69.07ms
+step:6000/20000 train_loss:2.9982 train_time:413366ms step_avg:68.89ms
+step:6000/20000 val_loss:2.3266 val_bpb:1.3903 train_time:413368ms step_avg:68.89ms
+step:6200/20000 train_loss:3.2295 train_time:426304ms step_avg:68.76ms
+step:6400/20000 train_loss:2.9585 train_time:439247ms step_avg:68.63ms
+step:6600/20000 train_loss:2.9522 train_time:452054ms step_avg:68.49ms
+step:6800/20000 train_loss:2.8876 train_time:464855ms step_avg:68.36ms
+step:7000/20000 train_loss:3.0111 train_time:477637ms step_avg:68.23ms
+step:7000/20000 val_loss:2.2877 val_bpb:1.3680 train_time:477639ms step_avg:68.23ms
+step:7200/20000 train_loss:3.0878 train_time:490467ms step_avg:68.12ms
+step:7400/20000 train_loss:2.9180 train_time:503267ms step_avg:68.01ms
+step:7600/20000 train_loss:2.6906 train_time:516039ms step_avg:67.90ms
+step:7800/20000 train_loss:2.8549 train_time:528902ms step_avg:67.81ms
+step:8000/20000 train_loss:2.9519 train_time:541691ms step_avg:67.71ms
+step:8000/20000 val_loss:2.2585 val_bpb:1.3502 train_time:541693ms step_avg:67.71ms
+step:8200/20000 train_loss:3.1172 train_time:554476ms step_avg:67.62ms
+step:8400/20000 train_loss:2.6705 train_time:567254ms step_avg:67.53ms
+step:8600/20000 train_loss:3.2248 train_time:580034ms step_avg:67.45ms
+step:8800/20000 train_loss:3.0938 train_time:592804ms step_avg:67.36ms
+step:8913/20000 val_loss:2.2308 val_bpb:1.3326 train_time:600032ms step_avg:67.32ms
+artifact:13282430 bytes (13.3MB) code:55037 total:13337467 bytes
+/usr/local/lib/python3.12/dist-packages/torch/distributed/distributed_c10d.py:4876: UserWarning: barrier(): using the device under current context. You can specify `device_id` in `init_process_group` to mute this warning.
+  warnings.warn(  # warn only once
+final_int8_roundtrip val_loss:2.2456 val_bpb:1.3423
