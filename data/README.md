@@ -38,6 +38,27 @@ Validation is always downloaded in full from the fixed `fineweb_val_*` split. Tr
 
 The default published repo is `willdepueoai/parameter-golf`, with the export rooted under the repo subdirectory `datasets/`.
 
+### Flat Byte-Shard Repos
+
+Some byte-level repos publish flat shard files at the repo root instead of a manifest-driven export tree. For example, `mistobaan/fineweb10B_bytes` appears to publish `fineweb_train_*.bin` shards directly.
+
+Use `--flat-repo` for that case:
+
+```bash
+python3 data/cached_challenge_fineweb.py \
+  --repo-id mistobaan/fineweb10B_bytes \
+  --remote-root '' \
+  --flat-repo \
+  --variant bytes \
+  --train-shards 80 \
+  --val-from-local /path/to/fineweb10B_bytes
+```
+
+Notes:
+- `--variant bytes` maps to the local dataset directory `data/datasets/fineweb10B_bytes/`.
+- `--remote-root ''` means the `.bin` shards live at the repo root rather than under `datasets/...`.
+- Many flat byte repos publish training shards only. In that case, supply validation with `--val-from-local` from another compatible byte export, or use `--val-repo-id` and `--val-remote-root` to fetch validation from a separate repo/path.
+
 ## Rebuilding Tokenizers From Published Docs
 
 To retrain a tokenizer or re-export shards from exactly the same selected documents, run the standalone retokenizer against the published docs cache:
