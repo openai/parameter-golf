@@ -31,9 +31,17 @@ RESULTS_FILE = os.path.join(PROJECT_DIR, "validation_results.jsonl")
 # Budget estimation
 # ---------------------------------------------------------------------------
 
+
 def estimate_compressed_size(
-    model_dim, num_layers, mlp_mult, num_heads, num_kv_heads,
-    quant_bits, enable_entropy_coding, enable_pruning, prune_fraction,
+    model_dim,
+    num_layers,
+    mlp_mult,
+    num_heads,
+    num_kv_heads,
+    quant_bits,
+    enable_entropy_coding,
+    enable_pruning,
+    prune_fraction,
     vocab_size=1024,
 ):
     head_dim = model_dim // num_heads
@@ -41,22 +49,32 @@ def estimate_compressed_size(
     mlp_hidden = mlp_mult * model_dim
     embed_params = vocab_size * model_dim
     per_layer = (
-        model_dim * model_dim + model_dim * kv_dim + model_dim * kv_dim
-        + model_dim * model_dim + model_dim * mlp_hidden + mlp_hidden * model_dim
-        + model_dim * 5 + num_heads
+        model_dim * model_dim
+        + model_dim * kv_dim
+        + model_dim * kv_dim
+        + model_dim * model_dim
+        + model_dim * mlp_hidden
+        + mlp_hidden * model_dim
+        + model_dim * 5
+        + num_heads
     )
     total_params = embed_params + num_layers * per_layer + model_dim * num_layers
     weight_2d = num_layers * per_layer * 0.95
     weight_1d = num_layers * per_layer * 0.05 + embed_params
     raw_bytes = (weight_2d * quant_bits / 8) + (weight_1d * 8 / 8)
     if enable_pruning:
-        raw_bytes *= (1 - prune_fraction * 0.5)
+        raw_bytes *= 1 - prune_fraction * 0.5
     compression_ratio = 0.70 if enable_entropy_coding else 0.75
     return raw_bytes * compression_ratio + 82_000, total_params
 
 
-def find_max_model(quant_bits, enable_entropy_coding, enable_pruning, prune_fraction,
-                   target_bytes=16_000_000):
+def find_max_model(
+    quant_bits,
+    enable_entropy_coding,
+    enable_pruning,
+    prune_fraction,
+    target_bytes=16_000_000,
+):
     best = None
     for num_layers in [8, 9, 10, 11, 12, 13, 14]:
         for model_dim in [384, 448, 512, 576, 640, 768]:
@@ -68,16 +86,28 @@ def find_max_model(quant_bits, enable_entropy_coding, enable_pruning, prune_frac
                         if num_heads % num_kv_heads != 0:
                             continue
                         size, params = estimate_compressed_size(
-                            model_dim, num_layers, mlp_mult, num_heads, num_kv_heads,
-                            quant_bits, enable_entropy_coding, enable_pruning, prune_fraction,
+                            model_dim,
+                            num_layers,
+                            mlp_mult,
+                            num_heads,
+                            num_kv_heads,
+                            quant_bits,
+                            enable_entropy_coding,
+                            enable_pruning,
+                            prune_fraction,
                         )
                         if size <= target_bytes:
                             if best is None or params > best[1]:
                                 best = (
-                                    dict(num_layers=num_layers, model_dim=model_dim,
-                                         mlp_mult=mlp_mult, num_heads=num_heads,
-                                         num_kv_heads=num_kv_heads),
-                                    params, size,
+                                    dict(
+                                        num_layers=num_layers,
+                                        model_dim=model_dim,
+                                        mlp_mult=mlp_mult,
+                                        num_heads=num_heads,
+                                        num_kv_heads=num_kv_heads,
+                                    ),
+                                    params,
+                                    size,
                                 )
     return best
 
@@ -88,8 +118,14 @@ def find_max_model(quant_bits, enable_entropy_coding, enable_pruning, prune_frac
 
 PENALTY = 10.0
 
-def run_trial(config: dict, max_wallclock: int, iterations: int,
-              label: str = "", skip_compile: bool = False) -> dict:
+
+def run_trial(
+    config: dict,
+    max_wallclock: int,
+    iterations: int,
+    label: str = "",
+    skip_compile: bool = False,
+) -> dict:
     """Run one training+eval and return parsed results dict."""
     # Defaults for 4090
     base = {
@@ -112,26 +148,49 @@ def run_trial(config: dict, max_wallclock: int, iterations: int,
     t0 = time.time()
     try:
         proc = subprocess.run(
-            ["torchrun", "--standalone", "--nproc_per_node=1",
-             os.path.join(PROJECT_DIR, TRAIN_SCRIPT)],
-            env=env, capture_output=True, text=True, timeout=timeout,
+            [
+                "torchrun",
+                "--standalone",
+                "--nproc_per_node=1",
+                os.path.join(PROJECT_DIR, TRAIN_SCRIPT),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
             cwd=PROJECT_DIR,
         )
         elapsed = time.time() - t0
         output = (proc.stdout or "") + "\n" + (proc.stderr or "")
     except subprocess.TimeoutExpired:
-        return {"label": label, "status": "TIMEOUT", "val_bpb": PENALTY,
-                "elapsed": time.time() - t0, "config": config}
+        return {
+            "label": label,
+            "status": "TIMEOUT",
+            "val_bpb": PENALTY,
+            "elapsed": time.time() - t0,
+            "config": config,
+        }
     except KeyboardInterrupt:
         raise
     except Exception as e:
-        return {"label": label, "status": f"EXCEPTION: {e}", "val_bpb": PENALTY,
-                "elapsed": time.time() - t0, "config": config}
+        return {
+            "label": label,
+            "status": f"EXCEPTION: {e}",
+            "val_bpb": PENALTY,
+            "elapsed": time.time() - t0,
+            "config": config,
+        }
 
     if proc.returncode != 0:
         err_lines = (proc.stderr or "").strip().split("\n")[-10:]
-        return {"label": label, "status": "CRASHED", "val_bpb": PENALTY,
-                "elapsed": elapsed, "error": "\n".join(err_lines), "config": config}
+        return {
+            "label": label,
+            "status": "CRASHED",
+            "val_bpb": PENALTY,
+            "elapsed": elapsed,
+            "error": "\n".join(err_lines),
+            "config": config,
+        }
 
     # Parse results
     val_bpb = None
@@ -185,20 +244,21 @@ def load_completed_labels() -> set:
 
 BASELINE_CONFIG = {
     "RUN_ID": "baseline",
-    "NUM_LAYERS": 9, "MODEL_DIM": 512, "MLP_MULT": 2,
-    "NUM_HEADS": 8, "NUM_KV_HEADS": 4,
+    "NUM_LAYERS": 9,
+    "MODEL_DIM": 512,
+    "MLP_MULT": 2,
+    "NUM_HEADS": 8,
+    "NUM_KV_HEADS": 4,
 }
 
 # Each entry: (label, {env_var_overrides})
 TECHNIQUE_TESTS = [
     # --- Baseline ---
     ("baseline", {}),
-
     # --- Activations (mutually exclusive) ---
     ("activation_leaky_relu_squared", {"ACTIVATION": "leaky_relu_squared"}),
     ("activation_star_relu", {"ACTIVATION": "star_relu"}),
     ("activation_polycom", {"ACTIVATION": "polycom"}),
-
     # --- Architecture toggles ---
     ("hybridnorm", {"ENABLE_HYBRIDNORM": 1}),
     ("smeargate", {"ENABLE_SMEARGATE": 1}),
@@ -210,14 +270,12 @@ TECHNIQUE_TESTS = [
     ("xsa_6", {"XSA_LAST_N": 6}),
     ("mtp_1", {"MTP_NUM_HEADS": 1}),
     ("mtp_2", {"MTP_NUM_HEADS": 2}),
-
     # --- Training toggles ---
     ("ema_0.997", {"EMA_DECAY": 0.997}),
     ("ema_0.999", {"EMA_DECAY": 0.999}),
     ("swa", {"ENABLE_SWA": 1}),
     ("qat", {"ENABLE_QAT": 1}),
     ("ema_swa", {"EMA_DECAY": 0.997, "ENABLE_SWA": 1}),
-
     # --- Quantization ---
     ("quant_int6", {"QUANT_BITS": 6}),
     ("quant_int5", {"QUANT_BITS": 5}),
@@ -226,16 +284,20 @@ TECHNIQUE_TESTS = [
     ("pruning_2pct", {"ENABLE_PRUNING": 1, "PRUNE_FRACTION": 0.02}),
     ("entropy_coding", {"ENABLE_ENTROPY_CODING": 1}),
     ("optrot_gptq", {"ENABLE_OPTROT": 1, "ENABLE_GPTQ": 1}),
-    ("optrot_gptq_pruning", {"ENABLE_OPTROT": 1, "ENABLE_GPTQ": 1, "ENABLE_PRUNING": 1}),
-
+    (
+        "optrot_gptq_pruning",
+        {"ENABLE_OPTROT": 1, "ENABLE_GPTQ": 1, "ENABLE_PRUNING": 1},
+    ),
     # --- Eval-time (add on top of baseline) ---
     ("ttt", {"ENABLE_TTT": 1}),
     ("ngram", {"ENABLE_NGRAM": 1}),
     ("knn", {"ENABLE_KNN": 1}),
     ("ttt_tempcal", {"ENABLE_TTT": 1, "TTT_TEMP": 0.98}),
     ("ngram_knn", {"ENABLE_NGRAM": 1, "ENABLE_KNN": 1}),
-    ("ttt_ngram_knn", {"ENABLE_TTT": 1, "TTT_TEMP": 0.98, "ENABLE_NGRAM": 1, "ENABLE_KNN": 1}),
-
+    (
+        "ttt_ngram_knn",
+        {"ENABLE_TTT": 1, "TTT_TEMP": 0.98, "ENABLE_NGRAM": 1, "ENABLE_KNN": 1},
+    ),
     # --- Model size variations with int5 ---
     ("int5_11L", {"QUANT_BITS": 5, "NUM_LAYERS": 11}),
     ("int5_11L_mlp3x", {"QUANT_BITS": 5, "NUM_LAYERS": 11, "MLP_MULT": 3}),
@@ -273,7 +335,13 @@ def run_validation(max_wallclock: int, iterations: int, skip_compile: bool = Tru
         print(f"  Running...", end="", flush=True)
 
         try:
-            result = run_trial(config, max_wallclock, iterations, label=label, skip_compile=skip_compile)
+            result = run_trial(
+                config,
+                max_wallclock,
+                iterations,
+                label=label,
+                skip_compile=skip_compile,
+            )
         except KeyboardInterrupt:
             print(f"\n\nInterrupted at trial {done}/{total} ({label})")
             print(f"Completed {done-1} trials. Re-run to resume.")
@@ -327,8 +395,13 @@ def run_validation(max_wallclock: int, iterations: int, skip_compile: bool = Tru
 # Optuna search mode
 # ---------------------------------------------------------------------------
 
-def optuna_objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int) -> float:
-    activation = trial.suggest_categorical("activation", ["relu_squared", "leaky_relu_squared", "star_relu", "polycom"])
+
+def optuna_objective(
+    trial: optuna.Trial, *, max_wallclock: int, iterations: int
+) -> float:
+    activation = trial.suggest_categorical(
+        "activation", ["relu_squared", "leaky_relu_squared", "star_relu", "polycom"]
+    )
     quant_bits = trial.suggest_categorical("quant_bits", [5, 6, 8])
     enable_entropy_coding = trial.suggest_categorical("enable_entropy_coding", [0, 1])
     enable_hybridnorm = trial.suggest_categorical("enable_hybridnorm", [0, 1])
@@ -345,10 +418,18 @@ def optuna_objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int
     enable_optrot = trial.suggest_categorical("enable_optrot", [0, 1])
     enable_gptq = trial.suggest_categorical("enable_gptq", [0, 1])
     enable_pruning = trial.suggest_categorical("enable_pruning", [0, 1])
-    prune_fraction = trial.suggest_float("prune_fraction", 0.01, 0.05) if enable_pruning else 0.0
+    prune_fraction = (
+        trial.suggest_float("prune_fraction", 0.01, 0.05) if enable_pruning else 0.0
+    )
     enable_ttt = trial.suggest_categorical("enable_ttt", [0, 1])
-    ttt_lora_rank = trial.suggest_categorical("ttt_lora_rank", [4, 8, 16]) if enable_ttt else 8
-    ttt_lora_lr = trial.suggest_float("ttt_lora_lr", 0.001, 0.05, log=True) if enable_ttt else 0.01
+    ttt_lora_rank = (
+        trial.suggest_categorical("ttt_lora_rank", [4, 8, 16]) if enable_ttt else 8
+    )
+    ttt_lora_lr = (
+        trial.suggest_float("ttt_lora_lr", 0.001, 0.05, log=True)
+        if enable_ttt
+        else 0.01
+    )
     ttt_temp = trial.suggest_float("ttt_temp", 0.95, 1.0) if enable_ttt else 1.0
     enable_ngram = trial.suggest_categorical("enable_ngram", [0, 1])
     enable_knn = trial.suggest_categorical("enable_knn", [0, 1])
@@ -356,7 +437,9 @@ def optuna_objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int
     scalar_lr = trial.suggest_float("scalar_lr", 0.01, 0.1, log=True)
     muon_momentum = trial.suggest_float("muon_momentum", 0.9, 0.99)
 
-    result = find_max_model(quant_bits, enable_entropy_coding, enable_pruning, prune_fraction)
+    result = find_max_model(
+        quant_bits, enable_entropy_coding, enable_pruning, prune_fraction
+    )
     if result is None:
         return PENALTY
     arch, total_params, est_size = result
@@ -364,7 +447,8 @@ def optuna_objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int
     config = {
         "RUN_ID": f"optuna_t{trial.number}",
         **arch,
-        "ACTIVATION": activation, "QUANT_BITS": quant_bits,
+        "ACTIVATION": activation,
+        "QUANT_BITS": quant_bits,
         "ENABLE_ENTROPY_CODING": int(enable_entropy_coding),
         "ENABLE_HYBRIDNORM": int(enable_hybridnorm),
         "ENABLE_SMEARGATE": int(enable_smeargate),
@@ -372,16 +456,24 @@ def optuna_objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int
         "ENABLE_POPE": int(enable_pope),
         "ENABLE_WAVELET": int(enable_wavelet),
         "ENABLE_VGA": int(enable_vga),
-        "XSA_LAST_N": xsa_last_n, "MTP_NUM_HEADS": mtp_num_heads,
+        "XSA_LAST_N": xsa_last_n,
+        "MTP_NUM_HEADS": mtp_num_heads,
         "EMA_DECAY": ema_decay,
-        "ENABLE_SWA": int(enable_swa), "ENABLE_QAT": int(enable_qat),
-        "ENABLE_OPTROT": int(enable_optrot), "ENABLE_GPTQ": int(enable_gptq),
-        "ENABLE_PRUNING": int(enable_pruning), "PRUNE_FRACTION": prune_fraction,
-        "ENABLE_TTT": int(enable_ttt), "TTT_LORA_RANK": ttt_lora_rank,
-        "TTT_LORA_LR": ttt_lora_lr, "TTT_TEMP": ttt_temp,
-        "ENABLE_NGRAM": int(enable_ngram), "ENABLE_KNN": int(enable_knn),
+        "ENABLE_SWA": int(enable_swa),
+        "ENABLE_QAT": int(enable_qat),
+        "ENABLE_OPTROT": int(enable_optrot),
+        "ENABLE_GPTQ": int(enable_gptq),
+        "ENABLE_PRUNING": int(enable_pruning),
+        "PRUNE_FRACTION": prune_fraction,
+        "ENABLE_TTT": int(enable_ttt),
+        "TTT_LORA_RANK": ttt_lora_rank,
+        "TTT_LORA_LR": ttt_lora_lr,
+        "TTT_TEMP": ttt_temp,
+        "ENABLE_NGRAM": int(enable_ngram),
+        "ENABLE_KNN": int(enable_knn),
         "ENABLE_TURBOQUANT": 1,
-        "MATRIX_LR": matrix_lr, "SCALAR_LR": scalar_lr,
+        "MATRIX_LR": matrix_lr,
+        "SCALAR_LR": scalar_lr,
         "MUON_MOMENTUM": muon_momentum,
     }
 
@@ -401,12 +493,15 @@ def optuna_objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(description="Parameter Golf HPO")
     sub = parser.add_subparsers(dest="command", help="Mode")
 
     # Validate mode
-    val_p = sub.add_parser("validate", help="Test each technique individually against baseline")
+    val_p = sub.add_parser(
+        "validate", help="Test each technique individually against baseline"
+    )
     val_p.add_argument("--max-wallclock", type=int, default=60)
     val_p.add_argument("--iterations", type=int, default=500)
 
@@ -429,20 +524,23 @@ def main():
     args = parser.parse_args()
 
     if args.command == "validate":
-        run_validation(args.max_wallclock, args.iterations, skip_compile=True)
+        run_validation(args.max_wallclock, args.iterations, skip_compile=False)
 
     elif args.command == "search":
         study = optuna.create_study(
-            study_name=args.study_name, storage=args.db,
+            study_name=args.study_name,
+            storage=args.db,
             direction="minimize",
             sampler=TPESampler(multivariate=True, seed=42),
             load_if_exists=True,
         )
         try:
             study.optimize(
-                lambda trial: optuna_objective(trial, max_wallclock=args.max_wallclock,
-                                               iterations=args.iterations),
-                n_trials=args.n_trials, show_progress_bar=True,
+                lambda trial: optuna_objective(
+                    trial, max_wallclock=args.max_wallclock, iterations=args.iterations
+                ),
+                n_trials=args.n_trials,
+                show_progress_bar=True,
             )
         except KeyboardInterrupt:
             print(f"\nInterrupted after {len(study.trials)} trials")
@@ -464,8 +562,10 @@ def main():
                 for k, v in imp.items():
                     print(f"  {k}: {v:.4f}")
             if args.top > 0:
-                for t in sorted(study.trials, key=lambda x: x.value or 99)[:args.top]:
-                    print(f"Trial #{t.number}: val_bpb={t.value:.4f} params={dict(sorted(t.params.items()))}")
+                for t in sorted(study.trials, key=lambda x: x.value or 99)[: args.top]:
+                    print(
+                        f"Trial #{t.number}: val_bpb={t.value:.4f} params={dict(sorted(t.params.items()))}"
+                    )
         else:
             # Show validation results
             if os.path.exists(RESULTS_FILE):
@@ -482,10 +582,18 @@ def main():
                     label = r.get("label", "?")
                     if label == "baseline":
                         baseline_bpb = bpb
-                    delta = f" ({bpb - baseline_bpb:+.4f})" if baseline_bpb and label != "baseline" and bpb < PENALTY else ""
-                    print(f"{label:<30} bpb={bpb:.4f} size={r.get('artifact_size','?')} {r.get('status','?')}{delta}")
+                    delta = (
+                        f" ({bpb - baseline_bpb:+.4f})"
+                        if baseline_bpb and label != "baseline" and bpb < PENALTY
+                        else ""
+                    )
+                    print(
+                        f"{label:<30} bpb={bpb:.4f} size={r.get('artifact_size','?')} {r.get('status','?')}{delta}"
+                    )
             else:
-                print("No validation results yet. Run: python optuna_search.py validate")
+                print(
+                    "No validation results yet. Run: python optuna_search.py validate"
+                )
 
     else:
         parser.print_help()
