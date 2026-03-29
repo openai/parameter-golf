@@ -1,0 +1,9 @@
+{
+  "name": "Turbo-Muon + EngramLite + Parameter Banking + GPTQ Mixed-Precision",
+  "val_bpb": "TODO: 3-seed mean sliding-window bpb from 8xH100 runs",
+  "bytes_total": "TODO: max artifact bytes across 3 seeds",
+  "blurb": "11L/512d GPT with Turbo-Muon (AOL+Polar Express+row_col norm), EngramLite bigram+trigram hash embeddings, U-Net skip connections, ValueEmbedding, SmearGate, SWA+EMA, GPTQ mixed-precision int6/int7 with Hessian sensitivity, brotli+byte-shuffle compression. Built on PR #609.",
+  "author": "mikeapedia",
+  "github_id": "mikeapedia",
+  "date": "2026-03-28"
+}
