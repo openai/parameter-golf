@@ -13,7 +13,7 @@
 
 ## Summary
 
-An 11-layer GPT language model combining six key innovations over the PR #609 baseline, targeting the 16MB artifact budget with zero selective pruning at MLP 3.5x width. Development-run benchmark: **1.1119 val_bpb (sliding window)** on 1xH100.
+An 11-layer GPT language model combining seven key innovations over the PR #609 baseline, targeting the 16MB artifact budget at MLP 3.5x width. Development-run benchmark: **1.1119 val_bpb (sliding window)** on 1xH100.
 
 ## Key Innovations
 
@@ -48,31 +48,49 @@ Reinjects token identity into attention values at deep layers (9, 10). Projects 
 
 `F.pad`-based causal shift blending each token with its predecessor, providing free unigram context at zero attention cost.
 
+### XSA (Cross-Sequence Attention) — All Layers
+
+Efficient XSA applied to all 11 layers (`XSA_LAST_N=11`). Subtracts the self-value projection from attention output via GQA-aware reshape (no `repeat_interleave`), encouraging the model to attend to context rather than the current token's own representation.
+
 ### Mimetic V-O Initialization
 
 Output projections initialized as `O_h = -alpha * V_h` per head (alpha=0.05), creating a small residual-like identity at init for improved early training stability.
 
+### Additional Architecture Details
+
+- **Partial RoPE** — Rotary position embeddings applied to only 16 of 64 head dimensions (`ROPE_DIMS=16`). Remaining dimensions are position-free, giving the model both positional and position-invariant feature channels.
+- **LN Scale** — Layer norm outputs scaled by `1/sqrt(layer_idx + 1)`, stabilizing deeper layers by reducing activation magnitudes proportional to depth.
+- **Logit Softcap** — `softcap * tanh(logits / softcap)` with softcap=30.0 prevents extreme logit values during training.
+- **GQA** — Grouped Query Attention with 8 query heads and 4 KV heads (2:1 grouping), reducing KV cache and parameter count.
+- **Tied Embeddings** — Input and output embeddings share weights, saving parameters.
+- **QK Gain** — Per-head learnable query scaling initialized to 1.5, allowing the model to tune attention sharpness per head.
+
 ### GPTQ Mixed-Precision Quantization
 
-Post-training compression pipeline:
-1. Hessian collection with calibration batches (within training budget via `gptq_reserve_ms=14000`)
-2. Dynamic mixed-precision bit allocation: Hessian trace sensitivity ranks tensor groups, greedy promotion to int7/int6
-3. GPTQ with Cholesky error compensation and column permutation by descending Hessian diagonal
-4. Late QAT (soft-round) activated when LR scale < 15%, with alpha ramping 1 to 16
-5. Selective pruning of low-magnitude quantized values (binary search to fit 16MB)
-6. Brotli + byte-shuffle compression (byte-shuffle groups same-position bytes for better entropy coding)
+Compression pipeline with Hessian collection performed within the 600s training budget (`gptq_reserve_ms=14000` deducted from training wallclock before training begins):
+
+1. **Hessian collection** — 64 calibration batches run through a non-banked model copy to collect per-layer `H = X^T X` approximations, all-reduced across ranks. This runs within the reserved 14s carved from the training budget.
+2. **Dynamic mixed-precision bit allocation** — Base quantization is **int5** for all weight groups. Hessian trace sensitivity ranks tensor groups (by layer × attn/mlp), then a greedy allocator selectively **promotes the most sensitive groups to int6 or int7** until the estimated compressed artifact size approaches the 16MB target minus 2% pruning headroom.
+3. **GPTQ quantization** — Hessian-aware Cholesky error compensation for 2D weight matrices. Columns permuted by descending Hessian diagonal for optimal error propagation. Falls back to percentile search on Cholesky failure.
+4. **Late QAT (soft-round)** — Quantization-aware training activated when LR scale drops below 15%, with soft-round sigmoid alpha ramping 1→16 over the QAT phase. Provides real gradient signal through quantization grid points.
+5. **Selective pruning** — Post-GPTQ, values with `|q| ≤ 2` ranked by reconstruction error impact. Binary search with fast (zlib-1) / real (brotli-11) calibration finds the minimal prune count to fit 16MB.
+6. **Brotli + byte-shuffle compression** — Byte-shuffle preprocessing reorders tensor bytes by significance position before brotli compression (quality=11) for optimal entropy coding.
 
 ## Architecture
 
 | Component | Setting |
 |-----------|---------|
-| Layers | 11 (512d, 8H, 4KV) |
+| Layers | 11 (512d, 8H, 4KV GQA) |
 | MLP | 3.5x with LeakyReLU(0.3)^2 |
+| XSA | All 11 layers |
 | EngramLite | 2 heads x 2 orders, 8192 buckets |
 | Skip connections | U-Net sigmoid-gated |
-| RoPE | Partial (16 dims) |
+| RoPE | Partial (16 of 64 dims) |
+| LN Scale | 1/sqrt(layer+1) |
+| Logit Softcap | 30.0 |
 | ValueEmbedding | Layers 9-10 |
 | SmearGate | Causal shift blending |
+| Embeddings | Tied input/output |
 | Vocab | 1024 BPE, seq 2048 |
 
 ### Optimizer
@@ -130,6 +148,7 @@ LOAD_SNAPSHOT=snapshot_post_hessian.pt torchrun --standalone --nproc_per_node=1 
 - **Base recipe**: [PR #609](https://github.com/openai/parameter-golf/pull/609) (1.1154 bpb baseline)
 - **Muon optimizer**: Inspired by [PR #399](https://github.com/openai/parameter-golf/pull/399) parameter banking approach
 - **LeakyReLU^2**: [PR #493](https://github.com/openai/parameter-golf/pull/493), [PR #518](https://github.com/openai/parameter-golf/pull/518)
+- **XSA**: [PR #265](https://github.com/openai/parameter-golf/pull/265), [PR #287](https://github.com/openai/parameter-golf/pull/287)
 - **SmearGate + BigramHash**: [PR #198](https://github.com/openai/parameter-golf/pull/198) and related submissions
 - **Polar Express coefficients**: Amsel et al. (arXiv:2505.16932)
 - **GPTQ approach**: [PR #634](https://github.com/openai/parameter-golf/pull/634) Hessian-aware quantization
