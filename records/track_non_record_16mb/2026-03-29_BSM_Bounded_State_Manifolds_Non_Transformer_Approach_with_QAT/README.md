@@ -105,8 +105,6 @@ Matrix parameters (2D weight tensors, excluding embeddings) are updated with Muo
 | Seed | 42 |
 | Training data | FineWeb 10B (SP1024 tokenizer) |
 
-Total parameter count before quantization is approximately 75M. After ternary packing and LZMA compression, the serialized model fits within the 16MB budget.
-
 ---
 
 ## Results
