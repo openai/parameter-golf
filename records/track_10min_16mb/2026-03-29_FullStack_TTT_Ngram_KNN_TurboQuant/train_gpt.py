@@ -1605,8 +1605,13 @@ class NgramCache:
         return h
 
     def update(self, tokens):
-        """Update count tables from a list of token ids. CPU→GPU batch transfer."""
-        tok_t = torch.tensor(tokens, dtype=torch.long, device=self.device)
+        """Update count tables. Accepts a GPU tensor or Python list."""
+        tok_t = (
+            tokens
+            if isinstance(tokens, torch.Tensor)
+            else torch.tensor(tokens, dtype=torch.long, device=self.device)
+        )
+        tok_t = tok_t.to(device=self.device, dtype=torch.long)
         n = tok_t.shape[0]
         for order in range(1, self.max_order + 1):
             if n <= order:
@@ -1635,9 +1640,14 @@ class NgramCache:
             )
 
     def predict_batch(self, token_ids, device):
-        """Fully vectorized prediction. token_ids: list of ints (seq_len,).
+        """Fully vectorized prediction. Accepts GPU tensor or Python list.
         Returns (seq_len, vocab) probability tensor on device."""
-        tok_t = torch.tensor(token_ids, dtype=torch.long, device=device)
+        tok_t = (
+            token_ids
+            if isinstance(token_ids, torch.Tensor)
+            else torch.tensor(token_ids, dtype=torch.long, device=device)
+        )
+        tok_t = tok_t.to(device=device, dtype=torch.long)
         seq_len = tok_t.shape[0]
         max_order = self.max_order
         vocab = self.vocab_size
@@ -2431,8 +2441,7 @@ def main() -> None:
                         prevs = x_batch[s]
                         final_probs = model_probs
                         if ngram is not None:
-                            seq_tokens = x_batch[s].tolist()
-                            ng_probs = ngram.predict_batch(seq_tokens, device)
+                            ng_probs = ngram.predict_batch(x_batch[s], device)
                             has_ngram = ng_probs.sum(dim=-1, keepdim=True) > 0
                             alpha = args.ngram_alpha
                             final_probs = torch.where(
@@ -2468,8 +2477,7 @@ def main() -> None:
                         aug_token_count += args.train_seq_len
                         # Update caches AFTER scoring (backward-looking)
                         if ngram is not None:
-                            seq_with_target = x_batch[s].tolist() + [targets[-1].item()]
-                            ngram.update(seq_with_target)
+                            ngram.update(torch.cat([x_batch[s], targets[-1:]]))
                         if knn is not None:
                             knn.add_batch(logits_batch[s].float(), targets, device)
             if dist.is_available() and dist.is_initialized():
