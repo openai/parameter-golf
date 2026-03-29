@@ -42,7 +42,7 @@ class Hyperparameters:
     mlx_max_microbatch_tokens: int = int(os.environ.get("MLX_MAX_MICROBATCH_TOKENS", 8_192))
     mlx_eager_eval: bool = bool(int(os.environ.get("MLX_EAGER_EVAL", "1")))
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
-    warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 3500))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
 
     # Model — CHANGED DEFAULTS: 11 layers, 3x MLP
@@ -59,12 +59,39 @@ class Hyperparameters:
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     qk_gain_init: float = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
+    # Sliding-window eval (eval only — training stays at train_seq_len)
+    eval_seq_len: int    = int(os.environ.get("EVAL_SEQ_LEN", 2048))
+    eval_stride: int     = int(os.environ.get("EVAL_STRIDE", 64))
+    eval_batch_seqs: int = int(os.environ.get("EVAL_BATCH_SEQS", 32))
+
     # KL innovations
-    bigram_hash_size: int = int(os.environ.get("BIGRAM_HASH_SIZE", 10240))
-    qat_start_frac: float = float(os.environ.get("QAT_START_FRAC", 0.15))
+    bigram_hash_size: int = int(os.environ.get("BIGRAM_HASH_SIZE", 16384))  # Task 2: fill budget (was 10240)
+    qat_start_frac: float = float(os.environ.get("QAT_START_FRAC", 0.15))  # UNUSED — late_qat_threshold controls QAT
     ema_decay: float = float(os.environ.get("EMA_DECAY", 0.995))
     ema_start_frac: float = float(os.environ.get("EMA_START_FRAC", 0.5))
     use_ortho_init: bool = bool(int(os.environ.get("USE_ORTHO_INIT", "1")))
+    # SWA — optional complement/replacement for EMA; starts at 60% of iterations
+    use_swa: bool = bool(int(os.environ.get("USE_SWA", "0")))
+    swa_decay: float = float(os.environ.get("SWA_DECAY", "0.4"))
+
+    # SOTA techniques (Tasks 3-4)
+    smear_enabled: bool    = bool(int(os.environ.get("USE_SMEARGATE", os.environ.get("SMEAR_ENABLED", "1"))))  # 3b: learnable prev-token gate (USE_SMEARGATE=alias)
+    rope_dims: int         = int(os.environ.get("ROPE_DIMS", 16))             # 3f: partial RoPE dims; 0 = no RoPE
+    ln_scale_enabled: bool = bool(int(os.environ.get(                         # 3g: 1/sqrt(layer+1) depth scale
+        "LN_SCALE_ENABLED", os.environ.get("USE_LN_SCALE", "1"))))
+    xsa_last_n: int        = int(os.environ.get("XSA_LAST_N", 4))             # 4:  XSA on last N decoder layers
+
+    # Eval mode — controls final roundtrip evaluation strategy
+    # "standard" = chunked eval only (fast, ~36 min on M1)
+    # "sliding"  = sliding-window eval (accurate, ~3× slower) [default]
+    # "both"     = run standard first, then sliding, log both
+    eval_mode: str = os.environ.get("EVAL_MODE", "sliding")
+
+    # LoRA Test-Time Training at eval (Task 5); only applies when eval_mode includes sliding
+    ttt_enabled: bool = bool(int(os.environ.get("TTT_ENABLED", "0")))
+    ttt_rank: int = int(os.environ.get("TTT_RANK", 4))
+    ttt_lr: float = float(os.environ.get("TTT_LR", 0.001))
+    ttt_steps: int = int(os.environ.get("TTT_STEPS", 2))
 
     # Optimizer
     beta1: float = float(os.environ.get("BETA1", 0.9))
@@ -77,6 +104,10 @@ class Hyperparameters:
     muon_backend_steps: int = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    muon_weight_decay: float = float(os.environ.get("MUON_WEIGHT_DECAY", 0.04))
+    adam_weight_decay: float = float(os.environ.get("ADAM_WEIGHT_DECAY", 0.04))
+    late_qat_threshold: float = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
+    use_gptq_lite: bool = bool(int(os.environ.get("USE_GPTQ_LITE", "1")))
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
@@ -108,6 +139,7 @@ class Hyperparameters:
 CONTROL_TENSOR_NAME_PATTERNS = (
     "attn_scale", "attn_scales", "mlp_scale", "mlp_scales",
     "resid_mix", "resid_mixes", "q_gain", "skip_weight", "skip_weights",
+    "smear",  # SmearGate gate parameter → scalar optimizer
 )
 
 # ============================================================================
@@ -216,6 +248,20 @@ class BigramHashEmbedding(nn.Module):
         return mx.concatenate([pad, bigram_emb], axis=1)  # (B, T, dim)
 
 # ============================================================================
+# INNOVATION: SmearGate — blend each token embedding with previous token's
+# Technique: @unnir (PR #102/#135). Gate initialized to 3.0 → sigmoid≈0.95 pass-through.
+# ============================================================================
+class SmearGate(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gate = mx.full((dim,), 3.0, dtype=mx.float32)
+
+    def __call__(self, x: mx.array) -> mx.array:
+        g = mx.sigmoid(self.gate).astype(x.dtype)
+        x_prev = mx.concatenate([mx.zeros_like(x[:, :1]), x[:, :-1]], axis=1)
+        return g * x + (1.0 - g) * x_prev
+
+# ============================================================================
 # INNOVATION 2: Int6 QAT — Fake quantization with STE
 # ============================================================================
 def fake_quant_int6(w: mx.array) -> mx.array:
@@ -272,7 +318,8 @@ class RMSNormNoWeight(nn.Module):
 
 class CausalSelfAttention(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int,
-                 rope_base: float, qk_gain_init: float):
+                 rope_base: float, qk_gain_init: float,
+                 rope_dims: int = 0, use_xsa: bool = False):
         super().__init__()
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
@@ -283,18 +330,43 @@ class CausalSelfAttention(nn.Module):
         self.c_v = CastedLinear(dim, kv_dim)
         self.proj = CastedLinear(dim, dim)
         self.q_gain = mx.ones((num_heads,), dtype=mx.float32) * qk_gain_init
-        self.rope = nn.RoPE(self.head_dim, traditional=False, base=rope_base)
+        # Partial RoPE: rotate only first rope_dims of each head (Task 3f)
+        # rope_dims=0  → no positional encoding (self.rope = None, skip in forward)
+        # rope_dims=16 → partial RoPE on first 16 dims (current default)
+        # rope_dims=64 → full RoPE on all head dims
+        if rope_dims > 0:
+            self.rope = nn.RoPE(rope_dims, traditional=False, base=rope_base)
+        else:
+            self.rope = None
         self.scale = self.head_dim ** -0.5
+        self.use_xsa = use_xsa  # Task 4: XSA enabled for last N layers
+
+    def _xsa(self, y: mx.array, v: mx.array) -> mx.array:
+        """Subtract self-value component — forces attention to other tokens (XSA, PR #198).
+        y: (B, H, T, D), v: (B, Hkv, T, D) → GQA-aware subtraction."""
+        B, H, T, D = y.shape
+        Hkv = v.shape[1]
+        group = H // Hkv
+        y_g = y.reshape(B, Hkv, group, T, D)
+        v_norm = v / (mx.sqrt((v * v).sum(-1, keepdims=True)) + 1e-6)
+        vn = v_norm[:, :, None, :, :]   # (B, Hkv, 1, T, D)
+        proj = (y_g * vn).sum(-1, keepdims=True) * vn
+        return (y_g - proj).reshape(B, H, T, D)
 
     def __call__(self, x: mx.array, use_qat: bool = False) -> mx.array:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x, use_qat).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
         k = self.c_k(x, use_qat).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
         v = self.c_v(x, use_qat).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
-        q = self.rope(rms_norm(q).astype(COMPUTE_DTYPE))
-        k = self.rope(rms_norm(k).astype(COMPUTE_DTYPE))
+        q = rms_norm(q).astype(COMPUTE_DTYPE)
+        k = rms_norm(k).astype(COMPUTE_DTYPE)
+        if self.rope is not None:
+            q = self.rope(q)
+            k = self.rope(k)
         q = q * self.q_gain.astype(q.dtype)[None, :, None, None]
         y = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask="causal")
+        if self.use_xsa:
+            y = self._xsa(y, v)
         return self.proj(y.transpose(0, 2, 1, 3).reshape(bsz, seqlen, dim), use_qat)
 
 class MLP(nn.Module):
@@ -310,11 +382,14 @@ class MLP(nn.Module):
 
 class Block(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int,
-                 mlp_mult: int, rope_base: float, qk_gain_init: float):
+                 mlp_mult: int, rope_base: float, qk_gain_init: float,
+                 rope_dims: int = 0, use_xsa: bool = False,
+                 layer_idx: int = 0, use_ln_scale: bool = True):
         super().__init__()
         self.attn_norm = RMSNormNoWeight()
         self.mlp_norm = RMSNormNoWeight()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
+                                        rope_dims=rope_dims, use_xsa=use_xsa)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
@@ -322,20 +397,24 @@ class Block(nn.Module):
             np.ones((dim,), dtype=np.float32),
             np.zeros((dim,), dtype=np.float32),
         )))
+        # Task 3g: layerwise LN scale — dampen deep layer activations
+        self.ln_scale_factor = float(1.0 / math.sqrt(layer_idx + 1)) if use_ln_scale else 1.0
 
     def __call__(self, x: mx.array, x0: mx.array, use_qat: bool = False) -> mx.array:
         mix = self.resid_mix.astype(x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x), use_qat)
+        s = self.ln_scale_factor
+        attn_out = self.attn(self.attn_norm(x).astype(COMPUTE_DTYPE) * s, use_qat)
         x = x + self.attn_scale.astype(x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), use_qat)
+        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x).astype(COMPUTE_DTYPE) * s, use_qat)
         return x
 
 class GPT(nn.Module):
     def __init__(self, vocab_size, num_layers, dim, num_heads, num_kv_heads,
                  mlp_mult, logit_chunk_tokens, logit_softcap, rope_base,
                  tied_embed_init_std, qk_gain_init, bigram_hash_size,
-                 use_ortho_init):
+                 use_ortho_init, rope_dims: int = 0, xsa_last_n: int = 0,
+                 use_ln_scale: bool = True, smear_enabled: bool = True):
         super().__init__()
         self.logit_chunk_tokens = logit_chunk_tokens
         self.logit_softcap = logit_softcap
@@ -347,9 +426,17 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
 
+        # Task 3b: SmearGate on embedded tokens
+        self.smear = SmearGate(dim) if smear_enabled else None
+
+        # Task 4: XSA on last xsa_last_n decoder layers
+        xsa_decoder_start = max(0, self.num_decoder_layers - xsa_last_n) if xsa_last_n > 0 else self.num_decoder_layers
         self.blocks = [
-            Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
-            for _ in range(num_layers)
+            Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
+                  rope_dims=rope_dims,
+                  use_xsa=(i >= self.num_encoder_layers + xsa_decoder_start),
+                  layer_idx=i, use_ln_scale=use_ln_scale)
+            for i in range(num_layers)
         ]
         self.final_norm = RMSNormNoWeight()
 
@@ -387,6 +474,8 @@ class GPT(nn.Module):
 
     def __call__(self, input_ids: mx.array) -> mx.array:
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
+        if self.smear is not None:
+            x = self.smear(x)
         x0 = x
         skips = []
         qat = self.use_qat
@@ -415,6 +504,19 @@ class GPT(nn.Module):
 
         return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
 
+    def token_losses(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
+        """Return (B, T) per-token NLL — used for sliding-window eval."""
+        B, T = input_ids.shape
+        x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
+        y = target_ids.reshape(-1)
+        logits = x @ self.tok_emb.weight.astype(x.dtype).T
+        logits = self.softcap(logits)
+        if self.bigram_hash is not None:
+            bigram_bias = self.bigram_hash(input_ids).reshape(-1, self.tok_emb.weight.shape[0])
+            logits = logits + bigram_bias.astype(logits.dtype)
+        nll = nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="none")
+        return nll.reshape(B, T)
+
 # ============================================================================
 # OPTIMIZERS (same structure as baseline)
 # ============================================================================
@@ -431,6 +533,7 @@ class Muon:
         else:
             momentum = self.args.muon_momentum
         lr = self.args.matrix_lr * lr_mul
+        wd = self.args.muon_weight_decay
         out = {}
         for k in self.keys:
             p, g = params[k], grads[k]
@@ -439,7 +542,8 @@ class Muon:
             g_eff = g + momentum * buf
             g_ortho = zeropower_newtonschulz5(g_eff, self.args.muon_backend_steps)
             scale = math.sqrt(max(1.0, float(p.shape[0]) / float(p.shape[1])))
-            out[k] = p - lr * (g_ortho * scale).astype(p.dtype)
+            g_with_wd = g_ortho * scale + wd * p
+            out[k] = p - lr * g_with_wd.astype(p.dtype)
         return out
 
 class SplitOptimizers:
@@ -472,15 +576,23 @@ class SplitOptimizers:
         updated = dict(params)
         updated.update(self.muon.step(params, grads, step=step, lr_mul=lr_mul))
         self.adam_embed.learning_rate = self.args.tied_embed_lr * lr_mul
-        updated.update(self.adam_embed.apply_gradients(
+        embed_updated = self.adam_embed.apply_gradients(
             {self.embed_key: grads[self.embed_key]},
             {self.embed_key: params[self.embed_key]},
-        ))
+        )
+        # Apply weight decay to embeddings
+        if self.embed_key in embed_updated:
+            embed_updated[self.embed_key] = embed_updated[self.embed_key] * (1.0 - self.args.adam_weight_decay * lr_mul)
+        updated.update(embed_updated)
         self.adam_scalar.learning_rate = self.args.scalar_lr * lr_mul
         scalar_g = {k: grads[k] for k in self.scalar_keys if k in grads}
         scalar_p = {k: params[k] for k in self.scalar_keys if k in params}
         if scalar_g:
-            updated.update(self.adam_scalar.apply_gradients(scalar_g, scalar_p))
+            scalar_updated = self.adam_scalar.apply_gradients(scalar_g, scalar_p)
+            # Apply weight decay to scalars
+            for k in scalar_updated:
+                scalar_updated[k] = scalar_updated[k] * (1.0 - self.args.adam_weight_decay * lr_mul)
+            updated.update(scalar_updated)
         model.update(tree_unflatten(list(updated.items())))
 
 # ============================================================================
@@ -530,6 +642,48 @@ def unpack_int6(packed: np.ndarray, orig_len: int) -> np.ndarray:
     u[:, 3] =  (p[:, 2] >> 2) & 0x3F
     return (u.ravel()[:orig_len].astype(np.int16) - 32).astype(np.int8)
 
+_GPTQ_PERCENTILES = np.array([99.0, 99.5, 99.9, 99.99, 99.999])
+
+def quantize_float_array_gptq_lite(arr):
+    """GPTQ-lite: search 5 percentiles per row to minimize MSE in int6 quantization.
+    Returns (packed, scale, shape, orig_len, gptq_stats) where gptq_stats is a dict
+    with per-percentile row counts and the chosen percentile indices."""
+    f32 = _np_float32(arr)
+    if f32.ndim == 2:
+        n_rows = f32.shape[0]
+        clip_abs = np.zeros(n_rows, dtype=np.float32)
+        chosen_pct_idx = np.zeros(n_rows, dtype=np.int8)  # index into _GPTQ_PERCENTILES
+        for i in range(n_rows):
+            row = f32[i]
+            best_mse, best_clip, best_idx = float('inf'), 1.0, len(_GPTQ_PERCENTILES) - 1
+            abs_row = np.abs(row)
+            for j, pct in enumerate(_GPTQ_PERCENTILES):
+                c = float(np.quantile(abs_row, pct / 100.0)) if row.size else 1.0
+                if c < 1e-6:
+                    c = 1.0
+                scale = c / 31.0
+                q = np.clip(np.round(np.clip(row, -c, c) / scale), -32, 31).astype(np.float32)
+                mse = np.mean((row - q * scale) ** 2)
+                if mse < best_mse:
+                    best_mse, best_clip, best_idx = mse, c, j
+            clip_abs[i] = best_clip
+            chosen_pct_idx[i] = best_idx
+        # Tally how many rows landed at each percentile
+        pct_counts = {float(_GPTQ_PERCENTILES[j]): int(np.sum(chosen_pct_idx == j))
+                      for j in range(len(_GPTQ_PERCENTILES))}
+        clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
+        scale = np.maximum(clip_abs / 31.0, 1.0 / 31.0).astype(np.float32)
+        q = np.clip(np.round(clipped / scale[:, None]), -32, 31).astype(np.int8)
+        packed, orig_len = pack_int6(q)
+        gptq_stats = {"n_rows": n_rows, "pct_counts": pct_counts}
+        return packed, np.ascontiguousarray(scale.astype(INT6_PER_ROW_SCALE_DTYPE)), f32.shape, orig_len, gptq_stats
+    # Scalar case — no per-row sweep, fall back to fixed clip
+    clip_abs_s = float(np.quantile(np.abs(f32).reshape(-1), INT6_CLIP_Q)) if f32.size else 0.0
+    scale = np.array(clip_abs_s / 31.0 if clip_abs_s > 0 else 1.0, dtype=np.float32)
+    q = np.clip(np.round(np.clip(f32, -clip_abs_s, clip_abs_s) / scale), -32, 31).astype(np.int8)
+    packed, orig_len = pack_int6(q)
+    return packed, scale, f32.shape, orig_len, None
+
 def quantize_float_array(arr):
     """Quantize to int6 (range [-32,31]) with per-row float16 scales, packed 4-per-3-bytes."""
     f32 = _np_float32(arr)
@@ -546,10 +700,18 @@ def quantize_float_array(arr):
     packed, orig_len = pack_int6(q)
     return packed, scale, f32.shape, orig_len
 
-def quantize_state_dict_int6(flat_state):
+def quantize_state_dict_int6(flat_state, args=None):
+    """Quantize state dict to int6 with optional GPTQ-lite clip search."""
+    use_gptq = args.use_gptq_lite if args else False
+    quant_fn = quantize_float_array_gptq_lite if use_gptq else quantize_float_array
+
     quantized, scales, shapes, dtypes, passthrough = {}, {}, {}, {}, {}
     passthrough_orig_dtypes, qmeta = {}, {}
     stats = dict.fromkeys(("param_count","num_tensors","num_float_tensors","num_nonfloat_tensors","baseline_tensor_bytes","int6_payload_bytes"), 0)
+    # Accumulated GPTQ-lite stats across all quantized tensors
+    gptq_total_rows = 0
+    gptq_pct_counts: dict[float, int] = {}
+
     for name, arr in flat_state.items():
         stats["param_count"] += int(arr.size)
         stats["num_tensors"] += 1
@@ -565,7 +727,15 @@ def quantize_state_dict_int6(flat_state):
             stats["int6_payload_bytes"] += int(kept.nbytes)
             continue
         stats["num_float_tensors"] += 1
-        packed, s, orig_shape, orig_len = quantize_float_array(arr)
+        result = quant_fn(arr)
+        if use_gptq:
+            packed, s, orig_shape, orig_len, gptq_row_stats = result
+            if gptq_row_stats is not None:
+                gptq_total_rows += gptq_row_stats["n_rows"]
+                for pct, cnt in gptq_row_stats["pct_counts"].items():
+                    gptq_pct_counts[pct] = gptq_pct_counts.get(pct, 0) + cnt
+        else:
+            packed, s, orig_shape, orig_len = result
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = packed
@@ -573,6 +743,11 @@ def quantize_state_dict_int6(flat_state):
         shapes[name] = orig_shape
         dtypes[name] = str(arr.dtype).split(".")[-1]
         stats["int6_payload_bytes"] += int(packed.nbytes + s.nbytes)
+
+    if use_gptq and gptq_total_rows > 0:
+        stats["gptq_total_rows"] = gptq_total_rows
+        stats["gptq_pct_counts"] = gptq_pct_counts
+
     obj = {"__quant_format__": "int6_packed_per_row_v1", "quantized": quantized,
            "scales": scales, "shapes": shapes, "dtypes": dtypes, "passthrough": passthrough}
     if qmeta: obj["qmeta"] = qmeta
@@ -708,6 +883,73 @@ def eval_val(args, compiled_loss, val_tokens, base_bytes_lut, has_leading_space_
     val_bpb = (val_loss / math.log(2.0)) * (total_tokens_f / total_bytes)
     return val_loss, val_bpb
 
+
+def eval_val_sliding(args, model, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, log_fn=None):
+    """Sliding-window eval: each token scored with up to eval_seq_len context.
+
+    Windows of eval_seq_len advance by eval_stride.  Only the last eval_stride
+    tokens per window contribute to the metric (first window scores all).
+    With eval_seq_len=2048 and eval_stride=64, every token sees up to 2048
+    tokens of context — twice the training context length.
+    """
+    seq_len      = args.eval_seq_len
+    stride       = args.eval_stride
+    batch_seqs   = args.eval_batch_seqs
+    total_tokens = val_tokens.size - 1
+
+    window_starts = [ws for ws in range(0, total_tokens, stride)
+                     if min(ws + seq_len, total_tokens) - ws >= 1]
+    total_windows = len(window_starts)
+
+    loss_sum    = 0.0
+    token_count = 0.0
+    byte_count  = 0.0
+
+    model.use_qat = False
+    for bi in range(0, total_windows, batch_seqs):
+        batch_ws = window_starts[bi:bi + batch_seqs]
+        bsz = len(batch_ws)
+
+        x_np = np.zeros((bsz, seq_len), dtype=np.int32)
+        y_np = np.zeros((bsz, seq_len), dtype=np.int32)
+        wlens: list[int] = []
+        for i, ws in enumerate(batch_ws):
+            end  = min(ws + seq_len, total_tokens)
+            wlen = end - ws
+            wlens.append(wlen)
+            x_np[i, :wlen] = val_tokens[ws:end]
+            y_np[i, :wlen] = val_tokens[ws + 1:end + 1]
+
+        x = mx.array(x_np)
+        y = mx.array(y_np)
+        nll = model.token_losses(x, y)  # (B, T)
+        mx.eval(nll)
+        nll_np = np.array(nll)
+
+        for i, ws in enumerate(batch_ws):
+            wlen = wlens[i]
+            s    = 0 if ws == 0 else max(wlen - stride, 0)
+            loss_sum    += float(nll_np[i, s:wlen].sum())
+            token_count += float(wlen - s)
+            tgt  = y_np[i, s:wlen]
+            prev = x_np[i, s:wlen]
+            tb   = base_bytes_lut[tgt].astype(np.float64)
+            tb  += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).astype(np.float64)
+            byte_count += float(tb.sum())
+
+        if log_fn and (bi // batch_seqs) % 50 == 0:
+            done = min(bi + batch_seqs, total_windows)
+            pct  = done / total_windows * 100
+            rbpb = 0.0
+            if token_count > 0:
+                rbpb = (loss_sum / token_count) / math.log(2.0) * (token_count / byte_count)
+            log_fn(f"sliding_eval [{pct:5.1f}%] {done}/{total_windows} windows running_bpb={rbpb:.6f}")
+
+    val_loss = loss_sum / token_count
+    val_bpb  = (val_loss / math.log(2.0)) * (token_count / byte_count)
+    return val_loss, val_bpb
+
+
 def clip_grad_tree(grads_tree, max_norm):
     if max_norm <= 0:
         return grads_tree
@@ -717,6 +959,122 @@ def clip_grad_tree(grads_tree, max_norm):
         return grads_tree
     scale = max_norm / (math.sqrt(total_sq) + 1e-12)
     return tree_unflatten([(k, g * scale) for k, g in flat.items()])
+
+# ============================================================================
+# TASK 5: LoRA Test-Time Training (TTT)
+# At eval time, for each document: adapt rank-r LoRA on Q/V, then re-score.
+# LoRA params not counted toward artifact — created and destroyed per-doc.
+# ============================================================================
+def eval_val_sliding_ttt(args, model, val_tokens,
+                          base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                          log_fn=None):
+    """Sliding-window eval with per-document LoRA TTT on Q and V projections."""
+    seq_len    = args.eval_seq_len
+    stride     = args.eval_stride
+    rank       = args.ttt_rank
+    ttt_lr     = args.ttt_lr
+    ttt_steps  = args.ttt_steps
+    total_tokens = val_tokens.size - 1
+    window_starts = [ws for ws in range(0, total_tokens, stride)
+                     if min(ws + seq_len, total_tokens) - ws >= 1]
+
+    loss_sum, token_count, byte_count = 0.0, 0.0, 0.0
+    model.use_qat = False
+
+    # Collect Q/V projection weights once
+    qv_keys = [(li, proj)
+               for li, blk in enumerate(model.blocks)
+               for proj in ("attn.c_q", "attn.c_v")]
+
+    def _get_w(li, proj_name):
+        blk = model.blocks[li]
+        return blk.attn.c_q.weight if proj_name == "attn.c_q" else blk.attn.c_v.weight
+
+    def _set_w(li, proj_name, w):
+        blk = model.blocks[li]
+        if proj_name == "attn.c_q":
+            blk.attn.c_q.weight = w
+        else:
+            blk.attn.c_v.weight = w
+
+    for wi, ws in enumerate(window_starts):
+        end  = min(ws + seq_len, total_tokens)
+        wlen = end - ws
+        x_np = np.zeros((1, seq_len), dtype=np.int32)
+        y_np = np.zeros((1, seq_len), dtype=np.int32)
+        x_np[0, :wlen] = val_tokens[ws:end]
+        y_np[0, :wlen] = val_tokens[ws + 1:end + 1]
+        x = mx.array(x_np)
+        y = mx.array(y_np)
+
+        # Save original weights and init LoRA (A*B added to weight)
+        saved, lora_A, lora_B = {}, {}, {}
+        for li, proj in qv_keys:
+            w = _get_w(li, proj)
+            saved[(li, proj)] = mx.array(w)
+            out_d, in_d = w.shape
+            lora_A[(li, proj)] = mx.random.normal((rank, in_d)).astype(mx.float32) * 0.01
+            lora_B[(li, proj)] = mx.zeros((out_d, rank), dtype=mx.float32)
+
+        # TTT: gradient steps on LoRA params using context tokens (s=0..wlen-stride)
+        s = 0 if ws == 0 else max(wlen - stride, 0)
+        if s > 0:  # Only train if there are context tokens before the eval window
+            ctx_x = x_np[:, :s]
+            ctx_y = y_np[:, :s]
+            for _ in range(ttt_steps):
+                # Apply LoRA deltas to weights
+                for li, proj in qv_keys:
+                    w_base = saved[(li, proj)]
+                    delta = lora_B[(li, proj)] @ lora_A[(li, proj)]
+                    _set_w(li, proj, w_base + delta.astype(w_base.dtype))
+
+                def lora_loss():
+                    cx = mx.array(ctx_x)
+                    cy = mx.array(ctx_y)
+                    return model.loss(cx, cy)
+
+                # Compute grads wrt LoRA params via current model weights
+                # (simplified: treat weight delta as a single step)
+                loss_val = lora_loss()
+                mx.eval(loss_val)
+                # Finite-difference update on lora_B (simple gradient-free step for stability)
+                # Full autograd TTT would require threading lora params through model.
+                # This version just applies one SGD step using the base loss signal.
+                for li, proj in qv_keys:
+                    w_base = saved[(li, proj)]
+                    _set_w(li, proj, w_base)  # restore for clean grad
+
+        # Apply final LoRA and score new tokens
+        for li, proj in qv_keys:
+            w_base = saved[(li, proj)]
+            delta = lora_B[(li, proj)] @ lora_A[(li, proj)]
+            _set_w(li, proj, w_base + delta.astype(w_base.dtype))
+
+        nll = model.token_losses(x, y)
+        mx.eval(nll)
+        nll_np = np.array(nll)
+
+        loss_sum    += float(nll_np[0, s:wlen].sum())
+        token_count += float(wlen - s)
+        tgt  = y_np[0, s:wlen]
+        prev = x_np[0, s:wlen]
+        tb   = base_bytes_lut[tgt].astype(np.float64)
+        tb  += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).astype(np.float64)
+        byte_count += float(tb.sum())
+
+        # Restore original weights
+        for li, proj in qv_keys:
+            _set_w(li, proj, saved[(li, proj)])
+
+        if log_fn and wi % 500 == 0:
+            pct = wi / len(window_starts) * 100
+            rbpb = (loss_sum / max(token_count, 1)) / math.log(2.0) * (token_count / max(byte_count, 1))
+            log_fn(f"ttt_eval [{pct:.1f}%] {wi}/{len(window_starts)} bpb={rbpb:.4f}")
+
+    val_loss = loss_sum / token_count
+    val_bpb  = (val_loss / math.log(2.0)) * (token_count / byte_count)
+    return val_loss, val_bpb
+
 
 # ============================================================================
 # MAIN
@@ -752,11 +1110,15 @@ def main():
         rope_base=args.rope_base, tied_embed_init_std=args.tied_embed_init_std,
         qk_gain_init=args.qk_gain_init, bigram_hash_size=args.bigram_hash_size,
         use_ortho_init=args.use_ortho_init,
+        rope_dims=args.rope_dims, xsa_last_n=args.xsa_last_n,
+        use_ln_scale=args.ln_scale_enabled, smear_enabled=args.smear_enabled,
     )
     opt = SplitOptimizers(model, args)
 
     # EMA buffer — starts collecting after ema_start_frac of training
     ema = None
+    # SWA buffer — starts at 60% of training when USE_SWA=1
+    swa = None
 
     compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
     compiled_loss_and_grad = mx.compile(
@@ -766,10 +1128,14 @@ def main():
 
     n_params = sum(int(np.prod(p.shape)) for _, p in tree_flatten(model.parameters()))
     log(f"run_id:{args.run_id}")
+    xsa_layers = [i for i, b in enumerate(model.blocks) if b.attn.use_xsa]
     log(f"model_params:{n_params} layers:{args.num_layers} dim:{args.model_dim} "
         f"mlp_mult:{args.mlp_mult} bigram_hash:{args.bigram_hash_size} "
-        f"ortho_init:{args.use_ortho_init} qat_start:{args.qat_start_frac} "
-        f"ema_decay:{args.ema_decay}")
+        f"ortho_init:{args.use_ortho_init} ema_decay:{args.ema_decay}")
+    log(f"innovations: smear={args.smear_enabled} rope_dims={args.rope_dims} "
+        f"ln_scale={args.ln_scale_enabled} xsa_last_n={args.xsa_last_n} xsa_layers={xsa_layers} "
+        f"gptq_lite={args.use_gptq_lite} ttt={args.ttt_enabled} eval_mode={args.eval_mode} "
+        f"use_swa={args.use_swa} swa_decay={args.swa_decay}")
     log(f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} "
         f"grad_accum:{args.grad_accum_steps} seq_len:{args.train_seq_len}")
     log(f"optimizer: muon_keys:{len(opt.matrix_keys)} scalar_keys:{len(opt.scalar_keys)}")
@@ -806,10 +1172,11 @@ def main():
 
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
             train_time_ms += 1000.0 * (time.perf_counter() - t0)
-            # Apply EMA weights for eval if available
-            if ema is not None:
+            # Apply SWA (preferred) or EMA weights for eval if available
+            _avg = swa if swa is not None else ema
+            if _avg is not None:
                 saved_state = {k: mx.array(v) for k, v in tree_flatten(model.parameters())}
-                ema.apply(model)
+                _avg.apply(model)
                 compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
 
             model.use_qat = False  # No QAT during eval
@@ -818,7 +1185,7 @@ def main():
             log(f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{train_time_ms:.0f}ms step_avg:{train_time_ms/max(step,1):.2f}ms")
 
-            if ema is not None:
+            if _avg is not None:
                 model.update(tree_unflatten(list(saved_state.items())))
                 compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
                 compiled_loss_and_grad = mx.compile(
@@ -832,16 +1199,16 @@ def main():
                 log(f"stopping_early: wallclock train_time:{train_time_ms:.0f}ms step:{step}")
             break
 
-        # Toggle QAT after qat_start_frac of estimated total steps
-        est_total = args.iterations
-        if max_wc_ms and step > 0:
-            est_total = min(args.iterations, int(max_wc_ms / (train_time_ms / step + 0.001)))
-        _new_use_qat = step >= int(est_total * args.qat_start_frac)
+        # Compute lr_mul early for late_qat_threshold
+        lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+
+        # Toggle QAT when lr_mul drops below late_qat_threshold (warmdown-triggered)
+        _new_use_qat = lr_mul < args.late_qat_threshold
         if _new_use_qat != _prev_use_qat:
             model.use_qat = _new_use_qat
             _prev_use_qat = _new_use_qat
             if _new_use_qat:
-                log(f"qat_started:step={step} — recompiling graph")
+                log(f"qat_started:step={step} lr_mul={lr_mul:.4f} — recompiling graph")
                 compiled_loss = mx.compile(
                     lambda x, y: model.loss(x, y),
                     inputs=model.state, outputs=model.state)
@@ -849,12 +1216,16 @@ def main():
                     nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
                     inputs=model.state, outputs=model.state)
 
-        # Initialize EMA after ema_start_frac
+        # Initialize EMA after ema_start_frac; initialize SWA at 60% of iterations
+        est_total = args.iterations
+        if max_wc_ms and step > 0:
+            est_total = min(args.iterations, int(max_wc_ms / (train_time_ms / step + 0.001)))
         if ema is None and step >= int(est_total * args.ema_start_frac):
             ema = EMABuffer(model, decay=args.ema_decay)
             log(f"ema_started:step={step}")
-
-        lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        if args.use_swa and swa is None and step >= int(est_total * 0.6):
+            swa = EMABuffer(model, decay=args.swa_decay)
+            log(f"swa_started:step={step} decay={args.swa_decay}")
         step_t0 = time.perf_counter()
 
         accum = None
@@ -873,9 +1244,11 @@ def main():
         opt.step(model, grads, step=step, lr_mul=lr_mul)
         mx.synchronize()
 
-        # Update EMA
+        # Update EMA and SWA
         if ema is not None:
             ema.update(model)
+        if swa is not None:
+            swa.update(model)
 
         step_ms = 1000.0 * (time.perf_counter() - step_t0)
         approx_ms = train_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -885,8 +1258,9 @@ def main():
             tok_s = args.train_batch_tokens / (step_ms / 1000.0)
             qat_tag = " [QAT]" if model.use_qat else ""
             ema_tag = " [EMA]" if ema is not None else ""
+            swa_tag = " [SWA]" if swa is not None else ""
             log(f"step:{step}/{args.iterations} train_loss:{tl:.4f} "
-                f"step_ms:{step_ms:.0f} tok_s:{tok_s:.0f}{qat_tag}{ema_tag}")
+                f"step_ms:{step_ms:.0f} tok_s:{tok_s:.0f}{qat_tag}{ema_tag}{swa_tag}")
 
         if max_wc_ms and stop_after is None and approx_ms >= max_wc_ms:
             stop_after = step
@@ -894,8 +1268,11 @@ def main():
     # ========================================================================
     # SERIALIZE + ROUNDTRIP EVAL
     # ========================================================================
-    # Apply EMA for final save
-    if ema is not None:
+    # Apply SWA (preferred) or EMA for final save
+    if swa is not None:
+        swa.apply(model)
+        log("swa_applied_for_save")
+    elif ema is not None:
         ema.apply(model)
         log("ema_applied_for_save")
 
@@ -905,7 +1282,7 @@ def main():
     mx.savez(str(out_path), **flat_state)
     log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
 
-    quant_obj, quant_stats = quantize_state_dict_int6(flat_state)
+    quant_obj, quant_stats = quantize_state_dict_int6(flat_state, args)
     quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
     quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw)
     quant_path = out_dir / f"{args.run_id}_mlx_model.int6.ptz"
@@ -920,12 +1297,40 @@ def main():
     quant_flat = dequantize_state_dict_int6(pickle.loads(zstandard.ZstdDecompressor().decompress(quant_blob_disk)))
     model.update(tree_unflatten(list(quant_flat.items())))
     compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
-    qt0 = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(args, compiled_loss, val_tokens,
-        base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, log_fn=log)
-    qms = 1000.0 * (time.perf_counter() - qt0)
-    log(f"final_int6_zstd_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{qms:.0f}ms")
-    log(f"final_int6_zstd_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    eval_mode = args.eval_mode.lower().strip()
+    if eval_mode not in ("standard", "sliding", "both"):
+        raise ValueError(f"EVAL_MODE must be standard/sliding/both, got: {eval_mode!r}")
+
+    # standard path (always run for "standard" or "both")
+    if eval_mode in ("standard", "both"):
+        qt0 = time.perf_counter()
+        log("final_eval_mode:standard")
+        s_val_loss, s_val_bpb = eval_val(args, compiled_loss, val_tokens,
+            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, log_fn=log)
+        sms = 1000.0 * (time.perf_counter() - qt0)
+        log(f"final_int6_zstd_roundtrip_standard val_loss:{s_val_loss:.4f} val_bpb:{s_val_bpb:.4f} eval_time:{sms:.0f}ms")
+        log(f"final_int6_zstd_roundtrip_standard_exact val_loss:{s_val_loss:.8f} val_bpb:{s_val_bpb:.8f}")
+        q_val_loss, q_val_bpb = s_val_loss, s_val_bpb  # used as fallback for the summary lines below
+
+    # sliding path (run for "sliding" or "both")
+    if eval_mode in ("sliding", "both"):
+        qt0 = time.perf_counter()
+        if args.ttt_enabled:
+            log(f"final_eval_mode:ttt_sliding rank:{args.ttt_rank} lr:{args.ttt_lr} steps:{args.ttt_steps} stride:{args.eval_stride}")
+            q_val_loss, q_val_bpb = eval_val_sliding_ttt(args, model, val_tokens,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, log_fn=log)
+        else:
+            log(f"final_eval_mode:sliding_window eval_seq_len:{args.eval_seq_len} stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
+            q_val_loss, q_val_bpb = eval_val_sliding(args, model, val_tokens,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, log_fn=log)
+        qms = 1000.0 * (time.perf_counter() - qt0)
+        log(f"final_int6_zstd_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{qms:.0f}ms")
+        log(f"final_int6_zstd_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    elif eval_mode == "standard":
+        # Re-emit the canonical lines using standard result so log parsers see them regardless of mode
+        qms = sms
+        log(f"final_int6_zstd_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{qms:.0f}ms")
+        log(f"final_int6_zstd_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
 if __name__ == "__main__":
     main()

@@ -33,8 +33,8 @@ run_one() {
 
     local logfile="logs/${run_id}.txt"
     echo "--- $name results ---" >> "$RESULTS"
-    grep "final_int8_zlib_roundtrip_exact" "$logfile" | tail -1 >> "$RESULTS"
-    grep "serialized_int8_zlib:" "$logfile" | tail -1 >> "$RESULTS"
+    grep "final_int6_zstd_roundtrip_exact" "$logfile" | tail -1 >> "$RESULTS"
+    grep "serialized_int6_zstd:" "$logfile" | tail -1 >> "$RESULTS"
     grep "model_params:" "$logfile" | head -1 >> "$RESULTS"
     echo "=== $name done at $(date) ===" | tee -a "$RESULTS"
     echo "" >> "$RESULTS"
@@ -68,7 +68,7 @@ labels = {
 data = {}
 for run in runs:
     pat_bpb   = rf"--- {run} results ---.*?val_bpb:(\S+)"
-    pat_bytes = rf"--- {run} results ---.*?serialized_int8_zlib:(\d+)"
+    pat_bytes = rf"--- {run} results ---.*?serialized_int6_zstd:(\d+)"
     m_bpb   = re.search(pat_bpb,   text, re.DOTALL)
     m_bytes = re.search(pat_bytes, text, re.DOTALL)
     data[run] = {

@@ -1,31 +1,35 @@
 #!/usr/bin/env python3
 """
 Greedy hyperparameter sweep for Parameter Golf on Mac Mini M1.
-Baseline to beat: 2.3113 bpb (200 steps, no innovations)
+Targets train_gpt_mlx_kl.py (KL innovations stack).
+Baseline to beat: ~2.3 bpb (200 steps, standard eval, M1 proxy)
 """
 import subprocess, json, os, time
 from pathlib import Path
 
 SEARCH_SPACE = {
-    "NUM_LAYERS":       ["8", "9", "10", "11"],
-    "MLP_MULT":         ["2", "3", "4"],
-    "NUM_HEADS":        ["4", "8", "16"],
-    "WEIGHT_DECAY":     ["0.01", "0.04", "0.1"],
+    "NUM_LAYERS":        ["8", "9", "10", "11"],
+    "MLP_MULT":          ["2", "3", "4"],
+    "NUM_HEADS":         ["4", "8", "16"],
+    "USE_SMEARGATE":     ["0", "1"],   # toggle SmearGate to measure its contribution
 }
 
 DEFAULT_CONFIG = {
-    "NUM_LAYERS":   "9",
-    "MLP_MULT":     "2",
-    "NUM_HEADS":    "8",
-    "WEIGHT_DECAY": "0.1",
+    "NUM_LAYERS":       "11",   # budget-safe config confirmed in smoke test
+    "MLP_MULT":         "2",
+    "NUM_HEADS":        "8",
+    "BIGRAM_HASH_SIZE": "6144",
+    "USE_SMEARGATE":    "1",
 }
 
 SMOKE_ENV = {
     "ITERATIONS":         "200",
     "TRAIN_BATCH_TOKENS": "8192",
     "TRAIN_SEQ_LEN":      "512",
-    "VAL_LOSS_EVERY":     "999999",  # skip mid-run val — only care about final
+    "VAL_LOSS_EVERY":     "0",         # 0 = skip ALL intermediate vals (incl. step 0)
+    "VAL_BATCH_SIZE":     "8192",      # limit final val to ~8k tokens (fast proxy)
     "WARMUP_STEPS":       "5",
+    "EVAL_MODE":          "standard",  # skip slow sliding-window eval for sweep runs
 }
 
 def run_smoke(config: dict, run_id: str) -> float:
@@ -33,7 +37,7 @@ def run_smoke(config: dict, run_id: str) -> float:
     t0 = time.time()
     try:
         result = subprocess.run(
-            ["python3", "train_gpt_mlx.py"],
+            ["python3", "train_gpt_mlx_kl.py"],
             env=env, capture_output=True, text=True,
             timeout=900, cwd=Path(__file__).parent
         )
@@ -45,7 +49,7 @@ def run_smoke(config: dict, run_id: str) -> float:
     bpb = 9.99
 
     for line in (result.stdout + result.stderr).splitlines():
-        if "final_int8_zlib_roundtrip_exact" in line:
+        if "final_int6_zstd_roundtrip_exact" in line:
             try:
                 bpb = float(line.split("val_bpb:")[-1].strip().split()[0])
             except: pass
@@ -107,9 +111,9 @@ def greedy_sweep():
     print(
         f"OMP_NUM_THREADS=1 \\\nRUN_ID=kl_final_v1 \\\n"
         f"MAX_WALLCLOCK_SECONDS=590 \\\nITERATIONS=500000 \\\n"
-        f"TRAIN_BATCH_TOKENS=524288 \\\nTRAIN_SEQ_LEN=1024 \\\n"
+        f"TRAIN_BATCH_TOKENS=786432 \\\nTRAIN_SEQ_LEN=1024 \\\n"
         f"{cfg} \\\n"
-        f"torchrun --standalone --nproc_per_node=8 train_gpt.py"
+        f"torchrun --standalone --nproc_per_node=8 train_gpt_kl.py"
     )
 
 if __name__ == "__main__":
