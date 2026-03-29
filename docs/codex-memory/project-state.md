@@ -110,6 +110,11 @@ Do not use:
   - export now writes `gptq_layer_diagnostics.json` with per-layer naive-vs-GPTQ MSE and worst-block summaries
   - this repo does not currently contain a saved checkpoint for same-checkpoint replay
   - this local shell does not have `torch`, so verification here only reached `py_compile`
+- **2026-03-29 server replay still failed**
+  - `gptq_diag: worse_than_legacy_rowmax=66 worse_than_percentile_naive=66`
+  - roundtrip exact `2.15604597` vs pre-quant exact `1.82064982`
+  - the remaining failure is systematic
+  - export-only replay mode is now landed so the next ablations can use the saved `final_model.pt` directly
 
 ## What has not happened yet
 

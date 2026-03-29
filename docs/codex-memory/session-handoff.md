@@ -61,8 +61,13 @@ A PR-grounded repair is now landed in `records/track_non_record_16mb/2026-03-29_
 - no saved checkpoint exists in the repo for same-checkpoint export-only replay
 - this local shell does not have `torch`, so verification here stopped at `py_compile`
 
+Update:
+- one server-side replay was run and still failed
+- `gptq_diag` reported GPTQ worse than both naive baselines on all `66/66` layers
+- an export-only replay mode is now landed so the next step can reuse the saved `final_model.pt` without retraining
+
 Do this next:
-1. run same-checkpoint export-only A/B with the repaired code
+1. run export-only replay from the saved `final_model.pt`
 2. inspect `gptq_layer_diagnostics.json`
 3. if needed, run `actorder=False` / `block_size=d_col` ablations on the same checkpoint
 4. only then rerun `1xH100`

@@ -57,6 +57,8 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    export_only_checkpoint = os.environ.get("EXPORT_ONLY_CHECKPOINT", "").strip()
+    export_tag = os.environ.get("EXPORT_TAG", "").strip()
 
     iterations = int(os.environ.get("ITERATIONS", 9000))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -105,6 +107,10 @@ class Hyperparameters:
     rope_dims = 16
     ln_scale = True
     rope_train_seq_len = 1024
+    gptq_calibration_samples = int(os.environ.get("GPTQ_CALIBRATION_SAMPLES", 128))
+    gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
+    gptq_clip_range = int(os.environ.get("GPTQ_CLIP_RANGE", 31))
+    gptq_actorder = bool(int(os.environ.get("GPTQ_ACTORDER", "1")))
 
 
 LOWP_DTYPE = torch.bfloat16
@@ -372,6 +378,13 @@ def _quantization_mse(t: Tensor, q: Tensor, s: Tensor) -> float:
     return float((t.float() - _reconstruct_quantized(q, s)).pow(2).mean().item())
 
 
+def _tagged_output_path(path: str, tag: str) -> str:
+    if not tag:
+        return path
+    p = Path(path)
+    return str(p.with_name(f"{p.stem}_{tag}{p.suffix}"))
+
+
 def quantize_int6_per_row_legacy(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
@@ -631,6 +644,8 @@ def gptq_mixed_quantize_int6(
     int6_cats: set[str],
     hessians: dict[str, Tensor],
     clip_range: int = 31,
+    block_size: int = 128,
+    actorder: bool = True,
 ):
     """Like mixed_quantize_int6, but uses GPTQ for layers with Hessians.
 
@@ -658,7 +673,9 @@ def gptq_mixed_quantize_int6(
             if H is not None and t.ndim == 2:
                 legacy_q, legacy_s = quantize_int6_per_row_legacy(t, clip_range=clip_range)
                 naive_q, naive_s = quantize_int6_per_row(t, clip_range=clip_range)
-                q, s, degraded, gptq_stats = gptq_quantize_layer(t, H, clip_range=clip_range)
+                q, s, degraded, gptq_stats = gptq_quantize_layer(
+                    t, H, block_size=block_size, clip_range=clip_range, actorder=actorder,
+                )
                 legacy_mse = _quantization_mse(t, legacy_q, legacy_s)
                 naive_mse = _quantization_mse(t, naive_q, naive_s)
                 gptq_mse = float(gptq_stats["mse"])
@@ -1433,15 +1450,34 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+    log0(
+        f"gptq_config:samples={args.gptq_calibration_samples} block_size={args.gptq_block_size} "
+        f"clip_range={args.gptq_clip_range} actorder={int(args.gptq_actorder)}"
+    )
+    export_only = bool(args.export_only_checkpoint)
+    log0(
+        f"export_only:{int(export_only)} checkpoint:{args.export_only_checkpoint or '-'} "
+        f"tag:{args.export_tag or '-'}"
+    )
+
+    if export_only:
+        ckpt_path = Path(args.export_only_checkpoint)
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"EXPORT_ONLY_CHECKPOINT not found: {ckpt_path}")
+        log0(f"export_only: loading checkpoint {ckpt_path}")
+        loaded_state = torch.load(str(ckpt_path), map_location="cpu")
+        base_model.load_state_dict(loaded_state, strict=True)
+        del loaded_state
 
     # -----------------------------
     # EMA STATE
     # -----------------------------
-
-    ema_state: dict[str, Tensor] = {
-        name: t.detach().float().clone() for name, t in base_model.state_dict().items()
-    }
-    log0(f"ema:enabled decay={args.ema_decay}")
+    ema_state: dict[str, Tensor] | None = None
+    if not export_only:
+        ema_state = {
+            name: t.detach().float().clone() for name, t in base_model.state_dict().items()
+        }
+        log0(f"ema:enabled decay={args.ema_decay}")
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
@@ -1466,7 +1502,7 @@ def main() -> None:
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
-    if args.warmup_steps > 0:
+    if not export_only and args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
@@ -1500,106 +1536,111 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
-    torch.cuda.synchronize()
-    t0 = time.perf_counter()
-
     step = 0
-    while True:
-        last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
+    if not export_only:
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
 
-        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
-        if should_validate:
-            torch.cuda.synchronize()
-            training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = eval_val(
-                args, model, rank, world_size, device, grad_accum_steps,
-                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                eval_seq_len=effective_eval_seq_len,
-            )
-            log0(
-                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
-                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
-            )
-            torch.cuda.synchronize()
-            t0 = time.perf_counter()
+        while True:
+            last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
-        if last_step:
-            if stop_after_step is not None and step < args.iterations:
-                log0(
-                    f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
-                    f"step:{step}/{args.iterations}"
+            should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+            if should_validate:
+                torch.cuda.synchronize()
+                training_time_ms += 1000.0 * (time.perf_counter() - t0)
+                val_loss, val_bpb = eval_val(
+                    args, model, rank, world_size, device, grad_accum_steps,
+                    val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                    eval_seq_len=effective_eval_seq_len,
                 )
-            break
+                log0(
+                    f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                    f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
+                )
+                torch.cuda.synchronize()
+                t0 = time.perf_counter()
 
-        elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-        scale = lr_mul(step, elapsed_ms)
-        zero_grad_all()
-        train_loss = torch.zeros((), device=device)
-        for micro_step in range(grad_accum_steps):
-            if distributed:
-                model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
-            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            with torch.autocast(device_type="cuda", dtype=LOWP_DTYPE, enabled=True):
-                loss = model(x, y)
-            train_loss += loss.detach()
-            (loss * grad_scale).backward()
-        train_loss /= grad_accum_steps
+            if last_step:
+                if stop_after_step is not None and step < args.iterations:
+                    log0(
+                        f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
+                        f"step:{step}/{args.iterations}"
+                    )
+                break
 
-        frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
-        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
-        for group in optimizer_muon.param_groups:
-            group["momentum"] = muon_momentum
+            elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+            scale = lr_mul(step, elapsed_ms)
+            zero_grad_all()
+            train_loss = torch.zeros((), device=device)
+            for micro_step in range(grad_accum_steps):
+                if distributed:
+                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                with torch.autocast(device_type="cuda", dtype=LOWP_DTYPE, enabled=True):
+                    loss = model(x, y)
+                train_loss += loss.detach()
+                (loss * grad_scale).backward()
+            train_loss /= grad_accum_steps
 
-        for opt in optimizers:
-            for group in opt.param_groups:
-                group["lr"] = group["base_lr"] * scale
+            frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+            muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+            for group in optimizer_muon.param_groups:
+                group["momentum"] = muon_momentum
 
-        if args.grad_clip_norm > 0:
-            torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
-        for opt in optimizers:
-            opt.step()
-        zero_grad_all()
+            for opt in optimizers:
+                for group in opt.param_groups:
+                    group["lr"] = group["base_lr"] * scale
 
-        # EMA update
-        with torch.no_grad():
-            d = args.ema_decay
-            for name, t in base_model.state_dict().items():
-                ema_state[name].mul_(d).add_(t.detach().float(), alpha=1.0 - d)
+            if args.grad_clip_norm > 0:
+                torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+            for opt in optimizers:
+                opt.step()
+            zero_grad_all()
 
-        step += 1
-        approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-        should_log_train = (
-            args.train_log_every > 0
-            and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
-        )
-        if should_log_train:
-            log0(
-                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
-                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+            with torch.no_grad():
+                d = args.ema_decay
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(d).add_(t.detach().float(), alpha=1.0 - d)
+
+            step += 1
+            approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+            should_log_train = (
+                args.train_log_every > 0
+                and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
             )
+            if should_log_train:
+                log0(
+                    f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
+                    f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                )
 
-        reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
-        if distributed and max_wallclock_ms is not None:
-            reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
-            dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
-            reached_cap = bool(reached_cap_tensor.item())
-        if stop_after_step is None and reached_cap:
-            stop_after_step = step
+            reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
+            if distributed and max_wallclock_ms is not None:
+                reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
+                dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
+                reached_cap = bool(reached_cap_tensor.item())
+            if stop_after_step is None and reached_cap:
+                stop_after_step = step
 
-    log0(
-        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
-        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
-    )
+        log0(
+            f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+            f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+        )
+    else:
+        log0("export_only: skipped warmup and training loop")
 
     # -----------------------------
     # APPLY EMA WEIGHTS
     # -----------------------------
 
-    log0("ema:applying EMA weights")
-    avg_state = {name: t.to(dtype=base_model.state_dict()[name].dtype) for name, t in ema_state.items()}
-    del ema_state
-    base_model.load_state_dict(avg_state, strict=True)
-    del avg_state
+    if export_only:
+        log0("export_only: using loaded checkpoint weights directly")
+    else:
+        log0("ema:applying EMA weights")
+        avg_state = {name: t.to(dtype=base_model.state_dict()[name].dtype) for name, t in ema_state.items()}
+        del ema_state
+        base_model.load_state_dict(avg_state, strict=True)
+        del avg_state
 
     # Pre-quant EMA eval
     torch.cuda.synchronize()
@@ -1620,11 +1661,18 @@ def main() -> None:
     # SERIALIZATION + ROUNDTRIP VALIDATION (GPTQ int6 + zstd)
     # -----------------------------
 
+    quant_output_path = _tagged_output_path("final_model.int6.ptz", args.export_tag)
+    diag_output_path = _tagged_output_path("gptq_layer_diagnostics.json", args.export_tag)
+
     if master_process:
-        torch.save(base_model.state_dict(), "final_model.pt")
-        model_bytes = os.path.getsize("final_model.pt")
+        if export_only:
+            model_bytes = os.path.getsize(args.export_only_checkpoint)
+            log0(f"Serialized model: {model_bytes} bytes (reused checkpoint)")
+        else:
+            torch.save(base_model.state_dict(), "final_model.pt")
+            model_bytes = os.path.getsize("final_model.pt")
+            log0(f"Serialized model: {model_bytes} bytes")
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
 
         # --- GPTQ: Hessian collection (rank-0 only) ---
@@ -1632,7 +1680,7 @@ def main() -> None:
         t_hess = time.perf_counter()
         hessians = collect_hessians(
             base_model, args.train_files, device,
-            num_samples=128, seq_len=args.train_seq_len, batch_size=4,
+            num_samples=args.gptq_calibration_samples, seq_len=args.train_seq_len, batch_size=4,
         )
         log0(f"gptq: {len(hessians)} Hessians in {1000*(time.perf_counter()-t_hess):.0f}ms")
 
@@ -1640,7 +1688,12 @@ def main() -> None:
         sd_cpu_r0 = {k: v.detach().cpu().contiguous() for k, v in base_model.state_dict().items()}
         t_quant = time.perf_counter()
         quant_result, quant_meta, gptq_diagnostics = gptq_mixed_quantize_int6(
-            sd_cpu_r0, {"mlp", "attn"}, hessians, clip_range=31,
+            sd_cpu_r0,
+            {"mlp", "attn"},
+            hessians,
+            clip_range=args.gptq_clip_range,
+            block_size=args.gptq_block_size,
+            actorder=args.gptq_actorder,
         )
         log0(f"gptq: quantization in {1000*(time.perf_counter()-t_quant):.0f}ms")
         worse_legacy = [d for d in gptq_diagnostics if d["gptq_worse_than_legacy_rowmax"]]
@@ -1653,9 +1706,9 @@ def main() -> None:
             },
             "layers": gptq_diagnostics,
         }
-        with open("gptq_layer_diagnostics.json", "w", encoding="utf-8") as f:
+        with open(diag_output_path, "w", encoding="utf-8") as f:
             json.dump(diagnostics_payload, f, indent=2, sort_keys=True)
-        log0("gptq: wrote diagnostics to gptq_layer_diagnostics.json")
+        log0(f"gptq: wrote diagnostics to {diag_output_path}")
         if not worse_legacy:
             log0("gptq: no layers worse than legacy row-max int6")
         if worse_legacy:
@@ -1686,7 +1739,7 @@ def main() -> None:
         else:
             quant_blob = zlib.compress(quant_raw, 9)
 
-        with open("final_model.int6.ptz", "wb") as f:
+        with open(quant_output_path, "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = len(quant_blob)
         code_bytes = len(code.encode("utf-8"))
@@ -1707,7 +1760,7 @@ def main() -> None:
     sd_cpu = {k: v.detach().cpu().contiguous() for k, v in base_model.state_dict().items()}
 
     # Roundtrip: decompress + dequantize into fresh eval model (all ranks)
-    with open("final_model.int6.ptz", "rb") as f:
+    with open(quant_output_path, "rb") as f:
         quant_blob_disk = f.read()
     if _COMPRESSOR == "zstd":
         quant_decompressed = zstandard.ZstdDecompressor().decompress(quant_blob_disk)

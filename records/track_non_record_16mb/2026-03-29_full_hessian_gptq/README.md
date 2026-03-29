@@ -130,8 +130,21 @@ Node: `serv-3340`
   - percentile-naive int6
 - verification in this shell is limited to `py_compile`; no real checkpoint exists in the repo, and this local shell does not have `torch`
 
+### 2026-03-29 replay harness (not rerun from repo shell)
+
+The file now supports export-only replay from an existing checkpoint:
+
+- `EXPORT_ONLY_CHECKPOINT=/path/to/final_model.pt`
+- `EXPORT_TAG=...`
+- `GPTQ_ACTORDER=0|1`
+- `GPTQ_BLOCK_SIZE=...`
+- `GPTQ_CALIBRATION_SAMPLES=...`
+
+This is specifically to avoid spending more training time when the export path is still wrong.
+
 ### Next move
 
-1. Run the export-only path on a real checkpoint and inspect `gptq_layer_diagnostics.json`.
-2. If GPTQ is still worse than naive on any obvious layers, ablate `actorder=False` and `block_size=d_col` on the same checkpoint.
-3. Only after the roundtrip gap is sane, rerun `1xH100`, then `8xH100`.
+1. Run export-only replay on the saved checkpoint from the latest smoke.
+2. Inspect `gptq_layer_diagnostics*.json`.
+3. If GPTQ is still worse than naive on all or most layers, ablate `actorder=False` and `block_size=d_col` on that same checkpoint.
+4. Only after the roundtrip gap is sane, rerun `1xH100`, then `8xH100`.

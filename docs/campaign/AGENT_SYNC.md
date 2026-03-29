@@ -144,6 +144,9 @@ Safest current conclusion:
 - The main problem was the local GPTQ implementation drifting from the known-good PR code in the quantization loop itself.
 - A PR-grounded repair is now landed locally, but it has **not** been runtime-verified on a real checkpoint yet.
 - The first proof point is still export-only A/B, not more retraining.
+- The first replay after the repair still failed: `gptq_diag` showed GPTQ worse than both naive baselines on all `66/66` layers.
+- That result makes the bug look systematic and points upstream of the inner loop, most likely Hessian construction / interpretation.
+- An export-only replay mode is now landed so the next checks can reuse a saved `final_model.pt` instead of retraining.
 
 ## Immediate Next Actions
 
@@ -151,7 +154,8 @@ Safest current conclusion:
    - First debug on the same export path.
 
 2. **Run export-only diagnostics in this order:**
-   - inspect `gptq_layer_diagnostics.json` from the repaired export path
+   - run replay from a saved `final_model.pt`
+   - inspect `gptq_layer_diagnostics*.json` from the repaired export path
    - check layer names where GPTQ is worse than:
      - legacy row-max int6
      - percentile-naive int6

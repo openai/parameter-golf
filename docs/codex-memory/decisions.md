@@ -99,6 +99,13 @@
   - `_classify_param` now targets only block `attn` / `mlp` weights, excluding `bigram.proj`
   - export writes `gptq_layer_diagnostics.json` with legacy-rowmax vs percentile-naive vs GPTQ per-layer MSE
 - Because no saved checkpoint exists in the repo and this local shell lacks `torch`, the repair is currently code-reviewed and syntax-checked only. The next gate remains same-checkpoint export-only verification.
+- The first server replay after that repair still showed `worse_than_legacy_rowmax=66` and `worse_than_percentile_naive=66`.
+- That makes the remaining bug look systematic, not like a small number of bad layers.
+- Export-only replay mode is now part of the Session 05b toolchain so future ablations can load `final_model.pt` directly and vary:
+  - `GPTQ_ACTORDER`
+  - `GPTQ_BLOCK_SIZE`
+  - `GPTQ_CALIBRATION_SAMPLES`
+  - `EXPORT_TAG`
 
 ## Hard gates
 

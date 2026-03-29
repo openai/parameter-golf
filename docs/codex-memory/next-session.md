@@ -41,6 +41,11 @@ The code-level repair already landed:
 
 What is still missing is the **runtime check on a real checkpoint**.
 
+Update:
+- that runtime check was run once on server
+- result: GPTQ was worse than both naive baselines on `66/66` layers
+- next step is now replay ablations from the saved `final_model.pt`, not another training rerun
+
 ## Required workflow
 
 1. Use PR code first:
@@ -65,6 +70,7 @@ What is still missing is the **runtime check on a real checkpoint**.
 3. Run an ablation only if needed:
    - `actorder=False`
    - `block_size=d_col`
+   - optionally reduce calibration samples to probe whether the issue is stable
 4. After correctness is restored:
    - keep the landed PR-style 5-percentile search
    - keep the landed symmetric `[-31, 31]` clamp
@@ -101,3 +107,9 @@ What is still missing is the **runtime check on a real checkpoint**.
 For the next smoke run, leave explicit post-train time budget.
 The prior `1xH100` smoke hit the Slurm time limit before sliding eval finished.
 Also note: this local shell has no `torch`, so verification here only reached `py_compile`; the next session should verify the repaired export path in the runtime environment that has PyTorch installed.
+Replay helper env vars now exist for that server-side work:
+- `EXPORT_ONLY_CHECKPOINT`
+- `EXPORT_TAG`
+- `GPTQ_ACTORDER`
+- `GPTQ_BLOCK_SIZE`
+- `GPTQ_CALIBRATION_SAMPLES`
