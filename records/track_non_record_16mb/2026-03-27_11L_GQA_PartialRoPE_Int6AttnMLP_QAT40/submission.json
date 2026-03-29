@@ -1,0 +1,16 @@
+{
+  "author": "Aditya Sasidhar",
+  "github_id": "adityasasidhar",
+  "name": "11L GQA + MLP 3 + Partial RoPE + Int6 Attn/MLP + QAT40",
+  "blurb": "Compact GPT-style run with tied embeddings, GQA (8 query heads / 4 KV heads), Partial RoPE on 16 dims, XSA on the last 4 layers, FlashAttention-compatible SDPA, and MLP 3x width. Training uses Muon + AdamW with weight decay, 20-step warmup, wallclock-based LR warmdown over the final 15%, and late QAT over the final 40% of training. Evaluation uses sliding-window validation with stride 96. Export uses mixed low-bit quantization with real packed int6 for MLP fc/proj and attention q/k/v/proj weights, passthrough control tensors, and zlib compression.",
+  "date": "2026-03-27",
+  "val_loss": 2.16648655,
+  "val_bpb": 1.28311537,
+  "pre_quant_val_loss": 2.1536,
+  "pre_quant_val_bpb": 1.2755,
+  "mixed_quant_zlib_val_loss": 2.16648655,
+  "mixed_quant_zlib_val_bpb": 1.28311537,
+  "bytes_total": 15773227,
+  "bytes_model_mixed_quant_zlib": 15713867,
+  "bytes_code": 59360
+}

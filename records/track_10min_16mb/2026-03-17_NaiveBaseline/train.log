@@ -175,7 +175,7 @@ step:3200/20000 train_loss:2.1492 train_time:139071ms step_avg:43.46ms
 step:3200/20000 val_loss:2.1881 val_bpb:1.2925 train_time:139096ms step_avg:43.47ms
 step:3250/20000 train_loss:2.1286 train_time:141341ms step_avg:43.49ms
 step:3300/20000 train_loss:2.1058 train_time:143485ms step_avg:43.48ms
-step:3350/20000 train_loss:2.2214 train_time:145628ms step_avg:43.47ms
+step:3350/20000 adityasasidhar/parameter-golftrain_loss:2.2214 train_time:145628ms step_avg:43.47ms
 step:3400/20000 train_loss:2.2454 train_time:147773ms step_avg:43.46ms
 step:3400/20000 val_loss:2.1854 val_bpb:1.2909 train_time:147798ms step_avg:43.47ms
 step:3450/20000 train_loss:2.2601 train_time:150039ms step_avg:43.49ms
