@@ -1,0 +1,18 @@
+{
+    "author": "Rana Usman",
+    "github_id": "ranausmanai",
+    "name": "Deep Supervision + Batch Scaling (M4 MacBook)",
+    "blurb": "Non-record M4 MacBook submission: 16 experiments exploring deep supervision at the U-Net encoder-decoder boundary. Found optimal weight=0.03 gives -0.05 BPB at small batch, but effect disappears at large batch sizes. Novel technique not explored by other competitors.",
+    "date": "2026-03-29T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 2.8143,
+    "val_bpb": 1.6668,
+    "pre_quant_val_loss": 2.8047,
+    "pre_quant_val_bpb": 1.6611,
+    "step_stop": 300,
+    "wallclock_seconds": 4315,
+    "bytes_total": 9815427,
+    "bytes_model_int8_zlib": 9815427,
+    "bytes_code": null,
+    "gpu": "Apple M4 (MLX)"
+}
