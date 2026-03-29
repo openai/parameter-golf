@@ -905,10 +905,12 @@ class CausalSelfAttention(nn.Module):
         elif self.use_diff_attn:
             q1, q2 = q.chunk(2, dim=-1)
             k1, k2 = k.chunk(2, dim=-1)
-            attn1 = F.scaled_dot_product_attention(q1, k1, v, is_causal=True, enable_gqa=(self.num_kv_heads != self.num_heads))
-            attn2 = F.scaled_dot_product_attention(q2, k2, v, is_causal=True, enable_gqa=(self.num_kv_heads != self.num_heads))
+            v1, v2 = v.chunk(2, dim=-1)
+            gqa = (self.num_kv_heads != self.num_heads)
+            attn1 = F.scaled_dot_product_attention(q1, k1, v1, is_causal=True, enable_gqa=gqa)
+            attn2 = F.scaled_dot_product_attention(q2, k2, v2, is_causal=True, enable_gqa=gqa)
             lp = self.lambda_param.to(dtype=q.dtype)[None, :, None, None]
-            y = attn1 - lp * attn2
+            y = torch.cat([attn1 - lp * attn2, attn1 + lp * attn2], dim=-1)
         else:
             y = F.scaled_dot_product_attention(
                 q,
