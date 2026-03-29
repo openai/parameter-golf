@@ -2322,8 +2322,8 @@ def main() -> None:
             )
             log0(f"final_ttt_lora_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
         if args.enable_ngram or args.enable_knn:
-            # Augmented eval: get model logits per-sequence, interpolate with n-gram/kNN.
-            # N-gram cache is updated AFTER each sequence is scored (backward-looking).
+            # Augmented eval: batched model forward, per-sequence n-gram/kNN interpolation.
+            # N-gram/kNN caches updated AFTER each sequence is scored (backward-looking).
             torch.cuda.synchronize()
             t_ngram = time.perf_counter()
             base_model.eval()
@@ -2339,70 +2339,86 @@ def main() -> None:
             total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
             seq_start = (total_seqs * rank) // world_size
             seq_end = (total_seqs * (rank + 1)) // world_size
+            # Batch size for model forward — fill GPU properly
+            local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+            batch_seqs = max(local_batch_tokens // args.train_seq_len, 1)
+            n_batches = (seq_end - seq_start + batch_seqs - 1) // batch_seqs
             with torch.no_grad():
-                for seq_idx in tqdm(
-                    range(seq_start, seq_end), desc="ngram eval", disable=(rank != 0)
+                for batch_idx in tqdm(
+                    range(n_batches), desc="ngram+knn eval", disable=(rank != 0)
                 ):
-                    raw_start = seq_idx * args.train_seq_len
-                    raw_end = raw_start + args.train_seq_len + 1
-                    local = val_tokens[raw_start:raw_end].to(
+                    b_start = seq_start + batch_idx * batch_seqs
+                    b_end = min(b_start + batch_seqs, seq_end)
+                    bsz = b_end - b_start
+                    raw_start = b_start * args.train_seq_len
+                    raw_end = b_end * args.train_seq_len + 1
+                    local_batch = val_tokens[raw_start:raw_end].to(
                         device=device, dtype=torch.int64
                     )
-                    x = local[:-1].unsqueeze(0)
-                    y = local[1:].unsqueeze(0)
-                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        logits = base_model(
-                            x, y, return_logits=True
-                        )  # (1, seq_len, vocab)
-                    model_probs = F.softmax(
-                        logits.float().squeeze(0), dim=-1
-                    )  # (seq_len, vocab)
-                    targets = y.squeeze(0)  # (seq_len,)
-                    prevs = x.squeeze(0)
-                    # N-gram interpolation (vectorized across sequence)
-                    final_probs = model_probs
-                    if ngram is not None:
-                        seq_tokens = local[:-1].tolist()
-                        ng_probs = ngram.predict_batch(seq_tokens, device)
-                        has_ngram = ng_probs.sum(dim=-1, keepdim=True) > 0
-                        alpha = args.ngram_alpha
-                        final_probs = torch.where(
-                            has_ngram,
-                            (1 - alpha) * final_probs + alpha * ng_probs,
-                            final_probs,
-                        )
-                    # kNN-LM interpolation (vectorized across sequence)
-                    if knn is not None and knn.n > 0:
-                        logits_flat = logits.float().squeeze(0)  # (seq_len, vocab)
-                        knn_probs = knn.predict_batch(
-                            logits_flat, args.vocab_size, device
-                        )
-                        has_knn = knn_probs.sum(dim=-1, keepdim=True) > 0
-                        lam = args.knn_lambda
-                        final_probs = torch.where(
-                            has_knn,
-                            (1 - lam) * final_probs + lam * knn_probs,
-                            final_probs,
-                        )
-                    final_probs = final_probs.clamp(min=1e-10)
-                    final_probs = final_probs / final_probs.sum(dim=-1, keepdim=True)
-                    # Gather per-token loss
-                    token_losses = -torch.log(
-                        final_probs.gather(1, targets.unsqueeze(1)).squeeze(1)
+                    # Reshape into (bsz, seq_len+1) — need +1 for target offset
+                    # Each sequence is contiguous in val_tokens
+                    x_batch = torch.zeros(
+                        bsz, args.train_seq_len, dtype=torch.int64, device=device
                     )
-                    # BPB accounting (vectorized)
-                    tok_bytes = base_bytes_lut[targets].to(torch.float64)
-                    tok_bytes += (
-                        has_leading_space_lut[targets] & ~is_boundary_token_lut[prevs]
-                    ).to(torch.float64)
-                    aug_loss_sum += token_losses.to(torch.float64).sum()
-                    aug_byte_sum += tok_bytes.sum()
-                    aug_token_count += args.train_seq_len
-                    # Update caches AFTER scoring (backward-looking)
-                    if ngram is not None:
-                        ngram.update(local.tolist())
-                    if knn is not None:
-                        knn.add_batch(logits.float().squeeze(0), targets, device)
+                    y_batch = torch.zeros(
+                        bsz, args.train_seq_len, dtype=torch.int64, device=device
+                    )
+                    for s in range(bsz):
+                        off = s * args.train_seq_len
+                        x_batch[s] = local_batch[off : off + args.train_seq_len]
+                        y_batch[s] = local_batch[off + 1 : off + 1 + args.train_seq_len]
+                    # Batched model forward — (bsz, seq_len, vocab)
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        logits_batch = base_model(x_batch, y_batch, return_logits=True)
+                    all_model_probs = F.softmax(logits_batch.float(), dim=-1)
+                    # Per-sequence: apply n-gram/kNN interpolation and update caches
+                    for s in range(bsz):
+                        model_probs = all_model_probs[s]  # (seq_len, vocab)
+                        targets = y_batch[s]
+                        prevs = x_batch[s]
+                        final_probs = model_probs
+                        if ngram is not None:
+                            seq_tokens = x_batch[s].tolist()
+                            ng_probs = ngram.predict_batch(seq_tokens, device)
+                            has_ngram = ng_probs.sum(dim=-1, keepdim=True) > 0
+                            alpha = args.ngram_alpha
+                            final_probs = torch.where(
+                                has_ngram,
+                                (1 - alpha) * final_probs + alpha * ng_probs,
+                                final_probs,
+                            )
+                        if knn is not None and knn.n > 0:
+                            knn_probs = knn.predict_batch(
+                                logits_batch[s].float(), args.vocab_size, device
+                            )
+                            has_knn = knn_probs.sum(dim=-1, keepdim=True) > 0
+                            lam = args.knn_lambda
+                            final_probs = torch.where(
+                                has_knn,
+                                (1 - lam) * final_probs + lam * knn_probs,
+                                final_probs,
+                            )
+                        final_probs = final_probs.clamp(min=1e-10)
+                        final_probs = final_probs / final_probs.sum(
+                            dim=-1, keepdim=True
+                        )
+                        token_losses = -torch.log(
+                            final_probs.gather(1, targets.unsqueeze(1)).squeeze(1)
+                        )
+                        tok_bytes = base_bytes_lut[targets].to(torch.float64)
+                        tok_bytes += (
+                            has_leading_space_lut[targets]
+                            & ~is_boundary_token_lut[prevs]
+                        ).to(torch.float64)
+                        aug_loss_sum += token_losses.to(torch.float64).sum()
+                        aug_byte_sum += tok_bytes.sum()
+                        aug_token_count += args.train_seq_len
+                        # Update caches AFTER scoring (backward-looking)
+                        if ngram is not None:
+                            seq_with_target = x_batch[s].tolist() + [targets[-1].item()]
+                            ngram.update(seq_with_target)
+                        if knn is not None:
+                            knn.add_batch(logits_batch[s].float(), targets, device)
             if dist.is_available() and dist.is_initialized():
                 dist.all_reduce(aug_loss_sum, op=dist.ReduceOp.SUM)
                 dist.all_reduce(aug_byte_sum, op=dist.ReduceOp.SUM)
