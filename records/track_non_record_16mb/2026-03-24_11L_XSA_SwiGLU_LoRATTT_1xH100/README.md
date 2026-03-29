@@ -4,7 +4,7 @@
 
 ## Technical Report
 
-For a detailed analysis of the architecture, training methodology, and experiments, see the [Technical Report](technical_report.md).
+For a detailed analysis of the architecture, training methodology, and experiments, see the [Technical Report](https://github.com/swapp1990/parameter-golf/blob/submission/nonrecord-11l-xsa-lora-ttt/records/track_non_record_16mb/2026-03-24_11L_XSA_SwiGLU_LoRATTT_1xH100/technical_report.md).
 
 ## Key Techniques
 
