@@ -2,111 +2,102 @@
 
 ## Phase
 
-**Session 05b GPTQ implementation complete but has a CORRECTNESS BUG. Must debug before 8xH100 run.**
+**Session 05b GPTQ correctness repair.**
+
+The next session should behave like a code-debugging session, not a broad research session.
 
 ## Immediate next action
 
-1. **Debug the GPTQ roundtrip quality regression** — 0.212 BPB gap vs anchor's 0.00775
-   - Code: `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/train_gpt.py`
-   - Plan: `docs/campaign/artifacts/05b_full_hessian_gptq_plan.md`
-   - The GPTQ pipeline runs cleanly (66 layers, 0 fallbacks, 4.2s) but produces garbage weights
-2. **Debug approach**: Add per-layer MSE comparison (GPTQ vs naive), try disabling actorder, verify Hinv_chol usage against PR #634/#1019 diffs
-3. After fix: re-run 1xH100 smoke, verify roundtrip gap < 0.01
-4. Then: full 8xH100 600s run
-5. Then: Session 05c training bundle (XSA-all + VE128 + SWA + warmdown3500)
+1. Compare the current local GPTQ export against naive int6 on the **same checkpoint**.
+2. Inspect `gptq_layer_diagnostics.json` from that export.
+3. If GPTQ is still bad, run the same-checkpoint ablations (`actorder=False`, `block_size=d_col`) before any retraining.
+4. Only then re-run `1xH100` smoke.
+5. Only after that passes, run `8xH100`.
 
-## Key files for debugging
+## Current diagnosis
 
-- `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/train_gpt.py` — lines 490-571 (`gptq_quantize_layer`)
-- `docs/campaign/artifacts/05b_full_hessian_gptq_plan.md` — full algorithm description
-- PR #634 and #1019 on openai/parameter-golf — reference implementations (use `gh pr diff`)
+- Session 03 anchor (`8xH100`) is healthy at sliding s64 `1.12904446`.
+- Saved-container FA3 is a clean negative result and is parked.
+- Session 05b `1xH100` smoke exposed a **GPTQ export correctness failure**:
+  - pre-quant EMA exact `1.47753094`
+  - roundtrip exact `1.68963326`
+  - gap `~0.2121`
+- This smoke confirmed:
+  - Hessian collection works
+  - Cholesky does not fail
+  - compressed artifact fits comfortably
+  - the current GPTQ quantizer still reconstructs weights badly
 
-## 1xH100 smoke test result (2026-03-29 20:43 UTC+2)
+## Most likely issue
 
-- Node: serv-3340, 906 steps, step_avg ~663ms
-- Pre-quant EMA: val_bpb=1.4775 (normal for 1xH100 906 steps)
-- Roundtrip: val_bpb=1.6896 (**gap: 0.212 BPB — catastrophically bad**)
-- GPTQ stats: 66 GPTQ layers, 0 naive, 0 Cholesky fallbacks, 4236ms
-- Artifact: 7,754,877 bytes (under cap)
-- Job killed by time limit before sliding eval completed
+The local GPTQ implementation drifted too far from the known-good PR code.
 
-## Session 05 audit summary
+The code-level repair already landed:
+- within-block residual update now matches the PR loop (`j:` instead of `j+1:`)
+- 5-percentile reconstruction search is in place
+- symmetric `[-31, 31]` clamp is in place
+- `_classify_param` excludes top-level `bigram.proj`
+- export writes per-layer diagnostics to `gptq_layer_diagnostics.json`
 
-The audit identified the 2026-03-22 record as the primary porting reference (same CastedLinear/DDP architecture, has FA3+VE+SWA+warmdown3500+QAT). First-wave features are: FA3, VE128, warmdown 3500, SWA, Late QAT, LeakyReLU² re-test (gated on FA3). TTT appears compliant via score-first protocol. Follow-up benchmark: direct FA3 on `25.02` + wheel beat SDPA flash by `11.44x` in the isolated attention kernel benchmark. See full audit: `docs/campaign/artifacts/05_ttt_correctness_audit.md`.
+What is still missing is the **runtime check on a real checkpoint**.
 
-## Prerequisites (all satisfied)
+## Required workflow
 
-- Session 03 anchor verified: sliding s64 val_bpb `1.12904446`, 6564 steps, 91.37ms/step
-- Remaining donor gap is small (`+0.00419944` on final sliding), so broad redesign is unnecessary
-- NGC container + fscratch path confirmed on Pegasus
-- Launcher lesson locked: use `srun --ntasks=8 --gpus-per-task=1 --gpu-bind=none`, NOT torchrun
-- Saved FA3 Pegasus container built and import-verified
-- `1xH100` FA3 smoke completed without stability issues
-- `8xH100` FA3 saved-container run completed and regressed vs anchor
-- int6+zstd roundtrip artifact: `15751324` bytes, headroom `248676` bytes
+1. Use PR code first:
+   - PR #1060
+   - PR #1019
+   - PR #634
+2. Use local repo code second.
+3. Use papers only for ambiguous math details.
+4. The PR quantizer transplant is already done; do not revert to the old custom loop.
 
-## Session 05 FW-1 closeout
+## Concrete debug order
 
-`2026-03-29_fa3_port` vs Session 03 anchor:
+1. Run the export-only A/B on a real checkpoint:
+   - legacy row-max int6 reconstruction MSE per layer
+   - percentile-naive int6 reconstruction MSE per layer
+   - GPTQ reconstruction MSE per layer
+2. Inspect `gptq_layer_diagnostics.json`:
+   - layers where GPTQ is worse than legacy row-max
+   - layers where GPTQ is worse than percentile-naive
+   - `worst_block_start`
+   - `max_block_mse`
+3. Run an ablation only if needed:
+   - `actorder=False`
+   - `block_size=d_col`
+4. After correctness is restored:
+   - keep the landed PR-style 5-percentile search
+   - keep the landed symmetric `[-31, 31]` clamp
+   - keep the tightened hook target filtering
 
-- Sliding s64 val_bpb: `1.12958984` (worse by `+0.00054538`)
-- Pre-quant EMA val_bpb: `1.14532979` (worse by `+0.00060576`)
-- Roundtrip val_bpb: `1.15296145` (worse by `+0.00048872`)
-- Artifact: `15529557` bytes (smaller by `221767` bytes)
-- Step_avg: `92.67 ms` (`+1.30 ms` slower, `-90` steps)
+## Hard gates
 
-Conclusion:
-- The current saved-container FA3 runtime is a clean negative result.
-- The likely issue is runtime-level regression from the pip-installed generic torch stack replacing the tuned NGC build.
-- Do not rerun this runtime path as-is.
+- No more `8xH100` GPTQ runs until the smoke roundtrip gap is sane.
+- No more saved-container FA3 runs.
+- No TTT work.
+- No broad training-stack bundling before GPTQ is healthy.
 
-## Session 04 closeout
-
-1. ~~Delta 1: GPTQ-lite percentile clip search~~ — **COMPLETE (FAILED)**
-   - Sliding s64 val_bpb: `1.12941356` (worse than anchor by `+0.00036910`)
-   - Artifact: `16219752` bytes — OVER the `16000000` byte cap
-   - Conclusion: hurts zstd compressibility more than it helps quantization quality
-
-2. ~~Delta 2: LeakyReLU^2~~ — **COMPLETE (NEUTRAL)**
-   - Sliding s64 val_bpb: `1.12904123` (effectively identical, `-0.00000323`)
-   - Pre-quant EMA val_bpb: `1.14438546` (slightly better, `-0.00033857`)
-   - Roundtrip val_bpb: `1.15222198` (slightly better, `-0.00025075`)
-   - Artifact: `15582968` bytes (168KB smaller)
-   - Step_avg: `92.09 ms` (+0.72 ms slower, -53 steps)
-   - Conclusion: not a standalone graduating delta. Keep as possible stack component.
-
-3. Session 04 decision
-   - Close the micro-delta sweep at `1 failed + 1 neutral`
-   - Do not force a Delta 3 by default
-   - Open Session 05 instead
-
-## Measurement discipline
-
-- Each delta is a separate run with one change
-- Compare against Session 03 anchor as the fixed reference
-- Record: GPU, steps, step_avg, sliding s64 val_bpb, pre-quant EMA val_bpb, int6 roundtrip val_bpb, artifact size
-- Only combine deltas after each is measured in isolation
-
-## Session 05 target
-
-- strengthen the pre-TTT base relative to `1.12904446`
-- understand and, if justified, integrate TTT on top of a stronger base
-- identify the highest-value portable pieces of the local `1.1194` public stack
-
-## Read order for the next fresh session
+## Files to read first
 
 1. `docs/campaign/AGENT_SYNC.md`
 2. `CLAUDE.md`
-3. `docs/campaign/artifacts/04_targeted_delta_sweep.md`
-4. `docs/campaign/sessions/05_ttt_correctness_audit.md`
-5. `records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/README.md`
+3. `docs/codex-memory/decisions.md`
+4. `docs/codex-memory/project-state.md`
+5. `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/README.md`
+6. `docs/campaign/prompts/session_05b_gptq_debug_restart.md`
 
-## Next investigation shape
+## Key code targets
 
-```bash
-ls -1 /enroot/nvcr.io_nvidia_pytorch_*.sqsh | sort -V
+- `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/train_gpt.py`
+  - `_classify_param`
+  - `collect_hessians`
+  - `gptq_quantize_layer`
+  - `gptq_mixed_quantize_int6`
+- `docs/campaign/artifacts/05b_full_hessian_gptq_plan.md`
+- PR implementations in `openai/parameter-golf`
 
-srun -p H100 --ntasks=1 --gpus-per-task=1 --cpus-per-task=6 --mem=64G --time=00:10:00 \
-  --container-image=/enroot/nvcr.io_nvidia_pytorch_26.03-py3.sqsh \
-  bash -c 'python -c "import torch; print(torch.__version__)"'
-```
+## Operational reminder
+
+For the next smoke run, leave explicit post-train time budget.
+The prior `1xH100` smoke hit the Slurm time limit before sliding eval finished.
+Also note: this local shell has no `torch`, so verification here only reached `py_compile`; the next session should verify the repaired export path in the runtime environment that has PyTorch installed.

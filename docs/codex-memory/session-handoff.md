@@ -10,78 +10,69 @@ Date: 2026-03-29
 - Int6 roundtrip val_bpb: `1.15247273`.
 - Steps: `6564`, step_avg: `91.37 ms`.
 - Artifact: `15751324` bytes (model `15692752` + code `58572`).
-- Throughput and pre-TTT stack strength are now the primary concerns, not more Session 04 micro-deltas.
-- NGC 26.03 container + fscratch is the confirmed optimized Pegasus path.
+- Official leaderboard entry is record-gated. Beating `#5` quality is not enough; a submission must beat current `#1`.
+- NGC 26.03 container + fscratch is the confirmed stable Pegasus path.
+- Saved Pegasus `25.02` FA3 container is now a measured negative-result path, not a mainline candidate.
 - Session 04 Delta 1 (GPTQ-lite clip search) is COMPLETE — FAILED.
 - Session 04 Delta 2 (LeakyReLU^2) is COMPLETE — NEUTRAL.
-- Session 05 is the next immediate phase.
+- Session 05 mainline is now GPTQ correctness.
+- The first `1xH100` Full Hessian GPTQ smoke exposed a correctness failure in the export path.
 
-## What Was Done In Session 03
+## What Matters Now
 
-- Ported the clean pre-TTT anchor (2026-03-21 style) into a self-contained script on top of root `train_gpt.py`.
-- Features ported: SmearGate + BigramHash, XSA on last 4 layers, partial RoPE 16/64, layerwise LN scale, EMA, Muon/Adam weight decay, mixed int6 export + zstd, stride-64 sliding eval.
-- Ran the anchor on `8xH100 SXM5` (`serv-3342`) under NGC 26.03 container.
-- Measured all three eval metrics (sliding s64, pre-quant EMA, int6 roundtrip).
-- Confirmed artifact fits under the 16MB cap with `248676` bytes headroom.
+- Session 05b currently has one job: repair Full Hessian GPTQ so that the roundtrip path behaves at least plausibly.
+- Do not spend more training budget until the export path is debugged on the same checkpoint.
+- Working PR code is now the primary implementation source. Papers are secondary.
 
-## What Was Learned
+## Latest GPTQ Smoke Result
 
-### rope_train_seq_len bug
-- The anchor sets `rope_train_seq_len=1024` for NTK-aware scaling even though `TRAIN_SEQ_LEN=2048`. This is deliberate and matches the donor record behavior. It is not a bug but could appear as one to a fresh reader.
+Experiment folder:
+- `records/track_non_record_16mb/2026-03-29_full_hessian_gptq`
 
-### Container OOM
-- Initial attempts to run inside containers hit OOM due to container-level memory overhead on top of GPU allocation. Resolved by using the NGC 26.03 container with proper resource requests.
+Measured on `1xH100`:
+- stopped at `906` steps
+- step_avg `662.47 ms`
+- pre-quant EMA exact `1.47753094`
+- roundtrip exact `1.68963326`
+- Hessians collected: `67`
+- GPTQ layers used: `66`
+- Cholesky fallbacks: `0`
+- artifact total: `7754877` bytes
+- job timed out before sliding eval finished
 
-### fscratch setup
-- `/netscratch` I/O can bottleneck data loading. Using `/fscratch` for data staging avoids this. The path must be set up per-job since `/fscratch` is ephemeral.
+Interpretation:
+- the smoke is valid as a **mechanics test**
+- it is not valid as a **quality comparison** to the `8xH100` anchor
+- the export gap is catastrophic, so the quantizer is still wrong
 
-### SDPA throughput gap
-- Session 03 anchor achieves `91.37 ms/step` with SDPA versus root baseline's `51.66 ms/step`. The anchor has more compute per step (more layers, XSA, SmearGate), but the gap is also partly due to using SDPA instead of FA3. The donor record used `flash_attn_3_func`.
+## Confirmed divergences from working PR code
 
-## What Was Done In Session 04 Delta 1
+- local within-block GPTQ residual propagation used `W_block[:, j + 1:]`, while PRs `#634`, `#1019`, and `#1060` use `W_block[:, j:]`
+- the old local path had no multi-percentile GPTQ search
+- the old local path clamped to `[-32, 31]` instead of symmetric `[-31, 31]`
+- the old local classifier pulled an extra `bigram.proj` Hessian due to broad `.proj.` matching
+- the old path had no per-layer naive-vs-GPTQ export diagnostics
 
-- Ran GPTQ-lite percentile clip search as an isolated delta on top of the Session 03 anchor.
-- Single change: replaced fixed row-max int6 quantization with GPTQ-lite 5-percentile MSE clip search.
-- Training was identical to the anchor.
+## Safest current conclusion
 
-## Delta 1 Results (FAILED)
+The local GPTQ implementation was not faithful enough to the known-good PR quantizer.
 
-- Sliding s64 val_bpb: `1.12941356` (WORSE than anchor `1.12904446` by `+0.00036910`)
-- Roundtrip val_bpb: `1.15277272` (WORSE than anchor `1.15247273` by `+0.00029999`)
-- Pre-quant EMA val_bpb: `1.14520403` (effectively identical to anchor `1.14472403`)
-- Artifact size: `16219752` bytes — OVER the `16000000` byte cap (anchor was `15751324`)
-- Steps: `6565`, step_avg: `91.37 ms` (identical to anchor as expected)
+A PR-grounded repair is now landed in `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/train_gpt.py`, but it is not runtime-verified yet because:
+- no saved checkpoint exists in the repo for same-checkpoint export-only replay
+- this local shell does not have `torch`, so verification here stopped at `py_compile`
 
-## What Was Learned From Delta 1
-
-- GPTQ-lite clip search hurts zstd compressibility more than it helps quantization quality.
-- The export gap between pre-quant EMA and roundtrip is not caused by clip suboptimality.
-- Anchor int6+zstd with fixed row-max remains the viable export path.
-- The artifact size increase (`+468428` bytes) pushes over the 16MB cap, making this path non-viable even if BPB were neutral.
-
-## Session 05 Opening Scope
-
-### Throughput audit
-- explain why the local `1.1194` public stack runs at `83.4 ms` while the anchor runs at `91.37 ms`
-- start with FA3 portability
-- treat parameter banking / Parallel Muon as harder follow-on work
-
-### Pre-TTT stack-gap audit
-- compare the anchor against the local `1.1194` stack
-- rank portable improvements such as `VE128`, `warmdown3500`, `Bigram 1536`, and `tight SWA`
-
-### TTT audit
-- trace the score-first legality path
-- quantify the eval-time cost budget
-- decide what is portable into the anchor codebase
+Do this next:
+1. run same-checkpoint export-only A/B with the repaired code
+2. inspect `gptq_layer_diagnostics.json`
+3. if needed, run `actorder=False` / `block_size=d_col` ablations on the same checkpoint
+4. only then rerun `1xH100`
 
 ## Source Of Truth Files
 
 - `docs/campaign/AGENT_SYNC.md`
-- `docs/campaign/artifacts/04_targeted_delta_sweep.md`
-- `docs/campaign/sessions/05_ttt_correctness_audit.md`
-- `docs/campaign/artifacts/03a_pre_ttt_anchor_diff_analysis.md`
-- `docs/campaign/artifacts/03b_root_train_gpt_port_gap_audit.md`
+- `CLAUDE.md`
+- `docs/codex-memory/decisions.md`
 - `docs/codex-memory/project-state.md`
 - `docs/codex-memory/next-session.md`
-- `docs/codex-memory/decisions.md`
+- `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/README.md`
+- `docs/campaign/prompts/session_05b_gptq_debug_restart.md`

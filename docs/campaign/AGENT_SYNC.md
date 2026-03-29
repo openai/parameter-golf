@@ -4,106 +4,182 @@ Date: 2026-03-29
 
 ## Current Objective
 
-Build a portable frontier base, then add novelty. Do not replicate old merged #1 (PR #549) verbatim.
+Fix the Session 05b Full Hessian GPTQ correctness bug on top of the Session 03 anchor.
 
-Session 04 is closed (Delta 1 failed, Delta 2 neutral). Session 05 strategy has been revised
-based on competitive landscape analysis (2026-03-29 17:00 UTC+2).
+This is now the mainline. Do not spend more H100 time on the saved-container FA3 path, TTT,
+or broader redesigns until the GPTQ export path is either fixed or explicitly abandoned.
 
-### Competitive Landscape (2026-03-29)
+## Challenge Reality
 
-The validated merged #1 is still PR #549 at `1.1194` BPB (with TTT).
-But the open frontier has moved:
+- Official leaderboard entry is **record-gated**, not top-5-open-entry.
+- A record submission must beat the current official SOTA by at least `0.005` nats and show `p < 0.01`.
+- Operationally, this means the project is a **threshold-crossing problem**, not a rank-climbing problem.
+- Current official merged #1 is still PR #549 at `1.1194` BPB.
+- Current open frontier is lower:
+  - PR #1089: `1.1086` BPB, 3-seed mean
+  - PR #1060: `1.1122` BPB, 3-seed mean
 
-- **PR #1060**: `1.1122` BPB, 3-seed mean, no TTT — coprime-stride loader + full Hessian GPTQ + XSA-all. Most credible new claim.
-- **PR #1072**: `1.117` BPB, 1-seed only — fused Triton MLP (70ms/step) + online Hessian GPTQ + parallel Muon. Interesting but unconfirmed.
-- **PR #1077**: `1.1130` BPB, 3-seed — looks template-like, internally inconsistent. Treat with caution.
-- **PR #1070**: `1.1190` BPB — clean PR #549 reproduction, not frontier.
+## Current Mainline Plan
 
-Key insight: every competitive submission shares the same architectural backbone (11L U-Net, GQA, LeakyReLU², XSA, VE128, BigramHash). Differentiation is in throughput, quantization, and data loading. TTT is losing ground — top unvalidated claims beat #1 without it.
+### Phase 1: GPTQ correctness and parity with working PR code
 
-### Revised Session 05 Plan (3 phases)
+1. Debug Session 05b on the same checkpoint, without retraining first.
+2. Run the new export-only diagnostics on identical weights and inspect `gptq_layer_diagnostics.json`.
+3. If GPTQ is still wrong, ablate `actorder=False` and `block_size=d_col` on the same checkpoint.
+4. Only after the roundtrip gap is sane, re-run `1xH100` smoke with enough post-train time budget.
+5. Only then run `8xH100`.
 
-**Phase 1 — Throughput (FA3 port)**
-- Port anchor from SDPA to direct `flash_attn_interface` on NGC 25.02 container
-- Microbenchmark shows 11.44x kernel speedup; full training impact TBD
-- Saved Pegasus FA3 container now exists at `/netscratch/$USER/containers/pytorch_25.02_fa3.sqsh`
-- First full `8xH100` run on that saved-container path FAILED to beat the anchor
-- Goal: close the `91.37 ms → ~70-80 ms/step` gap, gain extra training steps
+### Phase 2: training-side quality bundle
 
-**Phase 2 — Quantization upgrade (Full Hessian GPTQ)**
-- Replace current int6+zstd with full Hessian GPTQ (Cholesky error compensation)
-- PRs #1060 and #1072 both use this; proven `0.003-0.007 BPB` gain over GPTQ-lite
-- Also fixes the artifact compression issue seen in Session 04 Delta 1
+After GPTQ is healthy:
+- XSA `4 -> 11`
+- VE128
+- tight SWA
+- warmdown `3500`
 
-**Phase 3 — Novelty**
-- Only after phases 1-2 give a competitive `1.12x` base
-- Candidate areas: fused Triton kernels, loader optimization, or novel contribution from XAI/RFN background
-- TTT is parked — revisit only if needed after phases 1-2
+### Parked for now
+
+- saved-container FA3 throughput path
+- TTT
+- broad novelty probes
+- broad compression/model redesigns before GPTQ correctness is resolved
 
 ## In Scope
 
-- FA3 port of anchor attention on Pegasus saved NGC 25.02 FA3 container
-- Full Hessian GPTQ implementation to replace int6+zstd
-- Throughput optimization to maximize training steps in 600s
-- Building a modular frontier base, not hard-binding to one historical winner
-- Verified Pegasus `8xH100` Slurm-native launch path
-- Preserved launcher, artifact, and metric logging discipline
+- Session 05b GPTQ correctness debugging
+- PR-code-first comparison against working GPTQ submissions
+- Export-only A/B diagnostics on the same checkpoint
+- `1xH100` re-smoke after the export path is fixed
+- `8xH100` run only after the smoke gate passes
 
 ## Out Of Scope
 
-- Verbatim replication of PR #549
-- TTT as the center of the plan (parked, optional later)
-- More Session 04 micro-deltas
-- Treating RFN as the mainline strategy
-- RunPod budget except for final validation
-- Bundling unrelated changes into one unattributable run
+- More saved-container FA3 reruns
+- TTT work
+- New A100 baseline work as the mainline
+- Large stacked changes before GPTQ is sane
+- Paper-first over-research when repo-local PR code exists
 
-## Current Hardware Stance
+## Canonical Files
 
-- Parity target: Pegasus `8xH100` on one node
-- Active development target: Pegasus `8xH100`
-- Fallback target: Pegasus `A100-80GB` only when H100 access is blocked
-- Current measured evidence tiers:
-  - `A100-80GB`: solid development evidence
-  - `1xH100`: early parity-adjacent evidence
-  - `8xH100`: operationally verified baseline evidence
+- Shared mutable state: `docs/campaign/AGENT_SYNC.md`
+- Stable rules: `CLAUDE.md`
+- Codex memory:
+  - `docs/codex-memory/decisions.md`
+  - `docs/codex-memory/project-state.md`
+  - `docs/codex-memory/next-session.md`
+  - `docs/codex-memory/session-handoff.md`
+- GPTQ experiment:
+  - `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/train_gpt.py`
+  - `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/README.md`
+- GPTQ plan artifact:
+  - `docs/campaign/artifacts/05b_full_hessian_gptq_plan.md`
+- Fresh-session restart prompt:
+  - `docs/campaign/prompts/session_05b_gptq_debug_restart.md`
 
-## Status Snapshot
+## Fixed Reference Results
 
-- Pegasus operator path: confirmed working
-- A100 smoke run: complete
-- A100 `600s` baseline run: complete
-- A100 `600s` `LowerLR` comparison: complete
-- A100 `600s` baseline seed-42 reproducibility run: complete
-- A100 `600s` warmdown-only variant: complete
-- `1xH100` `600s` root baseline: complete
-- `8xH100` `600s` root baseline: complete
-- Session 03 pre-TTT anchor run: complete
-- Current best measured A100 result: root baseline (`val_bpb=1.37140771`)
-- Current best measured H100 result: `1xH100` root baseline (`val_bpb=1.30594735`)
-- Current best measured `8xH100` baseline/reference: root baseline (`val_bpb=1.23368511`)
-- Current best measured `8xH100` competition result: Session 03 anchor sliding s64 (`val_bpb=1.12904446`)
-- Baseline seed spread on A100 is small (`+0.00319322` BPB from seed `1337` to seed `42`)
-- `8xH100` launch via `torchrun --standalone` is blocked by rendezvous timeout on `serv-3342`
-- `8xH100` launch via Slurm-native `srun` works on `serv-3342`
-- Session 05 audit artifact: complete (`docs/campaign/artifacts/05_ttt_correctness_audit.md`)
-- FA3 isolated attention microbenchmark: complete
-- Saved FA3 Pegasus container build: complete
-- `1xH100` FA3 smoke: complete
-- `8xH100` FA3 timing run on saved `25.02` container: complete
-- Stock NGC `25.02` + `--no-deps` FA3 install path: rejected (PyTorch ABI mismatch)
-- `8xH100` FA3 runs must include `--nodes=1`
-- Immediate next deliverable: decide whether to pursue FA3 on a vendor-tuned NGC runtime or pivot to Phase 2
+- Session 03 anchor (`8xH100`, `serv-3342`)
+  - sliding s64 `val_bpb=1.12904446`
+  - pre-quant EMA `val_bpb=1.14472403`
+  - int6 roundtrip `val_bpb=1.15247273`
+  - steps `6564`
+  - step_avg `91.37 ms`
+  - artifact `15751324` bytes
 
-## Canonical Workspaces
+- Saved-container FA3 negative result (`8xH100`, `serv-3342`)
+  - sliding s64 `val_bpb=1.12958984`
+  - pre-quant EMA `val_bpb=1.14532979`
+  - int6 roundtrip `val_bpb=1.15296145`
+  - steps `6474`
+  - step_avg `92.67 ms`
+  - artifact `15529557` bytes
+  - conclusion: do not rerun this runtime as a throughput candidate
+
+## Latest Measured Result: Session 05b GPTQ Smoke
+
+Date: 2026-03-29
+Node: `serv-3340`
+GPU: `1xH100 80GB HBM3`
+Run: `records/track_non_record_16mb/2026-03-29_full_hessian_gptq`
+
+Measured outputs:
+
+- stopped at `906` steps in `600202 ms`
+- step_avg `662.47 ms`
+- pre-quant EMA exact `val_bpb=1.47753094`
+- roundtrip exact `val_bpb=1.68963326`
+- GPTQ stats:
+  - `67` Hessians collected
+  - `66` GPTQ layers used
+  - `0` naive fallbacks
+  - `0` Cholesky fallbacks
+  - Hessian collection `815 ms`
+  - GPTQ quantization `4236 ms`
+- artifact:
+  - code `66907` bytes
+  - model `7687970` bytes
+  - total `7754877` bytes
+- job hit the Slurm time limit before sliding eval finished
+
+Interpretation:
+
+- The training-side numbers from this `1xH100` smoke are **not comparable** to the `8xH100` anchor.
+- The export result is still clearly wrong: the roundtrip gap is about `0.2121` BPB, far worse than the anchor gap of `0.00775`.
+- This means the GPTQ pipeline mechanics work, but the current quantizer implementation is not trustworthy.
+
+## Current Bug Assessment
+
+High-confidence facts:
+
+- The current local GPTQ loop is **not a faithful copy** of the working competition PR quantizer.
+- PRs `#634`, `#1019`, and `#1060` all update the within-block residual from `j:`, while the local broken loop used `j+1:`.
+- Working PRs run the full GPTQ loop across multiple clip percentiles and keep the best reconstruction MSE.
+- The old local implementation used only fixed `row_max / 31` scaling and clamped to `[-32, 31]`, while the PRs use percentile search plus symmetric `[-31, 31]`.
+- The old local hook filter pulled an extra `bigram.proj` Hessian because `.proj.` was treated as attention in `_classify_param`.
+- The current smoke allocation left no reserve for full post-train eval.
+
+Safest current conclusion:
+
+- The main problem was the local GPTQ implementation drifting from the known-good PR code in the quantization loop itself.
+- A PR-grounded repair is now landed locally, but it has **not** been runtime-verified on a real checkpoint yet.
+- The first proof point is still export-only A/B, not more retraining.
+
+## Immediate Next Actions
+
+1. **No more retraining yet.**
+   - First debug on the same export path.
+
+2. **Run export-only diagnostics in this order:**
+   - inspect `gptq_layer_diagnostics.json` from the repaired export path
+   - check layer names where GPTQ is worse than:
+     - legacy row-max int6
+     - percentile-naive int6
+   - if needed, ablate `actorder=False` and `block_size=d_col`
+
+3. **Do not keep hand-debugging the old rewrite.**
+   - the PR-grounded loop transplant is already in the local file
+
+4. **After correctness is restored:**
+   - keep the PR-style 5-percentile search
+   - keep the symmetric `[-31, 31]` clamp
+   - keep the tightened hook target set to the actual int6-exported weights
+
+5. **Then re-run `1xH100` smoke with enough time for post-train export + eval.**
+
+6. **Only after the smoke gap is sane:**
+   - run full `8xH100`
+   - then move to the 05c training bundle
+
+## Workspace
 
 - Local repo: `/home/amay/Work/parameter-golf`
 - Remote repo: `/netscratch/$USER/parameter-golf`
 
-Use `git clone` and `git pull` as the default remote sync path.
-Use `rsync` only when local uncommitted changes need to be pushed quickly.
+Use `git clone` and `git pull` by default.
+Use `rsync` only when local uncommitted changes must be pushed quickly.
 
-## Latest Measured Results
+## Historical Measurements
 
 Date: 2026-03-27
 Node: `serv-3333`
@@ -544,6 +620,13 @@ Key decisions from the audit, competitive analysis, and FA3 benchmark:
 - Never drop `--nodes=1` on challenge-shaped `8xH100` runs just to get a faster allocation
 
 If a fresh session starts now, it should:
-1. Do **not** rerun the current saved-container FA3 path
-2. Check whether FA3 can run against a vendor-tuned NGC runtime without replacing the optimized torch stack
-3. If not, proceed to Phase 2 (Full Hessian GPTQ) on the standard stable container path
+1. **Debug the GPTQ correctness bug** — export-only, no retraining needed
+   - A/B per-layer MSE (naive vs GPTQ on same checkpoint)
+   - Inner-loop cascade diagnostics
+   - Actorder ablation
+   - If stuck: port from PR #1060 directly
+2. After fix: add multi-percentile search + symmetric clamping
+3. Re-smoke on 1xH100 (roundtrip gap < 0.01)
+4. Full 8xH100 run
+5. Then quality stack: brotli compression → MLP 3.5x → EngramLite → mixed-precision GPTQ
+6. FA3 probe on NGC 26.03 is a quick background check (untested ABI compatibility)

@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import glob
 import io
+import json
 import math
 import os
 import random
@@ -349,26 +350,65 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     return q, scale
 
 
-def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
+INT6_CLIP_PERCENTILES = (0.9990, 0.9995, 0.9999, 0.99999, 1.0)
+
+
+def _iter_int6_row_clips(t32: Tensor):
+    for pct in INT6_CLIP_PERCENTILES:
+        if pct < 1.0:
+            row_clip = torch.quantile(t32.abs(), pct, dim=1)
+        else:
+            row_clip = t32.abs().amax(dim=1)
+        yield pct, row_clip
+
+
+def _reconstruct_quantized(q: Tensor, s: Tensor) -> Tensor:
+    if s.ndim > 0:
+        return q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))
+    return q.float() * float(s.item())
+
+
+def _quantization_mse(t: Tensor, q: Tensor, s: Tensor) -> float:
+    return float((t.float() - _reconstruct_quantized(q, s)).pow(2).mean().item())
+
+
+def quantize_int6_per_row_legacy(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
         row_max = t32.abs().amax(dim=1)
-        scale = (row_max / 31.0).clamp_min(1.0 / 31.0).to(torch.float16)
-        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -32, 31).to(torch.int8)
+        scale = (row_max / float(clip_range)).clamp_min(1.0 / float(clip_range)).to(torch.float16)
+        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -(clip_range + 1), clip_range).to(torch.int8)
         return q, scale
     amax = t32.abs().max().item()
-    scale = torch.tensor(amax / 31.0 if amax > 0 else 1.0, dtype=torch.float16)
-    q = torch.clamp(torch.round(t32 / scale.float()), -32, 31).to(torch.int8)
+    scale = torch.tensor(amax / float(clip_range) if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -(clip_range + 1), clip_range).to(torch.int8)
+    return q, scale
+
+
+def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    if t32.ndim == 2:
+        best_q, best_s, best_err = None, None, float("inf")
+        for _, row_clip in _iter_int6_row_clips(t32):
+            scale = (row_clip / float(clip_range)).clamp_min(1.0 / float(clip_range)).to(torch.float16)
+            q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+            err = _quantization_mse(t32, q, scale)
+            if err < best_err:
+                best_q, best_s, best_err = q, scale, err
+        return best_q, best_s
+    amax = t32.abs().max().item()
+    scale = torch.tensor(amax / float(clip_range) if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
     return q, scale
 
 
 def _classify_param(name: str) -> str:
+    if name.startswith("blocks.") and ".mlp." in name:
+        return "mlp"
+    if name.startswith("blocks.") and ".attn." in name:
+        return "attn"
     if "tok_emb" in name or "lm_head" in name:
         return "embed"
-    if ".mlp." in name:
-        return "mlp"
-    if ".attn." in name or (".proj." in name and ".mlp." not in name):
-        return "attn"
     return "other"
 
 
@@ -494,87 +534,103 @@ def gptq_quantize_layer(
     percdamp: float = 0.01,
     clip_range: int = 31,
     actorder: bool = True,
-) -> tuple[Tensor, Tensor, bool]:
-    """GPTQ-quantize weight matrix W using Hessian H.
+) -> tuple[Tensor, Tensor, bool, dict[str, object]]:
+    """GPTQ-quantize weight matrix W using the PR-grounded loop.
 
-    Returns (q: int8 in [-32, clip_range], scale: fp16 per-row, degraded: bool).
-    degraded=True if Cholesky failed and naive fallback was used.
+    Returns (q: int8 in [-clip_range, clip_range], scale: fp16 per-row, degraded: bool, stats).
     """
-    W = W.float().clone()
+    W_orig = W.float().clone()
     H = H.float().clone()
-    d_row, d_col = W.shape
+    d_row, d_col = W_orig.shape
 
-    # Dead columns: features never activated in calibration
     dead = (H.diag() == 0)
     H[dead, dead] = 1.0
-    W[:, dead] = 0.0
 
-    # Damping for numerical stability
     damp = percdamp * H.diag().mean().clamp_min(1e-6)
     H.diagonal().add_(damp)
 
-    # Actorder: quantize most activation-sensitive columns first
-    perm = None
+    perm = torch.arange(d_col, device=H.device)
     if actorder:
         perm = torch.argsort(H.diag(), descending=True)
-        W = W[:, perm]
-        H = H[perm][:, perm]
+    invperm = torch.argsort(perm)
+    W_perm = W_orig[:, perm].clone()
+    W_perm[:, dead[perm]] = 0.0
+    H = H[perm][:, perm]
 
-    # Three-step Cholesky: get upper-triangular factor of H^{-1}
-    # Hinv_chol IS the working matrix: Hinv_chol[j,j] scales the error,
-    # Hinv_chol[j, j+1:] propagates error to later columns within a block.
     try:
-        L = torch.linalg.cholesky(H)
-        Hinv = torch.cholesky_inverse(L)
-        Hinv_chol = torch.linalg.cholesky(Hinv, upper=True)
-        del L, Hinv
+        Hinv_chol = torch.cholesky_inverse(torch.linalg.cholesky(H))
+        Hinv_chol = torch.linalg.cholesky(Hinv_chol, upper=True)
     except torch.linalg.LinAlgError:
         cond_est = H.diag().max().item() / max(H.diag().min().item(), 1e-12)
         print(f"gptq:WARNING Cholesky failed, cond~{cond_est:.1e}, falling back to naive", flush=True)
-        q, s = quantize_int6_per_row(W[:, torch.argsort(perm)] if perm is not None else W)
-        return q, s, True
+        q, s = quantize_int6_per_row(W_orig, clip_range=clip_range)
+        return q, s, True, {
+            "mse": _quantization_mse(W_orig, q, s),
+            "best_pct": None,
+            "dead_cols": int(dead.sum().item()),
+            "max_block_mse": None,
+            "worst_block_start": None,
+            "cholesky_fallback": True,
+        }
 
-    # Per-row scales (row-max is column-permutation-invariant)
-    row_max = W.abs().amax(dim=1)
-    scale = (row_max / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
-    scale_f = scale.float()
+    best_q, best_scale, best_stats = None, None, None
+    best_err = float("inf")
+    for pct, row_clip in _iter_int6_row_clips(W_orig):
+        scale = (row_clip / float(clip_range)).clamp_min(1.0 / float(clip_range)).to(torch.float16)
+        scale_f = scale.float()
+        Q = torch.zeros((d_row, d_col), dtype=torch.int8, device=W_perm.device)
+        W_work = W_perm.clone()
+        max_block_mse = -1.0
+        worst_block_start = 0
 
-    # Block-wise GPTQ quantization
-    Q = torch.zeros_like(W)
-    for block_start in range(0, d_col, block_size):
-        block_end = min(block_start + block_size, d_col)
-        W_block = W[:, block_start:block_end].clone()
-        Err = torch.zeros_like(W_block)
-        Hinv_block = Hinv_chol[block_start:block_end, block_start:block_end]
+        for block_start in range(0, d_col, block_size):
+            block_end = min(block_start + block_size, d_col)
+            W_block = W_work[:, block_start:block_end].clone()
+            Err = torch.zeros((d_row, block_end - block_start), dtype=W_work.dtype, device=W_work.device)
+            Hinv_block = Hinv_chol[block_start:block_end, block_start:block_end]
 
-        for j in range(block_end - block_start):
-            w_col = W_block[:, j]
-            d = Hinv_block[j, j]
+            for j in range(block_end - block_start):
+                w_col = W_block[:, j]
+                d = Hinv_block[j, j]
+                q_col = torch.clamp(torch.round(w_col / scale_f), -clip_range, clip_range)
+                Q[:, block_start + j] = q_col.to(torch.int8)
+                err = (w_col - q_col.float() * scale_f) / d
+                Err[:, j] = err
+                W_block[:, j:] -= err.unsqueeze(1) * Hinv_block[j, j:].unsqueeze(0)
 
-            q_col = torch.clamp(torch.round(w_col / scale_f), -32, clip_range)
-            Q[:, block_start + j] = q_col
+            if block_end < d_col:
+                W_work[:, block_end:] -= Err @ Hinv_chol[block_start:block_end, block_end:]
 
-            err = (w_col - q_col * scale_f) / d
-            Err[:, j] = err
+            block_recon = Q[:, block_start:block_end].float() * scale_f[:, None]
+            block_mse = float((W_perm[:, block_start:block_end] - block_recon).pow(2).mean().item())
+            if block_mse > max_block_mse:
+                max_block_mse = block_mse
+                worst_block_start = block_start
 
-            if j + 1 < block_end - block_start:
-                W_block[:, j + 1:] -= err.unsqueeze(1) * Hinv_block[j, j + 1:].unsqueeze(0)
+        recon = Q.float() * scale_f[:, None]
+        mse = float((W_perm - recon).pow(2).mean().item())
+        if mse < best_err:
+            best_q = Q
+            best_scale = scale
+            best_err = mse
+            best_stats = {
+                "mse": mse,
+                "best_pct": pct,
+                "dead_cols": int(dead.sum().item()),
+                "max_block_mse": max_block_mse,
+                "worst_block_start": worst_block_start,
+                "cholesky_fallback": False,
+            }
 
-        if block_end < d_col:
-            W[:, block_end:] -= Err @ Hinv_chol[block_start:block_end, block_end:]
-
-    # Un-permute back to original column order
-    if perm is not None:
-        invperm = torch.argsort(perm)
-        Q = Q[:, invperm]
-
-    return Q.to(torch.int8), scale, False
+    best_q = best_q[:, invperm]
+    return best_q, best_scale, False, best_stats
 
 
 def gptq_mixed_quantize_int6(
     state_dict: dict[str, Tensor],
     int6_cats: set[str],
     hessians: dict[str, Tensor],
+    clip_range: int = 31,
 ):
     """Like mixed_quantize_int6, but uses GPTQ for layers with Hessians.
 
@@ -583,6 +639,7 @@ def gptq_mixed_quantize_int6(
     """
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
+    diagnostics: list[dict[str, object]] = []
     gptq_count, naive_count, fallback_count = 0, 0, 0
     for name, tensor in state_dict.items():
         t = tensor.detach().cpu().contiguous()
@@ -599,14 +656,30 @@ def gptq_mixed_quantize_int6(
             module_name = name.rsplit(".weight", 1)[0] if name.endswith(".weight") else name
             H = hessians.get(module_name)
             if H is not None and t.ndim == 2:
-                q, s, degraded = gptq_quantize_layer(t, H)
+                legacy_q, legacy_s = quantize_int6_per_row_legacy(t, clip_range=clip_range)
+                naive_q, naive_s = quantize_int6_per_row(t, clip_range=clip_range)
+                q, s, degraded, gptq_stats = gptq_quantize_layer(t, H, clip_range=clip_range)
+                legacy_mse = _quantization_mse(t, legacy_q, legacy_s)
+                naive_mse = _quantization_mse(t, naive_q, naive_s)
+                gptq_mse = float(gptq_stats["mse"])
+                diagnostics.append({
+                    "name": module_name,
+                    "legacy_rowmax_mse": legacy_mse,
+                    "percentile_naive_mse": naive_mse,
+                    "gptq_mse": gptq_mse,
+                    "gptq_minus_legacy_rowmax_mse": gptq_mse - legacy_mse,
+                    "gptq_minus_percentile_naive_mse": gptq_mse - naive_mse,
+                    "gptq_worse_than_legacy_rowmax": gptq_mse > legacy_mse,
+                    "gptq_worse_than_percentile_naive": gptq_mse > naive_mse,
+                    **gptq_stats,
+                })
                 if degraded:
                     fallback_count += 1
                     print(f"gptq: DEGRADED layer {module_name}", flush=True)
                 else:
                     gptq_count += 1
             else:
-                q, s = quantize_int6_per_row(t)
+                q, s = quantize_int6_per_row(t, clip_range=clip_range)
                 naive_count += 1
             result[name + ".q"] = q
             result[name + ".scale"] = s
@@ -616,8 +689,16 @@ def gptq_mixed_quantize_int6(
             result[name + ".q"] = q
             result[name + ".scale"] = s
             meta[name] = {"type": "int8"}
+    diagnostics.sort(key=lambda item: item["gptq_minus_legacy_rowmax_mse"], reverse=True)
+    worse_legacy = [d for d in diagnostics if d["gptq_worse_than_legacy_rowmax"]]
+    worse_naive = [d for d in diagnostics if d["gptq_worse_than_percentile_naive"]]
     print(f"gptq: {gptq_count} GPTQ, {naive_count} naive, {fallback_count} Cholesky fallbacks", flush=True)
-    return result, meta
+    print(
+        f"gptq_diag: worse_than_legacy_rowmax={len(worse_legacy)} "
+        f"worse_than_percentile_naive={len(worse_naive)}",
+        flush=True,
+    )
+    return result, meta, diagnostics
 
 
 # -----------------------------
@@ -1558,8 +1639,43 @@ def main() -> None:
         # --- GPTQ: quantization + compress + write (rank-0 only) ---
         sd_cpu_r0 = {k: v.detach().cpu().contiguous() for k, v in base_model.state_dict().items()}
         t_quant = time.perf_counter()
-        quant_result, quant_meta = gptq_mixed_quantize_int6(sd_cpu_r0, {"mlp", "attn"}, hessians)
+        quant_result, quant_meta, gptq_diagnostics = gptq_mixed_quantize_int6(
+            sd_cpu_r0, {"mlp", "attn"}, hessians, clip_range=31,
+        )
         log0(f"gptq: quantization in {1000*(time.perf_counter()-t_quant):.0f}ms")
+        worse_legacy = [d for d in gptq_diagnostics if d["gptq_worse_than_legacy_rowmax"]]
+        worse_naive = [d for d in gptq_diagnostics if d["gptq_worse_than_percentile_naive"]]
+        diagnostics_payload = {
+            "summary": {
+                "num_layers": len(gptq_diagnostics),
+                "worse_than_legacy_rowmax": len(worse_legacy),
+                "worse_than_percentile_naive": len(worse_naive),
+            },
+            "layers": gptq_diagnostics,
+        }
+        with open("gptq_layer_diagnostics.json", "w", encoding="utf-8") as f:
+            json.dump(diagnostics_payload, f, indent=2, sort_keys=True)
+        log0("gptq: wrote diagnostics to gptq_layer_diagnostics.json")
+        if not worse_legacy:
+            log0("gptq: no layers worse than legacy row-max int6")
+        if worse_legacy:
+            for diag in worse_legacy[:8]:
+                log0(
+                    "gptq: legacy_worse "
+                    f"{diag['name']} delta_mse:{diag['gptq_minus_legacy_rowmax_mse']:.6e} "
+                    f"gptq_mse:{diag['gptq_mse']:.6e} legacy_mse:{diag['legacy_rowmax_mse']:.6e} "
+                    f"pct:{diag['best_pct']} block:{diag['worst_block_start']}"
+                )
+        if not worse_naive:
+            log0("gptq: no layers worse than percentile naive int6")
+        if worse_naive:
+            for diag in worse_naive[:8]:
+                log0(
+                    "gptq: percentile_worse "
+                    f"{diag['name']} delta_mse:{diag['gptq_minus_percentile_naive_mse']:.6e} "
+                    f"gptq_mse:{diag['gptq_mse']:.6e} naive_mse:{diag['percentile_naive_mse']:.6e} "
+                    f"pct:{diag['best_pct']} block:{diag['worst_block_start']}"
+                )
         del hessians, sd_cpu_r0
 
         quant_buf = io.BytesIO()

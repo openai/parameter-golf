@@ -5,15 +5,15 @@ Date: 2026-03-29
 ## Objective
 
 Primary:
-- use the verified Pegasus `8xH100` path to advance from the Session 03 anchor into Session 05
-- improve both the pre-TTT base and the TTT plan rather than keep extending Session 04 micro-deltas
+- repair the Session 05b Full Hessian GPTQ export path on top of the Session 03 anchor
+- regain a sane roundtrip gap before spending more `8xH100` training budget
 
 Secondary:
 - keep the Session 03 anchor as the new fixed reference
 - preserve exact launch, logging, artifact, and evaluation discipline
 
 Stretch:
-- reach a clearly improved `8xH100` pre-TTT and post-TTT story that justifies a stronger compute request or leaderboard-adjacent claim
+- recover a valid GPTQ path, then stack training-side quality improvements toward a leaderboard-entry-capable result
 
 ## Current campaign state
 
@@ -24,6 +24,7 @@ Stretch:
   - `AGENTS.md`
   - `CLAUDE.md`
 - Session 03 anchor run is complete
+- Session 05b GPTQ implementation exists but currently fails its smoke-test correctness gate
 
 ## Verified hardware state
 
@@ -81,10 +82,10 @@ Do not use:
 - GPTQ-lite percentile clip search does not help at this scale (Session 04 Delta 1 negative result: worse BPB + artifact cap violation)
 - LeakyReLU^2 activation is neutral (Session 04 Delta 2: sliding s64 val_bpb effectively identical at `1.12904123`, but slightly better quantization metrics and 168KB smaller artifact; slower step time cancels quality gain)
 - The local public `1.1194` record is not “TTT only”: its pre-TTT base is already `1.1218` at `83.4 ms`, so stronger pre-TTT work and throughput matter before TTT can close the remaining gap
-- Direct FA3 on Pegasus is now benchmark-backed as the first implementation target: in the isolated attention benchmark, `25.02` + wheel ran direct FA3 at `0.165 ms/iter` vs SDPA flash at `1.889 ms/iter` in the same container. This is kernel-only evidence and still needs full-training validation.
-- The FA3 deployment path is now operationally locked: build the saved `25.02` FA3 container once, then reuse it for smoke and full jobs.
-- The first `1xH100` FA3 smoke trained normally and stabilized near `640 ms/step` after warmup.
-- The first full `8xH100` FA3 run on that saved-container path is a clean negative result: slower, fewer steps, and worse BPB than the SDPA anchor.
+- Direct FA3 on Pegasus was benchmark-backed as a hypothesis, but the saved-container end-to-end path is now a measured negative result.
+- The FA3 deployment path is operationally understood, but the current saved-container runtime is not a throughput candidate.
+- The first `1xH100` GPTQ smoke successfully exercised Hessian collection, quantization, compression, reload, and eval.
+- That same smoke also exposed a correctness failure in the current GPTQ quantizer: roundtrip exact `1.68963326` vs pre-quant exact `1.47753094`.
 
 ## Session 05b: Full Hessian GPTQ (2026-03-29)
 
@@ -98,19 +99,32 @@ Do not use:
   - 66 layers GPTQ'd, 0 Cholesky fallbacks, 4.2s quantization, 7.75MB artifact
   - Pipeline mechanics work, but quantized weights reconstruct poorly
   - Must debug before 8xH100 run
+  - The `1xH100` training metrics are not anchor-comparable because the smoke run uses a different `WORLD_SIZE` and therefore different `grad_accum_steps`
+- **2026-03-29 code repair landed, rerun pending**
+  - local PR diff found the key loop mismatch: `W_block[:, j + 1:]` vs PR `W_block[:, j:]`
+  - the repaired code now matches the PR structure for:
+    - within-block residual propagation
+    - 5-percentile reconstruction search
+    - symmetric `[-31, 31]` clamp
+    - block-only `attn` / `mlp` Hessian targeting
+  - export now writes `gptq_layer_diagnostics.json` with per-layer naive-vs-GPTQ MSE and worst-block summaries
+  - this repo does not currently contain a saved checkpoint for same-checkpoint replay
+  - this local shell does not have `torch`, so verification here only reached `py_compile`
 
 ## What has not happened yet
 
-- no correct Full Hessian GPTQ result yet (bug found in first smoke test)
+- no correct Full Hessian GPTQ result yet
+- no same-checkpoint naive-vs-GPTQ export A/B yet
+- no runtime validation of the repaired PR-grounded quantizer yet
 - no vendor-tuned NGC FA3 runtime result yet
-- no positive end-to-end FA3 result yet
 - no top-tier leaderboard-adjacent result yet
 - no measured VE128 delta yet
 
 ## Best next move
 
 - **Debug the GPTQ roundtrip quality regression** — top priority
-- Add per-layer MSE comparison, try disabling actorder, verify against PR diffs
-- After fix: re-smoke on 1xH100, then full 8xH100 run
+- Run the repaired export path on a real checkpoint and inspect `gptq_layer_diagnostics.json`
+- If diagnosis is not immediate, try `actorder=False` and `block_size=d_col` on that same checkpoint
+- After fix: re-smoke on `1xH100` with more post-train wallclock headroom, then full `8xH100`
 - Then Session 05c training bundle (XSA-all + VE128 + SWA + warmdown3500)
 - Do not spend time on FA3 or TTT until GPTQ is fixed

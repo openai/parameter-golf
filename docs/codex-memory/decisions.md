@@ -13,7 +13,7 @@
 - The next `8xH100` runs must be actual model changes.
 - Session 03 pre-TTT anchor work is complete at `val_bpb=1.12904446` (sliding s64) on Pegasus `8xH100`.
 - Session 04 targeted delta sweep is closed.
-- Session 05 throughput + pre-TTT + TTT audit is the new mainline.
+- Session 05 mainline is now **GPTQ correctness first**, not throughput audit first.
 
 ## Session 03 decisions
 
@@ -38,6 +38,8 @@
 - Keep Session 04 deliberately narrow: one isolated delta per run, no stacked backend/export/model bundles
 - Do not use `| tail -1` on Pegasus training jobs.
 - Use `PYTHONUNBUFFERED=1` or `python -u` for Pegasus logs.
+- For competition ports, use source priority: PR code first, local repo second, papers/web third.
+- When a post-training export path breaks, debug it on the same checkpoint before spending more H100 time on retraining.
 
 ## Session 04 decisions
 
@@ -52,6 +54,7 @@
 - FA3 is back in scope as a deliberate Session 05 throughput investigation, not as an anchor bring-up risk.
 - The current saved-container FA3 runtime is rejected as a throughput path. It is slower and worse than the Session 03 anchor.
 - Any further FA3 work is gated on vendor-tuned NGC runtime compatibility.
+- Throughput-first is no longer the main strategic frame. Current frontier evidence says quality-first improvements matter more than raw ms/step.
 
 ### Session 05 audit decisions (2026-03-29)
 
@@ -75,10 +78,27 @@
 - Full Hessian GPTQ selected as Phase 2 implementation target based on competitive analysis: all 4 top PRs (#634, #1019, #1060, #1072) use the same core GPTQ algorithm with identical hyperparameters (block_size=128, percdamp=0.01, actorder=True).
 - Post-training calibration (not online accumulation) chosen as the Hessian collection method — simpler, proven in PRs #634 and #1060.
 - 128 calibration sequences from training data (not validation) — matches prompt budget, avoids leakage.
-- `clip_percentiles=[1.0]` only (row-max, no multi-percentile search) — conservative choice to avoid the artifact size blowup that killed GPTQ-lite in Session 04 Delta 1.
+- `clip_percentiles=[1.0]` only was a deliberate conservative start — but PR analysis revealed working PRs (#634, #1060) actually run FULL GPTQ loop 5× with `[0.9990, 0.9995, 0.9999, 0.99999, 1.0]` and keep best MSE. This is NOT the same as GPTQ-lite's percentile search (which changed scales without error compensation). Multi-percentile search with full GPTQ should be added after fixing the core bug.
+- Working PRs use symmetric clamping `[-31, 31]` in export, not `[-32, 31]`. This alignment is now landed locally in the repaired Session 05b code.
 - Export path restructured for rank-0-only GPTQ: Hessian collection + quantization + file write inside `if master_process:`, barrier, then all ranks read file for eval. Avoids undefined `hessians` on non-master ranks.
 - **1xH100 smoke test revealed correctness bug**: roundtrip gap 0.212 BPB (27x worse than anchor). GPTQ pipeline mechanics work but quantized weights reconstruct very poorly. Must debug before 8xH100 run.
 - Standard NGC 26.03 container used (no FA3 dependency) — confirmed correct, no container issues.
+- **Strategic pivot: quality > throughput** — PR #1089 (1.1086 BPB leader) uses NO FA3, runs at 93ms/step (slower than our anchor), wins purely on model quality innovations (Turbo-Muon, EngramLite, mixed-precision GPTQ, brotli+byte-shuffle, 3.5x MLP). Throughput is nice-to-have, not the priority.
+- **PR #1089 is the new frontier reference** (was PR #1060 at 1.1122). Update gap estimates accordingly.
+- **Top-down entry rule** for leaderboard means threshold-crossing, not rank-climbing. Must beat current #1 to enter.
+- The first Session 05b smoke is a **clean GPTQ correctness failure**, not a meaningful quality result.
+- The `1xH100` smoke's training-side numbers are not comparable to the `8xH100` anchor because `WORLD_SIZE` changes `grad_accum_steps`.
+- Missing multi-percentile search and symmetric clamp are confirmed divergences from working PRs, but are **not yet proven** to be the sole root cause of the catastrophic roundtrip gap.
+- The safest current diagnosis is that the local GPTQ quantizer drifted too far from the known-good PR implementation.
+- No more `8xH100` GPTQ runs until the export path passes a same-checkpoint A/B sanity check and a corrected `1xH100` smoke.
+- PR-code diff isolated one concrete loop bug: the local within-block residual update used `W_block[:, j + 1:]`, while PRs `#634`, `#1019`, and `#1060` use `W_block[:, j:]`.
+- A PR-grounded GPTQ repair is now landed locally:
+  - within-block residual update matches the PR loop
+  - 5-percentile reconstruction search is in place
+  - symmetric `[-31, 31]` clamp is in place
+  - `_classify_param` now targets only block `attn` / `mlp` weights, excluding `bigram.proj`
+  - export writes `gptq_layer_diagnostics.json` with legacy-rowmax vs percentile-naive vs GPTQ per-layer MSE
+- Because no saved checkpoint exists in the repo and this local shell lacks `torch`, the repair is currently code-reviewed and syntax-checked only. The next gate remains same-checkpoint export-only verification.
 
 ## Hard gates
 
