@@ -84,12 +84,6 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
-    use_ngram_eval = bool(int(os.environ.get("USE_NGRAM_EVAL", "0")))
-    ngram_order = int(os.environ.get("NGRAM_ORDER", "9"))
-    use_ttt = bool(int(os.environ.get("USE_TTT", "0")))
-    ttt_lr = float(os.environ.get("TTT_LR", "0.002"))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", "3"))
-    ttt_chunk = int(os.environ.get("TTT_CHUNK", "32768"))
 
 # -----------------------------
 # -----------------------------
@@ -313,90 +307,6 @@ def eval_val(
 
 # -----------------------------
 # -----------------------------
-
-class NGramCache:
-    def __init__(self, order: int = 9, vocab_size: int = 1024):
-        from collections import defaultdict
-        self.order = order
-        self.vocab_size = vocab_size
-        self.counts: list = [defaultdict(lambda: defaultdict(int)) for _ in range(order)]
-
-    def update(self, context: list[int], next_tok: int) -> None:
-        """Call AFTER scoring — never peeks at future tokens."""
-        for n in range(1, self.order + 1):
-            if len(context) >= n:
-                self.counts[n - 1][tuple(context[-n:])][next_tok] += 1
-
-    def get_log_probs(self, context: list[int]) -> Tensor | None:
-        for n in range(self.order, 0, -1):
-            if len(context) >= n:
-                c = self.counts[n - 1].get(tuple(context[-n:]))
-                if c:
-                    total = sum(c.values())
-                    p = torch.zeros(self.vocab_size)
-                    for tok, cnt in c.items():
-                        p[tok] = cnt / total
-                    return p.log().clamp(min=-100.0)
-        return None
-
-    def interpolate(self, logits: Tensor, context: list[int]) -> Tensor:
-        lp = self.get_log_probs(context)
-        if lp is None:
-            return logits
-        np_ = torch.softmax(logits.float(), dim=-1)
-        H = -(np_ * (np_ + 1e-10).log()).sum()
-        alpha = (H / math.log(self.vocab_size)).clamp(0.0, 0.95)
-        return ((1.0 - alpha) * np_ + alpha * lp.exp().to(np_.device)).log()
-
-def eval_val_with_ngram(
-    args: Hyperparameters,
-    base_model: nn.Module,
-    rank: int,
-    world_size: int,
-    device: torch.device,
-    val_tokens: Tensor,
-    base_bytes_lut: Tensor,
-    has_leading_space_lut: Tensor,
-    is_boundary_token_lut: Tensor,
-) -> tuple[float, float]:
-    """Sequential sliding-window eval with N-gram interpolation (rank 0; results broadcast)."""
-    seq_len = args.train_seq_len
-    stride = args.eval_stride
-    total_toks = val_tokens.numel()
-    all_ws = list(range(0, total_toks - seq_len, stride))
-    val_loss_sum = 0.0
-    val_token_count = 0
-    val_byte_count = 0.0
-    cache = NGramCache(order=args.ngram_order, vocab_size=args.vocab_size)
-    base_model.eval()
-    if rank == 0:
-        with torch.inference_mode():
-            for wi, ws in enumerate(all_ws):
-                x_t = val_tokens[ws : ws + seq_len].to(device=device, dtype=torch.int64)
-                y_t = val_tokens[ws + 1 : ws + seq_len + 1].to(device=device, dtype=torch.int64)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    logits = base_model.forward_logits(x_t.unsqueeze(0))[0].cpu()
-                sc = 0 if wi == 0 else seq_len - stride
-                for lp in range(sc, seq_len):
-                    ctx = x_t[:lp + 1].tolist()
-                    nt = int(y_t[lp].item())
-                    log_probs = cache.interpolate(logits[lp], ctx)
-                    val_loss_sum += -log_probs[nt].item()
-                    val_token_count += 1
-                    cache.update(ctx, nt)
-                    tbytes = int(base_bytes_lut[nt].item())
-                    prev = int(x_t[lp].item())
-                    if bool(has_leading_space_lut[nt].item()) and not bool(is_boundary_token_lut[prev].item()):
-                        tbytes += 1
-                    val_byte_count += tbytes
-    results = torch.tensor([val_loss_sum, float(val_token_count), val_byte_count], dtype=torch.float64, device=device)
-    if dist.is_available() and dist.is_initialized():
-        dist.broadcast(results, src=0)
-    val_loss = float(results[0].item() / results[1].item())
-    bpt = val_loss / math.log(2.0)
-    tpb = float(results[1].item() / results[2].item())
-    base_model.train()
-    return val_loss, float(bpt * tpb)
 
 # -----------------------------
 # -----------------------------
@@ -1432,19 +1342,6 @@ def main() -> None:
     log0(f"final_int6_gptq_roundtrip val_loss:{gq_loss:.4f} val_bpb:{gq_bpb:.4f} "
          f"eval_time:{1000.0*(time.perf_counter()-t_gptq):.0f}ms")
     log0(f"final_int6_gptq_roundtrip_exact val_loss:{gq_loss:.8f} val_bpb:{gq_bpb:.8f}")
-
-    if args.use_ngram_eval:
-        log0(f"starting_ngram_eval order:{args.ngram_order}")
-        torch.cuda.synchronize()
-        t_ng = time.perf_counter()
-        ng_loss, ng_bpb = eval_val_with_ngram(
-            args, base_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        )
-        torch.cuda.synchronize()
-        log0(f"ngram_eval val_loss:{ng_loss:.4f} val_bpb:{ng_bpb:.4f} "
-             f"eval_time:{1000.0*(time.perf_counter()-t_ng):.0f}ms")
-        log0(f"ngram_eval_exact val_loss:{ng_loss:.8f} val_bpb:{ng_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
