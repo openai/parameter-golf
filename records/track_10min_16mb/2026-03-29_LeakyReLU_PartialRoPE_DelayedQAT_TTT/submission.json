@@ -1,0 +1,7 @@
+{
+  "val_bpb": 1.1407,
+  "artifact_bytes": 15714574,
+  "training_time_seconds": 600,
+  "eval_time_seconds": 566,
+  "gpu": "8xH100_SXM"
+}
