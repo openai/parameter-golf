@@ -74,7 +74,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 128))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))  # PR#944: stride=64 for 2x more windows
     mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 0))
     mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.2))
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
@@ -1127,9 +1127,9 @@ class NgramCache:
 
 def build_ngram_from_shards(data_path: str, max_order: int = 13, min_order: int = 2,
                             num_buckets: int = 524288, max_shards: int = 0,
-                            shard_list: list | None = None, log_fn=None) -> dict:
-    """build n-gram hash tables from training shards.
-    returns dict of torch tensors to store in artifact."""
+                            shard_list: list | None = None, log_fn=None,
+                            token_budget: int = 0) -> dict:
+    """build n-gram hash tables from training shards. token_budget: max tokens (0=unlimited)."""
     if shard_list is not None:
         shard_files = shard_list
     else:
@@ -1147,9 +1147,13 @@ def build_ngram_from_shards(data_path: str, max_order: int = 13, min_order: int 
     full_counts = [np.zeros(num_buckets, dtype=np.uint32) for _ in range(num_orders)]
     total_tokens = 0
     for si, shard_file in enumerate(shard_files):
+        if token_budget > 0 and total_tokens >= token_budget:
+            break
         t_shard = time.perf_counter()
         header = np.fromfile(shard_file, dtype="<i4", count=256)
         num_tokens = int(header[2])
+        if token_budget > 0:
+            num_tokens = min(num_tokens, token_budget - total_tokens)
         tokens = np.fromfile(shard_file, dtype="<u2", count=num_tokens,
                              offset=256 * np.dtype("<i4").itemsize)
         total_tokens += num_tokens
@@ -1313,47 +1317,27 @@ def eval_val_ngram(
                 model_p = probs_all[i, s:wlen].gather(1, seg_targets.unsqueeze(1)).squeeze(1).cpu().numpy().astype(np.float64)
                 seg_nll_neural = F.cross_entropy(logits_f[i, s:wlen], seg_targets, reduction='none').cpu().numpy().astype(np.float64)
 
-                # n-gram: score-first (lookup THEN update)
-                if dirichlet_concentration > 0:
-                    # hierarchical Dirichlet CTW mixing (PR #943 approach)
-                    blended_p = cache.lookup_hierarchical(val_np, abs_start, abs_end, dirichlet_concentration, model_p)
-                    # track hits for logging
-                    _, has_match, matched_order, _, _ = cache.lookup(val_np, abs_start, abs_end)
-                else:
-                    p_ngram, has_match, matched_order, _, _ = cache.lookup(val_np, abs_start, abs_end)
-                    # legacy linear interpolation with per-order entropy thresholds
-                    blended_p = model_p.copy()
-                    if has_match.any():
-                        m = has_match
-                        ent_centers = {7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5, 8: 2.8, 9: 2.6}
-                        if adaptive:
-                            seg_ent = (-(probs_all[i, s:wlen] * log_probs_all[i, s:wlen]).sum(dim=-1)).cpu().numpy()
-                            alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
-                            for pos_idx in range(seg_len):
-                                if has_match[pos_idx]:
-                                    order = int(matched_order[pos_idx])
-                                    center = ent_centers.get(order, ent_thresh)
-                                    sig = 1.0 / (1.0 + np.exp(-ent_scale * (seg_ent[pos_idx] - center)))
-                                    alpha[pos_idx] = ent_base + ent_range * sig
-                        else:
-                            alpha = np.full(seg_len, fixed_alpha, dtype=np.float64)
-                        blended_p[m] = (1.0 - alpha[m]) * model_p[m] + alpha[m] * p_ngram[m]
+                # n-gram: score-first — PR#944 exact formula
+                # backoff lookup (highest order first, one match per position)
+                p_ngram, has_match, matched_order, ctx_counts_out, full_counts_out = cache.lookup(val_np, abs_start, abs_end)
+                blended_p = model_p.copy()
+                if has_match.any():
+                    m_idx = np.where(has_match)[0]
+                    ce = np.maximum(ctx_counts_out[m_idx], 1.0)
+                    fe = full_counts_out[m_idx]
+                    # per-order Dirichlet concentration (PR#944 exact values)
+                    dirichlet_conc_arr = np.array([50.0, 50.0, 20.0, 10.0, 6.0, 4.0, 3.0, 2.5, 2.0, 1.8, 1.6])
+                    order_idx = np.clip(matched_order[m_idx] - cache.min_order, 0, len(dirichlet_conc_arr) - 1)
+                    cvals = dirichlet_conc_arr[order_idx]
+                    # Dirichlet posterior: (count + c*model_p) / (total + c)
+                    posterior = (fe + cvals * model_p[m_idx]) / (ce + cvals)
+                    # count-confidence gating: conf = ctx_c / (ctx_c + gain)
+                    conf_gain = 12.0  # PR#944 value
+                    conf = ce / (ce + conf_gain)
+                    blended_p[m_idx] = (1.0 - conf) * model_p[m_idx] + conf * posterior
+                # update cache AFTER scoring (score-first)
                 cache.update(val_np, abs_start, abs_end)
-
-                # phrase cache: lookup THEN update (score-first)
-                positions = np.arange(abs_start, abs_end, dtype=np.int64)
-                p_phrase, phrase_match, phrase_len, phr_ctx_c, phr_full_c = phrase_cache.lookup(val_np, positions, min_count=2)
-                phrase_cache.update(val_np, abs_start, abs_end)
-                if phrase_match.any():
-                    pm = phrase_match
-                    if dirichlet_concentration > 0:
-                        # phrase Dirichlet with lower concentration (phrases are more specific)
-                        phr_conc = dirichlet_concentration * 0.2
-                        blended_p[pm] = (phr_conc * blended_p[pm] + phr_full_c[pm]) / (phr_conc + phr_ctx_c[pm])
-                    else:
-                        pa = 0.3 + (0.95 - 0.3) * (phrase_len[phrase_match].astype(np.float64) - 16.0) / 32.0
-                        pa = np.clip(pa, 0.0, 0.95)
-                        blended_p[pm] = (1.0 - pa) * blended_p[pm] + pa * p_phrase[pm]
+                # no phrase cache (PR#944 Config B disables it)
 
                 blended_p = np.maximum(blended_p, 1e-30)
                 seg_nll = -np.log(blended_p)
@@ -2021,9 +2005,10 @@ def main() -> None:
     packed_ngram = None
     if ngram_artifact_enabled:
         t_build = time.perf_counter()
-        ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "13"))
-        ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "131072"))  # 128K — use artifact headroom
-        ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "80"))
+        ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "12"))  # PR#944: max_order=12
+        ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "32768"))  # PR#944: 32K buckets = match eval
+        ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "24"))  # PR#944: 24 shards
+        ngram_art_token_budget = int(os.environ.get("NGRAM_ART_TOKEN_BUDGET", "1000000"))  # 1M/rank = 8M total
         # each rank builds from a subset of shards
         all_shards = sorted(glob.glob(os.path.join(args.data_path, "fineweb_train_*.bin")))
         if ngram_art_max_shards > 0:
@@ -2035,6 +2020,7 @@ def main() -> None:
             num_buckets=ngram_art_buckets, max_shards=0,
             log_fn=log0 if master_process else None,
             shard_list=my_shards,
+            token_budget=ngram_art_token_budget,
         )
         # all-reduce counts across ranks (convert to int32 for reduction, then back to uint16)
         if distributed:
@@ -2232,7 +2218,7 @@ def main() -> None:
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     sw_seq_len = effective_eval_seq_len
     if ngram_enabled:
-        ngram_order = int(os.environ.get("NGRAM_ORDER", "13"))  # match artifact order
+        ngram_order = int(os.environ.get("NGRAM_ORDER", "12"))  # PR#944: max_order=12
         ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
         # use artifact bucket count if available, otherwise default
         art_buckets = int(prewarmed_ngram["meta"][2]) if prewarmed_ngram is not None else 4194304
