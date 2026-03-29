@@ -89,7 +89,7 @@ def find_max_model(quant_bits, enable_entropy_coding, enable_pruning, prune_frac
 PENALTY = 10.0
 
 def run_trial(config: dict, max_wallclock: int, iterations: int,
-              label: str = "") -> dict:
+              label: str = "", skip_compile: bool = False) -> dict:
     """Run one training+eval and return parsed results dict."""
     # Defaults for 4090
     base = {
@@ -99,8 +99,9 @@ def run_trial(config: dict, max_wallclock: int, iterations: int,
         "VAL_BATCH_SIZE": 65536,
         "VAL_LOSS_EVERY": 0,
         "TRAIN_LOG_EVERY": 50,
-        "WARMUP_STEPS": 5,
+        "WARMUP_STEPS": 0,
         "ENABLE_TURBOQUANT": 1,
+        "SKIP_COMPILE": 1 if skip_compile else 0,
     }
     base.update(config)
 
@@ -244,7 +245,7 @@ TECHNIQUE_TESTS = [
 ]
 
 
-def run_validation(max_wallclock: int, iterations: int):
+def run_validation(max_wallclock: int, iterations: int, skip_compile: bool = True):
     """Run each technique test sequentially. Interruptible — skips completed trials."""
     completed = load_completed_labels()
     total = len(TECHNIQUE_TESTS)
@@ -272,7 +273,7 @@ def run_validation(max_wallclock: int, iterations: int):
         print(f"  Running...", end="", flush=True)
 
         try:
-            result = run_trial(config, max_wallclock, iterations, label=label)
+            result = run_trial(config, max_wallclock, iterations, label=label, skip_compile=skip_compile)
         except KeyboardInterrupt:
             print(f"\n\nInterrupted at trial {done}/{total} ({label})")
             print(f"Completed {done-1} trials. Re-run to resume.")
@@ -428,7 +429,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "validate":
-        run_validation(args.max_wallclock, args.iterations)
+        run_validation(args.max_wallclock, args.iterations, skip_compile=True)
 
     elif args.command == "search":
         study = optuna.create_study(

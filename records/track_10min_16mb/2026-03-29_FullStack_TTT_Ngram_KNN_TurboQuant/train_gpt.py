@@ -1333,7 +1333,9 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    skip_compile = bool(int(os.environ.get("SKIP_COMPILE", "0")))
+    if not skip_compile:
+        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -1459,7 +1461,10 @@ def main() -> None:
     if args.enable_turboquant:
         log0(f"turboquant:enabled bits={args.turboquant_bits} layers={args.num_layers} (eval-time only, activates during TTT/XSA)")
 
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    if skip_compile:
+        compiled_model = base_model
+    else:
+        compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
