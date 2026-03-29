@@ -869,7 +869,7 @@ class CausalSelfAttention(nn.Module):
             k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
 
-        # TurboQuant KV cache compression — compress K/V to 3-bit for bandwidth savings
+        # TurboQuant KV cache compression — reduces memory bandwidth during eval
         layer_idx = getattr(self, '_layer_idx', -1)
         if _turboquant_caches is not None and layer_idx >= 0 and layer_idx in _turboquant_caches:
             cache = _turboquant_caches[layer_idx]
@@ -1820,7 +1820,7 @@ def main() -> None:
     if args.enable_optrot:
         restored_sd = reverse_optrot(restored_sd)
     base_model.load_state_dict(restored_sd, strict=(args.mtp_num_heads == 0))
-    # Activate TurboQuant for eval-time KV cache compression
+    # Activate TurboQuant for standard eval (disabled before TTT due to batch size issues)
     if args.enable_turboquant:
         global _turboquant_caches
         head_dim = args.model_dim // args.num_heads
@@ -1856,6 +1856,8 @@ def main() -> None:
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if args.enable_ttt or args.enable_ngram or args.enable_knn:
+        # Disable TurboQuant for TTT (batch sizes vary, causes shape mismatches)
+        _turboquant_caches = None
         torch._dynamo.reset()
         torch.cuda.synchronize()
         t_aug = time.perf_counter()
