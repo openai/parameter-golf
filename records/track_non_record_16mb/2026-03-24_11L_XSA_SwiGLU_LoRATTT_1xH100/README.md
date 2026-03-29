@@ -2,6 +2,10 @@
 
 **val_bpb: 1.1573** (LoRA TTT) | **15.02 MB** artifact | 1xH100 PCIe, ~80 min
 
+## Technical Report
+
+For a detailed analysis of the architecture, training methodology, and experiments, see the [Technical Report](technical_report.md).
+
 ## Key Techniques
 
 1. **XSA (Cross-token Self-Attention)** on last 4 layers — removes self-value projection, forcing attention to contribute cross-position context. -0.005 BPB.
