@@ -1,6 +1,6 @@
-# Record: Coprime-Stride Loader + Full Hessian GPTQ + XSA-all (val_bpb 1.1123)
+# Record: Coprime-Stride Loader + Full Hessian GPTQ + XSA-all (val_bpb 1.1122)
 
-**val_bpb: 1.1123** (3-seed mean, std 0.0005) | **~15.99 MB** | 8×H100 SXM, 600s train, ~87s eval
+**val_bpb: 1.1122** (3-seed mean, std 0.0004) | **~15.98 MB** | 8×H100 SXM, 600s train, ~87s eval
 
 Built on [PR #549](https://github.com/openai/parameter-golf/pull/549) by @abaybektursun.
 
@@ -8,10 +8,10 @@ Built on [PR #549](https://github.com/openai/parameter-golf/pull/549) by @abaybe
 
 | Seed | Sliding BPB | Artifact |
 |------|-------------|----------|
-| 1337 | **1.1119** | 15,987,110 |
-| 42 | **1.1129** | 15,991,086 |
-| 2025 | **1.1121** | 15,997,694 |
-| **Mean ± Std** | **1.1123 ± 0.0005** | |
+| 1337 | **1.1118** | 15,973,962 |
+| 42 | **1.1127** | 15,980,438 |
+| 2025 | **1.1121** | 15,983,626 |
+| **Mean ± Std** | **1.1122 ± 0.0004** | |
 
 ## What's New
 
@@ -52,7 +52,7 @@ PR #549 stack with modifications:
 
 | Phase | Time |
 |-------|------|
-| Training (6,816 steps @ 87ms) | 586s |
+| Training (~6,704 steps @ 87ms) | 586s |
 | GPTQ calibration + quantization | 14s (reserved from training) |
 | Sliding window eval (stride=64) | 87s |
 | **Total eval** | **~87s** |
