@@ -1606,14 +1606,15 @@ class NgramCache:
         self.max_order = max_order
         self.hash_size = hash_size
         self.device = device
-        # Count tables: (hash_size, vocab) per order, float32 on GPU
+        # Count tables: (hash_size, vocab) per order, fp16 on GPU (halves VRAM)
+        # fp16 supports counts up to 65504 per bucket — sufficient for eval
         self.tables = [
-            torch.zeros(hash_size, vocab_size, device=device, dtype=torch.float32)
+            torch.zeros(hash_size, vocab_size, device=device, dtype=torch.float16)
             for _ in range(max_order)
         ]
         # Collision tracking: hash → sum of counts. If >0, slot is occupied.
         self.occupied = [
-            torch.zeros(hash_size, device=device, dtype=torch.float32)
+            torch.zeros(hash_size, device=device, dtype=torch.float16)
             for _ in range(max_order)
         ]
 
@@ -1663,7 +1664,7 @@ class NgramCache:
             if k == 0:
                 continue
             if k not in ones_cache:
-                ones_cache[k] = torch.ones(k, device=self.device)
+                ones_cache[k] = torch.ones(k, device=self.device, dtype=torch.float16)
             ones = ones_cache[k]
             self.tables[order - 1].index_put_(
                 (valid_hashes, valid_targets), ones, accumulate=True
@@ -1684,8 +1685,12 @@ class NgramCache:
         vocab = self.vocab_size
         # Compute all hashes in one pass, then gather
         all_hashes = self._hash_all_orders(tok_t)  # (max_order, seq_len)
-        all_counts = torch.zeros(max_order, seq_len, vocab, device=device)
-        all_occupied = torch.zeros(max_order, seq_len, device=device)
+        all_counts = torch.zeros(
+            max_order, seq_len, vocab, device=device, dtype=torch.float16
+        )
+        all_occupied = torch.zeros(
+            max_order, seq_len, device=device, dtype=torch.float16
+        )
         for order in range(1, max_order + 1):
             all_counts[order - 1] = self.tables[order - 1][all_hashes[order - 1]]
             all_occupied[order - 1] = self.occupied[order - 1][all_hashes[order - 1]]
@@ -1706,7 +1711,8 @@ class NgramCache:
         best_counts = all_counts.gather(
             0, best_order_idx.unsqueeze(0).unsqueeze(2).expand(1, seq_len, vocab)
         ).squeeze(0)
-        # Normalize to probabilities
+        # Normalize to probabilities (upcast to fp32 for precision)
+        best_counts = best_counts.float()
         row_sums = best_counts.sum(dim=-1, keepdim=True).clamp(min=1e-10)
         probs = best_counts / row_sums
         # Zero out positions with no match
