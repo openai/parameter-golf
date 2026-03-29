@@ -4,6 +4,8 @@
 
 Built on [PR #549](https://github.com/openai/parameter-golf/pull/549) by @abaybektursun.
 
+All three bundled seed logs and the included `train_gpt.py` correspond to the stripped submission script (`Code size: 96,398 bytes`).
+
 ## Results (8×H100 SXM, no TTT)
 
 | Seed | Sliding BPB | Artifact |
@@ -60,15 +62,22 @@ PR #549 stack with modifications:
 ## Rule Compliance
 
 - ✅ Standard F.cross_entropy scoring (softmax, sum=1)
-- ✅ No TTT, no mixer, no cache, no unnormalized scoring
+- ✅ No TTT, no mixer, no eval-built adaptation, no unnormalized scoring
+- ✅ Full `fineweb_val_*` split in canonical sorted order with tokenizer-derived byte accounting
 - ✅ Artifact < 16,000,000 bytes (all 3 seeds)
 - ✅ Training < 600s, eval < 600s
-- ✅ Single left-to-right evaluation pass
+- ✅ Causal sliding-window evaluation on the full validation split (stride=64)
 
 ## Reproduction
 
+From this records folder:
+
 ```bash
+uv pip install -r requirements.txt
+
 SEED=1337 \
+DATA_PATH=../../../data/datasets/fineweb10B_sp1024 \
+TOKENIZER_PATH=../../../data/tokenizers/fineweb_1024_bpe.model \
 BIGRAM_VOCAB_SIZE=2816 \
 BIGRAM_DIM=112 \
 XSA_LAST_N=11 \
@@ -77,6 +86,8 @@ GPTQ_RESERVE_MS=14000 \
 TTT_ENABLED=0 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
+
+If running from the repo root instead, omit the `DATA_PATH` / `TOKENIZER_PATH` overrides.
 
 Environment: PyTorch 2.9+, Flash Attention 3 (`flash_attn_interface`), NCCL_NET=Socket on GCP.
 
