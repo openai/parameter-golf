@@ -19,12 +19,17 @@ import uuid
 import zlib
 from pathlib import Path
 
+import lzma as _lzma_mod
+
 try:
     import zstandard
     _COMPRESSOR = "zstd"
 except ImportError:
     zstandard = None
     _COMPRESSOR = "zlib"
+
+# Prefer LZMA for best compression ratio
+_USE_LZMA = bool(int(os.environ.get("USE_LZMA", "0")))
 
 import numpy as np
 import sentencepiece as spm
@@ -702,15 +707,26 @@ def _classify_param(name: str) -> str:
     return "other"
 
 def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
+    """GPTQ-lite: search over clip percentiles to minimize reconstruction error."""
     t32 = t.float()
+    clip_range = 31
     if t32.ndim == 2:
-        row_max = t32.abs().amax(dim=1)
-        scale = (row_max / 31.0).clamp_min(1.0 / 31.0).to(torch.float16)
-        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -32, 31).to(torch.int8)
-        return q, scale
+        best_q, best_s, best_err = None, None, float('inf')
+        for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+            if pct < 1.0:
+                row_clip = torch.quantile(t32.abs(), pct, dim=1)
+            else:
+                row_clip = t32.abs().amax(dim=1)
+            s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+            q = torch.clamp(torch.round(t32 / s.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+            recon = q.float() * s.float()[:, None]
+            err = (t32 - recon).pow(2).mean().item()
+            if err < best_err:
+                best_q, best_s, best_err = q, s, err
+        return best_q, best_s
     amax = t32.abs().max().item()
-    scale = torch.tensor(amax / 31.0 if amax > 0 else 1.0, dtype=torch.float16)
-    q = torch.clamp(torch.round(t32 / scale.float()), -32, 31).to(torch.int8)
+    scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
     return q, scale
 
 def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
@@ -731,16 +747,15 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             result[name] = t.float()
             meta[name] = "passthrough_ctrl"
             continue
-        if cat in int6_cats and t.ndim >= 1:
+        # Use int6 for all large tensors (MLP, attn, AND embeddings)
+        if t.is_floating_point() and t.ndim >= 1:
             q, s = quantize_int6_per_row(t)
             result[name + ".q"] = q
             result[name + ".scale"] = s
             meta[name] = {"type": "int6"}
         else:
-            q, s = quantize_float_tensor(t)
-            result[name + ".q"] = q
-            result[name + ".scale"] = s
-            meta[name] = {"type": "int8"}
+            result[name] = t
+            meta[name] = "passthrough"
     return result, meta
 
 def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
@@ -1516,7 +1531,15 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw) if _COMPRESSOR == "zstd" else zlib.compress(quant_raw, level=9)
+    if _USE_LZMA:
+        quant_blob = _lzma_mod.compress(quant_raw, format=_lzma_mod.FORMAT_ALONE, preset=9)
+        _comp_name = "lzma"
+    elif _COMPRESSOR == "zstd":
+        quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw)
+        _comp_name = "zstd"
+    else:
+        quant_blob = zlib.compress(quant_raw, level=9)
+        _comp_name = "zlib"
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
             f.write(quant_blob)
@@ -1529,8 +1552,14 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
+    if _USE_LZMA:
+        quant_decompressed = _lzma_mod.decompress(quant_blob_disk, format=_lzma_mod.FORMAT_ALONE)
+    elif _COMPRESSOR == "zstd":
+        quant_decompressed = zstandard.ZstdDecompressor().decompress(quant_blob_disk)
+    else:
+        quant_decompressed = zlib.decompress(quant_blob_disk)
     quant_state = torch.load(
-        io.BytesIO(zstandard.ZstdDecompressor().decompress(quant_blob_disk) if _COMPRESSOR == "zstd" else zlib.decompress(quant_blob_disk)),
+        io.BytesIO(quant_decompressed),
         map_location="cpu",
     )
     deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
