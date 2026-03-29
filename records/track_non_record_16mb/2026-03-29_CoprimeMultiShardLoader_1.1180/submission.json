@@ -1,0 +1,21 @@
+{
+  "author": "Lei Zhang",
+  "github_id": "resouer",
+  "name": "Coprime Multi-Shard Loader Delta (1.11796805)",
+  "blurb": "Compliant non-record 16MB package for a coprime multi-shard loader result on a clean no-TTT trunk: size-clean at 15,871,257 bytes and terminal sliding-window exact val_bpb 1.11796805 on 8xH100 SXM.",
+  "date": "2026-03-29T08:45:48Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.88763723,
+  "val_bpb": 1.11796805,
+  "pre_quant_val_loss": 1.9202,
+  "pre_quant_val_bpb": 1.1373,
+  "step_stop": 5925,
+  "wallclock_seconds": 600,
+  "bytes_total": 15871257,
+  "bytes_model_int6_lzma": 15753772,
+  "bytes_code": 117485,
+  "timing_ar_selfgen_gptq_seconds": 329.9,
+  "timing_final_eval_seconds": 140.7,
+  "gpu": "8xH100 SXM",
+  "seed": 1337
+}

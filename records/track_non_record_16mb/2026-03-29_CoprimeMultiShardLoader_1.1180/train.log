@@ -1,0 +1,111 @@
+Time range: 2026-03-29 07:55:30.000 UTC - 2026-03-29 08:27:43.000 UTC
+debconf: delaying package configuration, since apt-utils is not installed
+Note: switching to '0d6643923382fd124b41cd37d70e44855925b9bc'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 0d66439 exp: port phase-2 coprime multi-shard loader delta
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+W0329 07:57:55.765000 1 site-packages/torch/distributed/run.py:774] 
+W0329 07:57:55.765000 1 site-packages/torch/distributed/run.py:774] *****************************************
+W0329 07:57:55.765000 1 site-packages/torch/distributed/run.py:774] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0329 07:57:55.765000 1 site-packages/torch/distributed/run.py:774] *****************************************
+logs/b356a8b1-769e-42a7-811b-3ee8b110eee3.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27067484
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+mousse:enabled=False alpha=0.125 beta_pc=0.01 T=10
+train_loader:mode:coprime_multi_shard_phase2_no_prefetch
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+train_loader:mode:coprime_multi_shard_phase2_no_prefetch
+step:0/20000 val_loss:6.9301 val_bpb:4.1044 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9311 train_time:154ms step_avg:154.47ms
+step:2/20000 train_loss:8.6536 train_time:188ms step_avg:94.02ms
+step:3/20000 train_loss:7.5756 train_time:287ms step_avg:95.65ms
+step:4/20000 train_loss:7.2099 train_time:387ms step_avg:96.79ms
+step:5/20000 train_loss:7.1392 train_time:487ms step_avg:97.39ms
+step:6/20000 train_loss:7.0822 train_time:586ms step_avg:97.64ms
+step:7/20000 train_loss:7.0274 train_time:685ms step_avg:97.88ms
+step:8/20000 train_loss:6.7736 train_time:784ms step_avg:98.02ms
+step:9/20000 train_loss:6.4252 train_time:883ms step_avg:98.11ms
+step:10/20000 train_loss:6.1067 train_time:982ms step_avg:98.20ms
+step:500/20000 train_loss:2.3784 train_time:50035ms step_avg:100.07ms
+step:1000/20000 train_loss:2.2118 train_time:100519ms step_avg:100.52ms
+step:1500/20000 train_loss:2.1041 train_time:150817ms step_avg:100.54ms
+step:2000/20000 train_loss:2.0604 train_time:201330ms step_avg:100.66ms
+step:2500/20000 train_loss:2.0003 train_time:251920ms step_avg:100.77ms
+step:3000/20000 train_loss:1.9632 train_time:302425ms step_avg:100.81ms
+step:3500/20000 train_loss:2.0129 train_time:353063ms step_avg:100.88ms
+step:4000/20000 train_loss:2.0386 train_time:403617ms step_avg:100.90ms
+step:4000/20000 val_loss:2.0024 val_bpb:1.1859 train_time:403687ms step_avg:100.92ms
+step:4500/20000 train_loss:1.9563 train_time:454194ms step_avg:100.93ms
+step:5000/20000 train_loss:2.0024 train_time:504735ms step_avg:100.95ms
+swa:start step:5150
+late_qat:enabled step:5338 scale:0.1499
+step:5500/20000 train_loss:1.9139 train_time:556082ms step_avg:101.11ms
+step:5925/20000 val_loss:1.9215 val_bpb:1.1380 train_time:600115ms step_avg:101.29ms
+stopping_early: wallclock_cap train_time:600115ms step:5925/20000
+peak memory allocated: 23050 MiB reserved: 23116 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9202 val_bpb:1.1373 eval_time:2359ms
+Serialized model: 106289590 bytes
+Code size: 117485 bytes
+TIMING:pre_quant_ttt=0.0s enabled=False
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+gptq:generated 64 sequences in 286.4s
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 68 layers (AR self-gen)
+TIMING:ar_selfgen_gptq=329.9s
+selective_prune_size_budget total_cap_bytes=16000000 code_bytes=117485 target_model_bytes=15882515 unpruned_model_bytes=15753772 unpruned_total_bytes=15871257 giveback_needed_bytes=0 giveback_source=selective_prune_post_quant_low_error_pm1 mode=post_quant
+selective_prune: mode=post_quant 4209695 ±1 candidates unpruned_total_bytes=15871257 target_total_bytes=16000000
+selective_prune: already fits, no pruning needed headroom_bytes=128743
+Serialized model int6+lzma: 15753772 bytes
+Total submission size int6+lzma: 15871257 bytes
+final_int6_roundtrip val_loss:1.9273 val_bpb:1.1414 eval_time:25420ms
+final_int6_roundtrip_exact val_loss:1.92728468 val_bpb:1.14144655
+final_int6_sliding_window val_loss:1.8876 val_bpb:1.1180 stride:64 eval_time:115284ms
+final_int6_sliding_window_exact val_loss:1.88763723 val_bpb:1.11796805
+final_int8_zlib_roundtrip_exact val_loss:1.88763723 val_bpb:1.11796805
+TIMING:final_eval=140.7s
