@@ -2369,6 +2369,8 @@ def main() -> None:
                 block.attn._prev_k = None
                 block.attn._prev_v = None
 
+    # Free training memory (compiled graph cache, optimizer states, gradients)
+    torch.cuda.empty_cache()
     # Cache CastedLinear weights for eval (avoids repeated fp32→bf16 casts)
     CastedLinear.cache_all_weights(base_model)
 
@@ -2399,6 +2401,7 @@ def main() -> None:
         # Disable TurboQuant for TTT (batch sizes vary, causes shape mismatches)
         _turboquant_caches = None
         torch._dynamo.reset()
+        torch.cuda.empty_cache()
         torch.cuda.synchronize()
         t_aug = time.perf_counter()
         if args.enable_ttt:
