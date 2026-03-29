@@ -4,10 +4,12 @@ Parameter Golf Ablation Framework
 Tracks every experiment, records results, computes deltas.
 """
 
-import json, os, time, hashlib, subprocess, sys
+import json
+import time
+import sys
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
-from typing import Optional, List
+from typing import List
 
 ABLATION_DIR = Path("./ablation_results")
 ABLATION_DIR.mkdir(exist_ok=True)

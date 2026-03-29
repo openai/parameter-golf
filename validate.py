@@ -37,7 +37,7 @@ def main():
     print(f"\n{'=' * 70}")
     print(f"TECHNIQUE VALIDATION: {total} tests, {len(completed)} already done")
     print(f"Training: {args.iterations} iters, {args.max_wallclock}s wallclock cap")
-    print(f"Ctrl+C to stop — progress is saved, re-run to resume")
+    print("Ctrl+C to stop — progress is saved, re-run to resume")
     print(f"{'=' * 70}\n")
 
     done = 0
@@ -52,7 +52,7 @@ def main():
 
         print(f"[{done}/{total}] {label}")
         print(f"  Config: {overrides or '(baseline defaults)'}")
-        print(f"  Running...", end="", flush=True)
+        print("  Running...", end="", flush=True)
 
         try:
             result = run_trial(
