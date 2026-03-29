@@ -17,9 +17,21 @@ import argparse
 import optuna
 from optuna.samplers import TPESampler
 
-from pgolf.budget import find_max_model
+from pgolf.budget import estimate_compressed_size
 from pgolf.config import PENALTY
 from pgolf.runner import run_trial, save_result
+
+# Fixed model architecture for search. Sized so that:
+# - Fits 16MB artifact at int6 with room to spare
+# - Training + eval (including kNN ~12GB) fits in 24GB VRAM
+# The search optimizes techniques + hyperparameters, not architecture.
+SEARCH_MODEL = {
+    "NUM_LAYERS": 9,
+    "MODEL_DIM": 512,
+    "MLP_MULT": 2,
+    "NUM_HEADS": 8,
+    "NUM_KV_HEADS": 4,
+}
 
 
 def objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int) -> float:
@@ -62,13 +74,23 @@ def objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int) -> fl
     scalar_lr = trial.suggest_float("scalar_lr", 0.01, 0.1, log=True)
     muon_momentum = trial.suggest_float("muon_momentum", 0.9, 0.99)
 
-    # --- Find max model that fits budget ---
-    result = find_max_model(
-        quant_bits, enable_entropy_coding, enable_pruning, prune_fraction
+    # --- Fixed model architecture (sized for worst-case VRAM on 4090) ---
+    # Model is fixed; Optuna searches techniques + hyperparameters only.
+    # quant_bits still affects artifact size — verify it fits.
+    arch = SEARCH_MODEL
+    est_size, total_params = estimate_compressed_size(
+        arch["model_dim"],
+        arch["num_layers"],
+        arch["mlp_mult"],
+        arch["num_heads"],
+        arch["num_kv_heads"],
+        quant_bits,
+        enable_entropy_coding,
+        enable_pruning,
+        prune_fraction,
     )
-    if result is None:
-        return PENALTY
-    arch, total_params, est_size = result
+    if est_size > 16_000_000:
+        return PENALTY  # this quant/compression combo can't fit this model
 
     config = {
         "RUN_ID": f"optuna_t{trial.number}",

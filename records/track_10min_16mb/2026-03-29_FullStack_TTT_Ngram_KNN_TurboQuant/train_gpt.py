@@ -110,7 +110,9 @@ class Hyperparameters:
     ttt_temp = float(os.environ.get("TTT_TEMP", "1.0"))
     enable_ngram = bool(int(os.environ.get("ENABLE_NGRAM", "0")))
     ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", "7"))
+    ngram_hash_size = int(os.environ.get("NGRAM_HASH_SIZE", str(2**15)))
     ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.3"))
+    knn_max_entries = int(os.environ.get("KNN_MAX_ENTRIES", "50000"))
     enable_knn = bool(int(os.environ.get("ENABLE_KNN", "0")))
     knn_k = int(os.environ.get("KNN_K", "32"))
     knn_lambda = float(os.environ.get("KNN_LAMBDA", "0.25"))
@@ -1599,7 +1601,7 @@ class NgramCache:
 
     PRIMES = [1, 1000003, 999999937, 999999893, 999999883, 999999877, 999999613]
 
-    def __init__(self, vocab_size, max_order=7, hash_size=2**17, device="cuda"):
+    def __init__(self, vocab_size, max_order=7, hash_size=2**15, device="cuda"):
         self.vocab_size = vocab_size
         self.max_order = max_order
         self.hash_size = hash_size
@@ -2422,11 +2424,20 @@ def main() -> None:
             t_ngram = time.perf_counter()
             base_model.eval()
             ngram = (
-                NgramCache(args.vocab_size, args.ngram_max_order)
+                NgramCache(
+                    args.vocab_size,
+                    args.ngram_max_order,
+                    hash_size=args.ngram_hash_size,
+                    device=device,
+                )
                 if args.enable_ngram
                 else None
             )
-            knn = KnnLM(args.vocab_size, args.knn_k) if args.enable_knn else None
+            knn = (
+                KnnLM(args.vocab_size, args.knn_k, max_entries=args.knn_max_entries)
+                if args.enable_knn
+                else None
+            )
             aug_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
             aug_byte_sum = torch.zeros((), device=device, dtype=torch.float64)
             aug_token_count = torch.zeros((), device=device, dtype=torch.float64)
