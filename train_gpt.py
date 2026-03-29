@@ -835,7 +835,10 @@ class CrossAttention(nn.Module):
         k = F.rms_norm(kv[:, :, 0], (self.head_dim,)).transpose(1, 2)
         v = kv[:, :, 1].transpose(1, 2)
         q = F.rms_norm(q, (self.head_dim,)).transpose(1, 2)
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=False)
+        scale = self.head_dim ** -0.5
+        attn = (q * scale) @ k.transpose(-2, -1)
+        attn = attn.softmax(dim=-1)
+        y = attn @ v
         return self.out_proj(y.transpose(1, 2).contiguous().reshape(B, T, D))
 
 
