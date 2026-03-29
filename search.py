@@ -58,18 +58,14 @@ def objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int) -> fl
     prune_fraction = (
         trial.suggest_float("prune_fraction", 0.01, 0.05) if enable_pruning else 0.0
     )
-    enable_ttt = trial.suggest_categorical("enable_ttt", [0, 1])
-    ttt_lora_rank = (
-        trial.suggest_categorical("ttt_lora_rank", [4, 8, 16]) if enable_ttt else 8
-    )
-    ttt_lora_lr = (
-        trial.suggest_float("ttt_lora_lr", 0.001, 0.05, log=True)
-        if enable_ttt
-        else 0.01
-    )
-    ttt_temp = trial.suggest_float("ttt_temp", 0.95, 1.0) if enable_ttt else 1.0
-    enable_ngram = trial.suggest_categorical("enable_ngram", [0, 1])
-    enable_knn = trial.suggest_categorical("enable_knn", [0, 1])
+    # Slow eval-time techniques disabled for ablation search speed.
+    # These add ~constant BPB improvement and are always-on for submission.
+    enable_ttt = 0
+    ttt_lora_rank = 8
+    ttt_lora_lr = 0.01
+    ttt_temp = 1.0
+    enable_ngram = 0
+    enable_knn = 0
     matrix_lr = trial.suggest_float("matrix_lr", 0.01, 0.1, log=True)
     scalar_lr = trial.suggest_float("scalar_lr", 0.01, 0.1, log=True)
     muon_momentum = trial.suggest_float("muon_momentum", 0.9, 0.99)
