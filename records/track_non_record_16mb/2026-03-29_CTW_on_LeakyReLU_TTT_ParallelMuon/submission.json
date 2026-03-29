@@ -1,0 +1,45 @@
+{
+    "author": "Anubhav",
+    "github_id": "AnubhavBharadwaaj",
+    "val_bpb": 1.1203,
+    "val_loss": 1.8916,
+    "hardware": "8xH100 SXM",
+    "training_time_seconds": 600,
+    "step_avg_ms": 85.5,
+    "steps": 7023,
+    "artifact_size_bytes": 15854788,
+    "seed": 1337,
+    "base_submission": "PR #549 (abaybektursun — LeakyReLU² + Legal TTT + Parallel Muon, 1.1194 BPB)",
+    "description": "Non-record: CTW (Context Tree Weighting) eval-time augmentation on PR #549 SOTA stack. CTW is a provably minimax-optimal Bayesian sequential predictor integrated directly into the TTT scoring loop. NEGATIVE RESULT: CTW degrades BPB by +0.005 at w=0.1 — the neural model at 1.12 BPB already dominates any depth-4 Markov model. Baseline without CTW reproduces PR #549 at 1.1203 BPB.",
+    "results": {
+        "baseline_no_ctw": {
+            "val_bpb": 1.1203,
+            "val_loss": 1.8916,
+            "pre_ttt_bpb": 1.1386,
+            "ttt_gain": -0.0183,
+            "ttt_time_seconds": 352,
+            "sliding_window_bpb": 1.1221
+        },
+        "ctw_w0.1_depth4": {
+            "val_bpb": 1.1252,
+            "val_loss": 1.8999,
+            "pre_ttt_bpb": 1.1386,
+            "ttt_gain": 0.0031,
+            "ttt_time_seconds": 2760,
+            "note": "NEGATIVE RESULT: CTW hurts BPB by +0.005 and exceeds 10-min eval limit"
+        }
+    },
+    "novel_techniques": [
+        "CTW eval-time augmentation (Willems et al. 1995) — NEGATIVE RESULT",
+        "Deep integration: CTW mixed inside TTT scoring loop, not separate pass",
+        "Sparse M-ary suffix tree, depth-4, KT estimator, log-linear mixing"
+    ],
+    "inherited_techniques": [
+        "11L, 512d, 3x MLP, GQA (8H/4KV), LeakyReLU²(0.5)",
+        "Parameter Banking + Parallel Muon (85ms/step)",
+        "Legal Score-First TTT (SGD, lr=0.002, 3 epochs, 32K chunks)",
+        "BigramHash(1536), XSA4, Partial RoPE(16), LN Scale, VE128",
+        "EMA(0.997) + Tight SWA(50), GPTQ-lite int6 + LZMA-6",
+        "FlashAttention 3 (Hopper-native)"
+    ]
+}
