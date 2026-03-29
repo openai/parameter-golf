@@ -1065,8 +1065,6 @@ def main() -> None:
             chunk_ms = 1000.0 * (time.perf_counter() - t0)
             training_time_ms += chunk_ms
             phase_training_time_ms += chunk_ms
-            if last_step:
-                base_model.active_num_layers = schedule_layers[-1]
             val_loss, val_bpb = eval_val(
                 args,
                 base_model,
