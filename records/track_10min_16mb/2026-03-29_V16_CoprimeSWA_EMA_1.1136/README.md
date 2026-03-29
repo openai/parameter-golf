@@ -1,6 +1,6 @@
 # Record: Coprime-Stride Loader + Full Hessian GPTQ + XSA-all + Optimized GPTQ Reserve (val_bpb 1.1136)
 
-**val_bpb: 1.1136** (3-seed mean, std 0.0003) | **~15.90 MB** | 8xH100 SXM, 600s train, ~85s eval
+**val_bpb: 1.1133** (3-seed mean, std 0.0001) | **~15.89 MB** | 8xH100 SXM, 600s train, ~85s eval
 
 Built on [PR #549](https://github.com/openai/parameter-golf/pull/549) by @abaybektursun and [PR #1060](https://github.com/openai/parameter-golf/pull/1060) by @dexhunter.
 
@@ -8,17 +8,17 @@ Built on [PR #549](https://github.com/openai/parameter-golf/pull/549) by @abaybe
 
 | Seed | Sliding BPB | Artifact |
 |------|-------------|----------|
-| 1337 | **1.1136** | 15,901,403 |
-| 42 | **1.1133** | 15,888,867 |
-| 999 | **1.1139** | 15,892,171 |
-| **Mean +/- Std** | **1.1136 +/- 0.0003** | |
+| 1337 | **1.1133** | 15,899,687 |
+| 42 | **1.1132** | 15,881,359 |
+| 999 | **1.1133** | 15,892,371 |
+| **Mean +/- Std** | **1.1133 +/- 0.0001** | |
 
 ## What's New
 
 This submission extends PR #1060's coprime-stride loader + Full Hessian GPTQ stack with two targeted improvements:
 
 ### 1. GPTQ Reserve Optimization
-Reduced GPTQ calibration reserve from 14s to 10s. PR #1060's GPTQ calibration completes in ~8.4s, so 14s wastes ~4s of training budget. This recovers ~44 additional training steps at 91ms/step, translating to measurable BPB improvement.
+Reduced GPTQ calibration reserve from 14s to 9s. PR #1060's GPTQ calibration completes in ~8.4s, so 14s wastes ~4s of training budget. This recovers ~44 additional training steps at 91ms/step, translating to measurable BPB improvement.
 
 ### 2. FA3/FA2 Graceful Fallback
 Added try/except import for `flash_attn_interface` (FA3) with fallback to `flash_attn` (FA2). Allows the same script to run on pods with or without FA3 Hopper kernels built.
@@ -41,7 +41,7 @@ PR #549 + PR #1060 stack:
 | Phase | Time |
 |-------|------|
 | Training (~6,479 steps @ 91ms) | 590s |
-| GPTQ calibration + quantization | 10s (reserved from training) |
+| GPTQ calibration + quantization | 9s (reserved from training) |
 | Sliding window eval (stride=64) | ~85s |
 | **Total eval** | **~85s** |
 
@@ -52,7 +52,7 @@ BIGRAM_VOCAB_SIZE=2816
 BIGRAM_DIM=112
 XSA_LAST_N=11
 USE_GPTQ=1
-GPTQ_RESERVE_MS=10000
+GPTQ_RESERVE_MS=9000
 WARMDOWN_ITERS=4000
 SWA_APPLY=0
 TTT_ENABLED=0
@@ -76,7 +76,7 @@ BIGRAM_VOCAB_SIZE=2816 \
 BIGRAM_DIM=112 \
 XSA_LAST_N=11 \
 USE_GPTQ=1 \
-GPTQ_RESERVE_MS=10000 \
+GPTQ_RESERVE_MS=9000 \
 WARMDOWN_ITERS=4000 \
 SWA_APPLY=0 \
 TTT_ENABLED=0 \
