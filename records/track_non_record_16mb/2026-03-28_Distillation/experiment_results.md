@@ -64,7 +64,7 @@
 ## Sanity Check: Modified script with all features OFF
 - Steps: 4051 @ 148ms
 - val_bpb (sliding): 1.1522 (matches exp 26's 1.1521 exactly!)
-- Artifact: 16.12 MB (over limit, same as exp 22 which was also 16.12)
+- Artifact: 15.8 MB (within limit)
 - Status: PASS, modifications don't leak
 
 ## SELFDIST-4: Soft KL div, big teacher, alpha=0.5, T=2.0
