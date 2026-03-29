@@ -95,7 +95,7 @@ Every attention projection (Q, K, V, output) and MLP layer (fc, proj) uses Rando
 
 **Smaller adapters optimize better.** Rank 16 beats 32 and 64. There's a capacity-optimization tradeoff here... bigger adapters have more capacity but need more steps to figure out how to use it.
 
-**Random projections can do language modeling.** A 1.92 MB model with 90% random weights hits 1.607 BPB. The naive baseline (fully learned, 13.5 MB) hits 1.224 BPB. The gap is real, but the fact that it works at all is the interesting part.
+**Random projections can do language modeling.** A 1.92 MB model with 90% random weights hits 1.607 BPB. The naive baseline (fully learned, 13.5 MB) hits 1.224 BPB. The gap is real, but the fact that it works at all is the interesting part. A natural follow-up is comparing against a size-matched fully learned model at ~1.9 MB to isolate the contribution of random maps vs model capacity. That experiment is planned but not yet run.
 
 **The artifact is hilariously small.** 1.92 MB is 12% of the 16 MB budget. You could fit eight of these models in one artifact. Ensembles, multi-model voting, whatever you want... there's room.
 
