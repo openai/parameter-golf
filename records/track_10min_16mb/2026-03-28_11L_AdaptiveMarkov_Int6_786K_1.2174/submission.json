@@ -1,0 +1,24 @@
+{
+  "author": "Jayteare",
+  "github_id": "Jayteare",
+  "name": "11L Adaptive Markov + Int6/Int8 Mixed Quant + 786K Batch",
+  "blurb": "11-layer 512-dim GPT with adaptive Markov mixing: a unigram transition table is mixed with transformer logits using a learned per-position gate with confidence-based thresholding. Per-row int6 quantization on MLP/attention weights, int8 on embeddings/Markov table, fp16 passthrough for control tensors. Zstd-22 compression recovers wasted bits from 6-bit values stored as int8. 786K token batch for higher data throughput per step. GQA with 8 heads / 4 KV heads, tied embeddings, relu-squared MLP.",
+  "date": "2026-03-28T09:30:00Z",
+  "val_loss": 2.05540694,
+  "val_bpb": 1.21713430,
+  "val_loss_std": 0.00010,
+  "val_bpb_std": 0.00030,
+  "seeds": [1337, 42, 7],
+  "seed_results": {
+    "1337": {"val_loss": 2.05546777, "val_bpb": 1.21736379},
+    "42": {"val_loss": 2.05451140, "val_bpb": 1.21679738},
+    "7": {"val_loss": 2.05526166, "val_bpb": 1.21724172}
+  },
+  "pre_quant_val_loss": 2.0394,
+  "pre_quant_val_bpb": 1.2075,
+  "step_stop": 7427,
+  "wallclock_seconds": 600.075,
+  "bytes_total": 15107918,
+  "bytes_model_int6_zstd": 15036497,
+  "bytes_code": 71421
+}
