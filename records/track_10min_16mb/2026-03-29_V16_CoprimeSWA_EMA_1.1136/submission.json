@@ -1,0 +1,9 @@
+{
+  "name": "Coprime-Stride Loader + Full Hessian GPTQ + XSA-all + FA3 Fallback",
+  "val_bpb": 1.1136,
+  "bytes_total": 15901403,
+  "blurb": "Coprime-stride multi-shard data pipeline (PR #726 style) + Full Hessian GPTQ with Cholesky error compensation + XSA on all 11 layers + BigramHash(2816x112) + EMA(0.997) + Parallel Muon + FA3/FA2 graceful fallback. GPTQ reserve reduced from 14s to 10s for ~44 extra training steps. No TTT. 3-seed mean: 1.1136 (std 0.0003). Built on PR #549 and PR #1060.",
+  "author": "Bortlesboat",
+  "github_id": "Bortlesboat",
+  "date": "2026-03-29"
+}
