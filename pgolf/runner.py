@@ -70,6 +70,9 @@ def _fail(label, status, elapsed, config, error=""):
 def _parse_output(label, output, elapsed, config):
     val_bpb = None
     for pattern in [
+        r"final_ngram\+knn_exact val_loss:\S+ val_bpb:(\S+)",
+        r"final_ngram_exact val_loss:\S+ val_bpb:(\S+)",
+        r"final_knn_exact val_loss:\S+ val_bpb:(\S+)",
         r"final_ttt_lora_exact val_loss:\S+ val_bpb:(\S+)",
         r"final_int8_zlib_roundtrip_exact val_loss:\S+ val_bpb:(\S+)",
         r"val_bpb:(\S+)",
