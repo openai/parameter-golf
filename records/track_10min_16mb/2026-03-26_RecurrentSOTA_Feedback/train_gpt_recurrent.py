@@ -117,6 +117,8 @@ class Hyperparameters:
     core_quant_bits = int(os.environ.get("CORE_QUANT_BITS", 6))
     core_quant_enabled = bool(int(os.environ.get("CORE_QUANT_ENABLED", "0")))
     eval_passes = int(os.environ.get("EVAL_PASSES", 0))
+    # Progressive passes schedule: comma-separated "step:passes" pairs, e.g. "0:1,4500:2,5500:3,6000:4"
+    passes_schedule_str = os.environ.get("PASSES_SCHEDULE", "")
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -1311,6 +1313,14 @@ def _classify_param(name: str) -> str:
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
         return "attn"
     return "other"
+
+def _extract_layer_idx(name: str) -> int | None:
+    if not name.startswith("blocks."):
+        return None
+    parts = name.split(".")
+    if len(parts) >= 2 and parts[1].isdigit():
+        return int(parts[1])
+    return None
 def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
@@ -1399,7 +1409,8 @@ def _rebank_state_dict(sd: dict[str, Tensor], num_layers: int, template_sd: dict
             out[name] = tensor
     return out
 
-def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str],
+                        core_start: int = -1, core_end: int = -1):
     num_layers_total = max(
         (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
         default=0,
@@ -1590,12 +1601,22 @@ def main() -> None:
     stabilizer = None
     residual_scale = None
     extra_scalar_params: list[nn.Parameter] = []
-    if cli.feedback_mode != "none" and args.num_passes > 1:
+    # Parse progressive passes schedule
+    passes_schedule: list[tuple[int, int]] = []
+    if args.passes_schedule_str:
+        for entry in args.passes_schedule_str.split(","):
+            s, p = entry.strip().split(":")
+            passes_schedule.append((int(s), int(p)))
+        passes_schedule.sort(key=lambda x: x[0])
+    max_passes = max((p for _, p in passes_schedule), default=args.num_passes)
+    max_passes = max(max_passes, args.eval_passes if args.eval_passes > 0 else args.num_passes)
+    needs_recurrence = max_passes > 1
+    if cli.feedback_mode != "none" and needs_recurrence:
         feedback = ErrorFeedbackModule(
             dim=args.model_dim, rank=cli.feedback_rank,
             feedback_mode=cli.feedback_mode,
             per_pass=cli.per_pass_feedback,
-            num_passes=args.num_passes,
+            num_passes=max_passes,
             affine_junction=cli.affine_junction,
         ).to(device).bfloat16()
         restore_low_dim_params_to_fp32(feedback)
@@ -1604,17 +1625,18 @@ def main() -> None:
             return feedback(h, pass_idx)
         log0(f"feedback: mode={cli.feedback_mode} rank={cli.feedback_rank} "
              f"per_pass={cli.per_pass_feedback} params={sum(p.numel() for p in feedback.parameters())}")
-    if args.num_passes > 1:
+    if needs_recurrence:
         stabilizer = RecurrentStabilizer(
             clip_hidden=cli.clip_hidden, clip_value=cli.clip_value,
             jacobian_proxy_weight=cli.jacobian_proxy_weight)
         if cli.residual_scale_init != 1.0:
-            residual_scale = ResidualScale(args.num_passes, cli.residual_scale_init).to(device)
+            residual_scale = ResidualScale(max_passes, cli.residual_scale_init).to(device)
             base_model.residual_scale = residual_scale
             extra_scalar_params.extend(residual_scale.parameters())
+    sched_str = f" schedule={passes_schedule}" if passes_schedule else ""
     log0(f"recurrence: core_start={args.core_start} core_end={args.core_end} "
-         f"num_passes={args.num_passes} stem={base_model.num_stem} "
-         f"core={base_model.num_core} tail={base_model.num_tail}")
+         f"num_passes={args.num_passes} max_passes={max_passes} stem={base_model.num_stem} "
+         f"core={base_model.num_core} tail={base_model.num_tail}{sched_str}")
 
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
@@ -1755,8 +1777,13 @@ def main() -> None:
     if args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
+        _precompile_passes = sorted(set(p for _, p in passes_schedule) - {args.num_passes}) if passes_schedule else []
+        _precompile_start = args.warmup_steps - len(_precompile_passes)
         model.train()
         for warmup_step in range(args.warmup_steps):
+            if _precompile_passes and warmup_step >= _precompile_start:
+                _pc_idx = warmup_step - _precompile_start
+                base_model.num_passes = _precompile_passes[_pc_idx]
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
@@ -1776,6 +1803,9 @@ def main() -> None:
             zero_grad_all()
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
+        base_model.num_passes = args.num_passes
+        if stabilizer is not None:
+            stabilizer.reset()
         base_model.load_state_dict(initial_model_state, strict=True)
         for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
             opt.load_state_dict(state)
@@ -1842,6 +1872,14 @@ def main() -> None:
             break
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        if passes_schedule:
+            target_passes = args.num_passes
+            for threshold_step, p in passes_schedule:
+                if step >= threshold_step:
+                    target_passes = p
+            if target_passes != base_model.num_passes:
+                base_model.num_passes = target_passes
+                log0(f"progressive_passes: step:{step} num_passes:{target_passes}")
         if args.late_qat_threshold > 0 and step > 100 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
             CastedLinear._qat_enabled = True
             base_model.core_quant_enabled = True
@@ -1985,6 +2023,7 @@ def main() -> None:
             copy_len = min(eval_num_passes, old_s.shape[0])
             new_s[:copy_len] = old_s[:copy_len]
             base_model.residual_scale.scales = nn.Parameter(new_s)
+        export_sd = {k: v for k, v in base_model.state_dict().items() if "mtp_heads" not in k}
     # Unbank 3D tensors into individual 2D tensors for quantization
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
@@ -2038,54 +2077,7 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
-    torch.cuda.synchronize()
-    t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args, compiled_eval, rank, world_size, device, grad_accum_steps,
-        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        eval_seq_len=effective_eval_seq_len,
-    )
-    torch.cuda.synchronize()
-    log0(
-        f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
-    )
-    log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
-    sw_seq_len = effective_eval_seq_len
-    if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
-        torch.cuda.synchronize()
-        t_slide = time.perf_counter()
-        sw_val_loss, sw_val_bpb = eval_val_sliding(
-            args, eval_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=args.eval_stride,
-            eval_seq_len=sw_seq_len,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
-            f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
-        )
-        log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-        log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-    if args.eval_stride > 0 and args.eval_stride != 64 and 64 < sw_seq_len:
-        torch.cuda.synchronize()
-        t_slide64 = time.perf_counter()
-        sw64_val_loss, sw64_val_bpb = eval_val_sliding(
-            args, eval_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=64,
-            eval_seq_len=sw_seq_len,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"final_int6_sliding_window_s64 val_loss:{sw64_val_loss:.4f} val_bpb:{sw64_val_bpb:.4f} "
-            f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
-        )
-        log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-        log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-    # Legal score-first TTT (PR #461 recipe)
+    # Legal score-first TTT (PR #461 recipe) -- skip intermediate evals to maximize TTT time budget
     if args.ttt_enabled:
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()
