@@ -1,0 +1,11 @@
+{
+    "author": "sofiabod",
+    "github_id": "sofiabod",
+    "name": "Packed Causal N-gram + Dirichlet Backoff (40M tokens)",
+    "blurb": "Single-pass causal score-first eval with packed 32K-bucket n-gram memory (40M training tokens, order 2-12) and Dirichlet posterior backoff mixing with count-confidence gating. Beats prior SOTA (0.0165) by 34%.",
+    "date": "2026-03-29",
+    "val_loss": 0.01832353,
+    "val_bpb": 0.01085226,
+    "bytes_total": 1586824,
+    "bytes_code": 107000
+}
