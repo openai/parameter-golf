@@ -881,27 +881,22 @@ class CausalSelfAttention(nn.Module):
             k, v = k.to(q.dtype), v.to(q.dtype)
 
         # XSA: Cross-Sequence Attention
+        # Note: XSA is eval-time only. During torch.compile training, _xsa_enabled is False.
         xsa_enabled = getattr(self, '_xsa_enabled', False)
-        if xsa_enabled and hasattr(self, '_prev_k') and self._prev_k is not None:
-            prev_k = self._prev_k.to(k.device, k.dtype)
-            prev_v = self._prev_v.to(v.device, v.dtype)
-            # Prepend previous sequence K/V
-            k = torch.cat([prev_k, k], dim=2)
-            v = torch.cat([prev_v, v], dim=2)
-            # Build attention mask: allow full attention to prev tokens, causal for current
-            prev_len = prev_k.shape[2]
-            # Mask shape: (1, 1, seqlen, prev_len + seqlen)
-            causal_mask = torch.ones(seqlen, prev_len + seqlen, dtype=torch.bool, device=x.device)
-            # All current query positions can attend to all prev positions
-            causal_mask[:, :prev_len] = True
-            # Current-to-current is causal
-            causal_mask[:, prev_len:] = torch.tril(torch.ones(seqlen, seqlen, dtype=torch.bool, device=x.device))
-            y = F.scaled_dot_product_attention(
-                q, k, v,
-                attn_mask=causal_mask.unsqueeze(0).unsqueeze(0),
-                is_causal=False,
-                enable_gqa=(self.num_kv_heads != self.num_heads),
-            )
+        xsa_active = False
+        if xsa_enabled and hasattr(self, '_prev_k') and self._prev_k is not None and self._prev_k.shape[2] > 0:
+            xsa_active = True
+        if xsa_active:
+            prev_k_xsa = self._prev_k.to(k.device, k.dtype)
+            prev_v_xsa = self._prev_v.to(v.device, v.dtype)
+            gqa = (self.num_kv_heads != self.num_heads)
+            y_self = F.scaled_dot_product_attention(q, k, v, is_causal=True, enable_gqa=gqa)
+            # Cross-attn: expand KV heads manually to avoid GQA+is_causal=False incompatibility
+            rep = self.num_heads // self.num_kv_heads
+            pk = prev_k_xsa.repeat_interleave(rep, dim=1) if rep > 1 else prev_k_xsa
+            pv = prev_v_xsa.repeat_interleave(rep, dim=1) if rep > 1 else prev_v_xsa
+            y_cross = F.scaled_dot_product_attention(q, pk, pv, is_causal=False)
+            y = 0.5 * y_self + 0.5 * y_cross
         elif self.use_diff_attn:
             q1, q2 = q.chunk(2, dim=-1)
             k1, k2 = k.chunk(2, dim=-1)
@@ -922,16 +917,13 @@ class CausalSelfAttention(nn.Module):
             )
 
         # Update XSA cache for next sequence
-        if xsa_enabled:
-            # Store current K/V (without prev prepended) for next call
-            if hasattr(self, '_prev_k') and self._prev_k is not None:
-                curr_k = k[:, :, prev_k.shape[2]:, :]
-                curr_v = v[:, :, prev_v.shape[2]:, :]
-            else:
-                curr_k = k
-                curr_v = v
-            self._prev_k = curr_k.detach()
-            self._prev_v = curr_v.detach()
+        if xsa_active:
+            self._prev_k = k.detach()
+            self._prev_v = v.detach()
+        elif xsa_enabled:
+            # First pass: seed the cache
+            self._prev_k = k.detach()
+            self._prev_v = v.detach()
 
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
@@ -1533,20 +1525,10 @@ def main() -> None:
     qat_hooks = []
     qat_active = False
 
-    # XSA setup: tag layers that should use cross-sequence attention
-    if args.xsa_last_n > 0:
-        num_blocks = len(base_model.blocks)
-        for i, block in enumerate(base_model.blocks):
-            block.attn._layer_idx = i
-            if i >= num_blocks - args.xsa_last_n:
-                block.attn._xsa_enabled = True
-                block.attn._prev_k = None
-                block.attn._prev_v = None
-            else:
-                block.attn._xsa_enabled = False
-    else:
-        for i, block in enumerate(base_model.blocks):
-            block.attn._layer_idx = i
+    # XSA setup: assign layer indices. XSA is activated AFTER training (eval-time only)
+    # because torch.compile(fullgraph=True) can't handle the dynamic XSA branch.
+    for i, block in enumerate(base_model.blocks):
+        block.attn._layer_idx = i
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
@@ -1840,6 +1822,15 @@ def main() -> None:
     if args.enable_optrot:
         restored_sd = reverse_optrot(restored_sd)
     base_model.load_state_dict(restored_sd, strict=(args.mtp_num_heads == 0))
+    # Activate XSA for eval-time cross-sequence attention
+    if args.xsa_last_n > 0:
+        num_blocks = len(base_model.blocks)
+        for i, block in enumerate(base_model.blocks):
+            if i >= num_blocks - args.xsa_last_n:
+                block.attn._xsa_enabled = True
+                block.attn._prev_k = None
+                block.attn._prev_v = None
+
     # Activate TurboQuant for eval-time KV cache compression
     if args.enable_turboquant:
         global _turboquant_caches
