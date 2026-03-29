@@ -1,0 +1,18 @@
+{
+  "author": "michaelwinczuk",
+  "github_id": "michaelwinczuk",
+  "val_bpb": 0.4027,
+  "val_bpb_std": 0.0015,
+  "seeds": {
+    "1337": 0.4024,
+    "42": 0.4044,
+    "2024": 0.4014
+  },
+  "artifact_bytes": {
+    "1337": 15972175,
+    "42": 15960451,
+    "2024": 15967203
+  },
+  "approach": "Swarm-Designed Causal BackoffNgramMixer",
+  "hardware": "8xH100 SXM"
+}
