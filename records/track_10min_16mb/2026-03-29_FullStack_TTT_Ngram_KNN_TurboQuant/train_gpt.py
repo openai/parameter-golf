@@ -2370,7 +2370,13 @@ def main() -> None:
                 block.attn._prev_v = None
 
     # Free training memory (compiled graph cache, optimizer states, gradients)
+    for opt in optimizers:
+        opt.zero_grad(set_to_none=True)
+    del optimizers, compiled_model
+    torch._dynamo.reset()
     torch.cuda.empty_cache()
+    # Use base_model directly for eval (no more torch.compile overhead)
+    model = base_model
     # Cache CastedLinear weights for eval (avoids repeated fp32→bf16 casts)
     CastedLinear.cache_all_weights(base_model)
 
