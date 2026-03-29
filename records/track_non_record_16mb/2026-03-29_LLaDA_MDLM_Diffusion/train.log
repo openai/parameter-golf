@@ -1,0 +1,90 @@
+============================================================
+  LLaDA v4: MDLM training + discrete ELBO eval
+============================================================
+GPU: NVIDIA GB10
+Train: 100,000,000, Val: 62,021,846
+Model: 11L 512d 8h — 32,987,776 params
+Training: MDLM loss, log-linear noise, adaLN, antithetic sampling
+Eval: discrete ELBO (128 steps)
+
+  step     0/6000 | loss=81.9200 | lr=2.0e-06 | 26K tok/s | 3s
+  step   100/6000 | loss=30.6249 | lr=2.0e-04 | 35K tok/s | 189s
+  step   200/6000 | loss=35.8200 | lr=4.0e-04 | 35K tok/s | 381s
+  step   300/6000 | loss=33.3050 | lr=6.0e-04 | 35K tok/s | 568s
+  step   400/6000 | loss=36.4888 | lr=6.0e-04 | 35K tok/s | 755s
+  step   500/6000 | loss=42.2992 | lr=6.0e-04 | 35K tok/s | 947s
+  step   600/6000 | loss=31.8549 | lr=6.0e-04 | 35K tok/s | 1134s
+  step   700/6000 | loss=35.8076 | lr=6.0e-04 | 35K tok/s | 1326s
+  step   800/6000 | loss=34.2878 | lr=6.0e-04 | 35K tok/s | 1513s
+  step   900/6000 | loss=36.4492 | lr=6.0e-04 | 35K tok/s | 1700s
+  step  1000/6000 | loss=38.0465 | lr=6.0e-04 | 35K tok/s | 1892s
+  step  1100/6000 | loss=32.4439 | lr=6.0e-04 | 35K tok/s | 2079s
+  step  1200/6000 | loss=28.1914 | lr=6.0e-04 | 35K tok/s | 2266s
+  step  1300/6000 | loss=32.7955 | lr=6.0e-04 | 35K tok/s | 2458s
+  step  1400/6000 | loss=34.4240 | lr=6.0e-04 | 35K tok/s | 2645s
+  step  1500/6000 | loss=40.2815 | lr=6.0e-04 | 35K tok/s | 2832s
+  step  1600/6000 | loss=34.5188 | lr=6.0e-04 | 35K tok/s | 3024s
+  step  1700/6000 | loss=39.8631 | lr=6.0e-04 | 35K tok/s | 3211s
+  step  1800/6000 | loss=32.5482 | lr=6.0e-04 | 35K tok/s | 3400s
+  step  1900/6000 | loss=29.0291 | lr=6.0e-04 | 35K tok/s | 3590s
+  step  2000/6000 | loss=34.7229 | lr=6.0e-04 | 35K tok/s | 3777s
+  step  2100/6000 | loss=32.0919 | lr=6.0e-04 | 35K tok/s | 3969s
+  step  2200/6000 | loss=31.6778 | lr=6.0e-04 | 35K tok/s | 4156s
+  step  2300/6000 | loss=34.4158 | lr=6.0e-04 | 35K tok/s | 4344s
+  step  2400/6000 | loss=32.5608 | lr=6.0e-04 | 35K tok/s | 4535s
+  step  2500/6000 | loss=38.4219 | lr=6.0e-04 | 35K tok/s | 4723s
+  step  2600/6000 | loss=30.7072 | lr=6.0e-04 | 35K tok/s | 4910s
+  step  2700/6000 | loss=32.6622 | lr=6.0e-04 | 35K tok/s | 5102s
+  step  2800/6000 | loss=39.0325 | lr=6.0e-04 | 35K tok/s | 5289s
+  step  2900/6000 | loss=31.4538 | lr=6.0e-04 | 35K tok/s | 5476s
+  step  3000/6000 | loss=30.0062 | lr=6.0e-04 | 35K tok/s | 5667s
+  step  3100/6000 | loss=37.3801 | lr=6.0e-04 | 35K tok/s | 5855s
+  step  3200/6000 | loss=32.2937 | lr=6.0e-04 | 35K tok/s | 6045s
+  step  3300/6000 | loss=28.0945 | lr=6.0e-04 | 35K tok/s | 6233s
+  step  3400/6000 | loss=31.1434 | lr=6.0e-04 | 35K tok/s | 6420s
+  step  3500/6000 | loss=29.9911 | lr=6.0e-04 | 35K tok/s | 6612s
+  step  3600/6000 | loss=31.5648 | lr=6.0e-04 | 35K tok/s | 6799s
+  step  3700/6000 | loss=32.2280 | lr=6.0e-04 | 35K tok/s | 6986s
+  step  3800/6000 | loss=36.4980 | lr=6.0e-04 | 35K tok/s | 7178s
+  step  3900/6000 | loss=36.3045 | lr=6.0e-04 | 35K tok/s | 7365s
+  step  4000/6000 | loss=33.5534 | lr=6.0e-04 | 35K tok/s | 7552s
+  step  4100/6000 | loss=31.2927 | lr=6.0e-04 | 35K tok/s | 7744s
+  step  4200/6000 | loss=33.0771 | lr=6.0e-04 | 35K tok/s | 7931s
+  step  4300/6000 | loss=37.6594 | lr=6.0e-04 | 35K tok/s | 8118s
+  step  4400/6000 | loss=30.5192 | lr=6.0e-04 | 35K tok/s | 8309s
+  step  4500/6000 | loss=33.6326 | lr=6.0e-04 | 35K tok/s | 8497s
+  step  4600/6000 | loss=41.3455 | lr=5.9e-04 | 35K tok/s | 8689s
+  step  4700/6000 | loss=33.6373 | lr=5.8e-04 | 35K tok/s | 8876s
+  step  4800/6000 | loss=31.6454 | lr=5.5e-04 | 35K tok/s | 9063s
+  step  4900/6000 | loss=34.3752 | lr=5.1e-04 | 35K tok/s | 9255s
+  step  5000/6000 | loss=32.4709 | lr=4.6e-04 | 35K tok/s | 9442s
+  step  5100/6000 | loss=36.9464 | lr=4.1e-04 | 35K tok/s | 9629s
+  step  5200/6000 | loss=36.1678 | lr=3.6e-04 | 35K tok/s | 9821s
+  step  5300/6000 | loss=33.0300 | lr=3.0e-04 | 35K tok/s | 10008s
+  step  5400/6000 | loss=36.5964 | lr=2.5e-04 | 35K tok/s | 10195s
+  step  5500/6000 | loss=30.1851 | lr=1.9e-04 | 35K tok/s | 10387s
+  step  5600/6000 | loss=30.6254 | lr=1.5e-04 | 35K tok/s | 10574s
+  step  5700/6000 | loss=29.3014 | lr=1.1e-04 | 35K tok/s | 10763s
+  step  5800/6000 | loss=27.7184 | lr=8.3e-05 | 35K tok/s | 10953s
+  step  5900/6000 | loss=31.7878 | lr=6.6e-05 | 35K tok/s | 11140s
+
+Training done: 188.8m, loss=28.7115
+
+Discrete ELBO eval (128 steps, 500 seqs)...
+  eval 50/500 | var_bpb≈1.1585
+  eval 100/500 | var_bpb≈1.1562
+  eval 150/500 | var_bpb≈1.1539
+  eval 200/500 | var_bpb≈1.1509
+  eval 250/500 | var_bpb≈1.1519
+  eval 300/500 | var_bpb≈1.1548
+  eval 350/500 | var_bpb≈1.1543
+  eval 400/500 | var_bpb≈1.1536
+  eval 450/500 | var_bpb≈1.1542
+  eval 500/500 | var_bpb≈1.1567
+
+============================================================
+  VARIATIONAL BPB: 1.1567
+  PR #820 MDLM:    1.625
+  Our v2 MC ELBO:  2.41
+  AR baseline:     1.22
+============================================================

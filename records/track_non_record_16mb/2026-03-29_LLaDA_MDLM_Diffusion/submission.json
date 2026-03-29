@@ -1,0 +1,21 @@
+{
+  "author": "agalimova",
+  "github_id": "agalimova",
+  "name": "LLaDA-MDLM: Masked Diffusion Language Model (Non-Record)",
+  "blurb": "First discrete diffusion model to beat the AR baseline in parameter-golf. 11L 512d bidirectional transformer with MDLM training (log-linear noise, antithetic sampling, adaLN timestep conditioning) and proper discrete absorbing-mask ELBO evaluation. Trained on 1xNVIDIA GB10 (Project DIGITS). val_var_bpb=1.1465 with 512 eval steps, beating AR baseline (1.22) and previous best diffusion PR #820 (1.625) by 0.47 BPB. Three rounds of systematic hyperparameter sweeps identified key techniques for diffusion LMs: higher masking eps (0.1 vs 0.001), wider architectures, and cosine masking schedules.",
+  "date": "2026-03-29",
+  "val_bpb": 1.1465,
+  "val_bpb_std": null,
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_var_bpb": 1.1465}
+  },
+  "pre_quant_val_bpb": null,
+  "step_stop": 6000,
+  "wallclock_seconds": 11327,
+  "eval_time_seconds": 1819,
+  "bytes_total": null,
+  "bytes_code": null,
+  "hardware": "1x NVIDIA GB10 (Project DIGITS, 130GB unified memory)",
+  "non_record_reason": "Not 8xH100 SXM — trained on 1x GB10"
+}
