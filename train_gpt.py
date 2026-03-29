@@ -61,7 +61,7 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -85,6 +85,13 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+
+    # JEPA (Joint Embedding Predictive Architecture) hyperparameters.
+    jepa_dim = int(os.environ.get("JEPA_DIM", 256))
+    jepa_alpha = float(os.environ.get("JEPA_ALPHA", 0.1))
+    sigreg_weight = float(os.environ.get("SIGREG_WEIGHT", 0.03))
+    sigreg_num_proj = int(os.environ.get("SIGREG_NUM_PROJ", 128))
+    sigreg_subsample = int(os.environ.get("SIGREG_SUBSAMPLE", 4096))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -506,6 +513,40 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
+class SIGReg(nn.Module):
+    """Sketched Isotropic Gaussian Regularizer — prevents representation collapse.
+    Ported from LeWorldModel (le-wm/module.py) and adapted for text sequences.
+    Uses random projections + Epps-Pulley normality test to enforce isotropic Gaussian latents.
+    """
+    def __init__(self, knots: int = 17, num_proj: int = 128, subsample_n: int = 4096):
+        super().__init__()
+        self.num_proj = num_proj
+        self.subsample_n = subsample_n
+        t = torch.linspace(0, 3, knots, dtype=torch.float32)
+        dt = 3.0 / (knots - 1)
+        weights = torch.full((knots,), 2.0 * dt, dtype=torch.float32)
+        weights[[0, -1]] = dt
+        window = torch.exp(-t.square() / 2.0)
+        self.register_buffer("t", t)
+        self.register_buffer("phi", window)
+        self.register_buffer("weights", weights * window)
+
+    def forward(self, x: Tensor) -> Tensor:
+        # x: (B, T, D) — encoder bottleneck hidden states
+        flat = x.reshape(-1, x.size(-1))  # (B*T, D)
+        n = flat.size(0)
+        if self.subsample_n > 0 and n > self.subsample_n:
+            idx = torch.randint(0, n, (self.subsample_n,), device=flat.device)
+            flat = flat[idx]
+        proj = flat.unsqueeze(0).float()  # (1, N_sub, D) — float32 for precision
+        A = torch.randn(proj.size(-1), self.num_proj, device=proj.device)
+        A = A.div_(A.norm(p=2, dim=0))
+        x_t = (proj @ A).unsqueeze(-1) * self.t  # (1, N_sub, num_proj, knots)
+        err = (x_t.cos().mean(-3) - self.phi).square() + x_t.sin().mean(-3).square()
+        statistic = (err @ self.weights) * proj.size(-2)
+        return statistic.mean()
+
+
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     def forward(self, x: Tensor) -> Tensor:
@@ -613,7 +654,7 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = F.leaky_relu(self.fc(x), negative_slope=0.5)
         return self.proj(x.square())
 
 
@@ -659,6 +700,11 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        jepa_dim: int = 256,
+        jepa_alpha: float = 0.1,
+        sigreg_weight: float = 0.03,
+        sigreg_num_proj: int = 128,
+        sigreg_subsample: int = 4096,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -688,6 +734,15 @@ class GPT(nn.Module):
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
+
+        # JEPA components: bottleneck projection, latent predictor, SIGReg regularizer
+        self.jepa_proj = CastedLinear(model_dim, jepa_dim, bias=False)
+        self.jepa_predictor = CastedLinear(jepa_dim, jepa_dim, bias=False)
+        self.jepa_predictor._zero_init = True  # zero init for gradual learning
+        self.sigreg = SIGReg(knots=17, num_proj=sigreg_num_proj, subsample_n=sigreg_subsample)
+        self.jepa_alpha = jepa_alpha
+        self.sigreg_weight = sigreg_weight
+
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -703,10 +758,14 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
+        # JEPA encoder: first half stores skips and produces bottleneck representations.
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
             skips.append(x)
+
+        h_enc = x  # bottleneck representations for JEPA
+
+        # JEPA decoder/predictor: second half reuses skips in reverse order.
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
@@ -721,7 +780,21 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        ce_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+
+        if not self.training:
+            return ce_loss
+
+        # JEPA latent prediction: predict next-position embedding from current-position
+        z = self.jepa_proj(h_enc)                   # (B, T, jepa_dim)
+        z_pred = self.jepa_predictor(z[:, :-1])     # (B, T-1, jepa_dim)
+        z_target = z[:, 1:].detach()                # stop-gradient on target
+        jepa_loss = F.mse_loss(z_pred, z_target)
+
+        # SIGReg anti-collapse regularization on latent embeddings
+        sigreg_loss = self.sigreg(z)
+
+        return ce_loss + self.jepa_alpha * jepa_loss + self.sigreg_weight * sigreg_loss
 
 
 # -----------------------------
@@ -835,6 +908,11 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        jepa_dim=args.jepa_dim,
+        jepa_alpha=args.jepa_alpha,
+        sigreg_weight=args.sigreg_weight,
+        sigreg_num_proj=args.sigreg_num_proj,
+        sigreg_subsample=args.sigreg_subsample,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -854,6 +932,9 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
+    # JEPA projection matrices go into Muon (they are 2D weight matrices)
+    matrix_params.append(base_model.jepa_proj.weight)
+    matrix_params.append(base_model.jepa_predictor.weight)
     scalar_params = [
         p
         for name, p in block_named_params
@@ -908,6 +989,10 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+    log0(
+        f"jepa:dim={args.jepa_dim} alpha={args.jepa_alpha} sigreg_weight={args.sigreg_weight} "
+        f"sigreg_num_proj={args.sigreg_num_proj} sigreg_subsample={args.sigreg_subsample}"
+    )
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
@@ -1006,6 +1091,8 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        # Decay JEPA SIGReg weight during warmdown (let model specialize for CE)
+        base_model.sigreg_weight = args.sigreg_weight * scale
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
