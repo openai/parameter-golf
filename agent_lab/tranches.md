@@ -364,10 +364,12 @@ Is the current `9L / MLP2 / 98304 / q8-kv2 / QK_GAIN_INIT=1.5` setup the right a
 - [`AL-20260329-021`](./experiments.tsv) (`E1`, `q4/kv2`) landed at `1.3709` and 15.33 MB. This is a real frontier improvement and strongly suggests the current model wants fewer, wider query heads rather than the previous `q8` default.
 - [`AL-20260329-022`](./experiments.tsv) (`E2`, `q16/kv2`) landed at `1.3968` and 14.40 MB. This is a clear regression and says the E1 win was directional evidence for wider heads, not a generic reward for changing head count.
 - [`AL-20260329-023`](./experiments.tsv) (`E3`, `q8/kv4`) landed at `1.3766` and 15.31 MB. This is respectable and better than the old `q8/kv2` anchor, but it still does not overtake `q4/kv2`.
+- [`AL-20260329-024`](./experiments.tsv) (`E4`, `QK_GAIN_INIT=1.0`) landed at `1.3777` and 15.45 MB. Competitive, but still clearly behind `q4/kv2`.
 
 **Current reading**
 
 - the frontier appears to be attention-geometry-sensitive after all
 - the model appears to prefer fewer, wider query heads rather than more, narrower ones
 - less KV sharing helps some, but not enough to beat the wider-head direction
-- the remaining tranche-E runs are now mostly about whether QK sharpness can stack on top of that direction
+- softer QK init is not enough to beat the wider-head direction
+- the final tranche-E run only needs to answer whether sharper QK init is better or worse than the current baseline

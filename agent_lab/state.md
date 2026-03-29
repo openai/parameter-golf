@@ -53,6 +53,7 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - The first attention-geometry probe already moved the frontier. `q4/kv2` beat `q8/kv2`, which is a strong hint that the current model wants fewer, wider query heads.
 - The opposite head-direction failed hard. `q16/kv2` regressed badly, which means the E1 result is directional evidence, not a generic “head changes help” result.
 - Reducing KV sharing is not the main win. `q8/kv4` improved on the old `q8/kv2` line, but it still fell short of `q4/kv2`.
+- Softer QK init is not the main win either. `QK_GAIN_INIT=1.0` stayed competitive, but it still did not beat the wider-head direction.
 
 ## Open Questions
 
@@ -74,7 +75,7 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - `E1`: `NUM_HEADS=4, NUM_KV_HEADS=2` -> complete, new frontier at `1.3709`
 - `E2`: `NUM_HEADS=16, NUM_KV_HEADS=2` -> complete, clear regression
 - `E3`: `NUM_HEADS=8, NUM_KV_HEADS=4` -> complete, better than old `q8/kv2`, but still behind `q4/kv2`
-- `E4`: `QK_GAIN_INIT=1.0`
+- `E4`: `QK_GAIN_INIT=1.0` -> complete, respectable but not a winner
 - `E5`: `QK_GAIN_INIT=2.0`
 
 ## Go Deeper
