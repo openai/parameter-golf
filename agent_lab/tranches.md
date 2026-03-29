@@ -381,3 +381,55 @@ Is the current `9L / MLP2 / 98304 / q8-kv2 / QK_GAIN_INIT=1.5` setup the right a
 - main conclusion: attention geometry is a real frontier lever, and the strongest gain in this tranche came from fewer, wider query heads (`q4/kv2`)
 - secondary conclusion: less KV sharing and QK-gain tuning can help somewhat, but neither beat the `q4/kv2` change
 - next pivot: use `9L / MLP2 / 98304 / q4-kv2` as the new anchor and test output-path or residual-control simplification next
+
+## T-20260329-F: Output Path Audit
+
+**Status:** planned next
+
+**Goal**  
+Use the new frontier, [`AL-20260329-021`](./experiments.tsv), as the base model and ask whether the next gain comes from output-path expressivity or calibration rather than from more attention work.
+
+**Main question**  
+Is the current `9L / MLP2 / 98304 / q4-kv2 / tie_embeddings / logit_softcap=30` setup leaving quality on the table because the output path is too constrained, too weakly regularized, or learning at the wrong rate?
+
+**Why this tranche exists**
+
+- tranche C solved the main width-allocation question
+- tranche D solved the immediate optimization question
+- tranche E solved the first-pass attention question
+- the output path is the next worthwhile component family because it is both underexplored and already env-exposed in several meaningful ways
+
+**Base controls**
+
+- anchor shape: `9L / MLP2 / MODEL_DIM=512 / TRAIN_BATCH_TOKENS=98304 / NUM_HEADS=4 / NUM_KV_HEADS=2`
+- keep `MAX_WALLCLOCK_SECONDS=600`
+- keep primary metric `final_int8_ttt_lora`
+- keep tokenizer/validation semantics unchanged
+- keep the current best optimizer defaults except when the experiment explicitly changes the output-path learning rate
+
+**Anchor**
+
+- [`AL-20260329-021`](./experiments.tsv) at `1.3709`, 15.33 MB
+
+**Planned experiments**
+
+| ID | Shape | Goal | Hypothesis | What it teaches |
+|---|---|---|---|---|
+| `F1` | `TIE_EMBEDDINGS=0` | Untie embeddings and output head | The frontier may need a more expressive output head than tying allows, and the extra bytes may still fit the cap | Whether output expressivity is a real bottleneck |
+| `F2` | `LOGIT_SOFTCAP=20` | Tighten logit clipping | The current softcap may be too loose, letting logits become poorly calibrated | Whether stronger output regularization helps the frontier |
+| `F3` | `LOGIT_SOFTCAP=40` | Relax logit clipping | The current softcap may be too restrictive and suppressing useful confidence | Whether the output path wants less saturation |
+| `F4` | `TIED_EMBED_LR=0.03` | Slow down tied output updates | The tied embedding/output matrix may be learning too aggressively for the current frontier | Whether the output path wants a gentler learning rate |
+| `F5` | `TIED_EMBED_LR=0.07` | Speed up tied output updates | The tied embedding/output matrix may be under-updated relative to the rest of the model | Whether the output path wants stronger updates |
+
+**Why these five are worth the compute**
+
+- `F1` tests a qualitatively different hypothesis: expressivity versus byte cost
+- `F2` and `F3` bracket output calibration around the current softcap so we can tell if the current setting is too strict, too loose, or already near the right point
+- `F4` and `F5` bracket the learning dynamic of the tied output path around the current `0.05`, which is more informative than another ad hoc optimizer poke
+
+**Decision rule for F**
+
+- if `F1` wins, the next tranche should treat untied outputs as a serious frontier direction and optimize around their size budget
+- if `F2` or `F3` wins, the next tranche should tune around the winning softcap side before touching architecture again
+- if `F4` or `F5` wins, output-path learning dynamics are mis-set and deserve a small local optimization tranche
+- if none win clearly, the output path is probably not the next bottleneck and the next pivot should move to residual-control simplification

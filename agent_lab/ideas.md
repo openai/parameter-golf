@@ -146,6 +146,17 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - [`AL-20260329-024`](./experiments.tsv) says softer QK init is competitive but still secondary to the head-geometry win
 - [`AL-20260329-025`](./experiments.tsv) says sharper QK init is the better side of the bracket, but the head-geometry win is still the dominant signal
 
+### I-20260329-014 - The Frontier Is Now Output-Path-Limited
+
+- Category: output path
+- Hypothesis: after width allocation, step count, and first-pass attention geometry are improved, the next meaningful gain may come from the output path: tying, logit calibration, or output-specific learning dynamics.
+- Why it might work:
+- the output path is still mostly untouched in this repo's search history
+- tying and logit softcaps directly affect calibration and expressivity in a tiny-model regime
+- all the main knobs are already env-exposed, so this family is cheap to test honestly
+- Status: active
+- Related tranche: [`T-20260329-F`](./tranches.md#t-20260329-f-output-path-audit)
+
 ## Parked
 
 ### I-20260329-006 - KV1 As The Main Frontier Lever

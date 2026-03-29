@@ -22,9 +22,9 @@ This is the first-read dashboard for autonomous research. Read this file for the
 
 ## Active Tranche
 
-- Tranche: [`T-20260329-E`](./tranches.md#t-20260329-e-attention-geometry-audit)
-- Goal: test whether the new `9L / MLP2 / 98304` frontier is now limited more by attention geometry than by the already-mapped MLP or optimizer knobs
-- Status: completed
+- Tranche: [`T-20260329-F`](./tranches.md#t-20260329-f-output-path-audit)
+- Goal: test whether the new `q4/kv2` frontier is now limited by output-path expressivity or calibration rather than by attention geometry
+- Status: planned next
 
 ## Working Beliefs
 
@@ -55,12 +55,13 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - Reducing KV sharing is not the main win. `q8/kv4` improved on the old `q8/kv2` line, but it still fell short of `q4/kv2`.
 - Softer QK init is not the main win either. `QK_GAIN_INIT=1.0` stayed competitive, but it still did not beat the wider-head direction.
 - Sharper QK init also stayed secondary. `QK_GAIN_INIT=2.0` beat the softer bracket, but neither QK-gain change beat the `q4/kv2` head-geometry win.
+- The next good question is no longer attention. The best line is now `q4/kv2`, and the next likely underexplored lever is the output path: tying, logit softcap, and output-specific learning dynamics.
 
 ## Open Questions
 
-- Is the new frontier now limited more by attention geometry than by feedforward capacity or optimizer choice?
-- Does the model clearly want fewer wider query heads, or is `q4` just one side of a broader head-geometry optimum?
-- Which component family is the next best pivot now that width, step count, and first-pass attention geometry are better mapped?
+- Is the new `q4/kv2` frontier now limited by output-path expressivity?
+- Is `LOGIT_SOFTCAP=30` too loose or too strict for the current frontier?
+- Does the tied output path want a different learning dynamic than the current `TIED_EMBED_LR=0.05`?
 
 ## Next Planned Runs
 
@@ -81,6 +82,14 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - Tranche-E takeaway:
 - the best attention change in this set was `q4/kv2`
 - the next tranche should probably move to output-path or residual-control simplification, using `q4/kv2` as the new anchor
+- Tranche F now asks:
+  is the current `q4/kv2` frontier leaving quality on the table because its output path is underexpressive or miscalibrated?
+- Planned tranche-F runs:
+- `F1`: `TIE_EMBEDDINGS=0`
+- `F2`: `LOGIT_SOFTCAP=20`
+- `F3`: `LOGIT_SOFTCAP=40`
+- `F4`: `TIED_EMBED_LR=0.03`
+- `F5`: `TIED_EMBED_LR=0.07`
 
 ## Go Deeper
 
