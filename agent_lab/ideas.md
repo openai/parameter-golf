@@ -48,6 +48,7 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - Evidence so far:
 - [`AL-20260329-011`](./experiments.tsv) says a mild global dim trim fixes size but gives back too much score
 - [`AL-20260329-012`](./experiments.tsv) says a one-notch MLP trim is a much cleaner byte cut; it produced the new best valid frontier at `1.3838`
+- [`AL-20260329-013`](./experiments.tsv) says global dim trimming is not hopeless, but even the stronger `DIM448` version still loses to the one-notch MLP trim
 
 ### I-20260329-012 - Smaller Valid Width Models Need Different Training Dynamics
 

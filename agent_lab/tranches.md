@@ -229,10 +229,12 @@ Can the `9L / MLP3 / 131072 / kv2` branch be pulled under `16 MB`, and which str
 
 - [`AL-20260329-011`](./experiments.tsv) (`C1-E1`, `9L / MLP3 / DIM480 / 131072 / kv2`) proved a mild global dim trim is enough to recover size validity, but not enough score. It landed at `1.3970` and 15.64 MB.
 - [`AL-20260329-012`](./experiments.tsv) (`C1-E3`, `9L / MLP2 / 512 / 131072 / kv2`) produced a much stronger answer: `1.3838`, 14.73 MB, valid, and the new best frontier. This suggests the third MLP notch was the wrong place to spend bytes once the high-step regime was already in place.
+- [`AL-20260329-013`](./experiments.tsv) (`C1-E2`, `9L / MLP3 / DIM448 / 131072 / kv2`) showed that stronger global shrinking can recover much more of the width branch than `DIM480` did. It finished at `1.3915` and 14.19 MB. Useful, but still clearly behind `9L / MLP2`.
 
 **Current reading**
 
 - structural trims matter more than uniform dim trims
+- among global dim trims, `DIM448` is the first one that looks respectable
 - one MLP-notch cut is currently dominating the dim-trim approach on both score and size
 - the remaining tranche-C runs should now answer whether any 8-layer width-biased survivor teaches something beyond the new `9L / MLP2` winner
 
