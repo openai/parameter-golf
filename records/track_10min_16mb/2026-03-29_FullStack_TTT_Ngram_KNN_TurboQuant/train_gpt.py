@@ -1715,21 +1715,39 @@ class NgramCache:
 
 
 class KnnLM:
-    def __init__(self, dim, k=32, max_entries=50000):
+    """kNN-LM with random projection for memory efficiency.
+    Projects vocab-dim logits to proj_dim (default 64) before storing.
+    VRAM: max_entries × proj_dim × 4 bytes (e.g. 50K × 64 × 4 = 12.8MB)."""
+
+    def __init__(self, dim, k=32, max_entries=50000, proj_dim=64):
         self.k = k
-        self.dim = dim
+        self.orig_dim = dim
+        self.proj_dim = proj_dim
         self.max_entries = max_entries
-        self.keys_buf = None  # (N, dim) tensor on device
-        self.vals_buf = None  # (N,) long tensor on device
+        # Random projection matrix (fixed seed for reproducibility)
+        rng = torch.Generator().manual_seed(12345)
+        self.proj = torch.randn(dim, proj_dim, generator=rng) / (proj_dim**0.5)
+        self.proj_device = None  # lazily moved to GPU
+        self.keys_buf = None
+        self.vals_buf = None
         self.n = 0
 
+    def _ensure_device(self, device):
+        if self.proj_device != device:
+            self.proj = self.proj.to(device=device, dtype=torch.float32)
+            self.proj_device = device
+
     def add_batch(self, hiddens, targets, device):
-        """Add a batch of (hidden, target) pairs. hiddens: (seq_len, dim), targets: (seq_len,)."""
-        h = hiddens.detach().float().to(device)
+        """Project and store. hiddens: (seq_len, orig_dim), targets: (seq_len,)."""
+        self._ensure_device(device)
+        # Project: (seq_len, orig_dim) @ (orig_dim, proj_dim) → (seq_len, proj_dim)
+        h = (
+            hiddens.detach().float().to(device) @ self.proj
+        ).half()  # fp16 to save VRAM
         t = targets.detach().long().to(device)
         if self.keys_buf is None:
             self.keys_buf = torch.empty(
-                self.max_entries, self.dim, device=device, dtype=torch.float32
+                self.max_entries, self.proj_dim, device=device, dtype=torch.float16
             )
             self.vals_buf = torch.empty(
                 self.max_entries, device=device, dtype=torch.long
@@ -1741,18 +1759,23 @@ class KnnLM:
             self.n += n_add
 
     def predict_batch(self, hiddens, vocab_size, device):
-        """Batched kNN prediction. hiddens: (seq_len, dim). Returns (seq_len, vocab) probs."""
+        """Batched kNN in projected space. hiddens: (seq_len, orig_dim)."""
         seq_len = hiddens.shape[0]
         if self.n < 1:
             return torch.zeros(seq_len, vocab_size, device=device)
-        keys = self.keys_buf[: self.n]  # (N, dim)
-        vals = self.vals_buf[: self.n]  # (N,)
-        # Batched L2 distances: (seq_len, N)
-        dists = torch.cdist(hiddens.float().unsqueeze(0), keys.unsqueeze(0)).squeeze(0)
+        self._ensure_device(device)
+        # Project query
+        q = (hiddens.float().to(device) @ self.proj).half()  # (seq_len, proj_dim)
+        keys = self.keys_buf[: self.n]  # (N, proj_dim) fp16
+        vals = self.vals_buf[: self.n]
+        # L2 distances in projected space: (seq_len, N)
+        dists = torch.cdist(q.float().unsqueeze(0), keys.float().unsqueeze(0)).squeeze(
+            0
+        )
         k = min(self.k, self.n)
-        _, idx = dists.topk(k, dim=1, largest=False)  # (seq_len, k)
-        knn_vals = vals[idx]  # (seq_len, k)
-        knn_weights = F.softmax(-dists.gather(1, idx), dim=1)  # (seq_len, k)
+        _, idx = dists.topk(k, dim=1, largest=False)
+        knn_vals = vals[idx]
+        knn_weights = F.softmax(-dists.gather(1, idx), dim=1)
         probs = torch.zeros(seq_len, vocab_size, device=device)
         probs.scatter_add_(1, knn_vals, knn_weights)
         return probs
