@@ -2,7 +2,9 @@
 
 **Submission for OpenAI Parameter Golf (non-record / creative track)**
 
-I designed and built a **multi-agent Think Tank Swarm** that actively guides the training of a tiny GPT model during the 600-second budget.
+> A multi-agent Think Tank Swarm actively steers the training of a tiny GPT model in real time — dynamically adjusting hyperparameters and using a 500K-node knowledge graph to condition embedding initialization.
+
+I designed and built this system from scratch — the swarm architecture, the knowledge graph structure, the agent roles, the decision logic, and the integration with the training loop are all my original work.
 
 Instead of a static training script, a team of 4 specialist agents (QAT Timing, KG Weight, Gradient Health, MTP Weight) uses a typed 500K-node knowledge graph to make real-time decisions about quantization timing, knowledge graph influence scheduling, gradient clipping, and multi-token prediction weighting. The swarm makes 8 guided decision cycles during training, then outputs the final 16MB artifact with a full decision log.
 
@@ -138,5 +140,9 @@ LATE_QAT_THRESHOLD=0 TTT_ENABLED=1 KG_LOSS_WEIGHT=0.1 SEED=1337 \
 ```
 
 Requires `swarm_agents.py` and `kg_data.py` in the same directory as `train_gpt.py`.
+
+### Why This Matters to OpenAI
+
+This submission demonstrates agentic self-improvement inside the strict 600s/16MB constraints — a step toward training systems that can reason about their own training process. It showcases a complete stack: multi-agent orchestration, typed knowledge graphs, rule-based consensus, and reliable execution under real production constraints.
 
 **Built while competing in OpenAI Parameter Golf (March 2026).**
