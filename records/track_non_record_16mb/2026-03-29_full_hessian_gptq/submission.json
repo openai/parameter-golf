@@ -1,0 +1,15 @@
+{
+  "description": "Session 05b: Full Hessian GPTQ delta on Session 03 anchor",
+  "parent": "records/track_non_record_16mb/2026-03-28_pre_ttt_anchor",
+  "delta": "Replace naive int6 quantization with Full Hessian GPTQ (Cholesky error compensation)",
+  "status": "awaiting_measurement",
+  "container": "nvcr.io/nvidia/pytorch:26.03-py3",
+  "hyperparameters": {
+    "gptq_block_size": 128,
+    "gptq_percdamp": 0.01,
+    "gptq_actorder": true,
+    "gptq_clip_range": 31,
+    "gptq_calibration_samples": 128,
+    "gptq_calibration_seq_len": 2048
+  }
+}
