@@ -717,6 +717,8 @@ class GPT(nn.Module):
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
+            # Re-use embed_proj's weight (512, 64) as a projection back down to bottleneck (64)
+            x = F.linear(x, self.embed_proj.weight.t())
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
             if self.lm_head is None:
