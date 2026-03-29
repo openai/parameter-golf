@@ -297,9 +297,6 @@ def eval_val(
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
-            if _turboquant_caches is not None:
-                for c in _turboquant_caches.values():
-                    c.clear()
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 batch_loss = model(x, y).detach()
             batch_token_count = float(y.numel())
@@ -872,10 +869,11 @@ class CausalSelfAttention(nn.Module):
             k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
 
-        # TurboQuant KV cache compression
+        # TurboQuant KV cache compression — compress K/V to 3-bit for bandwidth savings
         layer_idx = getattr(self, '_layer_idx', -1)
         if _turboquant_caches is not None and layer_idx >= 0 and layer_idx in _turboquant_caches:
             cache = _turboquant_caches[layer_idx]
+            cache.clear()
             cache.compress(k, v)
             k, v = cache.get_kv()
             k, v = k.to(q.dtype), v.to(q.dtype)
@@ -1822,6 +1820,11 @@ def main() -> None:
     if args.enable_optrot:
         restored_sd = reverse_optrot(restored_sd)
     base_model.load_state_dict(restored_sd, strict=(args.mtp_num_heads == 0))
+    # Activate TurboQuant for eval-time KV cache compression
+    if args.enable_turboquant:
+        global _turboquant_caches
+        head_dim = args.model_dim // args.num_heads
+        _turboquant_caches = {i: TurboQuantCache(head_dim, args.turboquant_bits) for i in range(args.num_layers)}
     # Activate XSA for eval-time cross-sequence attention
     if args.xsa_last_n > 0:
         num_blocks = len(base_model.blocks)
@@ -1830,12 +1833,6 @@ def main() -> None:
                 block.attn._xsa_enabled = True
                 block.attn._prev_k = None
                 block.attn._prev_v = None
-
-    # Activate TurboQuant for eval-time KV cache compression
-    if args.enable_turboquant:
-        global _turboquant_caches
-        head_dim = args.model_dim // args.num_heads
-        _turboquant_caches = {i: TurboQuantCache(head_dim, args.turboquant_bits) for i in range(args.num_layers)}
 
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
