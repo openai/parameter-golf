@@ -79,11 +79,11 @@ def objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int) -> fl
     # quant_bits still affects artifact size — verify it fits.
     arch = SEARCH_MODEL
     est_size, total_params = estimate_compressed_size(
-        arch["model_dim"],
-        arch["num_layers"],
-        arch["mlp_mult"],
-        arch["num_heads"],
-        arch["num_kv_heads"],
+        arch["MODEL_DIM"],
+        arch["NUM_LAYERS"],
+        arch["MLP_MULT"],
+        arch["NUM_HEADS"],
+        arch["NUM_KV_HEADS"],
         quant_bits,
         enable_entropy_coding,
         enable_pruning,
