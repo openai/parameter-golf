@@ -38,15 +38,10 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
-# Recurrent baseline:
-# - 1 shared transformer block applied num_passes=12 times
-# - 512 dim, 8 heads, 4 KV heads, 2x MLP
-# - vocab size 1024 default (swap to 32768 for tokenizer experiment)
-# - same 524288 train tokens per step, 20000 iters, ~10 min cap
-
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -56,23 +51,20 @@ class Hyperparameters:
     seed = int(os.environ.get("SEED", 1337))
 
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 2000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 2000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
+    lr_warmup_steps = int(os.environ.get("LR_WARMUP_STEPS", 200))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    # --- CHANGE 1: num_layers now means num_passes of the single shared block ---
-    # Baseline had 9 independent layers. We use 1 block applied num_passes times.
-    # With shared weights, "9 layers" → ~3M unique params instead of ~25M.
-    # Increase num_passes freely since it costs 0 extra bytes in the artifact.
     num_passes = int(os.environ.get("NUM_PASSES", 12))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
@@ -86,7 +78,7 @@ class Hyperparameters:
     depth_emb = bool(int(os.environ.get("DEPTH_EMB", "1")))
     attn_res = bool(int(os.environ.get("ATTN_RES", "1")))
     attn_res_heads = int(os.environ.get("ATTN_RES_HEADS", 0))  # 0 = auto (uses num_heads)
-    attn_res_window = int(os.environ.get("ATTN_RES_WINDOW", 0))  # 0 = unlimited history
+    attn_res_window = int(os.environ.get("ATTN_RES_WINDOW", 4))  # 0 = unlimited history
     swiglu = bool(int(os.environ.get("SWIGLU", "1")))
 
     # Optimizer hyperparameters.
@@ -103,7 +95,8 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -235,6 +228,9 @@ def eval_val(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
+    # FIX: removed grad_accum_steps from denominator — it's a training concept,
+    # not relevant to validation batch sizing. The old code made val batches 8x
+    # too small, causing ~946 forward passes per checkpoint (~30 min each).
     local_batch_tokens = args.val_batch_size // world_size
     if local_batch_tokens < args.train_seq_len:
         raise ValueError(
@@ -247,7 +243,7 @@ def eval_val(
     total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
-    
+
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -581,14 +577,11 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        if self.num_kv_heads != self.num_heads:
-            rep = self.num_heads // self.num_kv_heads
-            k = k.repeat_interleave(rep, dim=1)
-            v = v.repeat_interleave(rep, dim=1)
         y = F.scaled_dot_product_attention(
             q, k, v,
             attn_mask=None,
             is_causal=True,
+            enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
@@ -613,7 +606,12 @@ class MLP(nn.Module):
 
 
 class AttnRes(nn.Module):
-    """Cross-attention over all prior pass outputs (replaces fixed U-Net skips)."""
+    """Cross-attention over windowed prior pass outputs (replaces fixed U-Net skips).
+    
+    Each pass attends over the last attn_res_window pass outputs (including x0).
+    The block-causal mask ensures token t only attends to keys from positions <= t
+    across all passes in the window, preserving autoregressive causality.
+    """
     def __init__(self, dim: int, num_heads: int = 4):
         super().__init__()
         self.num_heads = num_heads
@@ -628,37 +626,31 @@ class AttnRes(nn.Module):
     def forward(self, x: Tensor, history: list[Tensor]) -> Tensor:
         if not history:
             return x
-        # history is [x0, x1, ...]
         kv_src = torch.stack(history, dim=1)  # (B, P, T, D)
         B, P, T, D = kv_src.shape
-        
-        # Interleave time and passes: (B, T, P, D) -> (B, T * P, D)
+
+        # Flatten passes into sequence dimension: (B, T*P, D)
         kv_flat = kv_src.transpose(1, 2).contiguous().reshape(B, T * P, D)
-        
+
         x_norm = F.rms_norm(x, (x.size(-1),))
         kv_norm = F.rms_norm(kv_flat, (kv_flat.size(-1),))
-        
-        # q calculation on original shape: (B, H, T, D_h)
-        q_orig = self.c_q(x_norm).reshape(B, T, self.num_heads, self.head_dim).transpose(1, 2)
-        q = F.rms_norm(q_orig, (q_orig.size(-1),))
 
-        k = self.c_k(kv_norm).reshape(B, T * P, self.num_heads, self.head_dim).transpose(1, 2)
+        q = F.rms_norm(
+            self.c_q(x_norm).reshape(B, T, self.num_heads, self.head_dim).transpose(1, 2),
+            (self.head_dim,),
+        )
+        k = F.rms_norm(
+            self.c_k(kv_norm).reshape(B, T * P, self.num_heads, self.head_dim).transpose(1, 2),
+            (self.head_dim,),
+        )
         v = self.c_v(kv_norm).reshape(B, T * P, self.num_heads, self.head_dim).transpose(1, 2)
 
-        k = F.rms_norm(k, (k.size(-1),))
-
-        # We want query step t to attend to all key steps (t', p') where t' < t or (t' == t and p' <= P-1).
-        # Since the kv sequence is (t0, p0), (t0, p1), ..., (t0, pP-1), (t1, p0), ...,
-        # a query at time t (which is at index t in the q sequence) should attend to keys up to index (t+1)*P - 1.
-        # This is a block-causal mask.
-        mask = torch.ones(T, T * P, device=x.device, dtype=torch.bool).tril(diagonal=0)
-        # expand mask for the P dimension: each temporal query step t sees all P historical steps for each t' <= t
-        # We need a boolean mask of shape (1, 1, T, T*P) to broadcast against (B, H, T, T*P)
-        mask = mask.repeat_interleave(P, dim=1).view(1, 1, T, T * P)
+        # Block-causal mask: token t attends to all (t', p) where t' <= t
+        causal = torch.ones(T, T, device=x.device, dtype=torch.bool).tril()
+        mask = causal.repeat_interleave(P, dim=1).unsqueeze(0).unsqueeze(0)  # (1,1,T,T*P)
 
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, is_causal=False)
         y = y.transpose(1, 2).contiguous().reshape(B, T, D)
-        return x + self.attn_res_scale.to(dtype=x.dtype)[None, None, :] * self.proj(y)
         return x + self.attn_res_scale.to(dtype=x.dtype)[None, None, :] * self.proj(y)
 
 
@@ -675,22 +667,13 @@ class Block(nn.Module):
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
-        x = x + mix[1][None, None, :] * x0
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
 
-# -----------------------------
-# RECURRENT GPT
-# --- CHANGE 2: Single shared Block applied num_passes times ---
-# Instead of num_layers independent blocks (~25M unique params),
-# we store ONE block and loop over it (num_passes * block_size unique params).
-# U-Net skip connections preserved: first half of passes stores skips,
-# second half consumes them in reverse. skip_weights are per-pass not per-layer
-# so they remain small.
-# -----------------------------
 class GPT(nn.Module):
     def __init__(
         self,
@@ -708,7 +691,7 @@ class GPT(nn.Module):
         depth_emb: bool = False,
         use_attn_res: bool = False,
         attn_res_heads: int = 4,
-        attn_res_window: int = 0,
+        attn_res_window: int = 4,
         use_swiglu: bool = False,
     ):
         super().__init__()
@@ -724,31 +707,24 @@ class GPT(nn.Module):
 
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
 
-        # --- Depth embeddings: learnable per-pass embedding so the shared block specializes ---
+        # Depth embeddings: learnable per-pass bias injected into x0
         self.depth_emb = nn.Embedding(num_passes, model_dim) if depth_emb else None
 
-        # --- Single shared block (the key change) ---
-        # This block's weights are reused on every pass through the network.
-        # Stored once → drastically smaller compressed artifact.
+        # Single shared block — weights reused every pass
         self.block = Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, use_swiglu=use_swiglu)
 
-        # --- AttnRes: cross-attention over prior pass outputs (replaces U-Net skips) ---
         if use_attn_res:
             actual_attn_res_heads = attn_res_heads if attn_res_heads > 0 else num_heads
             self.attn_res = AttnRes(model_dim, num_heads=actual_attn_res_heads)
-            # No U-Net skip weights when using AttnRes
             self.num_encoder_passes = 0
             self.num_decoder_passes = 0
             self.num_skip_weights = 0
             self.register_buffer("skip_weights", torch.empty(0, dtype=torch.float32))
         else:
             self.attn_res = None
-            # U-Net skip connections: first half of passes are "encoder", second half "decoder".
-            # Each decoder pass adds a weighted skip from the corresponding encoder pass.
             self.num_encoder_passes = num_passes // 2
             self.num_decoder_passes = num_passes - self.num_encoder_passes
             self.num_skip_weights = min(self.num_encoder_passes, self.num_decoder_passes)
-            # per-pass learned skip scale (small, stays in fp32)
             self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
 
         self.final_norm = RMSNorm()
@@ -762,7 +738,7 @@ class GPT(nn.Module):
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
         if self.depth_emb is not None:
-            nn.init.normal_(self.depth_emb.weight, mean=0.0, std=0.02)
+            nn.init.zeros_(self.depth_emb.weight)  # zero-init for stable start
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
@@ -770,11 +746,10 @@ class GPT(nn.Module):
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
-        x0 = x  # original embedding, passed to every block call
+        x0 = x
 
         if self.use_attn_res:
-            # AttnRes mode: collect history, cross-attend each pass
-            history: list[Tensor] = [x0]  # seed with embedding
+            history: list[Tensor] = [x0]
             for p in range(self.num_passes):
                 if self.depth_emb is not None:
                     x = x + self.depth_emb.weight[p][None, None, :]
@@ -783,22 +758,17 @@ class GPT(nn.Module):
                 x = self.block(x, x0)
                 history.append(x)
         else:
-            # U-Net skip mode (original)
             skips: list[Tensor] = []
-
-            # Encoder passes: run the shared block, store skip activations
             for p in range(self.num_encoder_passes):
                 if self.depth_emb is not None:
                     x = x + self.depth_emb.weight[p][None, None, :]
                 x = self.block(x, x0)
                 skips.append(x)
-
-            # Decoder passes: add skip from encoder mirror, then run shared block
             for i in range(self.num_decoder_passes):
                 p = self.num_encoder_passes + i
                 if self.depth_emb is not None:
                     x = x + self.depth_emb.weight[p][None, None, :]
-                if skips:
+                if i < self.num_skip_weights and skips:
                     x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
                 x = self.block(x, x0)
 
@@ -856,7 +826,7 @@ def main() -> None:
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
-    enable_mem_efficient_sdp(False)
+    enable_mem_efficient_sdp(True)  # required for AttnRes block-causal mask
     enable_math_sdp(True)
 
     logfile = None
@@ -868,11 +838,13 @@ def main() -> None:
     def log0(msg: str, console: bool = True) -> None:
         if not master_process:
             return
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        stamped = f"[{ts}] {msg}"
         if console:
-            print(msg)
+            print(stamped)
         if logfile is not None:
             with open(logfile, "a", encoding="utf-8") as f:
-                print(msg, file=f)
+                print(stamped, file=f)
 
     log0(code, console=False)
     log0("=" * 100, console=False)
@@ -907,7 +879,6 @@ def main() -> None:
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
     log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
 
-    # --- CHANGE 3: construct GPT with num_passes instead of num_layers ---
     base_model = GPT(
         vocab_size=args.vocab_size,
         num_passes=args.num_passes,
@@ -932,10 +903,13 @@ def main() -> None:
             module.float()
 
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+
+    # FIX: fullgraph=False required because AttnRes uses a Python list (history)
+    # that grows each pass, creating dynamic shapes that break fullgraph tracing.
+    # fullgraph=False still compiles and optimizes all subgraphs.
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
-    # --- CHANGE 4: optimizer now points at base_model.block (+ attn_res if enabled) ---
     block_named_params = list(base_model.block.named_parameters())
     if base_model.attn_res is not None:
         block_named_params += [(f"attn_res.{n}", p) for n, p in base_model.attn_res.named_parameters()]
@@ -991,9 +965,8 @@ def main() -> None:
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}  num_passes:{args.num_passes}")
-    log0(f"features: depth_emb={args.depth_emb} attn_res={args.attn_res} swiglu={args.swiglu}")
+    log0(f"features: depth_emb={args.depth_emb} attn_res={args.attn_res} attn_res_window={args.attn_res_window} swiglu={args.swiglu}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -1003,7 +976,7 @@ def main() -> None:
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
-        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+        f"warmdown_iters:{args.warmdown_iters} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
 
@@ -1016,6 +989,8 @@ def main() -> None:
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
+        if args.lr_warmup_steps > 0 and step <= args.lr_warmup_steps:
+            return step / args.lr_warmup_steps
         if args.warmdown_iters <= 0:
             return 1.0
         if max_wallclock_ms is None:
@@ -1086,7 +1061,6 @@ def main() -> None:
             t0 = time.perf_counter()
 
         if last_step:
-            # Export compressed artifact
             if master_process:
                 state_dict = base_model.state_dict()
                 quant_obj, quant_stats = quantize_state_dict_int8(state_dict)
@@ -1098,16 +1072,12 @@ def main() -> None:
                 log0(f"final_int8_zlib_roundtrip model_bytes:{len(compressed)} code_bytes:{len(code_bytes)} total_bytes:{total_bytes}")
                 log0(f"param_count:{quant_stats['param_count']} baseline_tensor_bytes:{quant_stats['baseline_tensor_bytes']} int8_payload_bytes:{quant_stats['int8_payload_bytes']}")
 
-                # Verify roundtrip
                 buf2 = io.BytesIO(zlib.decompress(compressed))
-                # Use weights_only=False to support the nested dict/strings produced by quantization
                 quant_obj2 = torch.load(buf2, weights_only=False)
                 recovered = dequantize_state_dict_int8(quant_obj2)
                 base_model.load_state_dict(recovered, strict=True)
-                
-                # Use model (DDP) for validation to ensure same device/sync behavior as training
                 val_loss2, val_bpb2 = eval_val(
-                    args, model if distributed else compiled_model, rank, world_size, device, grad_accum_steps,
+                    args, compiled_model, rank, world_size, device, grad_accum_steps,
                     val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
                 )
                 log0(f"final_int8_zlib_roundtrip val_loss:{val_loss2:.4f} val_bpb:{val_bpb2:.4f} size_bytes:{total_bytes}")
@@ -1115,39 +1085,31 @@ def main() -> None:
 
         # Training step
         model.train()
+        # FIX: synchronize before starting timer so elapsed_ms is accurate
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
 
         zero_grad_all()
         train_loss_accum = torch.zeros((), device=device)
 
-        t_data_sum, t_fwd_sum, t_bwd_sum = 0.0, 0.0, 0.0
-
         for micro_step in range(grad_accum_steps):
-            t_start = time.perf_counter()
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            t_data_sum += time.perf_counter() - t_start
-
-            t_start = time.perf_counter()
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
-            t_fwd_sum += time.perf_counter() - t_start
-
-            t_start = time.perf_counter()
             (loss * grad_scale).backward()
-            train_loss_accum += loss.detach()  # keep as tensor, no GPU sync
-            t_bwd_sum += time.perf_counter() - t_start
+            train_loss_accum += loss.detach()
 
-        # Still an implicit sync here due to .item(), which forces a GPU->CPU copy
-        # This ensures the CPU doesn't run infinitely ahead of the GPU
+        # Single GPU sync via .item() — keeps CPU from running too far ahead
         train_loss_accum = train_loss_accum.item() * grad_scale
 
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
 
+        torch.cuda.synchronize()
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
-        # Momentum warmup for Muon
         if step < args.muon_momentum_warmup_steps:
             frac = (step + 1) / max(args.muon_momentum_warmup_steps, 1)
             new_mom = args.muon_momentum_warmup_start + frac * (args.muon_momentum - args.muon_momentum_warmup_start)
@@ -1159,18 +1121,14 @@ def main() -> None:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * mul
 
-        t_start = time.perf_counter()
         for opt in optimizers:
             opt.step()
-        t_opt = time.perf_counter() - t_start
 
         if master_process and (step + 1) % args.train_log_every == 0:
-            log0(f"step:{step + 1}/{args.iterations} train_loss:{train_loss_accum:.4f} lr_mul:{mul:.4f} train_time:{elapsed_ms:.0f}ms\n"
-                 f"     timing -> data:{t_data_sum:.3f}s fwd:{t_fwd_sum:.3f}s bwd:{t_bwd_sum:.3f}s opt:{t_opt:.3f}s")
+            log0(f"step:{step + 1}/{args.iterations} train_loss:{train_loss_accum:.4f} lr_mul:{mul:.4f} train_time:{elapsed_ms:.0f}ms")
 
         step += 1
 
-        # Wallclock check — reuse elapsed_ms from line above, no extra sync needed
         if max_wallclock_ms is not None and stop_after_step is None:
             if elapsed_ms >= max_wallclock_ms:
                 stop_after_step = step
