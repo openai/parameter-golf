@@ -1,0 +1,11 @@
+{
+    "author": "sofiabod",
+    "github_id": "sofiabod",
+    "name": "Packed Causal N-gram + Dirichlet Backoff Mixing",
+    "blurb": "Single-pass causal score-first eval with packed 32K-bucket n-gram memory (8M training tokens, order 2-12) and Dirichlet posterior backoff mixing with count-confidence gating (gain=12). 2-layer 128d neural model (vestigial). No two-pass, no phrase cache, no TTT.",
+    "date": "2026-03-28",
+    "val_loss": 0.03039395,
+    "val_bpb": 0.01800106,
+    "bytes_total": 1384609,
+    "bytes_code": 107000
+}
