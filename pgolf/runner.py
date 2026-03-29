@@ -40,7 +40,12 @@ def run_trial(
     t0 = time.time()
     try:
         proc = subprocess.run(
-            ["torchrun", "--standalone", "--nproc_per_node=1", TRAIN_SCRIPT],
+            [
+                os.path.join(PROJECT_DIR, ".venv", "bin", "torchrun"),
+                "--standalone",
+                "--nproc_per_node=1",
+                TRAIN_SCRIPT,
+            ],
             env=env,
             capture_output=True,
             text=True,
