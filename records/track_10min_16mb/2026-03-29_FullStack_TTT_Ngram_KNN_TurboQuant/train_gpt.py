@@ -2508,67 +2508,98 @@ def main() -> None:
             aug_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
             aug_byte_sum = torch.zeros((), device=device, dtype=torch.float64)
             aug_token_count = torch.zeros((), device=device, dtype=torch.float64)
-            # Sequential causal chunk eval — process ALL tokens in order
-            # All ranks do identical work (no sharding) for maximum n-gram statistics
+            # Batched causal chunk eval — process multiple chunks per model forward,
+            # all sharing the same n-gram cache state. Cache updated after each batch.
+            # Slight accuracy loss vs fully sequential (~0.1% of cache data per batch)
+            # but massively faster (batch_size × fewer forward passes).
             total_tokens = val_tokens.numel() - 1
             chunk_size = args.train_seq_len
-            chunk_starts = list(range(0, total_tokens, chunk_size))
+            n_chunks = (total_tokens + chunk_size - 1) // chunk_size
+            eval_batch = max(
+                args.val_batch_size // (args.train_seq_len * world_size), 1
+            )
+            n_batches = (n_chunks + eval_batch - 1) // eval_batch
             with torch.no_grad():
-                for ci in tqdm(
-                    range(len(chunk_starts)), desc="ngram+knn eval", disable=(rank != 0)
+                for bi in tqdm(
+                    range(n_batches), desc="ngram+knn eval", disable=(rank != 0)
                 ):
-                    cs = chunk_starts[ci]
-                    ce = min(cs + chunk_size, total_tokens)
-                    clen = ce - cs
-                    if clen < 1:
-                        continue
-                    chunk = val_tokens[cs : ce + 1].to(dtype=torch.int64, device=device)
-                    x = chunk[:-1].unsqueeze(0)
-                    y = chunk[1:].unsqueeze(0)
+                    batch_start = bi * eval_batch
+                    batch_end = min(batch_start + eval_batch, n_chunks)
+                    bsz = batch_end - batch_start
+                    # Build batched x, y from consecutive chunks
+                    x_batch = torch.zeros(
+                        bsz, chunk_size, dtype=torch.int64, device=device
+                    )
+                    y_batch = torch.zeros(
+                        bsz, chunk_size, dtype=torch.int64, device=device
+                    )
+                    clens = []
+                    chunks_for_update = []
+                    for s in range(bsz):
+                        ci = batch_start + s
+                        cs = ci * chunk_size
+                        ce = min(cs + chunk_size, total_tokens)
+                        clen = ce - cs
+                        clens.append(clen)
+                        chunk = val_tokens[cs : ce + 1].to(
+                            dtype=torch.int64, device=device
+                        )
+                        x_batch[s, :clen] = chunk[:-1]
+                        y_batch[s, :clen] = chunk[1:]
+                        chunks_for_update.append(chunk)
+                    # Batched model forward
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        logits = base_model(x, y, return_logits=True)
-                    # N-gram scoring (handles mixing internally)
+                        logits_batch = base_model(x_batch, y_batch, return_logits=True)
+                    # N-gram scoring — all chunks scored with SAME cache state (batched)
                     if ngram is not None:
-                        nll = ngram.score(logits, x, y).squeeze(0)  # (clen,)
+                        nll_batch = ngram.score(logits_batch, x_batch, y_batch)
                     else:
-                        nll = F.cross_entropy(
-                            logits.float().reshape(-1, logits.size(-1)),
-                            y.reshape(-1),
+                        nll_batch = F.cross_entropy(
+                            logits_batch.float().reshape(-1, logits_batch.size(-1)),
+                            y_batch.reshape(-1),
                             reduction="none",
-                        )
-                    # kNN interpolation on top
+                        ).reshape(bsz, chunk_size)
+                    # kNN interpolation on top (batched)
                     if knn is not None and knn.n > 0:
-                        knn_probs = knn.predict_batch(
-                            logits[0].float(), args.vocab_size, device
-                        )
-                        has_knn = knn_probs.sum(dim=-1, keepdim=True) > 0
-                        lam = args.knn_lambda
-                        # Convert NLL back to prob, mix, reconvert
-                        p = (-nll).exp().unsqueeze(-1)
-                        # Approximate: adjust NLL by kNN contribution
-                        target_knn_p = knn_probs.gather(
-                            1, y.squeeze(0).unsqueeze(1)
-                        ).squeeze(1)
-                        mixed_p = torch.where(
-                            has_knn.squeeze(-1),
-                            (1 - lam) * p.squeeze(-1) + lam * target_knn_p,
-                            p.squeeze(-1),
-                        )
-                        nll = -mixed_p.clamp(min=1e-12).log()
-                    aug_loss_sum += nll.to(torch.float64).sum()
-                    aug_token_count += clen
-                    tgt = y.squeeze(0)
-                    prev = x.squeeze(0)
-                    tb = base_bytes_lut[tgt].to(torch.float64)
-                    tb += (
-                        has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]
-                    ).to(torch.float64)
-                    aug_byte_sum += tb.sum()
-                    # AFTER scoring: update caches (backward-looking)
+                        for s in range(bsz):
+                            clen = clens[s]
+                            knn_probs = knn.predict_batch(
+                                logits_batch[s, :clen].float(), args.vocab_size, device
+                            )
+                            has_knn = knn_probs.sum(dim=-1) > 0
+                            lam = args.knn_lambda
+                            p = (-nll_batch[s, :clen]).exp()
+                            target_knn_p = knn_probs.gather(
+                                1, y_batch[s, :clen].unsqueeze(1)
+                            ).squeeze(1)
+                            mixed_p = torch.where(
+                                has_knn, (1 - lam) * p + lam * target_knn_p, p
+                            )
+                            nll_batch[s, :clen] = -mixed_p.clamp(min=1e-12).log()
+                    # Accumulate BPB per chunk
+                    for s in range(bsz):
+                        clen = clens[s]
+                        aug_loss_sum += nll_batch[s, :clen].to(torch.float64).sum()
+                        aug_token_count += clen
+                        tgt = y_batch[s, :clen]
+                        prev = x_batch[s, :clen]
+                        tb = base_bytes_lut[tgt].to(torch.float64)
+                        tb += (
+                            has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]
+                        ).to(torch.float64)
+                        aug_byte_sum += tb.sum()
+                    # AFTER scoring entire batch: update caches (backward-looking)
                     if ngram is not None:
-                        ngram.update(chunk)
+                        for chunk in chunks_for_update:
+                            ngram.update(chunk)
                     if knn is not None:
-                        knn.add_batch(logits[0].float(), tgt, device)
+                        for s in range(bsz):
+                            clen = clens[s]
+                            knn.add_batch(
+                                logits_batch[s, :clen].float(),
+                                y_batch[s, :clen],
+                                device,
+                            )
             if dist.is_available() and dist.is_initialized():
                 dist.all_reduce(aug_loss_sum, op=dist.ReduceOp.SUM)
                 dist.all_reduce(aug_byte_sum, op=dist.ReduceOp.SUM)
