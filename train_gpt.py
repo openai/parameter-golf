@@ -954,7 +954,7 @@ class CausalSelfAttention(nn.Module):
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, v_residual: Tensor | None = None) -> tuple[Tensor, Tensor]:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
@@ -965,6 +965,9 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+        # VRL: mix first-layer V into current V
+        if v_residual is not None:
+            v = 0.5 * v + 0.5 * v_residual
         y = F.scaled_dot_product_attention(
             q,
             k,
@@ -974,7 +977,7 @@ class CausalSelfAttention(nn.Module):
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        return self.proj(y), v
 
 
 class MLP(nn.Module):
@@ -1039,13 +1042,13 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, v_residual: Tensor | None = None) -> tuple[Tensor, Tensor]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        attn_out, v_out = self.attn(self.attn_norm(x), v_residual=v_residual)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
-        return x
+        return x, v_out
 
 
 class GPT(nn.Module):
@@ -1124,13 +1127,16 @@ class GPT(nn.Module):
         skips: list[Tensor] = []
 
         # First half stores skips; second half reuses them in reverse order.
+        v_res = None
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x, v_out = self.blocks[i](x, x0, v_residual=v_res)
+            if i == 0:
+                v_res = v_out  # store first layer's V for VRL
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x, _ = self.blocks[self.num_encoder_layers + i](x, x0, v_residual=v_res)
 
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
@@ -1171,13 +1177,16 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
+        v_res = None
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x, v_out = self.blocks[i](x, x0, v_residual=v_res)
+            if i == 0:
+                v_res = v_out
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x, _ = self.blocks[self.num_encoder_layers + i](x, x0, v_residual=v_res)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
