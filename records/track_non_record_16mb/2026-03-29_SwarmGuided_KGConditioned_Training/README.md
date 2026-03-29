@@ -1,83 +1,78 @@
-# Swarm-Guided KG-Conditioned Training
+# Swarm-Guided Training: A Multi-Agent Think Tank Directs a Tiny Model Inside the 600s/16MB Limit
 
-**val_bpb: 1.1220** (seed 1337, with Legal TTT) | **~15.96 MB** | 8xH100 SXM
+**Submission for OpenAI Parameter Golf (non-record / creative track)**
 
-## Approach
+I designed and built a **multi-agent Think Tank Swarm** that actively guides the training of a tiny GPT model during the 600-second budget.
 
-This submission introduces **agentic self-improvement during training** — a lightweight multi-agent swarm monitors training metrics and makes hyperparameter decisions via consensus voting, while a 500K-node knowledge graph conditions the model's embedding initialization.
+Instead of a static training script, a team of 4 specialist agents (QAT Timing, KG Weight, Gradient Health, MTP Weight) uses a typed 500K-node knowledge graph to make real-time decisions about quantization timing, knowledge graph influence scheduling, gradient clipping, and multi-token prediction weighting. The swarm makes 8 guided decision cycles during training, then outputs the final 16MB artifact with a full decision log.
 
-### What's Novel
+This is the first submission (to my knowledge) where a multi-agent swarm acts as the live trainer and optimizer inside the strict Parameter Golf constraints.
 
-No other submission treats the training process itself as a multi-agent system. Instead of a static training script with fixed hyperparameters, 4 autonomous agents observe training signals (loss trajectories, gradient norms, training progress) and vote on interventions every 800 steps. A typed-edge knowledge graph (CAUSES, REQUIRES, SOLVES, CONTRADICTS) provides semantic importance scores that bias the model toward learning important concepts first.
+### Core Idea
+- The swarm is not just post-training analysis — it **steers the training loop itself**.
+- Agents observe training metrics (loss trajectories, gradient norms, LR scale, training progress) and vote on changes.
+- A 500K-node typed-edge knowledge graph (CAUSES, REQUIRES, SOLVES, CONTRADICTS) conditions the model's embedding initialization — giving semantically important tokens a head start.
+- Everything is pure Python, rule-based heuristics — no LLM calls during training. Total swarm overhead: **<300 microseconds** across 600 seconds.
+- The final model is a standard tiny GPT — the novelty is in **how** it was trained.
 
-### The Swarm (4 Agents, Rule-Based, <300 microseconds total overhead)
+### Key Components I Designed
+- **Think Tank Swarm** — multi-agent research system with typed-edge knowledge graph traversal, specialist agents, and voting-based consensus
+- **Typed Knowledge Graph** — 500,292 nodes, 121,084 edges with 10 edge types (Solves, Causes, Requires, Enables, Contradicts, ConnectsTo, Improves, PartOf, TradeoffOf, AlternativeTo)
+- **KG-Conditioned Embedding Init** — token embeddings scaled by PageRank importance from the knowledge graph at initialization (zero runtime cost)
+- **VotingMesh** — consensus mechanism where agents propose changes with confidence scores, applied only above threshold
+- **Swarm Decision Log** — full transparency into what the swarm decided, when, and why
+
+The TTS research swarm (running on separate infrastructure with Phi-3 + Qwen2.5-7B local models) ran two investigation missions to design this approach before any training code was written. The knowledge graph was built from a 615MB library spanning 58 domain clusters.
+
+All high-level architecture, agent roles, knowledge graph design, and system integration were mine. I used AI tools (Grok, Claude, Gemini) as implementation collaborators, but the vision and system design are original.
+
+### The 4 Swarm Agents
 
 | Agent | Observes | Controls | Decision Logic |
 |-------|----------|----------|---------------|
-| QAT Timing | LR scale + training progress | When to enable quantization-aware training | Fires when warmdown begins (scale < 0.15) but not before 40% progress. Safety deadline at 65%. |
-| KG Weight | Training phase | Knowledge graph influence schedule | Ramps 0.3→0.5 early (guide learning), holds 0.4 mid-training, tapers to 0.1 late (free convergence). |
-| Gradient Health | Gradient norms | Gradient clipping threshold | Tightens clipping if grad_norm > 2.0 to prevent instability. |
-| MTP Weight | Training phase | Multi-token prediction loss weight | Reduces MTP from 0.1→0.05 after 75% to shift focus to primary loss. |
+| **QAT Timing** | LR scale + training progress | When to enable quantization-aware training | Fires when warmdown begins (scale < 0.15) but not before 40%. Safety deadline at 65%. |
+| **KG Weight** | Training phase | Knowledge graph influence schedule | Ramps 0.3 → 0.5 early (guide learning), holds 0.4 mid-training, tapers to 0.1 late (free convergence). |
+| **Gradient Health** | Gradient norms | Gradient clipping threshold | Tightens clipping from 0.3 to 0.15 if grad_norm > 2.0. |
+| **MTP Weight** | Training phase | Multi-token prediction loss weight | Reduces MTP from 0.1 → 0.05 after 75% to shift focus to primary loss. |
 
-The swarm runs 8 decision cycles across a typical 7000-step training run. Each cycle completes in ~50 microseconds (pure Python heuristics, no LLM calls). Total overhead: **<300 microseconds** across the entire 600-second training window.
-
-### Knowledge Graph Conditioning
-
-A 500,000-node typed-edge knowledge graph (built from 615MB of academic papers, technical documentation, and domain knowledge across 58 clusters) is distilled to 358 token importance scores via degree-based centrality analysis. These scores are compressed to 976 bytes (LZMA + base64) and baked into the submission.
-
-At initialization, token embeddings for semantically important concepts are scaled by their graph importance score (weight=0.1). This gives the model a head start on learning important concepts with zero runtime cost — no loss function modifications, no per-step overhead.
-
-### Integration with Existing Stack
-
-The swarm layers cleanly on top of the proven Parameter Golf stack:
-- LeakyReLU(0.75)² activation
-- Parallel Muon optimizer
-- Multi-Token Prediction (2 heads, weight=0.1)
-- EMA weight averaging (0.997)
-- Int6 quantization (GPTQ-lite + LZMA)
-- XSA (last 4 layers)
-- BigramHash (2048)
-- Legal Score-First TTT
-- Sliding window evaluation (stride=64)
-
-The swarm adds ~100 lines to train_gpt.py and imports from `swarm_agents.py` (not counted in artifact size). The knowledge graph data is in `kg_data.py` (976 bytes base64 blob).
-
-## Results
-
-### Seed 1337
+### Results (Seed 1337)
 
 | Metric | Score |
 |--------|-------|
 | Pre-quant (EMA) | 1.1397 |
-| Post-quant (int6, roundtrip) | 1.1481 |
+| Post-quant (int6 roundtrip) | 1.1481 |
 | Sliding window (stride=64) | 1.1245 |
 | **Legal TTT** | **1.1220** |
-| Artifact size | 15,955,969 bytes |
+| Artifact size | 15,955,969 bytes (under 16MB limit) |
 | Training steps | 6,956 / 20,000 |
 | Step average | 86.27 ms |
+| Swarm cycles | 8 |
+| Swarm decisions | 2 |
+| Swarm overhead | <300 microseconds total |
 
-### Swarm Decision Log (Seed 1337)
+### Swarm Decision Log
 
 ```
 Swarm: 8 cycles, 2 decisions
-  cycle 1 step 800: kg_weight_agent kg_weight 0.3->0.5 (conf=0.75, 50us) progress=0.04, adjusting KG schedule
-  cycle 4 step 3200: kg_weight_agent kg_weight 0.5->0.4 (conf=0.75, 39us) progress=0.16, adjusting KG schedule
+  cycle 1 step 800:  kg_weight_agent  0.3 -> 0.5  (conf=0.75, 50us) progress=0.04, adjusting KG schedule
+  cycle 4 step 3200: kg_weight_agent  0.5 -> 0.4  (conf=0.75, 39us) progress=0.16, adjusting KG schedule
 ```
 
-## Architecture
+### Architecture
 
 ```
                     ┌─────────────────────────────┐
-                    │   Knowledge Graph (500K nodes)│
-                    │   Typed edges: CAUSES,        │
-                    │   REQUIRES, SOLVES, etc.       │
+                    │  Knowledge Graph (500K nodes) │
+                    │  10 typed edge types           │
+                    │  121K edges, 58 clusters        │
                     └──────────┬──────────────────┘
                                │ PageRank → 358 token
-                               │ importance scores
+                               │ importance scores (976 bytes)
                                ▼
 ┌──────────────────────────────────────────────────┐
 │              Embedding Initialization             │
 │  tok_emb.weight[tid] *= 1 + 0.1 * importance     │
+│  (one-time, zero runtime cost)                    │
 └──────────────────────────────────────────────────┘
                                │
                     ┌──────────▼──────────┐
@@ -89,38 +84,59 @@ Swarm: 8 cycles, 2 decisions
                     │   Swarm Decision     │
                     │   Cycle (~50 μs)     │
                     │                      │
-                    │  ┌─── QAT Agent ───┐ │
+                    │  ┌── QAT Timing ───┐ │
                     │  ├── KG Weight ────┤ │
                     │  ├── Grad Health ──┤ │
                     │  └── MTP Weight ───┘ │
                     │                      │
-                    │  Vote → Apply        │
+                    │  Observe → Vote →    │
+                    │  Apply (if conf≥0.6) │
                     └──────────┬──────────┘
                                │
                     ┌──────────▼──────────┐
-                    │   Model Output       │
-                    │   + Decision Log     │
+                    │   Final Model +      │
+                    │   Decision Log        │
                     └─────────────────────┘
 ```
 
-## Why This Matters
+### Base Stack
 
-Parameter Golf submissions optimize a fixed training recipe. This submission makes the recipe itself adaptive. The swarm is lightweight enough to run inside the 600-second window with zero measurable overhead, yet flexible enough to make meaningful decisions about quantization timing, learning dynamics, and loss weighting.
+The swarm layers on top of the proven Parameter Golf recipe:
+- 11 layers, 512d, 8 heads, 4 KV heads, 3x MLP
+- LeakyReLU(0.75)² activation
+- Parallel Muon optimizer
+- Multi-Token Prediction (2 heads, weight=0.1)
+- EMA weight averaging (0.997)
+- BigramHash (2048) + SmearGate
+- XSA (last 4 layers) + Partial RoPE + LN Scale
+- Int6 quantization (GPTQ-lite + LZMA)
+- Legal Score-First TTT
+- Sliding window evaluation (stride=64)
 
-The knowledge graph provides external semantic structure that a small model (28M params) cannot learn from data alone. By biasing embeddings toward important concepts at initialization, the model allocates capacity more efficiently.
+### Why This Matters
+
+Most submissions optimize a fixed training script. This submission shows a swarm can **dynamically steer** training decisions inside the tight constraints — opening the door to agentic self-improvement at the competition scale.
+
+The knowledge graph provides external semantic structure that a 28M-parameter model cannot learn from data alone. By biasing embeddings toward important concepts, the model allocates capacity more efficiently from the start.
 
 This is a proof-of-concept for **agentic training** — where the training process is not a static script but an intelligent system that observes, decides, and adapts.
 
-## Files
+### Files
 
 | File | Size | Purpose | Counted in artifact? |
 |------|------|---------|---------------------|
-| `train_gpt.py` | 94KB | Training script with swarm integration | Yes (code bytes) |
-| `swarm_agents.py` | 11KB | 4 agents + VotingMesh + data types | No (imported module) |
-| `kg_data.py` | 1KB | Pre-computed KG importance (base64 blob) | No (imported module) |
+| `train_gpt.py` | 94KB | Training script + swarm integration | Yes |
+| `swarm_agents.py` | 11KB | 4 agents + VotingMesh | No (imported) |
+| `kg_data.py` | 1KB | Compressed KG importance data | No (imported) |
+| `submission.json` | <1KB | Metadata | No |
 
-## Infrastructure
+### Reproducibility
 
-The knowledge graph was built from a 615MB knowledge library spanning 58 domain clusters (AI/ML, systems, algorithms, security, etc.) using a custom Rust-based graph extraction pipeline. PageRank-style importance scoring on 500,292 nodes and 121,084 typed edges produces the 358 token importance weights used in this submission.
+```bash
+LATE_QAT_THRESHOLD=0 TTT_ENABLED=1 KG_LOSS_WEIGHT=0.1 SEED=1337 \
+  torchrun --nproc_per_node=8 train_gpt.py
+```
 
-The swarm architecture is derived from the Think Tank Swarm (TTS), a multi-agent research system that uses knowledge graph traversal, typed-edge specialists, and voting-based consensus for autonomous investigation tasks.
+Requires `swarm_agents.py` and `kg_data.py` in the same directory as `train_gpt.py`.
+
+**Built while competing in OpenAI Parameter Golf (March 2026).**
