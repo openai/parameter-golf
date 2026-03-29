@@ -20,11 +20,11 @@ export NUM_LAYERS=11
 export MODEL_DIM=512
 export NUM_HEADS=8
 export NUM_KV_HEADS=4
-export BIGRAM_VOCAB_SIZE=1536
+export BIGRAM_VOCAB_SIZE=0
 export XSA_LAST_N=4
 export ROPE_DIMS=16
 export LN_SCALE=1
-export VE_ENABLED=1
+export VE_ENABLED=0
 export VE_DIM=128
 export VE_LAYERS="9,10"
 
@@ -61,7 +61,7 @@ export LATE_QAT_THRESHOLD=0.30
 export TTT_ENABLED=1
 export TTT_LR=0.002
 export TTT_EPOCHS=3
-export TTT_CHUNK_TOKENS=32768
+export TTT_CHUNK_TOKENS=49152
 export TTT_FREEZE_BLOCKS=0
 export TTT_MOMENTUM=0.9
 export TTT_BATCH_SEQS=32
@@ -77,11 +77,11 @@ export CORE_QUANT_ENABLED=0
 export PASSES_SCHEDULE="0:1,4500:2,5500:3,6000:4"
 
 export SEED=1337
-export RUN_ID="earlyqat_v2"
+export RUN_ID="earlyqat_v3"
 
 torchrun --standalone --nproc_per_node=8 train_gpt.py \
     --feedback-mode diagonal --feedback-rank 2 \
     --residual-scale-init 0.5 \
     --jacobian-proxy-weight 0.1 \
     --no-interpass-rmsnorm \
-    2>&1 | tee logs/earlyqat_v2.txt
+    2>&1 | tee logs/earlyqat_v3.txt
