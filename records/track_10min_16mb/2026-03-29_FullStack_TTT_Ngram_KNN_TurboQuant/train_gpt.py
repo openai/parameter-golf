@@ -753,9 +753,23 @@ class RMSNorm(nn.Module):
 
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
+    # Caches the casted weight to avoid repeated fp32→bf16 conversion.
+    _cached_weight: Tensor | None = None
+    _cached_dtype: torch.dtype | None = None
+    _cached_version: int = -1
+
     def forward(self, x: Tensor) -> Tensor:
+        w_version = self.weight._version
+        if (
+            self._cached_weight is None
+            or self._cached_dtype != x.dtype
+            or self._cached_version != w_version
+        ):
+            self._cached_weight = self.weight.to(x.dtype)
+            self._cached_dtype = x.dtype
+            self._cached_version = w_version
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, self._cached_weight, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
