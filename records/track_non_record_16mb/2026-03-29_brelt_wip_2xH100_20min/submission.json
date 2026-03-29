@@ -14,7 +14,5 @@
   "bytes_total": 13924361,
   "bytes_model_int8_zlib": 13825009,
   "bytes_code": 99352,
-  "gpu": "2xh100",
-  "baseline_same_budget_val_bpb": 1.24289631,
-  "baseline_same_budget_pre_quant_val_bpb": 1.2367
+  "gpu": "2xh100"
 }
