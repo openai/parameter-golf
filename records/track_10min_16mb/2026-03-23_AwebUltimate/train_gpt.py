@@ -115,6 +115,9 @@ class Hyperparameters:
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
+    ttt_polyak_decay = float(os.environ.get("TTT_POLYAK_DECAY", 0.998))
+    ttt_proj_lr_mult = float(os.environ.get("TTT_PROJ_LR_MULT", 3.0))  # 3x LR for output projections
+    ttt_input_lr_mult = float(os.environ.get("TTT_INPUT_LR_MULT", 0.5))  # 0.5x LR for input projections
     # N-gram oracle mixing
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
     ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", 12))  # order 2-12 backoff
@@ -1148,7 +1151,37 @@ def eval_val_sliding_ttt(
     log0(f"ttt_sliding:params unfrozen={sum(p.numel() for p in ttt_params)} "
          f"frozen={sum(p.numel() for p in base_model.parameters() if not p.requires_grad)}")
 
-    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    # Per-layer LR groups: output projections get higher LR, input projections get lower LR
+    proj_params, input_params, other_params = [], [], []
+    for name, p in base_model.named_parameters():
+        if not p.requires_grad:
+            continue
+        # Output projections: qo_bank second half (out_proj) + mlp_down_bank
+        if "mlp_down_bank" in name:
+            proj_params.append(p)
+        elif "mlp_up_bank" in name:
+            input_params.append(p)
+        elif "qo_bank" in name:
+            proj_params.append(p)  # mix of Q (input) and Out (output), use higher LR
+        elif "kv_bank" in name:
+            input_params.append(p)  # K and V are input projections
+        else:
+            other_params.append(p)
+    optimizer = torch.optim.SGD([
+        {"params": proj_params, "lr": args.ttt_lr * args.ttt_proj_lr_mult},
+        {"params": input_params, "lr": args.ttt_lr * args.ttt_input_lr_mult},
+        {"params": other_params, "lr": args.ttt_lr},
+    ], momentum=args.ttt_momentum)
+    log0(f"ttt_sliding:lr_groups proj={sum(p.numel() for p in proj_params)} "
+         f"input={sum(p.numel() for p in input_params)} "
+         f"other={sum(p.numel() for p in other_params)} "
+         f"proj_mult={args.ttt_proj_lr_mult} input_mult={args.ttt_input_lr_mult}")
+
+    # Polyak averaging: score with smoothed weights, train with raw weights
+    polyak_state = {n: t.detach().float().clone() for n, t in base_model.state_dict().items()}
+    polyak_decay = args.ttt_polyak_decay
+    raw_state_backup: dict[str, Tensor] | None = None  # stores raw weights during scoring
+
     t0 = time.perf_counter()
 
     for ci in range(num_chunks):
@@ -1158,10 +1191,15 @@ def eval_val_sliding_ttt(
         chunk_start = ci * ttt_chunk
         chunk_end = min((ci + 1) * ttt_chunk, total_tokens)
 
-        # --- Phase 1: SCORE this chunk's windows (inference_mode) ---
+        # --- Phase 1: SCORE this chunk's windows using POLYAK weights ---
         my_s = (len(windows) * rank) // world_size
         my_e = (len(windows) * (rank + 1)) // world_size
         my_windows = windows[my_s:my_e]
+
+        # Swap to polyak-averaged weights for scoring (more stable)
+        raw_state_backup = {n: t.detach().clone() for n, t in base_model.state_dict().items()}
+        polyak_sd = {n: t.to(dtype=raw_state_backup[n].dtype) for n, t in polyak_state.items()}
+        base_model.load_state_dict(polyak_sd, strict=True)
 
         base_model.eval()
         with torch.inference_mode():
@@ -1196,14 +1234,20 @@ def eval_val_sliding_ttt(
                     byte_count += tb.sum()
 
         # --- Phase 2: TRAIN on this chunk (already scored = legal) ---
+        # Restore raw weights for training (polyak was used for scoring)
+        if raw_state_backup is not None:
+            base_model.load_state_dict(raw_state_backup, strict=True)
+            raw_state_backup = None
+
         is_last_chunk = (ci == num_chunks - 1)
         if not is_last_chunk and args.ttt_epochs > 0:
             base_model.train()
             chunk_seqs = (chunk_end - chunk_start) // seq_len
             if chunk_seqs > 0:
-                cos_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
-                for pg in optimizer.param_groups:
-                    pg['lr'] = cos_lr
+                cos_scale = 0.5 * (1.0 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
+                lr_mults = [args.ttt_proj_lr_mult, args.ttt_input_lr_mult, 1.0]
+                for pg, mult in zip(optimizer.param_groups, lr_mults):
+                    pg['lr'] = args.ttt_lr * mult * cos_scale
                 my_seq_s = (chunk_seqs * rank) // world_size
                 my_seq_e = (chunk_seqs * (rank + 1)) // world_size
                 my_chunk_seqs = my_seq_e - my_seq_s
@@ -1228,6 +1272,10 @@ def eval_val_sliding_ttt(
                                     dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
                         torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
                         optimizer.step()
+            # Update Polyak average after chunk training
+            with torch.no_grad():
+                for n, t in base_model.state_dict().items():
+                    polyak_state[n].mul_(polyak_decay).add_(t.detach().float(), alpha=1.0 - polyak_decay)
 
         if rank == 0 and (ci % 10 == 0 or ci == num_chunks - 1):
             elapsed = time.perf_counter() - t0
