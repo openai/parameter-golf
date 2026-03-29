@@ -1,3 +1,21 @@
+> ## OLYMPUS: The Agora
+>
+> This fork hosts **[The Agora](https://matotezitanka.github.io/parameter-golf/)** — a community companion site for Parameter Golf.
+>
+> **What it does:** Live leaderboard (996 PRs auto-classified), compliance engine, technique map, BPB timeline, funding transparency tracker, compute survival guide, and community bug alerts.
+>
+> **Why it exists:** 1000+ PRs, rules that change mid-game, $1M in promised compute with no public distribution data, and critical bugs ([#897](https://github.com/openai/parameter-golf/issues/897), [#775](https://github.com/openai/parameter-golf/issues/775)) that affect scores. The competition needed a public square.
+>
+> - [View the live site](https://matotezitanka.github.io/parameter-golf/)
+> - [Submit feedback or corrections](https://github.com/MatoTeziTanka/parameter-golf/issues/new/choose)
+> - [Join the discussion](https://github.com/MatoTeziTanka/parameter-golf/discussions)
+>
+> Built by [@MatoTeziTanka](https://github.com/MatoTeziTanka) ([Light Speed Up](https://lightspeedup.com)). Not neutral — we're active participants. All classifications are automated and disputable.
+
+---
+
+*Original OpenAI README below:*
+
 <img width="3840" height="1280" alt="1920x640-discord" src="https://github.com/user-attachments/assets/90607b26-171f-476a-90ae-69b9dbb7cb30" />
 
 <br>
