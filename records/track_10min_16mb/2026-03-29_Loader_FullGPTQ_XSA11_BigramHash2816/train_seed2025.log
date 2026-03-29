@@ -1,0 +1,89 @@
+W0329 05:57:20.327000 3724161 torch/distributed/run.py:803] 
+W0329 05:57:20.327000 3724161 torch/distributed/run.py:803] *****************************************
+W0329 05:57:20.327000 3724161 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0329 05:57:20.327000 3724161 torch/distributed/run.py:803] *****************************************
+logs/47bbafd1-50a8-48d0-a6af-f3ee56ae4d77.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27038812
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:2025
+gptq:reserving 14000ms from training budget, effective=586000ms
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9266 val_bpb:4.1023 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9272 train_time:130ms step_avg:130.20ms
+step:2/20000 train_loss:8.5053 train_time:163ms step_avg:81.53ms
+step:3/20000 train_loss:7.5026 train_time:248ms step_avg:82.60ms
+step:4/20000 train_loss:7.4164 train_time:334ms step_avg:83.39ms
+step:5/20000 train_loss:7.2621 train_time:420ms step_avg:83.92ms
+step:6/20000 train_loss:7.0662 train_time:505ms step_avg:84.11ms
+step:7/20000 train_loss:6.9484 train_time:590ms step_avg:84.34ms
+step:8/20000 train_loss:6.6826 train_time:676ms step_avg:84.47ms
+step:9/20000 train_loss:6.3617 train_time:762ms step_avg:84.65ms
+step:10/20000 train_loss:6.0590 train_time:847ms step_avg:84.71ms
+step:500/20000 train_loss:2.3866 train_time:43522ms step_avg:87.04ms
+step:1000/20000 train_loss:2.2104 train_time:87116ms step_avg:87.12ms
+step:1500/20000 train_loss:2.1080 train_time:130762ms step_avg:87.17ms
+step:2000/20000 train_loss:2.0596 train_time:174459ms step_avg:87.23ms
+step:2500/20000 train_loss:2.0064 train_time:218159ms step_avg:87.26ms
+step:3000/20000 train_loss:1.9805 train_time:261875ms step_avg:87.29ms
+step:3500/20000 train_loss:2.0337 train_time:305581ms step_avg:87.31ms
+step:4000/20000 train_loss:2.0627 train_time:349284ms step_avg:87.32ms
+step:4000/20000 val_loss:2.0253 val_bpb:1.1995 train_time:349340ms step_avg:87.33ms
+step:4500/20000 train_loss:1.9819 train_time:392984ms step_avg:87.33ms
+step:5000/20000 train_loss:2.0284 train_time:436679ms step_avg:87.34ms
+step:5500/20000 train_loss:1.9434 train_time:480378ms step_avg:87.34ms
+step:6000/20000 train_loss:1.9848 train_time:524065ms step_avg:87.34ms
+swa:start step:6050
+late_qat:enabled step:6181 scale:0.1499
+step:6500/20000 train_loss:1.9515 train_time:568323ms step_avg:87.43ms
+step:6700/20000 val_loss:1.9130 val_bpb:1.1330 train_time:586183ms step_avg:87.49ms
+stopping_early: wallclock_cap train_time:586183ms step:6700/20000
+peak memory allocated: 22847 MiB reserved: 22894 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9115 val_bpb:1.1321 eval_time:2073ms
+Serialized model: 106232246 bytes
+Code size: 111130 bytes
+gptq:calibrating with 64 batches (training data)...
+gptq:calibrated 66 layers in 6.7s
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+Serialized model int6+lzma: 15886564 bytes
+Total submission size int6+lzma: 15997694 bytes
+final_int6_roundtrip val_loss:1.9176 val_bpb:1.1357 eval_time:6423ms
+final_int6_roundtrip_exact val_loss:1.91761778 val_bpb:1.13572126
+final_int6_sliding_window val_loss:1.8778 val_bpb:1.1121 stride:64 eval_time:78483ms
+final_int6_sliding_window_exact val_loss:1.87779900 val_bpb:1.11214128
+final_int8_zlib_roundtrip_exact val_loss:1.87779900 val_bpb:1.11214128
