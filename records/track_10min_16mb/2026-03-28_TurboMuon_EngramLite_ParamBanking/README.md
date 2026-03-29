@@ -1,15 +1,15 @@
 # Turbo-Muon + EngramLite + Parameter Banking + GPTQ Mixed-Precision
 
-**val_bpb: TODO** (3-seed mean, std TODO) | **~15.6 MB** | 8xH100 SXM
+**val_bpb: 1.1086** (3-seed mean, std 0.0006) | **~15.3 MB** | 8xH100 SXM
 
 ## Results (8xH100 80GB SXM)
 
 | Seed | step_avg | steps | val_bpb (SW) | val_bpb (full) | Artifact bytes |
 |------|----------|-------|-------------|----------------|----------------|
-| 42   | TODO     | TODO  | TODO        | TODO           | TODO           |
-| 1337 | TODO     | TODO  | TODO        | TODO           | TODO           |
-| 2025 | TODO     | TODO  | TODO        | TODO           | TODO           |
-| **Mean** | **TODO** | **TODO** | **TODO** | **TODO** | |
+| 42   | 93.68ms  | 6257  | 1.1079      | 1.1317         | 15,986,468     |
+| 1337 | 93.12ms  | 6294  | 1.1089      | 1.1326         | 15,996,753     |
+| 2025 | 93.08ms  | 6297  | 1.1090      | 1.1327         | 15,997,089     |
+| **Mean** | **93.29ms** | **6283** | **1.1086** | **1.1324** | |
 
 ## Summary
 
@@ -134,10 +134,10 @@ LOAD_SNAPSHOT=snapshot_post_hessian.pt torchrun --standalone --nproc_per_node=1 
 - **Polar Express coefficients**: Amsel et al. (arXiv:2505.16932)
 - **GPTQ approach**: [PR #634](https://github.com/openai/parameter-golf/pull/634) Hessian-aware quantization
 
-## TODO Before Submission
+## Validation Checklist
 
-- [ ] Run 3 seeds on 8xH100 (42, 1337, 2025) and collect logs
-- [ ] Fill in results table with actual val_bpb, step times, artifact sizes
-- [ ] Update submission.json with actual val_bpb and bytes_total
+- [x] Run 3 seeds on 8xH100 (42, 1337, 2025) and collect logs
+- [x] Fill in results table with actual val_bpb, step times, artifact sizes
+- [x] Update submission.json with actual val_bpb and bytes_total
 - [ ] Verify 3-seed mean beats SOTA by >= 0.005 nats
-- [ ] Attach log files as `train_seed42.log`, `train_seed1337.log`, `train_seed2025.log`
+- [x] Attach log files as `train_seed42.log`, `train_seed1337.log`, `train_seed2025.log`
