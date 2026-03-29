@@ -65,6 +65,21 @@ PR #549 stack with modifications:
 - ✅ Training < 600s, eval < 600s
 - ✅ Single left-to-right evaluation pass
 
+## Reproduction
+
+```bash
+SEED=1337 \
+BIGRAM_VOCAB_SIZE=2816 \
+BIGRAM_DIM=112 \
+XSA_LAST_N=11 \
+USE_GPTQ=1 \
+GPTQ_RESERVE_MS=14000 \
+TTT_ENABLED=0 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
+```
+
+Environment: PyTorch 2.9+, Flash Attention 3 (`flash_attn_interface`), NCCL_NET=Socket on GCP.
+
 ## Credits
 
 - **Base scaffold**: [PR #549](https://github.com/openai/parameter-golf/pull/549) by @abaybektursun (LeakyReLU² + Parallel Muon)
