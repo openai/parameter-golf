@@ -141,6 +141,7 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - Related tranche: [`T-20260329-E`](./tranches.md#t-20260329-e-attention-geometry-audit)
 - Evidence so far:
 - [`AL-20260329-021`](./experiments.tsv) says the frontier does respond to attention geometry; `q4/kv2` is better than the previous `q8/kv2` winner
+- [`AL-20260329-022`](./experiments.tsv) says the direction is specifically toward fewer wider heads, not toward more narrower ones
 
 ## Parked
 

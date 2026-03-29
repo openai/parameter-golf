@@ -51,6 +51,7 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - The next good question is no longer optimization. The best line is now stable enough that another worthwhile tranche should attack a different component family.
 - Attention is the cleanest next component family because it has several env-exposed geometry knobs: query-head count, KV sharing, and QK sharpness at initialization.
 - The first attention-geometry probe already moved the frontier. `q4/kv2` beat `q8/kv2`, which is a strong hint that the current model wants fewer, wider query heads.
+- The opposite head-direction failed hard. `q16/kv2` regressed badly, which means the E1 result is directional evidence, not a generic “head changes help” result.
 
 ## Open Questions
 
@@ -70,7 +71,7 @@ This is the first-read dashboard for autonomous research. Read this file for the
   is the current `9L / MLP2 / 98304 / q8-kv2` frontier leaving quality on the table because its attention geometry is mis-set?
 - Planned tranche-E runs:
 - `E1`: `NUM_HEADS=4, NUM_KV_HEADS=2` -> complete, new frontier at `1.3709`
-- `E2`: `NUM_HEADS=16, NUM_KV_HEADS=2`
+- `E2`: `NUM_HEADS=16, NUM_KV_HEADS=2` -> complete, clear regression
 - `E3`: `NUM_HEADS=8, NUM_KV_HEADS=4`
 - `E4`: `QK_GAIN_INIT=1.0`
 - `E5`: `QK_GAIN_INIT=2.0`
