@@ -76,16 +76,20 @@ Do not use:
 - small remaining donor gap with both throughput and export fidelity still worth isolated measurement
 - NGC container + fscratch confirmed as optimized Pegasus path
 - GPTQ-lite percentile clip search does not help at this scale (Session 04 Delta 1 negative result: worse BPB + artifact cap violation)
+- LeakyReLU^2 activation is neutral (Session 04 Delta 2: sliding s64 val_bpb effectively identical at `1.12904123`, but slightly better quantization metrics and 168KB smaller artifact; slower step time cancels quality gain)
 
 ## What has not happened yet
 
 - no isolated Session 04 backend/perf parity measurement
-- no LeakyReLU^2 activation delta
-- no isolated warmdown/EMA or token-path delta on top of the anchor
+- no isolated warmdown/EMA freeze or token-path delta on top of the anchor
 - no top-tier leaderboard-adjacent result yet
+- no ASQU activation delta
+- no MTP auxiliary loss delta
 
 ## Best next move
 
-- Delta 1 (GPTQ-lite) is complete and rejected — pivot immediately to Delta 2 (LeakyReLU^2)
-- The H100 node is allocated for ~22 more hours; use it for Delta 2 now
+- Delta 1 (GPTQ-lite) rejected, Delta 2 (LeakyReLU^2) neutral — neither is a standalone graduating delta
+- LeakyReLU^2 is keepable as a stack component (better artifact size, slightly better quantization)
+- Next delta candidates ranked: (1) EMA freeze during late warmdown, (2) ASQU activation, (3) MTP auxiliary loss
+- Do not spend time on standalone math=False
 - Keep backend/perf, export, and model changes isolated so the next result stays attributable

@@ -266,6 +266,34 @@ Interpretation:
 - Clean negative result: the export gap is not caused by clip suboptimality.
 - Pivot to Delta 2 (LeakyReLU^2).
 
+Date: 2026-03-29
+Node: `serv-3342`
+GPU: `8x NVIDIA H100 80GB HBM3 (SXM5)`
+Run: `delta2_leakyrelu2_8xh100`
+
+Measured outputs:
+
+- Train setup: `600s` wallclock cap, Session 04 Delta 2: LeakyReLU^2
+- `amp_dtype: bf16`
+- Stopped at `6511` steps in `599586 ms`
+- Pre-quant EMA exact eval: `val_loss=1.93224692`, `val_bpb=1.14438546`
+- Post-roundtrip exact eval: `val_loss=1.94547854`, `val_bpb=1.15222198`
+- Sliding-window exact eval (`stride=64`): `val_loss=1.90633378`, `val_bpb=1.12904123`
+- Step average: `92.09 ms`
+- Peak memory: `21274 MiB allocated`, `22070 MiB reserved`
+- Total submission size `int6+zstd`: `15582968` bytes
+- Model bytes: `15524210`, code bytes: `58758`
+
+Interpretation:
+
+- Delta 2 LeakyReLU^2 is a **NEUTRAL** result — not a clear win, not a failure.
+- Sliding s64 val_bpb improved by only `-0.00000323` vs anchor — effectively zero.
+- Pre-quant and roundtrip metrics improved slightly (`-0.00034` and `-0.00025` respectively).
+- Artifact is `168356` bytes smaller — marginally better quantization-friendliness.
+- Step time is `+0.72 ms` slower (`92.09` vs `91.37`), costing `53` steps. Slower throughput roughly cancels the small per-step quality gain.
+- Measured anchor state for comparison was `enable_math_sdp(True)`. Delta 2 preserved that isolation.
+- LeakyReLU^2 is **not a standalone graduating delta**, but may be a useful stack component later (slightly helps quantization + artifact size without hurting headline metric).
+
 ## Next Actions
 
 ### 1. Freeze the Session 03 facts
@@ -296,16 +324,29 @@ Delta 1 measured results vs Session 03 anchor:
 
 Conclusion: GPTQ-lite percentile clip search is a clean negative result. It hurts zstd compressibility more than it helps quantization quality. The export gap is not caused by clip suboptimality.
 
-### 3. Pivot to Delta 2: LeakyReLU^2
+### 3. Session 04 Delta 2: LeakyReLU^2 — NEUTRAL
 
-Next immediate action:
+Delta 2 measured results vs Session 03 anchor:
 
-- Run Delta 2 (LeakyReLU^2) on the currently allocated H100 node (~22 hours remaining)
-- Single change: replace relu^2 with LeakyReLU^2 in the Session 03 anchor
-- Measure sliding s64, roundtrip, pre-quant EMA val_bpb and artifact size
-- Compare against Session 03 anchor as the fixed reference
+- Sliding s64 val_bpb: `1.12904123` (effectively identical, `-0.00000323`)
+- Roundtrip val_bpb: `1.15222198` (slightly better, `-0.00025075`)
+- Pre-quant EMA val_bpb: `1.14438546` (slightly better, `-0.00033857`)
+- Artifact size: `15582968` bytes (smaller by `168356` bytes)
+- Steps: `6511`, step_avg: `92.09 ms` (`+0.72 ms` slower, `-53` steps vs anchor)
 
-### 4. Grant/application stance
+Conclusion: LeakyReLU^2 is a neutral/tie result. Not a standalone graduating delta. Keep as a possible stack component — slightly better quantization-friendliness and artifact headroom, but slower throughput cancels the small per-step quality gain.
+
+### 4. Next delta candidates
+
+Ranked by effort/upside:
+
+1. **EMA freeze during late warmdown** — cheapest next candidate, training-adjacent
+2. **ASQU activation** — higher upside, still cheap to implement
+3. **MTP auxiliary loss** — save for later, more complex
+
+Do not spend time on standalone `enable_math_sdp(False)` — not expected to move the needle enough in isolation.
+
+### 5. Grant/application stance
 
 - Current evidence is already strong enough for a fresh `Development grant` request.
 - Consider a higher tier only after an isolated delta materially improves on `1.12904446`.
@@ -334,6 +375,8 @@ The evidence package is now:
 - `8xH100` Slurm-native NCCL smoke success
 - `8xH100` Slurm-native trainer success
 - `8xH100` Session 03 anchor success
+- `8xH100` Session 04 Delta 1 GPTQ-lite failure
+- `8xH100` Session 04 Delta 2 LeakyReLU^2 neutral
 
 Do not spend more time on repeated `torchrun --standalone` retries or more root-baseline reruns.
 If a fresh session starts now, it should begin from the measured Session 03 anchor and make one isolated Session 04 change.

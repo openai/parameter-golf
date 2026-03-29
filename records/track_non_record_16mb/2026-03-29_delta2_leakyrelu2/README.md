@@ -1,7 +1,7 @@
 # Session 04 Delta 2: LeakyReLU^2
 
 Date: 2026-03-29
-Status: Prepared, awaiting run
+Status: Complete — NEUTRAL (tie)
 
 ## Change
 
@@ -13,24 +13,27 @@ This is the activation used by the current overall SOTA entry (abaybektursun, 1.
 
 ## Isolation
 
-- `enable_math_sdp` restored to `True` to match the measured anchor state (pre-commit 563700f)
+- `enable_math_sdp` restored to `True` to match the measured anchor state (pre-commit 563700f, math=True)
 - No other code changes vs the measured anchor
 - Everything else (architecture, schedule, export, eval) identical
 
-## Reference
-
-- Session 03 anchor sliding s64 val_bpb: 1.12904446
-- Session 03 anchor roundtrip val_bpb: 1.15247273
-- Session 03 anchor pre-quant EMA val_bpb: 1.14472403
-- Session 03 anchor artifact: 15,751,324 bytes
-- Session 03 anchor steps: 6,564, step_avg: 91.37 ms
-
-## Success Criteria
-
-- final_int6_sliding_window_exact val_bpb < 1.12904446
-- bytes_total < 16,000,000
-- Training behavior comparable to anchor (similar step count and step_avg)
-
 ## Results
 
-*Pending run*
+| Metric | Delta 2 | Anchor | Delta |
+|--------|---------|--------|-------|
+| sliding s64 val_bpb | 1.12904123 | 1.12904446 | -0.00000323 |
+| roundtrip val_bpb | 1.15222198 | 1.15247273 | -0.00025075 |
+| pre_quant_ema val_bpb | 1.14438546 | 1.14472403 | -0.00033857 |
+| steps | 6,511 | 6,564 | -53 |
+| step_avg | 92.09 ms | 91.37 ms | +0.72 ms |
+| bytes_total | 15,582,968 | 15,751,324 | -168,356 |
+| peak memory | 21,274 MiB | 21,274 MiB | 0 |
+
+## Interpretation
+
+- **Verdict: Neutral / tie.** Not a standalone graduating delta.
+- Sliding s64 improvement (-0.003 milliBPB) is within noise — effectively zero.
+- Pre-quant and roundtrip both improved slightly, suggesting marginally better quantization-friendliness.
+- Artifact 168KB smaller — possibly useful when stacking near the 16MB cap.
+- Step time +0.72 ms slower, costing 53 steps. The slower throughput roughly cancels the small per-step quality gain under the fixed 600s budget.
+- **Keep as a possible stack component** if future deltas need artifact headroom or if combined with a throughput-positive change.

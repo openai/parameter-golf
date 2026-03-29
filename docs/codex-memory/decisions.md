@@ -38,6 +38,7 @@
 ## Session 04 decisions
 
 - GPTQ-lite percentile clip search rejected — marginal BPB regression + artifact cap violation. Export gap is not caused by clip suboptimality. Sliding s64 val_bpb `1.12941356` vs anchor `1.12904446` (+0.00036910), artifact `16219752` bytes exceeds `16000000` cap. Anchor int6+zstd with fixed row-max remains the viable export path.
+- LeakyReLU^2 classified as neutral/tie — sliding s64 val_bpb `1.12904123` vs anchor `1.12904446` (-0.00000323), effectively zero. Pre-quant and roundtrip both slightly better. Artifact `168356` bytes smaller. But step time `+0.72 ms` slower, costing `53` steps. Not a standalone graduating delta. Keep as a possible stack component for artifact headroom or when combined with a throughput-positive change. Measured anchor comparison used `enable_math_sdp(True)` — isolation preserved correctly.
 
 ## Hard gates
 

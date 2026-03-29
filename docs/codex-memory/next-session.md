@@ -2,11 +2,14 @@
 
 ## Phase
 
-**Session 04 in progress. Delta 1 (GPTQ-lite) is COMPLETE (FAILED). Delta 2 (LeakyReLU^2) is next.**
+**Session 04 in progress. Delta 1 (GPTQ-lite) FAILED. Delta 2 (LeakyReLU^2) NEUTRAL. Delta 3 next.**
 
 ## Immediate next action
 
-**Session 04 Delta 2: LeakyReLU^2** — replace relu^2 with LeakyReLU^2 on top of the Session 03 anchor. The H100 node is allocated for ~22 more hours.
+**Session 04 Delta 3** — next isolated delta on top of the Session 03 anchor. Candidate ranking:
+1. EMA freeze during late warmdown (cheapest)
+2. ASQU activation (higher upside)
+3. MTP auxiliary loss (save for later)
 
 ## Prerequisites (all satisfied)
 
@@ -19,17 +22,21 @@
 ## Session 04 implementation order
 
 1. ~~Delta 1: GPTQ-lite percentile clip search~~ — **COMPLETE (FAILED)**
-   - Sliding s64 val_bpb: `1.12941356` (worse than anchor `1.12904446` by `+0.00036910`)
-   - Roundtrip val_bpb: `1.15277272` (worse than anchor `1.15247273` by `+0.00029999`)
+   - Sliding s64 val_bpb: `1.12941356` (worse than anchor by `+0.00036910`)
    - Artifact: `16219752` bytes — OVER the `16000000` byte cap
    - Conclusion: hurts zstd compressibility more than it helps quantization quality
 
-2. **Delta 2: LeakyReLU^2** — NEXT IMMEDIATE ACTION
-   - Replace relu^2 with LeakyReLU^2 on the Session 03 anchor
-   - Measure sliding s64, roundtrip, pre-quant EMA val_bpb and artifact size
-   - H100 node is allocated for ~22 more hours
+2. ~~Delta 2: LeakyReLU^2~~ — **COMPLETE (NEUTRAL)**
+   - Sliding s64 val_bpb: `1.12904123` (effectively identical, `-0.00000323`)
+   - Pre-quant EMA val_bpb: `1.14438546` (slightly better, `-0.00033857`)
+   - Roundtrip val_bpb: `1.15222198` (slightly better, `-0.00025075`)
+   - Artifact: `15582968` bytes (168KB smaller)
+   - Step_avg: `92.09 ms` (+0.72 ms slower, -53 steps)
+   - Conclusion: not a standalone graduating delta. Keep as possible stack component.
 
-3. Delta 3: one small schedule or token-path tweak — pending Delta 2 result
+3. **Delta 3** — NEXT IMMEDIATE ACTION
+   - Top candidate: EMA freeze during late warmdown
+   - Alternative: ASQU activation
 
 4. Keep backend/perf parity as a separate control if throughput becomes the dominant bottleneck.
    - Do not bundle backend work with export or model deltas in the same run.
