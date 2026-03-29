@@ -43,6 +43,7 @@ Happy training!
 | Int6 MLP3x + SmearGate + BigramHash | 1.1458 | Raahil Shah | 3x MLP + SmearGate + BigramHash + OrthoInit + Muon WD + SWA | 2026-03-20 | [info](records/track_10min_16mb/2026-03-20_Int6_MLP3x_SmearGate_BigramHash_MuonWD_SWA/README.md) |
 | 11L MLP3x + Int6 QAT | 1.1502 | aruniyer | 11 layers, 3x MLP, int6 QAT, zstd-22, WD=0.04, sliding eval | 2026-03-20 | [info](records/track_10min_16mb/2026-03-19_MLP3x_QAT_Int6_SlidingWindow/README.md) |
 | SmearGate + OrthoInit + Muon WD | 1.1556 | aquariouseworkman | SmearGate + BigramHash + 3x MLP + int6 STE QAT + sliding eval | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_smeargate_orthoinit_muonwd/README.md) |
+| Ternary Quantization | 1.1570 | Ciprian-Florin Ifrim | 73.7M params quantized to 1 0 -1 + misc arch changes | 2026-03-24 | [info](records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/README.md) |
 | 10L Int6 QAT + Zstd MLP2.6x | 1.1586 | yahya010 | 10 layers, int6 QAT + zstd-22, MLP 1344, Muon 0.99, sliding eval | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_Seq2048_FP16Emb_TunedLR/README.md) |
 | Mixed Quant + Sliding Window Eval | 1.1630 | aquariouseworkman | Int6 block weights + int8 embeddings + 3x MLP + sliding eval | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_MixedQuant_Int6Int8_SlidingWindow/README.md) |
 | Muon WD + 10 layer | 1.1748 | notapplica | Includes prev. wins + Spectral embed init + resid mix | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit/README.md) |
@@ -54,11 +55,28 @@ Happy training!
 | fp16 Embed | 1.2197 | Renier Velazco | FP16 Tied Embedding + LR/Warmdown Tuning | 2026-03-18 | [info](records/track_10min_16mb/2026-03-18_FP16Embed_WD3600/README.md) |
 | Naive Baseline | 1.2244 | Baseline | 9layer 512dim 1024vocab TiedEmbeddings 4 KV heads | 2026-03-18 | [info](records/track_10min_16mb/2026-03-17_NaiveBaseline/README.md) |
 
-#### Notable Non-Record Runs
+#### Unlimited Compute Leaderboard & Non-record Submissions
 
 | Run | Score | Author | Summary | Date | Info |
 |-----|------:|--------|---------|------|------|
+| 1 Bit Quantization | 1.1239 | Ciprian-Florin Ifrim | 106M params quantized to 1 bit + misc arch changes + 2hr training | 2026-03-24 | [info](records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/README.md) |
 | 4-Hour Baseline | 1.2074 | Will DePue | Testing unlimited compute, 4 hours on 8xH100 | 2026-03-18 | [info](records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/README.md) |
+
+#### Requests for PRs
+
+Breakthrough ideas are rarely immediately state-of-the-art, instead, they're developed slowly, first demonstrating signs-of-life, iterated on, then only ultimately optimized on the systems side. Don't get discouraged if a new algorithm doesn't instantly beat the best leaderboard run or even the naive baseline. If you have an idea you believe in, consider ignoring step times early on: once you prove you can beat the baseline in the same # of steps you can then start focusing on how to also make it fast.
+
+We'd love to see weird & creative ideas in the challenge, since you never know what may work in the end. Most likely, these will be a good fit in our unlimited compute leaderboard as non-record submissions. We have some requests for what we'd love to see people implement:
+
+- [x] 1-bit quantization - [implementation](records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/README.md)
+- [x] Ternary quantization - [implementation](records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/README.md)
+- [ ] JEPA
+- [ ] Text diffusion
+- [ ] H-net tokenization
+- [ ] Universal transformer - [We have lots of depth recurrence submissions, but I'd love to see one 4 hour
+- [ ] Megakernels
+- [ ] State-space models, E2E TTT, super long context for evaluation or training 
+- [ ] Learning adapters on random linear maps
 
 ## Getting Started
 
