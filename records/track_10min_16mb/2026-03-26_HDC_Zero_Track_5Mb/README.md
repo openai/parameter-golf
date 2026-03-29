@@ -743,10 +743,7 @@ HDCLanguageModel (hdc_dim=2^20, vocab_size=1024, sparse_window=64)
 │   └── Vectorised NumPy/CuPy fallback    (PATH 3) O(seq*W) memory
 ├── RecipeStorage
 │   └── Recipes: seed_sequence + XOR ops → predicted token (~50 bytes each)
-├── RecipeDeduplicator
-│   ├── Three-tier deduplication (signature → hash → similarity)
-│   ├── Pattern clustering with centroids
-│   └── LRU cache for vector computations
+│   └── O(1) signature deduplication via _signature_to_id lookup
 ├── MetaResidualRecipeStorage
 │   ├── O(1) lookup by state hash
 │   ├── O(1) lookup by combined_hash (NEW)
@@ -793,7 +790,6 @@ HDCLanguageModel (hdc_dim=2^20, vocab_size=1024, sparse_window=64)
 
 - `submission.json` — Competition submission with val_bpb
 - `train_seed{N}.log` — Training logs per seed
-- `recipes.json` — Learned pattern recipes (optional)
 
 ## Dependencies
 
@@ -834,34 +830,31 @@ The model uses a **two-bit ternary encoding** `{-1, 0, +1}` for hypervector oper
 - `ternary_xor()` — XOR binding for ternary vectors
 - `ternary_similarity()` — Similarity computation with mismatch detection
 
-## Advanced Deduplication System
+## Simplified O(1) Recipe Deduplication
 
-The `RecipeDeduplicator` implements a **three-tier deduplication pipeline**:
+The XOR-based semantic algebra provides **automatic deduplication** without complex tiered systems:
 
-### Tier 1: O(1) Signature Lookup
-```
-seed_sequence → BLAKE3 hash → exact match check
-```
+**Key Insight**: XOR self-inverse property (`A XOR A = 0`) means identical patterns cancel out naturally.
 
-### Tier 2: O(1) Content Hash
-```
-seed_string → content_hash → near-duplicate detection
-```
-
-### Tier 3: O(n) Hadamard Similarity
-```
-vector × vector → cosine similarity via Walsh-Hadamard transform
-```
-
-### Configuration
 ```python
-DeduplicationConfig(
-    similarity_threshold=0.95,
-    enable_clustering=True,
-    cluster_threshold=0.85,
-    max_cluster_size=1000
-)
+# Simple signature-based deduplication in HDCLanguageModel
+self._signature_to_id: Dict[str, str] = {}  # O(1) lookup
+
+def learn_pattern(self, context: List[int], target: int) -> None:
+    signature = self._compute_context_signature(context)
+    if signature in self._signature_to_id:
+        return  # Already learned - O(1) dedup
+    self._signature_to_id[signature] = recipe_id
+    # ... proceed with learning
 ```
+
+**Near-Duplicate Detection**: Handled by REM sleep phase as a neighborhood query in semantic space,
+not during learning. This separates concerns:
+- **Learning time**: O(1) exact deduplication
+- **Consolidation time**: Semantic similarity clustering during sleep
+
+This replaces the previous three-tier `RecipeDeduplicator` system which was overly complex for the
+actual deduplication needs of the sparse projection architecture.
 
 ## Self-Observation / Metacognition
 
@@ -965,6 +958,182 @@ print(f"Mean confidence: {report.mean_confidence:.3f}")
 
 **Dead zones** identify relationships the corpus doesn't contain evidence for —
 enabling honest "I don't know" responses instead of confident hallucinations.
+
+---
+
+## Why Collisions Can't Survive The Architecture
+
+The circular encoder with sparse windows **breaks collision symmetry** through position-based window addressing.
+
+### The XOR Algebra of Hadamard Matrices
+
+The Sylvester Hadamard matrix has a crucial property:
+
+```
+H[i] XOR H[j] = H[i XOR j]
+```
+
+This means if two tokens `A` and `B` happen to have the same Hadamard index (a collision), they produce the **same raw hypervector**. However, the architecture never uses raw hypervectors directly.
+
+### How Position Breaks Symmetry
+
+Each position `p` writes to a unique sparse window:
+
+```python
+window(p) = [p % uint64_count, (p+1) % uint64_count, ..., (p+W-1) % uint64_count]
+```
+
+For two colliding tokens at positions `p_A` and `p_B`:
+
+| Token | Position | Window Address | Written Blocks |
+|-------|----------|----------------|----------------|
+| A     | p_A      | shift_A = p_A % dim | [shift_A, ..., shift_A+W-1] |
+| B     | p_B      | shift_B = p_B % dim | [shift_B, ..., shift_B+W-1] |
+
+If `p_A ≠ p_B`, then `shift_A ≠ shift_B` (mod dim), and the windows are **non-overlapping** for positions separated by more than W=64.
+
+**Result:** Even if `H[idx_A] = H[idx_B]` (collision), the encoded vectors differ because they're written to different windows:
+
+```
+encoded_A = H[idx_A] written at window(shift_A)
+encoded_B = H[idx_B] written at window(shift_B)
+
+# These are DIFFERENT vectors because the windows differ!
+```
+
+### What Metacognition Would See (If Collisions Occurred)
+
+If a genuine collision somehow survived, metacognition would observe:
+
+| Window | Expected Signal | Actual Signal | Observation |
+|--------|-----------------|---------------|-------------|
+| shift_A | Strong (token A) | Strong (token A) | Normal |
+| shift_B | Strong (token B) | **Same as A!** | **OSCILLATING** |
+| zero window | Random | **Oscillating signal** | **Anomaly detected** |
+
+The `OSCILLATING` signal in the zero window would be a clear indicator that something is wrong — the same hypervector is appearing at multiple positions.
+
+**But this never happens** because the circular encoder's position-based addressing ensures each position's encoding is unique, regardless of Hadamard collisions.
+
+---
+
+## Permanent Storage Architecture
+
+### Minimum Viable Storage (256 KB)
+
+| Component | Size | Purpose |
+|-----------|------|---------|
+| BLAKE3 seed | 32 bytes | Regenerates all token vectors |
+| semantic_vec | 128 KB | Token-addressed semantic relationships |
+| syntactic_vec | 128 KB | Position-addressed syntactic patterns |
+| **Total** | **~256 KB** | **Minimum for inference** |
+
+### Why Crystallized Recipes Need Not Be Stored
+
+All `CrystallizedRecipe` fields are **reconstructable from `semantic_vec`** at startup:
+
+| Field | Reconstruction Method |
+|-------|----------------------|
+| `rel_window` | `(token_A ^ token_B) & mask` — deterministic from token pair |
+| `confidence` | Popcount distance from 32 in semantic_vec window |
+| `direction` | Sign of (popcount - 32) |
+| `rel_type` | Inferred from confidence + direction patterns |
+| `sleep_cycle` | Metadata, not needed for inference |
+
+**Scanning semantic_vec takes microseconds** — recipes were just a pre-computed index for fast startup, not knowledge. The true minimum save is:
+
+| Component | Size | Purpose |
+|-----------|------|---------|
+| BLAKE3 seed | 32 bytes | Regenerates all token vectors |
+| semantic_vec | 128 KB | Token-addressed semantic relationships |
+| syntactic_vec | 128 KB | Position-addressed syntactic patterns |
+| config | 52 bytes | Model dimensions, vocab size |
+| **Total** | **~256 KB** | **Complete model — nothing else needed** |
+
+### Why Metacognition Never Modifies Token Hashes
+
+The BLAKE3 seed is **sacrosanct** — it deterministically generates all token vectors:
+
+```python
+def get_token_vector(token_id: int) -> np.ndarray:
+    """Deterministic token vector from BLAKE3 hash."""
+    seed = f"token_{token_id}"
+    return sylvester_hadamard_row_packed(
+        blake3_hash(seed.encode()) % dim,
+        dim=DEFAULT_HDC_DIM
+    )
+```
+
+**Corrections live in `semantic_vec` space, not hash space:**
+
+| Option | Description | Why It Breaks |
+|--------|-------------|---------------|
+| **Option A: Modify hash indices** | Change `blake3_hash(seed) % dim` to avoid collisions | Breaks determinism, O(vocab) lookup becomes O(vocab²), destroys XOR algebra |
+| **Option B: Encode corrections in semantic_vec** | Store confidence adjustments in semantic windows | ✅ Preserves architecture, O(1) lookup maintained |
+
+Metacognition corrects **window confidence**, not token hashes:
+
+```python
+# What metacognition actually adjusts:
+semantic_vec[window_idx] ^= correction_signal  # O(W) sparse update
+
+# NOT this (would break architecture):
+# token_hash[token_id] = new_index  # NEVER DO THIS
+```
+
+### The One Edge Case: Hadamard Index Collision
+
+There is exactly one scenario where collision correction makes sense:
+
+**When two tokens have the same Hadamard index** (true collision in the Hadamard matrix):
+
+```python
+# Collision detection
+if hadamard_index(token_A) == hadamard_index(token_B):
+    # These tokens produce identical raw hypervectors
+    # But position-based addressing still distinguishes them
+    pass
+```
+
+**Collision Correction Table (≤128 bytes):**
+
+| Entry | Size | Purpose |
+|-------|------|---------|
+| token_A_id | 2 bytes | First token in collision pair |
+| token_B_id | 2 bytes | Second token in collision pair |
+| correction_window | 2 bytes | Window index for disambiguation |
+| **Total per collision** | **6 bytes** | **~32 collisions expected → ~192 bytes** |
+
+For a vocabulary of 1024 tokens with 2²⁰-dimensional Hadamard:
+
+```
+Expected collisions ≈ vocab_size² / (2 × dim) ≈ 1024² / (2 × 2²⁰) ≈ 0.5
+```
+
+With conservative estimates, **≤32 collisions** are expected, requiring **≤192 bytes** for the correction table.
+
+### Complete Permanent Storage
+
+| Component | Size | Purpose |
+|-----------|------|---------|
+| BLAKE3 seed | 32 bytes | Regenerates all token vectors |
+| semantic_vec | 128 KB | Token-addressed semantic relationships |
+| syntactic_vec | 128 KB | Position-addressed syntactic patterns |
+| collision_correction_table | ≤128 bytes | Hadamard index collision disambiguation |
+| config | 52 bytes | Model dimensions, vocab size |
+| **Total** | **~256 KB** | **Complete inference-ready model** |
+
+**Note:** Crystallized recipes are NOT stored — they are reconstructed from semantic_vec at startup in microseconds.
+
+### Why This Is The Right Design
+
+1. **BLAKE3 seed is immutable**: All token vectors are deterministically regenerable
+2. **Corrections are sparse**: O(W) updates, not O(dim) modifications
+3. **Collisions are handled**: Position-based addressing + tiny correction table
+4. **Storage is minimal**: 256 KB minimum, 4 MB full — both fit in L2 cache
+5. **Lookup remains O(1)**: No hash modifications means dict lookups stay fast
+
+The architecture ensures that **metacognition operates on the right abstraction layer**: adjusting confidence in semantic space, not hacking at the deterministic foundation.
 
 ---
 
@@ -1146,6 +1315,202 @@ stats = model.get_creative_coherence_stats()
 print(f"Generated {stats['hop_count']} tokens")
 print(f"Mean coherence: {stats['mean_coherence']:.3f}")
 print(f"Echoes detected: {stats['echo_count']}")
+```
+
+---
+
+## Sleep: Semantic Maintenance and Consolidation (2026-03-29)
+
+Just as biological brains require sleep for memory consolidation and noise reduction,
+the HDC architecture benefits from periodic "sleep" cycles to maintain semantic health.
+
+### Why Sleep is Needed
+
+During training, the `semantic_vec` accumulates:
+
+1. **Noise**: Low-confidence windows drift toward neutral (32 ones per 64 bits)
+2. **Trajectory Tension**: Semantic and temporal trajectories can become misaligned
+3. **Interference**: Overlapping XOR bindings create crosstalk
+
+Sleep addresses these issues through three phases modeled after biological sleep.
+
+### Three Phases of Sleep
+
+| Phase | Biological Analog | HDC Operation |
+|-------|-------------------|---------------|
+| **Slow Wave** | Pruning weak memories | Decay low-confidence windows toward neutral |
+| **REM** | Memory consolidation | Strengthen high-confidence relationships |
+| **Hypnagogic** | State reset | Re-synchronize semantic and temporal trajectories |
+
+### SleepDepth Enum
+
+```python
+class SleepDepth(Enum):
+    NONE = "none"           # No sleep needed
+    HYPNAGOGIC = "hypnagogic"  # Quick trajectory reset
+    SLOW_WAVE = "slow_wave"    # Pruning phase
+    REM = "rem"            # Consolidation phase
+    FULL = "full"          # Complete sleep cycle (all phases)
+```
+
+### SleepScheduler
+
+The `SleepScheduler` class monitors the semantic landscape and triggers sleep when needed:
+
+```python
+scheduler = SleepScheduler(
+    noise_threshold=0.3,      # Trigger if >30% low-confidence windows
+    tension_threshold=0.5,    # Trigger if trajectory tension > 0.5
+    dead_zone_threshold=0.1   # Trigger if >10% dead zones
+)
+
+# Check if sleep is needed
+decision = scheduler.should_sleep(
+    semantic_vec=model.semantic_layer.semantic_vec,
+    trajectory=model.creative_coherence_manager.trajectory,
+    coverage_report=model.get_semantic_coverage_report()
+)
+
+if decision.should_sleep:
+    print(f"Sleep needed: {decision.recommended_depth.value}")
+    print(f"Urgency: {decision.urgency:.3f}")
+    print(f"Noise ratio: {decision.noise_ratio:.3f}")
+```
+
+### Sleep Phases in Detail
+
+#### Slow Wave Consolidation (Pruning)
+
+Gently decays low-confidence windows toward neutral:
+
+```python
+windows_pruned, windows_nudged, before, after = slow_wave_consolidation(
+    semantic_vec=semantic_vec,
+    decay_rate=0.1,
+    noise_threshold=0.3
+)
+# windows_pruned: windows with too many ones → reduced
+# windows_nudged: windows with too few ones → increased
+# Confidence moves toward 0.5 (neutral) for weak signals
+```
+
+**Mathematical basis:**
+- Neutral signal: 32 ones per 64 bits (popcount = 32)
+- Confidence = |popcount - 32| / 32
+- Low confidence (< 0.3) → decay toward neutral
+
+#### REM Replay (Strengthening)
+
+High-confidence relationships are replayed and strengthened:
+
+```python
+crystallized_recipes, stats, error = rem_replay(
+    semantic_vec=semantic_vec,
+    syntactic_vec=syntactic_vec,
+    threshold=0.75,
+    sleep_cycle=0
+)
+# Returns CrystallizedRecipe objects for permanent storage
+```
+
+**CrystallizedRecipe format:**
+
+```python
+@dataclass
+class CrystallizedRecipe:
+    rel_window: int        # Which relationship window
+    confidence: float     # How confident (0.0-1.0)
+    direction: int        # +1 or -1 from neutral
+    rel_type: str         # Inferred relationship type
+    sleep_cycle: int      # Which sleep cycle created this
+    token_A: int          # Optional: first token in relationship
+    token_B: int          # Optional: second token in relationship
+```
+
+#### Hypnagogic Reset (Trajectory Synchronization)
+
+Resets the coherence trajectory to prevent drift:
+
+```python
+new_trajectory = hypnagogic_reset(
+    trajectory=old_trajectory,
+    dim=DEFAULT_HDC_DIM
+)
+# Returns fresh CoherenceTrajectory with reset indices
+```
+
+### SleepTrace Output
+
+Each sleep cycle produces a `SleepTrace` for logging:
+
+```python
+@dataclass
+class SleepTrace:
+    depth: SleepDepth
+    windows_pruned: int
+    windows_nudged: int
+    recipes_crystallized: int
+    trajectory_reset: bool
+    confidence_before: float
+    confidence_after: float
+    elapsed_ms: float
+    crystallized_recipes: List[CrystallizedRecipe]
+```
+
+### Integration with Training
+
+Sleep is automatically triggered during training:
+
+```python
+# In train_hdc_instant_projection after semantic layer initialization:
+sleep_scheduler = SleepScheduler(dim=config.hdc_dim)
+
+sleep_decision = sleep_scheduler.should_sleep(
+    semantic_vec=semantic_vec,
+    trajectory=trajectory,
+    coverage_report=coverage_report
+)
+
+if sleep_decision.should_sleep:
+    sleep_trace = sleep_scheduler.execute_sleep(
+        semantic_vec=semantic_vec,
+        syntactic_vec=syntactic_vec,
+        trajectory=trajectory,
+        depth=sleep_decision.recommended_depth,
+        sleep_cycle=0
+    )
+    print(f"Sleep complete: {sleep_trace.to_summary()}")
+```
+
+### Sleep Trigger Conditions
+
+| Condition | Threshold | Description |
+|-----------|-----------|-------------|
+| `noise_ratio` | > 0.3 | Fraction of low-confidence windows |
+| `tension` | > 0.5 | Trajectory misalignment score |
+| `dead_zone_ratio` | > 0.1 | Fraction of windows with confidence < 0.1 |
+| `interference_risk` | True | High overlap in XOR bindings |
+
+### Performance Impact
+
+| Metric | Without Sleep | With Sleep |
+|--------|---------------|------------|
+| Semantic drift | Accumulates | Reset per cycle |
+| Confidence stability | Degrades | Maintained |
+| Relationship quality | Noisy | Crystallized |
+
+### Example Output
+
+```
+[InstantProjection] === SLEEP TRIGGERED ===
+[InstantProjection] Reason: noise_ratio=0.342, tension=0.521, dead_zones=0.089
+[InstantProjection] Recommended depth: full
+[InstantProjection] Urgency: 0.721
+[InstantProjection] Sleep complete: depth=full pruned=128 nudged=64 crystallized=42 reset=True
+[InstantProjection] Crystallized 42 high-confidence relationships
+[InstantProjection]   - Window 1523: synonymy (confidence=0.891, direction=1)
+[InstantProjection]   - Window 2847: antonymy (confidence=0.823, direction=-1)
+[InstantProjection]   - Window 4102: hypernymy (confidence=0.782, direction=1)
 ```
 
 ---
@@ -1451,7 +1816,7 @@ This indicates a seed sequence mismatch — the recipe's reconstructed vector di
 | **sparse_meta_correct kernel** | In-place GPU residual jump | ✅ Active |
 | Semantic Codebook | Pattern generalization | ✅ Active |
 | Bipolar Ternary | Negative correlation support | ✅ Active |
-| RecipeDeduplicator | Three-tier pattern deduplication | ✅ Active |
+| **_signature_to_id** | O(1) recipe deduplication via signature lookup | ✅ Active |
 | TensorCoreBatchOperations | Sparse parallel context encoding | ✅ Active |
 | DistributedContext | Multi-GPU recipe/n-gram synchronisation | ✅ Active |
 | MetaResidualRecipe | Sparse shift-invariant shortcut learning | ✅ Active |

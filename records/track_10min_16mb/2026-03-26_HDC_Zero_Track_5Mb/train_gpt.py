@@ -3,8 +3,6 @@
 Run: cd /workspaces/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb && python train_gpt.py --multi_seed --seeds 42 7 1337 --data_path ../../../data/datasets/fineweb10B_sp1024 --tokenizer_path ../../../data/tokenizers/fineweb_1024_bpe.model
 """
 
-from __future__ import annotations
-
 import glob
 import io
 import json
@@ -23,6 +21,15 @@ from typing import Dict, List, Optional, Tuple, Any, Set, Callable
 import numpy as np
 import sentencepiece as spm
 
+try:
+    import torch
+    import torch.distributed as dist
+    _TORCH_AVAILABLE = True
+except ImportError:
+    _TORCH_AVAILABLE = False
+    torch = None
+    dist = None
+
 
 try:
     from blake3 import blake3 as _blake3_func
@@ -30,16 +37,6 @@ try:
 except ImportError:
     _BLAKE3_AVAILABLE = False
     _blake3_func = None
-
-try:
-    import torch
-    import torch.distributed as dist
-    import torch.nn.functional as F
-    _TORCH_AVAILABLE = True
-except ImportError:
-    _TORCH_AVAILABLE = False
-    torch = None
-    dist = None
 
 try:
     import cupy as cp
@@ -120,37 +117,6 @@ extern "C" __global__ void tensor_core_xor_similarity(
     }
 }
 
-// Fused XOR bind + circular shift for batch encoding
-extern "C" __global__ void tensor_core_batch_encode(
-    const unsigned long long* __restrict__ tokens,    // (batch, seq, uint64_count)
-    const unsigned long long* __restrict__ positions,  // (seq, uint64_count)
-    unsigned long long* __restrict__ output,          // (batch, uint64_count)
-    int batch_size, int seq_len, int uint64_count
-) {
-    int batch_idx = blockIdx.x;
-    int elem_idx = threadIdx.x;
-    
-    if (batch_idx >= batch_size || elem_idx >= uint64_count) return;
-    
-    unsigned long long acc = 0;
-    
-    // Process each position in sequence
-    for (int pos = 0; pos < seq_len; pos++) {
-        // Get token vector
-        unsigned long long token_val = tokens[(batch_idx * seq_len + pos) * uint64_count + elem_idx];
-        
-        // Get position vector with circular shift
-        int shift = pos % uint64_count;
-        int src_idx = (elem_idx - shift + uint64_count) % uint64_count;
-        unsigned long long pos_val = positions[pos * uint64_count + src_idx];
-        
-        // XOR bind
-        acc ^= (token_val ^ pos_val);
-    }
-    
-    output[batch_idx * uint64_count + elem_idx] = acc;
-}
-
 // FP16 similarity using dot product (no WMMA required)
 extern "C" __global__ void tensor_core_fp16_similarity(
     const half* __restrict__ query_fp16,     // (batch, dim) in FP16
@@ -171,41 +137,6 @@ extern "C" __global__ void tensor_core_fp16_similarity(
     }
     
     similarity[batch_idx * vocab_size + vocab_idx] = sum;
-}
-
-// Optimized XOR batch with cooperative groups for H100
-extern "C" __global__ void tensor_core_batch_xor(
-    const unsigned long long* __restrict__ a,
-    const unsigned long long* __restrict__ b,
-    unsigned long long* __restrict__ out,
-    size_t n_elements
-) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    size_t stride = blockDim.x * gridDim.x;
-    
-    // Process 4 elements per thread for better ILP
-    #pragma unroll 4
-    for (size_t i = idx; i < n_elements; i += stride * 4) {
-        if (i < n_elements) out[i] = a[i] ^ b[i];
-        if (i + stride < n_elements) out[i + stride] = a[i + stride] ^ b[i + stride];
-        if (i + 2*stride < n_elements) out[i + 2*stride] = a[i + 2*stride] ^ b[i + 2*stride];
-        if (i + 3*stride < n_elements) out[i + 3*stride] = a[i + 3*stride] ^ b[i + 3*stride];
-    }
-}
-
-// Batch popcount for similarity computation
-extern "C" __global__ void tensor_core_batch_popcount(
-    const unsigned long long* __restrict__ xored,
-    int* __restrict__ popcounts,
-    size_t n_elements
-) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    size_t stride = blockDim.x * gridDim.x;
-    
-    #pragma unroll 4
-    for (size_t i = idx; i < n_elements; i += stride * 4) {
-        if (i < n_elements) popcounts[i] = __popcll(xored[i]);
-    }
 }
 
 // Fused XOR + popcount + accumulate for similarity
@@ -594,96 +525,17 @@ extern "C" __global__ void sparse_verify_with_confidence(
 }
 
 
-// Parallel XOR reduction along sequence dimension
-// Takes pre-bound vectors (batch, seq, uint64_count) and reduces to (batch, uint64_count)
-extern "C" __global__ void tensor_core_xor_reduce_seq(
-    const unsigned long long* __restrict__ bound_vecs,  // (batch, seq, uint64_count)
-    unsigned long long* __restrict__ output,            // (batch, uint64_count)
-    int batch_size, int seq_len, int uint64_count
-) {
-    int batch_idx = blockIdx.x;
-    int elem_idx = threadIdx.x;
-    
-    if (batch_idx >= batch_size || elem_idx >= uint64_count) return;
-    
-    unsigned long long acc = 0;
-    
-    // Reduce along sequence dimension
-    for (int pos = 0; pos < seq_len; pos++) {
-        acc ^= bound_vecs[(batch_idx * seq_len + pos) * uint64_count + elem_idx];
-    }
-    
-    output[batch_idx * uint64_count + elem_idx] = acc;
-}
 '''
 
 DEFAULT_HDC_DIM = 2**20  # 1,048,576 dimensions
-HDC_DIM_L1 = 2**17       # 131,072 - L1 cache resident
-HDC_DIM_L2 = 2**18       # 262,144 - L2 cache resident
-HDC_DIM_L3 = 2**19       # 524,288 - L3 cache resident
-
 # Tensor core alignment constants
 TC_ALIGNMENT = 16  # Tensor cores work best with multiples of 16
-TC_WARP_SIZE = 32
-TC_TILE_SIZE = 16
 
 # Sparse projection constants
 MAX_CUDA_THREADS = 1024   # CUDA hard limit on threads per block (all devices)
 SPARSE_WINDOW_SIZE = 64   # uint64 blocks per position window (= 4096 bits)
                           # Each position "owns" this many blocks at its circular_shift address.
                           # 250-500x smaller intermediates vs dense; still statistically robust.
-
-def _blake3_hash(data: bytes) -> bytes:
-    """Compute BLAKE3 hash of data."""
-    if _BLAKE3_AVAILABLE:
-        return _blake3_func(data).digest()
-    else:
-        import hashlib
-        return hashlib.blake2b(data, digest_size=32).digest()
-
-
-def seed_to_hypervector(seed_string: str, dim: int) -> np.ndarray:
-    uint64_count = dim // 64
-    num_bytes = uint64_count * 8
-    
-    if _BLAKE3_AVAILABLE:
-        hash_bytes = _blake3_func(seed_string.encode()).digest(length=num_bytes)
-    else:
-        import hashlib
-        hash_bytes = b""
-        counter = 0
-        while len(hash_bytes) < num_bytes:
-            data = f"{seed_string}:{counter}".encode()
-            hash_bytes += _blake3_hash(data)
-            counter += 1
-        hash_bytes = hash_bytes[:num_bytes]
-    
-    return np.frombuffer(hash_bytes, dtype=np.uint64).copy()
-
-
-def hamming_similarity(a: np.ndarray, b: np.ndarray) -> float:
-    xored = np.bitwise_xor(a, b)
-    diff_bits = np.unpackbits(xored.view(np.uint8)).sum()
-    total_bits = len(a) * 64
-    return 1.0 - (diff_bits / total_bits)
-
-
-def sylvester_hadamard_row_packed(index: int, dim: int) -> np.ndarray:
-    uint64_count = dim // 64
-    row = np.zeros(uint64_count, dtype=np.uint64)
-    
-    for block_idx in range(uint64_count):
-        block_val = 0
-        for bit_idx in range(64):
-            i = block_idx * 64 + bit_idx
-            if i < dim:
-                # Count the number of 1-bits in the bitwise AND of index and i
-                parity = bin(index & i).count('1') % 2
-                if parity == 0:
-                    block_val |= (1 << bit_idx)
-        row[block_idx] = block_val
-    
-    return row
 
 class ConvergenceSignal(Enum):
     """Signals for convergence monitoring."""
@@ -704,6 +556,8 @@ class TrajectoryAction(Enum):
     ABORT = "abort"
     RESTART = "restart"
     EARLY_TERMINATE = "early_terminate"
+    RANDOM_RESTART = "random_restart"
+    CORRECT = "correct"
 
 
 @dataclass
@@ -792,6 +646,742 @@ def classify_signal_strength(confidence: float) -> str:
         return "weak"
     else:
         return "contradictory"
+
+
+# =============================================================================
+# SLEEP FUNCTIONALITY - Biological Analogy for HDC Architecture
+# =============================================================================
+# During waking operation, semantic_vec accumulates signal continuously:
+#   - Every training token → XOR written to semantic windows
+#   - Every creative hop   → trajectory accumulates tension
+#   - Every relationship   → popcount drifts from its consolidated state
+#
+# Over time three problems emerge:
+#   1. NOISE ACCUMULATION: Windows drift toward 32 (noise)
+#   2. TRAJECTORY TENSION: semantic_idx and temporal_idx drift apart
+#   3. INTERFERENCE: High-frequency pairs dominate low-frequency relationships
+#
+# Sleep solves all three with mathematically precise operations.
+# =============================================================================
+
+
+class SleepDepth(Enum):
+    """Sleep depth levels - each corresponds to biological sleep stages."""
+    NONE = "none"            # No sleep needed
+    HYPNAGOGIC = "hypnagogic"  # Light sleep - trajectory reset only
+    SLOW_WAVE = "slow_wave"   # Deep sleep - pruning noisy windows
+    REM = "rem"               # REM sleep - strengthen existing signal
+    FULL = "full"             # Full sleep cycle - all three phases
+
+
+@dataclass
+class SleepDecision:
+    """Decision result from SleepScheduler.should_sleep()."""
+    should_sleep: bool
+    urgency: float              # 0.0 to 1.0 - how urgently sleep is needed
+    recommended_depth: SleepDepth
+    noise_ratio: float = 0.0    # Ratio of noisy windows
+    tension: float = 0.0        # Trajectory tension
+    dead_zone_ratio: float = 0.0  # Ratio of dead zones
+    interference_risk: bool = False  # High-confidence windows crowding out others
+
+
+@dataclass
+class CrystallizedRecipe:
+    """High-confidence relationship that survived REM replay.
+    
+    These become permanent semantic facts the model has learned.
+    They survive future noise accumulation because they're stored as
+    index arithmetic, not in semantic_vec directly.
+    
+    Total storage: ~14 bytes per crystallized relationship.
+    """
+    rel_window: int       # (idx_A XOR idx_B) & mask - the window address
+    confidence: float     # Post-consolidation - higher than pre-sleep
+    direction: int        # +1 or -1 (positive/negative relationship)
+    rel_type: str         # SYNONYM/IS-A/PRECEDES/ANTONYM/METAPHOR/AMBIGUOUS
+    sleep_cycle: int      # Which sleep cycle crystallized this
+    token_A: int = -1     # Optional: first token ID if known
+    token_B: int = -1     # Optional: second token ID if known
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'rel_window': self.rel_window,
+            'confidence': round(self.confidence, 4),
+            'direction': self.direction,
+            'rel_type': self.rel_type,
+            'sleep_cycle': self.sleep_cycle,
+            'token_A': self.token_A,
+            'token_B': self.token_B
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CrystallizedRecipe':
+        return cls(
+            rel_window=data['rel_window'],
+            confidence=data['confidence'],
+            direction=data['direction'],
+            rel_type=data.get('rel_type', 'UNKNOWN'),
+            sleep_cycle=data.get('sleep_cycle', 0),
+            token_A=data.get('token_A', -1),
+            token_B=data.get('token_B', -1)
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Collision Correction Table (Gap 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dataclass
+class CollisionCorrectionEntry:
+    """One entry in the Hadamard-index collision correction table.
+
+    When two tokens share the same Hadamard index (i.e. ``token_A % dim ==
+    token_B % dim``), their raw hypervectors are identical.  Position-based
+    window addressing already disambiguates them at encode time, but we record
+    the collision so that ``save_binary_model`` / ``load_binary_model`` can
+    include a tiny correction table (≤ 6 bytes per entry, ≤ 32 entries ≈
+    ≤ 192 bytes total) in the 256 KB artifact.
+
+    Fields
+    ------
+    token_a_id : int   – first token in the collision pair  (2 bytes)
+    token_b_id : int   – second token in the collision pair (2 bytes)
+    correction_window : int – window index used for disambiguation (2 bytes)
+    """
+    token_a_id: int
+    token_b_id: int
+    correction_window: int  # (hadamard_index(A) ^ hadamard_index(B)) & mask
+
+    # Wire format: 3 × uint16 = 6 bytes per entry
+    STRUCT_FMT: str = field(default="<HHH", init=False, repr=False, compare=False)
+
+    def to_bytes(self) -> bytes:
+        """Serialise to 6-byte wire format."""
+        return struct.pack("<HHH",
+                           self.token_a_id & 0xFFFF,
+                           self.token_b_id & 0xFFFF,
+                           self.correction_window & 0xFFFF)
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'CollisionCorrectionEntry':
+        """Deserialise from 6-byte wire format."""
+        a, b, w = struct.unpack("<HHH", data[:6])
+        return cls(token_a_id=a, token_b_id=b, correction_window=w)
+
+
+def build_collision_correction_table(
+    vocab_size: int,
+    dim: int = DEFAULT_HDC_DIM,
+    max_entries: int = 32
+) -> List[CollisionCorrectionEntry]:
+    """Detect Hadamard-index collisions across the vocabulary and build the
+    correction table described in the README.
+
+    For vocab_size=1024 and dim=2^20 the expected number of collisions is
+    ``vocab_size^2 / (2 * dim) ≈ 0.5``, so the table is almost always empty.
+    The function is O(vocab_size) and runs in microseconds.
+
+    Parameters
+    ----------
+    vocab_size : int   – number of tokens (default 1024)
+    dim        : int   – HDC dimension (default 2^20)
+    max_entries: int   – cap on table size (default 32)
+
+    Returns
+    -------
+    List[CollisionCorrectionEntry]  – one entry per detected collision pair
+    """
+    uint64_count = dim // 64
+    mask = uint64_count - 1
+
+    # Map hadamard_index → first token_id that claimed it
+    index_to_token: Dict[int, int] = {}
+    entries: List[CollisionCorrectionEntry] = []
+
+    for token_id in range(vocab_size):
+        h_idx = token_id % uint64_count  # mirrors DualVectorProjection.hadamard_index
+        if h_idx in index_to_token:
+            # Collision detected
+            other_id = index_to_token[h_idx]
+            correction_window = (h_idx ^ (other_id % uint64_count)) & mask
+            entries.append(CollisionCorrectionEntry(
+                token_a_id=other_id,
+                token_b_id=token_id,
+                correction_window=correction_window
+            ))
+            if len(entries) >= max_entries:
+                break
+        else:
+            index_to_token[h_idx] = token_id
+
+    return entries
+
+
+@dataclass
+class SleepTrace:
+    """Trace of a sleep cycle for logging and analysis.
+    
+    Records what was consolidated vs pruned, enabling interpretability
+    of the sleep process.
+    """
+    sleep_cycle: int
+    depth: SleepDepth
+    duration_ms: float
+    
+    # Slow Wave results
+    noisy_windows_pruned: int = 0
+    windows_nudged_neutral: int = 0
+    confidence_improved: Tuple[float, float] = (0.0, 0.0)  # (before, after)
+    
+    # REM results
+    relationships_crystallized: int = 0
+    crystallized_by_type: Dict[str, int] = field(default_factory=dict)
+    strongest_relationship: Optional[str] = None
+    
+    # Hypnagogic results
+    tension_before: float = 0.0
+    tension_after: float = 0.0
+    semantic_thread_preserved: bool = True
+    temporal_rhythm_restored: bool = True
+    
+    # Post-sleep landscape
+    coverage_change: float = 0.0
+    mean_confidence_before: float = 0.0
+    mean_confidence_after: float = 0.0
+    noise_floor_before: float = 0.0
+    noise_floor_after: float = 0.0
+    total_crystallized: int = 0
+    
+    def to_summary(self) -> str:
+        """Generate human-readable sleep trace summary."""
+        lines = [
+            f"=== Sleep Cycle {self.sleep_cycle} Trace ===",
+            f"",
+            f"Duration: ~{self.duration_ms:.1f}ms (O(uint64_count) operations)",
+            f"",
+        ]
+        
+        if self.depth in (SleepDepth.SLOW_WAVE, SleepDepth.FULL):
+            lines.extend([
+                f"Slow Wave Results:",
+                f"  Noisy windows pruned:     {self.noisy_windows_pruned:,}  "
+                f"({100*self.noisy_windows_pruned/16384:.1f}% of space reclaimed)",
+                f"  Windows nudged neutral:   {self.windows_nudged_neutral:,}",
+                f"  Confidence improved avg:  {self.confidence_improved[0]:.2f} → "
+                f"{self.confidence_improved[1]:.2f}  (noise floor lowered)",
+                f"",
+            ])
+        
+        if self.depth in (SleepDepth.REM, SleepDepth.FULL):
+            lines.extend([
+                f"REM Results:",
+                f"  Relationships crystallized: {self.relationships_crystallized:,}",
+            ])
+            if self.crystallized_by_type:
+                for rel_type, count in sorted(self.crystallized_by_type.items()):
+                    lines.append(f"    {rel_type}:    {count:,}")
+            if self.strongest_relationship:
+                lines.append(f"  Strongest crystallized: {self.strongest_relationship}")
+            lines.append("")
+        
+        if self.depth in (SleepDepth.HYPNAGOGIC, SleepDepth.FULL):
+            lines.extend([
+                f"Hypnagogic Reset:",
+                f"  Tension before: {self.tension_before:.2f}",
+                f"  Tension after:  {self.tension_after:.2f}",
+                f"  Semantic thread preserved: {'✓' if self.semantic_thread_preserved else '✗'}",
+                f"  Temporal rhythm restored:  {'✓' if self.temporal_rhythm_restored else '✗'}",
+                f"",
+            ])
+        
+        lines.extend([
+            f"Post-sleep landscape:",
+            f"  Coverage:          {self.coverage_change:+.1f}%  "
+            f"(dead zones filled by consolidation)",
+            f"  Mean confidence:   {self.mean_confidence_after:.2f}   "
+            f"(was {self.mean_confidence_before:.2f} before sleep)",
+            f"  Noise floor:       {self.noise_floor_after:.2f}   "
+            f"(was {self.noise_floor_before:.2f})",
+            f"  Crystallized total: {self.total_crystallized:,} relationships",
+        ])
+        
+        return "\n".join(lines)
+
+
+def slow_wave_consolidation(
+    semantic_vec: np.ndarray,
+    decay_rate: float = 0.1,
+    noise_threshold: float = 0.2,
+    dim: int = DEFAULT_HDC_DIM
+) -> Tuple[int, int, float, float]:
+    """Phase 1 of sleep - Slow Wave (Pruning).
+    
+    Gently decay low-confidence windows toward neutral. This is the
+    equivalent of synaptic downscaling — weak connections are gently
+    reduced, not eliminated.
+    
+    Args:
+        semantic_vec: The semantic vector to consolidate (modified in-place)
+        decay_rate: Fraction of correction to apply (0.1 = very gentle)
+        noise_threshold: Confidence below which windows are considered noisy
+        dim: HDC dimension
+        
+    Returns:
+        Tuple of (windows_pruned, windows_nudged, confidence_before, confidence_after)
+    """
+    uint64_count = dim // 64
+    windows_pruned = 0
+    windows_nudged = 0
+    
+    # Track confidence changes
+    confidences_before = []
+    confidences_after = []
+    
+    for window in range(uint64_count):
+        # Compute popcount and confidence
+        signal = semantic_vec[window]
+        pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+        confidence = abs(pc - 32) / 32.0
+        
+        confidences_before.append(confidence)
+        
+        if confidence < noise_threshold:
+            # Weak signal — gentle decay toward neutral (32 ones per 64 bits)
+            ones = pc
+            
+            if ones > 32:
+                # Too many ones — randomly clear a few
+                num_to_clear = max(1, int((ones - 32) * decay_rate))
+                for _ in range(num_to_clear):
+                    # Find a random set bit and clear it
+                    bit_to_clear = np.random.randint(64)
+                    if (signal >> bit_to_clear) & 1:
+                        signal &= ~(1 << bit_to_clear)
+                        ones -= 1
+                windows_pruned += 1
+                
+            elif ones < 32:
+                # Too few ones — randomly set a few
+                num_to_set = max(1, int((32 - ones) * decay_rate))
+                for _ in range(num_to_set):
+                    # Find a random clear bit and set it
+                    bit_to_set = np.random.randint(64)
+                    if not ((signal >> bit_to_set) & 1):
+                        signal |= (1 << bit_to_set)
+                        ones += 1
+                windows_nudged += 1
+            
+            semantic_vec[window] = signal
+            
+            # Recompute confidence after adjustment
+            new_pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+            new_confidence = abs(new_pc - 32) / 32.0
+            confidences_after.append(new_confidence)
+        else:
+            confidences_after.append(confidence)
+    
+    mean_before = np.mean(confidences_before) if confidences_before else 0.0
+    mean_after = np.mean(confidences_after) if confidences_after else 0.0
+    
+    return windows_pruned, windows_nudged, mean_before, mean_after
+
+
+def rem_replay(
+    semantic_vec: np.ndarray,
+    syntactic_vec: Optional[np.ndarray],
+    threshold: float = 0.75,
+    dim: int = DEFAULT_HDC_DIM,
+    sleep_cycle: int = 0,
+    consolidation_strength: float = 0.1
+) -> Tuple[List[CrystallizedRecipe], Dict[str, int], Optional[str]]:
+    """Phase 2 of sleep - REM (Replay and Strengthening).
+    
+    High-confidence relationships are replayed and pushed further from neutral.
+    This is memory consolidation - strengthening what the model has learned.
+    
+    Args:
+        semantic_vec: The semantic vector to consolidate (modified in-place)
+        syntactic_vec: Optional syntactic vector for relationship inference
+        threshold: Minimum confidence to crystallize a relationship
+        dim: HDC dimension
+        sleep_cycle: Current sleep cycle number
+        consolidation_strength: How much to push signal toward extremes
+        
+    Returns:
+        Tuple of (crystallized_recipes, counts_by_type, strongest_relationship_str)
+    """
+    uint64_count = dim // 64
+    mask = uint64_count - 1
+    crystallized = []
+    crystallized_by_type: Dict[str, int] = {}
+    strongest: Optional[CrystallizedRecipe] = None
+    
+    # Generate consolidation mask (random hypervector for strengthening)
+    consolidation_seed = f"rem_consolidation_cycle_{sleep_cycle}"
+    consolidation_vec = seed_to_hypervector(consolidation_seed, dim)
+    
+    for window in range(uint64_count):
+        signal = semantic_vec[window]
+        pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+        confidence = abs(pc - 32) / 32.0
+        direction = +1 if pc > 32 else -1
+        
+        if confidence > threshold:
+            # Strong signal — push it further toward 0 or 64
+            # This is memory consolidation
+            
+            if direction == +1:
+                # Strengthen positive signal (more 1s)
+                strengthen_mask = consolidation_vec[window] & int(0xFFFFFFFFFFFFFFFF * consolidation_strength)
+                semantic_vec[window] |= strengthen_mask
+            else:
+                # Strengthen negative signal (more 0s)
+                strengthen_mask = consolidation_vec[window] & int(0xFFFFFFFFFFFFFFFF * consolidation_strength)
+                semantic_vec[window] &= ~strengthen_mask
+            
+            # Infer relationship type
+            rel_type = infer_relationship_type(confidence, direction, signal, window)
+            
+            # Create crystallized recipe
+            recipe = CrystallizedRecipe(
+                rel_window=window,
+                confidence=confidence,
+                direction=direction,
+                rel_type=rel_type,
+                sleep_cycle=sleep_cycle
+            )
+            crystallized.append(recipe)
+            
+            # Track by type
+            crystallized_by_type[rel_type] = crystallized_by_type.get(rel_type, 0) + 1
+            
+            # Track strongest
+            if strongest is None or confidence > strongest.confidence:
+                strongest = recipe
+    
+    # Generate strongest relationship string for trace
+    strongest_str = None
+    if strongest:
+        strongest_str = (
+            f"window=0x{strongest.rel_window:04x}  "
+            f"conf={strongest.confidence:.2f}  "
+            f"{strongest.rel_type}"
+        )
+    
+    return crystallized, crystallized_by_type, strongest_str
+
+
+def hypnagogic_reset(
+    trajectory: 'CoherenceTrajectory',
+    dim: int = DEFAULT_HDC_DIM
+) -> Tuple[float, float, bool, bool]:
+    """Phase 3 of sleep - Hypnagogic (Trajectory Reset).
+    
+    Re-synchronize semantic and temporal trajectories. This "subtracts"
+    the drift without losing the semantic journey.
+    
+    Args:
+        trajectory: The CoherenceTrajectory to reset (modified in-place)
+        dim: HDC dimension
+        
+    Returns:
+        Tuple of (tension_before, tension_after, semantic_preserved, temporal_restored)
+    """
+    uint64_count = dim // 64
+    
+    # Measure accumulated tension
+    tension_before = trajectory.tension
+    
+    # Gentle re-alignment — not full reset
+    # XOR with the tension vector itself
+    # This "subtracts" the drift without losing the semantic journey
+    alignment_correction = trajectory.semantic_idx ^ trajectory.temporal_idx
+    
+    # Half correction - gentle realignment
+    trajectory.temporal_idx ^= alignment_correction >> 1
+    trajectory.tension = tension_before / 2  # Tension reduced
+    
+    # Confidence smoothing
+    trajectory.confidence = (
+        trajectory.confidence * 0.7 +    # preserve history
+        0.5 * 0.3                        # pull toward neutral
+    )
+    
+    tension_after = trajectory.tension
+    
+    # Check preservation
+    semantic_preserved = trajectory.semantic_idx != 0  # Semantic thread maintained
+    temporal_restored = tension_after < tension_before  # Tension reduced
+    
+    return tension_before, tension_after, semantic_preserved, temporal_restored
+
+
+@dataclass
+class SemanticCoverageReport:
+    """Coverage report from SemanticCoverageObserver."""
+    coverage: float
+    dead_zones: List[int]
+    mean_confidence: float
+    high_confidence_count: int
+    total_windows: int
+    confidence_distribution: List[float]
+
+
+class SleepScheduler:
+    """Sleep scheduler that monitors semantic landscape and triggers sleep.
+    
+    The metacognition system becomes the sleep scheduler — it already monitors
+    the semantic landscape and can detect when sleep is needed.
+    
+    Sleep is triggered by:
+    1. Noise accumulation: Too many windows near neutral (popcount ≈ 32)
+    2. Trajectory tension: semantic_idx and temporal_idx drifted apart
+    3. Dead zone growth: Too many unexplored regions
+    4. Interference risk: High-confidence windows crowding out others
+    """
+    
+    def __init__(
+        self,
+        dim: int = DEFAULT_HDC_DIM,
+        noise_threshold: float = 0.15,
+        tension_threshold: float = 0.3,
+        dead_zone_threshold: float = 0.4,
+        interference_threshold: float = 0.3
+    ):
+        self.dim = dim
+        self.uint64_count = dim // 64
+        self.noise_threshold = noise_threshold
+        self.tension_threshold = tension_threshold
+        self.dead_zone_threshold = dead_zone_threshold
+        self.interference_threshold = interference_threshold
+        
+        # Sleep history
+        self._sleep_count = 0
+        self._sleep_history: List[SleepTrace] = []
+        self._crystallized_recipes: List[CrystallizedRecipe] = []
+    
+    def should_sleep(
+        self,
+        semantic_vec: np.ndarray,
+        trajectory: Optional['CoherenceTrajectory'],
+        coverage_report: Optional[SemanticCoverageReport]
+    ) -> SleepDecision:
+        """Determine if sleep is needed and at what depth.
+        
+        Args:
+            semantic_vec: The semantic vector to analyze
+            trajectory: Optional current coherence trajectory
+            coverage_report: Optional coverage report from observer
+            
+        Returns:
+            SleepDecision with recommendation
+        """
+        # Signal 1: noise accumulation
+        noisy_windows = 0
+        for w in range(self.uint64_count):
+            signal = semantic_vec[w]
+            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+            confidence = abs(pc - 32) / 32.0
+            if confidence < self.noise_threshold:
+                noisy_windows += 1
+        noise_ratio = noisy_windows / self.uint64_count
+        
+        # Signal 2: trajectory tension
+        tension = trajectory.tension if trajectory else 0.0
+        
+        # Signal 3: dead zone growth
+        dead_zone_ratio = 0.0
+        if coverage_report:
+            dead_zone_ratio = len(coverage_report.dead_zones) / self.uint64_count
+        
+        # Signal 4: interference — high-confidence windows crowding out others
+        high_conf = 0
+        for w in range(self.uint64_count):
+            signal = semantic_vec[w]
+            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+            confidence = abs(pc - 32) / 32.0
+            if confidence > 0.9:
+                high_conf += 1
+        interference_risk = (high_conf / self.uint64_count) > self.interference_threshold
+        
+        # Determine if sleep needed
+        should_sleep = (
+            noise_ratio > self.dead_zone_threshold or
+            tension > self.tension_threshold or
+            interference_risk
+        )
+        
+        # Determine urgency
+        urgency = max(noise_ratio, tension, dead_zone_ratio)
+        
+        # Choose sleep depth
+        depth = self._choose_depth(noise_ratio, tension, dead_zone_ratio)
+        
+        return SleepDecision(
+            should_sleep=should_sleep,
+            urgency=urgency,
+            recommended_depth=depth,
+            noise_ratio=noise_ratio,
+            tension=tension,
+            dead_zone_ratio=dead_zone_ratio,
+            interference_risk=interference_risk
+        )
+    
+    def _choose_depth(
+        self,
+        noise: float,
+        tension: float,
+        dead_zones: float
+    ) -> SleepDepth:
+        """Choose sleep depth based on signals."""
+        if noise > 0.6 and tension > 0.4:
+            return SleepDepth.FULL        # All three phases
+        elif tension > 0.3:
+            return SleepDepth.HYPNAGOGIC  # Trajectory reset only
+        elif noise > 0.4:
+            return SleepDepth.SLOW_WAVE   # Pruning only
+        elif noise > 0.2 or dead_zones > 0.3:
+            return SleepDepth.REM         # Strengthen existing signal
+        else:
+            return SleepDepth.NONE
+    
+    def execute_sleep(
+        self,
+        semantic_vec: np.ndarray,
+        syntactic_vec: Optional[np.ndarray],
+        trajectory: Optional['CoherenceTrajectory'],
+        depth: SleepDepth,
+        coverage_report: Optional[SemanticCoverageReport] = None
+    ) -> SleepTrace:
+        """Execute a sleep cycle.
+        
+        Args:
+            semantic_vec: The semantic vector (modified in-place)
+            syntactic_vec: Optional syntactic vector
+            trajectory: Optional coherence trajectory (modified in-place)
+            depth: Sleep depth to execute
+            coverage_report: Optional coverage report for metrics
+            
+        Returns:
+            SleepTrace with results
+        """
+        self._sleep_count += 1
+        start_time = time.time()
+        
+        # Initialize trace
+        trace = SleepTrace(
+            sleep_cycle=self._sleep_count,
+            depth=depth,
+            duration_ms=0.0
+        )
+        
+        # Compute pre-sleep metrics
+        mean_conf_before = 0.0
+        noise_floor_before = 0.0
+        for w in range(self.uint64_count):
+            signal = semantic_vec[w]
+            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+            conf = abs(pc - 32) / 32.0
+            mean_conf_before += conf
+            if conf < 0.2:
+                noise_floor_before += 1
+        mean_conf_before /= self.uint64_count
+        noise_floor_before /= self.uint64_count
+        
+        trace.mean_confidence_before = mean_conf_before
+        trace.noise_floor_before = noise_floor_before
+        
+        # Phase 1: Slow Wave (Pruning)
+        if depth in (SleepDepth.SLOW_WAVE, SleepDepth.FULL):
+            pruned, nudged, conf_before, conf_after = slow_wave_consolidation(
+                semantic_vec, dim=self.dim
+            )
+            trace.noisy_windows_pruned = pruned
+            trace.windows_nudged_neutral = nudged
+            trace.confidence_improved = (conf_before, conf_after)
+        
+        # Phase 2: REM (Replay and Strengthening)
+        if depth in (SleepDepth.REM, SleepDepth.FULL):
+            crystallized, by_type, strongest = rem_replay(
+                semantic_vec, syntactic_vec, dim=self.dim,
+                sleep_cycle=self._sleep_count
+            )
+            trace.relationships_crystallized = len(crystallized)
+            trace.crystallized_by_type = by_type
+            trace.strongest_relationship = strongest
+            self._crystallized_recipes.extend(crystallized)
+        
+        # Phase 3: Hypnagogic (Trajectory Reset)
+        if depth in (SleepDepth.HYPNAGOGIC, SleepDepth.FULL) and trajectory is not None:
+            tension_before, tension_after, semantic_ok, temporal_ok = hypnagogic_reset(
+                trajectory, dim=self.dim
+            )
+            trace.tension_before = tension_before
+            trace.tension_after = tension_after
+            trace.semantic_thread_preserved = semantic_ok
+            trace.temporal_rhythm_restored = temporal_ok
+        
+        # Compute post-sleep metrics
+        mean_conf_after = 0.0
+        noise_floor_after = 0.0
+        for w in range(self.uint64_count):
+            signal = semantic_vec[w]
+            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
+            conf = abs(pc - 32) / 32.0
+            mean_conf_after += conf
+            if conf < 0.2:
+                noise_floor_after += 1
+        mean_conf_after /= self.uint64_count
+        noise_floor_after /= self.uint64_count
+        
+        trace.mean_confidence_after = mean_conf_after
+        trace.noise_floor_after = noise_floor_after
+        trace.total_crystallized = len(self._crystallized_recipes)
+        
+        # Coverage change (approximate)
+        if coverage_report:
+            trace.coverage_change = (mean_conf_after - mean_conf_before) * 100
+        
+        trace.duration_ms = (time.time() - start_time) * 1000
+        self._sleep_history.append(trace)
+        
+        return trace
+    
+    def get_crystallized_recipes(self) -> List[CrystallizedRecipe]:
+        """Get all crystallized recipes from sleep cycles."""
+        return self._crystallized_recipes.copy()
+    
+    def get_sleep_history(self) -> List[SleepTrace]:
+        """Get history of all sleep cycles."""
+        return self._sleep_history.copy()
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get sleep scheduler statistics."""
+        return {
+            'total_sleep_cycles': self._sleep_count,
+            'total_crystallized': len(self._crystallized_recipes),
+            'crystallized_by_type': self._count_by_type(),
+            'mean_confidence_improvement': self._mean_confidence_improvement()
+        }
+    
+    def _count_by_type(self) -> Dict[str, int]:
+        """Count crystallized recipes by relationship type."""
+        counts: Dict[str, int] = {}
+        for recipe in self._crystallized_recipes:
+            counts[recipe.rel_type] = counts.get(recipe.rel_type, 0) + 1
+        return counts
+    
+    def _mean_confidence_improvement(self) -> float:
+        """Compute mean confidence improvement across sleep cycles."""
+        if not self._sleep_history:
+            return 0.0
+        improvements = [
+            t.mean_confidence_after - t.mean_confidence_before
+            for t in self._sleep_history
+        ]
+        return float(np.mean(improvements)) if improvements else 0.0
+
 
 
 def build_evidence_chain(
@@ -1517,29 +2107,12 @@ class TensorCoreGPUManager:
                 # Initialize tensor core kernels
                 self._init_tensor_core_kernels()
                 
-                # Enable tensor core modes
-                self._enable_tensor_core_modes()
-                
             except Exception as e:
                 print(f"[TensorCore] GPU initialization failed: {e}, falling back to CPU")
                 self.use_gpu = False
         
         self.xp = cp if self.use_gpu else np
         TensorCoreGPUManager._initialized = True
-    
-    def _enable_tensor_core_modes(self):
-        """Enable H100 tensor core optimization modes."""
-        if not self.use_gpu:
-            return
-        
-        # Enable TF32 for tensor cores (H100 default)
-        try:
-            # These are PyTorch settings, but we mention them for reference
-            # torch.backends.cuda.matmul.allow_tf32 = True
-            # torch.backends.cudnn.allow_tf32 = True
-            pass
-        except Exception:
-            pass
     
     def _init_tensor_core_kernels(self):
         """Initialize custom CUDA kernels with tensor core support."""
@@ -1554,27 +2127,9 @@ class TensorCoreGPUManager:
                 options=('--use_fast_math',)  # CuPy auto-detects architecture
             )
             
-            self._kernels['tensor_core_batch_encode'] = cp.RawKernel(
-                _TENSOR_CORE_KERNELS,
-                'tensor_core_batch_encode',
-                options=('--use_fast_math',)
-            )
-            
             self._kernels['tensor_core_fp16_similarity'] = cp.RawKernel(
                 _TENSOR_CORE_KERNELS,
                 'tensor_core_fp16_similarity',
-                options=('--use_fast_math',)
-            )
-            
-            self._kernels['tensor_core_batch_xor'] = cp.RawKernel(
-                _TENSOR_CORE_KERNELS,
-                'tensor_core_batch_xor',
-                options=('--use_fast_math',)
-            )
-            
-            self._kernels['tensor_core_batch_popcount'] = cp.RawKernel(
-                _TENSOR_CORE_KERNELS,
-                'tensor_core_batch_popcount',
                 options=('--use_fast_math',)
             )
             
@@ -1590,12 +2145,6 @@ class TensorCoreGPUManager:
                 options=('--use_fast_math',)
             )
             
-            self._kernels['tensor_core_xor_reduce_seq'] = cp.RawKernel(
-                _TENSOR_CORE_KERNELS,
-                'tensor_core_xor_reduce_seq',
-                options=('--use_fast_math',)
-            )
-
             self._kernels['sparse_encode'] = cp.RawKernel(
                 _TENSOR_CORE_KERNELS,
                 'sparse_encode',
@@ -1632,41 +2181,7 @@ class TensorCoreGPUManager:
             
         except Exception as e:
             print(f"[TensorCore] Warning: Could not compile tensor core kernels: {e}")
-            print("[TensorCore] Falling back to optimized CuPy elementwise kernels")
-            self._init_fallback_kernels()
-    
-    def _init_fallback_kernels(self):
-        """Initialize fallback kernels if tensor core compilation fails."""
-        if not self.use_gpu:
-            return
-        
-        # Optimized elementwise kernels using CuPy
-        self._kernels['xor_popcount'] = cp.ElementwiseKernel(
-            'uint64 a, uint64 b',
-            'uint32 out',
-            '''
-            unsigned long long xored = a ^ b;
-            out = __popcll(xored);
-            ''',
-            'xor_popcount'
-        )
-        
-        self._kernels['batch_xor'] = cp.ElementwiseKernel(
-            'uint64 a, uint64 b',
-            'uint64 out',
-            'out = a ^ b',
-            'batch_xor'
-        )
-        
-        self._kernels['cumulative_xor'] = cp.ReductionKernel(
-            'uint64 x',
-            'uint64 y',
-            'a ^ b',
-            'identity = 0',
-            'y = a',
-            'a = x',
-            'cumulative_xor'
-        )
+            print("[TensorCore] Falling back to NumPy operations")
     
     def to_gpu(self, arr: np.ndarray) -> 'cp.ndarray':
         """Transfer array to GPU if available."""
@@ -2082,7 +2597,6 @@ class HDCConfig:
     
     max_recipes: int = 100000
     recipe_compression_level: int = 9
-    deduplication_enabled: bool = True
     
     collision_threshold: float = 0.55
     holographic_redundancy: int = 3
@@ -2257,6 +2771,25 @@ def hadamard_row_packed(index: int, dim: int) -> np.ndarray:
     return row
 
 
+def hadamard_position_vector(position: int, dim: int) -> np.ndarray:
+    """Generate a packed Hadamard position vector for a given position.
+
+    Uses the same Sylvester Hadamard construction as ``hadamard_row_packed``
+    but addresses the row by ``position % uint64_count`` (the circular encoder
+    address), matching the sparse_encode CUDA kernel's convention.
+
+    Args:
+        position: Sequence position (0-based)
+        dim: HDC dimension (must be a power of 2)
+
+    Returns:
+        Packed uint64 array of shape (dim // 64,)
+    """
+    uint64_count = dim // 64
+    index = position % uint64_count
+    return hadamard_row_packed(index, dim)
+
+
 @dataclass
 class AccuracyConfig:
     target_accuracy: float = 0.99
@@ -2327,17 +2860,6 @@ def seed_to_hypervector(seed_string: str, dim: int = DEFAULT_HDC_DIM) -> np.ndar
     
     return np.frombuffer(hash_bytes, dtype=np.uint64).copy()
 
-
-def seed_to_ternary_hypervector(seed_string: str, dim: int = DEFAULT_HDC_DIM) -> Tuple[np.ndarray, np.ndarray]:
-    """Generate ternary hypervector (+1, 0, -1) from seed."""
-    pos_vec = seed_to_hypervector(f"{seed_string}:pos", dim)
-    neg_vec = seed_to_hypervector(f"{seed_string}:neg", dim)
-    
-    overlap = np.bitwise_and(pos_vec, neg_vec)
-    pos_vec = np.bitwise_xor(pos_vec, overlap)
-    neg_vec = np.bitwise_xor(neg_vec, overlap)
-    
-    return pos_vec, neg_vec
 
 
 # ============================================================================
@@ -2862,46 +3384,6 @@ def instant_semantic_learn(
 # ============================================================================
 
 
-def hadamard_position_vector(position: int, dim: int = DEFAULT_HDC_DIM) -> np.ndarray:
-    """Generate position vector using Hadamard basis."""
-    base = seed_to_hypervector("hadamard_base", dim)
-    
-    uint64_count = dim // 64
-    shift = (position * 7) % uint64_count
-    result = np.roll(base, shift)
-    
-    pos_pattern = seed_to_hypervector(f"hadamard_pos_{position}", dim)
-    result = np.bitwise_xor(result, pos_pattern)
-    
-    return result
-
-
-def circular_temporal_encode(events: List[np.ndarray], dim: int = DEFAULT_HDC_DIM) -> np.ndarray:
-    """Encode a sequence of events using circular temporal encoding."""
-    if not events:
-        return np.zeros(dim // 8, dtype=np.uint8)
-    
-    first_event = events[0]
-    if first_event.dtype == np.uint8:
-        byte_count = dim // 8
-        result = np.zeros(byte_count, dtype=np.uint8)
-        
-        for i, event_vec in enumerate(events):
-            shift = i % byte_count
-            shifted = np.roll(event_vec, shift)
-            result = np.bitwise_xor(result, shifted)
-        
-        return result
-    else:
-        uint64_count = dim // 64
-        result = np.zeros(uint64_count, dtype=np.uint64)
-        
-        for i, event_vec in enumerate(events):
-            shift = i % uint64_count
-            shifted = np.roll(event_vec, shift)
-            result = np.bitwise_xor(result, shifted)
-        
-        return result
 
 
 def xor_bind(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -2924,24 +3406,6 @@ def xor_bind_sequence(vectors: List[np.ndarray]) -> np.ndarray:
         result = np.bitwise_xor(result, vec)
     return result
 
-
-def bundle_vectors(vectors: List[np.ndarray], dim: int = DEFAULT_HDC_DIM) -> np.ndarray:
-    """Bundle multiple hypervectors using majority vote."""
-    if not vectors:
-        return np.zeros(dim // 64, dtype=np.uint64)
-    
-    uint64_count = dim // 64
-    bit_sums = np.zeros(dim, dtype=np.int32)
-    
-    for vec in vectors:
-        bits = np.unpackbits(vec.view(np.uint8))
-        bit_sums += bits[:dim]
-    
-    threshold = len(vectors) / 2
-    result_bits = (bit_sums > threshold).astype(np.uint8)
-    
-    result = np.packbits(result_bits).view(np.uint64)
-    return result[:uint64_count]
 
 
 def hamming_similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -3955,9 +4419,9 @@ def iterative_batch_learn(
             # On divergence, clear recent corrections and restart
             if verbose:
                 print(f"  DIVERGING detected - clearing recent corrections")
-            # Keep only high-confidence corrections
-            model.residual_storage._recipes = {
-                k: v for k, v in model.residual_storage._recipes.items()
+            # Keep only high-confidence corrections (use _by_state_hash, the actual storage dict)
+            model.residual_storage._by_state_hash = {
+                k: v for k, v in model.residual_storage._by_state_hash.items()
                 if v.confidence >= 1.0
             }
         
@@ -4575,299 +5039,6 @@ class Recipe:
         return 50 + sum(len(s) for s in self.seed_sequence)
 
 
-@dataclass
-class DeduplicationConfig:
-    """Configuration for advanced deduplication."""
-    similarity_threshold: float = 0.85
-    near_duplicate_threshold: float = 0.92
-    cross_timestep_threshold: float = 0.80
-    auto_merge_exact: bool = True
-    auto_cluster: bool = True
-    preserve_relationships: bool = True
-    track_trajectories: bool = True
-    separate_modalities: bool = False
-    max_cluster_size: int = 100
-    min_cluster_similarity: float = 0.75
-
-
-class RelationshipStats:
-    """Lightweight statistics tracker for pattern relationships (simplified from XORRelationshipGraph)."""
-    
-    def __init__(self, dim: int = DEFAULT_HDC_DIM):
-        self._stats = {
-            'total_patterns': 0,
-            'total_edges': 0,
-            'clusters_created': 0,
-            'relationships_by_type': {}
-        }
-    
-    def add_pattern(self, recipe: Recipe, signature: str) -> str:
-        """Record a pattern was added (just increment counter)."""
-        self._stats['total_patterns'] += 1
-        return recipe.recipe_id
-    
-    def add_relationship(
-        self,
-        pattern_id1: str,
-        pattern_id2: str,
-        relationship_type: RelationshipType,
-        bidirectional: bool = False,
-        strength: float = 1.0,
-        sequence_position: int = 0,
-        metadata: Optional[Dict[str, Any]] = None
-    ):
-        """Record a relationship (just update statistics)."""
-        self._stats['total_edges'] += 1
-        rel_type_name = relationship_type.value
-        self._stats['relationships_by_type'][rel_type_name] = \
-            self._stats['relationships_by_type'].get(rel_type_name, 0) + 1
-        
-        if bidirectional:
-            self._stats['total_edges'] += 1
-            self._stats['relationships_by_type'][rel_type_name] = \
-                self._stats['relationships_by_type'].get(rel_type_name, 0) + 1
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        return {**self._stats}
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {'stats': self._stats}
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any], dim: int = DEFAULT_HDC_DIM) -> 'RelationshipStats':
-        stats = cls(dim=dim)
-        stats._stats = data.get('stats', stats._stats)
-        return stats
-
-
-class RecipeDeduplicator:
-    """Advanced recipe deduplicator with XOR bitwise relationship graph methods."""
-    
-    def __init__(self, config: Optional[DeduplicationConfig] = None, dim: int = DEFAULT_HDC_DIM):
-        self.config = config or DeduplicationConfig()
-        self.dim = dim
-        self.uint64_count = dim // 64
-        
-        self.relationship_graph = RelationshipStats(dim=dim)
-        
-        self._recipes: Dict[str, Recipe] = {}
-        self._signature_to_id: Dict[str, str] = {}
-        self._content_hash_index: Dict[str, str] = {}
-        
-        self._clusters: Dict[str, List[str]] = {}
-        self._pattern_to_cluster: Dict[str, str] = {}
-        self._cluster_centroids: Dict[str, str] = {}
-        
-        self._by_seed_string: Dict[str, str] = {}
-        self._usage_count: Dict[str, int] = {}
-        
-        self._vector_cache: Dict[str, np.ndarray] = {}
-        self._cache_enabled: bool = True
-        self._max_cache_size: int = 10000
-        
-        self._stats = {
-            'patterns_added': 0,
-            'duplicates_found': 0,
-            'exact_duplicates_merged': 0,
-            'near_duplicates_found': 0,
-            'relationships_created': 0,
-            'relationships_preserved': 0,
-            'similarity_checks': 0,
-            'cache_hits': 0,
-            'cache_misses': 0,
-            'clusters_created': 0
-        }
-    
-    def _compute_signature(self, seed_sequence: List[str]) -> str:
-        canonical = "|".join(sorted(seed_sequence))
-        return blake3_hash(canonical.encode()).hex()[:16]
-    
-    def _compute_content_hash(self, seed_string: str) -> str:
-        if _BLAKE3_AVAILABLE:
-            return _blake3_func(seed_string.encode()).hexdigest()
-        else:
-            import hashlib
-            return hashlib.sha256(seed_string.encode()).hexdigest()
-    
-    def _get_vector(self, recipe: Recipe) -> np.ndarray:
-        cache_key = recipe.recipe_id
-        
-        if self._cache_enabled and cache_key in self._vector_cache:
-            self._stats['cache_hits'] += 1
-            return self._vector_cache[cache_key]
-        
-        self._stats['cache_misses'] += 1
-        
-        vector = self._encode_seed_sequence(recipe.seed_sequence)
-        
-        if self._cache_enabled:
-            if len(self._vector_cache) >= self._max_cache_size:
-                keys_to_remove = list(self._vector_cache.keys())[:self._max_cache_size // 2]
-                for key in keys_to_remove:
-                    del self._vector_cache[key]
-            
-            self._vector_cache[cache_key] = vector
-        
-        return vector
-    
-    def _encode_seed_sequence(self, seed_sequence: List[str]) -> np.ndarray:
-        if not seed_sequence:
-            return np.zeros(self.uint64_count, dtype=np.uint64)
-        
-        result = seed_to_hypervector(seed_sequence[0], self.dim)
-        for seed in seed_sequence[1:]:
-            vec = seed_to_hypervector(seed, self.dim)
-            result = np.bitwise_xor(result, vec)
-        
-        return result
-    
-    def _compute_hadamard_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
-        return hamming_similarity(vec1, vec2)
-    
-    def check_duplicate(
-        self, seed_sequence: List[str], threshold: Optional[float] = None
-    ) -> Tuple[bool, Optional[str], Optional[Recipe]]:
-        threshold = threshold or self.config.similarity_threshold
-        
-        sig = self._compute_signature(seed_sequence)
-        if sig in self._signature_to_id:
-            recipe_id = self._signature_to_id[sig]
-            return True, sig, self._recipes.get(recipe_id)
-        
-        content_str = "|".join(sorted(seed_sequence))
-        content_hash = self._compute_content_hash(content_str)
-        if content_hash in self._content_hash_index:
-            recipe_id = self._content_hash_index[content_hash]
-            return True, sig, self._recipes.get(recipe_id)
-        
-        if threshold < 1.0:
-            query_vec = self._encode_seed_sequence(seed_sequence)
-            
-            for recipe_id, existing_recipe in self._recipes.items():
-                existing_vec = self._get_vector(existing_recipe)
-                similarity = self._compute_hadamard_similarity(query_vec, existing_vec)
-                self._stats['similarity_checks'] += 1
-                
-                if similarity >= threshold:
-                    existing_sig = self._compute_signature(existing_recipe.seed_sequence)
-                    return True, existing_sig, existing_recipe
-        
-        return False, sig, None
-    
-    def store_or_update(self, recipe: Recipe) -> str:
-        sig = self._compute_signature(recipe.seed_sequence)
-        
-        if sig in self._signature_to_id:
-            existing_id = self._signature_to_id[sig]
-            existing = self._recipes[existing_id]
-            existing.confidence = max(existing.confidence, recipe.confidence)
-            self._usage_count[sig] += 1
-            self._stats['duplicates_found'] += 1
-            self._stats['exact_duplicates_merged'] += 1
-            
-            if self.config.preserve_relationships:
-                self.relationship_graph.add_relationship(
-                    existing_id, recipe.recipe_id,
-                    RelationshipType.SEMANTIC_SIMILAR,
-                    bidirectional=True, strength=1.0
-                )
-                self._stats['relationships_preserved'] += 1
-            
-            return sig
-        
-        content_str = "|".join(sorted(recipe.seed_sequence))
-        content_hash = self._compute_content_hash(content_str)
-        
-        if content_hash in self._content_hash_index:
-            existing_id = self._content_hash_index[content_hash]
-            existing = self._recipes[existing_id]
-            existing.confidence = max(existing.confidence, recipe.confidence)
-            self._usage_count[sig] = self._usage_count.get(sig, 0) + 1
-            self._stats['duplicates_found'] += 1
-            self._stats['exact_duplicates_merged'] += 1
-            return sig
-        
-        similar_pattern_id = None
-        similar_cluster_id = None
-        best_similarity = 0.0
-        
-        if self.config.similarity_threshold < 1.0:
-            query_vec = self._encode_seed_sequence(recipe.seed_sequence)
-            
-            for recipe_id, existing_recipe in self._recipes.items():
-                existing_vec = self._get_vector(existing_recipe)
-                similarity = self._compute_hadamard_similarity(query_vec, existing_vec)
-                self._stats['similarity_checks'] += 1
-                
-                if similarity >= self.config.similarity_threshold and similarity > best_similarity:
-                    best_similarity = similarity
-                    similar_pattern_id = recipe_id
-                    similar_cluster_id = self._pattern_to_cluster.get(recipe_id)
-        
-        self._recipes[recipe.recipe_id] = recipe
-        self._signature_to_id[sig] = recipe.recipe_id
-        self._content_hash_index[content_hash] = recipe.recipe_id
-        self._usage_count[sig] = 1
-        
-        self.relationship_graph.add_pattern(recipe, sig)
-        
-        if similar_pattern_id and self.config.auto_cluster:
-            if similar_cluster_id:
-                self._clusters[similar_cluster_id].append(recipe.recipe_id)
-                self._pattern_to_cluster[recipe.recipe_id] = similar_cluster_id
-                
-                self.relationship_graph.add_relationship(
-                    recipe.recipe_id, similar_pattern_id,
-                    RelationshipType.CLUSTER_MEMBER,
-                    bidirectional=True, strength=best_similarity
-                )
-            else:
-                cluster_id = f"cluster_{similar_pattern_id[:8]}"
-                self._clusters[cluster_id] = [similar_pattern_id, recipe.recipe_id]
-                self._pattern_to_cluster[similar_pattern_id] = cluster_id
-                self._pattern_to_cluster[recipe.recipe_id] = cluster_id
-                self._cluster_centroids[cluster_id] = similar_pattern_id
-                self._stats['clusters_created'] += 1
-                
-                self.relationship_graph.add_relationship(
-                    recipe.recipe_id, similar_pattern_id,
-                    RelationshipType.CLUSTER_MEMBER,
-                    bidirectional=True, strength=best_similarity
-                )
-            
-            self._stats['near_duplicates_found'] += 1
-            self._stats['relationships_preserved'] += 1
-        else:
-            if self.config.auto_cluster:
-                cluster_id = f"cluster_{recipe.recipe_id[:8]}"
-                self._clusters[cluster_id] = [recipe.recipe_id]
-                self._pattern_to_cluster[recipe.recipe_id] = cluster_id
-                self._cluster_centroids[cluster_id] = recipe.recipe_id
-                self._stats['clusters_created'] += 1
-        
-        for seed in recipe.seed_sequence:
-            if seed not in self._by_seed_string:
-                self._by_seed_string[seed] = recipe.recipe_id
-        
-        self._stats['patterns_added'] += 1
-        return sig
-    
-    def get_by_signature(self, signature: str) -> Optional[Recipe]:
-        recipe_id = self._signature_to_id.get(signature)
-        if recipe_id:
-            return self._recipes.get(recipe_id)
-        return None
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        return {
-            **self._stats,
-            'total_recipes': len(self._recipes),
-            'total_clusters': len(self._clusters),
-            'cache_size': len(self._vector_cache),
-            'graph_stats': self.relationship_graph.get_statistics()
-        }
-
-
 class SelfObservation:
     """
     Metacognitive self-observation system for HDC models.
@@ -5372,7 +5543,8 @@ class SemanticCoverageObserver:
         self,
         dim: int = DEFAULT_HDC_DIM,
         high_confidence_threshold: float = 0.7,
-        low_confidence_threshold: float = 0.1
+        low_confidence_threshold: float = 0.1,
+        window_size: int = SPARSE_WINDOW_SIZE  # accepted but unused (kept for API compat)
     ):
         self.dim = dim
         self.uint64_count = dim // 64
@@ -5933,7 +6105,8 @@ class HDCLanguageModel:
         
         self.seed_registry = SeedRegistry()
         
-        self.recipe_deduplicator = RecipeDeduplicator()
+        # Simple signature-based deduplication (XOR self-inverse property prevents exact duplicates)
+        self._signature_to_id: Dict[str, str] = {}
         self.recipes: Dict[str, Recipe] = {}
         self.recipe_storage_size = 0
         
@@ -6594,8 +6767,7 @@ class HDCLanguageModel:
         
         if self.semantic_coverage_observer is None:
             self.semantic_coverage_observer = SemanticCoverageObserver(
-                dim=self.dim,
-                window_size=self.sparse_window_size
+                dim=self.dim
             )
             print("[HDCModel] Initialized SemanticCoverageObserver")
         
@@ -6850,18 +7022,22 @@ class HDCLanguageModel:
                 print(f"[RecipeReconstructor] Verification warning: recipe {recipe_id} "
                       f"similarity={similarity:.4f} (target_token={target})")
         
-        # Use deduplicator to store
-        sig = self.recipe_deduplicator.store_or_update(recipe)
-        if sig not in self.recipes:
-            # Enforce max_recipes limit before adding
-            if self.config.max_recipes > 0 and len(self.recipes) >= self.config.max_recipes:
-                # Remove oldest recipe (FIFO)
-                oldest_key = next(iter(self.recipes))
-                removed_recipe = self.recipes.pop(oldest_key, None)
-                if removed_recipe:
-                    self.recipe_storage_size -= removed_recipe.size_bytes()
-            self.recipes[sig] = recipe
-            self.recipe_storage_size += recipe.size_bytes()
+        # Simple signature-based deduplication using XOR self-inverse property
+        sig = recipe.problem_signature
+        if sig in self._signature_to_id:
+            return  # Duplicate found, skip
+        
+        # Enforce max_recipes limit before adding
+        if self.config.max_recipes > 0 and len(self.recipes) >= self.config.max_recipes:
+            # Remove oldest recipe (FIFO)
+            oldest_key = next(iter(self.recipes))
+            removed_recipe = self.recipes.pop(oldest_key, None)
+            if removed_recipe:
+                self.recipe_storage_size -= removed_recipe.size_bytes()
+        
+        self._signature_to_id[sig] = recipe_id
+        self.recipes[recipe_id] = recipe
+        self.recipe_storage_size += recipe.size_bytes()
         
         if len(context) >= 1:
             for n in range(1, min(4, len(context) + 1)):
@@ -6909,11 +7085,9 @@ class HDCLanguageModel:
         
         patterns_cpu = self.gpu_manager.to_cpu(patterns)
         
-        # INSTANT DEDUPLICATION: Use the pattern vector's sparse window directly as signature
-        # The ternary hypervector already encodes uniqueness - first 4 uint64 values form
+        # INSTANT SIGNATURE: Use the pattern vector's sparse window directly as signature
+        # The XOR self-inverse property ensures uniqueness - first 4 uint64 values form
         # a 256-bit instant signature with zero additional computation.
-        # This leverages the Hadamard projection's inherent determinism from the seed.
-        W = self.sparse_window_size  # Window size for sparse projection
         
         new_recipes = {}
         new_ngrams = {}
@@ -6922,18 +7096,11 @@ class HDCLanguageModel:
             pattern = patterns_cpu[i]
             
             # INSTANT SIGNATURE: First 4 uint64 values = 256 bits of uniqueness
-            # No hashing needed - the ternary encoding is already deterministic
             sig = f"hv_{pattern[0]:016x}_{pattern[1]:016x}_{pattern[2]:016x}_{pattern[3]:016x}"
             
-            # Tier 1: O(1) instant signature lookup
-            if sig in self.recipe_deduplicator._signature_to_id:
+            # O(1) instant signature lookup - XOR self-inverse property prevents duplicates
+            if sig in self._signature_to_id:
                 continue  # Duplicate found, skip
-            
-            # Tier 2: O(1) target-only lookup (simplified - just use target token)
-            # The target token itself is sufficient for content-based dedup
-            target_key = f"t_{target}"
-            if target_key in self.recipe_deduplicator._content_hash_index:
-                continue  # Near-duplicate found, skip
             
             # Not a duplicate - create and store the recipe
             recipe_id = f"pattern_{len(self.recipes) + len(new_recipes)}"
@@ -6946,14 +7113,11 @@ class HDCLanguageModel:
                 confidence=1.0
             )
             
-            # Register in deduplicator indices (fast O(1) update)
-            self.recipe_deduplicator._signature_to_id[sig] = recipe_id
-            self.recipe_deduplicator._content_hash_index[target_key] = recipe_id
-            self.recipe_deduplicator._recipes[recipe_id] = recipe
-            self.recipe_deduplicator._usage_count[sig] = 1
+            # Register in signature index (fast O(1) update)
+            self._signature_to_id[sig] = recipe_id
             
             # Add to local batch
-            new_recipes[sig] = recipe
+            new_recipes[recipe_id] = recipe
             
             if len(context) >= 1:
                 for n in range(1, min(4, len(context) + 1)):
@@ -7009,46 +7173,170 @@ class HDCLanguageModel:
         top_indices = self.gpu_manager.to_cpu(top_indices_gpu)
         
         return probs, top_indices
-    
-    def save_recipes(self, path: str) -> None:
-        data = {
-            'recipes': {k: v.to_dict() for k, v in self.recipes.items()},
-            'ngram_stats': {str(k): v for k, v in self.ngram_stats.items()},
-            'seed_registry': self.seed_registry.to_dict(),
-            'config': {
-                'hdc_dim': self.dim,
-                'vocab_size': self.config.vocab_size,
-                'max_context_length': self.config.max_context_length
-            }
-        }
-        
-        raw = json.dumps(data).encode()
-        compressed = zlib.compress(raw, self.config.recipe_compression_level)
-        
-        with open(path, 'wb') as f:
-            f.write(compressed)
-    
-    def load_recipes(self, path: str) -> None:
-        """Load learned recipes from file."""
-        if not os.path.exists(path):
-            return
-        
-        with open(path, 'rb') as f:
-            compressed = f.read()
-        
-        raw = zlib.decompress(compressed)
-        data = json.loads(raw.decode())
-        
-        self.recipes = {
-            k: Recipe.from_dict(v) for k, v in data.get('recipes', {}).items()
-        }
-        
-        for k, v in data.get('ngram_stats', {}).items():
-            key = eval(k)
-            self.ngram_stats[key] = v
-        
-        if 'seed_registry' in data:
-            self.seed_registry = SeedRegistry.from_dict(data['seed_registry'])
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 256 KB Binary Model Serialisation (Gap 1)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def save_binary_model(self, path: str) -> int:
+        """Serialise the trained model to the 256 KB binary format.
+
+        Binary layout (little-endian)
+        ─────────────────────────────
+        Offset   Size      Field
+        ──────   ────      ─────
+        0        4         magic  = 0x48444300  ("HDC\\x00")
+        4        4         version = 1
+        8        4         hdc_dim  (uint32)
+        12       4         vocab_size (uint32)
+        16       4         max_context_length (uint32)
+        20       4         sparse_window_size (uint32)
+        24       4         num_collision_entries (uint32)
+        28       4         reserved / padding
+        32       32        BLAKE3 seed bytes (deterministic token-vector seed)
+        64       128 KB    semantic_vec  (uint64_count × uint64, little-endian)
+        64+128K  128 KB    syntactic_vec (uint64_count × uint64, little-endian)
+        64+256K  6×N       collision_correction_table (N ≤ 32 entries × 6 bytes)
+
+        Total (no collisions): 32 + 32 + 131072 + 131072 = 262208 bytes ≈ 256 KB
+
+        Returns
+        -------
+        int – number of bytes written
+        """
+        if self.dual_projection is None:
+            raise RuntimeError(
+                "save_binary_model: dual_projection not initialised — "
+                "call initialize_semantic_layer() and project_corpus_semantic() first."
+            )
+
+        # ── BLAKE3 seed (32 bytes) ──────────────────────────────────────────
+        # The seed is the canonical string used to regenerate all token vectors.
+        # We hash the string "hdc_model_seed_v1" so the 32-byte field is always
+        # deterministic and can be verified on load.
+        seed_string = f"hdc_model_seed_v1_dim{self.dim}_vocab{self.config.vocab_size}"
+        seed_bytes = blake3_hash(seed_string.encode())[:32]
+
+        # ── Collision correction table ──────────────────────────────────────
+        collision_table = build_collision_correction_table(
+            vocab_size=self.config.vocab_size,
+            dim=self.dim,
+            max_entries=32
+        )
+        num_collisions = len(collision_table)
+
+        # ── Header (32 bytes) ───────────────────────────────────────────────
+        MAGIC = 0x48444300  # "HDC\x00"
+        VERSION = 1
+        header = struct.pack(
+            "<IIIIIIII",
+            MAGIC,
+            VERSION,
+            self.dim,
+            self.config.vocab_size,
+            self.config.max_context_length,
+            self.config.sparse_window_size,
+            num_collisions,
+            0,  # reserved
+        )  # 8 × 4 = 32 bytes
+
+        # ── Vectors ─────────────────────────────────────────────────────────
+        semantic_bytes  = self.dual_projection.semantic_vec.astype('<u8').tobytes()
+        syntactic_bytes = self.dual_projection.syntactic_vec.astype('<u8').tobytes()
+
+        # ── Collision table bytes ────────────────────────────────────────────
+        collision_bytes = b"".join(e.to_bytes() for e in collision_table)
+
+        # ── Write ────────────────────────────────────────────────────────────
+        payload = header + seed_bytes + semantic_bytes + syntactic_bytes + collision_bytes
+        with open(path, "wb") as f:
+            f.write(payload)
+
+        total_bytes = len(payload)
+        print(f"[BinaryModel] Saved {total_bytes:,} bytes ({total_bytes/1024:.1f} KB) → {path}")
+        print(f"[BinaryModel]   semantic_vec:  {len(semantic_bytes):,} bytes (128 KB)")
+        print(f"[BinaryModel]   syntactic_vec: {len(syntactic_bytes):,} bytes (128 KB)")
+        print(f"[BinaryModel]   collision_table: {num_collisions} entries × 6 bytes = {len(collision_bytes)} bytes")
+        return total_bytes
+
+    def load_binary_model(self, path: str) -> None:
+        """Load a 256 KB binary model artifact produced by ``save_binary_model``.
+
+        Restores ``dual_projection.semantic_vec``, ``dual_projection.syntactic_vec``,
+        and logs any collision correction entries found in the file.
+
+        Raises
+        ------
+        ValueError  – if the magic number or version is wrong
+        RuntimeError – if vector dimensions don't match the current config
+        """
+        MAGIC = 0x48444300
+        HEADER_SIZE = 32
+        SEED_SIZE = 32
+
+        with open(path, "rb") as f:
+            raw = f.read()
+
+        if len(raw) < HEADER_SIZE + SEED_SIZE:
+            raise ValueError(f"load_binary_model: file too small ({len(raw)} bytes)")
+
+        # ── Parse header ─────────────────────────────────────────────────────
+        (magic, version, file_dim, file_vocab, file_ctx, file_win,
+         num_collisions, _reserved) = struct.unpack_from("<IIIIIIII", raw, 0)
+
+        if magic != MAGIC:
+            raise ValueError(
+                f"load_binary_model: bad magic 0x{magic:08X} (expected 0x{MAGIC:08X})"
+            )
+        if version != 1:
+            raise ValueError(f"load_binary_model: unsupported version {version}")
+        if file_dim != self.dim:
+            raise RuntimeError(
+                f"load_binary_model: dim mismatch — file={file_dim}, model={self.dim}"
+            )
+
+        uint64_count = file_dim // 64
+        vec_bytes = uint64_count * 8  # each uint64 = 8 bytes
+
+        offset = HEADER_SIZE + SEED_SIZE
+        if len(raw) < offset + 2 * vec_bytes:
+            raise ValueError(
+                f"load_binary_model: file too small for vectors "
+                f"(need {offset + 2*vec_bytes}, got {len(raw)})"
+            )
+
+        # ── Restore vectors ──────────────────────────────────────────────────
+        semantic_vec  = np.frombuffer(raw[offset:offset + vec_bytes],
+                                      dtype='<u8').copy()
+        offset += vec_bytes
+        syntactic_vec = np.frombuffer(raw[offset:offset + vec_bytes],
+                                      dtype='<u8').copy()
+        offset += vec_bytes
+
+        # ── Ensure dual_projection exists ────────────────────────────────────
+        if self.dual_projection is None:
+            self.initialize_semantic_layer()
+
+        self.dual_projection.semantic_vec  = semantic_vec
+        self.dual_projection.syntactic_vec = syntactic_vec
+
+        # ── Parse collision correction table ─────────────────────────────────
+        collision_entries: List[CollisionCorrectionEntry] = []
+        for _ in range(num_collisions):
+            if offset + 6 > len(raw):
+                break
+            entry = CollisionCorrectionEntry.from_bytes(raw[offset:offset + 6])
+            collision_entries.append(entry)
+            offset += 6
+
+        print(f"[BinaryModel] Loaded {len(raw):,} bytes from {path}")
+        print(f"[BinaryModel]   dim={file_dim}, vocab={file_vocab}, "
+              f"ctx={file_ctx}, window={file_win}")
+        print(f"[BinaryModel]   collision_entries={len(collision_entries)}")
+        if collision_entries:
+            for e in collision_entries:
+                print(f"[BinaryModel]     token {e.token_a_id} ↔ token {e.token_b_id} "
+                      f"(correction_window={e.correction_window})")
 
 def build_sentencepiece_luts(sp, vocab_size: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     sp_vocab_size = int(sp.vocab_size())
@@ -7503,6 +7791,30 @@ def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
         print(f"recipe_reconstructor_final: cache_hits:{recon_stats['hits']:,} cache_misses:{recon_stats['misses']:,} "
               f"hit_rate:{recon_stats['hit_rate']:.1%} total_verifications:{verifications:,} failures:{failures:,} success_rate:{success_rate:.1f}%")
     
+    # === SAVE 256 KB BINARY MODEL (standard training mode) ===
+    if is_main:
+        try:
+            model.initialize_semantic_layer()
+            # Project a small sample of training tokens into the semantic layer
+            # so semantic_vec / syntactic_vec are non-zero before saving.
+            sample_loader = DistributedTokenLoader(config.train_files, rank=0, world_size=1)
+            sample_contexts, _ = sample_loader.next_batch(
+                min(64, config.train_batch_tokens // config.max_context_length),
+                config.max_context_length
+            )
+            sample_tokens = [t for ctx in sample_contexts for t in ctx][:100000]
+            model.project_corpus_semantic(sample_tokens)
+
+            binary_model_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                f"hdc_model_seed{config.seed}.bin"
+            )
+            saved_bytes = model.save_binary_model(binary_model_path)
+            print(f"[train_hdc] 256 KB binary model saved: {saved_bytes/1024:.1f} KB → {binary_model_path}")
+        except Exception as e:
+            print(f"[train_hdc] Warning: could not save binary model: {e}")
+    # === END SAVE BINARY MODEL ===
+
     dist_ctx.cleanup()
     
     return final_bpb, final_val_loss, elapsed
@@ -7574,13 +7886,15 @@ def train_hdc_batch_projection(config: HDCConfig) -> Tuple[float, float, float]:
     print(f"[BatchProjection] Target accuracy: {config.target_accuracy*100:.1f}%")
     print(f"[BatchProjection] Max iterations: {config.max_batch_iterations}")
     
-    bundled_vec, position_hashes, final_accuracy = iterative_batch_learn(
-        tokens=tokens,
+    dataset_seed_str = dataset_seed
+    final_accuracy, total_corrections = iterative_batch_learn(
+        dataset_tokens=tokens.tolist(),
+        seed=dataset_seed_str,
         model=model,
-        seed_hash=seed_hash,
-        target_accuracy=config.target_accuracy,
         max_iterations=config.max_batch_iterations,
-        dim=config.hdc_dim
+        target_accuracy=config.target_accuracy,
+        dim=config.hdc_dim,
+        verbose=True
     )
     
     elapsed = time.time() - start_time
@@ -7593,9 +7907,10 @@ def train_hdc_batch_projection(config: HDCConfig) -> Tuple[float, float, float]:
     correct = 0
     total = 0
     
-    for i in range(0, len(val_tokens) - config.max_context_length - 1, config.max_context_length):
-        context = val_tokens[i:i + config.max_context_length].tolist()
-        target = val_tokens[i + config.max_context_length]
+    val_tokens_flat = val_tokens.flatten()
+    for i in range(0, len(val_tokens_flat) - config.max_context_length - 1, config.max_context_length):
+        context = val_tokens_flat[i:i + config.max_context_length].tolist()
+        target = val_tokens_flat[i + config.max_context_length]
         
         # Predict using model
         probs = model.predict_next_token_probabilities(context)
@@ -7624,7 +7939,7 @@ def train_hdc_batch_projection(config: HDCConfig) -> Tuple[float, float, float]:
     print(f"[BatchProjection] Final train accuracy: {final_accuracy*100:.2f}%")
     print(f"[BatchProjection] Validation accuracy: {val_accuracy*100:.2f}%")
     print(f"[BatchProjection] Validation BPB: {val_bpb:.4f}")
-    print(f"[BatchProjection] Recipes stored: {len(model.meta_residual_storage._recipes)}")
+    print(f"[BatchProjection] Recipes stored: {len(model.meta_residual_storage._by_state_hash)}")
     print(f"[BatchProjection] Total time: {elapsed:.2f}s")
     # RecipeReconstructor statistics
     recon_stats = model.recipe_reconstructor.get_cache_stats()
@@ -7849,6 +8164,67 @@ def train_hdc_instant_projection(config: HDCConfig) -> Tuple[float, float, float
     semantic_time = time.time() - semantic_start
     print(f"[InstantProjection] Semantic layer initialized in {semantic_time:.3f}s")
     
+    # === SLEEP INTEGRATION ===
+    # Check if sleep is needed based on semantic landscape health
+    sleep_scheduler = SleepScheduler(dim=config.hdc_dim)
+    
+    # Get the semantic vector and trajectory for sleep evaluation
+    if model.dual_projection is not None and coverage_report is not None:
+        semantic_vec = model.dual_projection.semantic_vec
+        # CreativeCoherenceManager tracks trajectory via _current_trajectory
+        ccm = model.creative_coherence_manager
+        trajectory = ccm._current_trajectory if (ccm is not None and hasattr(ccm, '_current_trajectory')) else None
+        
+        # Check if sleep is needed
+        sleep_decision = sleep_scheduler.should_sleep(
+            semantic_vec=semantic_vec,
+            trajectory=trajectory,
+            coverage_report=coverage_report
+        )
+        
+        if sleep_decision.should_sleep:
+            print(f"\n[InstantProjection] === SLEEP TRIGGERED ===")
+            print(f"[InstantProjection] Reason: noise_ratio={sleep_decision.noise_ratio:.3f}, "
+                  f"tension={sleep_decision.tension:.3f}, dead_zones={sleep_decision.dead_zone_ratio:.3f}")
+            print(f"[InstantProjection] Recommended depth: {sleep_decision.recommended_depth.value}")
+            print(f"[InstantProjection] Urgency: {sleep_decision.urgency:.3f}")
+            
+            # Execute sleep cycle
+            sleep_trace = sleep_scheduler.execute_sleep(
+                semantic_vec=semantic_vec,
+                syntactic_vec=model.dual_projection.syntactic_vec if model.dual_projection else None,
+                trajectory=trajectory,
+                depth=sleep_decision.recommended_depth,
+                coverage_report=coverage_report
+            )
+            
+            print(f"[InstantProjection] Sleep complete: {sleep_trace.to_summary()}")
+            
+            # Store crystallized recipes from REM phase
+            if sleep_trace.relationships_crystallized > 0:
+                print(f"[InstantProjection] Crystallized {sleep_trace.relationships_crystallized} high-confidence relationships")
+                for recipe in sleep_scheduler.get_crystallized_recipes()[:5]:  # Show first 5
+                    print(f"[InstantProjection]   - Window {recipe.rel_window}: {recipe.rel_type} "
+                          f"(confidence={recipe.confidence:.3f}, direction={recipe.direction})")
+        else:
+            print(f"[InstantProjection] Semantic landscape healthy - no sleep needed")
+    
+    # === END SLEEP INTEGRATION ===
+
+    # === SAVE 256 KB BINARY MODEL ===
+    # Persist semantic_vec + syntactic_vec + collision table so the trained
+    # model can be reloaded after the training run ends (Gap 1 requirement).
+    binary_model_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        f"hdc_model_seed{config.seed}.bin"
+    )
+    try:
+        saved_bytes = model.save_binary_model(binary_model_path)
+        print(f"[InstantProjection] 256 KB binary model saved: {saved_bytes/1024:.1f} KB → {binary_model_path}")
+    except Exception as e:
+        print(f"[InstantProjection] Warning: could not save binary model: {e}")
+    # === END SAVE BINARY MODEL ===
+
     # Final evaluation on validation set using O(1) reverse lookup
     # This is the fastest inference: O(N) with no vocab_size factor!
     print(f"\n[InstantProjection] Running O(1) reverse-lookup evaluation...")
