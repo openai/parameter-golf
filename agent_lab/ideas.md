@@ -63,6 +63,7 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - Related tranche: [`T-20260329-B`](./tranches.md#t-20260329-b---architecture-necessity-audit)
 - Evidence so far:
 - [`AL-20260329-007`](./experiments.tsv) says pure width at fixed depth is not promising in this naive form; it was slower, worse, and oversize
+- [`AL-20260329-009`](./experiments.tsv) says width becomes more plausible when paired with one fewer layer, but it still trails the anchor and misses the size cap slightly
 
 ### I-20260329-010 - The Current MLP May Already Be Too Wide
 

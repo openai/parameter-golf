@@ -27,16 +27,16 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - At fixed `10`-layer depth, shrinking the MLP to `MLP_MULT=1` bought steps and artifact headroom, but not enough quality to beat the `MLP_MULT=2` anchor.
 - At fixed `10`-layer depth, widening to `MLP_MULT=3` was clearly bad: fewer steps, worse `val_bpb`, and a 17.43 MB artifact that breaks the cap.
 - Reallocating width into one extra layer via `11L / MLP1` did not rescue the idea; it stayed within size and got good step count, but still lost on quality.
+- The first promising width branch is `9L / MLP3`: it improved a lot over `10L / MLP3`, but it still trails the anchor and is slightly too large at 16.18 MB.
 
 ## Open Questions
 
 - Is the tiny `131072` edge over `196608` real or just noise?
 - Can we preserve the `10`-layer gain while reclaiming artifact headroom?
-- Is the current model under-layered, over-layered, or misallocating too much capacity to the MLP?
+- Can the `9L / MLP3` near-miss turn into a win if we recover more steps, or is width still fundamentally behind depth here?
 
 ## Next Planned Runs
 
-- `B1-E4`: test `9L / MLP3 / 196608 / kv2` to trade one layer for more width.
 - `B1-E5`: test `9L / MLP3 / 131072 / kv2` to ask whether width also needs step recovery.
 
 ## Go Deeper
