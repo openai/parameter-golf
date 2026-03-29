@@ -52,9 +52,12 @@ export ADAM_WD=0.04
 export GRAD_CLIP_NORM=0.3
 
 # --- Weight averaging & quantization ---
+# EARLY QAT: threshold 0.25 + NO FEEDBACK MODULE
+# Feedback was never used at eval/TTT time (bug), so removing it from training
+# means the model learns to be stable without corrections it won't have at eval
 export SWA_ENABLED=1
 export SWA_EVERY=50
-export LATE_QAT_THRESHOLD=0.15
+export LATE_QAT_THRESHOLD=0.25
 
 # --- TTT (matches SOTA, freeze_blocks=0) ---
 export TTT_ENABLED=1
@@ -78,47 +81,13 @@ export PASSES_SCHEDULE="0:1,4500:2,5500:3,6000:4"
 # --- W&B ---
 export WANDB_PROJECT="parameter-golf"
 
-echo "================================================================"
-echo "Submission run: 2-pass train / 4-pass eval, 3 seeds"
-echo "================================================================"
+export SEED=1337
+export WANDB_NAME="nofeedback_earlyqat"
+export RUN_ID="nofeedback_earlyqat"
 
-for SEED in 1337 42 2025; do
-    export SEED
-    export WANDB_NAME="recurrent_2p4e_seed${SEED}"
-    LOG="${SCRIPT_DIR}/train_seed${SEED}.log"
-
-    echo ""
-    echo "=== SEED=${SEED} started $(date) ==="
-
-    torchrun --standalone --nproc_per_node=8 train_gpt_recurrent.py \
-        --feedback-mode diagonal --feedback-rank 2 \
-        --residual-scale-init 0.5 \
-        --jacobian-proxy-weight 0.1 \
-        --no-interpass-rmsnorm \
-        2>&1 | tee "$LOG"
-
-    EXIT=${PIPESTATUS[0]}
-    echo ""
-    if [ $EXIT -ne 0 ]; then
-        echo "SEED=${SEED} FAILED (exit=$EXIT)"
-        tail -30 "$LOG"
-    else
-        echo "=== SEED=${SEED} RESULTS ==="
-        grep 'stopping_early\|peak memory' "$LOG" || true
-        grep 'Total submission size' "$LOG" || true
-        grep 'final_int6_sliding_window_exact' "$LOG" || true
-        grep 'legal_ttt_exact' "$LOG" || true
-    fi
-    echo "=== SEED=${SEED} finished $(date) ==="
-done
-
-echo ""
-echo "================================================================"
-echo "All seeds complete. Results summary:"
-echo "================================================================"
-for SEED in 1337 42 2025; do
-    LOG="${SCRIPT_DIR}/train_seed${SEED}.log"
-    echo "--- Seed ${SEED} ---"
-    grep 'legal_ttt_exact' "$LOG" 2>/dev/null || echo "  (no TTT result found)"
-    grep 'Total submission size' "$LOG" 2>/dev/null || echo "  (no size found)"
-done
+torchrun --standalone --nproc_per_node=8 train_gpt_recurrent.py \
+    --feedback-mode none \
+    --residual-scale-init 0.5 \
+    --jacobian-proxy-weight 0.1 \
+    --no-interpass-rmsnorm \
+    2>&1 | tee logs/nofeedback_earlyqat.txt

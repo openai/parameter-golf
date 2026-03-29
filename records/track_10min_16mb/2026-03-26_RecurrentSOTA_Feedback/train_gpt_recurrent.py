@@ -2037,6 +2037,10 @@ def main() -> None:
             f.write(quant_blob)
         quant_file_bytes = len(quant_blob)
         code_bytes = len(code.encode("utf-8"))
+        for extra in ["feedback.py", "stability.py"]:
+            p = Path(__file__).parent / extra
+            if p.exists():
+                code_bytes += p.stat().st_size
         log0(f"Serialized model int6+lzma: {quant_file_bytes} bytes")
         log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
     if distributed:

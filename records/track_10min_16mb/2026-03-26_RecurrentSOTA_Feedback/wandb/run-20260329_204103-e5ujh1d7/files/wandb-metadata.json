@@ -1,0 +1,51 @@
+{
+  "os": "Linux-6.11.0-1016-nvidia-x86_64-with-glibc2.39",
+  "python": "CPython 3.12.3",
+  "startedAt": "2026-03-29T20:41:03.814826Z",
+  "args": [
+    "--feedback-mode",
+    "diagonal",
+    "--feedback-rank",
+    "2",
+    "--residual-scale-init",
+    "0.5",
+    "--jacobian-proxy-weight",
+    "0.1",
+    "--no-interpass-rmsnorm"
+  ],
+  "program": "/home/nesta/parameter-golf/records/track_10min_16mb/2026-03-26_RecurrentSOTA_Feedback/train_gpt_recurrent.py",
+  "codePath": "records/track_10min_16mb/2026-03-26_RecurrentSOTA_Feedback/train_gpt_recurrent.py",
+  "codePathLocal": "train_gpt_recurrent.py",
+  "git": {
+    "remote": "https://github.com/nestamidavaine/parameter-golf.git",
+    "commit": "0375751244eeb7a472968ecab738e82207af1242"
+  },
+  "email": "nesta.midavaine@prosus.com",
+  "root": "/home/nesta/parameter-golf/records/track_10min_16mb/2026-03-26_RecurrentSOTA_Feedback",
+  "host": "computeinstance-e00c09e8zde17qbk32",
+  "executable": "/home/nesta/parameter-golf/.venv/bin/python",
+  "cpu_count": 8,
+  "cpu_count_logical": 16,
+  "gpu": "NVIDIA H200",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "1330227675136",
+      "used": "42672181248"
+    }
+  },
+  "memory": {
+    "total": "211069919232"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA H200",
+      "memoryTotal": "150754820096",
+      "cudaCores": 16896,
+      "architecture": "Hopper",
+      "uuid": "GPU-e312faf2-f704-c38a-00a2-ba4137b99846"
+    }
+  ],
+  "cudaVersion": "13.0",
+  "writerId": "4meixsdgz5im6n6dg04xzn4o4hrbs3lg"
+}
