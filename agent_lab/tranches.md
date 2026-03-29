@@ -267,7 +267,7 @@ Is the new valid winner still step-limited or slightly under-tuned, and can the 
 
 **Anchors**
 
-- primary winner: [`AL-20260329-012`](./experiments.tsv) at `1.3838`, 14.73 MB
+- primary structural winner: [`AL-20260329-012`](./experiments.tsv) at `1.3838`, 14.73 MB
 - fallback survivor: [`AL-20260329-015`](./experiments.tsv) at `1.3906`, 14.42 MB
 
 **Planned experiments**
@@ -279,6 +279,15 @@ Is the new valid winner still step-limited or slightly under-tuned, and can the 
 | `D1-E3` | `9L / MLP2 / batch 98304 / kv2 / MATRIX_LR=0.065` | Interaction test on the winner | Extra steps and slightly higher LR may only work together | Whether the winner still has a two-knob optimization gain available |
 | `D1-E4` | `8L / MLP3 / DIM480 / batch 98304 / kv2` | More steps on the best fallback | The smaller backup may look weak only because it has not fully cashed in its saved compute | Whether the fallback line deserves to stay alive |
 | `D1-E5` | `8L / MLP3 / DIM480 / batch 98304 / kv2 / MATRIX_LR=0.065` | Interaction test on the fallback | The backup line may need both more steps and stronger updates to become interesting | Whether the backup is only one combo away from relevance |
+
+**Results so far**
+
+- [`AL-20260329-016`](./experiments.tsv) (`D1-E1`, `9L / MLP2 / 98304 / kv2`) landed at `1.3721` and 15.48 MB. This is a major frontier jump and strongly confirms that the tranche-C winner was still step-limited.
+
+**Current reading**
+
+- extra steps matter more than we thought on the `9L / MLP2` line
+- the immediate next question is whether a small matrix-LR increase adds anything on top of that, or whether `98304` already captures most of the accessible gain
 
 **Decision rule for D**
 

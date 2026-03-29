@@ -63,6 +63,7 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - Evidence so far:
 - [`AL-20260329-012`](./experiments.tsv) shows one size-recovered width-oriented survivor is already strong enough to deserve direct optimization follow-ups instead of more blind structural cuts
 - [`AL-20260329-015`](./experiments.tsv) keeps a second valid survivor alive, so tranche D can compare “optimize the winner” versus “rescue the backup”
+- [`AL-20260329-016`](./experiments.tsv) shows the main winner was still meaningfully step-limited; extra steps, not architecture changes, were the immediate source of the next large gain
 
 ### I-20260329-004 - Schedule or Optimizer Retune For 10L
 
