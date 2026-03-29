@@ -1,0 +1,10 @@
+{
+  "author": "Tejas Goyal",
+  "github_id": "tejas-goyal",
+  "name": "LeakyReLU² + 11L EMA + GPTQ-lite (10 min / 16 MB)",
+  "blurb": "Single change on 2026-03-22 GPTQ-lite stack: MLP uses LeakyReLU(0.5) then square instead of ReLU then square (no TTT). Replace val_bpb, val_loss, bytes_total after training.",
+  "date": "2026-03-28T00:00:00Z",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "bytes_total": 0
+}
