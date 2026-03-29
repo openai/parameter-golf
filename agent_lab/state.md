@@ -38,10 +38,11 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - Reallocating width into one extra layer via `11L / MLP1` did not rescue the idea; it stayed within size and got good step count, but still lost on quality.
 - The first promising width branch is `9L / MLP3`: it improved a lot over `10L / MLP3`, but it still trails the anchor and is slightly too large at 16.18 MB.
 - Width clearly benefits from step recovery: `9L / MLP3 / 131072` became the best raw scorer at `1.3899`, but the artifact grew even further over the cap.
+- A mild global dim trim to `DIM480` is enough to make the width winner valid on size, but not enough to keep it competitive on score.
 
 ## Open Questions
 
-- Can the `9L / MLP3 / 131072` winner be pulled back under the size cap without losing its score?
+- Can a different structural trim recover size without giving back as much score as `DIM480` did?
 - Is there a cleaner width-oriented shape than `9L / MLP3` that keeps most of the gain without the compression failure?
 - If size-recovered candidates lose a bit of score, can optimization recover it?
 
