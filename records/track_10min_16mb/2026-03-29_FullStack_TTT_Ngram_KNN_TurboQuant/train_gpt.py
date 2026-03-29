@@ -1586,23 +1586,29 @@ class NgramCache:
             for _ in range(max_order)
         ]
 
-    def _hash_contexts(self, token_ids_t, order):
-        """Vectorized context hashing. token_ids_t: (seq_len,) long tensor on device.
-        Returns (seq_len,) long tensor of hash indices for contexts of given order.
-        Positions < order get hash 0 (will have zero counts → filtered by backoff)."""
+    def _hash_all_orders(self, token_ids_t):
+        """Compute hashes for ALL orders at once. Returns (max_order, seq_len) long tensor.
+        Avoids repeated torch.roll calls by building shifted views in one pass."""
         seq_len = token_ids_t.shape[0]
-        if order == 1:
-            # Bigram: context is just the previous token
-            h = token_ids_t % self.hash_size
-            return h
-        # Polynomial rolling hash: h = sum(token[t-order+i] * prime[i]) mod hash_size
-        h = torch.zeros(seq_len, device=self.device, dtype=torch.long)
-        for i in range(order):
-            prime = self.PRIMES[i % len(self.PRIMES)]
-            # Shift: token at position (t - order + i)
-            shifted = torch.roll(token_ids_t, shifts=order - i, dims=0)
-            h = (h + shifted * prime) % self.hash_size
-        return h
+        max_order = self.max_order
+        hs = self.hash_size
+        primes = self.PRIMES
+        # Build shifted versions: shifted[i] = tokens rolled by i+1 positions
+        # shifts[0] = roll(tokens, 1), shifts[1] = roll(tokens, 2), etc.
+        shifts = torch.stack(
+            [torch.roll(token_ids_t, shifts=s + 1, dims=0) for s in range(max_order)]
+        )
+        # shifts shape: (max_order, seq_len)
+        result = torch.zeros(max_order, seq_len, device=self.device, dtype=torch.long)
+        # Order 1 (bigram): just the previous token
+        result[0] = token_ids_t % hs
+        # Orders 2+: polynomial hash using precomputed shifts
+        for order in range(2, max_order + 1):
+            h = torch.zeros(seq_len, device=self.device, dtype=torch.long)
+            for i in range(order):
+                h = (h + shifts[order - 1 - i] * primes[i % len(primes)]) % hs
+            result[order - 1] = h
+        return result
 
     def update(self, tokens):
         """Update count tables. Accepts a GPU tensor or Python list."""
@@ -1613,31 +1619,25 @@ class NgramCache:
         )
         tok_t = tok_t.to(device=self.device, dtype=torch.long)
         n = tok_t.shape[0]
+        if n <= 1:
+            return
+        all_hashes = self._hash_all_orders(tok_t[: n - 1])  # (max_order, n-1)
+        ones_cache = {}  # cache ones tensors by size
         for order in range(1, self.max_order + 1):
             if n <= order:
                 continue
-            # Context hashes for positions order..n-1
-            ctx_hashes = self._hash_contexts(tok_t[: n - 1], order)  # (n-1,)
-            # Target tokens at positions order..n-1
-            targets = tok_t[order:]  # (n-1-order+1,) — wait, need alignment
-            # For position i (0-indexed), context is tokens[i-order:i], target is tokens[i]
-            # ctx_hashes[i] = hash of tokens[i-order:i], but only valid for i >= order
-            valid_hashes = ctx_hashes[order:]  # (n-1-order,)
+            valid_hashes = all_hashes[order - 1, order:]
             valid_targets = tok_t[order:][: valid_hashes.shape[0]]
-            if valid_hashes.shape[0] == 0:
+            k = valid_hashes.shape[0]
+            if k == 0:
                 continue
-            # Scatter-add counts
+            if k not in ones_cache:
+                ones_cache[k] = torch.ones(k, device=self.device)
+            ones = ones_cache[k]
             self.tables[order - 1].index_put_(
-                (valid_hashes, valid_targets),
-                torch.ones(valid_hashes.shape[0], device=self.device),
-                accumulate=True,
+                (valid_hashes, valid_targets), ones, accumulate=True
             )
-            # Track occupancy
-            self.occupied[order - 1].index_put_(
-                (valid_hashes,),
-                torch.ones(valid_hashes.shape[0], device=self.device),
-                accumulate=True,
-            )
+            self.occupied[order - 1].index_put_((valid_hashes,), ones, accumulate=True)
 
     def predict_batch(self, token_ids, device):
         """Fully vectorized prediction. Accepts GPU tensor or Python list.
@@ -1651,14 +1651,13 @@ class NgramCache:
         seq_len = tok_t.shape[0]
         max_order = self.max_order
         vocab = self.vocab_size
-        # Gather count distributions for all orders: (max_order, seq_len, vocab)
+        # Compute all hashes in one pass, then gather
+        all_hashes = self._hash_all_orders(tok_t)  # (max_order, seq_len)
         all_counts = torch.zeros(max_order, seq_len, vocab, device=device)
         all_occupied = torch.zeros(max_order, seq_len, device=device)
         for order in range(1, max_order + 1):
-            hashes = self._hash_contexts(tok_t, order)  # (seq_len,)
-            all_counts[order - 1] = self.tables[order - 1][hashes]  # (seq_len, vocab)
-            all_occupied[order - 1] = self.occupied[order - 1][hashes]  # (seq_len,)
-            # Mask positions where context is too short (position < order)
+            all_counts[order - 1] = self.tables[order - 1][all_hashes[order - 1]]
+            all_occupied[order - 1] = self.occupied[order - 1][all_hashes[order - 1]]
             if order > 1:
                 all_counts[order - 1, :order] = 0
                 all_occupied[order - 1, :order] = 0
