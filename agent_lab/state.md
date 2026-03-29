@@ -22,9 +22,9 @@ This is the first-read dashboard for autonomous research. Read this file for the
 
 ## Active Tranche
 
-- Tranche: [`T-20260329-B`](./tranches.md#t-20260329-b---architecture-necessity-audit)
-- Goal: start the architecture necessity audit, beginning with a focused MLP-width-versus-depth tranche
-- Status: active
+- Tranche: [`T-20260329-C`](./tranches.md#t-20260329-c-width-winner-size-recovery)
+- Goal: recover bytes around the raw width winner and try to turn it into a challenge-valid frontier
+- Status: planned next
 
 ## Working Beliefs
 
@@ -43,12 +43,24 @@ This is the first-read dashboard for autonomous research. Read this file for the
 
 - Can the `9L / MLP3 / 131072` winner be pulled back under the size cap without losing its score?
 - Is there a cleaner width-oriented shape than `9L / MLP3` that keeps most of the gain without the compression failure?
-- Should the next tranche focus on width-aware compression, or on a smaller architectural variant around this same idea?
+- If size-recovered candidates lose a bit of score, can optimization recover it?
 
 ## Next Planned Runs
 
-- Define the follow-up to the completed B1 tranche before running more width experiments.
-- Favor experiments that specifically target the size failure of `AL-20260329-010`, not another blind width sweep.
+- Tranche C asks one question:
+  Can the raw width winner be made valid by trimming bytes intelligently?
+- `C1-E1`: `9L / MLP3 / DIM480 / 131072 / kv2`
+- `C1-E2`: `9L / MLP3 / DIM448 / 131072 / kv2`
+- `C1-E3`: `9L / MLP2 / 512 / 131072 / kv2`
+- `C1-E4`: `8L / MLP3 / 512 / 131072 / kv2`
+- `C1-E5`: `8L / MLP3 / DIM480 / 131072 / kv2`
+- Tranche D asks the follow-up question:
+  If the size-recovered candidates are valid but slightly weaker, can optimization and extra steps recover the loss?
+- `D1-E1`: `9L / MLP3 / DIM480 / 98304 / kv2`
+- `D1-E2`: `9L / MLP3 / DIM480 / 131072 / kv2 / MATRIX_LR=0.065`
+- `D1-E3`: `9L / MLP2 / 512 / 98304 / kv2`
+- `D1-E4`: `8L / MLP3 / 512 / 98304 / kv2`
+- `D1-E5`: `8L / MLP3 / DIM480 / 98304 / kv2`
 
 ## Go Deeper
 

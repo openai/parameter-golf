@@ -183,3 +183,83 @@ With the current `10`-layer line, are we getting more value from extra transform
 - width is not dead, but it only became competitive after both reducing depth and recovering more steps
 - the best valid frontier is still [`AL-20260329-004`](./experiments.tsv) at `1.3913`
 - the most interesting follow-up is no longer “is width good?” but “can the `9L / MLP3` winner be made challenge-valid without losing its score?”
+
+## T-20260329-C: Width Winner Size Recovery
+
+**Status:** planned next
+
+**Goal**  
+Take the raw width winner, [`AL-20260329-010`](./experiments.tsv), and recover enough bytes to become challenge-valid without giving back too much of the score.
+
+**Main question**  
+Can the `9L / MLP3 / 131072 / kv2` branch be pulled under `16 MB`, and which structural cut loses the least performance per byte saved?
+
+**Fixed controls**
+
+- one training shard
+- `600s` training cap
+- primary metric `final_int8_ttt_lora`
+- tokenizer and validation semantics unchanged
+- keep `TRAIN_BATCH_TOKENS=131072` unless the experiment explicitly says otherwise
+- keep `NUM_KV_HEADS=2`
+- keep tied embeddings
+
+**Anchor**
+
+- raw winner: [`AL-20260329-010`](./experiments.tsv) at `1.3899`, but invalid at `17,680,105` bytes
+- best valid comparator: [`AL-20260329-004`](./experiments.tsv) at `1.3913`
+
+**Planned experiments**
+
+| ID | Shape | Goal | Hypothesis | What it teaches |
+|---|---|---|---|---|
+| `C1-E1` | `9L / MLP3 / DIM480 / batch 131072 / kv2` | Small dimension trim | A mild `MODEL_DIM` cut may recover enough bytes while preserving most of the width gain | Whether width can survive a modest global shrink |
+| `C1-E2` | `9L / MLP3 / DIM448 / batch 131072 / kv2` | Stronger dimension trim | A larger `MODEL_DIM` cut may cross under the cap with an acceptable quality hit | How steep the score-vs-dim tradeoff is around the raw winner |
+| `C1-E3` | `9L / MLP2 / DIM512 / batch 131072 / kv2` | One-notch MLP shrink | Most of the width gain may survive with `MLP_MULT=2` once steps stay high | Whether the last MLP notch is the main byte offender |
+| `C1-E4` | `8L / MLP3 / DIM512 / batch 131072 / kv2` | One-layer trim instead of width trim | The 9th layer may be less valuable than the third MLP notch in this regime | Whether depth or width is the cheaper place to save bytes |
+| `C1-E5` | `8L / MLP3 / DIM480 / batch 131072 / kv2` | Two mild trims together | Two small cuts may preserve score better than one aggressive cut | Whether combined light cuts dominate single hard cuts |
+
+**Decision rule for C**
+
+- if `C1-E1` or `C1-E3` is valid and close to `1.3899`, width has a clear path to a challenge-valid frontier
+- if only the more aggressive trims become valid, the next question becomes whether optimization can claw back the lost score
+- if none of the five get close to the raw winner, the width branch may be too byte-hungry in its current form
+
+## T-20260329-D: Slim Winner Optimization Recovery
+
+**Status:** planned after C
+
+**Goal**  
+Take the most promising smaller candidates from tranche C and ask whether optimization or step-recovery can recover the score lost to size-saving cuts.
+
+**Main question**  
+If a slimmer width-oriented model becomes valid but slightly weaker, can learning dynamics recover the difference?
+
+**Fixed controls**
+
+- one training shard
+- `600s` training cap
+- primary metric `final_int8_ttt_lora`
+- tokenizer and validation semantics unchanged
+- focus on the most plausible size-recovered shapes from tranche C
+
+**Why this tranche exists**
+
+- B1 showed that width was partly step-starved
+- a smaller valid width model might still need different training dynamics than the original depth-biased winner
+- score recovery is now likely to come from optimization, not another blind architectural sweep
+
+**Planned experiments**
+
+| ID | Shape | Goal | Hypothesis | What it teaches |
+|---|---|---|---|---|
+| `D1-E1` | `9L / MLP3 / DIM480 / batch 98304 / kv2` | More steps on the mild dim-trim candidate | The `DIM480` candidate may keep its width advantage better with even more updates | Whether the most direct size-recovery shape is still step-starved |
+| `D1-E2` | `9L / MLP3 / DIM480 / batch 131072 / kv2 / MATRIX_LR=0.065` | Higher matrix LR on the mild dim-trim candidate | Smaller valid width models may want slightly more aggressive matrix updates | Whether score loss is mostly optimization mismatch |
+| `D1-E3` | `9L / MLP2 / DIM512 / batch 98304 / kv2` | More steps on the one-notch MLP trim | The slimmer MLP candidate may need extra updates more than extra capacity | Whether the MLP cut can be compensated by step count |
+| `D1-E4` | `8L / MLP3 / DIM512 / batch 98304 / kv2` | More steps on the one-layer trim | The one-layer-trim candidate may recover best if we fully lean into the saved compute | Whether sacrificing depth makes sense only when the saved compute is reused |
+| `D1-E5` | `8L / MLP3 / DIM480 / batch 98304 / kv2` | Recover score on the doubly-trimmed candidate | A two-cut candidate may only become competitive once it fully cashes in the compute savings | Whether a smaller valid width model can punch above its apparent size |
+
+**Decision rule for D**
+
+- if one of the optimized slim candidates beats [`AL-20260329-004`](./experiments.tsv) while staying under the cap, it becomes the new valid frontier
+- if optimization does not recover the slimmer candidates, the next tranche should pivot from width rescue toward compression-aware structural changes outside the width family

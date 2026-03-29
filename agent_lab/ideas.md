@@ -32,8 +32,28 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - Hypothesis: some forms of capacity growth compress materially better than others, so raw parameter count is not the whole story.
 - Why it might work:
 - the current best branch is already close to the 16 MB cap
-- Status: new
-- Related tranche: none yet
+- Status: active
+- Related tranche: [`T-20260329-C`](./tranches.md#t-20260329-c-width-winner-size-recovery)
+- Evidence so far:
+- [`AL-20260329-010`](./experiments.tsv) proved the raw width winner is strong, but too large to submit
+
+### I-20260329-011 - Width Winner Can Be Saved By Mild Byte Cuts
+
+- Category: architecture + compression
+- Hypothesis: the raw winner likely does not need a dramatic redesign; a mild trim such as lower `MODEL_DIM`, one less MLP notch, or one less layer may recover validity while keeping most of the gain.
+- Why it might work:
+- the raw winner is only strong after the width-plus-step interaction clicks, so the safest next move is to shave bytes around that shape instead of abandoning it
+- Status: active
+- Related tranche: [`T-20260329-C`](./tranches.md#t-20260329-c-width-winner-size-recovery)
+
+### I-20260329-012 - Smaller Valid Width Models Need Different Training Dynamics
+
+- Category: optimizer
+- Hypothesis: once width-oriented candidates are made smaller, some of the remaining loss versus the raw winner may be recoverable with more steps or a retuned matrix LR.
+- Why it might work:
+- B1 already showed a strong interaction between architecture and step count
+- Status: active
+- Related tranche: [`T-20260329-D`](./tranches.md#t-20260329-d-slim-winner-optimization-recovery)
 
 ### I-20260329-004 - Schedule or Optimizer Retune For 10L
 
