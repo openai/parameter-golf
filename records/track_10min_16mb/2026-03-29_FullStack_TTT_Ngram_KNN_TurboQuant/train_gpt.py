@@ -109,9 +109,12 @@ class Hyperparameters:
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", "64"))
     ttt_temp = float(os.environ.get("TTT_TEMP", "1.0"))
     enable_ngram = bool(int(os.environ.get("ENABLE_NGRAM", "0")))
-    ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", "7"))
-    ngram_hash_size = int(os.environ.get("NGRAM_HASH_SIZE", str(2**15)))
-    ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.3"))
+    ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", "10"))
+    ngram_num_buckets = int(os.environ.get("NGRAM_NUM_BUCKETS", "4000000"))
+    ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "1"))
+    ngram_alpha_base = float(os.environ.get("NGRAM_ALPHA_BASE", "0.20"))
+    ngram_alpha_range = float(os.environ.get("NGRAM_ALPHA_RANGE", "0.55"))
+    ngram_alpha_center = float(os.environ.get("NGRAM_ALPHA_CENTER", "3.0"))
     knn_max_entries = int(os.environ.get("KNN_MAX_ENTRIES", "50000"))
     enable_knn = bool(int(os.environ.get("ENABLE_KNN", "0")))
     knn_k = int(os.environ.get("KNN_K", "32"))
@@ -1592,132 +1595,150 @@ def eval_val_ttt_lora(
 
 
 class NgramCache:
-    """GPU-tensor n-gram LM with hashed count tables. Zero Python loops in predict_batch.
+    """GPU-tensor n-gram backoff cache with entropy-adaptive mixing.
 
-    For each order 1..max_order, maintains a (hash_size, vocab) count tensor on GPU.
-    Context tuples are hashed to indices via polynomial rolling hash.
-    predict_batch is fully vectorized: hash → gather → backoff → normalize.
+    Architecture from PR #1094: stores separate context-hash and full-hash (context+target)
+    count vectors instead of (hash_size, vocab) tables. VRAM: O(num_buckets) per order,
+    not O(hash_size × vocab). Supports 4M+ buckets in <256MB.
+
+    Score method: returns per-token NLL from mixed (1-alpha)*p_neural + alpha*p_ngram
+    where alpha adapts based on neural model entropy.
     """
 
-    PRIMES = [1, 1000003, 999999937, 999999893, 999999883, 999999877, 999999613]
+    PRIMES = [36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377]
 
-    def __init__(self, vocab_size, max_order=7, hash_size=2**15, device="cuda"):
+    def __init__(
+        self,
+        vocab_size,
+        max_order=10,
+        num_buckets=4_000_000,
+        min_count=1,
+        min_tokens=1024,
+        alpha_base=0.20,
+        alpha_range=0.55,
+        alpha_center=3.0,
+        device="cuda",
+    ):
         self.vocab_size = vocab_size
         self.max_order = max_order
-        self.hash_size = hash_size
+        self.num_buckets = num_buckets
+        self.mask = num_buckets - 1 if (num_buckets & (num_buckets - 1)) == 0 else None
+        self.min_count = min_count
+        self.min_tokens = min_tokens
         self.device = device
-        # Count tables: (hash_size, vocab) per order, fp16 on GPU (halves VRAM)
-        # fp16 supports counts up to 65504 per bucket — sufficient for eval
-        self.tables = [
-            torch.zeros(hash_size, vocab_size, device=device, dtype=torch.float16)
-            for _ in range(max_order)
+        self.tokens_seen = 0
+        self.alpha_base = alpha_base
+        self.alpha_range = alpha_range
+        self.alpha_center = alpha_center
+        # Unigram counts
+        self.uni_counts = torch.zeros(vocab_size, device=device, dtype=torch.float32)
+        self.uni_total = 0.0
+        # Per-order: context counts and full (context+target) counts
+        # Each is a flat (num_buckets,) vector — NOT (hash_size, vocab)
+        self.ctx_counts = [
+            torch.zeros(num_buckets, device=device, dtype=torch.float32)
+            for _ in range(max_order - 1)
         ]
-        # Collision tracking: hash → sum of counts. If >0, slot is occupied.
-        self.occupied = [
-            torch.zeros(hash_size, device=device, dtype=torch.float16)
-            for _ in range(max_order)
+        self.full_counts = [
+            torch.zeros(num_buckets, device=device, dtype=torch.float32)
+            for _ in range(max_order - 1)
         ]
 
-    def _hash_all_orders(self, token_ids_t):
-        """Compute hashes for ALL orders at once. Returns (max_order, seq_len) long tensor.
-        Avoids repeated torch.roll calls by building shifted views in one pass."""
-        seq_len = token_ids_t.shape[0]
-        max_order = self.max_order
-        hs = self.hash_size
-        primes = self.PRIMES
-        # Build shifted versions: shifted[i] = tokens rolled by i+1 positions
-        # shifts[0] = roll(tokens, 1), shifts[1] = roll(tokens, 2), etc.
-        shifts = torch.stack(
-            [torch.roll(token_ids_t, shifts=s + 1, dims=0) for s in range(max_order)]
-        )
-        # shifts shape: (max_order, seq_len)
-        result = torch.zeros(max_order, seq_len, device=self.device, dtype=torch.long)
-        # Order 1 (bigram): just the previous token
-        result[0] = token_ids_t % hs
-        # Orders 2+: polynomial hash using precomputed shifts
-        for order in range(2, max_order + 1):
-            h = torch.zeros(seq_len, device=self.device, dtype=torch.long)
-            for i in range(order):
-                h = (h + shifts[order - 1 - i] * primes[i % len(primes)]) % hs
-            result[order - 1] = h
-        return result
+    def _bucket(self, h):
+        return h & self.mask if self.mask is not None else h.abs() % self.num_buckets
 
     def update(self, tokens):
-        """Update count tables. Accepts a GPU tensor or Python list."""
-        tok_t = (
+        """Accumulate n-gram counts from already-scored tokens. Accepts GPU tensor."""
+        t = (
             tokens
             if isinstance(tokens, torch.Tensor)
             else torch.tensor(tokens, dtype=torch.long, device=self.device)
         )
-        tok_t = tok_t.to(device=self.device, dtype=torch.long)
-        n = tok_t.shape[0]
-        if n <= 1:
-            return
-        all_hashes = self._hash_all_orders(tok_t[: n - 1])  # (max_order, n-1)
-        ones_cache = {}  # cache ones tensors by size
-        for order in range(1, self.max_order + 1):
-            if n <= order:
+        t = t.to(device=self.device, dtype=torch.long)
+        n = t.numel()
+        self.tokens_seen += n
+        ones = torch.ones(n, device=self.device, dtype=torch.float32)
+        self.uni_counts.scatter_add_(0, t, ones)
+        self.uni_total += n
+        for order in range(2, self.max_order + 1):
+            if n < order:
                 continue
-            valid_hashes = all_hashes[order - 1, order:]
-            valid_targets = tok_t[order:][: valid_hashes.shape[0]]
-            k = valid_hashes.shape[0]
-            if k == 0:
-                continue
-            if k not in ones_cache:
-                ones_cache[k] = torch.ones(k, device=self.device, dtype=torch.float16)
-            ones = ones_cache[k]
-            self.tables[order - 1].index_put_(
-                (valid_hashes, valid_targets), ones, accumulate=True
-            )
-            self.occupied[order - 1].index_put_((valid_hashes,), ones, accumulate=True)
+            oi = order - 2
+            nxt = t[order - 1 :]
+            # Context hash: XOR-based polynomial
+            ctx_h = t[0 : n - order + 1] * self.PRIMES[0]
+            for k in range(1, order - 1):
+                ctx_h = ctx_h ^ (
+                    t[k : n - order + 1 + k] * self.PRIMES[k % len(self.PRIMES)]
+                )
+            ctx_key = self._bucket(ctx_h)
+            full_h = ctx_h ^ (nxt * self.PRIMES[(order - 1) % len(self.PRIMES)])
+            full_key = self._bucket(full_h)
+            valid_ones = ones[: n - order + 1]
+            self.ctx_counts[oi].scatter_add_(0, ctx_key, valid_ones)
+            self.full_counts[oi].scatter_add_(0, full_key, valid_ones)
 
-    def predict_batch(self, token_ids, device):
-        """Fully vectorized prediction. Accepts GPU tensor or Python list.
-        Returns (seq_len, vocab) probability tensor on device."""
-        tok_t = (
-            token_ids
-            if isinstance(token_ids, torch.Tensor)
-            else torch.tensor(token_ids, dtype=torch.long, device=device)
+    def score(self, logits, x_batch, y_batch):
+        """Score tokens using neural+n-gram mixture. Returns per-token NLL.
+        logits: (bsz, slen, vocab), x_batch: (bsz, slen), y_batch: (bsz, slen)."""
+        bsz, slen, V = logits.shape
+        log_probs_neural = F.log_softmax(logits.float(), dim=-1)
+        neural_p = log_probs_neural.gather(-1, y_batch.unsqueeze(-1)).squeeze(-1).exp()
+
+        if self.tokens_seen < self.min_tokens:
+            return -neural_p.clamp(min=1e-12).log()
+
+        # Build shifted context stack for n-gram lookups
+        ctx_stack = [x_batch]
+        for k in range(1, self.max_order - 1):
+            shifted = torch.zeros_like(x_batch)
+            if k < slen:
+                shifted[:, k:] = x_batch[:, :-k]
+            ctx_stack.append(shifted)
+
+        # Unigram fallback
+        if self.uni_total > 0:
+            ngram_p = (self.uni_counts[y_batch] + 0.5) / (self.uni_total + 0.5 * V)
+        else:
+            ngram_p = torch.full((bsz, slen), 1.0 / V, device=self.device)
+        ngram_hit = torch.zeros(bsz, slen, device=self.device, dtype=torch.bool)
+
+        # Greedy cascade: highest order first
+        for order in range(self.max_order, 1, -1):
+            oi = order - 2
+            cw = order - 1
+            ctx_h = ctx_stack[min(cw - 1, len(ctx_stack) - 1)] * self.PRIMES[0]
+            for k in range(1, min(cw, len(ctx_stack))):
+                ctx_h = ctx_h ^ (
+                    ctx_stack[cw - 1 - k] * self.PRIMES[k % len(self.PRIMES)]
+                )
+            ctx_key = self._bucket(ctx_h)
+            full_h = ctx_h ^ (y_batch * self.PRIMES[(order - 1) % len(self.PRIMES)])
+            full_key = self._bucket(full_h)
+            ctx_c = self.ctx_counts[oi][ctx_key]
+            full_c = self.full_counts[oi][full_key]
+            valid = (ctx_c >= self.min_count) & (~ngram_hit)
+            min_pos = order - 2
+            if min_pos > 0:
+                valid[:, :min_pos] = False
+            p = torch.where(
+                valid,
+                full_c.clamp(max=ctx_c) / ctx_c.clamp(min=1),
+                torch.zeros_like(ctx_c),
+            )
+            ngram_p = torch.where(valid, p.clamp(0, 1), ngram_p)
+            ngram_hit = ngram_hit | valid
+
+        # Entropy-adaptive alpha
+        probs_neural = log_probs_neural.exp()
+        entropy = -(probs_neural * log_probs_neural).sum(dim=-1)
+        alpha = self.alpha_base + self.alpha_range * torch.sigmoid(
+            2.0 * (entropy - self.alpha_center)
         )
-        tok_t = tok_t.to(device=device, dtype=torch.long)
-        seq_len = tok_t.shape[0]
-        max_order = self.max_order
-        vocab = self.vocab_size
-        # Compute all hashes in one pass, then gather
-        all_hashes = self._hash_all_orders(tok_t)  # (max_order, seq_len)
-        all_counts = torch.zeros(
-            max_order, seq_len, vocab, device=device, dtype=torch.float16
-        )
-        all_occupied = torch.zeros(
-            max_order, seq_len, device=device, dtype=torch.float16
-        )
-        for order in range(1, max_order + 1):
-            all_counts[order - 1] = self.tables[order - 1][all_hashes[order - 1]]
-            all_occupied[order - 1] = self.occupied[order - 1][all_hashes[order - 1]]
-            if order > 1:
-                all_counts[order - 1, :order] = 0
-                all_occupied[order - 1, :order] = 0
-        # Backoff: for each position, pick highest order with nonzero counts
-        # has_counts: (max_order, seq_len) bool
-        has_counts = all_occupied > 0
-        # Find highest matching order per position (argmax on reversed has_counts)
-        # Trick: create priority tensor where higher order = higher value
-        priority = has_counts.float() * torch.arange(
-            max_order, 0, -1, device=device
-        ).unsqueeze(1)
-        best_order_idx = priority.argmax(dim=0)  # (seq_len,) — index into max_order dim
-        any_match = has_counts.any(dim=0)  # (seq_len,)
-        # Gather the best order's counts: (seq_len, vocab)
-        best_counts = all_counts.gather(
-            0, best_order_idx.unsqueeze(0).unsqueeze(2).expand(1, seq_len, vocab)
-        ).squeeze(0)
-        # Normalize to probabilities (upcast to fp32 for precision)
-        best_counts = best_counts.float()
-        row_sums = best_counts.sum(dim=-1, keepdim=True).clamp(min=1e-10)
-        probs = best_counts / row_sums
-        # Zero out positions with no match
-        probs[~any_match] = 0
-        return probs
+
+        # Full-vocabulary mixture
+        mixed_p = (1.0 - alpha) * neural_p + alpha * ngram_p
+        return -mixed_p.clamp(min=1e-12).log()
 
 
 class KnnLM:
@@ -2464,8 +2485,12 @@ def main() -> None:
             ngram = (
                 NgramCache(
                     args.vocab_size,
-                    args.ngram_max_order,
-                    hash_size=args.ngram_hash_size,
+                    max_order=args.ngram_max_order,
+                    num_buckets=args.ngram_num_buckets,
+                    min_count=args.ngram_min_count,
+                    alpha_base=args.ngram_alpha_base,
+                    alpha_range=args.ngram_alpha_range,
+                    alpha_center=args.ngram_alpha_center,
                     device=device,
                 )
                 if args.enable_ngram
@@ -2479,87 +2504,67 @@ def main() -> None:
             aug_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
             aug_byte_sum = torch.zeros((), device=device, dtype=torch.float64)
             aug_token_count = torch.zeros((), device=device, dtype=torch.float64)
-            total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
-            seq_start = (total_seqs * rank) // world_size
-            seq_end = (total_seqs * (rank + 1)) // world_size
-            # Batch size for model forward — fill GPU properly
-            local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
-            batch_seqs = max(local_batch_tokens // args.train_seq_len, 1)
-            n_batches = (seq_end - seq_start + batch_seqs - 1) // batch_seqs
+            # Sequential causal chunk eval — process ALL tokens in order
+            # All ranks do identical work (no sharding) for maximum n-gram statistics
+            total_tokens = val_tokens.numel() - 1
+            chunk_size = args.train_seq_len
+            chunk_starts = list(range(0, total_tokens, chunk_size))
             with torch.no_grad():
-                for batch_idx in tqdm(
-                    range(n_batches), desc="ngram+knn eval", disable=(rank != 0)
+                for ci in tqdm(
+                    range(len(chunk_starts)), desc="ngram+knn eval", disable=(rank != 0)
                 ):
-                    b_start = seq_start + batch_idx * batch_seqs
-                    b_end = min(b_start + batch_seqs, seq_end)
-                    bsz = b_end - b_start
-                    raw_start = b_start * args.train_seq_len
-                    raw_end = b_end * args.train_seq_len + 1
-                    local_batch = val_tokens[raw_start:raw_end].to(
-                        device=device, dtype=torch.int64
-                    )
-                    # Reshape into (bsz, seq_len+1) — need +1 for target offset
-                    # Each sequence is contiguous in val_tokens
-                    x_batch = torch.zeros(
-                        bsz, args.train_seq_len, dtype=torch.int64, device=device
-                    )
-                    y_batch = torch.zeros(
-                        bsz, args.train_seq_len, dtype=torch.int64, device=device
-                    )
-                    for s in range(bsz):
-                        off = s * args.train_seq_len
-                        x_batch[s] = local_batch[off : off + args.train_seq_len]
-                        y_batch[s] = local_batch[off + 1 : off + 1 + args.train_seq_len]
-                    # Batched model forward — (bsz, seq_len, vocab)
+                    cs = chunk_starts[ci]
+                    ce = min(cs + chunk_size, total_tokens)
+                    clen = ce - cs
+                    if clen < 1:
+                        continue
+                    chunk = val_tokens[cs : ce + 1].to(dtype=torch.int64, device=device)
+                    x = chunk[:-1].unsqueeze(0)
+                    y = chunk[1:].unsqueeze(0)
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        logits_batch = base_model(x_batch, y_batch, return_logits=True)
-                    all_model_probs = F.softmax(logits_batch.float(), dim=-1)
-                    # Per-sequence: apply n-gram/kNN interpolation and update caches
-                    for s in range(bsz):
-                        model_probs = all_model_probs[s]  # (seq_len, vocab)
-                        targets = y_batch[s]
-                        prevs = x_batch[s]
-                        final_probs = model_probs
-                        if ngram is not None:
-                            ng_probs = ngram.predict_batch(x_batch[s], device)
-                            has_ngram = ng_probs.sum(dim=-1, keepdim=True) > 0
-                            alpha = args.ngram_alpha
-                            final_probs = torch.where(
-                                has_ngram,
-                                (1 - alpha) * final_probs + alpha * ng_probs,
-                                final_probs,
-                            )
-                        if knn is not None and knn.n > 0:
-                            knn_probs = knn.predict_batch(
-                                logits_batch[s].float(), args.vocab_size, device
-                            )
-                            has_knn = knn_probs.sum(dim=-1, keepdim=True) > 0
-                            lam = args.knn_lambda
-                            final_probs = torch.where(
-                                has_knn,
-                                (1 - lam) * final_probs + lam * knn_probs,
-                                final_probs,
-                            )
-                        final_probs = final_probs.clamp(min=1e-10)
-                        final_probs = final_probs / final_probs.sum(
-                            dim=-1, keepdim=True
+                        logits = base_model(x, y, return_logits=True)
+                    # N-gram scoring (handles mixing internally)
+                    if ngram is not None:
+                        nll = ngram.score(logits, x, y).squeeze(0)  # (clen,)
+                    else:
+                        nll = F.cross_entropy(
+                            logits.float().reshape(-1, logits.size(-1)),
+                            y.reshape(-1),
+                            reduction="none",
                         )
-                        token_losses = -torch.log(
-                            final_probs.gather(1, targets.unsqueeze(1)).squeeze(1)
+                    # kNN interpolation on top
+                    if knn is not None and knn.n > 0:
+                        knn_probs = knn.predict_batch(
+                            logits[0].float(), args.vocab_size, device
                         )
-                        tok_bytes = base_bytes_lut[targets].to(torch.float64)
-                        tok_bytes += (
-                            has_leading_space_lut[targets]
-                            & ~is_boundary_token_lut[prevs]
-                        ).to(torch.float64)
-                        aug_loss_sum += token_losses.to(torch.float64).sum()
-                        aug_byte_sum += tok_bytes.sum()
-                        aug_token_count += args.train_seq_len
-                        # Update caches AFTER scoring (backward-looking)
-                        if ngram is not None:
-                            ngram.update(torch.cat([x_batch[s], targets[-1:]]))
-                        if knn is not None:
-                            knn.add_batch(logits_batch[s].float(), targets, device)
+                        has_knn = knn_probs.sum(dim=-1, keepdim=True) > 0
+                        lam = args.knn_lambda
+                        # Convert NLL back to prob, mix, reconvert
+                        p = (-nll).exp().unsqueeze(-1)
+                        # Approximate: adjust NLL by kNN contribution
+                        target_knn_p = knn_probs.gather(
+                            1, y.squeeze(0).unsqueeze(1)
+                        ).squeeze(1)
+                        mixed_p = torch.where(
+                            has_knn.squeeze(-1),
+                            (1 - lam) * p.squeeze(-1) + lam * target_knn_p,
+                            p.squeeze(-1),
+                        )
+                        nll = -mixed_p.clamp(min=1e-12).log()
+                    aug_loss_sum += nll.to(torch.float64).sum()
+                    aug_token_count += clen
+                    tgt = y.squeeze(0)
+                    prev = x.squeeze(0)
+                    tb = base_bytes_lut[tgt].to(torch.float64)
+                    tb += (
+                        has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]
+                    ).to(torch.float64)
+                    aug_byte_sum += tb.sum()
+                    # AFTER scoring: update caches (backward-looking)
+                    if ngram is not None:
+                        ngram.update(chunk)
+                    if knn is not None:
+                        knn.add_batch(logits[0].float(), tgt, device)
             if dist.is_available() and dist.is_initialized():
                 dist.all_reduce(aug_loss_sum, op=dist.ReduceOp.SUM)
                 dist.all_reduce(aug_byte_sum, op=dist.ReduceOp.SUM)
