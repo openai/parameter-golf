@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "generated_from": [
+    "README.md",
+    "records/track_10min_16mb",
+    "records/track_non_record_16mb"
+  ],
+  "purpose": "Curated warm-start registry for evaluator-driven search and future EvoX population seeding.",
+  "initial_population_default": [
+    "mixed_quant_sliding_window",
+    "ema_gptq_lite_qat",
+    "partial_rope_xsa_ema",
+    "legal_ttt_parallel_muon",
+    "ternary_unet_fp8",
+    "sliding_window_eval_only"
+  ],
+  "records": [
+    {
+      "record_id": "mixed_quant_sliding_window",
+      "track": "track_10min_16mb",
+      "rank_hint": "top_record_lineage",
+      "name": "Mixed Quant + Sliding Window Eval",
+      "author": "aquariouseworkman",
+      "date": "2026-03-19",
+      "val_bpb": 1.1630,
+      "candidate_family": "mixed_export",
+      "key_mechanisms": [
+        "int6 block weights",
+        "int8 embeddings",
+        "3x mlp",
+        "qat/ste-protected block weights",
+        "sliding window eval stride 64"
+      ],
+      "likely_layers": [
+        "compression",
+        "evaluation_time_adaptation",
+        "runtime"
+      ],
+      "risk": "low",
+      "legal_eval_notes": "No TTT. Sliding window evaluation only.",
+      "warm_start_role": "conservative_quant_eval_seed",
+      "runnable_path": "records/track_10min_16mb/2026-03-19_MixedQuant_Int6Int8_SlidingWindow",
+      "train_script": "records/track_10min_16mb/2026-03-19_MixedQuant_Int6Int8_SlidingWindow/train_gpt.py",
+      "readme": "records/track_10min_16mb/2026-03-19_MixedQuant_Int6Int8_SlidingWindow/README.md"
+    },
+    {
+      "record_id": "ema_gptq_lite_qat",
+      "track": "track_10min_16mb",
+      "rank_hint": "sota_near_frontier",
+      "name": "11L EMA + GPTQ-lite + warmdown3500",
+      "author": "signalrush",
+      "date": "2026-03-22",
+      "val_bpb": 1.1233,
+      "candidate_family": "export_schedule",
+      "key_mechanisms": [
+        "gptq-lite clip search",
+        "ema every step",
+        "warmdown 3500",
+        "late qat threshold 0.15",
+        "zstd-compressed int6/int8 export"
+      ],
+      "likely_layers": [
+        "compression",
+        "runtime",
+        "byte_allocation"
+      ],
+      "risk": "low",
+      "legal_eval_notes": "No TTT. Standard record-compliant eval.",
+      "warm_start_role": "export_policy_seed",
+      "runnable_path": "records/track_10min_16mb/2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233",
+      "train_script": "records/track_10min_16mb/2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233/train_gpt.py",
+      "readme": "records/track_10min_16mb/2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233/README.md"
+    },
+    {
+      "record_id": "partial_rope_xsa_ema",
+      "track": "track_10min_16mb",
+      "rank_hint": "sota_near_frontier",
+      "name": "11L Partial RoPE + LN Scale + EMA + XSA4",
+      "author": "jfprincz",
+      "date": "2026-03-21",
+      "val_bpb": 1.1248,
+      "candidate_family": "architecture_runtime",
+      "key_mechanisms": [
+        "partial rope 16/64",
+        "layerwise ln scale",
+        "xsa on last 4 layers",
+        "ema",
+        "mixed int6/int8 export"
+      ],
+      "likely_layers": [
+        "model_capability",
+        "runtime",
+        "compression"
+      ],
+      "risk": "medium",
+      "legal_eval_notes": "No TTT. Sliding eval only.",
+      "warm_start_role": "architecture_seed",
+      "runnable_path": "records/track_10min_16mb/2026-03-21_11L_XSA4_EMA_PartialRoPE_LateQAT_1.1248",
+      "train_script": "records/track_10min_16mb/2026-03-21_11L_XSA4_EMA_PartialRoPE_LateQAT_1.1248/train_gpt.py",
+      "readme": "records/track_10min_16mb/2026-03-21_11L_XSA4_EMA_PartialRoPE_LateQAT_1.1248/README.md"
+    },
+    {
+      "record_id": "legal_ttt_parallel_muon",
+      "track": "track_10min_16mb",
+      "rank_hint": "current_best_record",
+      "name": "LeakyReLU² + Legal Score-First TTT + Parallel Muon",
+      "author": "abaybektursun",
+      "date": "2026-03-23",
+      "val_bpb": 1.1194,
+      "candidate_family": "legal_ttt",
+      "key_mechanisms": [
+        "score-first legal ttt",
+        "chunked backward-looking adaptation",
+        "leakyrelu squared mlp",
+        "parallel muon",
+        "ema and swa on pr414 stack"
+      ],
+      "likely_layers": [
+        "evaluation_time_adaptation",
+        "model_capability",
+        "runtime"
+      ],
+      "risk": "high",
+      "legal_eval_notes": "Legal only if score-first chunk protocol is preserved exactly.",
+      "warm_start_role": "high_upside_eval_seed",
+      "runnable_path": "records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon",
+      "train_script": "records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/train_gpt.py",
+      "readme": "records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/README.md"
+    },
+    {
+      "record_id": "ternary_unet_fp8",
+      "track": "track_10min_16mb",
+      "rank_hint": "compression_frontier_record",
+      "name": "Ternary Quantization",
+      "author": "Ciprian-Florin Ifrim",
+      "date": "2026-03-24",
+      "val_bpb": 1.1570,
+      "candidate_family": "extreme_lowbit_architecture",
+      "key_mechanisms": [
+        "ternary bitnet b1.58",
+        "10 layer 768d unet",
+        "8192 bpe",
+        "factored tied embedding",
+        "fp8 qat",
+        "base-3 plus lzma compression",
+        "stride-16 sliding eval"
+      ],
+      "likely_layers": [
+        "model_capability",
+        "compression",
+        "byte_allocation"
+      ],
+      "risk": "high",
+      "legal_eval_notes": "No TTT. Standard legal eval with sliding windows.",
+      "warm_start_role": "compression_frontier_seed",
+      "runnable_path": "records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon",
+      "train_script": "records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/train_gpt_cuda_ternary.py",
+      "readme": "records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/README.md"
+    },
+    {
+      "record_id": "sliding_window_eval_only",
+      "track": "track_10min_16mb",
+      "rank_hint": "pure_eval_lineage",
+      "name": "Sliding Window Eval",
+      "author": "Matthew Li",
+      "date": "2026-03-19",
+      "val_bpb": 1.1925,
+      "candidate_family": "eval_sliding_window",
+      "key_mechanisms": [
+        "sliding window eval stride 64",
+        "baseline training unchanged",
+        "eval-only gain"
+      ],
+      "likely_layers": [
+        "evaluation_time_adaptation"
+      ],
+      "risk": "low",
+      "legal_eval_notes": "No TTT. Pure evaluation protocol change.",
+      "warm_start_role": "pure_eval_seed",
+      "runnable_path": "records/track_10min_16mb/2026-03-19_SlidingWindowEval",
+      "train_script": "records/track_10min_16mb/2026-03-19_SlidingWindowEval/train_gpt.py",
+      "readme": "records/track_10min_16mb/2026-03-19_SlidingWindowEval/README.md"
+    },
+    {
+      "record_id": "binary_unet_nonrecord",
+      "track": "track_non_record_16mb",
+      "rank_hint": "nonrecord_frontier",
+      "name": "1 Bit Quantization",
+      "author": "Ciprian-Florin Ifrim",
+      "date": "2026-03-24",
+      "val_bpb": 1.1239,
+      "candidate_family": "nonrecord_extreme_lowbit_architecture",
+      "key_mechanisms": [
+        "binary quantization",
+        "15 layer 768d asymmetric unet",
+        "smeargate",
+        "factored tied embedding",
+        "fp8 qat",
+        "bit-packing and lzma",
+        "stride-16 sliding eval"
+      ],
+      "likely_layers": [
+        "model_capability",
+        "compression",
+        "byte_allocation"
+      ],
+      "risk": "high",
+      "legal_eval_notes": "Eval is legal, but train runtime is non-record and should not seed record-only searches without a budget filter.",
+      "warm_start_role": "nonrecord_frontier_seed",
+      "runnable_path": "records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear",
+      "train_script": "records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/train_gpt_cuda_binary.py",
+      "readme": "records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/README.md"
+    }
+  ]
+}

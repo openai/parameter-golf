@@ -9,3 +9,12 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+final_model.pt
+final_model.int8.ptz
+skydiscover_runs/
+skydiscover_runtime/
+skydiscover_bootstrap/
+skydiscover_bootstrap_smoke/
+hypothesis-runs/
+verification-runs/
+tmp_codex_*.md

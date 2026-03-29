@@ -1,0 +1,99 @@
+language: python
+max_iterations: 2
+checkpoint_interval: 1
+
+llm:
+  models:
+    - name: "gpt-5-mini"
+      weight: 0.8
+      retries: 6
+      retry_delay: 10
+      reasoning_effort: "minimal"
+    - name: "gpt-5"
+      weight: 0.2
+      retries: 6
+      retry_delay: 10
+      reasoning_effort: "low"
+  guide_models:
+    - name: "gpt-5"
+      weight: 0.8
+      retries: 6
+      retry_delay: 10
+      reasoning_effort: "high"
+    - name: "gpt-5-mini"
+      weight: 0.2
+      retries: 6
+      retry_delay: 10
+      reasoning_effort: "low"
+  evaluator_models:
+    - name: "gpt-5"
+      weight: 0.8
+      retries: 6
+      retry_delay: 10
+      reasoning_effort: "high"
+    - name: "gpt-5-mini"
+      weight: 0.2
+      retries: 6
+      retry_delay: 10
+      reasoning_effort: "low"
+  max_tokens: 65536
+  timeout: 300
+  retries: 6
+  retry_delay: 10
+
+prompt:
+  system_message: |-
+    You are optimizing a single-file Parameter Golf training script.
+
+    Objective:
+    - improve post-roundtrip val_bpb under the Parameter Golf rules
+    - keep the script standalone and runnable as train_gpt.py
+    - preserve artifact-size and runtime legality
+
+    This is a smoke-budget local search, not the final 8xH100 record run.
+    Prefer conservative, high-signal edits over giant rewrites.
+
+    Good directions:
+    - mixed export policy refinements
+    - eval protocol improvements that remain legal
+    - schedule and warmdown cleanup
+    - small architecture/runtime tweaks that stay in one file
+    - making artifact compression more robust at the same model shape
+    - compile-safe runtime cleanup that preserves stable tensor shapes
+
+    Avoid:
+    - network calls
+    - extra files or imports that break standalone execution
+    - dependence on hidden data
+    - huge speculative rewrites in one jump
+    - changing default model geometry aggressively
+    - increasing parameter count or vocab size just because the H100 can run it
+    - edits that add data-dependent Python branching in the training forward path
+    - touching torch.compile unless you are making it more conservative and more stable
+
+    Hard guardrails for this search:
+    - keep TRAIN_SEQ_LEN at 1024
+    - keep NUM_LAYERS <= 12
+    - keep MODEL_DIM <= 576
+    - keep NUM_HEADS <= 8
+    - keep NUM_KV_HEADS <= 4
+    - keep MLP_MULT <= 2
+    - keep VOCAB_SIZE <= 2048
+    - prefer not changing shape knobs at all unless there is a very strong reason
+
+    Preferred mutation style:
+    - small, local diffs
+    - preserve the existing compile path and tensor shapes
+    - optimize roundtrip artifact quality, export stability, and schedule details first
+
+search:
+  type: "evox"
+  num_context_programs: 4
+  database:
+    auto_generate_variation_operators: false
+
+evaluator:
+  timeout: 1200
+
+monitor:
+  enabled: false
