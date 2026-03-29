@@ -802,10 +802,10 @@ class ValueEmbedding(nn.Module):
     def __init__(self, vocab_size: int, ve_dim: int, kv_dim: int):
         super().__init__()
         self.embed = nn.Embedding(vocab_size, ve_dim)
-        nn.init.zeros_(self.embed.weight)
+        nn.init.normal_(self.embed.weight, std=0.1)
         self.proj = nn.Linear(ve_dim, kv_dim, bias=False)
-        nn.init.zeros_(self.proj.weight)
-        self.scale = nn.Parameter(torch.tensor(0.1, dtype=torch.float32))
+        nn.init.normal_(self.proj.weight, std=0.01)
+        self.scale = nn.Parameter(torch.tensor(1.0, dtype=torch.float32))
 
     def forward(self, token_ids: Tensor) -> Tensor:
         return self.proj(self.embed(token_ids.long())) * self.scale.to(dtype=self.proj.weight.dtype)
@@ -852,7 +852,7 @@ class BigramHashEmbedding(nn.Module):
         super().__init__()
         self.hash_size = hash_size
         self.embed = nn.Embedding(hash_size, proj_dim)
-        nn.init.zeros_(self.embed.weight)
+        nn.init.normal_(self.embed.weight, std=0.01)
         self.proj = nn.Linear(proj_dim, model_dim, bias=False)
         nn.init.zeros_(self.proj.weight)
         self.scale = nn.Parameter(torch.tensor(0.05, dtype=torch.float32))
@@ -896,11 +896,7 @@ class GPT(nn.Module):
         self.bigram_hash = BigramHashEmbedding(hash_size=10240, proj_dim=128, model_dim=model_dim)
         self.smear_gate = SmearGate(model_dim)
         self.vocab_bias = nn.Parameter(torch.zeros(vocab_size, dtype=torch.float32))
-        kv_dim = (model_dim // num_heads) * num_kv_heads
-        self.value_embeds = nn.ModuleDict()
-        # Value embeddings on last 2 layers (like top entries: layers num_layers-2, num_layers-1)
-        for li in [num_layers - 2, num_layers - 1]:
-            self.value_embeds[str(li)] = ValueEmbedding(vocab_size, 128, kv_dim)
+        self.value_embeds = nn.ModuleDict()  # reserved for future use
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
