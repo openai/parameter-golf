@@ -8,6 +8,7 @@ predicted patch latents into exact byte probabilities.
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import glob
 import io
@@ -155,12 +156,19 @@ class Hyperparameters:
     ttt_enabled = env_flag("TTT_ENABLED", False)
     ttt_lr = float(os.environ.get("TTT_LR", 5e-4))
     ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 0.0))
+    ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adamw").strip().lower()
+    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_beta1 = float(os.environ.get("TTT_BETA1", 0.9))
     ttt_beta2 = float(os.environ.get("TTT_BETA2", 0.999))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 1))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
     ttt_scope = os.environ.get("TTT_SCOPE", "decoder").strip().lower()
     ttt_grad_clip_norm = float(os.environ.get("TTT_GRAD_CLIP_NORM", 1.0))
+    ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 8))
+    ttt_lora_alpha = float(os.environ.get("TTT_LORA_ALPHA", 16.0))
+    ttt_lora_targets = tuple(
+        x.strip() for x in os.environ.get("TTT_LORA_TARGETS", "q_proj,kv_proj,out_proj,fc,proj,context_proj").split(",") if x.strip()
+    )
 
     use_compile = env_flag("USE_COMPILE", os.name != "nt")
 
@@ -1554,8 +1562,8 @@ class CompressedUTByteModel(nn.Module):
         return self._ce_from_logits(logits, ids)
 
     def forward_ttt(self, ids: Tensor, *, scope: str) -> Tensor:
-        if scope != "decoder":
-            raise ValueError(f"Compressed UT TTT supports only TTT_SCOPE='decoder', got {scope!r}")
+        if scope not in {"decoder", "decoder_lora"}:
+            raise ValueError(f"Compressed UT TTT supports only TTT_SCOPE='decoder' or 'decoder_lora', got {scope!r}")
         return self.forward_ce(ids, backbone_no_grad=True)[0]
 
     def _bootleg_loss(
@@ -2152,8 +2160,8 @@ class CausalJEPA(nn.Module):
         return total, total.detach()
 
     def forward_ttt(self, ids: Tensor, *, scope: str) -> Tensor:
-        if scope != "decoder":
-            raise ValueError(f"Causal JEPA TTT supports only TTT_SCOPE='decoder', got {scope!r}")
+        if scope not in {"decoder", "decoder_lora"}:
+            raise ValueError(f"Causal JEPA TTT supports only TTT_SCOPE='decoder' or 'decoder_lora', got {scope!r}")
         return self.forward_decoder(ids)[0]
 
     def forward_logits(
@@ -2335,6 +2343,72 @@ def select_ttt_named_parameters(model: nn.Module, scope: str) -> list[tuple[str,
     raise ValueError(f"Unsupported TTT_SCOPE={scope!r}")
 
 
+class TTTLoRALinear(nn.Module):
+    def __init__(self, linear: nn.Linear, rank: int, alpha: float):
+        super().__init__()
+        if rank <= 0:
+            raise ValueError(f"TTT LoRA rank must be positive, got {rank}")
+        self.rank = int(rank)
+        self.alpha = float(alpha)
+        self.a = nn.Parameter(torch.empty(self.rank, int(linear.in_features)))
+        self.b = nn.Parameter(torch.zeros(int(linear.out_features), self.rank))
+        nn.init.normal_(self.a, std=0.01)
+
+    def delta_weight(self, dtype: torch.dtype) -> Tensor:
+        scale = self.alpha / self.rank
+        return (self.b @ self.a).to(dtype=dtype) * scale
+
+
+def build_ttt_optimizer(args: Hyperparameters, params: list[nn.Parameter]) -> torch.optim.Optimizer:
+    if args.ttt_optimizer == "adamw":
+        return torch.optim.AdamW(
+            params,
+            lr=args.ttt_lr,
+            betas=(args.ttt_beta1, args.ttt_beta2),
+            eps=args.adam_eps,
+            weight_decay=args.ttt_weight_decay,
+            fused=False,
+        )
+    if args.ttt_optimizer == "sgd":
+        return torch.optim.SGD(
+            params,
+            lr=args.ttt_lr,
+            momentum=args.ttt_momentum,
+            weight_decay=args.ttt_weight_decay,
+            nesterov=args.ttt_momentum > 0,
+        )
+    raise ValueError(f"Unsupported TTT_OPTIMIZER={args.ttt_optimizer!r}")
+
+
+def build_decoder_lora_adapters(args: Hyperparameters, model: nn.Module) -> list[tuple[str, nn.Linear, TTTLoRALinear]]:
+    adapters: list[tuple[str, nn.Linear, TTTLoRALinear]] = []
+    for name, module in model.named_modules():
+        if not name.startswith("decoder.") or not isinstance(module, nn.Linear):
+            continue
+        if args.ttt_lora_targets and not any(name.endswith(suffix) for suffix in args.ttt_lora_targets):
+            continue
+        adapters.append((name, module, TTTLoRALinear(module, args.ttt_lora_rank, args.ttt_lora_alpha)))
+    return adapters
+
+
+@contextlib.contextmanager
+def apply_ttt_lora(adapters: list[tuple[str, nn.Linear, TTTLoRALinear]]):
+    originals: list[tuple[nn.Linear, object]] = []
+    try:
+        for _name, module, adapter in adapters:
+            originals.append((module, module.forward))
+
+            def patched_forward(x: Tensor, *, _module: nn.Linear = module, _adapter: TTTLoRALinear = adapter) -> Tensor:
+                weight = _module.weight + _adapter.delta_weight(_module.weight.dtype)
+                return F.linear(x, weight, _module.bias)
+
+            module.forward = patched_forward  # type: ignore[assignment]
+        yield
+    finally:
+        for module, forward in originals:
+            module.forward = forward  # type: ignore[assignment]
+
+
 def eval_val_ttt_score_first(
     args: Hyperparameters,
     model: nn.Module,
@@ -2343,21 +2417,29 @@ def eval_val_ttt_score_first(
     byte_lut: Tensor,
     amp_dtype: torch.dtype,
 ) -> tuple[float, float]:
-    named_ttt_params = select_ttt_named_parameters(model, args.ttt_scope)
-    if not named_ttt_params:
-        raise ValueError(f"No parameters selected for TTT_SCOPE={args.ttt_scope!r}")
+    named_ttt_params: list[tuple[str, nn.Parameter]] = []
+    lora_adapters: list[tuple[str, nn.Linear, TTTLoRALinear]] = []
+    if args.ttt_scope == "decoder_lora":
+        lora_adapters = build_decoder_lora_adapters(args, model)
+        if not lora_adapters:
+            raise ValueError("No decoder linear modules selected for decoder_lora TTT")
+    else:
+        named_ttt_params = select_ttt_named_parameters(model, args.ttt_scope)
+        if not named_ttt_params:
+            raise ValueError(f"No parameters selected for TTT_SCOPE={args.ttt_scope!r}")
     for param in model.parameters():
         param.requires_grad_(False)
-    for _, param in named_ttt_params:
-        param.requires_grad_(True)
-    optimizer = torch.optim.AdamW(
-        [param for _, param in named_ttt_params],
-        lr=args.ttt_lr,
-        betas=(args.ttt_beta1, args.ttt_beta2),
-        eps=args.adam_eps,
-        weight_decay=args.ttt_weight_decay,
-        fused=False,
-    )
+    trainable_params: list[nn.Parameter]
+    if lora_adapters:
+        trainable_params = []
+        for _name, _module, adapter in lora_adapters:
+            adapter.to(device)
+            trainable_params.extend(list(adapter.parameters()))
+    else:
+        for _, param in named_ttt_params:
+            param.requires_grad_(True)
+        trainable_params = [param for _, param in named_ttt_params]
+    optimizer = build_ttt_optimizer(args, trainable_params)
 
     total_tokens = val_tokens.numel()
     if total_tokens <= 1:
@@ -2370,52 +2452,54 @@ def eval_val_ttt_score_first(
     tok_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    model.eval()
-    for chunk_start in range(0, total_tokens, chunk_tokens):
-        chunk_end = min(chunk_start + chunk_tokens, total_tokens)
-        history_start = max(0, chunk_start - ctx_len + 1)
-        with torch.inference_mode():
-            for ws in range(history_start, chunk_end, stride):
-                we = min(ws + ctx_len, total_tokens)
-                wl = we - ws
-                if wl <= 1:
-                    continue
-                x = torch.zeros(1, ctx_len, dtype=torch.int64, device=device)
-                x[0, :wl] = val_tokens[ws:we].to(device=device, dtype=torch.int64, non_blocking=True)
-                with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=device.type == "cuda"):
-                    logits = model.forward_logits(x)
-                nll = F.cross_entropy(
-                    logits.reshape(-1, model.vocab_size).float(),
-                    x.reshape(-1),
-                    reduction="none",
-                ).view(ctx_len).to(torch.float64)
-                base_start = 1 if ws == 0 else max(wl - stride, 0)
-                score_start = max(base_start, chunk_start - ws)
-                score_end = min(wl, chunk_end - ws)
-                if score_end <= score_start:
-                    continue
-                scored_tokens = x[0, score_start:score_end]
-                loss_sum += nll[score_start:score_end].sum()
-                tok_count += float(score_end - score_start)
-                byte_count += byte_lut[scored_tokens].to(torch.float64).sum()
-
-        model.train()
-        for _ in range(max(args.ttt_epochs, 1)):
-            for ws in range(chunk_start, chunk_end, ctx_len):
-                seg_end = min(ws + ctx_len, chunk_end)
-                seg_start = max(0, ws - 1)
-                if seg_end - seg_start <= 1:
-                    continue
-                ids = val_tokens[seg_start:seg_end].to(device=device, dtype=torch.int64, non_blocking=True).unsqueeze(0)
-                optimizer.zero_grad(set_to_none=True)
-                with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=device.type == "cuda"):
-                    loss = model.forward_ttt(ids, scope=args.ttt_scope)
-                loss.backward()
-                if args.ttt_grad_clip_norm > 0:
-                    torch.nn.utils.clip_grad_norm_([param for _, param in named_ttt_params], args.ttt_grad_clip_norm)
-                optimizer.step()
-                model.zero_pad_emb_()
+    adapter_ctx = apply_ttt_lora(lora_adapters) if lora_adapters else contextlib.nullcontext()
+    with adapter_ctx:
         model.eval()
+        for chunk_start in range(0, total_tokens, chunk_tokens):
+            chunk_end = min(chunk_start + chunk_tokens, total_tokens)
+            history_start = max(0, chunk_start - ctx_len + 1)
+            with torch.inference_mode():
+                for ws in range(history_start, chunk_end, stride):
+                    we = min(ws + ctx_len, total_tokens)
+                    wl = we - ws
+                    if wl <= 1:
+                        continue
+                    x = torch.zeros(1, ctx_len, dtype=torch.int64, device=device)
+                    x[0, :wl] = val_tokens[ws:we].to(device=device, dtype=torch.int64, non_blocking=True)
+                    with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=device.type == "cuda"):
+                        logits = model.forward_logits(x)
+                    nll = F.cross_entropy(
+                        logits.reshape(-1, model.vocab_size).float(),
+                        x.reshape(-1),
+                        reduction="none",
+                    ).view(ctx_len).to(torch.float64)
+                    base_start = 1 if ws == 0 else max(wl - stride, 0)
+                    score_start = max(base_start, chunk_start - ws)
+                    score_end = min(wl, chunk_end - ws)
+                    if score_end <= score_start:
+                        continue
+                    scored_tokens = x[0, score_start:score_end]
+                    loss_sum += nll[score_start:score_end].sum()
+                    tok_count += float(score_end - score_start)
+                    byte_count += byte_lut[scored_tokens].to(torch.float64).sum()
+
+            model.train()
+            for _ in range(max(args.ttt_epochs, 1)):
+                for ws in range(chunk_start, chunk_end, ctx_len):
+                    seg_end = min(ws + ctx_len, chunk_end)
+                    seg_start = max(0, ws - 1)
+                    if seg_end - seg_start <= 1:
+                        continue
+                    ids = val_tokens[seg_start:seg_end].to(device=device, dtype=torch.int64, non_blocking=True).unsqueeze(0)
+                    optimizer.zero_grad(set_to_none=True)
+                    with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=device.type == "cuda"):
+                        loss = model.forward_ttt(ids, scope=args.ttt_scope)
+                    loss.backward()
+                    if args.ttt_grad_clip_norm > 0:
+                        torch.nn.utils.clip_grad_norm_(trainable_params, args.ttt_grad_clip_norm)
+                    optimizer.step()
+                    model.zero_pad_emb_()
+            model.eval()
 
     val_loss = float((loss_sum / tok_count.clamp_min(1.0)).item())
     val_bpb = float(loss_sum.item() / (math.log(2.0) * byte_count.clamp_min(1.0).item()))
@@ -2640,9 +2724,17 @@ def main() -> None:
             f"late_qat={args.late_qat_threshold:g}"
         )
     if args.ttt_enabled:
+        ttt_extra = ""
+        if args.ttt_scope == "decoder_lora":
+            ttt_extra = (
+                f" lora_rank={args.ttt_lora_rank} lora_alpha={args.ttt_lora_alpha:g} "
+                f"targets={','.join(args.ttt_lora_targets)}"
+            )
+        elif args.ttt_optimizer == "sgd":
+            ttt_extra = f" momentum={args.ttt_momentum:g}"
         log0(
-            f"ttt: scope={args.ttt_scope} lr={args.ttt_lr:g} wd={args.ttt_weight_decay:g} "
-            f"epochs={args.ttt_epochs} chunk_tokens={args.ttt_chunk_tokens} clip={args.ttt_grad_clip_norm:g}"
+            f"ttt: scope={args.ttt_scope} opt={args.ttt_optimizer} lr={args.ttt_lr:g} wd={args.ttt_weight_decay:g} "
+            f"epochs={args.ttt_epochs} chunk_tokens={args.ttt_chunk_tokens} clip={args.ttt_grad_clip_norm:g}{ttt_extra}"
         )
 
     loader = DistributedLoader(args.train_files, rank, world_size, device)
