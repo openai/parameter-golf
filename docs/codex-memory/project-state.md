@@ -1,19 +1,19 @@
 # Project State
 
-Date: 2026-03-28
+Date: 2026-03-29
 
 ## Objective
 
 Primary:
-- use the verified Pegasus `8xH100` path to advance from the Session 03 anchor into Session 04 isolated deltas
-- move from the first competition-phase anchor to targeted throughput and fidelity improvements
+- use the verified Pegasus `8xH100` path to advance from the Session 03 anchor into Session 05
+- improve both the pre-TTT base and the TTT plan rather than keep extending Session 04 micro-deltas
 
 Secondary:
 - keep the Session 03 anchor as the new fixed reference
 - preserve exact launch, logging, artifact, and evaluation discipline
 
 Stretch:
-- reach a clearly improved `8xH100` result that justifies a stronger compute request or leaderboard-adjacent claim
+- reach a clearly improved `8xH100` pre-TTT and post-TTT story that justifies a stronger compute request or leaderboard-adjacent claim
 
 ## Current campaign state
 
@@ -77,19 +77,22 @@ Do not use:
 - NGC container + fscratch confirmed as optimized Pegasus path
 - GPTQ-lite percentile clip search does not help at this scale (Session 04 Delta 1 negative result: worse BPB + artifact cap violation)
 - LeakyReLU^2 activation is neutral (Session 04 Delta 2: sliding s64 val_bpb effectively identical at `1.12904123`, but slightly better quantization metrics and 168KB smaller artifact; slower step time cancels quality gain)
+- The local public `1.1194` record is not “TTT only”: its pre-TTT base is already `1.1218` at `83.4 ms`, so stronger pre-TTT work and throughput matter before TTT can close the remaining gap
 
 ## What has not happened yet
 
-- no isolated Session 04 backend/perf parity measurement
-- no isolated warmdown/EMA freeze or token-path delta on top of the anchor
+- no Session 05 throughput audit artifact yet
+- no Session 05 pre-TTT stack-gap map yet
+- no TTT legality / portability audit artifact yet
 - no top-tier leaderboard-adjacent result yet
-- no ASQU activation delta
-- no MTP auxiliary loss delta
+- no FA3 portability decision yet
 
 ## Best next move
 
-- Delta 1 (GPTQ-lite) rejected, Delta 2 (LeakyReLU^2) neutral — neither is a standalone graduating delta
-- LeakyReLU^2 is keepable as a stack component (better artifact size, slightly better quantization)
-- Next delta candidates ranked: (1) EMA freeze during late warmdown, (2) ASQU activation, (3) MTP auxiliary loss
+- Session 04 should be closed rather than extended by default
+- Session 05 should open with a three-part audit:
+  - throughput gap decomposition, especially FA3 portability
+  - pre-TTT stack difference audit versus the local `1.1194` record
+  - TTT correctness and integration audit
+- LeakyReLU^2 is keepable as a future stack component, but not a reason to keep micro-delta mode alive
 - Do not spend time on standalone math=False
-- Keep backend/perf, export, and model changes isolated so the next result stays attributable

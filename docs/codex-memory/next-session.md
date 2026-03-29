@@ -2,14 +2,14 @@
 
 ## Phase
 
-**Session 04 in progress. Delta 1 (GPTQ-lite) FAILED. Delta 2 (LeakyReLU^2) NEUTRAL. Delta 3 next.**
+**Session 04 closed. Session 05 next: throughput audit + pre-TTT base enhancement audit + TTT correctness audit.**
 
 ## Immediate next action
 
-**Session 04 Delta 3** — next isolated delta on top of the Session 03 anchor. Candidate ranking:
-1. EMA freeze during late warmdown (cheapest)
-2. ASQU activation (higher upside)
-3. MTP auxiliary loss (save for later)
+**Session 05 planning and audit** on top of the Session 03 anchor. Work in this order:
+1. Throughput audit: explain `91.37 ms` anchor vs `83.4 ms` local public record and determine whether FA3 is portable on Pegasus / NGC.
+2. Pre-TTT stack-gap audit: rank the easy portable pieces from the local `1.1194` stack (`VE128`, `warmdown3500`, `Bigram 1536`, `tight SWA`, etc.).
+3. TTT audit: trace the score-first protocol, legality, eval budget, and portability to the anchor stack.
 
 ## Prerequisites (all satisfied)
 
@@ -19,7 +19,7 @@
 - Launcher lesson locked: use `srun --ntasks=8 --gpus-per-task=1 --gpu-bind=none`, NOT torchrun
 - int6+zstd roundtrip artifact: `15751324` bytes, headroom `248676` bytes
 
-## Session 04 implementation order
+## Session 04 closeout
 
 1. ~~Delta 1: GPTQ-lite percentile clip search~~ — **COMPLETE (FAILED)**
    - Sliding s64 val_bpb: `1.12941356` (worse than anchor by `+0.00036910`)
@@ -34,12 +34,10 @@
    - Step_avg: `92.09 ms` (+0.72 ms slower, -53 steps)
    - Conclusion: not a standalone graduating delta. Keep as possible stack component.
 
-3. **Delta 3** — NEXT IMMEDIATE ACTION
-   - Top candidate: EMA freeze during late warmdown
-   - Alternative: ASQU activation
-
-4. Keep backend/perf parity as a separate control if throughput becomes the dominant bottleneck.
-   - Do not bundle backend work with export or model deltas in the same run.
+3. Session 04 decision
+   - Close the micro-delta sweep at `1 failed + 1 neutral`
+   - Do not force a Delta 3 by default
+   - Open Session 05 instead
 
 ## Measurement discipline
 
@@ -48,9 +46,19 @@
 - Record: GPU, steps, step_avg, sliding s64 val_bpb, pre-quant EMA val_bpb, int6 roundtrip val_bpb, artifact size
 - Only combine deltas after each is measured in isolation
 
-## Target
+## Session 05 target
 
-Session 04 goal: beat `1.12904446` on final sliding s64 with an attributable single-delta improvement.
+- strengthen the pre-TTT base relative to `1.12904446`
+- understand and, if justified, integrate TTT on top of a stronger base
+- identify the highest-value portable pieces of the local `1.1194` public stack
+
+## Read order for the next fresh session
+
+1. `docs/campaign/AGENT_SYNC.md`
+2. `CLAUDE.md`
+3. `docs/campaign/artifacts/04_targeted_delta_sweep.md`
+4. `docs/campaign/sessions/05_ttt_correctness_audit.md`
+5. `records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/README.md`
 
 ## Launcher template for 8xH100 on Pegasus (NGC container)
 

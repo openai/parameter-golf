@@ -2,6 +2,10 @@
 
 Preferred mode: Execution
 
+Status:
+- Complete
+- Outcome: Delta 1 failed, Delta 2 neutral, no standalone graduating delta
+
 Use `/research-engineer` if it exists locally for prioritization, but keep the actual work narrow and measured.
 
 Goal:
@@ -37,6 +41,11 @@ Deliverables:
 Definition of done:
 - Each tested delta has a measured outcome or a clearly documented blocked reason.
 - The comparison note says which single delta should graduate next, if any.
+
+Measured outcome:
+- Delta 1 (GPTQ-lite percentile clip search): failed, worse BPB, over cap
+- Delta 2 (LeakyReLU^2): neutral/tie, slightly better quantization and artifact size, slower throughput
+- Session 04 closes without a graduating standalone delta; the next phase is Session 05 throughput + pre-TTT + TTT audit
 
 Commit message:
 - `feat(campaign): add targeted delta sweep results`

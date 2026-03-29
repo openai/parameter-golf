@@ -1,33 +1,44 @@
 # Agent Sync
 
-Date: 2026-03-28
+Date: 2026-03-29
 
 ## Current Objective
 
-Use the completed Session 03 anchor as the new competition-phase reference on Pegasus.
+Use the completed Session 03 anchor as the fixed Pegasus competition reference while opening Session 05.
 
-The immediate goal is no longer anchor bring-up. The immediate goal is to run a narrow Session 04 delta sweep on top of the measured Session 03 anchor, with one attributable change per run.
+Session 04 is now closed:
+- Delta 1 GPTQ-lite clip search: failed
+- Delta 2 LeakyReLU^2: neutral
+
+The immediate goal is Session 05:
+- audit the throughput gap to the faster public stack
+- audit portable pre-TTT stack improvements
+- audit and plan score-first TTT integration
 
 ## In Scope
 
 - Keep the measured Session 03 anchor as the fixed competition reference
-- Use the verified Pegasus `8xH100` Slurm-native launch path for isolated Session 04 deltas
+- Use the verified Pegasus `8xH100` Slurm-native launch path as the main execution base
 - Preserve exact launcher, artifact, and metric logging discipline from the baseline phase
-- Submit or update the compute request using the current evidence package when useful
+- Investigate throughput contributors to the `91.37 ms -> 83.4 ms` gap, starting with FA3 portability
+- Audit portable stack differences between the anchor and the local `1.1194` public record
+- Audit and plan TTT integration with explicit legality and cost checks
+- Refresh the compute request later using stronger H100 evidence if results improve
 
 ## Out Of Scope
 
-- Claiming top-tier competitiveness from the root baseline alone
-- More root-baseline reruns unless needed for variance
+- Claiming parity with the public `1.1194` record before measuring a stronger pre-TTT base
+- More Session 04 micro-deltas as the default mainline
 - Treating RFN as the mainline strategy
 - Spending RunPod budget except for final validation later
-- Stacking multiple backend, export, and model changes into one unattributable run
-- Arbitrary trainer edits unrelated to a tightly scoped comparison
+- Bundling unrelated throughput, export, model, and eval changes into one unattributable run without a plan
+- Arbitrary trainer edits unrelated to the Session 05 throughput / pre-TTT / TTT program
 
 ## Current Hardware Stance
 
 - Parity target: Pegasus `8xH100` on one node
-- Active development target: Pegasus `H100` when available, otherwise `A100-80GB`
+- Active development target: Pegasus `8xH100`
+- Fallback target: Pegasus `A100-80GB` only when H100 access is blocked
 - Current measured evidence tiers:
   - `A100-80GB`: solid development evidence
   - `1xH100`: early parity-adjacent evidence
@@ -51,7 +62,7 @@ The immediate goal is no longer anchor bring-up. The immediate goal is to run a 
 - Baseline seed spread on A100 is small (`+0.00319322` BPB from seed `1337` to seed `42`)
 - `8xH100` launch via `torchrun --standalone` is blocked by rendezvous timeout on `serv-3342`
 - `8xH100` launch via Slurm-native `srun` works on `serv-3342`
-- Immediate next deliverable: Session 04 targeted delta sweep, not more baseline reruns or broad novelty stacks
+- Immediate next deliverable: Session 05 throughput + pre-TTT + TTT audit, not more Session 04 micro-deltas
 
 ## Canonical Workspaces
 
@@ -336,20 +347,42 @@ Delta 2 measured results vs Session 03 anchor:
 
 Conclusion: LeakyReLU^2 is a neutral/tie result. Not a standalone graduating delta. Keep as a possible stack component — slightly better quantization-friendliness and artifact headroom, but slower throughput cancels the small per-step quality gain.
 
-### 4. Next delta candidates
+### 4. Session 04 closeout
 
-Ranked by effort/upside:
+Session 04 is complete.
 
-1. **EMA freeze during late warmdown** — cheapest next candidate, training-adjacent
-2. **ASQU activation** — higher upside, still cheap to implement
-3. **MTP auxiliary loss** — save for later, more complex
+- Delta 1 (GPTQ-lite percentile clip search): FAILED
+- Delta 2 (LeakyReLU^2): NEUTRAL / tie
 
-Do not spend time on standalone `enable_math_sdp(False)` — not expected to move the needle enough in isolation.
+Interpretation:
 
-### 5. Grant/application stance
+- The isolated micro-delta sweep did its job: it ruled out one export-side hypothesis and showed one model-side tweak is stackable but not standalone.
+- Session 04 should be treated as closed rather than extended into more tiny deltas by default.
 
-- Current evidence is already strong enough for a fresh `Development grant` request.
-- Consider a higher tier only after an isolated delta materially improves on `1.12904446`.
+### 5. Session 05 opening stance
+
+Session 05 has three linked tracks:
+
+1. **Throughput audit**
+   - explain the gap from anchor `91.37 ms` to the public `83.4 ms` stack
+   - start with FA3 portability
+   - separate FA3 from harder changes like parameter banking and Parallel Muon
+
+2. **Pre-TTT base enhancement audit**
+   - compare the anchor to the local `1.1194` public record
+   - rank portable stack features by cost and likely upside
+   - likely first-wave candidates: VE128, warmdown3500, Bigram 1536, tight SWA
+
+3. **TTT correctness + portability audit**
+   - inspect the public score-first TTT path
+   - verify legality, evaluation budget, and portability to the anchor stack
+   - treat TTT as necessary but not sufficient from the current `1.1290` anchor
+
+### 6. Grant/application stance
+
+- Pegasus `8xH100` access is already usable, so the grant is no longer the immediate blocker.
+- The better case is to use the current access window to strengthen the pre-TTT and TTT story first, then refresh the compute request from a stronger measured position.
+- Grant documentation remains worth keeping current, but it is no longer the mainline optimization target.
 
 ## Evidence Required From Each Run
 
@@ -379,4 +412,8 @@ The evidence package is now:
 - `8xH100` Session 04 Delta 2 LeakyReLU^2 neutral
 
 Do not spend more time on repeated `torchrun --standalone` retries or more root-baseline reruns.
-If a fresh session starts now, it should begin from the measured Session 03 anchor and make one isolated Session 04 change.
+If a fresh session starts now, it should begin by closing Session 04 and planning Session 05 from:
+- the measured Session 03 anchor
+- the Session 04 closeout artifact
+- the local `1.1194` public record
+- the existing Session 05 audit doc

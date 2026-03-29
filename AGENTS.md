@@ -20,6 +20,6 @@ Start here for both Claude Code and Codex.
 
 ## Current Working Mode
 
-- Active goal: A100 development evidence for a larger compute request
-- Next runs: `a100_baseline_600s`, then `a100_lowerlr_600s`
-- Out of scope: H100 parity claim, Session 03 anchor port, arbitrary strategy drift
+- Active goal: Pegasus `8xH100` competition-phase improvement from the Session 03 anchor
+- Next phase: Session 05 throughput audit + pre-TTT base enhancement audit + TTT audit
+- Out of scope: more A100-first baseline work as the mainline, more Session 04 micro-deltas, arbitrary novelty drift

@@ -24,9 +24,9 @@ This repo uses one shared handoff protocol for Claude Code and Codex.
 
 ## Working Agreement
 
-- Current goal is development evidence for a larger compute request, not a leaderboard-parity claim.
-- Pegasus `A100-80GB` is the active development target.
-- Pegasus `H100` remains the parity target, but is not the current blocking path.
+- Current goal is stronger Pegasus `8xH100` competition evidence, not just a grant-only evidence package.
+- Pegasus `8xH100` is the active development target.
+- Pegasus `A100-80GB` is now fallback or grant-supporting evidence, not the mainline path.
 - RunPod is reserved for final validation only.
 - `git clone` and `git pull` are the default sync path for remote workspaces.
 - Use `rsync` only to push local uncommitted changes quickly.

@@ -1,6 +1,6 @@
 # Session Handoff
 
-Date: 2026-03-28
+Date: 2026-03-29
 
 ## Current Truths
 
@@ -10,11 +10,11 @@ Date: 2026-03-28
 - Int6 roundtrip val_bpb: `1.15247273`.
 - Steps: `6564`, step_avg: `91.37 ms`.
 - Artifact: `15751324` bytes (model `15692752` + code `58572`).
-- Throughput is the primary bottleneck (SDPA vs FA3), not model fidelity.
+- Throughput and pre-TTT stack strength are now the primary concerns, not more Session 04 micro-deltas.
 - NGC 26.03 container + fscratch is the confirmed optimized Pegasus path.
 - Session 04 Delta 1 (GPTQ-lite clip search) is COMPLETE — FAILED.
-- Session 04 Delta 2 (LeakyReLU^2) is the next immediate action.
-- H100 node is allocated for ~22 more hours.
+- Session 04 Delta 2 (LeakyReLU^2) is COMPLETE — NEUTRAL.
+- Session 05 is the next immediate phase.
 
 ## What Was Done In Session 03
 
@@ -59,24 +59,27 @@ Date: 2026-03-28
 - Anchor int6+zstd with fixed row-max remains the viable export path.
 - The artifact size increase (`+468428` bytes) pushes over the 16MB cap, making this path non-viable even if BPB were neutral.
 
-## Locked Scope For Remaining Session 04 Deltas
+## Session 05 Opening Scope
 
-### Delta 2: LeakyReLU^2 activation (NEXT IMMEDIATE ACTION)
-- Replace relu^2 with LeakyReLU^2
-- Measure val_bpb impact
-- H100 node allocated for ~22 more hours
+### Throughput audit
+- explain why the local `1.1194` public stack runs at `83.4 ms` while the anchor runs at `91.37 ms`
+- start with FA3 portability
+- treat parameter banking / Parallel Muon as harder follow-on work
 
-### Delta 3: one small schedule or token-path tweak
-- Pending Delta 2 result
+### Pre-TTT stack-gap audit
+- compare the anchor against the local `1.1194` stack
+- rank portable improvements such as `VE128`, `warmdown3500`, `Bigram 1536`, and `tight SWA`
 
-### Discipline
-- Each delta is a separate run with one change
-- Compare against Session 03 anchor as the fixed reference
-- Only combine after each is measured in isolation
+### TTT audit
+- trace the score-first legality path
+- quantify the eval-time cost budget
+- decide what is portable into the anchor codebase
 
 ## Source Of Truth Files
 
 - `docs/campaign/AGENT_SYNC.md`
+- `docs/campaign/artifacts/04_targeted_delta_sweep.md`
+- `docs/campaign/sessions/05_ttt_correctness_audit.md`
 - `docs/campaign/artifacts/03a_pre_ttt_anchor_diff_analysis.md`
 - `docs/campaign/artifacts/03b_root_train_gpt_port_gap_audit.md`
 - `docs/codex-memory/project-state.md`

@@ -12,7 +12,8 @@
 - The root `8xH100` baseline is now the fixed reference point.
 - The next `8xH100` runs must be actual model changes.
 - Session 03 pre-TTT anchor work is complete at `val_bpb=1.12904446` (sliding s64) on Pegasus `8xH100`.
-- Session 04 targeted delta sweep is the current mainline.
+- Session 04 targeted delta sweep is closed.
+- Session 05 throughput + pre-TTT + TTT audit is the new mainline.
 
 ## Session 03 decisions
 
@@ -39,13 +40,24 @@
 
 - GPTQ-lite percentile clip search rejected — marginal BPB regression + artifact cap violation. Export gap is not caused by clip suboptimality. Sliding s64 val_bpb `1.12941356` vs anchor `1.12904446` (+0.00036910), artifact `16219752` bytes exceeds `16000000` cap. Anchor int6+zstd with fixed row-max remains the viable export path.
 - LeakyReLU^2 classified as neutral/tie — sliding s64 val_bpb `1.12904123` vs anchor `1.12904446` (-0.00000323), effectively zero. Pre-quant and roundtrip both slightly better. Artifact `168356` bytes smaller. But step time `+0.72 ms` slower, costing `53` steps. Not a standalone graduating delta. Keep as a possible stack component for artifact headroom or when combined with a throughput-positive change. Measured anchor comparison used `enable_math_sdp(True)` — isolation preserved correctly.
+- Session 04 ends at `1 failed + 1 neutral`. Do not force a Delta 3 by default.
+
+## Session 05 decisions
+
+- TTT is now back in scope because the pre-TTT anchor exists and Session 04 has finished.
+- TTT should be treated as necessary but not sufficient from the current anchor; the local `1.1194` record has pre-TTT base `1.1218`, so stronger pre-TTT work is still required.
+- The next phase should separate:
+  - throughput audit
+  - pre-TTT stack-gap audit
+  - TTT correctness / portability audit
+- FA3 is back in scope as a deliberate Session 05 throughput investigation, not as an anchor bring-up risk.
 
 ## Hard gates
 
 - No more infrastructure-only baseline reruns unless variance evidence is specifically needed
-- No TTT implementation before the pre-TTT anchor is in place
+- The old TTT gate is now cleared because the pre-TTT anchor is in place, but TTT still requires an explicit legality / portability audit before implementation
 - No RFN continuation unless it clearly helps a controlled test
-- Session 04 deltas must be measured in isolation before combining
+- Do not combine throughput, pre-TTT, and TTT changes in one run before the Session 05 audit identifies the portable pieces
 
 ## Memory design
 
