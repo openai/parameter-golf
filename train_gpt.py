@@ -1541,19 +1541,41 @@ def main() -> None:
                 prune_keys.append(k)
         if all_abs:
             all_abs_cat = torch.cat(all_abs)
-            # Use kthvalue instead of quantile (handles large tensors)
-            k_idx = max(1, int(prune_frac * all_abs_cat.numel()))
-            threshold = all_abs_cat.to(torch.int16).kthvalue(k_idx).values.item()
+            total_el = all_abs_cat.numel()
+            target_pruned = int(prune_frac * total_el)
+            # Count zeros already present and values at each abs level
+            zero_count = (all_abs_cat == 0).sum().item()
+            one_count = (all_abs_cat == 1).sum().item()
+            if target_pruned <= zero_count:
+                threshold = -1  # nothing to prune beyond existing zeros
+                extra_one_frac = 0.0
+            elif target_pruned <= zero_count + one_count:
+                threshold = 0  # prune all zeros, plus some abs==1
+                extra_one_frac = (target_pruned - zero_count) / max(one_count, 1)
+            else:
+                threshold = 1
+                extra_one_frac = 1.0
             total_pruned = 0
             total_params = 0
+            torch.manual_seed(42)
             for k in prune_keys:
                 q = quant_result[k]
-                mask = q.abs() <= threshold
-                total_pruned += mask.sum().item()
                 total_params += q.numel()
-                q[mask] = 0
+                if threshold >= 0:
+                    q[q == 0] = 0  # already zero
+                if threshold >= 1:
+                    mask_one = q.abs() == 1
+                    total_pruned += mask_one.sum().item()
+                    q[mask_one] = 0
+                elif extra_one_frac > 0:
+                    mask_one = q.abs() == 1
+                    rand_mask = torch.rand_like(q.float()) < extra_one_frac
+                    prune_mask = mask_one & rand_mask
+                    total_pruned += prune_mask.sum().item()
+                    q[prune_mask] = 0
+            total_pruned += zero_count  # existing zeros
             if master_process:
-                log0(f"pruning: zeroed {total_pruned}/{total_params} ({100*total_pruned/total_params:.1f}%) values at threshold={threshold}")
+                log0(f"pruning: zeroed {total_pruned}/{total_params} ({100*total_pruned/total_params:.1f}%) target={prune_frac:.0%}")
 
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
