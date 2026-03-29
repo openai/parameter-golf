@@ -29,10 +29,198 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 _gpu_mem_frac = float(os.environ.get("CUDA_MEM_FRACTION", "0"))
 if _gpu_mem_frac > 0:
     torch.cuda.set_per_process_memory_fraction(_gpu_mem_frac, 0)
+from dataclasses import dataclass, field
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
 import argparse
-from feedback import ErrorFeedbackModule
-from stability import RecurrentStabilizer, ResidualScale
+
+# ── Stability monitoring and control for recurrent passes ──
+
+@dataclass
+class PassDiagnostics:
+    h_norms: list[float] = field(default_factory=list)
+    delta_norms: list[float] = field(default_factory=list)
+    error_norms: list[float] = field(default_factory=list)
+    correction_norms: list[float] = field(default_factory=list)
+    growth_ratios: list[float] = field(default_factory=list)
+
+    def reset(self):
+        for lst in (self.h_norms, self.delta_norms, self.error_norms,
+                    self.correction_norms, self.growth_ratios):
+            lst.clear()
+
+    def summary(self) -> dict[str, list[float]]:
+        return {
+            "h_norms": list(self.h_norms),
+            "delta_norms": list(self.delta_norms),
+            "error_norms": list(self.error_norms),
+            "correction_norms": list(self.correction_norms),
+            "growth_ratios": list(self.growth_ratios),
+        }
+
+
+class RecurrentStabilizer:
+    def __init__(
+        self,
+        clip_hidden: bool = False,
+        clip_value: float = 10.0,
+        clip_mode: str = "value",
+        jacobian_proxy_weight: float = 0.0,
+        eps: float = 1e-6,
+    ):
+        self.clip_hidden = clip_hidden
+        self.clip_value = clip_value
+        self.clip_mode = clip_mode
+        self.jacobian_proxy_weight = jacobian_proxy_weight
+        self.eps = eps
+        self.diagnostics = PassDiagnostics()
+
+    def clip(self, h: Tensor) -> Tensor:
+        if not self.clip_hidden:
+            return h
+        if self.clip_mode == "value":
+            return torch.clamp(h, -self.clip_value, self.clip_value)
+        norm = h.norm(dim=-1, keepdim=True)
+        scale = torch.clamp(self.clip_value / (norm + self.eps), max=1.0)
+        return h * scale
+
+    def record_pass(
+        self,
+        h_prev: Tensor,
+        h_next: Tensor,
+        error: Tensor | None = None,
+        correction: Tensor | None = None,
+    ):
+        with torch.no_grad():
+            h_pn = h_prev.float().norm().item()
+            h_nn = h_next.float().norm().item()
+            self.diagnostics.h_norms.append(h_nn)
+            self.diagnostics.delta_norms.append(
+                (h_next - h_prev).float().norm().item()
+            )
+            self.diagnostics.growth_ratios.append(h_nn / (h_pn + self.eps))
+            if error is not None:
+                self.diagnostics.error_norms.append(error.float().norm().item())
+            if correction is not None:
+                self.diagnostics.correction_norms.append(
+                    correction.float().norm().item()
+                )
+
+    def jacobian_proxy_loss(self, h_in: Tensor, h_out: Tensor) -> Tensor:
+        if self.jacobian_proxy_weight <= 0:
+            return h_in.new_zeros(())
+        delta = h_out - h_in
+        ratio = delta.norm() / (h_in.norm() + self.eps)
+        return self.jacobian_proxy_weight * torch.relu(ratio - 1.0).square()
+
+    def reset(self):
+        self.diagnostics.reset()
+
+
+class ResidualScale(nn.Module):
+    def __init__(self, num_passes: int, init_value: float = 1.0):
+        super().__init__()
+        self.scales = nn.Parameter(
+            torch.full((num_passes,), init_value, dtype=torch.float32)
+        )
+
+    def forward(self, residual: Tensor, pass_idx: int) -> Tensor:
+        return self.scales[pass_idx].to(dtype=residual.dtype) * residual
+
+
+# ── Error feedback modules for recurrent quantization correction ──
+
+class LowRankResidual(nn.Module):
+    def __init__(self, dim: int, rank: int = 2):
+        super().__init__()
+        self.V = nn.Parameter(torch.zeros(dim, rank))
+        self.U = nn.Parameter(torch.zeros(dim, rank))
+
+    def forward(self, h: Tensor) -> Tensor:
+        return (h @ self.V) @ self.U.T
+
+
+class DiagonalFeedback(nn.Module):
+    def __init__(self, dim: int, init_ones: bool = False):
+        super().__init__()
+        init_val = torch.ones(dim) if init_ones else torch.zeros(dim)
+        self.d = nn.Parameter(init_val)
+
+    def forward(self, e: Tensor) -> Tensor:
+        return self.d.to(dtype=e.dtype) * e
+
+
+class LowRankFeedback(nn.Module):
+    def __init__(self, dim: int, rank: int = 2):
+        super().__init__()
+        self.V_D = nn.Parameter(torch.zeros(dim, rank))
+        self.U_D = nn.Parameter(torch.zeros(dim, rank))
+
+    def forward(self, e: Tensor) -> Tensor:
+        return (e @ self.V_D) @ self.U_D.T
+
+
+class AffineJunction(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gamma = nn.Parameter(torch.ones(dim))
+        self.beta = nn.Parameter(torch.zeros(dim))
+
+    def forward(self, h: Tensor) -> Tensor:
+        return self.gamma.to(dtype=h.dtype) * h + self.beta.to(dtype=h.dtype)
+
+
+class ErrorFeedbackModule(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        rank: int = 2,
+        feedback_mode: str = "diagonal",
+        per_pass: bool = False,
+        num_passes: int = 3,
+        affine_junction: bool = False,
+    ):
+        super().__init__()
+        self.feedback_mode = feedback_mode
+        self.per_pass = per_pass
+        self.num_passes = num_passes
+        self.residual = LowRankResidual(dim, rank)
+        if feedback_mode == "identity":
+            self.correction: nn.Module | nn.ModuleList | None = None
+        elif feedback_mode == "diagonal":
+            if per_pass:
+                self.correction = nn.ModuleList(
+                    [DiagonalFeedback(dim) for _ in range(num_passes)]
+                )
+            else:
+                self.correction = DiagonalFeedback(dim)
+        elif feedback_mode == "low_rank":
+            if per_pass:
+                self.correction = nn.ModuleList(
+                    [LowRankFeedback(dim, rank) for _ in range(num_passes)]
+                )
+            else:
+                self.correction = LowRankFeedback(dim, rank)
+        else:
+            raise ValueError(f"Unknown feedback_mode: {feedback_mode}")
+        self.junction: AffineJunction | None = (
+            AffineJunction(dim) if affine_junction else None
+        )
+
+    def forward(self, h: Tensor, pass_idx: int) -> Tensor:
+        e = self.residual(h)
+        if self.correction is None:
+            c = e
+        elif self.per_pass:
+            c = self.correction[pass_idx](e)
+        else:
+            c = self.correction(e)
+        if self.junction is not None:
+            c = c + self.junction(h)
+        mask = torch.tensor(1.0 if pass_idx > 0 else 0.0, device=h.device, dtype=h.dtype)
+        return c * mask
+
+    def param_count(self) -> int:
+        return sum(p.numel() for p in self.parameters())
 try:
     import wandb as _wandb
 except ImportError:
@@ -2037,10 +2225,6 @@ def main() -> None:
             f.write(quant_blob)
         quant_file_bytes = len(quant_blob)
         code_bytes = len(code.encode("utf-8"))
-        for extra in ["feedback.py", "stability.py"]:
-            p = Path(__file__).parent / extra
-            if p.exists():
-                code_bytes += p.stat().st_size
         log0(f"Serialized model int6+lzma: {quant_file_bytes} bytes")
         log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
     if distributed:

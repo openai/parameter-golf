@@ -85,7 +85,7 @@ export SEED=1337
 export WANDB_NAME="nofeedback_earlyqat"
 export RUN_ID="nofeedback_earlyqat"
 
-torchrun --standalone --nproc_per_node=8 train_gpt_recurrent.py \
+torchrun --standalone --nproc_per_node=8 train_gpt.py \
     --feedback-mode none \
     --residual-scale-init 0.5 \
     --jacobian-proxy-weight 0.1 \

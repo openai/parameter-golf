@@ -188,7 +188,7 @@ MUON_MOMENTUM_WARMUP_STEPS=1500 WARMDOWN_ITERS=3500 \
 ITERATIONS=9000 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 \
 CORE_START=4 CORE_END=7 NUM_PASSES=2 EVAL_PASSES=4 \
 SEED=1337 \
-torchrun --standalone --nproc_per_node=8 train_gpt_recurrent.py \
+torchrun --standalone --nproc_per_node=8 train_gpt.py \
     --feedback-mode diagonal --feedback-rank 2 \
     --residual-scale-init 0.5 \
     --jacobian-proxy-weight 0.1 \

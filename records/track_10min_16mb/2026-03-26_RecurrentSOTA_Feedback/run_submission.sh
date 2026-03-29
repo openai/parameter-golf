@@ -90,7 +90,7 @@ for SEED in 1337 42 2025; do
     echo ""
     echo "=== SEED=${SEED} started $(date) ==="
 
-    torchrun --standalone --nproc_per_node=8 train_gpt_recurrent.py \
+    torchrun --standalone --nproc_per_node=8 train_gpt.py \
         --feedback-mode diagonal --feedback-rank 2 \
         --residual-scale-init 0.5 \
         --jacobian-proxy-weight 0.1 \

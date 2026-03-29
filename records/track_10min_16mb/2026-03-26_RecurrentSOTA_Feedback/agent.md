@@ -8,10 +8,10 @@ Beat the current SOTA of **1.1194 bpb** on the Parameter Golf 10-min / 8xH100 / 
 
 11-layer transformer with depth recurrence: layers 4-6 are the "core" block, reused multiple times. Progressive training ramps passes from 1→2→3→4 during training, then evaluates with 4 passes. ResidualScale (learnable per-pass scalars) and Jacobian proxy loss keep recurrence contractive.
 
-Key modules:
-- `train_gpt_recurrent.py` — main training/eval script (~100KB)
-- `feedback.py` — ErrorFeedbackModule (diagonal, rank 2, 2560 params)
-- `stability.py` — RecurrentStabilizer + ResidualScale
+Key modules (all inlined into single file per competition rules):
+- `train_gpt.py` — main training/eval script with ErrorFeedbackModule, RecurrentStabilizer, and ResidualScale inlined at the top
+- `feedback.py` — original source (kept for reference, no longer imported)
+- `stability.py` — original source (kept for reference, no longer imported)
 
 ## Current Best Result (1-GPU, progressive_1to4)
 
@@ -124,7 +124,7 @@ The feedback weights ARE maintained through EMA (lines 1987-1991) and exist in m
 
 ## Competition Submission Format
 
-- All counted code must live in a single `train_gpt.py` script (per README.md). Currently we have 3 files — feedback.py and stability.py should be inlined before final submission.
+- All counted code must live in a single `train_gpt.py` script (per README.md). feedback.py and stability.py have been inlined into train_gpt.py.
 - Need 3 seeds for statistical significance (p < 0.01).
 - `submission.json` needs to be filled with 3-seed mean bpb and bytes_total.
 - The PR goes to https://github.com/nestamidavaine/parameter-golf (fork of openai/parameter-golf).
