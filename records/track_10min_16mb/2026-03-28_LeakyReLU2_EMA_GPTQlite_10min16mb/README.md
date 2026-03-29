@@ -61,12 +61,25 @@ Repeat with **`SEED=42`** and **`SEED=2024`** (and matching `RUN_ID`) into `trai
 
 ### Results (fill after runs)
 
-| Seed | Steps | val_loss | val_bpb (sliding s64) | bytes_total |
-|------|-------|----------|------------------------|-------------|
+**Training eval at wall cap** (log line `step:916/9000`, before export):
+
+| Seed | Steps | val_loss | val_bpb | bytes_total |
+|------|-------|----------|---------|-------------|
 | 1337 (1×H100 smoke) | 916 @ 600s cap | 2.3325 | 1.3814 | 7,804,166 |
 | 42 | | | | |
 | 2024 | | | | |
 | **Mean** | — | — | — | — |
+
+**Post-export / quantized eval** (tail of `train_seed1337.log`, seed 1337 smoke):
+
+| Metric | val_loss | val_bpb | Notes |
+|--------|----------|---------|--------|
+| `DIAGNOSTIC post_ema` | 2.5208 | 1.4930 | eval_time 15502 ms |
+| `final_int6_roundtrip` | 3.8685 | 2.2912 | eval_time 46063 ms |
+| `final_int6_roundtrip_exact` | 3.86852563 | 2.29115878 | |
+| `final_int6_sliding_window` | 3.8541 | 2.2826 | stride 64, eval_time 564213 ms |
+| `final_int6_sliding_window_exact` | 3.85407360 | 2.28260552 | |
+| `final_int8_zlib_roundtrip_exact` | 3.85407360 | 2.28260552 | matches int6 sliding exact here |
 
 ### Included files
 
