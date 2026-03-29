@@ -1308,19 +1308,25 @@ def main() -> None:
 
     # Sliding window eval — overlapping chunks give each prediction maximum context
     if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
-        torch.cuda.synchronize()
-        t_slide = time.perf_counter()
-        sw_val_loss, sw_val_bpb = eval_val_sliding(
-            args, base_model, rank, world_size, device,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=args.eval_stride,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
-            f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
-        )
-        log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        log0(f"Starting sliding window eval with stride={args.eval_stride}...")
+        try:
+            torch.cuda.synchronize()
+            t_slide = time.perf_counter()
+            sw_val_loss, sw_val_bpb = eval_val_sliding(
+                args, base_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                stride=args.eval_stride,
+            )
+            torch.cuda.synchronize()
+            log0(
+                f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
+                f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
+            )
+            log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        except Exception as e:
+            log0(f"Sliding window eval failed: {e}")
+            import traceback
+            log0(traceback.format_exc())
 
     if distributed:
         dist.destroy_process_group()
