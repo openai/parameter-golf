@@ -390,7 +390,7 @@ def apply_gptq(state_dict, bits):
 
 
 def apply_pruning(state_dict, fraction):
-    # Global threshold across ALL 2D tensors for consistent pruning
+    # Global threshold across ALL 2D tensors, sampled if too large for torch.quantile
     all_abs = torch.cat(
         [
             tensor.abs().float().reshape(-1)
@@ -398,7 +398,11 @@ def apply_pruning(state_dict, fraction):
             if tensor.ndim == 2
         ]
     )
-    threshold = torch.quantile(all_abs, fraction)
+    if all_abs.numel() > 2**24:  # quantile limit ~16M elements
+        idx = torch.randperm(all_abs.numel(), device=all_abs.device)[: 2**24]
+        threshold = torch.quantile(all_abs[idx], fraction)
+    else:
+        threshold = torch.quantile(all_abs, fraction)
     for name, tensor in state_dict.items():
         if tensor.ndim == 2:
             mask = tensor.abs() >= threshold
