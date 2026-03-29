@@ -61,14 +61,26 @@ def find_max_model(
                         if num_heads % num_kv_heads != 0:
                             continue
                         size, params = estimate_compressed_size(
-                            model_dim, num_layers, mlp_mult, num_heads, num_kv_heads,
-                            quant_bits, enable_entropy_coding, enable_pruning, prune_fraction,
+                            model_dim,
+                            num_layers,
+                            mlp_mult,
+                            num_heads,
+                            num_kv_heads,
+                            quant_bits,
+                            enable_entropy_coding,
+                            enable_pruning,
+                            prune_fraction,
                         )
                         if size <= target_bytes and (best is None or params > best[1]):
                             best = (
-                                dict(num_layers=num_layers, model_dim=model_dim,
-                                     mlp_mult=mlp_mult, num_heads=num_heads,
-                                     num_kv_heads=num_kv_heads),
-                                params, size,
+                                dict(
+                                    num_layers=num_layers,
+                                    model_dim=model_dim,
+                                    mlp_mult=mlp_mult,
+                                    num_heads=num_heads,
+                                    num_kv_heads=num_kv_heads,
+                                ),
+                                params,
+                                size,
                             )
     return best

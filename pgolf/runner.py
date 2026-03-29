@@ -41,7 +41,11 @@ def run_trial(
     try:
         proc = subprocess.run(
             ["torchrun", "--standalone", "--nproc_per_node=1", TRAIN_SCRIPT],
-            env=env, capture_output=True, text=True, timeout=timeout, cwd=PROJECT_DIR,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=PROJECT_DIR,
         )
         elapsed = time.time() - t0
         output = (proc.stdout or "") + "\n" + (proc.stderr or "")
@@ -60,8 +64,13 @@ def run_trial(
 
 
 def _fail(label, status, elapsed, config, error=""):
-    r = {"label": label, "status": status, "val_bpb": PENALTY,
-         "elapsed": elapsed, "config": config}
+    r = {
+        "label": label,
+        "status": status,
+        "val_bpb": PENALTY,
+        "elapsed": elapsed,
+        "config": config,
+    }
     if error:
         r["error"] = error
     return r

@@ -25,7 +25,8 @@ from pgolf.runner import run_trial, save_result
 def objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int) -> float:
     # --- Sample all technique toggles ---
     activation = trial.suggest_categorical(
-        "activation", ["relu_squared", "leaky_relu_squared", "star_relu", "polycom"])
+        "activation", ["relu_squared", "leaky_relu_squared", "star_relu", "polycom"]
+    )
     quant_bits = trial.suggest_categorical("quant_bits", [5, 6, 8])
     enable_entropy_coding = trial.suggest_categorical("enable_entropy_coding", [0, 1])
     enable_hybridnorm = trial.suggest_categorical("enable_hybridnorm", [0, 1])
@@ -42,10 +43,18 @@ def objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int) -> fl
     enable_optrot = trial.suggest_categorical("enable_optrot", [0, 1])
     enable_gptq = trial.suggest_categorical("enable_gptq", [0, 1])
     enable_pruning = trial.suggest_categorical("enable_pruning", [0, 1])
-    prune_fraction = trial.suggest_float("prune_fraction", 0.01, 0.05) if enable_pruning else 0.0
+    prune_fraction = (
+        trial.suggest_float("prune_fraction", 0.01, 0.05) if enable_pruning else 0.0
+    )
     enable_ttt = trial.suggest_categorical("enable_ttt", [0, 1])
-    ttt_lora_rank = trial.suggest_categorical("ttt_lora_rank", [4, 8, 16]) if enable_ttt else 8
-    ttt_lora_lr = trial.suggest_float("ttt_lora_lr", 0.001, 0.05, log=True) if enable_ttt else 0.01
+    ttt_lora_rank = (
+        trial.suggest_categorical("ttt_lora_rank", [4, 8, 16]) if enable_ttt else 8
+    )
+    ttt_lora_lr = (
+        trial.suggest_float("ttt_lora_lr", 0.001, 0.05, log=True)
+        if enable_ttt
+        else 0.01
+    )
     ttt_temp = trial.suggest_float("ttt_temp", 0.95, 1.0) if enable_ttt else 1.0
     enable_ngram = trial.suggest_categorical("enable_ngram", [0, 1])
     enable_knn = trial.suggest_categorical("enable_knn", [0, 1])
@@ -54,14 +63,18 @@ def objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int) -> fl
     muon_momentum = trial.suggest_float("muon_momentum", 0.9, 0.99)
 
     # --- Find max model that fits budget ---
-    result = find_max_model(quant_bits, enable_entropy_coding, enable_pruning, prune_fraction)
+    result = find_max_model(
+        quant_bits, enable_entropy_coding, enable_pruning, prune_fraction
+    )
     if result is None:
         return PENALTY
     arch, total_params, est_size = result
 
     config = {
-        "RUN_ID": f"optuna_t{trial.number}", **arch,
-        "ACTIVATION": activation, "QUANT_BITS": quant_bits,
+        "RUN_ID": f"optuna_t{trial.number}",
+        **arch,
+        "ACTIVATION": activation,
+        "QUANT_BITS": quant_bits,
         "ENABLE_ENTROPY_CODING": int(enable_entropy_coding),
         "ENABLE_HYBRIDNORM": int(enable_hybridnorm),
         "ENABLE_SMEARGATE": int(enable_smeargate),
@@ -69,16 +82,24 @@ def objective(trial: optuna.Trial, *, max_wallclock: int, iterations: int) -> fl
         "ENABLE_POPE": int(enable_pope),
         "ENABLE_WAVELET": int(enable_wavelet),
         "ENABLE_VGA": int(enable_vga),
-        "XSA_LAST_N": xsa_last_n, "MTP_NUM_HEADS": mtp_num_heads,
+        "XSA_LAST_N": xsa_last_n,
+        "MTP_NUM_HEADS": mtp_num_heads,
         "EMA_DECAY": ema_decay,
-        "ENABLE_SWA": int(enable_swa), "ENABLE_QAT": int(enable_qat),
-        "ENABLE_OPTROT": int(enable_optrot), "ENABLE_GPTQ": int(enable_gptq),
-        "ENABLE_PRUNING": int(enable_pruning), "PRUNE_FRACTION": prune_fraction,
-        "ENABLE_TTT": int(enable_ttt), "TTT_LORA_RANK": ttt_lora_rank,
-        "TTT_LORA_LR": ttt_lora_lr, "TTT_TEMP": ttt_temp,
-        "ENABLE_NGRAM": int(enable_ngram), "ENABLE_KNN": int(enable_knn),
+        "ENABLE_SWA": int(enable_swa),
+        "ENABLE_QAT": int(enable_qat),
+        "ENABLE_OPTROT": int(enable_optrot),
+        "ENABLE_GPTQ": int(enable_gptq),
+        "ENABLE_PRUNING": int(enable_pruning),
+        "PRUNE_FRACTION": prune_fraction,
+        "ENABLE_TTT": int(enable_ttt),
+        "TTT_LORA_RANK": ttt_lora_rank,
+        "TTT_LORA_LR": ttt_lora_lr,
+        "TTT_TEMP": ttt_temp,
+        "ENABLE_NGRAM": int(enable_ngram),
+        "ENABLE_KNN": int(enable_knn),
         "ENABLE_TURBOQUANT": 1,
-        "MATRIX_LR": matrix_lr, "SCALAR_LR": scalar_lr,
+        "MATRIX_LR": matrix_lr,
+        "SCALAR_LR": scalar_lr,
         "MUON_MOMENTUM": muon_momentum,
     }
 
@@ -102,7 +123,9 @@ def main():
     parser.add_argument("--study-name", type=str, default="pgolf_v1")
     parser.add_argument("--db", type=str, default="sqlite:///optuna_pgolf.db")
     parser.add_argument("--best", action="store_true", help="Print best trial")
-    parser.add_argument("--importance", action="store_true", help="Print param importance")
+    parser.add_argument(
+        "--importance", action="store_true", help="Print param importance"
+    )
     parser.add_argument("--top", type=int, default=0, help="Print top N trials")
     args = parser.parse_args()
 
@@ -118,7 +141,7 @@ def main():
             for k, v in imp.items():
                 print(f"  {k}: {v:.4f}")
         if args.top > 0:
-            for t in sorted(study.trials, key=lambda x: x.value or 99)[:args.top]:
+            for t in sorted(study.trials, key=lambda x: x.value or 99)[: args.top]:
                 print(f"Trial #{t.number}: val_bpb={t.value:.4f}")
                 for k, v in sorted(t.params.items()):
                     print(f"  {k}: {v}")
@@ -126,14 +149,19 @@ def main():
         return
 
     study = optuna.create_study(
-        study_name=args.study_name, storage=args.db, direction="minimize",
-        sampler=TPESampler(multivariate=True, seed=42), load_if_exists=True,
+        study_name=args.study_name,
+        storage=args.db,
+        direction="minimize",
+        sampler=TPESampler(multivariate=True, seed=42),
+        load_if_exists=True,
     )
     try:
         study.optimize(
-            lambda trial: objective(trial, max_wallclock=args.max_wallclock,
-                                    iterations=args.iterations),
-            n_trials=args.n_trials, show_progress_bar=True,
+            lambda trial: objective(
+                trial, max_wallclock=args.max_wallclock, iterations=args.iterations
+            ),
+            n_trials=args.n_trials,
+            show_progress_bar=True,
         )
     except KeyboardInterrupt:
         print(f"\nInterrupted after {len(study.trials)} trials")

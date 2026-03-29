@@ -55,14 +55,20 @@ TECHNIQUE_TESTS = [
     ("pruning_2pct", {"ENABLE_PRUNING": 1, "PRUNE_FRACTION": 0.02}),
     ("entropy_coding", {"ENABLE_ENTROPY_CODING": 1}),
     ("optrot_gptq", {"ENABLE_OPTROT": 1, "ENABLE_GPTQ": 1}),
-    ("optrot_gptq_pruning", {"ENABLE_OPTROT": 1, "ENABLE_GPTQ": 1, "ENABLE_PRUNING": 1}),
+    (
+        "optrot_gptq_pruning",
+        {"ENABLE_OPTROT": 1, "ENABLE_GPTQ": 1, "ENABLE_PRUNING": 1},
+    ),
     # --- Eval-time ---
     ("ttt", {"ENABLE_TTT": 1}),
     ("ngram", {"ENABLE_NGRAM": 1}),
     ("knn", {"ENABLE_KNN": 1}),
     ("ttt_tempcal", {"ENABLE_TTT": 1, "TTT_TEMP": 0.98}),
     ("ngram_knn", {"ENABLE_NGRAM": 1, "ENABLE_KNN": 1}),
-    ("ttt_ngram_knn", {"ENABLE_TTT": 1, "TTT_TEMP": 0.98, "ENABLE_NGRAM": 1, "ENABLE_KNN": 1}),
+    (
+        "ttt_ngram_knn",
+        {"ENABLE_TTT": 1, "TTT_TEMP": 0.98, "ENABLE_NGRAM": 1, "ENABLE_KNN": 1},
+    ),
     # --- Model size variations ---
     ("int5_11L", {"QUANT_BITS": 5, "NUM_LAYERS": 11}),
     ("int5_11L_mlp3x", {"QUANT_BITS": 5, "NUM_LAYERS": 11, "MLP_MULT": 3}),

@@ -22,7 +22,9 @@ def main():
     parser.add_argument("--max-wallclock", type=int, default=30)
     parser.add_argument("--iterations", type=int, default=50)
     parser.add_argument("--skip-compile", action="store_true")
-    parser.add_argument("--results-only", action="store_true", help="Just print results")
+    parser.add_argument(
+        "--results-only", action="store_true", help="Just print results"
+    )
     args = parser.parse_args()
 
     if args.results_only:
@@ -32,11 +34,11 @@ def main():
     completed = load_completed_labels()
     total = len(TECHNIQUE_TESTS)
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"TECHNIQUE VALIDATION: {total} tests, {len(completed)} already done")
     print(f"Training: {args.iterations} iters, {args.max_wallclock}s wallclock cap")
     print(f"Ctrl+C to stop — progress is saved, re-run to resume")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     done = 0
     for label, overrides in TECHNIQUE_TESTS:
@@ -54,12 +56,15 @@ def main():
 
         try:
             result = run_trial(
-                config, args.max_wallclock, args.iterations,
-                label=label, skip_compile=args.skip_compile,
+                config,
+                args.max_wallclock,
+                args.iterations,
+                label=label,
+                skip_compile=args.skip_compile,
             )
         except KeyboardInterrupt:
             print(f"\n\nInterrupted at trial {done}/{total} ({label})")
-            print(f"Completed {done-1} trials. Re-run to resume.")
+            print(f"Completed {done - 1} trials. Re-run to resume.")
             sys.exit(0)
 
         save_result(result)
@@ -83,9 +88,9 @@ def print_summary():
         print("No results yet.")
         return
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("VALIDATION SUMMARY")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print(f"{'Label':<30} {'BPB':>8} {'Size':>12} {'Status':>8}")
     print("-" * 70)
 
