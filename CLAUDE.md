@@ -29,7 +29,7 @@ The baseline U-Net transformer is reinterpreted as a JEPA system:
 - **SIGReg:** Sketched Isotropic Gaussian Regularizer prevents representation collapse
 - **Output:** Standard cross-entropy logits for BPB evaluation
 
-Loss: `L = CE + 0.1 * JEPA_MSE + 0.03 * SIGReg` (SIGReg decays during warmdown)
+Loss: `L = CE + 0.1 * JEPA_MSE + 0.03 * SIGReg` (constant weights; SIGReg as buffer for torch.compile compatibility)
 
 Also includes LeakyReLU(0.5)^2 activation (proven -0.003 BPB improvement).
 
