@@ -1561,10 +1561,16 @@ def eval_val_ttt_lora(
 
 
 class NgramCache:
+    """N-gram language model with backoff. Maintains per-context count tables
+    and a pre-computed unigram distribution for fast prediction."""
+
     def __init__(self, vocab_size, max_order=7):
         self.vocab_size = vocab_size
         self.max_order = max_order
         self.counts = [{} for _ in range(max_order)]
+        # Running unigram counts for fast fallback
+        self._unigram_counts = np.zeros(vocab_size, dtype=np.float64)
+        self._unigram_total = 0
 
     def update(self, tokens):
         """Update n-gram counts from a list of token ids."""
@@ -1580,44 +1586,33 @@ class NgramCache:
                     order_counts[ctx] = d
                 nxt = tokens[i + order]
                 d[nxt] = d.get(nxt, 0) + 1
+        # Update unigram counts
+        for t in tokens:
+            self._unigram_counts[t] += 1
+        self._unigram_total += len(tokens)
 
     def predict_batch(self, token_ids, device):
-        """Vectorized: return (seq_len, vocab) n-gram probs for each position.
-
-        token_ids: list of ints (input tokens for one sequence, length seq_len).
-        For position t, uses only the n-gram cache (from prior sequences) plus
-        tokens[0:t] from the current sequence (strictly backward-looking).
-        """
+        """Return (seq_len, vocab) n-gram probs for each position.
+        Uses highest-order match only (backoff) for speed."""
         seq_len = len(token_ids)
         counts = self.counts
         max_order = self.max_order
-        # Collect sparse (position, token, weight) triples, then batch-scatter
-        positions = []
-        tok_list = []
-        wgt_list = []
-        _pa, _ta, _wa = positions.append, tok_list.append, wgt_list.append
+        vocab = self.vocab_size
+        # Output: dense numpy array, transfer to GPU once at end
+        out = np.zeros((seq_len, vocab), dtype=np.float32)
         for t in range(seq_len):
+            # Backoff: try highest order first, use first match
             for order in range(min(t, max_order), 0, -1):
                 ctx = tuple(token_ids[t - order : t])
                 d = counts[order - 1].get(ctx)
                 if d is not None:
-                    inv_total = order * order / sum(d.values())
+                    total = sum(d.values())
+                    inv = 1.0 / total
                     for tok, count in d.items():
-                        _pa(t)
-                        _ta(tok)
-                        _wa(inv_total * count)
-        if not positions:
-            return torch.zeros(seq_len, self.vocab_size, device=device)
-        pos_t = torch.tensor(positions, dtype=torch.long, device=device)
-        tok_t = torch.tensor(tok_list, dtype=torch.long, device=device)
-        wgt_t = torch.tensor(wgt_list, dtype=torch.float32, device=device)
-        probs = torch.zeros(seq_len, self.vocab_size, device=device)
-        probs.index_put_((pos_t, tok_t), wgt_t, accumulate=True)
-        # Normalize per position
-        row_sums = probs.sum(dim=-1, keepdim=True)
-        probs = probs / row_sums.clamp(min=1e-10)
-        # Zero out positions with no n-gram data
-        probs[row_sums.squeeze(-1) == 0] = 0
+                        out[t, tok] = count * inv
+                    break  # backoff: use highest matching order only
+        # Single transfer to GPU
+        probs = torch.from_numpy(out).to(device)
         return probs
 
 
