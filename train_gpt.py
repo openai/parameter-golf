@@ -985,7 +985,7 @@ class LongPhraseCache:
 class NgramCache:
     """n-gram cache matching PR #753/#769/#779: two flat uint32 arrays per order
     (ctx_counts, full_counts). hash context and full n-gram (context+target) separately."""
-    PRIMES = [np.uint64(p) for p in [36313, 27191, 51647, 81929, 131071, 174763, 233017, 299993, 350377, 412391, 479909, 541267, 613651, 700897, 786433]]
+    PRIMES = [np.uint64(p) for p in [36313, 27191, 51647, 81929, 131071, 174763, 233017, 283721, 347237, 436273, 524287, 650009, 786433, 917503, 1048573]]  # PR#944 exact primes
 
     def __init__(self, max_order: int = 7, min_order: int = 2, num_buckets: int = 4194304,
                  min_count: int = 2, **kwargs):
@@ -2007,8 +2007,8 @@ def main() -> None:
         t_build = time.perf_counter()
         ngram_art_order = int(os.environ.get("NGRAM_ART_ORDER", "12"))  # PR#944: max_order=12
         ngram_art_buckets = int(os.environ.get("NGRAM_ART_BUCKETS", "32768"))  # PR#944: 32K buckets = match eval
-        ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "24"))  # PR#944: 24 shards
-        ngram_art_token_budget = int(os.environ.get("NGRAM_ART_TOKEN_BUDGET", "1000000"))  # 1M/rank = 8M total
+        ngram_art_max_shards = int(os.environ.get("NGRAM_ART_MAX_SHARDS", "80"))  # all shards for max diversity
+        ngram_art_token_budget = int(os.environ.get("NGRAM_ART_TOKEN_BUDGET", "5000000"))  # 5M/rank = 40M total, ~1220/bucket
         # each rank builds from a subset of shards
         all_shards = sorted(glob.glob(os.path.join(args.data_path, "fineweb_train_*.bin")))
         if ngram_art_max_shards > 0:
