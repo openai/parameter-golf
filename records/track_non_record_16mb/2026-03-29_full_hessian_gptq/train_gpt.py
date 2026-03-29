@@ -59,6 +59,7 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
     export_only_checkpoint = os.environ.get("EXPORT_ONLY_CHECKPOINT", "").strip()
     export_tag = os.environ.get("EXPORT_TAG", "").strip()
+    export_skip_sliding_eval = bool(int(os.environ.get("EXPORT_SKIP_SLIDING_EVAL", "0")))
 
     iterations = int(os.environ.get("ITERATIONS", 9000))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -1455,10 +1456,13 @@ def main() -> None:
         f"clip_range={args.gptq_clip_range} actorder={int(args.gptq_actorder)}"
     )
     export_only = bool(args.export_only_checkpoint)
+    skip_sliding_eval = export_only and args.export_skip_sliding_eval
     log0(
         f"export_only:{int(export_only)} checkpoint:{args.export_only_checkpoint or '-'} "
         f"tag:{args.export_tag or '-'}"
     )
+    if skip_sliding_eval:
+        log0("export_only: skipping sliding-window eval because EXPORT_SKIP_SLIDING_EVAL=1")
 
     if export_only:
         ckpt_path = Path(args.export_only_checkpoint)
@@ -1802,7 +1806,7 @@ def main() -> None:
 
     # Sliding window eval (submission score)
     sw_seq_len = effective_eval_seq_len
-    if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
+    if not skip_sliding_eval and args.eval_stride > 0 and args.eval_stride < sw_seq_len:
         torch.cuda.synchronize()
         t_slide = time.perf_counter()
         sw_val_loss, sw_val_bpb = eval_val_sliding(
@@ -1818,7 +1822,7 @@ def main() -> None:
         )
         log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
 
-    if args.eval_stride != 64 and 64 < sw_seq_len:
+    if not skip_sliding_eval and args.eval_stride != 64 and 64 < sw_seq_len:
         torch.cuda.synchronize()
         t_slide64 = time.perf_counter()
         sw64_val_loss, sw64_val_bpb = eval_val_sliding(

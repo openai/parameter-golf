@@ -136,6 +136,7 @@ The file now supports export-only replay from an existing checkpoint:
 
 - `EXPORT_ONLY_CHECKPOINT=/path/to/final_model.pt`
 - `EXPORT_TAG=...`
+- `EXPORT_SKIP_SLIDING_EVAL=1` to stop after roundtrip eval and diagnostics during debug replays
 - `GPTQ_ACTORDER=0|1`
 - `GPTQ_BLOCK_SIZE=...`
 - `GPTQ_CALIBRATION_SAMPLES=...`

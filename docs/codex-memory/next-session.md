@@ -110,6 +110,10 @@ Also note: this local shell has no `torch`, so verification here only reached `p
 Replay helper env vars now exist for that server-side work:
 - `EXPORT_ONLY_CHECKPOINT`
 - `EXPORT_TAG`
+- `EXPORT_SKIP_SLIDING_EVAL`
 - `GPTQ_ACTORDER`
 - `GPTQ_BLOCK_SIZE`
 - `GPTQ_CALIBRATION_SAMPLES`
+
+For overnight or rapid replay debugging, set `EXPORT_SKIP_SLIDING_EVAL=1` so the job exits after
+roundtrip eval plus diagnostics instead of waiting for the sliding-window submission metric.

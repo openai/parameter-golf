@@ -65,6 +65,8 @@ Update:
 - one server-side replay was run and still failed
 - `gptq_diag` reported GPTQ worse than both naive baselines on all `66/66` layers
 - an export-only replay mode is now landed so the next step can reuse the saved `final_model.pt` without retraining
+- a debug-only replay flag now exists: `EXPORT_SKIP_SLIDING_EVAL=1`
+- that flag skips the slow sliding-window submission eval and is intended for same-checkpoint A/B replay work only
 
 Do this next:
 1. run export-only replay from the saved `final_model.pt`

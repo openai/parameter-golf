@@ -106,6 +106,10 @@
   - `GPTQ_BLOCK_SIZE`
   - `GPTQ_CALIBRATION_SAMPLES`
   - `EXPORT_TAG`
+- A debug-only replay switch now exists:
+  - `EXPORT_SKIP_SLIDING_EVAL=1`
+  - it only applies to export-only replay runs
+  - it skips the slow submission-style sliding-window eval after `final_int6_roundtrip_exact`
 
 ## Hard gates
 

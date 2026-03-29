@@ -29,6 +29,10 @@ or broader redesigns until the GPTQ export path is either fixed or explicitly ab
 4. Only after the roundtrip gap is sane, re-run `1xH100` smoke with enough post-train time budget.
 5. Only then run `8xH100`.
 
+For export-only debug replays, use `EXPORT_SKIP_SLIDING_EVAL=1` so runs stop after
+`final_int6_roundtrip_exact` and diagnostics instead of spending another ~8-10 minutes on the
+submission-style sliding-window eval.
+
 ### Phase 2: training-side quality bundle
 
 After GPTQ is healthy:
