@@ -75,17 +75,17 @@ Do not use:
 - int6+zstd roundtrip under the 16MB cap with `248676` bytes headroom
 - small remaining donor gap with both throughput and export fidelity still worth isolated measurement
 - NGC container + fscratch confirmed as optimized Pegasus path
+- GPTQ-lite percentile clip search does not help at this scale (Session 04 Delta 1 negative result: worse BPB + artifact cap violation)
 
 ## What has not happened yet
 
 - no isolated Session 04 backend/perf parity measurement
-- no GPTQ-lite compression delta
 - no LeakyReLU^2 activation delta
 - no isolated warmdown/EMA or token-path delta on top of the anchor
 - no top-tier leaderboard-adjacent result yet
 
 ## Best next move
 
-- start a fresh Codex session from `docs/codex-memory/BOOTSTRAP.md`
-- execute Session 04 as a narrow delta sweep on top of the Session 03 anchor
-- keep backend/perf, export, and model changes isolated so the next result stays attributable
+- Delta 1 (GPTQ-lite) is complete and rejected — pivot immediately to Delta 2 (LeakyReLU^2)
+- The H100 node is allocated for ~22 more hours; use it for Delta 2 now
+- Keep backend/perf, export, and model changes isolated so the next result stays attributable

@@ -241,6 +241,31 @@ Interpretation:
 - The remaining gap to the public 2026-03-21 donor is small enough to justify narrow Session 04 deltas rather than a redesign.
 - Throughput is one plausible contributor to the residual gap, but export fidelity also remains worth isolated measurement.
 
+Date: 2026-03-28
+Node: `serv-3342`
+GPU: `8x NVIDIA H100 80GB HBM3 (SXM5)`
+Run: `delta1_gptq_lite`
+
+Measured outputs:
+
+- Train setup: `600s` wallclock cap, Session 04 Delta 1: GPTQ-lite percentile clip search
+- `amp_dtype: bf16`
+- Stopped at `6565` steps
+- Pre-quant EMA exact eval: `val_loss=1.93362522`, `val_bpb=1.14520403`
+- Post-roundtrip exact eval: `val_loss=1.94640899`, `val_bpb=1.15277272`
+- Sliding-window exact eval (`stride=64`): `val_loss=1.90696266`, `val_bpb=1.12941356`
+- Step average: `91.37 ms`
+- Total submission size `int6+zstd`: `16219752` bytes — OVER CAP
+
+Interpretation:
+
+- GPTQ-lite percentile clip search FAILED.
+- All three eval metrics are worse than the Session 03 anchor.
+- Artifact size exceeds the `16000000` byte cap by `219752` bytes.
+- The clip search hurts zstd compressibility more than it helps quantization quality.
+- Clean negative result: the export gap is not caused by clip suboptimality.
+- Pivot to Delta 2 (LeakyReLU^2).
+
 ## Next Actions
 
 ### 1. Freeze the Session 03 facts
@@ -259,16 +284,28 @@ Interpretation:
   - do not use `torchrun --standalone` on Pegasus `8xH100`
   - use Slurm-native `srun --gpu-bind=none` with `LOCAL_RANK=$SLURM_LOCALID`, `RANK=$SLURM_PROCID`, `WORLD_SIZE=$SLURM_NTASKS`
 
-### 2. Start Session 04 targeted deltas
+### 2. Session 04 Delta 1: GPTQ-lite clip search — FAILED
 
-Next moves:
+Delta 1 measured results vs Session 03 anchor:
 
-- Read `docs/campaign/artifacts/03_pre_ttt_anchor_summary.md`
-- Choose at most three cheap, high-signal deltas
-- Measure each delta in isolation on top of the Session 03 anchor
-- Save all new runs as additive artifacts with exact commands and logs
+- Sliding s64 val_bpb: `1.12941356` (WORSE by `+0.00036910`)
+- Roundtrip val_bpb: `1.15277272` (WORSE by `+0.00029999`)
+- Pre-quant EMA val_bpb: `1.14520403` (effectively identical, `+0.00048000`)
+- Artifact size: `16219752` bytes — OVER the `16000000` byte cap (anchor was `15751324`)
+- Steps: `6565`, step_avg: `91.37 ms` (identical to anchor as expected)
 
-### 3. Grant/application stance
+Conclusion: GPTQ-lite percentile clip search is a clean negative result. It hurts zstd compressibility more than it helps quantization quality. The export gap is not caused by clip suboptimality.
+
+### 3. Pivot to Delta 2: LeakyReLU^2
+
+Next immediate action:
+
+- Run Delta 2 (LeakyReLU^2) on the currently allocated H100 node (~22 hours remaining)
+- Single change: replace relu^2 with LeakyReLU^2 in the Session 03 anchor
+- Measure sliding s64, roundtrip, pre-quant EMA val_bpb and artifact size
+- Compare against Session 03 anchor as the fixed reference
+
+### 4. Grant/application stance
 
 - Current evidence is already strong enough for a fresh `Development grant` request.
 - Consider a higher tier only after an isolated delta materially improves on `1.12904446`.

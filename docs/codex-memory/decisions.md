@@ -35,6 +35,10 @@
 - Prefer additive, well-understood public techniques over speculative novelty
 - Keep Session 04 deliberately narrow: one isolated delta per run, no stacked backend/export/model bundles
 
+## Session 04 decisions
+
+- GPTQ-lite percentile clip search rejected — marginal BPB regression + artifact cap violation. Export gap is not caused by clip suboptimality. Sliding s64 val_bpb `1.12941356` vs anchor `1.12904446` (+0.00036910), artifact `16219752` bytes exceeds `16000000` cap. Anchor int6+zstd with fixed row-max remains the viable export path.
+
 ## Hard gates
 
 - No more infrastructure-only baseline reruns unless variance evidence is specifically needed

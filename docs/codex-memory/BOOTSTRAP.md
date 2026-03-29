@@ -20,12 +20,14 @@ Then proceed with the next pending action.
 - int6 roundtrip val_bpb: `1.15247273`, artifact `15751324` bytes
 - throughput bottleneck identified: SDPA vs FA3 (`91.37 ms/step` vs target)
 - NGC container + fscratch confirmed as optimized Pegasus path
-- competition phase continues with Session 04 isolated deltas
+- Session 04 Delta 1 (GPTQ-lite clip search) is COMPLETE — FAILED (worse BPB + artifact cap violation)
+- Session 04 Delta 2 (LeakyReLU^2) is the next immediate action
+- H100 node allocated for ~22 more hours
 
 ## One-line resume prompt
 
 Use this in a fresh Codex chat:
 
 ```text
-Read @docs/codex-memory/BOOTSTRAP.md first. Session 03 anchor is complete as of March 28, 2026. 8xH100 sliding s64 val_bpb 1.12904446, int6 roundtrip val_bpb 1.15247273, step_avg 91.37 ms, artifact 15751324 bytes (headroom 248676). Throughput is the primary bottleneck: SDPA not FA3. NGC container + fscratch is the confirmed Pegasus path. Begin Session 04: FA3 integration, GPTQ-lite, LeakyReLU^2 as isolated deltas.
+Read @docs/codex-memory/BOOTSTRAP.md first. Session 04 Delta 1 (GPTQ-lite) FAILED as of March 28, 2026: sliding s64 1.12941356 (worse), artifact 16219752 (over cap). Anchor remains 1.12904446 sliding s64, 1.15247273 roundtrip, 91.37 ms/step, 15751324 bytes. H100 node allocated ~22 more hours. Begin Delta 2: LeakyReLU^2 as isolated delta on Session 03 anchor.
 ```

@@ -12,7 +12,9 @@ Date: 2026-03-28
 - Artifact: `15751324` bytes (model `15692752` + code `58572`).
 - Throughput is the primary bottleneck (SDPA vs FA3), not model fidelity.
 - NGC 26.03 container + fscratch is the confirmed optimized Pegasus path.
-- Session 04 isolated deltas are the next mainline work.
+- Session 04 Delta 1 (GPTQ-lite clip search) is COMPLETE — FAILED.
+- Session 04 Delta 2 (LeakyReLU^2) is the next immediate action.
+- H100 node is allocated for ~22 more hours.
 
 ## What Was Done In Session 03
 
@@ -36,20 +38,36 @@ Date: 2026-03-28
 ### SDPA throughput gap
 - Session 03 anchor achieves `91.37 ms/step` with SDPA versus root baseline's `51.66 ms/step`. The anchor has more compute per step (more layers, XSA, SmearGate), but the gap is also partly due to using SDPA instead of FA3. The donor record used `flash_attn_3_func`.
 
-## Locked Scope For Session 04
+## What Was Done In Session 04 Delta 1
 
-### Delta 1: FA3 integration (highest priority)
-- Replace SDPA with `flash_attn_3_func`
-- Target: significant step_avg reduction from `91.37 ms`
-- This is the single highest-leverage change
+- Ran GPTQ-lite percentile clip search as an isolated delta on top of the Session 03 anchor.
+- Single change: replaced fixed row-max int6 quantization with GPTQ-lite 5-percentile MSE clip search.
+- Training was identical to the anchor.
 
-### Delta 2: GPTQ-lite compression
-- Add GPTQ-lite quantization to the export path
-- Measure roundtrip val_bpb and artifact size impact
+## Delta 1 Results (FAILED)
 
-### Delta 3: LeakyReLU^2 activation
+- Sliding s64 val_bpb: `1.12941356` (WORSE than anchor `1.12904446` by `+0.00036910`)
+- Roundtrip val_bpb: `1.15277272` (WORSE than anchor `1.15247273` by `+0.00029999`)
+- Pre-quant EMA val_bpb: `1.14520403` (effectively identical to anchor `1.14472403`)
+- Artifact size: `16219752` bytes — OVER the `16000000` byte cap (anchor was `15751324`)
+- Steps: `6565`, step_avg: `91.37 ms` (identical to anchor as expected)
+
+## What Was Learned From Delta 1
+
+- GPTQ-lite clip search hurts zstd compressibility more than it helps quantization quality.
+- The export gap between pre-quant EMA and roundtrip is not caused by clip suboptimality.
+- Anchor int6+zstd with fixed row-max remains the viable export path.
+- The artifact size increase (`+468428` bytes) pushes over the 16MB cap, making this path non-viable even if BPB were neutral.
+
+## Locked Scope For Remaining Session 04 Deltas
+
+### Delta 2: LeakyReLU^2 activation (NEXT IMMEDIATE ACTION)
 - Replace relu^2 with LeakyReLU^2
 - Measure val_bpb impact
+- H100 node allocated for ~22 more hours
+
+### Delta 3: one small schedule or token-path tweak
+- Pending Delta 2 result
 
 ### Discipline
 - Each delta is a separate run with one change

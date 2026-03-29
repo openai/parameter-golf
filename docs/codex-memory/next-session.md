@@ -2,11 +2,11 @@
 
 ## Phase
 
-**Session 03 anchor is COMPLETE. Session 04 targeted deltas start now.**
+**Session 04 in progress. Delta 1 (GPTQ-lite) is COMPLETE (FAILED). Delta 2 (LeakyReLU^2) is next.**
 
 ## Immediate next action
 
-**Session 04: Targeted Delta Sweep** — choose at most three cheap, attributable deltas on top of the Session 03 anchor.
+**Session 04 Delta 2: LeakyReLU^2** — replace relu^2 with LeakyReLU^2 on top of the Session 03 anchor. The H100 node is allocated for ~22 more hours.
 
 ## Prerequisites (all satisfied)
 
@@ -18,21 +18,18 @@
 
 ## Session 04 implementation order
 
-1. Read:
-   - `docs/campaign/artifacts/03_pre_ttt_anchor_summary.md`
-   - `docs/campaign/sessions/04_targeted_delta_sweep.md`
-   - `records/track_non_record_16mb/2026-03-28_pre_ttt_anchor/README.md`
+1. ~~Delta 1: GPTQ-lite percentile clip search~~ — **COMPLETE (FAILED)**
+   - Sliding s64 val_bpb: `1.12941356` (worse than anchor `1.12904446` by `+0.00036910`)
+   - Roundtrip val_bpb: `1.15277272` (worse than anchor `1.15247273` by `+0.00029999`)
+   - Artifact: `16219752` bytes — OVER the `16000000` byte cap
+   - Conclusion: hurts zstd compressibility more than it helps quantization quality
 
-2. Choose at most three deltas from the Session 04 pool:
-   - GPTQ-lite percentile clip search
-   - LeakyReLU^2
-   - one warmdown/EMA threshold change
-   - one small bigram or smear change
+2. **Delta 2: LeakyReLU^2** — NEXT IMMEDIATE ACTION
+   - Replace relu^2 with LeakyReLU^2 on the Session 03 anchor
+   - Measure sliding s64, roundtrip, pre-quant EMA val_bpb and artifact size
+   - H100 node is allocated for ~22 more hours
 
-3. Recommended order from the current anchor result:
-   - GPTQ-lite clip search first
-   - LeakyReLU^2 second
-   - one small schedule or token-path tweak third
+3. Delta 3: one small schedule or token-path tweak — pending Delta 2 result
 
 4. Keep backend/perf parity as a separate control if throughput becomes the dominant bottleneck.
    - Do not bundle backend work with export or model deltas in the same run.

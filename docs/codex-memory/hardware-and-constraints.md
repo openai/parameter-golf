@@ -29,7 +29,9 @@
 - `8xH100` Session 03 int6+zstd artifact: `15751324` bytes (model `15692752` + code `58572`)
 - remaining headroom under cap: `248676` bytes
 - size discipline is now important for any competition-phase change
-- GPTQ-lite may recover some headroom; must be measured
+- GPTQ-lite clip search INCREASES artifact size to `16219752` bytes — OVER the `16000000` cap by `219752` bytes
+- GPTQ-lite is NOT a viable export path: it hurts zstd compressibility more than it helps quantization quality
+- Anchor int6+zstd with fixed row-max remains the viable export path
 
 ## RunPod
 
@@ -41,3 +43,4 @@
 - throughput (SDPA vs FA3) is now the primary bottleneck
 - the secondary blocker is model quality under a very tight artifact budget
 - FA3 integration is the highest-leverage single change for Session 04
+- GPTQ-lite clip search confirmed as NOT helpful — pivot to LeakyReLU^2 as next delta
