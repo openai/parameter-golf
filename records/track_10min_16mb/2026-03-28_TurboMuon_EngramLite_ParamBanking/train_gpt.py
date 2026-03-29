@@ -84,7 +84,7 @@ class Hyperparameters:
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 4000))
+
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 500))
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))
@@ -2108,29 +2108,13 @@ def main() -> None:
         step = 0
         while True:
             last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
-            should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
-            if should_validate:
+            if last_step:
                 torch.cuda.synchronize()
                 training_time_ms += 1000.0 * (time.perf_counter() - t0)
-                val_loss, val_bpb = eval_val(
-                    args,
-                    model,
-                    rank,
-                    world_size,
-                    device,
-                    grad_accum_steps,
-                    val_tokens,
-                    base_bytes_lut,
-                    has_leading_space_lut,
-                    is_boundary_token_lut,
-                )
                 log0(
-                    f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                    f"step:{step}/{args.iterations} "
                     f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
                 )
-                torch.cuda.synchronize()
-                t0 = time.perf_counter()
-            if last_step:
                 if stop_after_step is not None and step < args.iterations:
                     log0(
                         f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
@@ -2265,17 +2249,6 @@ def main() -> None:
                     if name in ema_state:
                         p.data.copy_(ema_state[name].to(dtype=p.dtype))
             del ema_state
-        torch.cuda.synchronize()
-        t_diag = time.perf_counter()
-        diag_val_loss, diag_val_bpb = eval_val(
-            args, compiled_model, rank, world_size, device, grad_accum_steps,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} "
-            f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
-        )
         full_state_dict = base_model.state_dict()
         export_sd = full_state_dict
         if master_process:
