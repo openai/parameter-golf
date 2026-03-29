@@ -753,23 +753,38 @@ class RMSNorm(nn.Module):
 
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
-    # Caches the casted weight to avoid repeated fp32→bf16 conversion.
-    _cached_weight: Tensor | None = None
-    _cached_dtype: torch.dtype | None = None
-    _cached_version: int = -1
-
     def forward(self, x: Tensor) -> Tensor:
-        w_version = self.weight._version
-        if (
-            self._cached_weight is None
-            or self._cached_dtype != x.dtype
-            or self._cached_version != w_version
-        ):
-            self._cached_weight = self.weight.to(x.dtype)
-            self._cached_dtype = x.dtype
-            self._cached_version = w_version
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self._cached_weight, bias)
+        return F.linear(x, self.weight.to(x.dtype), bias)
+
+    def forward_cached(self, x: Tensor) -> Tensor:
+        """Cached version for eval — avoids repeated fp32→bf16 casts.
+        Call _cache_weights() once before eval loops, then use forward_cached."""
+        bias = self._bias_cached if self.bias is not None else None
+        return F.linear(x, self._weight_cached, bias)
+
+    @staticmethod
+    def cache_all_weights(module: nn.Module, dtype: torch.dtype = torch.bfloat16):
+        """Pre-cast and cache all CastedLinear weights. Swap forward methods."""
+        for m in module.modules():
+            if isinstance(m, CastedLinear):
+                m._weight_cached = m.weight.to(dtype)
+                m._bias_cached = m.bias.to(dtype) if m.bias is not None else None
+                m._original_forward = m.forward
+                m.forward = m.forward_cached
+
+    @staticmethod
+    def uncache_all_weights(module: nn.Module):
+        """Restore original forward methods and free cached weights."""
+        for m in module.modules():
+            if isinstance(m, CastedLinear):
+                if hasattr(m, "_original_forward"):
+                    m.forward = m._original_forward
+                    del m._original_forward
+                if hasattr(m, "_weight_cached"):
+                    del m._weight_cached
+                if hasattr(m, "_bias_cached"):
+                    del m._bias_cached
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -2351,6 +2366,9 @@ def main() -> None:
                 block.attn._xsa_enabled = True
                 block.attn._prev_k = None
                 block.attn._prev_v = None
+
+    # Cache CastedLinear weights for eval (avoids repeated fp32→bf16 casts)
+    CastedLinear.cache_all_weights(base_model)
 
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
