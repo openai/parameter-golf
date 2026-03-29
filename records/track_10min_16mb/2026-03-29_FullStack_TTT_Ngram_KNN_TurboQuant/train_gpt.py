@@ -1561,58 +1561,116 @@ def eval_val_ttt_lora(
 
 
 class NgramCache:
-    """N-gram language model with backoff. Maintains per-context count tables
-    and a pre-computed unigram distribution for fast prediction."""
+    """GPU-tensor n-gram LM with hashed count tables. Zero Python loops in predict_batch.
 
-    def __init__(self, vocab_size, max_order=7):
+    For each order 1..max_order, maintains a (hash_size, vocab) count tensor on GPU.
+    Context tuples are hashed to indices via polynomial rolling hash.
+    predict_batch is fully vectorized: hash → gather → backoff → normalize.
+    """
+
+    PRIMES = [1, 1000003, 999999937, 999999893, 999999883, 999999877, 999999613]
+
+    def __init__(self, vocab_size, max_order=7, hash_size=2**17, device="cuda"):
         self.vocab_size = vocab_size
         self.max_order = max_order
-        self.counts = [{} for _ in range(max_order)]
-        # Running unigram counts for fast fallback
-        self._unigram_counts = np.zeros(vocab_size, dtype=np.float64)
-        self._unigram_total = 0
+        self.hash_size = hash_size
+        self.device = device
+        # Count tables: (hash_size, vocab) per order, float32 on GPU
+        self.tables = [
+            torch.zeros(hash_size, vocab_size, device=device, dtype=torch.float32)
+            for _ in range(max_order)
+        ]
+        # Collision tracking: hash → sum of counts. If >0, slot is occupied.
+        self.occupied = [
+            torch.zeros(hash_size, device=device, dtype=torch.float32)
+            for _ in range(max_order)
+        ]
+
+    def _hash_contexts(self, token_ids_t, order):
+        """Vectorized context hashing. token_ids_t: (seq_len,) long tensor on device.
+        Returns (seq_len,) long tensor of hash indices for contexts of given order.
+        Positions < order get hash 0 (will have zero counts → filtered by backoff)."""
+        seq_len = token_ids_t.shape[0]
+        if order == 1:
+            # Bigram: context is just the previous token
+            h = token_ids_t % self.hash_size
+            return h
+        # Polynomial rolling hash: h = sum(token[t-order+i] * prime[i]) mod hash_size
+        h = torch.zeros(seq_len, device=self.device, dtype=torch.long)
+        for i in range(order):
+            prime = self.PRIMES[i % len(self.PRIMES)]
+            # Shift: token at position (t - order + i)
+            shifted = torch.roll(token_ids_t, shifts=order - i, dims=0)
+            h = (h + shifted * prime) % self.hash_size
+        return h
 
     def update(self, tokens):
-        """Update n-gram counts from a list of token ids."""
-        counts = self.counts
-        n_tokens = len(tokens)
+        """Update count tables from a list of token ids. CPU→GPU batch transfer."""
+        tok_t = torch.tensor(tokens, dtype=torch.long, device=self.device)
+        n = tok_t.shape[0]
         for order in range(1, self.max_order + 1):
-            order_counts = counts[order - 1]
-            for i in range(n_tokens - order):
-                ctx = tuple(tokens[i : i + order])
-                d = order_counts.get(ctx)
-                if d is None:
-                    d = {}
-                    order_counts[ctx] = d
-                nxt = tokens[i + order]
-                d[nxt] = d.get(nxt, 0) + 1
-        # Update unigram counts
-        for t in tokens:
-            self._unigram_counts[t] += 1
-        self._unigram_total += len(tokens)
+            if n <= order:
+                continue
+            # Context hashes for positions order..n-1
+            ctx_hashes = self._hash_contexts(tok_t[: n - 1], order)  # (n-1,)
+            # Target tokens at positions order..n-1
+            targets = tok_t[order:]  # (n-1-order+1,) — wait, need alignment
+            # For position i (0-indexed), context is tokens[i-order:i], target is tokens[i]
+            # ctx_hashes[i] = hash of tokens[i-order:i], but only valid for i >= order
+            valid_hashes = ctx_hashes[order:]  # (n-1-order,)
+            valid_targets = tok_t[order:][: valid_hashes.shape[0]]
+            if valid_hashes.shape[0] == 0:
+                continue
+            # Scatter-add counts
+            self.tables[order - 1].index_put_(
+                (valid_hashes, valid_targets),
+                torch.ones(valid_hashes.shape[0], device=self.device),
+                accumulate=True,
+            )
+            # Track occupancy
+            self.occupied[order - 1].index_put_(
+                (valid_hashes,),
+                torch.ones(valid_hashes.shape[0], device=self.device),
+                accumulate=True,
+            )
 
     def predict_batch(self, token_ids, device):
-        """Return (seq_len, vocab) n-gram probs for each position.
-        Uses highest-order match only (backoff) for speed."""
-        seq_len = len(token_ids)
-        counts = self.counts
+        """Fully vectorized prediction. token_ids: list of ints (seq_len,).
+        Returns (seq_len, vocab) probability tensor on device."""
+        tok_t = torch.tensor(token_ids, dtype=torch.long, device=device)
+        seq_len = tok_t.shape[0]
         max_order = self.max_order
         vocab = self.vocab_size
-        # Output: dense numpy array, transfer to GPU once at end
-        out = np.zeros((seq_len, vocab), dtype=np.float32)
-        for t in range(seq_len):
-            # Backoff: try highest order first, use first match
-            for order in range(min(t, max_order), 0, -1):
-                ctx = tuple(token_ids[t - order : t])
-                d = counts[order - 1].get(ctx)
-                if d is not None:
-                    total = sum(d.values())
-                    inv = 1.0 / total
-                    for tok, count in d.items():
-                        out[t, tok] = count * inv
-                    break  # backoff: use highest matching order only
-        # Single transfer to GPU
-        probs = torch.from_numpy(out).to(device)
+        # Gather count distributions for all orders: (max_order, seq_len, vocab)
+        all_counts = torch.zeros(max_order, seq_len, vocab, device=device)
+        all_occupied = torch.zeros(max_order, seq_len, device=device)
+        for order in range(1, max_order + 1):
+            hashes = self._hash_contexts(tok_t, order)  # (seq_len,)
+            all_counts[order - 1] = self.tables[order - 1][hashes]  # (seq_len, vocab)
+            all_occupied[order - 1] = self.occupied[order - 1][hashes]  # (seq_len,)
+            # Mask positions where context is too short (position < order)
+            if order > 1:
+                all_counts[order - 1, :order] = 0
+                all_occupied[order - 1, :order] = 0
+        # Backoff: for each position, pick highest order with nonzero counts
+        # has_counts: (max_order, seq_len) bool
+        has_counts = all_occupied > 0
+        # Find highest matching order per position (argmax on reversed has_counts)
+        # Trick: create priority tensor where higher order = higher value
+        priority = has_counts.float() * torch.arange(
+            max_order, 0, -1, device=device
+        ).unsqueeze(1)
+        best_order_idx = priority.argmax(dim=0)  # (seq_len,) — index into max_order dim
+        any_match = has_counts.any(dim=0)  # (seq_len,)
+        # Gather the best order's counts: (seq_len, vocab)
+        best_counts = all_counts.gather(
+            0, best_order_idx.unsqueeze(0).unsqueeze(2).expand(1, seq_len, vocab)
+        ).squeeze(0)
+        # Normalize to probabilities
+        row_sums = best_counts.sum(dim=-1, keepdim=True).clamp(min=1e-10)
+        probs = best_counts / row_sums
+        # Zero out positions with no match
+        probs[~any_match] = 0
         return probs
 
 
