@@ -26,6 +26,8 @@ Key insight: every competitive submission shares the same architectural backbone
 **Phase 1 — Throughput (FA3 port)**
 - Port anchor from SDPA to direct `flash_attn_interface` on NGC 25.02 container
 - Microbenchmark shows 11.44x kernel speedup; full training impact TBD
+- Saved Pegasus FA3 container now exists at `/netscratch/$USER/containers/pytorch_25.02_fa3.sqsh`
+- First full `8xH100` run on that saved-container path FAILED to beat the anchor
 - Goal: close the `91.37 ms → ~70-80 ms/step` gap, gain extra training steps
 
 **Phase 2 — Quantization upgrade (Full Hessian GPTQ)**
@@ -40,7 +42,7 @@ Key insight: every competitive submission shares the same architectural backbone
 
 ## In Scope
 
-- FA3 port of anchor attention on NGC 25.02 + `flash_attn_3` wheel
+- FA3 port of anchor attention on Pegasus saved NGC 25.02 FA3 container
 - Full Hessian GPTQ implementation to replace int6+zstd
 - Throughput optimization to maximize training steps in 600s
 - Building a modular frontier base, not hard-binding to one historical winner
@@ -86,7 +88,12 @@ Key insight: every competitive submission shares the same architectural backbone
 - `8xH100` launch via Slurm-native `srun` works on `serv-3342`
 - Session 05 audit artifact: complete (`docs/campaign/artifacts/05_ttt_correctness_audit.md`)
 - FA3 isolated attention microbenchmark: complete
-- Immediate next deliverable: Session 05 FW-1 FA3 isolated delta on top of the Session 03 anchor
+- Saved FA3 Pegasus container build: complete
+- `1xH100` FA3 smoke: complete
+- `8xH100` FA3 timing run on saved `25.02` container: complete
+- Stock NGC `25.02` + `--no-deps` FA3 install path: rejected (PyTorch ABI mismatch)
+- `8xH100` FA3 runs must include `--nodes=1`
+- Immediate next deliverable: decide whether to pursue FA3 on a vendor-tuned NGC runtime or pivot to Phase 2
 
 ## Canonical Workspaces
 
@@ -351,8 +358,59 @@ Interpretation:
 - This is an **isolated attention microbenchmark**, not end-to-end training throughput.
 - The result is still strong enough to justify an isolated FA3 training delta next.
 - NGC `26.03` remains the standard stable container path for normal runs.
-- NGC `25.02` + installed FA3 wheel is the current explicit-FA3 experiment path.
+- The saved Pegasus `25.02` FA3 container is the current explicit-FA3 experiment path.
 - The next real question is whether direct FA3 materially improves `step_avg` in the full anchor training loop.
+
+Date: 2026-03-29
+Node: `serv-3343`
+GPU: `1x NVIDIA H100 80GB HBM3`
+Run: `2026-03-29_fa3_port` smoke
+
+Measured outputs:
+
+- Train setup: `world_size=1`, `grad_accum_steps=8`, `600s` wallclock cap
+- Runtime path: explicit FA3 path later frozen into `/netscratch/$USER/containers/pytorch_25.02_fa3.sqsh`
+- Warmup completed normally through `20/20`
+- Stable post-warmup training reached at least step `400`
+- Step average stabilized around `640.17-640.52 ms`
+- Training loss dropped from `6.9307` to `2.5696` by step `400`
+- No NaN, FA3 import, or training-stability failures observed
+
+Interpretation:
+
+- The FA3 port is healthy on Pegasus `1xH100`.
+- The remaining open question is `8xH100` single-node throughput, not FA3 correctness.
+- The operationally correct Pegasus path is now the saved FA3 container, not ad hoc per-job pip installs.
+
+Date: 2026-03-29
+Node: `serv-3342`
+GPU: `8x NVIDIA H100 80GB HBM3 (SXM5)`
+Run: `2026-03-29_fa3_port`
+
+Measured outputs:
+
+- Train setup: `600s` wallclock cap, Session 05 Phase 1 FA3 port on saved Pegasus `25.02` FA3 container
+- `amp_dtype: bf16`
+- Stopped at `6474` steps in `599967 ms`
+- Pre-quant EMA exact eval: `val_loss=1.93384137`, `val_bpb=1.14532979`
+- Post-roundtrip exact eval: `val_loss=1.94672710`, `val_bpb=1.15296145`
+- Sliding-window exact eval (`stride=64`): `val_loss=1.90726009`, `val_bpb=1.12958984`
+- Step average: `92.67 ms`
+- Peak memory: `20825 MiB allocated`, `21198 MiB reserved`
+- Total submission size `int6+zstd`: `15529557` bytes
+- Model bytes: `15471357`, code bytes: `58200`
+
+Interpretation:
+
+- Session 05 Phase 1 on the current saved-container FA3 runtime is a **FAILED** delta.
+- It is slower than the Session 03 anchor by `+1.30 ms/step` and reaches `90` fewer steps.
+- All quality metrics regress:
+  - sliding s64 `+0.00054538`
+  - pre-quant EMA `+0.00060576`
+  - roundtrip `+0.00048872`
+- Memory and artifact size improve (`-449 MiB`, `-221767 bytes`), but that is not enough to offset the throughput loss.
+- The current best explanation is runtime-level regression from the pip-installed generic PyTorch stack replacing the vendor-tuned NGC build.
+- Do not rerun the current saved-container FA3 path as a throughput candidate.
 
 ## Next Actions
 
@@ -414,16 +472,16 @@ Session 05 follows a 3-phase strategy based on competitive landscape analysis (2
 
 1. **Phase 1: FA3 throughput port** (ACTIVE)
    - Port anchor attention from SDPA to direct `flash_attn_interface`
-   - Container: NGC 25.02 + `flash_attn_3-3.0.0` wheel (CUDA 13.0 match confirmed)
-   - Layout change: remove `.transpose(1, 2)` on q/k/v, use `(B, T, H, D)` FA3 layout
-   - GQA: FA3 handles `Hkv < H` broadcasting automatically
-   - Smoke test on 1xH100, then full 600s 8xH100 run
-   - Success metric: measurable `step_avg` improvement over `91.37 ms`
+   - Current saved-container runtime at `/netscratch/$USER/containers/pytorch_25.02_fa3.sqsh` is a measured negative result
+   - Full `8xH100` result: `92.67 ms/step`, sliding s64 `1.12958984` vs anchor `91.37 ms` and `1.12904446`
+   - Further FA3 work is gated on a vendor-tuned NGC runtime
+   - Candidate paths: build FA3 against an NGC torch build, or find a newer NGC image where FA3 works without replacing the tuned stack
 
 2. **Phase 2: Full Hessian GPTQ**
    - Replace int6+zstd with Cholesky-compensated GPTQ
    - Reference: PR #1060 and #1072 implementations
    - Expected gain: `0.003-0.007 BPB` + better artifact compression
+   - This is now the cleaner next model-side delta if a good FA3 runtime is not found quickly
 
 3. **Phase 3: Novelty contribution**
    - Gated on phases 1-2 reaching competitive `1.12x` base
@@ -471,13 +529,16 @@ Key decisions from the audit, competitive analysis, and FA3 benchmark:
 - FA3 is the first implementation target (Phase 1)
 - Full Hessian GPTQ is the second target (Phase 2), replacing GPTQ-lite
 - TTT is parked — top open PRs beat #1 without it
-- Container: NGC `25.02` + installed `flash_attn_3` wheel (CUDA 13.0)
+- Explicit FA3 runtime: saved NGC `25.02` FA3 container
 - Treat the `11.44x` result as attention-kernel-only evidence, not full training speedup
+- The first full `8xH100` FA3 run on the saved `25.02` container is a clean negative result
+- Future FA3 work is gated on vendor-tuned NGC runtime compatibility
 - Parameter Banking / Parallel Muon are deferred until after phases 1-2
 - LeakyReLU² re-test is gated on FA3 (throughput-coupling hypothesis)
+- Never use `| tail -1` or buffered stdout for Pegasus training jobs
+- Never drop `--nodes=1` on challenge-shaped `8xH100` runs just to get a faster allocation
 
 If a fresh session starts now, it should:
-1. Port anchor attention from SDPA to direct FA3 (`flash_attn_interface`)
-2. Run a short Pegasus smoke on 1xH100 to measure `step_avg` impact
-3. Run the full `600s` 8xH100 job if smoke is healthy
-4. Then proceed to Phase 2 (Full Hessian GPTQ)
+1. Do **not** rerun the current saved-container FA3 path
+2. Check whether FA3 can run against a vendor-tuned NGC runtime without replacing the optimized torch stack
+3. If not, proceed to Phase 2 (Full Hessian GPTQ) on the standard stable container path
