@@ -1,0 +1,11 @@
+{
+  "author": "adityam2",
+  "github_id": "adityam2",
+  "name": "Competitive 8xH100 Run3 TTT 1.1259",
+  "blurb": "SOTA-derived 11-layer competitive run on 8xH100 with LeakyReLU^2, XSA, EMA, GPTQ-lite int6+lzma compression, and legal score-first TTT; final metric uses legal_ttt_exact under the 16,000,000-byte cap.",
+  "date": "2026-03-29T08:34:14Z",
+  "val_loss": 1.90099177,
+  "val_bpb": 1.12587738,
+  "bytes_total": 15943528,
+  "bytes_code": 90684
+}

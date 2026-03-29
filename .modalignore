@@ -1,0 +1,8 @@
+.git
+.uv-cache
+__pycache__
+*.pyc
+experiments
+records
+agent-transcripts
+.cursor
