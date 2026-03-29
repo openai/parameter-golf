@@ -655,11 +655,9 @@ class ValueEmbedding(nn.Module):
    h = self.proj(h)
   return h * self.scale.to(dtype=h.dtype)
 def make_seeded_rademacher(rows: int, cols: int, seed: int, device: torch.device, dtype: torch.dtype) -> Tensor:
- g = torch.Generator(device="cpu")
- g.manual_seed(seed)
- m = torch.randint(0, 2, (rows, cols), generator=g, device="cpu", dtype=torch.int64).to(torch.float32)
- m = m.mul_(2.0).sub_(1.0)
- m = m / math.sqrt(cols)
+ idx = torch.arange(rows * cols, device="cpu", dtype=torch.int64).view(rows, cols)
+ hashed = ((idx * 48271 + seed * 16807) >> 8) & 1
+ m = hashed.to(torch.float32).mul_(2.0).sub_(1.0) / math.sqrt(cols)
  return m.to(device=device, dtype=dtype)
 class RandomMapAdapterProj(nn.Module):
  def __init__(self, in_dim: int, out_dim: int, random_dim: int, adapter_rank: int, seed_base: int):
@@ -706,7 +704,7 @@ class MLP(nn.Module):
   super().__init__()
   hidden = int(mlp_mult * dim)
   self.fc = CastedLinear(dim, hidden, bias=False)
-  if random_map_enabled:
+  if random_map_enabled and random_mlp_dim > 0:
    self.proj = RandomMapAdapterProj(
     in_dim=hidden,
     out_dim=dim,
