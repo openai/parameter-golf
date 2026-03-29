@@ -901,7 +901,7 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.z_loss_weight = z_loss_weight
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram_hash = BigramHashEmbedding(hash_size=8192, proj_dim=128, model_dim=model_dim)
+        self.bigram_hash = BigramHashEmbedding(hash_size=4096, proj_dim=128, model_dim=model_dim)
         self.smear_gate = SmearGate(model_dim)
         self.vocab_bias = nn.Parameter(torch.zeros(vocab_size, dtype=torch.float32))
         self.value_embeds = nn.ModuleDict()  # reserved for future use
