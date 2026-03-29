@@ -13,8 +13,8 @@ This is the first-read dashboard for autonomous research. Read this file for the
 
 ## Active Tranche
 
-- Tranche: [`T-20260329-A`](./tranches.md#t-20260329-a---capacity-vs-step-frontier)
-- Goal: map the capacity-versus-step frontier under a fixed `600s` training budget
+- Tranche: [`T-20260329-B`](./tranches.md#t-20260329-b---architecture-necessity-audit)
+- Goal: start the architecture necessity audit, beginning with a focused MLP-width-versus-depth tranche
 - Status: active
 
 ## Working Beliefs
@@ -29,14 +29,15 @@ This is the first-read dashboard for autonomous research. Read this file for the
 
 - Is the tiny `131072` edge over `196608` real or just noise?
 - Can we preserve the `10`-layer gain while reclaiming artifact headroom?
-- Is the next tranche better framed around compression-aware capacity, optimizer/schedule tuning, or a different architectural mechanism?
+- Is the current model under-layered, over-layered, or misallocating too much capacity to the MLP?
 
 ## Next Planned Runs
 
-- Decide whether to confirm the `131072` vs `196608` difference with a focused replay or treat it as effectively tied.
-- Start a sharper next tranche instead of continuing blind local search.
-- Favor mechanisms that improve the `10`-layer branch without pushing size closer to the cap.
-- Use the architecture audit in [`architecture_review.md`](./architecture_review.md) to turn “is this really needed?” into explicit component-level hypotheses.
+- `B1-E1`: replay the `10L / MLP2 / 196608 / kv2` anchor.
+- `B1-E2`: test `11L / MLP1 / 196608 / kv2`.
+- `B1-E3`: test `9L / MLP3 / 196608 / kv2`.
+- `B1-E4`: test `8L / MLP3 / 196608 / kv2`.
+- `B1-E5`: test `9L / MLP3 / 131072 / kv2` to ask whether width also needs step recovery.
 
 ## Go Deeper
 

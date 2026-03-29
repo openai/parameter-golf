@@ -61,7 +61,7 @@ This file is the high-level research-program map. Each tranche should have a rea
 
 ## T-20260329-B - Architecture Necessity Audit
 
-- Status: planned
+- Status: active
 - Goal: break the model into major components and ask, one family at a time, whether each piece is actually earning its bytes, compute, and optimization complexity.
 - Main question:
 - after the first capacity frontier is partly mapped, is the next gain more likely to come from a better distribution of capacity or from simplifying/removing overbuilt structure?
@@ -79,3 +79,91 @@ This file is the high-level research-program map. Each tranche should have a rea
 - [`architecture_review.md`](./architecture_review.md)
 - Planned pivot rule:
 - if a family shows only noise-level differences after 2-3 runs, move to the next component instead of overfitting one local knob
+
+### Tranche B1 - MLP Width vs Depth
+
+- Research question:
+- with the current `10`-layer line, are we getting more value from extra transformations, or would some of that budget work better as fatter MLPs?
+- Why this tranche now:
+- depth already proved it can help when step-starvation is fixed
+- we have not yet asked whether the current `MLP_MULT=2` is too small, too large, or simply the wrong place to spend the next byte of capacity
+- Controls for this 5-run set:
+- use env vars rather than code edits
+- keep `NUM_KV_HEADS=2`
+- keep `MODEL_DIM=512`, `NUM_HEADS=8`, tied embeddings, tokenizer, and validation unchanged
+- use the full `600s` training cap
+- use `final_int8_ttt_lora` as the primary metric
+- Main anchor for comparison:
+- [`AL-20260329-003`](./experiments.tsv) is the cleanest width-vs-depth anchor because it is strong (`1.3916`) and leaves more artifact headroom than [`AL-20260329-004`](./experiments.tsv)
+- Planned experiments:
+
+#### B1-E1 - Anchor Replay
+
+- Shape:
+- `NUM_LAYERS=10`
+- `MLP_MULT=2`
+- `TRAIN_BATCH_TOKENS=196608`
+- Goal:
+- re-establish the clean comparison point for this tranche on the current stack before we judge width moves
+- Hypothesis:
+- the `10L x MLP2` line is still the best balanced starting point for width-vs-depth comparisons
+- What it teaches:
+- whether later differences are real architecture effects or just runtime noise
+
+#### B1-E2 - Deeper But Thinner
+
+- Shape:
+- `NUM_LAYERS=11`
+- `MLP_MULT=1`
+- `TRAIN_BATCH_TOKENS=196608`
+- Goal:
+- test the opposite extreme: spend more budget on depth while making each layer cheaper
+- Hypothesis:
+- if the current model is over-spending on MLP width, more layers with a thinner MLP may train better inside the same wall-clock budget
+- What it teaches:
+- whether the current win is really about depth, or about total block capacity
+
+#### B1-E3 - Mild Width Reallocation
+
+- Shape:
+- `NUM_LAYERS=9`
+- `MLP_MULT=3`
+- `TRAIN_BATCH_TOKENS=196608`
+- Goal:
+- test whether one less layer plus a moderately fatter MLP beats the current depth-biased anchor
+- Hypothesis:
+- some capacity is better spent inside each block than on one extra transformation step
+- What it teaches:
+- whether width can replace a layer cleanly at roughly similar training conditions
+
+#### B1-E4 - Stronger Width Shift
+
+- Shape:
+- `NUM_LAYERS=8`
+- `MLP_MULT=3`
+- `TRAIN_BATCH_TOKENS=196608`
+- Goal:
+- push farther toward width and see whether the score keeps improving or falls apart
+- Hypothesis:
+- if width is the real missing ingredient, a shallower-but-wider model should remain competitive or improve while also changing the compression profile
+- What it teaches:
+- whether the frontier bends toward width, not just toward depth
+
+#### B1-E5 - Width With Step Recovery
+
+- Shape:
+- `NUM_LAYERS=9`
+- `MLP_MULT=3`
+- `TRAIN_BATCH_TOKENS=131072`
+- Goal:
+- test whether width, like depth, only works after we recover more optimizer steps
+- Hypothesis:
+- a wider MLP may look mediocre at `196608` only because it is compute-starved; smaller batch may unlock it the same way it unlocked extra depth
+- What it teaches:
+- whether any width loss is fundamental, or just another fixed-budget step problem
+
+#### Stop Rule For B1
+
+- If `B1-E3` and `B1-E4` are both clearly worse than the anchor, width is probably not the next best place to spend capacity.
+- If `B1-E2` wins or stays close, the model may still be under-layered relative to its MLP size.
+- If `B1-E3` or `B1-E5` wins, the next tranche should move from pure depth to width-aware architecture design.

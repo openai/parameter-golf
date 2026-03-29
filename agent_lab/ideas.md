@@ -59,8 +59,17 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - Hypothesis: moving some capacity budget from depth into MLP width could improve quality or compression efficiency more cleanly than another depth push.
 - Why it might work:
 - the current frontier suggests depth helps, but we have not yet asked whether `MLP_MULT` is the better place to spend parameters
-- Status: new
-- Related tranche: none yet
+- Status: active
+- Related tranche: [`T-20260329-B`](./tranches.md#t-20260329-b---architecture-necessity-audit)
+
+### I-20260329-010 - The Current MLP May Already Be Too Wide
+
+- Category: architecture
+- Hypothesis: a thinner MLP plus one more layer may beat the current `10L / MLP2` balance because the model is over-spending capacity inside each block.
+- Why it might work:
+- in small models, MLPs can dominate parameter count quickly; more transformations may be a better use of budget than fatter hidden layers
+- Status: active
+- Related tranche: [`T-20260329-B`](./tranches.md#t-20260329-b---architecture-necessity-audit)
 
 ### I-20260329-008 - Residual Controls And Skip Paths Are Overbuilt
 
