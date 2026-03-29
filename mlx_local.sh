@@ -6,16 +6,19 @@ cd "$(dirname "$0")"
 usage() {
     cat <<'EOF'
 Usage:
+  bash mlx_local.sh
   bash mlx_local.sh setup
   bash mlx_local.sh download [train_shards]
-  bash mlx_local.sh run [standard|sliding]
+  bash mlx_local.sh run [standard|sliding|selective_qat]
   bash mlx_local.sh compare <model_path> [stride]
 
 Examples:
+  bash mlx_local.sh
   bash mlx_local.sh setup
   bash mlx_local.sh download 1
   bash mlx_local.sh run standard
   bash mlx_local.sh run sliding
+  bash mlx_local.sh run selective_qat
   bash mlx_local.sh compare logs/my_run_mlx_model.int8.ptz
 
 Optional environment variables for `run`:
@@ -26,9 +29,17 @@ Optional environment variables for `run`:
   TRAIN_BATCH_TOKENS
   VAL_LOSS_EVERY
   VAL_BATCH_SIZE
+  VAL_MAX_BATCHES
   TRAIN_SEQ_LEN
   EVAL_STRIDE
   EVAL_BATCH_SEQS
+  QUANT_BITS
+  QUANT_BITS_EMBED
+  QUANT_PACK
+  INT6_LAYER_START
+  INT6_LAYER_END
+  QAT_START_STEP
+  QAT_BITS
   MUON_WEIGHT_DECAY
   ADAM_WEIGHT_DECAY
   SEED
@@ -90,8 +101,9 @@ cmd_setup() {
     echo "MLX local environment is ready."
     echo "Next steps:"
     echo "  bash mlx_local.sh download 1"
+    echo "  bash mlx_local.sh"
     echo "  bash mlx_local.sh run standard"
-    echo "  bash mlx_local.sh run sliding"
+    echo "  bash mlx_local.sh run selective_qat"
 }
 
 cmd_download() {
@@ -127,7 +139,15 @@ cmd_run() {
     local train_batch_tokens="${TRAIN_BATCH_TOKENS:-8192}"
     local val_loss_every="${VAL_LOSS_EVERY:-0}"
     local val_batch_size="${VAL_BATCH_SIZE:-8192}"
+    local val_max_batches="${VAL_MAX_BATCHES:-0}"
     local eval_batch_seqs="${EVAL_BATCH_SEQS:-32}"
+    local quant_bits="${QUANT_BITS:-8}"
+    local quant_bits_embed="${QUANT_BITS_EMBED:-8}"
+    local quant_pack="${QUANT_PACK:-0}"
+    local int6_layer_start="${INT6_LAYER_START:--1}"
+    local int6_layer_end="${INT6_LAYER_END:--1}"
+    local qat_start_step="${QAT_START_STEP:--1}"
+    local qat_bits="${QAT_BITS:-0}"
     local muon_weight_decay="${MUON_WEIGHT_DECAY:-0.0}"
     local adam_weight_decay="${ADAM_WEIGHT_DECAY:-0.0}"
     local seed="${SEED:-1337}"
@@ -141,8 +161,26 @@ cmd_run() {
         sliding)
             eval_stride="${EVAL_STRIDE:-64}"
             ;;
+        selective_qat)
+            eval_stride="${EVAL_STRIDE:-64}"
+            if [[ -z "${QUANT_PACK+x}" ]]; then
+                quant_pack=1
+            fi
+            if [[ -z "${INT6_LAYER_START+x}" ]]; then
+                int6_layer_start=2
+            fi
+            if [[ -z "${INT6_LAYER_END+x}" ]]; then
+                int6_layer_end=6
+            fi
+            if [[ -z "${QAT_START_STEP+x}" ]]; then
+                qat_start_step=150
+            fi
+            if [[ -z "${QAT_BITS+x}" ]]; then
+                qat_bits=0
+            fi
+            ;;
         *)
-            echo "Usage: bash mlx_local.sh run [standard|sliding]" >&2
+            echo "Usage: bash mlx_local.sh run [standard|sliding|selective_qat]" >&2
             exit 1
             ;;
     esac
@@ -152,9 +190,17 @@ cmd_run() {
     echo "iterations=${iterations}"
     echo "train_batch_tokens=${train_batch_tokens}"
     echo "val_batch_size=${val_batch_size}"
+    echo "val_max_batches=${val_max_batches}"
     echo "train_seq_len=${train_seq_len}"
     echo "eval_stride=${eval_stride}"
     echo "eval_batch_seqs=${eval_batch_seqs}"
+    echo "quant_bits=${quant_bits}"
+    echo "quant_bits_embed=${quant_bits_embed}"
+    echo "quant_pack=${quant_pack}"
+    echo "int6_layer_start=${int6_layer_start}"
+    echo "int6_layer_end=${int6_layer_end}"
+    echo "qat_start_step=${qat_start_step}"
+    echo "qat_bits=${qat_bits}"
     echo "muon_weight_decay=${muon_weight_decay}"
     echo "adam_weight_decay=${adam_weight_decay}"
 
@@ -165,9 +211,17 @@ cmd_run() {
     TRAIN_BATCH_TOKENS="${train_batch_tokens}" \
     VAL_LOSS_EVERY="${val_loss_every}" \
     VAL_BATCH_SIZE="${val_batch_size}" \
+    VAL_MAX_BATCHES="${val_max_batches}" \
     TRAIN_SEQ_LEN="${train_seq_len}" \
     EVAL_STRIDE="${eval_stride}" \
     EVAL_BATCH_SEQS="${eval_batch_seqs}" \
+    QUANT_BITS="${quant_bits}" \
+    QUANT_BITS_EMBED="${quant_bits_embed}" \
+    QUANT_PACK="${quant_pack}" \
+    INT6_LAYER_START="${int6_layer_start}" \
+    INT6_LAYER_END="${int6_layer_end}" \
+    QAT_START_STEP="${qat_start_step}" \
+    QAT_BITS="${qat_bits}" \
     MUON_WEIGHT_DECAY="${muon_weight_decay}" \
     ADAM_WEIGHT_DECAY="${adam_weight_decay}" \
     SEED="${seed}" \
@@ -256,23 +310,29 @@ import os
 
 std_log = pathlib.Path(os.environ["STD_LOG"])
 slide_log = pathlib.Path(os.environ["SLIDE_LOG"])
-pat = re.compile(r"final_int8_zlib_roundtrip_exact val_loss:(\\S+) val_bpb:(\\S+)")
-time_pat = re.compile(r"final_int8_zlib_roundtrip val_loss:\\S+ val_bpb:\\S+ eval_time:(\\S+)ms")
+new_pat = re.compile(r"final_quantized_roundtrip_exact bits:(\\S+) val_loss:(\\S+) val_bpb:(\\S+)")
+new_time_pat = re.compile(r"final_quantized_roundtrip bits:(\\S+) val_loss:\\S+ val_bpb:\\S+ eval_time:(\\S+)ms")
+old_pat = re.compile(r"final_int8_zlib_roundtrip_exact val_loss:(\\S+) val_bpb:(\\S+)")
+old_time_pat = re.compile(r"final_int8_zlib_roundtrip val_loss:\\S+ val_bpb:\\S+ eval_time:(\\S+)ms")
 
 def extract(path: pathlib.Path):
     text = path.read_text(encoding="utf-8")
-    m = pat.search(text)
-    t = time_pat.search(text)
-    if not m or not t:
-        raise SystemExit(f"Could not parse final metrics from {path}")
-    return float(m.group(1)), float(m.group(2)), float(t.group(1))
+    m = new_pat.search(text)
+    t = new_time_pat.search(text)
+    if m and t:
+        return m.group(1), float(m.group(2)), float(m.group(3)), float(t.group(2))
+    m = old_pat.search(text)
+    t = old_time_pat.search(text)
+    if m and t:
+        return "8", float(m.group(1)), float(m.group(2)), float(t.group(1))
+    raise SystemExit(f"Could not parse final metrics from {path}")
 
-std_loss, std_bpb, std_ms = extract(std_log)
-slide_loss, slide_bpb, slide_ms = extract(slide_log)
+std_bits, std_loss, std_bpb, std_ms = extract(std_log)
+slide_bits, slide_loss, slide_bpb, slide_ms = extract(slide_log)
 print("")
 print("Comparison")
-print(f"  standard loss={std_loss:.8f} bpb={std_bpb:.8f} eval_ms={std_ms:.0f}")
-print(f"  sliding  loss={slide_loss:.8f} bpb={slide_bpb:.8f} eval_ms={slide_ms:.0f}")
+print(f"  standard bits={std_bits} loss={std_loss:.8f} bpb={std_bpb:.8f} eval_ms={std_ms:.0f}")
+print(f"  sliding  bits={slide_bits} loss={slide_loss:.8f} bpb={slide_bpb:.8f} eval_ms={slide_ms:.0f}")
 print(f"  delta_loss={slide_loss - std_loss:+.8f}")
 print(f"  delta_bpb={slide_bpb - std_bpb:+.8f}")
 print(f"  eval_time_ratio={slide_ms / std_ms:.3f}x")
@@ -282,6 +342,9 @@ PY
 main() {
     local cmd="${1:-}"
     case "${cmd}" in
+        "")
+            cmd_run "${MLX_LOCAL_MODE:-sliding}"
+            ;;
         setup)
             shift
             cmd_setup "$@"
@@ -298,7 +361,7 @@ main() {
             shift
             cmd_compare "$@"
             ;;
-        ""|-h|--help|help)
+        -h|--help|help)
             usage
             ;;
         *)

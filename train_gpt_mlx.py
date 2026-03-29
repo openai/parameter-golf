@@ -52,6 +52,7 @@ class Hyperparameters:
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
     # Validation always uses the full fineweb_val split.
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_max_batches: int = int(os.environ.get("VAL_MAX_BATCHES", 0))
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
@@ -99,6 +100,15 @@ class Hyperparameters:
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    # Keep local MLX defaults on the safer int8 baseline; lower-bit export stays
+    # available as an explicit opt-in via env overrides.
+    quant_bits: int = int(os.environ.get("QUANT_BITS", 8))
+    quant_bits_embed: int = int(os.environ.get("QUANT_BITS_EMBED", 8))
+    quant_pack: bool = bool(int(os.environ.get("QUANT_PACK", "0")))
+    int6_layer_start: int = int(os.environ.get("INT6_LAYER_START", "-1"))
+    int6_layer_end: int = int(os.environ.get("INT6_LAYER_END", "-1"))
+    qat_start_step: int = int(os.environ.get("QAT_START_STEP", -1))
+    qat_bits: int = int(os.environ.get("QAT_BITS", 0))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 
@@ -142,6 +152,43 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
+EMBED_TENSOR_NAME_PATTERNS = ("tok_emb", "lm_head")
+
+
+def int6_layer_range_active(quant_bits: int, int6_layer_start: int, int6_layer_end: int) -> bool:
+    return quant_bits > 6 and int6_layer_start >= 0 and int6_layer_end >= int6_layer_start
+
+
+def block_layer_index(name: str) -> int | None:
+    if not name.startswith("blocks."):
+        return None
+    layer_text, sep, _ = name[len("blocks."):].partition(".")
+    if not sep or not layer_text.isdigit():
+        return None
+    return int(layer_text)
+
+
+def use_int6_for_tensor(name: str, arr: mx.array, quant_bits: int, int6_layer_start: int, int6_layer_end: int) -> bool:
+    if arr.ndim != 2 or not int6_layer_range_active(quant_bits, int6_layer_start, int6_layer_end):
+        return False
+    layer_idx = block_layer_index(name)
+    return layer_idx is not None and int6_layer_start <= layer_idx <= int6_layer_end
+
+
+def quant_label(quant_bits: int, quant_bits_embed: int, int6_layer_start: int, int6_layer_end: int) -> str:
+    label = str(quant_bits)
+    if quant_bits_embed != quant_bits:
+        label = f"{label}/e{quant_bits_embed}"
+    if int6_layer_range_active(quant_bits, int6_layer_start, int6_layer_end):
+        label = f"{label}+int6[{int6_layer_start}-{int6_layer_end}]"
+    return label
+
+
+def block_export_bits(layer_idx: int, quant_bits: int, int6_layer_start: int, int6_layer_end: int) -> int:
+    if int6_layer_range_active(quant_bits, int6_layer_start, int6_layer_end):
+        if int6_layer_start <= layer_idx <= int6_layer_end:
+            return 6
+    return quant_bits
 
 
 def token_chunks(total_tokens: int, seq_len: int, max_chunk_tokens: int) -> list[int]:
@@ -287,9 +334,14 @@ class CastedLinear(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super().__init__()
         self.weight = nn.Linear(in_dim, out_dim, bias=False).weight.astype(mx.float32)
+        self.qat_enabled = False
+        self.qat_bits = 8
 
-    def __call__(self, x: mx.array) -> mx.array:
-        return x @ self.weight.astype(x.dtype).T
+    def __call__(self, x: mx.array, qat_active: bool = False) -> mx.array:
+        weight = self.weight
+        if qat_active and self.qat_enabled:
+            weight = fake_quantize_weight_ste(weight, self.qat_bits)
+        return x @ weight.astype(x.dtype).T
 
 
 class RMSNormNoWeight(nn.Module):
@@ -330,18 +382,18 @@ class CausalSelfAttention(nn.Module):
         self.rope = nn.RoPE(self.head_dim, traditional=False, base=rope_base)
         self.scale = self.head_dim ** -0.5
 
-    def __call__(self, x: mx.array) -> mx.array:
+    def __call__(self, x: mx.array, qat_active: bool = False) -> mx.array:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        q = self.c_q(x, qat_active).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
+        k = self.c_k(x, qat_active).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        v = self.c_v(x, qat_active).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
 
         q = self.rope(rms_norm(q).astype(COMPUTE_DTYPE))
         k = self.rope(rms_norm(k).astype(COMPUTE_DTYPE))
         q = q * self.q_gain.astype(q.dtype)[None, :, None, None]
         y = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask="causal")
         y = y.transpose(0, 2, 1, 3).reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        return self.proj(y, qat_active)
 
 
 class MLP(nn.Module):
@@ -352,9 +404,9 @@ class MLP(nn.Module):
         self.fc = CastedLinear(dim, hidden)
         self.proj = CastedLinear(hidden, dim)
 
-    def __call__(self, x: mx.array) -> mx.array:
-        x = nn.relu(self.fc(x))
-        return self.proj(x * x)
+    def __call__(self, x: mx.array, qat_active: bool = False) -> mx.array:
+        x = nn.relu(self.fc(x, qat_active))
+        return self.proj(x * x, qat_active)
 
 
 class Block(nn.Module):
@@ -376,12 +428,12 @@ class Block(nn.Module):
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
 
-    def __call__(self, x: mx.array, x0: mx.array) -> mx.array:
+    def __call__(self, x: mx.array, x0: mx.array, qat_active: bool = False) -> mx.array:
         mix = self.resid_mix.astype(x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        attn_out = self.attn(self.attn_norm(x), qat_active)
         x = x + self.attn_scale.astype(x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), qat_active)
         return x
 
 
@@ -425,13 +477,13 @@ class GPT(nn.Module):
         logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
         return self.softcap(logits_proj)
 
-    def __call__(self, input_ids: mx.array) -> mx.array:
+    def __call__(self, input_ids: mx.array, qat_active: bool = False) -> mx.array:
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
         x0 = x
         skips: list[mx.array] = []
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[i](x, x0, qat_active)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             # Odd layer counts have one more decoder block than encoder block. The baseline only
@@ -439,16 +491,16 @@ class GPT(nn.Module):
             # without an added skip.
             if skips:
                 x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self.blocks[self.num_encoder_layers + i](x, x0, qat_active)
         return self.final_norm(x)
 
-    def forward_logits(self, input_ids: mx.array) -> mx.array:
-        return self.project_logits(self(input_ids))
+    def forward_logits(self, input_ids: mx.array, qat_active: bool = False) -> mx.array:
+        return self.project_logits(self(input_ids, qat_active))
 
-    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
+    def loss(self, input_ids: mx.array, target_ids: mx.array, qat_active: bool = False) -> mx.array:
         # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
         # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
-        x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
+        x = self(input_ids, qat_active).reshape(-1, self.tok_emb.weight.shape[1])
         y = target_ids.reshape(-1)
         if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
             logits = self.project_logits(x)
@@ -559,6 +611,30 @@ class SplitOptimizers:
 
         model.update(tree_unflatten(list(updated.items())))
 
+
+def configure_qat(model: GPT, args: Hyperparameters) -> tuple[int, int | None, str]:
+    qat_start_step = args.qat_start_step if 0 <= args.qat_start_step < args.iterations else None
+    qat_base_bits = args.quant_bits if args.qat_bits <= 0 else args.qat_bits
+    quant_symmetric_qmax(qat_base_bits)
+    qat_count = 0
+    for layer_idx, block in enumerate(model.blocks):
+        layer_bits = block_export_bits(layer_idx, args.quant_bits, args.int6_layer_start, args.int6_layer_end)
+        if layer_bits != args.quant_bits:
+            quant_symmetric_qmax(layer_bits)
+        for linear in (
+            block.attn.c_q,
+            block.attn.c_k,
+            block.attn.c_v,
+            block.attn.proj,
+            block.mlp.fc,
+            block.mlp.proj,
+        ):
+            linear.qat_enabled = qat_start_step is not None
+            linear.qat_bits = layer_bits if args.qat_bits <= 0 else qat_base_bits
+            qat_count += 1
+    qat_bits_label = "export" if args.qat_bits <= 0 else str(qat_base_bits)
+    return qat_count, qat_start_step, qat_bits_label
+
 # ==============================================================================
 # QUANTIZATION (INT8 + ZLIB)
 # ==============================================================================
@@ -580,6 +656,46 @@ INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 
 
+def quant_symmetric_qmax(bits: int) -> int:
+    if not 2 <= bits <= 8:
+        raise ValueError(f"QUANT_BITS must be in [2, 8], got {bits}")
+    return (1 << (bits - 1)) - 1
+
+
+def rowwise_quantile_linear(x: mx.array, q: float) -> mx.array:
+    if x.ndim != 2:
+        raise ValueError(f"rowwise_quantile_linear expects a 2D tensor, got ndim={x.ndim}")
+    width = int(x.shape[1])
+    if width <= 0:
+        return mx.zeros((int(x.shape[0]),), dtype=x.dtype)
+    if width == 1:
+        return x[:, 0]
+    pos = (width - 1) * q
+    lower = int(math.floor(pos))
+    upper = int(math.ceil(pos))
+    frac = pos - lower
+    sorted_x = mx.sort(x, axis=1)
+    lower_vals = sorted_x[:, lower]
+    if upper == lower:
+        return lower_vals
+    upper_vals = sorted_x[:, upper]
+    return lower_vals * (1.0 - frac) + upper_vals * frac
+
+
+def fake_quantize_weight_ste(w: mx.array, quant_bits: int) -> mx.array:
+    if w.ndim != 2:
+        return w
+    qmax = float(quant_symmetric_qmax(quant_bits))
+    w32 = w.astype(mx.float32)
+    clip_abs = rowwise_quantile_linear(mx.abs(w32), INT8_CLIP_Q)
+    clipped = mx.clip(w32, -clip_abs[:, None], clip_abs[:, None])
+    scale = mx.maximum(clip_abs / qmax, 1.0 / qmax)
+    q = mx.clip(mx.round(clipped / scale[:, None]), -qmax, qmax)
+    dq_scale = scale.astype(mx.float16).astype(mx.float32)
+    dq = (q * dq_scale[:, None]).astype(w.dtype)
+    return w + mx.stop_gradient(dq - w)
+
+
 def _np_float32(arr: mx.array) -> np.ndarray:
     return np.array(arr.astype(mx.float32), dtype=np.float32, copy=False)
 
@@ -593,33 +709,70 @@ def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str
     return np.ascontiguousarray(np.array(arr, copy=True))
 
 
-def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
+def quantize_float_array(arr: mx.array, quant_bits: int) -> tuple[np.ndarray, np.ndarray]:
     f32 = _np_float32(arr)
+    qmax = quant_symmetric_qmax(quant_bits)
     if f32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
         clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((f32.shape[0],), dtype=np.float32)
         clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
-        scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
-        q = np.clip(np.round(clipped / scale[:, None]), -127, 127).astype(np.int8, copy=False)
+        scale = np.maximum(clip_abs / float(qmax), 1.0 / float(qmax)).astype(np.float32, copy=False)
+        q = np.clip(np.round(clipped / scale[:, None]), -qmax, qmax).astype(np.int8, copy=False)
         return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False))
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(np.quantile(np.abs(f32).reshape(-1), INT8_CLIP_Q)) if f32.size else 0.0
-    scale = np.array(clip_abs / 127.0 if clip_abs > 0.0 else 1.0, dtype=np.float32)
-    q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -127, 127).astype(np.int8, copy=False)
+    scale = np.array(clip_abs / float(qmax) if clip_abs > 0.0 else 1.0, dtype=np.float32)
+    q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -qmax, qmax).astype(np.int8, copy=False)
     return np.ascontiguousarray(q), scale
 
 
-def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
-    quantized: dict[str, np.ndarray] = {}
+def pack_int6(q: np.ndarray) -> bytes:
+    flat = (q.ravel().astype(np.int16) + 31).astype(np.uint8)
+    n = len(flat)
+    pad = (4 - n % 4) % 4
+    if pad:
+        flat = np.pad(flat, (0, pad), constant_values=31)
+    flat = flat.reshape(-1, 4)
+    b0 = (flat[:, 0] | (flat[:, 1] << 6)).astype(np.uint8)
+    b1 = ((flat[:, 1] >> 2) | (flat[:, 2] << 4)).astype(np.uint8)
+    b2 = ((flat[:, 2] >> 4) | (flat[:, 3] << 2)).astype(np.uint8)
+    return np.stack([b0, b1, b2], axis=1).tobytes()
+
+
+def unpack_int6(data: bytes, num_values: int, shape: tuple[int, ...]) -> np.ndarray:
+    buf = np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
+    v0 = (buf[:, 0] & 0x3F).astype(np.int8)
+    v1 = (((buf[:, 0] >> 6) | (buf[:, 1] << 2)) & 0x3F).astype(np.int8)
+    v2 = (((buf[:, 1] >> 4) | (buf[:, 2] << 4)) & 0x3F).astype(np.int8)
+    v3 = ((buf[:, 2] >> 2) & 0x3F).astype(np.int8)
+    flat = np.stack([v0, v1, v2, v3], axis=1).ravel()[:num_values]
+    return (flat.astype(np.int16) - 31).astype(np.int8).reshape(shape)
+
+
+def quantize_state_dict_lowbit(
+    flat_state: dict[str, mx.array],
+    quant_bits: int,
+    quant_bits_embed: int = 0,
+    quant_pack: bool = True,
+    int6_layer_start: int = -1,
+    int6_layer_end: int = -1,
+) -> tuple[dict[str, object], dict[str, int]]:
+    if quant_bits_embed <= 0:
+        quant_bits_embed = quant_bits
+    label = quant_label(quant_bits, quant_bits_embed, int6_layer_start, int6_layer_end)
+    quantized: dict[str, np.ndarray | bytes] = {}
     scales: dict[str, np.ndarray] = {}
     dtypes: dict[str, str] = {}
     passthrough: dict[str, np.ndarray] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
+    used_bits: set[int] = set()
+    used_packed = False
     stats = dict.fromkeys(
-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors",
+         "baseline_tensor_bytes", "quant_payload_bytes", "packed_payload_bytes"),
         0,
     )
     for name, arr in flat_state.items():
@@ -629,32 +782,63 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
         if not mx.issubdtype(arr.dtype, mx.floating):
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = np.ascontiguousarray(np.array(arr))
-            stats["int8_payload_bytes"] += int(passthrough[name].nbytes)
+            nbytes = int(passthrough[name].nbytes)
+            stats["quant_payload_bytes"] += nbytes
+            stats["packed_payload_bytes"] += nbytes
             continue
 
-        # Small float tensors are cheap enough to keep directly. We still downcast
-        # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
         if int(arr.size) <= INT8_KEEP_FLOAT_MAX_NUMEL:
             kept = keep_float_array(name, arr, passthrough_orig_dtypes)
             passthrough[name] = kept
-            stats["int8_payload_bytes"] += int(kept.nbytes)
+            nbytes = int(kept.nbytes)
+            stats["quant_payload_bytes"] += nbytes
+            stats["packed_payload_bytes"] += nbytes
             continue
 
+        is_embed = any(pattern in name for pattern in EMBED_TENSOR_NAME_PATTERNS)
+        bits = quant_bits_embed if is_embed else quant_bits
+        if not is_embed and use_int6_for_tensor(name, arr, quant_bits, int6_layer_start, int6_layer_end):
+            bits = 6
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_array(arr)
+        used_bits.add(bits)
+        q, s = quantize_float_array(arr, bits)
+        meta: dict[str, object] = {"bits": bits}
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
-        quantized[name] = q
+            meta["scheme"] = "per_row"
+            meta["axis"] = 0
+        logical_bytes = int(q.nbytes + s.nbytes)
+        stats["quant_payload_bytes"] += logical_bytes
+
+        if quant_pack and bits == 6:
+            packed = pack_int6(q)
+            meta["packed"] = True
+            meta["num_values"] = int(q.size)
+            meta["shape"] = list(q.shape)
+            quantized[name] = packed
+            stats["packed_payload_bytes"] += len(packed) + int(s.nbytes)
+            used_packed = True
+        else:
+            quantized[name] = q
+            stats["packed_payload_bytes"] += logical_bytes
+
         scales[name] = s
         dtypes[name] = str(arr.dtype).split(".")[-1]
-        stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
+        qmeta[name] = meta
+
+    mixed_bits = len(used_bits) > 1 or quant_bits != quant_bits_embed
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
+        "__quant_format__": f"mixed_sint{quant_bits}_e{quant_bits_embed}_v2" if mixed_bits or used_packed else f"sint{quant_bits}_clean_per_row_v1",
+        "quant_bits": quant_bits,
+        "quant_bits_embed": quant_bits_embed,
+        "quant_label": label,
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
         "passthrough": passthrough,
     }
+    if int6_layer_range_active(quant_bits, int6_layer_start, int6_layer_end):
+        obj["int6_layer_start"] = int6_layer_start
+        obj["int6_layer_end"] = int6_layer_end
     if qmeta:
         obj["qmeta"] = qmeta
     if passthrough_orig_dtypes:
@@ -662,16 +846,19 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
     return obj, stats
 
 
-def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.array]:
+def dequantize_state_dict_lowbit(quant_obj: dict[str, object]) -> dict[str, mx.array]:
     out: dict[str, mx.array] = {}
     qmeta = quant_obj.get("qmeta", {})
     passthrough_orig_dtypes = quant_obj.get("passthrough_orig_dtypes", {})
-    for name, q in quant_obj["quantized"].items():
-        q_np = np.asarray(q, dtype=np.int8)
+    for name, q_data in quant_obj["quantized"].items():
         dtype_name = quant_obj["dtypes"][name]
         scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
-        if qmeta.get(name, {}).get("scheme") == "per_row" or scale.ndim > 0:
-            # Broadcast the saved row scale back across trailing dimensions.
+        meta = qmeta.get(name, {})
+        if meta.get("packed"):
+            q_np = unpack_int6(q_data, meta["num_values"], tuple(meta["shape"]))
+        else:
+            q_np = np.asarray(q_data, dtype=np.int8)
+        if meta.get("scheme") == "per_row" or scale.ndim > 0:
             out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
         else:
             out_arr = q_np.astype(np.float32) * float(scale)
@@ -687,17 +874,18 @@ def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.arr
     return out
 
 
-def load_flat_state(path: str) -> dict[str, mx.array]:
+def load_flat_state(path: str) -> tuple[dict[str, mx.array], str | None]:
     model_path = Path(path)
     if not model_path.is_file():
         raise FileNotFoundError(f"Model file not found: {model_path}")
     if model_path.suffix == ".npz":
         with np.load(model_path, allow_pickle=False) as raw:
-            return {name: mx.array(raw[name]) for name in raw.files}
+            return {name: mx.array(raw[name]) for name in raw.files}, "raw"
     if model_path.suffix == ".ptz":
         with model_path.open("rb") as f:
             quant_blob_disk = f.read()
-        return dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
+        quant_obj = pickle.loads(zlib.decompress(quant_blob_disk))
+        return dequantize_state_dict_lowbit(quant_obj), str(quant_obj.get("quant_label", quant_obj.get("quant_bits", 8)))
     raise ValueError(f"Unsupported LOAD_MODEL_PATH suffix for {model_path}; expected .npz or .ptz")
 
 
@@ -815,10 +1003,14 @@ def eval_val(
     val_batch_seqs = val_batch_tokens // args.train_seq_len
     total_seqs = (val_tokens.size - 1) // args.train_seq_len
     total_batches = max((total_seqs + val_batch_seqs - 1) // val_batch_seqs, 1)
+    if args.val_max_batches > 0:
+        total_batches = min(total_batches, args.val_max_batches)
     total_loss_sum = 0.0
     total_tokens = 0.0
     total_bytes = 0.0
     for batch_idx, batch_seq_start in enumerate(range(0, total_seqs, val_batch_seqs), start=1):
+        if batch_idx > total_batches:
+            break
         batch_seq_end = min(batch_seq_start + val_batch_seqs, total_seqs)
         raw_start = batch_seq_start * args.train_seq_len
         raw_end = batch_seq_end * args.train_seq_len + 1
@@ -877,10 +1069,14 @@ def eval_val_sliding(
     total_tokens = val_tokens.size - 1
     window_starts = [ws for ws in range(0, total_tokens, stride) if min(ws + seq_len, total_tokens) - ws >= 1]
     total_batches = max((len(window_starts) + batch_seqs - 1) // batch_seqs, 1)
+    if args.val_max_batches > 0:
+        total_batches = min(total_batches, args.val_max_batches)
     total_loss_sum = 0.0
     total_token_count = 0.0
     total_byte_count = 0.0
     for batch_idx, batch_start in enumerate(range(0, len(window_starts), batch_seqs), start=1):
+        if batch_idx > total_batches:
+            break
         batch_windows = window_starts[batch_start : batch_start + batch_seqs]
         batch_size = len(batch_windows)
         x_np = np.zeros((batch_size, seq_len), dtype=np.int32)
@@ -928,7 +1124,11 @@ def run_final_eval(
     has_leading_space_lut: np.ndarray,
     is_boundary_token_lut: np.ndarray,
     log_fn: Callable[[str], None],
+    reported_quant_label: str | None = None,
 ) -> tuple[float, float, float]:
+    reported_label = quant_label(args.quant_bits, args.quant_bits_embed, args.int6_layer_start, args.int6_layer_end)
+    if reported_quant_label is not None:
+        reported_label = reported_quant_label
     q_t0 = time.perf_counter()
     if 0 < args.eval_stride < args.train_seq_len:
         log_fn(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
@@ -955,8 +1155,11 @@ def run_final_eval(
             log_fn=log_fn,
         )
     q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
-    log_fn(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
-    log_fn(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log_fn(
+        f"final_quantized_roundtrip bits:{reported_label} val_loss:{q_val_loss:.4f} "
+        f"val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms"
+    )
+    log_fn(f"final_quantized_roundtrip_exact bits:{reported_label} val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
     return q_val_loss, q_val_bpb, q_eval_ms
 
 # -----------------------------
@@ -984,6 +1187,13 @@ def main() -> None:
     # TOKENIZER + VALIDATION METRIC SETUP
     # ==============================================================================
     args = Hyperparameters()
+    if (args.int6_layer_start >= 0 or args.int6_layer_end >= 0) and (
+        args.int6_layer_start < 0 or args.int6_layer_end < args.int6_layer_start
+    ):
+        raise ValueError(
+            "INT6_LAYER_START/INT6_LAYER_END must define an inclusive non-negative range; "
+            f"got start={args.int6_layer_start}, end={args.int6_layer_end}"
+        )
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     logfile = out_dir / f"{args.run_id}.txt"
@@ -1044,6 +1254,7 @@ def main() -> None:
         tied_embed_init_std=args.tied_embed_init_std,
         qk_gain_init=args.qk_gain_init,
     )
+    qat_linear_count, qat_start_step, qat_bits_label = configure_qat(model, args)
     opt = SplitOptimizers(model, args)
 
     # ==============================================================================
@@ -1053,13 +1264,22 @@ def main() -> None:
     # inside RoPE modules), so compiling only against trainable parameters throws "uncaptured inputs".
     # Compiling the model-bound functions and capturing the full model state fixes that while still
     # returning gradients only for trainable parameters via nn.value_and_grad(...).
-    compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
-    compiled_forward_logits = mx.compile(lambda x: model.forward_logits(x), inputs=model.state, outputs=model.state)
+    compiled_loss = mx.compile(lambda x, y: model.loss(x, y, False), inputs=model.state, outputs=model.state)
+    compiled_forward_logits = mx.compile(lambda x: model.forward_logits(x, False), inputs=model.state, outputs=model.state)
     compiled_loss_and_grad = mx.compile(
-        nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
+        nn.value_and_grad(model, lambda x, y: model.loss(x, y, False)),
         inputs=model.state,
         outputs=model.state,
     )
+    compiled_loss_qat = None
+    compiled_loss_and_grad_qat = None
+    if qat_start_step is not None:
+        compiled_loss_qat = mx.compile(lambda x, y: model.loss(x, y, True), inputs=model.state, outputs=model.state)
+        compiled_loss_and_grad_qat = mx.compile(
+            nn.value_and_grad(model, lambda x, y: model.loss(x, y, True)),
+            inputs=model.state,
+            outputs=model.state,
+        )
 
     # Print config once so logs are self-describing.
     n_params = sum(int(np.prod(p.shape)) for _, p in tree_flatten(model.parameters()))
@@ -1086,10 +1306,17 @@ def main() -> None:
     log(
         f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} grad_accum_steps:{args.grad_accum_steps} "
         f"microbatch_tokens:{args.microbatch_tokens} microbatch_batch_size:{args.microbatch_tokens // args.train_seq_len} "
-        f"val_batch_size:{args.val_batch_size} "
+        f"val_batch_size:{args.val_batch_size} val_max_batches:{args.val_max_batches} "
         f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log(f"eval_stride:{args.eval_stride} eval_batch_seqs:{args.eval_batch_seqs}")
+    int6_layers = f"{args.int6_layer_start}-{args.int6_layer_end}" if int6_layer_range_active(args.quant_bits, args.int6_layer_start, args.int6_layer_end) else "-"
+    log(
+        f"quantization:label:{quant_label(args.quant_bits, args.quant_bits_embed, args.int6_layer_start, args.int6_layer_end)} "
+        f"quant_bits:{args.quant_bits} quant_bits_embed:{args.quant_bits_embed} "
+        f"quant_pack:{int(args.quant_pack)} int6_layers:{int6_layers}"
+    )
+    log(f"qat_start_step:{qat_start_step if qat_start_step is not None else -1} qat_bits:{qat_bits_label} qat_linears:{qat_linear_count}")
     log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
@@ -1110,7 +1337,7 @@ def main() -> None:
     if args.eval_only:
         if not args.load_model_path:
             raise ValueError("LOAD_MODEL_PATH is required when EVAL_ONLY=1")
-        loaded_flat = load_flat_state(args.load_model_path)
+        loaded_flat, loaded_quant_label = load_flat_state(args.load_model_path)
         model.update(tree_unflatten(list(loaded_flat.items())))
         run_final_eval(
             args,
@@ -1121,6 +1348,7 @@ def main() -> None:
             has_leading_space_lut,
             is_boundary_token_lut,
             log,
+            reported_quant_label=loaded_quant_label,
         )
         return
 
@@ -1144,6 +1372,17 @@ def main() -> None:
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
 
+        if compiled_loss_qat is not None and compiled_loss_and_grad_qat is not None:
+            accum = None
+            warmup_loss = mx.array(0.0, dtype=mx.float32)
+            grad_scale = 1.0 / args.grad_accum_steps
+            for _ in range(args.grad_accum_steps):
+                warmup_loss, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad_qat)
+                accum = accumulate_flat_grads(accum, grads, grad_scale)
+            mx.eval(warmup_loss, accum)
+            mx.synchronize()
+            log("warmup_qat_graph:compiled")
+
         # Prime the standalone eval graph once too. It is compiled separately from value_and_grad.
         val_batch_tokens = args.val_batch_size // args.grad_accum_steps
         if val_batch_tokens < args.train_seq_len:
@@ -1165,6 +1404,7 @@ def main() -> None:
     train_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     stop_after_step: int | None = None
+    qat_activated = False
     t0 = time.perf_counter()
     step = 0
     while True:
@@ -1193,13 +1433,18 @@ def main() -> None:
             break
 
         lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        qat_active = qat_start_step is not None and step >= qat_start_step
+        if qat_active and not qat_activated:
+            qat_activated = True
+            log(f"qat_activated:step:{step}/{args.iterations} lr_scale:{lr_mul:.6f}")
         step_t0 = time.perf_counter()
 
         accum: dict[str, mx.array] | None = None
         train_loss = mx.array(0.0, dtype=mx.float32)
         grad_scale = 1.0 / args.grad_accum_steps
+        compiled_train_loss_and_grad = compiled_loss_and_grad_qat if qat_active and compiled_loss_and_grad_qat is not None else compiled_loss_and_grad
         for _ in range(args.grad_accum_steps):
-            loss, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad)
+            loss, grads = loss_and_grad_chunked(args, train_loader, compiled_train_loss_and_grad)
             accum = accumulate_flat_grads(accum, grads, grad_scale)
             train_loss = train_loss + loss.astype(mx.float32) * grad_scale
             if args.mlx_eager_eval:
@@ -1234,23 +1479,39 @@ def main() -> None:
     mx.savez(str(out_path), **flat_state)
     log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(flat_state)
+    quant_obj, quant_stats = quantize_state_dict_lowbit(
+        flat_state,
+        args.quant_bits,
+        args.quant_bits_embed,
+        args.quant_pack,
+        args.int6_layer_start,
+        args.int6_layer_end,
+    )
     quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
     quant_blob = zlib.compress(quant_raw, level=9)
     quant_serialized_bytes = len(quant_raw)
-    quant_path = out_dir / f"{args.run_id}_mlx_model.int8.ptz"
+    quant_path = out_dir / f"{args.run_id}_mlx_model.int{args.quant_bits}.ptz"
     with quant_path.open("wb") as f:
         f.write(quant_blob)
     quant_file_bytes = quant_path.stat().st_size
-    ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+    ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["quant_payload_bytes"], 1)
+    packed_ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["packed_payload_bytes"], 1)
+    quantized_label = str(quant_obj.get("quant_label", args.quant_bits))
     log(
-        f"serialized_model_int8_zlib:{quant_file_bytes} bytes "
-        f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
+        f"serialized_model_quantized:{quant_file_bytes} bytes "
+        f"(label:{quantized_label} "
+        f"logical:{quant_stats['quant_payload_bytes']} packed:{quant_stats['packed_payload_bytes']} "
+        f"raw_pickle:{quant_serialized_bytes} ratio:{ratio:.2f}x packed_ratio:{packed_ratio:.2f}x)"
+    )
+    log(
+        f"serialized_model_int{args.quant_bits}_zlib:{quant_file_bytes} bytes "
+        f"(logical:{quant_stats['quant_payload_bytes']} packed:{quant_stats['packed_payload_bytes']} "
+        f"raw_pickle:{quant_serialized_bytes} ratio:{ratio:.2f}x packed_ratio:{packed_ratio:.2f}x)"
     )
 
     with quant_path.open("rb") as f:
         quant_blob_disk = f.read()
-    quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
+    quant_flat = dequantize_state_dict_lowbit(pickle.loads(zlib.decompress(quant_blob_disk)))
     model.update(tree_unflatten(list(quant_flat.items())))
     run_final_eval(
         args,

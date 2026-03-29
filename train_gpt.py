@@ -88,6 +88,11 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    quant_bits = int(os.environ.get("QUANT_BITS", 6))
+    quant_bits_embed = int(os.environ.get("QUANT_BITS_EMBED", 8))
+    quant_pack = bool(int(os.environ.get("QUANT_PACK", "1")))
+    qat_start_step = int(os.environ.get("QAT_START_STEP", -1))
+    qat_bits = int(os.environ.get("QAT_BITS", 0))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -379,7 +384,8 @@ def eval_val_sliding(
 # -----------------------------
 #
 # It's silly to export our model, which is trained in bf16 and fp32, at that same precision.
-# Instead, we get approximately the same model (with a small hit) by quantizing the model to int8 & zlib compressing.
+# Instead, we get approximately the same model (with a small hit) by quantizing the model
+# to a low-bit signed integer format and zlib compressing.
 # We can then decompress the model and run in higher precision for evaluation, after closing in under the size limit.
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
@@ -398,11 +404,40 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
+EMBED_TENSOR_NAME_PATTERNS = ("tok_emb", "lm_head")
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+
+
+def quant_symmetric_qmax(bits: int) -> int:
+    if not 2 <= bits <= 8:
+        raise ValueError(f"QUANT_BITS must be in [2, 8], got {bits}")
+    return (1 << (bits - 1)) - 1
+
+
+def fake_quantize_weight_ste(w: Tensor, quant_bits: int) -> Tensor:
+    # Straight-through estimator: forward sees low-bit dequantized weights while
+    # backward keeps the fp32 master weight gradient unchanged. Mirror the
+    # export quantizer so late QAT optimizes the same roundtrip written to disk.
+    if w.ndim != 2:
+        return w
+    qmax = float(quant_symmetric_qmax(quant_bits))
+    with torch.no_grad():
+        w32 = w.detach().float()
+        clip_abs = (
+            torch.quantile(w32.abs(), INT8_CLIP_Q, dim=1, keepdim=True)
+            if w32.numel()
+            else torch.empty((w32.shape[0], 1), dtype=torch.float32, device=w32.device)
+        )
+        clipped = torch.maximum(torch.minimum(w32, clip_abs), -clip_abs)
+        scale = (clip_abs / qmax).clamp_min(1.0 / qmax)
+        q = torch.clamp(torch.round(clipped / scale), -qmax, qmax)
+        dq_scale = scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).to(dtype=torch.float32)
+        dq = (q * dq_scale).to(dtype=w.dtype)
+    return w + (dq - w).detach()
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -415,8 +450,9 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(t: Tensor, quant_bits: int) -> tuple[Tensor, Tensor]:
     t32 = t.float()
+    qmax = quant_symmetric_qmax(quant_bits)
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
@@ -426,30 +462,56 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        scale = (clip_abs / float(qmax)).clamp_min(1.0 / float(qmax))
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -qmax, qmax).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / float(qmax) if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -qmax, qmax).to(torch.int8).contiguous()
     return q, scale
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
-    # Single supported clean-script export format:
-    # - per-row int8 for 2D float tensors
-    # - per-tensor int8 for other float tensors
-    # - exact passthrough for non-floats
-    # - passthrough for small float tensors, stored as fp16 to save bytes
-    quantized: dict[str, Tensor] = {}
+def pack_int6(q: Tensor) -> bytes:
+    # Pack signed int6 values (in int8 container) to 3 bytes per 4 values.
+    # Shift from [-31,31] to [0,62], then pack 4×6bit = 24bit = 3 bytes.
+    flat = (q.flatten().to(torch.int16) + 31).to(torch.uint8).numpy()
+    n = len(flat)
+    pad = (4 - n % 4) % 4
+    if pad:
+        flat = np.pad(flat, (0, pad), constant_values=31)  # zero maps to 31
+    flat = flat.reshape(-1, 4)
+    b0 = (flat[:, 0] | (flat[:, 1] << 6)).astype(np.uint8)
+    b1 = ((flat[:, 1] >> 2) | (flat[:, 2] << 4)).astype(np.uint8)
+    b2 = ((flat[:, 2] >> 4) | (flat[:, 3] << 2)).astype(np.uint8)
+    return np.stack([b0, b1, b2], axis=1).tobytes()
+
+def unpack_int6(data: bytes, num_values: int, shape: tuple[int, ...]) -> Tensor:
+    buf = np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
+    v0 = (buf[:, 0] & 0x3F).astype(np.int8)
+    v1 = (((buf[:, 0] >> 6) | (buf[:, 1] << 2)) & 0x3F).astype(np.int8)
+    v2 = (((buf[:, 1] >> 4) | (buf[:, 2] << 4)) & 0x3F).astype(np.int8)
+    v3 = ((buf[:, 2] >> 2) & 0x3F).astype(np.int8)
+    flat = np.stack([v0, v1, v2, v3], axis=1).ravel()[:num_values]
+    return torch.from_numpy((flat.astype(np.int16) - 31).astype(np.int8)).reshape(shape)
+
+def quantize_state_dict_lowbit(state_dict: dict[str, Tensor], quant_bits: int, quant_bits_embed: int = 0, quant_pack: bool = True):
+    # Mixed-precision quantization:
+    # - block 2D weights: quant_bits (default 6), optionally bit-packed
+    # - embedding/head 2D weights: quant_bits_embed (default = quant_bits, typically 8)
+    # - small/control tensors: fp16 passthrough
+    if quant_bits_embed <= 0:
+        quant_bits_embed = quant_bits
+    do_pack = quant_pack and quant_bits == 6
+    quantized: dict[str, Tensor | bytes] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
     passthrough: dict[str, Tensor] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
     stats = dict.fromkeys(
-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors",
+         "baseline_tensor_bytes", "quant_payload_bytes", "packed_payload_bytes"),
         0,
     )
 
@@ -462,28 +524,48 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         if not t.is_floating_point():
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = t
-            stats["int8_payload_bytes"] += tensor_nbytes(t)
+            nbytes = tensor_nbytes(t)
+            stats["quant_payload_bytes"] += nbytes
+            stats["packed_payload_bytes"] += nbytes
             continue
 
-        # Small float tensors are cheap enough to keep directly. We still downcast
-        # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
         if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
-            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            nbytes = tensor_nbytes(kept)
+            stats["quant_payload_bytes"] += nbytes
+            stats["packed_payload_bytes"] += nbytes
             continue
 
+        is_embed = any(pattern in name for pattern in EMBED_TENSOR_NAME_PATTERNS)
+        bits = quant_bits_embed if is_embed else quant_bits
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        q, s = quantize_float_tensor(t, bits)
+        meta: dict[str, object] = {"bits": bits}
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
-        quantized[name] = q
+            meta["scheme"] = "per_row"
+            meta["axis"] = 0
+        logical_bytes = tensor_nbytes(q) + tensor_nbytes(s)
+        stats["quant_payload_bytes"] += logical_bytes
+
+        if do_pack and bits == 6:
+            packed = pack_int6(q)
+            meta["packed"] = True
+            meta["num_values"] = int(q.numel())
+            meta["shape"] = list(q.shape)
+            quantized[name] = packed
+            stats["packed_payload_bytes"] += len(packed) + tensor_nbytes(s)
+        else:
+            quantized[name] = q
+            stats["packed_payload_bytes"] += logical_bytes
+
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
-        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
+        qmeta[name] = meta
 
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
+        "__quant_format__": f"mixed_sint{quant_bits}_e{quant_bits_embed}_v2" if quant_bits != quant_bits_embed or do_pack else f"sint{quant_bits}_clean_per_row_v1",
+        "quant_bits": quant_bits,
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -495,16 +577,20 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
     return obj, stats
 
-def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
+def dequantize_state_dict_lowbit(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
-    for name, q in obj["quantized"].items():
+    for name, q_data in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+        meta = qmeta.get(name, {})
+        if meta.get("packed"):
+            q = unpack_int6(q_data, meta["num_values"], tuple(meta["shape"]))
+        else:
+            q = q_data
+        if meta.get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
-            # Broadcast the saved row scale back across trailing dimensions.
             out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
             scale = float(s.item())
@@ -604,10 +690,18 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.qat_enabled = False
+        self.qat_bits = 6
+
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, qat_active: bool = False) -> Tensor:
+        weight = self.weight
+        if self.training and qat_active and self.qat_enabled:
+            weight = fake_quantize_weight_ste(weight, self.qat_bits)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, weight.to(x.dtype), bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -677,11 +771,11 @@ class CausalSelfAttention(nn.Module):
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, qat_active: bool = False) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = self.c_q(x, qat_active).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.c_k(x, qat_active).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x, qat_active).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -697,7 +791,7 @@ class CausalSelfAttention(nn.Module):
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        return self.proj(y, qat_active)
 
 
 class MLP(nn.Module):
@@ -709,9 +803,9 @@ class MLP(nn.Module):
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
-    def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
-        return self.proj(x.square())
+    def forward(self, x: Tensor, qat_active: bool = False) -> Tensor:
+        x = torch.relu(self.fc(x, qat_active))
+        return self.proj(x.square(), qat_active)
 
 
 class Block(nn.Module):
@@ -733,12 +827,12 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, qat_active: bool = False) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        attn_out = self.attn(self.attn_norm(x), qat_active)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), qat_active)
         return x
 
 
@@ -794,7 +888,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def _forward_hidden(self, input_ids: Tensor) -> Tensor:
+    def _forward_hidden(self, input_ids: Tensor, qat_active: bool = False) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -802,31 +896,31 @@ class GPT(nn.Module):
 
         # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[i](x, x0, qat_active)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self.blocks[self.num_encoder_layers + i](x, x0, qat_active)
         return self.final_norm(x)
 
-    def _project_logits(self, x: Tensor) -> Tensor:
+    def _project_logits(self, x: Tensor, qat_active: bool = False) -> Tensor:
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
+            logits_proj = self.lm_head(x, qat_active)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        x = self._forward_hidden(input_ids).reshape(-1, self.tok_emb.weight.size(1))
+    def forward(self, input_ids: Tensor, target_ids: Tensor, qat_active: bool = False) -> Tensor:
+        x = self._forward_hidden(input_ids, qat_active).reshape(-1, self.tok_emb.weight.size(1))
         targets = target_ids.reshape(-1)
-        logits = self._project_logits(x)
+        logits = self._project_logits(x, qat_active)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
-    def forward_logits(self, input_ids: Tensor) -> Tensor:
-        return self._project_logits(self._forward_hidden(input_ids))
+    def forward_logits(self, input_ids: Tensor, qat_active: bool = False) -> Tensor:
+        return self._project_logits(self._forward_hidden(input_ids, qat_active), qat_active)
 
 
 # -----------------------------
@@ -945,6 +1039,15 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    qat_bits = args.quant_bits if args.qat_bits <= 0 else args.qat_bits
+    quant_symmetric_qmax(qat_bits)
+    qat_start_step = args.qat_start_step if 0 <= args.qat_start_step < args.iterations else None
+    qat_linear_count = 0
+    for name, module in base_model.named_modules():
+        if isinstance(module, CastedLinear):
+            module.qat_bits = qat_bits
+            module.qat_enabled = name.startswith("blocks.")
+            qat_linear_count += int(module.qat_enabled)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
     compiled_forward_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
@@ -1016,6 +1119,7 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"eval_stride:{args.eval_stride} eval_batch_seqs:{args.eval_batch_seqs}")
+    log0(f"qat_start_step:{qat_start_step if qat_start_step is not None else -1} qat_bits:{qat_bits} qat_linears:{qat_linear_count}")
     log0(f"seed:{args.seed}")
 
     # -----------------------------
@@ -1041,6 +1145,21 @@ def main() -> None:
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
+    def run_warmup_step(qat_active: bool) -> Tensor:
+        zero_grad_all()
+        warmup_loss = torch.zeros((), device=device)
+        for micro_step in range(grad_accum_steps):
+            if distributed:
+                model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                warmup_loss = model(x, y, qat_active)
+            (warmup_loss * grad_scale).backward()
+        for opt in optimizers:
+            opt.step()
+        zero_grad_all()
+        return warmup_loss
+
     # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
     # initial weights/optimizer state so measured training starts from the true init.
     if args.warmup_steps > 0:
@@ -1048,19 +1167,12 @@ def main() -> None:
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
         for warmup_step in range(args.warmup_steps):
-            zero_grad_all()
-            for micro_step in range(grad_accum_steps):
-                if distributed:
-                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
-                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_loss = model(x, y)
-                (warmup_loss * grad_scale).backward()
-            for opt in optimizers:
-                opt.step()
-            zero_grad_all()
+            run_warmup_step(qat_active=False)
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
+        if qat_start_step is not None:
+            run_warmup_step(qat_active=True)
+            log0("warmup_qat_graph:compiled")
         base_model.load_state_dict(initial_model_state, strict=True)
         for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
             opt.load_state_dict(state)
@@ -1075,6 +1187,7 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    qat_activated = False
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1115,6 +1228,10 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        qat_active = qat_start_step is not None and step >= qat_start_step
+        if qat_active and not qat_activated:
+            qat_activated = True
+            log0(f"qat_activated:step:{step}/{args.iterations} lr_scale:{scale:.6f}")
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1122,7 +1239,7 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                loss = model(x, y, qat_active)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
@@ -1172,7 +1289,7 @@ def main() -> None:
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
-    # the compressed int8+zlib artifact and validate the round-tripped weights.
+    # the compressed low-bit+zlib artifact and validate the round-tripped weights.
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
@@ -1182,30 +1299,35 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    quant_obj, quant_stats = quantize_state_dict_lowbit(
+        base_model.state_dict(), args.quant_bits, args.quant_bits_embed, args.quant_pack,
+    )
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
     quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
+    quant_path = f"final_model.int{args.quant_bits}.ptz"
     if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
+        with open(quant_path, "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        quant_file_bytes = os.path.getsize(quant_path)
         code_bytes = len(code.encode("utf-8"))
-        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["quant_payload_bytes"], 1)
+        packed_ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["packed_payload_bytes"], 1)
         log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
+            f"Serialized model int{args.quant_bits}+zlib: {quant_file_bytes} bytes "
+            f"(logical:{quant_stats['quant_payload_bytes']} packed:{quant_stats['packed_payload_bytes']} "
+            f"raw_torch:{quant_raw_bytes} ratio:{ratio:.2f}x packed_ratio:{packed_ratio:.2f}x)"
         )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size int{args.quant_bits}+zlib: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
+    with open(quant_path, "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    base_model.load_state_dict(dequantize_state_dict_lowbit(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     log0(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
@@ -1225,10 +1347,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_quantized_roundtrip bits:{args.quant_bits} val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_quantized_roundtrip_exact bits:{args.quant_bits} val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
