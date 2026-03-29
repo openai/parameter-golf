@@ -221,10 +221,7 @@ class ErrorFeedbackModule(nn.Module):
 
     def param_count(self) -> int:
         return sum(p.numel() for p in self.parameters())
-try:
-    import wandb as _wandb
-except ImportError:
-    _wandb = None
+_wandb = None
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -1926,27 +1923,7 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
-    use_wandb = _wandb is not None and rank == 0 and os.environ.get("WANDB_DISABLED", "0") != "1"
-    if use_wandb:
-        _wandb.init(
-            project=os.environ.get("WANDB_PROJECT", "parameter-golf"),
-            name=os.environ.get("WANDB_NAME", f"recurrent_p{args.num_passes}_s{args.seed}"),
-            config={
-                "num_layers": args.num_layers, "model_dim": args.model_dim,
-                "num_passes": args.num_passes, "core_start": args.core_start,
-                "core_end": args.core_end, "seed": args.seed,
-                "train_batch_tokens": args.train_batch_tokens,
-                "train_seq_len": args.train_seq_len, "iterations": args.iterations,
-                "matrix_lr": args.matrix_lr, "scalar_lr": args.scalar_lr,
-                "feedback_mode": cli.feedback_mode, "feedback_rank": cli.feedback_rank,
-                "jacobian_proxy_weight": cli.jacobian_proxy_weight,
-                "residual_scale_init": cli.residual_scale_init,
-                "interpass_rmsnorm": not cli.no_interpass_rmsnorm,
-                "n_params": sum(p.numel() for p in base_model.parameters()),
-            },
-            reinit=True,
-        )
-        log0("wandb:initialized")
+    use_wandb = False
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     def zero_grad_all() -> None:
         for opt in optimizers:
@@ -1966,12 +1943,22 @@ def main() -> None:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         _precompile_passes = sorted(set(p for _, p in passes_schedule) - {args.num_passes}) if passes_schedule else []
-        _precompile_start = args.warmup_steps - len(_precompile_passes)
+        _qat_precompile_passes = _precompile_passes[-2:] if len(_precompile_passes) >= 2 else _precompile_passes[:]
+        _total_precompile = len(_precompile_passes) + len(_qat_precompile_passes)
+        _precompile_start = args.warmup_steps - _total_precompile
         model.train()
         for warmup_step in range(args.warmup_steps):
-            if _precompile_passes and warmup_step >= _precompile_start:
+            if warmup_step >= _precompile_start:
                 _pc_idx = warmup_step - _precompile_start
-                base_model.num_passes = _precompile_passes[_pc_idx]
+                if _pc_idx < len(_precompile_passes):
+                    base_model.num_passes = _precompile_passes[_pc_idx]
+                    CastedLinear._qat_enabled = False
+                    base_model.core_quant_enabled = False
+                else:
+                    _qat_idx = _pc_idx - len(_precompile_passes)
+                    base_model.num_passes = _qat_precompile_passes[_qat_idx]
+                    CastedLinear._qat_enabled = True
+                    base_model.core_quant_enabled = True
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
@@ -1992,6 +1979,8 @@ def main() -> None:
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
         base_model.num_passes = args.num_passes
+        CastedLinear._qat_enabled = args.qat_enabled
+        base_model.core_quant_enabled = args.core_quant_enabled
         if stabilizer is not None:
             stabilizer.reset()
         base_model.load_state_dict(initial_model_state, strict=True)

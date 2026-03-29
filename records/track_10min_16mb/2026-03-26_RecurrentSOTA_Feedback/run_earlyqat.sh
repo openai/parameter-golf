@@ -9,7 +9,7 @@ if [ -f /home/nesta/parameter-golf/.env ]; then
 fi
 
 export PYTHONUNBUFFERED=1
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTORCH_ALLOC_CONF=expandable_segments:True
 
 # --- Data paths ---
 export DATA_PATH="../../../data/datasets/fineweb10B_sp1024"
@@ -29,12 +29,12 @@ export VE_DIM=128
 export VE_LAYERS="9,10"
 
 # --- Training schedule (progressive 1->4 passes, wallclock-capped at 600s on 8xH100) ---
-export ITERATIONS=6500
+export ITERATIONS=9000
 export MAX_WALLCLOCK_SECONDS=600
 export VAL_LOSS_EVERY=500
 export TRAIN_LOG_EVERY=50
-export WARMUP_STEPS=20
-export WARMDOWN_ITERS=2500
+export WARMUP_STEPS=24
+export WARMDOWN_ITERS=3500
 export TRAIN_BATCH_TOKENS=786432
 export TRAIN_SEQ_LEN=2048
 export EVAL_SEQ_LEN=2048
@@ -55,7 +55,7 @@ export GRAD_CLIP_NORM=0.3
 # EARLY QAT: threshold 0.25 (vs 0.15 in winning config) to reduce weight entropy
 export SWA_ENABLED=1
 export SWA_EVERY=50
-export LATE_QAT_THRESHOLD=0.25
+export LATE_QAT_THRESHOLD=0.30
 
 # --- TTT (matches SOTA, freeze_blocks=0) ---
 export TTT_ENABLED=1
@@ -76,16 +76,12 @@ export CORE_QUANT_ENABLED=0
 # Progressive: 1-pass until step 4500, then ramp 2->3->4
 export PASSES_SCHEDULE="0:1,4500:2,5500:3,6000:4"
 
-# --- W&B ---
-export WANDB_PROJECT="parameter-golf"
-
 export SEED=1337
-export WANDB_NAME="earlyqat_025"
-export RUN_ID="earlyqat_025"
+export RUN_ID="earlyqat_v2"
 
 torchrun --standalone --nproc_per_node=8 train_gpt.py \
     --feedback-mode diagonal --feedback-rank 2 \
     --residual-scale-init 0.5 \
     --jacobian-proxy-weight 0.1 \
     --no-interpass-rmsnorm \
-    2>&1 | tee logs/earlyqat_025.txt
+    2>&1 | tee logs/earlyqat_v2.txt

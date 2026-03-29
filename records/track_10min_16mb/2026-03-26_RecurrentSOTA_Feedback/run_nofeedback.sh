@@ -9,7 +9,7 @@ if [ -f /home/nesta/parameter-golf/.env ]; then
 fi
 
 export PYTHONUNBUFFERED=1
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTORCH_ALLOC_CONF=expandable_segments:True
 
 # --- Data paths ---
 export DATA_PATH="../../../data/datasets/fineweb10B_sp1024"
@@ -78,11 +78,7 @@ export CORE_QUANT_ENABLED=0
 # Progressive: 1-pass until step 4500, then ramp 2->3->4
 export PASSES_SCHEDULE="0:1,4500:2,5500:3,6000:4"
 
-# --- W&B ---
-export WANDB_PROJECT="parameter-golf"
-
 export SEED=1337
-export WANDB_NAME="nofeedback_earlyqat"
 export RUN_ID="nofeedback_earlyqat"
 
 torchrun --standalone --nproc_per_node=8 train_gpt.py \
