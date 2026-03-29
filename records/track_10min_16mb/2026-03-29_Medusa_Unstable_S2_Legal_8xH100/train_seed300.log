@@ -1,0 +1,20 @@
+nitrust:disabled NITRUST_ENABLE=0
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:14487088
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:relu_sq mlp_leaky_slope:0.5
+XSA:last_11 world_size:8 grad_accum_steps:1
+num_heads:8 num_kv_heads:4 embed_lr:0.035 matrix_lr:0.03
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 fullgraph=0 optimize_ddp=0
+ddp:find_unused_parameters=1
+seed:300
+step:4616/20000 stopping_early: wallclock_cap train_time:570093ms step:4616/20000
+gptq:loop-aware 2-phase calibration...
+gptq_loop_aware:patched 24 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collected 16 crawler Hessians
+gptq_loop_aware:merged 41 Hessians (16 crawler from phase2)
+gptq:loop-aware calibrated 41 layers in ~12s
+final_int6_sliding_window val_bpb:1.0251 stride:64
