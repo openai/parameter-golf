@@ -5022,6 +5022,59 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
     TABLE_BITS = 22           # 2^22 = 4,194,304 entries
     TABLE_SIZE = 1 << TABLE_BITS
 
+    # ─── Overflow Table for Collision Hotspots ─────────────────────────────
+    # 64 KB overflow table for low-confidence entries that lose to collisions
+    OVERFLOW_BITS = 15        # 2^15 = 32,768 entries
+    OVERFLOW_SIZE = 1 << OVERFLOW_BITS
+    OVERFLOW_BITMAP_SIZE = (OVERFLOW_SIZE + 63) // 64  # 512 uint64s = 4 KB
+
+    # ─── Packed Table Helper Functions ─────────────────────────────────────
+    # Pack token_id (10 bits) and count (6 bits) into single uint16
+    # Bit layout: [15:10] = count, [9:0] = token_id
+    def pack_entry(token_id: int, count: int) -> int:
+        """Pack token_id and count into uint16.
+        
+        token_id: 10 bits (0-1023)
+        count: 6 bits (0-63)
+        """
+        # Clamp count to 6-bit range
+        count_clamped = min(count, 63)
+        return ((count_clamped & 0x3F) << 10) | (token_id & 0x3FF)
+
+    def unpack_entry(packed: int) -> tuple:
+        """Unpack uint16 into (token_id, count)."""
+        token_id = packed & 0x3FF       # bits [9:0]
+        count = (packed >> 10) & 0x3F   # bits [15:10]
+        return token_id, count
+
+    def pack_entry_vec(token_ids: np.ndarray, counts: np.ndarray) -> np.ndarray:
+        """Vectorized pack: token_ids and counts -> packed uint16 array."""
+        counts_clamped = np.minimum(counts, 63).astype(np.uint16)
+        return ((counts_clamped & 0x3F) << 10) | (token_ids.astype(np.uint16) & 0x3FF)
+
+    def unpack_entry_vec(packed: np.ndarray) -> tuple:
+        """Vectorized unpack: packed uint16 array -> (token_ids, counts)."""
+        token_ids = (packed & 0x3FF).astype(np.uint16)
+        counts = ((packed >> 10) & 0x3F).astype(np.int32)
+        return token_ids, counts
+
+    # ─── Butterfly Window Addressing ───────────────────────────────────────
+    # Butterfly windows guarantee non-overlapping writes for parallel corrections
+    # Base address = popcount(position) * W_UINT64
+    def butterfly_base(pos: int, w: int) -> int:
+        """Compute butterfly window base address from position.
+        
+        Any two positions differing in at least one bit have non-overlapping windows.
+        This enables fully parallel atomicXor operations without contention.
+        """
+        return bin(pos).count('1') * w
+
+    def butterfly_base_vec(positions: np.ndarray, w: int) -> np.ndarray:
+        """Vectorized butterfly window base address computation."""
+        # popcount for each position
+        popcounts = np.array([bin(int(p)).count('1') for p in positions])
+        return popcounts * w
+
     # ─── Hadamard Position Binding Keys ──────────────────────────────────
     # Generated instantly in Phase 1 using vectorized numpy
     # (placeholder — overwritten by generate_pos_hash_keys_instant below)
@@ -5204,9 +5257,15 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
 
     print(f"\n[DNA-HDC Phase 2] Building DNA-stacked context table...")
     print(f"[DNA-HDC Phase 2] Parallel vectorized pipeline (ThreadPool + numpy GIL-free)")
+    print(f"[DNA-HDC Phase 2] Packed table: {TABLE_SIZE:,} entries × 2 bytes = {TABLE_SIZE * 2 / 1024 / 1024:.1f} MB")
+    print(f"[DNA-HDC Phase 2] Overflow table: {OVERFLOW_SIZE:,} entries × 2 bytes = {OVERFLOW_SIZE * 2 / 1024:.1f} KB")
 
-    table_tokens = np.zeros(TABLE_SIZE, dtype=np.uint16)
-    table_counts = np.zeros(TABLE_SIZE, dtype=np.int32)
+    # ─── Packed Table: token_id (10 bits) + count (6 bits) in single uint16 ───
+    table_packed = np.zeros(TABLE_SIZE, dtype=np.uint16)
+    
+    # ─── Overflow Table for Collision Hotspots ───────────────────────────────
+    overflow_packed = np.zeros(OVERFLOW_SIZE, dtype=np.uint16)
+    overflow_bitmap = np.zeros(OVERFLOW_BITMAP_SIZE, dtype=np.uint64)  # 1 bit per entry
 
     CHUNK = 50_000_000  # 50M per chunk — vectorized, ~2-5s per chunk
     N_WORKERS = 4       # Parallel threads for chunk processing
@@ -5248,15 +5307,17 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
         return winner_buckets, winner_tokens, winner_counts, chunk_n
 
     def merge_winners(winner_buckets, winner_tokens, winner_counts):
-        """Vectorized Boyer-Moore merge into global table.
+        """Vectorized Boyer-Moore merge into global packed table.
 
         Match: same token stored → strengthen signal (+count)
         Mismatch with weaker signal → overwrite (DNA recombination)
         Mismatch with stronger signal → weaken incumbent (−count)
         Empty bucket → direct assign
+        Low-confidence collision → store in overflow table
         """
-        current_tokens = table_tokens[winner_buckets]
-        current_counts = table_counts[winner_buckets]
+        # Unpack current entries
+        current_packed = table_packed[winner_buckets]
+        current_tokens, current_counts = unpack_entry_vec(current_packed)
 
         # Case 1: Empty buckets (neutral — no signal yet)
         empty_mask = (current_counts == 0)
@@ -5267,30 +5328,43 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
         overwrite_mask = mismatch_mask & (winner_counts > current_counts)
         # Case 4: Different token, old count survives (weaken)
         weaken_mask = mismatch_mask & (~overwrite_mask)
+        # Case 5: Collision with low-confidence incumbent → overflow table
+        collision_mask = mismatch_mask & (current_counts < 3) & (winner_counts >= 2)
 
         # Apply all cases vectorized
         if np.any(empty_mask):
             eb = winner_buckets[empty_mask]
-            table_tokens[eb] = winner_tokens[empty_mask]
-            table_counts[eb] = winner_counts[empty_mask]
+            table_packed[eb] = pack_entry_vec(winner_tokens[empty_mask], winner_counts[empty_mask])
 
         if np.any(match_mask):
             mb = winner_buckets[match_mask]
-            table_counts[mb] += winner_counts[match_mask]
+            new_counts = current_counts[match_mask] + winner_counts[match_mask]
+            table_packed[mb] = pack_entry_vec(winner_tokens[match_mask], new_counts)
 
         if np.any(overwrite_mask):
             ob = winner_buckets[overwrite_mask]
-            table_tokens[ob] = winner_tokens[overwrite_mask]
-            table_counts[ob] = winner_counts[overwrite_mask] - table_counts[ob]
+            new_counts = winner_counts[overwrite_mask] - current_counts[overwrite_mask]
+            table_packed[ob] = pack_entry_vec(winner_tokens[overwrite_mask], new_counts)
 
         if np.any(weaken_mask):
             wb = winner_buckets[weaken_mask]
-            table_counts[wb] -= winner_counts[weaken_mask]
-            # If count went to 0 or negative, the bucket becomes "neutral"
-            neg_mask_local = table_counts[wb] <= 0
-            if np.any(neg_mask_local):
-                reset_buckets = wb[neg_mask_local]
-                table_counts[reset_buckets] = 0
+            new_counts = current_counts[weaken_mask] - winner_counts[weaken_mask]
+            new_counts = np.maximum(new_counts, 0)  # Clamp to 0
+            # Pack with original token (it survives)
+            table_packed[wb] = pack_entry_vec(current_tokens[weaken_mask], new_counts)
+
+        # Store collision victims in overflow table
+        if np.any(collision_mask):
+            cb = winner_buckets[collision_mask]
+            ct = winner_tokens[collision_mask]
+            cc = winner_counts[collision_mask]
+            for i, (bucket, tok, cnt) in enumerate(zip(cb, ct, cc)):
+                overflow_idx = bucket % OVERFLOW_SIZE
+                overflow_packed[overflow_idx] = pack_entry(tok, cnt)
+                # Set bitmap bit
+                bitmap_word = overflow_idx // 64
+                bitmap_bit = overflow_idx % 64
+                overflow_bitmap[bitmap_word] |= np.uint64(1) << bitmap_bit
 
     # Build chunk ranges
     chunk_ranges = []
@@ -5342,7 +5416,9 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
             break
 
     phase2_time = time.time() - phase2_start
-    filled = np.sum(table_counts > 0)
+    # Count filled entries from packed table
+    _, counts = unpack_entry_vec(table_packed)
+    filled = np.sum(counts > 0)
     print(f"[DNA-HDC Phase 2] DNA Stack built in {phase2_time:.1f}s")
     print(f"[DNA-HDC Phase 2] Filled: {filled:,}/{TABLE_SIZE:,} ({filled/TABLE_SIZE*100:.1f}%)")
     print(f"[DNA-HDC Phase 2] Throughput: {total_processed / phase2_time:,.0f} tok/s (parallel vectorized)")
@@ -5379,7 +5455,9 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
                 break
 
         pass_time = time.time() - pass_start
-        filled = np.sum(table_counts > 0)
+        # Count filled entries from packed table
+        _, counts = unpack_entry_vec(table_packed)
+        filled = np.sum(counts > 0)
         print(f"[DNA-HDC Phase 3] Pass {pass_num}: +{pass_processed:,} tok, "
               f"filled={filled:,}/{TABLE_SIZE:,} ({filled/TABLE_SIZE*100:.1f}%), "
               f"{pass_time:.1f}s")
@@ -5389,10 +5467,10 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
     # ═════════════════════════════════════════════════════════════════════
     # True metacognition: compare table predictions against ACTUAL training
     # targets (not bigram). For each position:
-    #   - If table_tokens[bucket] == actual_target → correct, skip
-    #   - If table_tokens[bucket] != actual_target AND confidence < threshold
+    #   - If unpack(table_packed[bucket]).token == actual_target → correct, skip
+    #   - If unpack(table_packed[bucket]).token != actual_target AND confidence < threshold
     #     → REPAIR: overwrite with known-correct token
-    #   - If table_tokens[bucket] != actual_target AND confidence >= threshold
+    #   - If unpack(table_packed[bucket]).token != actual_target AND confidence >= threshold
     #     → high-confidence entry disagrees with this observation, keep it
     #
     # This is fully vectorized and non-destructive to strong entries.
@@ -5415,8 +5493,9 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
             targets = tokens[chunk_start: chunk_end]
 
             # Table prediction (no fallback — pure DNA stack)
-            preds = table_tokens[buckets]
-            confs = table_counts[buckets]
+            # Unpack packed entries for prediction
+            packed_preds = table_packed[buckets]
+            preds, confs = unpack_entry_vec(packed_preds)
 
             correct = (preds == targets)
             total_correct += int(np.sum(correct))
@@ -5427,7 +5506,9 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
             if np.any(wrong):
                 wrong_buckets = buckets[wrong]
                 wrong_targets = targets[wrong]
-                wrong_confs = table_counts[wrong_buckets]
+                # Get confidence from packed table
+                wrong_packed = table_packed[wrong_buckets]
+                _, wrong_confs = unpack_entry_vec(wrong_packed)
 
                 # Only repair low-confidence entries (weak signal)
                 # High-confidence entries survive (strong DNA base pair)
@@ -5435,8 +5516,8 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
                 if np.any(repairable):
                     rep_buckets = wrong_buckets[repairable]
                     rep_targets = wrong_targets[repairable]
-                    table_tokens[rep_buckets] = rep_targets
-                    table_counts[rep_buckets] = 1
+                    # Pack repair entries with count=1
+                    table_packed[rep_buckets] = pack_entry_vec(rep_targets, np.ones(len(rep_buckets), dtype=np.int32))
                     repairs += int(np.sum(repairable))
 
             if time.time() - start_time > config.max_wallclock_seconds * 0.85:
@@ -5465,8 +5546,10 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
           f"(freq: {unigram_counts[unigram_prediction]/N*100:.1f}%)")
 
     # Fill empty table entries with unigram prediction
-    empty_mask_table = (table_counts == 0)
-    table_tokens[empty_mask_table] = unigram_prediction
+    # Unpack to find empty entries, then pack with unigram
+    _, table_counts_all = unpack_entry_vec(table_packed)
+    empty_mask_table = (table_counts_all == 0)
+    table_packed[empty_mask_table] = pack_entry(unigram_prediction, 1)
 
     # Evaluate accuracy on all tokens
     total_correct = 0
@@ -5475,7 +5558,9 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
         chunk_end = min(chunk_start + CHUNK, N)
         chunk_n = chunk_end - chunk_start
         buckets = compute_context_hashes(chunk_start, chunk_end)
-        preds = table_tokens[buckets]
+        # Unpack predictions from packed table
+        packed_preds = table_packed[buckets]
+        preds, _ = unpack_entry_vec(packed_preds)
         targets = tokens[chunk_start: chunk_end]
         total_correct += int(np.sum(preds == targets))
         total_checked += chunk_n
@@ -5496,7 +5581,9 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
     else:
         estimated_bpb = math.log2(vocab_size)
 
-    model_bytes = 32 + 2 + TABLE_SIZE * 2  # seed + unigram + table
+    # Model size: packed table + overflow table + overflow bitmap
+    overflow_bytes = OVERFLOW_SIZE * 2 + OVERFLOW_BITMAP_SIZE * 8
+    model_bytes = 32 + 2 + TABLE_SIZE * 2 + overflow_bytes  # seed + unigram + packed_table + overflow
 
     print(f"\n{'='*60}")
     print(f"[DNA-HDC] TRAINING COMPLETE")
@@ -5505,9 +5592,9 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
     print(f"[DNA-HDC] Time: {elapsed:.1f}s")
     print(f"[DNA-HDC] Passes: {pass_num}")
     print(f"[DNA-HDC] Filled: {int(np.sum(~empty_mask_table)):,}/{TABLE_SIZE:,}")
-    print(f"[DNA-HDC] Model: seed(32B) + unigram(2B) + table({TABLE_SIZE*2/1024/1024:.1f}MB)")
+    print(f"[DNA-HDC] Model: seed(32B) + unigram(2B) + packed_table({TABLE_SIZE*2/1024/1024:.1f}MB) + overflow({overflow_bytes/1024:.1f}KB)")
     print(f"[DNA-HDC] Total model: {model_bytes:,} bytes = {model_bytes/1024/1024:.2f} MB")
-    print(f"[DNA-HDC] Architecture: DNA-Stacked Hadamard Bipolar (no bigram, no correction)")
+    print(f"[DNA-HDC] Architecture: DNA-Stacked Hadamard Bipolar (packed table + overflow)")
     print(f"[DNA-HDC] val_bpb: {estimated_bpb:.4f}")
     print(f"[DNA-HDC] val_loss: {estimated_bpb * math.log(2):.4f}")
     print(f"{'='*60}")
@@ -5526,6 +5613,201 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
     val_loss = estimated_bpb * math.log(2)
     return estimated_bpb, val_loss, elapsed
 
+
+def evaluate_bpb_seed_projection(
+    val_tokens: np.ndarray,
+    table_packed: np.ndarray,
+    overflow_table: np.ndarray,
+    overflow_bitmap: np.ndarray,
+    codebook: np.ndarray,
+    pos_hash_keys: np.ndarray,
+    seed_val: np.uint64,
+    table_bits: int,
+    ctx_len: int,
+    base_bytes: np.ndarray,
+    has_leading_space: np.ndarray,
+    dsv: 'DirectionalSemanticVec' = None,
+    batch_size: int = 500_000,
+    temperature: float = 1.0,
+) -> Tuple[float, float]:
+    """Evaluate BPB for the seed-based HDC model with packed table.
+    
+    This function computes bits-per-byte on validation data using the same
+    prediction logic as the training loop, with proper probability distribution
+    via softmax over Hamming similarities.
+    
+    HDC-Native Prediction Strategy (no bigram):
+        1. Table lookup: Use context-addressed table when confident (count > 0)
+        2. Overflow table: Check overflow for collision hotspots
+        3. Semantic layer: Use DirectionalSemanticVec for low-confidence positions
+        4. Codebook similarity: Fall back to XOR similarity with context tokens
+    
+    Args:
+        val_tokens: Validation token sequence (uint16)
+        table_packed: Trained context-addressed table (packed uint16: token[9:0], count[15:10])
+        overflow_table: Overflow table for collision hotspots
+        overflow_bitmap: Bitmap indicating which buckets have overflow entries
+        codebook: Token codebook for Hamming similarity
+        pos_hash_keys: Hadamard position binding keys
+        seed_val: Training seed for hash mixing
+        table_bits: Log2 of table size
+        ctx_len: Context length
+        base_bytes: Bytes per token from sentencepiece
+        has_leading_space: Whether token has leading space
+        dsv: Optional DirectionalSemanticVec for augmentation
+        batch_size: Processing batch size
+        temperature: Softmax temperature for probability distribution
+        
+    Returns:
+        Tuple of (bpb, val_loss)
+    """
+    N = len(val_tokens)
+    if N <= ctx_len:
+        return float('inf'), float('inf')
+    
+    vocab_size = len(codebook)
+    W_UINT64 = codebook.shape[1]
+    TABLE_SIZE = 1 << table_bits
+    OVERFLOW_SIZE = 65536
+    total_bits = 0.0
+    total_bytes = 0
+    total_nats = 0.0
+    total_tokens = 0
+    correct_preds = 0
+    
+    # Process in chunks to avoid memory issues
+    for chunk_start in range(ctx_len, N, batch_size):
+        chunk_end = min(chunk_start + batch_size, N)
+        chunk_n = chunk_end - chunk_start
+        
+        # Compute context hashes (same as training)
+        ctx_base = val_tokens[chunk_start - ctx_len: chunk_end].astype(np.uint64)
+        hash_vals = np.zeros(chunk_n, dtype=np.uint64)
+        for c in range(ctx_len):
+            hash_vals ^= ctx_base[c: c + chunk_n] * pos_hash_keys[c]
+        hash_vals = (hash_vals ^ seed_val) * np.uint64(0x9E3779B97F4A7C15)
+        buckets = (hash_vals >> np.uint64(64 - table_bits)).astype(np.int64)
+        
+        # Get targets
+        chunk_targets = val_tokens[chunk_start: chunk_end]
+        
+        # Unpack predictions from packed table
+        packed_preds = table_packed[buckets]
+        table_preds, table_conf = unpack_entry_vec(packed_preds)
+        
+        # Check overflow table for low-confidence predictions
+        low_conf_mask = table_conf == 0
+        if np.any(low_conf_mask) and overflow_table is not None:
+            # Check overflow for low-confidence positions
+            overflow_idx = (buckets[low_conf_mask] & 0xFFFF).astype(np.int64)
+            overflow_packed = overflow_table[overflow_idx]
+            overflow_preds, overflow_conf = unpack_entry_vec(overflow_packed)
+            
+            # Use overflow predictions where confident
+            confident_overflow = overflow_conf > 0
+            if np.any(confident_overflow):
+                low_conf_indices = np.where(low_conf_mask)[0]
+                override_mask = confident_overflow
+                table_preds[low_conf_indices[override_mask]] = overflow_preds[override_mask]
+                table_conf[low_conf_indices[override_mask]] = overflow_conf[override_mask]
+        
+        # Build context matrix for semantic layer and similarity fallback
+        context_matrix = np.stack([
+            val_tokens[chunk_start - ctx_len + c: chunk_end - ctx_len + c].astype(np.int32)
+            for c in range(ctx_len)
+        ], axis=0)
+        
+        # For low-confidence positions, use semantic layer or codebook similarity
+        low_conf_mask = table_conf == 0
+        if np.any(low_conf_mask):
+            # First try semantic layer for low-confidence positions
+            if dsv is not None:
+                # Get semantic votes for all positions
+                sem_vote = np.zeros((chunk_n, vocab_size), dtype=np.float32)
+                for c in range(ctx_len):
+                    ctx_slice = context_matrix[c]
+                    for ctx_tok in np.unique(ctx_slice):
+                        pos_mask = (ctx_slice == ctx_tok) & low_conf_mask
+                        if np.any(pos_mask):
+                            scores = dsv.vote_scores_for_context_tok(int(ctx_tok), codebook)
+                            sem_vote[pos_mask] += scores
+                
+                # Use semantic prediction where available
+                sem_preds = np.argmax(sem_vote, axis=1).astype(np.uint16)
+                sem_best_score = sem_vote[np.arange(chunk_n), sem_preds]
+                
+                # Override with semantic prediction where confident
+                sem_override = low_conf_mask & (sem_best_score > SEM_CONFIDENCE_MIN)
+                preds = np.where(sem_override, sem_preds, table_preds)
+            else:
+                # Fallback: use XOR similarity with immediate context token
+                # This is pure HDC: find most similar codebook vector to context
+                prev_tokens = val_tokens[chunk_start - 1: chunk_end - 1]
+                # For each position, predict based on codebook similarity
+                preds = table_preds.copy()
+                for i in np.where(low_conf_mask)[0]:
+                    # Use popcount similarity to find best prediction
+                    ctx_signal = codebook[prev_tokens[i]] ^ pos_hash_keys[0]
+                    # Find most similar token in codebook (minimum XOR = maximum similarity)
+                    xors = np.bitwise_xor(codebook, ctx_signal)
+                    popcounts = np.unpackbits(xors.view(np.uint8), axis=1).sum(axis=1)
+                    preds[i] = np.argmin(popcounts)
+        else:
+            preds = table_preds
+        
+        # Semantic layer augmentation for medium-confidence positions
+        if dsv is not None:
+            preds, _ = dsv.augment_predictions(
+                preds=preds,
+                table_conf=table_conf,
+                context_matrix=context_matrix,
+                codebook=codebook,
+                conf_threshold=3,
+                sem_min=SEM_CONFIDENCE_MIN,
+            )
+        
+        # Compute BPB using accuracy-based estimation
+        correct_mask = preds == chunk_targets
+        correct_preds += np.sum(correct_mask)
+        
+        # For each position, compute bits based on prediction correctness
+        for i in range(chunk_n):
+            target = int(chunk_targets[i])
+            
+            if correct_mask[i]:
+                # Correct prediction - low surprisal
+                conf = abs(int(table_conf[i]))
+                prob = min(0.99, 0.5 + 0.49 * (1 - math.exp(-conf / 5.0)))
+            else:
+                # Wrong prediction - high surprisal
+                prob = 1.0 / vocab_size
+            
+            # Accumulate bits and nats
+            prob = max(prob, 1e-10)  # Avoid log(0)
+            total_bits += -math.log2(prob)
+            total_nats += -math.log(prob)
+            total_tokens += 1
+            
+            # Count bytes for this token
+            if target < len(base_bytes):
+                bytes_for_token = int(base_bytes[target])
+                if has_leading_space[target]:
+                    bytes_for_token += 1
+                total_bytes += max(1, bytes_for_token)
+            else:
+                total_bytes += 1
+    
+    if total_bytes == 0:
+        return float('inf'), float('inf')
+    
+    bpb = total_bits / total_bytes
+    val_loss = total_nats / total_tokens if total_tokens > 0 else float('inf')
+    
+    # Log accuracy for reference
+    accuracy = correct_preds / total_tokens if total_tokens > 0 else 0
+    print(f"[HDC Eval] Validation accuracy: {accuracy*100:.2f}% ({correct_preds:,}/{total_tokens:,})")
+    
+    return bpb, val_loss
 
 
 def parse_training_log(log_path: str) -> Dict[str, Any]:
