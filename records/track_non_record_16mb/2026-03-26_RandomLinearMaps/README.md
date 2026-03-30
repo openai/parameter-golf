@@ -1,7 +1,7 @@
 
-# Random Linear Maps + Learned Adapters (val_bpb: 1.607)
+# Random Linear Maps + Learned Adapters
 
-**val_bpb: 1.607** (sliding, s64) | **1.92 MB artifact** | 4xH200, unlimited compute track
+**val_bpb: 1.93** (10 min, 8xH100 SXM) | **1.607** (3.75hr, 4xH200) | **2.4 MB artifact**
 
 ## The Idea
 
@@ -98,6 +98,16 @@ Every attention projection (Q, K, V, output) and MLP layer (fc, proj) uses Rando
 **Random projections can do language modeling.** A 1.92 MB model with 90% random weights hits 1.607 BPB. The naive baseline (fully learned, 13.5 MB) hits 1.224 BPB. The gap is real, but the fact that it works at all is the interesting part. A natural follow-up is comparing against a size-matched fully learned model at ~1.9 MB to isolate the contribution of random maps vs model capacity. That experiment is planned but not yet run.
 
 **The artifact is hilariously small.** 1.92 MB is 12% of the 16 MB budget. You could fit eight of these models in one artifact. Ensembles, multi-model voting, whatever you want... there's room.
+
+## 3-Seed Validation (8xH100 SXM, 600s)
+
+| Seed | Sliding BPB | Artifact |
+|------|-------------|----------|
+| 42   | 1.9313      | 2.4 MB   |
+| 1337 | 1.9079      | 2.4 MB   |
+| 2024 | 1.9439      | 2.4 MB   |
+
+Seeds used for random base weight generation are derived from SEED + layer_index. They were chosen arbitrarily, not searched.
 
 ## Run Commands
 
