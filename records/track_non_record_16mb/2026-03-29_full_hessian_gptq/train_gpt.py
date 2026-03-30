@@ -480,16 +480,27 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
 # -----------------------------
 
 def _make_hessian_hook(hessians: dict[str, Tensor], name: str, n_samples: dict[str, int]):
-    """Create a forward pre-hook that accumulates H = X^T X for a linear layer."""
-    def hook(_module, input):
+    """Create a forward hook that accumulates H = X^T X for a linear layer."""
+    def hook(_module, input, _output):
         x = input[0].detach().float()
         if x.ndim > 2:
             x = x.reshape(-1, x.shape[-1])  # (B*T, D)
         if name not in hessians:
-            hessians[name] = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float32, device=x.device)
-        hessians[name].addmm_(x.T, x)
+            hessians[name] = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float32, device="cpu")
+        hessians[name].add_((x.T @ x).cpu())
         n_samples[name] = n_samples.get(name, 0) + x.shape[0]
     return hook
+
+
+def _finalize_hessians(hessians: dict[str, Tensor], num_batches: int) -> dict[str, Tensor]:
+    """Match the PR Hessian preparation path before quantization."""
+    finalized: dict[str, Tensor] = {}
+    for name, H in hessians.items():
+        H = H.float() / max(num_batches, 1)
+        damp = 0.01 * torch.diag(H).mean().clamp_min(1e-6)
+        H = H + damp * torch.eye(H.shape[0], dtype=H.dtype)
+        finalized[name] = H
+    return finalized
 
 
 def collect_hessians(
@@ -519,7 +530,7 @@ def collect_hessians(
             if cat not in ("mlp", "attn"):
                 skipped_names.append(name)
                 continue
-            handles.append(module.register_forward_pre_hook(_make_hessian_hook(hessians, name, n_samples)))
+            handles.append(module.register_forward_hook(_make_hessian_hook(hessians, name, n_samples)))
 
     print(f"gptq: hooking {len(handles)} layers, skipped: {skipped_names}", flush=True)
 
@@ -530,12 +541,13 @@ def collect_hessians(
         for i in range(num_batches):
             tokens = stream.take(batch_size * seq_len).to(device=device, dtype=torch.int64)
             x = tokens.reshape(batch_size, seq_len)
-            model.forward_logits(x)
+            with torch.autocast(device_type="cuda", dtype=LOWP_DTYPE, enabled=True):
+                model.forward_logits(x)
 
     for h in handles:
         h.remove()
 
-    result = {name: H.cpu() for name, H in hessians.items()}
+    result = _finalize_hessians(hessians, num_batches)
     print(f"gptq: collected {len(result)} Hessians, samples per layer: "
           f"{dict(list(n_samples.items())[:3])}...", flush=True)
     return result
