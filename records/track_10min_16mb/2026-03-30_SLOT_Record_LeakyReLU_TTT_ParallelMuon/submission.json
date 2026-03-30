@@ -1,0 +1,88 @@
+{
+    "author": "Anubhav",
+    "github_id": "AnubhavBharadwaaj",
+    "val_bpb": 1.1154,
+    "val_bpb_std": 0.0002,
+    "val_loss_mean": 1.8833,
+    "delta_vs_sota_nats": -0.0083,
+    "record_bar_nats": 0.005,
+    "record_bar_cleared": true,
+    "hardware": "8xH100 SXM",
+    "training_time_seconds": 600,
+    "eval_time_seconds_total": 569,
+    "artifact_size_bytes_max": 15997676,
+    "seeds": [1337, 42, 2025],
+    "base_submission": "PR #549 (abaybektursun — LeakyReLU² + Legal TTT + Parallel Muon, 1.1194 BPB)",
+    "description": "Record: SLOT (Sample-specific LM Optimization at Test-time) on PR #549 stack. First SLOT entry in Parameter Golf. Optimizes a 512-dim delta vector at the last hidden layer per-batch during TTT scoring (5 AdamW steps, lr=0.003). 3-seed mean 1.1154 BPB (std 0.0002), beating SOTA by 0.0083 nats (>0.005 required).",
+    "results": {
+        "seed_1337": {
+            "val_bpb": 1.1153,
+            "val_loss": 1.8831,
+            "steps": 7131,
+            "step_avg_ms": 84.2,
+            "ttt_slot_time_seconds": 568,
+            "artifact_bytes": 15997676,
+            "pre_ttt_bpb": 1.1381,
+            "sliding_window_bpb": 1.1220
+        },
+        "seed_42": {
+            "val_bpb": 1.1156,
+            "val_loss": 1.8837,
+            "steps": 7133,
+            "step_avg_ms": 84.1,
+            "ttt_slot_time_seconds": 568,
+            "artifact_bytes": 15891784,
+            "pre_ttt_bpb": 1.1384,
+            "sliding_window_bpb": 1.1219
+        },
+        "seed_2025": {
+            "val_bpb": 1.1153,
+            "val_loss": 1.8832,
+            "steps": 7151,
+            "step_avg_ms": 83.9,
+            "ttt_slot_time_seconds": 571,
+            "artifact_bytes": 15891988,
+            "pre_ttt_bpb": 1.1380,
+            "sliding_window_bpb": 1.1218
+        }
+    },
+    "slot_config": {
+        "enabled": true,
+        "lr": 0.003,
+        "steps": 5,
+        "optimizer": "AdamW",
+        "weight_decay": 1e-8,
+        "eps": 1e-5,
+        "delta_shape": "[1, 1, 512]",
+        "delta_init": "zeros",
+        "integration_point": "inside TTT Phase 1, between forward_hidden() and compute_logits()"
+    },
+    "slot_ablation": {
+        "disabled": {"bpb": 1.1195, "note": "baseline, reproduces PR #549"},
+        "lr0.001_steps3": {"bpb": 1.1188, "note": "paper defaults, -0.0007"},
+        "lr0.003_steps5": {"bpb": 1.1153, "note": "tuned, -0.0042, THIS SUBMISSION"}
+    },
+    "negative_results": {
+        "ctw_v1": {"bpb": 1.1252, "note": "+0.005 worse, broken n-gram lookup"},
+        "adaptive_temperature": {"bpb": 1.1325, "note": "+0.014 worse, temp divergence"},
+        "focal_ttt": {"bpb": 1.1441, "note": "+0.025 worse, destabilizes representations"}
+    },
+    "novel_techniques": [
+        "SLOT eval-time augmentation (Hu et al., arXiv:2505.12392v2) — RECORD: -0.0040 BPB",
+        "Deep integration: forward_logits() split into forward_hidden() + compute_logits()",
+        "SLOT delta optimization inside TTT Phase 1 scoring loop on TTT-adapted hidden states",
+        "Tuned SLOT hyperparameters: lr=0.003, steps=5 (vs paper defaults lr=0.001, steps=3)"
+    ],
+    "inherited_techniques": [
+        "11L, 512d, 3x MLP, GQA (8H/4KV), LeakyReLU²(0.5)",
+        "Parameter Banking + Parallel Muon (84ms/step)",
+        "Legal Score-First TTT (SGD, lr=0.002, 3 epochs, 32K chunks)",
+        "BigramHash(1536), XSA4, Partial RoPE(16), LN Scale, VE128",
+        "EMA(0.997) + Tight SWA(50), GPTQ-lite int6 + LZMA-6",
+        "FlashAttention 3 (Hopper-native)"
+    ],
+    "reference": {
+        "slot_paper": "arXiv:2505.12392v2",
+        "slot_repo": "https://github.com/maple-research-lab/SLOT"
+    }
+}

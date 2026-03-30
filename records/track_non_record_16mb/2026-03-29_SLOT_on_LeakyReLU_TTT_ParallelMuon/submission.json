@@ -1,0 +1,100 @@
+{
+    "author": "Anubhav",
+    "github_id": "AnubhavBharadwaaj",
+    "val_bpb": 1.1185,
+    "val_bpb_std": 0.0003,
+    "val_loss": 1.8886,
+    "hardware": "8xH100 SXM",
+    "training_time_seconds": 600,
+    "eval_time_seconds_total": 486,
+    "eval_time_ttt_seconds": 386,
+    "artifact_size_bytes_mean": 15947819,
+    "seeds": [1337, 42, 2025],
+    "base_submission": "PR #549 (abaybektursun — LeakyReLU² + Legal TTT + Parallel Muon, 1.1194 BPB)",
+    "description": "Non-record: SLOT (Sample-specific LM Optimization at Test-time) eval-time augmentation on PR #549 SOTA stack. First SLOT-based entry in Parameter Golf. SLOT optimizes a single delta vector at the last hidden layer per-batch during TTT scoring, achieving -0.0008 BPB improvement (1.1185 vs 1.1193 baseline, 3-seed mean). Also documents CTW as a negative result (+0.005 BPB).",
+    "results": {
+        "slot_seed1337": {
+            "val_bpb": 1.1188,
+            "val_loss": 1.8890,
+            "steps": 7127,
+            "step_avg_ms": 84.2,
+            "ttt_time_seconds": 386,
+            "artifact_bytes": 15965604
+        },
+        "slot_seed42": {
+            "val_bpb": 1.1185,
+            "val_loss": 1.8885,
+            "steps": 7155,
+            "step_avg_ms": 83.9,
+            "ttt_time_seconds": 388,
+            "artifact_bytes": 15882932
+        },
+        "slot_seed2025": {
+            "val_bpb": 1.1183,
+            "val_loss": 1.8882,
+            "steps": 7152,
+            "step_avg_ms": 83.9,
+            "ttt_time_seconds": 385,
+            "artifact_bytes": 15994920
+        },
+        "baseline_seed1337": {
+            "val_bpb": 1.1195,
+            "val_loss": 1.8903,
+            "steps": 7164,
+            "step_avg_ms": 83.8,
+            "ttt_time_seconds": 352
+        },
+        "baseline_seed42": {
+            "val_bpb": 1.1195,
+            "val_loss": 1.8903,
+            "steps": 7159,
+            "step_avg_ms": 83.8,
+            "ttt_time_seconds": 353
+        },
+        "baseline_seed2025": {
+            "val_bpb": 1.1189,
+            "val_loss": 1.8893,
+            "steps": 7164,
+            "step_avg_ms": 83.8,
+            "ttt_time_seconds": 350
+        },
+        "ctw_seed1337_negative": {
+            "val_bpb": 1.1252,
+            "val_loss": 1.8999,
+            "ctw_weight": 0.1,
+            "ctw_depth": 4,
+            "ttt_time_seconds": 2760,
+            "note": "NEGATIVE RESULT: CTW hurts BPB by +0.005 and exceeds 10-min eval limit"
+        }
+    },
+    "slot_config": {
+        "enabled": true,
+        "lr": 0.001,
+        "steps": 3,
+        "optimizer": "AdamW",
+        "weight_decay": 1e-8,
+        "eps": 1e-5,
+        "delta_shape": "[1, 1, 512]",
+        "delta_init": "zeros",
+        "integration_point": "inside TTT Phase 1 scoring loop, between forward_hidden() and compute_logits()"
+    },
+    "novel_techniques": [
+        "SLOT eval-time augmentation (Hu et al., arXiv:2505.12392v2) — POSITIVE RESULT (-0.0008 BPB)",
+        "Deep integration: SLOT delta optimization inside TTT scoring loop on TTT-adapted hidden states",
+        "Model split: forward_logits() decomposed into forward_hidden() + compute_logits() for SLOT access",
+        "CTW eval-time augmentation (Willems et al., 1995) — NEGATIVE RESULT (+0.005 BPB)"
+    ],
+    "inherited_techniques": [
+        "11L, 512d, 3x MLP, GQA (8H/4KV), LeakyReLU²(0.5)",
+        "Parameter Banking + Parallel Muon (84ms/step)",
+        "Legal Score-First TTT (SGD, lr=0.002, 3 epochs, 32K chunks)",
+        "BigramHash(1536), XSA4, Partial RoPE(16), LN Scale, VE128",
+        "EMA(0.997) + Tight SWA(50), GPTQ-lite int6 + LZMA-6",
+        "FlashAttention 3 (Hopper-native)"
+    ],
+    "reference": {
+        "slot_paper": "arXiv:2505.12392v2",
+        "slot_repo": "https://github.com/maple-research-lab/SLOT",
+        "ctw_paper": "Willems, Shtarkov, Tjalkens (1995)"
+    }
+}
