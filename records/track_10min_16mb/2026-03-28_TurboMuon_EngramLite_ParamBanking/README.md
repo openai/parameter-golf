@@ -69,7 +69,7 @@ Output projections initialized as `O_h = -alpha * V_h` per head (alpha=0.05), cr
 
 Compression pipeline with Hessian collection performed within the 600s training budget (`gptq_reserve_ms=9000` deducted from training wallclock before training begins):
 
-1. **Hessian collection** — 64 calibration batches run through a non-banked model copy to collect per-layer `H = X^T X` approximations, all-reduced across ranks. This runs within the reserved 14s carved from the training budget.
+1. **Hessian collection** — 64 calibration batches run through a non-banked model copy to collect per-layer `H = X^T X` approximations, all-reduced across ranks. This runs within the reserved 9s carved from the training budget.
 2. **Dynamic mixed-precision bit allocation** — Base quantization is **int5** for all weight groups. Hessian trace sensitivity ranks tensor groups (by layer × attn/mlp), then a greedy allocator selectively **promotes the most sensitive groups to int6 or int7** until the estimated compressed artifact size approaches the 16MB target minus 2% pruning headroom.
 3. **GPTQ quantization** — Hessian-aware Cholesky error compensation for 2D weight matrices. Columns permuted by descending Hessian diagonal for optimal error propagation. Falls back to percentile search on Cholesky failure.
 4. **Late QAT (soft-round)** — Quantization-aware training activated when LR scale drops below 15%, with soft-round sigmoid alpha ramping 1→16 over the QAT phase. Provides real gradient signal through quantization grid points.
@@ -85,6 +85,21 @@ whitespace, type hints, rename identifiers) → LZMA + base85 self-extracting `e
 - **Human-readable source**: `train_gpt_human.py` (123 KB)
 - **Shrunk submission**: `train_gpt.py` (24 KB)
 - **Code budget freed**: ~99 KB → more artifact space for model weights → less pruning
+
+### Test-Time Training (TTT)
+
+Optional legal score-first TTT on the validation set, activated via `TTT_ENABLED=1`. Every token is scored BEFORE any gradient update that could use it, ensuring no data leakage:
+
+1. **Phase 1 (Score)** — Sliding window evaluation under `torch.no_grad()`, scoring all windows whose first scored token falls within the current chunk. Results are accumulated into global byte/token counters.
+2. **Phase 2 (Train)** — SGD (or AdamW) training on the chunk just scored, with configurable epochs, gradient clipping, and learning rate.
+3. **Last chunk** — Scored but never trained on (hard guarantee: no weight mutation after final scoring).
+
+Key features:
+- **Polyak EMA** — Maintains exponential moving average of weights (decay=0.998). Training weights used during gradient updates, Polyak weights swapped in for scoring. Provides stability without sacrificing adaptation speed.
+- **Entropy-adaptive epochs** — Per-chunk epoch count adjusted by chunk entropy: high-entropy (hard) chunks get +1 epoch, low-entropy (easy) chunks get -1.
+- **Budget guard** — Monitors elapsed wall-clock time and stops TTT if the 600s eval budget would be exceeded.
+- **Multi-GPU support** — All-reduces loss/token/byte counts across ranks.
+- **torch.compile compatible** — Optionally compiles the model for TTT forward passes (`TTT_COMPILE=1`).
 
 ## Architecture
 
@@ -138,6 +153,10 @@ All hyperparameters are configured via environment variables. Defaults match the
 NUM_LAYERS=11 MODEL_DIM=512 MLP_MULT=3.5 \
 MUON_MOMENTUM=0.99 MUON_WD=0.04 MUON_POST_NORM=row_col \
 SWA_ENABLED=1 EMA_ENABLED=1 MIXED_PRECISION=1 LATE_QAT=1 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
+
+# With TTT enabled (eval phase applies test-time training)
+TTT_ENABLED=1 TTT_LR=0.005 TTT_EPOCHS=5 TTT_OPTIMIZER=sgd \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
