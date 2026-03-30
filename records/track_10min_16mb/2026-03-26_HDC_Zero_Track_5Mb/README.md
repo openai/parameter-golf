@@ -143,8 +143,7 @@ def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
 |-------|-----------|------------|
 | **Phase 1** | Generate token codebook from Hadamard rows (`token_id → H[token_id]`) | O(vocab) |
 | **Phase 2** | Context-addressed bipolar table via Hadamard position binding | O(N) |
-| **Phase 3** | Bigram fallback for unmatched contexts | O(N) |
-| **Phase 3b** | DirectionalSemanticVec build (optional, time-permitting) | O(N × ctx_len) |
+| **Phase 3** | DirectionalSemanticVec build (optional, time-permitting) | O(N × ctx_len) |
 | **Phase 4** | Metacognitive correction loop (iterative convergence) | O(N × rounds) |
 
 ### Phase 1: Token Codebook
@@ -708,419 +707,99 @@ Hadamard bipolar structure internally.
 - `_new_seed_proj.py` — Pure Hadamard bipolar HDC training (BLAKE3-free)
 - `_semantic_layer.py` — Directional semantic layer with zero-collision token addressing
 - `_unlimited_context.py` — Unlimited context module with entropy-trajectory compression
-- `_zero_crosstalk.py` — Zero-crosstalk memory system with 5 orthogonalization components
+- `_zero_crosstalk.py` — **Exploratory** zero-crosstalk memory system (not integrated; see below)
 
 ---
 
-## Zero-Crosstalk Memory System (`_zero_crosstalk.py`)
+## Architectural Decisions
 
-The `_zero_crosstalk.py` module implements a **Zero-Crosstalk HDC/VSA Memory System** that pushes crosstalk toward theoretical zero by transitioning from "Summation" memory to "Non-Interfering Orthogonal" memory.
+### Why `_zero_crosstalk.py` Is Not Integrated
 
-### The Crosstalk Problem
+The `_zero_crosstalk.py` module implements a 5-component zero-crosstalk memory system, but it is **not wired into the main training pipeline**. This is an intentional architectural decision, not an oversight.
 
-In standard HDC, multiple patterns stored in superposition interfere with each other:
+#### Redundancy Analysis
 
-```
-retrieved = Σ patterns[i] + noise
-```
+| Component | Purpose | Redundant with Hadamard Architecture? |
+|-----------|---------|--------------------------------------|
+| **K-Sparsity** | Store only top-k active dimensions | ✅ **Yes** — Sparse windows (W=64) already provide sparsity |
+| **Orthogonal Manifold Projection** | Gram-Schmidt/Householder orthogonalization | ✅ **Yes** — Hadamard rows are maximally orthogonal by construction |
+| **Nonlinear Thresholding** | Cleanup gate for retrieval noise | ⚠️ **Marginal** — Boyer-Moore voting already provides confidence-based filtering |
+| **Semantic Hash-Collating** | Deduplicate similar contexts | ⚠️ **Potential** — See integration opportunity below |
+| **Fractional Power Encoding** | Unitary rotation for position encoding | ✅ **Yes** — XOR-bind position encoding already provides group structure |
 
-The noise term grows with the number of stored patterns, degrading retrieval accuracy. Zero-Crosstalk memory eliminates this interference through five orthogonalization techniques.
+The core insight: **Hadamard vectors are inherently orthogonal**. Layering orthogonalization on top of them is like adding stability control to a brick — it's already stable by construction.
 
-### Five Components
+#### Why Boyer-Moore Beats Nonlinear Thresholding
 
-| Component | Mechanism | Crosstalk Reduction |
-|-----------|-----------|---------------------|
-| **K-Sparsity** | Winner-Take-All bit-flipping | P(overlap) ≈ k²/dim |
-| **Nonlinear Thresholding** | Cleanup gate (sigmoid/step) | Clips noise below threshold |
-| **Orthogonal Manifold Projection** | Gram-Schmidt/Householder | Strict orthogonality |
-| **Semantic Hash-Collating** | Deduplication via canonicalization | Eliminates redundant storage |
-| **Fractional Power Encoding** | Unitary matrix rotation | Prevents temporal crosstalk |
-
----
-
-### 1. K-Sparsity (Winner-Take-All)
-
-Stores only the top-k active dimensions instead of dense vectors:
+The current `train_hdc_seed_projection()` uses Boyer-Moore majority voting:
 
 ```python
-from _zero_crosstalk import KSparseConfig, KSparseEncoder
+# Per-bucket confidence tracking
+table_tokens[bucket] = predicted_token
+table_counts[bucket] = confidence_count
 
-config = KSparseConfig(
-    k=128,                    # Number of active dimensions
-    dim=1048576,              # HDC dimension (2^20)
-    normalize=True,           # L2 normalize after sparsification
-)
-
-encoder = KSparseEncoder(config)
-
-# Encode dense vector to sparse
-dense_vec = np.random.randn(1048576)
-sparse_vec = encoder.encode(dense_vec)  # Only top 128 values retained
-
-# Decode back (with loss)
-reconstructed = encoder.decode(sparse_vec)
+# Low-confidence fallback
+if table_counts[bucket] < 3:
+    # Fall back to bigram or semantic layer
 ```
 
-**Mathematical Foundation**:
+This provides the same noise-filtering benefit as nonlinear thresholding, but:
+- **During training** (not retrieval) — more efficient
+- **Integer counts** (not float thresholds) — no precision issues
+- **Natural fallback** to bigram table for uncertain predictions
 
-For k-sparse vectors in dimension d, the probability of overlap between two random sparse vectors:
-
-```
-P(overlap) ≈ k²/d
-```
-
-With k=128 and d=2²⁰: P(overlap) ≈ 128²/1048576 ≈ 0.0156 (1.56% chance of collision)
-
-**Storage Savings**: (d - k) / d = 99.98% reduction in stored values
+Adding sigmoid/step thresholding on top would be redundant.
 
 ---
 
-### 2. Nonlinear Thresholding (Cleanup Gate)
+### Integration Opportunity: Semantic Collating for Unlimited Context
 
-Applies nonlinear functions during retrieval to clip noise:
+While `_zero_crosstalk.py` as a whole is redundant, **Semantic Hash-Collating** has a clean integration point with the unlimited context checkpoint system.
 
-```python
-from _zero_crosstalk import ThresholdConfig, NonlinearThreshold
+#### The Key Insight
 
-config = ThresholdConfig(
-    threshold=0.3,            # Activation threshold
-    mode="sigmoid",           # "sigmoid", "step", "relu", or "soft_threshold"
-    steepness=10.0,           # Sigmoid steepness (for sigmoid mode)
-)
+`ContextCheckpoint` has two hash fields with different purposes:
 
-gate = NonlinearThreshold(config)
+| Field | Purpose | Can Be Semantic? |
+|-------|---------|------------------|
+| `seed` | Exact reconstruction via `H[seed]` | ❌ No — must preserve XOR-chain property |
+| `context_hash` | Lookup/verification | ✅ Yes — can map similar contexts together |
 
-# Clean up noisy retrieval
-noisy_vec = np.array([0.1, -0.2, 0.8, 0.4, -0.1])
-clean_vec = gate.apply(noisy_vec)
-# Result: values below threshold are suppressed
+#### Proposed Integration
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CHECKPOINT CREATION                          │
+├─────────────────────────────────────────────────────────────────┤
+│  context_tokens = [the, cat, sat, on]                           │
+│                                                                 │
+│  seed = hadamard_bipolar_hash(context_tokens)  ← EXACT          │
+│         (preserves XOR-chain for reconstruction)                │
+│                                                                 │
+│  context_hash = semantic_collate(context_tokens)  ← FUZZY       │
+│                (maps "the cat sat" ≈ "a cat sat" to same hash)  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Threshold Modes**:
+#### Benefits
 
-| Mode | Formula | Use Case |
-|------|---------|----------|
-| `sigmoid` | `1 / (1 + exp(-steepness * (x - threshold)))` | Gradual cleanup |
-| `step` | `1 if x > threshold else 0` | Binary cleanup |
-| `relu` | `max(0, x - threshold)` | Positive activations only |
-| `soft_threshold` | `sign(x) * max(0, |x| - threshold)` | Sparse reconstruction |
+| Benefit | How It Helps |
+|---------|--------------|
+| **Generalization** | Similar contexts share `context_hash`, enabling semantic lookup |
+| **Infinite storage maintenance** | Pruning keeps semantically diverse checkpoints |
+| **Context retrieval** | Query "a cat sat" → finds checkpoint for "the cat sat" |
+| **Preserved reconstruction** | `seed` remains exact, XOR-chain still works |
+
+This integration is implemented in `SemanticContextCheckpointManager` (see `_unlimited_context.py`).
 
 ---
 
-### 3. Orthogonal Manifold Projection (FWHT-Based)
+### Summary
 
-Projects vectors onto an orthogonal manifold using **Fast Walsh-Hadamard Transform (FWHT)** for O(d log d) complexity:
-
-```python
-from _zero_crosstalk import OrthogonalConfig, OrthogonalManifoldProjector
-
-config = OrthogonalConfig(
-    dim=1048576,              # HDC dimension (must be power of 2)
-    method="fwht",            # "fwht" (default, O(d log d)), "gram_schmidt", or "householder"
-    normalize=True,           # Unit norm output
-)
-
-projector = OrthogonalManifoldProjector(config)
-
-# Add vectors one at a time - each gets orthogonalized via FWHT
-vec1 = np.random.randn(1048576)
-orthogonal_vec1 = projector.add_vector(vec1)
-
-vec2 = np.random.randn(1048576)
-orthogonal_vec2 = projector.add_vector(vec2)  # Guaranteed orthogonal to vec1
-
-# Verify orthogonality
-dot = np.dot(orthogonal_vec1, orthogonal_vec2)
-assert abs(dot) < 1e-10  # Near-zero dot product
-```
-
-**Methods**:
-
-| Method | Complexity | Speed | Use Case |
-|--------|------------|-------|----------|
-| **FWHT** | **O(d log d)** | **Near-instant** | **Default, 10-min training** |
-| Gram-Schmidt | O(n² × d) | Slow | Legacy, small n |
-| Householder | O(n² × d) | Slow | Legacy, numerically stable |
-
-**FWHT Algorithm** (Integer-Only, No Multiplications!):
-
-```python
-def bipolar_fwht(a: np.ndarray) -> np.ndarray:
-    """Fast Walsh-Hadamard Transform for Bipolar (+1/-1) vectors.
-    Uses only additions and subtractions - no floating-point multiplications!
-    """
-    n = len(a)
-    h = 1
-    while h < n:
-        for i in range(0, n, h * 2):
-            for j in range(i, i + h):
-                x = a[j]
-                y = a[j + h]
-                a[j] = x + y      # Addition only
-                a[j + h] = x - y  # Subtraction only
-        h *= 2
-    return a
-```
-
-**Spectral Domain Projection**:
-
-The FWHT projects vectors into the spectral domain of the Sylvester Hadamard matrix:
-- `H[i,j] = (-1)^popcount(i & j)` — Sylvester construction
-- Each row is orthogonal to all others: `H[i] · H[j] = 0` for `i ≠ j`
-- Assigning each vector to a unique Hadamard row guarantees orthogonality
-
-**Why FWHT Wins for 10-Minute Training**:
-- Gram-Schmidt: O(n² × d) = O(100² × 1M) = 10B operations per vector
-- FWHT: O(d log d) = O(1M × 20) = 20M operations total
-- **500x speedup** for typical HDC dimensions!
+| Module | Status | Reason |
+|--------|--------|--------|
+| `_zero_crosstalk.py` | **Exploratory, not integrated** | Redundant with Hadamard orthogonality |
+| `SemanticCanonicalizer` | **Integrated into unlimited context** | Clean separation: exact `seed` + semantic `context_hash` |
+| Other zero-crosstalk components | **Not planned** | Boyer-Moore + Hadamard already provide equivalent benefits |
 
 ---
-
-### 4. Semantic Hash-Collating (Deduplication)
-
-Groups semantically equivalent vectors under a canonical representative:
-
-```python
-from _zero_crosstalk import SemanticGroup, SemanticCanonicalizer
-
-canonicalizer = SemanticCanonicalizer(
-    similarity_threshold=0.95,    # Threshold for semantic equivalence
-    dim=1048576,
-)
-
-# Register vectors
-vec1 = np.random.randn(1048576)
-vec2 = vec1 + np.random.randn(1048576) * 0.01  # Slightly perturbed
-
-canonicalizer.register(vec1, token_id=1)
-canonicalizer.register(vec2, token_id=2)  # Will be grouped with vec1
-
-# Query canonical representative
-canonical = canonicalizer.get_canonical(vec2)
-# Returns vec1 (or its hash) as the canonical representative
-
-# Get all members of a semantic group
-group = canonicalizer.get_group(canonical)
-```
-
-**Semantic Group Structure**:
-
-```python
-@dataclass
-class SemanticGroup:
-    canonical_hash: int          # Hash of canonical representative
-    members: List[int]           # Token IDs in this group
-    centroid: np.ndarray         # Group centroid vector
-    coherence: float             # Average intra-group similarity
-```
-
-**Deduplication Benefit**: Eliminates redundant storage of semantically equivalent patterns, reducing memory footprint and preventing duplicate entries from interfering.
-
----
-
-### 5. Fractional Power Encoding
-
-Uses unitary matrix rotations for position encoding to prevent temporal crosstalk:
-
-```python
-from _zero_crosstalk import FractionalEncodingConfig, FractionalPowerEncoder
-
-config = FractionalEncodingConfig(
-    dim=1048576,
-    base_vector=None,           # Auto-generated if None
-    rotation_type="hadamard",   # "hadamard" or "random_unitary"
-)
-
-encoder = FractionalPowerEncoder(config)
-
-# Encode position as fractional power
-pos_vec_0 = encoder.encode_position(0)    # Base vector
-pos_vec_1 = encoder.encode_position(1)    # Base rotated by angle θ
-pos_vec_2 = encoder.encode_position(2)    # Base rotated by angle 2θ
-
-# Fractional positions
-pos_vec_1_5 = encoder.encode_position(1.5)  # Base rotated by angle 1.5θ
-```
-
-**Mathematical Foundation**:
-
-For a unitary matrix U (U^T U = I), position encoding uses fractional powers:
-
-```
-pos(p) = U^(p/dim) × base
-```
-
-**Properties**:
-- **Shift invariance**: `pos(p) ⊗ pos(q) = pos(p ⊕ q)` (with appropriate binding)
-- **Orthogonality**: Different positions have near-orthogonal encodings
-- **Fractional positions**: Continuous interpolation between integer positions
-
-**Hadamard Rotation**:
-
-The Sylvester Hadamard matrix H has the property:
-
-```
-H[i] XOR H[j] = ~H[i XOR j]
-```
-
-This provides natural rotation via XOR binding, enabling fractional power encoding through the Hadamard group structure.
-
----
-
-### Integrated Zero-Crosstalk Memory
-
-All five components combine in the `ZeroCrosstalkMemory` class:
-
-```python
-from _zero_crosstalk import ZeroCrosstalkMemory, ZeroCrosstalkConfig
-
-config = ZeroCrosstalkConfig(
-    dim=1048576,
-    k_sparsity=128,
-    threshold=0.3,
-    threshold_mode="sigmoid",
-    orthogonal_method="gram_schmidt",
-    similarity_threshold=0.95,
-    rotation_type="hadamard",
-)
-
-memory = ZeroCrosstalkMemory(config)
-
-# Store patterns with automatic orthogonalization
-memory.store("pattern_1", vector_1)
-memory.store("pattern_2", vector_2)
-
-# Retrieve with cleanup gate applied
-retrieved = memory.retrieve("pattern_1")
-
-# Get statistics
-stats = memory.get_stats()
-# Returns: sparsity_ratio, orthogonality_error, dedup_count, etc.
-```
-
-**Pipeline**:
-
-```
-Input Vector
-    │
-    ▼
-┌─────────────────┐
-│  K-Sparsity     │  ← Winner-Take-All
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Orthogonal     │  ← Gram-Schmidt/Householder
-│  Projection     │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Semantic       │  ← Deduplication
-│  Canonicalizer  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Fractional     │  ← Position encoding
-│  Power Encode   │
-└────────┬────────┘
-         │
-         ▼
-    Stored Vector
-
-Retrieval Pipeline:
-    │
-    ▼
-┌─────────────────┐
-│  Nonlinear      │  ← Cleanup gate
-│  Threshold      │
-└─────────────────┘
-```
-
----
-
-### Crosstalk Analysis
-
-**Before Zero-Crosstalk**:
-
-| Metric | Value |
-|--------|-------|
-| Overlap probability | ~50% (random dense vectors) |
-| Noise accumulation | O(√n) for n patterns |
-| Retrieval SNR | Degrades with storage |
-
-**After Zero-Crosstalk**:
-
-| Metric | Value |
-|--------|-------|
-| Overlap probability | ~1.56% (k=128, d=2²⁰) |
-| Noise accumulation | O(√k) per pattern |
-| Retrieval SNR | Preserved across storage |
-
-**Theoretical Limit**:
-
-With all five components active, crosstalk approaches the theoretical minimum:
-
-```
-crosstalk ≈ k²/d × (1 - threshold) × orthogonality_error × dedup_rate
-```
-
-For typical parameters: `crosstalk ≈ 0.0156 × 0.7 × 10⁻¹⁰ × 0.1 ≈ 10⁻¹²`
-
----
-
-### Usage Example
-
-```python
-import numpy as np
-from _zero_crosstalk import ZeroCrosstalkMemory, ZeroCrosstalkConfig
-
-# Configure zero-crosstalk memory
-config = ZeroCrosstalkConfig(
-    dim=1048576,              # 2^20 dimensions
-    k_sparsity=128,           # Top-128 active dimensions
-    threshold=0.3,           # Cleanup threshold
-    threshold_mode="sigmoid", # Smooth cleanup
-    orthogonal_method="householder",  # Stable orthogonalization
-    similarity_threshold=0.95,  # Semantic grouping threshold
-    rotation_type="hadamard",   # Use Hadamard rotations
-)
-
-memory = ZeroCrosstalkMemory(config)
-
-# Generate and store patterns
-np.random.seed(42)
-for i in range(100):
-    pattern = np.random.randn(1048576)
-    memory.store(f"pattern_{i}", pattern)
-
-# Retrieve with zero crosstalk
-query = np.random.randn(1048576)
-result = memory.retrieve("pattern_0")
-
-# Check memory statistics
-stats = memory.get_stats()
-print(f"Sparsity ratio: {stats['sparsity_ratio']:.4f}")
-print(f"Orthogonality error: {stats['orthogonality_error']:.2e}")
-print(f"Deduplicated entries: {stats['dedup_count']}")
-```
-
----
-
-### Testing
-
-Run the built-in tests:
-
-```bash
-cd /workspaces/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb
-python _zero_crosstalk.py
-```
-
-This runs all component tests and the integrated system test, verifying:
-- K-sparsity encoding/decoding
-- Threshold function correctness
-- Orthogonal projection accuracy
-- Semantic grouping coherence
-- Fractional position encoding properties
-- End-to-end memory operations
