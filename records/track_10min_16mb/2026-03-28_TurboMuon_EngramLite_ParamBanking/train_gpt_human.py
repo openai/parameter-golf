@@ -1529,7 +1529,8 @@ def eval_val_sliding_ttt(
                             for p in ttt_params:
                                 polyak_state[id(p)].lerp_(p.data, 1.0 - args.ttt_polyak_decay)
 
-        # Progress logging
+        # Progress logging (rank-0 local estimate — reflects 1/world_size of data on multi-GPU;
+        # final returned val_bpb is globally correct after all_reduce)
         if rank == 0 and (ci % 10 == 0 or ci == num_chunks - 1 or ci < 3):
             elapsed = time.perf_counter() - t0
             rl = loss_sum.item() / max(token_count.item(), 1)
@@ -2826,7 +2827,8 @@ def main() -> None:
         quant_decompressed = lzma.decompress(quant_blob_disk)
     else:
         quant_decompressed = zlib.decompress(quant_blob_disk)
-    quant_decompressed = _byte_unshuffle(quant_decompressed)
+    if _BYTE_SHUFFLE:
+        quant_decompressed = _byte_unshuffle(quant_decompressed)
     quant_state = torch.load(
         io.BytesIO(quant_decompressed),
         map_location="cpu",

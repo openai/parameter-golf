@@ -20,6 +20,10 @@ class DeadCodeRemover(ast.NodeTransformer):
 
         for dt in dead_false_tests:
             if source == dt:
+                if node.orelse:
+                    # Cannot safely remove — else/elif branch must be preserved.
+                    # Skip removal and keep the full if/else structure.
+                    break
                 return None
 
         self.generic_visit(node)
@@ -46,53 +50,65 @@ def shrink_pipeline(input_file, output_file):
 
     pruned_source = ast.unparse(tree)
     temp_pruned_file = input_file + ".pruned.tmp.py"
+    temp_minified_file = input_file + ".min.tmp.py"
+
+    def _cleanup_temps():
+        for f in [temp_pruned_file, temp_minified_file]:
+            if os.path.exists(f):
+                os.remove(f)
+
     with open(temp_pruned_file, 'w', encoding='utf-8') as f:
         f.write(pruned_source)
 
     # 3. Minify using pyminify
     print(f"[*] Running pyminify to minimize identifiers and strip whitespace/comments/hints...")
-    temp_minified_file = input_file + ".min.tmp.py"
     try:
-        subprocess.run([
+        result = subprocess.run([
             "uvx", "--from", "python-minifier", "pyminify", temp_pruned_file,
             "--output", temp_minified_file,
             "--remove-literal-statements",
             "--remove-asserts",
             "--remove-debug",
             "--remove-class-attribute-annotations"
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], check=True, capture_output=True, text=True)
+    except FileNotFoundError:
+        print(f"[!] 'uvx' not found on PATH. Install uv or run: pip install python-minifier")
+        _cleanup_temps()
+        return
     except subprocess.CalledProcessError as e:
-        print(f"[!] PyMinify failed: {e}")
-        if os.path.exists(temp_pruned_file): os.remove(temp_pruned_file)
+        print(f"[!] PyMinify failed (exit {e.returncode}):")
+        if e.stderr:
+            print(e.stderr)
+        _cleanup_temps()
         return
 
-    with open(temp_minified_file, 'rb') as f:
-        minified_bytes = f.read()
-    print(f"[*] Minified size: {len(minified_bytes)} bytes")
+    try:
+        with open(temp_minified_file, 'rb') as f:
+            minified_bytes = f.read()
+        print(f"[*] Minified size: {len(minified_bytes)} bytes")
 
-    # 4. LZMA + Base85 Self-Extracting Compression
-    print(f"[*] Compressing into LZMA Base85 executable wrap...")
-    compressed = lzma.compress(minified_bytes, format=lzma.FORMAT_RAW, filters=[{"id": lzma.FILTER_LZMA2, "preset": 9 | lzma.PRESET_EXTREME}])
-    b85_encoded = base64.b85encode(compressed).decode('ascii')
+        # 4. LZMA + Base85 Self-Extracting Compression
+        print(f"[*] Compressing into LZMA Base85 executable wrap...")
+        compressed = lzma.compress(minified_bytes, format=lzma.FORMAT_RAW, filters=[{"id": lzma.FILTER_LZMA2, "preset": 9 | lzma.PRESET_EXTREME}])
+        b85_encoded = base64.b85encode(compressed).decode('ascii')
 
-    # Chunk the b85 string to avoid overly long single lines
-    chunk_size = 100
-    chunks = [b85_encoded[i:i+chunk_size] for i in range(0, len(b85_encoded), chunk_size)]
-    formatted_b85 = '"\n"'.join(chunks)
+        # Chunk the b85 string to avoid overly long single lines
+        chunk_size = 100
+        chunks = [b85_encoded[i:i+chunk_size] for i in range(0, len(b85_encoded), chunk_size)]
+        formatted_b85 = '"\n"'.join(chunks)
 
-    header = f"""import lzma as L,base64 as B\nexec(L.decompress(B.b85decode(("{formatted_b85}")),format=L.FORMAT_RAW,filters=[{{"id":L.FILTER_LZMA2}}]))\n"""
+        header = f"""import lzma as L,base64 as B\nexec(L.decompress(B.b85decode(("{formatted_b85}")),format=L.FORMAT_RAW,filters=[{{"id":L.FILTER_LZMA2}}]))\n"""
 
-    with open(output_file, 'w', encoding='ascii') as f:
-        f.write(header)
+        with open(output_file, 'w', encoding='ascii') as f:
+            f.write(header)
 
-    final_size = os.path.getsize(output_file)
-    print(f"[*] Packed output size: {final_size} bytes")
-    print(f"[*] Total Reduction: {((len(source) - final_size) / len(source) * 100):.1f}%")
-
-    # 5. Clean up temporary files
-    os.remove(temp_pruned_file)
-    os.remove(temp_minified_file)
-    print(f"[*] Success! Optimized submission saved to: {output_file}")
+        final_size = os.path.getsize(output_file)
+        print(f"[*] Packed output size: {final_size} bytes")
+        print(f"[*] Total Reduction: {((len(source) - final_size) / len(source) * 100):.1f}%")
+        print(f"[*] Success! Optimized submission saved to: {output_file}")
+    finally:
+        # 5. Clean up temporary files (always, even on error)
+        _cleanup_temps()
 
 if __name__ == '__main__':
     if len(sys.argv) == 3:
