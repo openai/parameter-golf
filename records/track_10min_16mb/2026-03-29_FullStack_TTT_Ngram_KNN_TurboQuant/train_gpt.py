@@ -945,9 +945,19 @@ def _fake_quantize_weight(w, bits):
     return w + (w_fake - w).detach()
 
 
+def _fake_quantize_activation(x, bits):
+    """Simulate per-row activation quantization with STE."""
+    max_val = {5: 15, 6: 31}.get(bits, 127)
+    scale = x.abs().amax(dim=-1, keepdim=True) / max_val
+    scale = scale.clamp(min=1e-10)
+    x_fq = ((x / scale).round().clamp(-max_val, max_val) * scale).to(x.dtype)
+    return x + (x_fq - x).detach()
+
+
 def qat_noise_hook(module, input, output):
-    """QAT forward hook: fake-quantize the WEIGHTS of CastedLinear, recompute output.
-    This simulates the actual per-row weight quantization that happens at export."""
+    """QAT forward hook: fake-quantize WEIGHTS and ACTIVATIONS of CastedLinear.
+    Weights: per-row clip+scale+round matching export quantization.
+    Activations: per-row scale+round on the output."""
     if not module.training:
         return output
     bits = getattr(module, "_qat_bits", 8)
@@ -956,7 +966,8 @@ def qat_noise_hook(module, input, output):
     bias = module.bias
     if bias is not None:
         bias = bias.to(x.dtype)
-    return F.linear(x, w_fq.to(x.dtype), bias)
+    out = F.linear(x, w_fq.to(x.dtype), bias)
+    return _fake_quantize_activation(out, bits)
 
 
 # -----------------------------
