@@ -2653,6 +2653,11 @@ def main() -> None:
         del _snap
         log0(f"snapshot:restored {len(unbanked_sd)} unbanked params, {len(hessians)} hessians")
 
+    # === EVAL PHASE STARTS HERE (600s budget) ===
+    # Everything below: quantization, compression, artifact save, model load, evaluation
+    torch.cuda.synchronize()
+    t_eval_phase = time.perf_counter()
+
     # Mixed precision bit allocation
     mp_bit_allocation: dict[str, int] | None = None
     if args.mixed_precision and hessians:
@@ -2851,12 +2856,14 @@ def main() -> None:
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
     torch.cuda.synchronize()
-    t_eval_phase = time.perf_counter()
+    _eval_phase_elapsed = lambda: 1000.0 * (time.perf_counter() - t_eval_phase)
+    _load_eval_ms = _eval_phase_elapsed()
+    log0(f"eval_budget: quantize+compress+decompress+load took {_load_eval_ms:.0f}ms")
     sw_seq_len = effective_eval_seq_len
 
     if args.ttt_enabled:
         # TTT does its own sliding-window scoring — skip redundant eval passes
-        log0(f"eval_budget: TTT enabled, skipping roundtrip+sliding evals")
+        log0(f"eval_budget: TTT enabled, skipping roundtrip+sliding evals (elapsed so far: {_eval_phase_elapsed():.0f}ms)")
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
@@ -2920,6 +2927,11 @@ def main() -> None:
                 f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
             )
             log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+    # Cumulative eval phase summary
+    _total_eval_ms = _eval_phase_elapsed()
+    log0(f"eval_budget: TOTAL eval phase {_total_eval_ms:.0f}ms ({_total_eval_ms/1000:.1f}s / 600s budget)")
+    if _total_eval_ms > 580_000:
+        log0(f"eval_budget: WARNING near or over 600s budget!")
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
