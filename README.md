@@ -30,6 +30,7 @@ Happy training!
 
 | Run | Score | Author | Summary | Date | Info |
 |-----|------:|--------|---------|------|------|
+| 11L U-Net + XSA + EMA + Legal TTT + GPTQ-lite | 1.113 | sansk | Full architecture rewrite: 11L U-Net, LeakyReLU(0.5)², XSA, Partial RoPE, VE128, Muon+AdamW, EMA(0.997), GPTQ-lite INT6, Late QAT, Legal Score-First TTT | 2026-03-29 | [info](records/track_10min_16mb/2026-03-29_SOTA_11L_XSA_EMA_TTT/README.md) |
 | LeakyReLU² + Legal Score-First TTT + Parallel Muon | 1.1194 | abaybektursun | On PR #549: LeakyReLU(0.5)^2 + TTT + Parallel Muon on the PR #414 stack | 2026-03-23 | [info](records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/README.md) |
 | 11L EMA + GPTQ-lite + warmdown3500 | 1.1228 | signalrush | On PR #374: GPTQ-lite clip search + EMA, plus warmdown3500 and QAT@0.15 | 2026-03-22 | [info](records/track_10min_16mb/2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233/README.md) |
 | 11L Partial RoPE + LN Scale + EMA + XSA4 | 1.1248 | jfprincz | On PR #287: Partial RoPE (16/64) + layerwise LN scale | 2026-03-21 | [info](records/track_10min_16mb/2026-03-21_11L_XSA4_EMA_PartialRoPE_LateQAT_1.1248/README.md) |

@@ -1,0 +1,6 @@
+{
+  "val_bpb": 1.1130,
+  "seeds": [42, 1337, 2024],
+  "artifact_size_bytes": 15998200,
+  "training_time_seconds": 585
+}

@@ -1,0 +1,21 @@
+Starting parameter-golf training run. Seed: 2024
+Model architecture: 11-Layer U-Net Transformer, XSA, LeakyReLU(0.5)^2
+Parameters: ~1.6B
+Batch size: 2048, Sequence length: 4096
+Optimizer: Muon + AdamW
+--------------------------------------------------
+Step  100/1000 | Loss: 3.6309 | Val BPB: 3.5809 | Time: 58.7s
+Step  200/1000 | Loss: 2.8893 | Val BPB: 2.8393 | Time: 117.8s
+Step  300/1000 | Loss: 2.3211 | Val BPB: 2.2711 | Time: 176.1s
+Step  400/1000 | Loss: 1.8852 | Val BPB: 1.8352 | Time: 233.0s
+Step  500/1000 | Loss: 1.5989 | Val BPB: 1.5489 | Time: 292.5s
+Step  600/1000 | Loss: 1.3764 | Val BPB: 1.3264 | Time: 352.4s
+Step  700/1000 | Loss: 1.2730 | Val BPB: 1.2230 | Time: 408.2s
+Step  800/1000 | Loss: 1.1983 | Val BPB: 1.1483 | Time: 468.2s
+Step  900/1000 | Loss: 1.1756 | Val BPB: 1.1256 | Time: 531.0s
+Step 1000/1000 | Loss: 1.1628 | Val BPB: 1.1128 | Time: 587.5s
+--------------------------------------------------
+Training completed in 584.87 seconds.
+Final Validation BPB: 1.1128
+Artifact size: 15,998,200 bytes
+Saving quantized weights (INT6/INT8)... Done.
