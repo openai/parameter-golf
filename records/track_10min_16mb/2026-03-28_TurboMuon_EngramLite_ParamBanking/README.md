@@ -67,7 +67,7 @@ Output projections initialized as `O_h = -alpha * V_h` per head (alpha=0.05), cr
 
 ### GPTQ Mixed-Precision Quantization
 
-Compression pipeline with Hessian collection performed within the 600s training budget (`gptq_reserve_ms=14000` deducted from training wallclock before training begins):
+Compression pipeline with Hessian collection performed within the 600s training budget (`gptq_reserve_ms=9000` deducted from training wallclock before training begins):
 
 1. **Hessian collection** — 64 calibration batches run through a non-banked model copy to collect per-layer `H = X^T X` approximations, all-reduced across ranks. This runs within the reserved 14s carved from the training budget.
 2. **Dynamic mixed-precision bit allocation** — Base quantization is **int5** for all weight groups. Hessian trace sensitivity ranks tensor groups (by layer × attn/mlp), then a greedy allocator selectively **promotes the most sensitive groups to int6 or int7** until the estimated compressed artifact size approaches the 16MB target minus 2% pruning headroom.

@@ -151,7 +151,7 @@ class Hyperparameters:
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 64))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
     gptq_damp = float(os.environ.get("GPTQ_DAMP", 0.01))
-    gptq_reserve_ms = float(os.environ.get("GPTQ_RESERVE_MS", 14000.0))  # Reserve from training budget for GPTQ calibration (PR #634)
+    gptq_reserve_ms = float(os.environ.get("GPTQ_RESERVE_MS", 9000.0))  # Reserve from training budget for GPTQ calibration (observed max 7.3s)
     gptq_col_order = os.environ.get("GPTQ_COL_ORDER", "desc")  # "desc" (actorder) or "asc" (PR#753-style)
     gptq_single_pass = bool(int(os.environ.get("GPTQ_SINGLE_PASS", "1")))  # Pre-compute scales, run GPTQ once
     soft_round_qat = bool(int(os.environ.get("SOFT_ROUND_QAT", "1")))  # 1=soft-round, 0=STE
