@@ -690,12 +690,15 @@ class RMSNorm(nn.Module):
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     # When _qat_flag > 0, simulate int6 rounding during forward pass (straight-through estimator).
-    # Uses a tensor flag instead of bool so torch.compile can't constant-fold it away.
-    _qat_flag = torch.tensor(0)
+    # Uses a tensor flag so torch.compile can't constant-fold it away.
+    _qat_flag = torch.tensor(0, dtype=torch.int32)
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.to(x.dtype)
-        if self.training and w.ndim == 2 and CastedLinear._qat_flag.item() > 0:
+        # QAT: use quantized weights in forward, but gradients flow through original
+        # The flag tensor check avoids .item() overhead — torch treats tensor truthiness
+        # as a graph break, which forces recompilation once when flag changes from 0→1
+        if self.training and w.ndim == 2 and CastedLinear._qat_flag:
             with torch.no_grad():
                 w32 = self.weight.float()
                 row_max = w32.abs().amax(dim=1)
