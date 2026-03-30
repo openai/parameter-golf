@@ -1,0 +1,6 @@
+# Runs here used PyTorch 2.11.0+cu126; torch CUDA build 12.6, NVIDIA driver reported CUDA 12.7.
+torch>=2.9.0
+numpy
+sentencepiece
+zstandard
+flash-attn
