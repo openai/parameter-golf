@@ -660,7 +660,9 @@ class TrigramHash(nn.Module):
         hashed = (36313 * t2 ^ 27191 * t1 ^ 51749 * t0) % self.num_buckets
         out = self.proj(self.embedding(hashed).to(dtype=torch.bfloat16))
         pad = torch.zeros(*input_ids.shape[:-1], 2, out.shape[-1], dtype=out.dtype, device=out.device)
-        return torch.cat([pad, out], dim=-2)class GPT(nn.Module):
+        return torch.cat([pad, out], dim=-2)
+
+class GPT(nn.Module):
     def __init__(
         self,
         vocab_size: int,
