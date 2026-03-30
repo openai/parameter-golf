@@ -78,7 +78,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py 2>&1 | tee train_seed1337.
 | int6 roundtrip eval | ~6s |
 | Sliding window eval (2048, stride=64) | ~75s |
 | Legal TTT (3ep, all blocks, 2048 ctx) | ~425s |
-| **Total eval** | **~508s ✓** |
+| **Total eval** | **~508s** |
 
 ## Features Explored but Disabled (Not Used in Final Submission)
 
