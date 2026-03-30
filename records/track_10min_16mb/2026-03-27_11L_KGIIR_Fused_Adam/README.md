@@ -28,7 +28,7 @@ To isolate the impact of KGIIR, this run was conducted as a strict controlled ab
 * **Net Improvement:** **-0.00086 BPB**
 
 ## Technical Innovations
-* **Hardware-Fused Kernels:** The KGIIR trajectory is implemented as a single-pass fused mathematical expression. This maintains a blistering **88ms step time** on 8xH100 by keeping the mixing logic within the GPU's L2 cache.
+* **Vectorized Trajectory Mixing:** The KGIIR trajectory is implemented as a highly optimized, single-pass native pytorch tensor computation. This approach maintains a blistering **88ms step time** on 8xH100 without the overhead of custom low-level kernels.
 * **BPB Progress:** This run successfully pushes into the 1.118x range, demonstrating that trajectory mixing is a viable path forward for ultra-constrained language models.
 
 ## Submission Transparency & Constraints
