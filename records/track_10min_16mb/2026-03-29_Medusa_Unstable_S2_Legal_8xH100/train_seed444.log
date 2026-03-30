@@ -1,0 +1,50 @@
+nitrust:disabled NITRUST_ENABLE=0
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:14487088
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:relu_sq mlp_leaky_slope:0.5
+XSA:last_11 world_size:8 grad_accum_steps:1
+num_heads:8 num_kv_heads:4 embed_lr:0.035 matrix_lr:0.03
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 fullgraph=0 optimize_ddp=0
+ddp:find_unused_parameters=1
+seed:444
+step:0/20000 val_loss:6.9290 val_bpb:4.1038 train_time:0ms step_avg:0.02ms
+step:500/20000 train_loss:2.4973 train_time:61734ms step_avg:123.47ms
+step:1000/20000 train_loss:2.3650 train_time:123722ms step_avg:123.72ms
+step:1500/20000 train_loss:2.3121 train_time:185356ms step_avg:123.57ms
+step:2000/20000 train_loss:2.1502 train_time:246856ms step_avg:123.43ms
+step:2500/20000 train_loss:2.2454 train_time:308477ms step_avg:123.39ms
+step:3000/20000 train_loss:2.2288 train_time:369834ms step_avg:123.28ms
+step:3500/20000 train_loss:2.1255 train_time:431247ms step_avg:123.21ms
+step:4000/20000 train_loss:1.3303 train_time:492692ms step_avg:123.17ms
+step:4000/20000 val_loss:1.4763 val_bpb:0.8743 train_time:492698ms step_avg:123.17ms
+ema:late-start re-initialized at step 4400 decay=0.99
+swa:start step:4500
+step:4500/20000 train_loss:0.8199 train_time:555179ms step_avg:123.37ms
+step:4616/20000 val_loss:0.7115 val_bpb:0.4214 train_time:569996ms step_avg:123.48ms
+stopping_early: wallclock_cap train_time:569996ms step:4616/20000
+gptq_loop_aware:phase1 collecting all-layer Hessians...
+gptq:starting calibration at elapsed=0ms (budget=600000ms)
+gptq:loop-aware 2-phase calibration...
+gptq_loop_aware:patched 24 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...
+gptq_loop_aware:phase2 collected 16 crawler Hessians
+gptq_loop_aware:restored 24 flat layer weights
+gptq_loop_aware:merged 41 Hessians (16 crawler from phase2)
+gptq:loop-aware calibrated 41 layers in 11.6s
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:0.7311 val_bpb:0.4330 eval_time:3030ms
+Serialized model: 53860358 bytes
+Code size: 180983 bytes
+gptq_quantize: 24 GPTQ layers, 0 naive layers
+Serialized model int6+zstd: 9840628 bytes
+Total submission size int6+zstd: 10021611 bytes
+Total submission size int8+zlib: 10021611 bytes
+final_int6_roundtrip val_loss:1.2089 val_bpb:0.7159 eval_time:6751ms
+final_int6_roundtrip_exact val_loss:1.20885004 val_bpb:0.71594908
+final_int6_sliding_window val_loss:1.4300 val_bpb:0.8469 stride:64 eval_time:106074ms
+final_int6_sliding_window_exact val_loss:1.43001283 val_bpb:0.84693639
+final_int8_zlib_roundtrip_exact val_loss:1.43001283 val_bpb:0.84693639
