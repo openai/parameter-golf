@@ -668,11 +668,25 @@ def reverse_optrot(state_dict):
     return out
 
 
-def quantized_roundtrip_eval(args, base_model, rank, world_size,
-                             device, grad_accum_steps, val_tokens,
-                             base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                             step, training_time_ms, log_fn=None,
-                             ema_params=None, swa_params=None, swa_n=0, swa_started=False):
+def quantized_roundtrip_eval(
+    args,
+    base_model,
+    rank,
+    world_size,
+    device,
+    grad_accum_steps,
+    val_tokens,
+    base_bytes_lut,
+    has_leading_space_lut,
+    is_boundary_token_lut,
+    step,
+    training_time_ms,
+    log_fn=None,
+    ema_params=None,
+    swa_params=None,
+    swa_n=0,
+    swa_started=False,
+):
     """Run full compress→decompress→eval on current weights (no zlib, just quantize roundtrip).
 
     Applies EMA/SWA if provided (matching the final export pipeline), then
@@ -718,9 +732,16 @@ def quantized_roundtrip_eval(args, base_model, rank, world_size,
     CastedLinear.cache_all_weights(base_model)
 
     q_val_loss, q_val_bpb = eval_val(
-        args, base_model, rank, world_size, device,
-        grad_accum_steps, val_tokens, base_bytes_lut,
-        has_leading_space_lut, is_boundary_token_lut,
+        args,
+        base_model,
+        rank,
+        world_size,
+        device,
+        grad_accum_steps,
+        val_tokens,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
     )
 
     CastedLinear.uncache_all_weights(base_model)
@@ -2295,12 +2316,23 @@ def main() -> None:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             quantized_roundtrip_eval(
-                args, base_model, rank, world_size, device,
-                grad_accum_steps, val_tokens, base_bytes_lut,
-                has_leading_space_lut, is_boundary_token_lut,
-                step, training_time_ms, log_fn=log0,
-                ema_params=ema_params, swa_params=swa_params,
-                swa_n=swa_n, swa_started=swa_started,
+                args,
+                base_model,
+                rank,
+                world_size,
+                device,
+                grad_accum_steps,
+                val_tokens,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+                step,
+                training_time_ms,
+                log_fn=log0,
+                ema_params=ema_params,
+                swa_params=swa_params,
+                swa_n=swa_n,
+                swa_started=swa_started,
             )
             torch.cuda.synchronize()
             t0 = time.perf_counter()
