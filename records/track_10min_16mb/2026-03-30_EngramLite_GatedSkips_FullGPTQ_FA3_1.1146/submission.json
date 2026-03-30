@@ -1,0 +1,9 @@
+{
+  "name": "EngramLite + Gated Skips + Full GPTQ + FA3",
+  "val_bpb": 1.1146,
+  "bytes_total": 15711654,
+  "blurb": "11L 512d with EngramLite (multi-head bigram+trigram hash), sigmoid-gated skip connections, LeakyReLU(0.3)², Turbo-Muon (4 NS steps), coprime-stride loader, Full Hessian GPTQ int6+LZMA, XSA on all 11 layers, FA3 Hopper attention. LR floor 0.05. 87.9ms/step, 6667 steps.",
+  "author": "icryo",
+  "github_id": "icryo",
+  "date": "2026-03-30"
+}
