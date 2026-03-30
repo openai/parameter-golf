@@ -63,39 +63,50 @@ This produces representative activations for Hessian estimation without accessin
 - 5-percentile clip search for per-row scales
 - LZMA compression (preset=9, extreme)
 
-## Research Journey
+## Research Journey — From v6 to v9 (~20+ hours of development)
 
-This submission is the result of extensive research and ablation testing across multiple AI systems (Claude, ChatGPT, Gemini Pro). We explored 9 research directions before arriving at v9:
+This submission evolved over 20+ hours of iterative development and testing, starting from our v6 codebase (which included JEPA) and arriving at v9 through systematic ablation on individual H200 GPUs. We launched multiple H200 sessions, testing changes piece by piece — each micro-test running 90 seconds to isolate one variable at a time, process-of-elimination style.
+
+We also ran 9 parallel research missions across multiple AI systems (Claude, ChatGPT, Gemini Pro), each investigating a different technique — from Hadamard rotation to n-gram caches to compression algorithms. The research responses guided which directions to pursue and which to drop.
 
 ![Research Journey](beam.png)
 
-### What We Explored (and Why We Moved On)
+### What We Tested on H200 (and Why We Cut It)
 
 **JEPA (Joint-Embedding Predictive Architecture)** — 14 ablation tests across two H200 sessions:
-- Vanilla JEPA with separate context/target/predictor encoders: -0.019 to -0.058 BPB penalty
-- Discovered critical gradient interference bug (JEPA gradients fighting backbone via un-detached hidden states)
-- After detach fix: penalty reduced 67% (0.058 -> 0.019) but still net negative
-- Tested 6 JEPA weight configurations, 3 span configurations, 2 EMA decay values
-- Conclusion: At 600s/7000 steps, the compute overhead outweighs regularization benefit for 27M-param models
 
-**STP (Semantic Tube Prediction)** — LeCun lab's Feb 2026 variant (arXiv 2602.22617):
+| Config | Post-EMA BPB | vs Baseline | Verdict |
+|--------|-------------|-------------|---------|
+| JEPA ON (default w=0.12, spans=1,2,4,8) | 3.4281 | +0.058 worse | Cut |
+| JEPA OFF | 3.3706 | baseline | Keep |
+| JEPA Tuned (w=0.08, spans=1,2,4) | 3.4255 | +0.055 worse | Cut |
+| JEPA Minimal (w=0.05, dim=128, spans=1,2) | 3.4154 | +0.045 worse | Cut |
+| JEPA + Label Smoothing | 3.4249 | +0.054 worse | Cut |
+| **JEPA detached** (v2 fix, w=0.12) | 3.3954 | +0.025 worse | Better, still negative |
+| **JEPA detached** (w=0.06, spans=1,2) | 3.3897 | +0.019 worse | Best JEPA, still negative |
+
+Key discovery: JEPA's gradients were flowing back through the backbone and fighting the CE loss. After detaching `mid_hidden`, the penalty dropped 67% (0.058 -> 0.019). But even the best JEPA config never beat the no-JEPA baseline.
+
+**STP (Semantic Tube Prediction)** — LeCun lab's Feb 2026 JEPA variant (arXiv 2602.22617):
 - Zero parameters, negligible compute, gradient flows into backbone
-- Still hurt at 90s training (-0.075 to -0.117 BPB depending on weight)
-- Regularization benefits can't overcome the gradient interference at short training budgets
+- Tested at weights 0.1 and 0.01: both hurt (-0.117 and -0.075 BPB)
+- The "geodesic hypothesis" regularization couldn't overcome the cost of diverting gradients at short training budgets
 
-**Label Smoothing** — Found and fixed an eval contamination bug (smoothing was applied during eval via model.forward):
+**Label Smoothing** — Found and fixed an eval contamination bug (smoothing was applied during eval via `model.forward()`):
 - After fix: still hurts at short training (-0.090 BPB at 90s)
+- The model needs every training step for maximum next-token prediction — softening the target distribution wastes precious gradient signal
 
-**Legal Score-First TTT** — Implemented but disabled:
-- PR #1019 demonstrated TTT is ineffective on XSA-all stacks (25 failed attempts)
-- XSA-all already captures the inter-document patterns TTT would adapt to
+**Legal Score-First TTT** — Fully implemented and compliant, but disabled:
+- PR #1019 demonstrated TTT is ineffective on XSA-all stacks (25 failed attempts by another team)
+- XSA-all already captures the inter-document context patterns TTT would adapt to
+- Saves ~400s of eval time by skipping
 
 ### What Worked
 
-1. **Batched Muon** (this submission) — 5% faster optimizer, ~400 extra steps
-2. **Full GPTQ with random calibration** — better quantization than GPTQ-lite, fully compliant
+1. **Batched Muon** (this submission's key innovation) — 5% faster optimizer via `torch.bmm`, ~400 extra training steps in 600s
+2. **Full GPTQ with random calibration** — better quantization than GPTQ-lite, fully compliant, no training data access
 3. **LZMA compression** — ~5% smaller artifact than zstd, keeping us under 16MB
-4. **JEPA OFF, STP OFF, TTT OFF, LS OFF** — removing all auxiliary losses let the model focus 100% on next-token prediction
+4. **Cutting everything that hurts** — JEPA OFF, STP OFF, TTT OFF, Label Smoothing OFF. At this training budget, every auxiliary loss is a tax on the primary objective. The model performs best when 100% of its gradient budget goes to next-token prediction
 
 ## Compliance Checklist
 
