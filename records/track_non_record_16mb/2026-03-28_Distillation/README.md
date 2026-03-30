@@ -105,6 +105,18 @@ The teacher's soft predictions aren't worth the cost. At this model scale, on th
 
 Running the teacher live during training is a non-starter. The forward pass overhead guts the training budget. Cached logits are the only viable path, and even those aren't enough.
 
+## 3-Seed Validation (8xH100 SXM, 600s)
+
+Self-distillation (student as its own teacher, same architecture):
+
+| Seed | Baseline BPB | Distillation BPB | Delta |
+|------|-------------|-----------------|-------|
+| 42   | 1.140       | 1.153           | +0.013 |
+| 1337 | 1.139       | 1.140           | +0.001 |
+| 2024 | 1.140       | 1.141           | +0.001 |
+
+Distillation never beats baseline across any seed. The average gap (+0.005) is consistent with the H200 findings. Seed 42 shows a larger gap, likely due to random variation in warmdown timing.
+
 ## Architecture
 
 Student model (same as baseline):

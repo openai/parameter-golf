@@ -1,15 +1,23 @@
 {
   "name": "Fielding Johnston",
   "github": "fielding",
-  "val_bpb": 1.1553,
-  "val_bpb_baseline": 1.1522,
-  "val_bpb_note": "1.1553 is best distillation config (soft KL alpha=0.1); 1.1522 is no-distillation baseline",
-  "artifact_bytes": 15358321,
-  "hardware": "4xH200 (non-record, unlimited compute track)",
+  "val_bpb_distillation": {
+    "42": 1.1529,
+    "1337": 1.1403,
+    "2024": 1.1413
+  },
+  "val_bpb_baseline": {
+    "42": 1.1401,
+    "1337": 1.1386,
+    "2024": 1.1403
+  },
+  "val_bpb_note": "Distillation (self-teacher, soft KL alpha=0.1) never beats baseline. Negative result confirmed across 3 seeds on 8xH100.",
+  "artifact_bytes": 15641113,
+  "hardware": "8xH100 SXM",
   "training_time_seconds": 600,
   "key_techniques": [
     "knowledge_distillation",
-    "cached_teacher_logits",
+    "self_distillation",
     "soft_kl_divergence",
     "hard_distillation_top1",
     "negative_result"
