@@ -1,0 +1,9 @@
+{
+  "name": "GPTQLite_QAT_MaxLZMA_LegalTTT",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "11L 512d LeakyReLU(0.5)^2 + XSA-4 + Partial RoPE + LN Scale + VE128 + EMA(0.997) + GPTQ-lite int6 + zstd-22 + Legal score-first TTT (3ep SGD momentum=0.9, all blocks, lr=0.002) + Parameter Banking + Parallel Muon. Seed 1337: 1.11964 BPB, 15.861MB.",
+  "author": "FlashyFlash3011",
+  "github_id": "FlashyFlash3011",
+  "date": "2026-03-27"
+}
