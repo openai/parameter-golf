@@ -1,0 +1,18 @@
+{
+  "author": "Abhishek Kumbhar",
+  "github_id": "Abhishek8108",
+  "name": "QNA + SQWA Compression Thesis (8xH100 SXM)",
+  "blurb": "Non-record 8xH100 SXM submission: controlled 3-run ablation testing whether training for the quantized artifact directly (Quantization Noise Annealing + Stochastic Quantized Weight Averaging) improves post-quantization BPB. QNA reduced quant gap by 7%, QNA+SQWA by 65%, but neither improved the final sliding-window metric. Interesting negative result: the bottleneck in current SOTA is not quantization error.",
+  "date": "2026-03-27T13:37:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.89370347,
+  "val_bpb": 1.12156083,
+  "pre_quant_val_loss": 1.9196,
+  "pre_quant_val_bpb": 1.1369,
+  "step_stop": 7173,
+  "wallclock_seconds": 600,
+  "bytes_total": 15932176,
+  "bytes_model_int6_lzma": 15842996,
+  "bytes_code": 89180,
+  "gpu": "8xH100-80GB-SXM"
+}
