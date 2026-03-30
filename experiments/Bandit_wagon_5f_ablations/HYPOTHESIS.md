@@ -56,8 +56,12 @@ coverage and may further improve 5F+1C.
 | ID | XSA_LAST_N | INT6_SW_BPB | Delta vs BW-03 | Notes |
 |----|:----------:|:-----------:|:--------------:|-------|
 | BW-03 (ref) | 11 | 1.54404 | — | carried from BW |
-| BW2-00 | 11 | TBD | TBD | **4F control** |
-| BW2-01 | 14 | TBD | TBD | 5F proportional XSA |
+| BW2-00 | 11 | **1.52365** | **−0.020 ✅ 4F WINS** | **4F control** |
+| BW2-01 | 14 | 1.52963 | −0.014 | 5F proportional XSA |
+
+**Verdict: 4F+1C is optimal. BW-03's proxy win was an artifact of no control arm.**
+Raw val_bpb identical across all arms (~1.424). Delta is 100% quantization robustness.
+See ablation_results_2026-03-30.md for full analysis.
 
 ## Reference
 
