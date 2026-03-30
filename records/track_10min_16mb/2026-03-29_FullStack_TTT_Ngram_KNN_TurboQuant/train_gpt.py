@@ -52,6 +52,7 @@ class Hyperparameters:
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    quant_val_every = int(os.environ.get("QUANT_VAL_EVERY", 500))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
@@ -665,6 +666,77 @@ def reverse_optrot(state_dict):
         else:
             out[name] = tensor
     return out
+
+
+def quantized_roundtrip_eval(args, base_model, rank, world_size,
+                             device, grad_accum_steps, val_tokens,
+                             base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                             step, training_time_ms, log_fn=None,
+                             ema_params=None, swa_params=None, swa_n=0, swa_started=False):
+    """Run full compress→decompress→eval on current weights (no zlib, just quantize roundtrip).
+
+    Applies EMA/SWA if provided (matching the final export pipeline), then
+    pruning/GPTQ/optrot/quantize, dequantizes, evals.
+    Restores original weights after. Returns (q_val_loss, q_val_bpb).
+    """
+    # Apply EMA/SWA to a cloned state dict (same order as final export)
+    orig_sd = {k: v.clone() for k, v in base_model.state_dict().items()}
+    with torch.no_grad():
+        if args.enable_swa and swa_params is not None and swa_started:
+            for swa_p, model_p in zip(swa_params, base_model.parameters()):
+                model_p.data.copy_(swa_p)
+        if ema_params is not None:
+            for ema_p, model_p in zip(ema_params, base_model.parameters()):
+                model_p.data.copy_(ema_p)
+    sd = {k: v.clone() for k, v in base_model.state_dict().items()}
+    # Restore original weights immediately
+    base_model.load_state_dict(orig_sd, strict=False)
+    if args.mtp_num_heads > 0:
+        sd = {k: v for k, v in sd.items() if not k.startswith("mtp_heads.")}
+    if args.enable_pruning:
+        sd = apply_pruning(sd, args.prune_fraction)
+    if args.enable_gptq:
+        sd = apply_gptq(sd, args.quant_bits)
+    if args.enable_optrot:
+        sd = apply_optrot(sd)
+
+    quant_obj, _ = quantize_state_dict_int8(sd, quant_bits=args.quant_bits)
+    restored_sd = dequantize_state_dict_int8(quant_obj)
+    if args.enable_optrot:
+        restored_sd = reverse_optrot(restored_sd)
+    del sd, quant_obj
+
+    base_model.load_state_dict(restored_sd, strict=(args.mtp_num_heads == 0))
+    del restored_sd
+    if args.xsa_last_n > 0:
+        num_blocks = len(base_model.blocks)
+        for i, block in enumerate(base_model.blocks):
+            if i >= num_blocks - args.xsa_last_n:
+                block.attn._xsa_enabled = True
+                block.attn._prev_k = None
+                block.attn._prev_v = None
+    CastedLinear.cache_all_weights(base_model)
+
+    q_val_loss, q_val_bpb = eval_val(
+        args, base_model, rank, world_size, device,
+        grad_accum_steps, val_tokens, base_bytes_lut,
+        has_leading_space_lut, is_boundary_token_lut,
+    )
+
+    CastedLinear.uncache_all_weights(base_model)
+    if args.xsa_last_n > 0:
+        for block in base_model.blocks:
+            block.attn._xsa_enabled = False
+            block.attn._prev_k = None
+            block.attn._prev_v = None
+    base_model.load_state_dict(orig_sd, strict=False)
+
+    _log = log_fn or print
+    _log(
+        f"step:{step}/{args.iterations} quant_val_bpb:{q_val_bpb:.4f} "
+        f"train_time:{training_time_ms:.0f}ms"
+    )
+    return q_val_loss, q_val_bpb
 
 
 # -----------------------------
@@ -2216,27 +2288,19 @@ def main() -> None:
             stop_after_step is not None and step >= stop_after_step
         )
 
-        should_validate = last_step or (
-            args.val_loss_every > 0 and step % args.val_loss_every == 0
+        should_quant_validate = step > 0 and (
+            last_step or (args.quant_val_every > 0 and step % args.quant_val_every == 0)
         )
-        if should_validate:
+        if should_quant_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = eval_val(
-                args,
-                model,
-                rank,
-                world_size,
-                device,
-                grad_accum_steps,
-                val_tokens,
-                base_bytes_lut,
-                has_leading_space_lut,
-                is_boundary_token_lut,
-            )
-            log0(
-                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
-                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
+            quantized_roundtrip_eval(
+                args, base_model, rank, world_size, device,
+                grad_accum_steps, val_tokens, base_bytes_lut,
+                has_leading_space_lut, is_boundary_token_lut,
+                step, training_time_ms, log_fn=log0,
+                ema_params=ema_params, swa_params=swa_params,
+                swa_n=swa_n, swa_started=swa_started,
             )
             torch.cuda.synchronize()
             t0 = time.perf_counter()
