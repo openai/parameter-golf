@@ -1,0 +1,12 @@
+{
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "name": "H-Net Tokenization: Hierarchical Token Processing",
+  "blurb": "First hierarchical tokenization submission. Learned token merge/unmerge layers create multi-resolution processing: encoder at half resolution (merged pairs), decoder at full resolution. Gated merge with softmax weights, per-position unmerge projections. Eval: sliding window.",
+  "date": "2026-03-29T00:00:00Z",
+  "val_loss": 1.1558,
+  "val_bpb": 0.6846,
+  "bytes_total": 14000183,
+  "bytes_code": 73961,
+  "gpu": "8xH100 SXM"
+}
