@@ -613,7 +613,7 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = torch.nn.functional.leaky_relu(self.fc(x), negative_slope=0.5)
         return self.proj(x.square())
 
 
@@ -645,7 +645,22 @@ class Block(nn.Module):
         return x
 
 
-class GPT(nn.Module):
+
+class TrigramHash(nn.Module):
+    def __init__(self, num_buckets: int, embed_dim: int, model_dim: int):
+        super().__init__()
+        self.num_buckets = num_buckets
+        self.embedding = nn.Embedding(num_buckets, embed_dim)
+        self.proj = nn.Linear(embed_dim, model_dim, bias=False)
+
+    def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
+        t0 = input_ids[..., :-2]
+        t1 = input_ids[..., 1:-1]
+        t2 = input_ids[..., 2:]
+        hashed = (36313 * t2 ^ 27191 * t1 ^ 51749 * t0) % self.num_buckets
+        out = self.proj(self.embedding(hashed).to(dtype=torch.bfloat16))
+        pad = torch.zeros(*input_ids.shape[:-1], 2, out.shape[-1], dtype=out.dtype, device=out.device)
+        return torch.cat([pad, out], dim=-2)class GPT(nn.Module):
     def __init__(
         self,
         vocab_size: int,
@@ -667,6 +682,7 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.trigram = TrigramHash(num_buckets=8192, embed_dim=128, model_dim=model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -698,7 +714,7 @@ class GPT(nn.Module):
                 nn.init.zeros_(module.weight)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        x = self.tok_emb(input_ids)
+        x = self.tok_emb(input_ids) + self.trigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
@@ -944,6 +960,16 @@ def main() -> None:
                 if distributed:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            import random as _rnd
+            midpoint = args.iterations // 2
+            if step < midpoint:
+                p_real = 1.0 - (step / max(midpoint, 1)) * 0.5
+            else:
+                p_real = 0.5 + ((step - midpoint) / max(midpoint, 1)) * 0.5
+            if step > args.warmup_steps and _rnd.random() > p_real:
+                with torch.no_grad():
+                    logits = model.get_logits(x)
+                    x = logits.argmax(dim=-1)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
@@ -1012,6 +1038,16 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            import random as _rnd
+            midpoint = args.iterations // 2
+            if step < midpoint:
+                p_real = 1.0 - (step / max(midpoint, 1)) * 0.5
+            else:
+                p_real = 0.5 + ((step - midpoint) / max(midpoint, 1)) * 0.5
+            if step > args.warmup_steps and _rnd.random() > p_real:
+                with torch.no_grad():
+                    logits = model.get_logits(x)
+                    x = logits.argmax(dim=-1)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
