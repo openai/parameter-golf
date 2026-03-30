@@ -50,27 +50,27 @@ class Hyperparameters:
     seed = int(os.environ.get("SEED", 1337))
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
-    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 65_536))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 0))
     quant_val_every = int(os.environ.get("QUANT_VAL_EVERY", 500))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
-    iterations = int(os.environ.get("ITERATIONS", 20000))
+    iterations = int(os.environ.get("ITERATIONS", 1000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 5))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 65_536))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    mlp_mult = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -94,22 +94,22 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     # Technique toggles
-    activation = os.environ.get("ACTIVATION", "relu_squared")
-    enable_hybridnorm = bool(int(os.environ.get("ENABLE_HYBRIDNORM", "0")))
+    activation = os.environ.get("ACTIVATION", "leaky_relu_squared")
+    enable_hybridnorm = bool(int(os.environ.get("ENABLE_HYBRIDNORM", "1")))
     mlp_hidden = int(os.environ.get("MLP_HIDDEN", "0"))
-    quant_bits = int(os.environ.get("QUANT_BITS", "8"))
-    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", "0"))
-    enable_optrot = bool(int(os.environ.get("ENABLE_OPTROT", "0")))
+    quant_bits = int(os.environ.get("QUANT_BITS", "6"))
+    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", "1"))
+    enable_optrot = bool(int(os.environ.get("ENABLE_OPTROT", "1")))
     ema_decay = float(os.environ.get("EMA_DECAY", "0.0"))
     # Eval-time augmentation toggles
-    enable_ttt = bool(int(os.environ.get("ENABLE_TTT", "0")))
+    enable_ttt = bool(int(os.environ.get("ENABLE_TTT", "1")))
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", "8"))
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", "0.01"))
     ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", "256"))
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", "1024"))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", "64"))
     ttt_temp = float(os.environ.get("TTT_TEMP", "1.0"))
-    enable_ngram = bool(int(os.environ.get("ENABLE_NGRAM", "0")))
+    enable_ngram = bool(int(os.environ.get("ENABLE_NGRAM", "1")))
     ngram_max_order = int(os.environ.get("NGRAM_MAX_ORDER", "10"))
     ngram_num_buckets = int(os.environ.get("NGRAM_NUM_BUCKETS", "4000000"))
     ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "1"))
@@ -117,18 +117,18 @@ class Hyperparameters:
     ngram_alpha_range = float(os.environ.get("NGRAM_ALPHA_RANGE", "0.55"))
     ngram_alpha_center = float(os.environ.get("NGRAM_ALPHA_CENTER", "3.0"))
     knn_max_entries = int(os.environ.get("KNN_MAX_ENTRIES", "50000"))
-    enable_knn = bool(int(os.environ.get("ENABLE_KNN", "0")))
+    enable_knn = bool(int(os.environ.get("ENABLE_KNN", "1")))
     knn_k = int(os.environ.get("KNN_K", "32"))
     knn_lambda = float(os.environ.get("KNN_LAMBDA", "0.25"))
     # GPTQ quantization
-    enable_gptq = bool(int(os.environ.get("ENABLE_GPTQ", "0")))
+    enable_gptq = bool(int(os.environ.get("ENABLE_GPTQ", "1")))
     # Magnitude pruning
-    enable_pruning = bool(int(os.environ.get("ENABLE_PRUNING", "0")))
+    enable_pruning = bool(int(os.environ.get("ENABLE_PRUNING", "1")))
     prune_fraction = float(os.environ.get("PRUNE_FRACTION", "0.02"))
     # QAT-Export Alignment
-    enable_qat = bool(int(os.environ.get("ENABLE_QAT", "0")))
-    qat_start_fraction = float(os.environ.get("QAT_START_FRACTION", "0.85"))
-    # Stochastic Weight Averaging
+    enable_qat = bool(int(os.environ.get("ENABLE_QAT", "1")))
+    qat_start_fraction = float(os.environ.get("QAT_START_FRACTION", "0.0"))
+    # Stochastic Weight Averaging — DISABLED: hurts quantization
     enable_swa = bool(int(os.environ.get("ENABLE_SWA", "0")))
     swa_start_fraction = float(os.environ.get("SWA_START_FRACTION", "0.8"))
     swa_every = int(os.environ.get("SWA_EVERY", "50"))
@@ -140,16 +140,16 @@ class Hyperparameters:
     # Cross-Sequence Attention
     xsa_last_n = int(os.environ.get("XSA_LAST_N", "0"))
     # SmearGate + BigramHash
-    enable_smeargate = bool(int(os.environ.get("ENABLE_SMEARGATE", "0")))
+    enable_smeargate = bool(int(os.environ.get("ENABLE_SMEARGATE", "1")))
     bigram_hash_size = int(os.environ.get("BIGRAM_HASH_SIZE", "2048"))
     # Differential Attention
-    enable_diff_attn = bool(int(os.environ.get("ENABLE_DIFF_ATTN", "0")))
+    enable_diff_attn = bool(int(os.environ.get("ENABLE_DIFF_ATTN", "1")))
     # PoPE - Polar Position Embedding
     enable_pope = bool(int(os.environ.get("ENABLE_POPE", "0")))
     # WaveletGPT - Haar Wavelet on Half Dims
-    enable_wavelet = bool(int(os.environ.get("ENABLE_WAVELET", "0")))
+    enable_wavelet = bool(int(os.environ.get("ENABLE_WAVELET", "1")))
     # VGA - Value-Gated Attention
-    enable_vga = bool(int(os.environ.get("ENABLE_VGA", "0")))
+    enable_vga = bool(int(os.environ.get("ENABLE_VGA", "1")))
 
 
 # -----------------------------

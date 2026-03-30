@@ -48,7 +48,7 @@ T2   AdamW (embeds) lr=0.035           ✅       #414      baseline   n/a
 T3   FlashAttention 3                  ✅       #265      baseline   n/a
 T4   Warmdown 3500 iters               ✅       #414      -0.0002    n/a
 T5   OrthoInit + muP-scaled outputs    ✅       #414      baseline   n/a
-T6   EMA decay=0.997 every step        ✅       #414      -0.0006    n/a
+T6   EMA decay=0.997 every step        ❌       #414      -0.0006    DISABLED: EMA-averaged weights quantize worse (same issue as SWA)
 T7   Tight SWA every 50 (scale<0.2)    ❌       #374      -0.0003    DISABLED: SWA-averaged weights quantize worse (0.33→0.46 BPB after int6 roundtrip)
 T8   Late QAT STE int6 (scale<0.15)    ✅       #414      -0.0001    n/a
 T9   Gradient clip 0.3                 ✅       #414      baseline   n/a
