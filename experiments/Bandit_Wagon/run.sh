@@ -1,13 +1,13 @@
 #!/bin/bash
 set -euo pipefail
-# BANDIT_WAGON: Crawler headroom ablation (NGRAM removed, optimal post-CL1 config)
+# BANDIT_WAGON: Crawler headroom ablation (NGRAM removed, optimal post-CL3 config)
 #
-# Config locked to CL1/Ablations_v1 research findings:
+# Config locked to CL3 proven findings (8×H100, 600s, 3-seed mean 1.18742 BPB):
 #   CRAWLER_LOOPS=3        (CL1-01: −0.088 BPB vs loops=4)
-#   CRAWLER_MLP_MULT=5.0   (CL1-07: −0.098 BPB vs mlp=4.0)
+#   CRAWLER_MLP_MULT=6.0   (CL3: beats mlp=5.0 at full 600s; 1.18742 vs 1.19593)
 #   CRAWLER_QUANT_INT8=1   (CL1-08: mandatory, +0.197 BPB if disabled)
-#   LOOP_AWARE_GPTQ=1      (Ablations_v1-B: −0.040 BPB)
-#   COMPILE_FULLGRAPH=1    (Ablations_v1-E: −0.026 BPB; safe now NGRAM removed)
+#   SKIP_GPTQ=1            (CL3: extra training time beats LOOP_AWARE_GPTQ overhead at 600s)
+#   COMPILE_FULLGRAPH=0    (CL3: proven config; fullgraph gains absorbed by longer training)
 #
 # Headroom arms — one variable at a time:
 #   BW-00  dim=512  4F+1C×3  (anchor)
@@ -66,8 +66,8 @@ echo "============================================"
 echo "  BANDIT_WAGON — crawler headroom ablation (no ngram)"
 echo "  Seed: ${SEED}"
 echo "  MODEL_DIM=${MODEL_DIM} | inst_dim=32 FLOW | ${NUM_FLAT_LAYERS}F+1C x 3 loops | DN=0"
-echo "  mlp_mult=5.0 | COMPILE_FULLGRAPH=1 | LOOP_AWARE_GPTQ=1 | CRAWLER_QUANT_INT8=1"
-echo "  EMA_START_STEP=4400 | EMA_DECAY=0.99"
+echo "  mlp_mult=6.0 | COMPILE_FULLGRAPH=0 | SKIP_GPTQ=1 | CRAWLER_QUANT_INT8=1"
+echo "  (CL3 proven: 1.18742 mean BPB, 3-seed)"
 echo "  NITRUST_ENABLE=${NITRUST_ENABLE} | NITRUST_STRICT=${NITRUST_STRICT}"
 echo "============================================"
 
@@ -82,19 +82,19 @@ MTP_NUM_HEADS=0 \
 LATE_QAT_THRESHOLD=0 \
 MATRIX_LR=0.03 \
 TORCHDYNAMO_OPTIMIZE_DDP=0 \
-COMPILE_FULLGRAPH=1 \
+COMPILE_FULLGRAPH=0 \
 MODEL_DIM="${MODEL_DIM}" \
 USE_CRAWLER=1 \
 NUM_FLAT_LAYERS="${NUM_FLAT_LAYERS}" \
 NUM_CRAWLER_LAYERS=1 \
 CRAWLER_LOOPS=3 \
-CRAWLER_MLP_MULT=5.0 \
+CRAWLER_MLP_MULT=6.0 \
 INST_DIM=32 \
 CRAWLER_QUANT_INT8=1 \
 DELTA_NET_HEADS=0 \
-EMA_START_STEP=4400 \
-EMA_DECAY=0.99 \
-LOOP_AWARE_GPTQ=1 \
+SKIP_EMA=1 \
+SKIP_GPTQ=1 \
+LOOP_AWARE_GPTQ=0 \
 NITRUST_ENABLE="${NITRUST_ENABLE}" \
 NITRUST_STRICT="${NITRUST_STRICT}" \
 NITRUST_SO_PATH="${NITRUST_SO_PATH}" \

@@ -8,17 +8,17 @@ pure neural crawler to ≤1.15 BPB at ~10 MB submission size — without any ngr
 The ngram oracle has been removed. This series establishes the crawler's true standalone
 capacity and finds the best use of the 16 MB budget for a pure neural model.
 
-## Config Baseline (post-CL1/Ablations_v1 optimal)
+## Config Baseline (post-CL3 proven)
 
-All arms share these locked settings, derived from research:
+All arms share these locked settings, derived from CL3 3-seed confirmation (1.18742 mean BPB):
 
-| Setting | Value | Source | Gain |
-|---------|-------|--------|------|
-| `CRAWLER_LOOPS` | 3 | CL1-01 | −0.088 BPB |
-| `CRAWLER_MLP_MULT` | 5.0 | CL1-07 | −0.098 BPB |
+| Setting | Value | Source | Notes |
+|---------|-------|--------|-------|
+| `CRAWLER_LOOPS` | 3 | CL1-01 | −0.088 BPB vs loops=4 |
+| `CRAWLER_MLP_MULT` | 6.0 | CL3 | beats mlp=5.0 at 600s (1.18742 vs 1.19593) |
 | `CRAWLER_QUANT_INT8` | 1 | CL1-08 | mandatory (+0.197 if off) |
-| `LOOP_AWARE_GPTQ` | 1 | Ablations_v1-B | −0.040 BPB |
-| `COMPILE_FULLGRAPH` | 1 | Ablations_v1-E | −0.026 BPB |
+| `SKIP_GPTQ` | 1 | CL3 | extra training time beats LOOP_AWARE_GPTQ overhead at 600s |
+| `COMPILE_FULLGRAPH` | 0 | CL3 | proven config; fullgraph gains absorbed by longer training |
 
 ## Ablation Arms
 
@@ -76,9 +76,10 @@ NUM_FLAT_LAYERS=6 SEED=1337 bash experiments/Bandit_Wagon/run.sh
 
 **Target:** int6 SW BPB ≤1.15 at submission size ≤10 MB.
 
-## Prior Reference (context only — oracle-assisted, not comparable)
+## Prior Reference
 
-| System | Base SW BPB | Ngram9 BPB | Size | Notes |
-|--------|-------------|------------|------|-------|
-| Bandit (with oracle) | 1.1867 | 0.4961 | 9.35 MB | 3-seed mean — oracle removed |
-| Rascal II (flat model) | 1.1099 | — | 15.44 MB | current best legal base |
+| System | Int6 SW BPB | Size | Notes |
+|--------|:-----------:|------|-------|
+| CL3 (loops=3 mlp=6.0 SKIP_GPTQ) | 1.18742 | 8.84 MB | **3-seed mean — proven config, this experiment's base** |
+| CL2-02 (loops=3 mlp=5.0 LOOP_AWARE_GPTQ) | 1.19593 | 9.84 MB | single seed, 350s — superseded by CL3 |
+| Rascal II (flat model) | 1.1099 | 15.44 MB | current best legal base |
