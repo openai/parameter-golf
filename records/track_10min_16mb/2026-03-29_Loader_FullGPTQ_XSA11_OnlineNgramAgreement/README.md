@@ -53,7 +53,7 @@ The implementation also keeps the metric calculation honest:
 The integrated online eval stays under the 10-minute evaluation budget on 8xH100.
 
 - 3-seed mean online eval wallclock: `468.34s` (std `11.01s`)
-- 8-GPU full-val benchmark log: `logs/bench_online_local_8gpu_full.txt`
+- 8-GPU full-val benchmark log: `online_eval_benchmark.log`
 - benchmark result: `1.11265002 -> 1.10955484 bpb` in `462.67s`
 
 The measured bottlenecks in the benchmark were the online overlay itself rather than the neural forward pass:
@@ -92,7 +92,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - `train_seed1337.log`
 - `train_seed2025.log`
 - `train_seed42.log`
-- `logs/bench_online_local_8gpu_full.txt`
+- `online_eval_benchmark.log`
 
 ## Credits
 
