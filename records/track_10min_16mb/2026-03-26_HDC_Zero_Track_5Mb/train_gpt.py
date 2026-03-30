@@ -5755,15 +5755,18 @@ def evaluate_bpb_seed_projection(
         else:
             preds = table_preds
         
-        # Semantic layer augmentation for medium-confidence positions
+        # Continuous attention blending — semantic layer contributes at ALL confidence levels
+        # This transforms the semantic layer from a fallback into a continuous attention-like system
         if dsv is not None:
-            preds, _ = dsv.augment_predictions(
-                preds=preds,
+            # Use continuous attention blending for better BPB
+            preds, blend_weights, sem_vote_scores = dsv.continuous_attention_blend(
+                table_preds=preds,
                 table_conf=table_conf,
                 context_matrix=context_matrix,
                 codebook=codebook,
-                conf_threshold=3,
-                sem_min=SEM_CONFIDENCE_MIN,
+                blend_mode="cluster_enhanced",  # Best for relationship clustering
+                max_table_weight=0.85,
+                min_sem_weight=0.15,
             )
         
         # Compute BPB using accuracy-based estimation
