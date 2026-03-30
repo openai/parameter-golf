@@ -1,0 +1,18 @@
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/data/tokenizers/fineweb_1024_bpe.model
+step:0/20000 val_loss:6.9310 val_bpb:4.1049 train_time:0ms step_avg:0.02ms
+step:4000/20000 val_loss:2.0716 val_bpb:1.2269 train_time:276458ms step_avg:69.11ms
+step:8000/20000 val_loss:1.9331 val_bpb:1.1449 train_time:552956ms step_avg:69.12ms
+step:8475/20000 val_loss:1.9153 val_bpb:1.1343 train_time:586082ms step_avg:69.15ms
+stopping_early: wallclock_cap train_time:586082ms step:8475/20000
+DIAGNOSTIC post_ema val_loss:1.9141 val_bpb:1.1336 eval_time:2044ms
+Serialized model: 107418558 bytes
+Serialized model int6+lzma: 15268536 bytes
+Total submission size int6+lzma: 15398172 bytes
+eggroll: done steps=428 impr=11 loss=2.059890 t=60.1s
+final_int6_roundtrip val_loss:1.9244 val_bpb:1.1397 eval_time:4635ms
+final_int6_roundtrip_exact val_loss:1.92440289 val_bpb:1.13973979
+final_int6_sliding_window val_loss:1.8844 val_bpb:1.1161 stride:64 eval_time:76988ms
+final_int6_sliding_window_exact val_loss:1.88444707 val_bpb:1.11607865
+ttt_sliding:done val_loss=1.884401 val_bpb=1.116051 elapsed=470.9s
+legal_ttt val_loss:1.8844 val_bpb:1.1161 eval_time:471478ms
+legal_ttt_exact val_loss:1.88440101 val_bpb:1.11605138
