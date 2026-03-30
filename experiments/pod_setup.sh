@@ -14,7 +14,7 @@ set -euo pipefail
 # =============================================================================
 
 REPO_URL="https://github.com/newjordan/parameter-golf.git"
-BRANCH="test"
+BRANCH="TEST_LAB"
 WORKSPACE="/workspace/parameter-golf"
 
 echo "============================================"
@@ -78,16 +78,6 @@ pip install --upgrade pip -q 2>&1 | tail -1
 pip install numpy tqdm huggingface-hub kernels setuptools \
     "typing-extensions==4.15.0" datasets tiktoken sentencepiece attr -q 2>&1 | tail -1
 echo "  Core packages OK"
-
-# flash-linear-attention (provides fla.ops.delta_rule / chunk_delta_rule)
-if python3 -c "from fla.ops.delta_rule import chunk_delta_rule" 2>/dev/null; then
-    echo "  fla already installed"
-else
-    echo "  Installing flash-linear-attention..."
-    pip install flash-linear-attention -q 2>&1 | tail -3
-    python3 -c "from fla.ops.delta_rule import chunk_delta_rule; print('  fla OK — chunk_delta_rule available')" \
-        || echo "  WARNING: fla install failed — DeltaNet will fall back to Python loop"
-fi
 
 # =============================================================================
 # 4. zstandard (CRITICAL: prevents artifact size inflation)
@@ -217,12 +207,6 @@ try:
     print(f"sentencepiece: OK")
 except ImportError:
     print("sentencepiece: MISSING!")
-
-try:
-    from fla.ops.delta_rule import chunk_delta_rule
-    print(f"fla           : chunk_delta_rule OK")
-except ImportError:
-    print("fla           : MISSING — DeltaNet will use slow Python loop!")
 
 train = sorted(glob.glob("./data/datasets/fineweb10B_sp1024/fineweb_train_*.bin"))
 val   = sorted(glob.glob("./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin"))
