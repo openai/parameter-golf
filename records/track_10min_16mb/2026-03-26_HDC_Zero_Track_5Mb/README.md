@@ -124,9 +124,9 @@ output[win_idx] ^= token_vec[win_idx] ^ pos_vec[win_idx]
 
 ---
 
-## HDC Seed Projection Training (`_new_seed_proj.py`)
+## HDC Seed Projection Training (`train_gpt.py`)
 
-The `_new_seed_proj.py` module implements **pure Hadamard bipolar HDC training** without BLAKE3 or any external hash functions. It demonstrates that the Hadamard index itself carries all necessary information for language modeling.
+The `train_gpt.py` module implements **unified HDC training** with pure Hadamard bipolar indexing, position binding, and optimized packed table storage. It demonstrates that the Hadamard index itself carries all necessary information for language modeling.
 
 ### Core Principle: BLAKE3 is Not Needed
 
@@ -791,6 +791,162 @@ While `_zero_crosstalk.py` as a whole is redundant, **Semantic Hash-Collating** 
 | **Preserved reconstruction** | `seed` remains exact, XOR-chain still works |
 
 This integration is implemented in `SemanticContextCheckpointManager` (see `_unlimited_context.py`).
+
+---
+
+## Optimized Table Architecture
+
+Three architectural improvements work together to enable parallel corrections, reduce memory footprint, and improve BPB through collision handling.
+
+### 1. Butterfly Windows for Parallel Corrections
+
+**Problem**: Linear windows cause write contention during parallel correction passes. When positions 0 and 1 both try to update their windows, they overlap at blocks [1..W], causing `atomicXor` contention.
+
+**Solution**: Butterfly windows use bit-difference addressing to guarantee non-overlapping writes:
+
+```
+Linear windows (contention):
+  pos 0 → blocks [0 .. W]
+  pos 1 → blocks [1 .. W+1]     ← overlaps with pos 0 at [1..W]
+  pos 2 → blocks [2 .. W+2]     ← overlaps with pos 1 at [2..W+1]
+
+Butterfly windows (no contention):
+  pos 0 → blocks [0 .. W]        ← base address = 0
+  pos 1 → blocks [W .. 2W]      ← base address = W (bit 0 differs)
+  pos 2 → blocks [2W .. 3W]     ← base address = 2W (bit 1 differs)
+  pos 3 → blocks [3W .. 4W]     ← base address = 3W (bits 0,1 differ)
+```
+
+**Key property**: Any two positions differing in at least one bit have non-overlapping windows. This enables fully parallel HDC correction passes — all positions can issue `atomicXor` operations simultaneously without contention.
+
+| Property | Linear Windows | Butterfly Windows |
+|----------|----------------|-------------------|
+| Address formula | `pos % uint64_count` | `popcount(pos) * W` |
+| Overlap | Adjacent positions overlap | **Zero overlap** |
+| Parallel writes | Contention on `atomicXor` | **Contention-free** |
+| GPU utilization | Serialized by collision | **Full parallelism** |
+
+**Implementation**:
+
+```python
+def butterfly_base(pos: int, W: int) -> int:
+    """Compute butterfly window base address from position."""
+    return popcount(pos) * W
+```
+
+---
+
+### 2. Packed Table Layout (Token + Count in 2 Bytes)
+
+**Problem**: The original table uses two separate arrays:
+- `table_tokens: np.ndarray (TABLE_SIZE,) dtype=np.uint16` — 2 bytes per entry
+- `table_counts: np.ndarray (TABLE_SIZE,) dtype=np.int32` — 4 bytes per entry
+
+Total: 6 bytes per entry × 4M entries = **24 MB**.
+
+**Solution**: Pack token_id and count into a single `uint16`:
+
+```
+Bit layout (16 bits):
+┌──────────────┬────────────────┐
+│  bits [15:10] │   bits [9:0]   │
+│    count      │    token_id    │
+│   (6 bits)    │   (10 bits)    │
+└──────────────┴────────────────┘
+
+- token_id: 10 bits → supports vocab_size up to 1024
+- count: 6 bits → supports confidence 0..63 (sufficient for Boyer-Moore)
+```
+
+**Memory savings**: 2 bytes per entry × 4M entries = **8 MB** (saves 16 MB).
+
+**Pack/Unpack functions**:
+
+```python
+def pack_entry(token_id: int, count: int) -> int:
+    """Pack token_id and count into uint16."""
+    assert 0 <= token_id < 1024, "token_id requires 10 bits"
+    assert 0 <= count < 64, "count requires 6 bits"
+    return (count << 10) | token_id
+
+def unpack_entry(packed: int) -> tuple[int, int]:
+    """Unpack uint16 into (token_id, count)."""
+    token_id = packed & 0x3FF       # bits [9:0]
+    count = (packed >> 10) & 0x3F   # bits [15:10]
+    return token_id, count
+```
+
+**Table declaration**:
+
+```python
+TABLE_SIZE = 1 << 22  # 4,194,304 entries
+table_packed = np.zeros(TABLE_SIZE, dtype=np.uint16)  # 8 MB
+```
+
+---
+
+### 3. Two-Level Table with Overflow
+
+**Problem**: Hash collisions cause low-confidence entries in hot buckets, degrading BPB. A single bucket may receive votes for multiple different tokens, preventing any from reaching high confidence.
+
+**Solution**: Add a 64 KB overflow table for collision hotspots:
+
+```
+Primary table:  4M entries × 2 bytes = 8 MB
+Overflow table: 32K entries × 2 bytes = 64 KB
+Total: 8.0625 MB
+```
+
+**Lookup logic**:
+
+```python
+def lookup_with_overflow(bucket: int, table_packed: np.ndarray,
+                         overflow_packed: np.ndarray,
+                         overflow_bitmap: np.ndarray) -> tuple[int, int]:
+    """Lookup with overflow fallback for low-confidence entries."""
+    packed = table_packed[bucket]
+    token_id, count = unpack_entry(packed)
+    
+    if count < 3:  # Low confidence threshold
+        # Check overflow table
+        overflow_idx = bucket % OVERFLOW_SIZE
+        if overflow_bitmap[overflow_idx // 64] & (1 << (overflow_idx % 64)):
+            packed = overflow_packed[overflow_idx]
+            token_id, count = unpack_entry(packed)
+    
+    return token_id, count
+```
+
+**Overflow structure**:
+
+| Component | Size | Purpose |
+|-----------|------|---------|
+| `overflow_packed` | 64 KB (32K × 2 bytes) | Secondary storage for collision victims |
+| `overflow_bitmap` | 4 KB (512 × 64 bits) | Valid entry bitmap |
+| **Total overhead** | **68 KB** | ~0.8% of primary table |
+
+**BPB improvement**: Overflow entries capture tokens that would otherwise be lost to collisions, improving prediction accuracy on ambiguous contexts.
+
+---
+
+### Combined Implementation Order
+
+For maximum benefit, implement in this order:
+
+1. **First: Pack token+count into 2 bytes**
+   - Frees 16 MB RAM
+   - Simplifies data flow (single array instead of two)
+   - Enables overflow table in freed memory
+
+2. **Second: Add overflow table**
+   - Uses 64 KB of freed memory
+   - Improves BPB on collision-heavy contexts
+   - No changes to correction logic
+
+3. **Third: Butterfly windows**
+   - Enables parallel corrections with new table layout
+   - Requires updating `butterfly_base()` in CUDA kernels
+   - Full GPU utilization during correction passes
 
 ---
 
