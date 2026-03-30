@@ -7,7 +7,7 @@
 # What this validates:
 #   1. Script boots, torch.compile succeeds
 #   2. Forward/backward pass completes (training + EMA + export)
-#   3. VE128 params exist and changed from their init values (gradient flow proof)
+#   3. VE128 params exist and changed from their init values (parameter update proof)
 #   4. Artifact size under 16MB cap
 #   5. Roundtrip eval runs without shape mismatches
 #
@@ -63,6 +63,15 @@ export SMOKE_SAVE_VE_INIT=1
 
 SCRIPT=records/track_non_record_16mb/2026-03-30_training_bundle_plus/train_gpt.py
 OUTPUT="$SMOKE_DIR/smoke_output.txt"
+
+# ---------- CLEAN STALE ARTIFACTS ----------
+# Delete any leftover files from prior runs so Phase 3/4 cannot read stale data.
+for f in final_model.pt final_model.int6.ptz ve_init_snapshot.pt; do
+    if [ -f "$f" ]; then
+        echo "Removing stale artifact: $f"
+        rm -f "$f"
+    fi
+done
 
 FAIL=0
 check() {
