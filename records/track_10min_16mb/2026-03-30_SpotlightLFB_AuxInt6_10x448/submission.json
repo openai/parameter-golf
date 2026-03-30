@@ -1,0 +1,59 @@
+{
+  "author": "ymrohit",
+  "github_id": "ymrohit",
+  "name": "SpotlightLFB: One-Site Late Feature Bank + Aux-Int6 Compression",
+  "blurb": "10-minute-track submission built around a one-site late feature bank: a single late lexical steering injection that uses previous-token, hashed-bigram, and boundary features on a 10x448 dense trunk with VE and a small skip refiner. The second contribution is export co-design: the main trunk stays on int8+lzma while only the auxiliary embedding tables are pushed to int6, keeping all 3 exact 8xH100 cloud runs under the 16,000,000-byte cap while reaching a 1.14932328 mean exact sliding-window val_bpb.",
+  "date": "2026-03-30T18:11:37Z",
+  "track": "10min_16mb",
+  "val_loss": 1.94057907,
+  "val_bpb": 1.14932328,
+  "val_loss_std": 0.00066,
+  "val_bpb_std": 0.00039,
+  "roundtrip_exact_val_loss": 1.98007764,
+  "roundtrip_exact_val_bpb": 1.17271351,
+  "roundtrip_exact_val_loss_std": 0.00064,
+  "roundtrip_exact_val_bpb_std": 0.00038,
+  "raw_val_loss": 1.97896667,
+  "raw_val_bpb": 1.17203333,
+  "raw_val_loss_std": 0.00063,
+  "raw_val_bpb_std": 0.00039,
+  "seeds": [42, 2025, 1337],
+  "seed_results": {
+    "42": {
+      "val_loss": 1.93966667,
+      "val_bpb": 1.14878290,
+      "roundtrip_exact_val_loss": 1.97921128,
+      "roundtrip_exact_val_bpb": 1.17220041,
+      "raw_val_loss": 1.9781,
+      "raw_val_bpb": 1.1715,
+      "bytes_total": 15892279,
+      "step_stop": 7428,
+      "wallclock_seconds": 598.069
+    },
+    "2025": {
+      "val_loss": 1.94085043,
+      "val_bpb": 1.14948399,
+      "roundtrip_exact_val_loss": 1.98027668,
+      "roundtrip_exact_val_bpb": 1.17283139,
+      "raw_val_loss": 1.9792,
+      "raw_val_bpb": 1.1722,
+      "bytes_total": 15922399,
+      "step_stop": 7416,
+      "wallclock_seconds": 598.066
+    },
+    "1337": {
+      "val_loss": 1.94122012,
+      "val_bpb": 1.14970294,
+      "roundtrip_exact_val_loss": 1.98074496,
+      "roundtrip_exact_val_bpb": 1.17310873,
+      "raw_val_loss": 1.9796,
+      "raw_val_bpb": 1.1724,
+      "bytes_total": 15922547,
+      "step_stop": 7431,
+      "wallclock_seconds": 598.073
+    }
+  },
+  "bytes_total": 15922547,
+  "bytes_model_int8_lzma": 15823588,
+  "bytes_code": 98959
+}
