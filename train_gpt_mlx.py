@@ -83,6 +83,7 @@ class Hyperparameters:
     rope_dims: int = int(os.environ.get("ROPE_DIMS", 16))
     qk_gain_init: float = float(os.environ.get("QK_GAIN_INIT", 1.5))
     z_loss_weight: float = float(os.environ.get("Z_LOSS_WEIGHT", 1e-4))
+    bigram_hash_size: int = int(os.environ.get("BIGRAM_HASH_SIZE", 4096))
 
     # Optimizer. We keep the same per-group defaults as train_gpt.py.
     beta1: float = float(os.environ.get("BETA1", 0.9))
@@ -450,7 +451,8 @@ class BigramHashEmbedding(nn.Module):
 class GPT(nn.Module):
     def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
-                 qk_gain_init: float, rope_dims: int = 0, z_loss_weight: float = 0.0):
+                 qk_gain_init: float, rope_dims: int = 0, z_loss_weight: float = 0.0,
+                 bigram_hash_size: int = 4096):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
@@ -458,7 +460,7 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.z_loss_weight = z_loss_weight
         self.tok_emb = nn.Embedding(vocab_size, dim)
-        self.bigram_hash = BigramHashEmbedding(hash_size=10240, proj_dim=128, model_dim=dim)
+        self.bigram_hash = BigramHashEmbedding(hash_size=bigram_hash_size, proj_dim=128, model_dim=dim)
         self.smear_gate = SmearGate(dim)
         self.vocab_bias = mx.zeros((vocab_size,), dtype=mx.float32)
         kv_dim = (dim // num_heads) * num_kv_heads
@@ -1034,6 +1036,7 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         rope_dims=args.rope_dims,
         z_loss_weight=args.z_loss_weight,
+        bigram_hash_size=args.bigram_hash_size,
     )
     opt = SplitOptimizers(model, args)
 
