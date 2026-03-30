@@ -322,18 +322,21 @@ class BindingCTW:
                 cc = ctx_c[idx].astype(np.float64)
                 prev_p = blended[first_valid + idx]
 
-                # Compute specificity boost from context tokens
-                spec_boost = np.ones(len(idx), dtype=np.float64)
-                for k in range(min(cw, context_len)):
-                    ctx_tok = val_np[abs_s + idx - cw + k].astype(np.int64)
-                    ctx_tok = np.clip(ctx_tok, 0, self.vocab_size - 1)
-                    spec_boost += idf_norm[ctx_tok]
-                spec_boost /= (min(cw, context_len) + 1)  # normalize
-
-                # Evidence-aware concentration:
-                # More evidence + rare context → lower c → trust counts
-                c_eff = self.c_base / (1.0 + self.beta * np.log1p(cc) * spec_boost)
-                c_eff = np.clip(c_eff, 0.1, self.c_base * 5)
+                # EVIDENCE-AWARE CONCENTRATION (properly normalized)
+                #
+                # c_eff depends ONLY on ctx_count (cc), NOT on full_count (fc).
+                # This is critical: if c_eff depended on fc (the count for the
+                # specific target token), then different tokens would get different
+                # concentrations, and P(token_i | ctx) wouldn't sum to 1.
+                # That's the normalization bug that invalidated PR #986.
+                #
+                # The valid self-model signal is: "how much evidence do I have
+                # for this context?" More evidence → lower c → trust counts.
+                #
+                # From the hypergraph theory, this is the "evidence mass"
+                # component: log1p(total_observations).
+                c_eff = self.c_base / (1.0 + self.beta * np.log1p(cc))
+                c_eff = np.clip(c_eff, 0.01, self.c_base * 5)
 
                 blended[first_valid + idx] = (c_eff * prev_p + fc) / (c_eff + cc)
 
