@@ -161,6 +161,7 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - [`AL-20260329-027`](./experiments.tsv) says output calibration matters on top of that; tighter logit clipping improved the untied frontier again
 - [`AL-20260329-028`](./experiments.tsv) says the calibration result is directional; looser clipping lost to the tighter softcap
 - [`AL-20260329-029`](./experiments.tsv) says slower head-LR is competitive but secondary to output calibration
+- [`AL-20260329-030`](./experiments.tsv) says output-head learning dynamics are also real; a somewhat faster `HEAD_LR=0.012` beat both the default and slower-head-LR versions of the untied + softcap20 frontier
 
 ## Parked
 

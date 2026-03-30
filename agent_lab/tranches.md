@@ -384,13 +384,13 @@ Is the current `9L / MLP2 / 98304 / q8-kv2 / QK_GAIN_INIT=1.5` setup the right a
 
 ## T-20260329-F: Output Path Audit
 
-**Status:** planned next
+**Status:** completed
 
 **Goal**  
 Use the new frontier, [`AL-20260329-021`](./experiments.tsv), as the base model and ask whether the next gain comes from output-path expressivity or calibration rather than from more attention work.
 
 **Main question**  
-Is the current `9L / MLP2 / 98304 / q4-kv2 / tie_embeddings / logit_softcap=30` setup leaving quality on the table because the output path is too constrained, too weakly regularized, or learning at the wrong rate?
+Is the current `9L / MLP2 / 98304 / q4-kv2` frontier leaving quality on the table because the output path is too constrained, miscalibrated, or learning at the wrong rate?
 
 **Why this tranche exists**
 
@@ -418,14 +418,14 @@ Is the current `9L / MLP2 / 98304 / q4-kv2 / tie_embeddings / logit_softcap=30` 
 | `F1` | `TIE_EMBEDDINGS=0` | Untie embeddings and output head | The frontier may need a more expressive output head than tying allows, and the extra bytes may still fit the cap | Whether output expressivity is a real bottleneck |
 | `F2` | `LOGIT_SOFTCAP=20` | Tighten logit clipping | The current softcap may be too loose, letting logits become poorly calibrated | Whether stronger output regularization helps the frontier |
 | `F3` | `LOGIT_SOFTCAP=40` | Relax logit clipping | The current softcap may be too restrictive and suppressing useful confidence | Whether the output path wants less saturation |
-| `F4` | `TIED_EMBED_LR=0.03` | Slow down tied output updates | The tied embedding/output matrix may be learning too aggressively for the current frontier | Whether the output path wants a gentler learning rate |
-| `F5` | `TIED_EMBED_LR=0.07` | Speed up tied output updates | The tied embedding/output matrix may be under-updated relative to the rest of the model | Whether the output path wants stronger updates |
+| `F4` | `TIE_EMBEDDINGS=0, HEAD_LR=0.004` | Slow down untied output-head updates | The untied output head may be learning too aggressively for the current frontier | Whether the untied output path wants a gentler head learning rate |
+| `F5` | `TIE_EMBEDDINGS=0, HEAD_LR=0.012` | Speed up untied output-head updates | The untied output head may be under-updated relative to the rest of the model | Whether the output path wants stronger updates |
 
 **Why these five are worth the compute**
 
 - `F1` tests a qualitatively different hypothesis: expressivity versus byte cost
 - `F2` and `F3` bracket output calibration around the current softcap so we can tell if the current setting is too strict, too loose, or already near the right point
-- `F4` and `F5` bracket the learning dynamic of the tied output path around the current `0.05`, which is more informative than another ad hoc optimizer poke
+- after `F1` won hard, the most compute-worthy use of the last two runs was to bracket the learning dynamics of the untied output head itself instead of staying on the weaker tied branch
 
 **Decision rule for F**
 
@@ -440,6 +440,7 @@ Is the current `9L / MLP2 / 98304 / q4-kv2 / tie_embeddings / logit_softcap=30` 
 - [`AL-20260329-027`](./experiments.tsv) (`F2`, untied + `LOGIT_SOFTCAP=20`) landed at `1.3582` and 15.77 MB. This is another real improvement and says the untied frontier also wants tighter output clipping.
 - [`AL-20260329-028`](./experiments.tsv) (`F3`, untied + `LOGIT_SOFTCAP=40`) landed at `1.3628` and 15.77 MB. Still strong, but clearly behind the tighter softcap.
 - [`AL-20260329-029`](./experiments.tsv) (`F4`, untied + `HEAD_LR=0.004`) landed at `1.3596` and 15.74 MB. Competitive, but still not enough to beat the tighter-softcap winner.
+- [`AL-20260329-030`](./experiments.tsv) (`F5`, untied + `LOGIT_SOFTCAP=20` + `HEAD_LR=0.012`) landed at `1.3564` and 15.80 MB. This is the best result in the tranche and shows the untied + softcap20 line still wanted a somewhat faster output-head learning rate.
 
 **Current reading**
 
@@ -447,8 +448,8 @@ Is the current `9L / MLP2 / 98304 / q4-kv2 / tie_embeddings / logit_softcap=30` 
 - untied outputs should now be treated as the new working assumption for this tranche
 - tighter softcap already helps on top of untied outputs
 - the softcap bracket is now directional: `20` beat `40`
-- head-learning dynamics may matter some, but so far less than output calibration
-- the final tranche-F run only needs to answer whether the better head-LR direction is actually upward rather than downward
+- head-learning dynamics are also a real lever, and in this first bracket the useful direction was upward rather than downward
+- the best-tested output-path recipe is now `untied + LOGIT_SOFTCAP=20 + HEAD_LR=0.012`
 
 **Adaptive follow-up plan**
 
@@ -458,3 +459,10 @@ Is the current `9L / MLP2 / 98304 / q4-kv2 / tie_embeddings / logit_softcap=30` 
 - `F4`: `TIE_EMBEDDINGS=0, HEAD_LR=0.004`
 - `F5`: `TIE_EMBEDDINGS=0, HEAD_LR=0.012`
 - this is a better use of compute than continuing to bracket tied-output knobs after untied outputs already showed a large win
+
+**Outcome**
+
+- best result from this tranche: [`AL-20260329-030`](./experiments.tsv) at `1.3564`
+- main conclusion: output path is a first-class frontier family on this challenge, not an afterthought
+- secondary conclusion: the best-tested configuration now uses untied outputs, tighter clipping, and a somewhat faster output-head learning rate
+- next pivot: either run one narrow local tranche around the untied output path, or switch families and test residual-control or skip-topology simplification from the new anchor
