@@ -921,14 +921,42 @@ class HaarWaveletTransform(nn.Module):
 # -----------------------------
 
 
+def _fake_quantize_weight(w, bits):
+    """Simulate per-row weight quantization with STE (straight-through estimator).
+    Matches the actual quantize_float_tensor logic: per-row clip + scale + round."""
+    max_val = {5: 15, 6: 31}.get(bits, 127)
+    w32 = w.float()
+    if w32.ndim == 2:
+        clip_abs = torch.quantile(w32.abs(), INT8_CLIP_Q, dim=1)
+        scale = (clip_abs / float(max_val)).clamp_min(1.0 / float(max_val))
+        clipped = w32.clamp(-clip_abs[:, None], clip_abs[:, None])
+        q = (clipped / scale[:, None]).round().clamp(-max_val, max_val)
+        w_fake = (q * scale[:, None]).to(w.dtype)
+    else:
+        clip_abs = (
+            float(torch.quantile(w32.abs().flatten(), INT8_CLIP_Q).item())
+            if w32.numel()
+            else 0.0
+        )
+        scale = max(clip_abs / float(max_val), 1.0 / float(max_val))
+        q = (w32.clamp(-clip_abs, clip_abs) / scale).round().clamp(-max_val, max_val)
+        w_fake = (q * scale).to(w.dtype)
+    # STE: use fake-quantized weights for forward, but pass gradients through to original
+    return w + (w_fake - w).detach()
+
+
 def qat_noise_hook(module, input, output):
+    """QAT forward hook: fake-quantize the WEIGHTS of CastedLinear, recompute output.
+    This simulates the actual per-row weight quantization that happens at export."""
     if not module.training:
         return output
     bits = getattr(module, "_qat_bits", 8)
-    max_val = (1 << (bits - 1)) - 1
-    scale = output.abs().amax(dim=-1, keepdim=True) / max_val
-    scale = scale.clamp(min=1e-10)
-    return ((output / scale).round() * scale).to(output.dtype)
+    x = input[0]
+    w_fq = _fake_quantize_weight(module.weight, bits)
+    bias = module.bias
+    if bias is not None:
+        bias = bias.to(x.dtype)
+    return F.linear(x, w_fq.to(x.dtype), bias)
 
 
 # -----------------------------
