@@ -1,0 +1,86 @@
+Welcome to vast.ai. If authentication fails, try again after a few seconds, and double check your ssh key.
+Have fun!
+TORCH_READY 2.4.1+cu124 12.4 True 1
+============================================
+  1-GPU A/B Concept Runner (Strict Protocol)
+  Source script: /workspace/parameter-golf-lab/experiments/GreenRod_X_1/train_gpt.py
+  Arms table: /workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/concept_arms_nongdn_ab.tsv
+  Seeds: 1337
+  Wallclock per run: 120s
+  Promotion threshold: 0.010 BPB
+  Results: /workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/remote_results_nongdn_v5/ab1gpu_20260327_114840_nongdn_v5
+============================================
+WARNING: fla/DeltaNet not available; GDN arms will be skipped.
+
+==> arm=control seed=1337 (gdn=0/0, lr=0.0018, xsa=11)
+logs/ab1gpu_control_s1337_20260327_172839.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26990684
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:32768 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:120.000
+compile:enabled=0 fullgraph=0
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+W0327 17:31:24.299000 130407530121024 torch/distributed/elastic/agent/server/api.py:688] Received 15 death signal, shutting down workers
+W0327 17:31:24.300000 130407530121024 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 8356 closing signal SIGTERM
+Traceback (most recent call last):
+  File "/opt/conda/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 255, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 124, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 680, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 835, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 79, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 8225 got signal: 15
+WARNING: run failed for arm=control seed=1337; continuing.
+
+==> arm=a_xsa9 seed=1337 (gdn=0/0, lr=0.0018, xsa=9)
+logs/ab1gpu_a_xsa9_s1337_20260327_172839.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632

@@ -1,0 +1,98 @@
+Welcome to vast.ai. If authentication fails, try again after a few seconds, and double check your ssh key.
+Have fun!
+TORCH_READY 2.4.1+cu124 12.4 True 1
+logs/proxyab8_control_s1337_20260327_174825.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174825/mini_data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:mini_data train_shards:1
+val_loader:shards pattern=/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174825/mini_data/fineweb_val_*.bin tokens:130560
+model_params:26990684
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:8192 train_seq_len:512 iterations:30 warmup_steps:2 max_wallclock_seconds:90.000
+compile:enabled=0 fullgraph=0
+seed:1337
+warmup_step:1/2
+warmup_step:2/2
+step:0/30 val_loss:6.9391 val_bpb:4.1612 train_time:0ms step_avg:0.02ms
+step:1/30 train_loss:6.9469 train_time:486ms step_avg:486.44ms
+step:2/30 train_loss:13.7556 train_time:975ms step_avg:487.43ms
+step:3/30 train_loss:11.3644 train_time:1457ms step_avg:485.77ms
+step:4/30 train_loss:8.3462 train_time:1921ms step_avg:480.31ms
+step:5/30 train_loss:6.9429 train_time:2460ms step_avg:492.02ms
+step:5/30 val_loss:7.2449 val_bpb:4.3446 train_time:2460ms step_avg:492.09ms
+step:6/30 train_loss:7.2211 train_time:2968ms step_avg:494.65ms
+step:7/30 train_loss:7.2241 train_time:3448ms step_avg:492.55ms
+step:8/30 train_loss:7.2083 train_time:3930ms step_avg:491.31ms
+step:9/30 train_loss:6.8575 train_time:4477ms step_avg:497.42ms
+step:10/30 train_loss:6.4038 train_time:5071ms step_avg:507.06ms
+step:10/30 val_loss:6.1434 val_bpb:3.6841 train_time:5071ms step_avg:507.10ms
+step:15/30 train_loss:5.4110 train_time:7625ms step_avg:508.31ms
+step:15/30 val_loss:5.3117 val_bpb:3.1853 train_time:7625ms step_avg:508.33ms
+step:20/30 train_loss:5.0086 train_time:9815ms step_avg:490.74ms
+step:20/30 val_loss:5.0729 val_bpb:3.0421 train_time:9815ms step_avg:490.76ms
+step:25/30 train_loss:4.8449 train_time:12027ms step_avg:481.09ms
+step:25/30 val_loss:4.8843 val_bpb:2.9290 train_time:12028ms step_avg:481.13ms
+step:30/30 train_loss:4.8051 train_time:14173ms step_avg:472.44ms
+step:30/30 val_loss:4.7873 val_bpb:2.8709 train_time:14174ms step_avg:472.47ms
+peak memory allocated: 2158 MiB reserved: 3494 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:6.1472 val_bpb:3.6863 eval_time:332ms
+Serialized model: 106145183 bytes
+Code size: 91638 bytes
+final_eval:skipped sliding/ngram by SKIP_FINAL_EVAL=1
+logs/proxyab8_a_xsa9_s1337_20260327_174825.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174825/mini_data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:mini_data train_shards:1
+val_loader:shards pattern=/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174825/mini_data/fineweb_val_*.bin tokens:130560
+model_params:26990684
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_9 active_layers:[2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:8192 train_seq_len:512 iterations:30 warmup_steps:2 max_wallclock_seconds:90.000
+compile:enabled=0 fullgraph=0
+seed:1337
+warmup_step:1/2
+warmup_step:2/2
+step:0/30 val_loss:6.9391 val_bpb:4.1612 train_time:0ms step_avg:0.02ms
+step:1/30 train_loss:6.9469 train_time:512ms step_avg:512.40ms
+step:2/30 train_loss:13.7474 train_time:1015ms step_avg:507.68ms
+step:3/30 train_loss:11.3468 train_time:1483ms step_avg:494.48ms
+step:4/30 train_loss:8.3372 train_time:1986ms step_avg:496.61ms
+step:5/30 train_loss:6.9858 train_time:2457ms step_avg:491.33ms
+step:5/30 val_loss:7.2597 val_bpb:4.3535 train_time:2457ms step_avg:491.41ms
+step:6/30 train_loss:7.2348 train_time:2920ms step_avg:486.74ms
+step:7/30 train_loss:7.2250 train_time:3381ms step_avg:483.05ms
+step:8/30 train_loss:7.2300 train_time:3842ms step_avg:480.25ms
+step:9/30 train_loss:6.9788 train_time:4307ms step_avg:478.50ms
+step:10/30 train_loss:6.4995 train_time:4787ms step_avg:478.70ms
+step:10/30 val_loss:6.2105 val_bpb:3.7243 train_time:4787ms step_avg:478.73ms
+step:15/30 train_loss:5.5228 train_time:7198ms step_avg:479.83ms
+step:15/30 val_loss:5.3692 val_bpb:3.2198 train_time:7198ms step_avg:479.87ms
+step:20/30 train_loss:5.0036 train_time:9790ms step_avg:489.49ms
+step:20/30 val_loss:5.0895 val_bpb:3.0521 train_time:9790ms step_avg:489.52ms
+step:25/30 train_loss:4.8521 train_time:12399ms step_avg:495.94ms
+step:25/30 val_loss:4.8848 val_bpb:2.9293 train_time:12399ms step_avg:495.96ms
+step:30/30 train_loss:4.7751 train_time:15100ms step_avg:503.32ms
+step:30/30 val_loss:4.7730 val_bpb:2.8623 train_time:15100ms step_avg:503.34ms
+peak memory allocated: 2158 MiB reserved: 3616 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:6.1478 val_bpb:3.6867 eval_time:326ms
+Serialized model: 106145183 bytes
+Code size: 91638 bytes
+final_eval:skipped sliding/ngram by SKIP_FINAL_EVAL=1
+arm	seed	cap_step	cap_val_bpb	run_dir	log
+control	1337	30	2.8709	/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174825/runs/control_s1337	/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174825/runs/control_s1337/train.log
+a_xsa9	1337	30	2.8623	/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174825/runs/a_xsa9_s1337	/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174825/runs/a_xsa9_s1337/train.log
+Mini-data A/B (val_bpb proxy)
+control_val_bpb=2.8709
+a_xsa9_val_bpb=2.8623
+delta(a_xsa9-control)=-0.0086
+PROMOTE: none (mini-data proxy)
+PROXY_ROOT=/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174825

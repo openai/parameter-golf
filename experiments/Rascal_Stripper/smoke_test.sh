@@ -45,7 +45,7 @@ echo "  RESULTS — final_sliding_window_s64 BPB"
 echo "══════════════════════════════════════════════════"
 for name in baseline turbomuon engramlite combo; do
     log="$LOG_DIR/${name}.log"
-    bpb=$(grep "final_sliding_window_s64_exact" "$log" 2>/dev/null \
+    bpb=$(grep "final_sliding_window_exact" "$log" 2>/dev/null \
           | tail -1 | grep -oP 'val_bpb:\K[0-9.]+' || echo "N/A")
     printf "  %-12s  %s\n" "$name" "$bpb"
 done
