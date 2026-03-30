@@ -81,7 +81,7 @@ class Hyperparameters:
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
-    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "0")))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
     # Optimizer hyperparameters.
@@ -964,9 +964,13 @@ class GPT(nn.Module):
             if isinstance(module, CastedLinear):
                 if getattr(module, "_zero_init", False):
                     nn.init.zeros_(module.weight)
-                    module.weight.data.mul_(proj_scale)
-                else:
+                elif module.weight.shape[0] == module.weight.shape[1]:
+                    # Only orthogonal init for square weight matrices (Q, K, V projections)
                     nn.init.orthogonal_(module.weight)
+            # Scale down output projections for residual stability
+            if isinstance(module, Block):
+                module.attn.proj.weight.data.mul_(proj_scale)
+                module.mlp.proj.weight.data.mul_(proj_scale)
 
     def _run_backbone(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
