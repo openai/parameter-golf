@@ -13,6 +13,46 @@ import uuid
 from pathlib import Path
 import numpy as np
 import sentencepiece as spm
+
+# --- Brotli + byte-shuffle compression (from PR #1089) ---
+try:
+    import brotli
+    _COMPRESSOR = "brotli"
+except ImportError:
+    _COMPRESSOR = "lzma"
+
+_BYTE_SHUFFLE = True
+_BYTE_SHUFFLE_STRIDE = 2
+_BSHF_MAGIC = b'BSHF'
+
+def _byte_shuffle(data, stride=2):
+    if stride <= 1 or len(data) < stride:
+        return data
+    arr = np.frombuffer(data, dtype=np.uint8)
+    n = len(arr)
+    out = np.empty(n, dtype=np.uint8)
+    pos = 0
+    for i in range(stride):
+        chunk = arr[i::stride]
+        out[pos:pos+len(chunk)] = chunk
+        pos += len(chunk)
+    return _BSHF_MAGIC + bytes([stride]) + out.tobytes()
+
+def _byte_unshuffle(data):
+    if len(data) < 5 or data[:4] != _BSHF_MAGIC:
+        return data
+    stride = data[4]
+    if stride < 2:
+        return data[5:]
+    arr = np.frombuffer(data, dtype=np.uint8, offset=5)
+    n = len(arr)
+    out = np.empty(n, dtype=np.uint8)
+    pos = 0
+    for i in range(stride):
+        chunk_len = n // stride + (1 if i < n % stride else 0)
+        out[i::stride][:chunk_len] = arr[pos:pos+chunk_len]
+        pos += chunk_len
+    return out.tobytes()
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
@@ -201,6 +241,14 @@ class Hyperparameters:
     gptq_calib_samples = int(os.environ.get("GPTQ_CALIB_SAMPLES", "64"))
     gptq_reserve_ms = float(os.environ.get("GPTQ_RESERVE_MS", "9000"))
     quant_clip_range = int(os.environ.get("QUANT_CLIP_RANGE", 31))
+    mixed_precision = bool(int(os.environ.get("MIXED_PRECISION", "1")))
+    target_bytes_limit = int(os.environ.get("TARGET_BYTES", 16_000_000))
+
+# --- Mixed int6/int7 bit allocation constants (from PR #1089) ---
+_MP_BYTES_PER_PARAM_INT5 = 0.46
+_MP_COST_PER_EXTRA_BIT = 0.24
+_MP_NON_WEIGHT_COMPRESS = 0.55
+_MP_PRUNE_HEADROOM_FRAC = 0.02
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -1542,8 +1590,100 @@ def _rebank_state_dict(sd: dict[str, Tensor], num_layers: int, template_sd: dict
             out[name] = tensor
     return out
 
+def _bits_to_range(bits: int) -> tuple[int, int]:
+    """Return (min_val, max_val) for a symmetric integer quantization with given bit width."""
+    return -(1 << (bits - 1)), (1 << (bits - 1)) - 1
+
+def _allocate_bits_mixed(hessian_map: dict[str, Tensor], state_dict: dict[str, Tensor],
+                         target_bytes: int = 16_000_000, code_bytes: int = 0):
+    """Allocate int5/int6/int7 bits per weight group based on Hessian sensitivity.
+
+    Returns (per_tensor_bits, group_summary, stats_dict).
+    """
+    group_sensitivities: dict[str, list[float]] = {}
+    group_numel: dict[str, int] = {}
+    tensor_to_group: dict[str, str] = {}
+
+    for name, H in hessian_map.items():
+        sensitivity = float(torch.trace(H).item()) / H.shape[0]
+        if not name.startswith("blocks."):
+            continue
+        dot2 = name.index(".", 7)
+        layer_idx = int(name[7:dot2])
+        kind = "attn" if ".attn." in name else "mlp" if ".mlp." in name else "other"
+        group = f"layer.{layer_idx}.{kind}"
+        group_sensitivities.setdefault(group, []).append(sensitivity)
+        tensor_to_group[name] = group
+        t = state_dict.get(name)
+        if t is not None:
+            group_numel[group] = group_numel.get(group, 0) + t.numel()
+
+    avg_sens = {g: sum(v) / len(v) for g, v in group_sensitivities.items()}
+    sorted_groups = sorted(avg_sens.items(), key=lambda x: x[1], reverse=True)
+
+    total_weight_params = sum(group_numel.values())
+    non_weight_bytes = sum(
+        t.numel() * t.element_size() for name, t in state_dict.items() if name not in hessian_map
+    )
+    base_est = code_bytes + int(non_weight_bytes * _MP_NON_WEIGHT_COMPRESS) + int(total_weight_params * _MP_BYTES_PER_PARAM_INT5)
+    budget = int(target_bytes * (1.0 - _MP_PRUNE_HEADROOM_FRAC)) - base_est
+
+    if budget <= 0:
+        per_tensor = {n: 5 for n in tensor_to_group}
+        summary = [(g, 5, avg_sens[g]) for g, _ in sorted_groups]
+        stats = {
+            "base_mb": base_est / 1e6, "promoted_mb": 0.0, "total_mb": base_est / 1e6,
+            "budget_mb": target_bytes / 1e6, "headroom_kb": 0.0,
+            "prune_room_bytes": target_bytes - base_est, "warning": "budget_exhausted",
+        }
+        return per_tensor, summary, stats
+
+    bits_alloc = {g: 5 for g, _ in sorted_groups}
+    promoted_bytes = 0
+
+    # Promote most sensitive group to int7 if budget allows
+    if sorted_groups:
+        top_group = sorted_groups[0][0]
+        top_numel = group_numel.get(top_group, 0)
+        cost_int7 = int(top_numel * _MP_COST_PER_EXTRA_BIT * 2)  # +2 bits
+        cost_int6 = int(top_numel * _MP_COST_PER_EXTRA_BIT * 1)  # +1 bit
+        if top_numel > 0 and cost_int7 <= budget:
+            bits_alloc[top_group] = 7
+            promoted_bytes += cost_int7
+        elif top_numel > 0 and cost_int6 <= budget:
+            bits_alloc[top_group] = 6
+            promoted_bytes += cost_int6
+
+    # Promote remaining groups to int6 until budget exhausted
+    for g, _ in sorted_groups:
+        if bits_alloc[g] > 5:
+            continue
+        numel = group_numel.get(g, 0)
+        if numel == 0:
+            continue
+        cost = int(numel * _MP_COST_PER_EXTRA_BIT)
+        if promoted_bytes + cost <= budget:
+            bits_alloc[g] = 6
+            promoted_bytes += cost
+
+    per_tensor = {}
+    for tensor_name, group in tensor_to_group.items():
+        per_tensor[tensor_name] = bits_alloc[group]
+
+    summary = [(g, bits_alloc[g], avg_sens[g]) for g, _ in sorted_groups]
+    total_est = base_est + promoted_bytes
+    headroom = int(target_bytes * _MP_PRUNE_HEADROOM_FRAC)
+    stats = {
+        "base_mb": base_est / 1e6, "promoted_mb": promoted_bytes / 1e6,
+        "total_mb": total_est / 1e6, "budget_mb": target_bytes / 1e6,
+        "headroom_kb": headroom / 1e3, "prune_room_bytes": target_bytes - total_est - headroom,
+    }
+    return per_tensor, summary, stats
+
+
 def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], clip_range: int = 31,
-                        hessians: dict[str, Tensor] | None = None):
+                        hessians: dict[str, Tensor] | None = None,
+                        bit_allocation: dict[str, int] | None = None):
     num_layers_total = max(
         (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
         default=0,
@@ -1564,16 +1704,19 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], clip
             meta[name] = "passthrough_ctrl"
             continue
         if cat in int6_cats and t.ndim >= 1:
+            # Mixed precision: look up per-tensor bit allocation (default int6)
+            bits = bit_allocation.get(name, 6) if bit_allocation else 6
+            _, effective_clip = _bits_to_range(bits)
             H = hessians.get(name) if hessians else None
             if H is not None and t.ndim == 2:
-                q, s = gptq_quantize_weight(t, H.cpu(), clip_range=clip_range)
+                q, s = gptq_quantize_weight(t, H.cpu(), clip_range=effective_clip)
                 gptq_count += 1
             else:
-                q, s = quantize_int6_per_row(t, clip_range=clip_range)
+                q, s = quantize_int6_per_row(t, clip_range=effective_clip)
                 naive_count += 1
             result[name + ".q"] = q
             result[name + ".scale"] = s
-            meta[name] = {"type": "int6"}
+            meta[name] = {"type": f"int{bits}"}
         else:
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
@@ -2128,24 +2271,66 @@ def main() -> None:
         gptq_elapsed = time.perf_counter() - t_gptq
         log0(f"gptq:calibrated {len(gptq_hessians)} layers in {gptq_elapsed:.1f}s")
         torch.cuda.empty_cache()
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, clip_range=args.quant_clip_range, hessians=gptq_hessians)
+    # Mixed precision bit allocation (from PR #1089)
+    bit_allocation = None
+    if args.mixed_precision and gptq_hessians:
+        code_bytes_est = len(code.encode("utf-8"))
+        bit_allocation, alloc_summary, alloc_stats = _allocate_bits_mixed(
+            gptq_hessians, unbanked_sd,
+            target_bytes=args.target_bytes_limit, code_bytes=code_bytes_est,
+        )
+        log0(
+            f"mixed_precision:estimate base={alloc_stats['base_mb']:.2f}MB "
+            f"+ promoted={alloc_stats['promoted_mb']:.2f}MB "
+            f"= {alloc_stats['total_mb']:.2f}MB "
+            f"(budget={alloc_stats['budget_mb']:.1f}MB, "
+            f"headroom={alloc_stats['headroom_kb']:.0f}KB, "
+            f"prune_room={alloc_stats['prune_room_bytes']:+.0f}B)"
+        )
+        num_promoted = sum(1 for _, b, _ in alloc_summary if b > 5)
+        for group_name, group_bits, group_sens in alloc_summary:
+            log0(f"mixed_precision: {group_name} -> int{group_bits} (sensitivity={group_sens:.4e})")
+        bit_counts: dict[int, int] = {}
+        for b in bit_allocation.values():
+            bit_counts[b] = bit_counts.get(b, 0) + 1
+        log0(
+            f"mixed_precision: {' '.join(f'int{b}:{c}' for b, c in sorted(bit_counts.items()))} "
+            f"({num_promoted} groups promoted)"
+        )
+    quant_result, quant_meta = mixed_quantize_int6(
+        unbanked_sd, {"mlp", "attn"}, clip_range=args.quant_clip_range,
+        hessians=gptq_hessians, bit_allocation=bit_allocation,
+    )
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = lzma.compress(quant_raw, preset=6)
+    if _BYTE_SHUFFLE:
+        quant_raw = _byte_shuffle(quant_raw, _BYTE_SHUFFLE_STRIDE)
+    if _COMPRESSOR == "brotli":
+        import brotli
+        quant_blob = brotli.compress(quant_raw, quality=11)
+    else:
+        quant_blob = lzma.compress(quant_raw, preset=9)
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = len(quant_blob)
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model int6+lzma: {quant_file_bytes} bytes")
-        log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
+        log0(f"Total submission size int6+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
     if distributed:
         dist.barrier()
     with open("final_model.int6.ptz", "rb") as f:
         quant_blob_disk = f.read()
+    if _COMPRESSOR == "brotli":
+        import brotli
+        raw = brotli.decompress(quant_blob_disk)
+    else:
+        raw = lzma.decompress(quant_blob_disk)
+    if _BYTE_SHUFFLE:
+        raw = _byte_unshuffle(raw)
     quant_state = torch.load(
-        io.BytesIO(lzma.decompress(quant_blob_disk)),
+        io.BytesIO(raw),
         map_location="cpu",
     )
     deq_unbanked = dequantize_mixed_int6(quant_state["w"], quant_state["m"], unbanked_sd)
