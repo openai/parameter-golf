@@ -1,40 +1,51 @@
-# Kinematic Gated IIR (KGIIR) Trajectory Mixing
+# KGIIR Trajectory Mixing
 
 **Author:** Adam Jacuch  
 **Base Architecture:** [Abay Bektursun](https://github.com/abaybektursun)  
 **Validation BPB:** 1.11837  
-**Throughput:** 88ms / step (8xH100)
+**Throughput:** 88 ms / step (8xH100)
 
-## The "KGIIR" Breakthrough
-This submission introduces **Kinematic Gated IIR (KGIIR)** trajectory mixing. This architecture is built directly upon the high-performance base model developed by **Abay Bektursun**, utilizing his optimized Parallel Muon implementation, parameter banking, and Test-Time Training (TTT) recipe.
+## Overview
+This submission introduces **KGIIR trajectory mixing**, a lightweight gated causal temporal mixing modification built on top of the base architecture from **Abay Bektursun**. The goal of this change is to improve short-range dependency handling under the 16 MB and 600 s challenge constraints without materially increasing runtime.
 
-### What is KGIIR?
-**KGIIR** stands for **Kinematic Gated Infinite Impulse Response** mixing. 
+In this run, adding the KGIIR mixer improved validation BPB from **1.11923** to **1.11837** at **88 ms / step**.
 
-While standard architectures use discrete token shifts (FIR-like behavior) to handle local context, KGIIR complements these by treating the hidden state as a continuous physical signal with **Kinematic Momentum**.
+## What is KGIIR?
+KGIIR is a **structured gated causal 4-tap temporal mixer** applied before Q/K/V projection.
 
-* **Kinematic:** It models the "velocity" of information across the sequence, ensuring that the influence of a token flows smoothly through the layers rather than jumping between discrete steps.
-* **Gated:** Every dimension of the model has a per-channel learnable gate, allowing the network to dynamically decide whether to trust the current token or the momentum of the previous trajectory.
-* **IIR (Infinite Impulse Response):** Unlike a standard windowed shift, the IIR filter allows information to persist across much longer ranges with zero additional parameter cost, using a recursive 4-tap analytical structure.
+Rather than relying only on fixed token shifts, the module computes a learned per-channel mixture of the current hidden state and several recent timesteps in a single fused expression:
 
-### Why it works for Parameter Golf
-In the 16MB regime, Attention heads are too valuable to waste on local syntax "bookkeeping." By offloading temporal dependencies to the KGIIR filter, I achieved a superior Pareto frontier—investing a marginal 5ms in step latency (83ms → 88ms) to reach a deeper semantic resolution. This trade-off allowed for a cleaner convergence within the 600s sprint that raw throughput alone could not match.
+$$
+x^{\text{mixed}}_t = f_0 x_t + f_1 x_{t-1} + f_2 x_{t-2} + f_3 x_{t-3}
+$$
 
-### Controlled Experiment: The BPB Drop
-To isolate the impact of KGIIR, this run was conducted as a strict controlled ablation. **The only architectural change made to the Abay Bektursun SOTA was the integration of the KGIIR trajectory layer alongside existing temporal shifts.**
+where $f_0,\dots,f_3$ are learned per-channel coefficients derived from a gated parameterization.
 
-* **Abay Bektursun SOTA BPB:** 1.11923
-* **KGIIR Augmented BPB:** **1.11837**
-* **Net Improvement:** **-0.00086 BPB**
+**The module is not a recursive IIR in the strict DSP sense; it is a structured gated causal 4-tap temporal mixer.** The naming reflects the original design intuition, but the implemented mechanism in this submission is a finite-tap causal mixer over recent hidden states.
 
-## Technical Innovations
-* **Vectorized Trajectory Mixing:** The KGIIR trajectory is implemented as a highly optimized, single-pass native pytorch tensor computation. This approach maintains a blistering **88ms step time** on 8xH100 without the overhead of custom low-level kernels.
-* **BPB Progress:** This run successfully pushes into the 1.118x range, demonstrating that trajectory mixing is a viable path forward for ultra-constrained language models.
+## Why use this in Parameter Golf?
+In the 16 MB regime, local dependency handling needs to be cheap. This mixer provides a small, fusion-friendly mechanism for combining the current state with recent states before attention, with minimal implementation complexity and no custom kernel requirement.
 
-## Submission Transparency & Constraints
-**SOTA Threshold:** This submission provides a single-seed verification. While the BPB improvement is clear, I acknowledge it does not yet clear the required 0.005 nat statistical threshold for a definitive SOTA record flip. 
+The intent is not to replace attention, but to give the model a compact way to handle some short-range/local structure outside the main attention computation.
 
-**Compute Limits:** Due to restricted compute funding (Undergraduate Research), I am unable to provide the standard 3-run mean at this time. This is submitted as an **Architectural Record** to document the KGIIR primitive for the community.
+## Controlled Experiment
+This run was performed as a controlled architectural modification to the Bektursun baseline.
+
+* **Baseline BPB:** 1.11923
+* **KGIIR-augmented BPB:** **1.11837**
+* **Net improvement:** **-0.00086 BPB**
+
+This is a **single-seed result**. It should be interpreted as an architectural record rather than a statistically established leaderboard flip.
+
+## Technical Notes
+* **Fusion-friendly implementation:** The temporal mixer is implemented as a single vectorized PyTorch expression over padded lagged states.
+* **No custom kernel dependency:** The implementation is designed to remain simple and efficient within the challenge runtime budget.
+* **Runtime:** The run maintained **88 ms / step** on 8xH100.
+
+## Submission Scope and Limitations
+This submission provides a single-seed verification only. While the BPB improvement is measurable, it does not establish a 3-run mean or clear the challenge’s stronger statistical bar for a definitive SOTA reversal.
+
+Due to limited personal compute resources, I am submitting this as an **architectural record** documenting a promising lightweight temporal mixing primitive, along with final weights, training code, logs, and metadata for reproducibility.
 
 ## Reproduction Settings
 ```bash
@@ -53,4 +64,6 @@ ITERATIONS=9000 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 \
 SEED=1337
 ```
 
-Special thanks to Abay Bektursun for the world-class baseline architecture and TTT implementation.
+## Acknowledgment
+
+This submission builds directly on the baseline architecture and training recipe from Abay Bektursun.
