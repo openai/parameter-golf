@@ -60,11 +60,11 @@ NUM_FLAT_LAYERS=6 SEED=1337 NPROC_PER_NODE=8 bash experiments/Bandit_Wagon/run.s
 
 | ID | Seed | Int6 SW BPB | Size | Delta | Notes |
 |----|------|:-----------:|------|-------|-------|
-| BW-00 | 1337 | TBD | TBD | — | anchor |
-| BW-01 | 1337 | TBD | TBD | TBD | dim=576 |
-| BW-02 | 1337 | TBD | TBD | TBD | dim=640 |
-| BW-03 | 1337 | TBD | TBD | TBD | 5F+1C×3 |
-| BW-04 | 1337 | TBD | TBD | TBD | 6F+1C×3 |
+| BW-00 | 444 | 1.18616 | 9.10 MB | — | anchor ✅ matches CL3 |
+| BW-01 | 444 | TBD | TBD | TBD | dim=576 |
+| BW-02 | 444 | TBD | TBD | TBD | dim=640 |
+| BW-03 | 444 | TBD | TBD | TBD | 5F+1C×3 |
+| BW-04 | 444 | TBD | TBD | TBD | 6F+1C×3 |
 
 **Target:** int6 SW BPB < 1.187 (beat CL3 mean), ≤10 MB.
 
