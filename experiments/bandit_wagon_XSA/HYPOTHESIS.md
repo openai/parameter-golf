@@ -63,9 +63,14 @@ On 8×H100 at 600s, 8% slower ≈ 640 fewer steps out of ~8000 (~8%). Needs to r
 
 | ID | XSA_LAST_N | Step avg (ms) | INT6_SW_BPB | Quant gap | Delta vs control |
 |----|:----------:|:-------------:|:-----------:|:---------:|:----------------:|
-| Control (BW2-00) | 11 | 546ms | 1.52365 | 0.099 | — |
-| BWXSA-01 | 13 | TBD | TBD | TBD | TBD |
-| BWXSA-02 | 15 | TBD | TBD | TBD | TBD |
+| Control (BW2-00) | 11 | 546ms* | 1.52365 | 0.099 | — |
+| BWXSA-01 | 13 | **530ms** | 1.51982 | 0.095 | −0.00383 |
+| BWXSA-02 | 15 | **514ms** | **1.51431** | **0.090** | **−0.00934 ✅ PROMOTED** |
+
+\* different pod session — cross-session timing unreliable. BWXSA-01 vs BWXSA-02 (same session) is reliable.
+
+**Verdict: XSA=15 wins on BOTH metrics. Faster AND better BPB. Full coverage is the config.**
+See ablation_results_2026-03-30.md for full analysis.
 
 ## Reference
 
