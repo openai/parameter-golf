@@ -160,6 +160,7 @@ This is the high-level hypothesis bank. Not every idea should become an experime
 - [`AL-20260329-026`](./experiments.tsv) says output expressivity is a first-class lever; untied outputs produced a large frontier jump without breaking the size cap
 - [`AL-20260329-027`](./experiments.tsv) says output calibration matters on top of that; tighter logit clipping improved the untied frontier again
 - [`AL-20260329-028`](./experiments.tsv) says the calibration result is directional; looser clipping lost to the tighter softcap
+- [`AL-20260329-029`](./experiments.tsv) says slower head-LR is competitive but secondary to output calibration
 
 ## Parked
 

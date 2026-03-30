@@ -59,6 +59,7 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - The first output-path probe already moved the frontier a lot. Untying embeddings and the output head was a major gain while still staying under the size cap.
 - The second output-path probe also won. The untied frontier improved again with `LOGIT_SOFTCAP=20`, so output calibration is a real lever on top of output expressivity.
 - Looser clipping did not win the bracket. `LOGIT_SOFTCAP=40` stayed strong, but it still lost clearly to `20`, so the output-calibration result is directional.
+- Slower head LR is not the main win. `HEAD_LR=0.004` stayed competitive, but calibration still matters more than this first head-LR reduction.
 
 ## Open Questions
 
@@ -92,7 +93,7 @@ This is the first-read dashboard for autonomous research. Read this file for the
 - `F1`: `TIE_EMBEDDINGS=0` -> complete, new frontier at `1.3614`
 - `F2`: `TIE_EMBEDDINGS=0, LOGIT_SOFTCAP=20` -> complete, new frontier at `1.3582`
 - `F3`: `TIE_EMBEDDINGS=0, LOGIT_SOFTCAP=40` -> complete, strong but clearly behind `20`
-- `F4`: `TIE_EMBEDDINGS=0, HEAD_LR=0.004`
+- `F4`: `TIE_EMBEDDINGS=0, HEAD_LR=0.004` -> complete, competitive but not a winner
 - `F5`: `TIE_EMBEDDINGS=0, HEAD_LR=0.012`
 
 ## Go Deeper

@@ -439,6 +439,7 @@ Is the current `9L / MLP2 / 98304 / q4-kv2 / tie_embeddings / logit_softcap=30` 
 - [`AL-20260329-026`](./experiments.tsv) (`F1`, untied outputs) landed at `1.3614` and 15.78 MB. This is a major frontier jump and strongly suggests the current `q4/kv2` line was output-path-limited.
 - [`AL-20260329-027`](./experiments.tsv) (`F2`, untied + `LOGIT_SOFTCAP=20`) landed at `1.3582` and 15.77 MB. This is another real improvement and says the untied frontier also wants tighter output clipping.
 - [`AL-20260329-028`](./experiments.tsv) (`F3`, untied + `LOGIT_SOFTCAP=40`) landed at `1.3628` and 15.77 MB. Still strong, but clearly behind the tighter softcap.
+- [`AL-20260329-029`](./experiments.tsv) (`F4`, untied + `HEAD_LR=0.004`) landed at `1.3596` and 15.74 MB. Competitive, but still not enough to beat the tighter-softcap winner.
 
 **Current reading**
 
@@ -446,7 +447,8 @@ Is the current `9L / MLP2 / 98304 / q4-kv2 / tie_embeddings / logit_softcap=30` 
 - untied outputs should now be treated as the new working assumption for this tranche
 - tighter softcap already helps on top of untied outputs
 - the softcap bracket is now directional: `20` beat `40`
-- the remaining tranche-F runs should now ask whether output-head learning dynamics can improve the untied frontier further
+- head-learning dynamics may matter some, but so far less than output calibration
+- the final tranche-F run only needs to answer whether the better head-LR direction is actually upward rather than downward
 
 **Adaptive follow-up plan**
 
