@@ -1,0 +1,17 @@
+{
+  "author": "barneywohl",
+  "github_id": "barneywohl",
+  "date": "2026-03-30",
+  "val_bpb": 1.1116,
+  "val_bpb_std": 0.00046,
+  "seeds": {
+    "1337": 1.11096,
+    "42": 1.11206,
+    "2024": 1.11178
+  },
+  "training_time_seconds": 590,
+  "eval_time_seconds": 80,
+  "artifact_bytes": 15977983,
+  "hardware": "8xH100 SXM",
+  "summary": "Fused Triton MLP + Full Hessian GPTQ + Coprime-Stride Loader + XSA-all + BigramHash(2816x112)"
+}
