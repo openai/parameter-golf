@@ -1,0 +1,39 @@
+{
+  "author": "Yeseong Lim",
+  "github_id": "imyesung",
+  "name": "MoE Exploration + Multi-bit Quantization Analysis",
+  "blurb": "Negative-result non-record submission. The dense control reaches 1.145622 val_bpb, within 0.0028 BPB of the March 20, 2026 leaderboard leader, making the quantization comparison leaderboard-relevant. On that same trained dense model, int5 MLP costs +0.0068 BPB while int4 MLP costs +0.0655 BPB. A partial 8xH100 SXM MoE log (2 experts, soft routing, 1.5x per expert) shows the MoE model trailing the dense control by +0.0057/+0.0100/+0.0139/+0.0157 BPB at steps 500/1000/1500/2000 before the pod died, so the MoE conclusion should be interpreted as preliminary.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.934329,
+  "val_bpb": 1.145622,
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": 7410,
+  "wallclock_seconds": 600.089,
+  "bytes_total": 15932249,
+  "bytes_model_compressed": 15876343,
+  "bytes_code": 55906,
+  "quantization_comparison": {
+    "attn6_mlp6": {
+      "artifact_bytes": 15876343,
+      "val_bpb": 1.145622
+    },
+    "attn6_mlp5": {
+      "artifact_bytes": 14042960,
+      "val_bpb": 1.152391
+    },
+    "attn6_mlp4": {
+      "artifact_bytes": 12065742,
+      "val_bpb": 1.211116
+    },
+    "attn5_mlp5": {
+      "artifact_bytes": 13678799,
+      "val_bpb": 1.155945
+    },
+    "attn5_mlp4": {
+      "artifact_bytes": 11841296,
+      "val_bpb": 1.218322
+    }
+  }
+}
