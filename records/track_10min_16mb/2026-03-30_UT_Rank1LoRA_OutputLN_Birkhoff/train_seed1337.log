@@ -1,0 +1,128 @@
+Running Python 3.12.11 | packaged by Anaconda, Inc. | (main, Jun  5 2025, 13:09:17) [GCC 11.2.0]
+Running PyTorch 2.7.1+cu124
+
+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/tmp/fineweb_1024_bpe.model
+train_loader:dataset:pgolf_data train_shards:80
+val_loader:shards pattern=/tmp/pgolf_data/fineweb_val_*.bin tokens:62021632
+============================================================
+UNIVERSAL TRANSFORMER CONFIG:
+  num_prelude: 1
+  num_shared: 4
+  num_coda: 1
+  num_loops: 3
+  num_unique_blocks: 6
+  num_effective_layers: 14
+  noisy_qat: True
+  shared_muon_wd: 0.02
+============================================================
+FEATURE VERIFICATION:
+  parallel_muon: True (3-phase overlapped, no DDP)
+  parameter_banking: True (qo_bank, kv_bank, mlp_up_bank, mlp_down_bank)
+  xsa_last_n: 11 (XSA on last N effective layers)
+  late_qat_threshold: 0.5 (QAT activation point)
+  warmdown_iters: 3000
+  bigram_vocab_size: 3072
+  train_batch_tokens: 524288 (global batch)
+  compression: lzma
+  full_gptq: True
+  leaky_relu_sq: True (LeakyReLU(0.5)^2)
+  ema_decay: 0.997
+  swa_enabled: True
+  timestep_scaling: True (14 effective layers)
+============================================================
+model_params:23533636 (unique blocks=6, effective_layers=14)
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_blocks:[1, 2, 3, 4, 5]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:10 num_kv_heads:5
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.01 scalar_lr:0.025
+train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9345 val_bpb:4.1070 train_time:0ms step_avg:0.00ms
+step:1/20000 train_loss:6.9344 train_time:24ms step_avg:24.60ms
+step:2/20000 train_loss:7.7972 train_time:134ms step_avg:67.45ms
+step:3/20000 train_loss:8.9017 train_time:263ms step_avg:87.69ms
+step:4/20000 train_loss:9.0880 train_time:384ms step_avg:96.08ms
+step:5/20000 train_loss:9.4610 train_time:509ms step_avg:101.88ms
+step:6/20000 train_loss:8.9306 train_time:632ms step_avg:105.39ms
+step:7/20000 train_loss:6.9689 train_time:755ms step_avg:107.99ms
+step:8/20000 train_loss:6.1356 train_time:884ms step_avg:110.56ms
+step:9/20000 train_loss:5.8424 train_time:1004ms step_avg:111.65ms
+step:10/20000 train_loss:5.8372 train_time:1132ms step_avg:113.29ms
+step:500/20000 train_loss:3.0781 train_time:62465ms step_avg:124.93ms
+step:1000/20000 train_loss:2.7492 train_time:125142ms step_avg:125.14ms
+step:1500/20000 train_loss:2.5205 train_time:187794ms step_avg:125.20ms
+step:2000/20000 train_loss:2.3970 train_time:250507ms step_avg:125.25ms
+step:2500/20000 train_loss:2.2234 train_time:313222ms step_avg:125.29ms
+step:3000/20000 train_loss:2.2610 train_time:375884ms step_avg:125.30ms
+late_qat:enabled step:3270 scale:0.4998
+step:3500/20000 train_loss:2.2639 train_time:438593ms step_avg:125.31ms
+step:4000/20000 train_loss:2.3042 train_time:501272ms step_avg:125.32ms
+step:4000/20000 val_loss:2.2974 val_bpb:1.3606 train_time:501385ms step_avg:125.35ms
+swa:start step:4200
+step:4500/20000 train_loss:2.3893 train_time:564052ms step_avg:125.34ms
+step:4769/20000 val_loss:2.2828 val_bpb:1.3520 train_time:598000ms step_avg:125.39ms
+stopping_early: wallclock_cap train_time:598000ms step:4769/20000
+peak memory allocated: 23841 MiB reserved: 24648 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.2684 val_bpb:1.3434 eval_time:4391ms
+Serialized model: 91788132 bytes
+Code size: 110742 bytes
+gptq:collecting Hessians from calibration data...
+gptq:collected hessians for 38 layers, 256 calibration batches
+gptq:hessian_collection_time:218732ms
+gptq:cholesky_failed layer=blocks.0.attn.proj.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 130 is not positive-definite).
+gptq:cholesky_failed layer=blocks.1.attn.c_q.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 9 is not positive-definite).
+gptq:cholesky_failed layer=blocks.2.attn.c_q.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 45 is not positive-definite).
+gptq:cholesky_failed layer=blocks.3.attn.c_q.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 40 is not positive-definite).
+gptq:cholesky_failed layer=blocks.4.attn.c_q.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 511 is not positive-definite).
+gptq:cholesky_failed layer=blocks.1.attn.c_k.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 9 is not positive-definite).
+gptq:cholesky_failed layer=blocks.1.attn.c_v.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 9 is not positive-definite).
+gptq:cholesky_failed layer=blocks.2.attn.c_k.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 45 is not positive-definite).
+gptq:cholesky_failed layer=blocks.2.attn.c_v.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 45 is not positive-definite).
+gptq:cholesky_failed layer=blocks.3.attn.c_k.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 40 is not positive-definite).
+gptq:cholesky_failed layer=blocks.3.attn.c_v.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 40 is not positive-definite).
+gptq:cholesky_failed layer=blocks.4.attn.c_k.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 511 is not positive-definite).
+gptq:cholesky_failed layer=blocks.4.attn.c_v.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 511 is not positive-definite).
+gptq:cholesky_failed layer=blocks.0.mlp.fc.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 4 is not positive-definite).
+gptq:cholesky_failed layer=blocks.1.mlp.fc.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 9 is not positive-definite).
+gptq:cholesky_failed layer=blocks.2.mlp.fc.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 34 is not positive-definite).
+gptq:cholesky_failed layer=blocks.3.mlp.fc.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 166 is not positive-definite).
+gptq:cholesky_failed layer=blocks.4.mlp.fc.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 560 is not positive-definite).
+gptq:cholesky_failed layer=blocks.0.mlp.proj.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 3 is not positive-definite).
+gptq:cholesky_failed layer=blocks.1.mlp.proj.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 2 is not positive-definite).
+gptq:cholesky_failed layer=blocks.2.mlp.proj.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 2 is not positive-definite).
+gptq:cholesky_failed layer=blocks.4.mlp.proj.weight error=linalg.cholesky: The factorization could not be completed because the input is not positive-definite (the leading minor of order 2 is not positive-definite).
+gptq:quantized 15 layers with full GPTQ, 22 with GPTQ-lite fallback
+Serialized model int6+lzma: 11274280 bytes
+Total submission size int6+lzma: 11385022 bytes
+Total submission size int8+zlib: 11385022 bytes
+final_int6_roundtrip val_loss:2.2950 val_bpb:1.3592 eval_time:20691ms
+final_int6_roundtrip_exact val_loss:2.29500863 val_bpb:1.35923338
+final_int6_sliding_window_s64 val_loss:2.2527 val_bpb:1.3342 stride:64 eval_time:153033ms
+final_int6_sliding_window_s64_exact val_loss:2.25266760 val_bpb:1.33416017
+final_int8_zlib_roundtrip_exact val_loss:2.25266760 val_bpb:1.33416017
