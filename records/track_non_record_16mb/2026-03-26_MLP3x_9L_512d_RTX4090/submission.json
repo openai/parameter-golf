@@ -1,0 +1,18 @@
+{
+  "author": "Warren Reed Baum",
+  "github_id": "delistish",
+  "name": "MLP3x 9L 512d — RTX 4090 Sweep Best",
+  "blurb": "Non-record submission: 9-layer, 512d model with 3x MLP multiplier (1536 FFN hidden dim). Standard Muon optimizer + int8 zlib quantization. Achieved 1.4530 bpb on single RTX 4090 in ~10 min wallclock (960 steps before time cap). MLP3x outperformed all other configs in our automated sweep. Key insight: wider MLPs beat deeper stacking at this param budget.",
+  "date": "2026-03-26T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.4533,
+  "val_bpb": 1.4530,
+  "pre_quant_val_loss": 2.4512,
+  "pre_quant_val_bpb": 1.4518,
+  "step_stop": 960,
+  "wallclock_seconds": 600,
+  "bytes_total": 15352257,
+  "bytes_model_int8_zlib": 15304409,
+  "bytes_code": 47848,
+  "gpu": "1xRTX 4090 24GB"
+}
