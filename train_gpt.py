@@ -91,6 +91,9 @@ class Hyperparameters:
     quant_bits = int(os.environ.get("QUANT_BITS", 6))
     quant_bits_embed = int(os.environ.get("QUANT_BITS_EMBED", 8))
     quant_pack = bool(int(os.environ.get("QUANT_PACK", "1")))
+    int6_scope = os.environ.get("INT6_SCOPE", "")
+    int6_layer_start = int(os.environ.get("INT6_LAYER_START", "-1"))
+    int6_layer_end = int(os.environ.get("INT6_LAYER_END", "-1"))
     qat_start_step = int(os.environ.get("QAT_START_STEP", -1))
     qat_bits = int(os.environ.get("QAT_BITS", 0))
 
@@ -405,6 +408,7 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     if pattern
 )
 EMBED_TENSOR_NAME_PATTERNS = ("tok_emb", "lm_head")
+INT6_SCOPE_ORDER = ("mlp", "attn_qkv", "attn_proj")
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -416,6 +420,76 @@ def quant_symmetric_qmax(bits: int) -> int:
     if not 2 <= bits <= 8:
         raise ValueError(f"QUANT_BITS must be in [2, 8], got {bits}")
     return (1 << (bits - 1)) - 1
+
+
+def parse_int6_scope(int6_scope: str) -> tuple[str, ...]:
+    scope = int6_scope.strip().lower()
+    if not scope:
+        return ()
+    selected: set[str] = set()
+    for token in scope.replace("+", ",").split(","):
+        name = token.strip()
+        if not name:
+            continue
+        if name == "all":
+            selected.update(INT6_SCOPE_ORDER)
+        elif name == "attn":
+            selected.update(("attn_qkv", "attn_proj"))
+        elif name in INT6_SCOPE_ORDER:
+            selected.add(name)
+        else:
+            valid = ", ".join(("all", "attn", *INT6_SCOPE_ORDER))
+            raise ValueError(f"INT6_SCOPE must be one of {valid}; got {int6_scope!r}")
+    return tuple(name for name in INT6_SCOPE_ORDER if name in selected)
+
+def int6_scope_label(int6_scope: str, quant_bits: int) -> str:
+    tokens = parse_int6_scope(int6_scope) if quant_bits > 6 else ()
+    return "" if not tokens else ("all" if tokens == INT6_SCOPE_ORDER else "+".join(tokens))
+
+def int6_layer_range_active(int6_layer_start: int, int6_layer_end: int, quant_bits: int) -> bool:
+    return quant_bits > 6 and int6_layer_start >= 0 and int6_layer_end >= int6_layer_start
+
+def block_layer_index(name: str) -> int | None:
+    if not name.startswith("blocks."):
+        return None
+    layer_text, sep, _ = name[len("blocks."):].partition(".")
+    return int(layer_text) if sep and layer_text.isdigit() else None
+
+def int6_scope_for_tensor(name: str) -> str | None:
+    if ".mlp.fc.weight" in name or ".mlp.proj.weight" in name:
+        return "mlp"
+    if any(pattern in name for pattern in (".attn.c_q.weight", ".attn.c_k.weight", ".attn.c_v.weight")):
+        return "attn_qkv"
+    return "attn_proj" if ".attn.proj.weight" in name else None
+
+def use_int6_for_name(name: str, quant_bits: int, int6_scope: str, int6_layer_start: int, int6_layer_end: int) -> bool:
+    if quant_bits <= 6:
+        return False
+    layer_idx = block_layer_index(name)
+    if layer_idx is None:
+        return False
+    range_active = int6_layer_range_active(int6_layer_start, int6_layer_end, quant_bits)
+    scope_tokens = parse_int6_scope(int6_scope)
+    if scope_tokens and int6_scope_for_tensor(name) not in scope_tokens:
+        return False
+    return (not range_active or int6_layer_start <= layer_idx <= int6_layer_end) if scope_tokens else (
+        range_active and int6_layer_start <= layer_idx <= int6_layer_end
+    )
+
+def export_bits_for_tensor(name: str, quant_bits: int, quant_bits_embed: int, int6_scope: str, int6_layer_start: int, int6_layer_end: int) -> int:
+    bits = quant_bits_embed if any(pattern in name for pattern in EMBED_TENSOR_NAME_PATTERNS) else quant_bits
+    return 6 if use_int6_for_name(name, quant_bits, int6_scope, int6_layer_start, int6_layer_end) else bits
+
+def qat_enabled_for_name(name: str, quant_bits: int, int6_scope: str, int6_layer_start: int, int6_layer_end: int) -> bool:
+    return block_layer_index(name) is not None and (quant_bits < 8 or use_int6_for_name(name, quant_bits, int6_scope, int6_layer_start, int6_layer_end))
+
+def quant_label(quant_bits: int, quant_bits_embed: int, int6_scope: str, int6_layer_start: int, int6_layer_end: int) -> str:
+    label = str(quant_bits) if quant_bits_embed == quant_bits else f"{quant_bits}/e{quant_bits_embed}"
+    scope_label = int6_scope_label(int6_scope, quant_bits)
+    range_active = int6_layer_range_active(int6_layer_start, int6_layer_end, quant_bits)
+    if scope_label:
+        return f"{label}+int6:{scope_label}[{int6_layer_start}-{int6_layer_end}]" if range_active else f"{label}+int6:{scope_label}"
+    return f"{label}+int6[{int6_layer_start}-{int6_layer_end}]" if range_active else label
 
 
 def fake_quantize_weight_ste(w: Tensor, quant_bits: int) -> Tensor:
@@ -495,14 +569,17 @@ def unpack_int6(data: bytes, num_values: int, shape: tuple[int, ...]) -> Tensor:
     flat = np.stack([v0, v1, v2, v3], axis=1).ravel()[:num_values]
     return torch.from_numpy((flat.astype(np.int16) - 31).astype(np.int8)).reshape(shape)
 
-def quantize_state_dict_lowbit(state_dict: dict[str, Tensor], quant_bits: int, quant_bits_embed: int = 0, quant_pack: bool = True):
+def quantize_state_dict_lowbit(state_dict: dict[str, Tensor], quant_bits: int, quant_bits_embed: int = 0, quant_pack: bool = True, int6_scope: str = "", int6_layer_start: int = -1, int6_layer_end: int = -1):
     # Mixed-precision quantization:
     # - block 2D weights: quant_bits (default 6), optionally bit-packed
+    # - optionally selected block weights: int6 via INT6_SCOPE / INT6_LAYER_START-END
     # - embedding/head 2D weights: quant_bits_embed (default = quant_bits, typically 8)
     # - small/control tensors: fp16 passthrough
     if quant_bits_embed <= 0:
         quant_bits_embed = quant_bits
-    do_pack = quant_pack and quant_bits == 6
+    label = quant_label(quant_bits, quant_bits_embed, int6_scope, int6_layer_start, int6_layer_end)
+    mixed_int6 = int6_scope_label(int6_scope, quant_bits) != "" or int6_layer_range_active(int6_layer_start, int6_layer_end, quant_bits)
+    any_packed = False
     quantized: dict[str, Tensor | bytes] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -537,8 +614,14 @@ def quantize_state_dict_lowbit(state_dict: dict[str, Tensor], quant_bits: int, q
             stats["packed_payload_bytes"] += nbytes
             continue
 
-        is_embed = any(pattern in name for pattern in EMBED_TENSOR_NAME_PATTERNS)
-        bits = quant_bits_embed if is_embed else quant_bits
+        bits = export_bits_for_tensor(
+            name,
+            quant_bits,
+            quant_bits_embed,
+            int6_scope,
+            int6_layer_start,
+            int6_layer_end,
+        )
         stats["num_float_tensors"] += 1
         q, s = quantize_float_tensor(t, bits)
         meta: dict[str, object] = {"bits": bits}
@@ -548,12 +631,13 @@ def quantize_state_dict_lowbit(state_dict: dict[str, Tensor], quant_bits: int, q
         logical_bytes = tensor_nbytes(q) + tensor_nbytes(s)
         stats["quant_payload_bytes"] += logical_bytes
 
-        if do_pack and bits == 6:
+        if quant_pack and bits == 6:
             packed = pack_int6(q)
             meta["packed"] = True
             meta["num_values"] = int(q.numel())
             meta["shape"] = list(q.shape)
             quantized[name] = packed
+            any_packed = True
             stats["packed_payload_bytes"] += len(packed) + tensor_nbytes(s)
         else:
             quantized[name] = q
@@ -564,13 +648,24 @@ def quantize_state_dict_lowbit(state_dict: dict[str, Tensor], quant_bits: int, q
         qmeta[name] = meta
 
     obj: dict[str, object] = {
-        "__quant_format__": f"mixed_sint{quant_bits}_e{quant_bits_embed}_v2" if quant_bits != quant_bits_embed or do_pack else f"sint{quant_bits}_clean_per_row_v1",
+        "__quant_format__": (
+            f"mixed_sint{quant_bits}_e{quant_bits_embed}_v2"
+            if quant_bits != quant_bits_embed or mixed_int6 or any_packed
+            else f"sint{quant_bits}_clean_per_row_v1"
+        ),
         "quant_bits": quant_bits,
+        "quant_label": label,
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
         "passthrough": passthrough,
     }
+    scope_label = int6_scope_label(int6_scope, quant_bits)
+    if scope_label:
+        obj["int6_scope"] = scope_label
+    if int6_layer_range_active(int6_layer_start, int6_layer_end, quant_bits):
+        obj["int6_layer_start"] = int6_layer_start
+        obj["int6_layer_end"] = int6_layer_end
     if qmeta:
         obj["qmeta"] = qmeta
     if passthrough_orig_dtypes:
@@ -932,6 +1027,12 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
+    parse_int6_scope(args.int6_scope)
+    if (args.int6_layer_start >= 0 or args.int6_layer_end >= 0) and (args.int6_layer_start < 0 or args.int6_layer_end < args.int6_layer_start):
+        raise ValueError(
+            "INT6_LAYER_START/INT6_LAYER_END must define an inclusive non-negative range; "
+            f"got start={args.int6_layer_start}, end={args.int6_layer_end}"
+        )
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
@@ -1045,8 +1146,26 @@ def main() -> None:
     qat_linear_count = 0
     for name, module in base_model.named_modules():
         if isinstance(module, CastedLinear):
-            module.qat_bits = qat_bits
-            module.qat_enabled = name.startswith("blocks.")
+            weight_name = f"{name}.weight"
+            module.qat_bits = (
+                export_bits_for_tensor(
+                    weight_name,
+                    args.quant_bits,
+                    args.quant_bits_embed,
+                    args.int6_scope,
+                    args.int6_layer_start,
+                    args.int6_layer_end,
+                )
+                if args.qat_bits <= 0
+                else qat_bits
+            )
+            module.qat_enabled = qat_start_step is not None and qat_enabled_for_name(
+                weight_name,
+                args.quant_bits,
+                args.int6_scope,
+                args.int6_layer_start,
+                args.int6_layer_end,
+            )
             qat_linear_count += int(module.qat_enabled)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
@@ -1119,6 +1238,13 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"eval_stride:{args.eval_stride} eval_batch_seqs:{args.eval_batch_seqs}")
+    int6_scope = int6_scope_label(args.int6_scope, args.quant_bits) or "-"
+    int6_layers = f"{args.int6_layer_start}-{args.int6_layer_end}" if int6_layer_range_active(args.int6_layer_start, args.int6_layer_end, args.quant_bits) else "-"
+    log0(
+        f"quantization:label:{quant_label(args.quant_bits, args.quant_bits_embed, args.int6_scope, args.int6_layer_start, args.int6_layer_end)} "
+        f"quant_bits:{args.quant_bits} quant_bits_embed:{args.quant_bits_embed} "
+        f"quant_pack:{int(args.quant_pack)} int6_scope:{int6_scope} int6_layers:{int6_layers}"
+    )
     log0(f"qat_start_step:{qat_start_step if qat_start_step is not None else -1} qat_bits:{qat_bits} qat_linears:{qat_linear_count}")
     log0(f"seed:{args.seed}")
 
@@ -1300,7 +1426,13 @@ def main() -> None:
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
     quant_obj, quant_stats = quantize_state_dict_lowbit(
-        base_model.state_dict(), args.quant_bits, args.quant_bits_embed, args.quant_pack,
+        base_model.state_dict(),
+        args.quant_bits,
+        args.quant_bits_embed,
+        args.quant_pack,
+        args.int6_scope,
+        args.int6_layer_start,
+        args.int6_layer_end,
     )
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
@@ -1315,18 +1447,20 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["quant_payload_bytes"], 1)
         packed_ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["packed_payload_bytes"], 1)
+        quantized_label = str(quant_obj.get("quant_label", args.quant_bits))
         log0(
-            f"Serialized model int{args.quant_bits}+zlib: {quant_file_bytes} bytes "
-            f"(logical:{quant_stats['quant_payload_bytes']} packed:{quant_stats['packed_payload_bytes']} "
+            f"Serialized model quantized: {quant_file_bytes} bytes "
+            f"(label:{quantized_label} logical:{quant_stats['quant_payload_bytes']} packed:{quant_stats['packed_payload_bytes']} "
             f"raw_torch:{quant_raw_bytes} ratio:{ratio:.2f}x packed_ratio:{packed_ratio:.2f}x)"
         )
-        log0(f"Total submission size int{args.quant_bits}+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size quantized: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
     with open(quant_path, "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quantized_label = str(quant_state.get("quant_label", args.quant_bits))
     base_model.load_state_dict(dequantize_state_dict_lowbit(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
@@ -1347,10 +1481,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_quantized_roundtrip bits:{args.quant_bits} val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_quantized_roundtrip bits:{quantized_label} val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_quantized_roundtrip_exact bits:{args.quant_bits} val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_quantized_roundtrip_exact bits:{quantized_label} val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()

@@ -9,7 +9,7 @@ Usage:
   bash mlx_local.sh
   bash mlx_local.sh setup
   bash mlx_local.sh download [train_shards]
-  bash mlx_local.sh run [standard|sliding|selective_qat]
+  bash mlx_local.sh run [standard|sliding|selective_qat|mlp_qat]
   bash mlx_local.sh compare <model_path> [stride]
 
 Examples:
@@ -19,6 +19,7 @@ Examples:
   bash mlx_local.sh run standard
   bash mlx_local.sh run sliding
   bash mlx_local.sh run selective_qat
+  bash mlx_local.sh run mlp_qat
   bash mlx_local.sh compare logs/my_run_mlx_model.int8.ptz
 
 Optional environment variables for `run`:
@@ -36,6 +37,7 @@ Optional environment variables for `run`:
   QUANT_BITS
   QUANT_BITS_EMBED
   QUANT_PACK
+  INT6_SCOPE
   INT6_LAYER_START
   INT6_LAYER_END
   QAT_START_STEP
@@ -104,6 +106,7 @@ cmd_setup() {
     echo "  bash mlx_local.sh"
     echo "  bash mlx_local.sh run standard"
     echo "  bash mlx_local.sh run selective_qat"
+    echo "  bash mlx_local.sh run mlp_qat"
 }
 
 cmd_download() {
@@ -144,6 +147,7 @@ cmd_run() {
     local quant_bits="${QUANT_BITS:-8}"
     local quant_bits_embed="${QUANT_BITS_EMBED:-8}"
     local quant_pack="${QUANT_PACK:-0}"
+    local int6_scope="${INT6_SCOPE:-}"
     local int6_layer_start="${INT6_LAYER_START:--1}"
     local int6_layer_end="${INT6_LAYER_END:--1}"
     local qat_start_step="${QAT_START_STEP:--1}"
@@ -179,8 +183,23 @@ cmd_run() {
                 qat_bits=0
             fi
             ;;
+        mlp_qat)
+            eval_stride="${EVAL_STRIDE:-64}"
+            if [[ -z "${QUANT_PACK+x}" ]]; then
+                quant_pack=1
+            fi
+            if [[ -z "${INT6_SCOPE+x}" ]]; then
+                int6_scope=mlp
+            fi
+            if [[ -z "${QAT_START_STEP+x}" ]]; then
+                qat_start_step=150
+            fi
+            if [[ -z "${QAT_BITS+x}" ]]; then
+                qat_bits=0
+            fi
+            ;;
         *)
-            echo "Usage: bash mlx_local.sh run [standard|sliding|selective_qat]" >&2
+            echo "Usage: bash mlx_local.sh run [standard|sliding|selective_qat|mlp_qat]" >&2
             exit 1
             ;;
     esac
@@ -197,6 +216,7 @@ cmd_run() {
     echo "quant_bits=${quant_bits}"
     echo "quant_bits_embed=${quant_bits_embed}"
     echo "quant_pack=${quant_pack}"
+    echo "int6_scope=${int6_scope:--}"
     echo "int6_layer_start=${int6_layer_start}"
     echo "int6_layer_end=${int6_layer_end}"
     echo "qat_start_step=${qat_start_step}"
@@ -218,6 +238,7 @@ cmd_run() {
     QUANT_BITS="${quant_bits}" \
     QUANT_BITS_EMBED="${quant_bits_embed}" \
     QUANT_PACK="${quant_pack}" \
+    INT6_SCOPE="${int6_scope}" \
     INT6_LAYER_START="${int6_layer_start}" \
     INT6_LAYER_END="${int6_layer_end}" \
     QAT_START_STEP="${qat_start_step}" \

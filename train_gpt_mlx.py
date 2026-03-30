@@ -105,6 +105,7 @@ class Hyperparameters:
     quant_bits: int = int(os.environ.get("QUANT_BITS", 8))
     quant_bits_embed: int = int(os.environ.get("QUANT_BITS_EMBED", 8))
     quant_pack: bool = bool(int(os.environ.get("QUANT_PACK", "0")))
+    int6_scope: str = os.environ.get("INT6_SCOPE", "")
     int6_layer_start: int = int(os.environ.get("INT6_LAYER_START", "-1"))
     int6_layer_end: int = int(os.environ.get("INT6_LAYER_END", "-1"))
     qat_start_step: int = int(os.environ.get("QAT_START_STEP", -1))
@@ -153,10 +154,42 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     if pattern
 )
 EMBED_TENSOR_NAME_PATTERNS = ("tok_emb", "lm_head")
+INT6_SCOPE_ORDER = ("mlp", "attn_qkv", "attn_proj")
 
 
-def int6_layer_range_active(quant_bits: int, int6_layer_start: int, int6_layer_end: int) -> bool:
-    return quant_bits > 6 and int6_layer_start >= 0 and int6_layer_end >= int6_layer_start
+def parse_int6_scope(int6_scope: str) -> tuple[str, ...]:
+    scope = int6_scope.strip().lower()
+    if not scope:
+        return ()
+    selected: set[str] = set()
+    for token in scope.replace("+", ",").split(","):
+        name = token.strip()
+        if not name:
+            continue
+        if name == "all":
+            selected.update(INT6_SCOPE_ORDER)
+            continue
+        if name == "attn":
+            selected.update(("attn_qkv", "attn_proj"))
+            continue
+        if name not in INT6_SCOPE_ORDER:
+            valid = ", ".join(("all", "attn", *INT6_SCOPE_ORDER))
+            raise ValueError(f"INT6_SCOPE must be one of {valid}; got {int6_scope!r}")
+        selected.add(name)
+    return tuple(name for name in INT6_SCOPE_ORDER if name in selected)
+
+
+def int6_scope_label(int6_scope: str) -> str:
+    tokens = parse_int6_scope(int6_scope)
+    if not tokens:
+        return ""
+    if tokens == INT6_SCOPE_ORDER:
+        return "all"
+    return "+".join(tokens)
+
+
+def int6_layer_range_active(int6_layer_start: int, int6_layer_end: int) -> bool:
+    return int6_layer_start >= 0 and int6_layer_end >= int6_layer_start
 
 
 def block_layer_index(name: str) -> int | None:
@@ -168,27 +201,72 @@ def block_layer_index(name: str) -> int | None:
     return int(layer_text)
 
 
-def use_int6_for_tensor(name: str, arr: mx.array, quant_bits: int, int6_layer_start: int, int6_layer_end: int) -> bool:
-    if arr.ndim != 2 or not int6_layer_range_active(quant_bits, int6_layer_start, int6_layer_end):
+def int6_scope_for_tensor(name: str) -> str | None:
+    if ".mlp.fc.weight" in name or ".mlp.proj.weight" in name:
+        return "mlp"
+    if any(pattern in name for pattern in (".attn.c_q.weight", ".attn.c_k.weight", ".attn.c_v.weight")):
+        return "attn_qkv"
+    if ".attn.proj.weight" in name:
+        return "attn_proj"
+    return None
+
+
+def use_int6_for_name(name: str, quant_bits: int, int6_scope: str, int6_layer_start: int, int6_layer_end: int) -> bool:
+    if quant_bits <= 6:
         return False
     layer_idx = block_layer_index(name)
-    return layer_idx is not None and int6_layer_start <= layer_idx <= int6_layer_end
+    if layer_idx is None:
+        return False
+    range_active = int6_layer_range_active(int6_layer_start, int6_layer_end)
+    scope_tokens = parse_int6_scope(int6_scope)
+    if scope_tokens:
+        if int6_scope_for_tensor(name) not in scope_tokens:
+            return False
+        return not range_active or int6_layer_start <= layer_idx <= int6_layer_end
+    return range_active and int6_layer_start <= layer_idx <= int6_layer_end
 
 
-def quant_label(quant_bits: int, quant_bits_embed: int, int6_layer_start: int, int6_layer_end: int) -> str:
+def use_int6_for_tensor(name: str, arr: mx.array, quant_bits: int, int6_scope: str, int6_layer_start: int, int6_layer_end: int) -> bool:
+    if arr.ndim != 2:
+        return False
+    return use_int6_for_name(name, quant_bits, int6_scope, int6_layer_start, int6_layer_end)
+
+
+def quant_label(quant_bits: int, quant_bits_embed: int, int6_scope: str, int6_layer_start: int, int6_layer_end: int) -> str:
     label = str(quant_bits)
     if quant_bits_embed != quant_bits:
         label = f"{label}/e{quant_bits_embed}"
-    if int6_layer_range_active(quant_bits, int6_layer_start, int6_layer_end):
+    scope_label = int6_scope_label(int6_scope)
+    range_active = int6_layer_range_active(int6_layer_start, int6_layer_end)
+    if scope_label:
+        label = f"{label}+int6:{scope_label}"
+        if range_active:
+            label = f"{label}[{int6_layer_start}-{int6_layer_end}]"
+    elif quant_bits > 6 and range_active:
         label = f"{label}+int6[{int6_layer_start}-{int6_layer_end}]"
     return label
 
 
-def block_export_bits(layer_idx: int, quant_bits: int, int6_layer_start: int, int6_layer_end: int) -> int:
-    if int6_layer_range_active(quant_bits, int6_layer_start, int6_layer_end):
-        if int6_layer_start <= layer_idx <= int6_layer_end:
-            return 6
-    return quant_bits
+def export_bits_for_tensor(
+    name: str,
+    quant_bits: int,
+    quant_bits_embed: int,
+    int6_scope: str,
+    int6_layer_start: int,
+    int6_layer_end: int,
+) -> int:
+    bits = quant_bits_embed if any(pattern in name for pattern in EMBED_TENSOR_NAME_PATTERNS) else quant_bits
+    if use_int6_for_name(name, quant_bits, int6_scope, int6_layer_start, int6_layer_end):
+        return 6
+    return bits
+
+
+def qat_enabled_for_name(name: str, quant_bits: int, int6_scope: str, int6_layer_start: int, int6_layer_end: int) -> bool:
+    if block_layer_index(name) is None:
+        return False
+    if quant_bits < 8:
+        return True
+    return use_int6_for_name(name, quant_bits, int6_scope, int6_layer_start, int6_layer_end)
 
 
 def token_chunks(total_tokens: int, seq_len: int, max_chunk_tokens: int) -> list[int]:
@@ -618,20 +696,33 @@ def configure_qat(model: GPT, args: Hyperparameters) -> tuple[int, int | None, s
     quant_symmetric_qmax(qat_base_bits)
     qat_count = 0
     for layer_idx, block in enumerate(model.blocks):
-        layer_bits = block_export_bits(layer_idx, args.quant_bits, args.int6_layer_start, args.int6_layer_end)
-        if layer_bits != args.quant_bits:
-            quant_symmetric_qmax(layer_bits)
-        for linear in (
-            block.attn.c_q,
-            block.attn.c_k,
-            block.attn.c_v,
-            block.attn.proj,
-            block.mlp.fc,
-            block.mlp.proj,
+        for name, linear in (
+            (f"blocks.{layer_idx}.attn.c_q.weight", block.attn.c_q),
+            (f"blocks.{layer_idx}.attn.c_k.weight", block.attn.c_k),
+            (f"blocks.{layer_idx}.attn.c_v.weight", block.attn.c_v),
+            (f"blocks.{layer_idx}.attn.proj.weight", block.attn.proj),
+            (f"blocks.{layer_idx}.mlp.fc.weight", block.mlp.fc),
+            (f"blocks.{layer_idx}.mlp.proj.weight", block.mlp.proj),
         ):
-            linear.qat_enabled = qat_start_step is not None
+            layer_bits = export_bits_for_tensor(
+                name,
+                args.quant_bits,
+                args.quant_bits_embed,
+                args.int6_scope,
+                args.int6_layer_start,
+                args.int6_layer_end,
+            )
+            if layer_bits != args.quant_bits:
+                quant_symmetric_qmax(layer_bits)
+            linear.qat_enabled = qat_start_step is not None and qat_enabled_for_name(
+                name,
+                args.quant_bits,
+                args.int6_scope,
+                args.int6_layer_start,
+                args.int6_layer_end,
+            )
             linear.qat_bits = layer_bits if args.qat_bits <= 0 else qat_base_bits
-            qat_count += 1
+            qat_count += int(linear.qat_enabled)
     qat_bits_label = "export" if args.qat_bits <= 0 else str(qat_base_bits)
     return qat_count, qat_start_step, qat_bits_label
 
@@ -756,12 +847,13 @@ def quantize_state_dict_lowbit(
     quant_bits: int,
     quant_bits_embed: int = 0,
     quant_pack: bool = True,
+    int6_scope: str = "",
     int6_layer_start: int = -1,
     int6_layer_end: int = -1,
 ) -> tuple[dict[str, object], dict[str, int]]:
     if quant_bits_embed <= 0:
         quant_bits_embed = quant_bits
-    label = quant_label(quant_bits, quant_bits_embed, int6_layer_start, int6_layer_end)
+    label = quant_label(quant_bits, quant_bits_embed, int6_scope, int6_layer_start, int6_layer_end)
     quantized: dict[str, np.ndarray | bytes] = {}
     scales: dict[str, np.ndarray] = {}
     dtypes: dict[str, str] = {}
@@ -795,10 +887,7 @@ def quantize_state_dict_lowbit(
             stats["packed_payload_bytes"] += nbytes
             continue
 
-        is_embed = any(pattern in name for pattern in EMBED_TENSOR_NAME_PATTERNS)
-        bits = quant_bits_embed if is_embed else quant_bits
-        if not is_embed and use_int6_for_tensor(name, arr, quant_bits, int6_layer_start, int6_layer_end):
-            bits = 6
+        bits = export_bits_for_tensor(name, quant_bits, quant_bits_embed, int6_scope, int6_layer_start, int6_layer_end)
         stats["num_float_tensors"] += 1
         used_bits.add(bits)
         q, s = quantize_float_array(arr, bits)
@@ -836,7 +925,9 @@ def quantize_state_dict_lowbit(
         "dtypes": dtypes,
         "passthrough": passthrough,
     }
-    if int6_layer_range_active(quant_bits, int6_layer_start, int6_layer_end):
+    if int6_scope_label(int6_scope):
+        obj["int6_scope"] = int6_scope_label(int6_scope)
+    if int6_layer_range_active(int6_layer_start, int6_layer_end):
         obj["int6_layer_start"] = int6_layer_start
         obj["int6_layer_end"] = int6_layer_end
     if qmeta:
@@ -1126,7 +1217,13 @@ def run_final_eval(
     log_fn: Callable[[str], None],
     reported_quant_label: str | None = None,
 ) -> tuple[float, float, float]:
-    reported_label = quant_label(args.quant_bits, args.quant_bits_embed, args.int6_layer_start, args.int6_layer_end)
+    reported_label = quant_label(
+        args.quant_bits,
+        args.quant_bits_embed,
+        args.int6_scope,
+        args.int6_layer_start,
+        args.int6_layer_end,
+    )
     if reported_quant_label is not None:
         reported_label = reported_quant_label
     q_t0 = time.perf_counter()
@@ -1310,11 +1407,12 @@ def main() -> None:
         f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log(f"eval_stride:{args.eval_stride} eval_batch_seqs:{args.eval_batch_seqs}")
-    int6_layers = f"{args.int6_layer_start}-{args.int6_layer_end}" if int6_layer_range_active(args.quant_bits, args.int6_layer_start, args.int6_layer_end) else "-"
+    int6_scope = int6_scope_label(args.int6_scope) or "-"
+    int6_layers = f"{args.int6_layer_start}-{args.int6_layer_end}" if int6_layer_range_active(args.int6_layer_start, args.int6_layer_end) else "-"
     log(
-        f"quantization:label:{quant_label(args.quant_bits, args.quant_bits_embed, args.int6_layer_start, args.int6_layer_end)} "
+        f"quantization:label:{quant_label(args.quant_bits, args.quant_bits_embed, args.int6_scope, args.int6_layer_start, args.int6_layer_end)} "
         f"quant_bits:{args.quant_bits} quant_bits_embed:{args.quant_bits_embed} "
-        f"quant_pack:{int(args.quant_pack)} int6_layers:{int6_layers}"
+        f"quant_pack:{int(args.quant_pack)} int6_scope:{int6_scope} int6_layers:{int6_layers}"
     )
     log(f"qat_start_step:{qat_start_step if qat_start_step is not None else -1} qat_bits:{qat_bits_label} qat_linears:{qat_linear_count}")
     log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
@@ -1484,6 +1582,7 @@ def main() -> None:
         args.quant_bits,
         args.quant_bits_embed,
         args.quant_pack,
+        args.int6_scope,
         args.int6_layer_start,
         args.int6_layer_end,
     )
