@@ -1,0 +1,29 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Crawler",
+  "blurb": "Micro Crawler: 4 flat XSA layers + 1 shared crawler block x3 loops, mlp_mult=6.0. CRAWLER_QUANT_INT8=1 QAT, naive int6 + zstd. No GPTQ, no EMA. 14.5M params, ~8.8MB. 3-seed mean val_bpb=PLACEHOLDER.",
+  "date": "2026-03-30T00:00:00Z",
+  "seed_1337": {
+    "val_bpb_exact": 1.18720375,
+    "steps": 8087,
+    "train_time_s": 600,
+    "bytes_total": 8842981
+  },
+  "seed_42": {
+    "val_bpb_exact": "PLACEHOLDER",
+    "steps": "PLACEHOLDER",
+    "train_time_s": 600,
+    "bytes_total": "PLACEHOLDER"
+  },
+  "seed_300": {
+    "val_bpb_exact": "PLACEHOLDER",
+    "steps": "PLACEHOLDER",
+    "train_time_s": 600,
+    "bytes_total": "PLACEHOLDER"
+  },
+  "val_bpb": "PLACEHOLDER_3SEED_MEAN",
+  "bytes_total": "PLACEHOLDER_MAX",
+  "bytes_code": "PLACEHOLDER",
+  "hardware": "8xH100 SXM"
+}
