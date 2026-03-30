@@ -15,7 +15,7 @@ Important legality and reproducibility notes:
 
 - Cache presets use a strict score-then-commit interface from `frontier_cache.py`. A scored segment cannot be committed early, and the next segment cannot be scored until the prior one is committed.
 - TTT remains score-first: each chunk is scored before any chunk-local adaptation step.
-- Cache-enabled distributed eval uses a canonical rank-0 evaluation path, then broadcasts metrics. This is slower than fully sharded eval, but it keeps cache semantics deterministic and legal.
+- Cache-enabled exact eval now shards exact sliding-window and legal TTT work across visible ranks, reduces exact loss/token/byte totals deterministically, and leaves rank 0 as the only writer of final logs and JSON artifacts.
 - `artifact_bytes` are measured from the counted code bundle plus the exported compressed model blob. The checkpoint helper in `frontier_checkpoint.py` is included in `code_bytes`.
 - Exact frontier presets remain CUDA-only. For Apple Silicon smoke work, use the existing MLX proxy presets, not these final frontier trainers.
 
@@ -114,8 +114,42 @@ python3 research/compare_runs.py --family frontier --scale half_run --status all
 Preflight an expensive distributed launch without starting training:
 
 ```bash
-python3 research/run.py --preset sota_plus_ppm_entropy_fixed --scale full_run --run-name sota_plus_ppm_entropy_fixed_full_run_preflight --seed 1337 --nproc-per-node 8 --gpu-profile 8xh100 --preflight-only
+python3 research/run.py --preset sota_plus_ppm_dirichlet --scale full_run --run-name sota_plus_ppm_dirichlet_full_run_preflight --seed 1337 --nproc-per-node 8 --gpu-profile 8xh100 --preflight-only
 ```
+
+## Validated 8xH100 Dirichlet Result
+
+- Canonical run: `h100_ppm_dirichlet_full_run_8xh100`
+- Commit: `c3a23b4c2c33e78e51229e0c9ff6bc6f2c6ab945`
+- Official submission metric: `legal_ttt_exact = 0.36930761` bpb, loss `0.62355877`
+- Training-best validation from the same run: `val_bpb = 1.2370079255856536`, `val_loss = 2.0886360661952943`
+- Artifact bytes: `10176408`
+- Exported model bytes: `10044244`
+- Code bytes: `132164`
+- Remaining headroom to 16 MB: `5823592`
+- Legality: `legal`
+- Completion: `completed`
+
+Validation evidence from the successful run:
+
+- run directory: `/workspace/parameter-golf/research/results/runs/20260327_065341_h100_ppm_dirichlet_full_run_8xh100`
+- observed distributed exact-eval breadcrumbs:
+  - `sliding_eval: distributed_cache_shards=1 world_size=8 chunk_tokens=32768 stride=64`
+  - `ttt_sliding:distributed_cache_shards world_size=8 chunk_tokens=32768`
+- canonical reporting fields on the completed run resolve to `legal_ttt_exact`, not the training-best validation checkpoint metric
+
+Known limitation:
+
+- total wall clock was `1831.174s`, so `submission_readiness.wall_clock_constraint_appears_satisfied = false`
+- training itself respected the configured `600.261s` cap
+- the overrun came from post-train exact sliding-window and legal TTT evaluation, so describe this run as completed and legal but not 10-minute wall-clock compliant end to end
+
+Historical failed attempt:
+
+- `h100_ppm_dirichlet_full_run_8xh100_real` failed with an NCCL timeout after `final_int6_roundtrip_exact`
+- do not use that failed run as a canonical example in docs or submission packaging
+
+See [research/notes/h100_dirichlet_full_run_2026-03-27.md](research/notes/h100_dirichlet_full_run_2026-03-27.md) for the compact experiment record.
 
 Inspect progress:
 
@@ -144,9 +178,8 @@ python3 scripts/submission_readiness.py --run-dir research/results/runs/<timesta
 ## Current H100 Policy
 
 - Preserve the stabilized H100 path. Keep FlashAttention working and do not reintroduce `torch.compile` into the frontier trainers.
-- Treat `sota_plus_ppm_entropy_fixed` as the default branch for serious runs.
-- Current branch of record: `sota_plus_ppm_entropy_fixed` at `legal_ttt val_bpb = 2.506169`.
-- For one higher-upside legal 8xH100 compliance attempt, test `sota_plus_ppm_dirichlet` against the same stabilized trainer path before changing anything else.
+- The current canonical Dirichlet full-run result is `h100_ppm_dirichlet_full_run_8xh100` on `sota_plus_ppm_dirichlet`, with official submission metric `legal_ttt_exact = 0.36930761` bpb.
+- Keep `sota_plus_ppm_entropy_fixed` as the rollback branch of record for the pre-Dirichlet cache path.
 - For cache sweeps, trust the resolved startup `causal_cache:` line in the trainer log, or the launcher's `resolved_cache:` dry-run output. Run name and shell env alone are not sufficient.
 - Avoid tiny entropy-only knob sweeps unless they are bundled with a larger hypothesis.
 
@@ -237,12 +270,12 @@ The byte budget report is emitted automatically after a successful export and in
 
 ## Recommendation
 
-If you want one branch to get the next serious H100 spend, make it `sota_plus_ppm_entropy_fixed`.
+If you want the currently validated 8xH100 Dirichlet full-run result, use `sota_plus_ppm_dirichlet`.
 
 Reason:
 
-- it is the current best validated legal half-run branch in this repo snapshot
-- it is clearly better than plain multiorder and current order-adaptive entropy results
-- recent center / slope sweeps are near saturation, so the next gains should come from scaling or larger structural changes rather than more tiny entropy tuning
+- it is the canonical completed Dirichlet run on the stabilized distributed exact-eval path
+- it preserves the distinction between training-best validation and official submission metric in the recorded artifacts
+- it leaves `sota_plus_ppm_entropy_fixed` available as the rollback branch if you need the earlier PPM path
 
-For one bounded legal 8xH100 experiment that changes only the cache mixer, use `sota_plus_ppm_dirichlet` and keep `sota_plus_ppm_entropy_fixed` as the rollback branch of record.
+For rollback or repro against the earlier entropy-gated branch, use `sota_plus_ppm_entropy_fixed`.
