@@ -1,19 +1,19 @@
 # Project State
 
-Date: 2026-03-29
+Date: 2026-03-30
 
 ## Objective
 
 Primary:
-- repair the Session 05b Full Hessian GPTQ export path on top of the Session 03 anchor
-- regain a sane roundtrip gap before spending more `8xH100` training budget
+- run Session 05c-plus training bundle on `8xH100` and measure quality improvement over the Session 03 anchor
+- target sliding s64 val_bpb < 1.126 (anchor is 1.129)
 
 Secondary:
-- keep the Session 03 anchor as the new fixed reference
+- keep the Session 03 anchor as the fixed reference
 - preserve exact launch, logging, artifact, and evaluation discipline
 
 Stretch:
-- recover a valid GPTQ path, then stack training-side quality improvements toward a leaderboard-entry-capable result
+- if 05c-plus checkpoint trains well, port VE128 + LeakyReLU² into GPTQ script and test GPTQ replay on the new architecture
 
 ## Current campaign state
 
@@ -86,6 +86,7 @@ Do not use:
 - The FA3 deployment path is operationally understood, but the current saved-container runtime is not a throughput candidate.
 - The first `1xH100` GPTQ smoke successfully exercised Hessian collection, quantization, compression, reload, and eval.
 - That same smoke also exposed a correctness failure in the current GPTQ quantizer: roundtrip exact `1.68963326` vs pre-quant exact `1.47753094`.
+- The first replay-based Hessian repair also failed: `replay_ref_hfix` reached `2.15770170` from pre-quant `1.82064877`, with `gptq_diag` still reporting `66/66` layers worse than both naive baselines.
 
 ## Session 05b: Full Hessian GPTQ (2026-03-29)
 
@@ -115,21 +116,29 @@ Do not use:
   - roundtrip exact `2.15604597` vs pre-quant exact `1.82064982`
   - the remaining failure is systematic
   - export-only replay mode is now landed so the next ablations can use the saved `final_model.pt` directly
+- **2026-03-30 smaller Hessian-path repair also failed**
+  - commit on `main`: `9cea7e9`
+  - `replay_ref_hfix`: `1.82064877 -> 2.15770170`, gap `+0.33705293`
+  - `gptq_diag` remains `66/66` worse than both naive baselines
+  - the smaller forward-hook + average+damp patch is not enough
+  - next step should be a more faithful single-PR Hessian/quantization transplant
 
 ## What has not happened yet
 
 - no correct Full Hessian GPTQ result yet
 - no same-checkpoint naive-vs-GPTQ export A/B yet
 - no runtime validation of the repaired PR-grounded quantizer yet
+- no successful GPTQ replay after the smaller Hessian-path repair
 - no vendor-tuned NGC FA3 runtime result yet
 - no top-tier leaderboard-adjacent result yet
 - no measured VE128 delta yet
 
 ## Best next move
 
-- **Debug the GPTQ roundtrip quality regression** — top priority
-- Run the repaired export path on a real checkpoint and inspect `gptq_layer_diagnostics.json`
-- If diagnosis is not immediate, try `actorder=False` and `block_size=d_col` on that same checkpoint
-- After fix: re-smoke on `1xH100` with more post-train wallclock headroom, then full `8xH100`
-- Then Session 05c training bundle (XSA-all + VE128 + SWA + warmdown3500)
-- Do not spend time on FA3 or TTT until GPTQ is fixed
+- **Commit, push, and launch Session 05c-plus on 8xH100** — code is implemented and validated
+- Code: `records/track_non_record_16mb/2026-03-30_training_bundle_plus/train_gpt.py`
+- Bundle: XSA-all + VE128 (layers 9-10) + warmdown 3500 + LeakyReLU(0.5)²
+- Base: Session 03 anchor (not Session 05b)
+- SWA excluded (dead code in references), GPTQ excluded (parked, requires separate merge step)
+- After 05c-plus results: evaluate naive int6 first, then consider GPTQ port if results warrant it
+- Do not spend time on FA3 or TTT until 05c-plus training quality is measured

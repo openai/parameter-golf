@@ -117,6 +117,21 @@
   - `EXPORT_SKIP_SLIDING_EVAL=1`
   - it only applies to export-only replay runs
   - it skips the slow submission-style sliding-window eval after `final_int6_roundtrip_exact`
+- The public merged record bar moved on 2026-03-30: PR `#1019` is now the official merged #1 at `1.1147` BPB, so any official entry now needs to beat that line by at least `0.005` nats with `p < 0.01`.
+- The 2026-03-30 Hessian-path patch (`9cea7e9`) was a real test, not a fix:
+  - `replay_ref_hfix`: `1.82064877 -> 2.15770170`, gap `+0.33705293`
+  - `gptq_diag`: still `66/66` worse than both naive baselines
+  - conclusion: forward-hook + average+damp alignment is insufficient on top of the current local rewrite
+- Do not spend more time on small Hessian nudges. The next implementation step should be a more faithful transplant of one complete working PR Hessian/quantization slice.
+
+## Session 05c-plus decisions (2026-03-30)
+
+1. **05c-plus replaces the original 05c bundle.** The original 05c prompt (`docs/campaign/prompts/session_05c_training_bundle.md`) specified XSA-all + VE128 + SWA + warmdown3500 and excluded LeakyReLU². The actual 05c-plus bundle is XSA-all + VE128 + warmdown3500 + LeakyReLU² and excludes SWA. Rationale:
+   - SWA dropped: both PR #1019 and #634 collect SWA snapshots but only apply EMA at export — SWA is dead code in both references. Including it would be cargo cult.
+   - LeakyReLU² added: aligns with PR #1019 architecture and is the leading hypothesis for why GPTQ fails on the current anchor (relu creates sparse Hessians, leaky_relu does not). Including it in the training bundle enables future GPTQ replay without retraining.
+2. **Base is Session 03 anchor, not Session 05b.** The 05c prompt allowed stacking on 05b if GPTQ graduated. GPTQ is parked after 7 ablations, so the base is the clean anchor (`records/track_non_record_16mb/2026-03-28_pre_ttt_anchor/train_gpt.py`). This keeps the diff narrow and avoids dragging GPTQ debug complexity into a training run.
+3. **GPTQ replay requires a separate merge step.** The 05c-plus training script adds VE parameters and changes the MLP activation. The parked Session 05b GPTQ script has the old architecture. A 05c-plus checkpoint cannot be replayed through the current 05b export path without porting VE128 + LeakyReLU² into the GPTQ script first. This is Phase 2 work, gated on 05c-plus training results.
+4. **VE proj uses orthogonal init (not zero init).** The reference implementation's `nn.init.zeros_` in the VE constructor is dead code — overwritten by `_init_weights` with orthogonal + proj scaling. Our implementation matches: no `_zero_init` flag on VE proj, so `_init_weights` applies `orthogonal_(gain=1.0) * (1/sqrt(22))`. VE output is still small at init due to the learnable `scale=0.1`.
 
 ## Hard gates
 

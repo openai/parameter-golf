@@ -2,121 +2,78 @@
 
 ## Phase
 
-**Session 05b GPTQ correctness repair.**
+**Session 05c-plus: Training bundle implementation and 8xH100 run.**
 
-The next session should behave like a code-debugging session, not a broad research session.
+GPTQ debugging is parked. The next session is a training-quality implementation session.
 
 ## Immediate next action
 
-1. Compare the current local GPTQ export against naive int6 on the **same checkpoint**.
-2. Inspect `gptq_layer_diagnostics.json` from that export.
-3. If GPTQ is still bad, run the same-checkpoint ablations (`actorder=False`, `block_size=d_col`) before any retraining.
-4. Only then re-run `1xH100` smoke.
-5. Only after that passes, run `8xH100`.
+1. **Commit and push** `records/track_non_record_16mb/2026-03-30_training_bundle_plus/` — code is implemented and validated
+2. Run on 8xH100 when a slot opens (launch command in README)
+3. After training: evaluate with naive int6 export (built into the script)
+4. GPTQ replay is a **separate Phase 2 step** requiring a merge (VE128 + LeakyReLU² into GPTQ script)
 
-## Current diagnosis
+## What happened in Session 05b (PARKED)
 
-- Session 03 anchor (`8xH100`) is healthy at sliding s64 `1.12904446`.
-- Saved-container FA3 is a clean negative result and is parked.
-- Session 05b `1xH100` smoke exposed a **GPTQ export correctness failure**:
-  - pre-quant EMA exact `1.47753094`
-  - roundtrip exact `1.68963326`
-  - gap `~0.2121`
-- This smoke confirmed:
-  - Hessian collection works
-  - Cholesky does not fail
-  - compressed artifact fits comfortably
-  - the current GPTQ quantizer still reconstructs weights badly
+Seven GPTQ ablations on the Session 03 checkpoint all failed:
+- Ablation #6 (PR #1019 verbatim transplant) produced **byte-identical MSE** to the local code
+- This proved the GPTQ code is correct — the failure is model-specific
+- Ablation #7 (AR self-gen calibration) crashed with non-PD Hessian
+- Root cause hypothesis: relu().square() creates sparse Hessians; leaky_relu(0.5).square() does not
 
-## Most likely issue
+## Key finding: SWA is dead code
 
-The local GPTQ implementation drifted too far from the known-good PR code.
+Both PR #1019 and #634 collect SWA snapshots but only apply EMA at export.
+SWA is NOT included in the 05c-plus bundle. Use EMA only.
 
-The code-level repair already landed:
-- within-block residual update now matches the PR loop (`j:` instead of `j+1:`)
-- 5-percentile reconstruction search is in place
-- symmetric `[-31, 31]` clamp is in place
-- `_classify_param` excludes top-level `bigram.proj`
-- export writes per-layer diagnostics to `gptq_layer_diagnostics.json`
+## 05c-plus bundle details
 
-What is still missing is the **runtime check on a real checkpoint**.
+| Change | Type | Risk |
+|--------|------|------|
+| XSA 4→11 | one constant | very low |
+| VE128 layers 9-10 | new module | low |
+| Warmdown 3500 | one constant | none |
+| LeakyReLU(0.5)² | one line | low (quality-neutral in isolation) |
 
-Update:
-- that runtime check was run once on server
-- result: GPTQ was worse than both naive baselines on `66/66` layers
-- replay ablations were then run from the saved `final_model.pt`
-- `replay_ref`: `1.82064983 -> 2.15605819`, gap `+0.33540836`
-- `replay_noact`: `1.82064982 -> 2.21586588`, gap `+0.39521606`
-- `replay_noact_full`: `1.82064982 -> 2.21590301`, gap `+0.39525319`
-- all replay variants still show `66/66` layers worse than both naive baselines
-- `actorder=False` is worse, and `block_size=d_col` does not materially change the result
-- next step is now Hessian-path comparison against the PRs, not another replay ablation or training rerun
+Base: Session 03 anchor (`records/track_non_record_16mb/2026-03-28_pre_ttt_anchor/train_gpt.py`)
 
-## Required workflow
+## Decision gate after run
 
-1. Use PR code first:
-   - PR #1060
-   - PR #1019
-   - PR #634
-2. Use local repo code second.
-3. Use papers only for ambiguous math details.
-4. The PR quantizer transplant is already done; do not revert to the old custom loop.
+1. Evaluate the run with naive int6 export (built into script)
+2. If val_bpb improves: port VE128 + LeakyReLU² into GPTQ script, then test GPTQ replay
+3. If GPTQ is sane → continue from there
+4. If GPTQ is still bad → park permanently, keep naive-int6 result
 
-## Concrete debug order
+## Success criteria
 
-1. Compare `collect_hessians` and Hessian preparation against PRs `#1060`, `#1019`, and `#634`:
-   - matrix orientation
-   - sample accumulation semantics
-   - normalization / scaling
-   - damping placement
-   - dead-column handling
-2. Keep using the replay diagnostics as the fixed same-checkpoint baseline:
-   - legacy row-max int6 reconstruction MSE per layer
-   - percentile-naive int6 reconstruction MSE per layer
-   - GPTQ reconstruction MSE per layer
-3. After correctness is restored:
-   - keep the landed PR-style 5-percentile search
-   - keep the landed symmetric `[-31, 31]` clamp
-   - keep the tightened hook target filtering
-
-## Hard gates
-
-- No more `8xH100` GPTQ runs until the smoke roundtrip gap is sane.
-- No more saved-container FA3 runs.
-- No TTT work.
-- No broad training-stack bundling before GPTQ is healthy.
+- Sliding s64 val_bpb < 1.126 (anchor is 1.129)
+- Pre-quant EMA val_bpb < 1.142 (anchor is 1.145)
+- step_avg within +5ms of anchor (91.37 ms)
+- Artifact <= 16,000,000 bytes
 
 ## Files to read first
 
 1. `docs/campaign/AGENT_SYNC.md`
 2. `CLAUDE.md`
-3. `docs/codex-memory/decisions.md`
-4. `docs/codex-memory/project-state.md`
-5. `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/README.md`
-6. `docs/campaign/prompts/session_05b_gptq_debug_restart.md`
+3. `docs/superpowers/plans/2026-03-30-session-05c-plus.md`
+4. `records/track_non_record_16mb/2026-03-30_training_bundle_plus/train_gpt.py` (if created)
+5. PR #1019 reference: `pr-1019-gptq:records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/train_gpt.py`
 
-## Key code targets
+## 8xH100 launch command
 
-- `records/track_non_record_16mb/2026-03-29_full_hessian_gptq/train_gpt.py`
-  - `_classify_param`
-  - `collect_hessians`
-  - `gptq_quantize_layer`
-  - `gptq_mixed_quantize_int6`
-- `docs/campaign/artifacts/05b_full_hessian_gptq_plan.md`
-- PR implementations in `openai/parameter-golf`
+```bash
+cd /netscratch/$USER/parameter-golf && git pull
 
-## Operational reminder
-
-For the next smoke run, leave explicit post-train time budget.
-The prior `1xH100` smoke hit the Slurm time limit before sliding eval finished.
-Also note: this local shell has no `torch`, so verification here only reached `py_compile`; the next session should verify the repaired export path in the runtime environment that has PyTorch installed.
-Replay helper env vars now exist for that server-side work:
-- `EXPORT_ONLY_CHECKPOINT`
-- `EXPORT_TAG`
-- `EXPORT_SKIP_SLIDING_EVAL`
-- `GPTQ_ACTORDER`
-- `GPTQ_BLOCK_SIZE`
-- `GPTQ_CALIBRATION_SAMPLES`
-
-For overnight or rapid replay debugging, set `EXPORT_SKIP_SLIDING_EVAL=1` so the job exits after
-roundtrip eval plus diagnostics instead of waiting for the sliding-window submission metric.
+srun -K -p H100 --nodes=1 --ntasks=8 --gpus-per-task=1 --gpu-bind=none --cpus-per-task=6 \
+  --mem=200G --time=00:20:00 \
+  --container-image=/enroot/nvcr.io_nvidia_pytorch_26.03-py3.sqsh \
+  --container-mounts="$(pwd)":"$(pwd)" --container-workdir="$(pwd)" \
+  bash -c '
+    export LOCAL_RANK=$SLURM_LOCALID RANK=$SLURM_PROCID WORLD_SIZE=$SLURM_NTASKS
+    export PYTHONUNBUFFERED=1
+    export MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 OMP_NUM_THREADS=1
+    export NCCL_IB_DISABLE=1 NCCL_SOCKET_IFNAME=bond,eth NCCL_P2P_LEVEL=NVL
+    pip install --no-cache-dir sentencepiece zstandard 2>/dev/null
+    python -u records/track_non_record_16mb/2026-03-30_training_bundle_plus/train_gpt.py
+  '
+```

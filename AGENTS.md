@@ -20,6 +20,8 @@ Start here for both Claude Code and Codex.
 
 ## Current Working Mode
 
-- Active goal: Pegasus `8xH100` competition-phase improvement from the Session 03 anchor
-- Next phase: Session 05 throughput audit + pre-TTT base enhancement audit + TTT audit
-- Out of scope: more A100-first baseline work as the mainline, more Session 04 micro-deltas, arbitrary novelty drift
+- Active goal: commit, push, and launch Session 05c-plus training bundle on `8xH100`
+- Code: `records/track_non_record_16mb/2026-03-30_training_bundle_plus/train_gpt.py` (implemented, validated)
+- Bundle: XSA-all + VE128 + warmdown 3500 + LeakyReLU(0.5)² on Session 03 anchor
+- Next phase: evaluate 05c-plus naive int6 results, then consider GPTQ port if quality improves
+- Out of scope: FA3, TTT, SWA, Session 05b GPTQ debugging
