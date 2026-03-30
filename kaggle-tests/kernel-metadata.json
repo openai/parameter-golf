@@ -1,0 +1,14 @@
+{
+  "id": "atlasairesearch/parameter-golf-smoke-test",
+  "title": "Parameter Golf Smoke Test",
+  "code_file": "smoke-test.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "gpu_type": "t4",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": []
+}
