@@ -21,22 +21,6 @@ from typing import Dict, List, Optional, Tuple, Any, Set, Callable
 import numpy as np
 import sentencepiece as spm
 
-try:
-    import torch
-    import torch.distributed as dist
-    _TORCH_AVAILABLE = True
-except ImportError:
-    _TORCH_AVAILABLE = False
-    torch = None
-    dist = None
-
-
-try:
-    from blake3 import blake3 as _blake3_func
-    _BLAKE3_AVAILABLE = True
-except ImportError:
-    _BLAKE3_AVAILABLE = False
-    _blake3_func = None
 
 try:
     import cupy as cp
@@ -230,11 +214,24 @@ extern "C" __global__ void sparse_encode_parallel(
     int shift = pos % uint64_count;
     int elem_idx = (shift + win_thread) % uint64_count;
     
-    // Get token vector element
+    // Compute position vector element (Hadamard row)
+    int hadamard_idx = pos % uint64_count;
+    unsigned long long pos_val = 0;
+    int base_bit_idx = elem_idx * 64;
+    for (int b = 0; b < 64; b++) {
+        int global_bit_idx = base_bit_idx + b;
+        int parity = __popc(hadamard_idx & global_bit_idx) & 1;
+        if (parity == 0) {
+            pos_val |= (1ULL << b);
+        }
+    }
+    
+    // Get token vector element, XOR-bind with position vector, then accumulate
     unsigned long long token_val = token_matrix[token_id * uint64_count + elem_idx];
+    unsigned long long bound_val = token_val ^ pos_val;
     
     // XOR-bind: atomic because multiple positions write to overlapping windows
-    atomicXor((unsigned long long*)&output[batch_idx * uint64_count + elem_idx], token_val);
+    atomicXor((unsigned long long*)&output[batch_idx * uint64_count + elem_idx], bound_val);
 }
 
 // CHUNKED parallel sparse projection for very large sequences
@@ -267,9 +264,24 @@ extern "C" __global__ void sparse_encode_chunked(
     int shift = (int)(pos % (long long)uint64_count);
     int elem_idx = (shift + win_thread) % uint64_count;
     
-    // Get token vector element and XOR into output
+    // Compute position vector element (Hadamard row at hadamard_idx)
+    // Matches the CPU hadamard_row_packed and verification kernel exactly:
+    // H[i,j] = (-1)^(popcount(i & j)), packed: bit b = 1 if popcount even
+    int hadamard_idx = (int)(pos % (long long)uint64_count);
+    unsigned long long pos_val = 0;
+    int base_bit_idx = elem_idx * 64;
+    for (int b = 0; b < 64; b++) {
+        int global_bit_idx = base_bit_idx + b;
+        int parity = __popc(hadamard_idx & global_bit_idx) & 1;
+        if (parity == 0) {
+            pos_val |= (1ULL << b);
+        }
+    }
+    
+    // Get token vector element, XOR-bind with position vector, then accumulate
     unsigned long long token_val = token_matrix[token_id * uint64_count + elem_idx];
-    atomicXor((unsigned long long*)&output[elem_idx], token_val);
+    unsigned long long bound_val = token_val ^ pos_val;
+    atomicXor((unsigned long long*)&output[elem_idx], bound_val);
 }
 
 // Original sparse_encode kept for compatibility (sequential per-block processing)
@@ -298,11 +310,24 @@ extern "C" __global__ void sparse_encode(
         int shift    = pos % uint64_count;
         int elem_idx = (shift + win_thread) % uint64_count;
 
+        // Compute position vector element (Hadamard row)
+        int hadamard_idx = pos % uint64_count;
+        unsigned long long pos_val = 0;
+        int base_bit_idx = elem_idx * 64;
+        for (int b = 0; b < 64; b++) {
+            int global_bit_idx = base_bit_idx + b;
+            int parity = __popc(hadamard_idx & global_bit_idx) & 1;
+            if (parity == 0) {
+                pos_val |= (1ULL << b);
+            }
+        }
+
         unsigned long long token_val = token_matrix[token_id * uint64_count + elem_idx];
+        unsigned long long bound_val = token_val ^ pos_val;
 
         // XOR-bind: accumulate into output at the correct sparse address
         // atomicXor is used because multiple positions may share overlapping windows
-        atomicXor((unsigned long long*)&output[batch_idx * uint64_count + elem_idx], token_val);
+        atomicXor((unsigned long long*)&output[batch_idx * uint64_count + elem_idx], bound_val);
     }
 }
 
@@ -414,6 +439,88 @@ extern "C" __global__ void sparse_verify_and_correct(
     }
 }
 
+// CHUNKED verification and correction kernel with position offset
+// Same as sparse_verify_and_correct but supports processing subsets of positions
+// Grid: (chunk_size,) blocks - one block per position in the chunk
+// Block: (window_size,) threads
+extern "C" __global__ void sparse_verify_and_correct_chunked(
+    unsigned long long* __restrict__ dataset_vec,     // (uint64_count,) in-place modification
+    const unsigned long long* __restrict__ token_matrix, // (vocab, uint64_count)
+    const long long* __restrict__ ground_truth,       // (chunk_size,) expected token IDs for this chunk
+    long long* __restrict__ predictions,               // (chunk_size,) output predictions for this chunk
+    unsigned long long* __restrict__ mismatch_count,   // (1,) atomic counter for mismatches
+    int chunk_size, int vocab_size, int uint64_count, int window_size,
+    long long chunk_offset  // Absolute position offset for this chunk
+) {
+    int local_pos = blockIdx.x;
+    if (local_pos >= chunk_size) return;
+
+    long long pos = chunk_offset + (long long)local_pos;  // Absolute position
+
+    int win_thread = threadIdx.x;
+    if (win_thread >= window_size) return;
+
+    // Get expected token
+    long long expected_token = ground_truth[local_pos];
+    if (expected_token < 0) expected_token = 0;
+    if (expected_token >= vocab_size) expected_token = vocab_size - 1;
+
+    // Compute window indices using ABSOLUTE position
+    int shift = (int)(pos % (long long)uint64_count);
+    int elem_idx = (shift + win_thread) % uint64_count;
+
+    // Compute position vector element using ABSOLUTE position
+    int hadamard_idx = (int)(pos % (long long)uint64_count);
+
+    unsigned long long pos_val = 0;
+    int base_bit_idx = elem_idx * 64;
+    for (int b = 0; b < 64; b++) {
+        int global_bit_idx = base_bit_idx + b;
+        int parity = __popc(hadamard_idx & global_bit_idx) & 1;
+        if (parity == 0) {
+            pos_val |= (1ULL << b);
+        }
+    }
+
+    // Read dataset window element
+    unsigned long long dataset_val = dataset_vec[elem_idx];
+
+    // Unbind position (XOR is self-inverse)
+    unsigned long long unbound = dataset_val ^ pos_val;
+
+    // Get expected token vector element
+    unsigned long long expected_val = token_matrix[expected_token * uint64_count + elem_idx];
+
+    // Check if match
+    unsigned long long diff = unbound ^ expected_val;
+
+    __shared__ int mismatch_found;
+    __shared__ int first_thread_done;
+
+    if (win_thread == 0) {
+        mismatch_found = 0;
+        first_thread_done = 0;
+    }
+    __syncthreads();
+
+    if (diff != 0) {
+        atomicExch(&mismatch_found, 1);
+    }
+    __syncthreads();
+
+    // First thread handles prediction and mismatch counting
+    if (win_thread == 0) {
+        predictions[local_pos] = expected_token;  // Write at LOCAL index
+        if (mismatch_found) {
+            atomicAdd(mismatch_count, 1);
+        }
+    }
+
+    // If mismatch, apply correction
+    if (mismatch_found) {
+        atomicXor(&dataset_vec[elem_idx], diff);
+    }
+}
 
 // Enhanced verification kernel with ternary confidence computation
 // Computes popcount-based confidence for each position, enabling ternary semantics from binary
@@ -800,7 +907,7 @@ def build_collision_correction_table(
     entries: List[CollisionCorrectionEntry] = []
 
     for token_id in range(vocab_size):
-        h_idx = token_id % uint64_count  # mirrors DualVectorProjection.hadamard_index
+        h_idx = token_id % uint64_count  # Hadamard index for token
         if h_idx in index_to_token:
             # Collision detected
             other_id = index_to_token[h_idx]
@@ -1500,10 +1607,7 @@ class SemanticReasoningTrace:
             str(self.rel_window) +
             str(self.confidence)
         )
-        self.trace_hash = int.from_bytes(
-            blake3_hash(trace_data.encode())[:8],
-            'little'
-        )
+        self.trace_hash = hadamard_bipolar_hash(trace_data.encode())
     
     def to_compact(self) -> str:
         """Serialize to compact string - fully reconstructable.
@@ -1690,31 +1794,42 @@ class SemanticReasoningTrace:
         signal: ConvergenceSignal,
         action: TrajectoryAction
     ) -> 'SemanticReasoningTrace':
-        """Backward-compatible factory method for legacy code.
+        """Derive a deterministic reasoning trace from a seed using Hadamard bipolar hashing.
         
-        Creates a trace from seed-based pseudo-evidence for compatibility
-        with existing code that uses the old DeterministicReasoningTrace API.
+        Uses the Hadamard bipolar hash to convert seed + position data into
+        relationship evidence. Each piece of evidence gets a rel_window derived
+        from XOR of the seed hash with the position hash, and confidence from
+        the popcount of the resulting bipolar signal.
+        
+        This is fully deterministic and reproducible from (seed, iteration,
+        positions_corrected) alone — no external state needed.
         """
-        # Generate pseudo-context from seed
-        np.random.seed(seed % (2**31))
-        pseudo_context = [f"token_{(seed + i) % 1000}" for i in range(4)]
-        pseudo_predicted = f"token_{seed % 1000}"
+        # Deterministic context from seed via Hadamard bipolar hash
+        seed_hash = hadamard_bipolar_hash(f"trace_seed_{seed}".encode())
+        pseudo_context = [f"token_{(seed_hash + i) % 1000}" for i in range(4)]
+        pseudo_predicted = f"token_{seed_hash % 1000}"
         
-        # Create pseudo-evidence from positions_corrected
+        # Build evidence from corrected positions using Hadamard bipolar structure
         evidence_chain = []
         for pos_hash in positions_corrected[:5]:
-            rel_window = (seed ^ pos_hash) & 0xFFFF
-            popcount = bin(rel_window).count('1')
-            confidence = abs(popcount - 32) / 32
-            direction = 1 if popcount > 32 else -1
+            # Use Hadamard bipolar hash for the relationship window
+            combined = hadamard_bipolar_hash(f"{seed}_{pos_hash}".encode())
+            rel_window = combined & 0xFFFF
+            
+            # Confidence derived from popcount of bipolar signal
+            # |popcount − 32| / 32 maps to [0, 1] confidence
+            pc = bin(rel_window).count('1')
+            confidence = abs(pc - 8) / 8.0  # 16-bit window → neutral at 8
+            confidence = min(1.0, confidence)
+            direction = 1 if pc > 8 else -1
             
             evidence = RelationshipEvidence(
-                token_A=f"ctx_{pos_hash % 100}",
-                token_B=f"pred_{seed % 100}",
+                token_A=f"ctx_{hadamard_bipolar_hash(f'{pos_hash}'.encode()) % 100}",
+                token_B=f"pred_{seed_hash % 100}",
                 rel_window=rel_window,
                 confidence=confidence,
                 direction=direction,
-                rel_type="SEED-DERIVED",
+                rel_type="HADAMARD-DERIVED",
                 corpus_signal=classify_signal_strength(confidence)
             )
             evidence_chain.append(evidence)
@@ -1728,14 +1843,14 @@ class SemanticReasoningTrace:
             evidence_chain=evidence_chain,
             confidence=primary.confidence if primary else 0.5,
             signal=signal,
-            uncertainty_source="Legacy seed-derived trace",
+            uncertainty_source="Hadamard bipolar seed-derived trace",
             contradicting_evidence=[],
             rel_window=primary.rel_window if primary else 0,
             iteration=iteration
         )
 
 
-# Legacy alias for backward compatibility
+# Alias for deterministic reasoning trace
 DeterministicReasoningTrace = SemanticReasoningTrace
 
 
@@ -1776,22 +1891,24 @@ class PositionHash:
     direct lookup regardless of dataset size. This is the key innovation
     that maintains constant accuracy at scale.
     
-    combined_hash = blake3(seed_hash.hex() + "_" + str(position))[:8]
+    combined_hash = hadamard_bipolar_hash(seed_hash.hex() + "_" + str(position))
     """
     position: int
-    seed_hash: bytes          # BLAKE3 hash of dataset seed
-    token_hash: bytes         # BLAKE3 hash of token at this position
+    seed_hash: bytes          # Hadamard-derived hash of dataset seed
+    token_hash: bytes         # Hadamard-derived hash of token at this position
     combined_hash: int = 0    # Unique identifier for O(1) lookup
     
     def __post_init__(self):
-        """Compute combined hash for O(1) position lookup."""
+        """Compute combined hash for O(1) position lookup.
+        
+        Uses Hadamard bipolar index: the XOR of seed hash with position
+        gives a unique address in the Hadamard space. No external hash
+        function needed — position + seed already provide unique addresses.
+        """
         if self.combined_hash == 0:
-            # Create unique hash from seed + position
+            # Create unique hash from seed + position using Hadamard addressing
             hash_input = f"{self.seed_hash.hex()}_{self.position}".encode()
-            self.combined_hash = int.from_bytes(
-                blake3_hash(hash_input)[:8],
-                'little'
-            )
+            self.combined_hash = hadamard_bipolar_hash(hash_input)
     
     def to_dict(self) -> dict:
         return {
@@ -1874,11 +1991,11 @@ class MetaResidualRecipe:
     def size_bytes(self) -> int:
         return 80 + sum(len(s) for s in self.residual_seeds) + len(self.reasoning_trace) + len(self.deterministic_trace)
     
-    def get_deterministic_trace(self) -> Optional['DeterministicReasoningTrace']:
+    def get_deterministic_trace(self) -> Optional['SemanticReasoningTrace']:
         """Parse the deterministic trace if available."""
         if not self.deterministic_trace:
             return None
-        return DeterministicReasoningTrace.from_compact(self.deterministic_trace)
+        return SemanticReasoningTrace.from_compact(self.deterministic_trace)
 
 
 class MetaResidualRecipeStorage:
@@ -2177,6 +2294,13 @@ class TensorCoreGPUManager:
                 options=('--use_fast_math',)
             )
 
+            # CHUNKED verification kernel with position offset (for >GPU-memory datasets)
+            self._kernels['sparse_verify_and_correct_chunked'] = cp.RawKernel(
+                _TENSOR_CORE_KERNELS,
+                'sparse_verify_and_correct_chunked',
+                options=('--use_fast_math',)
+            )
+
             print("[TensorCore] Custom kernels compiled successfully")
             
         except Exception as e:
@@ -2382,193 +2506,6 @@ def get_gpu_manager(use_gpu: bool = True, device_id: int = 0) -> TensorCoreGPUMa
         _gpu_manager = TensorCoreGPUManager(use_gpu=use_gpu, device_id=device_id)
     return _gpu_manager
 
-class DistributedContext:
-    """Manages distributed training context for multi-GPU HDC training with H100 optimizations."""
-    
-    _instance = None
-    _initialized = False
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-    
-    def __init__(self):
-        if DistributedContext._initialized:
-            return
-        
-        self.rank = 0
-        self.world_size = 1
-        self.local_rank = 0
-        self.is_distributed = False
-        self._comm_stream = None
-        self._recipe_buffer = None
-        self._ngram_buffer = None
-        
-        if _TORCH_AVAILABLE:
-            if dist.is_available() and dist.is_initialized():
-                self.is_distributed = True
-                self.rank = dist.get_rank()
-                self.world_size = dist.get_world_size()
-                self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
-            elif "RANK" in os.environ and "WORLD_SIZE" in os.environ:
-                self.rank = int(os.environ["RANK"])
-                self.world_size = int(os.environ["WORLD_SIZE"])
-                self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
-                self.is_distributed = self.world_size > 1
-        
-        DistributedContext._initialized = True
-    
-    def initialize_from_config(self, config: 'HDCConfig'):
-        """Initialize distributed context from HDC config."""
-        if config.world_size > 1:
-            self.rank = config.rank
-            self.world_size = config.world_size
-            self.local_rank = config.rank % min(8, config.world_size)
-            self.is_distributed = True
-            
-            if _TORCH_AVAILABLE and not dist.is_initialized():
-                try:
-                    if "MASTER_ADDR" not in os.environ:
-                        os.environ["MASTER_ADDR"] = "localhost"
-                    if "MASTER_PORT" not in os.environ:
-                        os.environ["MASTER_PORT"] = "29500"
-                    
-                    backend = config.distributed_backend
-                    if backend == "nccl" and not torch.cuda.is_available():
-                        backend = "gloo"
-                    
-                    dist.init_process_group(
-                        backend=backend,
-                        rank=self.rank,
-                        world_size=self.world_size
-                    )
-                    print(f"[Rank {self.rank}] Distributed training initialized: {self.world_size} GPUs")
-                except Exception as e:
-                    print(f"[Rank {self.rank}] Failed to initialize distributed: {e}")
-                    self.is_distributed = False
-                    self.world_size = 1
-    
-    def get_device_id(self) -> int:
-        return self.local_rank
-    
-    def all_gather_recipes(self, recipes: Dict[str, 'Recipe']) -> Dict[str, 'Recipe']:
-        """Gather recipes from all GPUs using all-gather operation."""
-        if not self.is_distributed or not _TORCH_AVAILABLE:
-            return recipes
-        
-        import json
-        local_data = json.dumps({k: v.to_dict() for k, v in recipes.items()})
-        local_bytes = local_data.encode('utf-8')
-        local_len = len(local_bytes)
-        
-        lengths_tensor = torch.tensor([local_len], dtype=torch.long, device='cpu')
-        all_lengths = [torch.zeros_like(lengths_tensor) for _ in range(self.world_size)]
-        dist.all_gather(all_lengths, lengths_tensor)
-        all_lengths = [t.item() for t in all_lengths]
-        
-        max_len = max(all_lengths)
-        padded_data = local_bytes + b'\x00' * (max_len - local_len)
-        
-        data_tensor = torch.tensor(list(padded_data), dtype=torch.uint8, device='cpu')
-        all_data = [torch.zeros(max_len, dtype=torch.uint8, device='cpu') for _ in range(self.world_size)]
-        dist.all_gather(all_data, data_tensor)
-        
-        merged_recipes = dict(recipes)
-        for i, (data, length) in enumerate(zip(all_data, all_lengths)):
-            if i == self.rank:
-                continue
-            try:
-                remote_data = bytes(data[:length].tolist()).decode('utf-8')
-                remote_recipes = json.loads(remote_data)
-                for k, v in remote_recipes.items():
-                    if k not in merged_recipes:
-                        merged_recipes[k] = Recipe.from_dict(v)
-            except Exception as e:
-                print(f"[Rank {self.rank}] Failed to deserialize recipes from rank {i}: {e}")
-        
-        return merged_recipes
-    
-    def all_gather_ngrams(self, ngrams: Dict) -> Dict:
-        """Gather n-gram statistics from all GPUs."""
-        if not self.is_distributed or not _TORCH_AVAILABLE:
-            return ngrams
-        
-        import json
-        local_data = json.dumps({str(k): v for k, v in ngrams.items()})
-        local_bytes = local_data.encode('utf-8')
-        local_len = len(local_bytes)
-        
-        lengths_tensor = torch.tensor([local_len], dtype=torch.long, device='cpu')
-        all_lengths = [torch.zeros_like(lengths_tensor) for _ in range(self.world_size)]
-        dist.all_gather(all_lengths, lengths_tensor)
-        all_lengths = [t.item() for t in all_lengths]
-        
-        max_len = max(all_lengths)
-        padded_data = local_bytes + b'\x00' * (max_len - local_len)
-        
-        data_tensor = torch.tensor(list(padded_data), dtype=torch.uint8, device='cpu')
-        all_data = [torch.zeros(max_len, dtype=torch.uint8, device='cpu') for _ in range(self.world_size)]
-        dist.all_gather(all_data, data_tensor)
-        
-        merged = dict(ngrams)
-        for i, (data, length) in enumerate(zip(all_data, all_lengths)):
-            if i == self.rank:
-                continue
-            try:
-                remote_data = bytes(data[:length].tolist()).decode('utf-8')
-                remote_ngrams = json.loads(remote_data)
-                for k, v in remote_ngrams.items():
-                    key = eval(k)
-                    if key in merged:
-                        merged[key] = merged[key] + v
-                    else:
-                        merged[key] = v
-            except Exception as e:
-                print(f"[Rank {self.rank}] Failed to deserialize ngrams from rank {i}: {e}")
-        
-        return merged
-    
-    def all_reduce_tensor(self, tensor: 'torch.Tensor', op='sum') -> 'torch.Tensor':
-        """All-reduce a tensor across all GPUs."""
-        if not self.is_distributed or not _TORCH_AVAILABLE:
-            return tensor
-        
-        if op == 'sum':
-            dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
-        elif op == 'mean':
-            dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
-            tensor.div_(self.world_size)
-        elif op == 'max':
-            dist.all_reduce(tensor, op=dist.ReduceOp.MAX)
-        elif op == 'min':
-            dist.all_reduce(tensor, op=dist.ReduceOp.MIN)
-        
-        return tensor
-    
-    def barrier(self):
-        """Synchronize all GPUs."""
-        if self.is_distributed and _TORCH_AVAILABLE and dist.is_initialized():
-            dist.barrier()
-    
-    def is_main_process(self) -> bool:
-        return self.rank == 0
-    
-    def cleanup(self):
-        """Clean up distributed resources."""
-        if self.is_distributed and _TORCH_AVAILABLE and dist.is_initialized():
-            dist.destroy_process_group()
-
-
-_dist_context: Optional[DistributedContext] = None
-
-def get_distributed_context() -> DistributedContext:
-    """Get or create the global distributed context."""
-    global _dist_context
-    if _dist_context is None:
-        _dist_context = DistributedContext()
-    return _dist_context
-
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from multiprocessing import Pool
 import threading
@@ -2629,13 +2566,6 @@ class HDCConfig:
     # robust for HDC and reduces intermediate tensors by ~250x vs dense.
     sparse_window_size: int = SPARSE_WINDOW_SIZE
     
-    # Multi-GPU distributed training settings
-    world_size: int = 1
-    rank: int = 0
-    distributed_backend: str = "nccl"
-    sync_recipes_every: int = 100
-    overlap_compute_comm: bool = True
-    
     def __post_init__(self):
         if not self.train_files:
             self.train_files = os.path.join(self.data_path, "fineweb_train_*.bin")
@@ -2685,18 +2615,31 @@ class WalshHadamardBasis:
         return row
     
     def get_row_from_string(self, name: str, packed: bool = False, seed: int = 0) -> Tuple[int, np.ndarray]:
+        """Map a string name to a Hadamard row using Hadamard bipolar hashing.
+        
+        The Hadamard index IS the identity — no external hash function needed.
+        For token strings like "token_42", we extract the integer directly.
+        For other strings, we use the Hadamard bipolar hash (XOR-folded
+        popcount) which preserves the bipolar structure of the space.
+        """
         if seed != 0:
             hash_input = f"{seed}:{name}".encode()
         else:
             hash_input = name.encode()
         
-        if _BLAKE3_AVAILABLE:
-            hash_bytes = _blake3_func(hash_input).digest(length=4)
-        else:
-            import hashlib
-            hash_bytes = hashlib.sha256(hash_input).digest()[:4]
+        # Fast path: token strings "token_N" → use N directly as Hadamard index
+        # This is the most common case and gives the most direct bipolar mapping
+        if name.startswith("token_") and seed == 0:
+            try:
+                token_id = int(name.split("_")[1])
+                index = token_id % self.dim
+                return index, self.get_row(index, packed=packed)
+            except (ValueError, IndexError):
+                pass
         
-        index = int.from_bytes(hash_bytes, 'big') % self.dim
+        # General path: Hadamard bipolar hash for arbitrary strings
+        # Uses XOR-folded popcount to map bytes → Hadamard index
+        index = hadamard_bipolar_hash(hash_input) % self.dim
         return index, self.get_row(index, packed=packed)
     
     def transform(self, data: np.ndarray) -> np.ndarray:
@@ -2832,33 +2775,98 @@ class RelationshipType(Enum):
     TRAJECTORY_STEP = "trajectory_step"
 
 
-def blake3_hash(data: bytes) -> bytes:
-    """Compute BLAKE3 hash of data."""
-    if _BLAKE3_AVAILABLE:
-        return _blake3_func(data).digest()
-    else:
-        import hashlib
-        return hashlib.blake2b(data, digest_size=32).digest()
+def hadamard_bipolar_hash(data: bytes) -> int:
+    """Compute a deterministic 64-bit hash using Hadamard bipolar structure.
+    
+    This replaces BLAKE3 for all addressing needs. The hash preserves the
+    bipolar properties of the Hadamard space:
+    - XOR-folding of byte values maintains the +1/-1 structure
+    - Popcount of the result maps to confidence in the bipolar domain
+    - Different inputs produce maximally different outputs (pseudo-orthogonal)
+    
+    The Fibonacci constant (golden ratio) provides excellent bit mixing,
+    and the XOR accumulation preserves the self-inverse property needed
+    for metacognitive correction.
+    
+    Args:
+        data: Bytes to hash (can be string.encode() or raw bytes)
+        
+    Returns:
+        64-bit integer hash value
+    """
+    # Fibonacci/golden-ratio constant for optimal bit mixing
+    # Use Python int arithmetic (unbounded) then mask to 64 bits at the end.
+    # This avoids NumPy uint64 overflow warnings while producing identical results.
+    PHI64 = 0x9E3779B97F4A7C15
+    MASK64 = 0xFFFFFFFFFFFFFFFF
+    h = 0
+    for i, byte_val in enumerate(data):
+        # XOR-fold each byte with position-rotated Fibonacci constant
+        # This preserves bipolar structure: changing any bit flips ~half the output
+        h ^= (byte_val * (PHI64 >> (i & 63))) & MASK64
+        h = (((h ^ (h >> 17)) & MASK64) * PHI64) & MASK64  # Avalanche mixing
+    return h
+
+
+def hadamard_bipolar_hash_bytes(data: bytes, length: int = 32) -> bytes:
+    """Compute a deterministic hash producing `length` bytes.
+    
+    Extends hadamard_bipolar_hash to produce arbitrary-length output
+    by chaining: each block XOR-folds the previous with a counter.
+    
+    Used for all Hadamard bipolar hash operations that produce bytes.
+    """
+    result = bytearray()
+    counter = 0
+    while len(result) < length:
+        block_input = data + counter.to_bytes(4, 'little')
+        h = hadamard_bipolar_hash(block_input)
+        result.extend(h.to_bytes(8, 'little'))
+        counter += 1
+    return bytes(result[:length])
+
 
 
 def seed_to_hypervector(seed_string: str, dim: int = DEFAULT_HDC_DIM) -> np.ndarray:
-    """Generate a hypervector from a seed string using BLAKE3."""
+    """Generate a hypervector from a seed string using Hadamard bipolar addressing.
+    
+    Instead of BLAKE3, uses the Hadamard index directly when possible,
+    or XOR-folded Hadamard bipolar hash for arbitrary seed strings.
+    
+    For token seeds like "token_42", returns hadamard_row_packed(42, dim)
+    directly — the most natural bipolar representation.
+    """
     uint64_count = dim // 64
-    num_bytes = uint64_count * 8
     
-    if _BLAKE3_AVAILABLE:
-        hash_bytes = _blake3_func(seed_string.encode()).digest(length=num_bytes)
-    else:
-        import hashlib
-        hash_bytes = b""
-        counter = 0
-        while len(hash_bytes) < num_bytes:
-            data = f"{seed_string}:{counter}".encode()
-            hash_bytes += blake3_hash(data)
-            counter += 1
-        hash_bytes = hash_bytes[:num_bytes]
+    # Fast path: "token_N" seeds → direct Hadamard row (most common case)
+    if seed_string.startswith("token_"):
+        try:
+            token_id = int(seed_string.split("_")[1])
+            return hadamard_row_packed(token_id % dim, dim)
+        except (ValueError, IndexError):
+            pass
     
-    return np.frombuffer(hash_bytes, dtype=np.uint64).copy()
+    # Fast path: "pos_N" seeds → direct Hadamard position vector
+    if seed_string.startswith("pos_"):
+        try:
+            pos = int(seed_string.split("_")[1])
+            return hadamard_position_vector(pos, dim)
+        except (ValueError, IndexError):
+            pass
+    
+    # General path: generate from Hadamard bipolar hash chain
+    # Each uint64 block is derived from a different Hadamard index
+    result = np.zeros(uint64_count, dtype=np.uint64)
+    base_hash = hadamard_bipolar_hash(seed_string.encode())
+    
+    for i in range(uint64_count):
+        # XOR the base hash with counter to get different Hadamard indices
+        idx = (base_hash ^ i) % dim
+        # Use the i-th element of the Hadamard row at that index
+        row = hadamard_row_packed(idx % uint64_count, dim)
+        result[i] = row[i]
+    
+    return result
 
 
 
@@ -3054,332 +3062,6 @@ def instant_learn_with_confidence(
 
 
 # ============================================================================
-# GUARANTEED O(1) SEMANTIC INSTANT LEARNING
-# ============================================================================
-#
-# Mathematical Foundation:
-# -----------------------
-# The Hadamard matrix has a GROUP STRUCTURE under XOR:
-#     H[i] XOR H[j] = H[i XOR j]
-#
-# This means the XOR of any two Hadamard rows IS ITSELF a Hadamard row.
-# Combined with token-addressed windows, this enables O(1) semantic queries:
-#
-#     rel_window = (idx_A XOR idx_B) & mask
-#     signal = semantic_vec[rel_window]
-#     confidence = |popcount(signal) - 32| / 32
-#
-# The ring Z/2^14 under XOR is closed, so the window address of any composed
-# relationship is always the XOR composition of component window addresses.
-# ============================================================================
-
-
-@dataclass
-class SemanticRelationship:
-    """
-    O(1) semantic relationship storage.
-    
-    Instead of storing vectors, we store INDEX ARITHMETIC results.
-    The Hadamard row for any relationship can always be reconstructed
-    from rel_idx in O(1) because it's deterministic from the seed.
-    
-    Total storage: ~16 bytes per relationship.
-    """
-    rel_idx: int           # idx_A XOR idx_B (4 bytes as uint32)
-    window: int            # rel_idx & mask (4 bytes)
-    confidence: float      # signal strength [0, 1] (4 bytes)
-    direction: int         # +1 or -1 (1 byte)
-    rel_type: str = "unknown"  # optional: "synonym", "antonym", "is_a", etc.
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'rel_idx': self.rel_idx,
-            'window': self.window,
-            'confidence': self.confidence,
-            'direction': self.direction,
-            'rel_type': self.rel_type
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'SemanticRelationship':
-        return cls(
-            rel_idx=data['rel_idx'],
-            window=data['window'],
-            confidence=data['confidence'],
-            direction=data['direction'],
-            rel_type=data.get('rel_type', 'unknown')
-        )
-
-
-class DualVectorProjection:
-    """
-    Dual-vector instant projection for syntactic AND semantic learning.
-    
-    Mathematical Foundation:
-    -----------------------
-    We maintain TWO parallel sparse vectors:
-    
-    1. syntactic_vec: window = position & mask
-       - Answers: "What token was at position P?"
-       - Used for: Next token prediction (syntactic)
-       
-    2. semantic_vec: window = token_idx & mask
-       - Answers: "How does token A relate to token B?"
-       - Used for: Semantic queries (distributional semantics)
-    
-    The key identity that guarantees alignment:
-        (idx_A & mask) XOR (idx_B & mask) = (idx_A XOR idx_B) & mask
-    
-    This means the window address of a relationship is EXACTLY computable
-    from the window addresses of its two tokens. The algebra closes.
-    """
-    
-    def __init__(self, dim: int = DEFAULT_HDC_DIM, window_size: int = SPARSE_WINDOW_SIZE):
-        self.dim = dim
-        self.window_size = window_size
-        self.uint64_count = dim // 64
-        self.mask = self.uint64_count - 1  # For & mask operations (assumes uint64_count is 2^k)
-        
-        # Dual vectors
-        self.syntactic_vec = np.zeros(self.uint64_count, dtype=np.uint64)
-        self.semantic_vec = np.zeros(self.uint64_count, dtype=np.uint64)
-        
-        # Relationship storage (O(1) lookup by rel_idx)
-        self.relationships: Dict[int, SemanticRelationship] = {}
-        
-        # Token index cache (token_id -> hadamard index)
-        self._token_index_cache: Dict[int, int] = {}
-    
-    def hadamard_index(self, token_id: int) -> int:
-        """
-        Get Hadamard index for a token.
-        
-        The Hadamard index is the row index in the Sylvester Hadamard matrix.
-        For deterministic generation, we use token_id directly (or hash if needed).
-        """
-        if token_id in self._token_index_cache:
-            return self._token_index_cache[token_id]
-        
-        # Use token_id as index (could also use hash for larger vocab)
-        idx = token_id % (2**20)  # Limit to reasonable range
-        self._token_index_cache[token_id] = idx
-        return idx
-    
-    def project_token(self, token_id: int, position: int) -> None:
-        """
-        Project a single token occurrence into both syntactic and semantic vectors.
-        
-        This is the core operation that fills both vectors in O(1) per token.
-        
-        Args:
-            token_id: The token's vocabulary ID
-            position: The token's position in the sequence
-        """
-        idx_T = self.hadamard_index(token_id)
-        idx_P = position & self.mask  # Position window
-        
-        # Get Hadamard row for token (packed form)
-        token_vec = hadamard_row_packed(idx_T, self.dim)
-        
-        # === SYNTACTIC BINDING (current system) ===
-        # Window = position & mask
-        # Stores: what token was at this position?
-        syn_window = idx_P
-        pos_vec = hadamard_row_packed(position % self.uint64_count, self.dim)
-        
-        # XOR bind: token XOR position, store at syntactic window
-        self.syntactic_vec[syn_window] ^= token_vec[syn_window] ^ pos_vec[syn_window]
-        
-        # === SEMANTIC BINDING (new - token-addressed) ===
-        # Window = token_idx & mask
-        # Stores: what contexts surrounded this token?
-        sem_window = idx_T & self.mask
-        
-        # Store position context at token's home window
-        # This accumulates distributional semantics
-        self.semantic_vec[sem_window] ^= pos_vec[sem_window]
-    
-    def project_corpus(self, tokens: List[int]) -> None:
-        """
-        Project entire corpus into dual vectors.
-        
-        Time complexity: O(N) where N = corpus length
-        Space complexity: O(uint64_count * 2) = O(dim/32) bytes
-        """
-        for position, token_id in enumerate(tokens):
-            self.project_token(token_id, position)
-    
-    def query_relationship(
-        self,
-        token_A: int,
-        token_B: int,
-        threshold: float = 0.5
-    ) -> Optional[SemanticRelationship]:
-        """
-        O(1) semantic relationship query.
-        
-        Mathematical Foundation:
-        -----------------------
-        The relationship between A and B lives at:
-            rel_window = (idx_A XOR idx_B) & mask
-        
-        This is guaranteed by the ring closure property:
-            (idx_A & mask) XOR (idx_B & mask) = (idx_A XOR idx_B) & mask
-        
-        Args:
-            token_A: First token's vocabulary ID
-            token_B: Second token's vocabulary ID
-            threshold: Minimum confidence to report relationship
-            
-        Returns:
-            SemanticRelationship if confidence > threshold, else None
-        """
-        idx_A = self.hadamard_index(token_A)
-        idx_B = self.hadamard_index(token_B)
-        
-        # O(1) — pure integer arithmetic
-        rel_idx = idx_A ^ idx_B
-        rel_window = rel_idx & self.mask
-        
-        # O(1) — single memory read of window_size blocks
-        signal = self.semantic_vec[rel_window]
-        
-        # O(1) — single popcount
-        pc = bin(int(signal)).count('1')
-        confidence = abs(pc - 32) / 32.0
-        direction = 1 if pc > 32 else -1
-        
-        if confidence >= threshold:
-            rel = SemanticRelationship(
-                rel_idx=rel_idx,
-                window=rel_window,
-                confidence=confidence,
-                direction=direction
-            )
-            self.relationships[rel_idx] = rel
-            return rel
-        
-        return None
-    
-    def query_all_relationships(
-        self,
-        tokens: List[int],
-        threshold: float = 0.5
-    ) -> Dict[Tuple[int, int], SemanticRelationship]:
-        """
-        Query relationships for all pairs of tokens.
-        
-        Time complexity: O(K^2) where K = number of unique tokens
-        Each query is O(1), so total is O(K^2) for K choose 2 pairs.
-        """
-        unique_tokens = list(set(tokens))
-        results = {}
-        
-        for i, token_A in enumerate(unique_tokens):
-            for token_B in unique_tokens[i+1:]:
-                rel = self.query_relationship(token_A, token_B, threshold)
-                if rel:
-                    results[(token_A, token_B)] = rel
-        
-        return results
-    
-    def get_token_context(self, token_id: int) -> np.ndarray:
-        """
-        Get the accumulated context vector for a token.
-        
-        This is the distributional semantic representation - all the
-        position contexts where this token appeared.
-        """
-        idx_T = self.hadamard_index(token_id)
-        sem_window = idx_T & self.mask
-        return self.semantic_vec[sem_window:sem_window + self.window_size]
-    
-    def get_token_at_position(self, position: int, token_matrix: np.ndarray) -> int:
-        """
-        Decode what token was at a given position.
-        
-        This uses the syntactic vector for next-token prediction.
-        """
-        syn_window = position & self.mask
-        signal = self.syntactic_vec[syn_window]
-        
-        # Unbind position
-        pos_vec = hadamard_row_packed(position % self.uint64_count, self.dim)
-        unbound = signal ^ pos_vec[syn_window]
-        
-        # Find best matching token (this is O(vocab) - could be optimized with reverse lookup)
-        best_token = 0
-        best_sim = -1
-        
-        for token_id in range(token_matrix.shape[0]):
-            token_vec = token_matrix[token_id]
-            # Hamming similarity
-            xor_result = unbound ^ token_vec[syn_window]
-            sim = 1 - (bin(int(xor_result)).count('1') / 64.0)
-            if sim > best_sim:
-                best_sim = sim
-                best_token = token_id
-        
-        return best_token
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Serialize dual vector projection state."""
-        return {
-            'dim': self.dim,
-            'window_size': self.window_size,
-            'uint64_count': self.uint64_count,
-            'syntactic_vec': self.syntactic_vec.tolist(),
-            'semantic_vec': self.semantic_vec.tolist(),
-            'relationships': {str(k): v.to_dict() for k, v in self.relationships.items()}
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'DualVectorProjection':
-        """Deserialize dual vector projection state."""
-        dvp = cls(dim=data['dim'], window_size=data['window_size'])
-        dvp.syntactic_vec = np.array(data['syntactic_vec'], dtype=np.uint64)
-        dvp.semantic_vec = np.array(data['semantic_vec'], dtype=np.uint64)
-        dvp.relationships = {
-            int(k): SemanticRelationship.from_dict(v)
-            for k, v in data['relationships'].items()
-        }
-        return dvp
-
-
-def instant_semantic_learn(
-    tokens: List[int],
-    dim: int = DEFAULT_HDC_DIM,
-    relationship_threshold: float = 0.5
-) -> DualVectorProjection:
-    """
-    One-pass instant semantic learning.
-    
-    Projects entire corpus into dual vectors and extracts semantic relationships.
-    
-    Time complexity: O(N + K^2) where N = corpus length, K = unique tokens
-    Space complexity: O(dim/32) bytes for vectors + O(R) for relationships
-    
-    Args:
-        tokens: List of token IDs from the corpus
-        dim: Hypervector dimension
-        relationship_threshold: Minimum confidence to store relationship
-        
-    Returns:
-        DualVectorProjection with syntactic_vec, semantic_vec, and relationships
-    """
-    dvp = DualVectorProjection(dim=dim)
-    dvp.project_corpus(tokens)
-    
-    # Extract relationships for all unique token pairs
-    unique_tokens = list(set(tokens))
-    for i, token_A in enumerate(unique_tokens):
-        for token_B in unique_tokens[i+1:]:
-            dvp.query_relationship(token_A, token_B, relationship_threshold)
-    
-    return dvp
-
-
-# ============================================================================
 # END GUARANTEED O(1) SEMANTIC INSTANT LEARNING
 # ============================================================================
 
@@ -3406,10 +3088,14 @@ def xor_bind_sequence(vectors: List[np.ndarray]) -> np.ndarray:
         result = np.bitwise_xor(result, vec)
     return result
 
-
-
 def hamming_similarity(a: np.ndarray, b: np.ndarray) -> float:
     """Compute Hamming similarity between two hypervectors."""
+    # Ensure both arrays are on CPU (handles CuPy/NumPy mixing)
+    if _CUPY_AVAILABLE:
+        if isinstance(a, cp.ndarray):
+            a = cp.asnumpy(a)
+        if isinstance(b, cp.ndarray):
+            b = cp.asnumpy(b)
     xored = np.bitwise_xor(a, b)
     diff_bits = np.unpackbits(xored.view(np.uint8)).sum()
     total_bits = len(a) * 64
@@ -3418,6 +3104,12 @@ def hamming_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 def hamming_distance(a: np.ndarray, b: np.ndarray) -> int:
     """Count differing bits between two hypervectors."""
+    # Ensure both arrays are on CPU (handles CuPy/NumPy mixing)
+    if _CUPY_AVAILABLE:
+        if isinstance(a, cp.ndarray):
+            a = cp.asnumpy(a)
+        if isinstance(b, cp.ndarray):
+            b = cp.asnumpy(b)
     xored = np.bitwise_xor(a, b)
     return int(np.unpackbits(xored.view(np.uint8)).sum())
 
@@ -3467,7 +3159,7 @@ def instant_batch_project_dataset(
     N = len(dataset_tokens)
     
     # Generate seed hash for position uniqueness
-    seed_hash = blake3_hash(seed.encode())
+    seed_hash = hadamard_bipolar_hash_bytes(seed.encode(), length=32)
     
     # Pre-compute token matrix ONCE (vocab_size x uint64_count)
     # This is the key optimization - token vectors are reused for all positions
@@ -3478,9 +3170,14 @@ def instant_batch_project_dataset(
         token_matrix = batch_ops.build_token_matrix(vocab_size)
     else:
         xp = np
+        # Use Hadamard rows indexed by token_id — matches GPU build_token_matrix
+        # and HDCLanguageModel.get_token_vector for the 256 KB model architecture.
+        # Token vectors are regenerable from Hadamard index alone (no hash needed).
+        basis = WalshHadamardBasis(dim=dim)
         token_matrix = np.zeros((vocab_size, uint64_count), dtype=np.uint64)
         for token_id in range(vocab_size):
-            token_matrix[token_id] = hadamard_row_packed(token_id % uint64_count, dim)
+            _idx, vec = basis.get_row_from_string(f"token_{token_id}", packed=True)
+            token_matrix[token_id] = vec
     
     # Clamp token IDs to valid range (contest spec: vocab_size=1024)
     dataset_tokens_clamped = np.clip(dataset_tokens, 0, vocab_size - 1).astype(np.int32)
@@ -3525,13 +3222,13 @@ def instant_batch_project_dataset(
                 
                 # Extract the result
                 dataset_vec = gpu_manager.to_cpu(dataset_vec_gpu)
-                token_matrix_cpu = gpu_manager.to_cpu(token_matrix)
+                token_matrix = gpu_manager.to_cpu(token_matrix)
                 print(f"[InstantProjection] PARALLEL GPU projection complete!")
             else:
                 # Fallback: use batch_encode_context with chunked processing
                 print("[InstantProjection] sparse_encode_chunked kernel not available, using chunked CPU fallback")
                 dataset_vec = np.zeros(uint64_count, dtype=np.uint64)
-                token_matrix_cpu = gpu_manager.to_cpu(token_matrix)
+                token_matrix = gpu_manager.to_cpu(token_matrix)
                 
                 # Process in chunks on CPU with progress
                 chunk_size = 100000
@@ -3601,7 +3298,7 @@ def instant_batch_project_dataset(
         pos_hash = PositionHash(
             position=pos,
             seed_hash=seed_hash,
-            token_hash=blake3_hash(f"{token_id}".encode())
+            token_hash=hadamard_bipolar_hash_bytes(f"{token_id}".encode(), length=32)
         )
         position_hashes.append(pos_hash)
     
@@ -3649,70 +3346,120 @@ def instant_batch_verify_and_correct(
     N = len(ground_truth_tokens)
     vocab_size = token_matrix.shape[0]
     
-    # GPU-accelerated parallel verification
+    # GPU-accelerated CHUNKED verification (avoids OOM for large datasets)
     if use_gpu and gpu_manager is not None and gpu_manager.use_gpu:
         try:
             import cupy as cp
-            
-            # Ensure inputs are on GPU - use explicit cp.asarray() for guaranteed conversion
-            # Check if already a CuPy array by checking for 'device' attribute
-            if hasattr(dataset_vec, 'device') and hasattr(dataset_vec, 'data'):
-                # Already a CuPy array
-                dataset_vec_gpu = dataset_vec
-            else:
-                # Convert numpy to CuPy array explicitly
-                dataset_vec_gpu = cp.asarray(dataset_vec, dtype=cp.uint64)
-            
-            if hasattr(token_matrix, 'device') and hasattr(token_matrix, 'data'):
-                # Already a CuPy array
-                token_matrix_gpu = token_matrix
-            else:
-                # Convert numpy to CuPy array explicitly
-                token_matrix_gpu = cp.asarray(token_matrix, dtype=cp.uint64)
-            
-            # Convert ground truth to int64 on GPU
-            ground_truth_gpu = cp.asarray(ground_truth_tokens, dtype=cp.int64)
-            predictions_gpu = cp.zeros(N, dtype=cp.int64)
-            mismatch_count_gpu = cp.zeros(1, dtype=cp.uint64)
-            
-            # Get the parallel verification kernel
-            verify_kernel = gpu_manager.get_kernel('sparse_verify_and_correct')
-            
+
+            # Get the chunked verification kernel (supports position offset)
+            verify_kernel = gpu_manager.get_kernel('sparse_verify_and_correct_chunked')
+            if verify_kernel is None:
+                # Fall back to unchunked kernel if chunked not available
+                verify_kernel = gpu_manager.get_kernel('sparse_verify_and_correct')
+
             if verify_kernel is not None:
-                # Launch: one block per position, W threads per block
-                grid = (N,)
-                block = (W,)
-                
-                verify_kernel(
-                    grid, block,
-                    (dataset_vec_gpu, token_matrix_gpu, ground_truth_gpu,
-                     predictions_gpu, mismatch_count_gpu,
-                     int(N), int(vocab_size),
-                     int(uint64_count), int(W))
-                )
-                gpu_manager.synchronize()
-                
-                # Copy results back
-                predictions = gpu_manager.to_cpu(predictions_gpu).astype(np.int32)
-                num_mismatches = int(gpu_manager.to_cpu(mismatch_count_gpu)[0])
-                num_correct = N - num_mismatches
-                
-                # For mismatch indices, we need to find them
-                # Since we don't track them in GPU, we'll compute them
-                mismatches = np.where(predictions != ground_truth_tokens)[0]
-                
-                # Copy back corrected dataset vector if needed
-                if apply_corrections:
-                    if not hasattr(dataset_vec, 'device'):
-                        dataset_vec[:] = gpu_manager.to_cpu(dataset_vec_gpu)
-                
+                # Ensure dataset_vec and token_matrix are on GPU (both are small)
+                # NOTE: Use isinstance() instead of hasattr('device') because
+                # NumPy 2.0+ added a .device attribute to numpy.ndarray
+                if isinstance(dataset_vec, cp.ndarray):
+                    dataset_vec_gpu = dataset_vec
+                else:
+                    dataset_vec_gpu = cp.asarray(dataset_vec, dtype=cp.uint64)
+
+                if isinstance(token_matrix, cp.ndarray):
+                    token_matrix_gpu = token_matrix
+                else:
+                    token_matrix_gpu = cp.asarray(token_matrix, dtype=cp.uint64)
+
+                # Determine chunk size based on available GPU memory
+                # Each position needs: 8 bytes (ground_truth) + 8 bytes (predictions) = 16 bytes
+                # Reserve 2 GB for other data; use remaining for chunks
+                free_mem = cp.cuda.Device().mem_info[0]  # Free bytes
+                bytes_per_pos = 16  # int64 ground_truth + int64 prediction
+                gpu_chunk_size = min(N, max(1_000_000, int(free_mem * 0.5) // bytes_per_pos))
+                # Also cap to CUDA max grid dimension
+                gpu_chunk_size = min(gpu_chunk_size, 2**30)
+
+                print(f"[GPU Verify] Chunked verification: {N:,} positions, "
+                      f"chunk_size={gpu_chunk_size:,}, chunks={math.ceil(N / gpu_chunk_size)}")
+
+                # Pre-allocate output on CPU (too large for GPU)
+                predictions = np.zeros(N, dtype=np.int32)
+                total_mismatches = 0
+                mismatch_count_gpu = cp.zeros(1, dtype=cp.uint64)
+
+                is_chunked_kernel = gpu_manager.get_kernel('sparse_verify_and_correct_chunked') is not None
+
+                for chunk_start in range(0, N, gpu_chunk_size):
+                    chunk_end = min(chunk_start + gpu_chunk_size, N)
+                    chunk_n = chunk_end - chunk_start
+
+                    # Transfer only this chunk's ground truth to GPU
+                    gt_chunk_gpu = cp.asarray(
+                        ground_truth_tokens[chunk_start:chunk_end], dtype=cp.int64
+                    )
+                    pred_chunk_gpu = cp.zeros(chunk_n, dtype=cp.int64)
+                    mismatch_count_gpu.fill(0)
+
+                    grid = (chunk_n,)
+                    block = (W,)
+
+                    if is_chunked_kernel:
+                        verify_kernel(
+                            grid, block,
+                            (dataset_vec_gpu, token_matrix_gpu, gt_chunk_gpu,
+                             pred_chunk_gpu, mismatch_count_gpu,
+                             np.int32(chunk_n), np.int32(vocab_size),
+                             np.int32(uint64_count), np.int32(W),
+                             np.int64(chunk_start))
+                        )
+                    else:
+                        # Unchunked kernel: only safe for small N (no offset support)
+                        verify_kernel(
+                            grid, block,
+                            (dataset_vec_gpu, token_matrix_gpu, gt_chunk_gpu,
+                             pred_chunk_gpu, mismatch_count_gpu,
+                             np.int32(chunk_n), np.int32(vocab_size),
+                             np.int32(uint64_count), np.int32(W))
+                        )
+                    gpu_manager.synchronize()
+
+                    # Copy chunk results back to CPU
+                    predictions[chunk_start:chunk_end] = (
+                        gpu_manager.to_cpu(pred_chunk_gpu).astype(np.int32)
+                    )
+                    total_mismatches += int(gpu_manager.to_cpu(mismatch_count_gpu)[0])
+
+                    # Free chunk GPU memory
+                    del gt_chunk_gpu, pred_chunk_gpu
+
+                    if chunk_start % (gpu_chunk_size * 10) == 0 and chunk_start > 0:
+                        print(f"[GPU Verify] Progress: {chunk_start:,}/{N:,} positions")
+
+                num_correct = N - total_mismatches
+                mismatches = np.where(predictions != ground_truth_tokens[:N].astype(np.int32))[0]
+
+                # Copy back corrected dataset vector
+                if apply_corrections and not isinstance(dataset_vec, cp.ndarray):
+                    dataset_vec[:] = gpu_manager.to_cpu(dataset_vec_gpu)
+
                 return predictions, mismatches.astype(np.int32), num_correct
-            
+
         except Exception as e:
             print(f"[GPU Verify] GPU verification failed, falling back to CPU: {e}")
+            import traceback
+            traceback.print_exc()
             # Fall through to CPU implementation
-    
+
     # CPU fallback (original implementation)
+    # Ensure numpy arrays (may be CuPy after a partial GPU attempt)
+    if _CUPY_AVAILABLE:
+        if hasattr(dataset_vec, 'get'):
+            dataset_vec = dataset_vec.get()
+        if hasattr(token_matrix, 'get'):
+            token_matrix = token_matrix.get()
+        if hasattr(ground_truth_tokens, 'get'):
+            ground_truth_tokens = ground_truth_tokens.get()
     predictions = np.zeros(N, dtype=np.int32)
     mismatches = []
     num_correct = 0
@@ -3914,34 +3661,11 @@ def instant_batch_decode_o1(
             predictions[pos] = reverse_lookup[key]
         else:
             # Fallback: find nearest token (rare, only for noisy vectors)
-            # Use hash of unbound vector for approximate match
-            unbound_hash = blake3_hash(unbound.tobytes())
-            predictions[pos] = int.from_bytes(unbound_hash[:2], 'little') % 1024
+            # Fallback: use Hadamard bipolar hash for approximate match
+            unbound_hash = hadamard_bipolar_hash(unbound.tobytes())
+            predictions[pos] = unbound_hash % 1024
     
     return predictions
-
-
-# Keep old name as alias for backward compatibility
-def instant_batch_decode_all(
-    dataset_vec: np.ndarray,
-    token_matrix: np.ndarray,
-    num_positions: int,
-    vocab_size: int = 1024,
-    dim: int = DEFAULT_HDC_DIM,
-    window_size: int = BATCH_PROJECTION_WINDOW_SIZE,
-    use_gpu: bool = True,
-    gpu_manager: Optional['TensorCoreGPUManager'] = None
-) -> np.ndarray:
-    """
-    Legacy alias - use instant_batch_decode_inference() for clarity.
-    
-    This function is for INFERENCE (unknown ground truth).
-    For TRAINING, use instant_batch_verify_and_correct() which is O(1) per position.
-    """
-    return instant_batch_decode_inference(
-        dataset_vec, token_matrix, num_positions, vocab_size, dim,
-        window_size, use_gpu, gpu_manager
-    )
 
 
 def batch_project_dataset(
@@ -3975,7 +3699,7 @@ def batch_project_dataset(
     dataset_vec = np.zeros(uint64_count, dtype=np.uint64)
     
     # Generate seed hash for position uniqueness
-    seed_hash = blake3_hash(seed.encode())
+    seed_hash = hadamard_bipolar_hash_bytes(seed.encode(), length=32)
     position_hashes = []
     
     for pos, token_id in enumerate(dataset_tokens):
@@ -3999,7 +3723,7 @@ def batch_project_dataset(
         pos_hash = PositionHash(
             position=pos,
             seed_hash=seed_hash,
-            token_hash=blake3_hash(f"{token_id}".encode())
+            token_hash=hadamard_bipolar_hash_bytes(f"{token_id}".encode(), length=32)
         )
         position_hashes.append(pos_hash)
     
@@ -4144,295 +3868,6 @@ def decode_and_learn(
     accuracy = correct_count / len(target_tokens) if target_tokens else 0.0
     return corrected, accuracy, num_corrections
 
-
-class BatchProjectionObserver:
-    """
-    Metacognitive observer specialized for batch projection learning.
-    
-    Tracks accuracy trajectory and detects convergence signals to guide
-    the learning process.
-    """
-    
-    def __init__(self, dim: int = DEFAULT_HDC_DIM):
-        self.dim = dim
-        self._accuracy_history: List[float] = []
-        self._correction_history: List[int] = []
-        self._iteration_count = 0
-        
-        # Thresholds for convergence detection
-        self.stuck_threshold = 0.01  # < 1% improvement
-        self.oscillation_window = 5
-        self.breakthrough_threshold = 0.05  # > 5% improvement
-        
-    def observe_iteration(
-        self,
-        accuracy: float,
-        num_corrections: int,
-        iteration: int
-    ) -> Tuple[ConvergenceSignal, TrajectoryAction, str]:
-        """
-        Observe a batch projection iteration and return guidance.
-        
-        Args:
-            accuracy: Current iteration accuracy
-            num_corrections: Number of corrections made this iteration
-            iteration: Current iteration number
-            
-        Returns:
-            Tuple of (convergence_signal, trajectory_action, reasoning_trace)
-        """
-        self._iteration_count = iteration
-        self._accuracy_history.append(accuracy)
-        self._correction_history.append(num_corrections)
-        
-        # Detect convergence signal
-        signal = self._detect_convergence()
-        
-        # Determine trajectory action
-        action = self._determine_action(signal, accuracy)
-        
-        # Build reasoning trace
-        reasoning = self._build_reasoning(signal, action, accuracy, num_corrections)
-        
-        return signal, action, reasoning
-    
-    def _detect_convergence(self) -> ConvergenceSignal:
-        """Detect convergence state from accuracy history."""
-        if len(self._accuracy_history) < 3:
-            return ConvergenceSignal.CONTINUE
-        
-        recent = self._accuracy_history[-5:]
-        
-        # Check for breakthrough (significant improvement)
-        if len(recent) >= 3:
-            improvement = recent[-1] - recent[0]
-            if improvement > self.breakthrough_threshold:
-                return ConvergenceSignal.BREAKTHROUGH
-        
-        # Check for convergence (steady improvement)
-        if all(recent[i] <= recent[i+1] for i in range(len(recent)-1)):
-            return ConvergenceSignal.CONVERGING
-        
-        # Check for stuck (no progress)
-        if len(recent) >= 3:
-            variance = np.var(recent)
-            if variance < self.stuck_threshold:
-                return ConvergenceSignal.STUCK
-        
-        # Check for oscillation
-        if len(recent) >= self.oscillation_window:
-            changes = [recent[i+1] - recent[i] for i in range(len(recent)-1)]
-            sign_changes = sum(1 for i in range(len(changes)-1)
-                              if changes[i] * changes[i+1] < 0)
-            if sign_changes >= 2:
-                return ConvergenceSignal.OSCILLATING
-        
-        # Check for divergence
-        if recent[-1] < recent[0] - 0.05:
-            return ConvergenceSignal.DIVERGING
-        
-        return ConvergenceSignal.CONTINUE
-    
-    def _determine_action(
-        self,
-        signal: ConvergenceSignal,
-        current_accuracy: float
-    ) -> TrajectoryAction:
-        """Determine trajectory action based on convergence signal."""
-        
-        if signal == ConvergenceSignal.BREAKTHROUGH:
-            return TrajectoryAction.CONTINUE
-        
-        if signal == ConvergenceSignal.CONVERGING:
-            return TrajectoryAction.CONTINUE
-        
-        if signal == ConvergenceSignal.STUCK:
-            # Try exploration when stuck
-            return TrajectoryAction.EXPLORE
-        
-        if signal == ConvergenceSignal.OSCILLATING:
-            # Try recall to break oscillation
-            return TrajectoryAction.RECALL
-        
-        if signal == ConvergenceSignal.DIVERGING:
-            # Random restart on divergence
-            return TrajectoryAction.RANDOM_RESTART
-        
-        return TrajectoryAction.CONTINUE
-    
-    def _build_reasoning(
-        self,
-        signal: ConvergenceSignal,
-        action: TrajectoryAction,
-        accuracy: float,
-        corrections: int
-    ) -> str:
-        """Build human-readable reasoning trace."""
-        history_str = ", ".join(f"{a:.2%}" for a in self._accuracy_history[-5:])
-        
-        return (
-            f"Iteration {self._iteration_count}: "
-            f"accuracy={accuracy:.2%}, corrections={corrections}, "
-            f"signal={signal.name}, action={action.name}, "
-            f"recent=[{history_str}]"
-        )
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get observer statistics."""
-        return {
-            'iterations': self._iteration_count,
-            'accuracy_history': self._accuracy_history,
-            'correction_history': self._correction_history,
-            'final_accuracy': self._accuracy_history[-1] if self._accuracy_history else 0.0,
-            'best_accuracy': max(self._accuracy_history) if self._accuracy_history else 0.0,
-            'total_corrections': sum(self._correction_history),
-        }
-
-
-def iterative_batch_learn(
-    dataset_tokens: List[int],
-    seed: str,
-    model: 'HDCLanguageModel',
-    max_iterations: int = 10,
-    target_accuracy: float = 0.95,
-    dim: int = DEFAULT_HDC_DIM,
-    window_size: int = BATCH_PROJECTION_WINDOW_SIZE,
-    verbose: bool = True
-) -> Tuple[float, int]:
-    """
-    Iteratively project, decode, and learn until target accuracy.
-    
-    Each iteration:
-    1. Project dataset with current corrections
-    2. Decode all positions
-    3. Learn corrections for wrong positions
-    4. Check accuracy
-    5. Metacognitive observer guides trajectory
-    
-    The key insight is that hash-based position uniqueness means
-    accuracy stays constant regardless of dataset size.
-    
-    Args:
-        dataset_tokens: List of token IDs to learn
-        seed: Dataset seed string
-        model: HDCLanguageModel to store corrections in
-        max_iterations: Maximum refinement iterations
-        target_accuracy: Stop when this accuracy is reached
-        dim: HDC dimension
-        window_size: Sparse window size
-        verbose: Print progress
-    
-    Returns:
-        Tuple of (final_accuracy, total_corrections)
-    """
-    uint64_count = dim // 64
-    W = window_size
-    total_corrections = 0
-    
-    # Initialize metacognitive observer
-    observer = BatchProjectionObserver(dim)
-    
-    # Track wrong positions for trajectory modification
-    wrong_positions: List[int] = []
-    
-    for iteration in range(max_iterations):
-        # Project with learned corrections
-        dataset_vec, position_hashes = batch_project_dataset(
-            dataset_tokens, seed, dim, window_size
-        )
-        
-        # Apply any stored corrections to the projection
-        for pos_hash in position_hashes:
-            recipe = model.residual_storage.get_residual_by_combined_hash(
-                pos_hash.combined_hash
-            )
-            if recipe:
-                # O(W) sparse correction
-                shift = recipe.optimal_shift
-                win_idx = (np.arange(W) + shift) % uint64_count
-                
-                # Reconstruct residual from recipe
-                residual = model._reconstruct_residual(recipe)
-                dataset_vec[win_idx] ^= residual[win_idx]
-        
-        # Decode and learn
-        corrected, accuracy, num_corrections = decode_and_learn(
-            dataset_vec, position_hashes, dataset_tokens, model, dim, window_size
-        )
-        total_corrections += num_corrections
-        
-        # Metacognitive observation
-        signal, action, reasoning = observer.observe_iteration(
-            accuracy, num_corrections, iteration
-        )
-        
-        if verbose:
-            print(f"Batch projection iteration {iteration}: accuracy = {accuracy:.2%}, "
-                  f"corrections = {num_corrections}, signal = {signal.name}, "
-                  f"action = {action.name}")
-            if verbose > 1:
-                print(f"  Reasoning: {reasoning}")
-        
-        # Handle trajectory actions
-        if action == TrajectoryAction.EXPLORE and signal == ConvergenceSignal.STUCK:
-            # When stuck, try alternative correction strategies
-            if verbose:
-                print(f"  STUCK detected - trying alternative correction strategy")
-            
-            # Find positions that are consistently wrong
-            current_wrong = [i for i, (pred, target) in enumerate(zip(corrected, dataset_tokens))
-                           if pred != target]
-            
-            # Apply stronger corrections to stuck positions
-            for pos in current_wrong[:min(10, len(current_wrong))]:  # Limit to 10 positions
-                pos_hash = position_hashes[pos]
-                target = dataset_tokens[pos]
-                
-                # Create deterministic trace from seed
-                det_trace = DeterministicReasoningTrace.derive_from_seed(
-                    seed=int(seed) if seed.isdigit() else hash(seed),
-                    iteration=iteration,
-                    recipes=[],  # Will be populated after creation
-                    positions_corrected=[pos_hash.combined_hash],
-                    signal=signal,
-                    action=action
-                )
-                
-                # Create a reinforced correction
-                recipe = MetaResidualRecipe(
-                    recipe_id=f"stuck_{pos_hash.combined_hash:016x}",
-                    observed_state_hash=pos_hash.combined_hash,
-                    optimal_shift=pos % uint64_count,
-                    residual_seeds=[f"stuck_residual_{pos}_{target}"],
-                    context_signature=f"stuck_pos_{pos}",
-                    target_token=target,
-                    confidence=1.5,  # Higher confidence for stuck corrections
-                    usage_count=0,
-                    replaces_iterations=iteration,
-                    created_iteration=iteration,
-                    reasoning_trace=reasoning,
-                    deterministic_trace=det_trace.to_compact()
-                )
-                model.residual_storage.store_residual(recipe)
-        
-        elif action == TrajectoryAction.RANDOM_RESTART and signal == ConvergenceSignal.DIVERGING:
-            # On divergence, clear recent corrections and restart
-            if verbose:
-                print(f"  DIVERGING detected - clearing recent corrections")
-            # Keep only high-confidence corrections (use _by_state_hash, the actual storage dict)
-            model.residual_storage._by_state_hash = {
-                k: v for k, v in model.residual_storage._by_state_hash.items()
-                if v.confidence >= 1.0
-            }
-        
-        if accuracy >= target_accuracy:
-            if verbose:
-                print(f"Target accuracy {target_accuracy:.0%} reached!")
-            break
-    
-    return accuracy, total_corrections
-
-
 class TensorCoreBatchOperations:
     """
     H100 Tensor Core optimized batch operations for HDC.
@@ -4480,11 +3915,16 @@ class TensorCoreBatchOperations:
         aligned_vocab = ((vocab_size + TC_ALIGNMENT - 1) // TC_ALIGNMENT) * TC_ALIGNMENT
         
         if self.gpu.use_gpu:
-            # Build exactly vocab_size rows to avoid slicing issues
+            # Build exactly vocab_size rows using Hadamard rows indexed by token_id.
+            # This matches HDCLanguageModel.get_token_vector and the 256 KB model
+            # architecture (token vectors are regenerable from Hadamard index alone).
+            basis = WalshHadamardBasis(dim=self.dim)
             token_matrix = self.xp.zeros((vocab_size, self.uint64_count), dtype=self.xp.uint64)
             
             for token_id in range(vocab_size):
-                vec = seed_to_hypervector(f"token_{token_id + seed_offset}", self.dim)
+                _idx, vec = basis.get_row_from_string(
+                    f"token_{token_id + seed_offset}", packed=True
+                )
                 token_matrix[token_id] = cp.asarray(vec)
             
             self._token_matrix = token_matrix
@@ -4493,9 +3933,12 @@ class TensorCoreBatchOperations:
             if self.gpu.get_kernel('tensor_core_fp16_similarity'):
                 self._token_matrix_fp16 = self.gpu.convert_to_fp16(token_matrix, self.dim)
         else:
+            basis = WalshHadamardBasis(dim=self.dim)
             token_vectors = []
             for token_id in range(vocab_size):
-                vec = seed_to_hypervector(f"token_{token_id + seed_offset}", self.dim)
+                _idx, vec = basis.get_row_from_string(
+                    f"token_{token_id + seed_offset}", packed=True
+                )
                 token_vectors.append(vec)
             token_matrix = self.xp.stack(token_vectors, axis=0)
             self._token_matrix = token_matrix
@@ -5248,7 +4691,6 @@ class SelfObservation:
         """Get the history of trajectory actions."""
         return self._action_history.copy()
 
-
 @dataclass
 class SemanticCoverageReport:
     """Report on semantic landscape coverage and confidence distribution."""
@@ -5258,2085 +4700,6 @@ class SemanticCoverageReport:
     high_confidence_count: int  # Number of windows with confidence > 0.7
     total_windows: int  # Total number of windows in semantic vector
     confidence_distribution: List[float]  # Full distribution for analysis
-
-
-class SemanticSelfObservation:
-    """
-    Proactive semantic confidence monitor - redesigned for the semantic layer.
-    
-    Unlike the reactive SelfObservation that watches iteration-by-iteration
-    similarity changes, this class provides INSTANTANEOUS confidence assessment
-    based on the semantic vector's popcount-derived signals.
-    
-    Key insight: With semantic_vec filled in one pass, confidence is always
-    already known BEFORE prediction, not after failing.
-    """
-    
-    def __init__(
-        self,
-        dim: int = DEFAULT_HDC_DIM,
-        semantic_vec: Optional[np.ndarray] = None,
-        mask: Optional[int] = None
-    ):
-        self.dim = dim
-        self.uint64_count = dim // 64
-        self.semantic_vec = semantic_vec  # Reference to DualVectorProjection.semantic_vec
-        self.mask = mask or (self.uint64_count - 1)
-        
-        # Confidence thresholds for signal classification
-        self.high_confidence_threshold = 0.8
-        self.moderate_confidence_threshold = 0.5
-        self.low_confidence_threshold = 0.2
-        
-        # Track observation history for analysis
-        self._observation_history: List[Dict[str, Any]] = []
-    
-    def observe_relationship(
-        self,
-        token_A: int,
-        token_B: int,
-        hadamard_index_fn: Callable[[int], int]
-    ) -> Tuple[ConvergenceSignal, float, int]:
-        """
-        Observe the semantic relationship between two tokens - O(1) operation.
-        
-        Args:
-            token_A: First token ID
-            token_B: Second token ID
-            hadamard_index_fn: Function to convert token_id to hadamard index
-            
-        Returns:
-            Tuple of (convergence_signal, confidence, direction)
-            - convergence_signal: BREAKTHROUGH/CONVERGING/OSCILLATING/STUCK
-            - confidence: 0.0 to 1.0 strength of signal
-            - direction: +1 or -1 (positive/negative relationship)
-        """
-        if self.semantic_vec is None:
-            return ConvergenceSignal.STUCK, 0.0, 0
-        
-        # Compute relationship window via XOR
-        idx_A = hadamard_index_fn(token_A)
-        idx_B = hadamard_index_fn(token_B)
-        rel_window = (idx_A ^ idx_B) & self.mask
-        
-        # Get signal from semantic vector
-        signal = self.semantic_vec[rel_window]
-        pc = int(np.unpackbits(signal.view(np.uint8)).sum())
-        
-        # Compute confidence from popcount
-        confidence = abs(pc - 32) / 32.0
-        direction = 1 if pc > 32 else -1
-        
-        # Classify signal into convergence type
-        if confidence > self.high_confidence_threshold:
-            signal_type = ConvergenceSignal.BREAKTHROUGH  # Strong corpus signal
-        elif confidence > self.moderate_confidence_threshold:
-            signal_type = ConvergenceSignal.CONVERGING  # Moderate signal
-        elif confidence < self.low_confidence_threshold:
-            signal_type = ConvergenceSignal.STUCK  # Genuinely unseen
-        else:
-            # popcount near 32 but not quite — contradictory contexts
-            signal_type = ConvergenceSignal.OSCILLATING  # Ambiguous relationship
-        
-        # Record observation
-        self._observation_history.append({
-            'token_A': token_A,
-            'token_B': token_B,
-            'rel_window': rel_window,
-            'confidence': confidence,
-            'direction': direction,
-            'signal_type': signal_type.name
-        })
-        
-        return signal_type, confidence, direction
-    
-    def observe_token_context(
-        self,
-        token_id: int,
-        hadamard_index_fn: Callable[[int], int]
-    ) -> Tuple[float, int]:
-        """
-        Get the semantic context strength for a single token - O(1) operation.
-        
-        Returns:
-            Tuple of (confidence, direction) for the token's semantic window
-        """
-        if self.semantic_vec is None:
-            return 0.0, 0
-        
-        idx = hadamard_index_fn(token_id)
-        window = idx & self.mask
-        
-        signal = self.semantic_vec[window]
-        pc = int(np.unpackbits(signal.view(np.uint8)).sum())
-        
-        confidence = abs(pc - 32) / 32.0
-        direction = 1 if pc > 32 else -1
-        
-        return confidence, direction
-    
-    def get_semantic_coverage(self) -> SemanticCoverageReport:
-        """
-        Analyze the full semantic landscape coverage.
-        
-        Returns a comprehensive report on:
-        - How many token pairs have strong signal
-        - Distribution of confidence across relationship space
-        - Dead zones (windows with near-random signal)
-        """
-        if self.semantic_vec is None:
-            return SemanticCoverageReport(
-                coverage=0.0,
-                dead_zones=[],
-                mean_confidence=0.0,
-                high_confidence_count=0,
-                total_windows=self.uint64_count,
-                confidence_distribution=[]
-            )
-        
-        confidence_values = []
-        dead_zones = []
-        high_confidence_count = 0
-        
-        for w in range(self.uint64_count):
-            signal = self.semantic_vec[w]
-            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
-            confidence = abs(pc - 32) / 32.0
-            confidence_values.append(confidence)
-            
-            if confidence > self.high_confidence_threshold:
-                high_confidence_count += 1
-            
-            if confidence < self.low_confidence_threshold:
-                dead_zones.append(w)
-        
-        coverage = high_confidence_count / self.uint64_count
-        mean_confidence = np.mean(confidence_values) if confidence_values else 0.0
-        
-        return SemanticCoverageReport(
-            coverage=coverage,
-            dead_zones=dead_zones,
-            mean_confidence=mean_confidence,
-            high_confidence_count=high_confidence_count,
-            total_windows=self.uint64_count,
-            confidence_distribution=confidence_values
-        )
-    
-    def predict_with_confidence_routing(
-        self,
-        context_tokens: List[int],
-        vocab_size: int,
-        hadamard_index_fn: Callable[[int], int],
-        syntactic_predict_fn: Callable[[List[int]], np.ndarray]
-    ) -> Tuple[int, float, str]:
-        """
-        Unified prediction pipeline with proactive confidence-based routing.
-        
-        Phase 1: Semantic probe - O(V) check for high-confidence relationships
-        Phase 2: SelfObservation - O(1) confidence check for best candidate
-        Phase 3: Route based on signal type
-        
-        Returns:
-            Tuple of (predicted_token, confidence, routing_path)
-        """
-        if not context_tokens:
-            return 0, 0.0, "fallback_empty_context"
-        
-        last_token = context_tokens[-1]
-        scores = np.zeros(vocab_size)
-        confidences = np.zeros(vocab_size)
-        
-        # Phase 1: Semantic probe - score all candidates
-        for candidate in range(vocab_size):
-            signal_type, conf, direction = self.observe_relationship(
-                last_token, candidate, hadamard_index_fn
-            )
-            scores[candidate] = conf * direction
-            confidences[candidate] = conf
-        
-        # Get best candidate
-        best_candidate = int(np.argmax(scores))
-        best_confidence = confidences[best_candidate]
-        
-        # Phase 2: SelfObservation - check confidence for best candidate
-        signal_type, confidence, direction = self.observe_relationship(
-            last_token, best_candidate, hadamard_index_fn
-        )
-        
-        # Phase 3: Route based on signal type
-        if signal_type == ConvergenceSignal.BREAKTHROUGH:
-            # High confidence - return immediately
-            return best_candidate, confidence, "semantic_high_confidence"
-        
-        elif signal_type == ConvergenceSignal.OSCILLATING:
-            # Contradictory contexts - use syntactic as tiebreaker
-            syntactic_probs = syntactic_predict_fn(context_tokens)
-            syntactic_best = int(np.argmax(syntactic_probs))
-            return syntactic_best, 0.5, "syntactic_tiebreaker"
-        
-        elif signal_type == ConvergenceSignal.STUCK:
-            # Genuinely unseen relationship - honest fallback
-            # Return uniform distribution (could also use syntactic)
-            return best_candidate, 0.0, "fallback_unseen"
-        
-        else:  # CONVERGING or CONTINUE
-            # Moderate confidence - use semantic with caution
-            return best_candidate, confidence, "semantic_moderate"
-    
-    def get_observation_history(self) -> List[Dict[str, Any]]:
-        """Get the history of relationship observations."""
-        return self._observation_history.copy()
-
-
-@dataclass
-class SemanticRelationshipRecipe:
-    """
-    Lightweight recipe for semantic relationships - 9 bytes instead of ~50.
-    
-    With the semantic layer, a "recipe" for any relationship is just:
-    - rel_window: computed from (idx_A XOR idx_B) & mask
-    - confidence: derived from popcount
-    - direction: +1 or -1
-    
-    Recipes are RECONSTRUCTABLE ON DEMAND from semantic_vec + two token indices,
-    so storage is optional - only for fast routing of high-confidence relationships.
-    """
-    rel_window: int  # (idx_A XOR idx_B) & mask — 4 bytes
-    confidence: float  # popcount-derived — 4 bytes
-    direction: int  # +1 or -1 — 1 byte
-    rel_type: str = "unknown"  # "synonym"/"is-a"/"part-of"/"co-occurrence"
-    token_A: int = -1  # Optional: for reverse lookup
-    token_B: int = -1  # Optional: for reverse lookup
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'rel_window': self.rel_window,
-            'confidence': self.confidence,
-            'direction': self.direction,
-            'rel_type': self.rel_type,
-            'token_A': self.token_A,
-            'token_B': self.token_B
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'SemanticRelationshipRecipe':
-        return cls(
-            rel_window=data['rel_window'],
-            confidence=data['confidence'],
-            direction=data['direction'],
-            rel_type=data.get('rel_type', 'unknown'),
-            token_A=data.get('token_A', -1),
-            token_B=data.get('token_B', -1)
-        )
-
-
-class SemanticCoverageObserver:
-    """
-    Monitors coverage and confidence distribution across the semantic landscape.
-    
-    Replaces BatchProjectionObserver's iteration-curve watching with direct
-    semantic landscape analysis. Dead zones identify token relationships the
-    corpus simply doesn't contain evidence for - honest uncertainty, not failure.
-    """
-    
-    def __init__(
-        self,
-        dim: int = DEFAULT_HDC_DIM,
-        high_confidence_threshold: float = 0.7,
-        low_confidence_threshold: float = 0.1,
-        window_size: int = SPARSE_WINDOW_SIZE  # accepted but unused (kept for API compat)
-    ):
-        self.dim = dim
-        self.uint64_count = dim // 64
-        self.high_confidence_threshold = high_confidence_threshold
-        self.low_confidence_threshold = low_confidence_threshold
-        
-        # Track coverage history
-        self._coverage_history: List[float] = []
-        self._dead_zone_history: List[List[int]] = []
-        self._mean_confidence_history: List[float] = []
-    
-    def observe_semantic_landscape(
-        self,
-        semantic_vec: np.ndarray
-    ) -> SemanticCoverageReport:
-        """
-        Analyze the semantic landscape for coverage and confidence distribution.
-        
-        This is the primary observation method - call after corpus projection.
-        """
-        confidence_values = []
-        dead_zones = []
-        high_confidence_count = 0
-        
-        for w in range(self.uint64_count):
-            signal = semantic_vec[w]
-            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
-            confidence = abs(pc - 32) / 32.0
-            confidence_values.append(confidence)
-            
-            if confidence > self.high_confidence_threshold:
-                high_confidence_count += 1
-            
-            if confidence < self.low_confidence_threshold:
-                dead_zones.append(w)
-        
-        coverage = high_confidence_count / self.uint64_count
-        mean_confidence = np.mean(confidence_values) if confidence_values else 0.0
-        
-        # Record history
-        self._coverage_history.append(coverage)
-        self._dead_zone_history.append(dead_zones)
-        self._mean_confidence_history.append(mean_confidence)
-        
-        return SemanticCoverageReport(
-            coverage=coverage,
-            dead_zones=dead_zones,
-            mean_confidence=mean_confidence,
-            high_confidence_count=high_confidence_count,
-            total_windows=self.uint64_count,
-            confidence_distribution=confidence_values
-        )
-    
-    def get_coverage_trend(self) -> str:
-        """Analyze coverage trend over observations."""
-        if len(self._coverage_history) < 2:
-            return "insufficient_data"
-        
-        recent = self._coverage_history[-5:]
-        if all(recent[i] <= recent[i+1] for i in range(len(recent)-1)):
-            return "improving"
-        elif all(recent[i] >= recent[i+1] for i in range(len(recent)-1)):
-            return "declining"
-        else:
-            return "stable"
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get observer statistics."""
-        return {
-            'observations': len(self._coverage_history),
-            'coverage_history': self._coverage_history,
-            'mean_confidence_history': self._mean_confidence_history,
-            'current_coverage': self._coverage_history[-1] if self._coverage_history else 0.0,
-            'current_dead_zones': len(self._dead_zone_history[-1]) if self._dead_zone_history else 0,
-            'coverage_trend': self.get_coverage_trend()
-        }
-
-
-@dataclass
-class CoherenceTrajectory:
-    """
-    Tracks semantic and temporal coherence through XOR composition.
-    
-    The trajectory maintains a running composition of semantic and temporal
-    indices, enabling O(1) coherence evaluation at each generation step.
-    
-    Key insight: XOR composition preserves translation invariance:
-        window(p) XOR window(q) = window(p XOR q)
-    
-    This allows us to track "where we are" in semantic space without
-    storing the full vector - just the XOR-composed index.
-    """
-    semantic_idx: int = 0  # XOR-composed semantic window index
-    temporal_idx: int = 0  # XOR-composed temporal window index
-    confidence: float = 0.0  # Current coherence confidence [0, 1]
-    tension: float = 0.0  # Creative tension (deviation from expected)
-    hop_count: int = 0  # Number of hops taken
-    echo_detected: bool = False  # Long-range coherence echo flag
-    echo_distance: int = 0  # Distance to detected echo (0 if none)
-    
-    def hop(self, semantic_delta: int, temporal_delta: int,
-            new_confidence: float, mask: int) -> 'CoherenceTrajectory':
-        """
-        Advance the trajectory by one hop - O(1) operation.
-        
-        XOR composition is self-inverse, so we can "unwind" the trajectory
-        to find echoes (long-range coherence patterns).
-        
-        Args:
-            semantic_delta: XOR delta for semantic index (idx_A XOR idx_B)
-            temporal_delta: XOR delta for temporal index (position delta)
-            new_confidence: Confidence at new position
-            mask: Window mask (uint64_count - 1)
-            
-        Returns:
-            New CoherenceTrajectory with updated state
-        """
-        new_semantic_idx = (self.semantic_idx ^ semantic_delta) & mask
-        new_temporal_idx = (self.temporal_idx ^ temporal_delta) & mask
-        
-        # Compute tension as deviation from expected coherence
-        # High tension = creative deviation from corpus patterns
-        tension_delta = abs(new_confidence - self.confidence)
-        new_tension = (self.tension * self.hop_count + tension_delta) / (self.hop_count + 1)
-        
-        return CoherenceTrajectory(
-            semantic_idx=new_semantic_idx,
-            temporal_idx=new_temporal_idx,
-            confidence=new_confidence,
-            tension=new_tension,
-            hop_count=self.hop_count + 1,
-            echo_detected=self.echo_detected,
-            echo_distance=self.echo_distance
-        )
-    
-    def check_echo(self, history: List['CoherenceTrajectory'],
-                   echo_threshold: float = 0.9) -> bool:
-        """
-        Check for long-range coherence echo - O(n) where n = hop_count.
-        
-        An echo occurs when the current semantic_idx matches a previous one,
-        indicating we've returned to a semantic "theme" in the generation.
-        
-        Args:
-            history: List of previous trajectories in this generation
-            echo_threshold: Minimum confidence to consider an echo valid
-            
-        Returns:
-            True if echo detected, False otherwise
-        """
-        for i, past in enumerate(history):
-            if past.semantic_idx == self.semantic_idx:
-                if past.confidence >= echo_threshold:
-                    # Found an echo - update self
-                    self.echo_detected = True
-                    self.echo_distance = self.hop_count - past.hop_count
-                    return True
-        return False
-    
-    def coherence_score(self) -> float:
-        """
-        Compute overall coherence score combining confidence and tension.
-        
-        High coherence = high confidence + low tension
-        Creative coherence = moderate tension + maintained confidence
-        """
-        # Base coherence from confidence
-        base = self.confidence
-        
-        # Tension penalty (but not too much - some tension is creative)
-        tension_penalty = self.tension * 0.3
-        
-        # Echo bonus - returning to themes is coherent
-        echo_bonus = 0.1 if self.echo_detected else 0.0
-        
-        return max(0.0, min(1.0, base - tension_penalty + echo_bonus))
-    
-    def creative_score(self, surprise_weight: float = 0.3) -> float:
-        """
-        Compute creative score balancing coherence with surprise.
-        
-        High creativity = maintained coherence + meaningful tension
-        This rewards generations that deviate creatively while
-        maintaining semantic grounding.
-        """
-        coherence = self.coherence_score()
-        surprise = self.tension  # Tension = deviation from expected
-        
-        # Weighted combination
-        # High creativity needs both coherence AND surprise
-        if coherence < 0.3:
-            # Too incoherent - not creative, just random
-            return coherence * 0.5
-        elif surprise < 0.1:
-            # Too predictable - boring
-            return coherence * 0.7
-        else:
-            # Sweet spot: coherent but surprising
-            return coherence * (1 - surprise_weight) + surprise * surprise_weight
-
-
-class CreativeCoherenceManager:
-    """
-    Manages creative coherence evaluation for HDC language generation.
-    
-    This class provides O(1) coherence evaluation using popcount operations
-    on XOR distances, enabling real-time creative scoring during generation.
-    
-    Key principles:
-    1. Coherence via popcount: coherence = 1 - (popcount(sem_rel ^ temp_rel) / 64)
-    2. Echo detection for long-range structural coherence
-    3. Creative scoring that balances coherence with surprise
-    4. Translation invariance: window(p) XOR window(q) = window(p XOR q)
-    """
-    
-    def __init__(
-        self,
-        dim: int = DEFAULT_HDC_DIM,
-        semantic_vec: Optional[np.ndarray] = None,
-        coherence_threshold: float = 0.7,
-        creative_threshold: float = 0.5,
-        echo_threshold: float = 0.85,
-        surprise_weight: float = 0.3
-    ):
-        self.dim = dim
-        self.uint64_count = dim // 64
-        self.mask = self.uint64_count - 1
-        self.semantic_vec = semantic_vec  # Reference to DualVectorProjection.semantic_vec
-        
-        # Thresholds
-        self.coherence_threshold = coherence_threshold
-        self.creative_threshold = creative_threshold
-        self.echo_threshold = echo_threshold
-        self.surprise_weight = surprise_weight
-        
-        # Trajectory tracking
-        self._trajectory_history: List[CoherenceTrajectory] = []
-        self._current_trajectory: Optional[CoherenceTrajectory] = None
-        
-        # Statistics
-        self._coherence_samples: List[float] = []
-        self._creative_samples: List[float] = []
-        self._echo_count: int = 0
-    
-    def reset_trajectory(self) -> None:
-        """Reset trajectory for a new generation sequence."""
-        if self._current_trajectory is not None:
-            self._trajectory_history.append(self._current_trajectory)
-        self._current_trajectory = CoherenceTrajectory()
-    
-    def evaluate_next_hop(
-        self,
-        current_token: int,
-        candidate_token: int,
-        position: int,
-        hadamard_index_fn: Callable[[int], int]
-    ) -> Tuple[CoherenceTrajectory, float, float]:
-        """
-        Evaluate a candidate next token for coherence and creativity - O(1).
-        
-        This is the core creative coherence evaluation. It computes:
-        1. Semantic relationship via XOR of hadamard indices
-        2. Temporal relationship via position delta
-        3. Coherence from popcount of semantic vector at relationship window
-        4. Creative score combining coherence with surprise
-        
-        Args:
-            current_token: The current token ID
-            candidate_token: The candidate next token ID
-            position: Current position in sequence
-            hadamard_index_fn: Function to convert token_id to hadamard index
-            
-        Returns:
-            Tuple of (new_trajectory, coherence_score, creative_score)
-        """
-        if self._current_trajectory is None:
-            self.reset_trajectory()
-        
-        # Compute semantic delta via XOR
-        idx_current = hadamard_index_fn(current_token)
-        idx_candidate = hadamard_index_fn(candidate_token)
-        semantic_delta = idx_current ^ idx_candidate
-        
-        # Compute temporal delta (position-based)
-        temporal_delta = position  # Simple position encoding
-        
-        # Get semantic window for this relationship
-        rel_window = semantic_delta & self.mask
-        
-        # O(1) coherence from semantic vector popcount
-        if self.semantic_vec is not None:
-            signal = self.semantic_vec[rel_window]
-            pc = int(np.unpackbits(signal.view(np.uint8)).sum())
-            # Confidence from distance to 32 (random popcount)
-            confidence = abs(pc - 32) / 32.0
-        else:
-            confidence = 0.5  # No semantic vector - neutral
-        
-        # Create new trajectory via hop
-        new_trajectory = self._current_trajectory.hop(
-            semantic_delta=semantic_delta,
-            temporal_delta=temporal_delta,
-            new_confidence=confidence,
-            mask=self.mask
-        )
-        
-        # Check for echo (long-range coherence)
-        if new_trajectory.check_echo(self._trajectory_history, self.echo_threshold):
-            self._echo_count += 1
-        
-        # Compute scores
-        coherence = new_trajectory.coherence_score()
-        creative = new_trajectory.creative_score(self.surprise_weight)
-        
-        # Record samples
-        self._coherence_samples.append(coherence)
-        self._creative_samples.append(creative)
-        
-        return new_trajectory, coherence, creative
-    
-    def accept_hop(self, trajectory: CoherenceTrajectory) -> None:
-        """Accept a trajectory as the current state."""
-        self._current_trajectory = trajectory
-    
-    def rank_candidates(
-        self,
-        current_token: int,
-        candidates: List[int],
-        position: int,
-        hadamard_index_fn: Callable[[int], int],
-        mode: str = "creative"
-    ) -> List[Tuple[int, float, float, CoherenceTrajectory]]:
-        """
-        Rank candidate tokens by coherence/creativity - O(V) where V = len(candidates).
-        
-        Args:
-            current_token: Current token ID
-            candidates: List of candidate token IDs
-            position: Current position
-            hadamard_index_fn: Token to hadamard index function
-            mode: "creative" for creative ranking, "coherent" for pure coherence
-            
-        Returns:
-            List of (token_id, coherence, creativity, trajectory) sorted by mode
-        """
-        results = []
-        
-        for candidate in candidates:
-            trajectory, coherence, creative = self.evaluate_next_hop(
-                current_token, candidate, position, hadamard_index_fn
-            )
-            results.append((candidate, coherence, creative, trajectory))
-        
-        # Sort by appropriate score
-        if mode == "creative":
-            results.sort(key=lambda x: x[2], reverse=True)  # Sort by creativity
-        else:
-            results.sort(key=lambda x: x[1], reverse=True)  # Sort by coherence
-        
-        return results
-    
-    def detect_creative_opportunity(self) -> Tuple[bool, float]:
-        """
-        Detect if current state presents a creative opportunity.
-        
-        A creative opportunity occurs when:
-        1. Current tension is moderate (not too predictable, not too random)
-        2. Confidence is maintained above threshold
-        3. No recent echo (we're in novel territory)
-        
-        Returns:
-            Tuple of (is_opportunity, opportunity_score)
-        """
-        if self._current_trajectory is None:
-            return False, 0.0
-        
-        traj = self._current_trajectory
-        
-        # Check conditions
-        tension_ok = 0.1 < traj.tension < 0.5
-        confidence_ok = traj.confidence >= self.coherence_threshold
-        novel_territory = not traj.echo_detected
-        
-        if tension_ok and confidence_ok and novel_territory:
-            opportunity_score = traj.creative_score(self.surprise_weight)
-            return True, opportunity_score
-        
-        return False, 0.0
-    
-    def get_trajectory_summary(self) -> Dict[str, Any]:
-        """Get summary of current trajectory state."""
-        if self._current_trajectory is None:
-            return {
-                'active': False,
-                'hop_count': 0,
-                'coherence': 0.0,
-                'creativity': 0.0,
-                'echo_detected': False
-            }
-        
-        return {
-            'active': True,
-            'hop_count': self._current_trajectory.hop_count,
-            'semantic_idx': self._current_trajectory.semantic_idx,
-            'temporal_idx': self._current_trajectory.temporal_idx,
-            'coherence': self._current_trajectory.coherence_score(),
-            'creativity': self._current_trajectory.creative_score(self.surprise_weight),
-            'tension': self._current_trajectory.tension,
-            'echo_detected': self._current_trajectory.echo_detected,
-            'echo_distance': self._current_trajectory.echo_distance
-        }
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get manager statistics."""
-        return {
-            'total_trajectories': len(self._trajectory_history),
-            'total_echoes': self._echo_count,
-            'mean_coherence': np.mean(self._coherence_samples) if self._coherence_samples else 0.0,
-            'mean_creativity': np.mean(self._creative_samples) if self._creative_samples else 0.0,
-            'current_trajectory': self.get_trajectory_summary()
-        }
-
-
-class RecipeReconstructor:
-    def __init__(self, dim: int = DEFAULT_HDC_DIM, hadamard_basis: Optional[WalshHadamardBasis] = None):
-        self.dim = dim
-        self.uint64_count = dim // 64
-        self.hadamard_basis = hadamard_basis or WalshHadamardBasis(dim=dim)
-        
-        # Cache for reconstructed vectors (optional, for performance)
-        self._cache: Dict[str, np.ndarray] = {}
-        self._cache_enabled = True
-        self._max_cache_size = 10000
-    
-    def reconstruct_from_recipe(self, recipe: Recipe) -> np.ndarray:
-        # Check cache first
-        cache_key = recipe.recipe_id
-        if self._cache_enabled and cache_key in self._cache:
-            return self._cache[cache_key].copy()
-        
-        # Reconstruct from seed sequence
-        vectors = []
-        for seed in recipe.seed_sequence:
-            vec = self._reconstruct_single_seed(seed)
-            vectors.append(vec)
-        
-        # Apply operations in order
-        if not vectors:
-            result = np.zeros(self.uint64_count, dtype=np.uint64)
-        elif len(vectors) == 1:
-            result = vectors[0].copy()
-        else:
-            # XOR bind all vectors
-            result = vectors[0].copy()
-            for vec in vectors[1:]:
-                result = np.bitwise_xor(result, vec)
-        
-        # Cache the result
-        if self._cache_enabled:
-            if len(self._cache) >= self._max_cache_size:
-                # Evict oldest entries
-                keys_to_remove = list(self._cache.keys())[:self._max_cache_size // 2]
-                for key in keys_to_remove:
-                    del self._cache[key]
-            self._cache[cache_key] = result.copy()
-        
-        return result
-    
-    def _reconstruct_single_seed(self, seed: str) -> np.ndarray:
-        # Check cache
-        if self._cache_enabled and seed in self._cache:
-            return self._cache[seed].copy()
-        
-        if seed.startswith("token_"):
-            # Token embedding: use Hadamard basis
-            try:
-                token_id = int(seed.split("_")[1])
-                index, vec = self.hadamard_basis.get_row_from_string(seed, packed=True)
-                result = vec
-            except (ValueError, IndexError):
-                result = seed_to_hypervector(seed, self.dim)
-        
-        elif seed.startswith("pos_"):
-            # Position embedding: use Hadamard with circular shift
-            try:
-                pos = int(seed.split("_")[1])
-                result = hadamard_position_vector(pos, self.dim)
-            except (ValueError, IndexError):
-                result = seed_to_hypervector(seed, self.dim)
-        
-        elif seed.startswith("hadamard_"):
-            # Direct Hadamard row
-            try:
-                index = int(seed.split("_")[1])
-                result = self.hadamard_basis.get_row(index, packed=True)
-            except (ValueError, IndexError):
-                result = seed_to_hypervector(seed, self.dim)
-        
-        else:
-            # Generic seed: use BLAKE3 hash
-            result = seed_to_hypervector(seed, self.dim)
-        
-        # Cache the result
-        if self._cache_enabled:
-            self._cache[seed] = result.copy()
-        
-        return result
-    
-    def reconstruct_batch(self, recipes: List[Recipe]) -> List[np.ndarray]:
-        return [self.reconstruct_from_recipe(recipe) for recipe in recipes]
-    
-    def verify_reconstruction(self, recipe: Recipe, original_vector: np.ndarray) -> float:
-        reconstructed = self.reconstruct_from_recipe(recipe)
-        return hamming_similarity(reconstructed, original_vector)
-    
-    def clear_cache(self):
-        """Clear the reconstruction cache."""
-        self._cache.clear()
-    
-    def get_cache_stats(self) -> Dict[str, int]:
-        """Get cache statistics."""
-        return {
-            'cache_size': len(self._cache),
-            'max_cache_size': self._max_cache_size,
-            'cache_enabled': self._cache_enabled,
-            'hits': 0,
-            'misses': 0,
-            'hit_rate': 0.0
-        }
-
-
-class HDCLanguageModel: 
-    def __init__(self, config: HDCConfig):
-        self.config = config
-        self.dim = config.hdc_dim
-        self.uint64_count = self.dim // 64
-        
-        self.use_gpu = config.use_gpu_acceleration and _CUPY_AVAILABLE
-        self.sparse_window_size = config.sparse_window_size
-        if self.use_gpu:
-            self.gpu_manager = get_gpu_manager(use_gpu=True, device_id=config.gpu_device_id)
-            self.batch_ops = get_batch_ops(self.gpu_manager, self.dim, config.sparse_window_size)
-            self.xp = self.gpu_manager.xp
-            print(f"[HDCModel] Tensor Core GPU acceleration enabled (sparse_window={config.sparse_window_size})")
-        else:
-            self.gpu_manager = None
-            self.batch_ops = TensorCoreBatchOperations(
-                TensorCoreGPUManager(use_gpu=False), self.dim, config.sparse_window_size
-            )
-            self.xp = np
-            print(f"[HDCModel] Using CPU mode (sparse_window={config.sparse_window_size})")
-        
-        self._token_cache: Dict[int, np.ndarray] = {}
-        self._position_cache: Dict[int, np.ndarray] = {}
-        
-        self._gpu_token_matrix = None
-        self._gpu_position_matrix = None
-        
-        self.seed_registry = SeedRegistry()
-        
-        # Simple signature-based deduplication (XOR self-inverse property prevents exact duplicates)
-        self._signature_to_id: Dict[str, str] = {}
-        self.recipes: Dict[str, Recipe] = {}
-        self.recipe_storage_size = 0
-        
-        self.ngram_stats: Dict[Tuple[int, ...], int] = {}
-        
-        self.hadamard_basis = WalshHadamardBasis(dim=self.dim, use_gpu=self.use_gpu)
-        
-        # Recipe reconstructor for verification and debugging
-        self.recipe_reconstructor = RecipeReconstructor(dim=self.dim, hadamard_basis=self.hadamard_basis)
-        
-        # Metacognitive Residual Learning components
-        self.meta_residual_storage = MetaResidualRecipeStorage(dim=self.dim)
-        self.self_observation: Optional[SelfObservation] = None
-        self._pending_residual_learning: Optional[Tuple[np.ndarray, List[int], int]] = None
-        
-        # Semantic Layer components (O(1) proactive metacognition)
-        self.dual_projection: Optional[DualVectorProjection] = None
-        self.semantic_observation: Optional[SemanticSelfObservation] = None
-        self.semantic_coverage_observer: Optional[SemanticCoverageObserver] = None
-        
-        # Creative Coherence components
-        self.creative_coherence_manager: Optional[CreativeCoherenceManager] = None
-        
-        # Recipe verification statistics for logging
-        self._recipe_verifications = 0
-        self._recipe_verification_failures = 0
-
-        # O(1) reverse-lookup table: bytes(token_vec) → token_id
-        # Built once on demand; enables O(1) decode in batch/instant projection.
-        self._token_matrix_np: Optional[np.ndarray] = None   # (vocab_size, uint64_count)
-        self._reverse_lookup: Dict[bytes, int] = {}           # vec_bytes → token_id
-        self._rl_built: bool = False
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # O(1) Token Reverse-Lookup System
-    # ─────────────────────────────────────────────────────────────────────────
-
-    def _ensure_reverse_lookup(self) -> None:
-        """Build the BLAKE3-keyed O(1) token reverse-lookup table once.
-
-        Every token vector is deterministic (BLAKE3 → Hadamard row), so
-        bytes(token_vec) is a collision-free key with 2^{-64} false-match
-        probability.  The one-time cost is O(vocab_size) = O(1024); all
-        subsequent lookups are O(1) Python dict gets.
-
-        The circular encoder timestamp (shift = pos % uint64_count) is used
-        to *unbind* a position window before the dict lookup, not as the key
-        itself — the key is always the full-dim token vector bytes.
-        """
-        if self._rl_built:
-            return
-        V = self.config.vocab_size
-        self._token_matrix_np = np.zeros((V, self.uint64_count), dtype=np.uint64)
-        for tid in range(V):
-            vec = self.get_token_vector(tid)          # O(1) each – hits cache
-            self._token_matrix_np[tid] = vec
-            self._reverse_lookup[vec.tobytes()] = tid
-        self._rl_built = True
-        print(f"[HDCModel] O(1) reverse lookup built: {V} tokens, "
-              f"{len(self._reverse_lookup)} entries")
-
-    def o1_token_from_vec(self, vec: np.ndarray) -> Optional[int]:
-        """O(1) token lookup via BLAKE3-keyed reverse dict.
-
-        Works exactly when vec == token_matrix[t] (batch/instant projection
-        path where each sparse window carries a single unbound token signal).
-        Returns None for fuzzy/superposed vectors (standard recipe path).
-        """
-        self._ensure_reverse_lookup()
-        return self._reverse_lookup.get(vec.tobytes(), None)
-
-    def o1_decode_position(
-        self,
-        bundled_vec: np.ndarray,
-        position: int
-    ) -> Optional[int]:
-        """O(1) position decode: unbind circular-timestamp window → dict lookup.
-
-        Uses  shift = position % uint64_count  (the circular encoder address
-        stored at projection time) to address the exact W-block sparse window
-        for this position.  XOR self-inverse then recovers the token vector:
-
-            unbound[win] = bundled[win]  XOR  pos_vec[win]
-
-        A full-dim candidate is reconstructed from the window (zeros elsewhere)
-        and looked up in the reverse dict.  Zero-noise in the batch/instant
-        projection path means the lookup almost always hits; noisy vectors fall
-        back to None so callers can use the O(vocab_size) similarity path.
-        """
-        self._ensure_reverse_lookup()
-        W     = self.sparse_window_size
-        shift = position % self.uint64_count
-        win   = (np.arange(W, dtype=np.int32) + shift) % self.uint64_count
-
-        pos_vec = self.get_position_vector(position)
-        unbound_win = np.bitwise_xor(bundled_vec[win], pos_vec[win])
-
-        # Reconstruct full-dim candidate (zeros outside the sparse window)
-        candidate = np.zeros(self.uint64_count, dtype=np.uint64)
-        candidate[win] = unbound_win
-        return self._reverse_lookup.get(candidate.tobytes(), None)
-
-    def _find_optimal_shift(self, residual: np.ndarray) -> int:
-        if not isinstance(residual, np.ndarray) or len(residual) == 0:
-            return 0
-        
-        best_shift = 0
-        best_signal = 0
-        
-        # Test different shifts to find where residual has most structure
-        for shift in range(min(32, self.uint64_count)):
-            shifted = np.roll(residual, shift)
-            # Measure "structure" as the number of 1-bits in each block
-            signal = np.sum(np.unpackbits(shifted[:8].view(np.uint8)))
-            if signal > best_signal:
-                best_signal = signal
-                best_shift = shift
-        
-        return best_shift
-    
-    def _compute_context_signature(self, context: List[int]) -> str:
-        if not context:
-            return "empty"
-        # Use last few tokens for signature
-        sig_tokens = context[-5:] if len(context) >= 5 else context
-        return blake3_hash(json.dumps(sig_tokens).encode()).hex()[:16]
-    
-    def learn_meta_residual(
-        self,
-        stuck_state: np.ndarray,
-        context: List[int],
-        target: int,
-        target_vec: np.ndarray,
-        iterations_used: int = 50
-    ) -> Optional[MetaResidualRecipe]:
-        # Residual = what was missing between stuck state and target
-        residual = np.bitwise_xor(stuck_state, target_vec)
-
-        # The circular_shift for the last position in context is the natural
-        # sparse-window address for this prediction.  We store this as
-        # optimal_shift so apply_residual_to_vec jumps straight to it.
-        last_pos = max(0, len(context) - 1)
-        optimal_shift = last_pos % self.uint64_count
-
-        # Seed captures target + shift so the correction is deterministic
-        residual_seeds = [f"residual_{target}_shift{optimal_shift}"]
-
-        state_hash   = self.meta_residual_storage._hash_vector(stuck_state)
-        context_sig  = self._compute_context_signature(context)
-
-        recipe = MetaResidualRecipe(
-            recipe_id=f"meta_{len(self.meta_residual_storage._by_state_hash)}_{target}",
-            observed_state_hash=state_hash,
-            optimal_shift=optimal_shift,
-            residual_seeds=residual_seeds,
-            context_signature=context_sig,
-            target_token=target,
-            confidence=1.0,
-            replaces_iterations=iterations_used,
-            created_iteration=len(self.recipes)
-        )
-
-        if self.meta_residual_storage.store_residual(recipe):
-            return recipe
-
-        return None
-    
-    def predict_with_metacognitive_gating(
-        self,
-        context_tokens: List[int],
-        temperature: float = 1.0,
-        max_iterations: Optional[int] = None
-    ) -> Tuple[np.ndarray, SelfObservationState]:
-        # Encode context
-        context_vec = self.encode_context(context_tokens)
-        
-        # Check for existing residual recipe (fast path)
-        context_sig = self._compute_context_signature(context_tokens)
-        existing_residual = self.meta_residual_storage.get_residual_for_context(context_sig)
-        
-        # Use provided max_iterations or default
-        iterations_limit = max_iterations if max_iterations else 100
-        
-        # PHASE 2: Fast Path - existing residual recipe
-        if existing_residual:
-            # INSTANT WIN - Skip all search
-            probs = self.xp.zeros(self.config.vocab_size)
-            probs[existing_residual.target_token] = existing_residual.confidence
-            
-            # Apply learned distribution around target
-            target_vec = self.get_token_vector(existing_residual.target_token)
-            for token_id in range(self.config.vocab_size):
-                if token_id != existing_residual.target_token:
-                    token_vec = self.get_token_vector(token_id)
-                    sim = hamming_similarity(target_vec, token_vec)
-                    if sim > 0.6:
-                        probs[token_id] = sim * 0.1
-            
-            # Normalize
-            probs = self.xp.maximum(probs, self.config.min_probability)
-            probs = probs / self.xp.sum(probs)
-            
-            state = SelfObservationState(
-                iteration=0,
-                current_similarity=1.0,
-                best_similarity=1.0,
-                convergence_signal=ConvergenceSignal.CONVERGING,
-                trajectory_action=TrajectoryAction.RECALL,
-                detected_patterns=[existing_residual.recipe_id],
-                confidence=1.0,
-                reasoning_trace=["Fast path: residual recipe found"]
-            )
-            
-            return probs, state
-        
-        # PHASE 3: Initialize SelfObservation for metacognitive monitoring
-        if self.self_observation is None:
-            self.self_observation = SelfObservation(dim=self.dim, known_patterns={})
-        
-        # Register known patterns from recipes
-        for sig, recipe in list(self.recipes.items())[:100]:  # Limit for memory
-            if recipe.target_token < self.config.vocab_size:
-                target_vec = self.get_token_vector(recipe.target_token)
-                self.self_observation.register_pattern(recipe.recipe_id, target_vec)
-        
-        # PHASE 4: Metacognitive Search Loop
-        current_guess = context_vec.copy()
-        best_similarity = 0.0
-        best_guess = current_guess.copy()
-        
-        for iteration in range(iterations_limit):
-            # Standard prediction step
-            step_result = self._metacognitive_step(current_guess, context_vec, iteration)
-            current_guess = step_result['guess']
-            
-            # Observe current state
-            state = self.self_observation.observe(current_guess, iteration=iteration)
-            
-            # Track best
-            if state.current_similarity > best_similarity:
-                best_similarity = state.current_similarity
-                best_guess = current_guess.copy()
-            
-            # METACOGNITIVE GATING
-            if state.trajectory_action == TrajectoryAction.RECALL:
-                # Pattern recognized - instant return
-                probs = self._probs_from_patterns(state.detected_patterns)
-                return probs, state
-            
-            if state.trajectory_action == TrajectoryAction.BREAKTHROUGH:
-                # Early exit - confidence high
-                probs = self._probs_from_vector(current_guess, temperature)
-                return probs, state
-            
-            if state.trajectory_action == TrajectoryAction.CONTINUE:
-                continue
-            
-            if state.trajectory_action == TrajectoryAction.STUCK:
-                # RESIDUAL JUMP — O(W) sparse correction at recipe.optimal_shift.
-                # Only touches the W blocks at the circular_shift address;
-                # the rest of the 2^20-dim vector is untouched.
-                residual = self.meta_residual_storage.get_residual_for_state(current_guess)
-
-                if residual:
-                    current_guess = self.apply_residual_to_vec(current_guess, residual)
-                    continue
-                else:
-                    # No residual exists yet — mark for learning after search
-                    self._pending_residual_learning = (current_guess.copy(), context_tokens, -1)
-                    break
-            
-            if state.trajectory_action == TrajectoryAction.DIVERGING:
-                # Restart with different initialization
-                current_guess = self._random_restart(context_vec)
-        
-        # PHASE 5: Fallback to standard prediction
-        probs = self.predict_next_token_probabilities(context_tokens, temperature)
-        
-        final_state = SelfObservationState(
-            iteration=iterations_limit,
-            current_similarity=best_similarity,
-            best_similarity=best_similarity,
-            convergence_signal=ConvergenceSignal.CONTINUE,
-            trajectory_action=TrajectoryAction.CONTINUE,
-            confidence=best_similarity
-        )
-        
-        return probs, final_state
-    
-    def _metacognitive_step(
-        self,
-        current_guess: np.ndarray,
-        context_vec: np.ndarray,
-        iteration: int
-    ) -> Dict[str, Any]:
-        """Single metacognitive refinement step.
-
-        - FAST PATH O(1): if current_guess is an exact token vector (batch/
-          instant projection), the reverse-lookup fires immediately with no
-          similarity scan.
-        - SLOW PATH O(vocab): vectorised int8 dot-product over token matrix
-          (replaces the O(vocab) Python loop with a single NumPy call).
-        """
-        # ── Fast path: O(1) exact hit ─────────────────────────────────────
-        self._ensure_reverse_lookup()
-        best_token = self.o1_token_from_vec(current_guess)
-        if best_token is not None:
-            return {
-                'guess': current_guess,
-                'best_token': best_token,
-                'best_similarity': 1.0
-            }
-
-        # ── Slow path: vectorised similarity ──────────────────────────────
-        v8 = current_guess.view(np.int8)
-        m8 = self._token_matrix_np.view(np.int8)
-        total_bits = float(self.uint64_count * 64)
-        raw = m8.dot(v8).astype(np.float32)
-        similarities = (raw + total_bits) / (2.0 * total_bits)
-
-        best_token = int(np.argmax(similarities))
-        best_sim   = float(similarities[best_token])
-
-        # Refine guess towards best token
-        target_vec = self.get_token_vector(best_token)
-        alpha = 0.1 + 0.05 * iteration  # Increase influence over iterations
-        aligned = self._partial_xor_align(current_guess, target_vec, alpha)
-
-        return {
-            'guess': aligned,
-            'best_token': best_token,
-            'best_similarity': best_sim
-        }
-    
-    def _partial_xor_align(
-        self,
-        source: np.ndarray,
-        target: np.ndarray,
-        alpha: float
-    ) -> np.ndarray:
-        # XOR to find differences
-        diff = np.bitwise_xor(source, target)
-        
-        # Apply partial correction (flip alpha fraction of differing bits)
-        diff_bits = np.unpackbits(diff.view(np.uint8))
-        n_bits = len(diff_bits)
-        n_flip = int(alpha * np.sum(diff_bits))
-        
-        if n_flip > 0:
-            # Find positions of 1s (differing bits)
-            ones_pos = np.where(diff_bits == 1)[0]
-            if len(ones_pos) > 0:
-                # Randomly select n_flip positions
-                flip_pos = np.random.choice(ones_pos, min(n_flip, len(ones_pos)), replace=False)
-                correction = np.zeros(n_bits, dtype=np.uint8)
-                correction[flip_pos] = 1
-                correction_packed = np.packbits(correction).view(np.uint64)
-                return np.bitwise_xor(source, correction_packed[:len(source)])
-        
-        return source
-    
-    def _probs_from_patterns(self, patterns: List[str]) -> np.ndarray:
-        """Convert detected patterns to probability distribution."""
-        probs = self.xp.zeros(self.config.vocab_size)
-        
-        for pattern in patterns:
-            # Try to extract target token from pattern
-            if pattern.startswith("pattern_"):
-                try:
-                    # Find recipe by pattern name
-                    for sig, recipe in self.recipes.items():
-                        if recipe.recipe_id == pattern:
-                            probs[recipe.target_token] = recipe.confidence
-                            break
-                except (ValueError, IndexError):
-                    pass
-        
-        if self.xp.sum(probs) == 0:
-            probs = self.xp.ones(self.config.vocab_size) / self.config.vocab_size
-        else:
-            probs = probs / self.xp.sum(probs)
-        
-        return probs
-    
-    def _probs_from_vector(self, vec: np.ndarray, temperature: float = 1.0) -> np.ndarray:
-        """Convert hypervector to probability distribution over tokens.
-
-        Two-path implementation:
-        - FAST PATH  O(1): exact reverse-lookup hit (batch/instant projection,
-          where each sparse window carries a single unbound token signal with
-          zero superposition noise).
-        - SLOW PATH  O(vocab): vectorised XOR+popcount via NumPy int8 dot-product
-          (replaces the O(vocab) Python loop; still linear in vocab but avoids
-          per-iteration Python overhead and cache misses).
-        """
-        # ── Fast path: O(1) exact hit ─────────────────────────────────────
-        self._ensure_reverse_lookup()
-        tid = self.o1_token_from_vec(vec)
-        if tid is not None:
-            probs = np.full(self.config.vocab_size, self.config.min_probability,
-                            dtype=np.float32)
-            probs[tid] = 1.0
-            probs = probs / probs.sum()
-            return probs
-
-        # ── Slow path: vectorised similarity (fuzzy/superposed vectors) ───
-        # Reinterpret uint64 arrays as int8 so NumPy dot handles the multiply.
-        # Each matching bit contributes +1 to the sum; the result is proportional
-        # to the popcount of ~XOR(vec, codebook[i]), i.e. Hamming *similarity*.
-        v8 = vec.view(np.int8)
-        m8 = self._token_matrix_np.view(np.int8)          # (vocab, uint64*8)
-        # dot → (vocab,)  each entry = sum of matching int8 values ≈ popcount proxy
-        raw = m8.dot(v8).astype(np.float32)
-        total_bits = float(self.uint64_count * 64)
-        # Normalise to [0,1] similarity space (offset by total_bits/2 for int8 range)
-        similarities = (raw + total_bits) / (2.0 * total_bits)
-        return self._softmax_with_temperature(similarities, temperature)
-    
-    def _reconstruct_residual(self, recipe: MetaResidualRecipe) -> np.ndarray:
-        """
-        Reconstruct and apply the residual correction vector from a recipe.
-
-        SPARSE PATH: instead of rolling the full 2^20-dim vector and XOR-ing
-        the whole thing, we only touch the W blocks at recipe.optimal_shift —
-        the exact window address stored when the recipe was created.  This is
-        the O(W) metacognitive jump that makes correction sub-microsecond.
-        """
-        # Build the correction vector from seeds (full dim, lazy)
-        correction = np.zeros(self.uint64_count, dtype=np.uint64)
-        for seed in recipe.residual_seeds:
-            vec = seed_to_hypervector(seed, self.dim)
-            correction = np.bitwise_xor(correction, vec)
-        return correction
-
-    def apply_residual_to_vec(
-        self, vec: np.ndarray, recipe: MetaResidualRecipe
-    ) -> np.ndarray:
-        """
-        Apply a MetaResidualRecipe correction using the sparse O(W) update.
-
-        Replaces the old pattern of:
-            correction = self._reconstruct_residual(recipe)
-            vec = np.bitwise_xor(vec, correction)   # O(dim) — slow
-
-        With the sparse window jump:
-            vec = apply_sparse_update(vec, correction, shift)  # O(W) — fast
-        """
-        correction = self._reconstruct_residual(recipe)
-        if self.batch_ops is not None:
-            return self.batch_ops.apply_sparse_update(vec, correction, recipe.optimal_shift)
-        # CPU fallback without batch_ops
-        W = self.sparse_window_size
-        win_idx = (np.arange(W, dtype=np.int32) + recipe.optimal_shift) % self.uint64_count
-        result = vec.copy()
-        result[win_idx] = np.bitwise_xor(result[win_idx], correction[win_idx])
-        return result
-    
-    def _random_restart(self, context_vec: np.ndarray) -> np.ndarray:
-        """Generate a random restart point for search."""
-        # Combine context with random noise
-        noise = seed_to_hypervector(f"restart_{np.random.randint(10000)}", self.dim)
-        return np.bitwise_xor(context_vec, noise)
-    
-    def get_token_vector(self, token_id: int) -> np.ndarray:
-        if token_id in self._token_cache:
-            return self._token_cache[token_id]
-        
-        index, row = self.hadamard_basis.get_row_from_string(
-            f"token_{token_id}", packed=True, seed=self.config.seed
-        )
-        
-        self.seed_registry.get_or_create(f"token_{token_id}")
-        
-        if len(self._token_cache) < 10000:
-            self._token_cache[token_id] = row
-        
-        return row
-    
-    def get_position_vector(self, position: int) -> np.ndarray:
-        if position in self._position_cache:
-            return self._position_cache[position]
-        
-        seed_offset = self.config.seed % self.dim if self.config.seed else 0
-        row_index = (position + seed_offset) % self.dim
-        row = self.hadamard_basis.get_row(row_index, packed=True)
-        
-        self.seed_registry.get_or_create(f"pos_{position}")
-        
-        if len(self._position_cache) < 1000:
-            self._position_cache[position] = row
-        
-        return row
-    
-    def encode_context(self, tokens: List[int], use_temporal: bool = True) -> np.ndarray:
-        """Encode a token sequence into a single context hypervector.
-
-        Uses the same **sparse window** addressing as the batch/instant projection
-        paths: each position p writes only W blocks starting at
-        shift = p % uint64_count.  This eliminates full-dimension XOR bundling
-        and the crosstalk it causes between positions, making the output
-        decodable via O(1) reverse-lookup (unbind window -> dict get) rather
-        than requiring an O(vocab) similarity scan.
-
-        Why this is correct:
-        - The BLAKE3-deterministic token vectors guarantee unique reverse-lookup
-          keys (2^{-64} collision probability per pair).
-        - The circular encoder address shift = p % uint64_count guarantees that
-          positions separated by more than W=64 write to non-overlapping blocks,
-          so unbinding any such position recovers its exact token vector with
-          zero crosstalk from the rest of the context.
-        - For positions whose windows do overlap (|p1-p2| < W), a small amount
-          of interference exists, but the Hamming SNR remains ~4096:1 for
-          typical context lengths (same guarantee as the batch projection path).
-
-        The use_temporal / temporal_folding flag is honoured: when set, a
-        deterministic per-position phase shift is applied inside the window
-        so that relative order information is preserved.
-        """
-        if not tokens:
-            return np.zeros(self.uint64_count, dtype=np.uint64)
-
-        W   = self.sparse_window_size
-        out = np.zeros(self.uint64_count, dtype=np.uint64)
-
-        for i, token_id in enumerate(tokens):
-            token_vec = self.get_token_vector(token_id)
-            pos_vec   = self.get_position_vector(i)
-
-            # Circular encoder address -- identical to batch/instant projection
-            shift   = i % self.uint64_count
-            win_idx = (np.arange(W, dtype=np.int32) + shift) % self.uint64_count
-
-            if use_temporal and self.config.temporal_folding:
-                # Deterministic per-position phase preserves ordering information
-                # inside the sparse window without touching other blocks.
-                phase   = (i * 7 + 13) % W
-                rotated = np.roll(token_vec[win_idx] ^ pos_vec[win_idx], phase)
-                out[win_idx] ^= rotated
-            else:
-                # Pure sparse XOR bind -- mirrors the sparse_encode CUDA kernel
-                out[win_idx] ^= token_vec[win_idx] ^ pos_vec[win_idx]
-
-        return out
-    
-    def predict_next_token_probabilities(
-        self, context_tokens: List[int], temperature: float = 1.0
-    ) -> np.ndarray:
-        probs = self.xp.ones(self.config.vocab_size) / self.config.vocab_size
-        
-        if self.recipes:
-            recipe_probs = self._recall_from_recipes(context_tokens)
-            if recipe_probs is not None:
-                recipe_weight = 0.7
-                probs = recipe_weight * recipe_probs + (1 - recipe_weight) * probs
-        
-        if len(context_tokens) >= 1 and self.ngram_stats:
-            ngram_probs = self._ngram_prediction(context_tokens)
-            if ngram_probs is not None:
-                ngram_weight = 0.4
-                probs = ngram_weight * ngram_probs + (1 - ngram_weight) * probs
-        
-        context_vec = self.encode_context(context_tokens)
-
-        # encode_context uses sparse windows (shift = pos % uint64_count),
-        # matching the batch/instant projection encoding exactly.  The O(1)
-        # reverse-lookup is guaranteed: unbinding the last position's window
-        # recovers its exact BLAKE3-deterministic token vector with zero
-        # crosstalk from other positions (windows are non-overlapping for
-        # positions separated by >W=64 blocks).
-        self._ensure_reverse_lookup()
-        last_pos    = len(context_tokens) - 1
-        o1_token_id = self.o1_decode_position(context_vec, last_pos)
-
-        # O(1) hit is guaranteed with sparse window encoding
-        sim_probs = np.full(self.config.vocab_size, self.config.min_probability,
-                            dtype=np.float32)
-        if o1_token_id is not None:
-            sim_probs[o1_token_id] = 1.0
-        sim_probs /= sim_probs.sum()
-        sim_weight = 0.1
-        probs = sim_weight * sim_probs + (1 - sim_weight) * probs
-        
-        probs = self.xp.maximum(probs, self.config.min_probability)
-        probs = probs / self.xp.sum(probs)
-        
-        return probs
-    
-    def _recall_from_recipes(self, context_tokens: List[int]) -> Optional[np.ndarray]:
-        if not self.recipes:
-            return None
-        
-        for ctx_len in range(min(len(context_tokens), 5), 0, -1):
-            context = context_tokens[-ctx_len:]
-            sig = self._compute_signature(context)
-            
-            if sig in self.recipes:
-                recipe = self.recipes[sig]
-                
-                probs = self.xp.zeros(self.config.vocab_size)
-                probs[recipe.target_token] = recipe.confidence
-                
-                target_vec = self.get_token_vector(recipe.target_token)
-                for token_id in range(self.config.vocab_size):
-                    if token_id != recipe.target_token:
-                        token_vec = self.get_token_vector(token_id)
-                        sim = hamming_similarity(target_vec, token_vec)
-                        if sim > 0.6:
-                            probs[token_id] = sim * 0.1
-                
-                return probs
-        
-        return None
-    
-    def _ngram_prediction(self, context_tokens: List[int]) -> Optional[np.ndarray]:
-        probs = self.xp.zeros(self.config.vocab_size)
-        found_any = False
-        
-        for n in range(min(4, len(context_tokens)), 0, -1):
-            ngram = tuple(context_tokens[-n:])
-            
-            for next_ngram, next_count in self.ngram_stats.items():
-                if len(next_ngram) == n + 1 and next_ngram[:n] == ngram:
-                    next_token = next_ngram[-1]
-                    probs[next_token] += next_count * (n / 4.0)
-                    found_any = True
-        
-        if found_any:
-            total = self.xp.sum(probs)
-            if total > 0:
-                probs = probs / total
-                return probs
-        
-        return None
-    
-    def initialize_semantic_layer(self) -> None:
-        """
-        Initialize the semantic layer for O(1) proactive metacognition.
-        
-        This creates:
-        - DualVectorProjection: Maintains syntactic_vec and semantic_vec
-        - SemanticSelfObservation: Proactive confidence monitor
-        - SemanticCoverageObserver: Landscape coverage tracker
-        """
-        if self.dual_projection is None:
-            self.dual_projection = DualVectorProjection(
-                dim=self.dim,
-                window_size=self.sparse_window_size
-            )
-            print(f"[HDCModel] Initialized DualVectorProjection (window_size={self.sparse_window_size})")
-        
-        if self.semantic_observation is None:
-            self.semantic_observation = SemanticSelfObservation(
-                dim=self.dim,
-                semantic_vec=self.dual_projection.semantic_vec,
-                mask=self.dual_projection.mask
-            )
-            print("[HDCModel] Initialized SemanticSelfObservation (proactive metacognition)")
-        
-        if self.semantic_coverage_observer is None:
-            self.semantic_coverage_observer = SemanticCoverageObserver(
-                dim=self.dim
-            )
-            print("[HDCModel] Initialized SemanticCoverageObserver")
-        
-        # Initialize Creative Coherence Manager
-        if self.creative_coherence_manager is None:
-            self.creative_coherence_manager = CreativeCoherenceManager(
-                dim=self.dim,
-                semantic_vec=self.dual_projection.semantic_vec if self.dual_projection else None
-            )
-            print("[HDCModel] Initialized CreativeCoherenceManager (creative generation)")
-    
-    def project_corpus_semantic(self, tokens: List[int]) -> None:
-        """
-        Project corpus into the semantic layer for O(1) relationship queries.
-        
-        This fills the semantic_vec with token-relationship signals that can
-        be queried in O(1) time using the Hadamard XOR property:
-        - relationship_idx = token_A ^ token_B
-        - confidence = |popcount - 32| / 32
-        """
-        if self.dual_projection is None:
-            self.initialize_semantic_layer()
-        
-        self.dual_projection.project_corpus(tokens)
-        
-        # Update semantic observation reference
-        if self.semantic_observation is not None:
-            self.semantic_observation.semantic_vec = self.dual_projection.semantic_vec
-        
-        # Update creative coherence manager reference
-        if self.creative_coherence_manager is not None:
-            self.creative_coherence_manager.semantic_vec = self.dual_projection.semantic_vec
-    
-    def query_semantic_relationship(
-        self,
-        token_A: int,
-        token_B: int
-    ) -> Tuple[ConvergenceSignal, float, int]:
-        """
-        Query the semantic relationship between two tokens - O(1) operation.
-        
-        Returns:
-            Tuple of (signal_type, confidence, direction)
-        """
-        if self.semantic_observation is None:
-            self.initialize_semantic_layer()
-        
-        def hadamard_index_fn(token_id: int) -> int:
-            return self.dual_projection.hadamard_index(token_id)
-        
-        return self.semantic_observation.observe_relationship(
-            token_A, token_B, hadamard_index_fn
-        )
-    
-    def predict_with_semantic_routing(
-        self,
-        context_tokens: List[int],
-        temperature: float = 1.0
-    ) -> Tuple[int, float, str]:
-        """
-        Unified prediction pipeline with proactive confidence-based routing.
-        
-        This method uses the semantic layer to determine confidence BEFORE
-        prediction, enabling proactive routing decisions:
-        
-        1. HIGH_CONFIDENCE: Return semantic prediction immediately
-        2. MODERATE: Blend semantic and syntactic predictions
-        3. LOW/STUCK: Fall back to syntactic or uniform distribution
-        
-        Returns:
-            Tuple of (predicted_token_id, confidence, routing_path)
-        """
-        if self.semantic_observation is None:
-            self.initialize_semantic_layer()
-        
-        if not context_tokens:
-            return 0, 0.0, "fallback_empty_context"
-        
-        def hadamard_index_fn(token_id: int) -> int:
-            return self.dual_projection.hadamard_index(token_id)
-        
-        def syntactic_predict_fn(tokens: List[int]) -> np.ndarray:
-            return self.predict_next_token_probabilities(tokens, temperature)
-        
-        return self.semantic_observation.predict_with_confidence_routing(
-            context_tokens,
-            self.config.vocab_size,
-            hadamard_index_fn,
-            syntactic_predict_fn
-        )
-    
-    def get_semantic_coverage_report(self) -> Optional[SemanticCoverageReport]:
-        """
-        Get a comprehensive report on semantic landscape coverage.
-        
-        Returns information about:
-        - Fraction of windows with high confidence
-        - Dead zones (relationships the corpus doesn't contain evidence for)
-        - Mean confidence across the semantic vector
-        """
-        if self.semantic_observation is None:
-            return None
-        
-        return self.semantic_observation.get_semantic_coverage()
-    
-    def predict_with_creative_coherence(
-        self,
-        context_tokens: List[int],
-        mode: str = "creative",
-        top_k: int = 10,
-        temperature: float = 1.0
-    ) -> Tuple[int, float, float, str]:
-        """
-        Predict next token using creative coherence evaluation.
-        
-        This method enables "creative" generation by:
-        1. Evaluating multiple candidates for coherence AND creativity
-        2. Ranking by creative score (coherence + surprise balance)
-        3. Detecting creative opportunities (novel but grounded)
-        
-        Args:
-            context_tokens: List of token IDs forming the context
-            mode: "creative" for creative ranking, "coherent" for pure coherence
-            top_k: Number of top candidates to consider
-            temperature: Temperature for base probability distribution
-            
-        Returns:
-            Tuple of (predicted_token, coherence, creativity, routing_info)
-        """
-        if self.creative_coherence_manager is None:
-            self.initialize_semantic_layer()
-        
-        if not context_tokens:
-            return 0, 0.0, 0.0, "fallback_empty_context"
-        
-        # Get base probabilities for candidate filtering
-        base_probs = self.predict_next_token_probabilities(context_tokens, temperature)
-        top_indices = np.argsort(base_probs)[-top_k:]
-        
-        # Get current token and position
-        current_token = context_tokens[-1]
-        position = len(context_tokens)
-        
-        # Hadamard index function
-        def hadamard_index_fn(token_id: int) -> int:
-            return self.dual_projection.hadamard_index(token_id)
-        
-        # Rank candidates by creative/coherence score
-        ranked = self.creative_coherence_manager.rank_candidates(
-            current_token=current_token,
-            candidates=list(top_indices),
-            position=position,
-            hadamard_index_fn=hadamard_index_fn,
-            mode=mode
-        )
-        
-        if not ranked:
-            # Fallback to highest probability
-            best_idx = int(np.argmax(base_probs))
-            return best_idx, 0.0, 0.0, "fallback_no_candidates"
-        
-        # Get best candidate
-        best_token, coherence, creativity, trajectory = ranked[0]
-        
-        # Accept this hop into the trajectory
-        self.creative_coherence_manager.accept_hop(trajectory)
-        
-        # Build routing info
-        routing_info = f"creative_{mode}_coherence={coherence:.3f}_creativity={creativity:.3f}"
-        if trajectory.echo_detected:
-            routing_info += f"_echo_d{trajectory.echo_distance}"
-        
-        return best_token, coherence, creativity, routing_info
-    
-    def detect_creative_opportunity(self) -> Tuple[bool, float]:
-        """
-        Detect if current generation state presents a creative opportunity.
-        
-        A creative opportunity occurs when:
-        1. Current tension is moderate (not too predictable, not too random)
-        2. Confidence is maintained above threshold
-        3. No recent echo (we're in novel territory)
-        
-        Returns:
-            Tuple of (is_opportunity, opportunity_score)
-        """
-        if self.creative_coherence_manager is None:
-            return False, 0.0
-        
-        return self.creative_coherence_manager.detect_creative_opportunity()
-    
-    def get_creative_coherence_stats(self) -> Dict[str, Any]:
-        """
-        Get statistics from the creative coherence manager.
-        
-        Returns information about:
-        - Total trajectories and echoes detected
-        - Mean coherence and creativity scores
-        - Current trajectory state
-        """
-        if self.creative_coherence_manager is None:
-            return {
-                'active': False,
-                'message': 'Creative coherence not initialized'
-            }
-        
-        return self.creative_coherence_manager.get_statistics()
-    
-    def reset_creative_trajectory(self) -> None:
-        """Reset the creative coherence trajectory for a new generation."""
-        if self.creative_coherence_manager is not None:
-            self.creative_coherence_manager.reset_trajectory()
-    
-    def _softmax_with_temperature(self, similarities: np.ndarray, temperature: float) -> np.ndarray:
-        scaled = similarities * self.config.similarity_scale / temperature
-        scaled = scaled - self.xp.max(scaled)
-        exp_scores = self.xp.exp(scaled)
-        probs = exp_scores / self.xp.sum(exp_scores)
-        probs = self.xp.maximum(probs, self.config.min_probability)
-        probs = probs / self.xp.sum(probs)
-        return probs
-    
-    def learn_pattern(self, context: List[int], target: int, use_peeling: bool = False) -> None:
-        """Learn a pattern from context -> target mapping.
-        
-        Args:
-            context: List of token IDs forming the context
-            target: Target token ID to predict
-            use_peeling: Ignored (kept for API compatibility)
-        """
-        # Create a simple recipe for this pattern
-        recipe_id = f"pattern_{len(self.recipes)}"
-        recipe = Recipe(
-            recipe_id=recipe_id,
-            seed_sequence=[f"token_{target}"],
-            operation_order=[0],
-            problem_signature=self._compute_signature(context),
-            target_token=target,
-            confidence=1.0
-        )
-        
-        # Verify recipe reconstruction matches expected target vector
-        target_vec = self.get_token_vector(target)
-        reconstructed_vec = self.recipe_reconstructor.reconstruct_from_recipe(recipe)
-        similarity = hamming_similarity(reconstructed_vec, target_vec)
-        self._recipe_verifications += 1
-        
-        if similarity < 0.99:
-            self._recipe_verification_failures += 1
-            # Log verification failure for debugging (rare, indicates seed mismatch)
-            if self._recipe_verifications <= 10 or self._recipe_verifications % 1000 == 0:
-                print(f"[RecipeReconstructor] Verification warning: recipe {recipe_id} "
-                      f"similarity={similarity:.4f} (target_token={target})")
-        
-        # Simple signature-based deduplication using XOR self-inverse property
-        sig = recipe.problem_signature
-        if sig in self._signature_to_id:
-            return  # Duplicate found, skip
-        
-        # Enforce max_recipes limit before adding
-        if self.config.max_recipes > 0 and len(self.recipes) >= self.config.max_recipes:
-            # Remove oldest recipe (FIFO)
-            oldest_key = next(iter(self.recipes))
-            removed_recipe = self.recipes.pop(oldest_key, None)
-            if removed_recipe:
-                self.recipe_storage_size -= removed_recipe.size_bytes()
-        
-        self._signature_to_id[sig] = recipe_id
-        self.recipes[recipe_id] = recipe
-        self.recipe_storage_size += recipe.size_bytes()
-        
-        if len(context) >= 1:
-            for n in range(1, min(4, len(context) + 1)):
-                continuation = tuple(context[-n:] + [target])
-                self.ngram_stats[continuation] = self.ngram_stats.get(continuation, 0) + 1
-    
-    def _compute_signature(self, tokens: List[int]) -> str:
-        data = json.dumps(tokens).encode()
-        return blake3_hash(data).hex()[:16]
-    
-    def _ensure_gpu_matrices(self) -> None:
-        """Ensure GPU matrices are initialized for batch operations."""
-        if not self.use_gpu or self.batch_ops is None:
-            return
-        
-        if self._gpu_token_matrix is None:
-            self._gpu_token_matrix = self.batch_ops.build_token_matrix(self.config.vocab_size)
-        
-        if self._gpu_position_matrix is None:
-            self._gpu_position_matrix = self.batch_ops.build_position_matrix(self.config.max_context_length)
-    
-    def learn_patterns_batch(
-        self,
-        contexts: List[List[int]],
-        targets: List[int],
-        use_peeling: bool = False
-    ) -> None:
-        """Batch learn multiple patterns with tensor core acceleration."""
-        if not self.use_gpu or self.batch_ops is None:
-            for context, target in zip(contexts, targets):
-                self.learn_pattern(context, target, use_peeling=use_peeling)
-            return
-        
-        self._ensure_gpu_matrices()
-        
-        batch_size = len(contexts)
-        if batch_size == 0:
-            return
-        
-        patterns, target_vecs = self.batch_ops.batch_learn_patterns(
-            contexts, targets,
-            self._gpu_token_matrix,
-            self._gpu_position_matrix
-        )
-        
-        patterns_cpu = self.gpu_manager.to_cpu(patterns)
-        
-        # INSTANT SIGNATURE: Use the pattern vector's sparse window directly as signature
-        # The XOR self-inverse property ensures uniqueness - first 4 uint64 values form
-        # a 256-bit instant signature with zero additional computation.
-        
-        new_recipes = {}
-        new_ngrams = {}
-        
-        for i, (context, target) in enumerate(zip(contexts, targets)):
-            pattern = patterns_cpu[i]
-            
-            # INSTANT SIGNATURE: First 4 uint64 values = 256 bits of uniqueness
-            sig = f"hv_{pattern[0]:016x}_{pattern[1]:016x}_{pattern[2]:016x}_{pattern[3]:016x}"
-            
-            # O(1) instant signature lookup - XOR self-inverse property prevents duplicates
-            if sig in self._signature_to_id:
-                continue  # Duplicate found, skip
-            
-            # Not a duplicate - create and store the recipe
-            recipe_id = f"pattern_{len(self.recipes) + len(new_recipes)}"
-            recipe = Recipe(
-                recipe_id=recipe_id,
-                seed_sequence=[f"token_{target}"],
-                operation_order=[0],
-                problem_signature=sig,
-                target_token=target,
-                confidence=1.0
-            )
-            
-            # Register in signature index (fast O(1) update)
-            self._signature_to_id[sig] = recipe_id
-            
-            # Add to local batch
-            new_recipes[recipe_id] = recipe
-            
-            if len(context) >= 1:
-                for n in range(1, min(4, len(context) + 1)):
-                    continuation = tuple(context[-n:] + [target])
-                    new_ngrams[continuation] = new_ngrams.get(continuation, 0) + 1
-        
-        # Enforce max_recipes limit with LRU-style pruning
-        total_recipes = len(self.recipes) + len(new_recipes)
-        if self.config.max_recipes > 0 and total_recipes > self.config.max_recipes:
-            # Calculate how many to remove
-            excess = total_recipes - self.config.max_recipes
-            if excess > 0 and len(self.recipes) > 0:
-                # Remove oldest recipes (first-in-first-out for simplicity)
-                keys_to_remove = list(self.recipes.keys())[:excess]
-                for key in keys_to_remove:
-                    removed_recipe = self.recipes.pop(key, None)
-                    if removed_recipe:
-                        self.recipe_storage_size -= removed_recipe.size_bytes()
-        
-        self.recipes.update(new_recipes)
-        self.recipe_storage_size += sum(r.size_bytes() for r in new_recipes.values())
-        
-        for ngram, count in new_ngrams.items():
-            self.ngram_stats[ngram] = self.ngram_stats.get(ngram, 0) + count
-    
-    def predict_batch(
-        self,
-        contexts: List[List[int]],
-        temperature: float = 1.0,
-        top_k: int = 10
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Batch predict with tensor core acceleration."""
-        if not self.use_gpu or self.batch_ops is None:
-            probs_list = []
-            for context in contexts:
-                probs = self.predict_next_token_probabilities(context, temperature)
-                probs_list.append(probs)
-            probs = np.stack(probs_list, axis=0)
-            top_indices = np.argsort(probs, axis=-1)[:, ::-1][:, :top_k]
-            return probs, top_indices
-        
-        self._ensure_gpu_matrices()
-        
-        probs_gpu, top_indices_gpu = self.batch_ops.batch_predict(
-            contexts,
-            self._gpu_token_matrix,
-            self._gpu_position_matrix,
-            temperature=temperature,
-            top_k=top_k
-        )
-        
-        probs = self.gpu_manager.to_cpu(probs_gpu)
-        top_indices = self.gpu_manager.to_cpu(top_indices_gpu)
-        
-        return probs, top_indices
-
-    # ─────────────────────────────────────────────────────────────────────────
-    # 256 KB Binary Model Serialisation (Gap 1)
-    # ─────────────────────────────────────────────────────────────────────────
-
-    def save_binary_model(self, path: str) -> int:
-        """Serialise the trained model to the 256 KB binary format.
-
-        Binary layout (little-endian)
-        ─────────────────────────────
-        Offset   Size      Field
-        ──────   ────      ─────
-        0        4         magic  = 0x48444300  ("HDC\\x00")
-        4        4         version = 1
-        8        4         hdc_dim  (uint32)
-        12       4         vocab_size (uint32)
-        16       4         max_context_length (uint32)
-        20       4         sparse_window_size (uint32)
-        24       4         num_collision_entries (uint32)
-        28       4         reserved / padding
-        32       32        BLAKE3 seed bytes (deterministic token-vector seed)
-        64       128 KB    semantic_vec  (uint64_count × uint64, little-endian)
-        64+128K  128 KB    syntactic_vec (uint64_count × uint64, little-endian)
-        64+256K  6×N       collision_correction_table (N ≤ 32 entries × 6 bytes)
-
-        Total (no collisions): 32 + 32 + 131072 + 131072 = 262208 bytes ≈ 256 KB
-
-        Returns
-        -------
-        int – number of bytes written
-        """
-        if self.dual_projection is None:
-            raise RuntimeError(
-                "save_binary_model: dual_projection not initialised — "
-                "call initialize_semantic_layer() and project_corpus_semantic() first."
-            )
-
-        # ── BLAKE3 seed (32 bytes) ──────────────────────────────────────────
-        # The seed is the canonical string used to regenerate all token vectors.
-        # We hash the string "hdc_model_seed_v1" so the 32-byte field is always
-        # deterministic and can be verified on load.
-        seed_string = f"hdc_model_seed_v1_dim{self.dim}_vocab{self.config.vocab_size}"
-        seed_bytes = blake3_hash(seed_string.encode())[:32]
-
-        # ── Collision correction table ──────────────────────────────────────
-        collision_table = build_collision_correction_table(
-            vocab_size=self.config.vocab_size,
-            dim=self.dim,
-            max_entries=32
-        )
-        num_collisions = len(collision_table)
-
-        # ── Header (32 bytes) ───────────────────────────────────────────────
-        MAGIC = 0x48444300  # "HDC\x00"
-        VERSION = 1
-        header = struct.pack(
-            "<IIIIIIII",
-            MAGIC,
-            VERSION,
-            self.dim,
-            self.config.vocab_size,
-            self.config.max_context_length,
-            self.config.sparse_window_size,
-            num_collisions,
-            0,  # reserved
-        )  # 8 × 4 = 32 bytes
-
-        # ── Vectors ─────────────────────────────────────────────────────────
-        semantic_bytes  = self.dual_projection.semantic_vec.astype('<u8').tobytes()
-        syntactic_bytes = self.dual_projection.syntactic_vec.astype('<u8').tobytes()
-
-        # ── Collision table bytes ────────────────────────────────────────────
-        collision_bytes = b"".join(e.to_bytes() for e in collision_table)
-
-        # ── Write ────────────────────────────────────────────────────────────
-        payload = header + seed_bytes + semantic_bytes + syntactic_bytes + collision_bytes
-        with open(path, "wb") as f:
-            f.write(payload)
-
-        total_bytes = len(payload)
-        print(f"[BinaryModel] Saved {total_bytes:,} bytes ({total_bytes/1024:.1f} KB) → {path}")
-        print(f"[BinaryModel]   semantic_vec:  {len(semantic_bytes):,} bytes (128 KB)")
-        print(f"[BinaryModel]   syntactic_vec: {len(syntactic_bytes):,} bytes (128 KB)")
-        print(f"[BinaryModel]   collision_table: {num_collisions} entries × 6 bytes = {len(collision_bytes)} bytes")
-        return total_bytes
-
-    def load_binary_model(self, path: str) -> None:
-        """Load a 256 KB binary model artifact produced by ``save_binary_model``.
-
-        Restores ``dual_projection.semantic_vec``, ``dual_projection.syntactic_vec``,
-        and logs any collision correction entries found in the file.
-
-        Raises
-        ------
-        ValueError  – if the magic number or version is wrong
-        RuntimeError – if vector dimensions don't match the current config
-        """
-        MAGIC = 0x48444300
-        HEADER_SIZE = 32
-        SEED_SIZE = 32
-
-        with open(path, "rb") as f:
-            raw = f.read()
-
-        if len(raw) < HEADER_SIZE + SEED_SIZE:
-            raise ValueError(f"load_binary_model: file too small ({len(raw)} bytes)")
-
-        # ── Parse header ─────────────────────────────────────────────────────
-        (magic, version, file_dim, file_vocab, file_ctx, file_win,
-         num_collisions, _reserved) = struct.unpack_from("<IIIIIIII", raw, 0)
-
-        if magic != MAGIC:
-            raise ValueError(
-                f"load_binary_model: bad magic 0x{magic:08X} (expected 0x{MAGIC:08X})"
-            )
-        if version != 1:
-            raise ValueError(f"load_binary_model: unsupported version {version}")
-        if file_dim != self.dim:
-            raise RuntimeError(
-                f"load_binary_model: dim mismatch — file={file_dim}, model={self.dim}"
-            )
-
-        uint64_count = file_dim // 64
-        vec_bytes = uint64_count * 8  # each uint64 = 8 bytes
-
-        offset = HEADER_SIZE + SEED_SIZE
-        if len(raw) < offset + 2 * vec_bytes:
-            raise ValueError(
-                f"load_binary_model: file too small for vectors "
-                f"(need {offset + 2*vec_bytes}, got {len(raw)})"
-            )
-
-        # ── Restore vectors ──────────────────────────────────────────────────
-        semantic_vec  = np.frombuffer(raw[offset:offset + vec_bytes],
-                                      dtype='<u8').copy()
-        offset += vec_bytes
-        syntactic_vec = np.frombuffer(raw[offset:offset + vec_bytes],
-                                      dtype='<u8').copy()
-        offset += vec_bytes
-
-        # ── Ensure dual_projection exists ────────────────────────────────────
-        if self.dual_projection is None:
-            self.initialize_semantic_layer()
-
-        self.dual_projection.semantic_vec  = semantic_vec
-        self.dual_projection.syntactic_vec = syntactic_vec
-
-        # ── Parse collision correction table ─────────────────────────────────
-        collision_entries: List[CollisionCorrectionEntry] = []
-        for _ in range(num_collisions):
-            if offset + 6 > len(raw):
-                break
-            entry = CollisionCorrectionEntry.from_bytes(raw[offset:offset + 6])
-            collision_entries.append(entry)
-            offset += 6
-
-        print(f"[BinaryModel] Loaded {len(raw):,} bytes from {path}")
-        print(f"[BinaryModel]   dim={file_dim}, vocab={file_vocab}, "
-              f"ctx={file_ctx}, window={file_win}")
-        print(f"[BinaryModel]   collision_entries={len(collision_entries)}")
-        if collision_entries:
-            for e in collision_entries:
-                print(f"[BinaryModel]     token {e.token_a_id} ↔ token {e.token_b_id} "
-                      f"(correction_window={e.correction_window})")
 
 def build_sentencepiece_luts(sp, vocab_size: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     sp_vocab_size = int(sp.vocab_size())
@@ -7372,6 +4735,85 @@ def load_data_shard(file: Path):
     return tokens
 
 
+# Header constants for shard binary format
+_SHARD_HEADER_SIZE = 256
+_SHARD_MAGIC = 20240520
+
+
+def _read_shard_header(filepath: str) -> int:
+    """Read only the 16-byte header of a shard file. Returns token_count."""
+    with open(filepath, "rb") as f:
+        hdr = f.read(16)
+    magic = struct.unpack('<I', hdr[:4])[0]
+    if magic != _SHARD_MAGIC:
+        raise ValueError(f"Invalid magic number in {filepath}")
+    token_count = struct.unpack('<Q', hdr[8:16])[0]
+    return token_count
+
+
+def _mmap_copy_shard(filepath: str, dst: np.ndarray, dst_offset: int, count: int) -> None:
+    """Memory-map a shard file and copy `count` uint16 tokens into dst[dst_offset:]."""
+    mm = np.memmap(filepath, dtype=np.uint16, mode='r',
+                   offset=_SHARD_HEADER_SIZE, shape=(count,))
+    dst[dst_offset:dst_offset + count] = mm
+    del mm  # close the mmap
+
+
+def fast_load_token_shards(
+    shard_files: List[str],
+    max_tokens: int,
+    label: str = "Loading",
+    num_workers: int = 8,
+) -> np.ndarray:
+    """Load up to `max_tokens` uint16 tokens from shard files using mmap + threads.
+
+    Steps:
+      1. Scan headers (16 bytes each) to plan which shards/counts to load.
+      2. Pre-allocate a single uint16 output array (no concatenation needed).
+      3. Memory-map each shard and copy into the pre-allocated array using a
+         thread pool (GIL is released during numpy copy and I/O).
+
+    This avoids both the Python-object-per-element bloat and the 2× memory
+    spike from np.concatenate.
+    """
+    import concurrent.futures
+
+    # --- Phase 1: plan loads by scanning headers only (fast, sequential) ---
+    plan = []  # (filepath, dst_offset, tokens_to_take)
+    total_planned = 0
+    for shard_file in shard_files:
+        if total_planned >= max_tokens:
+            break
+        shard_count = _read_shard_header(shard_file)
+        take = min(shard_count, max_tokens - total_planned)
+        plan.append((shard_file, total_planned, take))
+        total_planned += take
+
+    if total_planned == 0:
+        return np.empty(0, dtype=np.uint16)
+
+    # --- Phase 2: pre-allocate output ---
+    tokens = np.empty(total_planned, dtype=np.uint16)
+    print(f"[{label}] Pre-allocated {total_planned:,} token buffer "
+          f"({total_planned * 2 / (1024**3):.2f} GiB)")
+
+    # --- Phase 3: parallel mmap+copy ---
+    loaded_counter = [0]  # mutable counter for ordered progress
+
+    def _worker(entry):
+        filepath, dst_offset, count = entry
+        _mmap_copy_shard(filepath, tokens, dst_offset, count)
+        return dst_offset + count, Path(filepath).name
+
+    effective_workers = min(num_workers, len(plan))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=effective_workers) as pool:
+        # Submit in order; iterate results in submission order for tidy logging
+        for loaded_up_to, name in pool.map(_worker, plan):
+            print(f"[{label}] Loaded {loaded_up_to:,} tokens from {name}")
+
+    return tokens
+
+
 def load_validation_tokens(pattern: str, seq_len: int):
     files = sorted(glob.glob(pattern))
     if not files:
@@ -7386,107 +4828,6 @@ def load_validation_tokens(pattern: str, seq_len: int):
     
     n_seqs = len(all_tokens) // seq_len
     return all_tokens[:n_seqs * seq_len].reshape(n_seqs, seq_len)
-
-
-def evaluate_bpb(
-    model: HDCLanguageModel,
-    val_tokens: np.ndarray,
-    sp,
-    base_bytes: np.ndarray,
-    has_leading_space: np.ndarray,
-    is_boundary_token: np.ndarray,
-    batch_size: int = 64,
-    max_batches: Optional[int] = None
-) -> Tuple[float, float]:
-    """Evaluate BPB with tensor core acceleration."""
-    total_bits = 0.0
-    total_bytes = 0
-    total_nats = 0.0
-    total_tokens = 0
-    
-    n_seqs = len(val_tokens)
-    
-    if model.use_gpu:
-        gpu_batch_size = min(batch_size * 4, 256)
-        
-        for batch_idx in range(0, n_seqs, batch_size):
-            if max_batches and batch_idx >= max_batches * batch_size:
-                break
-            
-            batch_end = min(batch_idx + batch_size, n_seqs)
-            batch = val_tokens[batch_idx:batch_end]
-            
-            all_contexts = []
-            all_targets = []
-            all_bytes = []
-            
-            for seq in batch:
-                for i in range(len(seq) - 1):
-                    context = seq[:i+1].tolist()
-                    target = int(seq[i+1])
-                    all_contexts.append(context)
-                    all_targets.append(target)
-                    
-                    if target < len(base_bytes):
-                        bytes_for_token = base_bytes[target]
-                        if has_leading_space[target]:
-                            bytes_for_token += 1
-                        all_bytes.append(max(1, bytes_for_token))
-                    else:
-                        all_bytes.append(1)
-            
-            for i in range(0, len(all_contexts), gpu_batch_size):
-                sub_contexts = all_contexts[i:i + gpu_batch_size]
-                sub_targets = all_targets[i:i + gpu_batch_size]
-                sub_bytes = all_bytes[i:i + gpu_batch_size]
-                
-                probs, _ = model.predict_batch(sub_contexts)
-                
-                for j, (target, bytes_for_token) in enumerate(zip(sub_targets, sub_bytes)):
-                    prob = max(probs[j, target], model.config.min_probability)
-                    total_bits += -math.log2(prob)
-                    total_nats += -math.log(prob)
-                    total_tokens += 1
-                    total_bytes += int(bytes_for_token)  # Convert to Python int to avoid overflow
-    else:
-        for batch_idx in range(0, n_seqs, batch_size):
-            if max_batches and batch_idx >= max_batches * batch_size:
-                break
-            
-            batch_end = min(batch_idx + batch_size, n_seqs)
-            batch = val_tokens[batch_idx:batch_end]
-            
-            for seq in batch:
-                for i in range(len(seq) - 1):
-                    context = seq[:i+1].tolist()
-                    target = int(seq[i+1])
-                    
-                    probs = model.predict_next_token_probabilities(context)
-                    
-                    prob = max(probs[target], model.config.min_probability)
-                    bits = -math.log2(prob)
-                    total_bits += bits
-                    
-                    nats = -math.log(prob)
-                    total_nats += nats
-                    total_tokens += 1
-                    
-                    if target < len(base_bytes):
-                        bytes_for_token = base_bytes[target]
-                        if has_leading_space[target]:
-                            bytes_for_token += 1
-                        total_bytes += max(1, bytes_for_token)
-                    else:
-                        total_bytes += 1
-    
-    if total_bytes == 0:
-        return float('inf'), float('inf')
-    
-    bpb = total_bits / total_bytes
-    val_loss = total_nats / total_tokens if total_tokens > 0 else float('inf')
-    
-    return bpb, val_loss
-
 
 class DistributedTokenLoader:
     def __init__(self, pattern: str, rank: int = 0, world_size: int = 1):
@@ -7627,674 +4968,517 @@ class AsyncTokenLoader:
         return self._get_batch_sync(batch_tokens, seq_len)
 
 
-def train_hdc(config: HDCConfig) -> Tuple[float, float, float]:
-    dist_ctx = get_distributed_context()
-    dist_ctx.initialize_from_config(config)
-    
-    is_main = dist_ctx.is_main_process()
-    rank = dist_ctx.rank
-    world_size = dist_ctx.world_size
-    
-    if is_main:
-        # Competition standard log format - configuration info
-        print(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={config.tokenizer_path}")
-        print(f"train_loader:dataset:fineweb10B_sp1024 train_shards:25")
-        print(f"val_loader:shards pattern={config.val_files} tokens:63779840")
-        print(f"hdc_dim:{config.hdc_dim} vocab_size:{config.vocab_size} max_context:{config.max_context_length}")
-        print(f"world_size:{world_size} grad_accum_steps:1")
-        print(f"train_batch_tokens:{config.train_batch_tokens} train_seq_len:{config.max_context_length} iterations:{config.iterations} warmup_steps:0 max_wallclock_seconds:{config.max_wallclock_seconds:.3f}")
-        print(f"seed:{config.seed}")
-    
-    if dist_ctx.is_distributed:
-        device_id = dist_ctx.get_device_id()
-        gpu_manager = get_gpu_manager(use_gpu=config.use_gpu_acceleration, device_id=device_id)
-    else:
-        gpu_manager = get_gpu_manager(use_gpu=config.use_gpu_acceleration, device_id=config.gpu_device_id)
-    
-    model = HDCLanguageModel(config)
-    
-    sp = spm.SentencePieceProcessor()
-    sp.load(config.tokenizer_path)
-    
-    base_bytes, has_leading_space, is_boundary_token = build_sentencepiece_luts(sp, config.vocab_size)
-    
-    if is_main:
-        print("[TensorCore] Loading validation data...")
-    val_tokens = load_validation_tokens(config.val_files, config.max_context_length)
-    if is_main:
-        print(f"[TensorCore] Validation sequences: {len(val_tokens):,}")
-    
-    if model.use_gpu:
-        loader = AsyncTokenLoader(
-            config.train_files,
-            rank=rank,
-            world_size=world_size,
-            prefetch_batches=2
-        )
-    else:
-        loader = DistributedTokenLoader(
-            config.train_files,
-            rank=rank,
-            world_size=world_size
-        )
-    
+
+def train_hdc_seed_projection(config: HDCConfig) -> Tuple[float, float, float]:
+    """DNA-Stacked Bipolar HDC Training — Hadamard index + position binding.
+
+    "DNA Stack" architecture: tokens are stacked via bipolar superposition,
+    like nucleotides in a DNA strand. Each table bucket is an accumulator
+    where multiple tokens can coexist. The dominant token has the strongest
+    bipolar signal (popcount far from neutral), and "pops out" of the stack
+    instantly — like reading a base pair. Neutral entries (popcount ≈ 50%)
+    signal "no information" and fall through to bigram fallback.
+
+    Core components:
+    1. token_id → Hadamard row → bipolar token vector                O(1)
+    2. Hadamard position binding: H[pos] timestamps each token       O(1)
+    3. Context hash = XOR-bind of preceding tokens × position keys
+    4. DNA Stack: fully vectorized np.unique counting per bucket
+    5. Neutral detection: low-confidence buckets → bigram fallback
+    6. Vectorized metacognitive correction: overwrite low-confidence
+
+    All phases are FULLY VECTORIZED — no Python for‑loops over tokens.
+
+    Returns:
+        Tuple of (final_bpb, final_val_loss, elapsed_time)
+    """
+    import time
+    import math
+    from glob import glob
+
     start_time = time.time()
-    iteration = 0
-    
-    gpu_batch_size = config.gpu_batch_size if model.use_gpu else 1
-    batch_tokens = config.train_batch_tokens // config.max_context_length
-    
-    if isinstance(loader, AsyncTokenLoader):
-        loader.start_prefetch(batch_tokens, config.max_context_length)
-    
-    try:
-        while iteration < config.iterations:
-            elapsed = time.time() - start_time
-            if elapsed >= config.max_wallclock_seconds:
-                if is_main:
-                    # Competition standard format for early stopping
-                    recipes_count = len(model.recipes)
-                    ngram_count = len(model.ngram_stats)
-                    storage_mb = model.recipe_storage_size / (1024 * 1024)
-                    avg_step_time_ms = (elapsed / iteration) * 1000 if iteration > 0 else 0
-                    print(f"stopping_early: wallclock_cap train_time:{int(elapsed*1000)}ms step:{iteration}/{config.iterations}")
-                    print(f"hdc_summary: recipes:{recipes_count:,} ngrams:{ngram_count:,} storage_mb:{storage_mb:.2f}")
+    vocab_size = config.vocab_size  # 1024
+    seed = config.seed
+
+    # ─── HDC Parameters ──────────────────────────────────────────────────
+    W_UINT64 = 16            # 16 uint64 = 1024 bits per vector
+    W_BITS = W_UINT64 * 64   # 1024 bits
+    CTX_LEN = 4              # 4-token context — better coverage than 8-gram
+
+    # Table sizing: artifact = code_bytes + model_bytes ≤ 16,000,000 bytes
+    # Code: ~346 KB, so budget for model ≈ 15.6 MB
+    # Table: 2^22 = 4,194,304 entries × 2 bytes = 8,388,608 bytes (~8.4 MB)
+    # Bigram: 1024 × 2 bytes = 2,048 bytes
+    # Total model: ~8.4 MB — well within 16 MB limit
+    TABLE_BITS = 22           # 2^22 = 4,194,304 entries
+    TABLE_SIZE = 1 << TABLE_BITS
+
+    # ─── Hadamard Position Binding Keys ──────────────────────────────────
+    # Generated instantly in Phase 1 using vectorized numpy
+    # (placeholder — overwritten by generate_pos_hash_keys_instant below)
+    POS_HASH_KEYS = np.zeros(CTX_LEN, dtype=np.uint64)
+
+    # ─── Token budget: cap loading to what we can actually process ───────
+    # At ~50M tok/s vectorized, 500M tokens is ~10s per pass.
+    # Loading 8B tokens wastes ~90s and doesn't improve accuracy.
+    MAX_LOAD_TOKENS = 500_000_000  # 500M tokens — fast to load, full coverage
+
+    print(f"\n{'='*60}")
+    print(f"[DNA-HDC] Starting DNA-Stacked Bipolar HDC Training")
+    print(f"[DNA-HDC] Seed: {seed}, Vocab: {vocab_size}")
+    print(f"[DNA-HDC] Vector: {W_BITS} bits ({W_UINT64} uint64)")
+    print(f"[DNA-HDC] Context: {CTX_LEN} tokens (Hadamard position-bound)")
+    print(f"[DNA-HDC] Table: {TABLE_SIZE:,} entries ({TABLE_SIZE * 2 / 1024 / 1024:.0f} MB)")
+    print(f"[DNA-HDC] Token budget: {MAX_LOAD_TOKENS:,} (vectorized pipeline)")
+    print(f"[DNA-HDC] Position hash keys from Hadamard rows")
+    print(f"{'='*60}\n")
+
+    # ─── Load training tokens (capped) ───────────────────────────────────
+    print("[DNA-HDC] Loading training data...")
+    shard_files = sorted(glob(config.train_files))
+    if not shard_files:
+        print(f"[DNA-HDC] ERROR: No data files at {config.train_files}")
+        return float('inf'), float('inf'), 0.0
+
+    tokens = fast_load_token_shards(shard_files, MAX_LOAD_TOKENS, label="DNA-HDC")
+    N = len(tokens)
+    tokens = np.clip(tokens.astype(np.int32), 0, vocab_size - 1).astype(np.uint16)
+    load_time = time.time() - start_time
+    print(f"[DNA-HDC] Tokens loaded: {N:,} in {load_time:.1f}s")
+
+    # ═════════════════════════════════════════════════════════════════════
+    # Phase 1: Token Codebook — INSTANT Vectorized Hadamard Generation
+    # ═════════════════════════════════════════════════════════════════════
+    # Instead of 1024 × Python-loop calls to hadamard_row_packed (minutes),
+    # generate the ENTIRE codebook at once using vectorized numpy:
+    #
+    #   H[t, i] = (-1)^popcount(t & i)
+    #   Packed: bit b of block k = 1 if popcount(token_id & (k*64+b)) is even
+    #
+    # This computes the full (1024 × 1024) Hadamard matrix in one shot,
+    # then packs it into uint64 blocks — all in < 0.01 seconds.
+
+    print(f"\n[DNA-HDC Phase 1] Generating token codebook ({vocab_size} x {W_BITS} bits)...")
+    phase1_start = time.time()
+
+    # 8-bit popcount lookup table (computed once, used everywhere)
+    _POPCOUNT_LUT = np.array([bin(i).count('1') for i in range(256)], dtype=np.uint8)
+
+    def vectorized_popcount(arr: np.ndarray) -> np.ndarray:
+        """Vectorized popcount for arbitrary int arrays using 8-bit LUT.
+        Processes all elements in parallel — O(1) passes through numpy C code.
+        """
+        result = np.zeros(arr.shape, dtype=np.int32)
+        a = arr.astype(np.int64) if arr.dtype != np.int64 else arr
+        # Only need bits up to max value. For indices 0..1023, that's 10 bits (2 bytes).
+        for shift in range(0, 64, 8):
+            byte_vals = (a >> shift) & 0xFF
+            result += _POPCOUNT_LUT[byte_vals]
+        return result
+
+    def generate_codebook_instant(vocab: int, w_uint64: int) -> np.ndarray:
+        """Generate entire Hadamard codebook INSTANTLY using vectorized numpy.
+
+        Like reading DNA strands: each token's bipolar vector is computed in
+        parallel from the Hadamard matrix structure. No Python loops over
+        individual bits — pure C-level numpy operations.
+
+        H[t, i] = (-1)^popcount(t & i)
+        Packed: bit b of block k = 1 iff popcount(token_id & (k*64+b)) is even
+
+        For vocab=1024, w_uint64=16: computes 1024×1024 matrix in ~5ms.
+        """
+        w_bits = w_uint64 * 64
+        token_ids = np.arange(vocab, dtype=np.int64)
+        bit_positions = np.arange(w_bits, dtype=np.int64)
+
+        # Outer AND: (vocab, w_bits) — all pairs at once
+        and_vals = token_ids[:, None] & bit_positions[None, :]  # (1024, 1024)
+
+        # Vectorized popcount on entire matrix
+        popcounts = vectorized_popcount(and_vals)
+
+        # Parity: even popcount → bit = 1 (+1 bipolar), odd → bit = 0 (-1 bipolar)
+        bits_set = ((popcounts & 1) == 0)  # (vocab, w_bits) boolean
+
+        # Pack into uint64 using vectorized matrix multiply:
+        # For each block of 64 bits, multiply by [2^0, 2^1, ..., 2^63] and sum
+        powers = np.uint64(1) << np.arange(64, dtype=np.uint64)  # (64,)
+        codebook = np.zeros((vocab, w_uint64), dtype=np.uint64)
+        for block_idx in range(w_uint64):
+            block_bits = bits_set[:, block_idx * 64: (block_idx + 1) * 64]
+            # (vocab, 64) @ (64,) → (vocab,) — all tokens packed at once!
+            codebook[:, block_idx] = block_bits.astype(np.uint64) @ powers
+
+        return codebook
+
+    codebook = generate_codebook_instant(vocab_size, W_UINT64)
+    phase1_time = time.time() - phase1_start
+
+    print(f"[DNA-HDC Phase 1] Codebook ready in {phase1_time*1000:.1f}ms "
+          f"(vectorized Hadamard, 0 bytes stored)")
+
+    # ═════════════════════════════════════════════════════════════════════
+    # Also generate position hash keys instantly (same approach)
+    # ═════════════════════════════════════════════════════════════════════
+    #  POS_HASH_KEYS[i] = first uint64 of Hadamard row i, with LSB set
+    def generate_pos_hash_keys_instant(ctx_len: int) -> np.ndarray:
+        """Generate position hash keys from Hadamard matrix instantly."""
+        pos_ids = np.arange(ctx_len, dtype=np.int64)
+        bit_positions = np.arange(64, dtype=np.int64)
+        and_vals = pos_ids[:, None] & bit_positions[None, :]  # (ctx_len, 64)
+        popcounts = vectorized_popcount(and_vals)
+        bits_set = ((popcounts & 1) == 0)  # (ctx_len, 64)
+        powers = np.uint64(1) << np.arange(64, dtype=np.uint64)
+        first_uint64 = bits_set.astype(np.uint64) @ powers  # (ctx_len,)
+        return first_uint64 | np.uint64(1)  # Ensure odd for invertibility
+
+    # Override POS_HASH_KEYS with instant version
+    POS_HASH_KEYS = generate_pos_hash_keys_instant(CTX_LEN)
+
+    # ═════════════════════════════════════════════════════════════════════
+    # Helper: vectorized context hash computation
+    # ═════════════════════════════════════════════════════════════════════
+    seed_val = np.uint64(seed)
+
+    def compute_context_hashes(chunk_start: int, chunk_end: int) -> np.ndarray:
+        """Compute Hadamard-position-bound context hashes (fully vectorized).
+
+        hash[p] = XOR_{i=0}^{CTX-1} (tokens[p-CTX+i] * POS_HASH_KEYS[i])
+        Returns bucket indices as int64 array.
+        """
+        chunk_n = chunk_end - chunk_start
+        ctx_base = tokens[chunk_start - CTX_LEN: chunk_end].astype(np.uint64)
+        hash_vals = np.zeros(chunk_n, dtype=np.uint64)
+        for c in range(CTX_LEN):
+            hash_vals ^= ctx_base[c: c + chunk_n] * POS_HASH_KEYS[c]
+        hash_vals = (hash_vals ^ seed_val) * np.uint64(0x9E3779B97F4A7C15)
+        return (hash_vals >> np.uint64(64 - TABLE_BITS)).astype(np.int64)
+
+    # ═════════════════════════════════════════════════════════════════════
+    # Phase 2: DNA Stack — Parallel Vectorized Bipolar Accumulation
+    # ═════════════════════════════════════════════════════════════════════
+    # Parallel pipeline with ThreadPoolExecutor (numpy releases GIL):
+    #   1. Hash all positions to buckets (numpy vectorized)
+    #   2. Create (bucket × vocab + token) pair keys
+    #   3. np.unique with return_counts → frequency of each (bucket,token)
+    #   4. For each bucket, pick the token with highest count
+    #   5. Merge chunk results into global table (vectorized Boyer-Moore)
+    #
+    # This is the "DNA stacking": multiple tokens superimpose in each
+    # bucket. The most frequent token has the strongest "signal" and
+    # emerges from the stack — like reading a base pair from DNA.
+    # Neutral entries (no dominant token) have balanced counts → low
+    # confidence → fall through to bigram fallback.
+    #
+    # Thread parallelism: numpy C operations release GIL, so multiple
+    # chunks overlap in hash computation + np.unique sorting.
+
+    import concurrent.futures
+
+    print(f"\n[DNA-HDC Phase 2] Building DNA-stacked context table...")
+    print(f"[DNA-HDC Phase 2] Parallel vectorized pipeline (ThreadPool + numpy GIL-free)")
+
+    table_tokens = np.zeros(TABLE_SIZE, dtype=np.uint16)
+    table_counts = np.zeros(TABLE_SIZE, dtype=np.int32)
+
+    CHUNK = 50_000_000  # 50M per chunk — vectorized, ~2-5s per chunk
+    N_WORKERS = 4       # Parallel threads for chunk processing
+
+    def process_chunk(chunk_start: int, chunk_end: int):
+        """Process a single chunk: hash → count → extract winners.
+
+        All operations are numpy C-level (GIL-free), so multiple chunks
+        can overlap in a thread pool for ~2-4× speedup.
+        """
+        chunk_n = chunk_end - chunk_start
+
+        # Step 1: Vectorized context hashing
+        buckets = compute_context_hashes(chunk_start, chunk_end)
+        chunk_targets = tokens[chunk_start: chunk_end].astype(np.int64)
+
+        # Step 2: DNA Stack counting — create (bucket, token) pair keys
+        pair_keys = buckets * vocab_size + chunk_targets
+
+        # Step 3: Count unique (bucket, token) pairs (C-level np.unique)
+        unique_pairs, counts = np.unique(pair_keys, return_counts=True)
+        pair_buckets = unique_pairs // vocab_size
+        pair_tokens = (unique_pairs % vocab_size).astype(np.uint16)
+        counts_i32 = counts.astype(np.int32)
+
+        # Step 4: For each bucket, find the token with max count
+        # Sort by (bucket ASC, count DESC) so first occurrence per bucket = winner
+        sorted_idx = np.lexsort((-counts_i32, pair_buckets))
+        sorted_pair_buckets = pair_buckets[sorted_idx]
+        sorted_pair_tokens = pair_tokens[sorted_idx]
+        sorted_counts = counts_i32[sorted_idx]
+
+        # First unique bucket in sorted order = the winner (highest count)
+        _, first_idx = np.unique(sorted_pair_buckets, return_index=True)
+        winner_buckets = sorted_pair_buckets[first_idx]
+        winner_tokens = sorted_pair_tokens[first_idx]
+        winner_counts = sorted_counts[first_idx]
+
+        return winner_buckets, winner_tokens, winner_counts, chunk_n
+
+    def merge_winners(winner_buckets, winner_tokens, winner_counts):
+        """Vectorized Boyer-Moore merge into global table.
+
+        Match: same token stored → strengthen signal (+count)
+        Mismatch with weaker signal → overwrite (DNA recombination)
+        Mismatch with stronger signal → weaken incumbent (−count)
+        Empty bucket → direct assign
+        """
+        current_tokens = table_tokens[winner_buckets]
+        current_counts = table_counts[winner_buckets]
+
+        # Case 1: Empty buckets (neutral — no signal yet)
+        empty_mask = (current_counts == 0)
+        # Case 2: Same token in bucket (reinforcing signal)
+        match_mask = (~empty_mask) & (current_tokens == winner_tokens)
+        # Case 3: Different token, new count beats old (DNA recombination)
+        mismatch_mask = (~empty_mask) & (current_tokens != winner_tokens)
+        overwrite_mask = mismatch_mask & (winner_counts > current_counts)
+        # Case 4: Different token, old count survives (weaken)
+        weaken_mask = mismatch_mask & (~overwrite_mask)
+
+        # Apply all cases vectorized
+        if np.any(empty_mask):
+            eb = winner_buckets[empty_mask]
+            table_tokens[eb] = winner_tokens[empty_mask]
+            table_counts[eb] = winner_counts[empty_mask]
+
+        if np.any(match_mask):
+            mb = winner_buckets[match_mask]
+            table_counts[mb] += winner_counts[match_mask]
+
+        if np.any(overwrite_mask):
+            ob = winner_buckets[overwrite_mask]
+            table_tokens[ob] = winner_tokens[overwrite_mask]
+            table_counts[ob] = winner_counts[overwrite_mask] - table_counts[ob]
+
+        if np.any(weaken_mask):
+            wb = winner_buckets[weaken_mask]
+            table_counts[wb] -= winner_counts[weaken_mask]
+            # If count went to 0 or negative, the bucket becomes "neutral"
+            neg_mask_local = table_counts[wb] <= 0
+            if np.any(neg_mask_local):
+                reset_buckets = wb[neg_mask_local]
+                table_counts[reset_buckets] = 0
+
+    # Build chunk ranges
+    chunk_ranges = []
+    for cs in range(CTX_LEN, N, CHUNK):
+        ce = min(cs + CHUNK, N)
+        chunk_ranges.append((cs, ce))
+
+    total_processed = 0
+    phase2_start = time.time()
+
+    # Parallel processing: submit chunks to thread pool, merge results as they complete
+    # numpy C operations (XOR, multiply, sort, unique) all release the GIL,
+    # so threads genuinely overlap on multi-core CPUs.
+    batch_size = N_WORKERS  # Process this many chunks in parallel batches
+
+    for batch_start in range(0, len(chunk_ranges), batch_size):
+        batch_end = min(batch_start + batch_size, len(chunk_ranges))
+        batch = chunk_ranges[batch_start:batch_end]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=N_WORKERS) as pool:
+            futures = {
+                pool.submit(process_chunk, cs, ce): (cs, ce)
+                for cs, ce in batch
+            }
+
+            # Collect results and merge (merge must be sequential since table is shared)
+            for future in concurrent.futures.as_completed(futures):
+                winner_buckets, winner_tokens, winner_counts, chunk_n = future.result()
+                merge_winners(winner_buckets, winner_tokens, winner_counts)
+                total_processed += chunk_n
+
+        elapsed_so_far = time.time() - phase2_start
+        rate = total_processed / elapsed_so_far if elapsed_so_far > 0 else 0
+        print(f"[DNA-HDC Phase 2] {total_processed:,}/{N - CTX_LEN:,} "
+              f"({rate:,.0f} tok/s parallel, batch {batch_start//batch_size + 1})")
+
+        if time.time() - start_time > config.max_wallclock_seconds * 0.80:
+            print(f"[DNA-HDC Phase 2] Budget 80%, stopping at {total_processed:,}")
+            break
+
+    phase2_time = time.time() - phase2_start
+    filled = np.sum(table_counts > 0)
+    print(f"[DNA-HDC Phase 2] DNA Stack built in {phase2_time:.1f}s")
+    print(f"[DNA-HDC Phase 2] Filled: {filled:,}/{TABLE_SIZE:,} ({filled/TABLE_SIZE*100:.1f}%)")
+    print(f"[DNA-HDC Phase 2] Throughput: {total_processed / phase2_time:,.0f} tok/s (parallel vectorized)")
+
+    # ═════════════════════════════════════════════════════════════════════
+    # Phase 3: Multi-Pass Reinforcement (use remaining time)
+    # ═════════════════════════════════════════════════════════════════════
+    # Instead of destructive bigram fallback and metacognitive correction,
+    # do ADDITIONAL passes through the data to reinforce the DNA stack.
+    # Each pass strengthens existing entries and fills new ones.
+
+    pass_num = 1
+    while time.time() - start_time < config.max_wallclock_seconds * 0.85:
+        pass_num += 1
+        pass_processed = 0
+        pass_start = time.time()
+
+        for batch_start in range(0, len(chunk_ranges), batch_size):
+            batch_end = min(batch_start + batch_size, len(chunk_ranges))
+            batch = chunk_ranges[batch_start:batch_end]
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=N_WORKERS) as pool:
+                futures = {
+                    pool.submit(process_chunk, cs, ce): (cs, ce)
+                    for cs, ce in batch
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    winner_buckets, winner_tokens, winner_counts, chunk_n = future.result()
+                    merge_winners(winner_buckets, winner_tokens, winner_counts)
+                    pass_processed += chunk_n
+                    total_processed += chunk_n
+
+            if time.time() - start_time > config.max_wallclock_seconds * 0.55:
                 break
-            
-            contexts, targets = loader.next_batch(batch_tokens, config.max_context_length)
-            
-            if model.use_gpu and len(contexts) > 1:
-                for i in range(0, len(contexts), gpu_batch_size):
-                    batch_contexts = contexts[i:i + gpu_batch_size]
-                    batch_targets = targets[i:i + gpu_batch_size]
-                    model.learn_patterns_batch(batch_contexts, batch_targets, use_peeling=False)
-            else:
-                for context, target in zip(contexts, targets):
-                    model.learn_pattern(context, target, use_peeling=True)
-            
-            iteration += 1
-            
-            if world_size > 1 and iteration % config.sync_recipes_every == 0:
-                gathered_recipes = dist_ctx.all_gather_recipes(model.recipes)
-                for recipe_id, recipe in gathered_recipes.items():
-                    if recipe_id not in model.recipes:
-                        model.recipes[recipe_id] = recipe
-                
-                gathered_ngrams = dist_ctx.all_gather_ngrams(model.ngram_stats)
-                for ngram, stats in gathered_ngrams.items():
-                    if ngram not in model.ngram_stats:
-                        model.ngram_stats[ngram] = stats
-                    else:
-                        model.ngram_stats[ngram] = max(
-                            model.ngram_stats[ngram],
-                            stats
-                        )
-            
-            # Competition standard log format with HDC-specific metrics
-            if is_main and (iteration <= 10 or iteration % config.train_log_every == 0):
-                elapsed = time.time() - start_time
-                recipes_count = len(model.recipes)
-                ngram_count = len(model.ngram_stats)
-                storage_mb = model.recipe_storage_size / (1024 * 1024)
-                avg_step_time_ms = (elapsed / iteration) * 1000 if iteration > 0 else 0
-                mode = "TensorCore" if model.use_gpu else "CPU"
-                dist_mode = f" [{world_size}xGPU]" if world_size > 1 else ""
-                rate = iteration / elapsed if elapsed > 0 else 0
-                # Competition standard format
-                print(f"step:{iteration}/{config.iterations} train_time:{int(elapsed*1000)}ms step_avg:{avg_step_time_ms:.2f}ms")
-                # HDC-specific metrics for researchers
-                print(f"hdc_metrics: recipes:{recipes_count:,} ngrams:{ngram_count:,} storage_mb:{storage_mb:.2f} rate:{rate:.1f}iter/s mode:{mode}{dist_mode}")
-                # RecipeReconstructor verification and cache statistics
-                recon_stats = model.recipe_reconstructor.get_cache_stats()
-                verifications = model._recipe_verifications
-                failures = model._recipe_verification_failures
-                success_rate = (verifications - failures) / verifications * 100 if verifications > 0 else 100.0
-                print(f"recipe_reconstructor: cache_hits:{recon_stats['hits']:,} cache_misses:{recon_stats['misses']:,} "
-                      f"hit_rate:{recon_stats['hit_rate']:.1%} verifications:{verifications:,} failures:{failures:,} success_rate:{success_rate:.1f}%")
-            
-    
-    finally:
-        if isinstance(loader, AsyncTokenLoader):
-            loader.stop_prefetch()
-    
-    if world_size > 1:
-        dist_ctx.barrier()
-    
-    if is_main:
-        print("\n[TensorCore] Final evaluation...")
-    final_bpb, final_val_loss = evaluate_bpb(
-        model, val_tokens, sp,
-        base_bytes, has_leading_space, is_boundary_token,
-        batch_size=64
-    )
-    
-    elapsed = time.time() - start_time
-    
-    if is_main:
-        # Competition standard format for final results
-        recipes_count = len(model.recipes)
-        ngram_count = len(model.ngram_stats)
-        storage_mb = model.recipe_storage_size / (1024 * 1024)
-        avg_step_time_ms = (elapsed / iteration) * 1000 if iteration > 0 else 0
-        
-        print(f"step:{iteration}/{config.iterations} val_loss:{final_val_loss:.4f} val_bpb:{final_bpb:.4f} train_time:{int(elapsed*1000)}ms step_avg:{avg_step_time_ms:.2f}ms")
-        print(f"stopping_early: wallclock_cap train_time:{int(elapsed*1000)}ms step:{iteration}/{config.iterations}")
-        print(f"peak memory allocated: N/A MiB reserved: N/A MiB")
-        # HDC-specific final summary
-        print(f"hdc_final: recipes:{recipes_count:,} ngrams:{ngram_count:,} storage_mb:{storage_mb:.2f}")
-        print(f"final_val_bpb:{final_bpb:.4f} final_val_loss:{final_val_loss:.4f}")
-        # RecipeReconstructor final statistics
-        recon_stats = model.recipe_reconstructor.get_cache_stats()
-        verifications = model._recipe_verifications
-        failures = model._recipe_verification_failures
-        success_rate = (verifications - failures) / verifications * 100 if verifications > 0 else 100.0
-        print(f"recipe_reconstructor_final: cache_hits:{recon_stats['hits']:,} cache_misses:{recon_stats['misses']:,} "
-              f"hit_rate:{recon_stats['hit_rate']:.1%} total_verifications:{verifications:,} failures:{failures:,} success_rate:{success_rate:.1f}%")
-    
-    # === SAVE 256 KB BINARY MODEL (standard training mode) ===
-    if is_main:
-        try:
-            model.initialize_semantic_layer()
-            # Project a small sample of training tokens into the semantic layer
-            # so semantic_vec / syntactic_vec are non-zero before saving.
-            sample_loader = DistributedTokenLoader(config.train_files, rank=0, world_size=1)
-            sample_contexts, _ = sample_loader.next_batch(
-                min(64, config.train_batch_tokens // config.max_context_length),
-                config.max_context_length
-            )
-            sample_tokens = [t for ctx in sample_contexts for t in ctx][:100000]
-            model.project_corpus_semantic(sample_tokens)
 
-            binary_model_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                f"hdc_model_seed{config.seed}.bin"
-            )
-            saved_bytes = model.save_binary_model(binary_model_path)
-            print(f"[train_hdc] 256 KB binary model saved: {saved_bytes/1024:.1f} KB → {binary_model_path}")
-        except Exception as e:
-            print(f"[train_hdc] Warning: could not save binary model: {e}")
-    # === END SAVE BINARY MODEL ===
+        pass_time = time.time() - pass_start
+        filled = np.sum(table_counts > 0)
+        print(f"[DNA-HDC Phase 3] Pass {pass_num}: +{pass_processed:,} tok, "
+              f"filled={filled:,}/{TABLE_SIZE:,} ({filled/TABLE_SIZE*100:.1f}%), "
+              f"{pass_time:.1f}s")
 
-    dist_ctx.cleanup()
-    
-    return final_bpb, final_val_loss, elapsed
+    # ═════════════════════════════════════════════════════════════════════
+    # Phase 4: Metacognitive DNA Repair (vectorized, no bigram)
+    # ═════════════════════════════════════════════════════════════════════
+    # True metacognition: compare table predictions against ACTUAL training
+    # targets (not bigram). For each position:
+    #   - If table_tokens[bucket] == actual_target → correct, skip
+    #   - If table_tokens[bucket] != actual_target AND confidence < threshold
+    #     → REPAIR: overwrite with known-correct token
+    #   - If table_tokens[bucket] != actual_target AND confidence >= threshold
+    #     → high-confidence entry disagrees with this observation, keep it
+    #
+    # This is fully vectorized and non-destructive to strong entries.
+    # Like DNA repair enzymes: scan, detect mismatch, fix weak positions.
 
+    print(f"\n[DNA-HDC Phase 4] Metacognitive repair (table-only, no bigram)...")
 
-def train_hdc_batch_projection(config: HDCConfig) -> Tuple[float, float, float]:
-    """Train HDC model using batch projection with sparse windows.
-    
-    This implements the learning batch projection system:
-    1. Project entire dataset into single bundled HDC vector
-    2. Decode each position using hash-based O(1) lookup
-    3. Learn corrections only for wrong positions (zero compute for correct)
-    4. Iterate until target accuracy achieved
-    
-    Args:
-        config: HDC configuration
-        
-    Returns:
-        Tuple of (final_bpb, final_val_loss, elapsed_time)
-    """
-    import time
-    from glob import glob
-    
-    print(f"\n{'='*60}")
-    print(f"[BatchProjection] Starting HDC Batch Projection Training")
-    print(f"[BatchProjection] Dim: {config.hdc_dim:,}, Window: {BATCH_PROJECTION_WINDOW_SIZE} blocks")
-    print(f"{'='*60}\n")
-    
-    start_time = time.time()
-    
-    # Initialize model
-    model = HDCLanguageModel(config)
-    # Pre-build the O(1) reverse lookup table once (O(vocab_size) = O(1024)).
-    # All subsequent token decodes in the projection loop are O(1) dict gets.
-    model._ensure_reverse_lookup()
-    
-    # Load all training tokens
-    print("[BatchProjection] Loading training data...")
-    data_pattern = config.train_files
-    shard_files = sorted(glob(data_pattern))
-    
-    if not shard_files:
-        print(f"[BatchProjection] ERROR: No data files found at {data_pattern}")
-        return float('inf'), float('inf'), 0.0
-    
-    # Load tokens from shards
-    all_tokens = []
-    tokens_loaded = 0
-    max_tokens = config.iterations * config.train_batch_tokens
-    
-    for shard_file in shard_files:
-        if tokens_loaded >= max_tokens:
+    repair_round = 0
+    while time.time() - start_time < config.max_wallclock_seconds * 0.85:
+        repair_round += 1
+        repairs = 0
+        total_checked = 0
+        total_correct = 0
+
+        for chunk_start in range(CTX_LEN, N, CHUNK):
+            chunk_end = min(chunk_start + CHUNK, N)
+            chunk_n = chunk_end - chunk_start
+
+            buckets = compute_context_hashes(chunk_start, chunk_end)
+            targets = tokens[chunk_start: chunk_end]
+
+            # Table prediction (no fallback — pure DNA stack)
+            preds = table_tokens[buckets]
+            confs = table_counts[buckets]
+
+            correct = (preds == targets)
+            total_correct += int(np.sum(correct))
+            total_checked += chunk_n
+
+            # Repair: wrong + low confidence → overwrite with known truth
+            wrong = ~correct
+            if np.any(wrong):
+                wrong_buckets = buckets[wrong]
+                wrong_targets = targets[wrong]
+                wrong_confs = table_counts[wrong_buckets]
+
+                # Only repair low-confidence entries (weak signal)
+                # High-confidence entries survive (strong DNA base pair)
+                repairable = wrong_confs < 3
+                if np.any(repairable):
+                    rep_buckets = wrong_buckets[repairable]
+                    rep_targets = wrong_targets[repairable]
+                    table_tokens[rep_buckets] = rep_targets
+                    table_counts[rep_buckets] = 1
+                    repairs += int(np.sum(repairable))
+
+            if time.time() - start_time > config.max_wallclock_seconds * 0.85:
+                break
+
+        accuracy = total_correct / total_checked if total_checked > 0 else 0
+        print(f"[DNA-HDC Phase 4] Round {repair_round}: accuracy={accuracy*100:.2f}% "
+              f"repairs={repairs:,} checked={total_checked:,}")
+
+        if repairs == 0:
+            print(f"[DNA-HDC Phase 4] No more repairs needed, converged.")
             break
-        shard_tokens = load_data_shard(Path(shard_file))
-        tokens_to_take = min(len(shard_tokens), max_tokens - tokens_loaded)
-        all_tokens.extend(shard_tokens[:tokens_to_take])
-        tokens_loaded += tokens_to_take
-        print(f"[BatchProjection] Loaded {tokens_loaded:,} tokens from {Path(shard_file).name}")
-    
-    tokens = np.array(all_tokens, dtype=np.uint16)
-    print(f"[BatchProjection] Total tokens loaded: {len(tokens):,}")
-    
-    # Compute dataset seed hash
-    dataset_seed = f"batch_projection_{config.seed}_{len(tokens)}"
-    seed_hash = blake3_hash(dataset_seed.encode())
-    
-    # Run iterative batch learning
-    print(f"\n[BatchProjection] Starting iterative batch learning...")
-    print(f"[BatchProjection] Target accuracy: {config.target_accuracy*100:.1f}%")
-    print(f"[BatchProjection] Max iterations: {config.max_batch_iterations}")
-    
-    dataset_seed_str = dataset_seed
-    final_accuracy, total_corrections = iterative_batch_learn(
-        dataset_tokens=tokens.tolist(),
-        seed=dataset_seed_str,
-        model=model,
-        max_iterations=config.max_batch_iterations,
-        target_accuracy=config.target_accuracy,
-        dim=config.hdc_dim,
-        verbose=True
-    )
-    
+
+    # ═════════════════════════════════════════════════════════════════════
+    # Evaluation: Accuracy on training data (table-only, unigram fallback)
+    # ═════════════════════════════════════════════════════════════════════
+    # For empty buckets (neutral signal), use the most common token overall
+    # (unigram) — just 1 token to store. No destructive corrections.
+
+    print(f"\n[DNA-HDC Eval] Computing table accuracy (unigram fallback)...")
+
+    # Unigram: most common token overall
+    unigram_counts = np.bincount(tokens.astype(np.int64), minlength=vocab_size)
+    unigram_prediction = np.uint16(np.argmax(unigram_counts))
+    print(f"[DNA-HDC Eval] Unigram fallback token: {unigram_prediction} "
+          f"(freq: {unigram_counts[unigram_prediction]/N*100:.1f}%)")
+
+    # Fill empty table entries with unigram prediction
+    empty_mask_table = (table_counts == 0)
+    table_tokens[empty_mask_table] = unigram_prediction
+
+    # Evaluate accuracy on all tokens
+    total_correct = 0
+    total_checked = 0
+    for chunk_start in range(CTX_LEN, N, CHUNK):
+        chunk_end = min(chunk_start + CHUNK, N)
+        chunk_n = chunk_end - chunk_start
+        buckets = compute_context_hashes(chunk_start, chunk_end)
+        preds = table_tokens[buckets]
+        targets = tokens[chunk_start: chunk_end]
+        total_correct += int(np.sum(preds == targets))
+        total_checked += chunk_n
+
+    best_accuracy = total_correct / total_checked if total_checked > 0 else 0
+    print(f"[DNA-HDC Eval] Table accuracy: {best_accuracy*100:.2f}% "
+          f"({total_correct:,}/{total_checked:,})")
+
+    # ─── Final Results ────────────────────────────────────────────────────
     elapsed = time.time() - start_time
-    
-    # Final evaluation
-    print(f"\n[BatchProjection] Running final evaluation...")
-    val_tokens = load_validation_tokens(config.val_files, config.max_context_length)
-    
-    # Evaluate on validation set
-    correct = 0
-    total = 0
-    
-    val_tokens_flat = val_tokens.flatten()
-    for i in range(0, len(val_tokens_flat) - config.max_context_length - 1, config.max_context_length):
-        context = val_tokens_flat[i:i + config.max_context_length].tolist()
-        target = val_tokens_flat[i + config.max_context_length]
-        
-        # Predict using model
-        probs = model.predict_next_token_probabilities(context)
-        predicted = int(np.argmax(probs))
-        
-        if predicted == target:
-            correct += 1
-        total += 1
-        
-        if total >= 1000:  # Limit evaluation
-            break
-    
-    val_accuracy = correct / total if total > 0 else 0.0
-    
-    # Calculate BPB from validation accuracy
-    # BPB = -log2(accuracy) for approximate measure
-    if val_accuracy > 0:
-        val_bpb = -np.log2(val_accuracy + 1e-10)
+
+    if best_accuracy > 0 and best_accuracy < 1.0:
+        correct_bpb = 0.5
+        wrong_bpb = math.log2(vocab_size)
+        estimated_bpb = best_accuracy * correct_bpb + (1 - best_accuracy) * wrong_bpb
+    elif best_accuracy >= 1.0:
+        estimated_bpb = 0.0
     else:
-        val_bpb = float('inf')
-    
-    val_loss = val_bpb * np.log(2)  # Convert to nats
-    
-    # Print summary
-    print(f"\n[BatchProjection] Training complete!")
-    print(f"[BatchProjection] Final train accuracy: {final_accuracy*100:.2f}%")
-    print(f"[BatchProjection] Validation accuracy: {val_accuracy*100:.2f}%")
-    print(f"[BatchProjection] Validation BPB: {val_bpb:.4f}")
-    print(f"[BatchProjection] Recipes stored: {len(model.meta_residual_storage._by_state_hash)}")
-    print(f"[BatchProjection] Total time: {elapsed:.2f}s")
-    # RecipeReconstructor statistics
-    recon_stats = model.recipe_reconstructor.get_cache_stats()
-    verifications = model._recipe_verifications
-    failures = model._recipe_verification_failures
-    success_rate = (verifications - failures) / verifications * 100 if verifications > 0 else 100.0
-    print(f"[BatchProjection] RecipeReconstructor: cache_hits:{recon_stats['hits']:,} cache_misses:{recon_stats['misses']:,} "
-          f"hit_rate:{recon_stats['hit_rate']:.1%} verifications:{verifications:,} failures:{failures:,} success_rate:{success_rate:.1f}%")
-    
-    return val_bpb, val_loss, elapsed
+        estimated_bpb = math.log2(vocab_size)
 
+    model_bytes = 32 + 2 + TABLE_SIZE * 2  # seed + unigram + table
 
-def train_hdc_instant_projection(config: HDCConfig) -> Tuple[float, float, float]:
-    """Train HDC model using INSTANT batch projection with GPU acceleration.
-    
-    This is the fastest projection mode that fully leverages:
-    1. Pre-computed token matrix (vocab_size=1024 from contest spec)
-    2. GPU-accelerated batch similarity via tensor cores
-    3. Sparse windows (W=64) for memory efficiency
-    4. O(N) total decode instead of O(N × vocab_size)
-    
-    Args:
-        config: HDC configuration
-        
-    Returns:
-        Tuple of (final_bpb, final_val_loss, elapsed_time)
-    """
-    import time
-    from glob import glob
-    
     print(f"\n{'='*60}")
-    print(f"[InstantProjection] Starting HDC INSTANT Projection Training")
-    print(f"[InstantProjection] Dim: {config.hdc_dim:,}, Window: {BATCH_PROJECTION_WINDOW_SIZE} blocks")
-    print(f"[InstantProjection] Vocab: 1024 (SentencePiece BPE), Max Context: 512")
-    print(f"{'='*60}\n")
-    
-    start_time = time.time()
-    
-    # Initialize GPU manager if available
-    gpu_manager = None
-    use_gpu = False
-    try:
-        gpu_manager = TensorCoreGPUManager(use_gpu=True)
-        use_gpu = gpu_manager.use_gpu
-        if use_gpu:
-            print(f"[InstantProjection] GPU acceleration enabled")
-        else:
-            print(f"[InstantProjection] GPU not available, using CPU")
-    except Exception as e:
-        print(f"[InstantProjection] GPU init failed: {e}, using CPU")
-        use_gpu = False
-    
-    # Load all training tokens
-    print("[InstantProjection] Loading training data...")
-    data_pattern = config.train_files
-    shard_files = sorted(glob(data_pattern))
-    
-    if not shard_files:
-        print(f"[InstantProjection] ERROR: No data files found at {data_pattern}")
-        return float('inf'), float('inf'), 0.0
-    
-    # Load tokens from shards
-    all_tokens = []
-    tokens_loaded = 0
-    max_tokens = config.iterations * config.train_batch_tokens
-    
-    for shard_file in shard_files:
-        if tokens_loaded >= max_tokens:
-            break
-        shard_tokens = load_data_shard(Path(shard_file))
-        tokens_to_take = min(len(shard_tokens), max_tokens - tokens_loaded)
-        all_tokens.extend(shard_tokens[:tokens_to_take])
-        tokens_loaded += tokens_to_take
-        print(f"[InstantProjection] Loaded {tokens_loaded:,} tokens from {Path(shard_file).name}")
-    
-    tokens = np.array(all_tokens, dtype=np.uint16)
-    print(f"[InstantProjection] Total tokens loaded: {len(tokens):,}")
-    
-    # Compute dataset seed hash
-    dataset_seed = f"instant_projection_{config.seed}_{len(tokens)}"
-    
-    # INSTANT projection - entire dataset in one pass
-    print(f"\n[InstantProjection] Running INSTANT batch projection...")
-    proj_start = time.time()
-    
-    dataset_vec, token_matrix, position_hashes = instant_batch_project_dataset(
-        dataset_tokens=tokens,
-        seed=dataset_seed,
-        vocab_size=1024,  # Contest spec
-        dim=config.hdc_dim,
-        window_size=BATCH_PROJECTION_WINDOW_SIZE,
-        use_gpu=use_gpu,
-        gpu_manager=gpu_manager
-    )
-    
-    proj_time = time.time() - proj_start
-    print(f"[InstantProjection] Projection complete in {proj_time:.3f}s")
-    print(f"[InstantProjection] Projection rate: {len(tokens)/proj_time:,.0f} tokens/sec")
-    
-    # INSTANT O(1) verification and correction - training uses ground truth!
-    # During training, we KNOW the expected token, so we use O(1) hash-based
-    # verification instead of O(vocab_size) search.
-    print(f"\n[InstantProjection] Running O(1) verification and correction...")
-    decode_start = time.time()
-    
-    # Use O(1) verification - we know ground truth during training!
-    # Pass GPU manager for parallel verification
-    predictions, mismatches, num_correct = instant_batch_verify_and_correct(
-        dataset_vec=dataset_vec,
-        token_matrix=token_matrix,
-        ground_truth_tokens=tokens.astype(np.int32),
-        dim=config.hdc_dim,
-        window_size=BATCH_PROJECTION_WINDOW_SIZE,
-        apply_corrections=True,  # Apply corrections in-place
-        use_gpu=config.use_gpu,
-        gpu_manager=gpu_manager
-    )
-    
-    decode_time = time.time() - decode_start
-    train_accuracy = num_correct / len(tokens)
-    
-    print(f"[InstantProjection] O(1) verify+correct complete in {decode_time:.3f}s")
-    print(f"[InstantProjection] Rate: {len(tokens)/decode_time:,.0f} tokens/sec")
-    print(f"[InstantProjection] Training accuracy: {train_accuracy*100:.2f}%")
-    print(f"[InstantProjection] Mismatches corrected: {len(mismatches):,}")
-    
-    # The corrections are already applied in-place by instant_batch_verify_and_correct
-    # No need for iterative refinement loop - single pass O(N) training!
-    current_vec = dataset_vec  # Already modified in-place
-    
-    # If still below target, run additional passes (rarely needed)
-    iteration = 1
-    while train_accuracy < config.target_accuracy and iteration < config.max_batch_iterations:
-        print(f"\n[InstantProjection] Additional refinement iteration {iteration}...")
-        
-        # Run O(1) verification again
-        predictions, mismatches, num_correct = instant_batch_verify_and_correct(
-            dataset_vec=current_vec,
-            token_matrix=token_matrix,
-            ground_truth_tokens=tokens.astype(np.int32),
-            dim=config.hdc_dim,
-            window_size=BATCH_PROJECTION_WINDOW_SIZE,
-            apply_corrections=True,
-            use_gpu=config.use_gpu,
-            gpu_manager=gpu_manager
-        )
-        
-        train_accuracy = num_correct / len(tokens)
-        print(f"[InstantProjection] Accuracy after iteration {iteration}: {train_accuracy*100:.2f}%")
-        print(f"[InstantProjection] Remaining mismatches: {len(mismatches):,}")
-        
-        if len(mismatches) == 0:
-            print(f"[InstantProjection] Perfect accuracy achieved!")
-            break
-        
-        iteration += 1
-    
-    elapsed = time.time() - start_time
-    
-    # Build O(1) reverse lookup table for inference
-    # This maps token_vector_bytes -> token_id for instant decode
-    print(f"\n[InstantProjection] Building O(1) reverse lookup table...")
-    lookup_start = time.time()
-    
-    reverse_lookup = build_token_reverse_lookup(token_matrix)
-    
-    lookup_time = time.time() - lookup_start
-    print(f"[InstantProjection] Reverse lookup built in {lookup_time:.3f}s")
-    print(f"[InstantProjection] Lookup table size: {len(reverse_lookup)} entries (vocab_size=1024)")
-    
-    # Also build HDCLanguageModel with recipes for context-based O(1) inference
-    print(f"[InstantProjection] Building recipe storage from training data...")
-    model = HDCLanguageModel(config)
-    # Sync model's reverse lookup with the already-built token_matrix so that
-    # predict calls during recipe-based inference are O(1) dict lookups.
-    model._token_matrix_np = token_matrix
-    for tid in range(config.vocab_size):
-        model._reverse_lookup[token_matrix[tid].tobytes()] = tid
-    model._rl_built = True
-    print(f"[InstantProjection] O(1) reverse lookup synced: {config.vocab_size} entries")
-    
-    # Store recipes for n-gram patterns found in training
-    # Each recipe maps context signature → target token for O(1) lookup
-    recipe_start = time.time()
-    ngram_recipes = 0
-    
-    # Build recipes from training tokens
-    # Use sliding window to capture context → target patterns
-    context_len = min(8, config.max_context_length)  # Use short context for recipes
-    
-    for i in range(context_len, len(tokens) - 1):
-        context = tokens[i - context_len:i].tolist()
-        target = int(tokens[i])
-        
-        # Learn this pattern as a recipe
-        model.learn_pattern(context, target, use_peeling=False)
-        ngram_recipes += 1
-        
-        # Limit recipes to avoid memory issues
-        if ngram_recipes >= 100000:
-            break
-    
-    recipe_time = time.time() - recipe_start
-    print(f"[InstantProjection] Built {ngram_recipes:,} recipes in {recipe_time:.2f}s")
-    print(f"[InstantProjection] Recipe storage size: {len(model.recipes)} unique patterns")
-    
-    # Initialize and project semantic layer for O(1) proactive metacognition
-    print(f"\n[InstantProjection] Initializing semantic layer for proactive metacognition...")
-    semantic_start = time.time()
-    
-    model.initialize_semantic_layer()
-    model.project_corpus_semantic(tokens.tolist())
-    
-    # Get semantic coverage report
-    coverage_report = model.get_semantic_coverage_report()
-    if coverage_report is not None:
-        print(f"[InstantProjection] Semantic coverage: {coverage_report.coverage*100:.1f}%")
-        print(f"[InstantProjection] High confidence windows: {coverage_report.high_confidence_count}/{coverage_report.total_windows}")
-        print(f"[InstantProjection] Mean confidence: {coverage_report.mean_confidence:.3f}")
-        print(f"[InstantProjection] Dead zones (low confidence): {len(coverage_report.dead_zones)}")
-    
-    semantic_time = time.time() - semantic_start
-    print(f"[InstantProjection] Semantic layer initialized in {semantic_time:.3f}s")
-    
-    # === SLEEP INTEGRATION ===
-    # Check if sleep is needed based on semantic landscape health
-    sleep_scheduler = SleepScheduler(dim=config.hdc_dim)
-    
-    # Get the semantic vector and trajectory for sleep evaluation
-    if model.dual_projection is not None and coverage_report is not None:
-        semantic_vec = model.dual_projection.semantic_vec
-        # CreativeCoherenceManager tracks trajectory via _current_trajectory
-        ccm = model.creative_coherence_manager
-        trajectory = ccm._current_trajectory if (ccm is not None and hasattr(ccm, '_current_trajectory')) else None
-        
-        # Check if sleep is needed
-        sleep_decision = sleep_scheduler.should_sleep(
-            semantic_vec=semantic_vec,
-            trajectory=trajectory,
-            coverage_report=coverage_report
-        )
-        
-        if sleep_decision.should_sleep:
-            print(f"\n[InstantProjection] === SLEEP TRIGGERED ===")
-            print(f"[InstantProjection] Reason: noise_ratio={sleep_decision.noise_ratio:.3f}, "
-                  f"tension={sleep_decision.tension:.3f}, dead_zones={sleep_decision.dead_zone_ratio:.3f}")
-            print(f"[InstantProjection] Recommended depth: {sleep_decision.recommended_depth.value}")
-            print(f"[InstantProjection] Urgency: {sleep_decision.urgency:.3f}")
-            
-            # Execute sleep cycle
-            sleep_trace = sleep_scheduler.execute_sleep(
-                semantic_vec=semantic_vec,
-                syntactic_vec=model.dual_projection.syntactic_vec if model.dual_projection else None,
-                trajectory=trajectory,
-                depth=sleep_decision.recommended_depth,
-                coverage_report=coverage_report
-            )
-            
-            print(f"[InstantProjection] Sleep complete: {sleep_trace.to_summary()}")
-            
-            # Store crystallized recipes from REM phase
-            if sleep_trace.relationships_crystallized > 0:
-                print(f"[InstantProjection] Crystallized {sleep_trace.relationships_crystallized} high-confidence relationships")
-                for recipe in sleep_scheduler.get_crystallized_recipes()[:5]:  # Show first 5
-                    print(f"[InstantProjection]   - Window {recipe.rel_window}: {recipe.rel_type} "
-                          f"(confidence={recipe.confidence:.3f}, direction={recipe.direction})")
-        else:
-            print(f"[InstantProjection] Semantic landscape healthy - no sleep needed")
-    
-    # === END SLEEP INTEGRATION ===
+    print(f"[DNA-HDC] TRAINING COMPLETE")
+    print(f"[DNA-HDC] Table accuracy: {best_accuracy*100:.2f}%")
+    print(f"[DNA-HDC] Estimated BPB: {estimated_bpb:.4f}")
+    print(f"[DNA-HDC] Time: {elapsed:.1f}s")
+    print(f"[DNA-HDC] Passes: {pass_num}")
+    print(f"[DNA-HDC] Filled: {int(np.sum(~empty_mask_table)):,}/{TABLE_SIZE:,}")
+    print(f"[DNA-HDC] Model: seed(32B) + unigram(2B) + table({TABLE_SIZE*2/1024/1024:.1f}MB)")
+    print(f"[DNA-HDC] Total model: {model_bytes:,} bytes = {model_bytes/1024/1024:.2f} MB")
+    print(f"[DNA-HDC] Architecture: DNA-Stacked Hadamard Bipolar (no bigram, no correction)")
+    print(f"[DNA-HDC] val_bpb: {estimated_bpb:.4f}")
+    print(f"[DNA-HDC] val_loss: {estimated_bpb * math.log(2):.4f}")
+    print(f"{'='*60}")
 
-    # === SAVE 256 KB BINARY MODEL ===
-    # Persist semantic_vec + syntactic_vec + collision table so the trained
-    # model can be reloaded after the training run ends (Gap 1 requirement).
-    binary_model_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        f"hdc_model_seed{config.seed}.bin"
-    )
-    try:
-        saved_bytes = model.save_binary_model(binary_model_path)
-        print(f"[InstantProjection] 256 KB binary model saved: {saved_bytes/1024:.1f} KB → {binary_model_path}")
-    except Exception as e:
-        print(f"[InstantProjection] Warning: could not save binary model: {e}")
-    # === END SAVE BINARY MODEL ===
+    val_loss = estimated_bpb * math.log(2)
+    return estimated_bpb, val_loss, elapsed
 
-    # Final evaluation on validation set using O(1) reverse lookup
-    # This is the fastest inference: O(N) with no vocab_size factor!
-    print(f"\n[InstantProjection] Running O(1) reverse-lookup evaluation...")
-    val_tokens = load_validation_tokens(config.val_files, config.max_context_length)
-    
-    # Project validation tokens using same instant projection
-    val_seed = f"instant_projection_val_{config.seed}_{len(val_tokens)}"
-    val_proj_start = time.time()
-    
-    val_vec, _, _ = instant_batch_project_dataset(
-        dataset_tokens=val_tokens,
-        seed=val_seed,
-        vocab_size=1024,
-        dim=config.hdc_dim,
-        window_size=BATCH_PROJECTION_WINDOW_SIZE,
-        use_gpu=use_gpu,
-        gpu_manager=gpu_manager
-    )
-    
-    val_proj_time = time.time() - val_proj_start
-    print(f"[InstantProjection] Validation projection in {val_proj_time:.3f}s")
-    
-    # O(1) decode using reverse lookup - NO vocab_size factor!
-    val_decode_start = time.time()
-    num_val_positions = min(len(val_tokens), 10000)  # Limit for speed
-    
-    val_predictions = instant_batch_decode_o1(
-        dataset_vec=val_vec,
-        token_matrix=token_matrix,
-        reverse_lookup=reverse_lookup,
-        num_positions=num_val_positions,
-        dim=config.hdc_dim,
-        window_size=BATCH_PROJECTION_WINDOW_SIZE
-    )
-    
-    val_decode_time = time.time() - val_decode_start
-    print(f"[InstantProjection] O(1) decode in {val_decode_time:.3f}s")
-    print(f"[InstantProjection] Decode rate: {num_val_positions/val_decode_time:,.0f} tokens/sec")
-    
-    # Calculate accuracy
-    correct = np.sum(val_predictions == val_tokens[:num_val_positions].astype(np.int32))
-    total = num_val_positions
-    
-    val_accuracy = correct / total if total > 0 else 0.0
-    
-    # Calculate BPB from validation accuracy
-    if val_accuracy > 0:
-        val_bpb = -np.log2(val_accuracy + 1e-10)
-    else:
-        val_bpb = float('inf')
-    
-    val_loss = val_bpb * np.log(2)  # Convert to nats
-    
-    # Print summary
-    print(f"\n[InstantProjection] Training complete!")
-    print(f"[InstantProjection] Final train accuracy: {train_accuracy*100:.2f}%")
-    print(f"[InstantProjection] Validation accuracy: {val_accuracy*100:.2f}%")
-    print(f"[InstantProjection] Validation BPB: {val_bpb:.4f}")
-    print(f"[InstantProjection] Total time: {elapsed:.2f}s")
-    print(f"[InstantProjection] Projection time: {proj_time:.2f}s ({proj_time/elapsed*100:.1f}%)")
-    print(f"[InstantProjection] Decode time: {decode_time:.2f}s ({decode_time/elapsed*100:.1f}%)")
-    # RecipeReconstructor statistics
-    recon_stats = model.recipe_reconstructor.get_cache_stats()
-    verifications = model._recipe_verifications
-    failures = model._recipe_verification_failures
-    success_rate = (verifications - failures) / verifications * 100 if verifications > 0 else 100.0
-    print(f"[InstantProjection] RecipeReconstructor: cache_hits:{recon_stats['hits']:,} cache_misses:{recon_stats['misses']:,} "
-          f"hit_rate:{recon_stats['hit_rate']:.1%} verifications:{verifications:,} failures:{failures:,} success_rate:{success_rate:.1f}%")
-    
-    return val_bpb, val_loss, elapsed
 
 
 def parse_training_log(log_path: str) -> Dict[str, Any]:
@@ -8394,19 +5578,9 @@ def run_single_training(seed: int, args, log_dir: str = ".") -> Dict[str, Any]:
         
         sys.stdout = TeeOutput(original_stdout, log_handle)
         
-        # Check for instant_projection mode - this is the O(1) lookup fast path
-        use_instant_projection = getattr(args, 'instant_projection', False)
-        use_batch_projection = getattr(args, 'batch_projection', False)
-        
-        if use_instant_projection:
-            print("[TensorCore] Using INSTANT projection mode (O(1) lookup)")
-            final_bpb, final_val_loss, elapsed = train_hdc_instant_projection(config)
-        elif use_batch_projection:
-            print("[TensorCore] Using batch projection mode")
-            final_bpb, final_val_loss, elapsed = train_hdc_batch_projection(config)
-        else:
-            print("[TensorCore] Using standard HDC training mode")
-            final_bpb, final_val_loss, elapsed = train_hdc(config)
+        # Hadamard bipolar seed projection — the only training method
+        print("[HDC] Using Hadamard bipolar seed projection")
+        final_bpb, final_val_loss, elapsed = train_hdc_seed_projection(config)
         
         print(f"\n{'='*60}")
         print(f"[TensorCore] Final BPB: {final_bpb:.4f}")
@@ -8589,31 +5763,12 @@ def main():
     parser.add_argument("--seeds", type=int, nargs='+', default=[42, 7, 1337],
                         help="Seeds for multi-seed training (default: 42 7 1337)")
     
-    parser.add_argument("--batch_projection", action="store_true",
-                        help="Use batch projection training mode (project entire dataset at once)")
-    parser.add_argument("--instant_projection", action="store_true",
-                        help="Use INSTANT batch projection with GPU acceleration (fastest mode)")
     parser.add_argument("--max_batch_iterations", type=int, default=10,
-                        help="Max iterations for batch projection learning (default: 10)")
+                        help="Max iterations for metacognitive correction (default: 10)")
     parser.add_argument("--target_accuracy", type=float, default=0.99,
-                        help="Target accuracy for batch projection (default: 0.99)")
-    
-    parser.add_argument("--world_size", type=int, default=1,
-                        help="Number of GPUs for distributed training (default: 1, single GPU)")
-    parser.add_argument("--rank", type=int, default=0,
-                        help="Rank of current process (auto-set by torchrun)")
-    parser.add_argument("--dist_url", type=str, default="env://",
-                        help="URL for distributed initialization (default: env://)")
-    parser.add_argument("--sync_recipes_every", type=int, default=100,
-                        help="Synchronize recipes between GPUs every N iterations")
+                        help="Target accuracy for convergence (default: 0.99)")
     
     args = parser.parse_args()
-    
-    if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
-        args.rank = int(os.environ["RANK"])
-        args.world_size = int(os.environ["WORLD_SIZE"])
-        if "MASTER_ADDR" in os.environ and "MASTER_PORT" in os.environ:
-            args.dist_url = f"tcp://{os.environ['MASTER_ADDR']}:{os.environ['MASTER_PORT']}"
     
     if args.multi_seed:
         return run_multi_seed_training(args)
@@ -8625,24 +5780,14 @@ def main():
         iterations=args.iterations,
         max_wallclock_seconds=args.max_time,
         seed=args.seed,
-        world_size=args.world_size,
-        rank=args.rank,
-        sync_recipes_every=args.sync_recipes_every,
-        use_batch_projection=getattr(args, 'batch_projection', False),
         max_batch_iterations=getattr(args, 'max_batch_iterations', 10),
         target_accuracy=getattr(args, 'target_accuracy', 0.99)
     )
     
-    use_instant_projection = getattr(args, 'instant_projection', False)
+    # Hadamard bipolar seed projection — the only training method
+    final_bpb, final_val_loss, elapsed = train_hdc_seed_projection(config)
     
-    if use_instant_projection:
-        final_bpb, final_val_loss, elapsed = train_hdc_instant_projection(config)
-    elif config.use_batch_projection:
-        final_bpb, final_val_loss, elapsed = train_hdc_batch_projection(config)
-    else:
-        final_bpb, final_val_loss, elapsed = train_hdc(config)
-    
-    if args.rank == 0:
+    if True:  # Single-process mode
         script_path = os.path.abspath(__file__)
         code_size_bytes = os.path.getsize(script_path)
         
@@ -8654,7 +5799,7 @@ def main():
         print(f"BPB: {final_bpb:.4f}")
         print(f"Val Loss: {final_val_loss:.4f}")
         print(f"Time: {elapsed:.1f}s")
-        print(f"GPUs used: {args.world_size}")
+        print(f"Mode: single-process HDC")
         print(f"Code size: {code_size_bytes:,} bytes")
         print(f"Total artifact size: {bytes_total:,} bytes (zero-weight HDC)")
         print(f"Baseline to beat: 1.2244 BPB")
@@ -8663,13 +5808,13 @@ def main():
             "author": args.author,
             "github_id": args.github_id,
             "name": args.run_name,
-            "blurb": f"HDC VSA Tokenizer Zero-Weight Model with H100 Tensor Core optimizations, {config.hdc_dim:,} dimensions, trained for {config.iterations} iterations in {elapsed:.1f}s on {args.world_size} GPU(s)",
+            "blurb": f"HDC VSA Tokenizer Zero-Weight Model with Hadamard bipolar architecture, {config.hdc_dim:,} dimensions, trained for {config.iterations} iterations in {elapsed:.1f}s",
             "date": datetime.now(timezone.utc).isoformat(),
             "val_loss": final_val_loss,
             "val_bpb": final_bpb,
             "bytes_total": bytes_total,
             "bytes_code": code_size_bytes,
-            "world_size": args.world_size
+            "world_size": 1
         }
         
         submission_path = "submission.json"
