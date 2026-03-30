@@ -40,6 +40,7 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    mlp_proj_init = os.environ.get("MLP_PROJ_INIT", "zero")  # "zero" or "kaiming_uniform"
     use_mhc = bool(int(os.environ.get("USE_MHC", "0")))
     mhc_type = os.environ.get("MHC_TYPE", "mhc")
     mhc_num_streams = int(os.environ.get("MHC_NUM_STREAMS", 2))

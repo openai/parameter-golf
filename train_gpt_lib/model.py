@@ -140,12 +140,13 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, proj_init: str = "zero"):
         super().__init__()
         hidden = mlp_mult * dim
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
-        self.proj._zero_init = True
+        if proj_init == "zero":
+            self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
         x = torch.relu(self.fc(x))
@@ -178,12 +179,13 @@ class Block(nn.Module):
         qk_gain_init: float,
         init_hc: Callable | None = None,
         flash_attn_version: int = 0,
+        mlp_proj_init: str = "zero",
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, flash_attn_version)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, proj_init=mlp_proj_init)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -220,6 +222,7 @@ class GPT(nn.Module):
         hyper_conn_type: str = "none",
         hyper_conn_n: int = 1,
         flash_attn_version: int = 0,
+        mlp_proj_init: str = "zero",
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -246,6 +249,7 @@ class GPT(nn.Module):
                     qk_gain_init,
                     init_hc,
                     flash_attn_version,
+                    mlp_proj_init=mlp_proj_init,
                 )
                 for _ in range(num_layers)
             ]

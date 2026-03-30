@@ -141,6 +141,7 @@ def main() -> None:
         hyper_conn_type=(args.mhc_type if args.use_mhc else "none"),
         hyper_conn_n=args.mhc_num_streams,
         flash_attn_version=flash_ver,
+        mlp_proj_init=args.mlp_proj_init,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
