@@ -79,6 +79,7 @@ def hyperparameters() -> SimpleNamespace:
         warmup_steps=env_int("WARMUP_STEPS", 0),
         warmup_restore_model=bool(int(os.environ.get("WARMUP_RESTORE_MODEL", "1"))),
         checkpoint_every=env_int("CHECKPOINT_EVERY", 0),
+        resume_from=env_str("RESUME_FROM", ""),
         preload_shards=bool(int(os.environ.get("PRELOAD_SHARDS", "0"))),
         warmdown_iters=env_int("WARMDOWN_ITERS", 0),
         max_wallclock_seconds=env_float("MAX_WALLCLOCK_SECONDS", 0.0),
@@ -1171,6 +1172,64 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 
 
 # -----------------------------
+# CHECKPOINTING
+# -----------------------------
+
+def save_checkpoint(
+    path: Path,
+    model: nn.Module,
+    optimizers: list[torch.optim.Optimizer],
+    step: int,
+    training_time_ms: float,
+    stream_file_idx: int,
+    stream_pos: int,
+    gate_walk_prev: float,
+) -> None:
+    ck = {
+        "model": {k: v.detach().cpu() for k, v in model.state_dict().items()},
+        "optimizers": [opt.state_dict() for opt in optimizers],
+        "step": step,
+        "training_time_ms": training_time_ms,
+        "stream_file_idx": stream_file_idx,
+        "stream_pos": stream_pos,
+        "gate_walk_prev": gate_walk_prev,
+        "rng_python": random.getstate(),
+        "rng_numpy": np.random.get_state(),
+        "rng_torch": torch.random.get_rng_state(),
+    }
+    if torch.cuda.is_available():
+        ck["rng_cuda"] = [torch.cuda.get_rng_state(i) for i in range(torch.cuda.device_count())]
+    torch.save(ck, path)
+
+
+def load_checkpoint(
+    path: Path,
+    model: nn.Module,
+    optimizers: list[torch.optim.Optimizer],
+    train_loader: DistributedTokenLoader,
+    gate_walk: KMotifGateWalk,
+    device: torch.device,
+) -> tuple[int, float]:
+    ck = torch.load(path, map_location="cpu")
+    for opt, state in zip(optimizers, ck["optimizers"]):
+        opt.load_state_dict(state)
+    # restore data loader stream position
+    train_loader.stream.file_idx = ck["stream_file_idx"]
+    train_loader.stream.tokens = load_data_shard(train_loader.stream.files[ck["stream_file_idx"]])
+    train_loader.stream.pos = ck["stream_pos"]
+    # restore gate walk state
+    gate_walk._prev_gate = ck["gate_walk_prev"]
+    # restore RNG states
+    random.setstate(ck["rng_python"])
+    np.random.set_state(ck["rng_numpy"])
+    torch.random.set_rng_state(ck["rng_torch"])
+    if "rng_cuda" in ck and torch.cuda.is_available():
+        for i, s in enumerate(ck["rng_cuda"]):
+            torch.cuda.set_rng_state(s, i)
+    return ck["step"], ck["training_time_ms"]
+
+
+# -----------------------------
 # TRAINING
 # -----------------------------
 
@@ -1229,6 +1288,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--tie_embeddings", type=int, choices=[0,1], default=None)
     parser.add_argument("--compile", type=int, choices=[0,1], default=None)
+    parser.add_argument("--resume", type=str, default=None)
     ns = parser.parse_args()
     # apply CLI overrides if provided
     if ns.tokenizer_path is not None:
@@ -1259,8 +1319,10 @@ def main() -> None:
         args.tie_embeddings = bool(ns.tie_embeddings)
     if ns.compile is not None:
         args.compile = bool(ns.compile)
+    if ns.resume is not None:
+        args.resume_from = ns.resume
 
-    distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+    distributed = "RANK" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -1452,6 +1514,20 @@ def main() -> None:
         except Exception:
             pass
 
+    # resume from checkpoint if requested
+    resumed_step = 0
+    resumed_training_time_ms = 0.0
+    if getattr(args, "resume_from", ""):
+        ck_path = Path(args.resume_from)
+        if not ck_path.is_absolute():
+            ck_path = _ws / ck_path
+        log0(f"Resuming from checkpoint: {ck_path}")
+        resumed_step, resumed_training_time_ms = load_checkpoint(
+            ck_path, model, optimizers, train_loader, gate_walk, device,
+        )
+        restore_low_dim_params_to_fp32(model)
+        log0(f"Resumed at step={resumed_step} training_time={resumed_training_time_ms:.0f}ms")
+
     def zero_grad_all() -> None:
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
@@ -1495,13 +1571,13 @@ def main() -> None:
         zero_grad_all()
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
-    training_time_ms = 0.0
+    training_time_ms = resumed_training_time_ms
     stop_after_step: int | None = None
     if use_cuda:
         torch.cuda.synchronize()
     t0 = time.perf_counter()
 
-    step = 0
+    step = resumed_step
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         should_validate = last_step or (args.val_loss_every > 0 and step > 0 and step % args.val_loss_every == 0)
@@ -1578,15 +1654,19 @@ def main() -> None:
         if stop_after_step is None and reached_cap:
             stop_after_step = step
 
-        # periodic checkpointing (save CPU-state dict to records/<RUN_ID>/)
+        # periodic checkpointing (full resumable state to records/<RUN_ID>/)
         if getattr(args, "checkpoint_every", 0) > 0 and master_process and step % args.checkpoint_every == 0:
             try:
                 run_id_ck = os.environ.get("RUN_ID", "run")
                 ck_dir = _ws / "records" / run_id_ck
                 ck_dir.mkdir(parents=True, exist_ok=True)
-                export_state = {k: v.detach().cpu() for k, v in model.state_dict().items()}
                 ck_path = ck_dir / f"checkpoint_step_{step}.pt"
-                torch.save(export_state, ck_path)
+                save_checkpoint(
+                    ck_path, model, optimizers, step,
+                    training_time_ms + 1000.0 * (time.perf_counter() - t0),
+                    train_loader.stream.file_idx, train_loader.stream.pos,
+                    gate_walk._prev_gate,
+                )
                 log0(f"Saved checkpoint: {ck_path}")
             except Exception:
                 pass
@@ -1652,3 +1732,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
