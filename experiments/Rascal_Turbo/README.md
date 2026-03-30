@@ -8,27 +8,45 @@ What changed vs Rascal II baseline:
 - Added post-NS normalization hook (`MUON_POST_NORM`, default `row_col`).
 - No EngramLite changes in this folder.
 
-## Full Race Run (default 600s)
+## One Script
 
 ```bash
-bash experiments/Rascal_Turbo/run.sh
+python3 experiments/Rascal_Turbo/run.py
 ```
 
-Common overrides:
+Default behavior:
+
+- 3 seeds: `42,300,444`
+- mode: `race`
+- `nproc_per_node`: `auto` (uses all visible GPUs)
+- wallclock: compute-equivalent to `600s @ 8 GPUs` if not explicitly set
+- summary CSV: `experiments/Rascal_Turbo/logs/<run_tag>/summary.csv`
+
+## Common Commands
+
+Race run, 8 GPUs, 3 seeds:
 
 ```bash
-SEED=444 NPROC_PER_NODE=8 TORCHRUN_BIN=torchrun bash experiments/Rascal_Turbo/run.sh
+python3 experiments/Rascal_Turbo/run.py \
+  --nproc-per-node 8 \
+  --seeds 42,300,444 \
+  --mode race
 ```
 
-## Single-H100 2000-step Signal
+Single-GPU signal run (2000-step style):
 
 ```bash
-bash experiments/Rascal_Turbo/run_h100_2000.sh
+python3 experiments/Rascal_Turbo/run.py \
+  --nproc-per-node 1 \
+  --seeds 444 \
+  --mode signal
 ```
 
-Common overrides:
+Single-GPU but 8x-equivalent wallclock:
 
 ```bash
-SEED=444 NPROC_PER_NODE=1 ITERATIONS=2000 TORCHRUN_BIN=torchrun \
-bash experiments/Rascal_Turbo/run_h100_2000.sh
+python3 experiments/Rascal_Turbo/run.py \
+  --nproc-per-node 1 \
+  --seeds 42,300,444 \
+  --mode race
 ```
