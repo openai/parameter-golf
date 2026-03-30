@@ -40,8 +40,24 @@ Focus : Scheduled Sampling
  Fix: We can try starting scheduled sampling after a good amount of learning. Maybe after the first 100 steps. Let's see how that runs.
 
  ## Day 4 
- - Ran the scheduled sampling on Runpod (1XA100) with 4500 steps, surprisingly a very good run. A val-bpb of :  1.2819. This gives me good confidence to run these 3 ideas on a 8XH100. Although the landscape fully changes when we have 8 GPUs interacting with eachother. I am encountering errors and ended up wasting alot of my credits that way. 
-Now, to not waste more credits I stopped the run. If my credits get approved I am going to implement a good run soon. 
+ - Ran the Relu and Hashing on Runpod (1XA100) with 4500 steps, surprisingly a very good run. A val-bpb of :  1.2819. This gives me good confidence to run these 2 ideas on a 8XH100. Although the landscape fully changes when we have 8 GPUs interacting with eachother. I am encountering errors and ended up wasting alot of my credits that way. 
+Now, to not waste more credits I stopped the run. If my credits get approved I am going to implement a good run soon.
+
+Runs today:
+- A100 4500 steps: 1.2819 bpb (LeakyReLU + TrigramHash + scheduled sampling placeholder)
+- 8×H100 5274 steps: 1.2631 bpb (first real leaderboard-comparable run)
+
+ Issues found:
+- Model size was 16.1MB — 0.1MB over 16MB limit
+- Only got 5274 steps in 10 min (TrigramHash overhead slowing steps)
+
+Fixes pushed:
+- TrigramHash buckets 8192 → 4096 (saves 0.42MB, speeds up steps)
+- fp16 embedding weights (saves 0.5MB, faster lookup)
+- Expected model size: ~15.2MB ✓
+
+Next: clean 8×H100 run with fixes → target beat 1.2244 baseline
+
 
 ## Key insights
 - Where is the model not communicating when it should be? That gap is always an opportunity.
