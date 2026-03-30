@@ -1,0 +1,3082 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shroud Flow Viewer</title>
+  <style>
+    :root {
+      --bg-0: #04050b;
+      --bg-1: #07111f;
+      --bg-2: #111a2f;
+      --panel: rgba(8, 12, 21, 0.76);
+      --panel-strong: rgba(10, 15, 27, 0.92);
+      --panel-border: rgba(116, 145, 202, 0.28);
+      --text: #e7f3ff;
+      --muted: #9eb2cc;
+      --line: rgba(155, 180, 220, 0.16);
+      --cyan: #4dd9ff;
+      --amber: #ffb060;
+      --violet: #ca77ff;
+      --lime: #86ff9f;
+      --shadow: 0 24px 90px rgba(0, 0, 0, 0.45);
+    }
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 900px at 18% 12%, rgba(58, 97, 158, 0.34), transparent 48%),
+        radial-gradient(900px 700px at 95% 88%, rgba(128, 59, 151, 0.26), transparent 44%),
+        radial-gradient(700px 500px at 50% 110%, rgba(39, 179, 194, 0.08), transparent 55%),
+        linear-gradient(145deg, var(--bg-0), var(--bg-1) 46%, var(--bg-2));
+      font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 42px 42px;
+      opacity: 0.06;
+      mask-image: radial-gradient(circle at 50% 30%, black 0%, transparent 75%);
+    }
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+    #toggleUi {
+      position: absolute;
+      left: 16px;
+      top: 16px;
+      z-index: 4;
+      border-radius: 12px;
+      background: rgba(9, 15, 27, 0.78);
+      backdrop-filter: blur(8px) saturate(130%);
+    }
+    #app.ui-hidden #hud,
+    #app.ui-hidden #sankeyPanel,
+    #app.ui-hidden #hover {
+      display: none;
+    }
+    #view {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
+    #hud {
+      position: absolute;
+      left: 16px;
+      top: 16px;
+      z-index: 3;
+      width: min(430px, calc(100vw - 32px));
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(18, 25, 41, 0.86), rgba(8, 12, 21, 0.74));
+      backdrop-filter: blur(14px) saturate(140%);
+      box-shadow: var(--shadow);
+    }
+    .hud-inner {
+      padding: 16px 16px 14px;
+    }
+    .brand {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .brand-title {
+      margin: 0;
+      font-size: 15px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+    .brand-sub {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 28ch;
+    }
+    .badge {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #dbe9ff;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(77, 217, 255, 0.2);
+      background: rgba(7, 16, 28, 0.58);
+      white-space: nowrap;
+    }
+    .section {
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      margin-top: 12px;
+    }
+    .section-title {
+      margin: 0 0 10px;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #dbe9ff;
+    }
+    .file-row,
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .trace-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(131, 167, 228, 0.22);
+      background: rgba(9, 15, 27, 0.55);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1;
+      min-height: 17px;
+      font-variant-numeric: tabular-nums;
+    }
+    .file-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(131, 167, 228, 0.25);
+      background: rgba(9, 15, 27, 0.72);
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .file-chip input {
+      display: none;
+    }
+    .select,
+    .button {
+      appearance: none;
+      border: 1px solid rgba(131, 167, 228, 0.25);
+      background: rgba(9, 15, 27, 0.72);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      outline: none;
+    }
+    .button {
+      cursor: pointer;
+    }
+    .button:hover,
+    .file-chip:hover,
+    .select:hover {
+      border-color: rgba(77, 217, 255, 0.42);
+    }
+    .button.primary {
+      background: linear-gradient(135deg, rgba(45, 97, 151, 0.58), rgba(22, 41, 74, 0.86));
+    }
+    .toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: center;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .toggle {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle input {
+      accent-color: var(--cyan);
+    }
+    .slider-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .slider-card {
+      border: 1px solid rgba(131, 167, 228, 0.16);
+      border-radius: 14px;
+      background: rgba(9, 15, 27, 0.58);
+      padding: 10px;
+    }
+    #timelineSection {
+      display: none;
+    }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: #deebff;
+    }
+    .slider-label span:last-child {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      width: 100%;
+      margin: 0;
+      accent-color: var(--cyan);
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .stat {
+      border: 1px solid rgba(131, 167, 228, 0.14);
+      background: rgba(5, 9, 16, 0.4);
+      border-radius: 12px;
+      padding: 10px 12px;
+      min-height: 42px;
+    }
+    .stat strong {
+      display: block;
+      color: var(--text);
+      margin-bottom: 4px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .legend-item {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      flex: none;
+    }
+    .dot.flow {
+      background: var(--cyan);
+    }
+    .dot.loop {
+      background: var(--amber);
+    }
+    .dot.head {
+      background: var(--violet);
+    }
+    .dot.edges {
+      background: var(--lime);
+    }
+    #hover {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      z-index: 3;
+      width: min(360px, calc(100vw - 32px));
+      border: 1px solid rgba(131, 167, 228, 0.18);
+      border-radius: 16px;
+      background: rgba(7, 10, 18, 0.78);
+      backdrop-filter: blur(10px) saturate(135%);
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      color: #dceaff;
+      font-size: 12px;
+      line-height: 1.45;
+      pointer-events: none;
+      min-height: 52px;
+    }
+    #sankeyPanel {
+      position: absolute;
+      right: 16px;
+      top: 16px;
+      z-index: 3;
+      width: min(460px, calc(100vw - 32px));
+      border: 1px solid rgba(131, 167, 228, 0.22);
+      border-radius: 16px;
+      background: rgba(7, 10, 18, 0.78);
+      backdrop-filter: blur(10px) saturate(135%);
+      box-shadow: var(--shadow);
+      padding: 10px 12px;
+      color: #dceaff;
+      line-height: 1.35;
+    }
+    .sankey-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .sankey-title {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #e8f2ff;
+    }
+    .sankey-meta {
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+    #sankeyCanvas {
+      width: 100%;
+      height: 280px;
+      display: block;
+      border-radius: 10px;
+      border: 1px solid rgba(131, 167, 228, 0.12);
+      background: linear-gradient(180deg, rgba(11, 17, 30, 0.72), rgba(8, 12, 22, 0.62));
+    }
+    #hover .small {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    @media (max-width: 760px) {
+      #hud {
+        left: 10px;
+        top: 10px;
+        width: calc(100vw - 20px);
+        max-height: calc(100vh - 20px);
+      }
+      .slider-grid {
+        grid-template-columns: 1fr;
+      }
+      .stats,
+      .legend {
+        grid-template-columns: 1fr;
+      }
+      #hover {
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        width: auto;
+      }
+      #sankeyPanel {
+        display: none;
+      }
+      #toggleUi {
+        left: 10px;
+        top: 10px;
+      }
+      .brand {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="view"></div>
+    <button id="toggleUi" class="button" type="button" aria-pressed="false">Hide UI</button>
+    <aside id="hud">
+      <div class="hud-inner">
+        <div class="brand">
+          <div>
+            <h1 class="brand-title">Shroud Flow Viewer</h1>
+            <p class="brand-sub">Dark-theme particle shim for crawler, head, and loop-depth traces.</p>
+          </div>
+          <div class="badge">Three.js / static / standalone</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Trace</div>
+          <div class="file-row">
+            <label class="file-chip">
+              <input id="file" type="file" accept=".json,.jsonl,.txt" />
+              Open trace
+            </label>
+            <button id="cycleTrace" class="button" type="button">Next Trace</button>
+            <select id="viewMode" class="select" aria-label="Projection mode">
+              <option value="flow">Flow</option>
+              <option value="loop">Loop Map</option>
+              <option value="morph">Morph</option>
+              <option value="morph_timeline">Morph Timeline</option>
+              <option value="overlay">Overlay</option>
+            </select>
+            <button id="resetCamera" class="button primary" type="button">Reset</button>
+          </div>
+          <div class="toggles" style="margin-top:8px;">
+            <span id="presetTraceLabel" class="trace-pill">Preset: none</span>
+          </div>
+          <div class="toggles">
+            <label class="toggle"><input id="autoRotate" type="checkbox" /> Auto rotate</label>
+            <label class="toggle"><input id="showGuides" type="checkbox" checked /> Guides</label>
+            <label class="toggle"><input id="showZones" type="checkbox" checked /> Zone labels</label>
+            <label class="toggle"><input id="showLabels" type="checkbox" checked /> Hover labels</label>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Look</div>
+          <div class="slider-grid">
+            <label class="slider-card">
+              <div class="slider-label"><span>Point size</span><span id="pointSizeValue">0.11</span></div>
+              <input id="pointSize" type="range" min="0.04" max="0.22" step="0.01" value="0.11" />
+            </label>
+            <label class="slider-card">
+              <div class="slider-label"><span>Glow</span><span id="glowValue">1.25</span></div>
+              <input id="glow" type="range" min="0.5" max="2.5" step="0.05" value="1.25" />
+            </label>
+            <label class="slider-card">
+              <div class="slider-label"><span>Edge opacity</span><span id="edgeValue">0.52</span></div>
+              <input id="edgeOpacity" type="range" min="0" max="1" step="0.01" value="0.52" />
+            </label>
+            <label class="slider-card">
+              <div class="slider-label"><span>Flow rate</span><span id="speedValue">0.55</span></div>
+              <input id="speed" type="range" min="0" max="2" step="0.01" value="0.55" />
+            </label>
+          </div>
+        </div>
+        <div id="timelineSection" class="section">
+          <div class="section-title">Morph Timeline</div>
+          <div class="slider-grid">
+            <label class="slider-card" style="grid-column: 1 / -1;">
+              <div class="slider-label"><span>Step scrub</span><span id="timelineValue">0 / 0</span></div>
+              <input id="timelineStep" type="range" min="0" max="1000" step="1" value="1000" />
+            </label>
+          </div>
+          <div class="toggles">
+            <label class="toggle"><input id="timelineClip" type="checkbox" checked /> Clip future steps</label>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Readout</div>
+          <div class="stats">
+            <div class="stat"><strong>Source</strong><span id="sourceStat">No trace loaded.</span></div>
+            <div class="stat"><strong>Counts</strong><span id="countStat">Points 0, edges 0</span></div>
+            <div class="stat"><strong>Projection</strong><span id="modeStat">Flow</span></div>
+            <div class="stat"><strong>Depth</strong><span id="depthStat">Loop depth map ready.</span></div>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><span class="dot flow"></span> Flow / encoder / decoder</div>
+            <div class="legend-item"><span class="dot loop"></span> Loop layers / rings / axis</div>
+            <div class="legend-item"><span class="dot head"></span> Head interactions</div>
+            <div class="legend-item"><span class="dot edges"></span> Head-edge links</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+    <section id="sankeyPanel" aria-label="Sankey interaction flow">
+      <div class="sankey-head">
+        <div class="sankey-title">Sankey Head↔Crawler Flow</div>
+        <div id="sankeyMeta" class="sankey-meta">No trace</div>
+      </div>
+      <canvas id="sankeyCanvas" width="460" height="280"></canvas>
+    </section>
+    <div id="hover">
+      <div class="small">Hover</div>
+      <div id="hoverText">Load a trace to inspect particles and loop-depth links.</div>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.161.0/build/three.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
+    import { OrbitControls } from "https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js";
+
+    const STAGE_ANGLE = {
+      embed: 0.15,
+      encoder: 0.85,
+      inst: 1.55,
+      crawler: 2.25,
+      delta: 3.05,
+      decoder: 3.95,
+      head_in: 4.75,
+    };
+
+    const STAGE_HUE = {
+      embed: 0.58,
+      encoder: 0.60,
+      inst: 0.08,
+      crawler: 0.12,
+      delta: 0.42,
+      decoder: 0.86,
+      head_in: 0.92,
+      compression: 0.31,
+      metric: 0.68,
+    };
+
+    const STAGE_FLOW_SPEED = {
+      embed: 0.22,
+      encoder: 0.28,
+      inst: 0.18,
+      crawler: 0.38,
+      delta: 0.24,
+      decoder: 0.20,
+      head_in: 0.16,
+      compression: 0.14,
+      metric: 0.08,
+      unknown: 0.18,
+    };
+    const STAGE_ORDER = ["embed", "encoder", "inst", "crawler", "delta", "decoder", "head_in", "compression", "metric"];
+    const RATROD_STAGE_LANE_X = {
+      embed: -10.5,
+      encoder: -7.4,
+      inst: -4.0,
+      head_q: -1.0,
+      head_kv: 1.3,
+      crawler: 4.2,
+      delta: 6.4,
+      decoder: 8.7,
+      head_in: 11.2,
+      compression: 13.8,
+      metric: 16.0,
+      unknown: 0.0,
+    };
+    const PACKETS_PER_EDGE = 4;
+
+    const PARAMS = {
+      pointSize: 0.11,
+      glow: 1.25,
+      edgeOpacity: 0.52,
+      speed: 0.55,
+      autoRotate: false,
+      showGuides: true,
+      showZones: true,
+      showLabels: true,
+      viewMode: "flow",
+      uiHidden: false,
+      timelineScrub: 1.0,
+      timelineClip: true,
+    };
+    const VIEW_MODES = ["flow", "loop", "morph", "morph_timeline", "overlay"];
+
+    const PRESET_TRACES = [
+      {
+        name: "JUNKYARD MINI (latest)",
+        url: "/results/shroud_junkyard_mini_latest.trace.points.json",
+        layoutProfile: "ratrod",
+      },
+      {
+        name: "FLOWTAG (default)",
+        url: "/results/shroud_loopviz_smoke_20260329_185729/SHROUD_LOOPVIZ_FLOWTAG.trace.points.json",
+      },
+      {
+        name: "INTERACT",
+        url: "/results/shroud_loopviz_smoke_20260329_151840/SHROUD_LOOPVIZ_INTERACT.trace.points.json",
+      },
+      {
+        name: "LOOPS3",
+        url: "/results/shroud_loopviz_smoke_20260329_131102/SHROUD_LOOPVIZ_LOOPS3.trace.points.json",
+      },
+      {
+        name: "BASE (loops4 inst32)",
+        url: "/results/shroud_loopviz_smoke_20260329_130012/SHROUD_LOOPVIZ_BASE.trace.points.json",
+      },
+      {
+        name: "INST0 (loops4 inst0)",
+        url: "/results/shroud_loopviz_smoke_20260329_130034/SHROUD_LOOPVIZ_INST0.trace.points.json",
+      },
+    ];
+    let presetTraceIndex = 0;
+
+    const el = {
+      app: document.getElementById("app"),
+      toggleUi: document.getElementById("toggleUi"),
+      file: document.getElementById("file"),
+      cycleTrace: document.getElementById("cycleTrace"),
+      presetTraceLabel: document.getElementById("presetTraceLabel"),
+      viewMode: document.getElementById("viewMode"),
+      resetCamera: document.getElementById("resetCamera"),
+      autoRotate: document.getElementById("autoRotate"),
+      showGuides: document.getElementById("showGuides"),
+      showZones: document.getElementById("showZones"),
+      showLabels: document.getElementById("showLabels"),
+      timelineSection: document.getElementById("timelineSection"),
+      timelineStep: document.getElementById("timelineStep"),
+      timelineValue: document.getElementById("timelineValue"),
+      timelineClip: document.getElementById("timelineClip"),
+      pointSize: document.getElementById("pointSize"),
+      glow: document.getElementById("glow"),
+      edgeOpacity: document.getElementById("edgeOpacity"),
+      speed: document.getElementById("speed"),
+      pointSizeValue: document.getElementById("pointSizeValue"),
+      glowValue: document.getElementById("glowValue"),
+      edgeValue: document.getElementById("edgeValue"),
+      speedValue: document.getElementById("speedValue"),
+      sourceStat: document.getElementById("sourceStat"),
+      countStat: document.getElementById("countStat"),
+      modeStat: document.getElementById("modeStat"),
+      depthStat: document.getElementById("depthStat"),
+      hoverText: document.getElementById("hoverText"),
+      sankeyPanel: document.getElementById("sankeyPanel"),
+      sankeyCanvas: document.getElementById("sankeyCanvas"),
+      sankeyMeta: document.getElementById("sankeyMeta"),
+      view: document.getElementById("view"),
+    };
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x050713, 0.028);
+
+    const camera = new THREE.PerspectiveCamera(56, window.innerWidth / window.innerHeight, 0.1, 500);
+    camera.position.set(8.8, 6.2, 13.2);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    el.view.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.055;
+    controls.minDistance = 3.0;
+    controls.maxDistance = 42;
+    controls.target.set(0, 1.8, 0);
+
+    scene.add(new THREE.AmbientLight(0x9ec2ff, 0.18));
+    const sun = new THREE.DirectionalLight(0xffd3a0, 0.68);
+    sun.position.set(12, 18, 10);
+    scene.add(sun);
+    const fill = new THREE.PointLight(0x49d7ff, 0.9, 80, 2);
+    fill.position.set(-8, 4, 8);
+    scene.add(fill);
+
+    const backdrop = new THREE.Group();
+    const haloGeo = new THREE.SphereGeometry(22, 40, 24);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0x18305d,
+      transparent: true,
+      opacity: 0.08,
+      wireframe: true,
+      depthWrite: false,
+    });
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    backdrop.add(halo);
+    scene.add(backdrop);
+
+    const flowGroup = new THREE.Group();
+    const loopGroup = new THREE.Group();
+    const morphGroup = new THREE.Group();
+    const morphTimelineGroup = new THREE.Group();
+    scene.add(flowGroup);
+    scene.add(loopGroup);
+    scene.add(morphGroup);
+    scene.add(morphTimelineGroup);
+
+    let currentDataset = null;
+    let currentLayoutProfile = "default";
+    let flowCloud = null;
+    let flowEdges = null;
+    let flowPackets = null;
+    let loopCloud = null;
+    let loopEdges = null;
+    let loopPackets = null;
+    let morphCloud = null;
+    let morphEdges = null;
+    let morphPackets = null;
+    let morphTimelineCloud = null;
+    let morphTimelineEdges = null;
+    let morphTimelinePackets = null;
+    let flowState = null;
+    let loopState = null;
+    let morphState = null;
+    let morphTimelineState = null;
+    let sankeyState = null;
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2(999, 999);
+    raycaster.params.Points.threshold = 0.2;
+
+    function disposeNode(node) {
+      node.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => {
+              if (m?.map) m.map.dispose();
+              m.dispose();
+            });
+          } else {
+            if (child.material.map) child.material.map.dispose();
+            child.material.dispose();
+          }
+        }
+      });
+    }
+
+    function clearGroup(group) {
+      while (group.children.length) {
+        const child = group.children.pop();
+        group.remove(child);
+        disposeNode(child);
+      }
+    }
+
+    function colorFromHSL(h, s, l) {
+      const c = new THREE.Color();
+      c.setHSL((h % 1 + 1) % 1, clamp(s, 0, 1), clamp(l, 0, 1));
+      return c;
+    }
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function toFinite(value, fallback = 0) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function safeMod(a, m) {
+      const r = a % m;
+      return r < 0 ? r + m : r;
+    }
+
+    function rgbaFromColor(color, alpha) {
+      return `rgba(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}, ${clamp(alpha, 0, 1).toFixed(3)})`;
+    }
+
+    function resolveLayoutProfile(explicitProfile, sourceLabel = "", sourcePath = "") {
+      const explicit = String(explicitProfile || "").trim().toLowerCase();
+      if (explicit === "ratrod") return "ratrod";
+      const hint = `${String(sourceLabel || "")} ${String(sourcePath || "")}`.toLowerCase();
+      if (hint.includes("junkyard mini") || hint.includes("shroud_junkyard_mini")) return "ratrod";
+      return "default";
+    }
+
+    function activeLayoutCenterX() {
+      return currentLayoutProfile === "ratrod" ? 2.8 : 0.0;
+    }
+
+    function architectureRole(meta) {
+      const kind = String(meta?.kind || "").toLowerCase();
+      if (kind === "head_q" || kind === "head_kv") return kind;
+      const stage = String(meta?.stage || "unknown").toLowerCase();
+      return stage || "unknown";
+    }
+
+    function architectureLaneX(meta) {
+      if (currentLayoutProfile !== "ratrod") return toFinite(meta?.x, 0);
+      const role = architectureRole(meta);
+      return toFinite(RATROD_STAGE_LANE_X[role], RATROD_STAGE_LANE_X.unknown);
+    }
+
+    function centeredLoop(meta, dataset) {
+      const maxLoop = Math.max(0, toFinite(dataset?.maxLoop, 0));
+      const loop = toFinite(meta?.loop, 0);
+      return loop - 0.5 * maxLoop;
+    }
+
+    function createZoneLabelSprite(text, colorHex = "#dceaff", fontSize = 34) {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const padX = 18;
+      const padY = 10;
+      ctx.font = `700 ${fontSize}px "Avenir Next", "Segoe UI", sans-serif`;
+      const textWidth = Math.ceil(ctx.measureText(text).width);
+      const width = textWidth + padX * 2;
+      const height = fontSize + padY * 2;
+      const dpr = 2;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.font = `700 ${fontSize}px "Avenir Next", "Segoe UI", sans-serif`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(7, 12, 22, 0.60)";
+      ctx.strokeStyle = "rgba(122, 153, 219, 0.42)";
+      ctx.lineWidth = 2;
+      const radius = 10;
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(width - radius, 0);
+      ctx.quadraticCurveTo(width, 0, width, radius);
+      ctx.lineTo(width, height - radius);
+      ctx.quadraticCurveTo(width, height, width - radius, height);
+      ctx.lineTo(radius, height);
+      ctx.quadraticCurveTo(0, height, 0, height - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = colorHex;
+      ctx.fillText(text, padX, height * 0.5);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.needsUpdate = true;
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+        opacity: 0.96,
+      });
+      const sprite = new THREE.Sprite(material);
+      const worldScale = 0.0112;
+      sprite.scale.set(width * worldScale, height * worldScale, 1);
+      return sprite;
+    }
+
+    function zoneBounds(basePositions, indices) {
+      if (!indices.length) return null;
+      let minX = Infinity;
+      let minY = Infinity;
+      let minZ = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      let maxZ = -Infinity;
+      let count = 0;
+      for (const idx of indices) {
+        const b = idx * 3;
+        const x = basePositions[b + 0];
+        const y = basePositions[b + 1];
+        const z = basePositions[b + 2];
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        minZ = Math.min(minZ, z);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+        maxZ = Math.max(maxZ, z);
+        count += 1;
+      }
+      if (!count) return null;
+      const pad = 0.18;
+      minX -= pad;
+      minY -= pad;
+      minZ -= pad;
+      maxX += pad;
+      maxY += pad;
+      maxZ += pad;
+      const cx = 0.5 * (minX + maxX);
+      const cy = 0.5 * (minY + maxY);
+      const cz = 0.5 * (minZ + maxZ);
+      const sx = Math.max(maxX - minX, 0.5);
+      const sy = Math.max(maxY - minY, 0.5);
+      const sz = Math.max(maxZ - minZ, 0.5);
+      return {
+        min: new THREE.Vector3(cx - sx * 0.5, cy - sy * 0.5, cz - sz * 0.5),
+        max: new THREE.Vector3(cx + sx * 0.5, cy + sy * 0.5, cz + sz * 0.5),
+        center: new THREE.Vector3(cx, cy, cz),
+        size: new THREE.Vector3(sx, sy, sz),
+      };
+    }
+
+    function addZoneFrameCallout(group, basePositions, indices, text, colorHex) {
+      const box = zoneBounds(basePositions, indices);
+      if (!box) return null;
+      const { min, max, center, size } = box;
+      const c000 = new THREE.Vector3(min.x, min.y, min.z);
+      const c001 = new THREE.Vector3(min.x, min.y, max.z);
+      const c010 = new THREE.Vector3(min.x, max.y, min.z);
+      const c011 = new THREE.Vector3(min.x, max.y, max.z);
+      const c100 = new THREE.Vector3(max.x, min.y, min.z);
+      const c101 = new THREE.Vector3(max.x, min.y, max.z);
+      const c110 = new THREE.Vector3(max.x, max.y, min.z);
+      const c111 = new THREE.Vector3(max.x, max.y, max.z);
+      const seg = [
+        c000, c001, c001, c011, c011, c010, c010, c000,
+        c100, c101, c101, c111, c111, c110, c110, c100,
+        c000, c100, c001, c101, c011, c111, c010, c110,
+      ];
+      const frameGeom = new THREE.BufferGeometry().setFromPoints(seg);
+      const frameMat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(colorHex),
+        transparent: true,
+        opacity: 0.48,
+        depthWrite: false,
+      });
+      const frame = new THREE.LineSegments(frameGeom, frameMat);
+      group.add(frame);
+
+      const dir = new THREE.Vector3(center.x, 0, center.z);
+      if (dir.lengthSq() < 1e-5) dir.set(1, 0, 0);
+      dir.normalize();
+      const radialHalf = Math.abs(dir.x) * size.x * 0.5 + Math.abs(dir.z) * size.z * 0.5;
+      const anchor = center.clone().addScaledVector(dir, radialHalf + 0.04);
+      anchor.y = center.y + Math.min(size.y * 0.30, 0.55);
+      const labelGap = Math.max(2.1, 1.0 + Math.hypot(size.x, size.z) * 0.82);
+      const labelPos = center.clone().addScaledVector(dir, radialHalf + labelGap);
+      labelPos.y = center.y + Math.max(0.8, size.y * 0.34 + 0.28);
+
+      const label = createZoneLabelSprite(text, colorHex, 30);
+      label.position.copy(labelPos);
+      group.add(label);
+
+      const leadEnd = labelPos.clone().addScaledVector(dir, -label.scale.x * 0.52);
+      const leadGeom = new THREE.BufferGeometry().setFromPoints([anchor, leadEnd]);
+      const leadMat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(colorHex),
+        transparent: true,
+        opacity: 0.64,
+        depthWrite: false,
+      });
+      const lead = new THREE.Line(leadGeom, leadMat);
+      group.add(lead);
+
+      const node = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 12, 8),
+        new THREE.MeshBasicMaterial({
+          color: new THREE.Color(colorHex),
+          transparent: true,
+          opacity: 0.88,
+          depthWrite: false,
+        }),
+      );
+      node.position.copy(anchor);
+      group.add(node);
+
+      return { center, size };
+    }
+
+    function buildZoneLabels(parent, state, dataset) {
+      if (!state || !dataset) return;
+      const zoneGroup = new THREE.Group();
+      zoneGroup.visible = PARAMS.showZones;
+      zoneGroup.userData.kind = "zoneLabels";
+      parent.add(zoneGroup);
+      state.zoneGroup = zoneGroup;
+
+      const byStage = new Map();
+      const byKind = new Map();
+      for (let i = 0; i < dataset.points.length; i += 1) {
+        const meta = dataset.points[i]?.meta || {};
+        const stage = String(meta.stage || "unknown").toLowerCase();
+        const kind = String(meta.kind || "").toLowerCase();
+        if (!byStage.has(stage)) byStage.set(stage, []);
+        byStage.get(stage).push(i);
+        if (kind) {
+          if (!byKind.has(kind)) byKind.set(kind, []);
+          byKind.get(kind).push(i);
+        }
+      }
+
+      const qHeads = byKind.get("head_q") || [];
+      const kvHeads = byKind.get("head_kv") || [];
+      const crawler = (byStage.get("crawler") || []).filter((idx) => {
+        const k = String(dataset.points[idx]?.meta?.kind || "").toLowerCase();
+        return k !== "head_q" && k !== "head_kv";
+      });
+      const encoder = byStage.get("encoder") || [];
+      const decoder = byStage.get("decoder") || [];
+      const compression = byStage.get("compression") || [];
+      const metric = byStage.get("metric") || [];
+      const exchange = qHeads.concat(kvHeads);
+
+      addZoneFrameCallout(zoneGroup, state.basePositions, qHeads, "ATTN HEADS (Q)", "#80f2ff");
+      addZoneFrameCallout(zoneGroup, state.basePositions, kvHeads, "ATTN HEADS (KV)", "#ffc48b");
+      addZoneFrameCallout(zoneGroup, state.basePositions, crawler, "CRAWLER CORE", "#d5b7ff");
+      addZoneFrameCallout(zoneGroup, state.basePositions, exchange, "ATTN <-> CRAWLER EXCHANGE", "#fff6bf");
+      addZoneFrameCallout(zoneGroup, state.basePositions, encoder, "ENCODER", "#8fb6ff");
+      addZoneFrameCallout(zoneGroup, state.basePositions, decoder, "DECODER", "#c9a2ff");
+      addZoneFrameCallout(zoneGroup, state.basePositions, compression, "COMPRESSION", "#88f7ae");
+      addZoneFrameCallout(zoneGroup, state.basePositions, metric, "BPB / METRICS", "#7fdfff");
+    }
+
+    function parseSankeyKey(key) {
+      const src = key.match(/^L(\d+)B(\d+)H(-?\d+)$/);
+      if (src) return { side: "src", loop: Number(src[1]), block: Number(src[2]), slot: Number(src[3]) };
+      const dst = key.match(/^L(\d+)B(\d+)KV(-?\d+)$/);
+      if (dst) return { side: "dst", loop: Number(dst[1]), block: Number(dst[2]), slot: Number(dst[3]) };
+      const stage = key.match(/^S:([a-z_]+):L(-?\d+):B(-?\d+)$/i);
+      if (stage) {
+        return {
+          side: "stage",
+          stage: String(stage[1]).toLowerCase(),
+          loop: Number(stage[2]),
+          block: Number(stage[3]),
+          slot: -1,
+        };
+      }
+      return { side: "src", loop: 0, block: 0, slot: 0 };
+    }
+
+    function sankeyNodeColor(key, isSource) {
+      const p = parseSankeyKey(key);
+      if (p.side === "stage") {
+        const hue = STAGE_HUE[p.stage] ?? 0.58;
+        return colorFromHSL(hue, 0.82, isSource ? 0.52 : 0.48);
+      }
+      const hue = safeMod((isSource ? 0.60 : 0.07) + 0.03 * p.loop + 0.015 * p.block + 0.02 * Math.abs(p.slot), 1);
+      const sat = isSource ? 0.80 : 0.84;
+      const lum = isSource ? 0.53 : 0.50;
+      return colorFromHSL(hue, sat, lum);
+    }
+
+    function sankeyNodeLabel(key) {
+      const p = parseSankeyKey(key);
+      if (p.side === "stage") {
+        return `${String(p.stage || "stage").toUpperCase()} L${p.loop} B${p.block}`;
+      }
+      return p.side === "dst"
+        ? `L${p.loop} B${p.block} KV${p.slot}`
+        : `L${p.loop} B${p.block} H${p.slot}`;
+    }
+
+    function resolveSankeyEdgeKey(edge, side) {
+      const explicit = side === "src" ? edge.src_key : edge.dst_key;
+      if (explicit && String(explicit).trim()) return String(explicit).trim();
+      const loop = Number.isFinite(edge.loop) ? edge.loop : 0;
+      const block = Number.isFinite(edge.block) ? edge.block : 0;
+      if (side === "src") {
+        if (Number.isFinite(edge.head) && edge.head >= 0) return `L${loop}B${block}H${edge.head}`;
+        return `S:${String(edge.src_stage || "crawler").toLowerCase()}:L${loop}:B${block}`;
+      }
+      if (Number.isFinite(edge.kv_head) && edge.kv_head >= 0) return `L${loop}B${block}KV${edge.kv_head}`;
+      return `S:${String(edge.dst_stage || "crawler").toLowerCase()}:L${loop}:B${block}`;
+    }
+
+    function edgeWeight(edge) {
+      const raw = Math.abs(
+        toFinite(
+          edge.magnitude,
+          toFinite(edge.flow, toFinite(edge.transfer, toFinite(edge.qk_align, 0.08))),
+        ),
+      );
+      return clamp(raw, 0.01, 4.5);
+    }
+
+    function buildSankeyState(dataset) {
+      if (!dataset || !Array.isArray(dataset.edges) || !dataset.edges.length) {
+        el.sankeyMeta.textContent = "No flow edges";
+        return null;
+      }
+      const agg = new Map();
+      const srcWeight = new Map();
+      const dstWeight = new Map();
+      let total = 0;
+      for (let i = 0; i < dataset.edges.length; i += 1) {
+        const edge = dataset.edges[i];
+        const src = resolveSankeyEdgeKey(edge, "src");
+        const dst = resolveSankeyEdgeKey(edge, "dst");
+        if (!src || !dst || src === dst) continue;
+        const w = edgeWeight(edge);
+        const k = `${src}→${dst}`;
+        const current = agg.get(k) || {
+          src,
+          dst,
+          weight: 0,
+          phase: toFinite(edge.phase, 0),
+          color: new THREE.Color(
+            clamp(toFinite(edge.r, 0.7), 0, 1),
+            clamp(toFinite(edge.g, 0.7), 0, 1),
+            clamp(toFinite(edge.b, 0.7), 0, 1),
+          ),
+          kind: String(edge.flow_kind || "flow"),
+          count: 0,
+        };
+        current.weight += w;
+        current.count += 1;
+        current.phase = safeMod(current.phase + 0.01 * current.count, 1);
+        agg.set(k, current);
+        srcWeight.set(src, (srcWeight.get(src) || 0) + w);
+        dstWeight.set(dst, (dstWeight.get(dst) || 0) + w);
+        total += w;
+      }
+      const linksAll = Array.from(agg.values()).sort((a, b) => b.weight - a.weight);
+      const maxLinks = 80;
+      const links = linksAll.slice(0, maxLinks);
+      const srcSet = new Set(links.map((l) => l.src));
+      const dstSet = new Set(links.map((l) => l.dst));
+      const srcKeys = Array.from(srcSet).sort((a, b) => (srcWeight.get(b) || 0) - (srcWeight.get(a) || 0));
+      const dstKeys = Array.from(dstSet).sort((a, b) => (dstWeight.get(b) || 0) - (dstWeight.get(a) || 0));
+      el.sankeyMeta.textContent = `${links.length} links · ${srcKeys.length} sources · ${dstKeys.length} sinks`;
+      return {
+        links,
+        srcKeys,
+        dstKeys,
+        srcWeight,
+        dstWeight,
+        totalWeight: total,
+      };
+    }
+
+    function sankeyCanvas2D() {
+      const canvas = el.sankeyCanvas;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(320, Math.floor(canvas.clientWidth || canvas.width || 460));
+      const height = Math.max(180, Math.floor(canvas.clientHeight || canvas.height || 280));
+      const pxW = Math.floor(width * dpr);
+      const pxH = Math.floor(height * dpr);
+      if (canvas.width !== pxW || canvas.height !== pxH) {
+        canvas.width = pxW;
+        canvas.height = pxH;
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, width, height };
+    }
+
+    function layoutSankeyColumn(keys, weightMap, x, top, height, nodeWidth) {
+      const gap = 6;
+      const totalWeight = Math.max(1e-6, keys.reduce((s, k) => s + Math.max(0.01, weightMap.get(k) || 0.01), 0));
+      const minH = 10;
+      const available = Math.max(1, height - gap * Math.max(0, keys.length - 1));
+      const scale = available / totalWeight;
+      let y = top;
+      const nodes = new Map();
+      for (const key of keys) {
+        const w = Math.max(0.01, weightMap.get(key) || 0.01);
+        const h = Math.max(minH, w * scale);
+        nodes.set(key, {
+          key,
+          x,
+          y,
+          h,
+          w,
+          width: nodeWidth,
+        });
+        y += h + gap;
+      }
+      return nodes;
+    }
+
+    function cubicPoint(x0, y0, x1, y1, x2, y2, x3, y3, t) {
+      const it = 1 - t;
+      const a = it * it * it;
+      const b = 3 * it * it * t;
+      const c = 3 * it * t * t;
+      const d = t * t * t;
+      return {
+        x: a * x0 + b * x1 + c * x2 + d * x3,
+        y: a * y0 + b * y1 + c * y2 + d * y3,
+      };
+    }
+
+    function renderSankey(t) {
+      const { ctx, width, height } = sankeyCanvas2D();
+      ctx.clearRect(0, 0, width, height);
+      const bg = ctx.createLinearGradient(0, 0, 0, height);
+      bg.addColorStop(0, "rgba(12,18,32,0.92)");
+      bg.addColorStop(1, "rgba(8,12,22,0.88)");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, width, height);
+
+      if (!sankeyState || !sankeyState.links.length) {
+        ctx.fillStyle = "rgba(158,178,204,0.9)";
+        ctx.font = '600 12px "Avenir Next", "Segoe UI", sans-serif';
+        ctx.fillText("No flow links to display.", 14, 22);
+        return;
+      }
+
+      const leftX = 26;
+      const rightX = width - 26 - 12;
+      const nodeW = 12;
+      const top = 16;
+      const h = height - 32;
+      const srcNodes = layoutSankeyColumn(sankeyState.srcKeys, sankeyState.srcWeight, leftX, top, h, nodeW);
+      const dstNodes = layoutSankeyColumn(sankeyState.dstKeys, sankeyState.dstWeight, rightX, top, h, nodeW);
+
+      const srcOffset = new Map();
+      const dstOffset = new Map();
+      const bandScale = Math.max(0.9, 0.11 * (h / Math.max(12, sankeyState.links.length)));
+
+      for (const link of sankeyState.links) {
+        const src = srcNodes.get(link.src);
+        const dst = dstNodes.get(link.dst);
+        if (!src || !dst) continue;
+        const sw = Math.max(1.2, link.weight * bandScale);
+        const so = srcOffset.get(link.src) || 0;
+        const doff = dstOffset.get(link.dst) || 0;
+        const y0 = src.y + Math.min(src.h - sw * 0.5, so + sw * 0.5);
+        const y1 = dst.y + Math.min(dst.h - sw * 0.5, doff + sw * 0.5);
+        srcOffset.set(link.src, so + sw);
+        dstOffset.set(link.dst, doff + sw);
+        const x0 = src.x + src.width;
+        const x3 = dst.x;
+        const cdx = (x3 - x0) * 0.45;
+        const x1 = x0 + cdx;
+        const x2 = x3 - cdx;
+        const color = link.color || sankeyNodeColor(link.src, true);
+
+        const grad = ctx.createLinearGradient(x0, y0, x3, y1);
+        grad.addColorStop(0, rgbaFromColor(color, 0.30));
+        grad.addColorStop(1, rgbaFromColor(color, 0.56));
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = sw;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.bezierCurveTo(x1, y0, x2, y1, x3, y1);
+        ctx.stroke();
+
+        const prog = safeMod(t * (0.08 + 0.05 * PARAMS.speed) + link.phase, 1);
+        const p = cubicPoint(x0, y0, x1, y0, x2, y1, x3, y1, prog);
+        ctx.fillStyle = rgbaFromColor(color, 0.95);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(1.4, sw * 0.25), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (const [key, node] of srcNodes) {
+        const color = sankeyNodeColor(key, true);
+        ctx.fillStyle = rgbaFromColor(color, 0.90);
+        ctx.fillRect(node.x, node.y, node.width, node.h);
+        ctx.fillStyle = "rgba(224,237,255,0.92)";
+        ctx.font = '600 10px "Avenir Next", "Segoe UI", sans-serif';
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(sankeyNodeLabel(key), node.x + node.width + 6, node.y + node.h * 0.5);
+      }
+      for (const [key, node] of dstNodes) {
+        const color = sankeyNodeColor(key, false);
+        ctx.fillStyle = rgbaFromColor(color, 0.90);
+        ctx.fillRect(node.x, node.y, node.width, node.h);
+        ctx.fillStyle = "rgba(224,237,255,0.92)";
+        ctx.font = '600 10px "Avenir Next", "Segoe UI", sans-serif';
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillText(sankeyNodeLabel(key), node.x - 6, node.y + node.h * 0.5);
+      }
+    }
+
+    function parseLabel(label) {
+      const meta = {
+        stage: "unknown",
+        loop: 0,
+        block: 0,
+        head: -1,
+        kv_head: -1,
+        qk_align: 0,
+        compression_ratio: 0,
+        bpb: 0,
+      };
+      if (!label) return meta;
+      const stageMatch = label.match(/\b(embed|encoder|inst|crawler|delta|decoder|head_in|compression|metric|Q|KV)\b/i);
+      if (stageMatch) {
+        const raw = stageMatch[1];
+        meta.stage = raw === "Q" || raw === "KV" ? "crawler" : raw.toLowerCase();
+      }
+      const loopMatch = label.match(/\b(?:loop|l)=(-?\d+)/i);
+      if (loopMatch) meta.loop = Number(loopMatch[1]);
+      const blockMatch = label.match(/\b(?:block|b)=(-?\d+)/i);
+      if (blockMatch) meta.block = Number(blockMatch[1]);
+      const headMatch = label.match(/\bhead=(\d+)/i);
+      if (headMatch) meta.head = Number(headMatch[1]);
+      const kvMatch = label.match(/\bkv_head=(\d+)/i);
+      if (kvMatch) meta.kv_head = Number(kvMatch[1]);
+      const alignMatch = label.match(/\bqk_align=([0-9.]+)/i);
+      if (alignMatch) meta.qk_align = Number(alignMatch[1]);
+      const ratioMatch = label.match(/\bratio=([0-9.]+)/i);
+      if (ratioMatch) meta.compression_ratio = Number(ratioMatch[1]);
+      const bpbMatch = label.match(/\bbpb=([0-9.]+)/i);
+      if (bpbMatch) meta.bpb = Number(bpbMatch[1]);
+      return meta;
+    }
+
+    function normalizePoint(point, index) {
+      const label = String(point.label || "");
+      const parsed = parseLabel(label);
+      const rawKind = String(point.kind || point.type || parsed.stage || "activation");
+      const meta = {
+        stage: String(point.stage || parsed.stage || "crawler").toLowerCase(),
+        loop: toFinite(point.loop, parsed.loop),
+        block: toFinite(point.block, parsed.block),
+        head: toFinite(point.head, parsed.head),
+        kv_head: toFinite(point.kv_head, parsed.kv_head),
+        qk_align: clamp(toFinite(point.qk_align, parsed.qk_align), 0, 1),
+        rms: Math.abs(toFinite(point.rms)),
+        std: Math.abs(toFinite(point.std)),
+        amax: Math.abs(toFinite(point.amax)),
+        q_rms: toFinite(point.q_rms),
+        k_rms: Math.abs(toFinite(point.k_rms)),
+        v_rms: toFinite(point.v_rms),
+        step: Math.max(0, toFinite(point.step)),
+        micro_step: Math.max(0, toFinite(point.micro_step)),
+        kind: rawKind.toLowerCase(),
+        energy: toFinite(point.energy, toFinite(point.rms, 0) + toFinite(point.std, 0) + toFinite(point.amax, 0)),
+        transfer: Math.abs(toFinite(point.transfer)),
+        attn_entropy: Math.abs(toFinite(point.attn_entropy)),
+        attn_lag: Math.max(0, toFinite(point.attn_lag)),
+        recent_mass: clamp(toFinite(point.recent_mass), 0, 1),
+        attn_peak: clamp(toFinite(point.attn_peak), 0, 1),
+        out_rms: Math.abs(toFinite(point.out_rms)),
+        token_count: Math.max(0, toFinite(point.token_count)),
+        compression_ratio: Math.max(0, toFinite(point.compression_ratio, parsed.compression_ratio)),
+        bpb: Math.max(0, toFinite(point.bpb, parsed.bpb)),
+        index,
+      };
+      return {
+        x: Number(point.x || 0),
+        y: Number(point.y || 0),
+        z: Number(point.z || 0),
+        color: new THREE.Color(
+          Number(point.r ?? 1),
+          Number(point.g ?? 1),
+          Number(point.b ?? 1),
+        ),
+        label,
+        meta,
+      };
+    }
+
+    function inferStage(ev) {
+      const stage = String(ev.stage || ev.kind || ev.type || "crawler").toLowerCase();
+      if (stage === "activation") return "crawler";
+      return stage;
+    }
+
+    function eventToPoint(ev, idx, stepNorm) {
+      const type = ev.type;
+      if (type === "activation") {
+        const stage = String(ev.stage || "encoder");
+        const step = Number(ev.step || 0);
+        const micro = Number(ev.micro_step || 0);
+        const loop = Number(ev.loop ?? -1);
+        const block = Number(ev.block ?? -1);
+        const rms = Number(ev.rms || 0);
+        const std = Number(ev.std || 0);
+        const amax = Number(ev.amax || 0);
+        const theta = (STAGE_ANGLE[stage] ?? 0) + 0.17 * Math.max(loop, 0) + 0.05 * micro;
+        const radius = 1.45 + 0.55 * Math.max(block + 1, 1) + 0.30 * Math.log1p(Math.abs(std) * 20.0);
+        const x = radius * Math.cos(theta);
+        const z = radius * Math.sin(theta) + 0.55 * Math.tanh(rms * 2.0);
+        const y = (step / stepNorm) + 0.06 * micro;
+        const hue = ((STAGE_HUE[stage] ?? 0.58) + 0.07 * Math.tanh(std * 3.0) - 0.04 * Math.tanh(rms * 2.0)) % 1;
+        const sat = clamp(0.66 + 0.25 * Math.tanh(amax * 0.8), 0.25, 0.95);
+        const lum = clamp(0.42 + 0.20 * Math.tanh(rms * 3.0), 0.20, 0.74);
+        return {
+          x,
+          y,
+          z,
+          color: colorFromHSL(hue, sat, lum),
+          label: `${stage} s=${step} m=${micro} l=${loop} b=${block} rms=${rms.toFixed(4)} std=${std.toFixed(4)}`,
+          meta: {
+            stage,
+            loop,
+            block,
+            head: -1,
+            kv_head: -1,
+            qk_align: 0,
+            kind: "activation",
+            step,
+            micro_step: micro,
+            rms,
+            std,
+            amax,
+            q_rms: 0,
+            k_rms: 0,
+            v_rms: 0,
+            compression_ratio: 0,
+            bpb: 0,
+            index: idx,
+          },
+        };
+      }
+      if (type === "compression") {
+        const blob = Number(ev.quant_blob_bytes || 0);
+        const raw = Number(ev.quant_raw_bytes || Math.max(blob, 1));
+        const ratio = Number(ev.compression_ratio || (raw / Math.max(blob, 1)));
+        const theta = 5.25 + 0.03 * idx;
+        const radius = 3.4 + 0.28 * Math.log1p(Math.max(blob, 1));
+        return {
+          x: radius * Math.cos(theta),
+          y: 0.22 * idx,
+          z: radius * Math.sin(theta) + 0.35 * ratio,
+          color: colorFromHSL(STAGE_HUE.compression, 0.80, 0.54),
+          label: `compression ratio=${ratio.toFixed(3)} raw=${intFmt(raw)} blob=${intFmt(blob)}`,
+          meta: {
+            stage: "compression",
+            loop: 0,
+            block: 0,
+            head: -1,
+            kv_head: -1,
+            qk_align: 0,
+            kind: "compression",
+            step: 0,
+            micro_step: 0,
+            rms: 0,
+            std: 0,
+            amax: 0,
+            q_rms: 0,
+            k_rms: 0,
+            v_rms: 0,
+            compression_ratio: ratio,
+            bpb: 0,
+            index: idx,
+          },
+        };
+      }
+      if (type === "metric") {
+        const bpb = Number(ev.val_bpb || 0);
+        const theta = 4.7 + 0.04 * idx;
+        const radius = 2.4 + 3.0 * bpb;
+        return {
+          x: radius * Math.cos(theta),
+          y: 0.48 + 0.10 * idx,
+          z: radius * Math.sin(theta),
+          color: colorFromHSL(STAGE_HUE.metric, 0.74, 0.54),
+          label: `metric ${ev.stage || ""} bpb=${bpb.toFixed(6)}`,
+          meta: {
+            stage: "metric",
+            loop: 0,
+            block: 0,
+            head: -1,
+            kv_head: -1,
+            qk_align: 0,
+            kind: "metric",
+            step: 0,
+            micro_step: 0,
+            rms: 0,
+            std: 0,
+            amax: 0,
+            q_rms: 0,
+            k_rms: 0,
+            v_rms: 0,
+            compression_ratio: 0,
+            bpb,
+            index: idx,
+          },
+        };
+      }
+      return null;
+    }
+
+    function headEventToFlow(ev, stepNorm) {
+      const step = Number(ev.step || 0);
+      const micro = Number(ev.micro_step || 0);
+      const loop = Number(ev.loop || 0);
+      const block = Number(ev.block || 0);
+      const head = Number(ev.head || 0);
+      const kvHead = Number(ev.kv_head || 0);
+      const nHeads = Math.max(1, Number(ev.num_heads || 1));
+      const nKv = Math.max(1, Number(ev.num_kv_heads || 1));
+      const qRms = Number(ev.q_rms || 0);
+      const kRms = Number(ev.k_rms || 0);
+      const vRms = Number(ev.v_rms || 0);
+      const align = clamp(Number(ev.qk_align || 0), 0, 1);
+      const transfer = Math.abs(toFinite(ev.transfer, 0));
+      const attnEntropy = Math.abs(toFinite(ev.attn_entropy, 0));
+      const attnLag = Math.max(0, toFinite(ev.attn_lag, 0));
+      const recentMass = clamp(toFinite(ev.recent_mass, 0), 0, 1);
+      const attnPeak = clamp(toFinite(ev.attn_peak, 0), 0, 1);
+      const outRms = Math.abs(toFinite(ev.out_rms, 0));
+      const tokenCount = Math.max(1, toFinite(ev.token_count, Math.max(2, nHeads * 2)));
+      const entropyNorm = clamp(attnEntropy / Math.max(1e-6, Math.log(Math.max(2, tokenCount))), 0, 1);
+      const lagNorm = Math.tanh(attnLag / Math.max(1, tokenCount));
+      const flow = clamp(
+        0.28
+          + 0.42 * align
+          + 0.20 * Math.tanh(transfer * 1.8)
+          + 0.12 * recentMass
+          + 0.08 * (1 - entropyNorm)
+          + 0.06 * lagNorm,
+        0.05,
+        1.5,
+      );
+      const phase = safeMod(0.017 * step + 0.11 * head + 0.07 * loop + 0.03 * block, 1);
+      const y = (step / stepNorm) + 0.05 * micro;
+      const base = (STAGE_ANGLE.crawler || 2.25) + 0.22 * loop + 0.08 * block;
+      const thetaQ = base + (2.0 * Math.PI * (head / nHeads));
+      const thetaK = base + 0.45 + (2.0 * Math.PI * (kvHead / nKv));
+      const rQ = 4.2 + 0.30 * block + 0.50 * Math.tanh(qRms * 2.0);
+      const rK = 3.3 + 0.24 * block + 0.40 * Math.tanh(kRms * 2.0);
+      const qColor = colorFromHSL(0.56 + 0.05 * align, 0.78, 0.44 + 0.16 * align);
+      const kvColor = colorFromHSL(0.08 - 0.03 * align, 0.82, 0.44 + 0.14 * align);
+      const edgeColor = colorFromHSL(0.50 - 0.42 * align, 0.82, 0.52);
+      return {
+        qPoint: {
+          x: rQ * Math.cos(thetaQ),
+          y,
+          z: rQ * Math.sin(thetaQ) + 0.22 * Math.tanh(qRms * 2.0),
+          color: qColor,
+          label: `Q loop=${loop} block=${block} head=${head} q_rms=${qRms.toFixed(4)} qk_align=${align.toFixed(4)}`,
+          meta: {
+            stage: "crawler",
+            loop,
+            block,
+            head,
+            kv_head: kvHead,
+            qk_align: align,
+            kind: "head_q",
+            step,
+            micro_step: micro,
+            rms: 0,
+            std: 0,
+            amax: 0,
+            q_rms: qRms,
+            k_rms: qRms,
+            v_rms: vRms,
+            transfer,
+            attn_entropy: attnEntropy,
+            attn_lag: attnLag,
+            recent_mass: recentMass,
+            attn_peak: attnPeak,
+            out_rms: outRms,
+            token_count: tokenCount,
+          },
+        },
+        kvPoint: {
+          x: rK * Math.cos(thetaK),
+          y,
+          z: rK * Math.sin(thetaK) - 0.16 * Math.tanh(vRms * 2.0),
+          color: kvColor,
+          label: `KV loop=${loop} block=${block} kv_head=${kvHead} k_rms=${kRms.toFixed(4)} v_rms=${vRms.toFixed(4)}`,
+          meta: {
+            stage: "crawler",
+            loop,
+            block,
+            head,
+            kv_head: kvHead,
+            qk_align: align,
+            kind: "head_kv",
+            step,
+            micro_step: micro,
+            rms: 0,
+            std: 0,
+            amax: 0,
+            q_rms: qRms,
+            k_rms: kRms,
+            v_rms: vRms,
+            transfer,
+            attn_entropy: attnEntropy,
+            attn_lag: attnLag,
+            recent_mass: recentMass,
+            attn_peak: attnPeak,
+            out_rms: outRms,
+            token_count: tokenCount,
+          },
+        },
+        edge: {
+          color: edgeColor,
+          alpha: 0.20 + 0.55 * align,
+          flow,
+          phase,
+          loop,
+          block,
+          head,
+          kv_head: kvHead,
+          step,
+          qk_align: align,
+          transfer,
+          attn_entropy: attnEntropy,
+          attn_lag: attnLag,
+          recent_mass: recentMass,
+          attn_peak: attnPeak,
+          out_rms: outRms,
+          token_count: tokenCount,
+        },
+      };
+    }
+
+    function eventsToDataset(events) {
+      const steps = events.filter((e) => e.type === "activation").map((e) => Number(e.step || 0));
+      const stepNorm = Math.max(1, ...steps);
+      const points = [];
+      const edges = [];
+      let maxStep = 0;
+      for (let i = 0; i < events.length; i += 1) {
+        const ev = events[i];
+        if (ev.type === "head_event") {
+          const flow = headEventToFlow(ev, stepNorm);
+          const qIndex = points.length;
+          const kvIndex = qIndex + 1;
+          points.push(flow.qPoint);
+          points.push(flow.kvPoint);
+          edges.push({
+            i: qIndex,
+            j: kvIndex,
+            r: flow.edge.color.r,
+            g: flow.edge.color.g,
+            b: flow.edge.color.b,
+            alpha: flow.edge.alpha,
+            flow: flow.edge.flow,
+            phase: flow.edge.phase,
+            loop: flow.edge.loop,
+            block: flow.edge.block,
+            head: flow.edge.head,
+            kv_head: flow.edge.kv_head,
+            step: flow.edge.step,
+            qk_align: flow.edge.qk_align,
+            transfer: flow.edge.transfer,
+            attn_entropy: flow.edge.attn_entropy,
+            attn_lag: flow.edge.attn_lag,
+            recent_mass: flow.edge.recent_mass,
+            attn_peak: flow.edge.attn_peak,
+            out_rms: flow.edge.out_rms,
+            token_count: flow.edge.token_count,
+            flow_kind: "head_q_to_kv",
+            src_stage: "head_q",
+            dst_stage: "head_kv",
+            src_key: `L${flow.edge.loop}B${flow.edge.block}H${flow.edge.head}`,
+            dst_key: `L${flow.edge.loop}B${flow.edge.block}KV${flow.edge.kv_head}`,
+            magnitude: flow.edge.flow,
+          });
+          continue;
+        }
+        const p = eventToPoint(ev, i, stepNorm);
+        if (p) points.push(p);
+      }
+      for (const p of points) {
+        const pStep = p.meta?.step;
+        if (Number.isFinite(pStep)) maxStep = Math.max(maxStep, pStep);
+      }
+      return {
+        points,
+        edges,
+        source: "jsonl",
+        pointsLabel: "events",
+        maxLoop: points.reduce((m, p) => Math.max(m, Number(p.meta?.loop || 0)), 0),
+        maxStep,
+      };
+    }
+
+    function normalizeDatasetForView(payload) {
+      const points = payload.points.map((p, index) => normalizePoint(p, index));
+      const edges = Array.isArray(payload.edges)
+        ? payload.edges
+            .filter((e) => Number.isFinite(Number(e.i)) && Number.isFinite(Number(e.j)))
+            .map((e) => ({
+              i: Number(e.i),
+              j: Number(e.j),
+              r: Number(e.r ?? 1),
+              g: Number(e.g ?? 1),
+              b: Number(e.b ?? 1),
+              alpha: Number(e.alpha ?? 0.3),
+              flow: Number(e.flow ?? 0.4),
+              phase: Number(e.phase ?? 0),
+              loop: Number(e.loop ?? 0),
+              block: Number(e.block ?? 0),
+              head: Number(e.head ?? -1),
+              kv_head: Number(e.kv_head ?? -1),
+              step: Number(e.step ?? 0),
+              qk_align: Number(e.qk_align ?? 0),
+              transfer: Number(e.transfer ?? 0),
+              attn_entropy: Number(e.attn_entropy ?? 0),
+              attn_lag: Number(e.attn_lag ?? 0),
+              recent_mass: Number(e.recent_mass ?? 0),
+              attn_peak: Number(e.attn_peak ?? 0),
+              out_rms: Number(e.out_rms ?? 0),
+              token_count: Number(e.token_count ?? 0),
+              flow_kind: String(e.flow_kind ?? ""),
+              src_stage: String(e.src_stage ?? ""),
+              dst_stage: String(e.dst_stage ?? ""),
+              src_key: String(e.src_key ?? ""),
+              dst_key: String(e.dst_key ?? ""),
+              magnitude: Number(e.magnitude ?? e.flow ?? 0),
+            }))
+        : [];
+      let maxStep = 0;
+      for (const p of points) maxStep = Math.max(maxStep, p.meta?.step || 0);
+      return {
+        points,
+        edges,
+        source: String(payload.meta?.source || payload.source || "points.json"),
+        pointsLabel: "points",
+        maxLoop: points.reduce((m, p) => Math.max(m, Number(p.meta?.loop || 0)), 0),
+        maxStep,
+      };
+    }
+
+    function payloadToDataset(payload) {
+      if (payload && Array.isArray(payload.points) && payload.points.length > 0 && "x" in payload.points[0]) {
+        const normalized = normalizeDatasetForView(payload);
+        return {
+          points: normalized.points,
+          edges: normalized.edges,
+          source: String(payload.meta?.source || payload.source || "points.json"),
+          pointsLabel: "points",
+          maxLoop: normalized.maxLoop,
+          maxStep: normalized.maxStep,
+        };
+      }
+      if (Array.isArray(payload?.events)) return eventsToDataset(payload.events);
+      return null;
+    }
+
+    function parseInputText(text) {
+      const trimmed = text.trim();
+      if (!trimmed) return null;
+      if (trimmed.startsWith("{")) {
+        const parsed = JSON.parse(trimmed);
+        const dataset = payloadToDataset(parsed);
+        if (dataset) return dataset;
+      }
+      const events = trimmed.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => JSON.parse(line));
+      return eventsToDataset(events);
+    }
+
+    async function loadDatasetFromText(text, sourceLabel, layoutProfile = "") {
+      currentDataset = parseInputText(text);
+      if (!currentDataset) throw new Error("unsupported payload");
+      currentLayoutProfile = resolveLayoutProfile(layoutProfile, sourceLabel, currentDataset.source);
+      el.sourceStat.textContent = sourceLabel;
+      rebuildScene();
+    }
+
+    function updatePresetLabel() {
+      if (!PRESET_TRACES.length) {
+        el.presetTraceLabel.textContent = "Preset: none";
+        return;
+      }
+      const p = PRESET_TRACES[presetTraceIndex];
+      el.presetTraceLabel.textContent = `Preset ${presetTraceIndex + 1}/${PRESET_TRACES.length}: ${p.name}`;
+    }
+
+    async function loadPresetTrace(nextIndex, showHover = true) {
+      if (!PRESET_TRACES.length) return false;
+      presetTraceIndex = ((nextIndex % PRESET_TRACES.length) + PRESET_TRACES.length) % PRESET_TRACES.length;
+      updatePresetLabel();
+      const preset = PRESET_TRACES[presetTraceIndex];
+      try {
+        const resp = await fetch(preset.url, { cache: "no-store" });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        await loadDatasetFromText(text, preset.name, preset.layoutProfile || "");
+        if (showHover) {
+          setHover(
+            `Loaded preset trace <code>${preset.name}</code>.<br/>Use <b>Next Trace</b> to cycle through all run outputs.`,
+            "Preset",
+          );
+        }
+        return true;
+      } catch (err) {
+        if (showHover) {
+          setHover(`Preset load failed for <code>${preset.name}</code>: ${String(err.message || err)}`, "Preset error");
+        }
+        return false;
+      }
+    }
+
+    function intFmt(n) {
+      return Number(n || 0).toLocaleString();
+    }
+
+    function modeLabel(mode) {
+      if (mode === "overlay") return "Overlay";
+      if (mode === "loop") return "Loop Map";
+      if (mode === "morph_timeline") return "Morph Timeline";
+      if (mode === "morph") return "Morph";
+      return "Flow";
+    }
+
+    function timelineStepValue() {
+      if (!currentDataset) return 0;
+      const maxStep = Math.max(1, toFinite(currentDataset.maxStep, 1));
+      return Math.round(maxStep * clamp(PARAMS.timelineScrub, 0, 1));
+    }
+
+    function updateTimelineLabel() {
+      const maxStep = Math.max(1, toFinite(currentDataset?.maxStep, 1));
+      el.timelineValue.textContent = `${timelineStepValue()} / ${Math.round(maxStep)}`;
+    }
+
+    function updateTimelineVisibility() {
+      const on = PARAMS.viewMode === "morph_timeline";
+      el.timelineSection.style.display = on ? "block" : "none";
+      updateTimelineLabel();
+    }
+
+    function setMode(mode) {
+      PARAMS.viewMode = mode;
+      el.modeStat.textContent = modeLabel(mode);
+      flowGroup.visible = mode === "flow" || mode === "overlay";
+      loopGroup.visible = mode === "loop" || mode === "overlay";
+      morphGroup.visible = mode === "morph";
+      morphTimelineGroup.visible = mode === "morph_timeline";
+      if (mode === "flow") {
+        flowGroup.position.set(0, 0, 0);
+        loopGroup.position.set(14.2, -0.8, 0);
+        loopGroup.scale.setScalar(0.78);
+        morphGroup.position.set(0, 0, 0);
+        morphGroup.scale.setScalar(1.0);
+        morphTimelineGroup.position.set(0, 0, 0);
+        morphTimelineGroup.scale.setScalar(1.0);
+      } else if (mode === "loop") {
+        flowGroup.position.set(0, 0, 0);
+        loopGroup.position.set(0, 0, 0);
+        loopGroup.scale.setScalar(1);
+        morphGroup.position.set(0, 0, 0);
+        morphGroup.scale.setScalar(1.0);
+        morphTimelineGroup.position.set(0, 0, 0);
+        morphTimelineGroup.scale.setScalar(1.0);
+      } else if (mode === "morph") {
+        flowGroup.position.set(0, 0, 0);
+        loopGroup.position.set(0, 0, 0);
+        morphGroup.position.set(0, 0, 0);
+        morphGroup.scale.setScalar(1.0);
+        morphTimelineGroup.position.set(0, 0, 0);
+        morphTimelineGroup.scale.setScalar(1.0);
+      } else if (mode === "morph_timeline") {
+        flowGroup.position.set(0, 0, 0);
+        loopGroup.position.set(0, 0, 0);
+        morphGroup.position.set(0, 0, 0);
+        morphGroup.scale.setScalar(1.0);
+        morphTimelineGroup.position.set(0, 0, 0);
+        morphTimelineGroup.scale.setScalar(1.0);
+      } else {
+        flowGroup.position.set(0, 0, 0);
+        loopGroup.position.set(14.2, -0.8, 0);
+        loopGroup.scale.setScalar(0.78);
+        morphGroup.position.set(0, 0, 0);
+        morphGroup.scale.setScalar(1.0);
+        morphTimelineGroup.position.set(0, 0, 0);
+        morphTimelineGroup.scale.setScalar(1.0);
+      }
+      controls.target.set(activeLayoutCenterX(), mode === "loop" ? 2.2 : (mode === "morph" || mode === "morph_timeline") ? 5.2 : 1.8, 0);
+      updateGuideVisibility();
+      updateTimelineVisibility();
+    }
+
+    function setViewMode(mode) {
+      const next = VIEW_MODES.includes(mode) ? mode : "flow";
+      PARAMS.viewMode = next;
+      el.viewMode.value = next;
+      setMode(next);
+      applyControls();
+    }
+
+    function cycleViewMode(delta) {
+      const current = VIEW_MODES.indexOf(PARAMS.viewMode);
+      const base = current >= 0 ? current : 0;
+      const next = VIEW_MODES[(base + delta + VIEW_MODES.length) % VIEW_MODES.length];
+      setViewMode(next);
+    }
+
+    function setUiHidden(hidden) {
+      PARAMS.uiHidden = Boolean(hidden);
+      el.app.classList.toggle("ui-hidden", PARAMS.uiHidden);
+      el.toggleUi.textContent = PARAMS.uiHidden ? "Show UI" : "Hide UI";
+      el.toggleUi.setAttribute("aria-pressed", PARAMS.uiHidden ? "true" : "false");
+    }
+
+    function updateMaterials() {
+      el.pointSizeValue.textContent = PARAMS.pointSize.toFixed(2);
+      el.glowValue.textContent = PARAMS.glow.toFixed(2);
+      el.edgeValue.textContent = PARAMS.edgeOpacity.toFixed(2);
+      el.speedValue.textContent = PARAMS.speed.toFixed(2);
+
+      for (const points of [flowCloud, loopCloud, morphCloud, morphTimelineCloud]) {
+        if (points) {
+          points.material.size = PARAMS.pointSize;
+          points.material.opacity = clamp(0.50 + 0.30 * PARAMS.glow, 0.25, 1.0);
+          points.material.needsUpdate = true;
+        }
+      }
+      for (const lines of [flowEdges, loopEdges, morphEdges, morphTimelineEdges]) {
+        if (lines) {
+          lines.material.opacity = PARAMS.edgeOpacity;
+          lines.material.needsUpdate = true;
+        }
+      }
+      for (const packets of [flowPackets, loopPackets, morphPackets, morphTimelinePackets]) {
+        if (packets) {
+          packets.material.size = PARAMS.pointSize * 1.6;
+          packets.material.opacity = clamp(PARAMS.edgeOpacity * 1.35, 0.18, 1.0);
+          packets.material.needsUpdate = true;
+        }
+      }
+      backdrop.children.forEach((child) => {
+        if (child.material && "opacity" in child.material) {
+          child.material.opacity = 0.05 + 0.02 * PARAMS.glow;
+        }
+      });
+    }
+
+    function buildProjection(parent, projector, dataset, mode) {
+      clearGroup(parent);
+      const pointCount = dataset.points.length;
+      const edgeCount = dataset.edges.length;
+      const points = new Float32Array(pointCount * 3);
+      const colors = new Float32Array(pointCount * 3);
+      const baseR = new Float32Array(pointCount);
+      const baseTheta = new Float32Array(pointCount);
+      const baseY = new Float32Array(pointCount);
+      const swirlSpeed = new Float32Array(pointCount);
+      const radialAmp = new Float32Array(pointCount);
+      const radialFreq = new Float32Array(pointCount);
+      const verticalAmp = new Float32Array(pointCount);
+      const verticalFreq = new Float32Array(pointCount);
+      const driftAmp = new Float32Array(pointCount);
+      const driftFreq = new Float32Array(pointCount);
+      const phase = new Float32Array(pointCount);
+      const stepProgress = new Float32Array(pointCount);
+      const compressionInfluence = new Float32Array(pointCount);
+      const stepScale = Math.max(1, dataset.maxStep || 1);
+      let compressionSignalSum = 0;
+      let compressionSignalCount = 0;
+
+      for (let i = 0; i < pointCount; i += 1) {
+        const p = dataset.points[i];
+        const projected = projector(p, i, dataset);
+        const offset = i * 3;
+        points[offset] = projected.x;
+        points[offset + 1] = projected.y;
+        points[offset + 2] = projected.z;
+
+        const color = projected.color || p.color;
+        colors[offset] = color.r;
+        colors[offset + 1] = color.g;
+        colors[offset + 2] = color.b;
+
+        const theta = Math.atan2(projected.z, projected.x);
+        const r = Math.hypot(projected.x, projected.z);
+        baseR[i] = r < 1e-6 ? 1e-6 : r;
+        baseTheta[i] = safeMod(theta, Math.PI * 2);
+        baseY[i] = projected.y;
+
+        const meta = p.meta || {};
+        const stage = String(meta.stage || inferStage(p)).toLowerCase();
+        const loop = Math.max(0, toFinite(meta.loop, 0));
+        const block = Math.max(0, toFinite(meta.block, 0));
+        const head = Math.max(0, toFinite(meta.head, 0));
+        const kvHead = Math.max(0, toFinite(meta.kv_head, 0));
+        const align = clamp(toFinite(meta.qk_align, 0), 0, 1);
+        const rms = Math.abs(toFinite(meta.rms, 0));
+        const stdev = Math.abs(toFinite(meta.std, 0));
+        const amax = Math.abs(toFinite(meta.amax, 0));
+        const qRms = Math.abs(toFinite(meta.q_rms, 0));
+        const kRms = Math.abs(toFinite(meta.k_rms, 0));
+        const vRms = Math.abs(toFinite(meta.v_rms, 0));
+        const compRatio = Math.max(0, toFinite(meta.compression_ratio, 0));
+        const step = Math.max(0, toFinite(meta.step, 0));
+        const micro = Math.max(0, toFinite(meta.micro_step, 0));
+        const progress = clamp(step / stepScale, 0, 1);
+        const loopSignal = (loop + 1) / (Math.max(dataset.maxLoop || 0, 1) + 1);
+        const stageSpeed = STAGE_FLOW_SPEED[stage] || STAGE_FLOW_SPEED.unknown;
+        const energy = 0.28 * rms + 0.22 * stdev + 0.18 * amax + 0.12 * (qRms + kRms + vRms);
+        const compSignal = stage === "compression" ? Math.tanh(compRatio * 0.35) : 0;
+        if (stage === "compression" && compSignal > 0) {
+          compressionSignalSum += compSignal;
+          compressionSignalCount += 1;
+        }
+        swirlSpeed[i] = (stageSpeed + 0.25 * align + 0.12 * energy + 0.002 * loopSignal + 0.001 * (head + kvHead)) * 0.65;
+        radialAmp[i] = (0.028 + 0.04 * align + 0.03 * stdev + 0.02 * rms + 0.006 * Math.tanh(amax)) * 0.7;
+        radialFreq[i] = 0.30 + 0.55 * align + 0.12 * energy + 0.03 * loopSignal;
+        verticalAmp[i] = (0.022 + 0.05 * (Math.tanh(align * 1.3) + 0.5) + 0.03 * stdev + 0.02 * rms);
+        verticalFreq[i] = 0.20 + 0.45 * align + 0.06 * loopSignal + 0.025 * (micro + (step / stepScale));
+        driftAmp[i] = 0.006 + 0.008 * (block + 1) / 7 + 0.004 * (1 - Math.exp(-kRms * 2));
+        driftFreq[i] = 0.12 + 0.08 * align + 0.02 * (kvHead + 1) + 0.03 * (head + 1) + 0.001 * Math.max(0, step);
+        stepProgress[i] = progress;
+        compressionInfluence[i] = clamp(0.08 + 0.16 * compSignal + 0.04 * energy + 0.05 * align, 0.0, 0.35);
+
+        if (mode === "loop") {
+          swirlSpeed[i] *= 0.7;
+          radialAmp[i] *= 0.95;
+          radialFreq[i] *= 0.8;
+          verticalAmp[i] *= 1.05;
+          driftAmp[i] *= 1.15;
+          driftFreq[i] += 0.05;
+        }
+        phase[i] = safeMod((loop * 0.57 + block * 0.13 + head * 0.41 + kvHead * 0.29 + micro * 0.11 + (step / stepScale)), Math.PI * 2);
+      }
+
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute("position", new THREE.BufferAttribute(points, 3));
+      geom.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+      const pts = new THREE.Points(
+        geom,
+        new THREE.PointsMaterial({
+          size: PARAMS.pointSize,
+          vertexColors: true,
+          transparent: true,
+          opacity: clamp(0.50 + 0.30 * PARAMS.glow, 0.25, 1.0),
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          sizeAttenuation: true,
+        }),
+      );
+      parent.add(pts);
+
+      const edgePositions = new Float32Array(edgeCount * 2 * 3);
+      const edgeColors = new Float32Array(edgeCount * 2 * 3);
+      const edgeI = new Int32Array(edgeCount);
+      const edgeJ = new Int32Array(edgeCount);
+      const packetCount = edgeCount * PACKETS_PER_EDGE;
+      const packetPositions = new Float32Array(packetCount * 3);
+      const packetColors = new Float32Array(packetCount * 3);
+      const packetI = new Int32Array(packetCount);
+      const packetJ = new Int32Array(packetCount);
+      const packetSpeed = new Float32Array(packetCount);
+      const packetPhase = new Float32Array(packetCount);
+      const packetEdgeIndex = new Int32Array(packetCount);
+      const packetDirection = new Float32Array(packetCount);
+      for (let i = 0; i < edgeCount; i += 1) {
+        const edge = dataset.edges[i];
+        const a = Number.isFinite(edge.i) ? edge.i : -1;
+        const b = Number.isFinite(edge.j) ? edge.j : -1;
+        edgeI[i] = a;
+        edgeJ[i] = b;
+        if (a < 0 || b < 0 || !dataset.points[a] || !dataset.points[b]) {
+          const base = i * 6;
+          edgePositions[base + 0] = 0;
+          edgePositions[base + 1] = 0;
+          edgePositions[base + 2] = 0;
+          edgePositions[base + 3] = 0;
+          edgePositions[base + 4] = 0;
+          edgePositions[base + 5] = 0;
+          edgeColors[base + 0] = 0;
+          edgeColors[base + 1] = 0;
+          edgeColors[base + 2] = 0;
+          edgeColors[base + 3] = 0;
+          edgeColors[base + 4] = 0;
+          edgeColors[base + 5] = 0;
+          for (let k = 0; k < PACKETS_PER_EDGE; k += 1) {
+            const pi = i * PACKETS_PER_EDGE + k;
+            packetI[pi] = -1;
+            packetJ[pi] = -1;
+            packetEdgeIndex[pi] = -1;
+            packetDirection[pi] = 1;
+            packetPositions[pi * 3 + 0] = 0;
+            packetPositions[pi * 3 + 1] = 0;
+            packetPositions[pi * 3 + 2] = 0;
+            packetColors[pi * 3 + 0] = 0;
+            packetColors[pi * 3 + 1] = 0;
+            packetColors[pi * 3 + 2] = 0;
+            packetSpeed[pi] = 0;
+            packetPhase[pi] = 0;
+          }
+          continue;
+        }
+        const pa = points.subarray(a * 3, a * 3 + 3);
+        const pb = points.subarray(b * 3, b * 3 + 3);
+        edgePositions[i * 6 + 0] = pa[0];
+        edgePositions[i * 6 + 1] = pa[1];
+        edgePositions[i * 6 + 2] = pa[2];
+        edgePositions[i * 6 + 3] = pb[0];
+        edgePositions[i * 6 + 4] = pb[1];
+        edgePositions[i * 6 + 5] = pb[2];
+        edgeColors[i * 6 + 0] = Number(edge.r ?? 1);
+        edgeColors[i * 6 + 1] = Number(edge.g ?? 1);
+        edgeColors[i * 6 + 2] = Number(edge.b ?? 1);
+        edgeColors[i * 6 + 3] = Number(edge.r ?? 1);
+        edgeColors[i * 6 + 4] = Number(edge.g ?? 1);
+        edgeColors[i * 6 + 5] = Number(edge.b ?? 1);
+        const flow = clamp(toFinite(edge.flow, toFinite(edge.qk_align, 0.4)), 0.05, 1.8);
+        const entropy = Math.max(0, toFinite(edge.attn_entropy, 0));
+        const tokenCount = Math.max(2, toFinite(edge.token_count, 16));
+        const entropyNorm = clamp(entropy / Math.max(1e-6, Math.log(tokenCount)), 0, 1);
+        for (let k = 0; k < PACKETS_PER_EDGE; k += 1) {
+          const pi = i * PACKETS_PER_EDGE + k;
+          packetI[pi] = a;
+          packetJ[pi] = b;
+          packetEdgeIndex[pi] = i;
+          packetDirection[pi] = k % 2 === 0 ? 1 : -1;
+          packetPositions[pi * 3 + 0] = 0.5 * (pa[0] + pb[0]);
+          packetPositions[pi * 3 + 1] = 0.5 * (pa[1] + pb[1]);
+          packetPositions[pi * 3 + 2] = 0.5 * (pa[2] + pb[2]);
+          const trail = 1 - (k / Math.max(1, PACKETS_PER_EDGE - 1));
+          packetColors[pi * 3 + 0] = clamp(Number(edge.r ?? 1) * (1.0 + 0.14 * trail) + 0.03 * trail, 0, 1);
+          packetColors[pi * 3 + 1] = clamp(Number(edge.g ?? 1) * (1.0 + 0.12 * trail) + 0.03 * trail, 0, 1);
+          packetColors[pi * 3 + 2] = clamp(Number(edge.b ?? 1) * (1.0 + 0.18 * trail) + 0.03 * trail, 0, 1);
+          packetSpeed[pi] = (0.35 + 0.75 * flow + 0.22 * (1 - entropyNorm)) * (mode === "loop" ? 0.85 : 1.0);
+          packetPhase[pi] = safeMod(
+            toFinite(edge.phase, 0) * Math.PI * 2 + i * 0.07 + k * (Math.PI / Math.max(2, PACKETS_PER_EDGE)),
+            Math.PI * 2,
+          );
+        }
+      }
+      const lineGeom = new THREE.BufferGeometry();
+      lineGeom.setAttribute("position", new THREE.BufferAttribute(edgePositions, 3));
+      lineGeom.setAttribute("color", new THREE.BufferAttribute(edgeColors, 3));
+      const lines = new THREE.LineSegments(
+        lineGeom,
+        new THREE.LineBasicMaterial({
+          vertexColors: true,
+          transparent: true,
+          opacity: PARAMS.edgeOpacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+      );
+      parent.add(lines);
+
+      const packetGeom = new THREE.BufferGeometry();
+      packetGeom.setAttribute("position", new THREE.BufferAttribute(packetPositions, 3));
+      packetGeom.setAttribute("color", new THREE.BufferAttribute(packetColors, 3));
+      const packets = new THREE.Points(
+        packetGeom,
+        new THREE.PointsMaterial({
+          size: PARAMS.pointSize * 1.6,
+          vertexColors: true,
+          transparent: true,
+          opacity: clamp(PARAMS.edgeOpacity * 1.35, 0.18, 1.0),
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          sizeAttenuation: true,
+        }),
+      );
+      packets.userData.kind = "packets";
+      packets.userData.edgeIndex = packetEdgeIndex;
+      packets.userData.direction = packetDirection;
+      parent.add(packets);
+      const basePositions = points.slice();
+
+      const state = {
+        mode,
+        pointCount,
+        points,
+        basePositions,
+        edgeCount,
+        packetCount,
+        baseR,
+        baseTheta,
+        baseY,
+        swirlSpeed,
+        radialAmp,
+        radialFreq,
+        verticalAmp,
+        verticalFreq,
+        driftAmp,
+        driftFreq,
+        phase,
+        stepProgress,
+        pointAttribute: geom.getAttribute("position"),
+        edgeAttribute: lineGeom.getAttribute("position"),
+        packetAttribute: packetGeom.getAttribute("position"),
+        edgeI,
+        edgeJ,
+        packetI,
+        packetJ,
+        packetSpeed,
+        packetPhase,
+        packetEdgeIndex,
+        packetDirection,
+        compressionInfluence,
+        compressionLevel:
+          compressionSignalCount > 0 ? clamp(compressionSignalSum / compressionSignalCount, 0.0, 1.0) : 0.12,
+        geom,
+        lineGeom,
+        packetGeom,
+        cloud: pts,
+        edges: lines,
+        packets,
+      };
+
+      if (mode === "flow") {
+        flowCloud = pts;
+        flowEdges = lines;
+        flowPackets = packets;
+        flowState = state;
+      } else if (mode === "loop") {
+        loopCloud = pts;
+        loopEdges = lines;
+        loopPackets = packets;
+        loopState = state;
+      } else if (mode === "morph") {
+        morphCloud = pts;
+        morphEdges = lines;
+        morphPackets = packets;
+        morphState = state;
+      } else {
+        morphTimelineCloud = pts;
+        morphTimelineEdges = lines;
+        morphTimelinePackets = packets;
+        morphTimelineState = state;
+      }
+    }
+
+    function applyProjectionState(state, t, speedScale = 1.0) {
+      if (!state || !state.pointAttribute || !state.pointAttribute.array.length) return;
+      const pos = state.pointAttribute.array;
+      const base = state.basePositions || pos;
+      const edgePos = state.edgeAttribute.array;
+      const timelineMode = state.mode === "morph_timeline";
+      const scrub = clamp(PARAMS.timelineScrub, 0, 1);
+      const hidden = -10000;
+      for (let i = 0; i < state.pointCount; i += 1) {
+        const b = i * 3;
+        const progress = state.stepProgress ? clamp(state.stepProgress[i], 0, 1) : 0;
+        const visible = !timelineMode || !PARAMS.timelineClip || progress <= scrub;
+        pos[b] = visible ? base[b] : hidden;
+        pos[b + 1] = visible ? base[b + 1] : hidden;
+        pos[b + 2] = visible ? base[b + 2] : hidden;
+      }
+      state.pointAttribute.needsUpdate = true;
+
+      for (let i = 0; i < state.edgeCount; i += 1) {
+        const a = state.edgeI[i];
+        const b = state.edgeJ[i];
+        if (a < 0 || b < 0) continue;
+        const aProgress = state.stepProgress ? clamp(state.stepProgress[a], 0, 1) : 0;
+        const bProgress = state.stepProgress ? clamp(state.stepProgress[b], 0, 1) : 0;
+        const edgeVisible = !timelineMode || !PARAMS.timelineClip || (aProgress <= scrub && bProgress <= scrub);
+        const a3 = a * 3;
+        const b3 = b * 3;
+        const e = i * 6;
+        edgePos[e + 0] = edgeVisible ? pos[a3] : hidden;
+        edgePos[e + 1] = edgeVisible ? pos[a3 + 1] : hidden;
+        edgePos[e + 2] = edgeVisible ? pos[a3 + 2] : hidden;
+        edgePos[e + 3] = edgeVisible ? pos[b3] : hidden;
+        edgePos[e + 4] = edgeVisible ? pos[b3 + 1] : hidden;
+        edgePos[e + 5] = edgeVisible ? pos[b3 + 2] : hidden;
+      }
+      state.edgeAttribute.needsUpdate = true;
+
+      if (state.packetAttribute && state.packetAttribute.array.length) {
+        const packetPos = state.packetAttribute.array;
+        const dt = t * Math.max(0, speedScale) * 0.45;
+        for (let i = 0; i < state.packetCount; i += 1) {
+          const a = state.packetI[i];
+          const b = state.packetJ[i];
+          if (a < 0 || b < 0) continue;
+          const aProgress = state.stepProgress ? clamp(state.stepProgress[a], 0, 1) : 0;
+          const bProgress = state.stepProgress ? clamp(state.stepProgress[b], 0, 1) : 0;
+          const packetVisible = !timelineMode || !PARAMS.timelineClip || (aProgress <= scrub && bProgress <= scrub);
+          if (!packetVisible) {
+            const p3Hide = i * 3;
+            packetPos[p3Hide + 0] = hidden;
+            packetPos[p3Hide + 1] = hidden;
+            packetPos[p3Hide + 2] = hidden;
+            continue;
+          }
+          const a3 = a * 3;
+          const b3 = b * 3;
+          const p3 = i * 3;
+          const dir = state.packetDirection[i] || 1;
+          const phase = safeMod((dt * state.packetSpeed[i]) + (state.packetPhase[i] / (Math.PI * 2)), 1);
+          const travel = dir > 0 ? phase : 1 - phase;
+          packetPos[p3 + 0] = pos[a3] + (pos[b3] - pos[a3]) * travel;
+          packetPos[p3 + 1] = pos[a3 + 1] + (pos[b3 + 1] - pos[a3 + 1]) * travel;
+          packetPos[p3 + 2] = pos[a3 + 2] + (pos[b3 + 2] - pos[a3 + 2]) * travel;
+        }
+        state.packetAttribute.needsUpdate = true;
+      }
+    }
+
+    function projectRatRodFlowPoint(point, index, dataset) {
+      const meta = point.meta || parseLabel(point.label);
+      const role = architectureRole(meta);
+      const block = Math.max(0, toFinite(meta.block, 0));
+      const stepScale = Math.max(1, toFinite(dataset?.maxStep, 1));
+      const progress = clamp(Math.max(0, toFinite(meta.step, 0)) / stepScale, 0, 1);
+      const loopC = centeredLoop(meta, dataset);
+      const head = Math.max(0, toFinite(meta.head, 0));
+      const kvHead = Math.max(0, toFinite(meta.kv_head, 0));
+      const align = clamp(toFinite(meta.qk_align, 0), 0, 1);
+      const transfer = Math.abs(toFinite(meta.transfer, 0));
+      const micro = Math.max(0, toFinite(meta.micro_step, 0));
+      let x = architectureLaneX(meta);
+      let y = progress * 10.8 + 0.05 * micro;
+      let z = loopC * 2.35 + block * 0.34;
+
+      if (role === "embed") {
+        z *= 0.50;
+      } else if (role === "encoder") {
+        x += 0.24 * block;
+        z *= 0.74;
+      } else if (role === "inst") {
+        z = loopC * 2.5;
+      } else if (role === "head_q") {
+        x += (head % 2 === 0 ? -0.36 : 0.36);
+        z += (head - 1.5) * 0.34;
+      } else if (role === "head_kv") {
+        x += (kvHead % 2 === 0 ? -0.28 : 0.28);
+        z += (kvHead - 0.5) * 0.58;
+      } else if (role === "crawler") {
+        x += 0.18 * (align - 0.5);
+        z += 0.32 * Math.tanh(transfer * 2.6) + 0.10 * Math.sin(index * 0.11);
+      } else if (role === "delta") {
+        z *= 0.75;
+      } else if (role === "decoder") {
+        x += 0.20 * block;
+        z *= 0.56;
+      } else if (role === "head_in") {
+        z *= 0.35;
+      } else if (role === "compression") {
+        x = RATROD_STAGE_LANE_X.compression;
+        y = 10.9 + 1.1 * Math.tanh(toFinite(meta.compression_ratio, 0) * 0.20);
+        z = 0.8;
+      } else if (role === "metric") {
+        x = RATROD_STAGE_LANE_X.metric;
+        y = 12.0 + 0.5 * Math.tanh((3.6 - toFinite(meta.bpb, 3.6)) * 0.9);
+        z = -0.7;
+      }
+
+      return { x, y, z, color: point.color };
+    }
+
+    function projectFlowPoint(point, index, dataset) {
+      if (currentLayoutProfile === "ratrod") {
+        return projectRatRodFlowPoint(point, index, dataset);
+      }
+      return {
+        x: point.x,
+        y: point.y,
+        z: point.z,
+        color: point.color,
+      };
+    }
+
+    function projectLoopPoint(point, index, dataset) {
+      if (currentLayoutProfile === "ratrod") {
+        const meta = point.meta || parseLabel(point.label);
+        const role = architectureRole(meta);
+        const maxLoop = Math.max(1, toFinite(dataset?.maxLoop, 1));
+        const loop = Math.max(0, toFinite(meta.loop, 0));
+        const block = Math.max(0, toFinite(meta.block, 0));
+        const head = Math.max(0, toFinite(meta.head, 0));
+        const kvHead = Math.max(0, toFinite(meta.kv_head, 0));
+        const align = clamp(toFinite(meta.qk_align, 0), 0, 1);
+        const transfer = Math.abs(toFinite(meta.transfer, 0));
+        let x = architectureLaneX(meta);
+        let y = 0.0;
+        let z = 0.0;
+
+        if (role === "embed") {
+          y = 0.3;
+          z = 0.0;
+        } else if (role === "encoder") {
+          y = 0.9 + 0.55 * block;
+          z = (block - 0.5) * 0.9;
+          x += 0.2 * block;
+        } else if (role === "inst") {
+          y = 2.0 + loop * 2.0;
+          z = 0.0;
+        } else if (role === "head_q" || role === "head_kv" || role === "crawler") {
+          y = 2.2 + loop * 2.0 + 0.22 * block;
+          if (role === "head_q") z = (head - 1.5) * 0.44;
+          else if (role === "head_kv") z = (kvHead - 0.5) * 0.66;
+          else z = 0.26 * Math.tanh(transfer * 2.5) + 0.18 * align;
+        } else if (role === "delta") {
+          y = 2.5 + maxLoop * 2.0 + 0.5;
+          z = 0.0;
+        } else if (role === "decoder") {
+          y = 2.6 + maxLoop * 2.0 + 0.7 + 0.48 * block;
+          z = (block - 0.5) * 0.7;
+          x += 0.2 * block;
+        } else if (role === "head_in") {
+          y = 3.4 + maxLoop * 2.0 + 1.3;
+          z = 0.0;
+        } else if (role === "compression") {
+          y = 4.6 + maxLoop * 2.0 + 1.9;
+          z = 0.5;
+        } else if (role === "metric") {
+          y = 5.3 + maxLoop * 2.0 + 2.3;
+          z = -0.5;
+        }
+
+        const hue = safeMod(0.12 + 0.09 * loop + 0.02 * block - 0.18 * align, 1);
+        const sat = clamp(0.68 + 0.18 * Math.tanh(transfer * 2.0), 0.40, 0.94);
+        const lum = clamp(0.42 + 0.14 * align, 0.24, 0.78);
+        return { x, y, z, color: colorFromHSL(hue, sat, lum) };
+      }
+      const meta = point.meta || parseLabel(point.label);
+      const stage = meta.stage || inferStage(point.meta || {});
+      const loop = Number.isFinite(meta.loop) ? meta.loop : 0;
+      const block = Number.isFinite(meta.block) ? meta.block : 0;
+      const head = Number.isFinite(meta.head) && meta.head >= 0 ? meta.head : index % 8;
+      const align = clamp(meta.qk_align || 0, 0, 1);
+      const theta = (STAGE_ANGLE[stage] ?? 0.0) + 0.35 * head + 0.14 * block;
+      const radius = 1.45 + 0.42 * Math.max(block + 1, 1) + 0.52 * align;
+      const depth = loop * 1.65;
+      const depthColor = colorFromHSL(0.08 + 0.11 * loop - 0.03 * align, 0.80, 0.46 + 0.06 * align);
+      return {
+        x: radius * Math.cos(theta),
+        y: depth + 0.14 * block,
+        z: radius * Math.sin(theta),
+        color: depthColor,
+      };
+    }
+
+    function projectMorphPoint(point, index, dataset) {
+      if (currentLayoutProfile === "ratrod") {
+        const meta = point.meta || parseLabel(point.label);
+        const role = architectureRole(meta);
+        const step = Math.max(0, toFinite(meta.step, 0));
+        const stepScale = Math.max(1, dataset.maxStep || 1);
+        const progress = clamp(step / stepScale, 0, 1);
+        const loopC = centeredLoop(meta, dataset);
+        const block = Math.max(0, toFinite(meta.block, 0));
+        const head = Math.max(0, toFinite(meta.head, 0));
+        const kvHead = Math.max(0, toFinite(meta.kv_head, 0));
+        const align = clamp(toFinite(meta.qk_align, 0), 0, 1);
+        const transfer = Math.abs(toFinite(meta.transfer, 0));
+        const lane = architectureLaneX(meta);
+        const spread = (role === "head_q")
+          ? (head - 1.5) * 1.1
+          : (role === "head_kv")
+            ? (kvHead - 0.5) * 1.2
+            : loopC * 1.5 + block * 0.20;
+        const x = lane + (1 - progress) * 0.55 * spread;
+        const y = progress * 11.2;
+        const z = (1 - 0.74 * progress) * (loopC * 2.05 + 0.35 * Math.tanh(transfer * 2.2) + 0.18 * align);
+        const hue = safeMod((STAGE_HUE[role] ?? STAGE_HUE[String(meta.stage || "").toLowerCase()] ?? 0.58) - 0.10 * progress, 1);
+        const sat = clamp(0.66 + 0.20 * align + 0.10 * Math.tanh(transfer * 2), 0.35, 0.96);
+        const lum = clamp(0.30 + 0.34 * progress, 0.20, 0.82);
+        return { x, y, z, color: colorFromHSL(hue, sat, lum) };
+      }
+      const meta = point.meta || parseLabel(point.label);
+      const stage = String(meta.stage || inferStage(meta)).toLowerCase();
+      const stageIdx = Math.max(0, STAGE_ORDER.indexOf(stage));
+      const loop = Math.max(0, toFinite(meta.loop, 0));
+      const block = Math.max(0, toFinite(meta.block, 0));
+      const head = Math.max(0, toFinite(meta.head, index % 8));
+      const align = clamp(toFinite(meta.qk_align, 0), 0, 1);
+      const transfer = Math.abs(toFinite(meta.transfer, 0));
+      const entropy = Math.abs(toFinite(meta.attn_entropy, 0));
+      const compressionRatio = Math.max(0, toFinite(meta.compression_ratio, 0));
+      const bpb = Math.max(0, toFinite(meta.bpb, 0));
+      const step = Math.max(0, toFinite(meta.step, 0));
+      const stepScale = Math.max(1, dataset.maxStep || 1);
+      const progress = clamp(step / stepScale, 0, 1);
+      const baseAngle = (STAGE_ANGLE[stage] ?? 0.45) + 0.32 * loop + 0.14 * block;
+      const theta = baseAngle + 0.20 * head + progress * (2.2 + 0.8 * align + 0.35 * Math.tanh(transfer * 1.8));
+      const scatterRadius = 4.3 + 1.8 * (1 - progress) + 0.30 * loop + 0.12 * block;
+      const ropeRadius = 1.0 + 0.18 * stageIdx + 0.22 * align + 0.16 * Math.tanh(transfer * 2.0);
+      const compressionPull = Math.tanh(compressionRatio * 0.25);
+      const radius = scatterRadius * (1 - progress) + ropeRadius * progress - compressionPull * (0.28 + 0.35 * progress);
+      const y = progress * 11.0;
+      const heat = bpb > 0 ? clamp((bpb - 3.0) / 3.0, 0, 1) : (1 - progress);
+      const entropyNorm = clamp(entropy / Math.max(1e-6, Math.log(Math.max(2, toFinite(meta.token_count, 16)))), 0, 1);
+      const hue = safeMod(0.03 + 0.58 * progress - 0.12 * compressionPull + 0.18 * (1 - heat) + 0.06 * (1 - entropyNorm), 1);
+      const sat = clamp(0.62 + 0.24 * align + 0.1 * Math.tanh(transfer * 2), 0.35, 0.96);
+      const lum = clamp(0.34 + 0.24 * progress + 0.12 * (1 - heat), 0.22, 0.80);
+      return {
+        x: radius * Math.cos(theta),
+        y,
+        z: radius * Math.sin(theta),
+        color: colorFromHSL(hue, sat, lum),
+      };
+    }
+
+    function projectMorphTimelinePoint(point, index, dataset) {
+      return projectMorphPoint(point, index, dataset);
+    }
+
+    const flowGuideGroup = new THREE.Group();
+    const loopGuideGroup = new THREE.Group();
+    const morphGuideGroup = new THREE.Group();
+    scene.add(flowGuideGroup);
+    scene.add(loopGuideGroup);
+    scene.add(morphGuideGroup);
+
+    function buildFlowGuides() {
+      clearGroup(flowGuideGroup);
+      if (currentLayoutProfile === "ratrod") {
+        const guide = new THREE.Group();
+        const lanes = [
+          ["EMBED", RATROD_STAGE_LANE_X.embed],
+          ["ENCODER", RATROD_STAGE_LANE_X.encoder],
+          ["INST", RATROD_STAGE_LANE_X.inst],
+          ["Q", RATROD_STAGE_LANE_X.head_q],
+          ["KV", RATROD_STAGE_LANE_X.head_kv],
+          ["CRAWLER", RATROD_STAGE_LANE_X.crawler],
+          ["DECODER", RATROD_STAGE_LANE_X.decoder],
+          ["HEAD", RATROD_STAGE_LANE_X.head_in],
+          ["COMP", RATROD_STAGE_LANE_X.compression],
+          ["BPB", RATROD_STAGE_LANE_X.metric],
+        ];
+        const railMat = new THREE.LineBasicMaterial({
+          color: 0x82a8ff,
+          transparent: true,
+          opacity: 0.22,
+          depthWrite: false,
+        });
+        const topY = 12.2;
+        const floorY = -0.25;
+        for (const [name, x] of lanes) {
+          guide.add(
+            new THREE.Line(
+              new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(x, floorY, 0),
+                new THREE.Vector3(x, topY, 0),
+              ]),
+              railMat,
+            ),
+          );
+          const label = createZoneLabelSprite(name, "#cfe6ff", 22);
+          label.position.set(x, topY + 0.32, -0.15);
+          guide.add(label);
+        }
+        guide.add(
+          new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(RATROD_STAGE_LANE_X.embed - 1.2, floorY, 0),
+              new THREE.Vector3(RATROD_STAGE_LANE_X.metric + 1.1, floorY, 0),
+            ]),
+            new THREE.LineBasicMaterial({
+              color: 0x6e97d8,
+              transparent: true,
+              opacity: 0.18,
+              depthWrite: false,
+            }),
+          ),
+        );
+        flowGuideGroup.add(guide);
+        return;
+      }
+      const axes = new THREE.Group();
+      const axisMat = new THREE.LineBasicMaterial({
+        color: 0x8fb4ff,
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+      });
+      const axisGeom = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-1, 0, 0),
+        new THREE.Vector3(1, 0, 0),
+      ]);
+      axes.add(new THREE.Line(axisGeom, axisMat));
+      const axisGeomY = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, -0.5, 0),
+        new THREE.Vector3(0, 7, 0),
+      ]);
+      axes.add(new THREE.Line(axisGeomY, axisMat));
+      flowGuideGroup.add(axes);
+      const rings = new THREE.Group();
+      for (let i = 1; i <= 6; i += 1) {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(i * 1.1 - 0.03, i * 1.1 + 0.03, 128),
+          new THREE.MeshBasicMaterial({
+            color: i % 2 ? 0x315b8f : 0x7f4c9a,
+            transparent: true,
+            opacity: 0.10,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+          }),
+        );
+        ring.rotation.x = -Math.PI / 2;
+        rings.add(ring);
+      }
+      flowGuideGroup.add(rings);
+    }
+
+    function buildLoopGuides(maxLoop) {
+      clearGroup(loopGuideGroup);
+      if (currentLayoutProfile === "ratrod") {
+        const guide = new THREE.Group();
+        const y0 = 2.0;
+        const loopStride = 2.0;
+        const xLeft = RATROD_STAGE_LANE_X.embed - 1.2;
+        const xRight = RATROD_STAGE_LANE_X.metric + 1.1;
+        for (let l = 0; l <= Math.max(2, maxLoop); l += 1) {
+          const y = y0 + l * loopStride;
+          guide.add(
+            new THREE.Line(
+              new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(xLeft, y, 0),
+                new THREE.Vector3(xRight, y, 0),
+              ]),
+              new THREE.LineBasicMaterial({
+                color: l % 2 === 0 ? 0x73dfff : 0xffb77a,
+                transparent: true,
+                opacity: 0.15,
+                depthWrite: false,
+              }),
+            ),
+          );
+        }
+        loopGuideGroup.add(guide);
+        return;
+      }
+      const guide = new THREE.Group();
+      const yAxis = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, -0.5, 0),
+          new THREE.Vector3(0, Math.max(6, maxLoop * 1.65 + 1.4), 0),
+        ]),
+        new THREE.LineBasicMaterial({
+          color: 0xffcf88,
+          transparent: true,
+          opacity: 0.2,
+          depthWrite: false,
+        }),
+      );
+      guide.add(yAxis);
+      for (let i = 0; i <= Math.max(4, maxLoop + 1); i += 1) {
+        const plane = new THREE.Mesh(
+          new THREE.RingGeometry(1.15 + i * 0.15, 1.20 + i * 0.15, 96),
+          new THREE.MeshBasicMaterial({
+            color: i % 2 === 0 ? 0xff9e62 : 0x4dd9ff,
+            transparent: true,
+            opacity: 0.08 + (i === 0 ? 0.12 : 0),
+            side: THREE.DoubleSide,
+            depthWrite: false,
+          }),
+        );
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.y = i * 1.65;
+        guide.add(plane);
+      }
+      const floor = new THREE.Mesh(
+        new THREE.CircleGeometry(4.3, 72),
+        new THREE.MeshBasicMaterial({
+          color: 0x101826,
+          transparent: true,
+          opacity: 0.22,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -0.28;
+      guide.add(floor);
+      loopGuideGroup.add(guide);
+    }
+
+    function buildMorphGuides(maxStep) {
+      clearGroup(morphGuideGroup);
+      const guide = new THREE.Group();
+      const yMax = Math.max(8, 11 + Math.min(4, maxStep / 64));
+      guide.add(
+        new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, -0.4, 0),
+            new THREE.Vector3(0, yMax, 0),
+          ]),
+          new THREE.LineBasicMaterial({
+            color: 0x9df6ff,
+            transparent: true,
+            opacity: 0.30,
+            depthWrite: false,
+          }),
+        ),
+      );
+      const slices = 7;
+      for (let i = 0; i <= slices; i += 1) {
+        const y = (i / slices) * yMax;
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.95, 1.02, 96),
+          new THREE.MeshBasicMaterial({
+            color: 0xffb16e,
+            transparent: true,
+            opacity: 0.15,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+          }),
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = y;
+        guide.add(ring);
+      }
+      morphGuideGroup.add(guide);
+    }
+
+    function refreshStats() {
+      if (!currentDataset) {
+        el.sourceStat.textContent = "No trace loaded.";
+        el.countStat.textContent = "Points 0, edges 0";
+        el.depthStat.textContent = "Loop depth map ready.";
+        el.sankeyMeta.textContent = "No trace";
+        return;
+      }
+      el.sourceStat.textContent = currentDataset.source || "Loaded payload";
+      el.countStat.textContent = `Points ${intFmt(currentDataset.points.length)}, edges ${intFmt(currentDataset.edges.length)}`;
+      el.depthStat.textContent = `Loop depth max ${intFmt(currentDataset.maxLoop || 0)}`;
+    }
+
+    function setHover(text, small = "Hover") {
+      el.hoverText.innerHTML = `<div class="small">${small}</div><div>${text}</div>`;
+    }
+
+    function updateZoneVisibility() {
+      for (const state of [flowState, loopState, morphState, morphTimelineState]) {
+        if (state?.zoneGroup) state.zoneGroup.visible = PARAMS.showZones;
+      }
+    }
+
+    function updateGuideVisibility() {
+      flowGuideGroup.visible = PARAMS.showGuides && (PARAMS.viewMode === "flow" || PARAMS.viewMode === "overlay");
+      loopGuideGroup.visible = PARAMS.showGuides && (PARAMS.viewMode === "loop" || PARAMS.viewMode === "overlay");
+      morphGuideGroup.visible = PARAMS.showGuides && (PARAMS.viewMode === "morph" || PARAMS.viewMode === "morph_timeline");
+      updateZoneVisibility();
+    }
+
+    function rebuildScene() {
+      if (!currentDataset) return;
+      flowState = null;
+      loopState = null;
+      morphState = null;
+      morphTimelineState = null;
+      flowPackets = null;
+      loopPackets = null;
+      morphPackets = null;
+      morphTimelinePackets = null;
+      clearGroup(flowGroup);
+      clearGroup(loopGroup);
+      clearGroup(morphGroup);
+      clearGroup(morphTimelineGroup);
+      buildFlowGuides();
+      buildLoopGuides(currentDataset.maxLoop || 0);
+      buildMorphGuides(currentDataset.maxStep || 0);
+      buildProjection(flowGroup, projectFlowPoint, currentDataset, "flow");
+      buildProjection(loopGroup, projectLoopPoint, currentDataset, "loop");
+      buildProjection(morphGroup, projectMorphPoint, currentDataset, "morph");
+      buildProjection(morphTimelineGroup, projectMorphTimelinePoint, currentDataset, "morph_timeline");
+      sankeyState = buildSankeyState(currentDataset);
+      buildZoneLabels(flowGroup, flowState, currentDataset);
+      buildZoneLabels(loopGroup, loopState, currentDataset);
+      buildZoneLabels(morphGroup, morphState, currentDataset);
+      buildZoneLabels(morphTimelineGroup, morphTimelineState, currentDataset);
+      setMode(PARAMS.viewMode);
+      updateMaterials();
+      refreshStats();
+      updateTimelineLabel();
+    }
+
+    function applyControls() {
+      controls.autoRotate = PARAMS.autoRotate;
+      controls.autoRotateSpeed = 1.0 + PARAMS.speed * 1.8;
+      flowGroup.rotation.y = 0;
+      loopGroup.rotation.y = 0;
+      morphGroup.rotation.y = 0;
+      morphTimelineGroup.rotation.y = 0;
+      backdrop.rotation.y = 0;
+      halo.material.opacity = 0.05 + 0.02 * PARAMS.glow;
+      if (flowCloud) {
+        flowCloud.material.size = PARAMS.pointSize;
+        flowCloud.material.opacity = clamp(0.50 + 0.30 * PARAMS.glow, 0.25, 1.0);
+      }
+      if (loopCloud) {
+        loopCloud.material.size = PARAMS.pointSize * 0.96;
+        loopCloud.material.opacity = clamp(0.42 + 0.26 * PARAMS.glow, 0.20, 1.0);
+      }
+      if (morphCloud) {
+        morphCloud.material.size = PARAMS.pointSize * 1.05;
+        morphCloud.material.opacity = clamp(0.50 + 0.34 * PARAMS.glow, 0.25, 1.0);
+      }
+      if (morphTimelineCloud) {
+        morphTimelineCloud.material.size = PARAMS.pointSize * 1.05;
+        morphTimelineCloud.material.opacity = clamp(0.50 + 0.34 * PARAMS.glow, 0.25, 1.0);
+      }
+      if (flowEdges) flowEdges.material.opacity = PARAMS.edgeOpacity;
+      if (loopEdges) loopEdges.material.opacity = clamp(PARAMS.edgeOpacity * 0.82, 0.05, 0.8);
+      if (morphEdges) morphEdges.material.opacity = clamp(PARAMS.edgeOpacity * 0.92, 0.08, 0.95);
+      if (morphTimelineEdges) morphTimelineEdges.material.opacity = clamp(PARAMS.edgeOpacity * 0.92, 0.08, 0.95);
+      if (flowPackets) {
+        flowPackets.material.size = PARAMS.pointSize * 1.6;
+        flowPackets.material.opacity = clamp(PARAMS.edgeOpacity * 1.40, 0.18, 1.0);
+      }
+      if (loopPackets) {
+        loopPackets.material.size = PARAMS.pointSize * 1.45;
+        loopPackets.material.opacity = clamp(PARAMS.edgeOpacity * 1.24, 0.16, 0.98);
+      }
+      if (morphPackets) {
+        morphPackets.material.size = PARAMS.pointSize * 1.85;
+        morphPackets.material.opacity = clamp(PARAMS.edgeOpacity * 1.45, 0.20, 1.0);
+      }
+      if (morphTimelinePackets) {
+        morphTimelinePackets.material.size = PARAMS.pointSize * 1.85;
+        morphTimelinePackets.material.opacity = clamp(PARAMS.edgeOpacity * 1.45, 0.20, 1.0);
+      }
+      updateGuideVisibility();
+    }
+
+    function chooseProjectedCloud() {
+      if (PARAMS.viewMode === "morph") return [morphCloud, morphPackets].filter(Boolean);
+      if (PARAMS.viewMode === "morph_timeline") return [morphTimelineCloud, morphTimelinePackets].filter(Boolean);
+      if (PARAMS.viewMode === "loop") return [loopCloud, loopPackets].filter(Boolean);
+      if (PARAMS.viewMode === "overlay") return [flowCloud, flowPackets, loopCloud, loopPackets].filter(Boolean);
+      return [flowCloud, flowPackets].filter(Boolean);
+    }
+
+    document.getElementById("file").addEventListener("change", async (ev) => {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      try {
+        await loadDatasetFromText(text, file.name);
+        el.presetTraceLabel.textContent = "Preset: custom file";
+        setHover("Loaded file. Move the pointer over a particle to inspect its loop/head metadata.", "Ready");
+      } catch (err) {
+        setHover(`Could not parse file: ${String(err.message || err)}`, "Parse error");
+      }
+    });
+
+    document.getElementById("cycleTrace").addEventListener("click", async () => {
+      if (!PRESET_TRACES.length) {
+        setHover("No preset traces configured.", "Preset");
+        return;
+      }
+      await loadPresetTrace(presetTraceIndex + 1, true);
+    });
+
+    document.getElementById("viewMode").addEventListener("change", (ev) => {
+      setViewMode(ev.target.value);
+    });
+
+    document.getElementById("resetCamera").addEventListener("click", () => {
+      if (currentLayoutProfile === "ratrod") camera.position.set(8.6, 6.4, 21.2);
+      else camera.position.set(8.8, 6.2, 13.2);
+      controls.target.set(activeLayoutCenterX(), PARAMS.viewMode === "loop" ? 2.2 : (PARAMS.viewMode === "morph" || PARAMS.viewMode === "morph_timeline") ? 5.2 : 1.8, 0);
+      controls.update();
+    });
+
+    document.getElementById("autoRotate").addEventListener("change", (ev) => {
+      PARAMS.autoRotate = Boolean(ev.target.checked);
+      applyControls();
+    });
+    document.getElementById("showGuides").addEventListener("change", (ev) => {
+      PARAMS.showGuides = Boolean(ev.target.checked);
+      updateGuideVisibility();
+    });
+    document.getElementById("showZones").addEventListener("change", (ev) => {
+      PARAMS.showZones = Boolean(ev.target.checked);
+      updateZoneVisibility();
+    });
+    document.getElementById("showLabels").addEventListener("change", (ev) => {
+      PARAMS.showLabels = Boolean(ev.target.checked);
+    });
+    el.timelineStep.addEventListener("input", (ev) => {
+      const raw = Number(ev.target.value);
+      PARAMS.timelineScrub = clamp(raw / 1000, 0, 1);
+      updateTimelineLabel();
+    });
+    el.timelineClip.addEventListener("change", (ev) => {
+      PARAMS.timelineClip = Boolean(ev.target.checked);
+      updateTimelineLabel();
+    });
+    el.toggleUi.addEventListener("click", () => {
+      setUiHidden(!PARAMS.uiHidden);
+    });
+
+    addEventListener("keydown", (ev) => {
+      const tag = ev.target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || ev.target?.isContentEditable) return;
+      if (ev.key === "ArrowRight" || ev.key === "ArrowUp") {
+        ev.preventDefault();
+        cycleViewMode(1);
+      } else if (ev.key === "ArrowLeft" || ev.key === "ArrowDown") {
+        ev.preventDefault();
+        cycleViewMode(-1);
+      }
+    });
+
+    for (const [id, key] of [
+      ["pointSize", "pointSize"],
+      ["glow", "glow"],
+      ["edgeOpacity", "edgeOpacity"],
+      ["speed", "speed"],
+    ]) {
+      const input = document.getElementById(id);
+      input.addEventListener("input", () => {
+        PARAMS[key] = Number(input.value);
+        applyControls();
+      });
+    }
+
+    function updateLabelValues() {
+      el.pointSizeValue.textContent = Number(PARAMS.pointSize).toFixed(2);
+      el.glowValue.textContent = Number(PARAMS.glow).toFixed(2);
+      el.edgeValue.textContent = Number(PARAMS.edgeOpacity).toFixed(2);
+      el.speedValue.textContent = Number(PARAMS.speed).toFixed(2);
+    }
+
+    function setDefaults() {
+      document.getElementById("viewMode").value = PARAMS.viewMode;
+      document.getElementById("autoRotate").checked = PARAMS.autoRotate;
+      document.getElementById("showGuides").checked = PARAMS.showGuides;
+      document.getElementById("showZones").checked = PARAMS.showZones;
+      document.getElementById("showLabels").checked = PARAMS.showLabels;
+      document.getElementById("timelineStep").value = Math.round(PARAMS.timelineScrub * 1000);
+      document.getElementById("timelineClip").checked = PARAMS.timelineClip;
+      document.getElementById("pointSize").value = PARAMS.pointSize;
+      document.getElementById("glow").value = PARAMS.glow;
+      document.getElementById("edgeOpacity").value = PARAMS.edgeOpacity;
+      document.getElementById("speed").value = PARAMS.speed;
+      updateLabelValues();
+      applyControls();
+      setMode(PARAMS.viewMode);
+      updateTimelineLabel();
+      setUiHidden(PARAMS.uiHidden);
+    }
+
+    function hoverFromIntersection(intersection, object) {
+      const index = intersection.index ?? 0;
+      if (object === flowPackets || object === loopPackets || object === morphPackets || object === morphTimelinePackets) {
+        const edgeMap = object?.userData?.edgeIndex;
+        const edgeIndex = edgeMap && Number.isFinite(edgeMap[index]) ? edgeMap[index] : index;
+        const edge = currentDataset?.edges?.[edgeIndex];
+        if (!edge) return;
+        const loop = Number.isFinite(edge.loop) ? edge.loop : 0;
+        const block = Number.isFinite(edge.block) ? edge.block : 0;
+        const head = Number.isFinite(edge.head) ? edge.head : -1;
+        const kvHead = Number.isFinite(edge.kv_head) ? edge.kv_head : -1;
+        const align = Number.isFinite(edge.qk_align) ? edge.qk_align : 0;
+        const transfer = Number.isFinite(edge.transfer) ? edge.transfer : 0;
+        const entropy = Number.isFinite(edge.attn_entropy) ? edge.attn_entropy : 0;
+        const lag = Number.isFinite(edge.attn_lag) ? edge.attn_lag : 0;
+        const recent = Number.isFinite(edge.recent_mass) ? edge.recent_mass : 0;
+        const magnitude = Number.isFinite(edge.magnitude) ? edge.magnitude : (Number.isFinite(edge.flow) ? edge.flow : 0);
+        const flowKind = edge.flow_kind ? String(edge.flow_kind) : "flow";
+        const srcStage = edge.src_stage ? String(edge.src_stage) : "";
+        const dstStage = edge.dst_stage ? String(edge.dst_stage) : "";
+        const dirMap = object?.userData?.direction;
+        const dir = dirMap && Number.isFinite(dirMap[index]) ? dirMap[index] : 1;
+        const dirLabel = srcStage && dstStage ? `${srcStage}→${dstStage}` : (dir > 0 ? "q→kv" : "kv→q");
+        setHover(
+          `head↔crawler flow loop=${loop} block=${block} head=${head} kv=${kvHead}` +
+            `<br/>kind=${flowKind} dir=${dirLabel} mag=${magnitude.toFixed(3)} align=${align.toFixed(3)} transfer=${transfer.toFixed(3)} entropy=${entropy.toFixed(3)} lag=${lag.toFixed(2)} recent=${recent.toFixed(3)}`,
+          object === loopPackets
+            ? "Loop edge flow"
+            : object === morphPackets
+              ? "Morph edge flow"
+              : object === morphTimelinePackets
+                ? "Morph timeline flow"
+                : "Flow edge flow",
+        );
+        return;
+      }
+      const point = currentDataset?.points?.[index];
+      if (!point) return;
+      const meta = point.meta || parseLabel(point.label);
+      const loop = Number.isFinite(meta.loop) ? meta.loop : 0;
+      const block = Number.isFinite(meta.block) ? meta.block : 0;
+      const head = Number.isFinite(meta.head) && meta.head >= 0 ? meta.head : -1;
+      const kvHead = Number.isFinite(meta.kv_head) && meta.kv_head >= 0 ? meta.kv_head : -1;
+      const align = Number.isFinite(meta.qk_align) ? meta.qk_align : 0;
+      setHover(
+        `${point.label || "particle"}<br/>` +
+          `mode=${PARAMS.viewMode} loop=${loop} block=${block} head=${head} kv=${kvHead} align=${align.toFixed(3)}`,
+        object === loopCloud
+          ? "Loop map"
+          : object === morphCloud
+            ? "Morph map"
+            : object === morphTimelineCloud
+              ? "Morph timeline"
+              : "Flow map",
+      );
+    }
+
+    function updateHover() {
+      if (!PARAMS.showLabels) {
+        setHover("Hover labels are off.", "Hidden");
+        return;
+      }
+      const candidates = chooseProjectedCloud();
+      const clouds = Array.isArray(candidates) ? candidates : [candidates];
+      const visibleClouds = clouds.filter(Boolean);
+      if (!visibleClouds.length) return;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(visibleClouds, false);
+      if (!hits.length) {
+        setHover(
+          currentDataset
+            ? `${currentDataset.points.length.toLocaleString()} particles, ${currentDataset.edges.length.toLocaleString()} edges.<br/>Projection: ${PARAMS.viewMode}.`
+            : "Load a trace to inspect particles and loop-depth links.",
+          currentDataset ? "Trace loaded" : "Idle",
+        );
+        return;
+      }
+      hoverFromIntersection(hits[0], hits[0].object);
+    }
+
+    addEventListener("pointermove", (ev) => {
+      pointer.x = (ev.clientX / window.innerWidth) * 2 - 1;
+      pointer.y = -(ev.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    addEventListener("pointerleave", () => {
+      pointer.set(999, 999);
+    });
+
+    addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    const clock = new THREE.Clock();
+    function tick() {
+      const t = clock.getElapsedTime();
+      backdrop.rotation.y = 0;
+      halo.rotation.y = 0;
+      halo.rotation.x = 0;
+      const ringPulse = 1;
+      for (const group of [flowGuideGroup, loopGuideGroup, morphGuideGroup]) {
+        group.scale.setScalar(ringPulse);
+      }
+      if (flowState && flowState.cloud.parent?.visible) {
+        applyProjectionState(flowState, t, PARAMS.speed);
+      }
+      if (loopState && loopState.cloud.parent?.visible) {
+        applyProjectionState(loopState, t, PARAMS.speed);
+      }
+      if (morphState && morphState.cloud.parent?.visible) {
+        applyProjectionState(morphState, t, PARAMS.speed);
+      }
+      if (morphTimelineState && morphTimelineState.cloud.parent?.visible) {
+        applyProjectionState(morphTimelineState, t, PARAMS.speed);
+      }
+      renderSankey(t);
+      applyControls();
+      updateHover();
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+
+    function loadDemo() {
+      const demo = [];
+      for (let s = 0; s <= 300; s += 6) {
+        for (const stage of ["embed", "encoder", "crawler", "decoder", "head_in"]) {
+          demo.push({
+            type: "activation",
+            stage,
+            step: s,
+            micro_step: s % 2,
+            loop: (s / 6) % 4,
+            block: (s / 6) % 3,
+            rms: 0.2 + 0.3 * Math.sin(s * 0.04 + stage.length),
+            std: 0.1 + 0.2 * Math.cos(s * 0.03),
+            amax: 0.8 + 0.3 * Math.sin(s * 0.06),
+          });
+        }
+        demo.push({
+          type: "head_event",
+          step: s,
+          micro_step: s % 2,
+          loop: (s / 6) % 4,
+          block: (s / 6) % 3,
+          head: (s / 6) % 4,
+          kv_head: ((s / 6) + 1) % 2,
+          num_heads: 4,
+          num_kv_heads: 2,
+          q_rms: 0.35 + 0.05 * Math.sin(s * 0.08),
+          k_rms: 0.28 + 0.04 * Math.cos(s * 0.05),
+          v_rms: 0.31 + 0.03 * Math.sin(s * 0.06),
+          qk_align: 0.25 + 0.45 * Math.abs(Math.sin(s * 0.04)),
+        });
+      }
+      currentDataset = eventsToDataset(demo);
+      el.sourceStat.textContent = "Demo trace";
+      rebuildScene();
+      setHover("Demo trace loaded. Open a Shroud JSONL or points JSON file to replace it.", "Demo");
+    }
+
+    async function init() {
+      setDefaults();
+      updatePresetLabel();
+      const ok = await loadPresetTrace(0, true);
+      if (!ok) {
+        loadDemo();
+      }
+      tick();
+    }
+
+    init();
+  </script>
+</body>
+</html>

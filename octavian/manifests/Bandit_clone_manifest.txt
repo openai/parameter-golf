@@ -1,0 +1,7 @@
+timestamp=20260329_121202
+repo=/home/frosty40/parameter-golf-lab
+source=/home/frosty40/parameter-golf-lab/experiments/Bandit
+branch=bandit
+commit=4efa746c3596aba503b77ad4c5c5181aafab04bd
+status_start
+status_end

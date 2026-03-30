@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Parameter Golf Research Hub // Darklab</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="bg-noise"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-glow bg-glow-a"></div>
+  <div class="bg-glow bg-glow-b"></div>
+
+  <header class="shell masthead">
+    <section class="hero-panel panel">
+      <p class="eyebrow">Parameter Golf // Darklab Control</p>
+      <h1>Research Hub</h1>
+      <p class="lede">Analysis-first surface for extracting best-known values, ablation signals, failure modes, and next experiments without wading through raw logs.</p>
+      <div class="hero-meta">
+        <div class="meta-chip">
+          <span>Scope</span>
+          <strong id="scopeLabel">Loading</strong>
+        </div>
+        <div class="meta-chip">
+          <span>Generated</span>
+          <strong id="generatedAt">Loading</strong>
+        </div>
+        <div class="meta-chip">
+          <span>Ablations</span>
+          <strong id="ablationCount">0</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="mission-panel panel">
+      <p class="panel-kicker">Mission</p>
+      <ul class="mission-list">
+        <li>Surface personal SOTAs by metric immediately.</li>
+        <li>Keep the current hypothesis visible above the evidence table.</li>
+        <li>Turn noisy logs into readable writeups with highlighted critical numbers.</li>
+      </ul>
+    </section>
+  </header>
+
+  <main class="shell layout">
+    <section class="summary-grid" aria-label="Top summary cards">
+      <article class="panel stat-card">
+        <span class="stat-label">Total records</span>
+        <strong id="statTotal">0</strong>
+        <small>Indexed reports, logs, scripts, and metrics.</small>
+      </article>
+      <article class="panel stat-card ok-card">
+        <span class="stat-label">Stable signal</span>
+        <strong id="statOk">0</strong>
+        <small>Metric-bearing records without a detected failure.</small>
+      </article>
+      <article class="panel stat-card warn-card">
+        <span class="stat-label">Watchlist</span>
+        <strong id="statWarn">0</strong>
+        <small>Proxy lanes, promotion notes, and fragile wins.</small>
+      </article>
+      <article class="panel stat-card error-card">
+        <span class="stat-label">Failures</span>
+        <strong id="statError">0</strong>
+        <small>Tracebacks, OOMs, shard mismatches, and broken runs.</small>
+      </article>
+      <article class="panel stat-card metric-card">
+        <span class="stat-label">Best visible metric</span>
+        <strong id="bestMetricValue">-</strong>
+        <small id="bestMetricLabel">Select a metric to rank filtered records.</small>
+      </article>
+    </section>
+
+    <section class="panel sota-panel" aria-label="Personal SOTAs by category">
+      <div class="section-head">
+        <div>
+          <p class="panel-kicker">Front Page Signal</p>
+          <h2>Personal SOTAs by Category</h2>
+        </div>
+        <p class="section-meta">Best-known values per metric with current owner, status, and source path.</p>
+      </div>
+      <div class="sota-layout">
+        <div class="sota-cards" id="sotaCards"></div>
+        <div class="panel inset-panel sota-chart-panel">
+          <div class="inset-head">
+            <h3>SOTA Spread</h3>
+            <span>Lower is better</span>
+          </div>
+          <div id="sotaChart" class="chart"></div>
+        </div>
+      </div>
+      <div class="compact-table-wrap">
+        <table class="compact-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Best Value</th>
+              <th>Metric Used</th>
+              <th>Run / Tag</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="sotaTableBody"></tbody>
+        </table>
+      </div>
+      <div class="ranking-grid">
+        <article class="ranking-panel">
+          <h3>Best BPB (Independent Tests)</h3>
+          <div class="compact-table-wrap">
+            <table class="compact-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Value</th>
+                  <th>Metric</th>
+                  <th>Run</th>
+                </tr>
+              </thead>
+              <tbody id="bpbRankingBody"></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="ranking-panel">
+          <h3>Best Base Model (Independent Tests)</h3>
+          <div class="compact-table-wrap">
+            <table class="compact-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Value</th>
+                  <th>Metric</th>
+                  <th>Run</th>
+                </tr>
+              </thead>
+              <tbody id="baseRankingBody"></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="ranking-panel">
+          <h3>Lowest File Size (Independent Tests)</h3>
+          <div class="compact-table-wrap">
+            <table class="compact-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Value</th>
+                  <th>Metric</th>
+                  <th>Run</th>
+                </tr>
+              </thead>
+              <tbody id="sizeRankingBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel hypothesis-panel" aria-label="Current hypothesis">
+      <div class="section-head">
+        <div>
+          <p class="panel-kicker">Current Read</p>
+          <h2>Hypothesis</h2>
+        </div>
+        <p class="section-meta">Generated from strongest positive signal, strongest contradiction, and the next economical test.</p>
+      </div>
+      <div class="hypothesis-grid">
+        <article class="hypo-card current">
+          <span>Current Hypothesis</span>
+          <p id="hypothesisCurrent">Loading</p>
+        </article>
+        <article class="hypo-card support">
+          <span>Supporting Signal</span>
+          <p id="hypothesisSupport">Loading</p>
+        </article>
+        <article class="hypo-card contradiction">
+          <span>Contradictory Signal</span>
+          <p id="hypothesisContradiction">Loading</p>
+        </article>
+        <article class="hypo-card next-test">
+          <span>Next Test</span>
+          <p id="hypothesisNext">Loading</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="chart-grid" aria-label="Global charts">
+      <article class="panel chart-panel">
+        <div class="section-head mini">
+          <div>
+            <p class="panel-kicker">Portfolio</p>
+            <h2>Status vs Category</h2>
+          </div>
+        </div>
+        <div id="statusChart" class="chart"></div>
+      </article>
+      <article class="panel chart-panel">
+        <div class="section-head mini">
+          <div>
+            <p class="panel-kicker">Ablation Deltas</p>
+            <h2>Top Improvement / Regression</h2>
+          </div>
+        </div>
+        <div id="ablationChart" class="chart"></div>
+      </article>
+      <article class="panel chart-panel">
+        <div class="section-head mini">
+          <div>
+            <p class="panel-kicker">Activity</p>
+            <h2>Timeline</h2>
+          </div>
+        </div>
+        <div id="timelineChart" class="chart"></div>
+      </article>
+    </section>
+
+    <section class="panel ablation-panel" aria-label="Ablation insights">
+      <div class="section-head">
+        <div>
+          <p class="panel-kicker">Research Signals</p>
+          <h2>Ablation Insights</h2>
+        </div>
+        <p class="section-meta">Ranked A/B and sweep-derived findings, sorted by usable signal rather than raw file order.</p>
+      </div>
+      <div class="ablation-cards" id="ablationCards"></div>
+      <div class="compact-table-wrap">
+        <table class="compact-table">
+          <thead>
+            <tr>
+              <th>Family</th>
+              <th>Winner</th>
+              <th>Metric</th>
+              <th>Delta</th>
+              <th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody id="ablationTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="control-band panel" aria-label="Filters and active query">
+      <div class="section-head mini">
+        <div>
+          <p class="panel-kicker">Filters</p>
+          <h2>Command Deck</h2>
+        </div>
+        <p id="activeQuery" class="section-meta">No active filter</p>
+      </div>
+      <div class="control-grid">
+        <label class="control-field control-search">
+          <span>Global search</span>
+          <input id="searchInput" type="search" placeholder="Search path, notes, metrics, snippets">
+        </label>
+        <label class="control-field">
+          <span>Category</span>
+          <select id="categoryFilter"></select>
+        </label>
+        <label class="control-field">
+          <span>Status</span>
+          <select id="statusFilter">
+            <option value="all">All</option>
+            <option value="ok">ok</option>
+            <option value="warn">warn</option>
+            <option value="error">error</option>
+            <option value="unknown">unknown</option>
+          </select>
+        </label>
+        <label class="control-field">
+          <span>Metric rank</span>
+          <select id="metricSelect"></select>
+        </label>
+        <label class="control-field">
+          <span>Direction</span>
+          <select id="sortDir">
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+        </label>
+        <button id="resetBtn" class="control-button" type="button">Reset</button>
+      </div>
+      <div class="ops-strip">
+        <div class="ops-chip"><span>Visible records</span><strong id="visibleCount">0</strong></div>
+        <div class="ops-chip"><span>Experiment groups</span><strong id="visibleExperiments">0</strong></div>
+        <div class="ops-chip"><span>Visible errors</span><strong id="visibleErrors">0</strong></div>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <section class="panel results-panel" aria-label="Indexed records">
+        <div class="section-head mini">
+          <div>
+            <p class="panel-kicker">Evidence</p>
+            <h2>Records</h2>
+          </div>
+          <p id="resultCount" class="section-meta">Loading index...</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Record</th>
+                <th>Experiment</th>
+                <th>Signal</th>
+                <th>Path</th>
+              </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="panel detail-panel" aria-label="Selected record details">
+        <div class="section-head mini detail-head">
+          <div>
+            <p class="panel-kicker">Selected Record</p>
+            <h2 id="detailTitle">Awaiting selection</h2>
+          </div>
+          <button id="copyPathBtn" class="control-button subtle" type="button" disabled>Copy path</button>
+        </div>
+        <div class="detail-banner">
+          <span id="detailStatusBadge" class="status-pill status-unknown">unknown</span>
+          <code id="detailPathCode">No path selected.</code>
+        </div>
+        <dl id="detailMeta" class="detail-meta"></dl>
+        <section class="detail-section">
+          <h3>Log Writeup</h3>
+          <div id="detailWriteup" class="writeup-body">Select a record to generate an analysis writeup.</div>
+        </section>
+        <section class="detail-section">
+          <h3>Metrics</h3>
+          <div id="detailMetrics" class="metric-grid"></div>
+        </section>
+        <section class="detail-section">
+          <h3>Notes</h3>
+          <ul id="detailNotes" class="notes-list"></ul>
+        </section>
+        <section class="detail-section">
+          <h3>Snippet</h3>
+          <pre id="detailSnippet">No record selected.</pre>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script src="./vendor/echarts.min.js"></script>
+  <script src="./app.js" defer></script>
+</body>
+</html>
