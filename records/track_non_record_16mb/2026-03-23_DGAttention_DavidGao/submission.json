@@ -1,0 +1,14 @@
+{
+  "author": "David Gao",
+  "github_id": "ddavidgao",
+  "name": "DG Attention: Differential-Gated Attention with Depth-Scheduled Novelty Encoding",
+  "blurb": "Novel attention mechanism where deep layers transmit novelty-conditioned values instead of raw token content. Depth schedule discovered from empirical β trajectory analysis across RTX 5080 and 8xH100 runs.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.0089,
+  "val_bpb": 1.1898,
+  "bytes_total": 16638468,
+  "bytes_code": 80288,
+  "step_stop": 2979,
+  "wallclock_seconds": 600.0
+}
