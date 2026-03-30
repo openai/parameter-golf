@@ -13,7 +13,7 @@ Architecture:
   - Looped 4 times = 12 effective layers
   - Per-iteration learnable scale factors (so iteration 1 ≠ iteration 2)
   - U-Net skip connections adapted for the looped structure
-  - All other features from v50: BigramHash, SmearGate, GPTQ, n-gram eval
+  - All other features from v50: BigramHash, SmearGate, GPTQ, sliding window eval
 
 This is what the competition wishlist asks for: "Universal transformer —
 We have lots of depth recurrence submissions, but I'd love to see one 4 hour"
