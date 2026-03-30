@@ -10,8 +10,8 @@
   "val_bpb_long_run_note": "200K steps / 3.75hr on 4xH200 (unlimited compute track)",
   "artifact_bytes": {
     "42": 2402339,
-    "1337": 2402339,
-    "2024": 2402339
+    "1337": 2399355,
+    "2024": 2388159
   },
   "hardware": "8xH100 SXM",
   "training_time_seconds": 600,

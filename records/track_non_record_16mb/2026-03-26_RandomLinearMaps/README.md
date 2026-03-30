@@ -9,7 +9,7 @@ What if 90% of your model's weights were just noise?
 
 Each linear layer gets a random base weight matrix. They are generated from a fixed seed at init time, like `42` or `1337`. Those base weights cost zero bytes in the artifact because they're regenerated from the seed at eval. Only small rank-16 adapters (LoRA-style A and B matrices) are learned and stored. Think of it like giving someone a house made of random LEGO bricks and a small bag of correct ones... they have to figure out which random bricks are useful and nudge the rest into place with the adapters.
 
-A 512-dim, 5-layer model normally stores around 25M parameters. This approach stores 2.2M. The other 90% are deterministic noise from a seed. The artifact is 1.92 MB, 12% of the 16 MB budget.
+A 512-dim, 5-layer model normally stores around 25M parameters. This approach stores 2.2M. The other 90% are deterministic noise from a seed. The artifact is ~2.4 MB (10 min, 8xH100) or 1.9 MB (3.75hr long run), well under the 16 MB budget.
 
 ## Results
 
@@ -95,9 +95,9 @@ Every attention projection (Q, K, V, output) and MLP layer (fc, proj) uses Rando
 
 **Smaller adapters optimize better.** Rank 16 beats 32 and 64. There's a capacity-optimization tradeoff here... bigger adapters have more capacity but need more steps to figure out how to use it.
 
-**Random projections can do language modeling.** A 1.92 MB model with 90% random weights hits 1.607 BPB. The naive baseline (fully learned, 13.5 MB) hits 1.224 BPB. The gap is real, but the fact that it works at all is the interesting part. A natural follow-up is comparing against a size-matched fully learned model at ~1.9 MB to isolate the contribution of random maps vs model capacity. That experiment is planned but not yet run.
+**Random projections can do language modeling.** A ~2.4 MB model with 90% random weights hits 1.93 BPB in 10 minutes on 8xH100 (1.607 with extended training). The naive baseline (fully learned, 13.5 MB) hits 1.224 BPB. The gap is real, but the fact that it works at all is the interesting part. A natural follow-up is comparing against a size-matched fully learned model at ~2.4 MB to isolate the contribution of random maps vs model capacity. That experiment is planned but not yet run.
 
-**The artifact is hilariously small.** 1.92 MB is 12% of the 16 MB budget. You could fit eight of these models in one artifact. Ensembles, multi-model voting, whatever you want... there's room.
+**The artifact is hilariously small.** ~2.4 MB is 15% of the 16 MB budget. You could fit six of these models in one artifact. Ensembles, multi-model voting, whatever you want... there's room.
 
 ## 3-Seed Validation (8xH100 SXM, 600s)
 
