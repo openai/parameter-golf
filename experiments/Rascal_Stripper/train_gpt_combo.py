@@ -1702,8 +1702,8 @@ def main() -> None:
                     if isinstance(m, CastedLinear) and m.weight.ndim == 2:
                         w = m.weight.float()
                         row_max = w.detach().abs().amax(dim=1)
-                        scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
-                        cq = cq + (w.pow(2) * scale.pow(2).unsqueeze(1)).mean()
+                        q_scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+                        cq = cq + (w.pow(2) * q_scale.pow(2).unsqueeze(1)).mean()
                 loss = loss + args.crownq_lambda * cq / 12.0
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
