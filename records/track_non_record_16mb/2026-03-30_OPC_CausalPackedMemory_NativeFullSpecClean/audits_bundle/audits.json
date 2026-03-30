@@ -1,0 +1,16 @@
+{
+  "tier1": {
+    "status": "pass",
+    "submission": "pass",
+    "provenance": null
+  },
+  "tier3": {
+    "status": "warn",
+    "scope": "one_shot_runtime_handoff",
+    "legality": "pass",
+    "trust_level_requested": "strict",
+    "trust_level_achieved": "strict",
+    "trust_satisfied": true,
+    "replay": "pass"
+  }
+}
