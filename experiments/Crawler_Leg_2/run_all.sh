@@ -38,7 +38,7 @@ SUMMARY="${RESULTS_DIR}/summary_${RUN_DATE}.txt"
 echo "============================================"
 echo "  CRAWLER_LEG_2 — Combined Wins + Push"
 echo "  Seed: ${SEED}  GPUs: ${NPROC_PER_NODE}  Wallclock: 600s/arm"
-echo "  Arms: CL2-00 through CL2-04 (5 total)"
+echo "  Arms: CL2-00 through CL2-04 (5 total)  Wallclock: 350s (~4k steps on 8xH100)"
 echo "  NITRUST_ENABLE=${NITRUST_ENABLE}"
 echo "============================================"
 echo ""
@@ -62,7 +62,7 @@ run_arm() {
 
     env \
         SEED="${SEED}" \
-        MAX_WALLCLOCK_SECONDS=600 \
+        MAX_WALLCLOCK_SECONDS=350 \
         WARMDOWN_ITERS=2000 \
         COMPLEMENT_ALPHA=0 \
         XSA_LAST_N=11 \
