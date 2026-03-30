@@ -1,6 +1,6 @@
 #!/bin/bash
 # smoke_test.sh — Rascal_Stripper 4-way A/B
-# Runs: baseline → turbomuon → engramlite → combo  (1500 steps each = 4500 total)
+# Runs: baseline → turbomuon → engramlite → combo  (3200 steps each = 12800 total)
 # Val BPB logged every 300 steps. Final sliding-window s64 BPB printed at the end.
 
 set -e
@@ -16,11 +16,11 @@ run_variant() {
 
     echo ""
     echo "══════════════════════════════════════════════════"
-    echo "  SMOKE: $name  (1500 steps)"
+    echo "  SMOKE: $name  (3200 steps)"
     echo "══════════════════════════════════════════════════"
 
-    ITERATIONS=1500 \
-    WARMDOWN_ITERS=400 \
+    ITERATIONS=3200 \
+    WARMDOWN_ITERS=800 \
     TRAIN_LOG_EVERY=50 \
     VAL_LOSS_EVERY=300 \
     MAX_WALLCLOCK_SECONDS=0 \
