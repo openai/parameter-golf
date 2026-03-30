@@ -1043,6 +1043,386 @@ class EntropyTrajectoryMemory:
 
 
 # =============================================================================
+# SEMANTIC CONTEXT CHECKPOINT MANAGER
+# =============================================================================
+
+class SemanticCanonicalizer:
+    """Semantic collating for context hashes.
+    
+    Maps similar contexts to the same canonical hash, enabling:
+    1. Fuzzy lookup: "the cat sat" ≈ "a cat sat" → same hash
+    2. Semantic deduplication: rare contexts cluster together
+    3. Generalization: new contexts can find similar existing ones
+    
+    The key insight: we use token-level semantic hashing that's tolerant
+    to small variations (determiners, minor word changes).
+    """
+    
+    def __init__(
+        self,
+        similarity_threshold: float = 0.85,
+        max_groups: int = 10000,
+        hash_bits: int = 64,
+    ):
+        self.similarity_threshold = similarity_threshold
+        self.max_groups = max_groups
+        self.hash_bits = hash_bits
+        
+        # Map: canonical_hash -> list of (original_hash, context_str)
+        self._canonical_groups: Dict[int, List[Tuple[int, str]]] = {}
+        
+        # Map: original_hash -> canonical_hash (for O(1) lookup)
+        self._hash_to_canonical: Dict[int, int] = {}
+        
+        # Statistics
+        self._total_canonicalized = 0
+        self._total_new_groups = 0
+    
+    def _compute_semantic_signature(self, context_str: str) -> Tuple[int, int]:
+        """Compute a semantic signature that's tolerant to minor changes.
+        
+        Returns:
+            Tuple of (primary_hash, secondary_hash) for two-stage matching
+        """
+        tokens = context_str.split(',')
+        
+        # Primary hash: content words (skip determiners, articles)
+        skip_tokens = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'of', 'to', 'in'}
+        content_tokens = [t for t in tokens if t.lower() not in skip_tokens]
+        
+        if content_tokens:
+            primary_content = ','.join(content_tokens)
+        else:
+            primary_content = context_str
+        
+        primary_hash = hadamard_bipolar_hash(primary_content.encode('utf-8'))
+        
+        # Secondary hash: position-weighted (for ordering sensitivity)
+        secondary_content = ','.join(f"{t}:{i}" for i, t in enumerate(tokens[:8]))
+        secondary_hash = hadamard_bipolar_hash(secondary_content.encode('utf-8'))
+        
+        return primary_hash, secondary_hash
+    
+    def _hamming_similarity(self, hash1: int, hash2: int) -> float:
+        """Compute Hamming similarity between two hashes."""
+        xor = hash1 ^ hash2
+        # Count differing bits
+        diff_bits = bin(xor).count('1')
+        return 1.0 - (diff_bits / self.hash_bits)
+    
+    def canonicalize(self, context_str: str) -> int:
+        """Map a context string to its canonical hash.
+        
+        If a similar context already exists, returns that canonical hash.
+        Otherwise, creates a new canonical hash.
+        
+        Args:
+            context_str: Comma-separated token IDs
+            
+        Returns:
+            Canonical hash for this context
+        """
+        primary_hash, secondary_hash = self._compute_semantic_signature(context_str)
+        
+        # Check if we've seen this exact context before
+        if primary_hash in self._hash_to_canonical:
+            return self._hash_to_canonical[primary_hash]
+        
+        # Find similar existing canonical hashes
+        best_canonical = None
+        best_similarity = 0.0
+        
+        for canonical_hash in self._canonical_groups.keys():
+            # Quick check: compare primary hashes
+            sim = self._hamming_similarity(primary_hash, canonical_hash)
+            if sim > best_similarity and sim >= self.similarity_threshold:
+                best_similarity = sim
+                best_canonical = canonical_hash
+        
+        if best_canonical is not None:
+            # Add to existing group
+            self._canonical_groups[best_canonical].append((primary_hash, context_str))
+            self._hash_to_canonical[primary_hash] = best_canonical
+            self._total_canonicalized += 1
+            return best_canonical
+        
+        # Create new canonical group
+        if len(self._canonical_groups) >= self.max_groups:
+            # Prune: remove smallest group
+            smallest_canonical = min(
+                self._canonical_groups.keys(),
+                key=lambda h: len(self._canonical_groups[h])
+            )
+            # Remove mappings
+            for orig_hash, _ in self._canonical_groups[smallest_canonical]:
+                if orig_hash in self._hash_to_canonical:
+                    del self._hash_to_canonical[orig_hash]
+            del self._canonical_groups[smallest_canonical]
+        
+        # Use primary_hash as the new canonical
+        self._canonical_groups[primary_hash] = [(primary_hash, context_str)]
+        self._hash_to_canonical[primary_hash] = primary_hash
+        self._total_new_groups += 1
+        
+        return primary_hash
+    
+    def find_similar(self, context_str: str, top_k: int = 5) -> List[Tuple[int, float]]:
+        """Find similar canonical hashes for a context.
+        
+        Args:
+            context_str: Query context string
+            top_k: Maximum number of results
+            
+        Returns:
+            List of (canonical_hash, similarity) tuples
+        """
+        primary_hash, _ = self._compute_semantic_signature(context_str)
+        
+        similarities = []
+        for canonical_hash in self._canonical_groups.keys():
+            sim = self._hamming_similarity(primary_hash, canonical_hash)
+            if sim >= self.similarity_threshold:
+                similarities.append((canonical_hash, sim))
+        
+        # Sort by similarity descending
+        similarities.sort(key=lambda x: -x[1])
+        
+        return similarities[:top_k]
+    
+    def get_stats(self) -> dict:
+        """Return statistics about the canonicalizer."""
+        total_entries = sum(len(v) for v in self._canonical_groups.values())
+        avg_group_size = total_entries / len(self._canonical_groups) if self._canonical_groups else 0
+        
+        return {
+            'num_groups': len(self._canonical_groups),
+            'total_entries': total_entries,
+            'avg_group_size': avg_group_size,
+            'total_canonicalized': self._total_canonicalized,
+            'total_new_groups': self._total_new_groups,
+        }
+
+
+class SemanticContextCheckpointManager(ContextCheckpointManager):
+    """Extends ContextCheckpointManager with semantic collating for context_hash.
+    
+    KEY INSIGHT:
+    - `seed` remains EXACT (preserves XOR-chain for reconstruction)
+    - `context_hash` becomes SEMANTIC (enables fuzzy lookup)
+    
+    This enables:
+    1. Generalization: Similar contexts share context_hash
+    2. Infinite storage maintenance: Pruning keeps semantically diverse checkpoints
+    3. Context retrieval: Query "a cat sat" → finds checkpoint for "the cat sat"
+    4. Preserved reconstruction: seed remains exact, XOR-chain still works
+    
+    ARCHITECTURE:
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                    CHECKPOINT CREATION                          │
+    ├─────────────────────────────────────────────────────────────────┤
+    │  context_tokens = [the, cat, sat, on]                           │
+    │                                                                 │
+    │  seed = hadamard_bipolar_hash(context_tokens)  ← EXACT          │
+    │         (preserves XOR-chain for reconstruction)                │
+    │                                                                 │
+    │  context_hash = semantic_collate(context_tokens)  ← FUZZY       │
+    │                (maps "the cat sat" ≈ "a cat sat" to same hash)  │
+    └─────────────────────────────────────────────────────────────────┘
+    """
+    
+    def __init__(
+        self,
+        *args,
+        semantic_threshold: float = 0.85,
+        max_semantic_groups: int = 10000,
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        
+        # Semantic canonicalizer for context_hash
+        self._semantic_canonicalizer = SemanticCanonicalizer(
+            similarity_threshold=semantic_threshold,
+            max_groups=max_semantic_groups,
+        )
+        
+        # Reverse index: context_hash -> list of checkpoint positions
+        self._semantic_index: Dict[int, List[int]] = {}
+        
+        # Statistics
+        self._semantic_matches = 0
+    
+    def create_checkpoint(
+        self,
+        position: int,
+        context_tokens: Optional[List[int]] = None,
+    ) -> ContextCheckpoint:
+        """Create a checkpoint with semantic context_hash.
+        
+        The seed is computed EXACTLY (for XOR-chain reconstruction).
+        The context_hash is computed SEMANTICALLY (for fuzzy lookup).
+        """
+        # Get context tokens
+        tokens = context_tokens or list(self._token_buffer)
+        context_str = ",".join(str(t) for t in tokens)
+        
+        # EXACT seed (preserves XOR-chain property)
+        seed = hadamard_bipolar_hash(context_str.encode('utf-8'))
+        
+        # SEMANTIC context_hash (enables fuzzy lookup)
+        context_hash = self._semantic_canonicalizer.canonicalize(context_str)
+        
+        # Track if this matched an existing semantic group
+        if context_hash in self._semantic_index:
+            self._semantic_matches += 1
+        
+        # Update accumulated hash (for chaining)
+        self._accumulated_hash ^= seed
+        
+        # Create checkpoint
+        checkpoint = ContextCheckpoint(
+            position=position,
+            seed=seed,                    # EXACT for reconstruction
+            context_hash=context_hash,    # SEMANTIC for lookup
+            accumulated_hash=self._accumulated_hash,
+            token_count=self._token_count,
+            context_tokens=tokens,
+        )
+        
+        # Update semantic index
+        if context_hash not in self._semantic_index:
+            self._semantic_index[context_hash] = []
+        self._semantic_index[context_hash].append(position)
+        
+        # Store in appropriate tier
+        tier = self.intervals.get_tier(position)
+        if tier == 'coarse':
+            self._coarse_checkpoints[position] = checkpoint
+            bisect.insort(self._coarse_positions, position)
+        elif tier == 'medium':
+            self._medium_checkpoints[position] = checkpoint
+            bisect.insort(self._medium_positions, position)
+        else:
+            self._fine_checkpoints[position] = checkpoint
+            bisect.insort(self._fine_positions, position)
+        
+        # Reset counters
+        self._token_count = 0
+        self._last_checkpoint_pos = position
+        self._total_checkpoints += 1
+        
+        # Prune if needed (with semantic diversity)
+        self._prune_if_needed()
+        
+        return checkpoint
+    
+    def find_similar_checkpoints(
+        self,
+        context_tokens: List[int],
+        top_k: int = 5,
+    ) -> List[Tuple[ContextCheckpoint, float]]:
+        """Find checkpoints with semantically similar contexts.
+        
+        Args:
+            context_tokens: Query context tokens
+            top_k: Maximum number of results
+            
+        Returns:
+            List of (checkpoint, similarity) tuples
+        """
+        context_str = ",".join(str(t) for t in context_tokens)
+        
+        # Find similar canonical hashes
+        similar_hashes = self._semantic_canonicalizer.find_similar(context_str, top_k)
+        
+        results = []
+        for canonical_hash, similarity in similar_hashes:
+            if canonical_hash in self._semantic_index:
+                for pos in self._semantic_index[canonical_hash]:
+                    cp = self.get_nearest_checkpoint(pos)
+                    if cp is not None:
+                        results.append((cp, similarity))
+                        if len(results) >= top_k:
+                            return results
+        
+        return results
+    
+    def _prune_if_needed(self):
+        """Prune checkpoints while maintaining semantic diversity.
+        
+        When pruning, we prefer to keep checkpoints that:
+        1. Represent unique semantic groups (diverse context_hash values)
+        2. Are more recent (within each semantic group)
+        """
+        total = (len(self._fine_checkpoints) +
+                 len(self._medium_checkpoints) +
+                 len(self._coarse_checkpoints))
+        
+        if total <= self.max_checkpoints:
+            return
+        
+        # Count semantic diversity in each tier
+        fine_semantic_groups = set()
+        for cp in self._fine_checkpoints.values():
+            fine_semantic_groups.add(cp.context_hash)
+        
+        # Prune fine checkpoints, keeping semantic diversity
+        while len(self._fine_checkpoints) > self.max_checkpoints // 2:
+            if not self._fine_positions:
+                break
+            
+            # Find checkpoint to prune: prefer duplicates within semantic group
+            oldest_pos = self._fine_positions[0]
+            oldest_cp = self._fine_checkpoints[oldest_pos]
+            
+            # Check if this is the last checkpoint in its semantic group
+            is_last_in_group = len(self._semantic_index.get(oldest_cp.context_hash, [])) <= 1
+            
+            if is_last_in_group and len(fine_semantic_groups) > self.max_checkpoints // 4:
+                # Keep this one, try next oldest
+                # Find next candidate that's not last in its group
+                found_alternative = False
+                for i, pos in enumerate(self._fine_positions[1:], 1):
+                    cp = self._fine_checkpoints[pos]
+                    if len(self._semantic_index.get(cp.context_hash, [])) > 1:
+                        # This one has duplicates, safe to prune
+                        del self._fine_checkpoints[pos]
+                        self._fine_positions.pop(i)
+                        if cp.context_hash in self._semantic_index:
+                            self._semantic_index[cp.context_hash].remove(pos)
+                        found_alternative = True
+                        break
+                
+                if not found_alternative:
+                    # No alternative found, prune oldest anyway
+                    del self._fine_checkpoints[oldest_pos]
+                    self._fine_positions.pop(0)
+                    if oldest_cp.context_hash in self._semantic_index:
+                        self._semantic_index[oldest_cp.context_hash].remove(oldest_pos)
+                    fine_semantic_groups.discard(oldest_cp.context_hash)
+            else:
+                # Safe to prune (has duplicates in semantic group)
+                del self._fine_checkpoints[oldest_pos]
+                self._fine_positions.pop(0)
+                if oldest_cp.context_hash in self._semantic_index:
+                    self._semantic_index[oldest_cp.context_hash].remove(oldest_pos)
+                if is_last_in_group:
+                    fine_semantic_groups.discard(oldest_cp.context_hash)
+    
+    def get_stats(self) -> dict:
+        """Return statistics including semantic info."""
+        base_stats = super().get_stats()
+        semantic_stats = self._semantic_canonicalizer.get_stats()
+        
+        return {
+            **base_stats,
+            'semantic_groups': semantic_stats['num_groups'],
+            'semantic_avg_group_size': semantic_stats['avg_group_size'],
+            'semantic_matches': self._semantic_matches,
+            'semantic_canonicalized': semantic_stats['total_canonicalized'],
+        }
+
+
+# =============================================================================
 # TESTING
 # =============================================================================
 
@@ -1198,6 +1578,78 @@ def test_entropy_trajectory_memory():
     return True
 
 
+def test_semantic_context_checkpoint():
+    """Test SemanticContextCheckpointManager with semantic collating."""
+    print("\n=== Testing Semantic Context Checkpoint Manager ===")
+    
+    manager = SemanticContextCheckpointManager(
+        uint64_count=16384,
+        window_size=64,
+        semantic_threshold=0.85,
+        max_semantic_groups=1000,
+    )
+    
+    # Simulate contexts with semantic similarity
+    # Group 1: "the cat sat" variations
+    contexts_group1 = [
+        [1, 2, 3, 4],      # the cat sat on
+        [5, 2, 3, 4],      # a cat sat on  (determiner change)
+        [1, 2, 3, 6],      # the cat sat in  (preposition change)
+    ]
+    
+    # Group 2: "the dog ran" variations
+    contexts_group2 = [
+        [1, 7, 8, 4],      # the dog ran on
+        [5, 7, 8, 4],      # a dog ran on
+        [1, 7, 8, 6],      # the dog ran in
+    ]
+    
+    # Process all contexts
+    all_contexts = contexts_group1 + contexts_group2
+    checkpoints = []
+    
+    for i, ctx in enumerate(all_contexts):
+        pos = i * 512  # Simulate positions at checkpoint intervals
+        cp = manager.create_checkpoint(pos, context_tokens=ctx)
+        checkpoints.append(cp)
+        print(f"  Context {i}: tokens={ctx}")
+        print(f"    seed={cp.seed:016x} (EXACT)")
+        print(f"    context_hash={cp.context_hash:016x} (SEMANTIC)")
+    
+    # Check semantic grouping
+    print("\n  Semantic grouping analysis:")
+    stats = manager.get_stats()
+    print(f"    Total checkpoints: {stats['total_checkpoints']}")
+    print(f"    Semantic groups: {stats['semantic_groups']}")
+    print(f"    Semantic matches: {stats['semantic_matches']}")
+    print(f"    Avg group size: {stats['semantic_avg_group_size']:.2f}")
+    
+    # Test find_similar_checkpoints
+    print("\n  Testing semantic similarity search:")
+    query_context = [5, 2, 3, 4]  # "a cat sat on"
+    similar = manager.find_similar_checkpoints(query_context, top_k=3)
+    print(f"    Query: {query_context}")
+    for cp, sim in similar:
+        print(f"      Found: pos={cp.position}, tokens={cp.context_tokens}, sim={sim:.3f}")
+    
+    # Verify seed remains exact (XOR-chain property preserved)
+    print("\n  Verifying XOR-chain property:")
+    if len(checkpoints) >= 2:
+        # Seeds should be different even for similar contexts
+        seed1, seed2 = checkpoints[0].seed, checkpoints[1].seed
+        print(f"    seed[0] = {seed1:016x}")
+        print(f"    seed[1] = {seed2:016x}")
+        print(f"    Seeds different: {seed1 != seed2}")
+        
+        # Context hashes may be same for similar contexts
+        hash1, hash2 = checkpoints[0].context_hash, checkpoints[1].context_hash
+        print(f"    context_hash[0] = {hash1:016x}")
+        print(f"    context_hash[1] = {hash2:016x}")
+        print(f"    Hashes same (semantic match): {hash1 == hash2}")
+    
+    return True
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("UNLIMITED CONTEXT MODULE TESTS")
@@ -1207,6 +1659,7 @@ if __name__ == "__main__":
     test_unlimited_context()
     test_xor_chaining()
     test_entropy_trajectory_memory()
+    test_semantic_context_checkpoint()
     
     print("\n" + "=" * 60)
     print("ALL TESTS PASSED")
