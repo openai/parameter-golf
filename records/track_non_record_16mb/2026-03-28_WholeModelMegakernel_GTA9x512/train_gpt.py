@@ -556,7 +556,17 @@ class DistributedTokenLoader:
         self.stream.load_state_dict(state["stream"])
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
-        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
+        denom = self.world_size * grad_accum_steps
+        if global_tokens % denom != 0:
+            raise ValueError(
+                f"TRAIN_BATCH_TOKENS={global_tokens} must be divisible by WORLD_SIZE*GRAD_ACCUM_STEPS={denom}"
+            )
+        local_tokens = global_tokens // denom
+        if local_tokens < seq_len or local_tokens % seq_len != 0:
+            raise ValueError(
+                f"Per-rank microbatch tokens must be a positive multiple of TRAIN_SEQ_LEN; "
+                f"got local_tokens={local_tokens}, TRAIN_SEQ_LEN={seq_len}"
+            )
         per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
@@ -1895,7 +1905,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor> backward_
   auto probs = torch::softmax(logits, -1);
   auto grad_logits = probs.clone();
   grad_logits.scatter_add_(1, target_flat.view({-1, 1}), torch::full({rows, 1}, -1.0f, float_opts));
-  grad_logits.mul_(dloss.item<float>() / static_cast<float>(rows));
+  auto scale = dloss / static_cast<float>(rows);
+  grad_logits.mul_(scale);
   grad_logits.mul_(1.0f - tanh_val * tanh_val);
   grad_tok.add_(torch::matmul(grad_logits.transpose(0, 1), x_final));
   grad_post.back().copy_(rmsnorm_backward_host(x_after.back(), torch::matmul(grad_logits, tok_emb)));
@@ -2522,6 +2533,21 @@ def run_megakernel_parity_check(
         return WholeModelMegakernelRuntime(runtime.module, False, f"parity_exception:{exc}")
     return runtime
 
+
+def query_gpu_summary() -> str:
+    proc = subprocess.run(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.used,utilization.gpu",
+            "--format=csv,noheader,nounits",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    return proc.stdout
+
 # -----------------------------
 # TRAINING
 # -----------------------------
@@ -2587,10 +2613,7 @@ def main() -> None:
     log0("=" * 100, console=False)
     log0(f"Running Python {sys.version}", console=False)
     log0(f"Running PyTorch {torch.__version__}", console=False)
-    log0(
-        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
-        console=False,
-    )
+    log0(query_gpu_summary(), console=False)
     log0("=" * 100, console=False)
     local_safety_adjusted = False
     if world_size == 1 and total_vram_gib < 36.0:

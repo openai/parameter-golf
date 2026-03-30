@@ -2,10 +2,11 @@
   "author": "GreQ + Codex",
   "github_id": "GreQ",
   "name": "Whole-Model GTA CUDA Path",
+  "track": "track_non_record_16mb",
   "blurb": "Standalone packed-GTA non-record draft with an inline CUDA plus cuBLAS whole-model forward/eval path, a manual packed-buffer reverse pass, and a local RTX 4090 benchmark log.",
   "date": "2026-03-30T16:50:00Z",
   "val_loss": null,
   "val_bpb": null,
   "bytes_total": null,
-  "bytes_code": 129273
+  "bytes_code": 130009
 }
