@@ -32,7 +32,7 @@
 
 ## Quantization & Eval
 
-- Full Cholesky GPTQ with act-order (training data calibration only)
+- Full Cholesky GPTQ with act-order (self-generated calibration, no val data)
 - int6 + zstd-22 compression
 - Score-first AdamW TTT (lr=0.0001, 3 epochs, last 2 blocks unfrozen)
 - Sliding window eval stride=32
@@ -40,6 +40,6 @@
 ## Compliance
 
 - Training: 600s wallclock (hard cap)
-- GPTQ calibration: training data only
+- GPTQ calibration: self-generated tokens (no validation data used)
 - TTT: legal score-first (each token scored before any gradient update using it)
 - All artifacts < 16,000,000 bytes
